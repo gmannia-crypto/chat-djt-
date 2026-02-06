@@ -23,6 +23,10 @@ import {
   getConversation,
   saveMessages,
   generateUniqueId,
+  getQuestionCount,
+  incrementQuestionCount,
+  getFreeQuestionLimit,
+  getRemainingFreeQuestions,
 } from "@/lib/chat-storage";
 import { streamChat } from "@/lib/stream-chat";
 import { getApiUrl } from "@/lib/query-client";
@@ -134,6 +138,8 @@ export default function ChatScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [trumpVoice, setTrumpVoice] = useState(true);
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
+  const [remainingQuestions, setRemainingQuestions] = useState<number>(getFreeQuestionLimit());
+  const [trialExpired, setTrialExpired] = useState(false);
   const inputRef = useRef<TextInput>(null);
   const initializedRef = useRef(false);
   const conversationIdRef = useRef(id);
@@ -142,7 +148,14 @@ export default function ChatScreen() {
   useEffect(() => {
     loadConversation();
     loadVoicePreference();
+    loadQuestionCount();
   }, [id]);
+
+  async function loadQuestionCount() {
+    const remaining = await getRemainingFreeQuestions();
+    setRemainingQuestions(remaining);
+    setTrialExpired(remaining <= 0);
+  }
 
   async function loadVoicePreference() {
     try {
@@ -263,8 +276,21 @@ export default function ChatScreen() {
     const text = inputText.trim();
     if (!text || isStreaming) return;
 
+    if (trialExpired) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      router.push("/subscribe");
+      return;
+    }
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setInputText("");
+
+    await incrementQuestionCount();
+    const remaining = await getRemainingFreeQuestions();
+    setRemainingQuestions(remaining);
+    if (remaining <= 0) {
+      setTrialExpired(true);
+    }
 
     const currentMessages = [...messages];
     const userMessage: Message = {
@@ -447,41 +473,70 @@ export default function ChatScreen() {
             { paddingBottom: insets.bottom + webBottomInset + 8 },
           ]}
         >
-          <View style={styles.inputRow}>
-            <TextInput
-              ref={inputRef}
-              style={styles.input}
-              placeholder="Ask the greatest president ever..."
-              placeholderTextColor={Colors.whiteMuted}
-              value={inputText}
-              onChangeText={setInputText}
-              multiline
-              maxLength={2000}
-              blurOnSubmit={false}
-              onSubmitEditing={handleSend}
-              editable={!isStreaming}
-              testID="chat-input"
-            />
+          {trialExpired ? (
             <Pressable
               onPress={() => {
-                handleSend();
-                inputRef.current?.focus();
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                router.push("/subscribe");
               }}
-              disabled={!inputText.trim() || isStreaming}
-              style={({ pressed }) => [
-                styles.sendButton,
-                (!inputText.trim() || isStreaming) && styles.sendButtonDisabled,
-                pressed && styles.sendButtonPressed,
-              ]}
-              testID="send-button"
+              style={styles.paywallBanner}
+              testID="paywall-banner"
             >
-              {isStreaming ? (
-                <ActivityIndicator size="small" color={Colors.black} />
-              ) : (
-                <Ionicons name="arrow-up" size={20} color={Colors.black} />
-              )}
+              <View style={styles.paywallContent}>
+                <MaterialCommunityIcons name="crown" size={20} color={Colors.gold} />
+                <View style={styles.paywallTextContainer}>
+                  <Text style={styles.paywallTitle}>Free trial ended</Text>
+                  <Text style={styles.paywallSubtitle}>Subscribe for $2.99/mo for unlimited access</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={Colors.gold} />
+              </View>
             </Pressable>
-          </View>
+          ) : (
+            <>
+              {remainingQuestions <= getFreeQuestionLimit() && (
+                <View style={styles.trialCounter}>
+                  <Text style={styles.trialCounterText}>
+                    {remainingQuestions} free {remainingQuestions === 1 ? "question" : "questions"} remaining
+                  </Text>
+                </View>
+              )}
+              <View style={styles.inputRow}>
+                <TextInput
+                  ref={inputRef}
+                  style={styles.input}
+                  placeholder="Ask the greatest president ever..."
+                  placeholderTextColor={Colors.whiteMuted}
+                  value={inputText}
+                  onChangeText={setInputText}
+                  multiline
+                  maxLength={2000}
+                  blurOnSubmit={false}
+                  onSubmitEditing={handleSend}
+                  editable={!isStreaming}
+                  testID="chat-input"
+                />
+                <Pressable
+                  onPress={() => {
+                    handleSend();
+                    inputRef.current?.focus();
+                  }}
+                  disabled={!inputText.trim() || isStreaming}
+                  style={({ pressed }) => [
+                    styles.sendButton,
+                    (!inputText.trim() || isStreaming) && styles.sendButtonDisabled,
+                    pressed && styles.sendButtonPressed,
+                  ]}
+                  testID="send-button"
+                >
+                  {isStreaming ? (
+                    <ActivityIndicator size="small" color={Colors.black} />
+                  ) : (
+                    <Ionicons name="arrow-up" size={20} color={Colors.black} />
+                  )}
+                </Pressable>
+              </View>
+            </>
+          )}
         </View>
       </KeyboardAvoidingView>
     </View>
@@ -711,5 +766,41 @@ const styles = StyleSheet.create({
   },
   speakButtonDisabled: {
     opacity: 0.3,
+  },
+  trialCounter: {
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  trialCounterText: {
+    fontSize: 12,
+    color: Colors.goldDark,
+    fontWeight: "600" as const,
+  },
+  paywallBanner: {
+    borderRadius: 16,
+    backgroundColor: "rgba(212, 164, 32, 0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(212, 164, 32, 0.3)",
+    overflow: "hidden",
+  },
+  paywallContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 12,
+  },
+  paywallTextContainer: {
+    flex: 1,
+  },
+  paywallTitle: {
+    fontSize: 15,
+    fontFamily: "PlayfairDisplay_700Bold",
+    color: Colors.gold,
+    marginBottom: 2,
+  },
+  paywallSubtitle: {
+    fontSize: 12,
+    color: Colors.whiteDim,
   },
 });
