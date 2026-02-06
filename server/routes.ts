@@ -77,6 +77,26 @@ RESPONSE RULES:
 - Keep responses conversational and engaging
 - Match the emotional weight of the question — serious questions get passionate serious answers, fun questions get enthusiastic fun answers`;
 
+async function trumpTextToSpeech(text: string): Promise<Buffer> {
+  const response = await openai.chat.completions.create({
+    model: "gpt-audio",
+    modalities: ["text", "audio"],
+    audio: { voice: "onyx", format: "mp3" },
+    messages: [
+      {
+        role: "system",
+        content: `You are a voice actor performing a bold, confident, commanding male voice. Read the provided text aloud with dramatic emphasis, strong conviction, and a powerful delivery. Speak with authority and charisma. Read the text exactly as written — do not add, remove, or change any words.`,
+      },
+      {
+        role: "user",
+        content: `Read this text aloud exactly as written: ${text}`,
+      },
+    ],
+  });
+  const audioData = (response.choices[0]?.message as any)?.audio?.data ?? "";
+  return Buffer.from(audioData, "base64");
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/chat", async (req, res) => {
     try {
@@ -138,7 +158,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const truncatedText = text.slice(0, 2000);
 
-      const audioBuffer = await textToSpeech(truncatedText, "onyx", "mp3");
+      const audioBuffer = await trumpTextToSpeech(truncatedText);
 
       res.setHeader("Content-Type", "audio/mpeg");
       res.setHeader("Content-Length", audioBuffer.length.toString());

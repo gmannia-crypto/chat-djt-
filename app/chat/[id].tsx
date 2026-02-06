@@ -32,6 +32,7 @@ import { streamChat } from "@/lib/stream-chat";
 import { getApiUrl } from "@/lib/query-client";
 
 const TRUMP_VOICE_KEY = "chatdjt_trump_voice";
+const AUTO_SPEAK_KEY = "chatdjt_auto_speak";
 
 let currentPlayer: ExpoAudioPlayer | HTMLAudioElement | null = null;
 
@@ -140,15 +141,19 @@ export default function ChatScreen() {
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [remainingQuestions, setRemainingQuestions] = useState<number>(getFreeQuestionLimit());
   const [trialExpired, setTrialExpired] = useState(false);
+  const [autoSpeak, setAutoSpeak] = useState(false);
   const inputRef = useRef<TextInput>(null);
   const initializedRef = useRef(false);
   const conversationIdRef = useRef(id);
   const trumpVoiceRef = useRef(true);
+  const autoSpeakRef = useRef(false);
+  const pendingAutoSpeakRef = useRef<string | null>(null);
 
   useEffect(() => {
     loadConversation();
     loadVoicePreference();
     loadQuestionCount();
+    loadAutoSpeakPreference();
   }, [id]);
 
   async function loadQuestionCount() {
@@ -168,12 +173,31 @@ export default function ChatScreen() {
     } catch {}
   }
 
+  async function loadAutoSpeakPreference() {
+    try {
+      const saved = await AsyncStorage.getItem(AUTO_SPEAK_KEY);
+      if (saved !== null) {
+        const val = saved === "true";
+        setAutoSpeak(val);
+        autoSpeakRef.current = val;
+      }
+    } catch {}
+  }
+
   async function toggleTrumpVoice() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const newVal = !trumpVoice;
     setTrumpVoice(newVal);
     trumpVoiceRef.current = newVal;
     await AsyncStorage.setItem(TRUMP_VOICE_KEY, String(newVal));
+  }
+
+  async function toggleAutoSpeak() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const newVal = !autoSpeak;
+    setAutoSpeak(newVal);
+    autoSpeakRef.current = newVal;
+    await AsyncStorage.setItem(AUTO_SPEAK_KEY, String(newVal));
   }
 
   async function handleSpeak(messageId: string, text: string) {
@@ -363,6 +387,13 @@ export default function ChatScreen() {
       setIsStreaming(false);
       setShowTyping(false);
       await saveMessages(conversationIdRef.current!, finalMessages);
+
+      if (autoSpeakRef.current && fullContent.length > 0) {
+        const lastMsg = finalMessages[finalMessages.length - 1];
+        if (lastMsg && lastMsg.role === "assistant") {
+          handleSpeak(lastMsg.id, lastMsg.content);
+        }
+      }
     }
   }
 
@@ -395,29 +426,45 @@ export default function ChatScreen() {
           <MaterialCommunityIcons name="crown" size={20} color={Colors.gold} />
           <Text style={styles.chatHeaderTitle}>Chat DJT</Text>
         </View>
-        <Pressable
-          onPress={toggleTrumpVoice}
-          style={[
-            styles.voiceToggle,
-            trumpVoice ? styles.voiceToggleOn : styles.voiceToggleOff,
-          ]}
-          disabled={isStreaming}
-          testID="voice-toggle"
-        >
-          <MaterialCommunityIcons
-            name={trumpVoice ? "account-voice" : "account-voice-off"}
-            size={18}
-            color={trumpVoice ? Colors.gold : Colors.whiteMuted}
-          />
-          <Text
+        <View style={styles.headerRight}>
+          <Pressable
+            onPress={toggleAutoSpeak}
             style={[
-              styles.voiceToggleText,
-              { color: trumpVoice ? Colors.gold : Colors.whiteMuted },
+              styles.autoSpeakToggle,
+              autoSpeak ? styles.autoSpeakOn : styles.autoSpeakOff,
             ]}
+            testID="auto-speak-toggle"
           >
-            {trumpVoice ? "DJT" : "Spirit"}
-          </Text>
-        </Pressable>
+            <Ionicons
+              name={autoSpeak ? "volume-high" : "volume-mute"}
+              size={18}
+              color={autoSpeak ? Colors.gold : Colors.whiteMuted}
+            />
+          </Pressable>
+          <Pressable
+            onPress={toggleTrumpVoice}
+            style={[
+              styles.voiceToggle,
+              trumpVoice ? styles.voiceToggleOn : styles.voiceToggleOff,
+            ]}
+            disabled={isStreaming}
+            testID="voice-toggle"
+          >
+            <MaterialCommunityIcons
+              name={trumpVoice ? "account-voice" : "account-voice-off"}
+              size={18}
+              color={trumpVoice ? Colors.gold : Colors.whiteMuted}
+            />
+            <Text
+              style={[
+                styles.voiceToggleText,
+                { color: trumpVoice ? Colors.gold : Colors.whiteMuted },
+              ]}
+            >
+              {trumpVoice ? "DJT" : "Spirit"}
+            </Text>
+          </Pressable>
+        </View>
       </View>
 
       <KeyboardAvoidingView
@@ -721,6 +768,27 @@ const styles = StyleSheet.create({
   sendButtonPressed: {
     opacity: 0.8,
     transform: [{ scale: 0.9 }],
+  },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  autoSpeakToggle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+  },
+  autoSpeakOn: {
+    backgroundColor: "rgba(212, 164, 32, 0.2)",
+    borderColor: "rgba(212, 164, 32, 0.5)",
+  },
+  autoSpeakOff: {
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    borderColor: Colors.border,
   },
   voiceToggle: {
     flexDirection: "row",
