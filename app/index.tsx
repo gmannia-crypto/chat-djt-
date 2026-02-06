@@ -129,7 +129,7 @@ export default function HomeScreen() {
         resizeMode="contain"
       />
       <LinearGradient
-        colors={["rgba(10, 10, 10, 0.3)", "rgba(10, 10, 10, 0.85)", "rgba(10, 10, 10, 1)"]}
+        colors={["rgba(10, 10, 10, 0.1)", "rgba(10, 10, 10, 0.5)", "rgba(10, 10, 10, 0.95)"]}
         style={styles.backgroundOverlay}
         start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 1 }}
@@ -249,9 +249,9 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: "70%" as any,
+    height: "75%" as any,
     width: "100%",
-    opacity: 0.2,
+    opacity: 0.55,
   },
   backgroundOverlay: {
     position: "absolute",
