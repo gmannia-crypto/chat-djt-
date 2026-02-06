@@ -3,7 +3,8 @@ import { getApiUrl } from "@/lib/query-client";
 
 export async function streamChat(
   messages: { role: string; content: string }[],
-  onChunk: (text: string) => void
+  onChunk: (text: string) => void,
+  trumpVoice: boolean = true
 ): Promise<void> {
   const baseUrl = getApiUrl();
 
@@ -13,7 +14,7 @@ export async function streamChat(
       "Content-Type": "application/json",
       Accept: "text/event-stream",
     },
-    body: JSON.stringify({ messages }),
+    body: JSON.stringify({ messages, trumpVoice }),
   });
 
   if (!response.ok) throw new Error("Failed to get response");

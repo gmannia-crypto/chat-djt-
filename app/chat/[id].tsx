@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import Colors from "@/constants/colors";
 import {
@@ -23,6 +24,8 @@ import {
   generateUniqueId,
 } from "@/lib/chat-storage";
 import { streamChat } from "@/lib/stream-chat";
+
+const TRUMP_VOICE_KEY = "chatdjt_trump_voice";
 
 function MessageBubble({ message }: { message: Message }) {
   const isUser = message.role === "user";
@@ -92,13 +95,35 @@ export default function ChatScreen() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [showTyping, setShowTyping] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [trumpVoice, setTrumpVoice] = useState(true);
   const inputRef = useRef<TextInput>(null);
   const initializedRef = useRef(false);
   const conversationIdRef = useRef(id);
+  const trumpVoiceRef = useRef(true);
 
   useEffect(() => {
     loadConversation();
+    loadVoicePreference();
   }, [id]);
+
+  async function loadVoicePreference() {
+    try {
+      const saved = await AsyncStorage.getItem(TRUMP_VOICE_KEY);
+      if (saved !== null) {
+        const val = saved === "true";
+        setTrumpVoice(val);
+        trumpVoiceRef.current = val;
+      }
+    } catch {}
+  }
+
+  async function toggleTrumpVoice() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const newVal = !trumpVoice;
+    setTrumpVoice(newVal);
+    trumpVoiceRef.current = newVal;
+    await AsyncStorage.setItem(TRUMP_VOICE_KEY, String(newVal));
+  }
 
   async function loadConversation() {
     if (initializedRef.current) return;
@@ -140,6 +165,7 @@ export default function ChatScreen() {
         { role: "user", content: text },
       ];
 
+      const voiceSetting = trumpVoiceRef.current;
       await streamChat(chatHistory, (chunk) => {
         fullContent += chunk;
 
@@ -168,7 +194,7 @@ export default function ChatScreen() {
             return updated;
           });
         }
-      });
+      }, voiceSetting);
     } catch (error) {
       setShowTyping(false);
       const errorMsg: Message = {
@@ -219,7 +245,29 @@ export default function ChatScreen() {
           <MaterialCommunityIcons name="crown" size={20} color={Colors.gold} />
           <Text style={styles.chatHeaderTitle}>Chat DJT</Text>
         </View>
-        <View style={styles.backButton} />
+        <Pressable
+          onPress={toggleTrumpVoice}
+          style={[
+            styles.voiceToggle,
+            trumpVoice ? styles.voiceToggleOn : styles.voiceToggleOff,
+          ]}
+          disabled={isStreaming}
+          testID="voice-toggle"
+        >
+          <MaterialCommunityIcons
+            name={trumpVoice ? "account-voice" : "account-voice-off"}
+            size={18}
+            color={trumpVoice ? Colors.gold : Colors.whiteMuted}
+          />
+          <Text
+            style={[
+              styles.voiceToggleText,
+              { color: trumpVoice ? Colors.gold : Colors.whiteMuted },
+            ]}
+          >
+            {trumpVoice ? "DJT" : "Spirit"}
+          </Text>
+        </Pressable>
       </View>
 
       <KeyboardAvoidingView
@@ -487,5 +535,26 @@ const styles = StyleSheet.create({
   sendButtonPressed: {
     opacity: 0.8,
     transform: [{ scale: 0.9 }],
+  },
+  voiceToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  voiceToggleOn: {
+    backgroundColor: "rgba(212, 164, 32, 0.15)",
+    borderColor: "rgba(212, 164, 32, 0.4)",
+  },
+  voiceToggleOff: {
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    borderColor: Colors.border,
+  },
+  voiceToggleText: {
+    fontSize: 12,
+    fontFamily: "PlayfairDisplay_700Bold",
   },
 });
