@@ -24,8 +24,10 @@ Preferred communication style: Simple, everyday language.
 ### Backend (Express)
 
 - **Server**: Express 5 running in `server/index.ts` on port 5000
-- **API Route**: `POST /api/chat` — accepts messages array, streams Trump-persona responses via SSE using OpenAI chat completions (gpt-5.2)
-- **OpenAI Integration**: Uses Replit AI Integrations env vars. Trump system prompt in `server/routes.ts`
+- **API Routes**:
+  - `POST /api/chat` — accepts messages array + trumpVoice boolean, streams Trump-persona responses via SSE using OpenAI chat completions (gpt-5.2)
+  - `POST /api/tts` — accepts { text } body, returns audio/mpeg buffer using OpenAI gpt-audio model with "onyx" voice for text-to-speech
+- **OpenAI Integration**: Uses Replit AI Integrations env vars. Trump system prompt in `server/routes.ts`. TTS uses `server/replit_integrations/audio/client.ts`
 - **Static Serving**: In production, serves pre-built Expo web assets from `dist/`
 
 ### Key Files
@@ -58,3 +60,4 @@ Preferred communication style: Simple, everyday language.
 ## Recent Changes
 
 - 2026-02-06: Full app rebuild — server routes, all screens (home, chat, subscribe, admin), chat storage, streaming, error boundary, theme colors, app.json configuration
+- 2026-02-06: Added voice toggle (DJT/Spirit modes), Chat DJT logo as prominent home screen background, TTS speaker button on assistant messages using OpenAI gpt-audio with onyx voice
