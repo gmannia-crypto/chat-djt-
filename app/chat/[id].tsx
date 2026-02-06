@@ -16,7 +16,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
-import { Audio } from "expo-av";
+import { createAudioPlayer, type AudioPlayer as ExpoAudioPlayer } from "expo-audio";
 import Colors from "@/constants/colors";
 import {
   Message,
@@ -29,7 +29,7 @@ import { getApiUrl } from "@/lib/query-client";
 
 const TRUMP_VOICE_KEY = "chatdjt_trump_voice";
 
-let currentSound: Audio.Sound | null = null;
+let currentPlayer: ExpoAudioPlayer | HTMLAudioElement | null = null;
 
 function MessageBubble({
   message,
@@ -165,19 +165,29 @@ export default function ChatScreen() {
 
   async function handleSpeak(messageId: string, text: string) {
     if (speakingMessageId === messageId) {
-      if (currentSound) {
-        await currentSound.stopAsync();
-        await currentSound.unloadAsync();
-        currentSound = null;
+      if (currentPlayer) {
+        if (currentPlayer instanceof HTMLAudioElement) {
+          currentPlayer.pause();
+          currentPlayer.src = "";
+        } else {
+          currentPlayer.pause();
+          currentPlayer.remove();
+        }
+        currentPlayer = null;
       }
       setSpeakingMessageId(null);
       return;
     }
 
-    if (currentSound) {
-      await currentSound.stopAsync();
-      await currentSound.unloadAsync();
-      currentSound = null;
+    if (currentPlayer) {
+      if (currentPlayer instanceof HTMLAudioElement) {
+        currentPlayer.pause();
+        currentPlayer.src = "";
+      } else {
+        currentPlayer.pause();
+        currentPlayer.remove();
+      }
+      currentPlayer = null;
     }
 
     setSpeakingMessageId(messageId);
@@ -193,29 +203,46 @@ export default function ChatScreen() {
       if (!response.ok) throw new Error("TTS request failed");
 
       const audioBlob = await response.blob();
-      const reader = new FileReader();
-      const base64Audio = await new Promise<string>((resolve, reject) => {
-        reader.onloadend = () => {
-          const result = reader.result as string;
-          resolve(result);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(audioBlob);
-      });
 
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: base64Audio },
-        { shouldPlay: true }
-      );
-      currentSound = sound;
+      if (Platform.OS === "web") {
+        const blobUrl = URL.createObjectURL(audioBlob);
+        const audio = new Audio(blobUrl);
+        currentPlayer = audio;
 
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (status.isLoaded && status.didJustFinish) {
+        audio.onended = () => {
           setSpeakingMessageId(null);
-          sound.unloadAsync();
-          currentSound = null;
-        }
-      });
+          URL.revokeObjectURL(blobUrl);
+          currentPlayer = null;
+        };
+
+        audio.onerror = () => {
+          setSpeakingMessageId(null);
+          URL.revokeObjectURL(blobUrl);
+          currentPlayer = null;
+        };
+
+        await audio.play();
+      } else {
+        const reader = new FileReader();
+        const dataUri = await new Promise<string>((resolve, reject) => {
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(audioBlob);
+        });
+
+        const player = createAudioPlayer({ uri: dataUri });
+        currentPlayer = player;
+
+        player.addListener("playbackStatusUpdate", (status: any) => {
+          if (status.didJustFinish) {
+            setSpeakingMessageId(null);
+            player.remove();
+            currentPlayer = null;
+          }
+        });
+
+        player.play();
+      }
     } catch (error) {
       console.error("TTS playback error:", error);
       setSpeakingMessageId(null);
