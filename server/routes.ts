@@ -81,15 +81,29 @@ async function trumpTextToSpeech(text: string): Promise<Buffer> {
   const response = await openai.chat.completions.create({
     model: "gpt-audio",
     modalities: ["text", "audio"],
-    audio: { voice: "onyx", format: "mp3" },
+    audio: { voice: "ash", format: "mp3" },
     messages: [
       {
         role: "system",
-        content: `You are a voice actor performing a bold, confident, commanding male voice. Read the provided text aloud with dramatic emphasis, strong conviction, and a powerful delivery. Speak with authority and charisma. Read the text exactly as written — do not add, remove, or change any words.`,
+        content: `You are a masterful voice performer doing a Donald Trump impression. Read the text provided with Trump's EXACT vocal style:
+
+VOCAL DELIVERY:
+- Speak in a bold, brash New York accent with a slightly nasal quality
+- Use Trump's signature cadence: short punchy declarations followed by dramatic pauses
+- EMPHASIZE key words by drawing them out and raising volume — "TREMENDOUS", "INCREDIBLE", "BILLIONS"
+- Drop your voice low for dramatic effect, then suddenly go loud
+- Add Trump's characteristic verbal tics: slight sniffing, self-interrupting to add asides
+- Vary your pace — rush through some phrases then slow WAY down on important words
+- Sound supremely confident and self-assured at all times
+- Use a slightly breathy, forceful delivery like you're speaking to a rally crowd
+- Lean hard into superlatives with exaggerated emphasis
+- End sentences with rising conviction, like every statement is the most important thing ever said
+
+Read the text EXACTLY as written — do not change, add, or remove any words. Just deliver it in Trump's voice.`,
       },
       {
         role: "user",
-        content: `Read this text aloud exactly as written: ${text}`,
+        content: text,
       },
     ],
   });
