@@ -91,3 +91,36 @@ export async function deleteConversation(id: string): Promise<void> {
 export async function clearAllConversations(): Promise<void> {
   await AsyncStorage.setItem(CONVERSATIONS_KEY, JSON.stringify([]));
 }
+
+const QUESTION_COUNT_KEY = "chatdjt_question_count";
+const FREE_QUESTION_LIMIT = 3;
+
+export async function getQuestionCount(): Promise<number> {
+  try {
+    const count = await AsyncStorage.getItem(QUESTION_COUNT_KEY);
+    return count ? parseInt(count, 10) : 0;
+  } catch {
+    return 0;
+  }
+}
+
+export async function incrementQuestionCount(): Promise<number> {
+  const current = await getQuestionCount();
+  const newCount = current + 1;
+  await AsyncStorage.setItem(QUESTION_COUNT_KEY, String(newCount));
+  return newCount;
+}
+
+export function getFreeQuestionLimit(): number {
+  return FREE_QUESTION_LIMIT;
+}
+
+export async function hasRemainingFreeQuestions(): Promise<boolean> {
+  const count = await getQuestionCount();
+  return count < FREE_QUESTION_LIMIT;
+}
+
+export async function getRemainingFreeQuestions(): Promise<number> {
+  const count = await getQuestionCount();
+  return Math.max(0, FREE_QUESTION_LIMIT - count);
+}
