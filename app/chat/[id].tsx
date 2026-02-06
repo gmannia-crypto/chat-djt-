@@ -16,6 +16,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
+import { Audio } from "expo-av";
 import Colors from "@/constants/colors";
 import {
   Message,
@@ -24,10 +25,23 @@ import {
   generateUniqueId,
 } from "@/lib/chat-storage";
 import { streamChat } from "@/lib/stream-chat";
+import { getApiUrl } from "@/lib/query-client";
 
 const TRUMP_VOICE_KEY = "chatdjt_trump_voice";
 
-function MessageBubble({ message }: { message: Message }) {
+let currentSound: Audio.Sound | null = null;
+
+function MessageBubble({
+  message,
+  onSpeak,
+  isSpeaking,
+  isSpeakingThisMessage,
+}: {
+  message: Message;
+  onSpeak: (messageId: string, text: string) => void;
+  isSpeaking: boolean;
+  isSpeakingThisMessage: boolean;
+}) {
   const isUser = message.role === "user";
 
   return (
@@ -42,20 +56,43 @@ function MessageBubble({ message }: { message: Message }) {
           <MaterialCommunityIcons name="crown" size={16} color={Colors.gold} />
         </View>
       )}
-      <View
-        style={[
-          styles.bubble,
-          isUser ? styles.bubbleUser : styles.bubbleAssistant,
-        ]}
-      >
-        <Text
+      <View style={isUser ? styles.userBubbleWrap : styles.assistantBubbleWrap}>
+        <View
           style={[
-            styles.bubbleText,
-            isUser ? styles.bubbleTextUser : styles.bubbleTextAssistant,
+            styles.bubble,
+            isUser ? styles.bubbleUser : styles.bubbleAssistant,
           ]}
         >
-          {message.content}
-        </Text>
+          <Text
+            style={[
+              styles.bubbleText,
+              isUser ? styles.bubbleTextUser : styles.bubbleTextAssistant,
+            ]}
+          >
+            {message.content}
+          </Text>
+        </View>
+        {!isUser && message.content.length > 0 && (
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              onSpeak(message.id, message.content);
+            }}
+            disabled={isSpeaking && !isSpeakingThisMessage}
+            style={[
+              styles.speakButton,
+              isSpeakingThisMessage && styles.speakButtonActive,
+              isSpeaking && !isSpeakingThisMessage && styles.speakButtonDisabled,
+            ]}
+            testID={`speak-${message.id}`}
+          >
+            {isSpeakingThisMessage ? (
+              <ActivityIndicator size={12} color={Colors.gold} />
+            ) : (
+              <Ionicons name="volume-high" size={14} color={Colors.whiteMuted} />
+            )}
+          </Pressable>
+        )}
       </View>
     </View>
   );
@@ -96,6 +133,7 @@ export default function ChatScreen() {
   const [showTyping, setShowTyping] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [trumpVoice, setTrumpVoice] = useState(true);
+  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const inputRef = useRef<TextInput>(null);
   const initializedRef = useRef(false);
   const conversationIdRef = useRef(id);
@@ -123,6 +161,65 @@ export default function ChatScreen() {
     setTrumpVoice(newVal);
     trumpVoiceRef.current = newVal;
     await AsyncStorage.setItem(TRUMP_VOICE_KEY, String(newVal));
+  }
+
+  async function handleSpeak(messageId: string, text: string) {
+    if (speakingMessageId === messageId) {
+      if (currentSound) {
+        await currentSound.stopAsync();
+        await currentSound.unloadAsync();
+        currentSound = null;
+      }
+      setSpeakingMessageId(null);
+      return;
+    }
+
+    if (currentSound) {
+      await currentSound.stopAsync();
+      await currentSound.unloadAsync();
+      currentSound = null;
+    }
+
+    setSpeakingMessageId(messageId);
+
+    try {
+      const baseUrl = getApiUrl();
+      const response = await globalThis.fetch(`${baseUrl}api/tts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+
+      if (!response.ok) throw new Error("TTS request failed");
+
+      const audioBlob = await response.blob();
+      const reader = new FileReader();
+      const base64Audio = await new Promise<string>((resolve, reject) => {
+        reader.onloadend = () => {
+          const result = reader.result as string;
+          resolve(result);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(audioBlob);
+      });
+
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: base64Audio },
+        { shouldPlay: true }
+      );
+      currentSound = sound;
+
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          setSpeakingMessageId(null);
+          sound.unloadAsync();
+          currentSound = null;
+        }
+      });
+    } catch (error) {
+      console.error("TTS playback error:", error);
+      setSpeakingMessageId(null);
+    }
   }
 
   async function loadConversation() {
@@ -278,7 +375,14 @@ export default function ChatScreen() {
         <FlatList
           data={reversedMessages}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <MessageBubble message={item} />}
+          renderItem={({ item }) => (
+            <MessageBubble
+              message={item}
+              onSpeak={handleSpeak}
+              isSpeaking={!!speakingMessageId}
+              isSpeakingThisMessage={speakingMessageId === item.id}
+            />
+          )}
           inverted={messages.length > 0}
           ListHeaderComponent={showTyping ? <TypingIndicator /> : null}
           ListEmptyComponent={
@@ -556,5 +660,29 @@ const styles = StyleSheet.create({
   voiceToggleText: {
     fontSize: 12,
     fontFamily: "PlayfairDisplay_700Bold",
+  },
+  userBubbleWrap: {
+    maxWidth: "100%",
+    flexShrink: 1,
+  },
+  assistantBubbleWrap: {
+    maxWidth: "100%",
+    flexShrink: 1,
+  },
+  speakButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginTop: 4,
+    borderRadius: 10,
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
+  },
+  speakButtonActive: {
+    backgroundColor: "rgba(212, 164, 32, 0.15)",
+  },
+  speakButtonDisabled: {
+    opacity: 0.3,
   },
 });

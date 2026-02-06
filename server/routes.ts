@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "node:http";
 import OpenAI from "openai";
+import { textToSpeech } from "./replit_integrations/audio/client";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -124,6 +125,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         res.status(500).json({ error: "Failed to process chat" });
       }
+    }
+  });
+
+  app.post("/api/tts", async (req, res) => {
+    try {
+      const { text } = req.body;
+
+      if (!text || typeof text !== "string") {
+        return res.status(400).json({ error: "Text is required" });
+      }
+
+      const truncatedText = text.slice(0, 2000);
+
+      const audioBuffer = await textToSpeech(truncatedText, "onyx", "mp3");
+
+      res.setHeader("Content-Type", "audio/mpeg");
+      res.setHeader("Content-Length", audioBuffer.length.toString());
+      res.send(audioBuffer);
+    } catch (error) {
+      console.error("TTS error:", error);
+      res.status(500).json({ error: "Failed to generate speech" });
     }
   });
 
