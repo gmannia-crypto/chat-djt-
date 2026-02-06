@@ -7,6 +7,7 @@ import {
   Pressable,
   Platform,
   Alert,
+  Image,
 } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -122,9 +123,14 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + webTopInset }]}>
+      <Image
+        source={require("@/attached_assets/59a60acc-6f24-4966-ac86-734f133bc48f_origin_1770387220439.png")}
+        style={styles.backgroundLogo}
+        resizeMode="contain"
+      />
       <LinearGradient
-        colors={["rgba(212, 164, 32, 0.15)", "rgba(10, 10, 10, 1)"]}
-        style={styles.headerGradient}
+        colors={["rgba(10, 10, 10, 0.3)", "rgba(10, 10, 10, 0.85)", "rgba(10, 10, 10, 1)"]}
+        style={styles.backgroundOverlay}
         start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 1 }}
       />
@@ -238,12 +244,21 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  headerGradient: {
+  backgroundLogo: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
-    height: 200,
+    height: "70%" as any,
+    width: "100%",
+    opacity: 0.2,
+  },
+  backgroundOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   header: {
     flexDirection: "row",
