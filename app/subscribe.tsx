@@ -114,7 +114,7 @@ export default function SubscribeScreen() {
           </View>
           <Text style={styles.heroTitle}>Go Premium</Text>
           <Text style={styles.heroSubtitle}>
-            The greatest deal in the history of deals, maybe ever!
+            Your 3 free questions are up! Unlock unlimited access to keep the conversation going.
           </Text>
         </Animated.View>
 
