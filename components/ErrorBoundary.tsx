@@ -1,54 +1,113 @@
-import React, { Component, ComponentType, PropsWithChildren } from "react";
-import { ErrorFallback, ErrorFallbackProps } from "@/components/ErrorFallback";
+import React, { Component, ReactNode } from "react";
+import {
+  View,
+  Text,
+  Pressable,
+  StyleSheet,
+  useColorScheme,
+} from "react-native";
+import { reloadAppAsync } from "expo";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-export type ErrorBoundaryProps = PropsWithChildren<{
-  FallbackComponent?: ComponentType<ErrorFallbackProps>;
-  onError?: (error: Error, stackTrace: string) => void;
-}>;
+function ErrorFallback({ error }: { error: Error }) {
+  const colorScheme = useColorScheme();
+  const insets = useSafeAreaInsets();
 
-type ErrorBoundaryState = { error: Error | null };
+  return (
+    <View
+      style={[
+        styles.container,
+        {
+          paddingTop: insets.top + 20,
+          paddingBottom: insets.bottom + 20,
+          backgroundColor: colorScheme === "dark" ? "#0A0A0A" : "#FFFFFF",
+        },
+      ]}
+    >
+      <Text
+        style={[
+          styles.title,
+          { color: colorScheme === "dark" ? "#FFFFFF" : "#000000" },
+        ]}
+      >
+        Something went wrong
+      </Text>
+      <Text
+        style={[
+          styles.message,
+          { color: colorScheme === "dark" ? "#999999" : "#666666" },
+        ]}
+      >
+        {error.message}
+      </Text>
+      <Pressable
+        style={styles.button}
+        onPress={() => reloadAppAsync()}
+      >
+        <Text style={styles.buttonText}>Restart App</Text>
+      </Pressable>
+    </View>
+  );
+}
 
-/**
- * This is a special case for for using the class components. Error boundaries must be class components because React only provides error boundary functionality through lifecycle methods (componentDidCatch and getDerivedStateFromError) which are not available in functional components.
- * https://react.dev/reference/react/Component#catching-rendering-errors-with-an-error-boundary
- */
+interface ErrorBoundaryProps {
+  children: ReactNode;
+}
 
-export class ErrorBoundary extends Component<
-  ErrorBoundaryProps,
-  ErrorBoundaryState
-> {
-  state: ErrorBoundaryState = { error: null };
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
 
-  static defaultProps: {
-    FallbackComponent: ComponentType<ErrorFallbackProps>;
-  } = {
-    FallbackComponent: ErrorFallback,
-  };
+export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-    return { error };
+    return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, info: { componentStack: string }): void {
-    if (typeof this.props.onError === "function") {
-      this.props.onError(error, info.componentStack);
-    }
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error("ErrorBoundary caught:", error, errorInfo);
   }
-
-  resetError = (): void => {
-    this.setState({ error: null });
-  };
 
   render() {
-    const { FallbackComponent } = this.props;
-
-    return this.state.error && FallbackComponent ? (
-      <FallbackComponent
-        error={this.state.error}
-        resetError={this.resetError}
-      />
-    ) : (
-      this.props.children
-    );
+    if (this.state.hasError && this.state.error) {
+      return <ErrorFallback error={this.state.error} />;
+    }
+    return this.props.children;
   }
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: "bold",
+    marginBottom: 12,
+  },
+  message: {
+    fontSize: 14,
+    textAlign: "center",
+    marginBottom: 24,
+    lineHeight: 20,
+  },
+  button: {
+    backgroundColor: "#D4A420",
+    borderRadius: 12,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+  },
+  buttonText: {
+    color: "#000000",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+});
