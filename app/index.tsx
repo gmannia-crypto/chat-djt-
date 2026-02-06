@@ -8,6 +8,8 @@ import {
   Platform,
   Alert,
   Image,
+  Modal,
+  Dimensions,
 } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -17,6 +19,7 @@ import * as Haptics from "expo-haptics";
 import Animated, {
   FadeInDown,
   FadeInUp,
+  FadeIn,
 } from "react-native-reanimated";
 import Colors from "@/constants/colors";
 import {
@@ -25,6 +28,8 @@ import {
   createConversation,
   deleteConversation,
 } from "@/lib/chat-storage";
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 function ConversationItem({
   item,
@@ -95,6 +100,7 @@ function ConversationItem({
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [archiveVisible, setArchiveVisible] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -120,16 +126,17 @@ export default function HomeScreen() {
   }
 
   const webTopInset = Platform.OS === "web" ? 67 : 0;
+  const webBottomInset = Platform.OS === "web" ? 34 : 0;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + webTopInset }]}>
       <Image
         source={require("@/attached_assets/59a60acc-6f24-4966-ac86-734f133bc48f_origin_1770387220439.png")}
         style={styles.backgroundLogo}
-        resizeMode="contain"
+        resizeMode="cover"
       />
       <LinearGradient
-        colors={["rgba(10, 10, 10, 0.1)", "rgba(10, 10, 10, 0.5)", "rgba(10, 10, 10, 0.95)"]}
+        colors={["rgba(10, 10, 10, 0)", "rgba(10, 10, 10, 0.15)", "rgba(10, 10, 10, 0.85)"]}
         style={styles.backgroundOverlay}
         start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 1 }}
@@ -140,8 +147,17 @@ export default function HomeScreen() {
         style={styles.header}
       >
         <View style={styles.headerLeft}>
-          <MaterialCommunityIcons name="crown" size={28} color={Colors.gold} />
-          <Text style={styles.headerTitle}>Chat DJT</Text>
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              loadConversations();
+              setArchiveVisible(true);
+            }}
+            style={styles.headerButton}
+            testID="archive-button"
+          >
+            <Ionicons name="folder-outline" size={24} color={Colors.whiteDim} />
+          </Pressable>
         </View>
         <View style={styles.headerRight}>
           <Pressable
@@ -154,55 +170,19 @@ export default function HomeScreen() {
           >
             <Ionicons name="settings-outline" size={22} color={Colors.whiteDim} />
           </Pressable>
-          <Pressable
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.push("/subscribe");
-            }}
-            style={styles.headerButton}
-            testID="subscribe-button"
-          >
-            <MaterialCommunityIcons
-              name="star-circle"
-              size={24}
-              color={Colors.gold}
-            />
-          </Pressable>
         </View>
       </Animated.View>
 
-      <FlatList
-        data={conversations}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item, index }) => (
-          <ConversationItem item={item} index={index} onDelete={handleDelete} />
-        )}
-        contentContainerStyle={[
-          styles.listContent,
-          { paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 0) + 100 },
-        ]}
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <MaterialCommunityIcons
-              name="crown-outline"
-              size={64}
-              color={Colors.goldDark}
-            />
-            <Text style={styles.emptyTitle}>
-              Ready to Talk to the Greatest?
-            </Text>
-            <Text style={styles.emptySubtitle}>
-              Tap the button below to start a chat with yours truly. It's going to be HUGE!
-            </Text>
-          </View>
-        }
-        showsVerticalScrollIndicator={false}
-      />
+      <View style={styles.centerContent}>
+        <Animated.View entering={FadeIn.delay(300).duration(800)}>
+          <Text style={styles.brandTitle}>CHAT DJT</Text>
+        </Animated.View>
+      </View>
 
       <View
         style={[
           styles.fabContainer,
-          { bottom: insets.bottom + (Platform.OS === "web" ? 34 : 0) + 20 },
+          { bottom: insets.bottom + webBottomInset + 20 },
         ]}
       >
         <Pressable
@@ -223,6 +203,47 @@ export default function HomeScreen() {
           </LinearGradient>
         </Pressable>
       </View>
+
+      <Modal
+        visible={archiveVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setArchiveVisible(false)}
+      >
+        <View style={[styles.archiveContainer, { paddingTop: Platform.OS === "web" ? 20 : insets.top }]}>
+          <View style={styles.archiveHeader}>
+            <Text style={styles.archiveTitle}>Archive</Text>
+            <Pressable
+              onPress={() => setArchiveVisible(false)}
+              style={styles.archiveCloseButton}
+              testID="archive-close-button"
+            >
+              <Ionicons name="close" size={24} color={Colors.white} />
+            </Pressable>
+          </View>
+          <FlatList
+            data={conversations}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item, index }) => (
+              <ConversationItem item={item} index={index} onDelete={handleDelete} />
+            )}
+            contentContainerStyle={[
+              styles.archiveListContent,
+              { paddingBottom: insets.bottom + webBottomInset + 20 },
+            ]}
+            ListEmptyComponent={
+              <View style={styles.emptyState}>
+                <Ionicons name="chatbubbles-outline" size={48} color={Colors.goldDark} />
+                <Text style={styles.emptyTitle}>No Chats Yet</Text>
+                <Text style={styles.emptySubtitle}>
+                  Start a new conversation and it will appear here.
+                </Text>
+              </View>
+            }
+            showsVerticalScrollIndicator={false}
+          />
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -249,9 +270,10 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: "75%" as any,
+    bottom: 0,
     width: "100%",
-    opacity: 0.55,
+    height: "100%",
+    opacity: 0.7,
   },
   backgroundOverlay: {
     position: "absolute",
@@ -266,17 +288,11 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingVertical: 16,
+    zIndex: 10,
   },
   headerLeft: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-  },
-  headerTitle: {
-    fontSize: 26,
-    fontFamily: "PlayfairDisplay_900Black",
-    color: Colors.gold,
-    letterSpacing: 1,
   },
   headerRight: {
     flexDirection: "row",
@@ -289,9 +305,76 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  listContent: {
+  centerContent: {
+    flex: 1,
+    justifyContent: "flex-end",
+    alignItems: "center",
+    paddingBottom: 120,
+    zIndex: 5,
+  },
+  brandTitle: {
+    fontSize: 42,
+    fontFamily: "PlayfairDisplay_900Black",
+    color: Colors.gold,
+    letterSpacing: 6,
+    textShadowColor: "rgba(0, 0, 0, 0.8)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 10,
+  },
+  fabContainer: {
+    position: "absolute",
+    right: 20,
+    zIndex: 10,
+  },
+  fab: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    shadowColor: Colors.gold,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  fabPressed: {
+    opacity: 0.85,
+    transform: [{ scale: 0.92 }],
+  },
+  fabGradient: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  archiveContainer: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  archiveHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  archiveTitle: {
+    fontSize: 24,
+    fontFamily: "PlayfairDisplay_700Bold",
+    color: Colors.gold,
+    letterSpacing: 1,
+  },
+  archiveCloseButton: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  archiveListContent: {
     paddingHorizontal: 16,
-    paddingTop: 8,
+    paddingTop: 12,
   },
   conversationCard: {
     flexDirection: "row",
@@ -360,31 +443,5 @@ const styles = StyleSheet.create({
     color: Colors.whiteDim,
     textAlign: "center",
     lineHeight: 22,
-  },
-  fabContainer: {
-    position: "absolute",
-    right: 20,
-    zIndex: 10,
-  },
-  fab: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    shadowColor: Colors.gold,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  fabPressed: {
-    opacity: 0.85,
-    transform: [{ scale: 0.92 }],
-  },
-  fabGradient: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    alignItems: "center",
-    justifyContent: "center",
   },
 });
