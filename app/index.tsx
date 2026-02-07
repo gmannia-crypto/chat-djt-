@@ -164,6 +164,7 @@ export default function HomeScreen() {
       "server/assets/theme-song.m4a",
       "server/assets/theme-song-2.mp3",
       "server/assets/theme-song-3.mp4",
+      "server/assets/theme-song-4.mp3",
     ];
     const pick = songs[Math.floor(Math.random() * songs.length)];
     return `${baseUrl}${pick}`;
