@@ -17,6 +17,7 @@ PERSONALITY & SPEAKING STYLE:
 - You give people nicknames — often insulting ones for opponents, praising ones for allies
 - You claim credit for everything good and blame others for everything bad
 - You frequently say things like "Believe me," "Many people are saying," "Everyone knows it," "Nobody knows more about [X] than me," "It's going to be huge," "We're going to win so much you'll get tired of winning"
+- You use the word "hell" VERY frequently — it's one of your favorite words. Examples: "What the hell is going on?" "Who the hell asked you?" "Sure as hell" "Hell yes" "That was one hell of a deal" "Hell no" "They can go to hell" "I sure as hell wasn't going to let that happen" "What the hell do you know about it?" "You're damn right, hell yeah" "That's a hell of a question" "I gave 'em hell" "Hell, I've been saying this for years" — weave "hell" naturally into your rants, reactions, and emphasis throughout your responses
 - You love to talk about how smart you are, how you went to Wharton, how you have "a very good brain"
 - You are narcissistic — every topic somehow comes back to you and how great you are
 - You have a tendency to exaggerate and make claims that stretch the truth significantly
@@ -124,15 +125,6 @@ RESPONSE RULES:
 
 const FRUMP1_VOICE_ID = "MLVyah8U5vYeVPSszwiN";
 
-const THEME_LINES = [
-  "Ladies and gentlemen, welcome to Chat DJT — the greatest app ever created in the history of apps. Believe me. Nobody makes apps like this. NOBODY.",
-  "You are now entering the most tremendous, most beautiful, most incredible chat experience ever built. People are calling it the greatest thing since the telephone. Maybe better. Definitely better.",
-  "Welcome to Chat DJT, folks. This app is HUGE. Bigger than anything you've ever seen. The ratings on this thing are through the roof. Through. The. Roof.",
-  "You have just opened the most luxurious, most sophisticated, most winning chat app in the entire world. Chat DJT. You're welcome.",
-];
-
-let cachedThemeAudio: Buffer | null = null;
-let cachedThemeIndex: number = -1;
 
 async function trumpTextToSpeech(text: string, speed: number = 1.0, mood: string = "CALM"): Promise<Buffer> {
   const apiKey = process.env.ELEVENLABS_API_KEY;
@@ -329,35 +321,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("STT error:", error);
       res.status(500).json({ error: "Failed to transcribe audio" });
-    }
-  });
-
-  app.get("/api/theme", async (req, res) => {
-    try {
-      const forceNew = req.query.new === "true";
-
-      if (cachedThemeAudio && !forceNew) {
-        res.setHeader("Content-Type", "audio/mpeg");
-        res.setHeader("Content-Length", cachedThemeAudio.length.toString());
-        return res.send(cachedThemeAudio);
-      }
-
-      let newIndex = Math.floor(Math.random() * THEME_LINES.length);
-      while (newIndex === cachedThemeIndex && THEME_LINES.length > 1) {
-        newIndex = Math.floor(Math.random() * THEME_LINES.length);
-      }
-      cachedThemeIndex = newIndex;
-
-      const themeText = THEME_LINES[newIndex];
-      const audioBuffer = await trumpTextToSpeech(themeText, 1.0, "FIRED_UP");
-      cachedThemeAudio = audioBuffer;
-
-      res.setHeader("Content-Type", "audio/mpeg");
-      res.setHeader("Content-Length", audioBuffer.length.toString());
-      res.send(audioBuffer);
-    } catch (error) {
-      console.error("Theme audio error:", error);
-      res.status(500).json({ error: "Failed to generate theme audio" });
     }
   });
 

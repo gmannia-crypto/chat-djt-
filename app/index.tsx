@@ -21,12 +21,6 @@ import Animated, {
   FadeInDown,
   FadeInUp,
   FadeIn,
-  useSharedValue,
-  useAnimatedStyle,
-  withRepeat,
-  withTiming,
-  Easing,
-  cancelAnimation,
   withDelay,
 } from "react-native-reanimated";
 import { useQuery } from "@tanstack/react-query";
@@ -182,48 +176,10 @@ function ConversationItem({
   );
 }
 
-let themePlayer: HTMLAudioElement | null = null;
-let hasAutoPlayed = false;
-
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [archiveVisible, setArchiveVisible] = useState(false);
-  const [isThemePlaying, setIsThemePlaying] = useState(false);
-  const pulseAnim = useSharedValue(1);
-
-  const pulseStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: pulseAnim.value }],
-  }));
-
-  useEffect(() => {
-    if (isThemePlaying) {
-      pulseAnim.value = withRepeat(
-        withTiming(1.15, { duration: 600, easing: Easing.inOut(Easing.ease) }),
-        -1,
-        true
-      );
-    } else {
-      cancelAnimation(pulseAnim);
-      pulseAnim.value = withTiming(1, { duration: 200 });
-    }
-  }, [isThemePlaying]);
-
-  useEffect(() => {
-    if (!hasAutoPlayed) {
-      hasAutoPlayed = true;
-      playThemeSong();
-    }
-    return () => {
-      if (themePlayer) {
-        if (Platform.OS === "web") {
-          (themePlayer as HTMLAudioElement).pause();
-          (themePlayer as HTMLAudioElement).src = "";
-        }
-        themePlayer = null;
-      }
-    };
-  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -234,78 +190,6 @@ export default function HomeScreen() {
   async function loadConversations() {
     const convs = await getAllConversations();
     setConversations(convs);
-  }
-
-  function getThemeSongUrl() {
-    const baseUrl = getApiUrl();
-    const songs = [
-      "server/assets/theme-song.m4a",
-      "server/assets/theme-song-2.mp3",
-      "server/assets/theme-song-3.mp4",
-      "server/assets/theme-song-4.mp3",
-    ];
-    const pick = songs[Math.floor(Math.random() * songs.length)];
-    return `${baseUrl}${pick}`;
-  }
-
-  async function playThemeSong() {
-    try {
-      const url = getThemeSongUrl();
-
-      if (Platform.OS === "web") {
-        const audio = new Audio(url);
-        themePlayer = audio;
-
-        audio.onended = () => {
-          setIsThemePlaying(false);
-          themePlayer = null;
-        };
-
-        audio.onerror = () => {
-          setIsThemePlaying(false);
-          themePlayer = null;
-        };
-
-        await audio.play().catch(() => {
-          setIsThemePlaying(false);
-          themePlayer = null;
-        });
-        setIsThemePlaying(true);
-      } else {
-        const { createAudioPlayer } = await import("expo-audio");
-        const player = createAudioPlayer(url);
-        themePlayer = player as any;
-
-        player.addListener("playbackStatusUpdate", (status: any) => {
-          if (status.didJustFinish) {
-            setIsThemePlaying(false);
-            themePlayer = null;
-          }
-        });
-
-        player.play();
-        setIsThemePlaying(true);
-      }
-    } catch (error) {
-      console.error("Theme song error:", error);
-      setIsThemePlaying(false);
-    }
-  }
-
-  function toggleThemeMusic() {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-    if (isThemePlaying && themePlayer) {
-      if (Platform.OS === "web") {
-        (themePlayer as HTMLAudioElement).pause();
-        (themePlayer as HTMLAudioElement).currentTime = 0;
-      }
-      themePlayer = null;
-      setIsThemePlaying(false);
-      return;
-    }
-
-    playThemeSong();
   }
 
   async function handleNewChat() {
@@ -389,22 +273,6 @@ export default function HomeScreen() {
           </Pressable>
         </View>
         <View style={styles.headerRight}>
-          <Pressable
-            onPress={toggleThemeMusic}
-            style={styles.glossyHeaderBtn}
-            testID="theme-music-button"
-          >
-            <Animated.View style={isThemePlaying ? pulseStyle : undefined}>
-              <View style={[styles.glossyHeaderCircle, isThemePlaying && styles.glossyHeaderCircleActive]}>
-                <Ionicons
-                  name={isThemePlaying ? "musical-notes" : "musical-notes-outline"}
-                  size={18}
-                  color="#1A1000"
-                />
-              </View>
-            </Animated.View>
-            <Text style={[styles.glossyHeaderLabel, isThemePlaying && styles.glossyHeaderLabelActive]}>Music</Text>
-          </Pressable>
           <Pressable
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -743,25 +611,12 @@ const styles = StyleSheet.create({
       default: {},
     }),
   },
-  glossyHeaderCircleActive: {
-    backgroundColor: "#E8B820",
-    borderColor: "#F0D050",
-    ...Platform.select({
-      web: {
-        boxShadow: "0 2px 12px rgba(212, 164, 32, 0.6), inset 0 1px 3px rgba(255, 255, 255, 0.4)",
-      },
-      default: {},
-    }),
-  },
   glossyHeaderLabel: {
     fontSize: 9,
     color: Colors.whiteMuted,
     fontWeight: "600" as const,
     letterSpacing: 0.3,
     textTransform: "uppercase" as const,
-  },
-  glossyHeaderLabelActive: {
-    color: Colors.gold,
   },
   centerContent: {
     flex: 1,
