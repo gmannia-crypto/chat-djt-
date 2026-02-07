@@ -26,15 +26,16 @@ Preferred communication style: Simple, everyday language.
 - **Server**: Express 5 running in `server/index.ts` on port 5000
 - **API Routes**:
   - `POST /api/chat` — accepts messages array + trumpVoice boolean, streams Trump-persona responses via SSE using OpenAI chat completions (gpt-5.2)
-  - `POST /api/tts` — accepts { text } body, returns audio/mpeg buffer using OpenAI gpt-audio model with "onyx" voice for text-to-speech
-- **OpenAI Integration**: Uses Replit AI Integrations env vars. Trump system prompt in `server/routes.ts`. TTS uses `server/replit_integrations/audio/client.ts`
+  - `POST /api/tts` — accepts { text } body, returns audio/mpeg buffer using ElevenLabs API with cloned Trump voice
+- **OpenAI Integration**: Uses Replit AI Integrations env vars for chat completions. Trump system prompt in `server/routes.ts`
+- **ElevenLabs Integration**: Uses `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` env vars for TTS with cloned voice. Model: `eleven_multilingual_v2`
 - **Static Serving**: In production, serves pre-built Expo web assets from `dist/`
 
 ### Key Files
 
 - `server/routes.ts` - Backend API with Trump persona system prompt
 - `app/_layout.tsx` - Root layout with providers and stack navigation
-- `app/index.tsx` - Home screen with conversation list
+- `app/index.tsx` - Home screen with full-screen logo, archive modal for past conversations
 - `app/chat/[id].tsx` - Chat detail screen with streaming messages
 - `app/subscribe.tsx` - Subscription modal ($2.99/month)
 - `app/admin.tsx` - Back office with stats and revenue links
@@ -48,11 +49,12 @@ Preferred communication style: Simple, everyday language.
 
 - **Dev**: Two workflows — `Start Frontend` for Expo dev server, `Start Backend` for Express backend
 - **Production Build**: `scripts/build.js` creates static Expo web build, `server:build` bundles server
-- **Environment Variables**: `EXPO_PUBLIC_DOMAIN` for API URL, `AI_INTEGRATIONS_OPENAI_API_KEY` and `AI_INTEGRATIONS_OPENAI_BASE_URL` for OpenAI
+- **Environment Variables**: `EXPO_PUBLIC_DOMAIN` for API URL, `AI_INTEGRATIONS_OPENAI_API_KEY` and `AI_INTEGRATIONS_OPENAI_BASE_URL` for OpenAI, `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` for TTS
 
 ## External Dependencies
 
 - **OpenAI API**: Chat completions for Trump-persona responses via Replit AI Integrations proxy
+- **ElevenLabs API**: Text-to-speech with cloned Trump voice via `eleven_multilingual_v2` model
 - **AsyncStorage**: Client-side persistent storage for conversations
 - **Expo Services**: Font loading, haptics, linear gradients, splash screen
 - **RevenueCat** (`react-native-purchases`): Dependency installed for future in-app subscription implementation
@@ -61,3 +63,4 @@ Preferred communication style: Simple, everyday language.
 
 - 2026-02-06: Full app rebuild — server routes, all screens (home, chat, subscribe, admin), chat storage, streaming, error boundary, theme colors, app.json configuration
 - 2026-02-06: Added voice toggle (DJT/Spirit modes), Chat DJT logo as prominent home screen background, TTS speaker button on assistant messages using OpenAI gpt-audio with onyx voice
+- 2026-02-07: Replaced OpenAI TTS with ElevenLabs cloned Trump voice (eleven_multilingual_v2). Home screen redesigned — conversation list hidden behind archive modal, full-screen logo background. Added defensive/blustering behavior when Trump is offended
