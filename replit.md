@@ -26,9 +26,11 @@ Preferred communication style: Simple, everyday language.
 - **Server**: Express 5 running in `server/index.ts` on port 5000
 - **API Routes**:
   - `POST /api/chat` — accepts messages array + trumpVoice boolean, streams Trump-persona responses via SSE using OpenAI chat completions (gpt-5.2)
-  - `POST /api/tts` — accepts { text } body, returns audio/mpeg buffer using ElevenLabs API with cloned Trump voice
+  - `POST /api/tts` — accepts { text, mood } body, returns audio/mpeg buffer using ElevenLabs API with dual voice system
+  - `POST /api/stt` — accepts { audio (base64), format } body, transcribes using OpenAI Whisper (gpt-4o-mini-transcribe)
+  - `GET /api/theme` — generates and caches a Trump-voice theme intro using ElevenLabs, returns audio/mpeg. Pass `?new=true` for a fresh random intro
 - **OpenAI Integration**: Uses Replit AI Integrations env vars for chat completions. Trump system prompt in `server/routes.ts`
-- **ElevenLabs Integration**: Uses `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` env vars for TTS with cloned voice. Model: `eleven_multilingual_v2`
+- **ElevenLabs Integration**: Uses `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` env vars for TTS. Dual voice system: frump1 (MLVyah8U5vYeVPSszwiN) for CALM mood, ELEVENLABS_VOICE_ID for FIRED_UP mood. Model: `eleven_v3`
 - **Static Serving**: In production, serves pre-built Expo web assets from `dist/`
 
 ### Key Files
@@ -64,3 +66,4 @@ Preferred communication style: Simple, everyday language.
 - 2026-02-06: Full app rebuild — server routes, all screens (home, chat, subscribe, admin), chat storage, streaming, error boundary, theme colors, app.json configuration
 - 2026-02-06: Added voice toggle (DJT/Spirit modes), Chat DJT logo as prominent home screen background, TTS speaker button on assistant messages using OpenAI gpt-audio with onyx voice
 - 2026-02-07: Replaced OpenAI TTS with ElevenLabs cloned Trump voice (eleven_v3). Home screen redesigned — conversation list hidden behind archive modal, full-screen logo background. Added defensive/blustering behavior when Trump is offended. Added conversational mode — Trump asks personal questions when annoyed, with faster TTS speed (1.2x) for fired-up mood. Mood detection via [MOOD:CALM/FIRED_UP] tags stripped from display, passed to TTS endpoint for speed adjustment
+- 2026-02-07: Added dual voice system (frump1 for CALM, cloned voice for FIRED_UP). Added speech-to-text via microphone button using OpenAI Whisper. Added theme music feature — musical notes button on home screen plays a Trump-voice intro (5 rotating lines, server-side cached)

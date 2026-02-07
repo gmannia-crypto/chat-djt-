@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -10,6 +10,7 @@ import {
   Image,
   Modal,
   Dimensions,
+  ActivityIndicator,
 } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -20,8 +21,15 @@ import Animated, {
   FadeInDown,
   FadeInUp,
   FadeIn,
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withTiming,
+  Easing,
+  cancelAnimation,
 } from "react-native-reanimated";
 import Colors from "@/constants/colors";
+import { getApiUrl } from "@/lib/query-client";
 import {
   Conversation,
   getAllConversations,
@@ -97,10 +105,44 @@ function ConversationItem({
   );
 }
 
+let themePlayer: HTMLAudioElement | null = null;
+
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [archiveVisible, setArchiveVisible] = useState(false);
+  const [isThemePlaying, setIsThemePlaying] = useState(false);
+  const [isThemeLoading, setIsThemeLoading] = useState(false);
+  const pulseAnim = useSharedValue(1);
+
+  const pulseStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pulseAnim.value }],
+  }));
+
+  useEffect(() => {
+    if (isThemePlaying) {
+      pulseAnim.value = withRepeat(
+        withTiming(1.15, { duration: 600, easing: Easing.inOut(Easing.ease) }),
+        -1,
+        true
+      );
+    } else {
+      cancelAnimation(pulseAnim);
+      pulseAnim.value = withTiming(1, { duration: 200 });
+    }
+  }, [isThemePlaying]);
+
+  useEffect(() => {
+    return () => {
+      if (themePlayer) {
+        if (Platform.OS === "web") {
+          (themePlayer as HTMLAudioElement).pause();
+          (themePlayer as HTMLAudioElement).src = "";
+        }
+        themePlayer = null;
+      }
+    };
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -111,6 +153,74 @@ export default function HomeScreen() {
   async function loadConversations() {
     const convs = await getAllConversations();
     setConversations(convs);
+  }
+
+  async function toggleThemeMusic() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    if (isThemePlaying && themePlayer) {
+      if (Platform.OS === "web") {
+        (themePlayer as HTMLAudioElement).pause();
+        (themePlayer as HTMLAudioElement).currentTime = 0;
+      }
+      themePlayer = null;
+      setIsThemePlaying(false);
+      return;
+    }
+
+    setIsThemeLoading(true);
+    try {
+      const baseUrl = getApiUrl();
+      const response = await globalThis.fetch(`${baseUrl}api/theme?new=true`);
+      if (!response.ok) throw new Error("Theme fetch failed");
+
+      const blob = await response.blob();
+
+      if (Platform.OS === "web") {
+        const blobUrl = URL.createObjectURL(blob);
+        const audio = new Audio(blobUrl);
+        themePlayer = audio;
+
+        audio.onended = () => {
+          setIsThemePlaying(false);
+          URL.revokeObjectURL(blobUrl);
+          themePlayer = null;
+        };
+
+        audio.onerror = () => {
+          setIsThemePlaying(false);
+          URL.revokeObjectURL(blobUrl);
+          themePlayer = null;
+        };
+
+        await audio.play();
+        setIsThemePlaying(true);
+      } else {
+        const { createAudioPlayer } = await import("expo-audio");
+        const arrayBuffer = await new Response(blob).arrayBuffer();
+        const base64 = btoa(
+          String.fromCharCode(...new Uint8Array(arrayBuffer))
+        );
+        const uri = `data:audio/mpeg;base64,${base64}`;
+        const player = createAudioPlayer(uri);
+        themePlayer = player as any;
+
+        player.addListener("playbackStatusUpdate", (status: any) => {
+          if (status.didJustFinish) {
+            setIsThemePlaying(false);
+            themePlayer = null;
+          }
+        });
+
+        player.play();
+        setIsThemePlaying(true);
+      }
+    } catch (error) {
+      console.error("Theme music error:", error);
+      setIsThemePlaying(false);
+    } finally {
+      setIsThemeLoading(false);
+    }
   }
 
   async function handleNewChat() {
@@ -160,6 +270,24 @@ export default function HomeScreen() {
           </Pressable>
         </View>
         <View style={styles.headerRight}>
+          <Pressable
+            onPress={toggleThemeMusic}
+            disabled={isThemeLoading}
+            style={styles.headerButton}
+            testID="theme-music-button"
+          >
+            {isThemeLoading ? (
+              <ActivityIndicator size={18} color={Colors.gold} />
+            ) : (
+              <Animated.View style={isThemePlaying ? pulseStyle : undefined}>
+                <Ionicons
+                  name={isThemePlaying ? "musical-notes" : "musical-notes-outline"}
+                  size={22}
+                  color={isThemePlaying ? Colors.gold : Colors.whiteDim}
+                />
+              </Animated.View>
+            )}
+          </Pressable>
           <Pressable
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
