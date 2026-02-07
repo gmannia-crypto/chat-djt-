@@ -17,6 +17,8 @@ import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import { createAudioPlayer, type AudioPlayer as ExpoAudioPlayer } from "expo-audio";
+import { Audio } from "expo-av";
+import * as FileSystem from "expo-file-system";
 import Colors from "@/constants/colors";
 import {
   Message,
@@ -139,12 +141,17 @@ export default function ChatScreen() {
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [autoSpeak, setAutoSpeak] = useState(false);
   const [messageMoods, setMessageMoods] = useState<Record<string, ChatMood>>({});
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const inputRef = useRef<TextInput>(null);
   const initializedRef = useRef(false);
   const conversationIdRef = useRef(id);
   const trumpVoiceRef = useRef(true);
   const autoSpeakRef = useRef(false);
   const pendingAutoSpeakRef = useRef<string | null>(null);
+  const recordingRef = useRef<Audio.Recording | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   useEffect(() => {
     loadConversation();
@@ -188,6 +195,127 @@ export default function ChatScreen() {
     setAutoSpeak(newVal);
     autoSpeakRef.current = newVal;
     await AsyncStorage.setItem(AUTO_SPEAK_KEY, String(newVal));
+  }
+
+  async function startRecording() {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+      if (Platform.OS === "web") {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+        audioChunksRef.current = [];
+
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) audioChunksRef.current.push(e.data);
+        };
+
+        mediaRecorder.onstop = async () => {
+          stream.getTracks().forEach((t) => t.stop());
+          const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+          await transcribeAudio(blob, "webm");
+        };
+
+        mediaRecorderRef.current = mediaRecorder;
+        mediaRecorder.start();
+        setIsRecording(true);
+      } else {
+        const permission = await Audio.requestPermissionsAsync();
+        if (!permission.granted) return;
+
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true,
+        });
+
+        const { recording } = await Audio.Recording.createAsync(
+          Audio.RecordingOptionsPresets.HIGH_QUALITY
+        );
+        recordingRef.current = recording;
+        setIsRecording(true);
+      }
+    } catch (error) {
+      console.error("Recording start error:", error);
+      setIsRecording(false);
+    }
+  }
+
+  async function stopRecording() {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+      if (Platform.OS === "web") {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+          mediaRecorderRef.current.stop();
+        }
+        setIsRecording(false);
+      } else {
+        if (!recordingRef.current) return;
+        setIsRecording(false);
+
+        await recordingRef.current.stopAndUnloadAsync();
+        await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+
+        const uri = recordingRef.current.getURI();
+        recordingRef.current = null;
+
+        if (!uri) return;
+
+        const base64 = await FileSystem.readAsStringAsync(uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+
+        await transcribeFromBase64(base64, "m4a");
+      }
+    } catch (error) {
+      console.error("Recording stop error:", error);
+      setIsRecording(false);
+    }
+  }
+
+  async function transcribeAudio(blob: Blob, format: string) {
+    setIsTranscribing(true);
+    try {
+      const reader = new FileReader();
+      const base64 = await new Promise<string>((resolve, reject) => {
+        reader.onloadend = () => {
+          const result = reader.result as string;
+          resolve(result.split(",")[1]);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+
+      await transcribeFromBase64(base64, format);
+    } catch (error) {
+      console.error("Transcription error:", error);
+    } finally {
+      setIsTranscribing(false);
+    }
+  }
+
+  async function transcribeFromBase64(base64: string, format: string) {
+    setIsTranscribing(true);
+    try {
+      const baseUrl = getApiUrl();
+      const response = await globalThis.fetch(`${baseUrl}api/stt`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ audio: base64, format }),
+      });
+
+      if (!response.ok) throw new Error("STT request failed");
+
+      const data = await response.json();
+      if (data.text && data.text.trim()) {
+        setInputText((prev) => (prev ? prev + " " + data.text.trim() : data.text.trim()));
+        inputRef.current?.focus();
+      }
+    } catch (error) {
+      console.error("Transcription error:", error);
+    } finally {
+      setIsTranscribing(false);
+    }
   }
 
   async function handleSpeak(messageId: string, text: string, mood?: ChatMood) {
@@ -519,9 +647,36 @@ export default function ChatScreen() {
               maxLength={2000}
               blurOnSubmit={false}
               onSubmitEditing={handleSend}
-              editable={!isStreaming}
+              editable={!isStreaming && !isRecording}
               testID="chat-input"
             />
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                if (isRecording) {
+                  stopRecording();
+                } else {
+                  startRecording();
+                }
+              }}
+              disabled={isStreaming || isTranscribing}
+              style={[
+                styles.micButton,
+                isRecording && styles.micButtonRecording,
+                (isStreaming || isTranscribing) && styles.micButtonDisabled,
+              ]}
+              testID="mic-button"
+            >
+              {isTranscribing ? (
+                <ActivityIndicator size={16} color={Colors.gold} />
+              ) : (
+                <Ionicons
+                  name={isRecording ? "stop" : "mic"}
+                  size={18}
+                  color={isRecording ? "#FF4444" : Colors.whiteMuted}
+                />
+              )}
+            </Pressable>
             <Pressable
               onPress={() => {
                 handleSend();
@@ -709,6 +864,24 @@ const styles = StyleSheet.create({
     maxHeight: 120,
     borderWidth: 1,
     borderColor: Colors.border,
+  },
+  micButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 2,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+  },
+  micButtonRecording: {
+    backgroundColor: "rgba(255, 68, 68, 0.15)",
+    borderColor: "#FF4444",
+  },
+  micButtonDisabled: {
+    opacity: 0.3,
   },
   sendButton: {
     width: 40,
