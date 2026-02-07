@@ -513,7 +513,9 @@ export default function ChatScreen() {
 
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
-  const reversedMessages = [...messages].reverse();
+  const isWeb = Platform.OS === "web";
+  const displayMessages = isWeb ? messages : [...messages].reverse();
+  const flatListRef = useRef<FlatList>(null);
 
   if (isLoading) {
     return (
@@ -587,7 +589,8 @@ export default function ChatScreen() {
         keyboardVerticalOffset={0}
       >
         <FlatList
-          data={reversedMessages}
+          ref={flatListRef}
+          data={displayMessages}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
             <MessageBubble
@@ -598,10 +601,16 @@ export default function ChatScreen() {
               mood={messageMoods[item.id]}
             />
           )}
-          inverted={messages.length > 0}
-          ListHeaderComponent={showTyping ? <TypingIndicator /> : null}
+          inverted={!isWeb && messages.length > 0}
+          onContentSizeChange={() => {
+            if (isWeb && messages.length > 0) {
+              flatListRef.current?.scrollToEnd({ animated: true });
+            }
+          }}
+          ListHeaderComponent={!isWeb && showTyping ? <TypingIndicator /> : null}
+          ListFooterComponent={isWeb && showTyping ? <TypingIndicator /> : null}
           ListEmptyComponent={
-            <View style={styles.welcomeContainer}>
+            <View style={[styles.welcomeContainer, !isWeb && styles.welcomeFlipped]}>
               <Animated.View
                 entering={FadeInDown.duration(600)}
                 style={styles.welcomeInner}
@@ -748,7 +757,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     marginBottom: 12,
     maxWidth: "85%",
-    ...(Platform.OS === "web" ? { transform: [{ scaleY: -1 }] } : {}),
   },
   bubbleRowUser: {
     alignSelf: "flex-end",
@@ -798,7 +806,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignSelf: "flex-start",
     marginBottom: 12,
-    ...(Platform.OS === "web" ? { transform: [{ scaleY: -1 }] } : {}),
   },
   typingBubble: {
     backgroundColor: Colors.card,
@@ -823,6 +830,8 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
+  },
+  welcomeFlipped: {
     transform: [{ scaleY: -1 }],
   },
   welcomeInner: {
