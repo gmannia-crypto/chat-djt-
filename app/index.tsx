@@ -160,7 +160,12 @@ export default function HomeScreen() {
 
   function getThemeSongUrl() {
     const baseUrl = getApiUrl();
-    return `${baseUrl}server/assets/theme-song.m4a`;
+    const songs = [
+      "server/assets/theme-song.m4a",
+      "server/assets/theme-song-2.mp3",
+    ];
+    const pick = songs[Math.floor(Math.random() * songs.length)];
+    return `${baseUrl}${pick}`;
   }
 
   async function playThemeSong() {
