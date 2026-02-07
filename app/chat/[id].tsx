@@ -17,7 +17,18 @@ import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { Ionicons, MaterialCommunityIcons, Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withSequence,
+  withTiming,
+  Easing,
+  withSpring,
+  cancelAnimation,
+} from "react-native-reanimated";
 import { createAudioPlayer, type AudioPlayer as ExpoAudioPlayer } from "expo-audio";
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system";
@@ -144,6 +155,341 @@ function TypingIndicator() {
     </Animated.View>
   );
 }
+
+function TrumpTalkingAvatar({ isSpeaking }: { isSpeaking: boolean }) {
+  const mouthOpen = useSharedValue(0);
+  const glowPulse = useSharedValue(0.4);
+  const bodyBob = useSharedValue(0);
+
+  useEffect(() => {
+    if (isSpeaking) {
+      mouthOpen.value = withRepeat(
+        withSequence(
+          withTiming(1, { duration: 120, easing: Easing.inOut(Easing.ease) }),
+          withTiming(0.2, { duration: 100, easing: Easing.inOut(Easing.ease) }),
+          withTiming(0.8, { duration: 90, easing: Easing.inOut(Easing.ease) }),
+          withTiming(0.1, { duration: 110, easing: Easing.inOut(Easing.ease) }),
+          withTiming(0.9, { duration: 100, easing: Easing.inOut(Easing.ease) }),
+          withTiming(0.3, { duration: 130, easing: Easing.inOut(Easing.ease) }),
+        ),
+        -1,
+        false
+      );
+      glowPulse.value = withRepeat(
+        withSequence(
+          withTiming(0.8, { duration: 1200, easing: Easing.inOut(Easing.ease) }),
+          withTiming(0.4, { duration: 1200, easing: Easing.inOut(Easing.ease) }),
+        ),
+        -1,
+        true
+      );
+      bodyBob.value = withRepeat(
+        withSequence(
+          withTiming(2, { duration: 400, easing: Easing.inOut(Easing.ease) }),
+          withTiming(-1, { duration: 350, easing: Easing.inOut(Easing.ease) }),
+          withTiming(1, { duration: 300, easing: Easing.inOut(Easing.ease) }),
+          withTiming(0, { duration: 350, easing: Easing.inOut(Easing.ease) }),
+        ),
+        -1,
+        true
+      );
+    } else {
+      cancelAnimation(mouthOpen);
+      cancelAnimation(glowPulse);
+      cancelAnimation(bodyBob);
+      mouthOpen.value = withTiming(0, { duration: 200 });
+      glowPulse.value = withTiming(0, { duration: 300 });
+      bodyBob.value = withTiming(0, { duration: 200 });
+    }
+  }, [isSpeaking]);
+
+  const mouthStyle = useAnimatedStyle(() => ({
+    height: 4 + mouthOpen.value * 12,
+    borderRadius: 2 + mouthOpen.value * 6,
+    transform: [{ scaleX: 0.8 + mouthOpen.value * 0.2 }],
+  }));
+
+  const glowStyle = useAnimatedStyle(() => ({
+    opacity: glowPulse.value,
+  }));
+
+  const bobStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: bodyBob.value }],
+  }));
+
+  if (!isSpeaking) return null;
+
+  return (
+    <Animated.View entering={FadeIn.duration(300)} style={avatarStyles.container}>
+      <Animated.View style={[avatarStyles.glowRing, glowStyle]} />
+      <Animated.View style={[avatarStyles.avatarFrame, bobStyle]}>
+        <View style={avatarStyles.head}>
+          <View style={avatarStyles.hairBack} />
+          <View style={avatarStyles.hairTop} />
+          <View style={avatarStyles.hairSwoop} />
+          <View style={avatarStyles.face}>
+            <View style={avatarStyles.eyeRow}>
+              <View style={avatarStyles.eye}>
+                <View style={avatarStyles.eyeWhite}>
+                  <View style={avatarStyles.pupil} />
+                </View>
+              </View>
+              <View style={avatarStyles.eye}>
+                <View style={avatarStyles.eyeWhite}>
+                  <View style={avatarStyles.pupil} />
+                </View>
+              </View>
+            </View>
+            <View style={avatarStyles.eyebrowRow}>
+              <View style={avatarStyles.eyebrow} />
+              <View style={avatarStyles.eyebrow} />
+            </View>
+            <View style={avatarStyles.nose} />
+            <Animated.View style={[avatarStyles.mouth, mouthStyle]}>
+              <View style={avatarStyles.teeth} />
+            </Animated.View>
+          </View>
+          <View style={avatarStyles.chin} />
+        </View>
+        <View style={avatarStyles.neck} />
+        <View style={avatarStyles.suit}>
+          <View style={avatarStyles.lapelLeft} />
+          <View style={avatarStyles.lapelRight} />
+          <View style={avatarStyles.tie} />
+          <View style={avatarStyles.tieKnot} />
+          <View style={avatarStyles.shirt} />
+        </View>
+      </Animated.View>
+      <Text style={avatarStyles.speakingLabel}>Speaking...</Text>
+    </Animated.View>
+  );
+}
+
+const avatarStyles = StyleSheet.create({
+  container: {
+    alignItems: "center",
+    paddingVertical: 8,
+    gap: 6,
+  },
+  glowRing: {
+    position: "absolute",
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    top: 4,
+    backgroundColor: "transparent",
+    borderWidth: 3,
+    borderColor: Colors.gold,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 0 20px rgba(212, 164, 32, 0.5), 0 0 40px rgba(212, 164, 32, 0.2)",
+      },
+      default: {},
+    }),
+  },
+  avatarFrame: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    backgroundColor: "#1A1408",
+    borderWidth: 2.5,
+    borderColor: Colors.gold,
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    ...Platform.select({
+      web: {
+        boxShadow: "inset 0 -2px 8px rgba(0,0,0,0.4), 0 4px 12px rgba(212, 164, 32, 0.3)",
+      },
+      default: {},
+    }),
+  },
+  head: {
+    alignItems: "center",
+    position: "relative",
+    marginBottom: -4,
+  },
+  hairBack: {
+    position: "absolute",
+    top: -6,
+    width: 58,
+    height: 26,
+    borderRadius: 29,
+    backgroundColor: "#D4A420",
+    zIndex: 0,
+  },
+  hairTop: {
+    position: "absolute",
+    top: -8,
+    width: 50,
+    height: 20,
+    borderTopLeftRadius: 25,
+    borderTopRightRadius: 25,
+    borderBottomLeftRadius: 8,
+    borderBottomRightRadius: 8,
+    backgroundColor: "#E8C84A",
+    zIndex: 2,
+  },
+  hairSwoop: {
+    position: "absolute",
+    top: -5,
+    right: -8,
+    width: 22,
+    height: 14,
+    borderTopRightRadius: 14,
+    borderBottomRightRadius: 4,
+    backgroundColor: "#C89B18",
+    transform: [{ rotate: "15deg" }],
+    zIndex: 1,
+  },
+  face: {
+    width: 48,
+    height: 40,
+    borderRadius: 22,
+    backgroundColor: "#F5C99A",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 14,
+    zIndex: 3,
+    paddingTop: 2,
+  },
+  eyeRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 2,
+  },
+  eyebrowRow: {
+    position: "absolute",
+    top: 4,
+    flexDirection: "row",
+    gap: 14,
+  },
+  eyebrow: {
+    width: 10,
+    height: 2.5,
+    backgroundColor: "#B8862D",
+    borderRadius: 1.5,
+  },
+  eye: {
+    alignItems: "center",
+  },
+  eyeWhite: {
+    width: 10,
+    height: 7,
+    borderRadius: 5,
+    backgroundColor: "#FFF",
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  pupil: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#2C5F8A",
+  },
+  nose: {
+    width: 6,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: "#E8B888",
+    marginBottom: 2,
+  },
+  mouth: {
+    width: 18,
+    backgroundColor: "#8B2020",
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "flex-start",
+  },
+  teeth: {
+    width: 14,
+    height: 3,
+    backgroundColor: "#FFFFFFDD",
+    borderBottomLeftRadius: 2,
+    borderBottomRightRadius: 2,
+  },
+  chin: {
+    width: 36,
+    height: 8,
+    borderBottomLeftRadius: 18,
+    borderBottomRightRadius: 18,
+    backgroundColor: "#F0C090",
+    marginTop: -3,
+    zIndex: 2,
+  },
+  neck: {
+    width: 20,
+    height: 6,
+    backgroundColor: "#F0C090",
+    zIndex: 1,
+  },
+  suit: {
+    width: 80,
+    height: 30,
+    backgroundColor: "#1A1A2E",
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    alignItems: "center",
+    position: "relative",
+    marginTop: -2,
+  },
+  lapelLeft: {
+    position: "absolute",
+    top: 2,
+    left: 12,
+    width: 18,
+    height: 22,
+    borderTopRightRadius: 14,
+    backgroundColor: "#252540",
+    transform: [{ rotate: "-8deg" }],
+  },
+  lapelRight: {
+    position: "absolute",
+    top: 2,
+    right: 12,
+    width: 18,
+    height: 22,
+    borderTopLeftRadius: 14,
+    backgroundColor: "#252540",
+    transform: [{ rotate: "8deg" }],
+  },
+  tie: {
+    width: 10,
+    height: 20,
+    backgroundColor: "#CC2222",
+    borderBottomLeftRadius: 5,
+    borderBottomRightRadius: 5,
+    marginTop: 6,
+    zIndex: 5,
+  },
+  tieKnot: {
+    position: "absolute",
+    top: 2,
+    width: 8,
+    height: 6,
+    backgroundColor: "#DD3333",
+    borderRadius: 3,
+    zIndex: 6,
+  },
+  shirt: {
+    position: "absolute",
+    top: 0,
+    width: 18,
+    height: 8,
+    backgroundColor: "#F8F8F0",
+    borderTopLeftRadius: 3,
+    borderTopRightRadius: 3,
+    zIndex: 4,
+  },
+  speakingLabel: {
+    fontSize: 11,
+    color: Colors.gold,
+    fontWeight: "600" as const,
+    letterSpacing: 0.5,
+    textTransform: "uppercase" as const,
+  },
+});
 
 export default function ChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -753,6 +1099,8 @@ export default function ChatScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         />
+
+        <TrumpTalkingAvatar isSpeaking={!!speakingMessageId} />
 
         <View
           style={[
