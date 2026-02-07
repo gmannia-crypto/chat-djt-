@@ -3,6 +3,7 @@ import type { Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import * as fs from "fs";
 import * as path from "path";
+import { spawn, type ChildProcess } from "child_process";
 
 const app = express();
 const log = console.log;
@@ -227,6 +228,30 @@ function setupErrorHandler(app: express.Application) {
   });
 }
 
+function startMetroBundler(): ChildProcess | null {
+  if (process.env.NODE_ENV !== "development") return null;
+
+  const metroEnv = {
+    ...process.env,
+    EXPO_PACKAGER_PROXY_URL: `https://${process.env.REPLIT_DEV_DOMAIN}`,
+    REACT_NATIVE_PACKAGER_HOSTNAME: process.env.REPLIT_DEV_DOMAIN || "",
+    EXPO_PUBLIC_DOMAIN: `${process.env.REPLIT_DEV_DOMAIN}:5000`,
+  };
+
+  const metro = spawn("npx", ["expo", "start", "--localhost", "--port", "8081"], {
+    env: metroEnv,
+    stdio: "inherit",
+    cwd: process.cwd(),
+  });
+
+  metro.on("exit", (code) => {
+    log(`Metro bundler exited with code ${code}`);
+  });
+
+  log("Metro bundler spawned on port 8081");
+  return metro;
+}
+
 (async () => {
   setupCors(app);
   setupBodyParsing(app);
@@ -251,6 +276,16 @@ function setupErrorHandler(app: express.Application) {
     },
     () => {
       log(`express server serving on port ${port}`);
+
+      const metro = startMetroBundler();
+      if (metro) {
+        process.on("SIGTERM", () => {
+          metro.kill("SIGTERM");
+        });
+        process.on("SIGINT", () => {
+          metro.kill("SIGTERM");
+        });
+      }
     },
   );
 })();
