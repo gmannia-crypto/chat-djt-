@@ -63,4 +63,4 @@ Preferred communication style: Simple, everyday language.
 
 - 2026-02-06: Full app rebuild — server routes, all screens (home, chat, subscribe, admin), chat storage, streaming, error boundary, theme colors, app.json configuration
 - 2026-02-06: Added voice toggle (DJT/Spirit modes), Chat DJT logo as prominent home screen background, TTS speaker button on assistant messages using OpenAI gpt-audio with onyx voice
-- 2026-02-07: Replaced OpenAI TTS with ElevenLabs cloned Trump voice (eleven_v3). Home screen redesigned — conversation list hidden behind archive modal, full-screen logo background. Added defensive/blustering behavior when Trump is offended
+- 2026-02-07: Replaced OpenAI TTS with ElevenLabs cloned Trump voice (eleven_v3). Home screen redesigned — conversation list hidden behind archive modal, full-screen logo background. Added defensive/blustering behavior when Trump is offended. Added conversational mode — Trump asks personal questions when annoyed, with faster TTS speed (1.2x) for fired-up mood. Mood detection via [MOOD:CALM/FIRED_UP] tags stripped from display, passed to TTS endpoint for speed adjustment
