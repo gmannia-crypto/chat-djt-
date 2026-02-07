@@ -3,7 +3,8 @@ import type { Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import * as fs from "fs";
 import * as path from "path";
-import { spawn, type ChildProcess } from "child_process";
+import * as http from "http";
+import { spawn, execSync, type ChildProcess } from "child_process";
 
 const app = express();
 const log = console.log;
@@ -30,7 +31,6 @@ function setupCors(app: express.Application) {
 
     const origin = req.header("origin");
 
-    // Allow localhost origins for Expo web development (any port)
     const isLocalhost =
       origin?.startsWith("http://localhost:") ||
       origin?.startsWith("http://127.0.0.1:");
@@ -150,9 +150,6 @@ function serveLandingPage({
   const baseUrl = `${protocol}://${host}`;
   const expsUrl = `${host}`;
 
-  log(`baseUrl`, baseUrl);
-  log(`expsUrl`, expsUrl);
-
   const html = landingPageTemplate
     .replace(/BASE_URL_PLACEHOLDER/g, baseUrl)
     .replace(/EXPS_URL_PLACEHOLDER/g, expsUrl)
@@ -160,6 +157,53 @@ function serveLandingPage({
 
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.status(200).send(html);
+}
+
+const METRO_PORT = 19006;
+
+function proxyToMetro(req: Request, res: Response) {
+  const isRootPage = req.path === "/" && req.method === "GET";
+
+  const proxyPath = isRootPage ? req.originalUrl : req.originalUrl.replace(/lazy=true/g, "lazy=false");
+
+  const options: http.RequestOptions = {
+    hostname: "localhost",
+    port: METRO_PORT,
+    path: proxyPath,
+    method: req.method,
+    headers: { ...req.headers, host: `localhost:${METRO_PORT}` },
+  };
+
+  const proxyReq = http.request(options, (proxyRes) => {
+    const status = proxyRes.statusCode || 502;
+    if (status >= 400) {
+      log(`[proxy] ${status} ${req.method} ${req.path}`);
+    }
+
+    if (isRootPage && proxyRes.headers["content-type"]?.includes("text/html")) {
+      let body = "";
+      proxyRes.on("data", (chunk: Buffer) => { body += chunk.toString(); });
+      proxyRes.on("end", () => {
+        body = body.replace(/lazy=true/g, "lazy=false");
+        const headers = { ...proxyRes.headers };
+        delete headers["content-length"];
+        delete headers["transfer-encoding"];
+        headers["content-length"] = String(Buffer.byteLength(body));
+        res.writeHead(status, headers);
+        res.end(body);
+      });
+    } else {
+      res.writeHead(status, proxyRes.headers);
+      proxyRes.pipe(res, { end: true });
+    }
+  });
+
+  proxyReq.on("error", () => {
+    log(`[proxy] ERROR connecting to Metro for ${req.path}`);
+    res.status(502).send("Metro bundler is starting up... Please refresh in a few seconds.");
+  });
+
+  req.pipe(proxyReq, { end: true });
 }
 
 function configureExpoAndLanding(app: express.Application) {
@@ -171,21 +215,27 @@ function configureExpoAndLanding(app: express.Application) {
   );
   const landingPageTemplate = fs.readFileSync(templatePath, "utf-8");
   const appName = getAppName();
+  const isDev = process.env.NODE_ENV === "development";
 
   log("Serving static Expo files with dynamic manifest routing");
 
   app.use((req: Request, res: Response, next: NextFunction) => {
-    if (req.path.startsWith("/api")) {
-      return next();
-    }
-
-    if (req.path !== "/" && req.path !== "/manifest") {
+    if (req.path.startsWith("/api") || req.path === "/status") {
       return next();
     }
 
     const platform = req.header("expo-platform");
     if (platform && (platform === "ios" || platform === "android")) {
-      return serveExpoManifest(platform, res);
+      if (req.path === "/" || req.path === "/manifest") {
+        return serveExpoManifest(platform, res);
+      }
+    }
+
+    if (isDev) {
+      if (req.path === "/server/assets" || req.path.startsWith("/server/assets/")) {
+        return next();
+      }
+      return proxyToMetro(req, res);
     }
 
     if (req.path === "/") {
@@ -228,17 +278,45 @@ function setupErrorHandler(app: express.Application) {
   });
 }
 
+function waitForPortReady(port: number, maxAttempts = 60): Promise<boolean> {
+  return new Promise((resolve) => {
+    let attempts = 0;
+    const check = () => {
+      const net = require("net");
+      const socket = net.createConnection(port, "localhost");
+      socket.on("connect", () => {
+        socket.destroy();
+        resolve(true);
+      });
+      socket.on("error", () => {
+        attempts++;
+        if (attempts >= maxAttempts) {
+          resolve(false);
+        } else {
+          setTimeout(check, 1000);
+        }
+      });
+    };
+    check();
+  });
+}
+
 function startMetroBundler(): ChildProcess | null {
   if (process.env.NODE_ENV !== "development") return null;
 
+  try {
+    execSync(`pkill -9 -f "expo start" 2>/dev/null; sleep 2`, { stdio: "ignore", timeout: 10000 });
+  } catch {}
+
   const metroEnv = {
     ...process.env,
+    CI: undefined,
     EXPO_PACKAGER_PROXY_URL: `https://${process.env.REPLIT_DEV_DOMAIN}`,
     REACT_NATIVE_PACKAGER_HOSTNAME: process.env.REPLIT_DEV_DOMAIN || "",
     EXPO_PUBLIC_DOMAIN: `${process.env.REPLIT_DEV_DOMAIN}:5000`,
   };
 
-  const metro = spawn("npx", ["expo", "start", "--localhost", "--port", "8081"], {
+  const metro = spawn("npx", ["expo", "start", "--localhost", "--port", String(METRO_PORT)], {
     env: metroEnv,
     stdio: "inherit",
     cwd: process.cwd(),
@@ -248,7 +326,7 @@ function startMetroBundler(): ChildProcess | null {
     log(`Metro bundler exited with code ${code}`);
   });
 
-  log("Metro bundler spawned on port 8081");
+  log(`Metro bundler spawned on port ${METRO_PORT}`);
   return metro;
 }
 
@@ -268,23 +346,42 @@ function startMetroBundler(): ChildProcess | null {
   setupErrorHandler(app);
 
   const port = parseInt(process.env.PORT || "5000", 10);
+
+  if (process.env.NODE_ENV === "development") {
+    const net = await import("net");
+    server.on("upgrade", (req: http.IncomingMessage, socket: any, head: Buffer) => {
+      const proxySocket = net.connect(METRO_PORT, "localhost", () => {
+        const reqLine = `${req.method} ${req.url} HTTP/1.1\r\n`;
+        let headers = "";
+        for (let i = 0; i < req.rawHeaders.length; i += 2) {
+          headers += `${req.rawHeaders[i]}: ${req.rawHeaders[i + 1]}\r\n`;
+        }
+        proxySocket.write(reqLine + headers + "\r\n");
+        if (head.length > 0) proxySocket.write(head);
+        socket.pipe(proxySocket).pipe(socket);
+      });
+      proxySocket.on("error", () => socket.destroy());
+      socket.on("error", () => proxySocket.destroy());
+    });
+  }
+
   server.listen(
     {
       port,
       host: "0.0.0.0",
       reusePort: true,
     },
-    () => {
+    async () => {
       log(`express server serving on port ${port}`);
 
-      const metro = startMetroBundler();
-      if (metro) {
-        process.on("SIGTERM", () => {
-          metro.kill("SIGTERM");
-        });
-        process.on("SIGINT", () => {
-          metro.kill("SIGTERM");
-        });
+      if (process.env.NODE_ENV === "development") {
+        const metro = startMetroBundler();
+        if (metro) {
+          process.on("SIGTERM", () => { metro.kill("SIGTERM"); });
+          process.on("SIGINT", () => { metro.kill("SIGTERM"); });
+          const started = await waitForPortReady(METRO_PORT, 60);
+          log(started ? `Metro is ready on port ${METRO_PORT}` : `Metro failed to start on port ${METRO_PORT}`);
+        }
       }
     },
   );

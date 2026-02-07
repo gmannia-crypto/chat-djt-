@@ -3,6 +3,7 @@ modules = ["nodejs-22"]
 
 [nix]
 channel = "stable-24_05"
+packages = ["chromium"]
 
 [deployment]
 deploymentTarget = "cloudrun"
@@ -73,3 +74,8 @@ task = "shell.exec"
 args = "npm run expo:dev"
 waitForPort = 8081
 ensurePreviewReachable = "/status"
+
+[userenv]
+
+[userenv.development]
+CI = "true"
