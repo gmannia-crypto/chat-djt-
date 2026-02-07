@@ -303,11 +303,7 @@ export default function HomeScreen() {
         </View>
       </Animated.View>
 
-      <View style={styles.centerContent}>
-        <Animated.View entering={FadeIn.delay(300).duration(800)}>
-          <Text style={styles.brandTitle}>CHAT DJT</Text>
-        </Animated.View>
-      </View>
+      <View style={styles.centerContent} />
 
       <View
         style={[
