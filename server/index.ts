@@ -232,6 +232,10 @@ function setupErrorHandler(app: express.Application) {
   setupBodyParsing(app);
   setupRequestLogging(app);
 
+  app.get("/status", (_req: Request, res: Response) => {
+    res.status(200).send("ok");
+  });
+
   configureExpoAndLanding(app);
 
   const server = await registerRoutes(app);
