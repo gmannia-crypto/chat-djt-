@@ -7,6 +7,8 @@ import {
   Platform,
   ScrollView,
   Linking,
+  TextInput,
+  Alert,
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -15,15 +17,18 @@ import {
   MaterialCommunityIcons,
   Feather,
   MaterialIcons,
+  FontAwesome5,
 } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
+import * as Clipboard from "expo-clipboard";
 import Animated, {
   FadeInDown,
   FadeInUp,
 } from "react-native-reanimated";
 import Colors from "@/constants/colors";
 import { getAllConversations, clearAllConversations } from "@/lib/chat-storage";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 interface StatCardProps {
   icon: string;
@@ -54,16 +59,122 @@ function StatCard({ icon, iconSet, title, value, subtitle, delay }: StatCardProp
   );
 }
 
+const CRYPTO_STORAGE_KEY = "chatdjt_crypto_wallets";
+
+interface CryptoWallet {
+  coin: string;
+  symbol: string;
+  address: string;
+  color: string;
+  icon: string;
+}
+
+const DEFAULT_WALLETS: CryptoWallet[] = [
+  { coin: "Bitcoin", symbol: "BTC", address: "", color: "#F7931A", icon: "bitcoin" },
+  { coin: "Ethereum", symbol: "ETH", address: "", color: "#627EEA", icon: "ethereum" },
+  { coin: "Chainlink", symbol: "LINK", address: "", color: "#2A5ADA", icon: "link" },
+];
+
+function CryptoWalletCard({
+  wallet,
+  onSave,
+  delay,
+}: {
+  wallet: CryptoWallet;
+  onSave: (symbol: string, address: string) => void;
+  delay: number;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [address, setAddress] = useState(wallet.address);
+
+  async function handleCopy() {
+    if (!wallet.address) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await Clipboard.setStringAsync(wallet.address);
+    if (Platform.OS === "web") {
+      alert("Address copied!");
+    } else {
+      Alert.alert("Copied", `${wallet.coin} address copied to clipboard`);
+    }
+  }
+
+  return (
+    <Animated.View entering={FadeInDown.delay(delay).duration(400)}>
+      <View style={styles.cryptoCard}>
+        <View style={styles.cryptoHeader}>
+          <View style={[styles.cryptoIconContainer, { backgroundColor: wallet.color + "20" }]}>
+            {wallet.symbol === "LINK" ? (
+              <MaterialCommunityIcons name="link-variant" size={22} color={wallet.color} />
+            ) : (
+              <FontAwesome5 name={wallet.icon} size={20} color={wallet.color} />
+            )}
+          </View>
+          <View style={styles.cryptoInfo}>
+            <Text style={styles.cryptoCoinName}>{wallet.coin}</Text>
+            <Text style={[styles.cryptoSymbol, { color: wallet.color }]}>{wallet.symbol}</Text>
+          </View>
+          <View style={styles.cryptoActions}>
+            {wallet.address ? (
+              <Pressable onPress={handleCopy} style={styles.cryptoCopyBtn}>
+                <Ionicons name="copy-outline" size={18} color={Colors.gold} />
+              </Pressable>
+            ) : null}
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                if (editing) {
+                  onSave(wallet.symbol, address);
+                  setEditing(false);
+                } else {
+                  setEditing(true);
+                }
+              }}
+              style={styles.cryptoEditBtn}
+            >
+              <Ionicons
+                name={editing ? "checkmark" : "create-outline"}
+                size={18}
+                color={editing ? "#4CAF50" : Colors.whiteMuted}
+              />
+            </Pressable>
+          </View>
+        </View>
+        {editing ? (
+          <TextInput
+            style={styles.cryptoInput}
+            value={address}
+            onChangeText={setAddress}
+            placeholder={`Enter ${wallet.coin} wallet address...`}
+            placeholderTextColor={Colors.whiteMuted}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+        ) : wallet.address ? (
+          <Pressable onPress={handleCopy}>
+            <Text style={styles.cryptoAddress} numberOfLines={1}>
+              {wallet.address}
+            </Text>
+          </Pressable>
+        ) : (
+          <Text style={styles.cryptoPlaceholder}>No address configured — tap edit to add</Text>
+        )}
+      </View>
+    </Animated.View>
+  );
+}
+
 export default function AdminScreen() {
   const insets = useSafeAreaInsets();
   const [totalChats, setTotalChats] = useState(0);
   const [totalMessages, setTotalMessages] = useState(0);
+  const [wallets, setWallets] = useState<CryptoWallet[]>(DEFAULT_WALLETS);
 
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
 
   useEffect(() => {
     loadStats();
+    loadWallets();
   }, []);
 
   async function loadStats() {
@@ -71,6 +182,24 @@ export default function AdminScreen() {
     setTotalChats(convs.length);
     const msgs = convs.reduce((acc, c) => acc + c.messages.length, 0);
     setTotalMessages(msgs);
+  }
+
+  async function loadWallets() {
+    try {
+      const saved = await AsyncStorage.getItem(CRYPTO_STORAGE_KEY);
+      if (saved) {
+        setWallets(JSON.parse(saved));
+      }
+    } catch {}
+  }
+
+  async function saveWalletAddress(symbol: string, address: string) {
+    const updated = wallets.map((w) =>
+      w.symbol === symbol ? { ...w, address: address.trim() } : w
+    );
+    setWallets(updated);
+    await AsyncStorage.setItem(CRYPTO_STORAGE_KEY, JSON.stringify(updated));
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }
 
   const REVENUE_LINKS = [
@@ -169,6 +298,24 @@ export default function AdminScreen() {
         </View>
 
         <Animated.View entering={FadeInDown.delay(500).duration(400)}>
+          <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Crypto Wallet</Text>
+          <Text style={styles.sectionSubtitle}>
+            Accept crypto payments — Bitcoin, Ethereum, and Chainlink only!
+          </Text>
+        </Animated.View>
+
+        <View style={styles.cryptoWallets}>
+          {wallets.map((wallet, index) => (
+            <CryptoWalletCard
+              key={wallet.symbol}
+              wallet={wallet}
+              onSave={saveWalletAddress}
+              delay={600 + index * 80}
+            />
+          ))}
+        </View>
+
+        <Animated.View entering={FadeInDown.delay(900).duration(400)}>
           <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Revenue Collection</Text>
           <Text style={styles.sectionSubtitle}>
             All the ways to collect your tremendous money!
@@ -179,7 +326,7 @@ export default function AdminScreen() {
           {REVENUE_LINKS.map((link, index) => (
             <Animated.View
               key={link.title}
-              entering={FadeInDown.delay(600 + index * 80).duration(400)}
+              entering={FadeInDown.delay(1000 + index * 80).duration(400)}
             >
               <Pressable
                 style={({ pressed }) => [
@@ -204,12 +351,12 @@ export default function AdminScreen() {
           ))}
         </View>
 
-        <Animated.View entering={FadeInDown.delay(1000).duration(400)}>
+        <Animated.View entering={FadeInDown.delay(1400).duration(400)}>
           <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Setup Guide</Text>
         </Animated.View>
 
         <Animated.View
-          entering={FadeInDown.delay(1100).duration(400)}
+          entering={FadeInDown.delay(1500).duration(400)}
           style={styles.setupCard}
         >
           <Text style={styles.setupTitle}>RevenueCat Integration</Text>
@@ -234,7 +381,7 @@ export default function AdminScreen() {
           </View>
         </Animated.View>
 
-        <Animated.View entering={FadeInDown.delay(1200).duration(400)}>
+        <Animated.View entering={FadeInDown.delay(1600).duration(400)}>
           <Pressable
             style={({ pressed }) => [
               styles.dangerButton,
@@ -446,5 +593,90 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: Colors.redLight,
     fontWeight: "600" as const,
+  },
+  cryptoWallets: {
+    gap: 12,
+  },
+  cryptoCard: {
+    backgroundColor: Colors.card,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  cryptoHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  cryptoIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cryptoInfo: {
+    flex: 1,
+  },
+  cryptoCoinName: {
+    fontSize: 16,
+    fontFamily: "PlayfairDisplay_700Bold",
+    color: Colors.white,
+  },
+  cryptoSymbol: {
+    fontSize: 12,
+    fontWeight: "700" as const,
+    letterSpacing: 1,
+  },
+  cryptoActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  cryptoCopyBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(212, 164, 32, 0.12)",
+  },
+  cryptoEditBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
+  },
+  cryptoInput: {
+    marginTop: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 13,
+    color: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+  },
+  cryptoAddress: {
+    marginTop: 10,
+    fontSize: 12,
+    color: Colors.whiteDim,
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    overflow: "hidden",
+  },
+  cryptoPlaceholder: {
+    marginTop: 10,
+    fontSize: 12,
+    color: Colors.whiteMuted,
+    fontStyle: "italic",
   },
 });

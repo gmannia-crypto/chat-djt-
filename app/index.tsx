@@ -247,13 +247,17 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + webTopInset }]}>
-      <Image
-        source={require("@/assets/images/djt-logo.png")}
-        style={styles.backgroundLogo}
-        resizeMode="cover"
-      />
+      <View style={styles.woodFrameOuter}>
+        <View style={styles.woodFrameInner}>
+          <Image
+            source={require("@/assets/images/djt-logo.png")}
+            style={styles.backgroundLogo}
+            resizeMode="cover"
+          />
+        </View>
+      </View>
       <LinearGradient
-        colors={["rgba(10, 10, 10, 0)", "rgba(10, 10, 10, 0.15)", "rgba(10, 10, 10, 0.85)"]}
+        colors={["rgba(10, 10, 10, 0)", "rgba(10, 10, 10, 0.1)", "rgba(10, 10, 10, 0.7)"]}
         style={styles.backgroundOverlay}
         start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 1 }}
@@ -391,15 +395,33 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  backgroundLogo: {
+  woodFrameOuter: {
     position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    top: 8,
+    left: 8,
+    right: 8,
+    bottom: 8,
+    borderRadius: 12,
+    borderWidth: 6,
+    borderColor: "#3B2415",
+    backgroundColor: "#1E0F07",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.8,
+    shadowRadius: 16,
+    elevation: 20,
+    overflow: "hidden",
+  },
+  woodFrameInner: {
+    flex: 1,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: "#5C3820",
+    overflow: "hidden",
+  },
+  backgroundLogo: {
     width: "100%",
     height: "100%",
-    opacity: 0.7,
   },
   backgroundOverlay: {
     position: "absolute",

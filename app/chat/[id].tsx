@@ -8,6 +8,7 @@ import {
   Pressable,
   Platform,
   ActivityIndicator,
+  Image,
 } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -527,6 +528,11 @@ export default function ChatScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + webTopInset }]}>
+      <Image
+        source={require("@/assets/images/djt-logo.png")}
+        style={styles.chatBackgroundLogo}
+        resizeMode="contain"
+      />
       <View style={styles.chatHeader}>
         <Pressable
           onPress={() => {
@@ -716,6 +722,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  chatBackgroundLogo: {
+    position: "absolute",
+    top: "15%",
+    left: "10%",
+    right: "10%",
+    bottom: "15%",
+    width: "80%",
+    height: "70%",
+    opacity: 0.06,
+    alignSelf: "center",
   },
   loadingContainer: {
     alignItems: "center",
