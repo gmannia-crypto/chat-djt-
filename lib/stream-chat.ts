@@ -1,11 +1,17 @@
 import { fetch } from "expo/fetch";
 import { getApiUrl } from "@/lib/query-client";
 
+export type ChatMood = "CALM" | "FIRED_UP";
+
+export interface StreamResult {
+  mood: ChatMood;
+}
+
 export async function streamChat(
   messages: { role: string; content: string }[],
   onChunk: (text: string) => void,
   trumpVoice: boolean = true
-): Promise<void> {
+): Promise<StreamResult> {
   const baseUrl = getApiUrl();
 
   const response = await fetch(`${baseUrl}api/chat`, {
@@ -24,6 +30,7 @@ export async function streamChat(
 
   const decoder = new TextDecoder();
   let buffer = "";
+  let detectedMood: ChatMood = "CALM";
 
   while (true) {
     const { done, value } = await reader.read();
@@ -39,8 +46,14 @@ export async function streamChat(
       if (data === "[DONE]") continue;
       try {
         const parsed = JSON.parse(data);
+        if (parsed.mood) {
+          detectedMood = parsed.mood as ChatMood;
+        }
+        if (parsed.done) continue;
         if (parsed.content) onChunk(parsed.content);
       } catch {}
     }
   }
+
+  return { mood: detectedMood };
 }

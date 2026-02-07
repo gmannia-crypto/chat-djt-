@@ -24,7 +24,7 @@ import {
   saveMessages,
   generateUniqueId,
 } from "@/lib/chat-storage";
-import { streamChat } from "@/lib/stream-chat";
+import { streamChat, type ChatMood } from "@/lib/stream-chat";
 import { getApiUrl } from "@/lib/query-client";
 
 const TRUMP_VOICE_KEY = "chatdjt_trump_voice";
@@ -37,11 +37,13 @@ function MessageBubble({
   onSpeak,
   isSpeaking,
   isSpeakingThisMessage,
+  mood,
 }: {
   message: Message;
-  onSpeak: (messageId: string, text: string) => void;
+  onSpeak: (messageId: string, text: string, mood?: ChatMood) => void;
   isSpeaking: boolean;
   isSpeakingThisMessage: boolean;
+  mood?: ChatMood;
 }) {
   const isUser = message.role === "user";
 
@@ -77,7 +79,7 @@ function MessageBubble({
           <Pressable
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              onSpeak(message.id, message.content);
+              onSpeak(message.id, message.content, mood);
             }}
             disabled={isSpeaking && !isSpeakingThisMessage}
             style={[
@@ -136,6 +138,7 @@ export default function ChatScreen() {
   const [trumpVoice, setTrumpVoice] = useState(true);
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [autoSpeak, setAutoSpeak] = useState(false);
+  const [messageMoods, setMessageMoods] = useState<Record<string, ChatMood>>({});
   const inputRef = useRef<TextInput>(null);
   const initializedRef = useRef(false);
   const conversationIdRef = useRef(id);
@@ -187,7 +190,7 @@ export default function ChatScreen() {
     await AsyncStorage.setItem(AUTO_SPEAK_KEY, String(newVal));
   }
 
-  async function handleSpeak(messageId: string, text: string) {
+  async function handleSpeak(messageId: string, text: string, mood?: ChatMood) {
     if (speakingMessageId === messageId) {
       if (currentPlayer) {
         if (currentPlayer instanceof HTMLAudioElement) {
@@ -218,10 +221,11 @@ export default function ChatScreen() {
 
     try {
       const baseUrl = getApiUrl();
+      const msgMood = mood || messageMoods[messageId] || "CALM";
       const response = await globalThis.fetch(`${baseUrl}api/tts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, mood: msgMood }),
       });
 
       if (!response.ok) throw new Error("TTS request failed");
@@ -306,6 +310,8 @@ export default function ChatScreen() {
     let fullContent = "";
     let assistantAdded = false;
     let finalMessages = updatedWithUser;
+    let assistantMsgId = "";
+    let detectedMood: ChatMood = "CALM";
 
     try {
       const chatHistory = [
@@ -314,13 +320,14 @@ export default function ChatScreen() {
       ];
 
       const voiceSetting = trumpVoiceRef.current;
-      await streamChat(chatHistory, (chunk) => {
+      const result = await streamChat(chatHistory, (chunk) => {
         fullContent += chunk;
 
         if (!assistantAdded) {
           setShowTyping(false);
+          assistantMsgId = generateUniqueId();
           const assistantMsg: Message = {
-            id: generateUniqueId(),
+            id: assistantMsgId,
             role: "assistant",
             content: chunk,
             timestamp: Date.now(),
@@ -343,6 +350,11 @@ export default function ChatScreen() {
           });
         }
       }, voiceSetting);
+
+      detectedMood = result.mood;
+      if (assistantMsgId) {
+        setMessageMoods((prev) => ({ ...prev, [assistantMsgId]: detectedMood }));
+      }
     } catch (error) {
       setShowTyping(false);
       const errorMsg: Message = {
@@ -365,7 +377,7 @@ export default function ChatScreen() {
       if (autoSpeakRef.current && fullContent.length > 0) {
         const lastMsg = finalMessages[finalMessages.length - 1];
         if (lastMsg && lastMsg.role === "assistant") {
-          handleSpeak(lastMsg.id, lastMsg.content);
+          handleSpeak(lastMsg.id, lastMsg.content, detectedMood);
         }
       }
     }
@@ -455,6 +467,7 @@ export default function ChatScreen() {
               onSpeak={handleSpeak}
               isSpeaking={!!speakingMessageId}
               isSpeakingThisMessage={speakingMessageId === item.id}
+              mood={messageMoods[item.id]}
             />
           )}
           inverted={messages.length > 0}
