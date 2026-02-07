@@ -155,7 +155,7 @@ export default function ChatScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [trumpVoice, setTrumpVoice] = useState(true);
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
-  const [autoSpeak, setAutoSpeak] = useState(false);
+  const [autoSpeak, setAutoSpeak] = useState(true);
   const [messageMoods, setMessageMoods] = useState<Record<string, ChatMood>>({});
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
@@ -164,7 +164,7 @@ export default function ChatScreen() {
   const initializedRef = useRef(false);
   const conversationIdRef = useRef(id);
   const trumpVoiceRef = useRef(true);
-  const autoSpeakRef = useRef(false);
+  const autoSpeakRef = useRef(true);
   const pendingAutoSpeakRef = useRef<string | null>(null);
   const recordingRef = useRef<Audio.Recording | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
