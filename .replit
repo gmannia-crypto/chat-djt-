@@ -22,6 +22,10 @@ externalPort = 8081
 localPort = 8082
 externalPort = 3001
 
+[[ports]]
+localPort = 19006
+externalPort = 3002
+
 [env]
 PORT = "5000"
 
