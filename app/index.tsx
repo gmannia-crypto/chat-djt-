@@ -10,7 +10,6 @@ import {
   Image,
   Modal,
   Dimensions,
-  ActivityIndicator,
 } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -106,13 +105,13 @@ function ConversationItem({
 }
 
 let themePlayer: HTMLAudioElement | null = null;
+let hasAutoPlayed = false;
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [archiveVisible, setArchiveVisible] = useState(false);
   const [isThemePlaying, setIsThemePlaying] = useState(false);
-  const [isThemeLoading, setIsThemeLoading] = useState(false);
   const pulseAnim = useSharedValue(1);
 
   const pulseStyle = useAnimatedStyle(() => ({
@@ -133,6 +132,10 @@ export default function HomeScreen() {
   }, [isThemePlaying]);
 
   useEffect(() => {
+    if (!hasAutoPlayed) {
+      hasAutoPlayed = true;
+      playThemeSong();
+    }
     return () => {
       if (themePlayer) {
         if (Platform.OS === "web") {
@@ -155,54 +158,37 @@ export default function HomeScreen() {
     setConversations(convs);
   }
 
-  async function toggleThemeMusic() {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  function getThemeSongUrl() {
+    const baseUrl = getApiUrl();
+    return `${baseUrl}server/assets/theme-song.mp4`;
+  }
 
-    if (isThemePlaying && themePlayer) {
-      if (Platform.OS === "web") {
-        (themePlayer as HTMLAudioElement).pause();
-        (themePlayer as HTMLAudioElement).currentTime = 0;
-      }
-      themePlayer = null;
-      setIsThemePlaying(false);
-      return;
-    }
-
-    setIsThemeLoading(true);
+  async function playThemeSong() {
     try {
-      const baseUrl = getApiUrl();
-      const response = await globalThis.fetch(`${baseUrl}api/theme?new=true`);
-      if (!response.ok) throw new Error("Theme fetch failed");
-
-      const blob = await response.blob();
+      const url = getThemeSongUrl();
 
       if (Platform.OS === "web") {
-        const blobUrl = URL.createObjectURL(blob);
-        const audio = new Audio(blobUrl);
+        const audio = new Audio(url);
         themePlayer = audio;
 
         audio.onended = () => {
           setIsThemePlaying(false);
-          URL.revokeObjectURL(blobUrl);
           themePlayer = null;
         };
 
         audio.onerror = () => {
           setIsThemePlaying(false);
-          URL.revokeObjectURL(blobUrl);
           themePlayer = null;
         };
 
-        await audio.play();
+        await audio.play().catch(() => {
+          setIsThemePlaying(false);
+          themePlayer = null;
+        });
         setIsThemePlaying(true);
       } else {
         const { createAudioPlayer } = await import("expo-audio");
-        const arrayBuffer = await new Response(blob).arrayBuffer();
-        const base64 = btoa(
-          String.fromCharCode(...new Uint8Array(arrayBuffer))
-        );
-        const uri = `data:audio/mpeg;base64,${base64}`;
-        const player = createAudioPlayer(uri);
+        const player = createAudioPlayer(url);
         themePlayer = player as any;
 
         player.addListener("playbackStatusUpdate", (status: any) => {
@@ -216,11 +202,25 @@ export default function HomeScreen() {
         setIsThemePlaying(true);
       }
     } catch (error) {
-      console.error("Theme music error:", error);
+      console.error("Theme song error:", error);
       setIsThemePlaying(false);
-    } finally {
-      setIsThemeLoading(false);
     }
+  }
+
+  function toggleThemeMusic() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    if (isThemePlaying && themePlayer) {
+      if (Platform.OS === "web") {
+        (themePlayer as HTMLAudioElement).pause();
+        (themePlayer as HTMLAudioElement).currentTime = 0;
+      }
+      themePlayer = null;
+      setIsThemePlaying(false);
+      return;
+    }
+
+    playThemeSong();
   }
 
   async function handleNewChat() {
@@ -272,21 +272,16 @@ export default function HomeScreen() {
         <View style={styles.headerRight}>
           <Pressable
             onPress={toggleThemeMusic}
-            disabled={isThemeLoading}
             style={styles.headerButton}
             testID="theme-music-button"
           >
-            {isThemeLoading ? (
-              <ActivityIndicator size={18} color={Colors.gold} />
-            ) : (
-              <Animated.View style={isThemePlaying ? pulseStyle : undefined}>
-                <Ionicons
-                  name={isThemePlaying ? "musical-notes" : "musical-notes-outline"}
-                  size={22}
-                  color={isThemePlaying ? Colors.gold : Colors.whiteDim}
-                />
-              </Animated.View>
-            )}
+            <Animated.View style={isThemePlaying ? pulseStyle : undefined}>
+              <Ionicons
+                name={isThemePlaying ? "musical-notes" : "musical-notes-outline"}
+                size={22}
+                color={isThemePlaying ? Colors.gold : Colors.whiteDim}
+              />
+            </Animated.View>
           </Pressable>
           <Pressable
             onPress={() => {
