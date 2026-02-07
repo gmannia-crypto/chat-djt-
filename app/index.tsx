@@ -379,35 +379,44 @@ export default function HomeScreen() {
               loadConversations();
               setArchiveVisible(true);
             }}
-            style={styles.headerButton}
+            style={styles.glossyHeaderBtn}
             testID="archive-button"
           >
-            <Ionicons name="folder-outline" size={24} color={Colors.whiteDim} />
+            <View style={styles.glossyHeaderCircle}>
+              <Ionicons name="folder-open" size={18} color="#1A1000" />
+            </View>
+            <Text style={styles.glossyHeaderLabel}>Archive</Text>
           </Pressable>
         </View>
         <View style={styles.headerRight}>
           <Pressable
             onPress={toggleThemeMusic}
-            style={styles.headerButton}
+            style={styles.glossyHeaderBtn}
             testID="theme-music-button"
           >
             <Animated.View style={isThemePlaying ? pulseStyle : undefined}>
-              <Ionicons
-                name={isThemePlaying ? "musical-notes" : "musical-notes-outline"}
-                size={22}
-                color={isThemePlaying ? Colors.gold : Colors.whiteDim}
-              />
+              <View style={[styles.glossyHeaderCircle, isThemePlaying && styles.glossyHeaderCircleActive]}>
+                <Ionicons
+                  name={isThemePlaying ? "musical-notes" : "musical-notes-outline"}
+                  size={18}
+                  color="#1A1000"
+                />
+              </View>
             </Animated.View>
+            <Text style={[styles.glossyHeaderLabel, isThemePlaying && styles.glossyHeaderLabelActive]}>Music</Text>
           </Pressable>
           <Pressable
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               router.push("/admin");
             }}
-            style={styles.headerButton}
+            style={styles.glossyHeaderBtn}
             testID="admin-button"
           >
-            <Ionicons name="settings-outline" size={22} color={Colors.whiteDim} />
+            <View style={styles.glossyHeaderCircle}>
+              <Ionicons name="settings" size={18} color="#1A1000" />
+            </View>
+            <Text style={styles.glossyHeaderLabel}>Admin</Text>
           </Pressable>
         </View>
       </Animated.View>
@@ -712,13 +721,47 @@ const styles = StyleSheet.create({
   headerRight: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 14,
   },
-  headerButton: {
-    width: 40,
-    height: 40,
+  glossyHeaderBtn: {
+    alignItems: "center",
+    gap: 3,
+  },
+  glossyHeaderCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: Colors.gold,
+    borderWidth: 1.5,
+    borderColor: "#E8C84A",
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 8px rgba(212, 164, 32, 0.4), inset 0 1px 2px rgba(255, 255, 255, 0.3)",
+      },
+      default: {},
+    }),
+  },
+  glossyHeaderCircleActive: {
+    backgroundColor: "#E8B820",
+    borderColor: "#F0D050",
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 12px rgba(212, 164, 32, 0.6), inset 0 1px 3px rgba(255, 255, 255, 0.4)",
+      },
+      default: {},
+    }),
+  },
+  glossyHeaderLabel: {
+    fontSize: 9,
+    color: Colors.whiteMuted,
+    fontWeight: "600" as const,
+    letterSpacing: 0.3,
+    textTransform: "uppercase" as const,
+  },
+  glossyHeaderLabelActive: {
+    color: Colors.gold,
   },
   centerContent: {
     flex: 1,
