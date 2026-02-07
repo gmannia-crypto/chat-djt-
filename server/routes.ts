@@ -109,6 +109,17 @@ RESPONSE RULES:
 
 const FRUMP1_VOICE_ID = "MLVyah8U5vYeVPSszwiN";
 
+const THEME_LINES = [
+  "Ladies and gentlemen, welcome to Chat DJT — the greatest app ever created in the history of apps. Believe me. Nobody makes apps like this. NOBODY.",
+  "You are now entering the most tremendous, most beautiful, most incredible chat experience ever built. People are calling it the greatest thing since the telephone. Maybe better. Definitely better.",
+  "Chat DJT. The app so good, so powerful, so amazing — other apps are very jealous. Very, very jealous. And frankly, they should be.",
+  "Welcome to Chat DJT, folks. This app is HUGE. Bigger than anything you've ever seen. The ratings on this thing are through the roof. Through. The. Roof.",
+  "You have just opened the most luxurious, most sophisticated, most winning chat app in the entire world. Chat DJT. You're welcome.",
+];
+
+let cachedThemeAudio: Buffer | null = null;
+let cachedThemeIndex: number = -1;
+
 async function trumpTextToSpeech(text: string, speed: number = 1.0, mood: string = "CALM"): Promise<Buffer> {
   const apiKey = process.env.ELEVENLABS_API_KEY;
   const firedUpVoiceId = process.env.ELEVENLABS_VOICE_ID;
@@ -285,6 +296,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("STT error:", error);
       res.status(500).json({ error: "Failed to transcribe audio" });
+    }
+  });
+
+  app.get("/api/theme", async (req, res) => {
+    try {
+      const forceNew = req.query.new === "true";
+
+      if (cachedThemeAudio && !forceNew) {
+        res.setHeader("Content-Type", "audio/mpeg");
+        res.setHeader("Content-Length", cachedThemeAudio.length.toString());
+        return res.send(cachedThemeAudio);
+      }
+
+      let newIndex = Math.floor(Math.random() * THEME_LINES.length);
+      while (newIndex === cachedThemeIndex && THEME_LINES.length > 1) {
+        newIndex = Math.floor(Math.random() * THEME_LINES.length);
+      }
+      cachedThemeIndex = newIndex;
+
+      const themeText = THEME_LINES[newIndex];
+      const audioBuffer = await trumpTextToSpeech(themeText, 1.0, "FIRED_UP");
+      cachedThemeAudio = audioBuffer;
+
+      res.setHeader("Content-Type", "audio/mpeg");
+      res.setHeader("Content-Length", audioBuffer.length.toString());
+      res.send(audioBuffer);
+    } catch (error) {
+      console.error("Theme audio error:", error);
+      res.status(500).json({ error: "Failed to generate theme audio" });
     }
   });
 
