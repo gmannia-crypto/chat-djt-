@@ -259,6 +259,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/stt", async (req, res) => {
+    try {
+      const { audio, format = "webm" } = req.body;
+
+      if (!audio || typeof audio !== "string") {
+        return res.status(400).json({ error: "Base64 audio data is required" });
+      }
+
+      const audioBuffer = Buffer.from(audio, "base64");
+
+      const file = new File(
+        [audioBuffer],
+        `recording.${format}`,
+        { type: format === "webm" ? "audio/webm" : format === "mp4" ? "audio/mp4" : `audio/${format}` }
+      );
+
+      const transcription = await openai.audio.transcriptions.create({
+        file,
+        model: "gpt-4o-mini-transcribe",
+        language: "en",
+      });
+
+      res.json({ text: transcription.text });
+    } catch (error) {
+      console.error("STT error:", error);
+      res.status(500).json({ error: "Failed to transcribe audio" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
