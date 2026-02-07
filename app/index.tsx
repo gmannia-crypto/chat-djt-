@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect } from "react";
+import React, { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import {
   StyleSheet,
   Text,
@@ -27,6 +27,7 @@ import Animated, {
   withTiming,
   Easing,
   cancelAnimation,
+  withDelay,
 } from "react-native-reanimated";
 import { useQuery } from "@tanstack/react-query";
 import Colors from "@/constants/colors";
@@ -39,6 +40,81 @@ import {
 } from "@/lib/chat-storage";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+
+interface NewsHeadline {
+  title: string;
+  source: string;
+  url: string;
+  publishedAt: string;
+}
+
+function NewsCrawl({ headlines }: { headlines: NewsHeadline[] }) {
+  const scrollRef = useRef<ScrollView>(null);
+  const scrollX = useRef(0);
+  const animationRef = useRef<number | null>(null);
+  const contentWidth = useRef(0);
+  const containerWidth = useRef(0);
+
+  const crawlText = useMemo(() => {
+    return headlines
+      .map((h) => `${h.source.toUpperCase()}: ${h.title}`)
+      .join("     \u2022     ");
+  }, [headlines]);
+
+  useEffect(() => {
+    if (headlines.length === 0) return;
+
+    let rafId: number;
+    const speed = 0.7;
+
+    function animate() {
+      scrollX.current += speed;
+      if (contentWidth.current > 0 && scrollX.current >= contentWidth.current / 2) {
+        scrollX.current = 0;
+      }
+      scrollRef.current?.scrollTo({ x: scrollX.current, animated: false });
+      rafId = requestAnimationFrame(animate);
+    }
+
+    rafId = requestAnimationFrame(animate);
+    animationRef.current = rafId;
+
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+    };
+  }, [headlines]);
+
+  if (headlines.length === 0) return null;
+
+  const doubledText = `${crawlText}     \u2022     ${crawlText}`;
+
+  return (
+    <Animated.View entering={FadeIn.delay(600).duration(800)} style={styles.newsCrawlContainer}>
+      <LinearGradient
+        colors={["rgba(10, 8, 4, 0.85)", "rgba(15, 12, 6, 0.8)"]}
+        style={StyleSheet.absoluteFill}
+      />
+      <View style={styles.newsCrawlBadge}>
+        <Text style={styles.newsCrawlBadgeText}>LIVE</Text>
+      </View>
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        scrollEnabled={false}
+        style={styles.newsCrawlScroll}
+        onContentSizeChange={(w) => {
+          contentWidth.current = w;
+        }}
+        onLayout={(e) => {
+          containerWidth.current = e.nativeEvent.layout.width;
+        }}
+      >
+        <Text style={styles.newsCrawlText}>{doubledText}</Text>
+      </ScrollView>
+    </Animated.View>
+  );
+}
 
 function ConversationItem({
   item,
@@ -258,7 +334,14 @@ export default function HomeScreen() {
     staleTime: 4 * 60 * 1000,
   });
 
+  const newsQuery = useQuery<{ headlines: NewsHeadline[] }>({
+    queryKey: ["/api/news"],
+    refetchInterval: 3 * 60 * 1000,
+    staleTime: 2 * 60 * 1000,
+  });
+
   const tickers = tickerQuery.data;
+  const headlines = newsQuery.data?.headlines ?? [];
 
   function formatCompact(n: number): string {
     if (n >= 1e12) return `$${(n / 1e12).toFixed(2)}T`;
@@ -330,6 +413,8 @@ export default function HomeScreen() {
       </Animated.View>
 
       <View style={styles.centerContent} />
+
+      {headlines.length > 0 && <NewsCrawl headlines={headlines} />}
 
       {tickers && (
         <Animated.View entering={FadeIn.delay(800).duration(500)} style={styles.tickerContainer}>
@@ -519,6 +604,47 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+  },
+  newsCrawlContainer: {
+    position: "absolute",
+    bottom: 118,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    height: 32,
+    flexDirection: "row",
+    alignItems: "center",
+    overflow: "hidden",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(212, 164, 32, 0.15)",
+  },
+  newsCrawlBadge: {
+    backgroundColor: "#B91C1C",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 3,
+    marginLeft: 10,
+    marginRight: 8,
+    zIndex: 2,
+  },
+  newsCrawlBadgeText: {
+    fontSize: 8,
+    fontWeight: "900" as const,
+    color: "#FFFFFF",
+    letterSpacing: 1,
+  },
+  newsCrawlScroll: {
+    flex: 1,
+    zIndex: 1,
+  },
+  newsCrawlText: {
+    fontSize: 11,
+    color: "rgba(212, 164, 32, 0.75)",
+    fontWeight: "500" as const,
+    letterSpacing: 0.3,
+    lineHeight: 32,
+    paddingRight: 40,
   },
   tickerContainer: {
     position: "absolute",

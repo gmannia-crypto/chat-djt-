@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "node:http";
 import OpenAI from "openai";
+import { XMLParser } from "fast-xml-parser";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -339,6 +340,87 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Theme audio error:", error);
       res.status(500).json({ error: "Failed to generate theme audio" });
+    }
+  });
+
+  const xmlParser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_" });
+
+  let newsCache: { data: any[]; timestamp: number } | null = null;
+  const NEWS_CACHE_TTL = 3 * 60 * 1000;
+
+  const NEWS_FEEDS = [
+    { url: "https://feeds.content.dowjones.io/public/rss/mw_topstories", source: "MarketWatch" },
+    { url: "https://feeds.content.dowjones.io/public/rss/mw_realtimeheadlines", source: "MarketWatch" },
+    { url: "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114", source: "CNBC" },
+    { url: "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10001147", source: "CNBC" },
+    { url: "https://rss.nytimes.com/services/xml/rss/nyt/Business.xml", source: "NYT" },
+    { url: "https://feeds.bbci.co.uk/news/business/rss.xml", source: "BBC" },
+    { url: "https://feeds.bbci.co.uk/news/world/rss.xml", source: "BBC" },
+    { url: "https://rss.nytimes.com/services/xml/rss/nyt/Politics.xml", source: "NYT" },
+    { url: "https://feeds.foxnews.com/foxnews/politics", source: "Fox News" },
+  ];
+
+  async function fetchRSSFeed(feedUrl: string, source: string): Promise<any[]> {
+    try {
+      const resp = await fetch(feedUrl, {
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; ChatDJT/1.0)" },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!resp.ok) return [];
+      const xml = await resp.text();
+      const parsed = xmlParser.parse(xml);
+
+      const channel = parsed?.rss?.channel;
+      if (!channel?.item) return [];
+
+      const items = Array.isArray(channel.item) ? channel.item : [channel.item];
+      return items.slice(0, 8).map((item: any) => ({
+        title: (item.title || "").replace(/<[^>]*>/g, "").trim(),
+        source,
+        url: item.link || "",
+        publishedAt: item.pubDate ? new Date(item.pubDate).toISOString() : new Date().toISOString(),
+      })).filter((item: any) => item.title.length > 0);
+    } catch {
+      return [];
+    }
+  }
+
+  app.get("/api/news", async (_req, res) => {
+    try {
+      if (newsCache && Date.now() - newsCache.timestamp < NEWS_CACHE_TTL) {
+        return res.json({ headlines: newsCache.data });
+      }
+
+      const feedResults = await Promise.allSettled(
+        NEWS_FEEDS.map(f => fetchRSSFeed(f.url, f.source))
+      );
+
+      let allHeadlines: any[] = [];
+      for (const result of feedResults) {
+        if (result.status === "fulfilled") {
+          allHeadlines.push(...result.value);
+        }
+      }
+
+      allHeadlines.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+
+      const seen = new Set<string>();
+      const unique = allHeadlines.filter(h => {
+        const key = h.title.toLowerCase().slice(0, 50);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+      const headlines = unique.slice(0, 30);
+      newsCache = { data: headlines, timestamp: Date.now() };
+      res.json({ headlines });
+    } catch (error) {
+      console.error("News fetch error:", error);
+      if (newsCache) {
+        return res.json({ headlines: newsCache.data });
+      }
+      res.status(500).json({ error: "Failed to fetch news" });
     }
   });
 
