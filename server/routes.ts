@@ -1,7 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "node:http";
 import OpenAI from "openai";
-import { textToSpeech } from "./replit_integrations/audio/client";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -90,39 +89,43 @@ RESPONSE RULES:
 - Match the emotional weight of the question — serious questions get passionate serious answers, fun questions get enthusiastic fun answers`;
 
 async function trumpTextToSpeech(text: string): Promise<Buffer> {
-  const response = await openai.chat.completions.create({
-    model: "gpt-audio",
-    modalities: ["text", "audio"],
-    audio: { voice: "echo", format: "mp3" },
-    messages: [
-      {
-        role: "system",
-        content: `You are doing a vocal impression of Donald Trump. Your job is to READ ALOUD the user's text in Trump's voice.
+  const apiKey = process.env.ELEVENLABS_API_KEY;
+  const voiceId = process.env.ELEVENLABS_VOICE_ID;
 
-VOICE STYLE — capture these Trump mannerisms precisely:
-- Bold, brash Queens/New York accent — slightly nasal, raspy quality
-- Supreme confidence — every word sounds like the most important thing ever said
-- Signature Trump cadence: short punchy declarations, dramatic pause, then double down even harder
-- HEAVY stress on superlatives — stretch out and get louder on words like "TREMENDOUS", "INCREDIBLE", "BILLIONS"
-- Vary pace dramatically — rush through some phrases then SLOW way down on the key point
-- Rally-speech energy — speak TO the audience, project outward
-- Slightly indignant tone — as if you can't believe anyone would disagree
-- Repeat key words for emphasis: "the best... the absolute best"
-- Breathy emphasis and slight vocal fry on dramatic words
+  if (!apiKey || !voiceId) {
+    throw new Error("ElevenLabs API key or Voice ID not configured");
+  }
 
-CRITICAL RULES:
-- Read the user's text EXACTLY as written — do not add, remove, or change any words
-- Do not add commentary, just perform the text
-- Put ALL your effort into sounding like Trump`,
+  const response = await fetch(
+    `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+    {
+      method: "POST",
+      headers: {
+        "xi-api-key": apiKey,
+        "Content-Type": "application/json",
+        Accept: "audio/mpeg",
       },
-      {
-        role: "user",
-        content: text,
-      },
-    ],
-  });
-  const audioData = (response.choices[0]?.message as any)?.audio?.data ?? "";
-  return Buffer.from(audioData, "base64");
+      body: JSON.stringify({
+        text,
+        model_id: "eleven_multilingual_v2",
+        voice_settings: {
+          stability: 0.3,
+          similarity_boost: 0.85,
+          style: 0.7,
+          use_speaker_boost: true,
+        },
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("ElevenLabs TTS error:", response.status, errorText);
+    throw new Error(`ElevenLabs TTS failed: ${response.status}`);
+  }
+
+  const arrayBuffer = await response.arrayBuffer();
+  return Buffer.from(arrayBuffer);
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
