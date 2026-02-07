@@ -375,7 +375,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const items = Array.isArray(channel.item) ? channel.item : [channel.item];
       return items.slice(0, 8).map((item: any) => ({
-        title: (item.title || "").replace(/<[^>]*>/g, "").trim(),
+        title: (item.title || "").replace(/<[^>]*>/g, "").replace(/&#x([0-9a-fA-F]+);/g, (_: string, hex: string) => String.fromCharCode(parseInt(hex, 16))).replace(/&#(\d+);/g, (_: string, dec: string) => String.fromCharCode(parseInt(dec, 10))).replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").trim(),
         source,
         url: item.link || "",
         publishedAt: item.pubDate ? new Date(item.pubDate).toISOString() : new Date().toISOString(),

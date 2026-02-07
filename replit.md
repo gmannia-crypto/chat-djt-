@@ -29,6 +29,8 @@ Preferred communication style: Simple, everyday language.
   - `POST /api/tts` — accepts { text, mood } body, returns audio/mpeg buffer using ElevenLabs API with dual voice system
   - `POST /api/stt` — accepts { audio (base64), format } body, transcribes using OpenAI Whisper (gpt-4o-mini-transcribe)
   - `GET /api/theme` — generates and caches a Trump-voice theme intro using ElevenLabs, returns audio/mpeg. Pass `?new=true` for a fresh random intro
+  - `GET /api/news` — fetches and caches real-time news from RSS feeds (MarketWatch, CNBC, NYT, BBC, Fox News). 3-minute cache TTL, returns up to 30 deduplicated headlines sorted by recency
+  - `GET /api/tickers` — fetches live market data (TRUMP coin, Dow Jones, approval ratings, national debt). 5-minute cache TTL
 - **OpenAI Integration**: Uses Replit AI Integrations env vars for chat completions. Trump system prompt in `server/routes.ts`
 - **ElevenLabs Integration**: Uses `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` env vars for TTS. Dual voice system: frump1 (MLVyah8U5vYeVPSszwiN) for CALM mood, ELEVENLABS_VOICE_ID for FIRED_UP mood. Model: `eleven_v3`
 - **Static Serving**: In production, serves pre-built Expo web assets from `dist/`
@@ -67,3 +69,5 @@ Preferred communication style: Simple, everyday language.
 - 2026-02-06: Added voice toggle (DJT/Spirit modes), Chat DJT logo as prominent home screen background, TTS speaker button on assistant messages using OpenAI gpt-audio with onyx voice
 - 2026-02-07: Replaced OpenAI TTS with ElevenLabs cloned Trump voice (eleven_v3). Home screen redesigned — conversation list hidden behind archive modal, full-screen logo background. Added defensive/blustering behavior when Trump is offended. Added conversational mode — Trump asks personal questions when annoyed, with faster TTS speed (1.2x) for fired-up mood. Mood detection via [MOOD:CALM/FIRED_UP] tags stripped from display, passed to TTS endpoint for speed adjustment
 - 2026-02-07: Added dual voice system (frump1 for CALM, cloned voice for FIRED_UP). Added speech-to-text via microphone button using OpenAI Whisper. Added theme music feature — musical notes button on home screen plays a Trump-voice intro (5 rotating lines, server-side cached)
+- 2026-02-07: Added live ticker bar showing Trump coin price, Dow Jones index, approval ratings, and national debt with 5-minute server-side caching
+- 2026-02-07: Added translucent news crawl — continuously scrolling marquee of real-time headlines from MarketWatch, CNBC, NYT, BBC, Fox News via RSS feeds. Red "LIVE" badge, gold text on dark translucent background. 3-minute cache, requestAnimationFrame-based smooth scrolling
