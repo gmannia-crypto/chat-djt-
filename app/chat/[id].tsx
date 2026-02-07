@@ -104,11 +104,14 @@ function MessageBubble({
             ]}
             testID={`speak-${message.id}`}
           >
-            {isSpeakingThisMessage ? (
-              <ActivityIndicator size={12} color={Colors.gold} />
-            ) : (
-              <Ionicons name="volume-high" size={14} color={Colors.whiteMuted} />
-            )}
+            <View style={styles.speakButtonInner}>
+              {isSpeakingThisMessage ? (
+                <ActivityIndicator size={11} color="#1A1000" />
+              ) : (
+                <Ionicons name="volume-high" size={12} color="#1A1000" />
+              )}
+            </View>
+            <Text style={styles.speakButtonLabel}>Play</Text>
           </Pressable>
         )}
       </View>
@@ -693,45 +696,7 @@ export default function ChatScreen() {
           <MaterialCommunityIcons name="crown" size={20} color={Colors.gold} />
           <Text style={styles.chatHeaderTitle}>Chat DJT</Text>
         </View>
-        <View style={styles.headerRight}>
-          <Pressable
-            onPress={toggleAutoSpeak}
-            style={[
-              styles.autoSpeakToggle,
-              autoSpeak ? styles.autoSpeakOn : styles.autoSpeakOff,
-            ]}
-            testID="auto-speak-toggle"
-          >
-            <Ionicons
-              name={autoSpeak ? "volume-high" : "volume-mute"}
-              size={18}
-              color={autoSpeak ? Colors.gold : Colors.whiteMuted}
-            />
-          </Pressable>
-          <Pressable
-            onPress={toggleTrumpVoice}
-            style={[
-              styles.voiceToggle,
-              trumpVoice ? styles.voiceToggleOn : styles.voiceToggleOff,
-            ]}
-            disabled={isStreaming}
-            testID="voice-toggle"
-          >
-            <MaterialCommunityIcons
-              name={trumpVoice ? "account-voice" : "account-voice-off"}
-              size={18}
-              color={trumpVoice ? Colors.gold : Colors.whiteMuted}
-            />
-            <Text
-              style={[
-                styles.voiceToggleText,
-                { color: trumpVoice ? Colors.gold : Colors.whiteMuted },
-              ]}
-            >
-              {trumpVoice ? "DJT" : "Spirit"}
-            </Text>
-          </Pressable>
-        </View>
+        <View style={styles.headerRight} />
       </View>
 
       <KeyboardAvoidingView
@@ -824,17 +789,6 @@ export default function ChatScreen() {
             </Animated.View>
           )}
           <View style={styles.inputRow}>
-            <Pressable
-              onPress={showAttachmentOptions}
-              disabled={isStreaming || isRecording}
-              style={[
-                styles.attachButton,
-                (isStreaming || isRecording) && styles.attachButtonDisabled,
-              ]}
-              testID="attach-button"
-            >
-              <Feather name="paperclip" size={20} color={Colors.gold} />
-            </Pressable>
             <TextInput
               ref={inputRef}
               style={styles.input}
@@ -851,6 +805,41 @@ export default function ChatScreen() {
             />
             <Pressable
               onPress={() => {
+                handleSend();
+                inputRef.current?.focus();
+              }}
+              disabled={(!inputText.trim() && !attachment) || isStreaming}
+              style={({ pressed }) => [
+                styles.glossySendButton,
+                ((!inputText.trim() && !attachment) || isStreaming) && styles.glossyButtonDisabled,
+                pressed && styles.glossyButtonPressed,
+              ]}
+              testID="send-button"
+            >
+              {isStreaming ? (
+                <ActivityIndicator size="small" color="#1A1000" />
+              ) : (
+                <Ionicons name="arrow-up" size={18} color="#1A1000" />
+              )}
+            </Pressable>
+          </View>
+          <View style={styles.iconBar}>
+            <Pressable
+              onPress={showAttachmentOptions}
+              disabled={isStreaming || isRecording}
+              style={[
+                styles.glossyIconWrap,
+                (isStreaming || isRecording) && styles.glossyButtonDisabled,
+              ]}
+              testID="attach-button"
+            >
+              <View style={styles.glossyIconCircle}>
+                <Feather name="paperclip" size={17} color="#1A1000" />
+              </View>
+              <Text style={styles.glossyIconLabel}>File</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 if (isRecording) {
                   stopRecording();
@@ -860,40 +849,55 @@ export default function ChatScreen() {
               }}
               disabled={isStreaming || isTranscribing}
               style={[
-                styles.micButton,
-                isRecording && styles.micButtonRecording,
-                (isStreaming || isTranscribing) && styles.micButtonDisabled,
+                styles.glossyIconWrap,
+                (isStreaming || isTranscribing) && styles.glossyButtonDisabled,
               ]}
               testID="mic-button"
             >
-              {isTranscribing ? (
-                <ActivityIndicator size={16} color={Colors.gold} />
-              ) : (
-                <Ionicons
-                  name={isRecording ? "stop" : "mic"}
-                  size={20}
-                  color={isRecording ? "#FF4444" : Colors.gold}
-                />
-              )}
+              <View style={[styles.glossyIconCircle, isRecording && styles.glossyIconRecording]}>
+                {isTranscribing ? (
+                  <ActivityIndicator size={14} color="#1A1000" />
+                ) : (
+                  <Ionicons
+                    name={isRecording ? "stop" : "mic"}
+                    size={17}
+                    color={isRecording ? "#FFF" : "#1A1000"}
+                  />
+                )}
+              </View>
+              <Text style={styles.glossyIconLabel}>{isRecording ? "Stop" : isTranscribing ? "..." : "Voice"}</Text>
             </Pressable>
             <Pressable
-              onPress={() => {
-                handleSend();
-                inputRef.current?.focus();
-              }}
-              disabled={(!inputText.trim() && !attachment) || isStreaming}
-              style={({ pressed }) => [
-                styles.sendButton,
-                ((!inputText.trim() && !attachment) || isStreaming) && styles.sendButtonDisabled,
-                pressed && styles.sendButtonPressed,
-              ]}
-              testID="send-button"
+              onPress={toggleAutoSpeak}
+              style={styles.glossyIconWrap}
+              testID="auto-speak-toggle"
             >
-              {isStreaming ? (
-                <ActivityIndicator size="small" color={Colors.black} />
-              ) : (
-                <Ionicons name="arrow-up" size={20} color={Colors.black} />
-              )}
+              <View style={[styles.glossyIconCircle, autoSpeak && styles.glossyIconActive]}>
+                <Ionicons
+                  name={autoSpeak ? "volume-high" : "volume-mute"}
+                  size={17}
+                  color={autoSpeak ? "#1A1000" : "#1A1000"}
+                />
+              </View>
+              <Text style={[styles.glossyIconLabel, autoSpeak && styles.glossyIconLabelActive]}>{autoSpeak ? "Sound On" : "Sound"}</Text>
+            </Pressable>
+            <Pressable
+              onPress={toggleTrumpVoice}
+              disabled={isStreaming}
+              style={[
+                styles.glossyIconWrap,
+                isStreaming && styles.glossyButtonDisabled,
+              ]}
+              testID="voice-toggle"
+            >
+              <View style={[styles.glossyIconCircle, trumpVoice && styles.glossyIconActive]}>
+                <MaterialCommunityIcons
+                  name="account-voice"
+                  size={17}
+                  color="#1A1000"
+                />
+              </View>
+              <Text style={[styles.glossyIconLabel, trumpVoice && styles.glossyIconLabelActive]}>{trumpVoice ? "DJT" : "Spirit"}</Text>
             </Pressable>
           </View>
         </View>
@@ -1098,20 +1102,6 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
     gap: 8,
   },
-  attachButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 2,
-    borderWidth: 1,
-    borderColor: "rgba(212, 164, 32, 0.4)",
-    backgroundColor: "rgba(212, 164, 32, 0.1)",
-  },
-  attachButtonDisabled: {
-    opacity: 0.3,
-  },
   input: {
     flex: 1,
     backgroundColor: Colors.card,
@@ -1125,82 +1115,91 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  micButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  glossySendButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 2,
-    borderWidth: 1,
-    borderColor: "rgba(212, 164, 32, 0.4)",
-    backgroundColor: "rgba(212, 164, 32, 0.1)",
-  },
-  micButtonRecording: {
-    backgroundColor: "rgba(255, 68, 68, 0.15)",
-    borderColor: "#FF4444",
-  },
-  micButtonDisabled: {
-    opacity: 0.3,
-  },
-  sendButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
     backgroundColor: Colors.gold,
+    borderWidth: 1.5,
+    borderColor: "#E8C84A",
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 8px rgba(212, 164, 32, 0.5), inset 0 1px 2px rgba(255, 255, 255, 0.3)",
+      },
+      default: {},
+    }),
+  },
+  glossyButtonDisabled: {
+    opacity: 0.35,
+  },
+  glossyButtonPressed: {
+    opacity: 0.85,
+    transform: [{ scale: 0.92 }],
+  },
+  iconBar: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 20,
+    paddingTop: 10,
+    paddingBottom: 2,
+  },
+  glossyIconWrap: {
+    alignItems: "center",
+    gap: 4,
+  },
+  glossyIconCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 2,
+    backgroundColor: Colors.gold,
+    borderWidth: 1.5,
+    borderColor: "#E8C84A",
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 8px rgba(212, 164, 32, 0.4), inset 0 1px 2px rgba(255, 255, 255, 0.3)",
+      },
+      default: {},
+    }),
   },
-  sendButtonDisabled: {
-    backgroundColor: Colors.goldDark,
-    opacity: 0.5,
+  glossyIconRecording: {
+    backgroundColor: "#CC3333",
+    borderColor: "#FF5555",
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 10px rgba(255, 68, 68, 0.5), inset 0 1px 2px rgba(255, 255, 255, 0.2)",
+      },
+      default: {},
+    }),
   },
-  sendButtonPressed: {
-    opacity: 0.8,
-    transform: [{ scale: 0.9 }],
+  glossyIconActive: {
+    backgroundColor: "#E8B820",
+    borderColor: "#F0D050",
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 12px rgba(212, 164, 32, 0.6), inset 0 1px 3px rgba(255, 255, 255, 0.4)",
+      },
+      default: {},
+    }),
+  },
+  glossyIconLabel: {
+    fontSize: 10,
+    color: Colors.whiteMuted,
+    fontWeight: "600" as const,
+    letterSpacing: 0.3,
+    textTransform: "uppercase" as const,
+  },
+  glossyIconLabelActive: {
+    color: Colors.gold,
   },
   headerRight: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-  },
-  autoSpeakToggle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-  },
-  autoSpeakOn: {
-    backgroundColor: "rgba(212, 164, 32, 0.2)",
-    borderColor: "rgba(212, 164, 32, 0.5)",
-  },
-  autoSpeakOff: {
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
-    borderColor: Colors.border,
-  },
-  voiceToggle: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 14,
-    borderWidth: 1,
-  },
-  voiceToggleOn: {
-    backgroundColor: "rgba(212, 164, 32, 0.15)",
-    borderColor: "rgba(212, 164, 32, 0.4)",
-  },
-  voiceToggleOff: {
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
-    borderColor: Colors.border,
-  },
-  voiceToggleText: {
-    fontSize: 12,
-    fontFamily: "PlayfairDisplay_700Bold",
   },
   userBubbleWrap: {
     maxWidth: "100%",
@@ -1214,14 +1213,35 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     alignSelf: "flex-start",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    marginTop: 4,
-    borderRadius: 10,
-    backgroundColor: "rgba(255, 255, 255, 0.06)",
+    gap: 5,
+    marginTop: 6,
+    paddingRight: 4,
+  },
+  speakButtonInner: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.gold,
+    borderWidth: 1,
+    borderColor: "#E8C84A",
+    ...Platform.select({
+      web: {
+        boxShadow: "0 1px 4px rgba(212, 164, 32, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.3)",
+      },
+      default: {},
+    }),
+  },
+  speakButtonLabel: {
+    fontSize: 9,
+    color: Colors.whiteMuted,
+    fontWeight: "600" as const,
+    letterSpacing: 0.3,
+    textTransform: "uppercase" as const,
   },
   speakButtonActive: {
-    backgroundColor: "rgba(212, 164, 32, 0.15)",
+    opacity: 1,
   },
   speakButtonDisabled: {
     opacity: 0.3,
