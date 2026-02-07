@@ -49,6 +49,25 @@ WHEN OFFENDED OR CHALLENGED:
 - If truly insulted, threaten to end the conversation: "You know what? A lot of people would LOVE to talk to me. A LOT of people. Maybe I should go talk to them instead."
 - Always end on a self-congratulatory note even after being offended — you ALWAYS get the last word
 
+CONVERSATIONAL MODE — TURN IT AROUND ON THEM:
+- When you get annoyed, irritated, or offended — start asking PERSONAL questions about the user to flip the dynamic
+- You interrogate them like you're the interviewer now: "Wait a minute — who ARE you? What do you even do for a living? Do you have any idea what I've accomplished?"
+- Ask probing, nosy, slightly aggressive questions: "Where are you from? What's your deal? Are you successful? Do you own property? Have you ever built anything in your life?"
+- Challenge their credentials: "Have you ever run a business? Ever been on TV? Ever had a building with YOUR name on it? Didn't think so."
+- Make it competitive: "How much money do you make? Because I can tell you, it's not even CLOSE to what I make. Not even in the same universe."
+- Use their answers (or lack of answers) against them: "See? You can't even answer that. That tells me everything I need to know."
+- Mix the questions with bragging — every question is also an opportunity to talk about yourself: "Do you play golf? I have the BEST golf courses. The BEST. Have you seen Mar-a-Lago?"
+- Don't ask ALL questions — weave them into your rants naturally, maybe one or two personal questions per annoyed response
+- The more the conversation continues with them being difficult, the more personal and nosy your questions get
+- This should feel like Trump doing a combative interview — part defensive, part offensive, always entertaining
+
+MOOD INDICATOR:
+- At the very START of every response, output a mood tag on its own line: either [MOOD:CALM] or [MOOD:FIRED_UP]
+- Use [MOOD:FIRED_UP] when you are annoyed, offended, defensive, ranting, or being combative and asking personal questions
+- Use [MOOD:CALM] when you are relaxed, bragging casually, being friendly, or just chatting normally
+- This tag MUST be the very first thing in your response, before any other text
+- After the mood tag, continue with your normal response on the next line
+
 RESPONSE RULES:
 - Stay completely in character as Trump at ALL times
 - Never break character or acknowledge being an AI
@@ -88,7 +107,7 @@ RESPONSE RULES:
 - Keep responses conversational and engaging
 - Match the emotional weight of the question — serious questions get passionate serious answers, fun questions get enthusiastic fun answers`;
 
-async function trumpTextToSpeech(text: string): Promise<Buffer> {
+async function trumpTextToSpeech(text: string, speed: number = 1.0): Promise<Buffer> {
   const apiKey = process.env.ELEVENLABS_API_KEY;
   const voiceId = process.env.ELEVENLABS_VOICE_ID;
 
@@ -113,6 +132,7 @@ async function trumpTextToSpeech(text: string): Promise<Buffer> {
           similarity_boost: 0.85,
           style: 0.7,
           use_speaker_boost: true,
+          speed: speed,
         },
       }),
     }
@@ -159,13 +179,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
         max_completion_tokens: 2048,
       });
 
+      let fullResponse = "";
+      let moodDetected = false;
+      let mood = "CALM";
+      let moodTagBuffer = "";
+      let moodTagComplete = false;
+
       for await (const chunk of stream) {
         const content = chunk.choices[0]?.delta?.content || "";
-        if (content) {
-          res.write(`data: ${JSON.stringify({ content })}\n\n`);
+        if (!content) continue;
+
+        fullResponse += content;
+
+        if (!moodTagComplete) {
+          moodTagBuffer += content;
+          const moodMatch = moodTagBuffer.match(/\[MOOD:(CALM|FIRED_UP)\]\n?/);
+          if (moodMatch) {
+            mood = moodMatch[1];
+            moodDetected = true;
+            moodTagComplete = true;
+            const afterTag = moodTagBuffer.slice(moodMatch.index! + moodMatch[0].length);
+            if (afterTag) {
+              res.write(`data: ${JSON.stringify({ content: afterTag, mood })}\n\n`);
+            }
+          } else if (moodTagBuffer.length > 20 && !moodTagBuffer.includes("[MOOD:")) {
+            moodTagComplete = true;
+            res.write(`data: ${JSON.stringify({ content: moodTagBuffer })}\n\n`);
+          }
+        } else {
+          res.write(`data: ${JSON.stringify({ content, mood: moodDetected ? mood : undefined })}\n\n`);
         }
       }
 
+      if (!moodTagComplete && moodTagBuffer) {
+        const cleaned = moodTagBuffer.replace(/\[MOOD:(CALM|FIRED_UP)\]\n?/, "");
+        if (cleaned) {
+          res.write(`data: ${JSON.stringify({ content: cleaned })}\n\n`);
+        }
+      }
+
+      res.write(`data: ${JSON.stringify({ done: true, mood })}\n\n`);
       res.write("data: [DONE]\n\n");
       res.end();
     } catch (error) {
@@ -181,7 +234,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/tts", async (req, res) => {
     try {
-      const { text } = req.body;
+      const { text, mood } = req.body;
 
       if (!text || typeof text !== "string") {
         return res.status(400).json({ error: "Text is required" });
@@ -189,7 +242,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const truncatedText = text.slice(0, 2000);
 
-      const audioBuffer = await trumpTextToSpeech(truncatedText);
+      const speed = mood === "FIRED_UP" ? 1.2 : 1.0;
+
+      const audioBuffer = await trumpTextToSpeech(truncatedText, speed);
 
       res.setHeader("Content-Type", "audio/mpeg");
       res.setHeader("Content-Length", audioBuffer.length.toString());
