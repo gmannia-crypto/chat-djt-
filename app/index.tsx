@@ -10,10 +10,11 @@ import {
   Image,
   Modal,
   Dimensions,
+  ScrollView,
 } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons, MaterialCommunityIcons, Feather } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons, Feather, FontAwesome5 } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import Animated, {
@@ -27,6 +28,7 @@ import Animated, {
   Easing,
   cancelAnimation,
 } from "react-native-reanimated";
+import { useQuery } from "@tanstack/react-query";
 import Colors from "@/constants/colors";
 import { getApiUrl } from "@/lib/query-client";
 import {
@@ -245,6 +247,26 @@ export default function HomeScreen() {
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
 
+  const tickerQuery = useQuery<{
+    trumpCoin: { price: number; change24h: number } | null;
+    dowJones: { price: number; changePercent: number } | null;
+    approval: { approve: number; disapprove: number | null } | null;
+    nationalDebt: { amount: number; date: string } | null;
+  }>({
+    queryKey: ["/api/tickers"],
+    refetchInterval: 5 * 60 * 1000,
+    staleTime: 4 * 60 * 1000,
+  });
+
+  const tickers = tickerQuery.data;
+
+  function formatCompact(n: number): string {
+    if (n >= 1e12) return `$${(n / 1e12).toFixed(2)}T`;
+    if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
+    if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
+    return `$${n.toLocaleString()}`;
+  }
+
   return (
     <View style={[styles.container, { paddingTop: insets.top + webTopInset }]}>
       <View style={styles.woodFrameOuter}>
@@ -308,6 +330,74 @@ export default function HomeScreen() {
       </Animated.View>
 
       <View style={styles.centerContent} />
+
+      {tickers && (
+        <Animated.View entering={FadeIn.delay(800).duration(500)} style={styles.tickerContainer}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.tickerScroll}
+          >
+            {tickers.trumpCoin && (
+              <View style={styles.tickerItem}>
+                <FontAwesome5 name="coins" size={11} color={Colors.gold} />
+                <Text style={styles.tickerLabel}>$TRUMP</Text>
+                <Text style={styles.tickerValue}>
+                  ${tickers.trumpCoin.price < 1 ? tickers.trumpCoin.price.toFixed(4) : tickers.trumpCoin.price.toFixed(2)}
+                </Text>
+                {tickers.trumpCoin.change24h != null && (
+                  <Text style={[styles.tickerChange, { color: tickers.trumpCoin.change24h >= 0 ? "#4ADE80" : "#F87171" }]}>
+                    {tickers.trumpCoin.change24h >= 0 ? "+" : ""}{tickers.trumpCoin.change24h.toFixed(1)}%
+                  </Text>
+                )}
+                <View style={styles.tickerDivider} />
+              </View>
+            )}
+
+            {tickers.dowJones && (
+              <View style={styles.tickerItem}>
+                <Feather name="trending-up" size={12} color={Colors.gold} />
+                <Text style={styles.tickerLabel}>DOW</Text>
+                <Text style={styles.tickerValue}>
+                  {tickers.dowJones.price.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                </Text>
+                <Text style={[styles.tickerChange, { color: tickers.dowJones.changePercent >= 0 ? "#4ADE80" : "#F87171" }]}>
+                  {tickers.dowJones.changePercent >= 0 ? "+" : ""}{tickers.dowJones.changePercent.toFixed(2)}%
+                </Text>
+                <View style={styles.tickerDivider} />
+              </View>
+            )}
+
+            {tickers.approval && (
+              <View style={styles.tickerItem}>
+                <Ionicons name="thumbs-up" size={12} color={Colors.gold} />
+                <Text style={styles.tickerLabel}>APPROVE</Text>
+                <Text style={styles.tickerValue}>{tickers.approval.approve}%</Text>
+                {tickers.approval.disapprove != null && (
+                  <Text style={[styles.tickerChange, { color: Colors.whiteMuted }]}>
+                    / {tickers.approval.disapprove}%
+                  </Text>
+                )}
+                <View style={styles.tickerDivider} />
+              </View>
+            )}
+
+            {tickers.nationalDebt && (
+              <View style={styles.tickerItem}>
+                <MaterialCommunityIcons name="bank" size={13} color={Colors.gold} />
+                <Text style={styles.tickerLabel}>DEBT</Text>
+                <Text style={styles.tickerValue}>
+                  {formatCompact(tickers.nationalDebt.amount)}
+                </Text>
+              </View>
+            )}
+
+            {!tickers.trumpCoin && !tickers.dowJones && !tickers.approval && !tickers.nationalDebt && (
+              <Text style={styles.tickerLoading}>Loading market data...</Text>
+            )}
+          </ScrollView>
+        </Animated.View>
+      )}
 
       <View
         style={[
@@ -429,6 +519,57 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+  },
+  tickerContainer: {
+    position: "absolute",
+    bottom: 80,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(212, 164, 32, 0.3)",
+    paddingVertical: 10,
+  },
+  tickerScroll: {
+    paddingHorizontal: 14,
+    paddingRight: 80,
+    alignItems: "center",
+    gap: 0,
+  },
+  tickerItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 4,
+  },
+  tickerLabel: {
+    fontSize: 10,
+    fontWeight: "700" as const,
+    color: Colors.gold,
+    letterSpacing: 0.5,
+    textTransform: "uppercase" as const,
+  },
+  tickerValue: {
+    fontSize: 12,
+    fontWeight: "600" as const,
+    color: Colors.white,
+  },
+  tickerChange: {
+    fontSize: 10,
+    fontWeight: "600" as const,
+  },
+  tickerDivider: {
+    width: 1,
+    height: 14,
+    backgroundColor: "rgba(212, 164, 32, 0.3)",
+    marginHorizontal: 8,
+  },
+  tickerLoading: {
+    fontSize: 11,
+    color: Colors.whiteMuted,
+    fontStyle: "italic",
   },
   header: {
     flexDirection: "row",

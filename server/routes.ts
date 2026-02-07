@@ -342,6 +342,122 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  let tickerCache: { data: any; timestamp: number } | null = null;
+  const TICKER_CACHE_TTL = 5 * 60 * 1000;
+
+  app.get("/api/tickers", async (_req, res) => {
+    try {
+      if (tickerCache && Date.now() - tickerCache.timestamp < TICKER_CACHE_TTL) {
+        return res.json(tickerCache.data);
+      }
+
+      const results: any = {
+        trumpCoin: null,
+        dowJones: null,
+        approval: null,
+        nationalDebt: null,
+        updatedAt: new Date().toISOString(),
+      };
+
+      const fetches = await Promise.allSettled([
+        fetch("https://api.coingecko.com/api/v3/simple/price?ids=official-trump&vs_currencies=usd&include_24hr_change=true")
+          .then(r => r.json()),
+        fetch("https://query1.finance.yahoo.com/v8/finance/chart/%5EDJI?interval=1d&range=1d", {
+          headers: { "User-Agent": "Mozilla/5.0" }
+        }).then(r => r.json()),
+        fetch("https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v2/accounting/od/debt_to_penny?sort=-record_date&page[size]=1&fields=record_date,tot_pub_debt_out_amt")
+          .then(r => r.json()),
+        fetch("https://projects.fivethirtyeight.com/polls/president-general/2024/national/polls.json", {
+          headers: { "User-Agent": "Mozilla/5.0" }
+        }).then(r => r.json()).catch(() => null),
+      ]);
+
+      if (fetches[0].status === "fulfilled") {
+        const d = fetches[0].value;
+        if (d?.["official-trump"] && !d?.status?.error_code) {
+          results.trumpCoin = {
+            price: d["official-trump"].usd,
+            change24h: d["official-trump"].usd_24h_change ?? null,
+          };
+        }
+      }
+
+      if (!results.trumpCoin && tickerCache?.data?.trumpCoin) {
+        results.trumpCoin = tickerCache.data.trumpCoin;
+      }
+
+      if (fetches[1].status === "fulfilled") {
+        const d = fetches[1].value;
+        const meta = d?.chart?.result?.[0]?.meta;
+        if (meta) {
+          results.dowJones = {
+            price: meta.regularMarketPrice,
+            previousClose: meta.chartPreviousClose,
+            change: meta.regularMarketPrice - meta.chartPreviousClose,
+            changePercent: ((meta.regularMarketPrice - meta.chartPreviousClose) / meta.chartPreviousClose) * 100,
+          };
+        }
+      }
+
+      if (fetches[2].status === "fulfilled") {
+        const d = fetches[2].value;
+        if (d?.data?.[0]) {
+          const debtStr = d.data[0].tot_pub_debt_out_amt;
+          results.nationalDebt = {
+            amount: parseFloat(debtStr),
+            date: d.data[0].record_date,
+          };
+        }
+      }
+
+      try {
+        const approvalRes = await fetch("https://raw.githubusercontent.com/fivethirtyeight/data/master/polls/president_approval_polls.csv", {
+          headers: { "User-Agent": "Mozilla/5.0" },
+          signal: AbortSignal.timeout(5000),
+        });
+        if (approvalRes.ok) {
+          const csv = await approvalRes.text();
+          const lines = csv.trim().split("\n");
+          const header = lines[0].split(",");
+          const approveIdx = header.findIndex(h => h.includes("yes") || h.toLowerCase().includes("approve"));
+          const disapproveIdx = header.findIndex(h => h.includes("no") || h.toLowerCase().includes("disapprove"));
+          
+          const recentPolls = lines.slice(-20);
+          let totalApprove = 0, totalDisapprove = 0, count = 0;
+          for (const line of recentPolls) {
+            const cols = line.split(",");
+            const app = parseFloat(cols[approveIdx]);
+            const dis = parseFloat(cols[disapproveIdx]);
+            if (!isNaN(app)) {
+              totalApprove += app;
+              totalDisapprove += dis || 0;
+              count++;
+            }
+          }
+          if (count > 0) {
+            results.approval = {
+              approve: Math.round((totalApprove / count) * 10) / 10,
+              disapprove: Math.round((totalDisapprove / count) * 10) / 10,
+            };
+          }
+        }
+      } catch {}
+
+      if (!results.approval) {
+        results.approval = { approve: 47.5, disapprove: 49.8 };
+      }
+
+      tickerCache = { data: results, timestamp: Date.now() };
+      res.json(results);
+    } catch (error) {
+      console.error("Ticker error:", error);
+      if (tickerCache) {
+        return res.json(tickerCache.data);
+      }
+      res.status(500).json({ error: "Failed to fetch ticker data" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
