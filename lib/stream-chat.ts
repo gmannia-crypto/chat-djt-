@@ -8,7 +8,7 @@ export interface StreamResult {
 }
 
 export async function streamChat(
-  messages: { role: string; content: string }[],
+  messages: { role: string; content: string; imageBase64?: string }[],
   onChunk: (text: string) => void,
   trumpVoice: boolean = true
 ): Promise<StreamResult> {

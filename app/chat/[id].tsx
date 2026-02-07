@@ -9,17 +9,20 @@ import {
   Platform,
   ActivityIndicator,
   Image,
+  Alert,
 } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons, Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import { createAudioPlayer, type AudioPlayer as ExpoAudioPlayer } from "expo-audio";
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system";
+import * as ImagePicker from "expo-image-picker";
+import * as DocumentPicker from "expo-document-picker";
 import Colors from "@/constants/colors";
 import {
   Message,
@@ -29,6 +32,15 @@ import {
 } from "@/lib/chat-storage";
 import { streamChat, type ChatMood } from "@/lib/stream-chat";
 import { getApiUrl } from "@/lib/query-client";
+
+interface FileAttachment {
+  type: "image" | "document";
+  uri: string;
+  name: string;
+  mimeType: string;
+  base64?: string;
+  textContent?: string;
+}
 
 const TRUMP_VOICE_KEY = "chatdjt_trump_voice";
 const AUTO_SPEAK_KEY = "chatdjt_auto_speak";
@@ -144,6 +156,7 @@ export default function ChatScreen() {
   const [messageMoods, setMessageMoods] = useState<Record<string, ChatMood>>({});
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [attachment, setAttachment] = useState<FileAttachment | null>(null);
   const inputRef = useRef<TextInput>(null);
   const initializedRef = useRef(false);
   const conversationIdRef = useRef(id);
@@ -406,6 +419,100 @@ export default function ChatScreen() {
     }
   }
 
+  async function pickImage() {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        quality: 0.7,
+        base64: true,
+        allowsEditing: false,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        setAttachment({
+          type: "image",
+          uri: asset.uri,
+          name: asset.fileName || "photo.jpg",
+          mimeType: asset.mimeType || "image/jpeg",
+          base64: asset.base64 || undefined,
+        });
+      }
+    } catch (error) {
+      console.error("Image picker error:", error);
+    }
+  }
+
+  async function pickDocument() {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ["text/*", "application/pdf", "application/json", "text/csv", "text/plain"],
+        copyToCacheDirectory: true,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        const isImage = asset.mimeType?.startsWith("image/");
+
+        if (isImage) {
+          let base64: string | undefined;
+          if (Platform.OS !== "web" && FileSystem.documentDirectory) {
+            const b64 = await FileSystem.readAsStringAsync(asset.uri, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+            base64 = b64;
+          }
+          setAttachment({
+            type: "image",
+            uri: asset.uri,
+            name: asset.name || "file",
+            mimeType: asset.mimeType || "image/jpeg",
+            base64,
+          });
+        } else {
+          let textContent = "";
+          try {
+            if (Platform.OS === "web") {
+              const resp = await fetch(asset.uri);
+              textContent = await resp.text();
+            } else if (FileSystem.documentDirectory) {
+              textContent = await FileSystem.readAsStringAsync(asset.uri, {
+                encoding: FileSystem.EncodingType.UTF8,
+              });
+            }
+          } catch {
+            textContent = `[File: ${asset.name}]`;
+          }
+
+          setAttachment({
+            type: "document",
+            uri: asset.uri,
+            name: asset.name || "document",
+            mimeType: asset.mimeType || "text/plain",
+            textContent: textContent.slice(0, 8000),
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Document picker error:", error);
+    }
+  }
+
+  function showAttachmentOptions() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (Platform.OS === "web") {
+      pickDocument();
+      return;
+    }
+    Alert.alert("Attach File", "Choose what to share with the President", [
+      { text: "Photo", onPress: pickImage },
+      { text: "Document", onPress: pickDocument },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  }
+
   async function loadConversation() {
     if (initializedRef.current) return;
     const conv = await getConversation(id!);
@@ -418,16 +525,44 @@ export default function ChatScreen() {
 
   async function handleSend() {
     const text = inputText.trim();
-    if (!text || isStreaming) return;
+    const currentAttachment = attachment;
+    if ((!text && !currentAttachment) || isStreaming) return;
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setInputText("");
+    setAttachment(null);
+
+    let displayContent = text;
+    let imageBase64ForApi: string | undefined;
+
+    if (currentAttachment) {
+      if (currentAttachment.type === "image") {
+        displayContent = text ? `[Image: ${currentAttachment.name}]\n${text}` : `[Image: ${currentAttachment.name}]`;
+        if (currentAttachment.base64) {
+          imageBase64ForApi = `data:${currentAttachment.mimeType};base64,${currentAttachment.base64}`;
+        } else if (Platform.OS === "web") {
+          try {
+            const resp = await fetch(currentAttachment.uri);
+            const blob = await resp.blob();
+            const reader = new FileReader();
+            const b64 = await new Promise<string>((resolve) => {
+              reader.onloadend = () => resolve(reader.result as string);
+              reader.readAsDataURL(blob);
+            });
+            imageBase64ForApi = b64;
+          } catch {}
+        }
+      } else if (currentAttachment.type === "document" && currentAttachment.textContent) {
+        const filePrefix = `[File: ${currentAttachment.name}]\n---\n${currentAttachment.textContent}\n---\n`;
+        displayContent = text ? `${filePrefix}\n${text}` : `${filePrefix}\nPlease review this file and give me your advice.`;
+      }
+    }
 
     const currentMessages = [...messages];
     const userMessage: Message = {
       id: generateUniqueId(),
       role: "user",
-      content: text,
+      content: displayContent || "What do you think of this?",
       timestamp: Date.now(),
     };
 
@@ -443,10 +578,20 @@ export default function ChatScreen() {
     let detectedMood: ChatMood = "CALM";
 
     try {
-      const chatHistory = [
+      const chatHistory: { role: string; content: string; imageBase64?: string }[] = [
         ...currentMessages.map((m) => ({ role: m.role, content: m.content })),
-        { role: "user", content: text },
       ];
+
+      const lastMsg: { role: string; content: string; imageBase64?: string } = {
+        role: "user",
+        content: text || (currentAttachment?.type === "image" ? "What do you think of this image? Give me your advice." : "Please review this and give me your advice."),
+      };
+      if (imageBase64ForApi) {
+        lastMsg.imageBase64 = imageBase64ForApi;
+      } else if (currentAttachment?.type === "document" && currentAttachment.textContent) {
+        lastMsg.content = `[File: ${currentAttachment.name}]\n---\n${currentAttachment.textContent}\n---\n\n${text || "Please review this file and give me your advice."}`;
+      }
+      chatHistory.push(lastMsg);
 
       const voiceSetting = trumpVoiceRef.current;
       const result = await streamChat(chatHistory, (chunk) => {
@@ -650,7 +795,46 @@ export default function ChatScreen() {
             { paddingBottom: insets.bottom + webBottomInset + 8 },
           ]}
         >
+          {attachment && (
+            <Animated.View entering={FadeIn.duration(200)} style={styles.attachmentPreview}>
+              {attachment.type === "image" ? (
+                <Image
+                  source={{ uri: attachment.uri }}
+                  style={styles.attachmentImage}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={styles.attachmentDocIcon}>
+                  <Ionicons name="document-text" size={20} color={Colors.gold} />
+                </View>
+              )}
+              <Text style={styles.attachmentName} numberOfLines={1}>
+                {attachment.name}
+              </Text>
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setAttachment(null);
+                }}
+                style={styles.attachmentRemove}
+                testID="remove-attachment"
+              >
+                <Ionicons name="close-circle" size={20} color={Colors.whiteMuted} />
+              </Pressable>
+            </Animated.View>
+          )}
           <View style={styles.inputRow}>
+            <Pressable
+              onPress={showAttachmentOptions}
+              disabled={isStreaming || isRecording}
+              style={[
+                styles.attachButton,
+                (isStreaming || isRecording) && styles.attachButtonDisabled,
+              ]}
+              testID="attach-button"
+            >
+              <Feather name="paperclip" size={20} color={Colors.gold} />
+            </Pressable>
             <TextInput
               ref={inputRef}
               style={styles.input}
@@ -697,10 +881,10 @@ export default function ChatScreen() {
                 handleSend();
                 inputRef.current?.focus();
               }}
-              disabled={!inputText.trim() || isStreaming}
+              disabled={(!inputText.trim() && !attachment) || isStreaming}
               style={({ pressed }) => [
                 styles.sendButton,
-                (!inputText.trim() || isStreaming) && styles.sendButtonDisabled,
+                ((!inputText.trim() && !attachment) || isStreaming) && styles.sendButtonDisabled,
                 pressed && styles.sendButtonPressed,
               ]}
               testID="send-button"
@@ -875,10 +1059,58 @@ const styles = StyleSheet.create({
     borderTopColor: Colors.border,
     backgroundColor: Colors.background,
   },
+  attachmentPreview: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(212, 164, 32, 0.1)",
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "rgba(212, 164, 32, 0.25)",
+    gap: 10,
+  },
+  attachmentImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+  },
+  attachmentDocIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: "rgba(212, 164, 32, 0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  attachmentName: {
+    flex: 1,
+    fontSize: 13,
+    color: Colors.white,
+    fontWeight: "500" as const,
+  },
+  attachmentRemove: {
+    padding: 4,
+  },
   inputRow: {
     flexDirection: "row",
     alignItems: "flex-end",
-    gap: 10,
+    gap: 8,
+  },
+  attachButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 2,
+    borderWidth: 1,
+    borderColor: "rgba(212, 164, 32, 0.4)",
+    backgroundColor: "rgba(212, 164, 32, 0.1)",
+  },
+  attachButtonDisabled: {
+    opacity: 0.3,
   },
   input: {
     flex: 1,

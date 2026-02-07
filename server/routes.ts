@@ -194,13 +194,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const systemPrompt = trumpVoice ? TRUMP_SYSTEM_PROMPT : TRUMP_SPIRIT_PROMPT;
 
-      const chatMessages = [
+      const chatMessages: any[] = [
         { role: "system" as const, content: systemPrompt },
-        ...messages.map((m: { role: string; content: string }) => ({
-          role: m.role as "user" | "assistant",
-          content: m.content,
-        })),
       ];
+
+      for (const m of messages) {
+        if (m.imageBase64 && m.role === "user") {
+          chatMessages.push({
+            role: "user" as const,
+            content: [
+              ...(m.content ? [{ type: "text", text: m.content }] : []),
+              {
+                type: "image_url",
+                image_url: {
+                  url: m.imageBase64.startsWith("data:") ? m.imageBase64 : `data:image/jpeg;base64,${m.imageBase64}`,
+                  detail: "auto",
+                },
+              },
+            ],
+          });
+        } else {
+          chatMessages.push({
+            role: m.role as "user" | "assistant",
+            content: m.content,
+          });
+        }
+      }
 
       const stream = await openai.chat.completions.create({
         model: "gpt-5.2",
