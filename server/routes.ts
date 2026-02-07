@@ -127,7 +127,6 @@ const FRUMP1_VOICE_ID = "MLVyah8U5vYeVPSszwiN";
 const THEME_LINES = [
   "Ladies and gentlemen, welcome to Chat DJT — the greatest app ever created in the history of apps. Believe me. Nobody makes apps like this. NOBODY.",
   "You are now entering the most tremendous, most beautiful, most incredible chat experience ever built. People are calling it the greatest thing since the telephone. Maybe better. Definitely better.",
-  "Chat DJT. The app so good, so powerful, so amazing — other apps are very jealous. Very, very jealous. And frankly, they should be.",
   "Welcome to Chat DJT, folks. This app is HUGE. Bigger than anything you've ever seen. The ratings on this thing are through the roof. Through. The. Roof.",
   "You have just opened the most luxurious, most sophisticated, most winning chat app in the entire world. Chat DJT. You're welcome.",
 ];
