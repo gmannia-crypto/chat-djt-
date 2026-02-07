@@ -362,7 +362,7 @@ export default function ChatScreen() {
 
       if (Platform.OS === "web") {
         const blobUrl = URL.createObjectURL(audioBlob);
-        const audio = new Audio(blobUrl);
+        const audio = new window.Audio(blobUrl);
         currentPlayer = audio;
 
         audio.onended = () => {
@@ -672,8 +672,8 @@ export default function ChatScreen() {
               ) : (
                 <Ionicons
                   name={isRecording ? "stop" : "mic"}
-                  size={18}
-                  color={isRecording ? "#FF4444" : Colors.whiteMuted}
+                  size={20}
+                  color={isRecording ? "#FF4444" : Colors.gold}
                 />
               )}
             </Pressable>
@@ -748,6 +748,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     marginBottom: 12,
     maxWidth: "85%",
+    ...(Platform.OS === "web" ? { transform: [{ scaleY: -1 }] } : {}),
   },
   bubbleRowUser: {
     alignSelf: "flex-end",
@@ -797,6 +798,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignSelf: "flex-start",
     marginBottom: 12,
+    ...(Platform.OS === "web" ? { transform: [{ scaleY: -1 }] } : {}),
   },
   typingBubble: {
     backgroundColor: Colors.card,
@@ -873,8 +875,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 2,
     borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    borderColor: "rgba(212, 164, 32, 0.4)",
+    backgroundColor: "rgba(212, 164, 32, 0.1)",
   },
   micButtonRecording: {
     backgroundColor: "rgba(255, 68, 68, 0.15)",
