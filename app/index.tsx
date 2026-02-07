@@ -248,7 +248,7 @@ export default function HomeScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top + webTopInset }]}>
       <Image
-        source={require("@/attached_assets/59a60acc-6f24-4966-ac86-734f133bc48f_origin_1770387220439.png")}
+        source={require("@/assets/images/djt-logo.png")}
         style={styles.backgroundLogo}
         resizeMode="cover"
       />
