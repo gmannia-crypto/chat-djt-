@@ -168,7 +168,7 @@ async function trumpTextToSpeech(text: string, speed: number = 1.0, mood: string
     throw new Error("ElevenLabs API key or Voice ID not configured");
   }
 
-  const voiceId = mood === "FIRED_UP" ? firedUpVoiceId : FRUMP1_VOICE_ID;
+  const voiceId = FRUMP1_VOICE_ID;
 
   const response = await fetch(
     `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
