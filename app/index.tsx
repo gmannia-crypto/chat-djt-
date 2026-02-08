@@ -289,12 +289,8 @@ export default function HomeScreen() {
         </View>
       </Animated.View>
 
-      <View style={styles.centerContent} />
-
-      {headlines.length > 0 && <NewsCrawl headlines={headlines} />}
-
       {tickers && (
-        <Animated.View entering={FadeIn.delay(800).duration(500)} style={styles.tickerContainer}>
+        <Animated.View entering={FadeIn.delay(400).duration(500)} style={styles.tickerContainer}>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -360,6 +356,10 @@ export default function HomeScreen() {
           </ScrollView>
         </Animated.View>
       )}
+
+      {headlines.length > 0 && <NewsCrawl headlines={headlines} />}
+
+      <View style={styles.centerContent} />
 
       <View
         style={[
@@ -483,15 +483,11 @@ const styles = StyleSheet.create({
     bottom: 0,
   },
   newsCrawlContainer: {
-    position: "absolute",
-    bottom: 118,
-    left: 0,
-    right: 0,
-    zIndex: 10,
     height: 32,
     flexDirection: "row",
     alignItems: "center",
     overflow: "hidden",
+    zIndex: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderColor: "rgba(212, 164, 32, 0.15)",
@@ -524,16 +520,12 @@ const styles = StyleSheet.create({
     paddingRight: 40,
   },
   tickerContainer: {
-    position: "absolute",
-    bottom: 80,
-    left: 0,
-    right: 0,
     zIndex: 10,
     backgroundColor: "rgba(0, 0, 0, 0.7)",
     borderTopWidth: StyleSheet.hairlineWidth,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderColor: "rgba(212, 164, 32, 0.3)",
-    paddingVertical: 10,
+    paddingVertical: 8,
   },
   tickerScroll: {
     paddingHorizontal: 14,
@@ -620,9 +612,8 @@ const styles = StyleSheet.create({
   },
   centerContent: {
     flex: 1,
-    justifyContent: "flex-end",
+    justifyContent: "center",
     alignItems: "center",
-    paddingBottom: 120,
     zIndex: 5,
   },
   brandTitle: {
