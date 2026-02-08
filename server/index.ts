@@ -166,12 +166,16 @@ function proxyToMetro(req: Request, res: Response) {
 
   const proxyPath = isRootPage ? req.originalUrl : req.originalUrl.replace(/lazy=true/g, "lazy=false");
 
+  const proxyHeaders = { ...req.headers, host: `localhost:${METRO_PORT}` };
+  delete proxyHeaders.origin;
+  delete proxyHeaders.referer;
+
   const options: http.RequestOptions = {
     hostname: "localhost",
     port: METRO_PORT,
     path: proxyPath,
     method: req.method,
-    headers: { ...req.headers, host: `localhost:${METRO_PORT}` },
+    headers: proxyHeaders,
   };
 
   const proxyReq = http.request(options, (proxyRes) => {
