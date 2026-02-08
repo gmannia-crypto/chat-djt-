@@ -434,6 +434,7 @@ export default function ChatScreen() {
   const trumpVoiceRef = useRef(true);
   const autoSpeakRef = useRef(true);
   const pendingAutoSpeakRef = useRef<string | null>(null);
+  const handleSpeakRef = useRef<(messageId: string, text: string, mood?: ChatMood) => Promise<void>>();
   const recordingRef = useRef<Audio.Recording | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -604,28 +605,13 @@ export default function ChatScreen() {
   }
 
   async function handleSpeak(messageId: string, text: string, mood?: ChatMood) {
-    if (speakingMessageId === messageId) {
-      if (currentPlayer) {
-        if (currentPlayer instanceof HTMLAudioElement) {
-          currentPlayer.pause();
-          currentPlayer.src = "";
-        } else {
-          currentPlayer.pause();
-          currentPlayer.remove();
-        }
-        currentPlayer = null;
-      }
-      setSpeakingMessageId(null);
-      return;
-    }
-
     if (currentPlayer) {
       if (currentPlayer instanceof HTMLAudioElement) {
         currentPlayer.pause();
         currentPlayer.src = "";
       } else {
-        currentPlayer.pause();
-        currentPlayer.remove();
+        try { currentPlayer.pause(); } catch {}
+        try { currentPlayer.remove(); } catch {}
       }
       currentPlayer = null;
     }
@@ -634,14 +620,14 @@ export default function ChatScreen() {
 
     try {
       const baseUrl = getApiUrl();
-      const msgMood = mood || messageMoods[messageId] || "CALM";
+      const msgMood = mood || "CALM";
       const response = await globalThis.fetch(`${baseUrl}api/tts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text, mood: msgMood }),
       });
 
-      if (!response.ok) throw new Error("TTS request failed");
+      if (!response.ok) throw new Error(`TTS request failed: ${response.status}`);
 
       const audioBlob = await response.blob();
 
@@ -662,7 +648,16 @@ export default function ChatScreen() {
           currentPlayer = null;
         };
 
-        await audio.play();
+        try {
+          await audio.play();
+        } catch (playErr) {
+          console.warn("Audio autoplay blocked, retrying...", playErr);
+          const retryPlay = () => {
+            audio.play().catch(() => {});
+            document.removeEventListener("click", retryPlay);
+          };
+          document.addEventListener("click", retryPlay, { once: true });
+        }
       } else {
         const reader = new FileReader();
         const dataUri = await new Promise<string>((resolve, reject) => {
@@ -675,9 +670,9 @@ export default function ChatScreen() {
         currentPlayer = player;
 
         player.addListener("playbackStatusUpdate", (status: any) => {
-          if (status.didJustFinish) {
+          if (status.didJustFinish || status.playbackState === "ended" || (!status.playing && !status.isBuffering && status.isLoaded && status.currentTime > 0)) {
             setSpeakingMessageId(null);
-            player.remove();
+            try { player.remove(); } catch {}
             currentPlayer = null;
           }
         });
@@ -689,6 +684,8 @@ export default function ChatScreen() {
       setSpeakingMessageId(null);
     }
   }
+
+  handleSpeakRef.current = handleSpeak;
 
   async function pickImage() {
     try {
@@ -921,8 +918,8 @@ export default function ChatScreen() {
 
       if (autoSpeakRef.current && fullContent.length > 0) {
         const lastMsg = finalMessages[finalMessages.length - 1];
-        if (lastMsg && lastMsg.role === "assistant") {
-          handleSpeak(lastMsg.id, lastMsg.content, detectedMood);
+        if (lastMsg && lastMsg.role === "assistant" && handleSpeakRef.current) {
+          handleSpeakRef.current(lastMsg.id, lastMsg.content, detectedMood);
         }
       }
     }
