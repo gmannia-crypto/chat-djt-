@@ -61,16 +61,8 @@ let currentPlayer: ExpoAudioPlayer | HTMLAudioElement | null = null;
 
 function MessageBubble({
   message,
-  onSpeak,
-  isSpeaking,
-  isSpeakingThisMessage,
-  mood,
 }: {
   message: Message;
-  onSpeak: (messageId: string, text: string, mood?: ChatMood) => void;
-  isSpeaking: boolean;
-  isSpeakingThisMessage: boolean;
-  mood?: ChatMood;
 }) {
   const isUser = message.role === "user";
 
@@ -102,30 +94,6 @@ function MessageBubble({
             {message.content}
           </Text>
         </View>
-        {!isUser && message.content.length > 0 && (
-          <Pressable
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              onSpeak(message.id, message.content, mood);
-            }}
-            disabled={isSpeaking && !isSpeakingThisMessage}
-            style={[
-              styles.speakButton,
-              isSpeakingThisMessage && styles.speakButtonActive,
-              isSpeaking && !isSpeakingThisMessage && styles.speakButtonDisabled,
-            ]}
-            testID={`speak-${message.id}`}
-          >
-            <View style={styles.speakButtonInner}>
-              {isSpeakingThisMessage ? (
-                <ActivityIndicator size={11} color="#1A1000" />
-              ) : (
-                <Ionicons name="volume-high" size={12} color="#1A1000" />
-              )}
-            </View>
-            <Text style={styles.speakButtonLabel}>Play</Text>
-          </Pressable>
-        )}
       </View>
     </View>
   );
@@ -159,48 +127,138 @@ function TypingIndicator() {
 
 const trumpAvatarImage = require("@/assets/images/trump-avatar.jpg");
 
-function TrumpTalkingAvatar({ isSpeaking }: { isSpeaking: boolean }) {
+function MouthShape({ openAmount }: { openAmount: Animated.SharedValue<number> }) {
+  const mouthStyle = useAnimatedStyle(() => {
+    const open = openAmount.value;
+    return {
+      height: 4 + open * 14,
+      width: 22 + open * 8,
+      borderRadius: 6 + open * 8,
+      opacity: 0.7 + open * 0.3,
+    };
+  });
+
+  return (
+    <Animated.View style={[avatarStyles.mouthShape, mouthStyle]} />
+  );
+}
+
+function TrumpTalkingAvatar({ isSpeaking, mood }: { isSpeaking: boolean; mood?: ChatMood }) {
   const glowPulse = useSharedValue(0.4);
   const scaleAnim = useSharedValue(1);
   const borderAnim = useSharedValue(0);
+  const mouthOpen = useSharedValue(0);
+  const jawMove = useSharedValue(0);
+  const browTense = useSharedValue(0);
+  const headTilt = useSharedValue(0);
+
+  const isFiredUp = mood === "FIRED_UP";
 
   useEffect(() => {
     if (isSpeaking) {
       glowPulse.value = withRepeat(
         withSequence(
-          withTiming(1, { duration: 1000, easing: Easing.inOut(Easing.ease) }),
-          withTiming(0.3, { duration: 1000, easing: Easing.inOut(Easing.ease) }),
+          withTiming(1, { duration: 800, easing: Easing.inOut(Easing.ease) }),
+          withTiming(0.3, { duration: 800, easing: Easing.inOut(Easing.ease) }),
         ),
         -1,
         true
       );
       scaleAnim.value = withRepeat(
         withSequence(
-          withTiming(1.04, { duration: 600, easing: Easing.inOut(Easing.ease) }),
-          withTiming(0.98, { duration: 500, easing: Easing.inOut(Easing.ease) }),
-          withTiming(1.02, { duration: 400, easing: Easing.inOut(Easing.ease) }),
-          withTiming(1, { duration: 500, easing: Easing.inOut(Easing.ease) }),
+          withTiming(1.03, { duration: 500, easing: Easing.inOut(Easing.ease) }),
+          withTiming(0.98, { duration: 400, easing: Easing.inOut(Easing.ease) }),
+          withTiming(1.01, { duration: 350, easing: Easing.inOut(Easing.ease) }),
+          withTiming(1, { duration: 400, easing: Easing.inOut(Easing.ease) }),
         ),
         -1,
         true
       );
       borderAnim.value = withRepeat(
         withSequence(
-          withTiming(1, { duration: 800, easing: Easing.inOut(Easing.ease) }),
-          withTiming(0, { duration: 800, easing: Easing.inOut(Easing.ease) }),
+          withTiming(1, { duration: 600, easing: Easing.inOut(Easing.ease) }),
+          withTiming(0, { duration: 600, easing: Easing.inOut(Easing.ease) }),
         ),
         -1,
         true
       );
+
+      const mouthSpeed = isFiredUp ? 120 : 200;
+      mouthOpen.value = withRepeat(
+        withSequence(
+          withTiming(0.9, { duration: mouthSpeed, easing: Easing.out(Easing.quad) }),
+          withTiming(0.2, { duration: mouthSpeed * 0.7, easing: Easing.in(Easing.quad) }),
+          withTiming(0.7, { duration: mouthSpeed * 0.8, easing: Easing.out(Easing.quad) }),
+          withTiming(0.1, { duration: mouthSpeed * 0.6, easing: Easing.in(Easing.quad) }),
+          withTiming(0.8, { duration: mouthSpeed * 0.9, easing: Easing.out(Easing.quad) }),
+          withTiming(0.3, { duration: mouthSpeed * 0.5, easing: Easing.in(Easing.quad) }),
+          withTiming(0.6, { duration: mouthSpeed * 0.7, easing: Easing.out(Easing.quad) }),
+          withTiming(0.05, { duration: mouthSpeed * 1.2, easing: Easing.in(Easing.quad) }),
+        ),
+        -1,
+        false
+      );
+
+      jawMove.value = withRepeat(
+        withSequence(
+          withTiming(1, { duration: mouthSpeed * 1.2, easing: Easing.out(Easing.quad) }),
+          withTiming(0, { duration: mouthSpeed * 0.8, easing: Easing.in(Easing.quad) }),
+          withTiming(0.7, { duration: mouthSpeed, easing: Easing.out(Easing.quad) }),
+          withTiming(0.1, { duration: mouthSpeed * 0.6, easing: Easing.in(Easing.quad) }),
+        ),
+        -1,
+        false
+      );
+
+      if (isFiredUp) {
+        browTense.value = withRepeat(
+          withSequence(
+            withTiming(1, { duration: 400, easing: Easing.out(Easing.quad) }),
+            withTiming(0.5, { duration: 300 }),
+            withTiming(0.8, { duration: 250 }),
+            withTiming(0.3, { duration: 500 }),
+          ),
+          -1,
+          false
+        );
+        headTilt.value = withRepeat(
+          withSequence(
+            withTiming(3, { duration: 600, easing: Easing.inOut(Easing.ease) }),
+            withTiming(-2, { duration: 500, easing: Easing.inOut(Easing.ease) }),
+            withTiming(1, { duration: 400, easing: Easing.inOut(Easing.ease) }),
+            withTiming(-3, { duration: 700, easing: Easing.inOut(Easing.ease) }),
+          ),
+          -1,
+          true
+        );
+      } else {
+        browTense.value = withTiming(0, { duration: 300 });
+        headTilt.value = withRepeat(
+          withSequence(
+            withTiming(1.5, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
+            withTiming(-1, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
+          ),
+          -1,
+          true
+        );
+      }
     } else {
       cancelAnimation(glowPulse);
       cancelAnimation(scaleAnim);
       cancelAnimation(borderAnim);
+      cancelAnimation(mouthOpen);
+      cancelAnimation(jawMove);
+      cancelAnimation(browTense);
+      cancelAnimation(headTilt);
       glowPulse.value = withTiming(0, { duration: 300 });
       scaleAnim.value = withTiming(1, { duration: 200 });
       borderAnim.value = withTiming(0, { duration: 200 });
+      mouthOpen.value = withTiming(0, { duration: 150 });
+      jawMove.value = withTiming(0, { duration: 150 });
+      browTense.value = withTiming(0, { duration: 200 });
+      headTilt.value = withTiming(0, { duration: 300 });
     }
-  }, [isSpeaking]);
+  }, [isSpeaking, isFiredUp]);
 
   const glowStyle = useAnimatedStyle(() => ({
     opacity: glowPulse.value,
@@ -208,30 +266,50 @@ function TrumpTalkingAvatar({ isSpeaking }: { isSpeaking: boolean }) {
   }));
 
   const frameStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scaleAnim.value }],
+    transform: [
+      { scale: scaleAnim.value },
+      { rotate: `${headTilt.value}deg` },
+    ],
     borderColor: interpolateColor(
       borderAnim.value,
       [0, 1],
-      ["#D4A420", "#FFD700"]
+      [isFiredUp ? "#CC3333" : "#D4A420", isFiredUp ? "#FF5555" : "#FFD700"]
     ),
+  }));
+
+  const jawStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: jawMove.value * 3 }],
+  }));
+
+  const browStyle = useAnimatedStyle(() => ({
+    transform: [{ scaleY: 1 - browTense.value * 0.3 }],
+    opacity: browTense.value * 0.6,
   }));
 
   if (!isSpeaking) return null;
 
   return (
     <Animated.View entering={FadeIn.duration(300)} style={avatarStyles.container}>
-      <Animated.View style={[avatarStyles.glowRing, glowStyle]} />
+      <Animated.View style={[avatarStyles.glowRing, glowStyle, isFiredUp && avatarStyles.glowRingAngry]} />
       <Animated.View style={[avatarStyles.avatarFrame, frameStyle]}>
-        <Image
-          source={trumpAvatarImage}
-          style={avatarStyles.avatarImage}
-          resizeMode="cover"
-        />
+        <Animated.View style={jawStyle}>
+          <Image
+            source={trumpAvatarImage}
+            style={avatarStyles.avatarImage}
+            resizeMode="cover"
+          />
+        </Animated.View>
+        <Animated.View style={[avatarStyles.browOverlay, browStyle]} />
+        <View style={avatarStyles.mouthArea}>
+          <MouthShape openAmount={mouthOpen} />
+        </View>
       </Animated.View>
       <View style={avatarStyles.speakingRow}>
-        <View style={avatarStyles.speakingDot} />
-        <Text style={avatarStyles.speakingLabel}>SPEAKING</Text>
-        <View style={avatarStyles.speakingDot} />
+        <View style={[avatarStyles.speakingDot, isFiredUp && avatarStyles.dotAngry]} />
+        <Text style={[avatarStyles.speakingLabel, isFiredUp && avatarStyles.labelAngry]}>
+          {isFiredUp ? "FIRED UP" : "SPEAKING"}
+        </Text>
+        <View style={[avatarStyles.speakingDot, isFiredUp && avatarStyles.dotAngry]} />
       </View>
     </Animated.View>
   );
@@ -245,10 +323,10 @@ const avatarStyles = StyleSheet.create({
   },
   glowRing: {
     position: "absolute",
-    width: 130,
-    height: 130,
-    borderRadius: 65,
-    top: 6,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    top: 3,
     backgroundColor: "transparent",
     borderWidth: 2.5,
     borderColor: Colors.gold,
@@ -259,10 +337,19 @@ const avatarStyles = StyleSheet.create({
       default: {},
     }),
   },
+  glowRingAngry: {
+    borderColor: "#CC3333",
+    ...Platform.select({
+      web: {
+        boxShadow: "0 0 24px rgba(204, 51, 51, 0.6), 0 0 48px rgba(255, 68, 68, 0.25)",
+      },
+      default: {},
+    }),
+  },
   avatarFrame: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: 128,
+    height: 128,
+    borderRadius: 64,
     backgroundColor: "#0A0A0A",
     borderWidth: 3,
     borderColor: Colors.gold,
@@ -275,8 +362,31 @@ const avatarStyles = StyleSheet.create({
     }),
   },
   avatarImage: {
-    width: "100%" as any,
-    height: "100%" as any,
+    width: 128 as any,
+    height: 128 as any,
+  },
+  browOverlay: {
+    position: "absolute",
+    top: 25,
+    left: 20,
+    right: 20,
+    height: 18,
+    backgroundColor: "rgba(0, 0, 0, 0.35)",
+    borderRadius: 4,
+  },
+  mouthArea: {
+    position: "absolute",
+    bottom: 22,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    height: 24,
+  },
+  mouthShape: {
+    backgroundColor: "rgba(30, 10, 10, 0.85)",
+    borderWidth: 1,
+    borderColor: "rgba(150, 80, 80, 0.4)",
   },
   speakingRow: {
     flexDirection: "row",
@@ -289,11 +399,17 @@ const avatarStyles = StyleSheet.create({
     borderRadius: 2.5,
     backgroundColor: Colors.gold,
   },
+  dotAngry: {
+    backgroundColor: "#FF4444",
+  },
   speakingLabel: {
     fontSize: 10,
     color: Colors.gold,
     fontWeight: "700" as const,
     letterSpacing: 2,
+  },
+  labelAngry: {
+    color: "#FF4444",
   },
 });
 
@@ -863,10 +979,6 @@ export default function ChatScreen() {
           renderItem={({ item }) => (
             <MessageBubble
               message={item}
-              onSpeak={handleSpeak}
-              isSpeaking={!!speakingMessageId}
-              isSpeakingThisMessage={speakingMessageId === item.id}
-              mood={messageMoods[item.id]}
             />
           )}
           inverted={!isWeb && messages.length > 0}
@@ -906,7 +1018,10 @@ export default function ChatScreen() {
           showsVerticalScrollIndicator={false}
         />
 
-        <TrumpTalkingAvatar isSpeaking={!!speakingMessageId} />
+        <TrumpTalkingAvatar
+          isSpeaking={!!speakingMessageId}
+          mood={speakingMessageId ? messageMoods[speakingMessageId] : undefined}
+        />
 
         <View
           style={[
@@ -1362,42 +1477,5 @@ const styles = StyleSheet.create({
   assistantBubbleWrap: {
     maxWidth: "100%",
     flexShrink: 1,
-  },
-  speakButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "flex-start",
-    gap: 5,
-    marginTop: 6,
-    paddingRight: 4,
-  },
-  speakButtonInner: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: Colors.gold,
-    borderWidth: 1,
-    borderColor: "#E8C84A",
-    ...Platform.select({
-      web: {
-        boxShadow: "0 1px 4px rgba(212, 164, 32, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.3)",
-      },
-      default: {},
-    }),
-  },
-  speakButtonLabel: {
-    fontSize: 9,
-    color: Colors.whiteMuted,
-    fontWeight: "600" as const,
-    letterSpacing: 0.3,
-    textTransform: "uppercase" as const,
-  },
-  speakButtonActive: {
-    opacity: 1,
-  },
-  speakButtonDisabled: {
-    opacity: 0.3,
   },
 });
