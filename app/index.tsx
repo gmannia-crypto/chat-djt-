@@ -12,6 +12,7 @@ import {
   Dimensions,
   ScrollView,
 } from "react-native";
+import * as Clipboard from "expo-clipboard";
 import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons, Feather, FontAwesome5 } from "@expo/vector-icons";
@@ -31,6 +32,7 @@ import {
   getAllConversations,
   createConversation,
   deleteConversation,
+  Message,
 } from "@/lib/chat-storage";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -110,14 +112,27 @@ function NewsCrawl({ headlines }: { headlines: NewsHeadline[] }) {
   );
 }
 
+function formatConversationForCopy(conv: Conversation): string {
+  const header = `Chat DJT - ${conv.title}\n${new Date(conv.createdAt).toLocaleString()}\n${"─".repeat(40)}\n\n`;
+  const body = conv.messages
+    .map((m) => {
+      const label = m.role === "user" ? "YOU" : "TRUMP";
+      return `[${label}]: ${m.content}`;
+    })
+    .join("\n\n");
+  return header + body;
+}
+
 function ConversationItem({
   item,
   index,
   onDelete,
+  onCopy,
 }: {
   item: Conversation;
   index: number;
   onDelete: (id: string) => void;
+  onCopy: (conv: Conversation) => void;
 }) {
   const lastMessage = item.messages[item.messages.length - 1];
   const preview = lastMessage
@@ -170,6 +185,17 @@ function ConversationItem({
             {preview}
           </Text>
         </View>
+        <Pressable
+          onPress={(e) => {
+            e.stopPropagation();
+            onCopy(item);
+          }}
+          hitSlop={8}
+          style={styles.copyButton}
+          testID={`copy-conversation-${item.id}`}
+        >
+          <Ionicons name="copy-outline" size={18} color={Colors.gold} />
+        </Pressable>
         <Feather name="chevron-right" size={18} color={Colors.whiteMuted} />
       </Pressable>
     </Animated.View>
@@ -202,6 +228,21 @@ export default function HomeScreen() {
     await deleteConversation(id);
     setConversations((prev) => prev.filter((c) => c.id !== id));
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }
+
+  async function handleCopy(conv: Conversation) {
+    try {
+      const text = formatConversationForCopy(conv);
+      await Clipboard.setStringAsync(text);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (Platform.OS === "web") {
+        alert("Conversation copied to clipboard!");
+      } else {
+        Alert.alert("Copied", "Conversation copied to clipboard. You can paste it anywhere.");
+      }
+    } catch {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
   }
 
   const webTopInset = Platform.OS === "web" ? 67 : 0;
@@ -409,7 +450,7 @@ export default function HomeScreen() {
             data={conversations}
             keyExtractor={(item) => item.id}
             renderItem={({ item, index }) => (
-              <ConversationItem item={item} index={index} onDelete={handleDelete} />
+              <ConversationItem item={item} index={index} onDelete={handleDelete} onCopy={handleCopy} />
             )}
             contentContainerStyle={[
               styles.archiveListContent,
@@ -732,6 +773,10 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.whiteDim,
     lineHeight: 18,
+  },
+  copyButton: {
+    padding: 6,
+    marginRight: 4,
   },
   emptyState: {
     alignItems: "center",
