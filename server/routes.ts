@@ -193,7 +193,7 @@ RESPONSE RULES:
 - Match the emotional weight of the question — serious questions get passionate serious answers, fun questions get enthusiastic fun answers`;
 
 const ELEVENLABS_MODEL = "eleven_v3";
-const FRUMP2_VOICE_ID = "1Ugfvq0w9cLINMppXxLo";
+const FRUMP1_VOICE_ID = "MLVyah8U5vYeVPSszwiN";
 
 
 async function trumpTextToSpeech(text: string, speed: number = 1.0, mood: string = "CALM"): Promise<Buffer> {
@@ -204,8 +204,8 @@ async function trumpTextToSpeech(text: string, speed: number = 1.0, mood: string
     throw new Error("ElevenLabs API key or Voice ID not configured");
   }
 
-  const voiceId = mood === "FIRED_UP" ? frumpVoiceId : FRUMP2_VOICE_ID;
-  const voiceName = mood === "FIRED_UP" ? "frump" : "frump2";
+  const voiceId = mood === "FIRED_UP" ? frumpVoiceId : FRUMP1_VOICE_ID;
+  const voiceName = mood === "FIRED_UP" ? "frump" : "frump1";
   console.log(`TTS: Using ${voiceName} (${voiceId}) with model ${ELEVENLABS_MODEL}, mood=${mood}, speed=${speed}`);
 
   const response = await fetch(
