@@ -289,82 +289,12 @@ export default function HomeScreen() {
         </View>
       </Animated.View>
 
-      {tickers && (
-        <Animated.View entering={FadeIn.delay(400).duration(500)} style={styles.tickerContainer}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.tickerScroll}
-          >
-            {tickers.trumpCoin && (
-              <View style={styles.tickerItem}>
-                <FontAwesome5 name="coins" size={11} color={Colors.gold} />
-                <Text style={styles.tickerLabel}>$TRUMP</Text>
-                <Text style={styles.tickerValue}>
-                  ${tickers.trumpCoin.price < 1 ? tickers.trumpCoin.price.toFixed(4) : tickers.trumpCoin.price.toFixed(2)}
-                </Text>
-                {tickers.trumpCoin.change24h != null && (
-                  <Text style={[styles.tickerChange, { color: tickers.trumpCoin.change24h >= 0 ? "#4ADE80" : "#F87171" }]}>
-                    {tickers.trumpCoin.change24h >= 0 ? "+" : ""}{tickers.trumpCoin.change24h.toFixed(1)}%
-                  </Text>
-                )}
-                <View style={styles.tickerDivider} />
-              </View>
-            )}
-
-            {tickers.dowJones && (
-              <View style={styles.tickerItem}>
-                <Feather name="trending-up" size={12} color={Colors.gold} />
-                <Text style={styles.tickerLabel}>DOW</Text>
-                <Text style={styles.tickerValue}>
-                  {tickers.dowJones.price.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                </Text>
-                <Text style={[styles.tickerChange, { color: tickers.dowJones.changePercent >= 0 ? "#4ADE80" : "#F87171" }]}>
-                  {tickers.dowJones.changePercent >= 0 ? "+" : ""}{tickers.dowJones.changePercent.toFixed(2)}%
-                </Text>
-                <View style={styles.tickerDivider} />
-              </View>
-            )}
-
-            {tickers.approval && (
-              <View style={styles.tickerItem}>
-                <Ionicons name="thumbs-up" size={12} color={Colors.gold} />
-                <Text style={styles.tickerLabel}>APPROVE</Text>
-                <Text style={styles.tickerValue}>{tickers.approval.approve}%</Text>
-                {tickers.approval.disapprove != null && (
-                  <Text style={[styles.tickerChange, { color: Colors.whiteMuted }]}>
-                    / {tickers.approval.disapprove}%
-                  </Text>
-                )}
-                <View style={styles.tickerDivider} />
-              </View>
-            )}
-
-            {tickers.nationalDebt && (
-              <View style={styles.tickerItem}>
-                <MaterialCommunityIcons name="bank" size={13} color={Colors.gold} />
-                <Text style={styles.tickerLabel}>DEBT</Text>
-                <Text style={styles.tickerValue}>
-                  {formatCompact(tickers.nationalDebt.amount)}
-                </Text>
-              </View>
-            )}
-
-            {!tickers.trumpCoin && !tickers.dowJones && !tickers.approval && !tickers.nationalDebt && (
-              <Text style={styles.tickerLoading}>Loading market data...</Text>
-            )}
-          </ScrollView>
-        </Animated.View>
-      )}
-
-      {headlines.length > 0 && <NewsCrawl headlines={headlines} />}
-
       <View style={styles.centerContent} />
 
       <View
         style={[
           styles.fabContainer,
-          { bottom: insets.bottom + webBottomInset + 20 },
+          { bottom: insets.bottom + webBottomInset + 76 },
         ]}
       >
         <Pressable
@@ -384,6 +314,78 @@ export default function HomeScreen() {
             <Ionicons name="add" size={30} color={Colors.black} />
           </LinearGradient>
         </Pressable>
+      </View>
+
+      <View style={[styles.bottomBarContainer, { paddingBottom: insets.bottom + webBottomInset }]}>
+        {headlines.length > 0 && <NewsCrawl headlines={headlines} />}
+
+        {tickers && (
+          <Animated.View entering={FadeIn.delay(400).duration(500)} style={styles.tickerContainer}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.tickerScroll}
+            >
+              {tickers.trumpCoin && (
+                <View style={styles.tickerItem}>
+                  <FontAwesome5 name="coins" size={11} color={Colors.gold} />
+                  <Text style={styles.tickerLabel}>$TRUMP</Text>
+                  <Text style={styles.tickerValue}>
+                    ${tickers.trumpCoin.price < 1 ? tickers.trumpCoin.price.toFixed(4) : tickers.trumpCoin.price.toFixed(2)}
+                  </Text>
+                  {tickers.trumpCoin.change24h != null && (
+                    <Text style={[styles.tickerChange, { color: tickers.trumpCoin.change24h >= 0 ? "#4ADE80" : "#F87171" }]}>
+                      {tickers.trumpCoin.change24h >= 0 ? "+" : ""}{tickers.trumpCoin.change24h.toFixed(1)}%
+                    </Text>
+                  )}
+                  <View style={styles.tickerDivider} />
+                </View>
+              )}
+
+              {tickers.dowJones && (
+                <View style={styles.tickerItem}>
+                  <Feather name="trending-up" size={12} color={Colors.gold} />
+                  <Text style={styles.tickerLabel}>DOW</Text>
+                  <Text style={styles.tickerValue}>
+                    {tickers.dowJones.price.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </Text>
+                  <Text style={[styles.tickerChange, { color: tickers.dowJones.changePercent >= 0 ? "#4ADE80" : "#F87171" }]}>
+                    {tickers.dowJones.changePercent >= 0 ? "+" : ""}{tickers.dowJones.changePercent.toFixed(2)}%
+                  </Text>
+                  <View style={styles.tickerDivider} />
+                </View>
+              )}
+
+              {tickers.approval && (
+                <View style={styles.tickerItem}>
+                  <Ionicons name="thumbs-up" size={12} color={Colors.gold} />
+                  <Text style={styles.tickerLabel}>APPROVE</Text>
+                  <Text style={styles.tickerValue}>{tickers.approval.approve}%</Text>
+                  {tickers.approval.disapprove != null && (
+                    <Text style={[styles.tickerChange, { color: Colors.whiteMuted }]}>
+                      / {tickers.approval.disapprove}%
+                    </Text>
+                  )}
+                  <View style={styles.tickerDivider} />
+                </View>
+              )}
+
+              {tickers.nationalDebt && (
+                <View style={styles.tickerItem}>
+                  <MaterialCommunityIcons name="bank" size={13} color={Colors.gold} />
+                  <Text style={styles.tickerLabel}>DEBT</Text>
+                  <Text style={styles.tickerValue}>
+                    {formatCompact(tickers.nationalDebt.amount)}
+                  </Text>
+                </View>
+              )}
+
+              {!tickers.trumpCoin && !tickers.dowJones && !tickers.approval && !tickers.nationalDebt && (
+                <Text style={styles.tickerLoading}>Loading market data...</Text>
+              )}
+            </ScrollView>
+          </Animated.View>
+        )}
       </View>
 
       <Modal
@@ -519,11 +521,13 @@ const styles = StyleSheet.create({
     lineHeight: 32,
     paddingRight: 40,
   },
-  tickerContainer: {
+  bottomBarContainer: {
     zIndex: 10,
+    backgroundColor: "rgba(0, 0, 0, 0.85)",
+  },
+  tickerContainer: {
     backgroundColor: "rgba(0, 0, 0, 0.7)",
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderBottomWidth: StyleSheet.hairlineWidth,
     borderColor: "rgba(212, 164, 32, 0.3)",
     paddingVertical: 8,
   },
