@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -7,8 +7,10 @@ import {
   Platform,
   Alert,
   ScrollView,
+  Linking,
+  ActivityIndicator,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   Ionicons,
@@ -22,6 +24,8 @@ import Animated, {
   FadeInUp,
 } from "react-native-reanimated";
 import Colors from "@/constants/colors";
+import { apiRequest, getApiUrl } from "@/lib/query-client";
+import { useQuery } from "@tanstack/react-query";
 
 const FEATURES = [
   {
@@ -48,28 +52,93 @@ const FEATURES = [
 
 export default function SubscribeScreen() {
   const insets = useSafeAreaInsets();
+  const params = useLocalSearchParams<{ success?: string; canceled?: string }>();
   const [isSubscribing, setIsSubscribing] = useState(false);
 
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
 
+  const { data: productsData } = useQuery<{
+    data: Array<{
+      id: string;
+      name: string;
+      description: string | null;
+      prices: Array<{
+        id: string;
+        unit_amount: number | null;
+        currency: string;
+        recurring: { interval: string } | null;
+      }>;
+    }>;
+  }>({
+    queryKey: ["/api/stripe/products"],
+    staleTime: 60000,
+  });
+
+  const monthlyPrice = productsData?.data?.[0]?.prices?.find(
+    (p) => p.recurring?.interval === "month"
+  );
+
+  useEffect(() => {
+    if (params.success === "true") {
+      const msg = "Welcome to Chat DJT Premium! You're going to love it, believe me!";
+      if (Platform.OS === "web") {
+        alert(msg);
+      } else {
+        Alert.alert("Subscription Active!", msg, [
+          { text: "Tremendous!", style: "default", onPress: () => router.back() },
+        ]);
+      }
+    } else if (params.canceled === "true") {
+      const msg = "No problem! You can subscribe anytime. We'll be here!";
+      if (Platform.OS === "web") {
+        alert(msg);
+      } else {
+        Alert.alert("Subscription Canceled", msg, [
+          { text: "OK", style: "default" },
+        ]);
+      }
+    }
+  }, [params.success, params.canceled]);
+
   async function handleSubscribe() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     setIsSubscribing(true);
 
-    setTimeout(() => {
-      setIsSubscribing(false);
-      if (Platform.OS === "web") {
-        alert("Subscription will be available when the app is published to the App Store and Google Play. It's going to be HUGE!");
-      } else {
-        Alert.alert(
-          "Coming Soon!",
-          "Subscription will be available when the app is published to the App Store and Google Play. It's going to be HUGE!",
-          [{ text: "Tremendous!", style: "default" }]
-        );
+    try {
+      const priceId = monthlyPrice?.id;
+      if (!priceId) {
+        throw new Error("No subscription plan available");
       }
-    }, 1500);
+
+      const res = await apiRequest("POST", "/api/stripe/checkout", { priceId });
+      const { url } = await res.json();
+
+      if (url) {
+        if (Platform.OS === "web") {
+          window.location.href = url;
+        } else {
+          await Linking.openURL(url);
+        }
+      }
+    } catch (error: any) {
+      console.error("Subscription error:", error);
+      const msg = "Something went wrong. Try again later!";
+      if (Platform.OS === "web") {
+        alert(msg);
+      } else {
+        Alert.alert("Error", msg);
+      }
+    } finally {
+      setIsSubscribing(false);
+    }
   }
+
+  const displayPrice = monthlyPrice?.unit_amount
+    ? (monthlyPrice.unit_amount / 100).toFixed(2)
+    : "2.99";
+  const dollars = displayPrice.split(".")[0];
+  const cents = "." + displayPrice.split(".")[1];
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + webTopInset }]}>
@@ -131,8 +200,8 @@ export default function SubscribeScreen() {
             <Text style={styles.priceLabel}>Monthly</Text>
             <View style={styles.priceRow}>
               <Text style={styles.priceCurrency}>$</Text>
-              <Text style={styles.priceAmount}>2</Text>
-              <Text style={styles.priceCents}>.99</Text>
+              <Text style={styles.priceAmount}>{dollars}</Text>
+              <Text style={styles.priceCents}>{cents}</Text>
               <Text style={styles.pricePeriod}>/month</Text>
             </View>
             <Text style={styles.priceNote}>Cancel anytime. No questions asked.</Text>
@@ -180,9 +249,11 @@ export default function SubscribeScreen() {
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             >
-              <Text style={styles.subscribeText}>
-                {isSubscribing ? "Processing..." : "Subscribe Now"}
-              </Text>
+              {isSubscribing ? (
+                <ActivityIndicator color={Colors.black} />
+              ) : (
+                <Text style={styles.subscribeText}>Subscribe Now</Text>
+              )}
             </LinearGradient>
           </Pressable>
         </Animated.View>
@@ -191,8 +262,12 @@ export default function SubscribeScreen() {
           entering={FadeInDown.delay(800).duration(400)}
           style={styles.paymentMethods}
         >
-          <Text style={styles.paymentLabel}>Payment Methods</Text>
+          <Text style={styles.paymentLabel}>Secure Payment via Stripe</Text>
           <View style={styles.paymentIcons}>
+            <View style={styles.paymentBadge}>
+              <Feather name="credit-card" size={18} color={Colors.whiteDim} />
+              <Text style={styles.paymentBadgeText}>Card</Text>
+            </View>
             <View style={styles.paymentBadge}>
               <Ionicons name="logo-apple" size={18} color={Colors.whiteDim} />
               <Text style={styles.paymentBadgeText}>Apple Pay</Text>
@@ -201,15 +276,11 @@ export default function SubscribeScreen() {
               <Ionicons name="logo-google" size={18} color={Colors.whiteDim} />
               <Text style={styles.paymentBadgeText}>Google Pay</Text>
             </View>
-            <View style={styles.paymentBadge}>
-              <Feather name="credit-card" size={18} color={Colors.whiteDim} />
-              <Text style={styles.paymentBadgeText}>Card</Text>
-            </View>
           </View>
         </Animated.View>
 
         <Text style={styles.legalText}>
-          Subscription auto-renews monthly. Manage in your device settings.
+          Subscription auto-renews monthly. Cancel anytime from your Stripe account.
         </Text>
       </ScrollView>
     </View>
