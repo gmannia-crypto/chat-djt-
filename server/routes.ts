@@ -157,18 +157,21 @@ RESPONSE RULES:
 - Keep responses conversational and engaging
 - Match the emotional weight of the question — serious questions get passionate serious answers, fun questions get enthusiastic fun answers`;
 
+const ELEVENLABS_MODEL = "eleven_v3";
 const FRUMP1_VOICE_ID = "MLVyah8U5vYeVPSszwiN";
 
 
 async function trumpTextToSpeech(text: string, speed: number = 1.0, mood: string = "CALM"): Promise<Buffer> {
   const apiKey = process.env.ELEVENLABS_API_KEY;
-  const firedUpVoiceId = process.env.ELEVENLABS_VOICE_ID;
+  const frumpVoiceId = process.env.ELEVENLABS_VOICE_ID;
 
-  if (!apiKey || !firedUpVoiceId) {
+  if (!apiKey || !frumpVoiceId) {
     throw new Error("ElevenLabs API key or Voice ID not configured");
   }
 
-  const voiceId = mood === "FIRED_UP" ? firedUpVoiceId : FRUMP1_VOICE_ID;
+  const voiceId = mood === "FIRED_UP" ? frumpVoiceId : FRUMP1_VOICE_ID;
+  const voiceName = mood === "FIRED_UP" ? "frump" : "frump1";
+  console.log(`TTS: Using ${voiceName} (${voiceId}) with model ${ELEVENLABS_MODEL}, mood=${mood}, speed=${speed}`);
 
   const response = await fetch(
     `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
@@ -181,7 +184,7 @@ async function trumpTextToSpeech(text: string, speed: number = 1.0, mood: string
       },
       body: JSON.stringify({
         text,
-        model_id: "eleven_v3",
+        model_id: ELEVENLABS_MODEL,
         voice_settings: {
           stability: 0.5,
           similarity_boost: 0.85,
