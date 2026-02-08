@@ -869,14 +869,25 @@ export default function ChatScreen() {
       if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0];
         const isImage = asset.mimeType?.startsWith("image/");
+        const isPdf = asset.mimeType === "application/pdf";
+
+        if (asset.size && asset.size > 10 * 1024 * 1024) {
+          Alert.alert("File Too Large", "Please choose a file smaller than 10MB.");
+          return;
+        }
 
         if (isImage) {
           let base64: string | undefined;
-          if (Platform.OS !== "web" && FileSystem.documentDirectory) {
-            const b64 = await FileSystem.readAsStringAsync(asset.uri, {
-              encoding: FileSystem.EncodingType.Base64,
-            });
-            base64 = b64;
+          try {
+            if (Platform.OS !== "web" && FileSystem.documentDirectory) {
+              const b64 = await FileSystem.readAsStringAsync(asset.uri, {
+                encoding: FileSystem.EncodingType.Base64,
+              });
+              const MAX_BASE64 = 1500000;
+              base64 = b64.length > MAX_BASE64 ? b64.substring(0, MAX_BASE64) : b64;
+            }
+          } catch {
+            console.warn("Failed to read image as base64");
           }
           setAttachment({
             type: "image",
@@ -885,19 +896,35 @@ export default function ChatScreen() {
             mimeType: asset.mimeType || "image/jpeg",
             base64,
           });
+        } else if (isPdf) {
+          setAttachment({
+            type: "document",
+            uri: asset.uri,
+            name: asset.name || "document.pdf",
+            mimeType: "application/pdf",
+            textContent: `[PDF Document: ${asset.name || "document.pdf"}${asset.size ? ` (${Math.round(asset.size / 1024)}KB)` : ""}]\n\nThis is a PDF file. I can see that you've shared it, but I can't read the contents directly. Tell me what's in it and I'll give you my opinion!`,
+          });
         } else {
           let textContent = "";
           try {
             if (Platform.OS === "web") {
-              const resp = await fetch(asset.uri);
+              const controller = new AbortController();
+              const fetchTimeout = setTimeout(() => controller.abort(), 10000);
+              const resp = await fetch(asset.uri, { signal: controller.signal });
+              clearTimeout(fetchTimeout);
               textContent = await resp.text();
             } else if (FileSystem.documentDirectory) {
-              textContent = await FileSystem.readAsStringAsync(asset.uri, {
-                encoding: FileSystem.EncodingType.UTF8,
-              });
+              const fileInfo = await FileSystem.getInfoAsync(asset.uri);
+              if (fileInfo.exists && 'size' in fileInfo && fileInfo.size > 500000) {
+                textContent = `[File too large to read: ${asset.name} (${Math.round(fileInfo.size / 1024)}KB)]`;
+              } else {
+                textContent = await FileSystem.readAsStringAsync(asset.uri, {
+                  encoding: FileSystem.EncodingType.UTF8,
+                });
+              }
             }
           } catch {
-            textContent = `[File: ${asset.name}]`;
+            textContent = `[Unable to read file: ${asset.name}]`;
           }
 
           setAttachment({
@@ -958,13 +985,25 @@ export default function ChatScreen() {
           try {
             const resp = await fetch(currentAttachment.uri);
             const blob = await resp.blob();
-            const reader = new FileReader();
-            const b64 = await new Promise<string>((resolve) => {
-              reader.onloadend = () => resolve(reader.result as string);
-              reader.readAsDataURL(blob);
-            });
-            imageBase64ForApi = b64;
-          } catch {}
+            if (blob.size > 5 * 1024 * 1024) {
+              console.warn("Image blob too large, skipping base64 conversion");
+            } else {
+              const reader = new FileReader();
+              const b64 = await Promise.race([
+                new Promise<string>((resolve, reject) => {
+                  reader.onloadend = () => resolve(reader.result as string);
+                  reader.onerror = reject;
+                  reader.readAsDataURL(blob);
+                }),
+                new Promise<string>((_, reject) =>
+                  setTimeout(() => reject(new Error("File read timeout")), 15000)
+                ),
+              ]);
+              imageBase64ForApi = b64;
+            }
+          } catch (fileErr) {
+            console.warn("Failed to read image for API:", fileErr);
+          }
         }
       } else if (currentAttachment.type === "document" && currentAttachment.textContent) {
         const filePrefix = `[File: ${currentAttachment.name}]\n---\n${currentAttachment.textContent}\n---\n`;

@@ -242,6 +242,9 @@ async function trumpTextToSpeech(text: string, speed: number = 1.0, mood: string
 
 export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/chat", async (req, res) => {
+    req.setTimeout(120000);
+    res.setTimeout(120000);
+
     try {
       const { messages, trumpVoice = true } = req.body;
 
