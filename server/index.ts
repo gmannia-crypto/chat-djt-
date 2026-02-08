@@ -352,10 +352,14 @@ async function initStripe() {
     const stripeSync = await getStripeSync();
 
     const webhookBaseUrl = `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
-    const { webhook } = await stripeSync.findOrCreateManagedWebhook(
-      `${webhookBaseUrl}/api/stripe/webhook`
-    );
-    log(`Stripe webhook configured: ${webhook.url}`);
+    try {
+      const result = await stripeSync.findOrCreateManagedWebhook(
+        `${webhookBaseUrl}/api/stripe/webhook`
+      );
+      log(`Stripe webhook configured: ${JSON.stringify(result)}`);
+    } catch (webhookErr) {
+      log(`Stripe webhook setup skipped (non-critical): ${webhookErr}`);
+    }
 
     stripeSync.syncBackfill()
       .then(() => log("Stripe data synced"))
