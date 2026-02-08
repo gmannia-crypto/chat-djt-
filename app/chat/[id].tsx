@@ -58,6 +58,9 @@ const TRUMP_VOICE_KEY = "chatdjt_trump_voice";
 const AUTO_SPEAK_KEY = "chatdjt_auto_speak";
 
 let currentPlayer: ExpoAudioPlayer | HTMLAudioElement | null = null;
+let lastAudioUri: string | null = null;
+let lastAudioMood: ChatMood | undefined = undefined;
+let lastAudioMessageId: string | null = null;
 
 function MessageBubble({
   message,
@@ -604,18 +607,69 @@ export default function ChatScreen() {
     }
   }
 
-  async function handleSpeak(messageId: string, text: string, mood?: ChatMood) {
+  function stopCurrentPlayer() {
     if (currentPlayer) {
       if (currentPlayer instanceof HTMLAudioElement) {
-        currentPlayer.pause();
-        currentPlayer.src = "";
+        try { currentPlayer.pause(); currentPlayer.src = ""; } catch {}
       } else {
         try { currentPlayer.pause(); } catch {}
         try { currentPlayer.remove(); } catch {}
       }
       currentPlayer = null;
     }
+  }
 
+  async function playAudioFromUri(uri: string, msgId: string): Promise<void> {
+    stopCurrentPlayer();
+    setSpeakingMessageId(msgId);
+
+    try {
+      if (Platform.OS === "web") {
+        const audio = new window.Audio(uri);
+        currentPlayer = audio;
+
+        audio.onended = () => {
+          setSpeakingMessageId(null);
+          currentPlayer = null;
+        };
+
+        audio.onerror = () => {
+          setSpeakingMessageId(null);
+          currentPlayer = null;
+        };
+
+        try {
+          await audio.play();
+        } catch (playErr) {
+          console.warn("Audio autoplay blocked, retrying...", playErr);
+          const retryPlay = () => {
+            audio.play().catch(() => {});
+            document.removeEventListener("click", retryPlay);
+          };
+          document.addEventListener("click", retryPlay, { once: true });
+        }
+      } else {
+        const player = createAudioPlayer({ uri });
+        currentPlayer = player;
+
+        player.addListener("playbackStatusUpdate", (status: any) => {
+          if (status.didJustFinish || status.playbackState === "ended" || (!status.playing && !status.isBuffering && status.isLoaded && status.currentTime > 0)) {
+            setSpeakingMessageId(null);
+            try { player.remove(); } catch {}
+            currentPlayer = null;
+          }
+        });
+
+        player.play();
+      }
+    } catch (err) {
+      console.error("Audio play error:", err);
+      setSpeakingMessageId(null);
+    }
+  }
+
+  async function handleSpeak(messageId: string, text: string, mood?: ChatMood) {
+    stopCurrentPlayer();
     setSpeakingMessageId(messageId);
 
     try {
@@ -632,57 +686,39 @@ export default function ChatScreen() {
       const audioBlob = await response.blob();
 
       if (Platform.OS === "web") {
-        const blobUrl = URL.createObjectURL(audioBlob);
-        const audio = new window.Audio(blobUrl);
-        currentPlayer = audio;
-
-        audio.onended = () => {
-          setSpeakingMessageId(null);
-          URL.revokeObjectURL(blobUrl);
-          currentPlayer = null;
-        };
-
-        audio.onerror = () => {
-          setSpeakingMessageId(null);
-          URL.revokeObjectURL(blobUrl);
-          currentPlayer = null;
-        };
-
-        try {
-          await audio.play();
-        } catch (playErr) {
-          console.warn("Audio autoplay blocked, retrying...", playErr);
-          const retryPlay = () => {
-            audio.play().catch(() => {});
-            document.removeEventListener("click", retryPlay);
-          };
-          document.addEventListener("click", retryPlay, { once: true });
+        if (lastAudioUri) {
+          try { URL.revokeObjectURL(lastAudioUri); } catch {}
         }
+        const blobUrl = URL.createObjectURL(audioBlob);
+        lastAudioUri = blobUrl;
+        lastAudioMood = mood;
+        lastAudioMessageId = messageId;
+        await playAudioFromUri(blobUrl, messageId);
       } else {
-        const reader = new FileReader();
-        const dataUri = await new Promise<string>((resolve, reject) => {
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(audioBlob);
+        const arrayBuffer = await new Response(audioBlob).arrayBuffer();
+        const base64 = btoa(
+          new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
+        );
+        const tempPath = `${FileSystem.cacheDirectory}tts_${Date.now()}.mp3`;
+        await FileSystem.writeAsStringAsync(tempPath, base64, {
+          encoding: FileSystem.EncodingType.Base64,
         });
 
-        const player = createAudioPlayer({ uri: dataUri });
-        currentPlayer = player;
-
-        player.addListener("playbackStatusUpdate", (status: any) => {
-          if (status.didJustFinish || status.playbackState === "ended" || (!status.playing && !status.isBuffering && status.isLoaded && status.currentTime > 0)) {
-            setSpeakingMessageId(null);
-            try { player.remove(); } catch {}
-            currentPlayer = null;
-          }
-        });
-
-        player.play();
+        lastAudioUri = tempPath;
+        lastAudioMood = mood;
+        lastAudioMessageId = messageId;
+        await playAudioFromUri(tempPath, messageId);
       }
     } catch (error) {
       console.error("TTS playback error:", error);
       setSpeakingMessageId(null);
     }
+  }
+
+  async function handleReplay() {
+    if (!lastAudioUri || !lastAudioMessageId) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await playAudioFromUri(lastAudioUri, lastAudioMessageId);
   }
 
   handleSpeakRef.current = handleSpeak;
@@ -1146,6 +1182,24 @@ export default function ChatScreen() {
                 />
               </View>
               <Text style={[styles.glossyIconLabel, autoSpeak && styles.glossyIconLabelActive]}>{autoSpeak ? "Sound On" : "Sound"}</Text>
+            </Pressable>
+            <Pressable
+              onPress={handleReplay}
+              disabled={!lastAudioUri || !!speakingMessageId}
+              style={[
+                styles.glossyIconWrap,
+                (!lastAudioUri || !!speakingMessageId) && styles.glossyButtonDisabled,
+              ]}
+              testID="replay-button"
+            >
+              <View style={[styles.glossyIconCircle, !!lastAudioUri && !speakingMessageId && styles.glossyIconActive]}>
+                <Ionicons
+                  name="play-back"
+                  size={17}
+                  color="#1A1000"
+                />
+              </View>
+              <Text style={[styles.glossyIconLabel, !!lastAudioUri && !speakingMessageId && styles.glossyIconLabelActive]}>Replay</Text>
             </Pressable>
             <Pressable
               onPress={toggleTrumpVoice}
