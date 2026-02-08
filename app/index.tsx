@@ -11,6 +11,7 @@ import {
   Modal,
   Dimensions,
   ScrollView,
+  AppState,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { router, useFocusEffect } from "expo-router";
@@ -57,6 +58,8 @@ function NewsCrawl({ headlines }: { headlines: NewsHeadline[] }) {
       .join("     \u2022     ");
   }, [headlines]);
 
+  const isActiveRef = useRef(true);
+
   useEffect(() => {
     if (headlines.length === 0) return;
 
@@ -64,19 +67,30 @@ function NewsCrawl({ headlines }: { headlines: NewsHeadline[] }) {
     const speed = 0.7;
 
     function animate() {
+      if (!isActiveRef.current) {
+        rafId = requestAnimationFrame(animate);
+        return;
+      }
       scrollX.current += speed;
       if (contentWidth.current > 0 && scrollX.current >= contentWidth.current / 2) {
         scrollX.current = 0;
       }
-      scrollRef.current?.scrollTo({ x: scrollX.current, animated: false });
+      try {
+        scrollRef.current?.scrollTo({ x: scrollX.current, animated: false });
+      } catch {}
       rafId = requestAnimationFrame(animate);
     }
 
     rafId = requestAnimationFrame(animate);
     animationRef.current = rafId;
 
+    const appStateSub = AppState.addEventListener("change", (state) => {
+      isActiveRef.current = state === "active";
+    });
+
     return () => {
       if (rafId) cancelAnimationFrame(rafId);
+      appStateSub.remove();
     };
   }, [headlines]);
 

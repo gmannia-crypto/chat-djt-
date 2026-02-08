@@ -706,7 +706,15 @@ export default function ChatScreen() {
           }
         });
 
-        player.play();
+        try {
+          player.play();
+        } catch (playErr) {
+          console.warn("Native audio play failed:", playErr);
+          clearTimeout(safetyTimeout);
+          setSpeakingMessageId(null);
+          try { player.remove(); } catch {}
+          currentPlayer = null;
+        }
       }
     } catch (err) {
       console.error("Audio play error:", err);
