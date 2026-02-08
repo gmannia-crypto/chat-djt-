@@ -51,7 +51,7 @@ Preferred communication style: Simple, everyday language.
 
 ### Build & Deployment
 
-- **Dev**: Two workflows — `Start Frontend` for Expo dev server, `Start Backend` for Express backend
+- **Dev**: Backend workflow (`Start Backend`) manages both Express server (port 5000) and Metro bundler (port 8081). In dev mode, the backend spawns Metro automatically and proxies web requests to it. The `Start Frontend` workflow is not used in development (Metro is managed by the backend to avoid health check issues with the Replit proxy)
 - **Production Build**: `scripts/build.js` creates static Expo web build, `server:build` bundles server
 - **Environment Variables**: `EXPO_PUBLIC_DOMAIN` for API URL, `AI_INTEGRATIONS_OPENAI_API_KEY` and `AI_INTEGRATIONS_OPENAI_BASE_URL` for OpenAI, `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` for TTS
 
@@ -72,3 +72,4 @@ Preferred communication style: Simple, everyday language.
 - 2026-02-07: Removed theme music feature. Updated Trump persona to unfiltered/uncensored mode with full profanity (damn, shit, fuck, bitch, motherfucker). Profanity escalates with anger — mild when CALM, nuclear when FIRED_UP. Added derogatory political commentary. Increased FIRED_UP TTS speed to 1.5x for faster angry speech. Replaced cartoon avatar with realistic portrait image
 - 2026-02-07: Added live ticker bar showing Trump coin price, Dow Jones index, approval ratings, and national debt with 5-minute server-side caching
 - 2026-02-07: Added translucent news crawl — continuously scrolling marquee of real-time headlines from MarketWatch, CNBC, NYT, BBC, Fox News via RSS feeds. Red "LIVE" badge, gold text on dark translucent background. 3-minute cache, requestAnimationFrame-based smooth scrolling
+- 2026-02-08: Fixed startup issues — CI env var override (CI=0), backend now spawns Metro bundler directly to avoid workflow health check failures with ensurePreviewReachable

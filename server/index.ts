@@ -4,13 +4,51 @@ import { registerRoutes } from "./routes";
 import * as fs from "fs";
 import * as path from "path";
 import * as http from "http";
-import { spawn, execSync, type ChildProcess } from "child_process";
+import { spawn } from "child_process";
 import { runMigrations } from "stripe-replit-sync";
 import { getStripeSync } from "./stripeClient";
 import { WebhookHandlers } from "./webhookHandlers";
 
 const app = express();
 const log = console.log;
+
+function spawnMetro() {
+  const devDomain = process.env.REPLIT_DEV_DOMAIN || "";
+  const metroEnv = {
+    ...process.env,
+    CI: "0",
+    EXPO_PACKAGER_PROXY_URL: `https://${devDomain}`,
+    REACT_NATIVE_PACKAGER_HOSTNAME: devDomain,
+    EXPO_PUBLIC_DOMAIN: `${devDomain}:5000`,
+  };
+
+  log("[metro] Spawning Metro bundler on port 8081...");
+  const metro = spawn("npx", ["expo", "start", "--localhost", "--port", "8081"], {
+    cwd: process.cwd(),
+    env: metroEnv,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  metro.stdout?.on("data", (data: Buffer) => {
+    const msg = data.toString().trim();
+    if (msg) log(`[metro] ${msg}`);
+  });
+
+  metro.stderr?.on("data", (data: Buffer) => {
+    const msg = data.toString().trim();
+    if (msg) log(`[metro:err] ${msg}`);
+  });
+
+  metro.on("exit", (code) => {
+    log(`[metro] Process exited with code ${code}`);
+    if (code !== 0 && code !== null) {
+      log("[metro] Restarting in 5 seconds...");
+      setTimeout(spawnMetro, 5000);
+    }
+  });
+
+  return metro;
+}
 
 declare module "http" {
   interface IncomingMessage {
@@ -162,7 +200,7 @@ function serveLandingPage({
   res.status(200).send(html);
 }
 
-const METRO_PORT = 19006;
+const METRO_PORT = 8081;
 
 function proxyToMetro(req: Request, res: Response) {
   const isRootPage = req.path === "/" && req.method === "GET";
@@ -285,58 +323,6 @@ function setupErrorHandler(app: express.Application) {
   });
 }
 
-function waitForPortReady(port: number, maxAttempts = 60): Promise<boolean> {
-  return new Promise((resolve) => {
-    let attempts = 0;
-    const check = () => {
-      const net = require("net");
-      const socket = net.createConnection(port, "localhost");
-      socket.on("connect", () => {
-        socket.destroy();
-        resolve(true);
-      });
-      socket.on("error", () => {
-        attempts++;
-        if (attempts >= maxAttempts) {
-          resolve(false);
-        } else {
-          setTimeout(check, 1000);
-        }
-      });
-    };
-    check();
-  });
-}
-
-function startMetroBundler(): ChildProcess | null {
-  if (process.env.NODE_ENV !== "development") return null;
-
-  try {
-    execSync(`pkill -9 -f "expo start" 2>/dev/null; sleep 2`, { stdio: "ignore", timeout: 10000 });
-  } catch {}
-
-  const metroEnv = {
-    ...process.env,
-    CI: undefined,
-    EXPO_PACKAGER_PROXY_URL: `https://${process.env.REPLIT_DEV_DOMAIN}`,
-    REACT_NATIVE_PACKAGER_HOSTNAME: process.env.REPLIT_DEV_DOMAIN || "",
-    EXPO_PUBLIC_DOMAIN: `${process.env.REPLIT_DEV_DOMAIN}:5000`,
-  };
-
-  const metro = spawn("npx", ["expo", "start", "--localhost", "--port", String(METRO_PORT)], {
-    env: metroEnv,
-    stdio: "inherit",
-    cwd: process.cwd(),
-  });
-
-  metro.on("exit", (code) => {
-    log(`Metro bundler exited with code ${code}`);
-  });
-
-  log(`Metro bundler spawned on port ${METRO_PORT}`);
-  return metro;
-}
-
 async function initStripe() {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
@@ -430,24 +416,18 @@ async function initStripe() {
     });
   }
 
+  if (process.env.NODE_ENV === "development") {
+    spawnMetro();
+  }
+
   server.listen(
     {
       port,
       host: "0.0.0.0",
       reusePort: true,
     },
-    async () => {
+    () => {
       log(`express server serving on port ${port}`);
-
-      if (process.env.NODE_ENV === "development") {
-        const metro = startMetroBundler();
-        if (metro) {
-          process.on("SIGTERM", () => { metro.kill("SIGTERM"); });
-          process.on("SIGINT", () => { metro.kill("SIGTERM"); });
-          const started = await waitForPortReady(METRO_PORT, 60);
-          log(started ? `Metro is ready on port ${METRO_PORT}` : `Metro failed to start on port ${METRO_PORT}`);
-        }
-      }
     },
   );
 })();
