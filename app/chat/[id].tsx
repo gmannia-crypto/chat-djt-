@@ -10,6 +10,8 @@ import {
   ActivityIndicator,
   Image,
   Alert,
+  AppState,
+  type AppStateStatus,
 } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -442,11 +444,40 @@ export default function ChatScreen() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+
   useEffect(() => {
     loadConversation();
     loadVoicePreference();
     loadAutoSpeakPreference();
   }, [id]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextState: AppStateStatus) => {
+      if (appStateRef.current === "active" && (nextState === "background" || nextState === "inactive")) {
+        stopCurrentPlayer();
+        setSpeakingMessageId(null);
+
+        if (isRecording) {
+          try {
+            if (Platform.OS === "web") {
+              if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+                mediaRecorderRef.current.stop();
+              }
+            } else if (recordingRef.current) {
+              recordingRef.current.stopAndUnloadAsync().catch(() => {});
+              Audio.setAudioModeAsync({ allowsRecordingIOS: false }).catch(() => {});
+              recordingRef.current = null;
+            }
+          } catch {}
+          setIsRecording(false);
+        }
+      }
+      appStateRef.current = nextState;
+    });
+
+    return () => subscription.remove();
+  }, [isRecording]);
 
   async function loadVoicePreference() {
     try {
