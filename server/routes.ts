@@ -314,7 +314,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Text is required" });
       }
 
-      const truncatedText = text.slice(0, 2000);
+      const truncatedText = text.slice(0, 5000);
 
       const speed = mood === "FIRED_UP" ? 1.5 : 1.0;
 
