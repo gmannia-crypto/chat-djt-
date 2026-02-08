@@ -92,6 +92,33 @@ export async function clearAllConversations(): Promise<void> {
   await AsyncStorage.setItem(CONVERSATIONS_KEY, JSON.stringify([]));
 }
 
+const DRAFT_KEY_PREFIX = "chatdjt_draft_";
+
+export async function saveDraft(conversationId: string, text: string): Promise<void> {
+  try {
+    if (text.trim()) {
+      await AsyncStorage.setItem(`${DRAFT_KEY_PREFIX}${conversationId}`, text);
+    } else {
+      await AsyncStorage.removeItem(`${DRAFT_KEY_PREFIX}${conversationId}`);
+    }
+  } catch {}
+}
+
+export async function loadDraft(conversationId: string): Promise<string> {
+  try {
+    const draft = await AsyncStorage.getItem(`${DRAFT_KEY_PREFIX}${conversationId}`);
+    return draft || "";
+  } catch {
+    return "";
+  }
+}
+
+export async function clearDraft(conversationId: string): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(`${DRAFT_KEY_PREFIX}${conversationId}`);
+  } catch {}
+}
+
 const QUESTION_COUNT_KEY = "chatdjt_question_count";
 const FREE_QUESTION_LIMIT = 3;
 

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   StyleSheet,
   Text,
@@ -43,6 +43,9 @@ import {
   getConversation,
   saveMessages,
   generateUniqueId,
+  saveDraft,
+  loadDraft,
+  clearDraft,
 } from "@/lib/chat-storage";
 import { streamChat, type ChatMood } from "@/lib/stream-chat";
 import { getApiUrl } from "@/lib/query-client";
@@ -445,11 +448,30 @@ export default function ChatScreen() {
   const audioChunksRef = useRef<Blob[]>([]);
 
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     loadConversation();
     loadVoicePreference();
     loadAutoSpeakPreference();
+    loadDraftText();
+    return () => {
+      if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    };
+  }, [id]);
+
+  async function loadDraftText() {
+    if (!id) return;
+    const draft = await loadDraft(id);
+    if (draft) setInputText(draft);
+  }
+
+  const handleTextChange = useCallback((text: string) => {
+    setInputText(text);
+    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    draftTimerRef.current = setTimeout(() => {
+      if (id) saveDraft(id, text);
+    }, 500);
   }, [id]);
 
   useEffect(() => {
@@ -628,7 +650,11 @@ export default function ChatScreen() {
 
       const data = await response.json();
       if (data.text && data.text.trim()) {
-        setInputText((prev) => (prev ? prev + " " + data.text.trim() : data.text.trim()));
+        setInputText((prev) => {
+          const updated = prev ? prev + " " + data.text.trim() : data.text.trim();
+          if (id) saveDraft(id, updated);
+          return updated;
+        });
         inputRef.current?.focus();
       }
     } catch (error) {
@@ -972,6 +998,7 @@ export default function ChatScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setInputText("");
     setAttachment(null);
+    if (id) clearDraft(id);
 
     let displayContent = text;
     let imageBase64ForApi: string | undefined;
@@ -1023,6 +1050,8 @@ export default function ChatScreen() {
     setMessages(updatedWithUser);
     setIsStreaming(true);
     setShowTyping(true);
+
+    await saveMessages(conversationIdRef.current!, updatedWithUser);
 
     let fullContent = "";
     let assistantAdded = false;
@@ -1246,7 +1275,7 @@ export default function ChatScreen() {
               placeholder="Ask the greatest president ever..."
               placeholderTextColor={Colors.whiteMuted}
               value={inputText}
-              onChangeText={setInputText}
+              onChangeText={handleTextChange}
               multiline
               maxLength={2000}
               blurOnSubmit={false}
