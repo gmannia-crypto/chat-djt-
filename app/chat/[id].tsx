@@ -652,8 +652,23 @@ export default function ChatScreen() {
         const player = createAudioPlayer({ uri });
         currentPlayer = player;
 
+        let hasFinished = false;
+        const safetyTimeout = setTimeout(() => {
+          if (!hasFinished) {
+            hasFinished = true;
+            setSpeakingMessageId(null);
+            try { player.pause(); } catch {}
+            try { player.remove(); } catch {}
+            currentPlayer = null;
+          }
+        }, 120000);
+
         player.addListener("playbackStatusUpdate", (status: any) => {
-          if (status.didJustFinish || status.playbackState === "ended" || (!status.playing && !status.isBuffering && status.isLoaded && status.currentTime > 0)) {
+          if (hasFinished) return;
+          const isIdle = status.playing === false && status.isBuffering !== true;
+          if (status.didJustFinish || (status.playbackState && String(status.playbackState).toLowerCase().includes("end")) || (isIdle && status.currentTime > 0)) {
+            hasFinished = true;
+            clearTimeout(safetyTimeout);
             setSpeakingMessageId(null);
             try { player.remove(); } catch {}
             currentPlayer = null;
@@ -675,10 +690,15 @@ export default function ChatScreen() {
     try {
       const baseUrl = getApiUrl();
       const msgMood = mood || "CALM";
+      const cleanText = text.replace(/\[MOOD:(CALM|FIRED_UP)\]\n?/g, "").trim();
+      if (!cleanText) {
+        setSpeakingMessageId(null);
+        return;
+      }
       const response = await globalThis.fetch(`${baseUrl}api/tts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, mood: msgMood }),
+        body: JSON.stringify({ text: cleanText, mood: msgMood }),
       });
 
       if (!response.ok) throw new Error(`TTS request failed: ${response.status}`);
@@ -696,9 +716,14 @@ export default function ChatScreen() {
         await playAudioFromUri(blobUrl, messageId);
       } else {
         const arrayBuffer = await new Response(audioBlob).arrayBuffer();
-        const base64 = btoa(
-          new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
-        );
+        const bytes = new Uint8Array(arrayBuffer);
+        const chunkSize = 8192;
+        let base64 = "";
+        for (let i = 0; i < bytes.length; i += chunkSize) {
+          const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
+          base64 += String.fromCharCode.apply(null, chunk as any);
+        }
+        base64 = btoa(base64);
         const tempPath = `${FileSystem.cacheDirectory}tts_${Date.now()}.mp3`;
         await FileSystem.writeAsStringAsync(tempPath, base64, {
           encoding: FileSystem.EncodingType.Base64,
