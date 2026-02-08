@@ -787,24 +787,70 @@ export default function ChatScreen() {
 
   handleSpeakRef.current = handleSpeak;
 
+  async function compressImageBase64(base64: string, mimeType: string): Promise<string> {
+    if (Platform.OS === "web") {
+      try {
+        const img = new window.Image();
+        const loadPromise = new Promise<string>((resolve, reject) => {
+          img.onload = () => {
+            const maxDim = 1024;
+            let w = img.width;
+            let h = img.height;
+            if (w > maxDim || h > maxDim) {
+              if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
+              else { w = Math.round(w * maxDim / h); h = maxDim; }
+            }
+            const canvas = document.createElement("canvas");
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext("2d");
+            if (!ctx) { resolve(base64); return; }
+            ctx.drawImage(img, 0, 0, w, h);
+            const dataUrl = canvas.toDataURL("image/jpeg", 0.6);
+            resolve(dataUrl.split(",")[1] || base64);
+          };
+          img.onerror = () => resolve(base64);
+        });
+        img.src = `data:${mimeType};base64,${base64}`;
+        return await loadPromise;
+      } catch {
+        return base64;
+      }
+    }
+    return base64;
+  }
+
   async function pickImage() {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["images"],
-        quality: 0.7,
+        quality: 0.5,
         base64: true,
         allowsEditing: false,
+        exif: false,
       });
 
       if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0];
+        let base64Data = asset.base64 || undefined;
+
+        if (base64Data) {
+          if (Platform.OS === "web" && base64Data.length > 300000) {
+            base64Data = await compressImageBase64(base64Data, asset.mimeType || "image/jpeg");
+          }
+          const MAX_BASE64 = 1500000;
+          if (base64Data.length > MAX_BASE64) {
+            base64Data = base64Data.substring(0, MAX_BASE64);
+          }
+        }
+
         setAttachment({
           type: "image",
           uri: asset.uri,
           name: asset.fileName || "photo.jpg",
           mimeType: asset.mimeType || "image/jpeg",
-          base64: asset.base64 || undefined,
+          base64: base64Data,
         });
       }
     } catch (error) {

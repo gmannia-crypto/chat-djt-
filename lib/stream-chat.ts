@@ -14,14 +14,29 @@ export async function streamChat(
 ): Promise<StreamResult> {
   const baseUrl = getApiUrl();
 
-  const response = await fetch(`${baseUrl}api/chat`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "text/event-stream",
-    },
-    body: JSON.stringify({ messages, trumpVoice }),
-  });
+  const hasAttachment = messages.some((m) => m.imageBase64);
+  const controller = new AbortController();
+  const timeoutMs = hasAttachment ? 120000 : 60000;
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl}api/chat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "text/event-stream",
+      },
+      body: JSON.stringify({ messages, trumpVoice }),
+      signal: controller.signal,
+    });
+  } catch (fetchErr: any) {
+    clearTimeout(timeout);
+    if (fetchErr?.name === "AbortError") {
+      throw new Error("Request timed out. Try sending a smaller file or a shorter message.");
+    }
+    throw fetchErr;
+  }
 
   if (!response.ok) throw new Error("Failed to get response");
 
@@ -56,6 +71,7 @@ export async function streamChat(
       }
     }
   } catch (streamError: any) {
+    clearTimeout(timeout);
     if (streamError?.name === "AbortError" || streamError?.message?.includes("abort")) {
       // silently handle aborted streams (app backgrounded, etc.)
     } else {
@@ -63,5 +79,6 @@ export async function streamChat(
     }
   }
 
+  clearTimeout(timeout);
   return { mood: detectedMood };
 }
