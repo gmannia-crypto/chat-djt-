@@ -16,7 +16,7 @@ import {
 import { useLocalSearchParams, router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
-import { Ionicons, MaterialCommunityIcons, Feather } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons, Feather, FontAwesome5 } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Animated, {
@@ -49,6 +49,7 @@ import {
 } from "@/lib/chat-storage";
 import { streamChat, type ChatMood } from "@/lib/stream-chat";
 import { getApiUrl } from "@/lib/query-client";
+import { useTokens } from "@/lib/token-context";
 
 interface FileAttachment {
   type: "image" | "document";
@@ -424,6 +425,7 @@ const avatarStyles = StyleSheet.create({
 export default function ChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
+  const { deviceId, balance, refreshBalance, hasTokens } = useTokens();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
@@ -995,6 +997,12 @@ export default function ChatScreen() {
     const currentAttachment = attachment;
     if ((!text && !currentAttachment) || isStreaming) return;
 
+    if (!hasTokens) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      router.push("/subscribe");
+      return;
+    }
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setInputText("");
     setAttachment(null);
@@ -1077,6 +1085,7 @@ export default function ChatScreen() {
 
       const voiceSetting = trumpVoiceRef.current;
       const result = await streamChat(chatHistory, (chunk) => {
+
         fullContent += chunk;
 
         if (!assistantAdded) {
@@ -1105,26 +1114,44 @@ export default function ChatScreen() {
             return updated;
           });
         }
-      }, voiceSetting);
+      }, voiceSetting, deviceId);
 
       detectedMood = result.mood;
       if (assistantMsgId) {
         setMessageMoods((prev) => ({ ...prev, [assistantMsgId]: detectedMood }));
       }
-    } catch (error) {
+      refreshBalance();
+    } catch (error: any) {
       setShowTyping(false);
-      const errorMsg: Message = {
-        id: generateUniqueId(),
-        role: "assistant",
-        content:
-          "Look, we had a little problem. Believe me, it's not my fault. The FAKE servers are acting up. Try again!",
-        timestamp: Date.now(),
-      };
-      setMessages((prev) => {
-        const updated = [...prev, errorMsg];
-        finalMessages = updated;
-        return updated;
-      });
+
+      if (error?.message === "NO_TOKENS") {
+        const noTokenMsg: Message = {
+          id: generateUniqueId(),
+          role: "assistant",
+          content: "You're out of Trump Tokens! Get more tokens to keep this tremendous conversation going.",
+          timestamp: Date.now(),
+        };
+        setMessages((prev) => {
+          const updated = [...prev, noTokenMsg];
+          finalMessages = updated;
+          return updated;
+        });
+        refreshBalance();
+        setTimeout(() => router.push("/subscribe"), 1500);
+      } else {
+        const errorMsg: Message = {
+          id: generateUniqueId(),
+          role: "assistant",
+          content:
+            "Look, we had a little problem. Believe me, it's not my fault. The FAKE servers are acting up. Try again!",
+          timestamp: Date.now(),
+        };
+        setMessages((prev) => {
+          const updated = [...prev, errorMsg];
+          finalMessages = updated;
+          return updated;
+        });
+      }
     } finally {
       setIsStreaming(false);
       setShowTyping(false);
@@ -1175,7 +1202,16 @@ export default function ChatScreen() {
           <MaterialCommunityIcons name="crown" size={20} color={Colors.gold} />
           <Text style={styles.chatHeaderTitle}>Chat DJT</Text>
         </View>
-        <View style={styles.headerRight} />
+        <Pressable
+          onPress={() => router.push("/subscribe")}
+          style={styles.tokenBadge}
+          testID="token-badge"
+        >
+          <FontAwesome5 name="coins" size={12} color={Colors.gold} />
+          <Text style={styles.tokenBadgeText}>
+            {balance ? balance.totalAvailable : "..."}
+          </Text>
+        </Pressable>
       </View>
 
       <KeyboardAvoidingView
@@ -1698,6 +1734,22 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+  },
+  tokenBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "rgba(212, 164, 32, 0.12)",
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: "rgba(212, 164, 32, 0.25)",
+  },
+  tokenBadgeText: {
+    fontSize: 13,
+    fontFamily: "PlayfairDisplay_700Bold",
+    color: Colors.gold,
   },
   userBubbleWrap: {
     maxWidth: "100%",

@@ -10,7 +10,8 @@ export interface StreamResult {
 export async function streamChat(
   messages: { role: string; content: string; imageBase64?: string }[],
   onChunk: (text: string) => void,
-  trumpVoice: boolean = true
+  trumpVoice: boolean = true,
+  deviceId?: string | null
 ): Promise<StreamResult> {
   const baseUrl = getApiUrl();
 
@@ -19,14 +20,19 @@ export async function streamChat(
   const timeoutMs = hasAttachment ? 120000 : 60000;
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Accept: "text/event-stream",
+  };
+  if (deviceId) {
+    headers["x-device-id"] = deviceId;
+  }
+
   let response: Response;
   try {
     response = await fetch(`${baseUrl}api/chat`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "text/event-stream",
-      },
+      headers,
       body: JSON.stringify({ messages, trumpVoice }),
       signal: controller.signal,
     });
@@ -36,6 +42,15 @@ export async function streamChat(
       throw new Error("Request timed out. Try sending a smaller file or a shorter message.");
     }
     throw fetchErr;
+  }
+
+  if (response.status === 403) {
+    clearTimeout(timeout);
+    const errorData = await response.json().catch(() => ({}));
+    if (errorData.error === "no_tokens") {
+      throw new Error("NO_TOKENS");
+    }
+    throw new Error("Access denied");
   }
 
   if (!response.ok) throw new Error("Failed to get response");
