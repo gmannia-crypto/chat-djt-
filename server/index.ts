@@ -4,12 +4,64 @@ import { registerRoutes } from "./routes";
 import * as fs from "fs";
 import * as path from "path";
 import * as http from "http";
+import * as net from "net";
+import { spawn } from "child_process";
 import { runMigrations } from "stripe-replit-sync";
 import { getStripeSync } from "./stripeClient";
 import { WebhookHandlers } from "./webhookHandlers";
 
 const app = express();
 const log = console.log;
+
+function isPortInUse(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const s = net.createConnection({ port, host: "localhost" });
+    s.on("connect", () => { s.destroy(); resolve(true); });
+    s.on("error", () => { resolve(false); });
+  });
+}
+
+async function spawnMetroIfNeeded() {
+  const inUse = await isPortInUse(METRO_PORT);
+  if (inUse) {
+    log("[metro] Port 8081 already in use (frontend workflow running), skipping spawn");
+    return;
+  }
+
+  const devDomain = process.env.REPLIT_DEV_DOMAIN || "";
+  const metroEnv = {
+    ...process.env,
+    CI: "0",
+    EXPO_PACKAGER_PROXY_URL: `https://${devDomain}`,
+    REACT_NATIVE_PACKAGER_HOSTNAME: devDomain,
+    EXPO_PUBLIC_DOMAIN: `${devDomain}:5000`,
+  };
+
+  log("[metro] Spawning Metro bundler on port 8081...");
+  const metro = spawn("npx", ["expo", "start", "--port", "8081"], {
+    cwd: process.cwd(),
+    env: metroEnv,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  metro.stdout?.on("data", (data: Buffer) => {
+    const msg = data.toString().trim();
+    if (msg) log(`[metro] ${msg}`);
+  });
+
+  metro.stderr?.on("data", (data: Buffer) => {
+    const msg = data.toString().trim();
+    if (msg) log(`[metro:err] ${msg}`);
+  });
+
+  metro.on("exit", (code) => {
+    log(`[metro] Process exited with code ${code}`);
+    if (code !== 0 && code !== null) {
+      log("[metro] Restarting in 5 seconds...");
+      setTimeout(() => spawnMetroIfNeeded(), 5000);
+    }
+  });
+}
 
 declare module "http" {
   interface IncomingMessage {
@@ -360,7 +412,6 @@ async function initStripe() {
   const port = parseInt(process.env.PORT || "5000", 10);
 
   if (process.env.NODE_ENV === "development") {
-    const net = await import("net");
     server.on("upgrade", (req: http.IncomingMessage, socket: any, head: Buffer) => {
       const proxySocket = net.connect(METRO_PORT, "localhost", () => {
         const reqLine = `${req.method} ${req.url} HTTP/1.1\r\n`;
@@ -385,6 +436,9 @@ async function initStripe() {
     },
     () => {
       log(`express server serving on port ${port}`);
+      if (process.env.NODE_ENV === "development") {
+        setTimeout(() => spawnMetroIfNeeded(), 2000);
+      }
     },
   );
 })();
