@@ -3,6 +3,16 @@ import { createServer, type Server } from "node:http";
 import OpenAI from "openai";
 import { XMLParser } from "fast-xml-parser";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
+import {
+  getTokenBalance,
+  useToken,
+  grantSubscriptionTokens,
+  grantTokenPack,
+  refreshSubscriptionTokens,
+  cancelSubscription,
+  TOKEN_PACKS,
+  getOrCreateAccount,
+} from "./tokens";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -242,15 +252,62 @@ async function trumpTextToSpeech(text: string, speed: number = 1.0, mood: string
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  app.get("/api/tokens/balance", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) {
+        return res.status(400).json({ error: "Device ID required" });
+      }
+      const balance = await getTokenBalance(deviceId);
+      res.json(balance);
+    } catch (error) {
+      console.error("Token balance error:", error);
+      res.status(500).json({ error: "Failed to get token balance" });
+    }
+  });
+
+  app.post("/api/tokens/use", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) {
+        return res.status(400).json({ error: "Device ID required" });
+      }
+      const result = await useToken(deviceId);
+      if (!result.success) {
+        return res.status(403).json({ error: result.error, balance: result.balance });
+      }
+      res.json({ success: true, balance: result.balance });
+    } catch (error) {
+      console.error("Token use error:", error);
+      res.status(500).json({ error: "Failed to use token" });
+    }
+  });
+
+  app.get("/api/tokens/packs", async (_req, res) => {
+    res.json({ packs: TOKEN_PACKS });
+  });
+
   app.post("/api/chat", async (req, res) => {
     req.setTimeout(120000);
     res.setTimeout(120000);
 
     try {
       const { messages, trumpVoice = true } = req.body;
+      const deviceId = req.headers["x-device-id"] as string;
 
       if (!messages || !Array.isArray(messages)) {
         return res.status(400).json({ error: "Messages array is required" });
+      }
+
+      if (deviceId) {
+        const tokenResult = await useToken(deviceId);
+        if (!tokenResult.success) {
+          return res.status(403).json({
+            error: "no_tokens",
+            message: tokenResult.error,
+            balance: tokenResult.balance,
+          });
+        }
       }
 
       res.setHeader("Content-Type", "text/event-stream");
@@ -635,7 +692,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/stripe/checkout", async (req, res) => {
     try {
-      const { priceId } = req.body;
+      const { priceId, mode = "subscription", packId, deviceId } = req.body;
       if (!priceId) {
         return res.status(400).json({ error: "priceId is required" });
       }
@@ -643,18 +700,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const stripe = await getUncachableStripeClient();
       const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
 
+      const isSubscription = mode === "subscription";
+      const metadata: Record<string, string> = {};
+      if (deviceId) metadata.deviceId = deviceId;
+      if (packId) metadata.packId = packId;
+
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ["card"],
         line_items: [{ price: priceId, quantity: 1 }],
-        mode: "subscription",
-        success_url: `${baseUrl}/subscribe?success=true`,
+        mode: isSubscription ? "subscription" : "payment",
+        success_url: `${baseUrl}/subscribe?success=true&session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${baseUrl}/subscribe?canceled=true`,
+        metadata,
+        ...(isSubscription ? { subscription_data: { metadata } } : {}),
       });
 
-      res.json({ url: session.url });
+      res.json({ url: session.url, sessionId: session.id });
     } catch (error) {
       console.error("Checkout error:", error);
       res.status(500).json({ error: "Failed to create checkout session" });
+    }
+  });
+
+  app.post("/api/stripe/fulfill", async (req, res) => {
+    try {
+      const { sessionId, deviceId } = req.body;
+      if (!sessionId || !deviceId) {
+        return res.status(400).json({ error: "sessionId and deviceId required" });
+      }
+
+      const stripe = await getUncachableStripeClient();
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+      if (session.payment_status !== "paid") {
+        return res.status(400).json({ error: "Payment not completed" });
+      }
+
+      const packId = session.metadata?.packId;
+      if (packId) {
+        const balance = await grantTokenPack(deviceId, packId, sessionId);
+        return res.json({ success: true, type: "token_pack", balance });
+      }
+
+      if (session.mode === "subscription" && session.subscription) {
+        const subId = typeof session.subscription === "string" ? session.subscription : session.subscription.id;
+        const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id || "";
+        const balance = await grantSubscriptionTokens(deviceId, customerId, subId);
+        return res.json({ success: true, type: "subscription", balance });
+      }
+
+      res.status(400).json({ error: "Unknown checkout type" });
+    } catch (error) {
+      console.error("Fulfill error:", error);
+      res.status(500).json({ error: "Failed to fulfill order" });
     }
   });
 
