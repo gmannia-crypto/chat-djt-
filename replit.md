@@ -51,7 +51,12 @@ Preferred communication style: Simple, everyday language.
 
 ### Build & Deployment
 
-- **Dev**: Backend workflow (`Start Backend`) manages both Express server (port 5000) and Metro bundler (port 8081). In dev mode, the backend spawns Metro automatically and proxies web requests to it. The `Start Frontend` workflow is not used in development (Metro is managed by the backend to avoid health check issues with the Replit proxy)
+- **Dev Architecture**: Dual-workflow setup with port management:
+  - `Start Backend` (port 5000): Express API server + spawns Metro bundler on port 8082. Proxies all non-API web requests to Metro. Dev domain routes here.
+  - `Start Frontend` (port 8081): Keepalive proxy that forwards requests to Metro on port 8082. Exists primarily for Replit workflow system compatibility.
+  - Metro runs on port 8082 (managed by backend with auto-restart watchdog)
+  - `scripts/expo-wrapper.js` intercepts `npx expo start --localhost` to run the keepalive proxy instead of a second Metro instance
+  - `scripts/frontend-keepalive.js` is the HTTP proxy server for port 8081
 - **Production Build**: `scripts/build.js` creates static Expo web build, `server:build` bundles server
 - **Environment Variables**: `EXPO_PUBLIC_DOMAIN` for API URL, `AI_INTEGRATIONS_OPENAI_API_KEY` and `AI_INTEGRATIONS_OPENAI_BASE_URL` for OpenAI, `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` for TTS
 
