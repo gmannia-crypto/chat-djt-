@@ -21,12 +21,36 @@ function isPortInUse(port: number): Promise<boolean> {
   });
 }
 
-async function spawnMetroIfNeeded() {
+let metroProcess: ReturnType<typeof spawn> | null = null;
+
+function killPort(port: number): Promise<void> {
+  return new Promise((resolve) => {
+    const { execSync } = require("child_process");
+    try {
+      const pids = execSync(`lsof -i :${port} -t 2>/dev/null`).toString().trim();
+      if (pids) {
+        for (const pid of pids.split("\n")) {
+          try { process.kill(Number(pid), "SIGKILL"); } catch {}
+        }
+        log(`[metro] Killed existing processes on port ${port}`);
+      }
+    } catch {}
+    setTimeout(resolve, 500);
+  });
+}
+
+async function ensureMetroRunning() {
   const inUse = await isPortInUse(METRO_PORT);
   if (inUse) {
-    log("[metro] Port 8081 already in use (frontend workflow running), skipping spawn");
     return;
   }
+
+  if (metroProcess) {
+    try { metroProcess.kill(); } catch {}
+    metroProcess = null;
+  }
+
+  await killPort(METRO_PORT);
 
   const devDomain = process.env.REPLIT_DEV_DOMAIN || "";
   const metroEnv = {
@@ -37,30 +61,35 @@ async function spawnMetroIfNeeded() {
     EXPO_PUBLIC_DOMAIN: `${devDomain}:5000`,
   };
 
-  log("[metro] Spawning Metro bundler on port 8081...");
-  const metro = spawn("npx", ["expo", "start", "--port", "8081"], {
+  log("[metro] Spawning Metro bundler on port 8082...");
+  const realExpoCli = path.resolve(process.cwd(), "node_modules", "expo", "bin", "cli");
+  metroProcess = spawn(process.execPath, [realExpoCli, "start", "--port", "8082"], {
     cwd: process.cwd(),
     env: metroEnv,
     stdio: ["ignore", "pipe", "pipe"],
   });
 
-  metro.stdout?.on("data", (data: Buffer) => {
+  metroProcess.stdout?.on("data", (data: Buffer) => {
     const msg = data.toString().trim();
     if (msg) log(`[metro] ${msg}`);
   });
 
-  metro.stderr?.on("data", (data: Buffer) => {
+  metroProcess.stderr?.on("data", (data: Buffer) => {
     const msg = data.toString().trim();
     if (msg) log(`[metro:err] ${msg}`);
   });
 
-  metro.on("exit", (code) => {
+  metroProcess.on("exit", (code) => {
     log(`[metro] Process exited with code ${code}`);
-    if (code !== 0 && code !== null) {
-      log("[metro] Restarting in 5 seconds...");
-      setTimeout(() => spawnMetroIfNeeded(), 5000);
-    }
+    metroProcess = null;
   });
+}
+
+function startMetroWatchdog() {
+  ensureMetroRunning();
+  setInterval(() => {
+    ensureMetroRunning();
+  }, 10000);
 }
 
 declare module "http" {
@@ -213,7 +242,7 @@ function serveLandingPage({
   res.status(200).send(html);
 }
 
-const METRO_PORT = 8081;
+const METRO_PORT = 8082;
 
 function proxyToMetro(req: Request, res: Response) {
   const isRootPage = req.path === "/" && req.method === "GET";
@@ -437,7 +466,7 @@ async function initStripe() {
     () => {
       log(`express server serving on port ${port}`);
       if (process.env.NODE_ENV === "development") {
-        setTimeout(() => spawnMetroIfNeeded(), 2000);
+        startMetroWatchdog();
       }
     },
   );
