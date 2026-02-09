@@ -5,6 +5,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as http from "http";
 import * as net from "net";
+import { spawn, execSync } from "child_process";
 import { runMigrations } from "stripe-replit-sync";
 
 import { getStripeSync } from "./stripeClient";
@@ -14,6 +15,41 @@ const app = express();
 const log = console.log;
 
 const METRO_PORT = 8082;
+let metroProcess: ReturnType<typeof spawn> | null = null;
+
+function spawnMetro() {
+  if (process.env.NODE_ENV !== "development") return;
+
+  try {
+    const result = execSync(
+      `ps aux | grep "expo.*start.*--port.*${METRO_PORT}" | grep -v grep | awk '{print $2}'`,
+      { encoding: "utf-8" }
+    ).trim();
+    if (result) {
+      for (const pid of result.split("\n")) {
+        try { process.kill(Number(pid), "SIGKILL"); } catch {}
+      }
+      log(`Killed stale Metro on port ${METRO_PORT}`);
+    }
+  } catch {}
+
+  const expoCli = path.resolve(process.cwd(), "node_modules", "expo", "bin", "cli");
+  log(`Spawning Metro bundler on port ${METRO_PORT}...`);
+  metroProcess = spawn(process.execPath, [expoCli, "start", "--port", String(METRO_PORT)], {
+    cwd: process.cwd(),
+    env: { ...process.env, CI: "0" },
+    stdio: ["pipe", "inherit", "inherit"],
+  });
+
+  metroProcess.on("exit", (code) => {
+    log(`Metro exited with code ${code}, restarting in 5s...`);
+    metroProcess = null;
+    setTimeout(spawnMetro, 5000);
+  });
+
+  process.on("SIGTERM", () => { metroProcess?.kill("SIGTERM"); });
+  process.on("SIGINT", () => { metroProcess?.kill("SIGINT"); });
+}
 
 declare module "http" {
   interface IncomingMessage {
@@ -386,6 +422,7 @@ async function initStripe() {
     },
     () => {
       log(`express server serving on port ${port}`);
+      spawnMetro();
     },
   );
 })();

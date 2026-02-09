@@ -1,21 +1,8 @@
 const http = require("http");
 const net = require("net");
-const { execSync } = require("child_process");
 
 const METRO_PORT = 8082;
 const LISTEN_PORT = 8081;
-
-function killPort(port) {
-  try {
-    const pids = execSync(`lsof -i :${port} -t 2>/dev/null`).toString().trim();
-    if (pids) {
-      for (const pid of pids.split("\n")) {
-        try { process.kill(Number(pid), "SIGKILL"); } catch {}
-      }
-      console.log(`Killed stale process on port ${port}`);
-    }
-  } catch {}
-}
 
 const server = http.createServer((req, res) => {
   const options = {
@@ -58,12 +45,11 @@ function startServer(attempt) {
   });
   server.on("error", (err) => {
     if (err.code === "EADDRINUSE" && attempt <= 3) {
-      console.log(`Port ${LISTEN_PORT} busy, killing stale process (attempt ${attempt}/3)...`);
-      killPort(LISTEN_PORT);
+      console.log(`Port ${LISTEN_PORT} busy, retrying (attempt ${attempt}/3)...`);
       setTimeout(() => {
         server.removeAllListeners("error");
         startServer(attempt + 1);
-      }, 1500);
+      }, 2000);
     } else {
       console.error("Failed to start frontend proxy:", err.message);
       process.exit(1);
@@ -71,8 +57,7 @@ function startServer(attempt) {
   });
 }
 
-killPort(LISTEN_PORT);
-setTimeout(() => startServer(1), 500);
+startServer(1);
 
 process.on("SIGTERM", () => process.exit(0));
 process.on("SIGINT", () => process.exit(0));

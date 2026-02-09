@@ -20,16 +20,24 @@ if (args.includes("--localhost")) {
       }
     } catch {}
     try {
-      const pids = execSync(`lsof -i :${port} -t 2>/dev/null`, { encoding: "utf-8" }).trim();
+      const pids = execSync(`fuser ${port}/tcp 2>/dev/null || true`, { encoding: "utf-8" }).trim();
       if (pids) {
-        for (const pid of pids.split("\n")) {
-          try { process.kill(Number(pid), "SIGKILL"); } catch {}
+        for (const pid of pids.split(/\s+/)) {
+          const p = Number(pid);
+          if (p > 0) { try { process.kill(p, "SIGKILL"); } catch {} }
         }
       }
     } catch {}
   }
 
   killMetroOnPort(METRO_PORT);
+
+  const keepalivePath = path.resolve(__dirname, "frontend-keepalive.js");
+  const keepalive = spawn(process.execPath, [keepalivePath], {
+    cwd: path.resolve(__dirname, ".."),
+    env: process.env,
+    stdio: "inherit",
+  });
 
   setTimeout(() => {
     const realExpoCli = path.resolve(__dirname, "..", "node_modules", "expo", "bin", "cli");
@@ -41,11 +49,12 @@ if (args.includes("--localhost")) {
     });
 
     child.on("exit", (code) => {
+      keepalive.kill("SIGTERM");
       process.exit(code || 0);
     });
 
-    process.on("SIGTERM", () => { child.kill("SIGTERM"); });
-    process.on("SIGINT", () => { child.kill("SIGINT"); });
+    process.on("SIGTERM", () => { child.kill("SIGTERM"); keepalive.kill("SIGTERM"); });
+    process.on("SIGINT", () => { child.kill("SIGINT"); keepalive.kill("SIGINT"); });
   }, 2000);
 } else {
   const { execFileSync } = require("child_process");
