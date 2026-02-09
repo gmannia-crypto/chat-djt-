@@ -4,51 +4,12 @@ import { registerRoutes } from "./routes";
 import * as fs from "fs";
 import * as path from "path";
 import * as http from "http";
-import { spawn } from "child_process";
 import { runMigrations } from "stripe-replit-sync";
 import { getStripeSync } from "./stripeClient";
 import { WebhookHandlers } from "./webhookHandlers";
 
 const app = express();
 const log = console.log;
-
-function spawnMetro() {
-  const devDomain = process.env.REPLIT_DEV_DOMAIN || "";
-  const metroEnv = {
-    ...process.env,
-    CI: "0",
-    EXPO_PACKAGER_PROXY_URL: `https://${devDomain}`,
-    REACT_NATIVE_PACKAGER_HOSTNAME: devDomain,
-    EXPO_PUBLIC_DOMAIN: `${devDomain}:5000`,
-  };
-
-  log("[metro] Spawning Metro bundler on port 8081...");
-  const metro = spawn("npx", ["expo", "start", "--localhost", "--port", "8081"], {
-    cwd: process.cwd(),
-    env: metroEnv,
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-
-  metro.stdout?.on("data", (data: Buffer) => {
-    const msg = data.toString().trim();
-    if (msg) log(`[metro] ${msg}`);
-  });
-
-  metro.stderr?.on("data", (data: Buffer) => {
-    const msg = data.toString().trim();
-    if (msg) log(`[metro:err] ${msg}`);
-  });
-
-  metro.on("exit", (code) => {
-    log(`[metro] Process exited with code ${code}`);
-    if (code !== 0 && code !== null) {
-      log("[metro] Restarting in 5 seconds...");
-      setTimeout(spawnMetro, 5000);
-    }
-  });
-
-  return metro;
-}
 
 declare module "http" {
   interface IncomingMessage {
@@ -414,10 +375,6 @@ async function initStripe() {
       proxySocket.on("error", () => socket.destroy());
       socket.on("error", () => proxySocket.destroy());
     });
-  }
-
-  if (process.env.NODE_ENV === "development") {
-    spawnMetro();
   }
 
   server.listen(
