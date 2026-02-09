@@ -5,92 +5,15 @@ import * as fs from "fs";
 import * as path from "path";
 import * as http from "http";
 import * as net from "net";
-import { spawn } from "child_process";
 import { runMigrations } from "stripe-replit-sync";
+
 import { getStripeSync } from "./stripeClient";
 import { WebhookHandlers } from "./webhookHandlers";
 
 const app = express();
 const log = console.log;
 
-function isPortInUse(port: number): Promise<boolean> {
-  return new Promise((resolve) => {
-    const s = net.createConnection({ port, host: "localhost" });
-    s.on("connect", () => { s.destroy(); resolve(true); });
-    s.on("error", () => { resolve(false); });
-  });
-}
-
-let metroProcess: ReturnType<typeof spawn> | null = null;
-
-function killPort(port: number): Promise<void> {
-  return new Promise((resolve) => {
-    const { execSync } = require("child_process");
-    try {
-      const pids = execSync(`lsof -i :${port} -t 2>/dev/null`).toString().trim();
-      if (pids) {
-        for (const pid of pids.split("\n")) {
-          try { process.kill(Number(pid), "SIGKILL"); } catch {}
-        }
-        log(`[metro] Killed existing processes on port ${port}`);
-      }
-    } catch {}
-    setTimeout(resolve, 500);
-  });
-}
-
-async function ensureMetroRunning() {
-  const inUse = await isPortInUse(METRO_PORT);
-  if (inUse) {
-    return;
-  }
-
-  if (metroProcess) {
-    try { metroProcess.kill(); } catch {}
-    metroProcess = null;
-  }
-
-  await killPort(METRO_PORT);
-
-  const devDomain = process.env.REPLIT_DEV_DOMAIN || "";
-  const metroEnv = {
-    ...process.env,
-    CI: "0",
-    EXPO_PACKAGER_PROXY_URL: `https://${devDomain}`,
-    REACT_NATIVE_PACKAGER_HOSTNAME: devDomain,
-    EXPO_PUBLIC_DOMAIN: `${devDomain}:5000`,
-  };
-
-  log("[metro] Spawning Metro bundler on port 8082...");
-  const realExpoCli = path.resolve(process.cwd(), "node_modules", "expo", "bin", "cli");
-  metroProcess = spawn(process.execPath, [realExpoCli, "start", "--port", "8082"], {
-    cwd: process.cwd(),
-    env: metroEnv,
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-
-  metroProcess.stdout?.on("data", (data: Buffer) => {
-    const msg = data.toString().trim();
-    if (msg) log(`[metro] ${msg}`);
-  });
-
-  metroProcess.stderr?.on("data", (data: Buffer) => {
-    const msg = data.toString().trim();
-    if (msg) log(`[metro:err] ${msg}`);
-  });
-
-  metroProcess.on("exit", (code) => {
-    log(`[metro] Process exited with code ${code}`);
-    metroProcess = null;
-  });
-}
-
-function startMetroWatchdog() {
-  ensureMetroRunning();
-  setInterval(() => {
-    ensureMetroRunning();
-  }, 10000);
-}
+const METRO_PORT = 8082;
 
 declare module "http" {
   interface IncomingMessage {
@@ -242,8 +165,6 @@ function serveLandingPage({
   res.status(200).send(html);
 }
 
-const METRO_PORT = 8082;
-
 function proxyToMetro(req: Request, res: Response) {
   const isRootPage = req.path === "/" && req.method === "GET";
 
@@ -286,8 +207,8 @@ function proxyToMetro(req: Request, res: Response) {
   });
 
   proxyReq.on("error", () => {
-    log(`[proxy] ERROR connecting to Metro for ${req.path}`);
-    res.status(502).send("Metro bundler is starting up... Please refresh in a few seconds.");
+    log(`[proxy] Waiting for Metro on ${req.path}`);
+    res.status(200).send(`<!DOCTYPE html><html><head><title>Chat DJT</title><meta http-equiv="refresh" content="3"></head><body style="background:#0A0A0A;color:#D4A420;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif"><h2>Starting up...</h2></body></html>`);
   });
 
   req.pipe(proxyReq, { end: true });
@@ -465,9 +386,6 @@ async function initStripe() {
     },
     () => {
       log(`express server serving on port ${port}`);
-      if (process.env.NODE_ENV === "development") {
-        startMetroWatchdog();
-      }
     },
   );
 })();

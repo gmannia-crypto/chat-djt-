@@ -1,51 +1,53 @@
 #!/usr/bin/env node
 const args = process.argv.slice(2);
+const path = require("path");
 
 if (args.includes("--localhost")) {
-  const http = require("http");
-  const net = require("net");
+  const { execSync, spawn } = require("child_process");
   const METRO_PORT = 8082;
-  const LISTEN_PORT = 8081;
 
-  const server = http.createServer((req, res) => {
-    const options = {
-      hostname: "localhost",
-      port: METRO_PORT,
-      path: req.url,
-      method: req.method,
-      headers: { ...req.headers, host: `localhost:${METRO_PORT}` },
-    };
-    const proxyReq = http.request(options, (proxyRes) => {
-      res.writeHead(proxyRes.statusCode || 502, proxyRes.headers);
-      proxyRes.pipe(res, { end: true });
-    });
-    proxyReq.on("error", () => {
-      res.writeHead(200, { "Content-Type": "text/plain" });
-      res.end("ok");
-    });
-    req.pipe(proxyReq, { end: true });
-  });
-
-  server.on("upgrade", (req, socket, head) => {
-    const proxySocket = net.connect(METRO_PORT, "localhost", () => {
-      const reqLine = `${req.method} ${req.url} HTTP/1.1\r\n`;
-      let hdrs = "";
-      for (let i = 0; i < req.rawHeaders.length; i += 2) {
-        hdrs += `${req.rawHeaders[i]}: ${req.rawHeaders[i + 1]}\r\n`;
+  function killMetroOnPort(port) {
+    try {
+      const result = execSync(
+        `ps aux | grep "expo.*start.*--port.*${port}" | grep -v grep | awk '{print $2}'`,
+        { encoding: "utf-8" }
+      ).trim();
+      if (result) {
+        for (const pid of result.split("\n")) {
+          try { process.kill(Number(pid), "SIGKILL"); } catch {}
+        }
+        console.log(`Killed stale Metro on port ${port}`);
       }
-      proxySocket.write(reqLine + hdrs + "\r\n");
-      if (head.length > 0) proxySocket.write(head);
-      socket.pipe(proxySocket).pipe(socket);
-    });
-    proxySocket.on("error", () => socket.destroy());
-    socket.on("error", () => proxySocket.destroy());
-  });
+    } catch {}
+    try {
+      const pids = execSync(`lsof -i :${port} -t 2>/dev/null`, { encoding: "utf-8" }).trim();
+      if (pids) {
+        for (const pid of pids.split("\n")) {
+          try { process.kill(Number(pid), "SIGKILL"); } catch {}
+        }
+      }
+    } catch {}
+  }
 
-  server.listen(LISTEN_PORT, "0.0.0.0", () => {
-    console.log(`Frontend proxy on port ${LISTEN_PORT} -> Metro on ${METRO_PORT}`);
-  });
+  killMetroOnPort(METRO_PORT);
+
+  setTimeout(() => {
+    const realExpoCli = path.resolve(__dirname, "..", "node_modules", "expo", "bin", "cli");
+    console.log(`Starting Metro on port ${METRO_PORT}...`);
+    const child = spawn(process.execPath, [realExpoCli, "start", "--port", String(METRO_PORT)], {
+      cwd: path.resolve(__dirname, ".."),
+      env: { ...process.env, CI: "0" },
+      stdio: "inherit",
+    });
+
+    child.on("exit", (code) => {
+      process.exit(code || 0);
+    });
+
+    process.on("SIGTERM", () => { child.kill("SIGTERM"); });
+    process.on("SIGINT", () => { child.kill("SIGINT"); });
+  }, 2000);
 } else {
-  const path = require("path");
   const { execFileSync } = require("child_process");
   const realExpo = path.resolve(__dirname, "..", "node_modules", "expo", "bin", "cli");
   try {
