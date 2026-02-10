@@ -2,9 +2,11 @@ import { fetch } from "expo/fetch";
 import { getApiUrl } from "@/lib/query-client";
 
 export type ChatMood = "CALM" | "FIRED_UP";
+export type SpeechCategory = "CASUAL_TALK" | "TELEPROMPTER" | "RALLY_RANT" | "INTERVIEW";
 
 export interface StreamResult {
   mood: ChatMood;
+  speechCategory: SpeechCategory;
 }
 
 export async function streamChat(
@@ -61,6 +63,7 @@ export async function streamChat(
   const decoder = new TextDecoder();
   let buffer = "";
   let detectedMood: ChatMood = "CALM";
+  let detectedSpeechCategory: SpeechCategory = "CASUAL_TALK";
 
   try {
     while (true) {
@@ -80,6 +83,9 @@ export async function streamChat(
           if (parsed.mood) {
             detectedMood = parsed.mood as ChatMood;
           }
+          if (parsed.speechCategory) {
+            detectedSpeechCategory = parsed.speechCategory as SpeechCategory;
+          }
           if (parsed.done) continue;
           if (parsed.content) onChunk(parsed.content);
         } catch {}
@@ -88,12 +94,11 @@ export async function streamChat(
   } catch (streamError: any) {
     clearTimeout(timeout);
     if (streamError?.name === "AbortError" || streamError?.message?.includes("abort")) {
-      // silently handle aborted streams (app backgrounded, etc.)
     } else {
       throw streamError;
     }
   }
 
   clearTimeout(timeout);
-  return { mood: detectedMood };
+  return { mood: detectedMood, speechCategory: detectedSpeechCategory };
 }

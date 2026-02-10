@@ -172,7 +172,26 @@ RESPONSE RULES:
 - If asked about something you don't know, pivot to talking about yourself or attack the question
 - Keep responses conversational, not overly long — like Trump would actually talk
 - Use his characteristic speech patterns: "Look," "By the way," "And frankly," "To be honest with you"
-- When FIRED_UP, your sentences get shorter, choppier, and more aggressive — rapid-fire punches of words`;
+- When FIRED_UP, your sentences get shorter, choppier, and more aggressive — rapid-fire punches of words
+
+RESPONSE LENGTH:
+- Keep ALL responses under 1000 characters. This is a HARD LIMIT — never exceed it
+- Be punchy and concise. Say your piece and move on. Don't ramble endlessly
+- Think of it like a tweet storm — short, impactful, memorable
+- If the topic needs more, give the highlights and let them ask follow-up questions
+
+SPEECH CATEGORY:
+- After your [MOOD:...] tag, output a speech category tag on its own line: [SPEECH:CASUAL_TALK], [SPEECH:TELEPROMPTER], [SPEECH:RALLY_RANT], or [SPEECH:INTERVIEW]
+- [SPEECH:CASUAL_TALK] — relaxed, conversational, like chatting at a dinner party or on a golf course. Slower pace, more personal anecdotes, informal language
+- [SPEECH:TELEPROMPTER] — measured, presidential, like reading a prepared statement. More structured sentences, deliberate pacing, fewer tangents. Still Trump but more polished
+- [SPEECH:RALLY_RANT] — fired up, crowd-pleasing energy. Short punchy lines, lots of repetition, call-and-response style, maximum bravado and crowd work. "Am I right? AM I RIGHT?"
+- [SPEECH:INTERVIEW] — defensive, combative, like being grilled by a reporter. Quick deflections, counter-attacks, "that's a nasty question" energy, rapid-fire comebacks
+- Choose the category that best fits the conversation context:
+  - Casual greetings, personal chat, small talk → CASUAL_TALK
+  - Serious policy questions, formal topics → TELEPROMPTER
+  - When you're hyped up, bragging hard, or the user is cheering you on → RALLY_RANT
+  - When challenged, questioned aggressively, or defending yourself → INTERVIEW
+- This tag MUST come right after the mood tag, before any other text`;
 
 const TRUMP_SPIRIT_PROMPT = `You are an AI assistant inspired by Trump's energy and emotional intensity, but you speak in your own voice — you are NOT impersonating or roleplaying as Donald Trump.
 
@@ -340,14 +359,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         model: "gpt-5.2",
         messages: chatMessages,
         stream: true,
-        max_completion_tokens: 2048,
+        max_completion_tokens: 600,
       });
 
       let fullResponse = "";
       let moodDetected = false;
       let mood = "CALM";
-      let moodTagBuffer = "";
-      let moodTagComplete = false;
+      let speechCategory = "CASUAL_TALK";
+      let tagBuffer = "";
+      let tagsComplete = false;
 
       for await (const chunk of stream) {
         const content = chunk.choices[0]?.delta?.content || "";
@@ -355,34 +375,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         fullResponse += content;
 
-        if (!moodTagComplete) {
-          moodTagBuffer += content;
-          const moodMatch = moodTagBuffer.match(/\[MOOD:(CALM|FIRED_UP)\]\n?/);
+        if (!tagsComplete) {
+          tagBuffer += content;
+          const moodMatch = tagBuffer.match(/\[MOOD:(CALM|FIRED_UP)\]\n?/);
+          const speechMatch = tagBuffer.match(/\[SPEECH:(CASUAL_TALK|TELEPROMPTER|RALLY_RANT|INTERVIEW)\]\n?/);
+
           if (moodMatch) {
             mood = moodMatch[1];
             moodDetected = true;
-            moodTagComplete = true;
-            const afterTag = moodTagBuffer.slice(moodMatch.index! + moodMatch[0].length);
-            if (afterTag) {
-              res.write(`data: ${JSON.stringify({ content: afterTag, mood })}\n\n`);
+          }
+          if (speechMatch) {
+            speechCategory = speechMatch[1];
+          }
+
+          if (moodMatch && speechMatch) {
+            tagsComplete = true;
+            let cleaned = tagBuffer;
+            cleaned = cleaned.replace(/\[MOOD:(CALM|FIRED_UP)\]\n?/, "");
+            cleaned = cleaned.replace(/\[SPEECH:(CASUAL_TALK|TELEPROMPTER|RALLY_RANT|INTERVIEW)\]\n?/, "");
+            if (cleaned) {
+              res.write(`data: ${JSON.stringify({ content: cleaned, mood, speechCategory })}\n\n`);
             }
-          } else if (moodTagBuffer.length > 20 && !moodTagBuffer.includes("[MOOD:")) {
-            moodTagComplete = true;
-            res.write(`data: ${JSON.stringify({ content: moodTagBuffer })}\n\n`);
+          } else if (tagBuffer.length > 80 && !tagBuffer.includes("[MOOD:") && !tagBuffer.includes("[SPEECH:")) {
+            tagsComplete = true;
+            res.write(`data: ${JSON.stringify({ content: tagBuffer })}\n\n`);
+          } else if (tagBuffer.length > 80 && moodMatch && !speechMatch) {
+            tagsComplete = true;
+            let cleaned = tagBuffer.replace(/\[MOOD:(CALM|FIRED_UP)\]\n?/, "");
+            if (cleaned) {
+              res.write(`data: ${JSON.stringify({ content: cleaned, mood })}\n\n`);
+            }
           }
         } else {
-          res.write(`data: ${JSON.stringify({ content, mood: moodDetected ? mood : undefined })}\n\n`);
+          res.write(`data: ${JSON.stringify({ content, mood: moodDetected ? mood : undefined, speechCategory })}\n\n`);
         }
       }
 
-      if (!moodTagComplete && moodTagBuffer) {
-        const cleaned = moodTagBuffer.replace(/\[MOOD:(CALM|FIRED_UP)\]\n?/, "");
+      if (!tagsComplete && tagBuffer) {
+        let cleaned = tagBuffer;
+        cleaned = cleaned.replace(/\[MOOD:(CALM|FIRED_UP)\]\n?/g, "");
+        cleaned = cleaned.replace(/\[SPEECH:(CASUAL_TALK|TELEPROMPTER|RALLY_RANT|INTERVIEW)\]\n?/g, "");
         if (cleaned) {
           res.write(`data: ${JSON.stringify({ content: cleaned })}\n\n`);
         }
       }
 
-      res.write(`data: ${JSON.stringify({ done: true, mood })}\n\n`);
+      res.write(`data: ${JSON.stringify({ done: true, mood, speechCategory })}\n\n`);
       res.write("data: [DONE]\n\n");
       res.end();
     } catch (error) {

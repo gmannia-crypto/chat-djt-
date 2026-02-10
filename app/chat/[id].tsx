@@ -47,7 +47,7 @@ import {
   loadDraft,
   clearDraft,
 } from "@/lib/chat-storage";
-import { streamChat, type ChatMood } from "@/lib/stream-chat";
+import { streamChat, type ChatMood, type SpeechCategory } from "@/lib/stream-chat";
 import { getApiUrl } from "@/lib/query-client";
 import { useTokens } from "@/lib/token-context";
 
@@ -68,10 +68,19 @@ let lastAudioUri: string | null = null;
 let lastAudioMood: ChatMood | undefined = undefined;
 let lastAudioMessageId: string | null = null;
 
+const SPEECH_LABELS: Record<SpeechCategory, { label: string; icon: string }> = {
+  CASUAL_TALK: { label: "Casual", icon: "chatbubble-ellipses" },
+  TELEPROMPTER: { label: "Teleprompter", icon: "reader" },
+  RALLY_RANT: { label: "Rally", icon: "megaphone" },
+  INTERVIEW: { label: "Interview", icon: "mic" },
+};
+
 function MessageBubble({
   message,
+  speechCategory,
 }: {
   message: Message;
+  speechCategory?: SpeechCategory;
 }) {
   const isUser = message.role === "user";
 
@@ -88,6 +97,18 @@ function MessageBubble({
         </View>
       )}
       <View style={isUser ? styles.userBubbleWrap : styles.assistantBubbleWrap}>
+        {!isUser && speechCategory && SPEECH_LABELS[speechCategory] && (
+          <View style={styles.speechCategoryBadge}>
+            <Ionicons
+              name={SPEECH_LABELS[speechCategory].icon as any}
+              size={10}
+              color={Colors.goldDark}
+            />
+            <Text style={styles.speechCategoryText}>
+              {SPEECH_LABELS[speechCategory].label}
+            </Text>
+          </View>
+        )}
         <View
           style={[
             styles.bubble,
@@ -385,6 +406,7 @@ export default function ChatScreen() {
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [autoSpeak, setAutoSpeak] = useState(true);
   const [messageMoods, setMessageMoods] = useState<Record<string, ChatMood>>({});
+  const [messageSpeechCategories, setMessageSpeechCategories] = useState<Record<string, SpeechCategory>>({});
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [attachment, setAttachment] = useState<FileAttachment | null>(null);
@@ -1016,6 +1038,7 @@ export default function ChatScreen() {
     let finalMessages = updatedWithUser;
     let assistantMsgId = "";
     let detectedMood: ChatMood = "CALM";
+    let detectedSpeechCategory: SpeechCategory = "CASUAL_TALK";
 
     try {
       const chatHistory: { role: string; content: string; imageBase64?: string }[] = [
@@ -1067,8 +1090,10 @@ export default function ChatScreen() {
       }, voiceSetting, deviceId);
 
       detectedMood = result.mood;
+      detectedSpeechCategory = result.speechCategory;
       if (assistantMsgId) {
         setMessageMoods((prev) => ({ ...prev, [assistantMsgId]: detectedMood }));
+        setMessageSpeechCategories((prev) => ({ ...prev, [assistantMsgId]: detectedSpeechCategory }));
       }
       refreshBalance();
     } catch (error: any) {
@@ -1176,6 +1201,7 @@ export default function ChatScreen() {
           renderItem={({ item }) => (
             <MessageBubble
               message={item}
+              speechCategory={item.role === "assistant" ? messageSpeechCategories[item.id] : undefined}
             />
           )}
           inverted={!isWeb && messages.length > 0}
@@ -1708,5 +1734,19 @@ const styles = StyleSheet.create({
   assistantBubbleWrap: {
     maxWidth: "100%",
     flexShrink: 1,
+  },
+  speechCategoryBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginBottom: 4,
+    marginLeft: 4,
+  },
+  speechCategoryText: {
+    fontSize: 10,
+    color: Colors.goldDark,
+    fontWeight: "600" as const,
+    letterSpacing: 0.5,
+    textTransform: "uppercase" as const,
   },
 });
