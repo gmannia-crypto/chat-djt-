@@ -221,16 +221,18 @@ RESPONSE RULES:
 - Keep responses conversational and engaging
 - Match the emotional weight of the question — serious questions get passionate serious answers, fun questions get enthusiastic fun answers`;
 
-async function trumpTextToSpeech(text: string, speed: number = 1.0, mood: string = "CALM"): Promise<Buffer> {
+async function trumpTextToSpeech(text: string, speed: number = 1.0, mood: string = "CALM", speechCategory: string = "CASUAL_TALK"): Promise<Buffer> {
   const apiKey = process.env.FISH_AUDIO_API_KEY;
-  const voiceId = process.env.FISH_AUDIO_VOICE_ID;
+  const defaultVoiceId = process.env.FISH_AUDIO_VOICE_ID;
+  const casualVoiceId = process.env.FISH_AUDIO_CASUAL_VOICE_ID;
 
-  if (!apiKey || !voiceId) {
+  if (!apiKey || !defaultVoiceId) {
     throw new Error("Fish Audio API key or Voice ID not configured");
   }
 
+  const voiceId = (speechCategory === "CASUAL_TALK" && casualVoiceId) ? casualVoiceId : defaultVoiceId;
   const emotion = mood === "FIRED_UP" ? "angry" : "calm";
-  console.log(`TTS: Fish Audio voice=${voiceId}, mood=${mood}, emotion=${emotion}, speed=${speed}`);
+  console.log(`TTS: Fish Audio voice=${voiceId}, category=${speechCategory}, mood=${mood}, emotion=${emotion}, speed=${speed}`);
 
   const response = await fetch(
     "https://api.fish.audio/v1/tts",
@@ -436,7 +438,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/tts", async (req, res) => {
     try {
-      const { text, mood } = req.body;
+      const { text, mood, speechCategory } = req.body;
 
       if (!text || typeof text !== "string") {
         return res.status(400).json({ error: "Text is required" });
@@ -446,7 +448,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const speed = mood === "FIRED_UP" ? 1.5 : 1.0;
 
-      const audioBuffer = await trumpTextToSpeech(truncatedText, speed, mood || "CALM");
+      const audioBuffer = await trumpTextToSpeech(truncatedText, speed, mood || "CALM", speechCategory || "CASUAL_TALK");
 
       res.setHeader("Content-Type", "audio/mpeg");
       res.setHeader("Content-Length", audioBuffer.length.toString());

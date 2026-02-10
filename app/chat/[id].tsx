@@ -66,6 +66,7 @@ const AUTO_SPEAK_KEY = "chatdjt_auto_speak";
 let currentPlayer: ExpoAudioPlayer | HTMLAudioElement | null = null;
 let lastAudioUri: string | null = null;
 let lastAudioMood: ChatMood | undefined = undefined;
+let lastAudioSpeechCategory: SpeechCategory | undefined = undefined;
 let lastAudioMessageId: string | null = null;
 
 const SPEECH_LABELS: Record<SpeechCategory, { label: string; icon: string }> = {
@@ -157,7 +158,21 @@ function TypingIndicator() {
 
 const trumpAvatarImage = require("@/assets/images/trump-avatar.jpg");
 
-function TrumpTalkingAvatar({ isSpeaking, mood }: { isSpeaking: boolean; mood?: ChatMood }) {
+function formatTime(seconds: number): string {
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
+}
+
+function TrumpTalkingAvatar({ isSpeaking, mood, audioProgress, audioDuration, onSeek, onSeekStart, onSeekEnd }: {
+  isSpeaking: boolean;
+  mood?: ChatMood;
+  audioProgress: number;
+  audioDuration: number;
+  onSeek: (value: number) => void;
+  onSeekStart: () => void;
+  onSeekEnd: () => void;
+}) {
   const glowPulse = useSharedValue(0.4);
   const scaleAnim = useSharedValue(1);
   const borderAnim = useSharedValue(0);
@@ -305,6 +320,51 @@ function TrumpTalkingAvatar({ isSpeaking, mood }: { isSpeaking: boolean; mood?: 
         </Text>
         <View style={[avatarStyles.speakingDot, isFiredUp && avatarStyles.dotAngry]} />
       </View>
+      {audioDuration > 0 && (
+        <View style={avatarStyles.scrubContainer}>
+          <Text style={avatarStyles.scrubTime}>{formatTime(audioProgress)}</Text>
+          <View style={avatarStyles.scrubTrack}>
+            <View
+              style={[
+                avatarStyles.scrubFill,
+                { width: `${(audioProgress / audioDuration) * 100}%` },
+                isFiredUp && avatarStyles.scrubFillAngry,
+              ]}
+            />
+            <View
+              style={[
+                avatarStyles.scrubThumb,
+                { left: `${(audioProgress / audioDuration) * 100}%` },
+                isFiredUp && avatarStyles.scrubThumbAngry,
+              ]}
+              {...(Platform.OS === "web" ? {} : {})}
+            />
+          </View>
+          <Text style={avatarStyles.scrubTime}>{formatTime(audioDuration)}</Text>
+        </View>
+      )}
+      {audioDuration > 0 && Platform.OS === "web" && (
+        <input
+          type="range"
+          min={0}
+          max={audioDuration}
+          step={0.1}
+          value={audioProgress}
+          onChange={(e: any) => onSeek(parseFloat(e.target.value))}
+          onMouseDown={() => onSeekStart()}
+          onMouseUp={() => onSeekEnd()}
+          onTouchStart={() => onSeekStart()}
+          onTouchEnd={() => onSeekEnd()}
+          style={{
+            width: 200,
+            height: 4,
+            opacity: 0,
+            position: "absolute" as any,
+            bottom: 0,
+            cursor: "pointer",
+          }}
+        />
+      )}
     </Animated.View>
   );
 }
@@ -391,6 +451,58 @@ const avatarStyles = StyleSheet.create({
   labelAngry: {
     color: "#FF4444",
   },
+  scrubContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    width: 200,
+    paddingHorizontal: 4,
+  },
+  scrubTrack: {
+    flex: 1,
+    height: 3,
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    borderRadius: 2,
+    position: "relative",
+    overflow: "visible",
+  },
+  scrubFill: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    height: 3,
+    backgroundColor: Colors.gold,
+    borderRadius: 2,
+  },
+  scrubFillAngry: {
+    backgroundColor: "#FF4444",
+  },
+  scrubThumb: {
+    position: "absolute",
+    top: -4,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: Colors.gold,
+    marginLeft: -5,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 1px 4px rgba(0,0,0,0.4)",
+      },
+      default: {},
+    }),
+  },
+  scrubThumbAngry: {
+    backgroundColor: "#FF4444",
+  },
+  scrubTime: {
+    fontSize: 9,
+    color: Colors.whiteMuted,
+    fontWeight: "600" as const,
+    fontVariant: ["tabular-nums"] as any,
+    minWidth: 28,
+    textAlign: "center" as const,
+  },
 });
 
 export default function ChatScreen() {
@@ -407,6 +519,10 @@ export default function ChatScreen() {
   const [autoSpeak, setAutoSpeak] = useState(true);
   const [messageMoods, setMessageMoods] = useState<Record<string, ChatMood>>({});
   const [messageSpeechCategories, setMessageSpeechCategories] = useState<Record<string, SpeechCategory>>({});
+  const [audioProgress, setAudioProgress] = useState(0);
+  const [audioDuration, setAudioDuration] = useState(0);
+  const [isSeeking, setIsSeeking] = useState(false);
+  const audioProgressRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [attachment, setAttachment] = useState<FileAttachment | null>(null);
@@ -416,7 +532,7 @@ export default function ChatScreen() {
   const trumpVoiceRef = useRef(true);
   const autoSpeakRef = useRef(true);
   const pendingAutoSpeakRef = useRef<string | null>(null);
-  const handleSpeakRef = useRef<(messageId: string, text: string, mood?: ChatMood) => Promise<void>>();
+  const handleSpeakRef = useRef<(messageId: string, text: string, mood?: ChatMood, speechCategory?: SpeechCategory) => Promise<void>>();
   const recordingRef = useRef<Audio.Recording | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -639,6 +755,12 @@ export default function ChatScreen() {
   }
 
   function stopCurrentPlayer() {
+    if (audioProgressRef.current) {
+      clearInterval(audioProgressRef.current);
+      audioProgressRef.current = null;
+    }
+    setAudioProgress(0);
+    setAudioDuration(0);
     if (currentPlayer) {
       if (currentPlayer instanceof HTMLAudioElement) {
         try { currentPlayer.pause(); currentPlayer.src = ""; } catch {}
@@ -647,6 +769,27 @@ export default function ChatScreen() {
         try { currentPlayer.remove(); } catch {}
       }
       currentPlayer = null;
+    }
+  }
+
+  function startProgressTracking() {
+    if (audioProgressRef.current) clearInterval(audioProgressRef.current);
+    audioProgressRef.current = setInterval(() => {
+      if (isSeeking) return;
+      if (currentPlayer instanceof HTMLAudioElement) {
+        const audio = currentPlayer;
+        if (audio.duration && !isNaN(audio.duration)) {
+          setAudioDuration(audio.duration);
+          setAudioProgress(audio.currentTime);
+        }
+      }
+    }, 100);
+  }
+
+  function handleSeek(value: number) {
+    if (currentPlayer instanceof HTMLAudioElement) {
+      currentPlayer.currentTime = value;
+      setAudioProgress(value);
     }
   }
 
@@ -659,22 +802,35 @@ export default function ChatScreen() {
         const audio = new window.Audio(uri);
         currentPlayer = audio;
 
+        audio.onloadedmetadata = () => {
+          if (audio.duration && !isNaN(audio.duration)) {
+            setAudioDuration(audio.duration);
+          }
+        };
+
         audio.onended = () => {
+          if (audioProgressRef.current) clearInterval(audioProgressRef.current);
+          setAudioProgress(0);
+          setAudioDuration(0);
           setSpeakingMessageId(null);
           currentPlayer = null;
         };
 
         audio.onerror = () => {
+          if (audioProgressRef.current) clearInterval(audioProgressRef.current);
+          setAudioProgress(0);
+          setAudioDuration(0);
           setSpeakingMessageId(null);
           currentPlayer = null;
         };
 
         try {
           await audio.play();
+          startProgressTracking();
         } catch (playErr) {
           console.warn("Audio autoplay blocked, retrying...", playErr);
           const retryPlay = () => {
-            audio.play().catch(() => {});
+            audio.play().then(() => startProgressTracking()).catch(() => {});
             document.removeEventListener("click", retryPlay);
           };
           document.addEventListener("click", retryPlay, { once: true });
@@ -688,6 +844,8 @@ export default function ChatScreen() {
           if (!hasFinished) {
             hasFinished = true;
             setSpeakingMessageId(null);
+            setAudioProgress(0);
+            setAudioDuration(0);
             try { player.pause(); } catch {}
             try { player.remove(); } catch {}
             currentPlayer = null;
@@ -696,11 +854,19 @@ export default function ChatScreen() {
 
         player.addListener("playbackStatusUpdate", (status: any) => {
           if (hasFinished) return;
+          if (status.currentTime !== undefined) {
+            setAudioProgress(status.currentTime);
+          }
+          if (status.duration !== undefined && !isNaN(status.duration)) {
+            setAudioDuration(status.duration);
+          }
           const isIdle = status.playing === false && status.isBuffering !== true;
           if (status.didJustFinish || (status.playbackState && String(status.playbackState).toLowerCase().includes("end")) || (isIdle && status.currentTime > 0)) {
             hasFinished = true;
             clearTimeout(safetyTimeout);
             setSpeakingMessageId(null);
+            setAudioProgress(0);
+            setAudioDuration(0);
             try { player.remove(); } catch {}
             currentPlayer = null;
           }
@@ -712,6 +878,8 @@ export default function ChatScreen() {
           console.warn("Native audio play failed:", playErr);
           clearTimeout(safetyTimeout);
           setSpeakingMessageId(null);
+          setAudioProgress(0);
+          setAudioDuration(0);
           try { player.remove(); } catch {}
           currentPlayer = null;
         }
@@ -722,13 +890,14 @@ export default function ChatScreen() {
     }
   }
 
-  async function handleSpeak(messageId: string, text: string, mood?: ChatMood) {
+  async function handleSpeak(messageId: string, text: string, mood?: ChatMood, speechCat?: SpeechCategory) {
     stopCurrentPlayer();
     setSpeakingMessageId(messageId);
 
     try {
       const baseUrl = getApiUrl();
       const msgMood = mood || "CALM";
+      const msgSpeechCategory = speechCat || messageSpeechCategories[messageId] || "CASUAL_TALK";
       const cleanText = text.replace(/\[MOOD:(CALM|FIRED_UP)\]\n?/g, "").trim();
       if (!cleanText) {
         setSpeakingMessageId(null);
@@ -737,7 +906,7 @@ export default function ChatScreen() {
       const response = await globalThis.fetch(`${baseUrl}api/tts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: cleanText, mood: msgMood }),
+        body: JSON.stringify({ text: cleanText, mood: msgMood, speechCategory: msgSpeechCategory }),
       });
 
       if (!response.ok) throw new Error(`TTS request failed: ${response.status}`);
@@ -751,6 +920,7 @@ export default function ChatScreen() {
         const blobUrl = URL.createObjectURL(audioBlob);
         lastAudioUri = blobUrl;
         lastAudioMood = mood;
+        lastAudioSpeechCategory = speechCat;
         lastAudioMessageId = messageId;
         await playAudioFromUri(blobUrl, messageId);
       } else {
@@ -770,6 +940,7 @@ export default function ChatScreen() {
 
         lastAudioUri = tempPath;
         lastAudioMood = mood;
+        lastAudioSpeechCategory = speechCat;
         lastAudioMessageId = messageId;
         await playAudioFromUri(tempPath, messageId);
       }
@@ -1135,7 +1306,7 @@ export default function ChatScreen() {
       if (autoSpeakRef.current && fullContent.length > 0) {
         const lastMsg = finalMessages[finalMessages.length - 1];
         if (lastMsg && lastMsg.role === "assistant" && handleSpeakRef.current) {
-          handleSpeakRef.current(lastMsg.id, lastMsg.content, detectedMood);
+          handleSpeakRef.current(lastMsg.id, lastMsg.content, detectedMood, detectedSpeechCategory);
         }
       }
     }
@@ -1244,6 +1415,11 @@ export default function ChatScreen() {
         <TrumpTalkingAvatar
           isSpeaking={!!speakingMessageId}
           mood={speakingMessageId ? messageMoods[speakingMessageId] : undefined}
+          audioProgress={audioProgress}
+          audioDuration={audioDuration}
+          onSeek={handleSeek}
+          onSeekStart={() => setIsSeeking(true)}
+          onSeekEnd={() => setIsSeeking(false)}
         />
 
         <View
