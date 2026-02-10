@@ -202,39 +202,31 @@ RESPONSE RULES:
 - Keep responses conversational and engaging
 - Match the emotional weight of the question — serious questions get passionate serious answers, fun questions get enthusiastic fun answers`;
 
-const ELEVENLABS_MODEL = "eleven_v3";
-const FRUMP1_VOICE_ID = "MLVyah8U5vYeVPSszwiN";
-
-
 async function trumpTextToSpeech(text: string, speed: number = 1.0, mood: string = "CALM"): Promise<Buffer> {
-  const apiKey = process.env.ELEVENLABS_API_KEY;
-  const frumpVoiceId = process.env.ELEVENLABS_VOICE_ID;
+  const apiKey = process.env.FISH_AUDIO_API_KEY;
+  const voiceId = process.env.FISH_AUDIO_VOICE_ID;
 
-  if (!apiKey || !frumpVoiceId) {
-    throw new Error("ElevenLabs API key or Voice ID not configured");
+  if (!apiKey || !voiceId) {
+    throw new Error("Fish Audio API key or Voice ID not configured");
   }
 
-  const voiceId = mood === "FIRED_UP" ? frumpVoiceId : FRUMP1_VOICE_ID;
-  const voiceName = mood === "FIRED_UP" ? "frump" : "frump1";
-  console.log(`TTS: Using ${voiceName} (${voiceId}) with model ${ELEVENLABS_MODEL}, mood=${mood}, speed=${speed}`);
+  const emotion = mood === "FIRED_UP" ? "angry" : "calm";
+  console.log(`TTS: Fish Audio voice=${voiceId}, mood=${mood}, emotion=${emotion}, speed=${speed}`);
 
   const response = await fetch(
-    `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+    "https://api.fish.audio/v1/tts",
     {
       method: "POST",
       headers: {
-        "xi-api-key": apiKey,
+        "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
-        Accept: "audio/mpeg",
       },
       body: JSON.stringify({
         text,
-        model_id: ELEVENLABS_MODEL,
-        voice_settings: {
-          stability: 0.5,
-          similarity_boost: 0.85,
-          style: 0.7,
-          use_speaker_boost: true,
+        reference_id: voiceId,
+        format: "mp3",
+        latency: "balanced",
+        prosody: {
           speed: speed,
         },
       }),
@@ -243,8 +235,8 @@ async function trumpTextToSpeech(text: string, speed: number = 1.0, mood: string
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error("ElevenLabs TTS error:", response.status, errorText);
-    throw new Error(`ElevenLabs TTS failed: ${response.status}`);
+    console.error("Fish Audio TTS error:", response.status, errorText);
+    throw new Error(`Fish Audio TTS failed: ${response.status}`);
   }
 
   const arrayBuffer = await response.arrayBuffer();

@@ -32,7 +32,7 @@ Preferred communication style: Simple, everyday language.
   - `GET /api/news` — fetches and caches real-time news from RSS feeds (MarketWatch, CNBC, NYT, BBC, Fox News). 3-minute cache TTL, returns up to 30 deduplicated headlines sorted by recency
   - `GET /api/tickers` — fetches live market data (TRUMP coin, Dow Jones, approval ratings, national debt). 5-minute cache TTL
 - **OpenAI Integration**: Uses Replit AI Integrations env vars for chat completions. Trump system prompt in `server/routes.ts`
-- **ElevenLabs Integration**: Uses `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` env vars for TTS. Dual voice system: frump1 (MLVyah8U5vYeVPSszwiN) for CALM mood, ELEVENLABS_VOICE_ID for FIRED_UP mood. Model: `eleven_v3`
+- **Fish Audio Integration**: Uses `FISH_AUDIO_API_KEY` and `FISH_AUDIO_VOICE_ID` env vars for TTS. Free tier with voice cloning support. Mood-based speed adjustment (1.5x for FIRED_UP)
 - **Static Serving**: In production, serves pre-built Expo web assets from `dist/`
 
 ### Key Files
@@ -58,12 +58,12 @@ Preferred communication style: Simple, everyday language.
   - `scripts/expo-wrapper.js` intercepts `npx expo start --localhost` to run the keepalive proxy instead of a second Metro instance
   - `scripts/frontend-keepalive.js` is the HTTP proxy server for port 8081
 - **Production Build**: `scripts/build.js` creates static Expo web build, `server:build` bundles server
-- **Environment Variables**: `EXPO_PUBLIC_DOMAIN` for API URL, `AI_INTEGRATIONS_OPENAI_API_KEY` and `AI_INTEGRATIONS_OPENAI_BASE_URL` for OpenAI, `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` for TTS
+- **Environment Variables**: `EXPO_PUBLIC_DOMAIN` for API URL, `AI_INTEGRATIONS_OPENAI_API_KEY` and `AI_INTEGRATIONS_OPENAI_BASE_URL` for OpenAI, `FISH_AUDIO_API_KEY` and `FISH_AUDIO_VOICE_ID` for TTS
 
 ## External Dependencies
 
 - **OpenAI API**: Chat completions for Trump-persona responses via Replit AI Integrations proxy
-- **ElevenLabs API**: Text-to-speech with cloned Trump voice via `eleven_multilingual_v2` model
+- **Fish Audio API**: Text-to-speech with cloned Trump voice via Fish Audio free tier
 - **AsyncStorage**: Client-side persistent storage for conversations
 - **Expo Services**: Font loading, haptics, linear gradients, splash screen
 - **RevenueCat** (`react-native-purchases`): Dependency installed for future in-app subscription implementation
@@ -73,7 +73,7 @@ Preferred communication style: Simple, everyday language.
 - 2026-02-06: Full app rebuild — server routes, all screens (home, chat, subscribe, admin), chat storage, streaming, error boundary, theme colors, app.json configuration
 - 2026-02-06: Added voice toggle (DJT/Spirit modes), Chat DJT logo as prominent home screen background, TTS speaker button on assistant messages using OpenAI gpt-audio with onyx voice
 - 2026-02-07: Replaced OpenAI TTS with ElevenLabs cloned Trump voice (eleven_v3). Home screen redesigned — conversation list hidden behind archive modal, full-screen logo background. Added defensive/blustering behavior when Trump is offended. Added conversational mode — Trump asks personal questions when annoyed, with faster TTS speed (1.2x) for fired-up mood. Mood detection via [MOOD:CALM/FIRED_UP] tags stripped from display, passed to TTS endpoint for speed adjustment
-- 2026-02-07: Added dual voice system (frump1 for CALM, cloned voice for FIRED_UP). Added speech-to-text via microphone button using OpenAI Whisper
+- 2026-02-07: Added dual voice system. Added speech-to-text via microphone button using OpenAI Whisper
 - 2026-02-07: Removed theme music feature. Updated Trump persona to unfiltered/uncensored mode with full profanity (damn, shit, fuck, bitch, motherfucker). Profanity escalates with anger — mild when CALM, nuclear when FIRED_UP. Added derogatory political commentary. Increased FIRED_UP TTS speed to 1.5x for faster angry speech. Replaced cartoon avatar with realistic portrait image
 - 2026-02-07: Added live ticker bar showing Trump coin price, Dow Jones index, approval ratings, and national debt with 5-minute server-side caching
 - 2026-02-07: Added translucent news crawl — continuously scrolling marquee of real-time headlines from MarketWatch, CNBC, NYT, BBC, Fox News via RSS feeds. Red "LIVE" badge, gold text on dark translucent background. 3-minute cache, requestAnimationFrame-based smooth scrolling
