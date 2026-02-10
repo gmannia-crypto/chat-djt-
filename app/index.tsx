@@ -12,6 +12,7 @@ import {
   Dimensions,
   ScrollView,
   AppState,
+  TextInput,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { router, useFocusEffect } from "expo-router";
@@ -216,10 +217,46 @@ function ConversationItem({
   );
 }
 
+const ADMIN_PASSCODE = "Greatestofalltime";
+
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [archiveVisible, setArchiveVisible] = useState(false);
+  const secretTapCount = useRef(0);
+  const secretTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [passcodeVisible, setPasscodeVisible] = useState(false);
+  const [passcodeInput, setPasscodeInput] = useState("");
+  const [passcodeError, setPasscodeError] = useState(false);
+
+  function handleSecretTap() {
+    secretTapCount.current += 1;
+    if (secretTapTimer.current) clearTimeout(secretTapTimer.current);
+    if (secretTapCount.current >= 5) {
+      secretTapCount.current = 0;
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      setPasscodeInput("");
+      setPasscodeError(false);
+      setPasscodeVisible(true);
+    } else {
+      secretTapTimer.current = setTimeout(() => {
+        secretTapCount.current = 0;
+      }, 2000);
+    }
+  }
+
+  function handlePasscodeSubmit() {
+    if (passcodeInput === ADMIN_PASSCODE) {
+      setPasscodeVisible(false);
+      setPasscodeInput("");
+      setPasscodeError(false);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.push("/admin");
+    } else {
+      setPasscodeError(true);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
+  }
 
   useFocusEffect(
     useCallback(() => {
@@ -291,7 +328,7 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + webTopInset }]}>
-      <View style={styles.woodFrameOuter}>
+      <Pressable style={styles.woodFrameOuter} onPress={handleSecretTap}>
         <View style={styles.woodFrameInner}>
           <Image
             source={require("@/assets/images/djt-logo.png")}
@@ -299,7 +336,7 @@ export default function HomeScreen() {
             resizeMode="cover"
           />
         </View>
-      </View>
+      </Pressable>
       <LinearGradient
         colors={["rgba(10, 10, 10, 0)", "rgba(10, 10, 10, 0.1)", "rgba(10, 10, 10, 0.7)"]}
         style={styles.backgroundOverlay}
@@ -327,21 +364,7 @@ export default function HomeScreen() {
             <Text style={styles.glossyHeaderLabel}>Archive</Text>
           </Pressable>
         </View>
-        <View style={styles.headerRight}>
-          <Pressable
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.push("/admin");
-            }}
-            style={styles.glossyHeaderBtn}
-            testID="admin-button"
-          >
-            <View style={styles.glossyHeaderCircle}>
-              <MaterialCommunityIcons name="shield-crown" size={18} color="#1A1000" />
-            </View>
-            <Text style={styles.glossyHeaderLabel}>Office</Text>
-          </Pressable>
-        </View>
+        <View style={styles.headerRight} />
       </Animated.View>
 
       <View style={styles.centerContent} />
@@ -482,6 +505,54 @@ export default function HomeScreen() {
             showsVerticalScrollIndicator={false}
           />
         </View>
+      </Modal>
+
+      <Modal
+        visible={passcodeVisible}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setPasscodeVisible(false)}
+      >
+        <Pressable
+          style={styles.passcodeOverlay}
+          onPress={() => setPasscodeVisible(false)}
+        >
+          <Pressable style={styles.passcodeCard} onPress={() => {}}>
+            <View style={styles.passcodeIconRow}>
+              <MaterialCommunityIcons name="shield-lock" size={32} color={Colors.gold} />
+            </View>
+            <Text style={styles.passcodeTitle}>Enter Passcode</Text>
+            <TextInput
+              style={[
+                styles.passcodeInput,
+                passcodeError && styles.passcodeInputError,
+              ]}
+              value={passcodeInput}
+              onChangeText={(t) => {
+                setPasscodeInput(t);
+                setPasscodeError(false);
+              }}
+              placeholder="Passcode"
+              placeholderTextColor={Colors.whiteMuted}
+              secureTextEntry
+              autoFocus
+              onSubmitEditing={handlePasscodeSubmit}
+              returnKeyType="go"
+            />
+            {passcodeError && (
+              <Text style={styles.passcodeErrorText}>Wrong passcode</Text>
+            )}
+            <Pressable
+              onPress={handlePasscodeSubmit}
+              style={({ pressed }) => [
+                styles.passcodeSubmit,
+                pressed && { opacity: 0.8 },
+              ]}
+            >
+              <Text style={styles.passcodeSubmitText}>Enter</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
       </Modal>
     </View>
   );
@@ -810,5 +881,70 @@ const styles = StyleSheet.create({
     color: Colors.whiteDim,
     textAlign: "center",
     lineHeight: 22,
+  },
+  passcodeOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.85)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  passcodeCard: {
+    backgroundColor: Colors.card,
+    borderRadius: 20,
+    padding: 28,
+    width: 300,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(212, 164, 32, 0.25)",
+    ...Platform.select({
+      web: {
+        boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
+      },
+      default: {},
+    }),
+  },
+  passcodeIconRow: {
+    marginBottom: 16,
+  },
+  passcodeTitle: {
+    fontSize: 18,
+    fontFamily: "PlayfairDisplay_700Bold",
+    color: Colors.white,
+    marginBottom: 20,
+  },
+  passcodeInput: {
+    width: "100%",
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    textAlign: "center",
+    letterSpacing: 2,
+  },
+  passcodeInputError: {
+    borderColor: "#F87171",
+  },
+  passcodeErrorText: {
+    fontSize: 13,
+    color: "#F87171",
+    marginTop: 8,
+  },
+  passcodeSubmit: {
+    marginTop: 16,
+    backgroundColor: Colors.gold,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 40,
+    width: "100%",
+    alignItems: "center",
+  },
+  passcodeSubmitText: {
+    fontSize: 16,
+    fontWeight: "700" as const,
+    color: "#0A0A0A",
   },
 });
