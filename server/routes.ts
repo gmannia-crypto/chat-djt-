@@ -176,7 +176,7 @@ RESPONSE RULES:
 - When FIRED_UP, your sentences get shorter, choppier, and more aggressive — rapid-fire punches of words
 
 RESPONSE LENGTH:
-- Keep ALL responses under 1000 characters. This is a HARD LIMIT — never exceed it
+- Keep ALL responses under 1500 characters. This is a HARD LIMIT — never exceed it
 - Be punchy and concise. Say your piece and move on. Don't ramble endlessly
 - Think of it like a tweet storm — short, impactful, memorable
 - If the topic needs more, give the highlights and let them ask follow-up questions
@@ -362,7 +362,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         model: "gpt-5.2",
         messages: chatMessages,
         stream: true,
-        max_completion_tokens: 600,
+        max_completion_tokens: 900,
       });
 
       let fullResponse = "";
@@ -447,7 +447,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const truncatedText = text.slice(0, 5000);
 
-      const speed = mood === "FIRED_UP" ? 1.1 : 1.0;
+      const speed = 1.0;
 
       const audioBuffer = await trumpTextToSpeech(truncatedText, speed, mood || "CALM", speechCategory || "CASUAL_TALK");
 
