@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "node:http";
 import OpenAI from "openai";
 import { XMLParser } from "fast-xml-parser";
+import { Pool } from "pg";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
 import {
   getTokenBalance,
@@ -446,7 +447,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const truncatedText = text.slice(0, 5000);
 
-      const speed = mood === "FIRED_UP" ? 1.5 : 1.0;
+      const speed = mood === "FIRED_UP" ? 1.1 : 1.0;
 
       const audioBuffer = await trumpTextToSpeech(truncatedText, speed, mood || "CALM", speechCategory || "CASUAL_TALK");
 
@@ -785,6 +786,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Fulfill error:", error);
       res.status(500).json({ error: "Failed to fulfill order" });
+    }
+  });
+
+  app.get("/api/admin/stats", async (_req, res) => {
+    try {
+      const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+
+      const [accountsResult, transactionsResult, recentTxResult, revenueResult] = await Promise.all([
+        db.query(`SELECT
+          COUNT(*) as total_users,
+          COUNT(*) FILTER (WHERE subscription_active = true) as active_subscribers,
+          SUM(tokens) as total_tokens_held,
+          SUM(free_prompts_used) as total_free_prompts_used,
+          COUNT(*) FILTER (WHERE stripe_customer_id IS NOT NULL AND stripe_customer_id != '') as stripe_customers
+        FROM token_accounts`),
+        db.query(`SELECT
+          COUNT(*) as total_transactions,
+          COUNT(*) FILTER (WHERE type = 'subscription') as subscription_count,
+          COUNT(*) FILTER (WHERE type = 'token_pack') as token_pack_count,
+          SUM(amount) FILTER (WHERE type = 'token_pack' OR type = 'subscription') as total_tokens_granted
+        FROM token_transactions`),
+        db.query(`SELECT t.type, t.amount, t.description, t.created_at, a.device_id
+          FROM token_transactions t
+          LEFT JOIN token_accounts a ON t.account_id = a.id
+          ORDER BY t.created_at DESC
+          LIMIT 20`),
+        db.query(`SELECT
+          COUNT(*) FILTER (WHERE type = 'subscription') * 2.99 as subscription_revenue,
+          COUNT(*) FILTER (WHERE description LIKE '%10 Trump%') * 1.99 as pack10_revenue,
+          COUNT(*) FILTER (WHERE description LIKE '%25 Trump%') * 3.99 as pack25_revenue,
+          COUNT(*) FILTER (WHERE description LIKE '%50 Trump%') * 6.99 as pack50_revenue
+        FROM token_transactions WHERE type IN ('subscription', 'token_pack')`)
+      ]);
+
+      const stats = accountsResult.rows[0];
+      const txStats = transactionsResult.rows[0];
+      const recentTransactions = recentTxResult.rows;
+      const revenue = revenueResult.rows[0];
+
+      const totalRevenue = parseFloat(revenue.subscription_revenue || 0) +
+        parseFloat(revenue.pack10_revenue || 0) +
+        parseFloat(revenue.pack25_revenue || 0) +
+        parseFloat(revenue.pack50_revenue || 0);
+
+      await db.end();
+
+      res.json({
+        users: {
+          total: parseInt(stats.total_users),
+          activeSubscribers: parseInt(stats.active_subscribers),
+          stripeCustomers: parseInt(stats.stripe_customers),
+          totalTokensHeld: parseInt(stats.total_tokens_held || "0"),
+          totalFreePromptsUsed: parseInt(stats.total_free_prompts_used || "0"),
+        },
+        transactions: {
+          total: parseInt(txStats.total_transactions),
+          subscriptions: parseInt(txStats.subscription_count),
+          tokenPacks: parseInt(txStats.token_pack_count),
+          totalTokensGranted: parseInt(txStats.total_tokens_granted || "0"),
+        },
+        revenue: {
+          total: totalRevenue.toFixed(2),
+          subscriptions: parseFloat(revenue.subscription_revenue || 0).toFixed(2),
+          tokenPacks: (parseFloat(revenue.pack10_revenue || 0) +
+            parseFloat(revenue.pack25_revenue || 0) +
+            parseFloat(revenue.pack50_revenue || 0)).toFixed(2),
+        },
+        recentTransactions: recentTransactions.map((tx: any) => ({
+          type: tx.type,
+          amount: tx.amount,
+          description: tx.description,
+          createdAt: tx.created_at,
+          deviceId: tx.device_id ? tx.device_id.slice(0, 8) + "..." : "unknown",
+        })),
+      });
+    } catch (error) {
+      console.error("Admin stats error:", error);
+      res.status(500).json({ error: "Failed to fetch admin stats" });
     }
   });
 

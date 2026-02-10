@@ -7,8 +7,7 @@ import {
   Platform,
   ScrollView,
   Linking,
-  TextInput,
-  Alert,
+  ActivityIndicator,
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -17,18 +16,43 @@ import {
   MaterialCommunityIcons,
   Feather,
   MaterialIcons,
-  FontAwesome5,
 } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-import * as Clipboard from "expo-clipboard";
 import Animated, {
   FadeInDown,
   FadeInUp,
 } from "react-native-reanimated";
 import Colors from "@/constants/colors";
-import { getAllConversations, clearAllConversations } from "@/lib/chat-storage";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getApiUrl } from "@/lib/query-client";
+
+interface AdminStats {
+  users: {
+    total: number;
+    activeSubscribers: number;
+    stripeCustomers: number;
+    totalTokensHeld: number;
+    totalFreePromptsUsed: number;
+  };
+  transactions: {
+    total: number;
+    subscriptions: number;
+    tokenPacks: number;
+    totalTokensGranted: number;
+  };
+  revenue: {
+    total: string;
+    subscriptions: string;
+    tokenPacks: string;
+  };
+  recentTransactions: {
+    type: string;
+    amount: number;
+    description: string;
+    createdAt: string;
+    deviceId: string;
+  }[];
+}
 
 interface StatCardProps {
   icon: string;
@@ -37,9 +61,10 @@ interface StatCardProps {
   value: string;
   subtitle: string;
   delay: number;
+  accent?: string;
 }
 
-function StatCard({ icon, iconSet, title, value, subtitle, delay }: StatCardProps) {
+function StatCard({ icon, iconSet, title, value, subtitle, delay, accent }: StatCardProps) {
   const IconComponent = {
     ionicons: Ionicons,
     material: MaterialIcons,
@@ -50,114 +75,40 @@ function StatCard({ icon, iconSet, title, value, subtitle, delay }: StatCardProp
   return (
     <Animated.View entering={FadeInDown.delay(delay).duration(400)} style={styles.statCard}>
       <View style={styles.statIconRow}>
-        <IconComponent name={icon} size={20} color={Colors.gold} />
+        <IconComponent name={icon} size={20} color={accent || Colors.gold} />
         <Text style={styles.statTitle}>{title}</Text>
       </View>
-      <Text style={styles.statValue}>{value}</Text>
+      <Text style={[styles.statValue, accent ? { color: accent } : undefined]}>{value}</Text>
       <Text style={styles.statSubtitle}>{subtitle}</Text>
     </Animated.View>
   );
 }
 
-const CRYPTO_STORAGE_KEY = "chatdjt_crypto_wallets";
-
-interface CryptoWallet {
-  coin: string;
-  symbol: string;
-  address: string;
-  color: string;
-  icon: string;
-}
-
-const DEFAULT_WALLETS: CryptoWallet[] = [
-  { coin: "Bitcoin", symbol: "BTC", address: "", color: "#F7931A", icon: "bitcoin" },
-  { coin: "Ethereum", symbol: "ETH", address: "", color: "#627EEA", icon: "ethereum" },
-  { coin: "Chainlink", symbol: "LINK", address: "", color: "#2A5ADA", icon: "link" },
-];
-
-function CryptoWalletCard({
-  wallet,
-  onSave,
-  delay,
-}: {
-  wallet: CryptoWallet;
-  onSave: (symbol: string, address: string) => void;
-  delay: number;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [address, setAddress] = useState(wallet.address);
-
-  async function handleCopy() {
-    if (!wallet.address) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    await Clipboard.setStringAsync(wallet.address);
-    if (Platform.OS === "web") {
-      alert("Address copied!");
-    } else {
-      Alert.alert("Copied", `${wallet.coin} address copied to clipboard`);
-    }
-  }
+function TransactionRow({ tx, index }: { tx: AdminStats["recentTransactions"][0]; index: number }) {
+  const isSubscription = tx.type === "subscription";
+  const icon = isSubscription ? "card" : "cube";
+  const color = isSubscription ? "#4ADE80" : Colors.gold;
+  const timeStr = new Date(tx.createdAt).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
   return (
-    <Animated.View entering={FadeInDown.delay(delay).duration(400)}>
-      <View style={styles.cryptoCard}>
-        <View style={styles.cryptoHeader}>
-          <View style={[styles.cryptoIconContainer, { backgroundColor: wallet.color + "20" }]}>
-            {wallet.symbol === "LINK" ? (
-              <MaterialCommunityIcons name="link-variant" size={22} color={wallet.color} />
-            ) : (
-              <FontAwesome5 name={wallet.icon} size={20} color={wallet.color} />
-            )}
-          </View>
-          <View style={styles.cryptoInfo}>
-            <Text style={styles.cryptoCoinName}>{wallet.coin}</Text>
-            <Text style={[styles.cryptoSymbol, { color: wallet.color }]}>{wallet.symbol}</Text>
-          </View>
-          <View style={styles.cryptoActions}>
-            {wallet.address ? (
-              <Pressable onPress={handleCopy} style={styles.cryptoCopyBtn}>
-                <Ionicons name="copy-outline" size={18} color={Colors.gold} />
-              </Pressable>
-            ) : null}
-            <Pressable
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                if (editing) {
-                  onSave(wallet.symbol, address);
-                  setEditing(false);
-                } else {
-                  setEditing(true);
-                }
-              }}
-              style={styles.cryptoEditBtn}
-            >
-              <Ionicons
-                name={editing ? "checkmark" : "create-outline"}
-                size={18}
-                color={editing ? "#4CAF50" : Colors.whiteMuted}
-              />
-            </Pressable>
-          </View>
+    <Animated.View entering={FadeInDown.delay(600 + index * 50).duration(300)}>
+      <View style={styles.txRow}>
+        <View style={[styles.txIcon, { backgroundColor: color + "18" }]}>
+          <Ionicons name={icon} size={16} color={color} />
         </View>
-        {editing ? (
-          <TextInput
-            style={styles.cryptoInput}
-            value={address}
-            onChangeText={setAddress}
-            placeholder={`Enter ${wallet.coin} wallet address...`}
-            placeholderTextColor={Colors.whiteMuted}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-        ) : wallet.address ? (
-          <Pressable onPress={handleCopy}>
-            <Text style={styles.cryptoAddress} numberOfLines={1}>
-              {wallet.address}
-            </Text>
-          </Pressable>
-        ) : (
-          <Text style={styles.cryptoPlaceholder}>No address configured — tap edit to add</Text>
-        )}
+        <View style={styles.txContent}>
+          <Text style={styles.txDescription} numberOfLines={1}>{tx.description || tx.type}</Text>
+          <Text style={styles.txMeta}>{tx.deviceId} — {timeStr}</Text>
+        </View>
+        <View style={styles.txAmount}>
+          <Text style={[styles.txTokens, { color }]}>+{tx.amount}</Text>
+          <Text style={styles.txTokenLabel}>tokens</Text>
+        </View>
       </View>
     </Animated.View>
   );
@@ -165,69 +116,33 @@ function CryptoWalletCard({
 
 export default function AdminScreen() {
   const insets = useSafeAreaInsets();
-  const [totalChats, setTotalChats] = useState(0);
-  const [totalMessages, setTotalMessages] = useState(0);
-  const [wallets, setWallets] = useState<CryptoWallet[]>(DEFAULT_WALLETS);
+  const [stats, setStats] = useState<AdminStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
 
   useEffect(() => {
-    loadStats();
-    loadWallets();
+    fetchStats();
   }, []);
 
-  async function loadStats() {
-    const convs = await getAllConversations();
-    setTotalChats(convs.length);
-    const msgs = convs.reduce((acc, c) => acc + c.messages.length, 0);
-    setTotalMessages(msgs);
-  }
-
-  async function loadWallets() {
+  async function fetchStats() {
     try {
-      const saved = await AsyncStorage.getItem(CRYPTO_STORAGE_KEY);
-      if (saved) {
-        setWallets(JSON.parse(saved));
-      }
-    } catch {}
+      setLoading(true);
+      setError(null);
+      const url = new URL("/api/admin/stats", getApiUrl());
+      const response = await fetch(url.toString());
+      if (!response.ok) throw new Error("Failed to fetch stats");
+      const data = await response.json();
+      setStats(data);
+    } catch (err: any) {
+      console.error("Admin stats error:", err);
+      setError(err.message || "Failed to load");
+    } finally {
+      setLoading(false);
+    }
   }
-
-  async function saveWalletAddress(symbol: string, address: string) {
-    const updated = wallets.map((w) =>
-      w.symbol === symbol ? { ...w, address: address.trim() } : w
-    );
-    setWallets(updated);
-    await AsyncStorage.setItem(CRYPTO_STORAGE_KEY, JSON.stringify(updated));
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }
-
-  const REVENUE_LINKS = [
-    {
-      title: "RevenueCat Dashboard",
-      subtitle: "Manage subscriptions, view analytics, and track revenue",
-      icon: "trending-up" as const,
-      url: "https://app.revenuecat.com",
-    },
-    {
-      title: "Apple App Store Connect",
-      subtitle: "Manage iOS subscribers and in-app purchases",
-      icon: "logo-apple" as const,
-      url: "https://appstoreconnect.apple.com",
-    },
-    {
-      title: "Google Play Console",
-      subtitle: "Manage Android subscribers and billing",
-      icon: "logo-google" as const,
-      url: "https://play.google.com/console",
-    },
-    {
-      title: "Stripe Dashboard",
-      subtitle: "Web payments, invoices, and payouts",
-      icon: "card" as const,
-      url: "https://dashboard.stripe.com",
-    },
-  ];
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + webTopInset }]}>
@@ -241,13 +156,25 @@ export default function AdminScreen() {
           <MaterialCommunityIcons name="shield-crown" size={24} color={Colors.gold} />
           <Text style={styles.headerTitle}>Back Office</Text>
         </View>
-        <Pressable
-          onPress={() => router.back()}
-          style={styles.closeButton}
-          testID="close-admin"
-        >
-          <Ionicons name="close" size={24} color={Colors.whiteDim} />
-        </Pressable>
+        <View style={styles.headerActions}>
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              fetchStats();
+            }}
+            style={styles.refreshButton}
+            testID="refresh-admin"
+          >
+            <Feather name="refresh-cw" size={18} color={Colors.gold} />
+          </Pressable>
+          <Pressable
+            onPress={() => router.back()}
+            style={styles.closeButton}
+            testID="close-admin"
+          >
+            <Ionicons name="close" size={24} color={Colors.whiteDim} />
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView
@@ -257,146 +184,198 @@ export default function AdminScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <Animated.View entering={FadeInUp.duration(500)}>
-          <Text style={styles.sectionTitle}>Platform Stats</Text>
-          <Text style={styles.sectionSubtitle}>The numbers are HUGE, believe me!</Text>
-        </Animated.View>
-
-        <View style={styles.statsGrid}>
-          <StatCard
-            icon="chatbubbles"
-            iconSet="ionicons"
-            title="Total Chats"
-            value={totalChats.toString()}
-            subtitle="Conversations"
-            delay={100}
-          />
-          <StatCard
-            icon="text"
-            iconSet="ionicons"
-            title="Messages"
-            value={totalMessages.toString()}
-            subtitle="Total sent"
-            delay={200}
-          />
-          <StatCard
-            icon="cash"
-            iconSet="ionicons"
-            title="Price"
-            value="$2.99"
-            subtitle="Per month"
-            delay={300}
-          />
-          <StatCard
-            icon="star"
-            iconSet="ionicons"
-            title="Status"
-            value="Active"
-            subtitle="Ready to launch"
-            delay={400}
-          />
-        </View>
-
-        <Animated.View entering={FadeInDown.delay(500).duration(400)}>
-          <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Crypto Wallet</Text>
-          <Text style={styles.sectionSubtitle}>
-            Accept crypto payments — Bitcoin, Ethereum, and Chainlink only!
-          </Text>
-        </Animated.View>
-
-        <View style={styles.cryptoWallets}>
-          {wallets.map((wallet, index) => (
-            <CryptoWalletCard
-              key={wallet.symbol}
-              wallet={wallet}
-              onSave={saveWalletAddress}
-              delay={600 + index * 80}
-            />
-          ))}
-        </View>
-
-        <Animated.View entering={FadeInDown.delay(900).duration(400)}>
-          <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Revenue Collection</Text>
-          <Text style={styles.sectionSubtitle}>
-            All the ways to collect your tremendous money!
-          </Text>
-        </Animated.View>
-
-        <View style={styles.revenueLinks}>
-          {REVENUE_LINKS.map((link, index) => (
-            <Animated.View
-              key={link.title}
-              entering={FadeInDown.delay(1000 + index * 80).duration(400)}
-            >
-              <Pressable
-                style={({ pressed }) => [
-                  styles.revenueCard,
-                  pressed && styles.revenueCardPressed,
-                ]}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  Linking.openURL(link.url);
-                }}
-              >
-                <View style={styles.revenueIconContainer}>
-                  <Ionicons name={link.icon} size={22} color={Colors.gold} />
-                </View>
-                <View style={styles.revenueText}>
-                  <Text style={styles.revenueLinkTitle}>{link.title}</Text>
-                  <Text style={styles.revenueLinkSubtitle}>{link.subtitle}</Text>
-                </View>
-                <Feather name="external-link" size={16} color={Colors.whiteMuted} />
-              </Pressable>
-            </Animated.View>
-          ))}
-        </View>
-
-        <Animated.View entering={FadeInDown.delay(1400).duration(400)}>
-          <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Setup Guide</Text>
-        </Animated.View>
-
-        <Animated.View
-          entering={FadeInDown.delay(1500).duration(400)}
-          style={styles.setupCard}
-        >
-          <Text style={styles.setupTitle}>RevenueCat Integration</Text>
-          <Text style={styles.setupDescription}>
-            RevenueCat handles all subscription payments across iOS, Android, and web.
-            It manages Apple Pay, Google Pay, credit cards, and more.
-          </Text>
-          <View style={styles.setupSteps}>
-            {[
-              "Create a RevenueCat account at revenuecat.com",
-              "Set up your $2.99/mo product in App Store Connect & Google Play",
-              "Add your RevenueCat API keys to the app",
-              "Revenue flows directly to your bank account",
-            ].map((step, i) => (
-              <View key={i} style={styles.stepRow}>
-                <View style={styles.stepNumber}>
-                  <Text style={styles.stepNumberText}>{i + 1}</Text>
-                </View>
-                <Text style={styles.stepText}>{step}</Text>
-              </View>
-            ))}
+        {loading && !stats ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={Colors.gold} />
+            <Text style={styles.loadingText}>Loading stats...</Text>
           </View>
-        </Animated.View>
+        ) : error && !stats ? (
+          <View style={styles.loadingContainer}>
+            <Ionicons name="alert-circle" size={40} color="#F87171" />
+            <Text style={styles.errorText}>{error}</Text>
+            <Pressable onPress={fetchStats} style={styles.retryButton}>
+              <Text style={styles.retryText}>Try Again</Text>
+            </Pressable>
+          </View>
+        ) : stats ? (
+          <>
+            <Animated.View entering={FadeInUp.duration(500)}>
+              <Text style={styles.sectionTitle}>Revenue</Text>
+              <Text style={styles.sectionSubtitle}>The money is flowing, believe me!</Text>
+            </Animated.View>
 
-        <Animated.View entering={FadeInDown.delay(1600).duration(400)}>
-          <Pressable
-            style={({ pressed }) => [
-              styles.dangerButton,
-              pressed && styles.dangerButtonPressed,
-            ]}
-            onPress={async () => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-              await clearAllConversations();
-              await loadStats();
-            }}
-          >
-            <Feather name="trash-2" size={18} color={Colors.redLight} />
-            <Text style={styles.dangerButtonText}>Clear All Chat Data</Text>
-          </Pressable>
-        </Animated.View>
+            <Animated.View entering={FadeInDown.delay(100).duration(400)} style={styles.revenueHero}>
+              <Text style={styles.revenueLabel}>TOTAL REVENUE</Text>
+              <Text style={styles.revenueAmount}>${stats.revenue.total}</Text>
+              <View style={styles.revenueBreakdown}>
+                <View style={styles.revenueBreakdownItem}>
+                  <View style={[styles.revenueBreakdownDot, { backgroundColor: "#4ADE80" }]} />
+                  <Text style={styles.revenueBreakdownText}>Subscriptions: ${stats.revenue.subscriptions}</Text>
+                </View>
+                <View style={styles.revenueBreakdownItem}>
+                  <View style={[styles.revenueBreakdownDot, { backgroundColor: Colors.gold }]} />
+                  <Text style={styles.revenueBreakdownText}>Token Packs: ${stats.revenue.tokenPacks}</Text>
+                </View>
+              </View>
+            </Animated.View>
+
+            <Animated.View entering={FadeInDown.delay(200).duration(400)}>
+              <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Users</Text>
+            </Animated.View>
+
+            <View style={styles.statsGrid}>
+              <StatCard
+                icon="people"
+                iconSet="ionicons"
+                title="Total Users"
+                value={stats.users.total.toString()}
+                subtitle="All registered devices"
+                delay={250}
+              />
+              <StatCard
+                icon="card"
+                iconSet="ionicons"
+                title="Subscribers"
+                value={stats.users.activeSubscribers.toString()}
+                subtitle="Active $2.99/mo"
+                delay={300}
+                accent="#4ADE80"
+              />
+              <StatCard
+                icon="logo-usd"
+                iconSet="ionicons"
+                title="Stripe Customers"
+                value={stats.users.stripeCustomers.toString()}
+                subtitle="With payment info"
+                delay={350}
+              />
+              <StatCard
+                icon="flash"
+                iconSet="ionicons"
+                title="Free Prompts"
+                value={stats.users.totalFreePromptsUsed.toString()}
+                subtitle="Used across users"
+                delay={400}
+              />
+            </View>
+
+            <Animated.View entering={FadeInDown.delay(450).duration(400)}>
+              <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Transactions</Text>
+            </Animated.View>
+
+            <View style={styles.statsGrid}>
+              <StatCard
+                icon="receipt"
+                iconSet="material"
+                title="Total"
+                value={stats.transactions.total.toString()}
+                subtitle="All transactions"
+                delay={500}
+              />
+              <StatCard
+                icon="autorenew"
+                iconSet="material"
+                title="Subscriptions"
+                value={stats.transactions.subscriptions.toString()}
+                subtitle="Subscription txns"
+                delay={550}
+                accent="#4ADE80"
+              />
+              <StatCard
+                icon="cube"
+                iconSet="ionicons"
+                title="Token Packs"
+                value={stats.transactions.tokenPacks.toString()}
+                subtitle="Pack purchases"
+                delay={600}
+              />
+              <StatCard
+                icon="diamond"
+                iconSet="materialCommunity"
+                title="Tokens Granted"
+                value={stats.transactions.totalTokensGranted.toString()}
+                subtitle="Total distributed"
+                delay={650}
+              />
+            </View>
+
+            {stats.recentTransactions.length > 0 && (
+              <>
+                <Animated.View entering={FadeInDown.delay(700).duration(400)}>
+                  <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Recent Activity</Text>
+                  <Text style={styles.sectionSubtitle}>Latest customer purchases</Text>
+                </Animated.View>
+
+                <View style={styles.txList}>
+                  {stats.recentTransactions.map((tx, i) => (
+                    <TransactionRow key={`${tx.createdAt}-${i}`} tx={tx} index={i} />
+                  ))}
+                </View>
+              </>
+            )}
+
+            <Animated.View entering={FadeInDown.delay(900).duration(400)}>
+              <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Manage Payments</Text>
+              <Text style={styles.sectionSubtitle}>
+                Go to Stripe to manage customers, refunds, and payouts
+              </Text>
+            </Animated.View>
+
+            <View style={styles.revenueLinks}>
+              {[
+                {
+                  title: "Stripe Dashboard",
+                  subtitle: "Customers, payments, refunds, and payouts",
+                  icon: "card" as const,
+                  url: "https://dashboard.stripe.com",
+                },
+                {
+                  title: "Stripe Customers",
+                  subtitle: "View all customers and their payment history",
+                  icon: "people" as const,
+                  url: "https://dashboard.stripe.com/customers",
+                },
+                {
+                  title: "Stripe Payments",
+                  subtitle: "View all payments and process refunds",
+                  icon: "cash" as const,
+                  url: "https://dashboard.stripe.com/payments",
+                },
+                {
+                  title: "Stripe Subscriptions",
+                  subtitle: "Manage active and cancelled subscriptions",
+                  icon: "repeat" as const,
+                  url: "https://dashboard.stripe.com/subscriptions",
+                },
+              ].map((link, index) => (
+                <Animated.View
+                  key={link.title}
+                  entering={FadeInDown.delay(1000 + index * 80).duration(400)}
+                >
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.revenueCard,
+                      pressed && styles.revenueCardPressed,
+                    ]}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      Linking.openURL(link.url);
+                    }}
+                  >
+                    <View style={styles.revenueIconContainer}>
+                      <Ionicons name={link.icon} size={22} color={Colors.gold} />
+                    </View>
+                    <View style={styles.revenueText}>
+                      <Text style={styles.revenueLinkTitle}>{link.title}</Text>
+                      <Text style={styles.revenueLinkSubtitle}>{link.subtitle}</Text>
+                    </View>
+                    <Feather name="external-link" size={16} color={Colors.whiteMuted} />
+                  </Pressable>
+                </Animated.View>
+              ))}
+            </View>
+          </>
+        ) : null}
       </ScrollView>
     </View>
   );
@@ -426,10 +405,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
   },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
   headerTitle: {
     fontSize: 22,
     fontFamily: "PlayfairDisplay_900Black",
     color: Colors.gold,
+  },
+  refreshButton: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 20,
+    backgroundColor: "rgba(212, 164, 32, 0.1)",
   },
   closeButton: {
     width: 40,
@@ -439,6 +431,34 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
+  },
+  loadingContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 80,
+    gap: 16,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: Colors.whiteMuted,
+  },
+  errorText: {
+    fontSize: 14,
+    color: "#F87171",
+    textAlign: "center",
+  },
+  retryButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: "rgba(212, 164, 32, 0.15)",
+    borderWidth: 1,
+    borderColor: Colors.gold,
+  },
+  retryText: {
+    fontSize: 14,
+    color: Colors.gold,
+    fontWeight: "600" as const,
   },
   sectionTitle: {
     fontSize: 18,
@@ -450,6 +470,51 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.whiteMuted,
     marginBottom: 16,
+  },
+  revenueHero: {
+    backgroundColor: Colors.card,
+    borderRadius: 20,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: "rgba(212, 164, 32, 0.3)",
+    alignItems: "center",
+    ...Platform.select({
+      web: {
+        boxShadow: "0 4px 20px rgba(212, 164, 32, 0.1)",
+      },
+      default: {},
+    }),
+  },
+  revenueLabel: {
+    fontSize: 11,
+    color: Colors.whiteMuted,
+    fontWeight: "700" as const,
+    letterSpacing: 2,
+    marginBottom: 8,
+  },
+  revenueAmount: {
+    fontSize: 44,
+    fontFamily: "PlayfairDisplay_900Black",
+    color: Colors.gold,
+    marginBottom: 16,
+  },
+  revenueBreakdown: {
+    flexDirection: "row",
+    gap: 20,
+  },
+  revenueBreakdownItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  revenueBreakdownDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  revenueBreakdownText: {
+    fontSize: 12,
+    color: Colors.whiteDim,
   },
   statsGrid: {
     flexDirection: "row",
@@ -488,8 +553,55 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.whiteDim,
   },
+  txList: {
+    gap: 8,
+  },
+  txRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.card,
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: 12,
+  },
+  txIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  txContent: {
+    flex: 1,
+  },
+  txDescription: {
+    fontSize: 14,
+    color: Colors.white,
+    fontWeight: "600" as const,
+    marginBottom: 2,
+  },
+  txMeta: {
+    fontSize: 11,
+    color: Colors.whiteMuted,
+  },
+  txAmount: {
+    alignItems: "flex-end",
+  },
+  txTokens: {
+    fontSize: 16,
+    fontFamily: "PlayfairDisplay_700Bold",
+  },
+  txTokenLabel: {
+    fontSize: 9,
+    color: Colors.whiteMuted,
+    textTransform: "uppercase" as const,
+    letterSpacing: 0.5,
+  },
   revenueLinks: {
     gap: 10,
+    marginBottom: 20,
   },
   revenueCard: {
     flexDirection: "row",
@@ -526,157 +638,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.whiteDim,
     lineHeight: 16,
-  },
-  setupCard: {
-    backgroundColor: Colors.card,
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    marginBottom: 20,
-  },
-  setupTitle: {
-    fontSize: 16,
-    fontFamily: "PlayfairDisplay_700Bold",
-    color: Colors.gold,
-    marginBottom: 8,
-  },
-  setupDescription: {
-    fontSize: 13,
-    color: Colors.whiteDim,
-    lineHeight: 20,
-    marginBottom: 16,
-  },
-  setupSteps: {
-    gap: 12,
-  },
-  stepRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 12,
-  },
-  stepNumber: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: "rgba(212, 164, 32, 0.2)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  stepNumberText: {
-    fontSize: 12,
-    fontFamily: "PlayfairDisplay_700Bold",
-    color: Colors.gold,
-  },
-  stepText: {
-    flex: 1,
-    fontSize: 13,
-    color: Colors.whiteDim,
-    lineHeight: 20,
-  },
-  dangerButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    backgroundColor: "rgba(204, 51, 51, 0.1)",
-    borderRadius: 14,
-    paddingVertical: 16,
-    borderWidth: 1,
-    borderColor: "rgba(204, 51, 51, 0.3)",
-    marginBottom: 20,
-  },
-  dangerButtonPressed: {
-    opacity: 0.7,
-  },
-  dangerButtonText: {
-    fontSize: 15,
-    color: Colors.redLight,
-    fontWeight: "600" as const,
-  },
-  cryptoWallets: {
-    gap: 12,
-  },
-  cryptoCard: {
-    backgroundColor: Colors.card,
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  cryptoHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  cryptoIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cryptoInfo: {
-    flex: 1,
-  },
-  cryptoCoinName: {
-    fontSize: 16,
-    fontFamily: "PlayfairDisplay_700Bold",
-    color: Colors.white,
-  },
-  cryptoSymbol: {
-    fontSize: 12,
-    fontWeight: "700" as const,
-    letterSpacing: 1,
-  },
-  cryptoActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  cryptoCopyBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(212, 164, 32, 0.12)",
-  },
-  cryptoEditBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.06)",
-  },
-  cryptoInput: {
-    marginTop: 12,
-    backgroundColor: "rgba(255, 255, 255, 0.06)",
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    fontSize: 13,
-    color: Colors.white,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-  },
-  cryptoAddress: {
-    marginTop: 10,
-    fontSize: 12,
-    color: Colors.whiteDim,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-    backgroundColor: "rgba(255, 255, 255, 0.04)",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    overflow: "hidden",
-  },
-  cryptoPlaceholder: {
-    marginTop: 10,
-    fontSize: 12,
-    color: Colors.whiteMuted,
-    fontStyle: "italic",
   },
 });

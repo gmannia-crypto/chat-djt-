@@ -327,7 +327,21 @@ export default function HomeScreen() {
             <Text style={styles.glossyHeaderLabel}>Archive</Text>
           </Pressable>
         </View>
-        <View style={styles.headerRight} />
+        <View style={styles.headerRight}>
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push("/admin");
+            }}
+            style={styles.glossyHeaderBtn}
+            testID="admin-button"
+          >
+            <View style={styles.glossyHeaderCircle}>
+              <MaterialCommunityIcons name="shield-crown" size={18} color="#1A1000" />
+            </View>
+            <Text style={styles.glossyHeaderLabel}>Office</Text>
+          </Pressable>
+        </View>
       </Animated.View>
 
       <View style={styles.centerContent} />
