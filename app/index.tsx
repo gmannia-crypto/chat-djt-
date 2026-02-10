@@ -328,7 +328,7 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + webTopInset }]}>
-      <Pressable style={styles.woodFrameOuter} onPress={handleSecretTap}>
+      <View style={styles.woodFrameOuter}>
         <View style={styles.woodFrameInner}>
           <Image
             source={require("@/assets/images/djt-logo.png")}
@@ -336,7 +336,7 @@ export default function HomeScreen() {
             resizeMode="cover"
           />
         </View>
-      </Pressable>
+      </View>
       <LinearGradient
         colors={["rgba(10, 10, 10, 0)", "rgba(10, 10, 10, 0.1)", "rgba(10, 10, 10, 0.7)"]}
         style={styles.backgroundOverlay}
@@ -367,7 +367,7 @@ export default function HomeScreen() {
         <View style={styles.headerRight} />
       </Animated.View>
 
-      <View style={styles.centerContent} />
+      <Pressable style={styles.centerContent} onPress={handleSecretTap} testID="secret-tap-area" />
 
       <View
         style={[
