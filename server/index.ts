@@ -152,6 +152,39 @@ function getAppName(): string {
   }
 }
 
+function generateFallbackManifest(platform: string): object {
+  try {
+    const appJsonPath = path.resolve(process.cwd(), "app.json");
+    const appJsonContent = fs.readFileSync(appJsonPath, "utf-8");
+    const appJson = JSON.parse(appJsonContent);
+    const config = appJson.expo || appJson;
+    const timestamp = Date.now().toString();
+
+    return {
+      id: `${config.slug || "app"}-${platform}-${timestamp}`,
+      createdAt: new Date().toISOString(),
+      runtimeVersion: config.runtimeVersion || config.version || "1.0.0",
+      launchAsset: { url: "", key: `bundle-${timestamp}` },
+      assets: [],
+      metadata: {},
+      extra: {
+        expoClient: {
+          name: config.name || "App",
+          slug: config.slug || "app",
+          version: config.version || "1.0.0",
+          orientation: config.orientation || "default",
+          userInterfaceStyle: config.userInterfaceStyle || "automatic",
+          ios: config.ios || {},
+          android: config.android || {},
+          web: config.web || {},
+        },
+      },
+    };
+  } catch {
+    return { id: "app", createdAt: new Date().toISOString(), assets: [] };
+  }
+}
+
 function serveExpoManifest(platform: string, res: Response) {
   const manifestPath = path.resolve(
     process.cwd(),
@@ -160,18 +193,17 @@ function serveExpoManifest(platform: string, res: Response) {
     "manifest.json",
   );
 
-  if (!fs.existsSync(manifestPath)) {
-    return res
-      .status(404)
-      .json({ error: `Manifest not found for platform: ${platform}` });
-  }
-
   res.setHeader("expo-protocol-version", "1");
   res.setHeader("expo-sfv-version", "0");
   res.setHeader("content-type", "application/json");
 
-  const manifest = fs.readFileSync(manifestPath, "utf-8");
-  res.send(manifest);
+  if (fs.existsSync(manifestPath)) {
+    const manifest = fs.readFileSync(manifestPath, "utf-8");
+    return res.send(manifest);
+  }
+
+  const fallback = generateFallbackManifest(platform);
+  res.json(fallback);
 }
 
 function serveLandingPage({
@@ -273,6 +305,10 @@ function configureExpoAndLanding(app: express.Application) {
       if (req.path === "/" || req.path === "/manifest") {
         return serveExpoManifest(platform, res);
       }
+    }
+
+    if (req.path === "/manifest" && !platform) {
+      return serveExpoManifest("ios", res);
     }
 
     if (isDev) {
