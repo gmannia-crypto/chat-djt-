@@ -211,46 +211,62 @@ async function downloadBundle(platform, timestamp) {
   console.log(`${platform} bundle ready`);
 }
 
-async function downloadManifest(platform) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 300_000);
+function generateManifest(platform, timestamp, baseUrl) {
+  console.log(`Generating ${platform} manifest...`);
+  const appJson = JSON.parse(fs.readFileSync("app.json", "utf-8"));
+  const config = appJson.expo || appJson;
+  const id = `${config.slug || "app"}-${platform}-${timestamp}`;
+  const host = baseUrl.replace("https://", "");
 
-  try {
-    console.log(`Fetching ${platform} manifest...`);
-    const response = await fetch("http://localhost:8081/manifest", {
-      headers: { "expo-platform": platform },
-      signal: controller.signal,
-    });
+  const manifest = {
+    id,
+    createdAt: new Date().toISOString(),
+    runtimeVersion: config.runtimeVersion || config.version || "1.0.0",
+    launchAsset: {
+      url: `${baseUrl}/${timestamp}/_expo/static/js/${platform}/bundle.js`,
+      key: `bundle-${timestamp}`,
+    },
+    assets: [],
+    metadata: {},
+    extra: {
+      expoClient: {
+        name: config.name || "App",
+        slug: config.slug || "app",
+        version: config.version || "1.0.0",
+        orientation: config.orientation || "default",
+        icon: config.icon || "",
+        scheme: config.scheme || "",
+        userInterfaceStyle: config.userInterfaceStyle || "automatic",
+        splash: config.splash || {},
+        ios: config.ios || {},
+        android: config.android || {},
+        web: config.web || {},
+        plugins: config.plugins || [],
+        experiments: config.experiments || {},
+        hostUri: `${host}/${platform}`,
+        _internal: { isDebug: false },
+      },
+      expoGo: {
+        debuggerHost: `${host}/${platform}`,
+        developer: { tool: "expo-cli" },
+        packagerOpts: { dev: false },
+        mainModuleName: "node_modules/expo-router/entry",
+      },
+    },
+  };
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-
-    const manifest = await response.json();
-    console.log(`${platform} manifest ready`);
-    return manifest;
-  } catch (error) {
-    if (error.name === "AbortError") {
-      throw new Error(
-        `Manifest download timeout after 5m for platform: ${platform}`,
-      );
-    }
-    throw error;
-  } finally {
-    clearTimeout(timeoutId);
-  }
+  console.log(`${platform} manifest generated`);
+  return manifest;
 }
 
-async function downloadBundlesAndManifests(timestamp) {
-  console.log("Downloading bundles and manifests...");
+async function downloadBundles(timestamp) {
+  console.log("Downloading bundles...");
   console.log("This may take several minutes for production builds...");
 
   try {
     const results = await Promise.allSettled([
       downloadBundle("ios", timestamp),
       downloadBundle("android", timestamp),
-      downloadManifest("ios"),
-      downloadManifest("android"),
     ]);
 
     const failures = results
@@ -259,25 +275,14 @@ async function downloadBundlesAndManifests(timestamp) {
 
     if (failures.length > 0) {
       const errorMessages = failures.map(({ result, index }) => {
-        const names = [
-          "iOS bundle",
-          "Android bundle",
-          "iOS manifest",
-          "Android manifest",
-        ];
+        const names = ["iOS bundle", "Android bundle"];
         return `  - ${names[index]}: ${result.reason?.message || result.reason}`;
       });
 
       exitWithError(`Download failed:\n${errorMessages.join("\n")}`);
     }
 
-    const iosManifest =
-      results[2].status === "fulfilled" ? results[2].value : null;
-    const androidManifest =
-      results[3].status === "fulfilled" ? results[3].value : null;
-
-    console.log("All downloads completed successfully");
-    return { ios: iosManifest, android: androidManifest };
+    console.log("All bundles downloaded successfully");
   } catch (error) {
     exitWithError(`Unexpected download error: ${error.message}`);
   }
@@ -511,7 +516,7 @@ async function main() {
   await startMetro(domain);
 
   const downloadTimeout = 300000;
-  const downloadPromise = downloadBundlesAndManifests(timestamp);
+  const downloadPromise = downloadBundles(timestamp);
   const timeoutPromise = new Promise((_, reject) => {
     setTimeout(() => {
       reject(
@@ -523,7 +528,12 @@ async function main() {
     }, downloadTimeout);
   });
 
-  const manifests = await Promise.race([downloadPromise, timeoutPromise]);
+  await Promise.race([downloadPromise, timeoutPromise]);
+
+  const manifests = {
+    ios: generateManifest("ios", timestamp, baseUrl),
+    android: generateManifest("android", timestamp, baseUrl),
+  };
 
   console.log("Processing assets...");
   const assets = extractAssets(timestamp);
