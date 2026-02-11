@@ -558,7 +558,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const speed = 1.0;
 
-      const audioBuffer = await trumpTextToSpeech(truncatedText, speed, mood || "CALM", speechCategory || "CASUAL_TALK");
+      const rawAudio = await trumpTextToSpeech(truncatedText, speed, mood || "CALM", speechCategory || "CASUAL_TALK");
+      const audioBuffer = await overlayBleeps(rawAudio, truncatedText);
 
       res.setHeader("Content-Type", "audio/mpeg");
       res.setHeader("Content-Length", audioBuffer.length.toString());
