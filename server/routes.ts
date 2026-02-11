@@ -1,5 +1,10 @@
 import type { Express } from "express";
 import { createServer, type Server } from "node:http";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { writeFileSync, readFileSync, unlinkSync, existsSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import OpenAI from "openai";
 import { XMLParser } from "fast-xml-parser";
 import { Pool } from "pg";
@@ -221,6 +226,110 @@ RESPONSE RULES:
 - Use occasional ALL CAPS for emphasis on key points
 - Keep responses conversational and engaging
 - Match the emotional weight of the question — serious questions get passionate serious answers, fun questions get enthusiastic fun answers`;
+
+const execFileAsync = promisify(execFile);
+
+const CURSE_WORDS = [
+  "motherfucker", "motherfuckers", "motherfucking",
+  "fuck", "fucking", "fucked", "fucker", "fuckers", "fucks",
+  "shit", "shitty", "shitting", "bullshit", "horseshit",
+  "bitch", "bitches", "bitching",
+  "ass", "asshole", "assholes", "asses",
+  "damn", "damned", "goddamn", "goddamned",
+];
+
+const CURSE_REGEX = new RegExp(
+  `\\b(${CURSE_WORDS.join("|")})\\b`,
+  "gi"
+);
+
+async function getAudioDuration(audioBuffer: Buffer): Promise<number> {
+  const tmpIn = join(tmpdir(), `bleep-dur-${Date.now()}.mp3`);
+  try {
+    writeFileSync(tmpIn, audioBuffer);
+    const { stdout } = await execFileAsync("ffprobe", [
+      "-v", "error",
+      "-show_entries", "format=duration",
+      "-of", "default=noprint_wrappers=1:nokey=1",
+      tmpIn,
+    ]);
+    return parseFloat(stdout.trim());
+  } finally {
+    if (existsSync(tmpIn)) unlinkSync(tmpIn);
+  }
+}
+
+function findCursePositions(text: string): Array<{ start: number; end: number; word: string }> {
+  const positions: Array<{ start: number; end: number; word: string }> = [];
+  let match;
+  while ((match = CURSE_REGEX.exec(text)) !== null) {
+    positions.push({
+      start: match.index,
+      end: match.index + match[0].length,
+      word: match[0],
+    });
+  }
+  return positions;
+}
+
+async function overlayBleeps(audioBuffer: Buffer, text: string): Promise<Buffer> {
+  const cursePositions = findCursePositions(text);
+  if (cursePositions.length === 0) return audioBuffer;
+
+  const duration = await getAudioDuration(audioBuffer);
+  const totalChars = text.length;
+
+  const bleepTimings = cursePositions.map((pos) => {
+    const startRatio = pos.start / totalChars;
+    const endRatio = pos.end / totalChars;
+    const startTime = Math.max(0, startRatio * duration - 0.05);
+    const endTime = Math.min(duration, endRatio * duration + 0.05);
+    return { startTime, endTime, word: pos.word };
+  });
+
+  console.log(`Bleep overlay: ${bleepTimings.length} curse word(s) in ${duration.toFixed(1)}s audio`);
+  bleepTimings.forEach((b) => console.log(`  - "${b.word}" at ${b.startTime.toFixed(2)}s-${b.endTime.toFixed(2)}s`));
+
+  const uid = Date.now() + "-" + Math.random().toString(36).slice(2, 8);
+  const tmpIn = join(tmpdir(), `bleep-in-${uid}.mp3`);
+  const tmpOut = join(tmpdir(), `bleep-out-${uid}.mp3`);
+
+  try {
+    writeFileSync(tmpIn, audioBuffer);
+
+    const volumeEnable = bleepTimings
+      .map((b) => `between(t,${b.startTime.toFixed(3)},${b.endTime.toFixed(3)})`)
+      .join("+");
+
+    const filterComplex = [
+      `sine=frequency=1000:duration=${duration.toFixed(3)}:sample_rate=44100,aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=mono[bleep]`,
+      `[bleep]volume='if(${volumeEnable},0.25,0)':eval=frame[bleepgated]`,
+      `[0:a]aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=mono[voice]`,
+      `[voice][bleepgated]amix=inputs=2:duration=first:normalize=0[out]`,
+    ].join(";");
+
+    const ffmpegArgs = [
+      "-i", tmpIn,
+      "-f", "lavfi", "-i", "anullsrc=r=44100:cl=mono",
+      "-filter_complex", filterComplex,
+      "-map", "[out]",
+      "-t", duration.toFixed(3),
+      "-b:a", "128k",
+      "-y", tmpOut,
+    ];
+
+    await execFileAsync("ffmpeg", ffmpegArgs, { timeout: 30000 });
+
+    const result = readFileSync(tmpOut);
+    return result;
+  } catch (error: any) {
+    console.error("Bleep overlay failed, returning original audio:", error.message);
+    return audioBuffer;
+  } finally {
+    if (existsSync(tmpIn)) unlinkSync(tmpIn);
+    if (existsSync(tmpOut)) unlinkSync(tmpOut);
+  }
+}
 
 async function trumpTextToSpeech(text: string, speed: number = 1.0, mood: string = "CALM", speechCategory: string = "CASUAL_TALK"): Promise<Buffer> {
   const apiKey = process.env.FISH_AUDIO_API_KEY;
