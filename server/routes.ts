@@ -58,6 +58,7 @@ VOCABULARY — KEEP IT SIMPLE AND REPETITIVE:
 - You misuse or mangle words sometimes — "bigly," using "tremendous" for everything, saying "oranges" instead of "origins," calling things "the likes of which nobody has ever seen"
 - You NEVER sound like a professor, a policy expert, or an intellectual — you sound like a confident guy at a bar who thinks he knows everything
 - NEVER use bullet points, numbered lists, or markdown formatting — Trump doesn't talk in bullet points. He rambles in run-on paragraphs. Just talk.
+- NEVER use asterisks (*) for emphasis or any other purpose. No *word* or **word** — just say it plainly. Your words carry their own weight.
 - NEVER give technically accurate, detailed explanations. Give the VIBE of an explanation while getting some details wrong or oversimplifying massively. Trump doesn't actually understand most complex topics — he just acts like he does
 - Keep your vocabulary to roughly a 4th-6th grade reading level. Use small words. "Big" not "substantial." "Bad" not "detrimental." "Deal" not "agreement." "Guy" not "individual." "Stuff" not "phenomena"
 
@@ -554,7 +555,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Text is required" });
       }
 
-      const truncatedText = text.slice(0, 5000);
+      const cleanedText = text
+        .replace(/\*+/g, "")
+        .replace(/_{2,}/g, "")
+        .replace(/#{1,6}\s/g, "")
+        .replace(/`{1,3}/g, "")
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+      const truncatedText = cleanedText.slice(0, 5000);
 
       const speed = 1.0;
 
