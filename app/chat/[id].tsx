@@ -60,8 +60,53 @@ interface FileAttachment {
   textContent?: string;
 }
 
-const TRUMP_VOICE_KEY = "chatdjt_trump_voice";
 const AUTO_SPEAK_KEY = "chatdjt_auto_speak";
+
+interface StarterPrompt {
+  icon: string;
+  text: string;
+  label: string;
+}
+
+const CONVERSATION_STARTERS: StarterPrompt[] = [
+  { icon: "trending-up", text: "What's happening with the economy right now?", label: "Economy" },
+  { icon: "globe", text: "Give me your take on what's going on in the world", label: "World News" },
+  { icon: "flash", text: "Tell me something nobody else has the guts to say", label: "Unfiltered" },
+  { icon: "trophy", text: "What was your greatest accomplishment as president?", label: "Greatest Hits" },
+  { icon: "chatbubbles", text: "Roast me like you roast your opponents", label: "Roast Me" },
+  { icon: "megaphone", text: "Give me a rally speech about making America great", label: "Rally Mode" },
+];
+
+function StarterButton({
+  starter,
+  index,
+  onPress,
+  disabled,
+}: {
+  starter: StarterPrompt;
+  index: number;
+  onPress: () => void;
+  disabled: boolean;
+}) {
+  const animStyle = useAnimatedStyle(() => ({ opacity: 1 }));
+  return (
+    <Animated.View entering={FadeInDown.delay(300 + index * 80).duration(400)} style={animStyle}>
+      <Pressable
+        onPress={onPress}
+        disabled={disabled}
+        style={({ pressed }) => [
+          styles.starterButton,
+          pressed && styles.starterButtonPressed,
+          disabled && { opacity: 0.5 },
+        ]}
+        testID={`starter-${index}`}
+      >
+        <Ionicons name={starter.icon as any} size={16} color={Colors.gold} style={{ marginRight: 8 }} />
+        <Text style={styles.starterLabel} numberOfLines={1}>{starter.label}</Text>
+      </Pressable>
+    </Animated.View>
+  );
+}
 
 let currentPlayer: ExpoAudioPlayer | HTMLAudioElement | null = null;
 let lastAudioUri: string | null = null;
@@ -86,7 +131,8 @@ function MessageBubble({
   const isUser = message.role === "user";
 
   return (
-    <View
+    <Animated.View
+      entering={FadeIn.duration(250)}
       style={[
         styles.bubbleRow,
         isUser ? styles.bubbleRowUser : styles.bubbleRowAssistant,
@@ -126,7 +172,7 @@ function MessageBubble({
           </Text>
         </View>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -1121,8 +1167,8 @@ export default function ChatScreen() {
     setIsLoading(false);
   }
 
-  async function handleSend() {
-    const text = inputText.trim();
+  async function handleSend(overrideText?: string) {
+    const text = (overrideText || inputText).trim();
     const currentAttachment = attachment;
     if ((!text && !currentAttachment) || isStreaming) return;
 
@@ -1377,7 +1423,7 @@ export default function ChatScreen() {
               >
                 <MaterialCommunityIcons
                   name="crown"
-                  size={48}
+                  size={40}
                   color={Colors.gold}
                 />
                 <Text style={styles.welcomeTitle}>
@@ -1387,6 +1433,21 @@ export default function ChatScreen() {
                   I know more about everything than anybody. Believe me. Go ahead, ask!
                 </Text>
               </Animated.View>
+              <View style={styles.startersGrid}>
+                {CONVERSATION_STARTERS.map((starter, index) => (
+                  <StarterButton
+                    key={starter.text}
+                    starter={starter}
+                    index={index}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                      setInputText(starter.text);
+                      setTimeout(() => handleSend(starter.text), 100);
+                    }}
+                    disabled={isStreaming}
+                  />
+                ))}
+              </View>
             </View>
           }
           contentContainerStyle={[
@@ -1723,6 +1784,33 @@ const styles = StyleSheet.create({
     color: Colors.whiteDim,
     textAlign: "center",
     lineHeight: 22,
+  },
+  startersGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 10,
+    marginTop: 24,
+    paddingHorizontal: 20,
+  },
+  starterButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(212, 164, 32, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(212, 164, 32, 0.25)",
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  starterButtonPressed: {
+    backgroundColor: "rgba(212, 164, 32, 0.2)",
+    borderColor: Colors.gold,
+  },
+  starterLabel: {
+    fontSize: 13,
+    color: Colors.whiteDim,
+    fontWeight: "500" as const,
   },
   inputContainer: {
     paddingHorizontal: 16,
