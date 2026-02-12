@@ -1117,43 +1117,78 @@ var app = express();
 var log = console.log;
 var METRO_PORT = 8082;
 var metroProcess = null;
-function spawnMetro() {
-  if (process.env.NODE_ENV !== "development") return;
-  try {
-    const result = execSync(
-      `ps aux | grep "expo.*start.*--port.*${METRO_PORT}" | grep -v grep | awk '{print $2}'`,
-      { encoding: "utf-8" }
-    ).trim();
-    if (result) {
-      for (const pid of result.split("\n")) {
-        try {
-          process.kill(Number(pid), "SIGKILL");
-        } catch {
-        }
+var shuttingDown = false;
+function isPortInUse(port) {
+  return new Promise((resolve2) => {
+    const server = net.createServer();
+    server.once("error", () => resolve2(true));
+    server.once("listening", () => {
+      server.close();
+      resolve2(false);
+    });
+    server.listen(port, "127.0.0.1");
+  });
+}
+async function spawnMetro() {
+  if (process.env.NODE_ENV !== "development" || shuttingDown) return;
+  const portBusy = await isPortInUse(METRO_PORT);
+  if (portBusy) {
+    try {
+      const res = await fetch(`http://127.0.0.1:${METRO_PORT}/status`);
+      const text = await res.text();
+      if (text.includes("packager-status:running")) {
+        log(`Metro already running on port ${METRO_PORT}, reusing`);
+        return;
       }
-      log(`Killed stale Metro on port ${METRO_PORT}`);
+    } catch {
     }
-  } catch {
+    try {
+      const result = execSync(
+        `lsof -ti :${METRO_PORT} 2>/dev/null`,
+        { encoding: "utf-8" }
+      ).trim();
+      if (result) {
+        for (const pid of result.split("\n")) {
+          try {
+            process.kill(Number(pid), "SIGKILL");
+          } catch {
+          }
+        }
+        log(`Killed stale process on port ${METRO_PORT}`);
+        await new Promise((r) => setTimeout(r, 1e3));
+      }
+    } catch {
+    }
   }
   const expoCli = path.resolve(process.cwd(), "node_modules", "expo", "bin", "cli");
   log(`Spawning Metro bundler on port ${METRO_PORT}...`);
+  const devDomain = process.env.REPLIT_DEV_DOMAIN || "";
   metroProcess = spawn(process.execPath, [expoCli, "start", "--port", String(METRO_PORT)], {
     cwd: process.cwd(),
-    env: { ...process.env, CI: "0" },
+    env: {
+      ...process.env,
+      CI: "0",
+      EXPO_PACKAGER_PROXY_URL: devDomain ? `https://${devDomain}` : "",
+      REACT_NATIVE_PACKAGER_HOSTNAME: devDomain || "localhost"
+    },
     stdio: ["pipe", "inherit", "inherit"]
   });
   metroProcess.on("exit", (code) => {
-    log(`Metro exited with code ${code}, restarting in 5s...`);
     metroProcess = null;
-    setTimeout(spawnMetro, 5e3);
-  });
-  process.on("SIGTERM", () => {
-    metroProcess?.kill("SIGTERM");
-  });
-  process.on("SIGINT", () => {
-    metroProcess?.kill("SIGINT");
+    if (!shuttingDown) {
+      log(`Metro exited with code ${code}, restarting in 10s...`);
+      setTimeout(spawnMetro, 1e4);
+    }
   });
 }
+process.on("SIGTERM", () => {
+  shuttingDown = true;
+  metroProcess?.kill("SIGTERM");
+});
+process.on("SIGINT", () => {
+  shuttingDown = true;
+  metroProcess?.kill("SIGINT");
+});
 function setupCors(app2) {
   app2.use((req, res, next) => {
     const origins = /* @__PURE__ */ new Set();
@@ -1350,6 +1385,12 @@ function configureExpoAndLanding(app2) {
     if (req.path.startsWith("/api") || req.path === "/status") {
       return next();
     }
+    if (isDev) {
+      if (req.path === "/server/assets" || req.path.startsWith("/server/assets/")) {
+        return next();
+      }
+      return proxyToMetro(req, res);
+    }
     const platform = req.header("expo-platform");
     if (platform && (platform === "ios" || platform === "android")) {
       if (req.path === "/" || req.path === "/manifest") {
@@ -1358,12 +1399,6 @@ function configureExpoAndLanding(app2) {
     }
     if (req.path === "/manifest" && !platform) {
       return serveExpoManifest("ios", res);
-    }
-    if (isDev) {
-      if (req.path === "/server/assets" || req.path.startsWith("/server/assets/")) {
-        return next();
-      }
-      return proxyToMetro(req, res);
     }
     if (req.path === "/") {
       return serveLandingPage({
@@ -1471,8 +1506,7 @@ async function initStripe() {
   server.listen(
     {
       port,
-      host: "0.0.0.0",
-      reusePort: true
+      host: "0.0.0.0"
     },
     () => {
       log(`express server serving on port ${port}`);
