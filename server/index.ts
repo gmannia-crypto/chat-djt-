@@ -16,22 +16,44 @@ const log = console.log;
 
 const METRO_PORT = 8082;
 let metroProcess: ReturnType<typeof spawn> | null = null;
+let shuttingDown = false;
 
-function spawnMetro() {
-  if (process.env.NODE_ENV !== "development") return;
+function isPortInUse(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    server.once("error", () => resolve(true));
+    server.once("listening", () => { server.close(); resolve(false); });
+    server.listen(port, "127.0.0.1");
+  });
+}
 
-  try {
-    const result = execSync(
-      `ps aux | grep "expo.*start.*--port.*${METRO_PORT}" | grep -v grep | awk '{print $2}'`,
-      { encoding: "utf-8" }
-    ).trim();
-    if (result) {
-      for (const pid of result.split("\n")) {
-        try { process.kill(Number(pid), "SIGKILL"); } catch {}
+async function spawnMetro() {
+  if (process.env.NODE_ENV !== "development" || shuttingDown) return;
+
+  const portBusy = await isPortInUse(METRO_PORT);
+  if (portBusy) {
+    try {
+      const res = await fetch(`http://127.0.0.1:${METRO_PORT}/status`);
+      const text = await res.text();
+      if (text.includes("packager-status:running")) {
+        log(`Metro already running on port ${METRO_PORT}, reusing`);
+        return;
       }
-      log(`Killed stale Metro on port ${METRO_PORT}`);
-    }
-  } catch {}
+    } catch {}
+    try {
+      const result = execSync(
+        `lsof -ti :${METRO_PORT} 2>/dev/null`,
+        { encoding: "utf-8" }
+      ).trim();
+      if (result) {
+        for (const pid of result.split("\n")) {
+          try { process.kill(Number(pid), "SIGKILL"); } catch {}
+        }
+        log(`Killed stale process on port ${METRO_PORT}`);
+        await new Promise(r => setTimeout(r, 1000));
+      }
+    } catch {}
+  }
 
   const expoCli = path.resolve(process.cwd(), "node_modules", "expo", "bin", "cli");
   log(`Spawning Metro bundler on port ${METRO_PORT}...`);
@@ -48,14 +70,16 @@ function spawnMetro() {
   });
 
   metroProcess.on("exit", (code) => {
-    log(`Metro exited with code ${code}, restarting in 5s...`);
     metroProcess = null;
-    setTimeout(spawnMetro, 5000);
+    if (!shuttingDown) {
+      log(`Metro exited with code ${code}, restarting in 10s...`);
+      setTimeout(spawnMetro, 10000);
+    }
   });
-
-  process.on("SIGTERM", () => { metroProcess?.kill("SIGTERM"); });
-  process.on("SIGINT", () => { metroProcess?.kill("SIGINT"); });
 }
+
+process.on("SIGTERM", () => { shuttingDown = true; metroProcess?.kill("SIGTERM"); });
+process.on("SIGINT", () => { shuttingDown = true; metroProcess?.kill("SIGINT"); });
 
 declare module "http" {
   interface IncomingMessage {
@@ -460,7 +484,6 @@ async function initStripe() {
     {
       port,
       host: "0.0.0.0",
-      reusePort: true,
     },
     () => {
       log(`express server serving on port ${port}`);

@@ -1,8 +1,22 @@
 const http = require("http");
 const net = require("net");
+const { execSync } = require("child_process");
 
 const METRO_PORT = 8082;
 const LISTEN_PORT = 8081;
+
+try {
+  const pids = execSync(`lsof -ti :${LISTEN_PORT} 2>/dev/null`, { encoding: "utf-8" }).trim();
+  if (pids) {
+    for (const pid of pids.split("\n")) {
+      const p = Number(pid);
+      if (p && p !== process.pid) {
+        try { process.kill(p, "SIGKILL"); } catch {}
+      }
+    }
+    console.log(`Killed stale processes on port ${LISTEN_PORT}`);
+  }
+} catch {}
 
 const server = http.createServer((req, res) => {
   const options = {
@@ -44,10 +58,14 @@ function startServer(attempt) {
     console.log(`Frontend proxy on port ${LISTEN_PORT} -> Metro on ${METRO_PORT}`);
   });
   server.on("error", (err) => {
-    if (err.code === "EADDRINUSE" && attempt <= 5) {
-      console.log(`Port ${LISTEN_PORT} busy, retrying (attempt ${attempt}/5)...`);
+    if (err.code === "EADDRINUSE" && attempt <= 3) {
+      console.log(`Port ${LISTEN_PORT} busy, force killing and retrying (attempt ${attempt}/3)...`);
+      try {
+        execSync(`lsof -ti :${LISTEN_PORT} 2>/dev/null | xargs kill -9 2>/dev/null`, { encoding: "utf-8" });
+      } catch {}
       setTimeout(() => {
         server.removeAllListeners("error");
+        server.close(() => {});
         startServer(attempt + 1);
       }, 2000);
     } else {
