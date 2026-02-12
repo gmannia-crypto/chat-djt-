@@ -35,9 +35,15 @@ function spawnMetro() {
 
   const expoCli = path.resolve(process.cwd(), "node_modules", "expo", "bin", "cli");
   log(`Spawning Metro bundler on port ${METRO_PORT}...`);
+  const devDomain = process.env.REPLIT_DEV_DOMAIN || "";
   metroProcess = spawn(process.execPath, [expoCli, "start", "--port", String(METRO_PORT)], {
     cwd: process.cwd(),
-    env: { ...process.env, CI: "0" },
+    env: {
+      ...process.env,
+      CI: "0",
+      EXPO_PACKAGER_PROXY_URL: devDomain ? `https://${devDomain}` : "",
+      REACT_NATIVE_PACKAGER_HOSTNAME: devDomain || "localhost",
+    },
     stdio: ["pipe", "inherit", "inherit"],
   });
 
@@ -300,6 +306,13 @@ function configureExpoAndLanding(app: express.Application) {
       return next();
     }
 
+    if (isDev) {
+      if (req.path === "/server/assets" || req.path.startsWith("/server/assets/")) {
+        return next();
+      }
+      return proxyToMetro(req, res);
+    }
+
     const platform = req.header("expo-platform");
     if (platform && (platform === "ios" || platform === "android")) {
       if (req.path === "/" || req.path === "/manifest") {
@@ -309,13 +322,6 @@ function configureExpoAndLanding(app: express.Application) {
 
     if (req.path === "/manifest" && !platform) {
       return serveExpoManifest("ios", res);
-    }
-
-    if (isDev) {
-      if (req.path === "/server/assets" || req.path.startsWith("/server/assets/")) {
-        return next();
-      }
-      return proxyToMetro(req, res);
     }
 
     if (req.path === "/") {

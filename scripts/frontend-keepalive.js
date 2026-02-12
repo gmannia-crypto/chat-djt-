@@ -17,8 +17,8 @@ const server = http.createServer((req, res) => {
     proxyRes.pipe(res, { end: true });
   });
   proxyReq.on("error", () => {
-    res.writeHead(200);
-    res.end("ok");
+    res.writeHead(200, { "content-type": "text/html" });
+    res.end('<!DOCTYPE html><html><head><meta http-equiv="refresh" content="3"></head><body style="background:#0A0A0A;color:#D4A420;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif"><h2>Starting up...</h2></body></html>');
   });
   req.pipe(proxyReq, { end: true });
 });
@@ -44,8 +44,8 @@ function startServer(attempt) {
     console.log(`Frontend proxy on port ${LISTEN_PORT} -> Metro on ${METRO_PORT}`);
   });
   server.on("error", (err) => {
-    if (err.code === "EADDRINUSE" && attempt <= 3) {
-      console.log(`Port ${LISTEN_PORT} busy, retrying (attempt ${attempt}/3)...`);
+    if (err.code === "EADDRINUSE" && attempt <= 5) {
+      console.log(`Port ${LISTEN_PORT} busy, retrying (attempt ${attempt}/5)...`);
       setTimeout(() => {
         server.removeAllListeners("error");
         startServer(attempt + 1);
