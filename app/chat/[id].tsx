@@ -514,7 +514,7 @@ export default function ChatScreen() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [showTyping, setShowTyping] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [trumpVoice, setTrumpVoice] = useState(true);
+  const [trumpVoice] = useState(true);
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [autoSpeak, setAutoSpeak] = useState(true);
   const [messageMoods, setMessageMoods] = useState<Record<string, ChatMood>>({});
@@ -592,14 +592,7 @@ export default function ChatScreen() {
   }, [isRecording]);
 
   async function loadVoicePreference() {
-    try {
-      const saved = await AsyncStorage.getItem(TRUMP_VOICE_KEY);
-      if (saved !== null) {
-        const val = saved === "true";
-        setTrumpVoice(val);
-        trumpVoiceRef.current = val;
-      }
-    } catch {}
+    trumpVoiceRef.current = true;
   }
 
   async function loadAutoSpeakPreference() {
@@ -613,13 +606,6 @@ export default function ChatScreen() {
     } catch {}
   }
 
-  async function toggleTrumpVoice() {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const newVal = !trumpVoice;
-    setTrumpVoice(newVal);
-    trumpVoiceRef.current = newVal;
-    await AsyncStorage.setItem(TRUMP_VOICE_KEY, String(newVal));
-  }
 
   async function toggleAutoSpeak() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -1567,24 +1553,20 @@ export default function ChatScreen() {
               </View>
               <Text style={[styles.glossyIconLabel, !!lastAudioUri && !speakingMessageId && styles.glossyIconLabelActive]}>Replay</Text>
             </Pressable>
-            <Pressable
-              onPress={toggleTrumpVoice}
-              disabled={isStreaming}
+            <View
               style={[
                 styles.glossyIconWrap,
-                isStreaming && styles.glossyButtonDisabled,
               ]}
-              testID="voice-toggle"
             >
-              <View style={[styles.glossyIconCircle, trumpVoice && styles.glossyIconActive]}>
+              <View style={[styles.glossyIconCircle, styles.glossyIconActive]}>
                 <MaterialCommunityIcons
                   name="account-voice"
                   size={17}
                   color="#1A1000"
                 />
               </View>
-              <Text style={[styles.glossyIconLabel, trumpVoice && styles.glossyIconLabelActive]}>{trumpVoice ? "DJT" : "Spirit"}</Text>
-            </Pressable>
+              <Text style={[styles.glossyIconLabel, styles.glossyIconLabelActive]}>DJT</Text>
+            </View>
           </View>
         </View>
       </KeyboardAvoidingView>
