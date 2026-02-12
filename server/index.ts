@@ -189,11 +189,12 @@ function generateFallbackManifest(platform: string): object {
     const appJson = JSON.parse(appJsonContent);
     const config = appJson.expo || appJson;
     const timestamp = Date.now().toString();
+    const sdkVersion = getExpoSdkVersion();
 
     return {
       id: `${config.slug || "app"}-${platform}-${timestamp}`,
       createdAt: new Date().toISOString(),
-      runtimeVersion: config.runtimeVersion || config.version || "1.0.0",
+      runtimeVersion: `exposdk:${sdkVersion}`,
       launchAsset: { url: "", key: `bundle-${timestamp}` },
       assets: [],
       metadata: {},
@@ -202,8 +203,10 @@ function generateFallbackManifest(platform: string): object {
           name: config.name || "App",
           slug: config.slug || "app",
           version: config.version || "1.0.0",
+          sdkVersion,
           orientation: config.orientation || "default",
           userInterfaceStyle: config.userInterfaceStyle || "automatic",
+          platforms: ["ios", "android", "web"],
           ios: config.ios || {},
           android: config.android || {},
           web: config.web || {},
@@ -215,7 +218,17 @@ function generateFallbackManifest(platform: string): object {
   }
 }
 
-function serveExpoManifest(platform: string, res: Response) {
+function getExpoSdkVersion(): string {
+  try {
+    const pkgPath = path.resolve(process.cwd(), "node_modules", "expo", "package.json");
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
+    return pkg.version || "54.0.0";
+  } catch {
+    return "54.0.0";
+  }
+}
+
+function serveExpoManifest(platform: string, req: Request, res: Response) {
   const manifestPath = path.resolve(
     process.cwd(),
     "static-build",
@@ -228,8 +241,49 @@ function serveExpoManifest(platform: string, res: Response) {
   res.setHeader("content-type", "application/json");
 
   if (fs.existsSync(manifestPath)) {
-    const manifest = fs.readFileSync(manifestPath, "utf-8");
-    return res.send(manifest);
+    const manifestData = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+
+    const forwardedHost = req.header("x-forwarded-host");
+    const host = forwardedHost || req.get("host") || "";
+    const forwardedProto = req.header("x-forwarded-proto") || "https";
+    const currentBaseUrl = `${forwardedProto}://${host}`;
+
+    const sdkVersion = getExpoSdkVersion();
+    manifestData.runtimeVersion = `exposdk:${sdkVersion}`;
+
+    if (manifestData.launchAsset?.url) {
+      try {
+        const oldUrl = new URL(manifestData.launchAsset.url);
+        manifestData.launchAsset.url = `${currentBaseUrl}${oldUrl.pathname}`;
+      } catch {}
+    }
+
+    if (manifestData.extra?.expoClient) {
+      const client = manifestData.extra.expoClient;
+      client.sdkVersion = sdkVersion;
+      client.platforms = client.platforms || ["ios", "android", "web"];
+      client.hostUri = host;
+
+      if (client.splash?.imageUrl) {
+        client.splash.imageUrl = `${currentBaseUrl}/assets/images/splash-icon.png`;
+      }
+      if (client.iconUrl) {
+        client.iconUrl = `${currentBaseUrl}/assets/images/icon.png`;
+      }
+      if (client.android?.adaptiveIcon?.foregroundImageUrl) {
+        client.android.adaptiveIcon.foregroundImageUrl = `${currentBaseUrl}/assets/images/icon.png`;
+      }
+    }
+
+    if (!manifestData.extra) manifestData.extra = {};
+    manifestData.extra.expoGo = {
+      debuggerHost: host,
+      developer: { tool: "expo-cli" },
+      packagerOpts: { dev: false },
+      mainModuleName: "node_modules/expo-router/entry",
+    };
+
+    return res.json(manifestData);
   }
 
   const fallback = generateFallbackManifest(platform);
@@ -340,12 +394,12 @@ function configureExpoAndLanding(app: express.Application) {
     const platform = req.header("expo-platform");
     if (platform && (platform === "ios" || platform === "android")) {
       if (req.path === "/" || req.path === "/manifest") {
-        return serveExpoManifest(platform, res);
+        return serveExpoManifest(platform, req, res);
       }
     }
 
     if (req.path === "/manifest" && !platform) {
-      return serveExpoManifest("ios", res);
+      return serveExpoManifest("ios", req, res);
     }
 
     if (req.path === "/") {

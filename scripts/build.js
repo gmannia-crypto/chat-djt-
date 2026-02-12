@@ -222,7 +222,7 @@ function generateManifest(platform, timestamp, baseUrl) {
   const manifest = {
     id,
     createdAt: new Date().toISOString(),
-    runtimeVersion: config.runtimeVersion || config.version || "1.0.0",
+    runtimeVersion: config.runtimeVersion || (() => { try { const pkg = JSON.parse(fs.readFileSync("node_modules/expo/package.json", "utf-8")); return `exposdk:${pkg.version}`; } catch { return "1.0.0"; } })(),
     launchAsset: {
       url: `${baseUrl}/${timestamp}/_expo/static/js/${platform}/bundle.js`,
       key: `bundle-${timestamp}`,
