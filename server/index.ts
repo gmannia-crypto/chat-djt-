@@ -402,7 +402,10 @@ function configureExpoAndLanding(app: express.Application) {
       return serveExpoManifest("ios", req, res);
     }
 
-    if (req.path === "/") {
+    const distDir = path.resolve(process.cwd(), "dist");
+    const hasWebBuild = fs.existsSync(path.join(distDir, "index.html"));
+
+    if (req.path === "/" && !hasWebBuild) {
       return serveLandingPage({
         req,
         res,
@@ -417,6 +420,25 @@ function configureExpoAndLanding(app: express.Application) {
   app.use("/assets", express.static(path.resolve(process.cwd(), "assets")));
   app.use("/server/assets", express.static(path.resolve(process.cwd(), "server", "assets")));
   app.use(express.static(path.resolve(process.cwd(), "static-build")));
+
+  const distDir = path.resolve(process.cwd(), "dist");
+  if (fs.existsSync(distDir)) {
+    app.use(express.static(distDir));
+
+    app.get("*", (req: Request, res: Response, next: NextFunction) => {
+      if (req.path.startsWith("/api") || req.path === "/status" || req.path === "/manifest") {
+        return next();
+      }
+      const platform = req.header("expo-platform");
+      if (platform) return next();
+
+      const indexPath = path.join(distDir, "index.html");
+      if (fs.existsSync(indexPath)) {
+        return res.sendFile(indexPath);
+      }
+      next();
+    });
+  }
 
   log("Expo routing: Checking expo-platform header on / and /manifest");
 }
