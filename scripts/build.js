@@ -557,12 +557,69 @@ async function main() {
   console.log("Updating manifests and creating landing page...");
   updateManifests(manifests, timestamp, baseUrl, assetsByHash);
 
-  console.log("Build complete! Deploy to:", baseUrl);
-
   if (metroProcess) {
     metroProcess.kill();
+    metroProcess = null;
   }
+
+  console.log("Building web export...");
+  await buildWebExport(domain);
+
+  console.log("Build complete! Deploy to:", baseUrl);
   process.exit(0);
+}
+
+async function buildWebExport(domain) {
+  return new Promise((resolve, reject) => {
+    const env = {
+      ...process.env,
+      EXPO_PUBLIC_DOMAIN: domain + ":5000",
+      NODE_ENV: "production",
+      CI: "0",
+    };
+
+    const exportProcess = spawn("npx", ["expo", "export", "--platform", "web", "--output-dir", "dist"], {
+      stdio: ["pipe", "pipe", "pipe"],
+      env,
+      cwd: process.cwd(),
+    });
+
+    let stdout = "";
+    let stderr = "";
+    exportProcess.stdout.on("data", (data) => {
+      const text = data.toString();
+      stdout += text;
+      process.stdout.write(text);
+    });
+    exportProcess.stderr.on("data", (data) => {
+      const text = data.toString();
+      stderr += text;
+      process.stderr.write(text);
+    });
+
+    const timeout = setTimeout(() => {
+      exportProcess.kill();
+      reject(new Error("Web export timed out after 120 seconds"));
+    }, 120000);
+
+    exportProcess.on("close", (code) => {
+      clearTimeout(timeout);
+      if (code === 0) {
+        console.log("Web export completed successfully");
+        resolve();
+      } else {
+        console.warn("Web export failed (non-critical), app will still work via Expo Go");
+        console.warn("stderr:", stderr.slice(-500));
+        resolve();
+      }
+    });
+
+    exportProcess.on("error", (err) => {
+      clearTimeout(timeout);
+      console.warn("Web export error (non-critical):", err.message);
+      resolve();
+    });
+  });
 }
 
 main().catch((error) => {
