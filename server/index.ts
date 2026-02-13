@@ -425,7 +425,7 @@ function configureExpoAndLanding(app: express.Application) {
   if (fs.existsSync(distDir)) {
     app.use(express.static(distDir));
 
-    app.get("*", (req: Request, res: Response, next: NextFunction) => {
+    app.get("/{*path}", (req: Request, res: Response, next: NextFunction) => {
       if (req.path.startsWith("/api") || req.path === "/status" || req.path === "/manifest") {
         return next();
       }
