@@ -502,13 +502,41 @@ function updateManifests(manifests, timestamp, baseUrl, assetsByHash) {
   console.log("Manifests updated");
 }
 
+function hasExistingMobileBuild() {
+  const iosManifest = path.join("static-build", "ios", "manifest.json");
+  const androidManifest = path.join("static-build", "android", "manifest.json");
+  if (!fs.existsSync(iosManifest) || !fs.existsSync(androidManifest)) return false;
+
+  const dirs = fs.readdirSync("static-build").filter(d => {
+    const full = path.join("static-build", d);
+    return fs.statSync(full).isDirectory() && d !== "ios" && d !== "android";
+  });
+  if (dirs.length === 0) return false;
+
+  const bundleDir = dirs[0];
+  const iosBundle = path.join("static-build", bundleDir, "_expo", "static", "js", "ios", "bundle.js");
+  const androidBundle = path.join("static-build", bundleDir, "_expo", "static", "js", "android", "bundle.js");
+  return fs.existsSync(iosBundle) && fs.existsSync(androidBundle);
+}
+
 async function main() {
-  console.log("Building static Expo Go deployment...");
+  console.log("Building for deployment...");
 
   setupSignalHandlers();
 
   const domain = getDeploymentDomain();
   const baseUrl = `https://${domain}`;
+
+  if (hasExistingMobileBuild()) {
+    console.log("Existing mobile build found, skipping Metro bundle download");
+    console.log("Building web export only...");
+    await buildWebExport(domain);
+    console.log("Build complete! Deploy to:", baseUrl);
+    process.exit(0);
+    return;
+  }
+
+  console.log("No existing mobile build, running full build...");
   const timestamp = `${Date.now()}-${process.pid}`;
 
   prepareDirectories(timestamp);
