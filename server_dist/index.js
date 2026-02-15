@@ -1171,7 +1171,8 @@ async function spawnMetro() {
       ...process.env,
       CI: "0",
       EXPO_PACKAGER_PROXY_URL: devDomain ? `https://${devDomain}` : "",
-      REACT_NATIVE_PACKAGER_HOSTNAME: devDomain || "localhost"
+      REACT_NATIVE_PACKAGER_HOSTNAME: devDomain || "localhost",
+      EXPO_PUBLIC_DOMAIN: devDomain ? `${devDomain}` : "localhost:5000"
     },
     stdio: ["pipe", "inherit", "inherit"]
   });
@@ -1430,57 +1431,54 @@ function configureExpoAndLanding(app2) {
   const appName = getAppName();
   const isDev = process.env.NODE_ENV === "development";
   log("Serving static Expo files with dynamic manifest routing");
+  const distDir = path.resolve(process.cwd(), "dist");
+  const hasWebBuild = fs.existsSync(path.join(distDir, "index.html"));
+  if (hasWebBuild) {
+    log("Production web build found in dist/, serving static files");
+  }
   app2.use((req, res, next) => {
     if (req.path.startsWith("/api") || req.path === "/status") {
       return next();
-    }
-    if (isDev) {
-      if (req.path === "/server/assets" || req.path.startsWith("/server/assets/")) {
-        return next();
-      }
-      return proxyToMetro(req, res);
     }
     const platform = req.header("expo-platform");
     if (platform && (platform === "ios" || platform === "android")) {
       if (req.path === "/" || req.path === "/manifest") {
         return serveExpoManifest(platform, req, res);
       }
+      if (isDev) {
+        return proxyToMetro(req, res);
+      }
     }
     if (req.path === "/manifest" && !platform) {
       return serveExpoManifest("ios", req, res);
     }
-    const distDir2 = path.resolve(process.cwd(), "dist");
-    const hasWebBuild = fs.existsSync(path.join(distDir2, "index.html"));
-    if (req.path === "/" && !hasWebBuild) {
-      return serveLandingPage({
-        req,
-        res,
-        landingPageTemplate,
-        appName
-      });
+    if (isDev && !hasWebBuild) {
+      if (req.path === "/server/assets" || req.path.startsWith("/server/assets/")) {
+        return next();
+      }
+      return proxyToMetro(req, res);
     }
     next();
   });
   app2.use("/assets", express.static(path.resolve(process.cwd(), "assets")));
   app2.use("/server/assets", express.static(path.resolve(process.cwd(), "server", "assets")));
   app2.use(express.static(path.resolve(process.cwd(), "static-build")));
-  const distDir = path.resolve(process.cwd(), "dist");
-  if (fs.existsSync(distDir)) {
-    app2.use(express.static(distDir));
+  if (hasWebBuild) {
+    app2.use(express.static(distDir, { maxAge: "1h" }));
     app2.get("/{*path}", (req, res, next) => {
       if (req.path.startsWith("/api") || req.path === "/status" || req.path === "/manifest") {
         return next();
       }
       const platform = req.header("expo-platform");
       if (platform) return next();
-      const indexPath = path.join(distDir, "index.html");
-      if (fs.existsSync(indexPath)) {
-        return res.sendFile(indexPath);
-      }
-      next();
+      return res.sendFile(path.join(distDir, "index.html"));
+    });
+  } else if (!isDev) {
+    app2.get("/", (req, res) => {
+      return serveLandingPage({ req, res, landingPageTemplate, appName });
     });
   }
-  log("Expo routing: Checking expo-platform header on / and /manifest");
+  log("Web app ready");
 }
 function setupErrorHandler(app2) {
   app2.use((err, _req, res, next) => {
