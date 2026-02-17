@@ -40,10 +40,21 @@ export default function SubscribeScreen() {
   const params = useLocalSearchParams<{ success?: string; canceled?: string; session_id?: string }>();
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedTab, setSelectedTab] = useState<"subscribe" | "tokens">("subscribe");
+  const [fulfilled, setFulfilled] = useState(false);
   const { deviceId, balance, refreshBalance } = useTokens();
 
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
+
+  function getWebParams() {
+    if (Platform.OS !== "web" || typeof window === "undefined") return null;
+    const urlParams = new URLSearchParams(window.location.search);
+    return {
+      success: urlParams.get("success"),
+      session_id: urlParams.get("session_id"),
+      canceled: urlParams.get("canceled"),
+    };
+  }
 
   const { data: productsData } = useQuery<{
     data: Array<{
@@ -71,9 +82,16 @@ export default function SubscribeScreen() {
   );
 
   useEffect(() => {
-    if (params.success === "true" && params.session_id && deviceId) {
-      fulfillOrder(params.session_id);
-    } else if (params.canceled === "true") {
+    if (fulfilled) return;
+
+    const webParams = getWebParams();
+    const success = params.success || webParams?.success;
+    const sessionId = params.session_id || webParams?.session_id;
+    const canceled = params.canceled || webParams?.canceled;
+
+    if (success === "true" && sessionId && deviceId) {
+      fulfillOrder(sessionId);
+    } else if (canceled === "true") {
       const msg = "No problem! You can get tokens anytime. We'll be here!";
       if (Platform.OS === "web") {
         alert(msg);
@@ -81,17 +99,25 @@ export default function SubscribeScreen() {
         Alert.alert("Canceled", msg, [{ text: "OK", style: "default" }]);
       }
     }
-  }, [params.success, params.canceled, params.session_id, deviceId]);
+  }, [params.success, params.canceled, params.session_id, deviceId, fulfilled]);
 
   async function fulfillOrder(sessionId: string) {
     try {
       setIsProcessing(true);
+      setFulfilled(true);
       const res = await apiRequest("POST", "/api/stripe/fulfill", {
         sessionId,
         deviceId,
       });
       const data = await res.json();
       await refreshBalance();
+
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("success");
+        url.searchParams.delete("session_id");
+        window.history.replaceState({}, "", url.pathname);
+      }
 
       const msg = data.type === "subscription"
         ? "Welcome to the club! 30 Trump Tokens loaded. The best deal, believe me!"
@@ -106,6 +132,12 @@ export default function SubscribeScreen() {
       }
     } catch (error) {
       console.error("Fulfill error:", error);
+      const msg = "There was an issue adding your tokens. Please try again or contact support.";
+      if (Platform.OS === "web") {
+        alert(msg);
+      } else {
+        Alert.alert("Error", msg);
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -229,7 +261,13 @@ export default function SubscribeScreen() {
 
       <View style={styles.header}>
         <Pressable
-          onPress={() => router.back()}
+          onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace("/");
+            }
+          }}
           style={styles.closeButton}
           testID="close-subscribe"
         >
