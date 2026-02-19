@@ -986,6 +986,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/feedback", async (req, res) => {
+    try {
+      const { rating, comment, deviceId } = req.body;
+      if (!rating || rating < 1 || rating > 5) {
+        return res.status(400).json({ error: "Rating must be 1-5" });
+      }
+      await pool.query(
+        "INSERT INTO feedback (device_id, rating, comment) VALUES ($1, $2, $3)",
+        [deviceId || null, rating, comment || null]
+      );
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Feedback error:", error);
+      res.status(500).json({ error: "Failed to save feedback" });
+    }
+  });
+
+  app.get("/api/hot-take", async (req, res) => {
+    try {
+      const headline = req.query.headline as string;
+      if (!headline) {
+        return res.status(400).json({ error: "headline required" });
+      }
+
+      const hotTakePrompt = `You are Donald Trump giving a quick, punchy hot-take reaction to a news headline. Be funny, outrageous, and in character. Keep it to 1-2 sentences MAX. No mood tags, no speech tags. Just the raw quote.`;
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: hotTakePrompt },
+          { role: "user", content: `React to this headline: "${headline}"` },
+        ],
+        max_tokens: 120,
+        temperature: 1,
+      });
+
+      const take = completion.choices[0]?.message?.content?.trim() || "";
+      res.json({ take, headline });
+    } catch (error) {
+      console.error("Hot take error:", error);
+      res.status(500).json({ error: "Failed to generate hot take" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

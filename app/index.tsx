@@ -13,8 +13,10 @@ import {
   ScrollView,
   AppState,
   TextInput,
+  ActivityIndicator,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons, Feather, FontAwesome5 } from "@expo/vector-icons";
@@ -28,7 +30,8 @@ import Animated, {
 } from "react-native-reanimated";
 import { useQuery } from "@tanstack/react-query";
 import Colors from "@/constants/colors";
-import { getApiUrl } from "@/lib/query-client";
+import { getApiUrl, apiRequest } from "@/lib/query-client";
+import { useTokens } from "@/lib/token-context";
 import {
   Conversation,
   getAllConversations,
@@ -36,6 +39,10 @@ import {
   deleteConversation,
   Message,
 } from "@/lib/chat-storage";
+
+const FEEDBACK_SHOWN_KEY = "chatdjt_feedback_shown";
+const FEEDBACK_CONV_COUNT_KEY = "chatdjt_conv_count";
+const HOT_TAKE_CACHE_KEY = "chatdjt_hot_take_cache";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -228,6 +235,13 @@ export default function HomeScreen() {
   const [passcodeVisible, setPasscodeVisible] = useState(false);
   const [passcodeInput, setPasscodeInput] = useState("");
   const [passcodeError, setPasscodeError] = useState(false);
+  const [feedbackVisible, setFeedbackVisible] = useState(false);
+  const [feedbackRating, setFeedbackRating] = useState(0);
+  const [feedbackComment, setFeedbackComment] = useState("");
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+  const [hotTake, setHotTake] = useState<{ take: string; headline: string } | null>(null);
+  const [hotTakeLoading, setHotTakeLoading] = useState(false);
+  const { deviceId } = useTokens();
 
   function handleSecretTap() {
     secretTapCount.current += 1;
@@ -261,12 +275,89 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       loadConversations();
+      checkFeedbackPrompt();
     }, [])
   );
 
   async function loadConversations() {
     const convs = await getAllConversations();
     setConversations(convs);
+  }
+
+  async function checkFeedbackPrompt() {
+    try {
+      const alreadyShown = await AsyncStorage.getItem(FEEDBACK_SHOWN_KEY);
+      if (alreadyShown) return;
+      const countStr = await AsyncStorage.getItem(FEEDBACK_CONV_COUNT_KEY);
+      const count = countStr ? parseInt(countStr, 10) : 0;
+      const convs = await getAllConversations();
+      const actualCount = convs.filter((c) => c.messages.length >= 2).length;
+      if (actualCount > count) {
+        await AsyncStorage.setItem(FEEDBACK_CONV_COUNT_KEY, String(actualCount));
+      }
+      if (actualCount >= 3) {
+        setFeedbackVisible(true);
+      }
+    } catch {}
+  }
+
+  async function submitFeedback() {
+    if (feedbackRating === 0) return;
+    try {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await apiRequest("POST", "/api/feedback", {
+        rating: feedbackRating,
+        comment: feedbackComment.trim() || null,
+        deviceId,
+      });
+      setFeedbackSubmitted(true);
+      await AsyncStorage.setItem(FEEDBACK_SHOWN_KEY, "true");
+      setTimeout(() => {
+        setFeedbackVisible(false);
+        setFeedbackSubmitted(false);
+        setFeedbackRating(0);
+        setFeedbackComment("");
+      }, 2000);
+    } catch {
+      setFeedbackVisible(false);
+      await AsyncStorage.setItem(FEEDBACK_SHOWN_KEY, "true");
+    }
+  }
+
+  async function dismissFeedback() {
+    setFeedbackVisible(false);
+    await AsyncStorage.setItem(FEEDBACK_SHOWN_KEY, "true");
+  }
+
+  async function fetchHotTake(headlineText: string) {
+    try {
+      setHotTakeLoading(true);
+      const cached = await AsyncStorage.getItem(HOT_TAKE_CACHE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Date.now() - parsed.timestamp < 10 * 60 * 1000) {
+          setHotTake({ take: parsed.take, headline: parsed.headline });
+          setHotTakeLoading(false);
+          return;
+        }
+      }
+
+      const baseUrl = getApiUrl();
+      const url = new URL("/api/hot-take", baseUrl);
+      url.searchParams.set("headline", headlineText);
+      const res = await globalThis.fetch(url.toString());
+      if (res.ok) {
+        const data = await res.json();
+        setHotTake(data);
+        await AsyncStorage.setItem(HOT_TAKE_CACHE_KEY, JSON.stringify({
+          ...data,
+          timestamp: Date.now(),
+        }));
+      }
+    } catch {
+    } finally {
+      setHotTakeLoading(false);
+    }
   }
 
   async function handleNewChat() {
@@ -319,6 +410,13 @@ export default function HomeScreen() {
   const tickers = tickerQuery.data;
   const headlines = newsQuery.data?.headlines ?? [];
 
+  useEffect(() => {
+    if (headlines.length > 0 && !hotTake && !hotTakeLoading) {
+      const randomIdx = Math.floor(Math.random() * Math.min(headlines.length, 10));
+      fetchHotTake(headlines[randomIdx].title);
+    }
+  }, [headlines.length]);
+
   function formatCompact(n: number): string {
     if (n >= 1e12) return `$${(n / 1e12).toFixed(2)}T`;
     if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
@@ -367,7 +465,23 @@ export default function HomeScreen() {
         <View style={styles.headerRight} />
       </Animated.View>
 
-      <Pressable style={styles.centerContent} onPress={handleSecretTap} testID="secret-tap-area" />
+      <Pressable style={styles.centerContent} onPress={handleSecretTap} testID="secret-tap-area">
+        {hotTake && (
+          <Animated.View entering={FadeIn.delay(800).duration(600)} style={styles.hotTakeBubble}>
+            <View style={styles.hotTakeHeader}>
+              <MaterialCommunityIcons name="crown" size={14} color={Colors.gold} />
+              <Text style={styles.hotTakeLabel}>HOT TAKE</Text>
+            </View>
+            <Text style={styles.hotTakeText} numberOfLines={4}>"{hotTake.take}"</Text>
+            <Text style={styles.hotTakeHeadline} numberOfLines={2}>Re: {hotTake.headline}</Text>
+          </Animated.View>
+        )}
+        {hotTakeLoading && !hotTake && (
+          <Animated.View entering={FadeIn.duration(400)} style={styles.hotTakeBubble}>
+            <ActivityIndicator size="small" color={Colors.gold} />
+          </Animated.View>
+        )}
+      </Pressable>
 
       <View
         style={[
@@ -505,6 +619,69 @@ export default function HomeScreen() {
             showsVerticalScrollIndicator={false}
           />
         </View>
+      </Modal>
+
+      <Modal
+        visible={feedbackVisible}
+        animationType="fade"
+        transparent
+        onRequestClose={dismissFeedback}
+      >
+        <Pressable style={styles.feedbackOverlay} onPress={dismissFeedback}>
+          <Pressable style={styles.feedbackCard} onPress={() => {}}>
+            {feedbackSubmitted ? (
+              <View style={styles.feedbackSuccess}>
+                <Ionicons name="checkmark-circle" size={48} color={Colors.gold} />
+                <Text style={styles.feedbackSuccessText}>Thanks for the feedback!</Text>
+              </View>
+            ) : (
+              <>
+                <MaterialCommunityIcons name="crown" size={28} color={Colors.gold} />
+                <Text style={styles.feedbackTitle}>Rate Chat DJT</Text>
+                <Text style={styles.feedbackSubtitle}>How's your experience been?</Text>
+                <View style={styles.feedbackStars}>
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Pressable
+                      key={star}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setFeedbackRating(star);
+                      }}
+                      hitSlop={4}
+                    >
+                      <Ionicons
+                        name={feedbackRating >= star ? "star" : "star-outline"}
+                        size={36}
+                        color={feedbackRating >= star ? Colors.gold : Colors.whiteMuted}
+                      />
+                    </Pressable>
+                  ))}
+                </View>
+                <TextInput
+                  style={styles.feedbackInput}
+                  placeholder="Tell Trump what you think... (optional)"
+                  placeholderTextColor={Colors.whiteMuted}
+                  value={feedbackComment}
+                  onChangeText={setFeedbackComment}
+                  multiline
+                  maxLength={500}
+                />
+                <View style={styles.feedbackButtons}>
+                  <Pressable onPress={dismissFeedback} style={styles.feedbackSkip}>
+                    <Text style={styles.feedbackSkipText}>Not Now</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={submitFeedback}
+                    style={[styles.feedbackSubmit, feedbackRating === 0 && { opacity: 0.4 }]}
+                    disabled={feedbackRating === 0}
+                  >
+                    <Text style={styles.feedbackSubmitText}>Submit</Text>
+                  </Pressable>
+                </View>
+              </>
+            )}
+          </Pressable>
+        </Pressable>
       </Modal>
 
       <Modal
@@ -946,5 +1123,137 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700" as const,
     color: "#0A0A0A",
+  },
+  hotTakeBubble: {
+    backgroundColor: "rgba(20, 20, 20, 0.85)",
+    borderRadius: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    marginHorizontal: 30,
+    borderWidth: 1,
+    borderColor: "rgba(212, 164, 32, 0.3)",
+    maxWidth: 340,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
+      },
+      default: {},
+    }),
+  },
+  hotTakeHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 8,
+  },
+  hotTakeLabel: {
+    fontSize: 10,
+    fontWeight: "800" as const,
+    color: Colors.gold,
+    letterSpacing: 1.5,
+  },
+  hotTakeText: {
+    fontSize: 15,
+    color: Colors.white,
+    fontStyle: "italic",
+    lineHeight: 22,
+    marginBottom: 8,
+  },
+  hotTakeHeadline: {
+    fontSize: 11,
+    color: Colors.whiteMuted,
+    lineHeight: 16,
+  },
+  feedbackOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.85)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  feedbackCard: {
+    backgroundColor: Colors.card,
+    borderRadius: 20,
+    padding: 28,
+    width: 320,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(212, 164, 32, 0.25)",
+    ...Platform.select({
+      web: {
+        boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
+      },
+      default: {},
+    }),
+  },
+  feedbackTitle: {
+    fontSize: 20,
+    fontFamily: "PlayfairDisplay_700Bold",
+    color: Colors.gold,
+    marginTop: 12,
+  },
+  feedbackSubtitle: {
+    fontSize: 14,
+    color: Colors.whiteDim,
+    marginTop: 4,
+    marginBottom: 16,
+  },
+  feedbackStars: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 16,
+  },
+  feedbackInput: {
+    width: "100%",
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 14,
+    color: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    minHeight: 60,
+    textAlignVertical: "top",
+    marginBottom: 16,
+  },
+  feedbackButtons: {
+    flexDirection: "row",
+    gap: 12,
+    width: "100%",
+  },
+  feedbackSkip: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: "center",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  feedbackSkipText: {
+    fontSize: 14,
+    color: Colors.whiteDim,
+    fontWeight: "600" as const,
+  },
+  feedbackSubmit: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: "center",
+    borderRadius: 12,
+    backgroundColor: Colors.gold,
+  },
+  feedbackSubmitText: {
+    fontSize: 14,
+    fontWeight: "700" as const,
+    color: "#0A0A0A",
+  },
+  feedbackSuccess: {
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 20,
+  },
+  feedbackSuccessText: {
+    fontSize: 18,
+    fontFamily: "PlayfairDisplay_700Bold",
+    color: Colors.gold,
   },
 });
