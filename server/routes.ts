@@ -987,12 +987,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/feedback", async (req, res) => {
+    const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
     try {
       const { rating, comment, deviceId } = req.body;
       if (!rating || rating < 1 || rating > 5) {
         return res.status(400).json({ error: "Rating must be 1-5" });
       }
-      await pool.query(
+      await db.query(
         "INSERT INTO feedback (device_id, rating, comment) VALUES ($1, $2, $3)",
         [deviceId || null, rating, comment || null]
       );
@@ -1000,6 +1001,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Feedback error:", error);
       res.status(500).json({ error: "Failed to save feedback" });
+    } finally {
+      await db.end();
     }
   });
 
