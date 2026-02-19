@@ -366,6 +366,18 @@ export default function HomeScreen() {
     router.push({ pathname: "/chat/[id]", params: { id: conv.id } });
   }
 
+  async function handleRoastMode() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    const conv = await createConversation("Roast Session");
+    router.push({ pathname: "/chat/[id]", params: { id: conv.id, mode: "roast" } });
+  }
+
+  async function handleDebateMode() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    const conv = await createConversation("Debate Mode");
+    router.push({ pathname: "/chat/[id]", params: { id: conv.id, mode: "debate" } });
+  }
+
   async function handleDelete(id: string) {
     await deleteConversation(id);
     setConversations((prev) => prev.filter((c) => c.id !== id));
@@ -481,6 +493,23 @@ export default function HomeScreen() {
             <ActivityIndicator size="small" color={Colors.gold} />
           </Animated.View>
         )}
+
+        <Animated.View entering={FadeInDown.delay(1000).duration(500)} style={styles.modeButtons}>
+          <Pressable
+            onPress={handleRoastMode}
+            style={({ pressed }) => [styles.modeButton, styles.roastButton, pressed && { opacity: 0.7 }]}
+          >
+            <MaterialCommunityIcons name="fire" size={18} color="#FF4444" />
+            <Text style={styles.modeButtonText}>ROAST ME</Text>
+          </Pressable>
+          <Pressable
+            onPress={handleDebateMode}
+            style={({ pressed }) => [styles.modeButton, styles.debateButton, pressed && { opacity: 0.7 }]}
+          >
+            <MaterialCommunityIcons name="podium" size={18} color={Colors.gold} />
+            <Text style={styles.modeButtonText}>DEBATE</Text>
+          </Pressable>
+        </Animated.View>
       </Pressable>
 
       <View
@@ -1255,5 +1284,33 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontFamily: "PlayfairDisplay_700Bold",
     color: Colors.gold,
+  },
+  modeButtons: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 16,
+  },
+  modeButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 24,
+    borderWidth: 1,
+  },
+  roastButton: {
+    backgroundColor: "rgba(255, 68, 68, 0.15)",
+    borderColor: "rgba(255, 68, 68, 0.4)",
+  },
+  debateButton: {
+    backgroundColor: "rgba(212, 164, 32, 0.15)",
+    borderColor: "rgba(212, 164, 32, 0.4)",
+  },
+  modeButtonText: {
+    fontSize: 12,
+    fontWeight: "800" as const,
+    color: Colors.white,
+    letterSpacing: 1,
   },
 });

@@ -599,7 +599,7 @@ const avatarStyles = StyleSheet.create({
 });
 
 export default function ChatScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, mode } = useLocalSearchParams<{ id: string; mode?: string }>();
   const insets = useSafeAreaInsets();
   const { deviceId, balance, refreshBalance, hasTokens } = useTokens();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -1204,6 +1204,8 @@ export default function ChatScreen() {
     ]);
   }
 
+  const modeTriggeredRef = useRef(false);
+
   async function loadConversation() {
     if (initializedRef.current) return;
     const conv = await getConversation(id!);
@@ -1212,6 +1214,18 @@ export default function ChatScreen() {
     }
     initializedRef.current = true;
     setIsLoading(false);
+
+    if (mode && !modeTriggeredRef.current && (!conv || conv.messages.length === 0)) {
+      modeTriggeredRef.current = true;
+      const modePrompts: Record<string, string> = {
+        roast: "Roast me! Don't hold back, give me the most savage Trump roast you've got. Be brutal, be funny, be ruthless.",
+        debate: "Let's debate! Pick a hot political topic and take a strong stance. I'll argue against you. Make it fiery!",
+      };
+      const prompt = modePrompts[mode];
+      if (prompt) {
+        setTimeout(() => handleSend(prompt), 300);
+      }
+    }
   }
 
   async function handleSend(overrideText?: string) {
