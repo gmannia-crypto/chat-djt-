@@ -11,6 +11,7 @@ import {
   Image,
   Alert,
   AppState,
+  Share,
   type AppStateStatus,
 } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
@@ -18,6 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { Ionicons, MaterialCommunityIcons, Feather, FontAwesome5 } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as Clipboard from "expo-clipboard";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Animated, {
   FadeIn,
@@ -129,6 +131,29 @@ function MessageBubble({
   speechCategory?: SpeechCategory;
 }) {
   const isUser = message.role === "user";
+  const [isCopied, setIsCopied] = useState(false);
+
+  const handleShare = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    if (Platform.OS === "web") {
+      try {
+        await Clipboard.setStringAsync(message.content);
+        setIsCopied(true);
+        setTimeout(() => setIsCopied(false), 1500);
+      } catch (error) {
+        console.error("Copy to clipboard failed:", error);
+      }
+    } else {
+      try {
+        await Share.share({
+          message: `DJT says: ${message.content}\n\nChat with Trump AI at https://chat-djt.replit.app`,
+        });
+      } catch (error) {
+        console.error("Share failed:", error);
+      }
+    }
+  };
 
   return (
     <Animated.View
@@ -171,6 +196,28 @@ function MessageBubble({
             {message.content}
           </Text>
         </View>
+        {!isUser && (
+          <View style={styles.shareButtonRow}>
+            <Pressable
+              onPress={handleShare}
+              style={({ pressed }) => [
+                styles.shareButton,
+                pressed && styles.shareButtonPressed,
+              ]}
+            >
+              <Ionicons name="share-outline" size={14} color={Colors.whiteMuted} />
+              <Text style={styles.shareButtonText}>Share</Text>
+            </Pressable>
+            {isCopied && (
+              <Animated.View
+                entering={FadeIn.duration(200)}
+                style={styles.copiedToast}
+              >
+                <Text style={styles.copiedToastText}>Copied!</Text>
+              </Animated.View>
+            )}
+          </View>
+        )}
       </View>
     </Animated.View>
   );
@@ -1994,5 +2041,40 @@ const styles = StyleSheet.create({
     fontWeight: "600" as const,
     letterSpacing: 0.5,
     textTransform: "uppercase" as const,
+  },
+  shareButtonRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 6,
+    marginLeft: 4,
+    gap: 6,
+  },
+  shareButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  shareButtonPressed: {
+    opacity: 0.7,
+  },
+  shareButtonText: {
+    fontSize: 12,
+    color: Colors.whiteMuted,
+    fontWeight: "500" as const,
+  },
+  copiedToast: {
+    backgroundColor: "rgba(212, 164, 32, 0.3)",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: "rgba(212, 164, 32, 0.5)",
+  },
+  copiedToastText: {
+    fontSize: 12,
+    color: Colors.gold,
+    fontWeight: "600" as const,
   },
 });
