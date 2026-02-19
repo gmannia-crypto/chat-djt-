@@ -18,7 +18,54 @@ try {
   }
 } catch {}
 
+function generateFallbackManifest() {
+  try {
+    const fs = require("fs");
+    const path = require("path");
+    const appJsonPath = path.resolve(__dirname, "..", "app.json");
+    const appJson = JSON.parse(fs.readFileSync(appJsonPath, "utf-8"));
+    const config = appJson.expo || appJson;
+    const timestamp = Date.now().toString();
+    return JSON.stringify({
+      id: `${config.slug || "app"}-fallback-${timestamp}`,
+      createdAt: new Date().toISOString(),
+      runtimeVersion: "1.0.0",
+      launchAsset: { url: "", key: `bundle-${timestamp}` },
+      assets: [],
+      metadata: {},
+      extra: {
+        expoClient: {
+          name: config.name || "App",
+          slug: config.slug || "app",
+          version: config.version || "1.0.0",
+          platforms: ["ios", "android", "web"],
+        },
+      },
+    });
+  } catch {
+    return JSON.stringify({ id: "app", createdAt: new Date().toISOString(), assets: [] });
+  }
+}
+
 const server = http.createServer((req, res) => {
+  const urlPath = (req.url || "").split("?")[0];
+
+  if (urlPath === "/manifest") {
+    res.writeHead(200, {
+      "content-type": "application/json",
+      "expo-protocol-version": "1",
+      "expo-sfv-version": "0",
+    });
+    res.end(generateFallbackManifest());
+    return;
+  }
+
+  if (urlPath === "/status") {
+    res.writeHead(200, { "content-type": "text/plain" });
+    res.end("packager-status:running");
+    return;
+  }
+
   const options = {
     hostname: "localhost",
     port: METRO_PORT,
