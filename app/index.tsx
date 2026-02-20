@@ -43,6 +43,8 @@ import {
 const FEEDBACK_SHOWN_KEY = "chatdjt_feedback_shown";
 const FEEDBACK_CONV_COUNT_KEY = "chatdjt_conv_count";
 const HOT_TAKE_CACHE_KEY = "chatdjt_hot_take_cache";
+const STREAK_KEY = "chatdjt_streak";
+const LAST_CHAT_DAY_KEY = "chatdjt_last_chat_day";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -241,6 +243,8 @@ export default function HomeScreen() {
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
   const [hotTake, setHotTake] = useState<{ take: string; headline: string } | null>(null);
   const [hotTakeLoading, setHotTakeLoading] = useState(false);
+  const [streak, setStreak] = useState(0);
+  const [dailyChallenge, setDailyChallenge] = useState<string | null>(null);
   const { deviceId } = useTokens();
 
   function handleSecretTap() {
@@ -276,12 +280,61 @@ export default function HomeScreen() {
     useCallback(() => {
       loadConversations();
       checkFeedbackPrompt();
+      updateStreak();
+      fetchDailyChallenge();
     }, [])
   );
 
   async function loadConversations() {
     const convs = await getAllConversations();
     setConversations(convs);
+  }
+
+  async function updateStreak() {
+    try {
+      const today = Math.floor(Date.now() / 86400000);
+      const lastDayStr = await AsyncStorage.getItem(LAST_CHAT_DAY_KEY);
+      const streakStr = await AsyncStorage.getItem(STREAK_KEY);
+      const lastDay = lastDayStr ? parseInt(lastDayStr, 10) : 0;
+      const currentStreak = streakStr ? parseInt(streakStr, 10) : 0;
+
+      const convs = await getAllConversations();
+      const hasChattedToday = convs.some(c => Math.floor(c.updatedAt / 86400000) === today && c.messages.length >= 2);
+
+      if (hasChattedToday) {
+        if (lastDay === today - 1 || lastDay === today) {
+          const newStreak = lastDay === today ? currentStreak : currentStreak + 1;
+          await AsyncStorage.setItem(STREAK_KEY, String(newStreak));
+          await AsyncStorage.setItem(LAST_CHAT_DAY_KEY, String(today));
+          setStreak(newStreak);
+        } else if (lastDay < today - 1) {
+          await AsyncStorage.setItem(STREAK_KEY, "1");
+          await AsyncStorage.setItem(LAST_CHAT_DAY_KEY, String(today));
+          setStreak(1);
+        } else {
+          setStreak(currentStreak);
+        }
+      } else {
+        if (lastDay === today - 1) {
+          setStreak(currentStreak);
+        } else if (lastDay < today - 1) {
+          setStreak(0);
+        } else {
+          setStreak(currentStreak);
+        }
+      }
+    } catch {}
+  }
+
+  async function fetchDailyChallenge() {
+    try {
+      const baseUrl = getApiUrl();
+      const res = await globalThis.fetch(`${baseUrl}api/daily-challenge`);
+      if (res.ok) {
+        const data = await res.json();
+        setDailyChallenge(data.challenge);
+      }
+    } catch {}
   }
 
   async function checkFeedbackPrompt() {
@@ -364,6 +417,13 @@ export default function HomeScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const conv = await createConversation("New Chat");
     router.push({ pathname: "/chat/[id]", params: { id: conv.id } });
+  }
+
+  async function handleDailyChallenge() {
+    if (!dailyChallenge) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    const conv = await createConversation("Daily Challenge");
+    router.push({ pathname: "/chat/[id]", params: { id: conv.id, mode: "challenge", challengeText: dailyChallenge } });
   }
 
   async function handleRoastMode() {
@@ -478,6 +538,13 @@ export default function HomeScreen() {
       </Animated.View>
 
       <Pressable style={styles.centerContent} onPress={handleSecretTap} testID="secret-tap-area">
+        {streak > 0 && (
+          <Animated.View entering={FadeIn.delay(400).duration(500)} style={styles.streakBadge}>
+            <MaterialCommunityIcons name="fire" size={16} color="#FF6B35" />
+            <Text style={styles.streakText}>{streak} day streak</Text>
+          </Animated.View>
+        )}
+
         {hotTake && (
           <Animated.View entering={FadeIn.delay(800).duration(600)} style={styles.hotTakeBubble}>
             <View style={styles.hotTakeHeader}>
@@ -491,6 +558,22 @@ export default function HomeScreen() {
         {hotTakeLoading && !hotTake && (
           <Animated.View entering={FadeIn.duration(400)} style={styles.hotTakeBubble}>
             <ActivityIndicator size="small" color={Colors.gold} />
+          </Animated.View>
+        )}
+
+        {dailyChallenge && (
+          <Animated.View entering={FadeInDown.delay(900).duration(500)}>
+            <Pressable
+              onPress={handleDailyChallenge}
+              style={({ pressed }) => [styles.dailyChallengeCard, pressed && { opacity: 0.8 }]}
+            >
+              <View style={styles.dailyChallengeHeader}>
+                <Ionicons name="flash" size={14} color="#FFD700" />
+                <Text style={styles.dailyChallengeLabel}>DAILY CHALLENGE</Text>
+              </View>
+              <Text style={styles.dailyChallengeText} numberOfLines={2}>{dailyChallenge}</Text>
+              <Text style={styles.dailyChallengeCta}>Tap to accept</Text>
+            </Pressable>
           </Animated.View>
         )}
 
@@ -1312,5 +1395,64 @@ const styles = StyleSheet.create({
     fontWeight: "800" as const,
     color: Colors.white,
     letterSpacing: 1,
+  },
+  streakBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(255, 107, 53, 0.15)",
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: "rgba(255, 107, 53, 0.3)",
+    marginBottom: 8,
+  },
+  streakText: {
+    fontSize: 13,
+    fontWeight: "700" as const,
+    color: "#FF6B35",
+    letterSpacing: 0.5,
+  },
+  dailyChallengeCard: {
+    backgroundColor: "rgba(20, 15, 5, 0.85)",
+    borderRadius: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    marginHorizontal: 30,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255, 215, 0, 0.3)",
+    maxWidth: 340,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
+      },
+      default: {},
+    }),
+  },
+  dailyChallengeHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 6,
+  },
+  dailyChallengeLabel: {
+    fontSize: 10,
+    fontWeight: "800" as const,
+    color: "#FFD700",
+    letterSpacing: 1.5,
+  },
+  dailyChallengeText: {
+    fontSize: 14,
+    color: Colors.white,
+    lineHeight: 20,
+    marginBottom: 6,
+  },
+  dailyChallengeCta: {
+    fontSize: 11,
+    color: Colors.goldDark,
+    fontWeight: "600" as const,
+    letterSpacing: 0.5,
   },
 });

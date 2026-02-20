@@ -1033,6 +1033,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  const DAILY_CHALLENGES = [
+    "Tell me why you'd be a terrible president — I dare you.",
+    "What's the one thing you'd change about America if you had the power?",
+    "Convince me you're smarter than me. Good luck with that.",
+    "Give me your most controversial opinion. Don't be a coward.",
+    "If you could fire ONE person from government, who and why?",
+    "What's the biggest problem in America that nobody talks about?",
+    "Roast your own state/country. Be brutal.",
+    "Tell me your biggest failure. I want to hear you admit something for once.",
+    "What would YOU do about the border? And don't give me some wishy-washy answer.",
+    "Pick a side: Is AI going to save us or destroy us? Choose one.",
+    "What's the most overrated thing in America right now?",
+    "If you ran against me, what would your slogan be?",
+    "Tell me something that makes you angry about politics today.",
+    "What's the one thing you and I actually agree on?",
+    "Pitch me a business idea in 30 seconds. Make it tremendous.",
+    "What should I tweet right now? Make it go viral.",
+    "Who's the biggest fraud in politics right now? Besides the obvious ones.",
+    "If I gave you $1 billion, what would you do with it?",
+    "What's the most un-American thing happening in America?",
+    "Name one thing the media gets completely wrong about me.",
+    "What's the dumbest law in your state? I bet it's a real beauty.",
+  ];
+
+  app.get("/api/daily-challenge", (_req, res) => {
+    const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000);
+    const challengeIndex = dayOfYear % DAILY_CHALLENGES.length;
+    res.json({
+      challenge: DAILY_CHALLENGES[challengeIndex],
+      day: dayOfYear,
+      expiresIn: 86400000 - (Date.now() % 86400000),
+    });
+  });
+
+  app.post("/api/report-card", async (req, res) => {
+    try {
+      const { messages } = req.body;
+      if (!messages || !Array.isArray(messages) || messages.length < 4) {
+        return res.status(400).json({ error: "Need at least 4 messages for a report card" });
+      }
+
+      const lastMessages = messages.slice(-10);
+      const convoSummary = lastMessages.map((m: any) => `${m.role === "user" ? "USER" : "TRUMP"}: ${m.content.slice(0, 200)}`).join("\n");
+
+      const gradePrompt = `You are Trump grading someone you just had a conversation with. Give them a letter grade (A+, A, B+, B, C, D, or F) and a short, hilarious 1-2 sentence evaluation in Trump's voice. Be brutal but entertaining. Format your response EXACTLY like this:
+[GRADE:X]
+Your evaluation here.
+
+Example:
+[GRADE:B+]
+Not bad, kid. You actually kept up with me for once. Most people can't handle five minutes.`;
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: gradePrompt },
+          { role: "user", content: `Grade this conversation:\n${convoSummary}` },
+        ],
+        max_tokens: 150,
+        temperature: 0.9,
+      });
+
+      const response = completion.choices[0]?.message?.content?.trim() || "";
+      const gradeMatch = response.match(/\[GRADE:([A-F][+\-]?)\]/);
+      const grade = gradeMatch ? gradeMatch[1] : "C";
+      const evaluation = response.replace(/\[GRADE:[A-F][+\-]?\]\n?/, "").trim();
+
+      res.json({ grade, evaluation });
+    } catch (error) {
+      console.error("Report card error:", error);
+      res.status(500).json({ error: "Failed to generate report card" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

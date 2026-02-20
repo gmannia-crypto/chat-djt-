@@ -12,6 +12,7 @@ import {
   Alert,
   AppState,
   Share,
+  Modal,
   type AppStateStatus,
 } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
@@ -599,7 +600,7 @@ const avatarStyles = StyleSheet.create({
 });
 
 export default function ChatScreen() {
-  const { id, mode } = useLocalSearchParams<{ id: string; mode?: string }>();
+  const { id, mode, challengeText } = useLocalSearchParams<{ id: string; mode?: string; challengeText?: string }>();
   const insets = useSafeAreaInsets();
   const { deviceId, balance, refreshBalance, hasTokens } = useTokens();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -619,6 +620,9 @@ export default function ChatScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [attachment, setAttachment] = useState<FileAttachment | null>(null);
+  const [reportCard, setReportCard] = useState<{ grade: string; evaluation: string } | null>(null);
+  const reportCardShownRef = useRef(false);
+  const reportCardLoadingRef = useRef(false);
   const inputRef = useRef<TextInput>(null);
   const initializedRef = useRef(false);
   const conversationIdRef = useRef(id);
@@ -1220,6 +1224,7 @@ export default function ChatScreen() {
       const modePrompts: Record<string, string> = {
         roast: "Roast me! Don't hold back, give me the most savage Trump roast you've got. Be brutal, be funny, be ruthless.",
         debate: "Let's debate! Pick a hot political topic and take a strong stance. I'll argue against you. Make it fiery!",
+        challenge: challengeText || "Give me your daily challenge! Hit me with something tough.",
       };
       const prompt = modePrompts[mode];
       if (prompt) {
@@ -1402,6 +1407,42 @@ export default function ChatScreen() {
           handleSpeakRef.current(lastMsg.id, lastMsg.content, detectedMood, detectedSpeechCategory);
         }
       }
+
+      const userMsgCount = finalMessages.filter(m => m.role === "user").length;
+      if (userMsgCount >= 3 && userMsgCount % 3 === 0 && !reportCardShownRef.current && !reportCardLoadingRef.current) {
+        fetchReportCard(finalMessages);
+      }
+    }
+  }
+
+  async function fetchReportCard(msgs: Message[]) {
+    reportCardLoadingRef.current = true;
+    try {
+      const baseUrl = getApiUrl();
+      const response = await globalThis.fetch(`${baseUrl}api/report-card`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: msgs.map(m => ({ role: m.role, content: m.content })) }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setReportCard(data);
+        reportCardShownRef.current = true;
+      }
+    } catch (e) {
+      console.log("Report card fetch error:", e);
+    }
+    reportCardLoadingRef.current = false;
+  }
+
+  function shareReportCard() {
+    if (!reportCard) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const text = `Trump gave me a ${reportCard.grade}! "${reportCard.evaluation}"\n\nGet YOUR grade at https://chat-djt.replit.app`;
+    if (Platform.OS === "web") {
+      Clipboard.setStringAsync(text);
+    } else {
+      Share.share({ message: text });
     }
   }
 
@@ -1692,6 +1733,42 @@ export default function ChatScreen() {
           </View>
         </View>
       </KeyboardAvoidingView>
+
+      <Modal
+        visible={!!reportCard}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setReportCard(null)}
+      >
+        <Pressable
+          style={styles.reportCardOverlay}
+          onPress={() => setReportCard(null)}
+        >
+          <Pressable style={styles.reportCardModal} onPress={() => {}}>
+            <MaterialCommunityIcons name="school" size={32} color={Colors.gold} />
+            <Text style={styles.reportCardTitle}>TRUMP'S REPORT CARD</Text>
+            <View style={styles.reportCardGradeCircle}>
+              <Text style={styles.reportCardGrade}>{reportCard?.grade}</Text>
+            </View>
+            <Text style={styles.reportCardEval}>"{reportCard?.evaluation}"</Text>
+            <View style={styles.reportCardButtons}>
+              <Pressable
+                onPress={() => setReportCard(null)}
+                style={styles.reportCardDismiss}
+              >
+                <Text style={styles.reportCardDismissText}>Continue</Text>
+              </Pressable>
+              <Pressable
+                onPress={shareReportCard}
+                style={styles.reportCardShare}
+              >
+                <Ionicons name="share-outline" size={16} color="#0A0A0A" />
+                <Text style={styles.reportCardShareText}>Share Grade</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -2090,5 +2167,84 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.gold,
     fontWeight: "600" as const,
+  },
+  reportCardOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.8)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 30,
+  },
+  reportCardModal: {
+    backgroundColor: "#1A1A1A",
+    borderRadius: 24,
+    padding: 30,
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: Colors.gold,
+    maxWidth: 340,
+    width: "100%",
+  },
+  reportCardTitle: {
+    fontSize: 16,
+    fontWeight: "800" as const,
+    color: Colors.gold,
+    letterSpacing: 2,
+    marginTop: 12,
+    marginBottom: 16,
+  },
+  reportCardGradeCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "rgba(212, 164, 32, 0.15)",
+    borderWidth: 3,
+    borderColor: Colors.gold,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  reportCardGrade: {
+    fontSize: 32,
+    fontFamily: "PlayfairDisplay_700Bold",
+    color: Colors.gold,
+  },
+  reportCardEval: {
+    fontSize: 14,
+    color: Colors.whiteMuted,
+    textAlign: "center",
+    lineHeight: 20,
+    fontStyle: "italic",
+    marginBottom: 20,
+  },
+  reportCardButtons: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  reportCardDismiss: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  reportCardDismissText: {
+    fontSize: 14,
+    color: Colors.whiteMuted,
+    fontWeight: "600" as const,
+  },
+  reportCardShare: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: Colors.gold,
+  },
+  reportCardShareText: {
+    fontSize: 14,
+    color: "#0A0A0A",
+    fontWeight: "700" as const,
   },
 });
