@@ -1210,6 +1210,83 @@ export default function ChatScreen() {
 
   const modeTriggeredRef = useRef(false);
 
+  async function handleLiveNewsMode() {
+    if (!hasTokens) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      router.push("/subscribe");
+      return;
+    }
+    setShowTyping(true);
+    setIsStreaming(true);
+    try {
+      const baseUrl = getApiUrl();
+      const resp = await globalThis.fetch(`${baseUrl}/api/news-commentary`);
+      if (!resp.ok) throw new Error("Failed to fetch");
+      const data = await resp.json();
+
+      const headlinesSummary = data.headlines.map((h: any) => `• [${h.source}] ${h.title}`).join("\n");
+      const systemMsg: Message = {
+        id: generateUniqueId(),
+        role: "assistant",
+        content: `📺 **TRUMP LIVE NEWS BROADCAST** 📺\n\n${data.commentary}\n\n━━━━━━━━━━━━━━━━━━\n📰 Headlines Covered:\n${headlinesSummary}`,
+        timestamp: Date.now(),
+      };
+      const updated = [systemMsg];
+      setMessages(updated);
+      await saveMessages(id!, updated);
+    } catch {
+      const errorMsg: Message = {
+        id: generateUniqueId(),
+        role: "assistant",
+        content: "The fake news networks cut my feed! Try again, we'll get it back.",
+        timestamp: Date.now(),
+      };
+      setMessages([errorMsg]);
+      await saveMessages(id!, [errorMsg]);
+    } finally {
+      setShowTyping(false);
+      setIsStreaming(false);
+    }
+  }
+
+  async function handleNostradamusMode() {
+    if (!hasTokens) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      router.push("/subscribe");
+      return;
+    }
+    setShowTyping(true);
+    setIsStreaming(true);
+    try {
+      const baseUrl = getApiUrl();
+      const resp = await globalThis.fetch(`${baseUrl}/api/nostradamus`);
+      if (!resp.ok) throw new Error("Failed to fetch");
+      const data = await resp.json();
+
+      const systemMsg: Message = {
+        id: generateUniqueId(),
+        role: "assistant",
+        content: `🔮 **TRUMP-STRADAMUS PROPHECIES** 🔮\n\n${data.predictions}\n\n━━━━━━━━━━━━━━━━━━\n🌐 Based on current events`,
+        timestamp: Date.now(),
+      };
+      const updated = [systemMsg];
+      setMessages(updated);
+      await saveMessages(id!, updated);
+    } catch {
+      const errorMsg: Message = {
+        id: generateUniqueId(),
+        role: "assistant",
+        content: "My crystal ball is being recalibrated — tremendous predictions coming soon!",
+        timestamp: Date.now(),
+      };
+      setMessages([errorMsg]);
+      await saveMessages(id!, [errorMsg]);
+    } finally {
+      setShowTyping(false);
+      setIsStreaming(false);
+    }
+  }
+
   async function loadConversation() {
     if (initializedRef.current) return;
     const conv = await getConversation(id!);
@@ -1221,6 +1298,14 @@ export default function ChatScreen() {
 
     if (mode && !modeTriggeredRef.current && (!conv || conv.messages.length === 0)) {
       modeTriggeredRef.current = true;
+      if (mode === "livenews") {
+        setTimeout(() => handleLiveNewsMode(), 300);
+        return;
+      }
+      if (mode === "nostradamus") {
+        setTimeout(() => handleNostradamusMode(), 300);
+        return;
+      }
       const modePrompts: Record<string, string> = {
         roast: "Roast me! Don't hold back, give me the most savage Trump roast you've got. Be brutal, be funny, be ruthless.",
         debate: "Let's debate! Pick a hot political topic and take a strong stance. I'll argue against you. Make it fiery!",
