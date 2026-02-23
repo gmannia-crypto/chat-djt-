@@ -438,6 +438,18 @@ export default function HomeScreen() {
     router.push({ pathname: "/chat/[id]", params: { id: conv.id, mode: "debate" } });
   }
 
+  async function handleLiveNewsMode() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    const conv = await createConversation("LIVE News");
+    router.push({ pathname: "/chat/[id]", params: { id: conv.id, mode: "livenews" } });
+  }
+
+  async function handleNostradamusMode() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    const conv = await createConversation("TRUMP-STRADAMUS");
+    router.push({ pathname: "/chat/[id]", params: { id: conv.id, mode: "nostradamus" } });
+  }
+
   async function handleDelete(id: string) {
     await deleteConversation(id);
     setConversations((prev) => prev.filter((c) => c.id !== id));
@@ -591,6 +603,22 @@ export default function HomeScreen() {
           >
             <MaterialCommunityIcons name="podium" size={18} color={Colors.gold} />
             <Text style={styles.modeButtonText}>DEBATE</Text>
+          </Pressable>
+        </Animated.View>
+        <Animated.View entering={FadeInDown.delay(1100).duration(500)} style={styles.modeButtons}>
+          <Pressable
+            onPress={handleLiveNewsMode}
+            style={({ pressed }) => [styles.modeButton, styles.liveNewsButton, pressed && { opacity: 0.7 }]}
+          >
+            <View style={styles.liveDot} />
+            <Text style={styles.modeButtonText}>LIVE NEWS</Text>
+          </Pressable>
+          <Pressable
+            onPress={handleNostradamusMode}
+            style={({ pressed }) => [styles.modeButton, styles.nostradamusButton, pressed && { opacity: 0.7 }]}
+          >
+            <MaterialCommunityIcons name="crystal-ball" size={18} color="#BB86FC" />
+            <Text style={styles.modeButtonText}>PREDICT</Text>
           </Pressable>
         </Animated.View>
       </Pressable>
@@ -1395,6 +1423,20 @@ const styles = StyleSheet.create({
     fontWeight: "800" as const,
     color: Colors.white,
     letterSpacing: 1,
+  },
+  liveNewsButton: {
+    backgroundColor: "rgba(220, 38, 38, 0.15)",
+    borderColor: "rgba(220, 38, 38, 0.4)",
+  },
+  liveDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#DC2626",
+  },
+  nostradamusButton: {
+    backgroundColor: "rgba(187, 134, 252, 0.12)",
+    borderColor: "rgba(187, 134, 252, 0.35)",
   },
   streakBadge: {
     flexDirection: "row",
