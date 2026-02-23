@@ -137,19 +137,31 @@ function MessageBubble({
   const handleShare = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
+    const quote = message.content.length > 280
+      ? message.content.slice(0, 277) + "..."
+      : message.content;
+    const categoryTag = speechCategory ? ` [${SPEECH_LABELS[speechCategory]?.label || ""}]` : "";
+    const shareText = `🇺🇸 TRUMP AI${categoryTag}:\n\n"${quote}"\n\n🏛️ Chat with the 47th President yourself\n👉 chat-djt.replit.app`;
+
     if (Platform.OS === "web") {
       try {
-        await Clipboard.setStringAsync(message.content);
-        setIsCopied(true);
-        setTimeout(() => setIsCopied(false), 1500);
-      } catch (error) {
-        console.error("Copy to clipboard failed:", error);
+        if (navigator.share) {
+          await navigator.share({ text: shareText });
+        } else {
+          await Clipboard.setStringAsync(shareText);
+          setIsCopied(true);
+          setTimeout(() => setIsCopied(false), 1500);
+        }
+      } catch (error: any) {
+        if (error?.name !== "AbortError") {
+          await Clipboard.setStringAsync(shareText);
+          setIsCopied(true);
+          setTimeout(() => setIsCopied(false), 1500);
+        }
       }
     } else {
       try {
-        await Share.share({
-          message: `DJT says: ${message.content}\n\nChat with Trump AI at https://chat-djt.replit.app`,
-        });
+        await Share.share({ message: shareText });
       } catch (error) {
         console.error("Share failed:", error);
       }
@@ -1593,7 +1605,7 @@ export default function ChatScreen() {
   function shareReportCard() {
     if (!reportCard) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const text = `Trump gave me a ${reportCard.grade}! "${reportCard.evaluation}"\n\nGet YOUR grade at https://chat-djt.replit.app`;
+    const text = `🇺🇸 TRUMP REPORT CARD: ${reportCard.grade}\n\n"${reportCard.evaluation}"\n\n🏛️ Get YOUR grade from the 47th President\n👉 chat-djt.replit.app`;
     if (Platform.OS === "web") {
       Clipboard.setStringAsync(text);
     } else {
