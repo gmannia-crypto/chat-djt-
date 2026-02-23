@@ -1110,6 +1110,118 @@ Not bad, kid. You actually kept up with me for once. Most people can't handle fi
     }
   });
 
+  let newsCommentaryCache: { data: any; timestamp: number } | null = null;
+  const NEWS_COMMENTARY_TTL = 5 * 60 * 1000;
+
+  app.get("/api/news-commentary", async (_req, res) => {
+    try {
+      if (newsCommentaryCache && Date.now() - newsCommentaryCache.timestamp < NEWS_COMMENTARY_TTL) {
+        return res.json(newsCommentaryCache.data);
+      }
+
+      const feedResults = await Promise.allSettled(
+        NEWS_FEEDS.map(f => fetchRSSFeed(f.url, f.source))
+      );
+      let allHeadlines: any[] = [];
+      for (const result of feedResults) {
+        if (result.status === "fulfilled") allHeadlines.push(...result.value);
+      }
+      allHeadlines.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+      const seen = new Set<string>();
+      const unique = allHeadlines.filter(h => {
+        const key = h.title.toLowerCase().slice(0, 50);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      const topHeadlines = unique.slice(0, 5);
+
+      if (topHeadlines.length === 0) {
+        return res.status(500).json({ error: "No headlines available" });
+      }
+
+      const headlineList = topHeadlines.map((h: any, i: number) => `${i + 1}. [${h.source}] ${h.title}`).join("\n");
+
+      const commentaryPrompt = `You are Donald Trump giving LIVE breaking news commentary like a Fox News anchor crossed with a rally speech. You're reacting to the TOP headlines happening RIGHT NOW. Be dramatic, opinionated, outrageous, and entertaining. Reference specific headlines. Give hot takes. Take credit for good things. Blame enemies for bad things. Be punchy and rapid-fire. Keep it under 300 words total. No mood tags, no speech tags. Just raw Trump commentary as if you're doing a live broadcast.`;
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: commentaryPrompt },
+          { role: "user", content: `BREAKING NEWS — Here are today's top headlines:\n\n${headlineList}\n\nGive your LIVE commentary on these stories. React to them like you're broadcasting live.` },
+        ],
+        max_tokens: 500,
+        temperature: 1.0,
+      });
+
+      const commentary = completion.choices[0]?.message?.content?.trim() || "";
+      const result = {
+        commentary,
+        headlines: topHeadlines,
+        generatedAt: new Date().toISOString(),
+      };
+      newsCommentaryCache = { data: result, timestamp: Date.now() };
+      res.json(result);
+    } catch (error) {
+      console.error("News commentary error:", error);
+      if (newsCommentaryCache) return res.json(newsCommentaryCache.data);
+      res.status(500).json({ error: "Failed to generate commentary" });
+    }
+  });
+
+  let nostradamusCache: { data: any; timestamp: number } | null = null;
+  const NOSTRADAMUS_TTL = 15 * 60 * 1000;
+
+  app.get("/api/nostradamus", async (_req, res) => {
+    try {
+      if (nostradamusCache && Date.now() - nostradamusCache.timestamp < NOSTRADAMUS_TTL) {
+        return res.json(nostradamusCache.data);
+      }
+
+      const feedResults = await Promise.allSettled(
+        NEWS_FEEDS.map(f => fetchRSSFeed(f.url, f.source))
+      );
+      let allHeadlines: any[] = [];
+      for (const result of feedResults) {
+        if (result.status === "fulfilled") allHeadlines.push(...result.value);
+      }
+      allHeadlines.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+      const topHeadlines = allHeadlines.slice(0, 8).map((h: any) => h.title);
+
+      const nostradamusPrompt = `You are "TRUMP-STRADAMUS" — Donald Trump as a mystical prophet/fortune teller who predicts the future. Based on current events, make 3 bold, dramatic, entertaining predictions about what will happen next. Each prediction should:
+- Be framed as a mystical prophecy but in Trump's voice
+- Favor Trump/MAGA/Republican outcomes
+- Be outrageous, funny, and entertaining
+- Mix real current events with wild predictions
+- Include timeline hints ("by summer", "within 30 days", "before the year ends")
+
+Format each prediction with a number and a dramatic title, then the prophecy. Keep the total under 400 words. No mood tags, no speech tags.`;
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: nostradamusPrompt },
+          { role: "user", content: `Current headlines for context:\n${topHeadlines.join("\n")}\n\nGive me 3 TRUMP-STRADAMUS predictions based on what's happening right now.` },
+        ],
+        max_tokens: 600,
+        temperature: 1.1,
+      });
+
+      const predictions = completion.choices[0]?.message?.content?.trim() || "";
+      const result = {
+        predictions,
+        basedOn: topHeadlines.slice(0, 3),
+        generatedAt: new Date().toISOString(),
+      };
+      nostradamusCache = { data: result, timestamp: Date.now() };
+      res.json(result);
+    } catch (error) {
+      console.error("Nostradamus error:", error);
+      if (nostradamusCache) return res.json(nostradamusCache.data);
+      res.status(500).json({ error: "Failed to generate predictions" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
