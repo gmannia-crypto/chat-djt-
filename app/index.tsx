@@ -520,7 +520,7 @@ export default function HomeScreen() {
         </View>
       </View>
       <LinearGradient
-        colors={["rgba(10, 10, 10, 0)", "rgba(10, 10, 10, 0.1)", "rgba(10, 10, 10, 0.7)"]}
+        colors={["rgba(10, 10, 10, 0)", "rgba(10, 10, 10, 0)", "rgba(10, 10, 10, 0.4)"]}
         style={styles.backgroundOverlay}
         start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 1 }}
@@ -651,6 +651,14 @@ export default function HomeScreen() {
       </View>
 
       <View style={[styles.bottomBarContainer, { paddingBottom: insets.bottom + webBottomInset }]}>
+        <View style={styles.brandBar}>
+          <Text style={styles.brandByText}>by</Text>
+          <Image
+            source={require("@/assets/images/dynamic-creations.jpg")}
+            style={styles.brandLogo}
+            resizeMode="contain"
+          />
+        </View>
         {headlines.length > 0 && <NewsCrawl headlines={headlines} />}
 
         {tickers && (
@@ -966,6 +974,25 @@ const styles = StyleSheet.create({
     lineHeight: 32,
     paddingRight: 40,
   },
+  brandBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 4,
+    backgroundColor: "rgba(0, 0, 0, 0.9)",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(212, 164, 32, 0.15)",
+  },
+  brandByText: {
+    fontSize: 10,
+    color: "rgba(255, 255, 255, 0.4)",
+    fontStyle: "italic",
+  },
+  brandLogo: {
+    width: 100,
+    height: 24,
+  },
   bottomBarContainer: {
     zIndex: 10,
     backgroundColor: "rgba(0, 0, 0, 0.85)",
@@ -1267,7 +1294,7 @@ const styles = StyleSheet.create({
     color: "#0A0A0A",
   },
   hotTakeBubble: {
-    backgroundColor: "rgba(20, 20, 20, 0.85)",
+    backgroundColor: "rgba(20, 20, 20, 0.5)",
     borderRadius: 16,
     paddingHorizontal: 20,
     paddingVertical: 16,
@@ -1459,7 +1486,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   dailyChallengeCard: {
-    backgroundColor: "rgba(20, 15, 5, 0.85)",
+    backgroundColor: "rgba(20, 15, 5, 0.5)",
     borderRadius: 16,
     paddingHorizontal: 20,
     paddingVertical: 14,
