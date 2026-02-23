@@ -6,8 +6,8 @@ channel = "stable-24_05"
 packages = ["chromium", "socat", "ffmpeg"]
 
 [deployment]
-deploymentTarget = "cloudrun"
-build = ["sh", "-c", "npm run expo:static:build && npm run server:build"]
+deploymentTarget = "autoscale"
+build = ["bash", "-c", "npm run expo:static:build && npm run server:build"]
 run = ["npm", "run", "server:prod"]
 
 [[ports]]
