@@ -19,6 +19,7 @@ import Animated, { FadeInDown } from "react-native-reanimated";
 import { useQuery } from "@tanstack/react-query";
 import Colors from "@/constants/colors";
 import { getApiUrl } from "@/lib/query-client";
+import { useTokens } from "@/lib/token-context";
 
 interface CabinetMember {
   name: string;
@@ -142,6 +143,7 @@ export default function CabinetHotSeat() {
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
   const [speakingName, setSpeakingName] = useState<string | null>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
+  const { deviceId, hasTokens, refreshBalance } = useTokens();
 
   const { data, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ["cabinet-hotseat"],
@@ -159,6 +161,10 @@ export default function CabinetHotSeat() {
 
   const handleSpeak = async (member: CabinetMember) => {
     if (speakingName) return;
+    if (!hasTokens) {
+      router.push("/subscribe");
+      return;
+    }
     setSpeakingName(member.name);
     try {
       if (soundRef.current) {
@@ -166,11 +172,19 @@ export default function CabinetHotSeat() {
         soundRef.current = null;
       }
       const baseUrl = getApiUrl();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (deviceId) headers["x-device-id"] = deviceId;
       const speakResp = await globalThis.fetch(`${baseUrl}/api/cabinet-speak`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ name: member.name, title: member.title, rating: member.rating, reason: member.reason }),
       });
+      if (speakResp.status === 403) {
+        setSpeakingName(null);
+        refreshBalance();
+        router.push("/subscribe");
+        return;
+      }
       if (!speakResp.ok) throw new Error("Failed");
       const { commentary } = await speakResp.json();
       const ttsResp = await globalThis.fetch(`${baseUrl}/api/tts`, {
@@ -199,6 +213,7 @@ export default function CabinetHotSeat() {
         });
         await sound.playAsync();
       }
+      refreshBalance();
     } catch (e) {
       console.error("Cabinet speak error:", e);
       setSpeakingName(null);

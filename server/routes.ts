@@ -1423,6 +1423,18 @@ Respond in valid JSON format ONLY — an array of objects:
       const { name, title, rating, reason } = req.body;
       if (!name) return res.status(400).json({ error: "Name required" });
 
+      const deviceId = req.headers["x-device-id"] as string;
+      if (deviceId) {
+        const tokenResult = await useToken(deviceId);
+        if (!tokenResult.success) {
+          return res.status(403).json({
+            error: "no_tokens",
+            message: tokenResult.error,
+            balance: tokenResult.balance,
+          });
+        }
+      }
+
       const speakPrompt = `You are Donald Trump giving a quick, raw, unfiltered take on one of your cabinet members or advisors. You are speaking in first person as Trump. Be dramatic, personal, funny, and brutally honest. Reference their job performance, any controversies, your personal relationship with them, and current events involving them. Keep it to 2-3 punchy sentences. No mood tags, no speech tags.`;
 
       const completion = await openai.chat.completions.create({
