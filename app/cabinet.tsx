@@ -10,7 +10,6 @@ import {
   RefreshControl,
 } from "react-native";
 import { Audio } from "expo-av";
-import * as FileSystem from "expo-file-system";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -104,7 +103,7 @@ function MemberCard({ member, index, onSpeak, isSpeaking, speakingName }: { memb
               {isThisSpeaking ? (
                 <ActivityIndicator size="small" color={Colors.gold} />
               ) : (
-                <Ionicons name="volume-high" size={18} color={Colors.goldDim || "rgba(212,164,32,0.5)"} />
+                <Ionicons name="volume-high" size={18} color="rgba(212,164,32,0.5)" />
               )}
               <View style={[styles.ratingNumber, { borderColor: config.color }]}>
                 <Text style={[styles.ratingNumberText, { color: isFired ? "#FFF" : config.color }]}>
@@ -188,27 +187,20 @@ export default function CabinetHotSeat() {
         audio.onerror = () => { setSpeakingName(null); URL.revokeObjectURL(url); };
         audio.play();
       } else {
-        const blob = await ttsResp.blob();
-        const reader = new FileReader();
-        reader.onloadend = async () => {
-          try {
-            const base64 = (reader.result as string).split(",")[1];
-            const fileUri = FileSystem.cacheDirectory + "cabinet_speak.mp3";
-            await FileSystem.writeAsStringAsync(fileUri, base64, { encoding: FileSystem.EncodingType.Base64 });
-            const { sound } = await Audio.Sound.createAsync({ uri: fileUri });
-            soundRef.current = sound;
-            sound.setOnPlaybackStatusUpdate((status) => {
-              if (status.isLoaded && status.didJustFinish) {
-                setSpeakingName(null);
-              }
-            });
-            await sound.playAsync();
-          } catch { setSpeakingName(null); }
-        };
-        reader.onerror = () => setSpeakingName(null);
-        reader.readAsDataURL(blob);
+        const arrayBuffer = await ttsResp.arrayBuffer();
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+        const dataUri = `data:audio/mpeg;base64,${base64}`;
+        const { sound } = await Audio.Sound.createAsync({ uri: dataUri });
+        soundRef.current = sound;
+        sound.setOnPlaybackStatusUpdate((status) => {
+          if (status.isLoaded && status.didJustFinish) {
+            setSpeakingName(null);
+          }
+        });
+        await sound.playAsync();
       }
-    } catch {
+    } catch (e) {
+      console.error("Cabinet speak error:", e);
       setSpeakingName(null);
     }
   };
