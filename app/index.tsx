@@ -641,6 +641,17 @@ export default function HomeScreen() {
             <Ionicons name="megaphone" size={16} color="#4A90D9" />
             <Text style={styles.modeButtonText}>TRUTH SOCIAL</Text>
           </Pressable>
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+              router.push("/cabinet");
+            }}
+            style={({ pressed }) => [styles.modeButton, styles.cabinetButton, pressed && { opacity: 0.7 }]}
+            testID="cabinet-button"
+          >
+            <Ionicons name="flame" size={16} color="#F97316" />
+            <Text style={styles.modeButtonText}>HOT SEAT</Text>
+          </Pressable>
         </Animated.View>
       </Pressable>
 
@@ -1489,7 +1500,10 @@ const styles = StyleSheet.create({
   truthSocialButton: {
     backgroundColor: "rgba(74, 144, 217, 0.15)",
     borderColor: "rgba(74, 144, 217, 0.4)",
-    flex: 1,
+  },
+  cabinetButton: {
+    backgroundColor: "rgba(249, 115, 22, 0.15)",
+    borderColor: "rgba(249, 115, 22, 0.4)",
   },
   streakBadge: {
     flexDirection: "row",

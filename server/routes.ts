@@ -1293,6 +1293,118 @@ Rules:
     }
   });
 
+  const CABINET_MEMBERS = [
+    { name: "Marco Rubio", title: "Secretary of State", image: "🏛️" },
+    { name: "Pete Hegseth", title: "Secretary of Defense", image: "🎖️" },
+    { name: "Scott Bessent", title: "Secretary of the Treasury", image: "💰" },
+    { name: "Pam Bondi", title: "Attorney General", image: "⚖️" },
+    { name: "Robert F. Kennedy Jr.", title: "HHS Secretary", image: "💊" },
+    { name: "Kristi Noem", title: "DHS Secretary", image: "🛡️" },
+    { name: "Doug Burgum", title: "Secretary of the Interior", image: "🏔️" },
+    { name: "Brooke Rollins", title: "Secretary of Agriculture", image: "🌾" },
+    { name: "Howard Lutnick", title: "Secretary of Commerce", image: "📊" },
+    { name: "Lori Chavez-DeRemer", title: "Secretary of Labor", image: "👷" },
+    { name: "Chris Wright", title: "Secretary of Energy", image: "⚡" },
+    { name: "Sean Duffy", title: "Secretary of Transportation", image: "🚄" },
+    { name: "Scott Turner", title: "HUD Secretary", image: "🏘️" },
+    { name: "Linda McMahon", title: "Secretary of Education", image: "📚" },
+    { name: "Doug Collins", title: "Secretary of Veterans Affairs", image: "🎗️" },
+    { name: "Elon Musk", title: "DOGE Lead / Special Advisor", image: "🚀" },
+    { name: "Vivek Ramaswamy", title: "Former DOGE Co-Lead", image: "💡" },
+    { name: "JD Vance", title: "Vice President", image: "🇺🇸" },
+    { name: "Susie Wiles", title: "White House Chief of Staff", image: "🏠" },
+    { name: "Stephen Miller", title: "Senior Advisor / Deputy CoS", image: "📋" },
+    { name: "Mike Waltz", title: "National Security Advisor", image: "🔒" },
+    { name: "Tulsi Gabbard", title: "Director of National Intelligence", image: "🕵️" },
+    { name: "John Ratcliffe", title: "CIA Director", image: "🔍" },
+    { name: "Kash Patel", title: "FBI Director", image: "🏢" },
+    { name: "Russell Vought", title: "OMB Director", image: "📝" },
+    { name: "Lee Zeldin", title: "EPA Administrator", image: "🌿" },
+    { name: "Karoline Leavitt", title: "White House Press Secretary", image: "🎤" },
+  ];
+
+  let cabinetCache: { data: any; timestamp: number } | null = null;
+  const CABINET_TTL = 30 * 60 * 1000;
+
+  app.get("/api/cabinet-hotseat", async (_req, res) => {
+    try {
+      if (cabinetCache && Date.now() - cabinetCache.timestamp < CABINET_TTL) {
+        return res.json(cabinetCache.data);
+      }
+
+      const feedResults = await Promise.allSettled(
+        NEWS_FEEDS.map(f => fetchRSSFeed(f.url, f.source))
+      );
+      let allHeadlines: any[] = [];
+      for (const result of feedResults) {
+        if (result.status === "fulfilled") allHeadlines.push(...result.value);
+      }
+      allHeadlines.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+      const recentHeadlines = allHeadlines.slice(0, 30).map(h => h.title);
+
+      const memberList = CABINET_MEMBERS.map(m => `- ${m.name} (${m.title})`).join("\n");
+
+      const cabinetPrompt = `You are a political analyst working for "Chat DJT" rating Trump's satisfaction with his cabinet and inner circle. Based on recent news and known dynamics, rate each person's standing with Trump.
+
+For EACH person, provide:
+1. A "satisfaction" rating from 1-6:
+   - 1 = Excellent standing (Trump loves them, doing great)
+   - 2 = Good standing (solid performer)
+   - 3 = Neutral (flying under the radar)
+   - 4 = On thin ice (some tension or controversy)
+   - 5 = Hot seat (serious trouble, may be fired soon)
+   - 6 = FIRED / Resigned / Removed
+2. A brief 1-sentence reason in Trump's voice explaining the rating
+3. A "heat" indicator: "safe", "warm", "hot", "burning", "fired"
+
+IMPORTANT: Be current, realistic, and entertaining. Reference actual dynamics and news. Some should be doing great, some should be struggling. Make it feel like real insider intel.
+
+Respond in valid JSON format ONLY — an array of objects:
+[{"name": "Person Name", "rating": 1-6, "reason": "Trump-voice explanation", "heat": "safe|warm|hot|burning|fired"}]`;
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: cabinetPrompt },
+          { role: "user", content: `Current cabinet/inner circle members:\n${memberList}\n\nRecent headlines for context:\n${recentHeadlines.slice(0, 15).join("\n")}\n\nRate each person's standing with Trump right now.` },
+        ],
+        max_tokens: 2000,
+        temperature: 0.9,
+      });
+
+      const rawContent = completion.choices[0]?.message?.content?.trim() || "[]";
+      let ratings: any[] = [];
+      try {
+        const jsonMatch = rawContent.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          ratings = JSON.parse(jsonMatch[0]);
+        }
+      } catch {
+        ratings = [];
+      }
+
+      const result = {
+        members: CABINET_MEMBERS.map(member => {
+          const rating = ratings.find((r: any) => r.name && member.name.toLowerCase().includes(r.name.toLowerCase().split(" ")[0]));
+          return {
+            ...member,
+            rating: rating?.rating || 3,
+            reason: rating?.reason || "No intel available at this time.",
+            heat: rating?.heat || "warm",
+          };
+        }),
+        generatedAt: new Date().toISOString(),
+      };
+
+      cabinetCache = { data: result, timestamp: Date.now() };
+      res.json(result);
+    } catch (error) {
+      console.error("Cabinet hot seat error:", error);
+      if (cabinetCache) return res.json(cabinetCache.data);
+      res.status(500).json({ error: "Failed to generate cabinet ratings" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

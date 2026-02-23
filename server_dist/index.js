@@ -1372,6 +1372,114 @@ Give your Truth Social reactions to these stories. React like you're posting liv
       res.status(500).json({ error: "Failed to generate Truth Social content" });
     }
   });
+  const CABINET_MEMBERS = [
+    { name: "Marco Rubio", title: "Secretary of State", image: "\u{1F3DB}\uFE0F" },
+    { name: "Pete Hegseth", title: "Secretary of Defense", image: "\u{1F396}\uFE0F" },
+    { name: "Scott Bessent", title: "Secretary of the Treasury", image: "\u{1F4B0}" },
+    { name: "Pam Bondi", title: "Attorney General", image: "\u2696\uFE0F" },
+    { name: "Robert F. Kennedy Jr.", title: "HHS Secretary", image: "\u{1F48A}" },
+    { name: "Kristi Noem", title: "DHS Secretary", image: "\u{1F6E1}\uFE0F" },
+    { name: "Doug Burgum", title: "Secretary of the Interior", image: "\u{1F3D4}\uFE0F" },
+    { name: "Brooke Rollins", title: "Secretary of Agriculture", image: "\u{1F33E}" },
+    { name: "Howard Lutnick", title: "Secretary of Commerce", image: "\u{1F4CA}" },
+    { name: "Lori Chavez-DeRemer", title: "Secretary of Labor", image: "\u{1F477}" },
+    { name: "Chris Wright", title: "Secretary of Energy", image: "\u26A1" },
+    { name: "Sean Duffy", title: "Secretary of Transportation", image: "\u{1F684}" },
+    { name: "Scott Turner", title: "HUD Secretary", image: "\u{1F3D8}\uFE0F" },
+    { name: "Linda McMahon", title: "Secretary of Education", image: "\u{1F4DA}" },
+    { name: "Doug Collins", title: "Secretary of Veterans Affairs", image: "\u{1F397}\uFE0F" },
+    { name: "Elon Musk", title: "DOGE Lead / Special Advisor", image: "\u{1F680}" },
+    { name: "Vivek Ramaswamy", title: "Former DOGE Co-Lead", image: "\u{1F4A1}" },
+    { name: "JD Vance", title: "Vice President", image: "\u{1F1FA}\u{1F1F8}" },
+    { name: "Susie Wiles", title: "White House Chief of Staff", image: "\u{1F3E0}" },
+    { name: "Stephen Miller", title: "Senior Advisor / Deputy CoS", image: "\u{1F4CB}" },
+    { name: "Mike Waltz", title: "National Security Advisor", image: "\u{1F512}" },
+    { name: "Tulsi Gabbard", title: "Director of National Intelligence", image: "\u{1F575}\uFE0F" },
+    { name: "John Ratcliffe", title: "CIA Director", image: "\u{1F50D}" },
+    { name: "Kash Patel", title: "FBI Director", image: "\u{1F3E2}" },
+    { name: "Russell Vought", title: "OMB Director", image: "\u{1F4DD}" },
+    { name: "Lee Zeldin", title: "EPA Administrator", image: "\u{1F33F}" },
+    { name: "Karoline Leavitt", title: "White House Press Secretary", image: "\u{1F3A4}" }
+  ];
+  let cabinetCache = null;
+  const CABINET_TTL = 30 * 60 * 1e3;
+  app2.get("/api/cabinet-hotseat", async (_req, res) => {
+    try {
+      if (cabinetCache && Date.now() - cabinetCache.timestamp < CABINET_TTL) {
+        return res.json(cabinetCache.data);
+      }
+      const feedResults = await Promise.allSettled(
+        NEWS_FEEDS.map((f) => fetchRSSFeed(f.url, f.source))
+      );
+      let allHeadlines = [];
+      for (const result2 of feedResults) {
+        if (result2.status === "fulfilled") allHeadlines.push(...result2.value);
+      }
+      allHeadlines.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+      const recentHeadlines = allHeadlines.slice(0, 30).map((h) => h.title);
+      const memberList = CABINET_MEMBERS.map((m) => `- ${m.name} (${m.title})`).join("\n");
+      const cabinetPrompt = `You are a political analyst working for "Chat DJT" rating Trump's satisfaction with his cabinet and inner circle. Based on recent news and known dynamics, rate each person's standing with Trump.
+
+For EACH person, provide:
+1. A "satisfaction" rating from 1-6:
+   - 1 = Excellent standing (Trump loves them, doing great)
+   - 2 = Good standing (solid performer)
+   - 3 = Neutral (flying under the radar)
+   - 4 = On thin ice (some tension or controversy)
+   - 5 = Hot seat (serious trouble, may be fired soon)
+   - 6 = FIRED / Resigned / Removed
+2. A brief 1-sentence reason in Trump's voice explaining the rating
+3. A "heat" indicator: "safe", "warm", "hot", "burning", "fired"
+
+IMPORTANT: Be current, realistic, and entertaining. Reference actual dynamics and news. Some should be doing great, some should be struggling. Make it feel like real insider intel.
+
+Respond in valid JSON format ONLY \u2014 an array of objects:
+[{"name": "Person Name", "rating": 1-6, "reason": "Trump-voice explanation", "heat": "safe|warm|hot|burning|fired"}]`;
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: cabinetPrompt },
+          { role: "user", content: `Current cabinet/inner circle members:
+${memberList}
+
+Recent headlines for context:
+${recentHeadlines.slice(0, 15).join("\n")}
+
+Rate each person's standing with Trump right now.` }
+        ],
+        max_tokens: 2e3,
+        temperature: 0.9
+      });
+      const rawContent = completion.choices[0]?.message?.content?.trim() || "[]";
+      let ratings = [];
+      try {
+        const jsonMatch = rawContent.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          ratings = JSON.parse(jsonMatch[0]);
+        }
+      } catch {
+        ratings = [];
+      }
+      const result = {
+        members: CABINET_MEMBERS.map((member) => {
+          const rating = ratings.find((r) => r.name && member.name.toLowerCase().includes(r.name.toLowerCase().split(" ")[0]));
+          return {
+            ...member,
+            rating: rating?.rating || 3,
+            reason: rating?.reason || "No intel available at this time.",
+            heat: rating?.heat || "warm"
+          };
+        }),
+        generatedAt: (/* @__PURE__ */ new Date()).toISOString()
+      };
+      cabinetCache = { data: result, timestamp: Date.now() };
+      res.json(result);
+    } catch (error) {
+      console.error("Cabinet hot seat error:", error);
+      if (cabinetCache) return res.json(cabinetCache.data);
+      res.status(500).json({ error: "Failed to generate cabinet ratings" });
+    }
+  });
   const httpServer = createServer(app2);
   return httpServer;
 }
