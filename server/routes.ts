@@ -1460,6 +1460,70 @@ Respond in valid JSON format ONLY — an array of objects:
   app.post("/api/cabinet-speak", handleCabinetSpeak);
   app.get("/api/cabinet-speak", handleCabinetSpeak);
 
+  app.get("/api/cabinet-speak-audio", async (req, res) => {
+    try {
+      const name = req.query.name as string;
+      const title = (req.query.title as string) || "";
+      const rating = parseInt(req.query.rating as string) || 3;
+      const reason = (req.query.reason as string) || "No assessment yet";
+      if (!name) return res.status(400).json({ error: "Name required" });
+
+      const deviceId = req.headers["x-device-id"] as string;
+      if (deviceId) {
+        const tokenResult = await useToken(deviceId);
+        if (!tokenResult.success) {
+          return res.status(403).json({ error: "no_tokens" });
+        }
+      }
+
+      const speakPrompt = `You are Donald Trump giving a quick, raw, unfiltered take on one of your cabinet members or advisors. You are speaking in first person as Trump. Be dramatic, personal, funny, and brutally honest. Reference their job performance, any controversies, your personal relationship with them, and current events involving them. Keep it to 2-3 punchy sentences. No mood tags, no speech tags.`;
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: speakPrompt },
+          { role: "user", content: `Give your take on ${name} (${title}). Current Chat DJT Satisfaction rating: ${rating}/6. Previous assessment: "${reason}". Now give a fresh, spoken take about them — like you're talking about them at a rally or in a private meeting.` },
+        ],
+        max_tokens: 200,
+        temperature: 1.0,
+      });
+
+      const commentary = completion.choices[0]?.message?.content?.trim() || "";
+
+      const apiKey = process.env.FISH_AUDIO_API_KEY;
+      const voiceId = process.env.FISH_AUDIO_VOICE_ID;
+      if (!apiKey || !voiceId) {
+        return res.status(500).json({ error: "TTS not configured" });
+      }
+
+      const ttsResp = await fetch("https://api.fish.audio/v1/tts", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          text: commentary,
+          reference_id: voiceId,
+          format: "mp3",
+          speed: rating >= 4 ? 1.1 : 1.0,
+        }),
+      });
+
+      if (!ttsResp.ok) {
+        return res.status(500).json({ error: "TTS failed" });
+      }
+
+      res.setHeader("Content-Type", "audio/mpeg");
+      res.setHeader("Cache-Control", "no-cache");
+      const arrayBuffer = await ttsResp.arrayBuffer();
+      res.send(Buffer.from(arrayBuffer));
+    } catch (error) {
+      console.error("Cabinet speak audio error:", error);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

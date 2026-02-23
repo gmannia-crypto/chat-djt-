@@ -172,36 +172,43 @@ export default function CabinetHotSeat() {
         soundRef.current = null;
       }
       const baseUrl = getApiUrl();
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (deviceId) headers["x-device-id"] = deviceId;
-      const speakResp = await globalThis.fetch(`${baseUrl}/api/cabinet-speak`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ name: member.name, title: member.title, rating: member.rating, reason: member.reason }),
+      const params = new URLSearchParams({
+        name: member.name,
+        title: member.title,
+        rating: String(member.rating),
+        reason: member.reason || "No assessment yet",
       });
-      if (speakResp.status === 403) {
-        setSpeakingName(null);
-        refreshBalance();
-        router.push("/subscribe");
-        return;
-      }
-      if (!speakResp.ok) throw new Error("Failed");
-      const { commentary } = await speakResp.json();
-      const ttsResp = await globalThis.fetch(`${baseUrl}/api/tts`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: commentary, mood: member.rating >= 4 ? "FIRED_UP" : "CALM" }),
-      });
-      if (!ttsResp.ok) throw new Error("TTS failed");
+      const audioUrl = `${baseUrl}/api/cabinet-speak-audio?${params.toString()}`;
+
       if (Platform.OS === "web") {
-        const blob = await ttsResp.blob();
+        const resp = await globalThis.fetch(audioUrl, {
+          headers: deviceId ? { "x-device-id": deviceId } : {},
+        });
+        if (resp.status === 403) {
+          setSpeakingName(null);
+          refreshBalance();
+          router.push("/subscribe");
+          return;
+        }
+        if (!resp.ok) throw new Error("Failed");
+        const blob = await resp.blob();
         const url = URL.createObjectURL(blob);
         const audio = new window.Audio(url);
-        audio.onended = () => { setSpeakingName(null); URL.revokeObjectURL(url); };
+        audio.onended = () => { setSpeakingName(null); URL.revokeObjectURL(url); refreshBalance(); };
         audio.onerror = () => { setSpeakingName(null); URL.revokeObjectURL(url); };
-        audio.play();
+        await audio.play();
       } else {
-        const arrayBuffer = await ttsResp.arrayBuffer();
+        const resp = await globalThis.fetch(audioUrl, {
+          headers: deviceId ? { "x-device-id": deviceId } : {},
+        });
+        if (resp.status === 403) {
+          setSpeakingName(null);
+          refreshBalance();
+          router.push("/subscribe");
+          return;
+        }
+        if (!resp.ok) throw new Error("Failed");
+        const arrayBuffer = await resp.arrayBuffer();
         const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
         const dataUri = `data:audio/mpeg;base64,${base64}`;
         const { sound } = await Audio.Sound.createAsync({ uri: dataUri });
@@ -209,11 +216,11 @@ export default function CabinetHotSeat() {
         sound.setOnPlaybackStatusUpdate((status) => {
           if (status.isLoaded && status.didJustFinish) {
             setSpeakingName(null);
+            refreshBalance();
           }
         });
         await sound.playAsync();
       }
-      refreshBalance();
     } catch (e) {
       console.error("Cabinet speak error:", e);
       setSpeakingName(null);
