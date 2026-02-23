@@ -1160,12 +1160,14 @@ const styles = StyleSheet.create({
   centerScroll: {
     flex: 1,
     zIndex: 5,
+    ...(Platform.OS === "web" ? { overflow: "auto" as any } : {}),
   },
   centerContent: {
     alignItems: "center",
     justifyContent: "center",
     flexGrow: 1,
     paddingVertical: 10,
+    ...(Platform.OS === "web" ? { minHeight: "100%" as any } : {}),
   },
   brandTitle: {
     fontSize: 42,
