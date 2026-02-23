@@ -421,7 +421,14 @@ function configureExpoAndLanding(app: express.Application) {
   app.use(express.static(path.resolve(process.cwd(), "static-build")));
 
   if (hasWebBuild) {
-    app.use(express.static(distDir, { maxAge: "1h" }));
+    app.use(express.static(distDir, {
+      maxAge: "1h",
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith(".html")) {
+          res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        }
+      },
+    }));
 
     app.get("/{*path}", (req: Request, res: Response, next: NextFunction) => {
       if (req.path.startsWith("/api") || req.path === "/status" || req.path === "/manifest") {
@@ -430,6 +437,7 @@ function configureExpoAndLanding(app: express.Application) {
       const platform = req.header("expo-platform");
       if (platform) return next();
 
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
       return res.sendFile(path.join(distDir, "index.html"));
     });
   } else if (!isDev) {
