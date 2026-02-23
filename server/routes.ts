@@ -1188,7 +1188,7 @@ Not bad, kid. You actually kept up with me for once. Most people can't handle fi
       allHeadlines.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
       const topHeadlines = allHeadlines.slice(0, 8).map((h: any) => h.title);
 
-      const nostradamusPrompt = `You are "TRUMP-STRADAMUS" — Donald Trump as a mystical prophet/fortune teller who predicts the future. Based on current events, make 3 bold, dramatic, entertaining predictions about what will happen next. Each prediction should:
+      const nostradamusPrompt = `You are "Trump-adomas" — Donald Trump as a mystical prophet/fortune teller who predicts the future. Based on current events, make 3 bold, dramatic, entertaining predictions about what will happen next. Each prediction should:
 - Be framed as a mystical prophecy but in Trump's voice
 - Favor Trump/MAGA/Republican outcomes
 - Be outrageous, funny, and entertaining
@@ -1201,7 +1201,7 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
         model: "gpt-4o-mini",
         messages: [
           { role: "system", content: nostradamusPrompt },
-          { role: "user", content: `Current headlines for context:\n${topHeadlines.join("\n")}\n\nGive me 3 TRUMP-STRADAMUS predictions based on what's happening right now.` },
+          { role: "user", content: `Current headlines for context:\n${topHeadlines.join("\n")}\n\nGive me 3 Trump-adomas predictions based on what's happening right now.` },
         ],
         max_tokens: 600,
         temperature: 1.1,

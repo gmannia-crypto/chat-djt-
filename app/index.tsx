@@ -446,7 +446,7 @@ export default function HomeScreen() {
 
   async function handleNostradamusMode() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    const conv = await createConversation("TRUMP-STRADAMUS");
+    const conv = await createConversation("Trump-adomas");
     router.push({ pathname: "/chat/[id]", params: { id: conv.id, mode: "nostradamus" } });
   }
 
@@ -619,7 +619,10 @@ export default function HomeScreen() {
             style={({ pressed }) => [styles.modeButton, styles.nostradamusButton, pressed && { opacity: 0.7 }]}
             testID="nostradamus-button"
           >
-            <MaterialCommunityIcons name="crystal-ball" size={18} color="#BB86FC" />
+            <Image
+              source={require("@/assets/images/trumpadomas.jpeg")}
+              style={{ width: 22, height: 22, borderRadius: 11 }}
+            />
             <Text style={styles.modeButtonText}>PREDICT</Text>
           </Pressable>
         </Animated.View>

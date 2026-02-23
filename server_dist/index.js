@@ -1272,7 +1272,7 @@ Give your LIVE commentary on these stories. React to them like you're broadcasti
       }
       allHeadlines.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
       const topHeadlines = allHeadlines.slice(0, 8).map((h) => h.title);
-      const nostradamusPrompt = `You are "TRUMP-STRADAMUS" \u2014 Donald Trump as a mystical prophet/fortune teller who predicts the future. Based on current events, make 3 bold, dramatic, entertaining predictions about what will happen next. Each prediction should:
+      const nostradamusPrompt = `You are "Trump-adomas" \u2014 Donald Trump as a mystical prophet/fortune teller who predicts the future. Based on current events, make 3 bold, dramatic, entertaining predictions about what will happen next. Each prediction should:
 - Be framed as a mystical prophecy but in Trump's voice
 - Favor Trump/MAGA/Republican outcomes
 - Be outrageous, funny, and entertaining
@@ -1287,7 +1287,7 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
           { role: "user", content: `Current headlines for context:
 ${topHeadlines.join("\n")}
 
-Give me 3 TRUMP-STRADAMUS predictions based on what's happening right now.` }
+Give me 3 Trump-adomas predictions based on what's happening right now.` }
         ],
         max_tokens: 600,
         temperature: 1.1

@@ -1225,15 +1225,21 @@ export default function ChatScreen() {
       const data = await resp.json();
 
       const headlinesSummary = data.headlines.map((h: any) => `• [${h.source}] ${h.title}`).join("\n");
+      const commentary = data.commentary || "";
       const systemMsg: Message = {
         id: generateUniqueId(),
         role: "assistant",
-        content: `📺 **TRUMP LIVE NEWS BROADCAST** 📺\n\n${data.commentary}\n\n━━━━━━━━━━━━━━━━━━\n📰 Headlines Covered:\n${headlinesSummary}`,
+        content: `📺 **TRUMP LIVE NEWS BROADCAST** 📺\n\n${commentary}\n\n━━━━━━━━━━━━━━━━━━\n📰 Headlines Covered:\n${headlinesSummary}`,
         timestamp: Date.now(),
       };
       const updated = [systemMsg];
       setMessages(updated);
       await saveMessages(id!, updated);
+      if (commentary) {
+        setTimeout(() => {
+          handleSpeakRef.current?.(systemMsg.id, commentary, "FIRED_UP", "RALLY_RANT");
+        }, 300);
+      }
     } catch {
       const errorMsg: Message = {
         id: generateUniqueId(),
@@ -1263,15 +1269,21 @@ export default function ChatScreen() {
       if (!resp.ok) throw new Error("Failed to fetch");
       const data = await resp.json();
 
+      const predictions = data.predictions || "";
       const systemMsg: Message = {
         id: generateUniqueId(),
         role: "assistant",
-        content: `🔮 **TRUMP-STRADAMUS PROPHECIES** 🔮\n\n${data.predictions}\n\n━━━━━━━━━━━━━━━━━━\n🌐 Based on current events`,
+        content: `🔮 **TRUMP-ADOMAS PROPHECIES** 🔮\n\n${predictions}\n\n━━━━━━━━━━━━━━━━━━\n🌐 Based on current events`,
         timestamp: Date.now(),
       };
       const updated = [systemMsg];
       setMessages(updated);
       await saveMessages(id!, updated);
+      if (predictions) {
+        setTimeout(() => {
+          handleSpeakRef.current?.(systemMsg.id, predictions, "CALM", "TELEPROMPTER");
+        }, 300);
+      }
     } catch {
       const errorMsg: Message = {
         id: generateUniqueId(),
