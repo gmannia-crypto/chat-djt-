@@ -874,7 +874,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/stripe/checkout", async (req, res) => {
     try {
-      const { priceId, mode = "subscription", packId, deviceId } = req.body;
+      const { priceId, mode = "subscription", packId, deviceId, tier } = req.body;
       if (!priceId) {
         return res.status(400).json({ error: "priceId is required" });
       }
@@ -886,6 +886,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const metadata: Record<string, string> = {};
       if (deviceId) metadata.deviceId = deviceId;
       if (packId) metadata.packId = packId;
+      if (tier) metadata.tier = tier;
 
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ["card"],
@@ -927,8 +928,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (session.mode === "subscription" && session.subscription) {
         const subId = typeof session.subscription === "string" ? session.subscription : session.subscription.id;
         const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id || "";
-        const balance = await grantSubscriptionTokens(deviceId, customerId, subId);
-        return res.json({ success: true, type: "subscription", balance });
+        const tier = (session.metadata?.tier === "vip" ? "vip" : "standard") as "standard" | "vip";
+        const balance = await grantSubscriptionTokens(deviceId, customerId, subId, tier);
+        return res.json({ success: true, type: "subscription", tier, balance });
       }
 
       res.status(400).json({ error: "Unknown checkout type" });

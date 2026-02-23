@@ -3,37 +3,54 @@ import { getUncachableStripeClient } from './stripeClient';
 async function createProducts() {
   const stripe = await getUncachableStripeClient();
 
-  const existing = await stripe.products.search({ query: "name:'Chat DJT Premium'" });
-  let premiumProduct;
-  if (existing.data.length > 0) {
-    premiumProduct = existing.data[0];
-    console.log('Chat DJT Premium already exists:', premiumProduct.id);
-  } else {
-    premiumProduct = await stripe.products.create({
-      name: 'Chat DJT Premium',
-      description: '30 Trump Tokens per month. The best deal, believe me!',
-      metadata: { app: 'chatdjt', tier: 'premium', type: 'subscription' },
-    });
-    console.log('Premium product created:', premiumProduct.id);
-  }
+  const subscriptionTiers = [
+    {
+      name: 'Chat DJT Standard',
+      description: '50 Trump Tokens per month. Great deal!',
+      metadata: { app: 'chatdjt', tier: 'standard', type: 'subscription' },
+      price: 499,
+    },
+    {
+      name: 'Chat DJT VIP',
+      description: '150 Trump Tokens per month. The best deal, believe me! Tremendous value!',
+      metadata: { app: 'chatdjt', tier: 'vip', type: 'subscription' },
+      price: 999,
+    },
+  ];
 
-  const existingPrices = await stripe.prices.list({ product: premiumProduct.id, active: true });
-  if (existingPrices.data.length === 0) {
-    const monthlyPrice = await stripe.prices.create({
-      product: premiumProduct.id,
-      unit_amount: 299,
-      currency: 'usd',
-      recurring: { interval: 'month' },
-    });
-    console.log('Monthly price created:', monthlyPrice.id, '- $2.99/month');
-  } else {
-    console.log('Monthly price exists:', existingPrices.data[0].id);
+  for (const tier of subscriptionTiers) {
+    const existing = await stripe.products.search({ query: `name:'${tier.name}'` });
+    let product;
+    if (existing.data.length > 0) {
+      product = existing.data[0];
+      console.log(`${tier.name} already exists:`, product.id);
+    } else {
+      product = await stripe.products.create({
+        name: tier.name,
+        description: tier.description,
+        metadata: tier.metadata,
+      });
+      console.log(`${tier.name} created:`, product.id);
+    }
+
+    const existingPrices = await stripe.prices.list({ product: product.id, active: true });
+    if (existingPrices.data.length === 0) {
+      const monthlyPrice = await stripe.prices.create({
+        product: product.id,
+        unit_amount: tier.price,
+        currency: 'usd',
+        recurring: { interval: 'month' },
+      });
+      console.log(`  Price created: ${monthlyPrice.id} - $${(tier.price / 100).toFixed(2)}/month`);
+    } else {
+      console.log(`  Price exists: ${existingPrices.data[0].id}`);
+    }
   }
 
   const tokenPacks = [
-    { name: '10 Trump Tokens', amount: 199, packId: 'pack_10', description: '10 extra prompts with DJT' },
-    { name: '25 Trump Tokens', amount: 399, packId: 'pack_25', description: '25 extra prompts with DJT - Best value!' },
-    { name: '50 Trump Tokens', amount: 699, packId: 'pack_50', description: '50 extra prompts with DJT - Tremendous deal!' },
+    { name: '15 Trump Tokens', amount: 299, packId: 'pack_15', description: '15 extra prompts with DJT' },
+    { name: '35 Trump Tokens', amount: 499, packId: 'pack_35', description: '35 extra prompts with DJT - Popular!' },
+    { name: '80 Trump Tokens', amount: 999, packId: 'pack_80', description: '80 extra prompts with DJT - Tremendous deal!' },
   ];
 
   for (const pack of tokenPacks) {

@@ -1,12 +1,14 @@
 import { Pool } from "pg";
 
 const FREE_PROMPT_LIMIT = 3;
-const SUBSCRIPTION_TOKENS = 30;
+const STANDARD_SUBSCRIPTION_TOKENS = 50;
+const VIP_SUBSCRIPTION_TOKENS = 150;
+const SUBSCRIPTION_TOKENS = STANDARD_SUBSCRIPTION_TOKENS;
 
 export const TOKEN_PACKS = [
-  { id: "pack_10", name: "10 Trump Tokens", tokens: 10, price: 199, priceDisplay: "$1.99" },
-  { id: "pack_25", name: "25 Trump Tokens", tokens: 25, price: 399, priceDisplay: "$3.99" },
-  { id: "pack_50", name: "50 Trump Tokens", tokens: 50, price: 699, priceDisplay: "$6.99" },
+  { id: "pack_15", name: "15 Trump Tokens", tokens: 15, price: 299, priceDisplay: "$2.99" },
+  { id: "pack_35", name: "35 Trump Tokens", tokens: 35, price: 499, priceDisplay: "$4.99" },
+  { id: "pack_80", name: "80 Trump Tokens", tokens: 80, price: 999, priceDisplay: "$9.99" },
 ];
 
 let pool: Pool | null = null;
@@ -51,6 +53,7 @@ export async function getTokenBalance(deviceId: string) {
     isSubscribed,
     totalAvailable: account.tokens + freeRemaining,
     subscriptionExpiresAt: account.subscription_expires_at,
+    subscriptionTier: account.subscription_tier || null,
   };
 }
 
@@ -95,12 +98,21 @@ export async function useToken(deviceId: string): Promise<{ success: boolean; er
   };
 }
 
-export async function grantSubscriptionTokens(deviceId: string, stripeCustomerId: string, stripeSubscriptionId: string) {
+export async function grantSubscriptionTokens(deviceId: string, stripeCustomerId: string, stripeSubscriptionId: string, tier: "standard" | "vip" = "standard") {
   const db = getPool();
   const account = await getOrCreateAccount(deviceId);
+  const tokenAmount = tier === "vip" ? VIP_SUBSCRIPTION_TOKENS : STANDARD_SUBSCRIPTION_TOKENS;
 
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 31);
+
+  await db.query(
+    `DO $$ BEGIN
+       IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'token_accounts' AND column_name = 'subscription_tier') THEN
+         ALTER TABLE token_accounts ADD COLUMN subscription_tier TEXT DEFAULT 'standard';
+       END IF;
+     END $$`
+  );
 
   await db.query(
     `UPDATE token_accounts
@@ -111,15 +123,16 @@ export async function grantSubscriptionTokens(deviceId: string, stripeCustomerId
          last_monthly_reset = NOW(),
          stripe_customer_id = $3,
          stripe_subscription_id = $4,
+         subscription_tier = $5,
          updated_at = NOW()
-     WHERE device_id = $5`,
-    [SUBSCRIPTION_TOKENS, expiresAt, stripeCustomerId, stripeSubscriptionId, deviceId]
+     WHERE device_id = $6`,
+    [tokenAmount, expiresAt, stripeCustomerId, stripeSubscriptionId, tier, deviceId]
   );
 
   await db.query(
     `INSERT INTO token_transactions (account_id, type, amount, description, created_at)
-     VALUES ($1, 'subscription', $2, 'Monthly subscription - 30 Trump Tokens', NOW())`,
-    [account.id, SUBSCRIPTION_TOKENS]
+     VALUES ($1, 'subscription', $2, $3, NOW())`,
+    [account.id, tokenAmount, `${tier === "vip" ? "VIP" : "Standard"} subscription - ${tokenAmount} Trump Tokens`]
   );
 
   return await getTokenBalance(deviceId);
@@ -155,6 +168,8 @@ export async function refreshSubscriptionTokens(stripeSubscriptionId: string) {
 
   if (result.rows.length === 0) return;
   const account = result.rows[0];
+  const tier = account.subscription_tier || "standard";
+  const tokenAmount = tier === "vip" ? VIP_SUBSCRIPTION_TOKENS : STANDARD_SUBSCRIPTION_TOKENS;
 
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 31);
@@ -166,13 +181,13 @@ export async function refreshSubscriptionTokens(stripeSubscriptionId: string) {
          last_monthly_reset = NOW(),
          updated_at = NOW()
      WHERE id = $3`,
-    [SUBSCRIPTION_TOKENS, expiresAt, account.id]
+    [tokenAmount, expiresAt, account.id]
   );
 
   await db.query(
     `INSERT INTO token_transactions (account_id, type, amount, description, created_at)
-     VALUES ($1, 'subscription_renewal', $2, 'Monthly renewal - 30 Trump Tokens', NOW())`,
-    [account.id, SUBSCRIPTION_TOKENS]
+     VALUES ($1, 'subscription_renewal', $2, $3, NOW())`,
+    [account.id, tokenAmount, `Monthly renewal - ${tokenAmount} Trump Tokens (${tier})`]
   );
 }
 
@@ -187,4 +202,4 @@ export async function cancelSubscription(stripeSubscriptionId: string) {
   );
 }
 
-export { FREE_PROMPT_LIMIT, SUBSCRIPTION_TOKENS };
+export { FREE_PROMPT_LIMIT, SUBSCRIPTION_TOKENS, STANDARD_SUBSCRIPTION_TOKENS, VIP_SUBSCRIPTION_TOKENS };

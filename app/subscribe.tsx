@@ -30,16 +30,16 @@ import { useQuery } from "@tanstack/react-query";
 import { useTokens } from "@/lib/token-context";
 
 const TOKEN_PACKS = [
-  { id: "pack_10", tokens: 10, price: "$1.99", badge: null },
-  { id: "pack_25", tokens: 25, price: "$3.99", badge: "POPULAR" },
-  { id: "pack_50", tokens: 50, price: "$6.99", badge: "BEST VALUE" },
+  { id: "pack_15", tokens: 15, price: "$2.99", badge: null },
+  { id: "pack_35", tokens: 35, price: "$4.99", badge: "POPULAR" },
+  { id: "pack_80", tokens: 80, price: "$9.99", badge: "BEST VALUE" },
 ];
 
 export default function SubscribeScreen() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ success?: string; canceled?: string; session_id?: string }>();
   const [isProcessing, setIsProcessing] = useState(false);
-  const [selectedTab, setSelectedTab] = useState<"subscribe" | "tokens">("subscribe");
+  const [selectedTab, setSelectedTab] = useState<"plans" | "tokens">("plans");
   const [fulfilled, setFulfilled] = useState(false);
   const { deviceId, balance, refreshBalance } = useTokens();
 
@@ -67,15 +67,22 @@ export default function SubscribeScreen() {
         currency: string;
         recurring: { interval: string } | null;
       }>;
+      metadata?: Record<string, string>;
     }>;
   }>({
     queryKey: ["/api/stripe/products"],
     staleTime: 60000,
   });
 
-  const monthlyPrice = productsData?.data?.find(
-    (p) => p.name === "Chat DJT Premium"
-  )?.prices?.find((p) => p.recurring?.interval === "month");
+  const standardProduct = productsData?.data?.find(
+    (p) => p.name === "Chat DJT Standard"
+  );
+  const vipProduct = productsData?.data?.find(
+    (p) => p.name === "Chat DJT VIP"
+  );
+
+  const standardPrice = standardProduct?.prices?.find((p) => p.recurring?.interval === "month");
+  const vipPrice = vipProduct?.prices?.find((p) => p.recurring?.interval === "month");
 
   const tokenPackProducts = productsData?.data?.filter(
     (p) => p.name.includes("Trump Tokens")
@@ -119,9 +126,14 @@ export default function SubscribeScreen() {
         window.history.replaceState({}, "", url.pathname);
       }
 
-      const msg = data.type === "subscription"
-        ? "Welcome to the club! 30 Trump Tokens loaded. The best deal, believe me!"
-        : "Trump Tokens added to your account! Now get back in there!";
+      let msg: string;
+      if (data.type === "subscription" && data.tier === "vip") {
+        msg = "Welcome to VIP! 150 Trump Tokens loaded. Nobody gets a better deal than you!";
+      } else if (data.type === "subscription") {
+        msg = "Welcome! 50 Trump Tokens loaded. Great deal, believe me!";
+      } else {
+        msg = "Trump Tokens added to your account! Now get back in there!";
+      }
 
       if (Platform.OS === "web") {
         alert(msg);
@@ -143,12 +155,12 @@ export default function SubscribeScreen() {
     }
   }
 
-  async function handleSubscribe() {
+  async function handleSubscribe(tier: "standard" | "vip") {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     setIsProcessing(true);
 
     try {
-      const priceId = monthlyPrice?.id;
+      const priceId = tier === "vip" ? vipPrice?.id : standardPrice?.id;
       if (!priceId) {
         throw new Error("No subscription plan available");
       }
@@ -157,6 +169,7 @@ export default function SubscribeScreen() {
         priceId,
         mode: "subscription",
         deviceId,
+        tier,
       });
       const { url } = await res.json();
 
@@ -185,34 +198,14 @@ export default function SubscribeScreen() {
     setIsProcessing(true);
 
     try {
+      const packSizes: Record<string, string> = { pack_15: "15", pack_35: "35", pack_80: "80" };
+      const size = packSizes[packId] || "15";
       const packProduct = tokenPackProducts?.find(
-        (p) => p.name.includes(packId.replace("pack_", ""))
+        (p) => p.name.includes(size)
       );
       const priceId = packProduct?.prices?.[0]?.id;
 
-      if (!priceId) {
-        const packSizes: Record<string, string> = { pack_10: "10", pack_25: "25", pack_50: "50" };
-        const size = packSizes[packId] || "10";
-        const searchProduct = tokenPackProducts?.find(p => p.name.includes(size));
-        const searchPrice = searchProduct?.prices?.[0]?.id;
-        if (!searchPrice) throw new Error("Token pack not available");
-
-        const res = await apiRequest("POST", "/api/stripe/checkout", {
-          priceId: searchPrice,
-          mode: "payment",
-          packId,
-          deviceId,
-        });
-        const { url } = await res.json();
-        if (url) {
-          if (Platform.OS === "web") {
-            window.location.href = url;
-          } else {
-            await Linking.openURL(url);
-          }
-        }
-        return;
-      }
+      if (!priceId) throw new Error("Token pack not available");
 
       const res = await apiRequest("POST", "/api/stripe/checkout", {
         priceId,
@@ -242,9 +235,12 @@ export default function SubscribeScreen() {
     }
   }
 
-  const displayPrice = monthlyPrice?.unit_amount
-    ? (monthlyPrice.unit_amount / 100).toFixed(2)
-    : "2.99";
+  const standardDisplayPrice = standardPrice?.unit_amount
+    ? (standardPrice.unit_amount / 100).toFixed(2)
+    : "4.99";
+  const vipDisplayPrice = vipPrice?.unit_amount
+    ? (vipPrice.unit_amount / 100).toFixed(2)
+    : "9.99";
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + webTopInset }]}>
@@ -320,7 +316,9 @@ export default function SubscribeScreen() {
               {balance.isSubscribed && (
                 <View style={styles.subscribedBadge}>
                   <Ionicons name="checkmark-circle" size={14} color="#4CAF50" />
-                  <Text style={styles.subscribedText}>Premium Active</Text>
+                  <Text style={styles.subscribedText}>
+                    {balance.subscriptionTier === "vip" ? "VIP Active" : "Standard Active"}
+                  </Text>
                 </View>
               )}
             </LinearGradient>
@@ -332,16 +330,16 @@ export default function SubscribeScreen() {
           style={styles.tabRow}
         >
           <Pressable
-            onPress={() => setSelectedTab("subscribe")}
-            style={[styles.tab, selectedTab === "subscribe" && styles.tabActive]}
+            onPress={() => setSelectedTab("plans")}
+            style={[styles.tab, selectedTab === "plans" && styles.tabActive]}
           >
             <MaterialCommunityIcons
               name="crown"
               size={18}
-              color={selectedTab === "subscribe" ? Colors.gold : Colors.whiteMuted}
+              color={selectedTab === "plans" ? Colors.gold : Colors.whiteMuted}
             />
-            <Text style={[styles.tabText, selectedTab === "subscribe" && styles.tabTextActive]}>
-              Monthly Plan
+            <Text style={[styles.tabText, selectedTab === "plans" && styles.tabTextActive]}>
+              Monthly Plans
             </Text>
           </Pressable>
           <Pressable
@@ -359,77 +357,140 @@ export default function SubscribeScreen() {
           </Pressable>
         </Animated.View>
 
-        {selectedTab === "subscribe" ? (
-          <Animated.View entering={FadeInDown.delay(300).duration(400)}>
+        {selectedTab === "plans" ? (
+          <Animated.View entering={FadeInDown.delay(300).duration(400)} style={styles.plansContainer}>
             <View style={styles.planCard}>
               <LinearGradient
-                colors={["rgba(212, 164, 32, 0.15)", "rgba(212, 164, 32, 0.05)"]}
+                colors={["rgba(212, 164, 32, 0.12)", "rgba(212, 164, 32, 0.03)"]}
                 style={styles.planGradient}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
               >
                 <View style={styles.planHeader}>
-                  <MaterialCommunityIcons name="crown" size={28} color={Colors.gold} />
-                  <Text style={styles.planTitle}>Premium</Text>
+                  <MaterialCommunityIcons name="crown" size={24} color={Colors.gold} />
+                  <Text style={styles.planTitle}>Standard</Text>
                 </View>
                 <View style={styles.priceRow}>
                   <Text style={styles.priceCurrency}>$</Text>
-                  <Text style={styles.priceAmount}>{displayPrice.split(".")[0]}</Text>
-                  <Text style={styles.priceCents}>.{displayPrice.split(".")[1]}</Text>
+                  <Text style={styles.priceAmount}>{standardDisplayPrice.split(".")[0]}</Text>
+                  <Text style={styles.priceCents}>.{standardDisplayPrice.split(".")[1]}</Text>
                   <Text style={styles.pricePeriod}>/month</Text>
                 </View>
                 <View style={styles.planFeatures}>
                   <View style={styles.featureRow}>
-                    <FontAwesome5 name="coins" size={14} color={Colors.gold} />
-                    <Text style={styles.featureText}>30 Trump Tokens every month</Text>
+                    <FontAwesome5 name="coins" size={13} color={Colors.gold} />
+                    <Text style={styles.featureText}>50 Trump Tokens every month</Text>
                   </View>
                   <View style={styles.featureRow}>
-                    <Ionicons name="refresh" size={16} color={Colors.gold} />
+                    <Ionicons name="refresh" size={15} color={Colors.gold} />
                     <Text style={styles.featureText}>Auto-refills monthly</Text>
                   </View>
                   <View style={styles.featureRow}>
-                    <Ionicons name="flash" size={16} color={Colors.gold} />
-                    <Text style={styles.featureText}>Priority responses</Text>
-                  </View>
-                  <View style={styles.featureRow}>
-                    <Ionicons name="star" size={16} color={Colors.gold} />
-                    <Text style={styles.featureText}>Only ~$0.10 per chat</Text>
+                    <Ionicons name="star" size={15} color={Colors.gold} />
+                    <Text style={styles.featureText}>~$0.10 per chat</Text>
                   </View>
                 </View>
-                <Text style={styles.planNote}>Cancel anytime. No questions asked.</Text>
+                <Pressable
+                  onPress={() => handleSubscribe("standard")}
+                  disabled={isProcessing}
+                  style={({ pressed }) => [
+                    styles.planButton,
+                    pressed && styles.planButtonPressed,
+                    isProcessing && styles.planButtonDisabled,
+                  ]}
+                  testID="standard-subscribe-button"
+                >
+                  <LinearGradient
+                    colors={["rgba(212, 164, 32, 0.6)", "rgba(212, 164, 32, 0.3)"]}
+                    style={styles.planButtonGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    {isProcessing ? (
+                      <ActivityIndicator color={Colors.white} size="small" />
+                    ) : (
+                      <Text style={styles.planButtonText}>
+                        {balance?.isSubscribed && balance?.subscriptionTier !== "vip" ? "Manage" : "Get Standard"}
+                      </Text>
+                    )}
+                  </LinearGradient>
+                </Pressable>
               </LinearGradient>
             </View>
 
-            <Pressable
-              onPress={handleSubscribe}
-              disabled={isProcessing}
-              style={({ pressed }) => [
-                styles.mainButton,
-                pressed && styles.mainButtonPressed,
-                isProcessing && styles.mainButtonDisabled,
-              ]}
-              testID="subscribe-action-button"
-            >
+            <View style={[styles.planCard, styles.vipCard]}>
+              <View style={styles.vipBadge}>
+                <Text style={styles.vipBadgeText}>BEST VALUE</Text>
+              </View>
               <LinearGradient
-                colors={[Colors.goldLight, Colors.gold, Colors.goldDark]}
-                style={styles.mainButtonGradient}
+                colors={["rgba(212, 164, 32, 0.22)", "rgba(212, 164, 32, 0.06)"]}
+                style={styles.planGradient}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
               >
-                {isProcessing ? (
-                  <ActivityIndicator color={Colors.black} />
-                ) : (
-                  <Text style={styles.mainButtonText}>
-                    {balance?.isSubscribed ? "Manage Subscription" : "Subscribe Now"}
-                  </Text>
-                )}
+                <View style={styles.planHeader}>
+                  <MaterialCommunityIcons name="diamond-stone" size={24} color="#E8D5A0" />
+                  <Text style={[styles.planTitle, { color: "#E8D5A0" }]}>VIP</Text>
+                </View>
+                <View style={styles.priceRow}>
+                  <Text style={styles.priceCurrency}>$</Text>
+                  <Text style={styles.priceAmount}>{vipDisplayPrice.split(".")[0]}</Text>
+                  <Text style={styles.priceCents}>.{vipDisplayPrice.split(".")[1]}</Text>
+                  <Text style={styles.pricePeriod}>/month</Text>
+                </View>
+                <View style={styles.planFeatures}>
+                  <View style={styles.featureRow}>
+                    <FontAwesome5 name="coins" size={13} color="#E8D5A0" />
+                    <Text style={styles.featureText}>150 Trump Tokens every month</Text>
+                  </View>
+                  <View style={styles.featureRow}>
+                    <Ionicons name="refresh" size={15} color="#E8D5A0" />
+                    <Text style={styles.featureText}>Auto-refills monthly</Text>
+                  </View>
+                  <View style={styles.featureRow}>
+                    <Ionicons name="flash" size={15} color="#E8D5A0" />
+                    <Text style={styles.featureText}>3x more tokens than Standard</Text>
+                  </View>
+                  <View style={styles.featureRow}>
+                    <Ionicons name="star" size={15} color="#E8D5A0" />
+                    <Text style={styles.featureText}>~$0.07 per chat — lowest price</Text>
+                  </View>
+                </View>
+                <Pressable
+                  onPress={() => handleSubscribe("vip")}
+                  disabled={isProcessing}
+                  style={({ pressed }) => [
+                    styles.planButton,
+                    styles.vipButton,
+                    pressed && styles.planButtonPressed,
+                    isProcessing && styles.planButtonDisabled,
+                  ]}
+                  testID="vip-subscribe-button"
+                >
+                  <LinearGradient
+                    colors={[Colors.goldLight, Colors.gold, Colors.goldDark]}
+                    style={styles.planButtonGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    {isProcessing ? (
+                      <ActivityIndicator color={Colors.black} size="small" />
+                    ) : (
+                      <Text style={[styles.planButtonText, styles.vipButtonText]}>
+                        {balance?.isSubscribed && balance?.subscriptionTier === "vip" ? "Manage VIP" : "Go VIP"}
+                      </Text>
+                    )}
+                  </LinearGradient>
+                </Pressable>
               </LinearGradient>
-            </Pressable>
+            </View>
+
+            <Text style={styles.planNote}>Cancel anytime. No questions asked.</Text>
           </Animated.View>
         ) : (
           <Animated.View entering={FadeInDown.delay(300).duration(400)} style={styles.packsSection}>
             <Text style={styles.packsTitle}>Need more tokens? Grab a pack!</Text>
-            {TOKEN_PACKS.map((pack, index) => (
+            {TOKEN_PACKS.map((pack) => (
               <Pressable
                 key={pack.id}
                 onPress={() => handleBuyPack(pack.id)}
@@ -492,7 +553,7 @@ export default function SubscribeScreen() {
         </Animated.View>
 
         <Text style={styles.legalText}>
-          Subscription auto-renews monthly. Cancel anytime from your Stripe account.
+          Subscriptions auto-renew monthly. Cancel anytime from your Stripe account.
           Token packs are one-time purchases and do not expire.
         </Text>
       </ScrollView>
@@ -637,16 +698,38 @@ const styles = StyleSheet.create({
   tabTextActive: {
     color: Colors.gold,
   },
+  plansContainer: {
+    gap: 16,
+  },
   planCard: {
     borderRadius: 20,
     overflow: "hidden",
-    marginBottom: 16,
     borderWidth: 1,
-    borderColor: "rgba(212, 164, 32, 0.3)",
+    borderColor: "rgba(212, 164, 32, 0.2)",
+  },
+  vipCard: {
+    borderColor: Colors.gold,
+    borderWidth: 2,
+  },
+  vipBadge: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    backgroundColor: Colors.gold,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderBottomLeftRadius: 12,
+    zIndex: 1,
+  },
+  vipBadgeText: {
+    fontSize: 10,
+    fontWeight: "800" as const,
+    color: Colors.black,
+    letterSpacing: 1,
   },
   planGradient: {
-    padding: 24,
-    gap: 16,
+    padding: 20,
+    gap: 14,
   },
   planHeader: {
     flexDirection: "row",
@@ -654,7 +737,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   planTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontFamily: "PlayfairDisplay_700Bold",
     color: Colors.white,
   },
@@ -663,31 +746,31 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
   },
   priceCurrency: {
-    fontSize: 20,
+    fontSize: 18,
     fontFamily: "PlayfairDisplay_700Bold",
     color: Colors.white,
     marginTop: 4,
   },
   priceAmount: {
-    fontSize: 48,
+    fontSize: 42,
     fontFamily: "PlayfairDisplay_900Black",
     color: Colors.white,
-    lineHeight: 52,
+    lineHeight: 46,
   },
   priceCents: {
-    fontSize: 22,
+    fontSize: 20,
     fontFamily: "PlayfairDisplay_700Bold",
     color: Colors.white,
     marginTop: 4,
   },
   pricePeriod: {
-    fontSize: 15,
+    fontSize: 14,
     color: Colors.whiteMuted,
-    marginTop: 24,
+    marginTop: 20,
     marginLeft: 4,
   },
   planFeatures: {
-    gap: 10,
+    gap: 8,
   },
   featureRow: {
     flexDirection: "row",
@@ -695,47 +778,51 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   featureText: {
-    fontSize: 14,
+    fontSize: 13,
     color: Colors.whiteDim,
   },
-  planNote: {
-    fontSize: 12,
-    color: Colors.whiteMuted,
-    textAlign: "center",
-  },
-  mainButton: {
-    borderRadius: 16,
+  planButton: {
+    borderRadius: 14,
     overflow: "hidden",
-    marginBottom: 20,
+    marginTop: 4,
+  },
+  vipButton: {
     shadowColor: Colors.gold,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 12,
     elevation: 6,
   },
-  mainButtonPressed: {
-    opacity: 0.9,
+  planButtonGradient: {
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  planButtonText: {
+    fontSize: 16,
+    fontFamily: "PlayfairDisplay_700Bold",
+    color: Colors.white,
+  },
+  vipButtonText: {
+    color: Colors.black,
+  },
+  planButtonPressed: {
+    opacity: 0.8,
     transform: [{ scale: 0.98 }],
   },
-  mainButtonDisabled: {
-    opacity: 0.7,
+  planButtonDisabled: {
+    opacity: 0.5,
   },
-  mainButtonGradient: {
-    paddingVertical: 18,
-    alignItems: "center",
-  },
-  mainButtonText: {
-    fontSize: 18,
-    fontFamily: "PlayfairDisplay_700Bold",
-    color: Colors.black,
-    letterSpacing: 0.5,
+  planNote: {
+    fontSize: 12,
+    color: Colors.whiteMuted,
+    textAlign: "center",
   },
   packsSection: {
     gap: 12,
-    marginBottom: 20,
   },
   packsTitle: {
-    fontSize: 14,
+    fontSize: 15,
     color: Colors.whiteDim,
     textAlign: "center",
     marginBottom: 4,
@@ -751,12 +838,12 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
   },
   packCardPressed: {
-    opacity: 0.8,
+    opacity: 0.7,
     transform: [{ scale: 0.98 }],
   },
   packCardHighlighted: {
     borderColor: Colors.gold,
-    backgroundColor: "rgba(212, 164, 32, 0.08)",
+    borderWidth: 2,
   },
   packLeft: {
     flexDirection: "row",
@@ -766,7 +853,7 @@ const styles = StyleSheet.create({
   packIconContainer: {
     width: 44,
     height: 44,
-    borderRadius: 12,
+    borderRadius: 14,
     backgroundColor: "rgba(212, 164, 32, 0.12)",
     alignItems: "center",
     justifyContent: "center",
@@ -777,36 +864,38 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   packTokens: {
-    fontSize: 20,
-    fontFamily: "PlayfairDisplay_700Bold",
+    fontSize: 22,
+    fontFamily: "PlayfairDisplay_900Black",
     color: Colors.white,
   },
   packLabel: {
-    fontSize: 14,
+    fontSize: 13,
     color: Colors.whiteDim,
+    fontWeight: "500" as const,
   },
   packBadge: {
-    backgroundColor: "rgba(212, 164, 32, 0.2)",
+    backgroundColor: "rgba(212, 164, 32, 0.15)",
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 6,
+    borderRadius: 8,
     marginTop: 4,
+    alignSelf: "flex-start",
   },
   packBadgeBest: {
-    backgroundColor: "rgba(212, 164, 32, 0.3)",
+    backgroundColor: "rgba(212, 164, 32, 0.25)",
   },
   packBadgeText: {
     fontSize: 9,
     fontWeight: "700" as const,
     color: Colors.gold,
-    letterSpacing: 1,
+    letterSpacing: 0.5,
   },
   packRight: {
     alignItems: "flex-end",
   },
   packPrice: {
-    fontSize: 18,
-    fontFamily: "PlayfairDisplay_700Bold",
+    fontSize: 20,
+    fontFamily: "PlayfairDisplay_900Black",
     color: Colors.gold,
   },
   packPerToken: {
@@ -816,14 +905,14 @@ const styles = StyleSheet.create({
   },
   paymentMethods: {
     alignItems: "center",
-    marginBottom: 20,
-    gap: 12,
+    marginTop: 24,
+    gap: 10,
   },
   paymentLabel: {
-    fontSize: 13,
+    fontSize: 12,
     color: Colors.whiteMuted,
+    letterSpacing: 1,
     textTransform: "uppercase" as const,
-    letterSpacing: 1.5,
   },
   paymentIcons: {
     flexDirection: "row",
@@ -832,23 +921,24 @@ const styles = StyleSheet.create({
   paymentBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 4,
     backgroundColor: Colors.card,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: Colors.border,
   },
   paymentBadgeText: {
-    fontSize: 12,
+    fontSize: 11,
     color: Colors.whiteDim,
   },
   legalText: {
-    fontSize: 11,
+    fontSize: 10,
     color: Colors.whiteMuted,
     textAlign: "center",
     lineHeight: 16,
+    marginTop: 16,
     marginBottom: 16,
   },
 });
