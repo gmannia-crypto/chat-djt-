@@ -1299,6 +1299,51 @@ export default function ChatScreen() {
     }
   }
 
+  async function handleTruthSocialMode() {
+    if (!hasTokens) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      router.push("/subscribe");
+      return;
+    }
+    setShowTyping(true);
+    setIsStreaming(true);
+    try {
+      const baseUrl = getApiUrl();
+      const resp = await globalThis.fetch(`${baseUrl}/api/truth-social`);
+      if (!resp.ok) throw new Error("Failed to fetch");
+      const data = await resp.json();
+
+      const commentary = data.commentary || "";
+      const headlinesSummary = data.headlines.map((h: any) => `• [${h.source}] ${h.title}`).join("\n");
+      const systemMsg: Message = {
+        id: generateUniqueId(),
+        role: "assistant",
+        content: `📢 **TRUTH SOCIAL — LIVE FROM MAR-A-LAGO** 📢\n\n${commentary}\n\n━━━━━━━━━━━━━━━━━━\n📰 Reacting To:\n${headlinesSummary}`,
+        timestamp: Date.now(),
+      };
+      const updated = [systemMsg];
+      setMessages(updated);
+      await saveMessages(id!, updated);
+      if (commentary) {
+        setTimeout(() => {
+          handleSpeakRef.current?.(systemMsg.id, commentary, "FIRED_UP", "RALLY_RANT");
+        }, 300);
+      }
+    } catch {
+      const errorMsg: Message = {
+        id: generateUniqueId(),
+        role: "assistant",
+        content: "Truth Social is having some server issues — probably too many people wanting to hear from ME! Try again.",
+        timestamp: Date.now(),
+      };
+      setMessages([errorMsg]);
+      await saveMessages(id!, [errorMsg]);
+    } finally {
+      setShowTyping(false);
+      setIsStreaming(false);
+    }
+  }
+
   async function loadConversation() {
     if (initializedRef.current) return;
     const conv = await getConversation(id!);
@@ -1316,6 +1361,10 @@ export default function ChatScreen() {
       }
       if (mode === "nostradamus") {
         setTimeout(() => handleNostradamusMode(), 300);
+        return;
+      }
+      if (mode === "truthsocial") {
+        setTimeout(() => handleTruthSocialMode(), 300);
         return;
       }
       const modePrompts: Record<string, string> = {

@@ -1222,6 +1222,77 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
     }
   });
 
+  const TRUTH_SOCIAL_FEEDS = [
+    { url: "https://feeds.foxnews.com/foxnews/politics", source: "Fox News" },
+    { url: "https://rss.nytimes.com/services/xml/rss/nyt/Politics.xml", source: "NYT" },
+    { url: "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10001147", source: "CNBC" },
+    { url: "https://feeds.bbci.co.uk/news/world/us_and_canada/rss.xml", source: "BBC" },
+    { url: "https://www.dailymail.co.uk/news/us-politics/index.rss", source: "Daily Mail" },
+  ];
+
+  let truthSocialCache: { data: any; timestamp: number } | null = null;
+  const TRUTH_SOCIAL_TTL = 5 * 60 * 1000;
+
+  app.get("/api/truth-social", async (_req, res) => {
+    try {
+      if (truthSocialCache && Date.now() - truthSocialCache.timestamp < TRUTH_SOCIAL_TTL) {
+        return res.json(truthSocialCache.data);
+      }
+
+      const feedResults = await Promise.allSettled(
+        TRUTH_SOCIAL_FEEDS.map(f => fetchRSSFeed(f.url, f.source))
+      );
+      let allHeadlines: any[] = [];
+      for (const result of feedResults) {
+        if (result.status === "fulfilled") allHeadlines.push(...result.value);
+      }
+      allHeadlines.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+      const trumpKeywords = /trump|maga|truth social|mar-a-lago|ivanka|melania|republican|gop|white house|president|executive order/i;
+      const trumpHeadlines = allHeadlines.filter(h => trumpKeywords.test(h.title));
+      const topHeadlines = (trumpHeadlines.length >= 3 ? trumpHeadlines : allHeadlines).slice(0, 8);
+
+      if (topHeadlines.length === 0) {
+        return res.status(500).json({ error: "No headlines available" });
+      }
+
+      const headlineList = topHeadlines.map((h: any, i: number) => `${i + 1}. [${h.source}] ${h.title}`).join("\n");
+
+      const truthPrompt = `You are Donald Trump doing a TRUTH SOCIAL livestream, reading off and reacting to stories about yourself from the news. You're scrolling through your Truth Social feed and the latest headlines, giving your unfiltered real-time reactions. Format this as if you're posting multiple "Truths" (Truth Social posts) reacting to these stories. Be dramatic, personal, name-drop, take credit, attack enemies, brag.
+
+Rules:
+- Write 4-5 separate "Truth" posts, each 2-3 sentences max
+- Start each one with "TRUTH:" as a label
+- Reference specific headlines and give hot takes
+- Mix in personal commentary, attacks on political rivals, bragging
+- Be raw, authentic, Trump voice — like you're actually posting on Truth Social right now
+- Include ALL CAPS moments for emphasis
+- Keep total under 500 words. No mood tags, no speech tags.`;
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: truthPrompt },
+          { role: "user", content: `Here's what's in the news right now:\n\n${headlineList}\n\nGive your Truth Social reactions to these stories. React like you're posting live on Truth Social.` },
+        ],
+        max_tokens: 700,
+        temperature: 1.0,
+      });
+
+      const commentary = completion.choices[0]?.message?.content?.trim() || "";
+      const result = {
+        commentary,
+        headlines: topHeadlines.slice(0, 5),
+        generatedAt: new Date().toISOString(),
+      };
+      truthSocialCache = { data: result, timestamp: Date.now() };
+      res.json(result);
+    } catch (error) {
+      console.error("Truth Social error:", error);
+      if (truthSocialCache) return res.json(truthSocialCache.data);
+      res.status(500).json({ error: "Failed to generate Truth Social content" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

@@ -450,6 +450,12 @@ export default function HomeScreen() {
     router.push({ pathname: "/chat/[id]", params: { id: conv.id, mode: "nostradamus" } });
   }
 
+  async function handleTruthSocialMode() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    const conv = await createConversation("Truth Social");
+    router.push({ pathname: "/chat/[id]", params: { id: conv.id, mode: "truthsocial" } });
+  }
+
   async function handleDelete(id: string) {
     await deleteConversation(id);
     setConversations((prev) => prev.filter((c) => c.id !== id));
@@ -624,6 +630,16 @@ export default function HomeScreen() {
               style={{ width: 22, height: 22, borderRadius: 11 }}
             />
             <Text style={styles.modeButtonText}>PREDICT</Text>
+          </Pressable>
+        </Animated.View>
+        <Animated.View entering={FadeInDown.delay(1200).duration(500)} style={styles.modeButtons}>
+          <Pressable
+            onPress={handleTruthSocialMode}
+            style={({ pressed }) => [styles.modeButton, styles.truthSocialButton, pressed && { opacity: 0.7 }]}
+            testID="truthsocial-button"
+          >
+            <Ionicons name="megaphone" size={16} color="#4A90D9" />
+            <Text style={styles.modeButtonText}>TRUTH SOCIAL</Text>
           </Pressable>
         </Animated.View>
       </Pressable>
@@ -1469,6 +1485,11 @@ const styles = StyleSheet.create({
   nostradamusButton: {
     backgroundColor: "rgba(187, 134, 252, 0.12)",
     borderColor: "rgba(187, 134, 252, 0.35)",
+  },
+  truthSocialButton: {
+    backgroundColor: "rgba(74, 144, 217, 0.15)",
+    borderColor: "rgba(74, 144, 217, 0.4)",
+    flex: 1,
   },
   streakBadge: {
     flexDirection: "row",
