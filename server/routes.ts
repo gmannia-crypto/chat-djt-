@@ -1418,9 +1418,12 @@ Respond in valid JSON format ONLY — an array of objects:
     }
   });
 
-  app.post("/api/cabinet-speak", async (req, res) => {
+  const handleCabinetSpeak = async (req: any, res: any) => {
     try {
-      const { name, title, rating, reason } = req.body;
+      const name = req.body?.name || req.query?.name;
+      const title = req.body?.title || req.query?.title || "";
+      const rating = req.body?.rating || req.query?.rating || 3;
+      const reason = req.body?.reason || req.query?.reason || "No assessment yet";
       if (!name) return res.status(400).json({ error: "Name required" });
 
       const deviceId = req.headers["x-device-id"] as string;
@@ -1453,7 +1456,9 @@ Respond in valid JSON format ONLY — an array of objects:
       console.error("Cabinet speak error:", error);
       res.status(500).json({ error: "Failed to generate commentary" });
     }
-  });
+  };
+  app.post("/api/cabinet-speak", handleCabinetSpeak);
+  app.get("/api/cabinet-speak", handleCabinetSpeak);
 
   const httpServer = createServer(app);
   return httpServer;
