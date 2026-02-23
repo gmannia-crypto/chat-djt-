@@ -609,6 +609,7 @@ export default function HomeScreen() {
           <Pressable
             onPress={handleLiveNewsMode}
             style={({ pressed }) => [styles.modeButton, styles.liveNewsButton, pressed && { opacity: 0.7 }]}
+            testID="livenews-button"
           >
             <View style={styles.liveDot} />
             <Text style={styles.modeButtonText}>LIVE NEWS</Text>
@@ -616,6 +617,7 @@ export default function HomeScreen() {
           <Pressable
             onPress={handleNostradamusMode}
             style={({ pressed }) => [styles.modeButton, styles.nostradamusButton, pressed && { opacity: 0.7 }]}
+            testID="nostradamus-button"
           >
             <MaterialCommunityIcons name="crystal-ball" size={18} color="#BB86FC" />
             <Text style={styles.modeButtonText}>PREDICT</Text>
