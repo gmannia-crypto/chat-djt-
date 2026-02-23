@@ -45,6 +45,12 @@ interface AdminStats {
     subscriptions: string;
     tokenPacks: string;
   };
+  apiUsage?: {
+    sinceRestart: string;
+    endpoints: Record<string, { calls: number; estimatedCost: string }>;
+    totalEstimatedCost: string;
+    estimatedProfit: string;
+  };
   recentTransactions: {
     type: string;
     amount: number;
@@ -218,6 +224,29 @@ export default function AdminScreen() {
                 </View>
               </View>
             </Animated.View>
+
+            {stats.apiUsage && (
+              <Animated.View entering={FadeInDown.delay(150).duration(400)} style={styles.apiUsageSection}>
+                <Text style={styles.sectionTitle}>API Costs (Since Restart)</Text>
+                <View style={styles.profitRow}>
+                  <View style={styles.profitItem}>
+                    <Text style={styles.profitLabel}>Est. API Cost</Text>
+                    <Text style={[styles.profitValue, { color: "#EF4444" }]}>{stats.apiUsage.totalEstimatedCost}</Text>
+                  </View>
+                  <View style={styles.profitItem}>
+                    <Text style={styles.profitLabel}>Est. Profit</Text>
+                    <Text style={[styles.profitValue, { color: "#4ADE80" }]}>{stats.apiUsage.estimatedProfit}</Text>
+                  </View>
+                </View>
+                {Object.entries(stats.apiUsage.endpoints).map(([key, val]) => (
+                  <View key={key} style={styles.apiRow}>
+                    <Text style={styles.apiEndpoint}>{key}</Text>
+                    <Text style={styles.apiCalls}>{val.calls} calls</Text>
+                    <Text style={styles.apiCost}>{val.estimatedCost}</Text>
+                  </View>
+                ))}
+              </Animated.View>
+            )}
 
             <Animated.View entering={FadeInDown.delay(200).duration(400)}>
               <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Users</Text>
@@ -638,5 +667,62 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.whiteDim,
     lineHeight: 16,
+  },
+  apiUsageSection: {
+    marginTop: 20,
+    backgroundColor: Colors.card,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  profitRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 14,
+    marginTop: 8,
+  },
+  profitItem: {
+    flex: 1,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 10,
+    padding: 12,
+    alignItems: "center",
+  },
+  profitLabel: {
+    fontSize: 11,
+    color: Colors.whiteDim,
+    textTransform: "uppercase" as const,
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  profitValue: {
+    fontSize: 20,
+    fontFamily: "PlayfairDisplay_900Black",
+  },
+  apiRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.05)",
+  },
+  apiEndpoint: {
+    flex: 1,
+    fontSize: 12,
+    color: Colors.white,
+    fontFamily: "PlayfairDisplay_700Bold",
+  },
+  apiCalls: {
+    fontSize: 12,
+    color: Colors.whiteMuted,
+    marginRight: 12,
+  },
+  apiCost: {
+    fontSize: 12,
+    color: Colors.gold,
+    fontFamily: "PlayfairDisplay_700Bold",
+    minWidth: 60,
+    textAlign: "right" as const,
   },
 });

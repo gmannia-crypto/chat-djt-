@@ -378,6 +378,31 @@ async function trumpTextToSpeech(text: string, speed: number = 1.0, mood: string
   return Buffer.from(arrayBuffer);
 }
 
+const apiUsageCounters = {
+  chat: 0,
+  newsCommentary: 0,
+  nostradamus: 0,
+  truthSocial: 0,
+  cabinetHotseat: 0,
+  cabinetSpeak: 0,
+  tts: 0,
+  stt: 0,
+  reportCard: 0,
+  startedAt: new Date().toISOString(),
+};
+
+const API_COST_ESTIMATES: Record<string, number> = {
+  chat: 0.003,
+  newsCommentary: 0.004,
+  nostradamus: 0.003,
+  truthSocial: 0.004,
+  cabinetHotseat: 0.005,
+  cabinetSpeak: 0.002,
+  tts: 0.01,
+  stt: 0.006,
+  reportCard: 0.002,
+};
+
 export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/tokens/balance", async (req, res) => {
     try {
@@ -436,6 +461,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
       }
+      apiUsageCounters.chat++;
 
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache, no-transform");
@@ -553,6 +579,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/tts", async (req, res) => {
     try {
       const { text, mood, speechCategory } = req.body;
+      apiUsageCounters.tts++;
 
       if (!text || typeof text !== "string") {
         return res.status(400).json({ error: "Text is required" });
@@ -954,6 +981,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       await db.end();
 
+      const estimatedCosts = Object.entries(apiUsageCounters)
+        .filter(([key]) => key !== "startedAt")
+        .reduce((acc, [key, count]) => {
+          const cost = (count as number) * (API_COST_ESTIMATES[key] || 0);
+          acc[key] = { calls: count as number, estimatedCost: `$${cost.toFixed(4)}` };
+          return acc;
+        }, {} as Record<string, { calls: number; estimatedCost: string }>);
+
+      const totalEstimatedCost = Object.entries(apiUsageCounters)
+        .filter(([key]) => key !== "startedAt")
+        .reduce((sum, [key, count]) => sum + (count as number) * (API_COST_ESTIMATES[key] || 0), 0);
+
       res.json({
         users: {
           total: parseInt(stats.total_users),
@@ -974,6 +1013,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           tokenPacks: (parseFloat(revenue.pack10_revenue || 0) +
             parseFloat(revenue.pack25_revenue || 0) +
             parseFloat(revenue.pack50_revenue || 0)).toFixed(2),
+        },
+        apiUsage: {
+          sinceRestart: apiUsageCounters.startedAt,
+          endpoints: estimatedCosts,
+          totalEstimatedCost: `$${totalEstimatedCost.toFixed(4)}`,
+          estimatedProfit: `$${(totalRevenue - totalEstimatedCost).toFixed(2)}`,
         },
         recentTransactions: recentTransactions.map((tx: any) => ({
           type: tx.type,
@@ -1111,12 +1156,23 @@ Not bad, kid. You actually kept up with me for once. Most people can't handle fi
   });
 
   let newsCommentaryCache: { data: any; timestamp: number } | null = null;
-  const NEWS_COMMENTARY_TTL = 5 * 60 * 1000;
+  const NEWS_COMMENTARY_TTL = 30 * 60 * 1000;
 
-  app.get("/api/news-commentary", async (_req, res) => {
+  app.get("/api/news-commentary", async (req, res) => {
     try {
-      if (newsCommentaryCache && Date.now() - newsCommentaryCache.timestamp < NEWS_COMMENTARY_TTL) {
-        return res.json(newsCommentaryCache.data);
+      const isCached = newsCommentaryCache && Date.now() - newsCommentaryCache.timestamp < NEWS_COMMENTARY_TTL;
+      if (!isCached) {
+        const deviceId = req.headers["x-device-id"] as string;
+        if (deviceId) {
+          const tokenResult = await useToken(deviceId);
+          if (!tokenResult.success) {
+            return res.status(403).json({ error: "no_tokens", message: tokenResult.error, balance: tokenResult.balance });
+          }
+        }
+        apiUsageCounters.newsCommentary++;
+      }
+      if (isCached) {
+        return res.json(newsCommentaryCache!.data);
       }
 
       const feedResults = await Promise.allSettled(
@@ -1150,7 +1206,7 @@ Not bad, kid. You actually kept up with me for once. Most people can't handle fi
           { role: "system", content: commentaryPrompt },
           { role: "user", content: `BREAKING NEWS — Here are today's top headlines:\n\n${headlineList}\n\nGive your LIVE commentary on these stories. React to them like you're broadcasting live.` },
         ],
-        max_tokens: 500,
+        max_tokens: 400,
         temperature: 1.0,
       });
 
@@ -1170,12 +1226,23 @@ Not bad, kid. You actually kept up with me for once. Most people can't handle fi
   });
 
   let nostradamusCache: { data: any; timestamp: number } | null = null;
-  const NOSTRADAMUS_TTL = 15 * 60 * 1000;
+  const NOSTRADAMUS_TTL = 60 * 60 * 1000;
 
-  app.get("/api/nostradamus", async (_req, res) => {
+  app.get("/api/nostradamus", async (req, res) => {
     try {
-      if (nostradamusCache && Date.now() - nostradamusCache.timestamp < NOSTRADAMUS_TTL) {
-        return res.json(nostradamusCache.data);
+      const isCached = nostradamusCache && Date.now() - nostradamusCache.timestamp < NOSTRADAMUS_TTL;
+      if (!isCached) {
+        const deviceId = req.headers["x-device-id"] as string;
+        if (deviceId) {
+          const tokenResult = await useToken(deviceId);
+          if (!tokenResult.success) {
+            return res.status(403).json({ error: "no_tokens", message: tokenResult.error, balance: tokenResult.balance });
+          }
+        }
+        apiUsageCounters.nostradamus++;
+      }
+      if (isCached) {
+        return res.json(nostradamusCache!.data);
       }
 
       const feedResults = await Promise.allSettled(
@@ -1203,7 +1270,7 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
           { role: "system", content: nostradamusPrompt },
           { role: "user", content: `Current headlines for context:\n${topHeadlines.join("\n")}\n\nGive me 3 Trump-adomas predictions based on what's happening right now.` },
         ],
-        max_tokens: 600,
+        max_tokens: 450,
         temperature: 1.1,
       });
 
@@ -1231,12 +1298,23 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
   ];
 
   let truthSocialCache: { data: any; timestamp: number } | null = null;
-  const TRUTH_SOCIAL_TTL = 5 * 60 * 1000;
+  const TRUTH_SOCIAL_TTL = 30 * 60 * 1000;
 
-  app.get("/api/truth-social", async (_req, res) => {
+  app.get("/api/truth-social", async (req, res) => {
     try {
-      if (truthSocialCache && Date.now() - truthSocialCache.timestamp < TRUTH_SOCIAL_TTL) {
-        return res.json(truthSocialCache.data);
+      const isCached = truthSocialCache && Date.now() - truthSocialCache.timestamp < TRUTH_SOCIAL_TTL;
+      if (!isCached) {
+        const deviceId = req.headers["x-device-id"] as string;
+        if (deviceId) {
+          const tokenResult = await useToken(deviceId);
+          if (!tokenResult.success) {
+            return res.status(403).json({ error: "no_tokens", message: tokenResult.error, balance: tokenResult.balance });
+          }
+        }
+        apiUsageCounters.truthSocial++;
+      }
+      if (isCached) {
+        return res.json(truthSocialCache!.data);
       }
 
       const feedResults = await Promise.allSettled(
@@ -1325,12 +1403,23 @@ Rules:
   ];
 
   let cabinetCache: { data: any; timestamp: number } | null = null;
-  const CABINET_TTL = 10 * 60 * 1000;
+  const CABINET_TTL = 30 * 60 * 1000;
 
-  app.get("/api/cabinet-hotseat", async (_req, res) => {
+  app.get("/api/cabinet-hotseat", async (req, res) => {
     try {
-      if (cabinetCache && Date.now() - cabinetCache.timestamp < CABINET_TTL) {
-        return res.json(cabinetCache.data);
+      const isCached = cabinetCache && Date.now() - cabinetCache.timestamp < CABINET_TTL;
+      if (!isCached) {
+        const deviceId = req.headers["x-device-id"] as string;
+        if (deviceId) {
+          const tokenResult = await useToken(deviceId);
+          if (!tokenResult.success) {
+            return res.status(403).json({ error: "no_tokens", message: tokenResult.error, balance: tokenResult.balance });
+          }
+        }
+        apiUsageCounters.cabinetHotseat++;
+      }
+      if (isCached) {
+        return res.json(cabinetCache!.data);
       }
 
       const feedResults = await Promise.allSettled(
@@ -1374,7 +1463,7 @@ Respond in valid JSON format ONLY — an array of objects:
           { role: "system", content: cabinetPrompt },
           { role: "user", content: `Current cabinet/inner circle members:\n${memberList}\n\nRecent headlines for context:\n${recentHeadlines.slice(0, 15).join("\n")}\n\nRate each person's standing with Trump right now.` },
         ],
-        max_tokens: 3000,
+        max_tokens: 2500,
         temperature: 0.9,
       });
 
@@ -1425,6 +1514,7 @@ Respond in valid JSON format ONLY — an array of objects:
       const rating = req.body?.rating || req.query?.rating || 3;
       const reason = req.body?.reason || req.query?.reason || "No assessment yet";
       if (!name) return res.status(400).json({ error: "Name required" });
+      apiUsageCounters.cabinetSpeak++;
 
       const deviceId = req.headers["x-device-id"] as string;
       if (deviceId) {

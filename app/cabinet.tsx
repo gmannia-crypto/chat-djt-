@@ -149,11 +149,18 @@ export default function CabinetHotSeat() {
     queryKey: ["cabinet-hotseat"],
     queryFn: async () => {
       const baseUrl = getApiUrl();
-      const resp = await globalThis.fetch(`${baseUrl}/api/cabinet-hotseat`);
+      const resp = await globalThis.fetch(`${baseUrl}/api/cabinet-hotseat`, {
+        headers: deviceId ? { "x-device-id": deviceId } : {},
+      });
+      if (resp.status === 403) {
+        router.push("/subscribe");
+        throw new Error("No tokens");
+      }
       if (!resp.ok) throw new Error("Failed to fetch");
       return resp.json();
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: 10 * 60 * 1000,
+    enabled: !!deviceId,
   });
 
   const members: CabinetMember[] = data?.members || [];

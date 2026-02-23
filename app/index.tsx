@@ -245,7 +245,7 @@ export default function HomeScreen() {
   const [hotTakeLoading, setHotTakeLoading] = useState(false);
   const [streak, setStreak] = useState(0);
   const [dailyChallenge, setDailyChallenge] = useState<string | null>(null);
-  const { deviceId } = useTokens();
+  const { deviceId, hasTokens } = useTokens();
 
   function handleSecretTap() {
     secretTapCount.current += 1;
@@ -439,18 +439,33 @@ export default function HomeScreen() {
   }
 
   async function handleLiveNewsMode() {
+    if (!hasTokens) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      router.push("/subscribe");
+      return;
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     const conv = await createConversation("LIVE News");
     router.push({ pathname: "/chat/[id]", params: { id: conv.id, mode: "livenews" } });
   }
 
   async function handleNostradamusMode() {
+    if (!hasTokens) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      router.push("/subscribe");
+      return;
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     const conv = await createConversation("Trump-adomas");
     router.push({ pathname: "/chat/[id]", params: { id: conv.id, mode: "nostradamus" } });
   }
 
   async function handleTruthSocialMode() {
+    if (!hasTokens) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      router.push("/subscribe");
+      return;
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     const conv = await createConversation("Truth Social");
     router.push({ pathname: "/chat/[id]", params: { id: conv.id, mode: "truthsocial" } });
@@ -656,6 +671,11 @@ export default function HomeScreen() {
           </Pressable>
           <Pressable
             onPress={() => {
+              if (!hasTokens) {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                router.push("/subscribe");
+                return;
+              }
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
               router.push("/cabinet");
             }}
