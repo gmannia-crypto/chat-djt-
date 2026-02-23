@@ -639,8 +639,8 @@ export default function HomeScreen() {
             testID="nostradamus-button"
           >
             <Image
-              source={require("@/assets/images/trumpadomas.jpeg")}
-              style={{ width: 22, height: 22, borderRadius: 11 }}
+              source={require("@/assets/images/trumpadamus.jpeg")}
+              style={{ width: 26, height: 26, borderRadius: 13 }}
             />
             <Text style={styles.modeButtonText}>PREDICT</Text>
           </Pressable>
