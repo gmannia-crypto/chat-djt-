@@ -255,6 +255,9 @@ async function getAudioDuration(audioBuffer: Buffer): Promise<number> {
       tmpIn,
     ]);
     return parseFloat(stdout.trim());
+  } catch (error: any) {
+    console.error("ffprobe error (returning estimate):", error.message);
+    return audioBuffer.length / 16000;
   } finally {
     if (existsSync(tmpIn)) unlinkSync(tmpIn);
   }
