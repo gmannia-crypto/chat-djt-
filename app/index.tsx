@@ -552,10 +552,23 @@ export default function HomeScreen() {
             <Text style={styles.glossyHeaderLabel}>Archive</Text>
           </Pressable>
         </View>
+        <View style={styles.headerBrand}>
+          <Text style={styles.headerBrandBy}>by</Text>
+          <Image
+            source={require("@/assets/images/dynamic-creations.jpg")}
+            style={styles.headerBrandLogo}
+            resizeMode="contain"
+          />
+        </View>
         <View style={styles.headerRight} />
       </Animated.View>
 
-      <Pressable style={styles.centerContent} onPress={handleSecretTap} testID="secret-tap-area">
+      <ScrollView
+        style={styles.centerScroll}
+        contentContainerStyle={styles.centerContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         {streak > 0 && (
           <Animated.View entering={FadeIn.delay(400).duration(500)} style={styles.streakBadge}>
             <MaterialCommunityIcons name="fire" size={16} color="#FF6B35" />
@@ -653,7 +666,7 @@ export default function HomeScreen() {
             <Text style={styles.modeButtonText}>HOT SEAT</Text>
           </Pressable>
         </Animated.View>
-      </Pressable>
+      </ScrollView>
 
       <View
         style={[
@@ -681,14 +694,6 @@ export default function HomeScreen() {
       </View>
 
       <View style={[styles.bottomBarContainer, { paddingBottom: insets.bottom + webBottomInset }]}>
-        <View style={styles.brandBar}>
-          <Text style={styles.brandByText}>by</Text>
-          <Image
-            source={require("@/assets/images/dynamic-creations.jpg")}
-            style={styles.brandLogo}
-            resizeMode="contain"
-          />
-        </View>
         {headlines.length > 0 && <NewsCrawl headlines={headlines} />}
 
         {tickers && (
@@ -1084,6 +1089,22 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
+  headerBrand: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  headerBrandBy: {
+    fontSize: 13,
+    color: "rgba(255, 255, 255, 0.5)",
+    fontStyle: "italic",
+  },
+  headerBrandLogo: {
+    width: 130,
+    height: 30,
+  },
   headerRight: {
     flexDirection: "row",
     alignItems: "center",
@@ -1116,11 +1137,15 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
     textTransform: "uppercase" as const,
   },
-  centerContent: {
+  centerScroll: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
     zIndex: 5,
+  },
+  centerContent: {
+    alignItems: "center",
+    justifyContent: "center",
+    flexGrow: 1,
+    paddingVertical: 10,
   },
   brandTitle: {
     fontSize: 42,
@@ -1478,7 +1503,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(212, 164, 32, 0.4)",
   },
   modeButtonText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "800" as const,
     color: Colors.white,
     letterSpacing: 1,
