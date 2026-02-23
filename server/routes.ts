@@ -1294,13 +1294,14 @@ Rules:
   });
 
   const CABINET_MEMBERS = [
+    { name: "JD Vance", title: "Vice President", image: "🇺🇸" },
     { name: "Marco Rubio", title: "Secretary of State", image: "🏛️" },
     { name: "Pete Hegseth", title: "Secretary of Defense", image: "🎖️" },
     { name: "Scott Bessent", title: "Secretary of the Treasury", image: "💰" },
     { name: "Pam Bondi", title: "Attorney General", image: "⚖️" },
     { name: "Robert F. Kennedy Jr.", title: "HHS Secretary", image: "💊" },
     { name: "Kristi Noem", title: "DHS Secretary", image: "🛡️" },
-    { name: "Doug Burgum", title: "Secretary of the Interior", image: "🏔️" },
+    { name: "Doug Burgum", title: "Secretary of the Interior / AI Czar", image: "🏔️" },
     { name: "Brooke Rollins", title: "Secretary of Agriculture", image: "🌾" },
     { name: "Howard Lutnick", title: "Secretary of Commerce", image: "📊" },
     { name: "Lori Chavez-DeRemer", title: "Secretary of Labor", image: "👷" },
@@ -1309,11 +1310,8 @@ Rules:
     { name: "Scott Turner", title: "HUD Secretary", image: "🏘️" },
     { name: "Linda McMahon", title: "Secretary of Education", image: "📚" },
     { name: "Doug Collins", title: "Secretary of Veterans Affairs", image: "🎗️" },
-    { name: "Elon Musk", title: "DOGE Lead / Special Advisor", image: "🚀" },
-    { name: "Vivek Ramaswamy", title: "Former DOGE Co-Lead", image: "💡" },
-    { name: "JD Vance", title: "Vice President", image: "🇺🇸" },
     { name: "Susie Wiles", title: "White House Chief of Staff", image: "🏠" },
-    { name: "Stephen Miller", title: "Senior Advisor / Deputy CoS", image: "📋" },
+    { name: "Stephen Miller", title: "Senior Advisor / Deputy Chief of Staff for Policy", image: "📋" },
     { name: "Mike Waltz", title: "National Security Advisor", image: "🔒" },
     { name: "Tulsi Gabbard", title: "Director of National Intelligence", image: "🕵️" },
     { name: "John Ratcliffe", title: "CIA Director", image: "🔍" },
@@ -1321,10 +1319,13 @@ Rules:
     { name: "Russell Vought", title: "OMB Director", image: "📝" },
     { name: "Lee Zeldin", title: "EPA Administrator", image: "🌿" },
     { name: "Karoline Leavitt", title: "White House Press Secretary", image: "🎤" },
+    { name: "Tom Homan", title: "Border Czar", image: "🚧" },
+    { name: "Elon Musk", title: "Former DOGE Lead (Departed)", image: "🚀" },
+    { name: "Vivek Ramaswamy", title: "Former DOGE Co-Lead (Departed)", image: "💡" },
   ];
 
   let cabinetCache: { data: any; timestamp: number } | null = null;
-  const CABINET_TTL = 30 * 60 * 1000;
+  const CABINET_TTL = 10 * 60 * 1000;
 
   app.get("/api/cabinet-hotseat", async (_req, res) => {
     try {
@@ -1357,7 +1358,12 @@ For EACH person, provide:
 2. A brief 1-sentence reason in Trump's voice explaining the rating
 3. A "heat" indicator: "safe", "warm", "hot", "burning", "fired"
 
-IMPORTANT: Be current, realistic, and entertaining. Reference actual dynamics and news. Some should be doing great, some should be struggling. Make it feel like real insider intel.
+CRITICAL RULES:
+- You MUST include a rating for EVERY SINGLE person listed below. Do not skip anyone.
+- Use the EXACT name as provided for each person in the "name" field.
+- Be current, realistic, and entertaining. Reference actual dynamics and news.
+- Some should be doing great, some should be struggling. Make it feel like real insider intel.
+- For people who have departed (Elon Musk, Vivek Ramaswamy), rate them 6 (fired/departed) with a reason about their departure.
 
 Respond in valid JSON format ONLY — an array of objects:
 [{"name": "Person Name", "rating": 1-6, "reason": "Trump-voice explanation", "heat": "safe|warm|hot|burning|fired"}]`;
@@ -1368,7 +1374,7 @@ Respond in valid JSON format ONLY — an array of objects:
           { role: "system", content: cabinetPrompt },
           { role: "user", content: `Current cabinet/inner circle members:\n${memberList}\n\nRecent headlines for context:\n${recentHeadlines.slice(0, 15).join("\n")}\n\nRate each person's standing with Trump right now.` },
         ],
-        max_tokens: 2000,
+        max_tokens: 3000,
         temperature: 0.9,
       });
 
@@ -1385,7 +1391,14 @@ Respond in valid JSON format ONLY — an array of objects:
 
       const result = {
         members: CABINET_MEMBERS.map(member => {
-          const rating = ratings.find((r: any) => r.name && member.name.toLowerCase().includes(r.name.toLowerCase().split(" ")[0]));
+          const memberLower = member.name.toLowerCase();
+          const lastName = memberLower.split(" ").pop() || "";
+          const firstName = memberLower.split(" ")[0] || "";
+          const rating = ratings.find((r: any) => {
+            if (!r.name) return false;
+            const rLower = r.name.toLowerCase();
+            return memberLower.includes(rLower) || rLower.includes(lastName) || rLower.includes(firstName) || memberLower === rLower;
+          });
           return {
             ...member,
             rating: rating?.rating || 3,
@@ -1402,6 +1415,31 @@ Respond in valid JSON format ONLY — an array of objects:
       console.error("Cabinet hot seat error:", error);
       if (cabinetCache) return res.json(cabinetCache.data);
       res.status(500).json({ error: "Failed to generate cabinet ratings" });
+    }
+  });
+
+  app.post("/api/cabinet-speak", async (req, res) => {
+    try {
+      const { name, title, rating, reason } = req.body;
+      if (!name) return res.status(400).json({ error: "Name required" });
+
+      const speakPrompt = `You are Donald Trump giving a quick, raw, unfiltered take on one of your cabinet members or advisors. You are speaking in first person as Trump. Be dramatic, personal, funny, and brutally honest. Reference their job performance, any controversies, your personal relationship with them, and current events involving them. Keep it to 2-3 punchy sentences. No mood tags, no speech tags.`;
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: speakPrompt },
+          { role: "user", content: `Give your take on ${name} (${title}). Current Chat DJT Satisfaction rating: ${rating}/6. Previous assessment: "${reason}". Now give a fresh, spoken take about them — like you're talking about them at a rally or in a private meeting.` },
+        ],
+        max_tokens: 200,
+        temperature: 1.0,
+      });
+
+      const commentary = completion.choices[0]?.message?.content?.trim() || "";
+      res.json({ commentary, name });
+    } catch (error) {
+      console.error("Cabinet speak error:", error);
+      res.status(500).json({ error: "Failed to generate commentary" });
     }
   });
 

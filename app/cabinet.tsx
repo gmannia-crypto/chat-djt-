@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   StyleSheet,
   Text,
@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
+import { Audio } from "expo-av";
+import * as FileSystem from "expo-file-system";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -73,39 +75,64 @@ function SatisfactionBar({ rating }: { rating: number }) {
   );
 }
 
-function MemberCard({ member, index }: { member: CabinetMember; index: number }) {
+function MemberCard({ member, index, onSpeak, isSpeaking, speakingName }: { member: CabinetMember; index: number; onSpeak: (m: CabinetMember) => void; isSpeaking: boolean; speakingName: string | null }) {
   const config = getRatingConfig(member.rating);
   const isFired = member.rating === 6;
+  const isThisSpeaking = isSpeaking && speakingName === member.name;
 
   return (
     <Animated.View entering={FadeInDown.delay(index * 50).duration(400)}>
-      <View style={[styles.memberCard, isFired && styles.firedCard]}>
-        <View style={styles.memberHeader}>
-          <View style={styles.memberInfo}>
-            <Text style={styles.memberEmoji}>{member.image}</Text>
-            <View style={styles.memberText}>
-              <Text style={[styles.memberName, isFired && styles.firedName]}>
-                {member.name}
-              </Text>
-              <Text style={styles.memberTitle}>{member.title}</Text>
+      <Pressable
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          onSpeak(member);
+        }}
+        style={({ pressed }) => [{ opacity: pressed ? 0.85 : 1 }]}
+      >
+        <View style={[styles.memberCard, isFired && styles.firedCard, isThisSpeaking && styles.speakingCard]}>
+          <View style={styles.memberHeader}>
+            <View style={styles.memberInfo}>
+              <Text style={styles.memberEmoji}>{member.image}</Text>
+              <View style={styles.memberText}>
+                <Text style={[styles.memberName, isFired && styles.firedName]}>
+                  {member.name}
+                </Text>
+                <Text style={styles.memberTitle}>{member.title}</Text>
+              </View>
+            </View>
+            <View style={styles.speakRow}>
+              {isThisSpeaking ? (
+                <ActivityIndicator size="small" color={Colors.gold} />
+              ) : (
+                <Ionicons name="volume-high" size={18} color={Colors.goldDim || "rgba(212,164,32,0.5)"} />
+              )}
+              <View style={[styles.ratingNumber, { borderColor: config.color }]}>
+                <Text style={[styles.ratingNumberText, { color: isFired ? "#FFF" : config.color }]}>
+                  {member.rating}
+                </Text>
+              </View>
             </View>
           </View>
-          <View style={[styles.ratingNumber, { borderColor: config.color }]}>
-            <Text style={[styles.ratingNumberText, { color: isFired ? "#FFF" : config.color }]}>
-              {member.rating}
-            </Text>
-          </View>
+          <SatisfactionBar rating={member.rating} />
+          <Text style={[styles.memberReason, isFired && styles.firedReason]}>
+            "{member.reason}"
+          </Text>
+          {isThisSpeaking && (
+            <View style={styles.speakingBadge}>
+              <Ionicons name="mic" size={12} color={Colors.gold} />
+              <Text style={styles.speakingBadgeText}>Trump is speaking...</Text>
+            </View>
+          )}
+          {!isThisSpeaking && (
+            <Text style={styles.tapHint}>Tap to hear Trump's take</Text>
+          )}
+          {isFired && (
+            <View style={styles.firedStamp}>
+              <Text style={styles.firedStampText}>YOU'RE FIRED!</Text>
+            </View>
+          )}
         </View>
-        <SatisfactionBar rating={member.rating} />
-        <Text style={[styles.memberReason, isFired && styles.firedReason]}>
-          "{member.reason}"
-        </Text>
-        {isFired && (
-          <View style={styles.firedStamp}>
-            <Text style={styles.firedStampText}>YOU'RE FIRED!</Text>
-          </View>
-        )}
-      </View>
+      </Pressable>
     </Animated.View>
   );
 }
@@ -114,6 +141,8 @@ export default function CabinetHotSeat() {
   const insets = useSafeAreaInsets();
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
+  const [speakingName, setSpeakingName] = useState<string | null>(null);
+  const soundRef = useRef<Audio.Sound | null>(null);
 
   const { data, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ["cabinet-hotseat"],
@@ -128,6 +157,61 @@ export default function CabinetHotSeat() {
 
   const members: CabinetMember[] = data?.members || [];
   const sorted = [...members].sort((a, b) => b.rating - a.rating);
+
+  const handleSpeak = async (member: CabinetMember) => {
+    if (speakingName) return;
+    setSpeakingName(member.name);
+    try {
+      if (soundRef.current) {
+        await soundRef.current.unloadAsync();
+        soundRef.current = null;
+      }
+      const baseUrl = getApiUrl();
+      const speakResp = await globalThis.fetch(`${baseUrl}/api/cabinet-speak`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: member.name, title: member.title, rating: member.rating, reason: member.reason }),
+      });
+      if (!speakResp.ok) throw new Error("Failed");
+      const { commentary } = await speakResp.json();
+      const ttsResp = await globalThis.fetch(`${baseUrl}/api/tts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: commentary, mood: member.rating >= 4 ? "FIRED_UP" : "CALM" }),
+      });
+      if (!ttsResp.ok) throw new Error("TTS failed");
+      if (Platform.OS === "web") {
+        const blob = await ttsResp.blob();
+        const url = URL.createObjectURL(blob);
+        const audio = new window.Audio(url);
+        audio.onended = () => { setSpeakingName(null); URL.revokeObjectURL(url); };
+        audio.onerror = () => { setSpeakingName(null); URL.revokeObjectURL(url); };
+        audio.play();
+      } else {
+        const blob = await ttsResp.blob();
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+          try {
+            const base64 = (reader.result as string).split(",")[1];
+            const fileUri = FileSystem.cacheDirectory + "cabinet_speak.mp3";
+            await FileSystem.writeAsStringAsync(fileUri, base64, { encoding: FileSystem.EncodingType.Base64 });
+            const { sound } = await Audio.Sound.createAsync({ uri: fileUri });
+            soundRef.current = sound;
+            sound.setOnPlaybackStatusUpdate((status) => {
+              if (status.isLoaded && status.didJustFinish) {
+                setSpeakingName(null);
+              }
+            });
+            await sound.playAsync();
+          } catch { setSpeakingName(null); }
+        };
+        reader.onerror = () => setSpeakingName(null);
+        reader.readAsDataURL(blob);
+      }
+    } catch {
+      setSpeakingName(null);
+    }
+  };
 
   const hotSeatCount = members.filter(m => m.rating >= 4).length;
   const firedCount = members.filter(m => m.rating === 6).length;
@@ -210,7 +294,7 @@ export default function CabinetHotSeat() {
         <FlatList
           data={sorted}
           keyExtractor={(item) => item.name}
-          renderItem={({ item, index }) => <MemberCard member={item} index={index} />}
+          renderItem={({ item, index }) => <MemberCard member={item} index={index} onSpeak={handleSpeak} isSpeaking={!!speakingName} speakingName={speakingName} />}
           contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + webBottomInset + 20 }]}
           showsVerticalScrollIndicator={false}
           refreshControl={
@@ -450,5 +534,37 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "900",
     letterSpacing: 3,
+  },
+  speakingCard: {
+    borderColor: Colors.gold,
+    borderWidth: 1.5,
+  },
+  speakRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  speakingBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    backgroundColor: "rgba(212, 164, 32, 0.12)",
+    borderRadius: 8,
+    alignSelf: "flex-start",
+  },
+  speakingBadgeText: {
+    fontSize: 11,
+    color: Colors.gold,
+    fontWeight: "700",
+  },
+  tapHint: {
+    fontSize: 10,
+    color: "rgba(212, 164, 32, 0.35)",
+    marginTop: 6,
+    textAlign: "right",
+    fontStyle: "italic",
   },
 });
