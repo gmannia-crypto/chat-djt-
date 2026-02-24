@@ -644,6 +644,55 @@ export default function RateTrumpScreen() {
           </View>
         )}
 
+        <Animated.View entering={FadeInUp.delay(350).duration(500)} style={styles.picksCard}>
+          <LinearGradient
+            colors={["rgba(0, 51, 102, 0.2)", "rgba(204, 0, 0, 0.15)", "rgba(0, 51, 102, 0.1)"]}
+            style={StyleSheet.absoluteFill}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          />
+          <Text style={styles.picksTitle}>{"\uD83C\uDDFA\uD83C\uDDF8"} TRUMP'S PICKS {"\uD83C\uDDFA\uD83C\uDDF8"}</Text>
+          <Text style={styles.picksSubtitle}>The President's top recommendations</Text>
+
+          <Pressable
+            onPress={() => Linking.openURL("https://amzn.to/trumpbook")}
+            style={({ pressed }) => [styles.pickItem, pressed && { opacity: 0.7 }]}
+          >
+            <Text style={styles.pickEmoji}>{"\uD83D\uDCD6"}</Text>
+            <View style={styles.pickInfo}>
+              <Text style={styles.pickName}>My New Book</Text>
+              <Text style={styles.pickDesc}>The greatest bestseller, believe me</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={Colors.whiteMuted} />
+          </Pressable>
+
+          <Pressable
+            onPress={() => Linking.openURL("https://amzn.to/magahat")}
+            style={({ pressed }) => [styles.pickItem, pressed && { opacity: 0.7 }]}
+          >
+            <Text style={styles.pickEmoji}>{"\uD83E\uDDE2"}</Text>
+            <View style={styles.pickInfo}>
+              <Text style={styles.pickName}>Make America Great Again Hat</Text>
+              <Text style={styles.pickDesc}>The iconic red cap, a true classic</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={Colors.whiteMuted} />
+          </Pressable>
+
+          <Pressable
+            onPress={() => Linking.openURL("https://amzn.to/goldinvestors")}
+            style={({ pressed }) => [styles.pickItem, pressed && { opacity: 0.7 }]}
+          >
+            <Text style={styles.pickEmoji}>{"\uD83D\uDCB0"}</Text>
+            <View style={styles.pickInfo}>
+              <Text style={styles.pickName}>Gold Investors Guide</Text>
+              <Text style={styles.pickDesc}>Smart money loves gold, very smart</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={Colors.whiteMuted} />
+          </Pressable>
+
+          <Text style={styles.picksDisclaimer}>For entertainment purposes only. Affiliate links.</Text>
+        </Animated.View>
+
         {!isPremium && (
           <Animated.View entering={FadeInUp.delay(400).duration(600)} style={styles.premiumCard}>
             <LinearGradient
@@ -1148,6 +1197,62 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 13,
     color: Colors.whiteMuted,
+  },
+  picksCard: {
+    marginTop: 28,
+    borderRadius: 16,
+    padding: 20,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(0, 51, 102, 0.4)",
+    overflow: "hidden",
+  },
+  picksTitle: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: Colors.white,
+    letterSpacing: 1.5,
+    fontFamily: "PlayfairDisplay_900Black",
+    marginBottom: 4,
+  },
+  picksSubtitle: {
+    fontSize: 13,
+    color: Colors.whiteDim,
+    marginBottom: 16,
+  },
+  pickItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "stretch",
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+  },
+  pickEmoji: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  pickInfo: {
+    flex: 1,
+  },
+  pickName: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: Colors.white,
+    marginBottom: 2,
+  },
+  pickDesc: {
+    fontSize: 12,
+    color: Colors.whiteMuted,
+  },
+  picksDisclaimer: {
+    fontSize: 10,
+    color: Colors.whiteMuted,
+    marginTop: 6,
+    fontStyle: "italic",
   },
   premiumCard: {
     marginTop: 28,
