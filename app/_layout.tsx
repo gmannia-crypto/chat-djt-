@@ -253,6 +253,10 @@ function RootLayoutNav() {
         name="rate-trump"
         options={{ animation: "slide_from_right" }}
       />
+      <Stack.Screen
+        name="challenge/[id]"
+        options={{ animation: "slide_from_right" }}
+      />
     </Stack>
   );
 }
