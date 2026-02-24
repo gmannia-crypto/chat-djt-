@@ -1950,9 +1950,33 @@ For todaysPick, make up a funny/absurd Trump-themed investment pick (like "WALL 
     }
   });
 
+  app.get("/api/rate-trump/leaderboard", async (_req, res) => {
+    try {
+      const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      const [supporters, haters, totalResult] = await Promise.all([
+        db.query(
+          `SELECT display_name, rating, comment FROM trump_ratings ORDER BY rating DESC, created_at ASC LIMIT 10`
+        ),
+        db.query(
+          `SELECT display_name, rating, comment FROM trump_ratings ORDER BY rating ASC, created_at ASC LIMIT 10`
+        ),
+        db.query(`SELECT COUNT(*) as total FROM trump_ratings`),
+      ]);
+      await db.end();
+      res.json({
+        supporters: supporters.rows,
+        haters: haters.rows,
+        totalRatings: parseInt(totalResult.rows[0]?.total || "0"),
+      });
+    } catch (error) {
+      console.error("Leaderboard error:", error);
+      res.json({ supporters: [], haters: [], totalRatings: 0 });
+    }
+  });
+
   app.post("/api/rate-trump", async (req, res) => {
     try {
-      const { rating, comment } = req.body;
+      const { rating, comment, displayName } = req.body;
       if (typeof rating !== "number" || rating < 0 || rating > 100) {
         return res.status(400).json({ error: "Rating must be 0-100" });
       }
@@ -1998,6 +2022,21 @@ Start with [MOOD:CALM] or [MOOD:FIRED_UP] based on the rating (low = FIRED_UP, h
         .replace(/\[MOOD:[A-Z_]+\]\s*/g, "")
         .replace(/\[SPEECH:[A-Z_]+\]\s*/g, "")
         .trim();
+
+      const deviceId = req.body.deviceId || "anonymous";
+      const name = (displayName || "").trim().slice(0, 50);
+      if (name) {
+        try {
+          const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+          await db.query(
+            `INSERT INTO trump_ratings (device_id, display_name, rating, comment, trump_response, mood) VALUES ($1, $2, $3, $4, $5, $6)`,
+            [deviceId, name, rating, comment || null, text, mood]
+          );
+          await db.end();
+        } catch (dbErr) {
+          console.error("Failed to save rating:", dbErr);
+        }
+      }
 
       res.json({ text, mood, rating });
     } catch (error) {
