@@ -77,11 +77,12 @@ async function getStripeSync() {
 // server/tokens.ts
 import { Pool } from "pg";
 var FREE_PROMPT_LIMIT = 3;
-var SUBSCRIPTION_TOKENS = 30;
+var STANDARD_SUBSCRIPTION_TOKENS = 50;
+var VIP_SUBSCRIPTION_TOKENS = 150;
 var TOKEN_PACKS = [
-  { id: "pack_10", name: "10 Trump Tokens", tokens: 10, price: 199, priceDisplay: "$1.99" },
-  { id: "pack_25", name: "25 Trump Tokens", tokens: 25, price: 399, priceDisplay: "$3.99" },
-  { id: "pack_50", name: "50 Trump Tokens", tokens: 50, price: 699, priceDisplay: "$6.99" }
+  { id: "pack_15", name: "15 Trump Tokens", tokens: 15, price: 299, priceDisplay: "$2.99" },
+  { id: "pack_35", name: "35 Trump Tokens", tokens: 35, price: 499, priceDisplay: "$4.99" },
+  { id: "pack_80", name: "80 Trump Tokens", tokens: 80, price: 999, priceDisplay: "$9.99" }
 ];
 var pool = null;
 function getPool() {
@@ -115,7 +116,8 @@ async function getTokenBalance(deviceId) {
     freeRemaining,
     isSubscribed,
     totalAvailable: account.tokens + freeRemaining,
-    subscriptionExpiresAt: account.subscription_expires_at
+    subscriptionExpiresAt: account.subscription_expires_at,
+    subscriptionTier: account.subscription_tier || null
   };
 }
 async function useToken(deviceId) {
@@ -154,11 +156,19 @@ async function useToken(deviceId) {
     balance: await getTokenBalance(deviceId)
   };
 }
-async function grantSubscriptionTokens(deviceId, stripeCustomerId, stripeSubscriptionId) {
+async function grantSubscriptionTokens(deviceId, stripeCustomerId, stripeSubscriptionId, tier = "standard") {
   const db = getPool();
   const account = await getOrCreateAccount(deviceId);
+  const tokenAmount = tier === "vip" ? VIP_SUBSCRIPTION_TOKENS : STANDARD_SUBSCRIPTION_TOKENS;
   const expiresAt = /* @__PURE__ */ new Date();
   expiresAt.setDate(expiresAt.getDate() + 31);
+  await db.query(
+    `DO $$ BEGIN
+       IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'token_accounts' AND column_name = 'subscription_tier') THEN
+         ALTER TABLE token_accounts ADD COLUMN subscription_tier TEXT DEFAULT 'standard';
+       END IF;
+     END $$`
+  );
   await db.query(
     `UPDATE token_accounts
      SET tokens = tokens + $1,
@@ -168,14 +178,15 @@ async function grantSubscriptionTokens(deviceId, stripeCustomerId, stripeSubscri
          last_monthly_reset = NOW(),
          stripe_customer_id = $3,
          stripe_subscription_id = $4,
+         subscription_tier = $5,
          updated_at = NOW()
-     WHERE device_id = $5`,
-    [SUBSCRIPTION_TOKENS, expiresAt, stripeCustomerId, stripeSubscriptionId, deviceId]
+     WHERE device_id = $6`,
+    [tokenAmount, expiresAt, stripeCustomerId, stripeSubscriptionId, tier, deviceId]
   );
   await db.query(
     `INSERT INTO token_transactions (account_id, type, amount, description, created_at)
-     VALUES ($1, 'subscription', $2, 'Monthly subscription - 30 Trump Tokens', NOW())`,
-    [account.id, SUBSCRIPTION_TOKENS]
+     VALUES ($1, 'subscription', $2, $3, NOW())`,
+    [account.id, tokenAmount, `${tier === "vip" ? "VIP" : "Standard"} subscription - ${tokenAmount} Trump Tokens`]
   );
   return await getTokenBalance(deviceId);
 }
@@ -559,6 +570,29 @@ async function trumpTextToSpeech(text, speed = 1, mood = "CALM", speechCategory 
   const arrayBuffer = await response.arrayBuffer();
   return Buffer.from(arrayBuffer);
 }
+var apiUsageCounters = {
+  chat: 0,
+  newsCommentary: 0,
+  nostradamus: 0,
+  truthSocial: 0,
+  cabinetHotseat: 0,
+  cabinetSpeak: 0,
+  tts: 0,
+  stt: 0,
+  reportCard: 0,
+  startedAt: (/* @__PURE__ */ new Date()).toISOString()
+};
+var API_COST_ESTIMATES = {
+  chat: 3e-3,
+  newsCommentary: 4e-3,
+  nostradamus: 3e-3,
+  truthSocial: 4e-3,
+  cabinetHotseat: 5e-3,
+  cabinetSpeak: 2e-3,
+  tts: 0.01,
+  stt: 6e-3,
+  reportCard: 2e-3
+};
 async function registerRoutes(app2) {
   app2.get("/api/tokens/balance", async (req, res) => {
     try {
@@ -611,6 +645,7 @@ async function registerRoutes(app2) {
           });
         }
       }
+      apiUsageCounters.chat++;
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache, no-transform");
       res.setHeader("X-Accel-Buffering", "no");
@@ -728,6 +763,7 @@ async function registerRoutes(app2) {
   app2.post("/api/tts", async (req, res) => {
     try {
       const { text, mood, speechCategory } = req.body;
+      apiUsageCounters.tts++;
       if (!text || typeof text !== "string") {
         return res.status(400).json({ error: "Text is required" });
       }
@@ -972,7 +1008,7 @@ async function registerRoutes(app2) {
   });
   app2.post("/api/stripe/checkout", async (req, res) => {
     try {
-      const { priceId, mode = "subscription", packId, deviceId } = req.body;
+      const { priceId, mode = "subscription", packId, deviceId, tier } = req.body;
       if (!priceId) {
         return res.status(400).json({ error: "priceId is required" });
       }
@@ -982,6 +1018,7 @@ async function registerRoutes(app2) {
       const metadata = {};
       if (deviceId) metadata.deviceId = deviceId;
       if (packId) metadata.packId = packId;
+      if (tier) metadata.tier = tier;
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ["card"],
         line_items: [{ price: priceId, quantity: 1 }],
@@ -1016,8 +1053,9 @@ async function registerRoutes(app2) {
       if (session.mode === "subscription" && session.subscription) {
         const subId = typeof session.subscription === "string" ? session.subscription : session.subscription.id;
         const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id || "";
-        const balance = await grantSubscriptionTokens(deviceId, customerId, subId);
-        return res.json({ success: true, type: "subscription", balance });
+        const tier = session.metadata?.tier === "vip" ? "vip" : "standard";
+        const balance = await grantSubscriptionTokens(deviceId, customerId, subId, tier);
+        return res.json({ success: true, type: "subscription", tier, balance });
       }
       res.status(400).json({ error: "Unknown checkout type" });
     } catch (error) {
@@ -1060,6 +1098,12 @@ async function registerRoutes(app2) {
       const revenue = revenueResult.rows[0];
       const totalRevenue = parseFloat(revenue.subscription_revenue || 0) + parseFloat(revenue.pack10_revenue || 0) + parseFloat(revenue.pack25_revenue || 0) + parseFloat(revenue.pack50_revenue || 0);
       await db.end();
+      const estimatedCosts = Object.entries(apiUsageCounters).filter(([key]) => key !== "startedAt").reduce((acc, [key, count]) => {
+        const cost = count * (API_COST_ESTIMATES[key] || 0);
+        acc[key] = { calls: count, estimatedCost: `$${cost.toFixed(4)}` };
+        return acc;
+      }, {});
+      const totalEstimatedCost = Object.entries(apiUsageCounters).filter(([key]) => key !== "startedAt").reduce((sum, [key, count]) => sum + count * (API_COST_ESTIMATES[key] || 0), 0);
       res.json({
         users: {
           total: parseInt(stats.total_users),
@@ -1078,6 +1122,12 @@ async function registerRoutes(app2) {
           total: totalRevenue.toFixed(2),
           subscriptions: parseFloat(revenue.subscription_revenue || 0).toFixed(2),
           tokenPacks: (parseFloat(revenue.pack10_revenue || 0) + parseFloat(revenue.pack25_revenue || 0) + parseFloat(revenue.pack50_revenue || 0)).toFixed(2)
+        },
+        apiUsage: {
+          sinceRestart: apiUsageCounters.startedAt,
+          endpoints: estimatedCosts,
+          totalEstimatedCost: `$${totalEstimatedCost.toFixed(4)}`,
+          estimatedProfit: `$${(totalRevenue - totalEstimatedCost).toFixed(2)}`
         },
         recentTransactions: recentTransactions.map((tx) => ({
           type: tx.type,
@@ -1202,10 +1252,21 @@ ${convoSummary}` }
     }
   });
   let newsCommentaryCache = null;
-  const NEWS_COMMENTARY_TTL = 5 * 60 * 1e3;
-  app2.get("/api/news-commentary", async (_req, res) => {
+  const NEWS_COMMENTARY_TTL = 30 * 60 * 1e3;
+  app2.get("/api/news-commentary", async (req, res) => {
     try {
-      if (newsCommentaryCache && Date.now() - newsCommentaryCache.timestamp < NEWS_COMMENTARY_TTL) {
+      const isCached = newsCommentaryCache && Date.now() - newsCommentaryCache.timestamp < NEWS_COMMENTARY_TTL;
+      if (!isCached) {
+        const deviceId = req.headers["x-device-id"];
+        if (deviceId) {
+          const tokenResult = await useToken(deviceId);
+          if (!tokenResult.success) {
+            return res.status(403).json({ error: "no_tokens", message: tokenResult.error, balance: tokenResult.balance });
+          }
+        }
+        apiUsageCounters.newsCommentary++;
+      }
+      if (isCached) {
         return res.json(newsCommentaryCache.data);
       }
       const feedResults = await Promise.allSettled(
@@ -1239,7 +1300,7 @@ ${headlineList}
 
 Give your LIVE commentary on these stories. React to them like you're broadcasting live.` }
         ],
-        max_tokens: 500,
+        max_tokens: 400,
         temperature: 1
       });
       const commentary = completion.choices[0]?.message?.content?.trim() || "";
@@ -1257,10 +1318,21 @@ Give your LIVE commentary on these stories. React to them like you're broadcasti
     }
   });
   let nostradamusCache = null;
-  const NOSTRADAMUS_TTL = 15 * 60 * 1e3;
-  app2.get("/api/nostradamus", async (_req, res) => {
+  const NOSTRADAMUS_TTL = 60 * 60 * 1e3;
+  app2.get("/api/nostradamus", async (req, res) => {
     try {
-      if (nostradamusCache && Date.now() - nostradamusCache.timestamp < NOSTRADAMUS_TTL) {
+      const isCached = nostradamusCache && Date.now() - nostradamusCache.timestamp < NOSTRADAMUS_TTL;
+      if (!isCached) {
+        const deviceId = req.headers["x-device-id"];
+        if (deviceId) {
+          const tokenResult = await useToken(deviceId);
+          if (!tokenResult.success) {
+            return res.status(403).json({ error: "no_tokens", message: tokenResult.error, balance: tokenResult.balance });
+          }
+        }
+        apiUsageCounters.nostradamus++;
+      }
+      if (isCached) {
         return res.json(nostradamusCache.data);
       }
       const feedResults = await Promise.allSettled(
@@ -1289,7 +1361,7 @@ ${topHeadlines.join("\n")}
 
 Give me 3 Trump-adomas predictions based on what's happening right now.` }
         ],
-        max_tokens: 600,
+        max_tokens: 450,
         temperature: 1.1
       });
       const predictions = completion.choices[0]?.message?.content?.trim() || "";
@@ -1314,10 +1386,21 @@ Give me 3 Trump-adomas predictions based on what's happening right now.` }
     { url: "https://www.dailymail.co.uk/news/us-politics/index.rss", source: "Daily Mail" }
   ];
   let truthSocialCache = null;
-  const TRUTH_SOCIAL_TTL = 5 * 60 * 1e3;
-  app2.get("/api/truth-social", async (_req, res) => {
+  const TRUTH_SOCIAL_TTL = 30 * 60 * 1e3;
+  app2.get("/api/truth-social", async (req, res) => {
     try {
-      if (truthSocialCache && Date.now() - truthSocialCache.timestamp < TRUTH_SOCIAL_TTL) {
+      const isCached = truthSocialCache && Date.now() - truthSocialCache.timestamp < TRUTH_SOCIAL_TTL;
+      if (!isCached) {
+        const deviceId = req.headers["x-device-id"];
+        if (deviceId) {
+          const tokenResult = await useToken(deviceId);
+          if (!tokenResult.success) {
+            return res.status(403).json({ error: "no_tokens", message: tokenResult.error, balance: tokenResult.balance });
+          }
+        }
+        apiUsageCounters.truthSocial++;
+      }
+      if (isCached) {
         return res.json(truthSocialCache.data);
       }
       const feedResults = await Promise.allSettled(
@@ -1373,13 +1456,14 @@ Give your Truth Social reactions to these stories. React like you're posting liv
     }
   });
   const CABINET_MEMBERS = [
+    { name: "JD Vance", title: "Vice President", image: "\u{1F1FA}\u{1F1F8}" },
     { name: "Marco Rubio", title: "Secretary of State", image: "\u{1F3DB}\uFE0F" },
     { name: "Pete Hegseth", title: "Secretary of Defense", image: "\u{1F396}\uFE0F" },
     { name: "Scott Bessent", title: "Secretary of the Treasury", image: "\u{1F4B0}" },
     { name: "Pam Bondi", title: "Attorney General", image: "\u2696\uFE0F" },
     { name: "Robert F. Kennedy Jr.", title: "HHS Secretary", image: "\u{1F48A}" },
     { name: "Kristi Noem", title: "DHS Secretary", image: "\u{1F6E1}\uFE0F" },
-    { name: "Doug Burgum", title: "Secretary of the Interior", image: "\u{1F3D4}\uFE0F" },
+    { name: "Doug Burgum", title: "Secretary of the Interior / AI Czar", image: "\u{1F3D4}\uFE0F" },
     { name: "Brooke Rollins", title: "Secretary of Agriculture", image: "\u{1F33E}" },
     { name: "Howard Lutnick", title: "Secretary of Commerce", image: "\u{1F4CA}" },
     { name: "Lori Chavez-DeRemer", title: "Secretary of Labor", image: "\u{1F477}" },
@@ -1388,24 +1472,35 @@ Give your Truth Social reactions to these stories. React like you're posting liv
     { name: "Scott Turner", title: "HUD Secretary", image: "\u{1F3D8}\uFE0F" },
     { name: "Linda McMahon", title: "Secretary of Education", image: "\u{1F4DA}" },
     { name: "Doug Collins", title: "Secretary of Veterans Affairs", image: "\u{1F397}\uFE0F" },
-    { name: "Elon Musk", title: "DOGE Lead / Special Advisor", image: "\u{1F680}" },
-    { name: "Vivek Ramaswamy", title: "Former DOGE Co-Lead", image: "\u{1F4A1}" },
-    { name: "JD Vance", title: "Vice President", image: "\u{1F1FA}\u{1F1F8}" },
     { name: "Susie Wiles", title: "White House Chief of Staff", image: "\u{1F3E0}" },
-    { name: "Stephen Miller", title: "Senior Advisor / Deputy CoS", image: "\u{1F4CB}" },
+    { name: "Stephen Miller", title: "Senior Advisor / Deputy Chief of Staff for Policy", image: "\u{1F4CB}" },
     { name: "Mike Waltz", title: "National Security Advisor", image: "\u{1F512}" },
     { name: "Tulsi Gabbard", title: "Director of National Intelligence", image: "\u{1F575}\uFE0F" },
     { name: "John Ratcliffe", title: "CIA Director", image: "\u{1F50D}" },
     { name: "Kash Patel", title: "FBI Director", image: "\u{1F3E2}" },
     { name: "Russell Vought", title: "OMB Director", image: "\u{1F4DD}" },
     { name: "Lee Zeldin", title: "EPA Administrator", image: "\u{1F33F}" },
-    { name: "Karoline Leavitt", title: "White House Press Secretary", image: "\u{1F3A4}" }
+    { name: "Karoline Leavitt", title: "White House Press Secretary", image: "\u{1F3A4}" },
+    { name: "Tom Homan", title: "Border Czar", image: "\u{1F6A7}" },
+    { name: "Elon Musk", title: "Former DOGE Lead (Departed)", image: "\u{1F680}" },
+    { name: "Vivek Ramaswamy", title: "Former DOGE Co-Lead (Departed)", image: "\u{1F4A1}" }
   ];
   let cabinetCache = null;
   const CABINET_TTL = 30 * 60 * 1e3;
-  app2.get("/api/cabinet-hotseat", async (_req, res) => {
+  app2.get("/api/cabinet-hotseat", async (req, res) => {
     try {
-      if (cabinetCache && Date.now() - cabinetCache.timestamp < CABINET_TTL) {
+      const isCached = cabinetCache && Date.now() - cabinetCache.timestamp < CABINET_TTL;
+      if (!isCached) {
+        const deviceId = req.headers["x-device-id"];
+        if (deviceId) {
+          const tokenResult = await useToken(deviceId);
+          if (!tokenResult.success) {
+            return res.status(403).json({ error: "no_tokens", message: tokenResult.error, balance: tokenResult.balance });
+          }
+        }
+        apiUsageCounters.cabinetHotseat++;
+      }
+      if (isCached) {
         return res.json(cabinetCache.data);
       }
       const feedResults = await Promise.allSettled(
@@ -1431,7 +1526,12 @@ For EACH person, provide:
 2. A brief 1-sentence reason in Trump's voice explaining the rating
 3. A "heat" indicator: "safe", "warm", "hot", "burning", "fired"
 
-IMPORTANT: Be current, realistic, and entertaining. Reference actual dynamics and news. Some should be doing great, some should be struggling. Make it feel like real insider intel.
+CRITICAL RULES:
+- You MUST include a rating for EVERY SINGLE person listed below. Do not skip anyone.
+- Use the EXACT name as provided for each person in the "name" field.
+- Be current, realistic, and entertaining. Reference actual dynamics and news.
+- Some should be doing great, some should be struggling. Make it feel like real insider intel.
+- For people who have departed (Elon Musk, Vivek Ramaswamy), rate them 6 (fired/departed) with a reason about their departure.
 
 Respond in valid JSON format ONLY \u2014 an array of objects:
 [{"name": "Person Name", "rating": 1-6, "reason": "Trump-voice explanation", "heat": "safe|warm|hot|burning|fired"}]`;
@@ -1447,7 +1547,7 @@ ${recentHeadlines.slice(0, 15).join("\n")}
 
 Rate each person's standing with Trump right now.` }
         ],
-        max_tokens: 2e3,
+        max_tokens: 2500,
         temperature: 0.9
       });
       const rawContent = completion.choices[0]?.message?.content?.trim() || "[]";
@@ -1462,7 +1562,14 @@ Rate each person's standing with Trump right now.` }
       }
       const result = {
         members: CABINET_MEMBERS.map((member) => {
-          const rating = ratings.find((r) => r.name && member.name.toLowerCase().includes(r.name.toLowerCase().split(" ")[0]));
+          const memberLower = member.name.toLowerCase();
+          const lastName = memberLower.split(" ").pop() || "";
+          const firstName = memberLower.split(" ")[0] || "";
+          const rating = ratings.find((r) => {
+            if (!r.name) return false;
+            const rLower = r.name.toLowerCase();
+            return memberLower.includes(rLower) || rLower.includes(lastName) || rLower.includes(firstName) || memberLower === rLower;
+          });
           return {
             ...member,
             rating: rating?.rating || 3,
@@ -1478,6 +1585,99 @@ Rate each person's standing with Trump right now.` }
       console.error("Cabinet hot seat error:", error);
       if (cabinetCache) return res.json(cabinetCache.data);
       res.status(500).json({ error: "Failed to generate cabinet ratings" });
+    }
+  });
+  const handleCabinetSpeak = async (req, res) => {
+    try {
+      const name = req.body?.name || req.query?.name;
+      const title = req.body?.title || req.query?.title || "";
+      const rating = req.body?.rating || req.query?.rating || 3;
+      const reason = req.body?.reason || req.query?.reason || "No assessment yet";
+      if (!name) return res.status(400).json({ error: "Name required" });
+      apiUsageCounters.cabinetSpeak++;
+      const deviceId = req.headers["x-device-id"];
+      if (deviceId) {
+        const tokenResult = await useToken(deviceId);
+        if (!tokenResult.success) {
+          return res.status(403).json({
+            error: "no_tokens",
+            message: tokenResult.error,
+            balance: tokenResult.balance
+          });
+        }
+      }
+      const speakPrompt = `You are Donald Trump giving a quick, raw, unfiltered take on one of your cabinet members or advisors. You are speaking in first person as Trump. Be dramatic, personal, funny, and brutally honest. Reference their job performance, any controversies, your personal relationship with them, and current events involving them. Keep it to 2-3 punchy sentences. No mood tags, no speech tags.`;
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: speakPrompt },
+          { role: "user", content: `Give your take on ${name} (${title}). Current Chat DJT Satisfaction rating: ${rating}/6. Previous assessment: "${reason}". Now give a fresh, spoken take about them \u2014 like you're talking about them at a rally or in a private meeting.` }
+        ],
+        max_tokens: 200,
+        temperature: 1
+      });
+      const commentary = completion.choices[0]?.message?.content?.trim() || "";
+      res.json({ commentary, name });
+    } catch (error) {
+      console.error("Cabinet speak error:", error);
+      res.status(500).json({ error: "Failed to generate commentary" });
+    }
+  };
+  app2.post("/api/cabinet-speak", handleCabinetSpeak);
+  app2.get("/api/cabinet-speak", handleCabinetSpeak);
+  app2.get("/api/cabinet-speak-audio", async (req, res) => {
+    try {
+      const name = req.query.name;
+      const title = req.query.title || "";
+      const rating = parseInt(req.query.rating) || 3;
+      const reason = req.query.reason || "No assessment yet";
+      if (!name) return res.status(400).json({ error: "Name required" });
+      const deviceId = req.headers["x-device-id"];
+      if (deviceId) {
+        const tokenResult = await useToken(deviceId);
+        if (!tokenResult.success) {
+          return res.status(403).json({ error: "no_tokens" });
+        }
+      }
+      const speakPrompt = `You are Donald Trump giving a quick, raw, unfiltered take on one of your cabinet members or advisors. You are speaking in first person as Trump. Be dramatic, personal, funny, and brutally honest. Reference their job performance, any controversies, your personal relationship with them, and current events involving them. Keep it to 2-3 punchy sentences. No mood tags, no speech tags.`;
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: speakPrompt },
+          { role: "user", content: `Give your take on ${name} (${title}). Current Chat DJT Satisfaction rating: ${rating}/6. Previous assessment: "${reason}". Now give a fresh, spoken take about them \u2014 like you're talking about them at a rally or in a private meeting.` }
+        ],
+        max_tokens: 200,
+        temperature: 1
+      });
+      const commentary = completion.choices[0]?.message?.content?.trim() || "";
+      const apiKey = process.env.FISH_AUDIO_API_KEY;
+      const voiceId = process.env.FISH_AUDIO_VOICE_ID;
+      if (!apiKey || !voiceId) {
+        return res.status(500).json({ error: "TTS not configured" });
+      }
+      const ttsResp = await fetch("https://api.fish.audio/v1/tts", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          text: commentary,
+          reference_id: voiceId,
+          format: "mp3",
+          speed: rating >= 4 ? 1.1 : 1
+        })
+      });
+      if (!ttsResp.ok) {
+        return res.status(500).json({ error: "TTS failed" });
+      }
+      res.setHeader("Content-Type", "audio/mpeg");
+      res.setHeader("Cache-Control", "no-cache");
+      const arrayBuffer = await ttsResp.arrayBuffer();
+      res.send(Buffer.from(arrayBuffer));
+    } catch (error) {
+      console.error("Cabinet speak audio error:", error);
+      res.status(500).json({ error: "Failed" });
     }
   });
   const httpServer = createServer(app2);
@@ -1855,13 +2055,21 @@ function configureExpoAndLanding(app2) {
   app2.use("/server/assets", express.static(path.resolve(process.cwd(), "server", "assets")));
   app2.use(express.static(path.resolve(process.cwd(), "static-build")));
   if (hasWebBuild) {
-    app2.use(express.static(distDir, { maxAge: "1h" }));
+    app2.use(express.static(distDir, {
+      maxAge: "1h",
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith(".html")) {
+          res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        }
+      }
+    }));
     app2.get("/{*path}", (req, res, next) => {
       if (req.path.startsWith("/api") || req.path === "/status" || req.path === "/manifest") {
         return next();
       }
       const platform = req.header("expo-platform");
       if (platform) return next();
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
       return res.sendFile(path.join(distDir, "index.html"));
     });
   } else if (!isDev) {
