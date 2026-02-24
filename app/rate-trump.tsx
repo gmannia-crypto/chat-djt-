@@ -713,7 +713,7 @@ export default function RateTrumpScreen() {
             <Ionicons name="chevron-forward" size={16} color={Colors.whiteMuted} />
           </Pressable>
 
-          <Text style={styles.picksDisclaimer}>As an Amazon Associate, I earn from purchases.</Text>
+          <Text style={styles.picksDisclaimer}>As an Amazon Associate, I earn from qualifying purchases.</Text>
         </Animated.View>
 
         {!isPremium && (
