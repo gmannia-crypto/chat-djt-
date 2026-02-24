@@ -245,6 +245,10 @@ function RootLayoutNav() {
         name="admin"
         options={{ presentation: "modal", animation: "slide_from_bottom" }}
       />
+      <Stack.Screen
+        name="dashboard"
+        options={{ animation: "slide_from_right" }}
+      />
     </Stack>
   );
 }

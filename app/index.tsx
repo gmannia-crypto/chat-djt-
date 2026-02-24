@@ -686,6 +686,20 @@ export default function HomeScreen() {
             <Text style={styles.modeButtonText}>HOT SEAT</Text>
           </Pressable>
         </Animated.View>
+        <Animated.View entering={FadeInDown.delay(1300).duration(500)} style={styles.modeButtons}>
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push("/dashboard");
+            }}
+            style={({ pressed }) => [styles.modeButton, styles.dashboardButton, pressed && { opacity: 0.7 }]}
+            testID="dashboard-button"
+          >
+            <Ionicons name="stats-chart" size={16} color="#60A5FA" />
+            <Text style={styles.modeButtonText}>DASHBOARD</Text>
+          </Pressable>
+          <View style={[styles.modeButton, { opacity: 0 }]} />
+        </Animated.View>
       </ScrollView>
 
       <View
@@ -1563,6 +1577,10 @@ const styles = StyleSheet.create({
   cabinetButton: {
     backgroundColor: "rgba(249, 115, 22, 0.15)",
     borderColor: "rgba(249, 115, 22, 0.4)",
+  },
+  dashboardButton: {
+    backgroundColor: "rgba(96, 165, 250, 0.15)",
+    borderColor: "rgba(96, 165, 250, 0.4)",
   },
   streakBadge: {
     flexDirection: "row",
