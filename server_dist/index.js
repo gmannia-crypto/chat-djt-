@@ -1309,6 +1309,52 @@ async function registerRoutes(app2) {
       await db.end();
     }
   });
+  app2.post("/api/track-share", async (req, res) => {
+    const db = new Pool2({ connectionString: process.env.DATABASE_URL, max: 2 });
+    try {
+      const { deviceId, feature, contentPreview, platform } = req.body;
+      if (!feature) {
+        return res.status(400).json({ error: "Feature is required" });
+      }
+      await db.query(
+        "INSERT INTO share_events (device_id, feature, content_preview, platform) VALUES ($1, $2, $3, $4)",
+        [deviceId || null, feature, (contentPreview || "").slice(0, 200), platform || "unknown"]
+      );
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Track share error:", error);
+      res.status(500).json({ error: "Failed to track share" });
+    } finally {
+      await db.end();
+    }
+  });
+  app2.get("/api/admin/shares", async (_req, res) => {
+    const db = new Pool2({ connectionString: process.env.DATABASE_URL, max: 2 });
+    try {
+      const [totalResult, byFeatureResult, recentResult, dailyResult] = await Promise.all([
+        db.query("SELECT COUNT(*) as total FROM share_events"),
+        db.query("SELECT feature, COUNT(*) as count FROM share_events GROUP BY feature ORDER BY count DESC"),
+        db.query("SELECT feature, content_preview, platform, created_at FROM share_events ORDER BY created_at DESC LIMIT 20"),
+        db.query("SELECT DATE(created_at) as day, COUNT(*) as count FROM share_events WHERE created_at > NOW() - INTERVAL '7 days' GROUP BY DATE(created_at) ORDER BY day DESC")
+      ]);
+      res.json({
+        totalShares: parseInt(totalResult.rows[0].total),
+        byFeature: byFeatureResult.rows.map((r) => ({ feature: r.feature, count: parseInt(r.count) })),
+        daily: dailyResult.rows.map((r) => ({ day: r.day, count: parseInt(r.count) })),
+        recent: recentResult.rows.map((r) => ({
+          feature: r.feature,
+          preview: r.content_preview,
+          platform: r.platform,
+          createdAt: r.created_at
+        }))
+      });
+    } catch (error) {
+      console.error("Admin shares error:", error);
+      res.status(500).json({ error: "Failed to fetch share stats" });
+    } finally {
+      await db.end();
+    }
+  });
   app2.get("/api/hot-take", async (req, res) => {
     try {
       const headline = req.query.headline;
