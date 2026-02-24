@@ -713,6 +713,10 @@ export default function HomeScreen() {
         </Pressable>
       </View>
 
+      <Text style={styles.parodyFooter}>
+        {"\uD83C\uDFAD"} AI PARODY {"\u2022"} NOT AFFILIATED WITH DONALD TRUMP {"\u2022"} FOR ENTERTAINMENT ONLY
+      </Text>
+
       <View style={[styles.bottomBarContainer, { paddingBottom: insets.bottom + webBottomInset }]}>
         {headlines.length > 0 && <NewsCrawl headlines={headlines} />}
 
@@ -1047,6 +1051,14 @@ const styles = StyleSheet.create({
   brandLogo: {
     width: 100,
     height: 24,
+  },
+  parodyFooter: {
+    fontSize: 11,
+    color: "#666666",
+    textAlign: "center",
+    paddingVertical: 6,
+    backgroundColor: "rgba(0, 0, 0, 0.9)",
+    letterSpacing: 0.5,
   },
   bottomBarContainer: {
     zIndex: 10,
