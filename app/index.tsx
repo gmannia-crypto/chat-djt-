@@ -567,14 +567,14 @@ export default function HomeScreen() {
             <Text style={styles.glossyHeaderLabel}>Archive</Text>
           </Pressable>
         </View>
-        <View style={styles.headerBrand}>
+        <Pressable onPress={handleSecretTap} style={styles.headerBrand}>
           <Text style={styles.headerBrandBy}>by</Text>
           <Image
             source={require("@/assets/images/dynamic-creations.jpg")}
             style={styles.headerBrandLogo}
             resizeMode="contain"
           />
-        </View>
+        </Pressable>
         <View style={styles.headerRight} />
       </Animated.View>
 
