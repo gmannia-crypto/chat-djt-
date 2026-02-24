@@ -872,6 +872,154 @@ async function registerRoutes(app2) {
       res.status(500).json({ error: "Failed to fetch news" });
     }
   });
+  let weatherCache = /* @__PURE__ */ new Map();
+  const WEATHER_CACHE_TTL = 15 * 60 * 1e3;
+  app2.get("/api/weather", async (req, res) => {
+    try {
+      const lat = parseFloat(req.query.lat);
+      const lon = parseFloat(req.query.lon);
+      if (isNaN(lat) || isNaN(lon)) {
+        return res.status(400).json({ error: "lat and lon required" });
+      }
+      const cacheKey = `${lat.toFixed(2)},${lon.toFixed(2)}`;
+      const cached = weatherCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < WEATHER_CACHE_TTL) {
+        return res.json(cached.data);
+      }
+      const [currentRes, forecastRes, geoRes] = await Promise.all([
+        fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&temperature_unit=fahrenheit&wind_speed_unit=mph`),
+        fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&temperature_unit=fahrenheit&timezone=auto&forecast_days=5`),
+        fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&zoom=10`, {
+          headers: { "User-Agent": "ChatDJT/1.0" }
+        })
+      ]);
+      const current = await currentRes.json();
+      const forecast = await forecastRes.json();
+      let city = "Your Location";
+      try {
+        const geo = await geoRes.json();
+        city = geo?.address?.city || geo?.address?.town || geo?.address?.village || geo?.address?.county || "Your Location";
+      } catch {
+      }
+      const weatherCodes = {
+        0: { label: "Clear", icon: "sunny" },
+        1: { label: "Mostly Clear", icon: "partly-sunny" },
+        2: { label: "Partly Cloudy", icon: "partly-sunny" },
+        3: { label: "Overcast", icon: "cloudy" },
+        45: { label: "Foggy", icon: "cloudy" },
+        48: { label: "Fog", icon: "cloudy" },
+        51: { label: "Light Drizzle", icon: "rainy" },
+        53: { label: "Drizzle", icon: "rainy" },
+        55: { label: "Heavy Drizzle", icon: "rainy" },
+        61: { label: "Light Rain", icon: "rainy" },
+        63: { label: "Rain", icon: "rainy" },
+        65: { label: "Heavy Rain", icon: "rainy" },
+        71: { label: "Light Snow", icon: "snow" },
+        73: { label: "Snow", icon: "snow" },
+        75: { label: "Heavy Snow", icon: "snow" },
+        77: { label: "Snow Grains", icon: "snow" },
+        80: { label: "Rain Showers", icon: "rainy" },
+        81: { label: "Rain Showers", icon: "rainy" },
+        82: { label: "Heavy Showers", icon: "rainy" },
+        85: { label: "Snow Showers", icon: "snow" },
+        86: { label: "Heavy Snow", icon: "snow" },
+        95: { label: "Thunderstorm", icon: "thunderstorm" },
+        96: { label: "Thunderstorm", icon: "thunderstorm" },
+        99: { label: "Severe Storm", icon: "thunderstorm" }
+      };
+      const getWeather = (code) => weatherCodes[code] || { label: "Unknown", icon: "cloudy" };
+      const c = current.current;
+      const d = forecast.daily;
+      const result = {
+        city,
+        current: {
+          temp: Math.round(c.temperature_2m),
+          feelsLike: Math.round(c.apparent_temperature),
+          humidity: c.relative_humidity_2m,
+          windSpeed: Math.round(c.wind_speed_10m),
+          ...getWeather(c.weather_code)
+        },
+        forecast: d.time.map((date, i) => ({
+          date,
+          high: Math.round(d.temperature_2m_max[i]),
+          low: Math.round(d.temperature_2m_min[i]),
+          precipChance: d.precipitation_probability_max[i],
+          ...getWeather(d.weather_code[i])
+        }))
+      };
+      weatherCache.set(cacheKey, { data: result, timestamp: Date.now() });
+      res.json(result);
+    } catch (error) {
+      console.error("Weather error:", error);
+      res.status(500).json({ error: "Failed to fetch weather" });
+    }
+  });
+  let marketsCache = null;
+  const MARKETS_CACHE_TTL = 5 * 60 * 1e3;
+  app2.get("/api/markets", async (_req, res) => {
+    try {
+      if (marketsCache && Date.now() - marketsCache.timestamp < MARKETS_CACHE_TTL) {
+        return res.json(marketsCache.data);
+      }
+      const results = {
+        bitcoin: null,
+        ethereum: null,
+        gold: null,
+        silver: null,
+        updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+      };
+      const fetches = await Promise.allSettled([
+        fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd&include_24hr_change=true").then((r) => r.json()),
+        fetch("https://query1.finance.yahoo.com/v8/finance/chart/GC=F?interval=1d&range=2d", {
+          headers: { "User-Agent": "Mozilla/5.0" }
+        }).then((r) => r.json()),
+        fetch("https://query1.finance.yahoo.com/v8/finance/chart/SI=F?interval=1d&range=2d", {
+          headers: { "User-Agent": "Mozilla/5.0" }
+        }).then((r) => r.json())
+      ]);
+      if (fetches[0].status === "fulfilled") {
+        const d = fetches[0].value;
+        if (d?.bitcoin) {
+          results.bitcoin = {
+            price: d.bitcoin.usd,
+            change24h: d.bitcoin.usd_24h_change ?? null
+          };
+        }
+        if (d?.ethereum) {
+          results.ethereum = {
+            price: d.ethereum.usd,
+            change24h: d.ethereum.usd_24h_change ?? null
+          };
+        }
+      }
+      if (fetches[1].status === "fulfilled") {
+        const meta = fetches[1].value?.chart?.result?.[0]?.meta;
+        if (meta) {
+          results.gold = {
+            price: meta.regularMarketPrice,
+            change: meta.regularMarketPrice - meta.chartPreviousClose,
+            changePercent: (meta.regularMarketPrice - meta.chartPreviousClose) / meta.chartPreviousClose * 100
+          };
+        }
+      }
+      if (fetches[2].status === "fulfilled") {
+        const meta = fetches[2].value?.chart?.result?.[0]?.meta;
+        if (meta) {
+          results.silver = {
+            price: meta.regularMarketPrice,
+            change: meta.regularMarketPrice - meta.chartPreviousClose,
+            changePercent: (meta.regularMarketPrice - meta.chartPreviousClose) / meta.chartPreviousClose * 100
+          };
+        }
+      }
+      marketsCache = { data: results, timestamp: Date.now() };
+      res.json(results);
+    } catch (error) {
+      console.error("Markets error:", error);
+      if (marketsCache) return res.json(marketsCache.data);
+      res.status(500).json({ error: "Failed to fetch market data" });
+    }
+  });
   let tickerCache = null;
   const TICKER_CACHE_TTL = 5 * 60 * 1e3;
   app2.get("/api/tickers", async (_req, res) => {
