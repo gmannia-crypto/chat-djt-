@@ -11,6 +11,7 @@ interface TokenBalance {
   isSubscribed: boolean;
   totalAvailable: number;
   subscriptionExpiresAt: string | null;
+  subscriptionTier: string | null;
 }
 
 interface TokenContextValue {

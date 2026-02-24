@@ -10,10 +10,11 @@ import {
   ScrollView,
   Dimensions,
   Image,
+  Linking,
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import Animated, {
@@ -29,9 +30,10 @@ import Animated, {
   runOnJS,
 } from "react-native-reanimated";
 import Colors from "@/constants/colors";
-import { getApiUrl } from "@/lib/query-client";
+import { apiRequest, getApiUrl } from "@/lib/query-client";
 import { shareContent } from "@/lib/track-share";
 import { useTokens } from "@/lib/token-context";
+import { useQuery } from "@tanstack/react-query";
 import { Audio } from "expo-av";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -81,7 +83,55 @@ export default function RateTrumpScreen() {
   const insets = useSafeAreaInsets();
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
-  const { deviceId } = useTokens();
+  const { deviceId, balance } = useTokens();
+  const [upgradeProcessing, setUpgradeProcessing] = useState(false);
+
+  const { data: productsData } = useQuery<{
+    data: Array<{
+      id: string;
+      name: string;
+      prices: Array<{
+        id: string;
+        unit_amount: number | null;
+        currency: string;
+        recurring: { interval: string } | null;
+      }>;
+    }>;
+  }>({
+    queryKey: ["/api/stripe/products"],
+    staleTime: 60000,
+  });
+
+  const premiumProduct = productsData?.data?.find((p) => p.name === "Chat DJT Premium");
+  const premiumPrice = premiumProduct?.prices?.find((p) => p.recurring?.interval === "month");
+  const isPremium = balance?.isSubscribed && (balance?.subscriptionTier === "premium" || balance?.subscriptionTier === "vip");
+
+  async function handleUpgrade() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    setUpgradeProcessing(true);
+    try {
+      const priceId = premiumPrice?.id;
+      if (!priceId) throw new Error("Premium plan not available");
+      const res = await apiRequest("POST", "/api/stripe/checkout", {
+        priceId,
+        mode: "subscription",
+        deviceId,
+        tier: "premium",
+      });
+      const { url } = await res.json();
+      if (url) {
+        if (Platform.OS === "web") {
+          window.location.href = url;
+        } else {
+          await Linking.openURL(url);
+        }
+      }
+    } catch (err) {
+      console.error("Upgrade error:", err);
+    } finally {
+      setUpgradeProcessing(false);
+    }
+  }
 
   const [rating, setRating] = useState(50);
   const [comment, setComment] = useState("");
@@ -593,6 +643,76 @@ export default function RateTrumpScreen() {
             <Text style={styles.loadingText}>Loading leaderboard...</Text>
           </View>
         )}
+
+        {!isPremium && (
+          <Animated.View entering={FadeInUp.delay(400).duration(600)} style={styles.premiumCard}>
+            <LinearGradient
+              colors={["rgba(255, 77, 77, 0.15)", "rgba(212, 164, 32, 0.15)", "rgba(255, 77, 77, 0.05)"]}
+              style={StyleSheet.absoluteFill}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            />
+            <Text style={styles.premiumFireText}>{"\uD83D\uDD25"} WANT MORE? {"\uD83D\uDD25"}</Text>
+            <Text style={styles.premiumSubtitle}>Upgrade to PREMIUM and get:</Text>
+
+            <View style={styles.premiumFeatures}>
+              <View style={styles.premiumFeatureRow}>
+                <Ionicons name="checkmark-circle" size={18} color="#4DFF4D" />
+                <Text style={styles.premiumFeatureText}>Unlimited ratings</Text>
+              </View>
+              <View style={styles.premiumFeatureRow}>
+                <Ionicons name="checkmark-circle" size={18} color="#4DFF4D" />
+                <Text style={styles.premiumFeatureText}>Video responses</Text>
+              </View>
+              <View style={styles.premiumFeatureRow}>
+                <Ionicons name="checkmark-circle" size={18} color="#4DFF4D" />
+                <Text style={styles.premiumFeatureText}>Your name in the leaderboard</Text>
+              </View>
+              <View style={styles.premiumFeatureRow}>
+                <Ionicons name="checkmark-circle" size={18} color="#4DFF4D" />
+                <Text style={styles.premiumFeatureText}>Custom roasts by name</Text>
+              </View>
+            </View>
+
+            <Pressable
+              onPress={handleUpgrade}
+              disabled={upgradeProcessing}
+              style={({ pressed }) => [
+                styles.premiumUpgradeButton,
+                pressed && { opacity: 0.85, transform: [{ scale: 0.97 }] },
+                upgradeProcessing && { opacity: 0.6 },
+              ]}
+            >
+              <LinearGradient
+                colors={[Colors.goldLight, Colors.gold, Colors.goldDark]}
+                style={StyleSheet.absoluteFill}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              />
+              {upgradeProcessing ? (
+                <ActivityIndicator color="#000" size="small" />
+              ) : (
+                <>
+                  <FontAwesome5 name="crown" size={16} color="#000" />
+                  <Text style={styles.premiumUpgradeText}>UPGRADE NOW - $3.99/mo</Text>
+                </>
+              )}
+            </Pressable>
+          </Animated.View>
+        )}
+
+        {isPremium && (
+          <View style={styles.premiumActiveBadge}>
+            <LinearGradient
+              colors={["rgba(212, 164, 32, 0.2)", "rgba(212, 164, 32, 0.05)"]}
+              style={StyleSheet.absoluteFill}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            />
+            <FontAwesome5 name="crown" size={14} color={Colors.gold} />
+            <Text style={styles.premiumActiveText}>PREMIUM ACTIVE</Text>
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -1028,5 +1148,83 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 13,
     color: Colors.whiteMuted,
+  },
+  premiumCard: {
+    marginTop: 28,
+    borderRadius: 16,
+    padding: 24,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255, 77, 77, 0.3)",
+    overflow: "hidden",
+  },
+  premiumFireText: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: "#FF4D4D",
+    letterSpacing: 1,
+    fontFamily: "PlayfairDisplay_900Black",
+    marginBottom: 6,
+  },
+  premiumSubtitle: {
+    fontSize: 14,
+    color: Colors.whiteDim,
+    marginBottom: 16,
+  },
+  premiumFeatures: {
+    alignSelf: "stretch",
+    gap: 12,
+    marginBottom: 20,
+  },
+  premiumFeatureRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  premiumFeatureText: {
+    fontSize: 15,
+    color: Colors.white,
+    fontWeight: "600",
+  },
+  premiumUpgradeButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 28,
+    overflow: "hidden",
+    alignSelf: "stretch",
+    shadowColor: Colors.gold,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  premiumUpgradeText: {
+    fontSize: 15,
+    fontWeight: "900",
+    color: "#000",
+    letterSpacing: 1,
+  },
+  premiumActiveBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 20,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: "rgba(212, 164, 32, 0.3)",
+    overflow: "hidden",
+  },
+  premiumActiveText: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: Colors.gold,
+    letterSpacing: 1.5,
   },
 });

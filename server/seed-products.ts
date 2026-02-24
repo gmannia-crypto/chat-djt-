@@ -5,6 +5,12 @@ async function createProducts() {
 
   const subscriptionTiers = [
     {
+      name: 'Chat DJT Premium',
+      description: 'Unlimited ratings, video responses, leaderboard name, custom roasts. The premium experience!',
+      metadata: { app: 'chatdjt', tier: 'premium', type: 'subscription' },
+      price: 399,
+    },
+    {
       name: 'Chat DJT Standard',
       description: '50 Trump Tokens per month. Great deal!',
       metadata: { app: 'chatdjt', tier: 'standard', type: 'subscription' },
