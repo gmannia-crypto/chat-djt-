@@ -1828,6 +1828,114 @@ Rate each person's standing with Trump right now.` }
       res.status(500).json({ error: "Failed" });
     }
   });
+  let weatherCommentaryCache = null;
+  const WEATHER_COMMENTARY_TTL = 30 * 60 * 1e3;
+  app2.get("/api/weather-commentary", async (req, res) => {
+    try {
+      const temp = req.query.temp;
+      const condition = req.query.condition;
+      const city = req.query.city;
+      if (!temp || !condition || !city) {
+        return res.status(400).json({ error: "temp, condition, city required" });
+      }
+      const cacheKey = `${city}-${temp}-${condition}`;
+      if (weatherCommentaryCache && weatherCommentaryCache.data.cacheKey === cacheKey && Date.now() - weatherCommentaryCache.timestamp < WEATHER_COMMENTARY_TTL) {
+        return res.json(weatherCommentaryCache.data);
+      }
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        max_completion_tokens: 200,
+        messages: [
+          {
+            role: "system",
+            content: `You are Trump giving a short, funny weather commentary. Be boastful, claim credit for good weather, blame opponents for bad weather. Keep it to 1-2 sentences max. Be hilarious and in-character. No quotes around your response. No asterisks.`
+          },
+          {
+            role: "user",
+            content: `The weather in ${city} is ${temp}\xB0F and ${condition}. Give a Trump hot take.`
+          }
+        ]
+      });
+      const comment = completion.choices[0]?.message?.content?.trim() || "Tremendous weather. The best. I did that.";
+      const isCold = parseInt(temp) < 50;
+      const result = {
+        cacheKey,
+        comment,
+        coldButton: isCold ? "TOO COLD? BLAME BIDEN" : null,
+        hotButton: !isCold ? "TOO HOT? TRUMP MADE IT GREAT AGAIN" : null
+      };
+      weatherCommentaryCache = { data: result, timestamp: Date.now() };
+      res.json(result);
+    } catch (error) {
+      console.error("Weather commentary error:", error);
+      res.json({
+        comment: "The weather is tremendous. Believe me, nobody does weather better than Trump.",
+        coldButton: null,
+        hotButton: null
+      });
+    }
+  });
+  let marketHotTakesCache = null;
+  const MARKET_HOT_TAKES_TTL = 30 * 60 * 1e3;
+  app2.get("/api/market-hot-takes", async (req, res) => {
+    try {
+      const prices = req.query.prices;
+      if (!prices) {
+        return res.status(400).json({ error: "prices required" });
+      }
+      if (marketHotTakesCache && Date.now() - marketHotTakesCache.timestamp < MARKET_HOT_TAKES_TTL) {
+        return res.json(marketHotTakesCache.data);
+      }
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        max_completion_tokens: 400,
+        messages: [
+          {
+            role: "system",
+            content: `You are Trump giving hot takes on market prices. Be funny, boastful, and in-character. Claim credit for gains, blame Democrats for losses. For $TRUMP coin, always be extra defensive/boastful. For gold, talk about how you love gold. For crypto, pretend you understand it better than anyone. Keep each take to 1 short sentence. No asterisks.
+
+Respond in valid JSON only:
+{"bitcoin": "take", "ethereum": "take", "gold": "take", "silver": "take", "trumpCoin": "take", "todaysPick": "pick name", "todaysPickReason": "short reason"}
+
+For todaysPick, make up a funny/absurd Trump-themed investment pick (like "WALL FUTURES", "MAGA ENERGY", "TRUMP STEAKS INC", etc).`
+          },
+          {
+            role: "user",
+            content: `Current prices: ${prices}. Give Trump hot takes on each.`
+          }
+        ]
+      });
+      let takes;
+      try {
+        const raw = completion.choices[0]?.message?.content?.trim() || "{}";
+        const jsonMatch = raw.match(/\{[\s\S]*\}/);
+        takes = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
+      } catch {
+        takes = {
+          bitcoin: "Bitcoin? I invented it. Many people are saying that.",
+          ethereum: "Ethereum is fine, but it's no Trump coin, believe me.",
+          gold: "I love gold. My buildings are covered in it. Beautiful.",
+          silver: "Silver is okay. It's like gold's less successful brother.",
+          trumpCoin: "The best coin ever created. Going to the moon. Buy buy buy!",
+          todaysPick: "WALL FUTURES",
+          todaysPickReason: "We're building it bigger and better, folks."
+        };
+      }
+      marketHotTakesCache = { data: takes, timestamp: Date.now() };
+      res.json(takes);
+    } catch (error) {
+      console.error("Market hot takes error:", error);
+      res.json({
+        bitcoin: "Tremendous crypto. The best.",
+        ethereum: "Not bad. Not as good as Trump Coin though.",
+        gold: "I love gold. Ask anyone.",
+        silver: "Silver is a very underrated metal.",
+        trumpCoin: "The greatest coin in the history of coins!",
+        todaysPick: "MAGA ENERGY",
+        todaysPickReason: "Because we never stop winning."
+      });
+    }
+  });
   const httpServer = createServer(app2);
   return httpServer;
 }
