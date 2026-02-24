@@ -652,7 +652,6 @@ export default function RateTrumpScreen() {
             end={{ x: 1, y: 1 }}
           />
           <Text style={styles.picksTitle}>{"\uD83C\uDDFA\uD83C\uDDF8"} TRUMP'S PICKS {"\uD83C\uDDFA\uD83C\uDDF8"}</Text>
-          <Text style={styles.picksSubtitle}>The President's top recommendations</Text>
 
           <Pressable
             onPress={() => Linking.openURL("https://www.amazon.com/s?k=trump+books&tag=trumpbot-20")}
@@ -660,8 +659,7 @@ export default function RateTrumpScreen() {
           >
             <Text style={styles.pickEmoji}>{"\uD83D\uDCD6"}</Text>
             <View style={styles.pickInfo}>
-              <Text style={styles.pickName}>My New Book</Text>
-              <Text style={styles.pickDesc}>The greatest bestseller, believe me</Text>
+              <Text style={styles.pickName}>"My New Book – Very Smart!"</Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color={Colors.whiteMuted} />
           </Pressable>
@@ -672,8 +670,7 @@ export default function RateTrumpScreen() {
           >
             <Text style={styles.pickEmoji}>{"\uD83E\uDDE2"}</Text>
             <View style={styles.pickInfo}>
-              <Text style={styles.pickName}>Make America Great Again Hat</Text>
-              <Text style={styles.pickDesc}>The iconic red cap, a true classic</Text>
+              <Text style={styles.pickName}>"The Best Hats – YUGE"</Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color={Colors.whiteMuted} />
           </Pressable>
@@ -684,13 +681,12 @@ export default function RateTrumpScreen() {
           >
             <Text style={styles.pickEmoji}>{"\uD83D\uDCB0"}</Text>
             <View style={styles.pickInfo}>
-              <Text style={styles.pickName}>Gold Investors Guide</Text>
-              <Text style={styles.pickDesc}>Smart money loves gold, very smart</Text>
+              <Text style={styles.pickName}>"Gold – Better Than Stocks!"</Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color={Colors.whiteMuted} />
           </Pressable>
 
-          <Text style={styles.picksDisclaimer}>For entertainment purposes only. Affiliate links.</Text>
+          <Text style={styles.picksDisclaimer}>As an Amazon Associate, I earn from purchases.</Text>
         </Animated.View>
 
         {!isPremium && (
@@ -1210,14 +1206,9 @@ const styles = StyleSheet.create({
   picksTitle: {
     fontSize: 18,
     fontWeight: "900",
-    color: Colors.white,
+    color: "#FF4D4D",
     letterSpacing: 1.5,
     fontFamily: "PlayfairDisplay_900Black",
-    marginBottom: 4,
-  },
-  picksSubtitle: {
-    fontSize: 13,
-    color: Colors.whiteDim,
     marginBottom: 16,
   },
   pickItem: {
@@ -1243,10 +1234,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: Colors.white,
     marginBottom: 2,
-  },
-  pickDesc: {
-    fontSize: 12,
-    color: Colors.whiteMuted,
   },
   picksDisclaimer: {
     fontSize: 10,
