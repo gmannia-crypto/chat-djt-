@@ -529,8 +529,12 @@ async function main() {
 
   if (hasExistingMobileBuild()) {
     console.log("Existing mobile build found, skipping Metro bundle download");
-    console.log("Building web export only...");
-    await buildWebExport(domain);
+    if (fs.existsSync("dist/index.html")) {
+      console.log("Existing web export found, skipping web export");
+    } else {
+      console.log("Building web export only...");
+      await buildWebExport(domain);
+    }
     console.log("Build complete! Deploy to:", baseUrl);
     process.exit(0);
     return;
