@@ -7,8 +7,9 @@ packages = ["chromium", "socat", "ffmpeg"]
 
 [deployment]
 deploymentTarget = "autoscale"
-build = ["bash", "-c", "npm run expo:static:build && npm run server:build"]
+build = ["sh", "-c", "node scripts/deploy-build.js"]
 run = ["npm", "run", "server:prod"]
+publicDir = "dist"
 
 [[ports]]
 localPort = 5000
