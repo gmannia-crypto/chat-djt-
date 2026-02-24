@@ -60,6 +60,13 @@ interface AdminStats {
   }[];
 }
 
+interface ShareStats {
+  totalShares: number;
+  byFeature: { feature: string; count: number }[];
+  daily: { day: string; count: number }[];
+  recent: { feature: string; preview: string; platform: string; createdAt: string }[];
+}
+
 interface StatCardProps {
   icon: string;
   iconSet: "ionicons" | "material" | "feather" | "materialCommunity";
@@ -120,9 +127,17 @@ function TransactionRow({ tx, index }: { tx: AdminStats["recentTransactions"][0]
   );
 }
 
+const FEATURE_LABELS: Record<string, { label: string; icon: string; color: string }> = {
+  chat_message: { label: "Chat Messages", icon: "chatbubble", color: Colors.gold },
+  report_card: { label: "Report Cards", icon: "school", color: "#4ADE80" },
+  weather_commentary: { label: "Weather Takes", icon: "cloudy", color: "#6CB4EE" },
+  stock_pick: { label: "Stock Picks", icon: "trending-up", color: "#F59E0B" },
+};
+
 export default function AdminScreen() {
   const insets = useSafeAreaInsets();
   const [stats, setStats] = useState<AdminStats | null>(null);
+  const [shareStats, setShareStats] = useState<ShareStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -137,11 +152,16 @@ export default function AdminScreen() {
     try {
       setLoading(true);
       setError(null);
-      const url = new URL("/api/admin/stats", getApiUrl());
-      const response = await fetch(url.toString());
-      if (!response.ok) throw new Error("Failed to fetch stats");
-      const data = await response.json();
+      const [statsRes, sharesRes] = await Promise.all([
+        fetch(new URL("/api/admin/stats", getApiUrl()).toString()),
+        fetch(new URL("/api/admin/shares", getApiUrl()).toString()),
+      ]);
+      if (!statsRes.ok) throw new Error("Failed to fetch stats");
+      const data = await statsRes.json();
       setStats(data);
+      if (sharesRes.ok) {
+        setShareStats(await sharesRes.json());
+      }
     } catch (err: any) {
       console.error("Admin stats error:", err);
       setError(err.message || "Failed to load");
@@ -343,7 +363,59 @@ export default function AdminScreen() {
               </>
             )}
 
-            <Animated.View entering={FadeInDown.delay(900).duration(400)}>
+            {shareStats && (
+              <>
+                <Animated.View entering={FadeInDown.delay(850).duration(400)}>
+                  <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Viral Shares</Text>
+                  <Text style={styles.sectionSubtitle}>Users spreading the word, tremendous!</Text>
+                </Animated.View>
+
+                <Animated.View entering={FadeInDown.delay(900).duration(400)} style={styles.shareHero}>
+                  <Ionicons name="share-social" size={28} color={Colors.gold} />
+                  <Text style={styles.shareHeroCount}>{shareStats.totalShares}</Text>
+                  <Text style={styles.shareHeroLabel}>Total Shares</Text>
+                </Animated.View>
+
+                {shareStats.byFeature.length > 0 && (
+                  <Animated.View entering={FadeInDown.delay(950).duration(400)} style={styles.shareByFeature}>
+                    {shareStats.byFeature.map((item) => {
+                      const config = FEATURE_LABELS[item.feature] || { label: item.feature, icon: "share", color: Colors.whiteDim };
+                      return (
+                        <View key={item.feature} style={styles.shareFeatureRow}>
+                          <View style={[styles.shareFeatureIcon, { backgroundColor: config.color + "18" }]}>
+                            <Ionicons name={config.icon as any} size={16} color={config.color} />
+                          </View>
+                          <Text style={styles.shareFeatureLabel}>{config.label}</Text>
+                          <Text style={[styles.shareFeatureCount, { color: config.color }]}>{item.count}</Text>
+                        </View>
+                      );
+                    })}
+                  </Animated.View>
+                )}
+
+                {shareStats.daily.length > 0 && (
+                  <Animated.View entering={FadeInDown.delay(1000).duration(400)} style={styles.shareDailyChart}>
+                    <Text style={styles.shareDailyTitle}>Last 7 Days</Text>
+                    <View style={styles.shareDailyBars}>
+                      {shareStats.daily.map((d) => {
+                        const maxCount = Math.max(...shareStats.daily.map(x => x.count), 1);
+                        const height = Math.max((d.count / maxCount) * 60, 4);
+                        const dayLabel = new Date(d.day).toLocaleDateString(undefined, { weekday: "short" });
+                        return (
+                          <View key={d.day} style={styles.shareDayColumn}>
+                            <Text style={styles.shareDayCount}>{d.count}</Text>
+                            <View style={[styles.shareDayBar, { height, backgroundColor: Colors.gold }]} />
+                            <Text style={styles.shareDayLabel}>{dayLabel}</Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  </Animated.View>
+                )}
+              </>
+            )}
+
+            <Animated.View entering={FadeInDown.delay(1050).duration(400)}>
               <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Manage Payments</Text>
               <Text style={styles.sectionSubtitle}>
                 Go to Stripe to manage customers, refunds, and payouts
@@ -724,5 +796,96 @@ const styles = StyleSheet.create({
     fontFamily: "PlayfairDisplay_700Bold",
     minWidth: 60,
     textAlign: "right" as const,
+  },
+  shareHero: {
+    alignItems: "center",
+    backgroundColor: Colors.card,
+    borderRadius: 16,
+    padding: 24,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: "rgba(212, 164, 32, 0.2)",
+    gap: 6,
+  },
+  shareHeroCount: {
+    fontSize: 48,
+    fontFamily: "PlayfairDisplay_900Black",
+    color: Colors.gold,
+    lineHeight: 52,
+  },
+  shareHeroLabel: {
+    fontSize: 13,
+    color: Colors.whiteDim,
+    textTransform: "uppercase" as const,
+    letterSpacing: 1,
+  },
+  shareByFeature: {
+    backgroundColor: Colors.card,
+    borderRadius: 14,
+    padding: 14,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: 10,
+  },
+  shareFeatureRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  shareFeatureIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  shareFeatureLabel: {
+    flex: 1,
+    fontSize: 14,
+    color: Colors.white,
+  },
+  shareFeatureCount: {
+    fontSize: 18,
+    fontFamily: "PlayfairDisplay_700Bold",
+  },
+  shareDailyChart: {
+    backgroundColor: Colors.card,
+    borderRadius: 14,
+    padding: 16,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  shareDailyTitle: {
+    fontSize: 12,
+    color: Colors.whiteDim,
+    textTransform: "uppercase" as const,
+    letterSpacing: 1,
+    marginBottom: 14,
+  },
+  shareDailyBars: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-around",
+    gap: 8,
+  },
+  shareDayColumn: {
+    alignItems: "center",
+    gap: 4,
+    flex: 1,
+  },
+  shareDayCount: {
+    fontSize: 11,
+    color: Colors.gold,
+    fontWeight: "700",
+  },
+  shareDayBar: {
+    width: "80%",
+    borderRadius: 4,
+  },
+  shareDayLabel: {
+    fontSize: 10,
+    color: Colors.whiteMuted,
   },
 });
