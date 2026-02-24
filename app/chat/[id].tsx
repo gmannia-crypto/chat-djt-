@@ -22,6 +22,7 @@ import { Ionicons, MaterialCommunityIcons, Feather, FontAwesome5 } from "@expo/v
 import * as Haptics from "expo-haptics";
 import * as Clipboard from "expo-clipboard";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { trackShare } from "@/lib/track-share";
 import Animated, {
   FadeIn,
   FadeInDown,
@@ -142,6 +143,12 @@ function MessageBubble({
       : message.content;
     const categoryTag = speechCategory ? ` [${SPEECH_LABELS[speechCategory]?.label || ""}]` : "";
     const shareText = `🇺🇸 TRUMP AI${categoryTag}:\n\n"${quote}"\n\n🏛️ Chat with the 47th President yourself\n👉 chat-djt.replit.app`;
+
+    trackShare({
+      feature: "chat_message",
+      contentPreview: quote.slice(0, 200),
+      platform: Platform.OS,
+    });
 
     if (Platform.OS === "web") {
       try {
@@ -1606,6 +1613,11 @@ export default function ChatScreen() {
     if (!reportCard) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const text = `🇺🇸 TRUMP REPORT CARD: ${reportCard.grade}\n\n"${reportCard.evaluation}"\n\n🏛️ Get YOUR grade from the 47th President\n👉 chat-djt.replit.app`;
+    trackShare({
+      feature: "report_card",
+      contentPreview: `Grade: ${reportCard.grade}`,
+      platform: Platform.OS,
+    });
     if (Platform.OS === "web") {
       Clipboard.setStringAsync(text);
     } else {
