@@ -228,6 +228,36 @@ export default function RateTrumpScreen() {
     });
   }
 
+  async function handleChallenge() {
+    if (!trumpResponse) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const apiUrl = getApiUrl().replace(/\/$/, "");
+      const res = await fetch(`${apiUrl}/api/create-challenge`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rating: trumpResponse.rating,
+          displayName: displayName.trim() || "Anonymous",
+          comment: comment.trim() || undefined,
+          deviceId: deviceId || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (data.challengeId) {
+        const challengeUrl = `chat-djt.replit.app/challenge/${data.challengeId}`;
+        const emojiInfo = getEmojiForRating(trumpResponse.rating);
+        shareContent({
+          text: `${emojiInfo.emoji} I rated Trump ${trumpResponse.rating}%! Think you can do better?\n\nTake the challenge \u{1F447}\n${challengeUrl}`,
+          feature: "rate_trump_challenge",
+          deviceId: deviceId || undefined,
+        });
+      }
+    } catch (err) {
+      console.error("Challenge error:", err);
+    }
+  }
+
   function handleRateAgain() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setTrumpResponse(null);
@@ -475,6 +505,23 @@ export default function RateTrumpScreen() {
                 <Text style={[styles.actionButtonText, { color: Colors.gold }]}>SHARE</Text>
               </Pressable>
             </View>
+
+            <Pressable
+              onPress={handleChallenge}
+              style={({ pressed }) => [
+                styles.challengeButton,
+                pressed && { opacity: 0.7, transform: [{ scale: 0.97 }] },
+              ]}
+            >
+              <LinearGradient
+                colors={["#FF6B35", "#FF4444"]}
+                style={StyleSheet.absoluteFill}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+              />
+              <Ionicons name="people" size={18} color="#FFF" />
+              <Text style={styles.challengeButtonText}>CHALLENGE A FRIEND</Text>
+            </Pressable>
 
             <Pressable
               onPress={handleRateAgain}
@@ -819,6 +866,27 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#FFF",
     letterSpacing: 1,
+  },
+  challengeButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    paddingVertical: 16,
+    borderRadius: 28,
+    overflow: "hidden",
+    marginBottom: 12,
+    shadowColor: "#FF4444",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  challengeButtonText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#FFF",
+    letterSpacing: 1.5,
   },
   rateAgainButton: {
     flexDirection: "row",

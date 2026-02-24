@@ -2045,6 +2045,44 @@ Start with [MOOD:CALM] or [MOOD:FIRED_UP] based on the rating (low = FIRED_UP, h
     }
   });
 
+  app.post("/api/create-challenge", async (req, res) => {
+    try {
+      const { rating, displayName, comment, deviceId } = req.body;
+      if (typeof rating !== "number" || rating < 0 || rating > 100) {
+        return res.status(400).json({ error: "Rating must be 0-100" });
+      }
+      const challengeId = Math.random().toString(36).substring(2, 10);
+      const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      await db.query(
+        `INSERT INTO trump_challenges (id, challenger_name, challenger_rating, challenger_comment, device_id) VALUES ($1, $2, $3, $4, $5)`,
+        [challengeId, (displayName || "Anonymous").slice(0, 50), rating, comment || null, deviceId || "anonymous"]
+      );
+      await db.end();
+      res.json({ challengeId });
+    } catch (error) {
+      console.error("Create challenge error:", error);
+      res.status(500).json({ error: "Failed to create challenge" });
+    }
+  });
+
+  app.get("/api/challenge/:id", async (req, res) => {
+    try {
+      const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      const result = await db.query(
+        `SELECT id, challenger_name, challenger_rating, challenger_comment, created_at FROM trump_challenges WHERE id = $1`,
+        [req.params.id]
+      );
+      await db.end();
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: "Challenge not found" });
+      }
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error("Get challenge error:", error);
+      res.status(500).json({ error: "Failed to get challenge" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
