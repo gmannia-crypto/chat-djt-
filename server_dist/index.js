@@ -385,7 +385,17 @@ SPEECH CATEGORY:
   - Serious policy questions, formal topics \u2192 TELEPROMPTER
   - When you're hyped up, bragging hard, or the user is cheering you on \u2192 RALLY_RANT
   - When challenged, questioned aggressively, or defending yourself \u2192 INTERVIEW
-- This tag MUST come right after the mood tag, before any other text`;
+- This tag MUST come right after the mood tag, before any other text
+
+PRODUCT PLUGS \u2014 SUBTLE AND IN-CHARACTER:
+- About once every 5-6 responses, naturally drop a reference to one of these: "my new book," "a MAGA hat," or "investing in gold"
+- It should feel like Trump bragging or giving advice, NOT like an ad. Examples:
+  - "You should read my book, by the way. Number one bestseller. Tremendous."
+  - "Get yourself a MAGA hat, you'd look great in it. Everybody does."
+  - "Smart people are investing in gold right now. I'm just saying."
+- Only mention ONE product per response, and only when it fits the conversation flow
+- If the topic is about money/economy/success, lean toward gold. If about politics/patriotism, lean toward the hat. If about learning/reading/intelligence, lean toward the book
+- Do NOT mention products every single response \u2014 keep it occasional and natural`;
 var TRUMP_SPIRIT_PROMPT = `You are an AI assistant inspired by Trump's energy and emotional intensity, but you speak in your own voice \u2014 you are NOT impersonating or roleplaying as Donald Trump.
 
 EMOTIONAL STYLE:
@@ -2032,7 +2042,13 @@ React to this rating AS TRUMP. Your reaction should match the rating:
 If they left a comment, address it directly \u2014 especially if it's negative (attack it hard) or positive (agree enthusiastically and add more bragging).
 
 Keep it to 2-3 paragraphs max. Be hilarious, in-character, and over-the-top.
-Start with [MOOD:CALM] or [MOOD:FIRED_UP] based on the rating (low = FIRED_UP, high = CALM).`;
+Start with [MOOD:CALM] or [MOOD:FIRED_UP] based on the rating (low = FIRED_UP, high = CALM).
+
+IMPORTANT: Naturally weave in ONE product mention that fits the context of your response. Pick the most fitting one:
+- If rated HIGH/VERY HIGH: Casually mention "my new book" or that they should "grab a MAGA hat" since they clearly have great taste.
+- If rated LOW: Tell them to "read my book" to educate themselves, or say they need a "MAGA hat to fix that brain."
+- If talking about money/economy: Mention "investing in gold" as the smart move.
+- Keep the product mention natural and in-character \u2014 it should feel like Trump bragging or recommending, NOT like an ad.`;
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
@@ -2485,6 +2501,7 @@ function configureExpoAndLanding(app2) {
         }
       }
     }));
+    const affiliateScript = `<script>(function(){var T='trumpbot-20';var L=[{k:['book','books','reading'],u:'https://www.amazon.com/s?k=trump+books&tag='+T},{k:['hat','hats','cap','make america great again'],u:'https://www.amazon.com/s?k=maga+hat&tag='+T},{k:['flag','american flag','patriotic flag'],u:'https://www.amazon.com/s?k=american+flag&tag='+T},{k:['shirt','tshirt','apparel'],u:'https://www.amazon.com/s?k=trump+shirt&tag='+T},{k:['gold','silver','bullion','invest'],u:'https://www.amazon.com/s?k=gold+coins&tag='+T},{k:['wall','border'],u:'https://www.amazon.com/s?k=build+the+wall&tag='+T},{k:['truth social','social media'],u:'https://www.amazon.com/s?k=trump+social&tag='+T}];function run(){document.querySelectorAll('[data-testid]').forEach(function(el){if(el.hasAttribute('data-aff')||el.querySelector('a'))return;var h=el.innerHTML,m=false;L.forEach(function(item){item.k.forEach(function(kw){var r=new RegExp('\\\\b'+kw+'\\\\b','gi');if(r.test(h)){h=h.replace(r,function(mt){return'<a href="'+item.u+'" target="_blank" rel="nofollow sponsored" style="color:#ff4d4d;text-decoration:underline;">'+mt+'</a>';});m=true;}});});if(m){el.innerHTML=h;el.setAttribute('data-aff','1');}});}var dt;var ob=new MutationObserver(function(){clearTimeout(dt);dt=setTimeout(run,1500);});document.addEventListener('DOMContentLoaded',function(){setTimeout(run,3000);ob.observe(document.body,{childList:true,subtree:true});});})();</script>`;
     app2.get("/{*path}", (req, res, next) => {
       if (req.path.startsWith("/api") || req.path === "/status" || req.path === "/manifest") {
         return next();
@@ -2492,7 +2509,12 @@ function configureExpoAndLanding(app2) {
       const platform = req.header("expo-platform");
       if (platform) return next();
       res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-      return res.sendFile(path.join(distDir, "index.html"));
+      const htmlPath = path.join(distDir, "index.html");
+      let html = fs.readFileSync(htmlPath, "utf-8");
+      if (!html.includes("data-aff")) {
+        html = html.replace("</body>", affiliateScript + "</body>");
+      }
+      return res.send(html);
     });
   } else if (!isDev) {
     app2.get("/", (req, res) => {
