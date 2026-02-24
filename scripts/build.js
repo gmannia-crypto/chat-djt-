@@ -526,8 +526,7 @@ async function main() {
 
   if (hasExistingMobileBuild() && fs.existsSync("dist/index.html")) {
     console.log("Existing mobile build and web export found, nothing to rebuild");
-    console.log("Build complete!");
-    process.exit(0);
+    console.log("Expo build complete!");
     return;
   }
 
@@ -538,8 +537,7 @@ async function main() {
     console.log("Existing mobile build found, skipping Metro bundle download");
     console.log("Building web export only...");
     await buildWebExport(domain);
-    console.log("Build complete! Deploy to:", baseUrl);
-    process.exit(0);
+    console.log("Expo build complete! Deploy to:", baseUrl);
     return;
   }
 
@@ -657,7 +655,17 @@ async function buildWebExport(domain) {
   });
 }
 
-main().catch((error) => {
+main().then(() => {
+  console.log("Running server build...");
+  const { execSync } = require("child_process");
+  try {
+    execSync("npx esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=server_dist", { stdio: "inherit" });
+    console.log("Server build complete!");
+  } catch (err) {
+    console.error("Server build failed:", err.message);
+    process.exit(1);
+  }
+}).catch((error) => {
   console.error("Build failed:", error.message);
   if (metroProcess) {
     metroProcess.kill();
