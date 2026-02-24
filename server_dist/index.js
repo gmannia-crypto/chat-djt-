@@ -2144,7 +2144,6 @@ async function initStripe() {
   app.get("/status", (_req, res) => {
     res.status(200).send("ok");
   });
-  await initStripe();
   configureExpoAndLanding(app);
   const server = await registerRoutes(app);
   setupErrorHandler(app);
@@ -2175,6 +2174,7 @@ async function initStripe() {
     () => {
       log(`express server serving on port ${port}`);
       spawnMetro();
+      initStripe().catch((err) => console.error("Stripe init error:", err));
     }
   );
 })();

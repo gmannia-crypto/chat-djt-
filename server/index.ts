@@ -535,8 +535,6 @@ async function initStripe() {
     res.status(200).send("ok");
   });
 
-  await initStripe();
-
   configureExpoAndLanding(app);
 
   const server = await registerRoutes(app);
@@ -570,6 +568,7 @@ async function initStripe() {
     () => {
       log(`express server serving on port ${port}`);
       spawnMetro();
+      initStripe().catch((err) => console.error("Stripe init error:", err));
     },
   );
 })();
