@@ -557,6 +557,33 @@ export default function RateTrumpScreen() {
             </View>
 
             <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                const url = trumpResponse.rating >= 70
+                  ? "https://www.amazon.com/s?k=trump+books&tag=trumpbot-20"
+                  : "https://www.amazon.com/s?k=trump+biography&tag=trumpbot-20";
+                Linking.openURL(url);
+              }}
+              style={({ pressed }) => [styles.ratingRecommendation, pressed && { opacity: 0.7 }]}
+            >
+              <LinearGradient
+                colors={trumpResponse.rating >= 70
+                  ? ["rgba(255, 68, 68, 0.12)", "rgba(212, 164, 32, 0.08)"]
+                  : ["rgba(0, 51, 102, 0.15)", "rgba(212, 164, 32, 0.08)"]
+                }
+                style={StyleSheet.absoluteFill}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+              />
+              <Text style={styles.ratingRecommendationText}>
+                {trumpResponse.rating >= 70
+                  ? "\uD83D\uDD25 Top Supporters also bought: Trump's Book"
+                  : "\uD83D\uDCDA See what you're missing: Trump's Biography"}
+              </Text>
+              <Ionicons name="chevron-forward" size={14} color={Colors.gold} />
+            </Pressable>
+
+            <Pressable
               onPress={handleChallenge}
               style={({ pressed }) => [
                 styles.challengeButton,
@@ -1193,6 +1220,24 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 13,
     color: Colors.whiteMuted,
+  },
+  ratingRecommendation: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(212, 164, 32, 0.25)",
+    overflow: "hidden",
+    marginBottom: 16,
+  },
+  ratingRecommendationText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: Colors.white,
+    flex: 1,
   },
   picksCard: {
     marginTop: 28,
