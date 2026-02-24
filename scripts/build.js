@@ -524,17 +524,20 @@ async function main() {
 
   setupSignalHandlers();
 
+  if (hasExistingMobileBuild() && fs.existsSync("dist/index.html")) {
+    console.log("Existing mobile build and web export found, nothing to rebuild");
+    console.log("Build complete!");
+    process.exit(0);
+    return;
+  }
+
   const domain = getDeploymentDomain();
   const baseUrl = `https://${domain}`;
 
   if (hasExistingMobileBuild()) {
     console.log("Existing mobile build found, skipping Metro bundle download");
-    if (fs.existsSync("dist/index.html")) {
-      console.log("Existing web export found, skipping web export");
-    } else {
-      console.log("Building web export only...");
-      await buildWebExport(domain);
-    }
+    console.log("Building web export only...");
+    await buildWebExport(domain);
     console.log("Build complete! Deploy to:", baseUrl);
     process.exit(0);
     return;
