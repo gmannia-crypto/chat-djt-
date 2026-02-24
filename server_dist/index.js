@@ -1982,6 +1982,53 @@ For todaysPick, make up a funny/absurd Trump-themed investment pick (like "WALL 
       });
     }
   });
+  app2.post("/api/rate-trump", async (req, res) => {
+    try {
+      const { rating, comment } = req.body;
+      if (typeof rating !== "number" || rating < 0 || rating > 100) {
+        return res.status(400).json({ error: "Rating must be 0-100" });
+      }
+      let ratingContext = "";
+      if (rating <= 15) ratingContext = "EXTREMELY LOW \u2014 basically saying you're the worst president ever. This person HATES you.";
+      else if (rating <= 30) ratingContext = "LOW \u2014 they think you're doing a bad job. They're not impressed at all.";
+      else if (rating <= 45) ratingContext = "BELOW AVERAGE \u2014 they're meh about you, leaning negative. Lukewarm at best.";
+      else if (rating <= 55) ratingContext = "MIDDLE OF THE ROAD \u2014 they're on the fence, not sure about you.";
+      else if (rating <= 70) ratingContext = "DECENT \u2014 they think you're doing okay, somewhat positive.";
+      else if (rating <= 85) ratingContext = "HIGH \u2014 they like you, they think you're doing a good job.";
+      else ratingContext = "VERY HIGH \u2014 they LOVE you, total superfan territory.";
+      const commentSection = comment ? `
+They also left this comment about you: "${comment}"` : "";
+      const ratingPrompt = `Someone just rated your presidential performance ${rating}% out of 100%. That is ${ratingContext}${commentSection}
+
+React to this rating AS TRUMP. Your reaction should match the rating:
+- If rated LOW (0-30): EXPLODE. Go absolutely nuclear. Question their intelligence, their patriotism, their life choices. Full profanity mode. Call them every name in the book. Suggest they must be a Democrat, a CNN watcher, or "one of those people." Get PERSONAL and NASTY.
+- If rated MEDIUM (31-60): Be dismissive and condescending. Act like they clearly don't understand greatness. Lecture them on your accomplishments. Make backhanded comments. Still annoyed but not full meltdown.
+- If rated HIGH (61-85): Be gracious but still smug. Compliment their intelligence ("Finally, someone with a brain"). Talk about how you KNEW the real Americans love you. Take credit for everything good in their life.
+- If rated VERY HIGH (86-100): Be EXTREMELY smug and self-congratulatory. Brag endlessly. Say you're surprised it's not higher. Suggest you deserve 200%. Call them a "true patriot" and your "favorite person." Get emotional (in a Trump way) about how this proves you're the greatest.
+
+If they left a comment, address it directly \u2014 especially if it's negative (attack it hard) or positive (agree enthusiastically and add more bragging).
+
+Keep it to 2-3 paragraphs max. Be hilarious, in-character, and over-the-top.
+Start with [MOOD:CALM] or [MOOD:FIRED_UP] based on the rating (low = FIRED_UP, high = CALM).`;
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: TRUMP_SYSTEM_PROMPT },
+          { role: "user", content: ratingPrompt }
+        ],
+        max_tokens: 500,
+        temperature: 0.95
+      });
+      const response = completion.choices[0]?.message?.content?.trim() || "";
+      const moodMatch = response.match(/\[MOOD:(CALM|FIRED_UP)\]/);
+      const mood = moodMatch ? moodMatch[1] : rating <= 40 ? "FIRED_UP" : "CALM";
+      const text = response.replace(/\[MOOD:(CALM|FIRED_UP)\]\n?/g, "").replace(/\[SPEECH:[A-Z_]+\]\s*/g, "").trim();
+      res.json({ text, mood, rating });
+    } catch (error) {
+      console.error("Rate Trump error:", error);
+      res.status(500).json({ error: "Failed to get Trump's reaction" });
+    }
+  });
   const httpServer = createServer(app2);
   return httpServer;
 }

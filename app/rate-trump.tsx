@@ -121,7 +121,8 @@ export default function RateTrumpScreen() {
     setTrumpResponse(null);
 
     try {
-      const res = await fetch(`${getApiUrl()}/api/rate-trump`, {
+      const apiUrl = getApiUrl().replace(/\/$/, "");
+      const res = await fetch(`${apiUrl}/api/rate-trump`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ rating, comment: comment.trim() || undefined }),
@@ -372,7 +373,7 @@ export default function RateTrumpScreen() {
               />
               <View style={styles.responseAvatarRow}>
                 <Image
-                  source={require("@/assets/images/trump-portrait.png")}
+                  source={require("@/assets/images/trump-avatar.jpg")}
                   style={styles.responseAvatar}
                 />
                 {speaking && (

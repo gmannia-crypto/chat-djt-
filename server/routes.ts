@@ -1995,7 +1995,7 @@ Start with [MOOD:CALM] or [MOOD:FIRED_UP] based on the rating (low = FIRED_UP, h
       const moodMatch = response.match(/\[MOOD:(CALM|FIRED_UP)\]/);
       const mood = moodMatch ? moodMatch[1] : rating <= 40 ? "FIRED_UP" : "CALM";
       const text = response
-        .replace(/\[MOOD:(CALM|FIRED_UP)\]\n?/g, "")
+        .replace(/\[MOOD:[A-Z_]+\]\s*/g, "")
         .replace(/\[SPEECH:[A-Z_]+\]\s*/g, "")
         .trim();
 
