@@ -249,6 +249,10 @@ function RootLayoutNav() {
         name="dashboard"
         options={{ animation: "slide_from_right" }}
       />
+      <Stack.Screen
+        name="rate-trump"
+        options={{ animation: "slide_from_right" }}
+      />
     </Stack>
   );
 }

@@ -698,7 +698,17 @@ export default function HomeScreen() {
             <Ionicons name="stats-chart" size={16} color="#60A5FA" />
             <Text style={styles.modeButtonText}>DASHBOARD</Text>
           </Pressable>
-          <View style={[styles.modeButton, { opacity: 0 }]} />
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+              router.push("/rate-trump");
+            }}
+            style={({ pressed }) => [styles.modeButton, styles.rateTrumpButton, pressed && { opacity: 0.7 }]}
+            testID="rate-trump-button"
+          >
+            <MaterialCommunityIcons name="poll" size={16} color="#FF4D4D" />
+            <Text style={styles.modeButtonText}>RATE HIM</Text>
+          </Pressable>
         </Animated.View>
       </ScrollView>
 
@@ -1581,6 +1591,10 @@ const styles = StyleSheet.create({
   dashboardButton: {
     backgroundColor: "rgba(96, 165, 250, 0.15)",
     borderColor: "rgba(96, 165, 250, 0.4)",
+  },
+  rateTrumpButton: {
+    backgroundColor: "rgba(255, 77, 77, 0.15)",
+    borderColor: "rgba(255, 77, 77, 0.4)",
   },
   streakBadge: {
     flexDirection: "row",
