@@ -19,6 +19,7 @@ import * as Haptics from "expo-haptics";
 import { useQuery } from "@tanstack/react-query";
 import Colors from "@/constants/colors";
 import { getApiUrl } from "@/lib/query-client";
+import { shareContent } from "@/lib/track-share";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -224,6 +225,15 @@ export default function DashboardScreen() {
                         <Text style={styles.weatherReactText}>{"\uD83D\uDD25"} {weatherComment.hotButton}</Text>
                       </Pressable>
                     )}
+                    <Pressable
+                      onPress={() => shareContent({
+                        text: `\uD83C\uDDFA\uD83C\uDDF8 TRUMP ON THE WEATHER:\n\n"${weatherComment.comment}"\n\n${weather.current.temp}\u00B0F in ${weather.city} \u2014 ${weather.current.label}\n\n\uD83C\uDFDB\uFE0F Chat with the 47th President\n\uD83D\uDC49 chat-djt.replit.app`,
+                        feature: "weather_commentary",
+                      })}
+                      style={({ pressed }) => [styles.shareSmallButton, pressed && { opacity: 0.7 }]}
+                    >
+                      <Ionicons name="share-outline" size={14} color={Colors.gold} />
+                    </Pressable>
                   </View>
                 </View>
               )}
@@ -333,15 +343,27 @@ export default function DashboardScreen() {
                   <Text style={styles.stockPickEmoji}>{"\uD83D\uDD25"}</Text>
                   <Text style={styles.stockPickTitle}>TODAY'S PICK: Buy {hotTakes.todaysPick}</Text>
                 </View>
-                <Pressable
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                    setShowPickReason(!showPickReason);
-                  }}
-                  style={({ pressed }) => [styles.whyButton, pressed && { opacity: 0.7 }]}
-                >
-                  <Text style={styles.whyButtonText}>WHY?</Text>
-                </Pressable>
+                <View style={styles.pickButtonRow}>
+                  <Pressable
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                      setShowPickReason(!showPickReason);
+                    }}
+                    style={({ pressed }) => [styles.whyButton, pressed && { opacity: 0.7 }]}
+                  >
+                    <Text style={styles.whyButtonText}>WHY?</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => shareContent({
+                      text: `\uD83C\uDDFA\uD83C\uDDF8 TRUMP'S STOCK PICK OF THE DAY:\n\n\uD83D\uDD25 Buy ${hotTakes.todaysPick}!\n\n${hotTakes.todaysPickReason ? `"${hotTakes.todaysPickReason}"` : ""}\n\n\uD83C\uDFDB\uFE0F Chat with the 47th President\n\uD83D\uDC49 chat-djt.replit.app`,
+                      feature: "stock_pick",
+                    })}
+                    style={({ pressed }) => [styles.sharePickButton, pressed && { opacity: 0.7 }]}
+                  >
+                    <Ionicons name="share-outline" size={16} color={Colors.gold} />
+                    <Text style={styles.sharePickText}>SHARE</Text>
+                  </Pressable>
+                </View>
                 {showPickReason && hotTakes.todaysPickReason && (
                   <View style={styles.pickReasonBox}>
                     <Image
@@ -674,6 +696,39 @@ const styles = StyleSheet.create({
     color: Colors.whiteDim,
     fontStyle: "italic",
     lineHeight: 19,
+  },
+  shareSmallButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(212, 164, 32, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(212, 164, 32, 0.3)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pickButtonRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 12,
+  },
+  sharePickButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(212, 164, 32, 0.2)",
+    borderWidth: 1,
+    borderColor: Colors.gold,
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  sharePickText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: Colors.gold,
+    letterSpacing: 1,
   },
   updatedAt: {
     fontSize: 11,
