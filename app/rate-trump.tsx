@@ -65,6 +65,18 @@ function getSliderTrackGradient(rating: number): string {
   return `rgb(${r}, ${g}, 50)`;
 }
 
+type LeaderboardEntry = {
+  display_name: string;
+  rating: number;
+  comment: string | null;
+};
+
+type LeaderboardData = {
+  supporters: LeaderboardEntry[];
+  haters: LeaderboardEntry[];
+  totalRatings: number;
+};
+
 export default function RateTrumpScreen() {
   const insets = useSafeAreaInsets();
   const webTopInset = Platform.OS === "web" ? 67 : 0;
@@ -73,6 +85,7 @@ export default function RateTrumpScreen() {
 
   const [rating, setRating] = useState(50);
   const [comment, setComment] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [loading, setLoading] = useState(false);
   const [trumpResponse, setTrumpResponse] = useState<{
     text: string;
@@ -81,6 +94,8 @@ export default function RateTrumpScreen() {
   } | null>(null);
   const [speaking, setSpeaking] = useState(false);
   const soundRef = useRef<Audio.Sound | null>(null);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardData | null>(null);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(true);
 
   const sliderWidth = SCREEN_WIDTH - 80;
   const sliderRef = useRef<View>(null);
@@ -97,7 +112,22 @@ export default function RateTrumpScreen() {
       -1,
       true
     );
+    fetchLeaderboard();
   }, []);
+
+  async function fetchLeaderboard() {
+    try {
+      setLeaderboardLoading(true);
+      const apiUrl = getApiUrl().replace(/\/$/, "");
+      const res = await fetch(`${apiUrl}/api/rate-trump/leaderboard`);
+      const data = await res.json();
+      setLeaderboard(data);
+    } catch (err) {
+      console.error("Leaderboard fetch error:", err);
+    } finally {
+      setLeaderboardLoading(false);
+    }
+  }
 
   const submitPulseStyle = useAnimatedStyle(() => ({
     transform: [{ scale: pulseScale.value }],
@@ -125,13 +155,19 @@ export default function RateTrumpScreen() {
       const res = await fetch(`${apiUrl}/api/rate-trump`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rating, comment: comment.trim() || undefined }),
+        body: JSON.stringify({
+          rating,
+          comment: comment.trim() || undefined,
+          displayName: displayName.trim() || undefined,
+          deviceId: deviceId || undefined,
+        }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       setTrumpResponse(data);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       handleSpeak(data.text, data.mood);
+      fetchLeaderboard();
     } catch (err) {
       console.error("Rate Trump error:", err);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -296,6 +332,25 @@ export default function RateTrumpScreen() {
               </Text>
             </View>
 
+            <View style={styles.nicknameSection}>
+              <Text style={styles.commentLabel}>
+                Your name for the leaderboard (optional)
+              </Text>
+              <View style={styles.nicknameRow}>
+                <Text style={styles.atSign}>@</Text>
+                <TextInput
+                  style={styles.nicknameInput}
+                  value={displayName}
+                  onChangeText={(t) => setDisplayName(t.replace(/[^a-zA-Z0-9_]/g, "").slice(0, 20))}
+                  placeholder="MAGAMike"
+                  placeholderTextColor={Colors.whiteMuted}
+                  maxLength={20}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </View>
+            </View>
+
             <View style={styles.commentSection}>
               <Text style={styles.commentLabel}>
                 Want to add a comment? (Trump might respond to it...)
@@ -432,6 +487,64 @@ export default function RateTrumpScreen() {
               <Text style={styles.rateAgainText}>RATE AGAIN</Text>
             </Pressable>
           </Animated.View>
+        )}
+
+        {leaderboard && (leaderboard.supporters.length > 0 || leaderboard.haters.length > 0) && (
+          <Animated.View entering={FadeInUp.delay(300).duration(500)} style={styles.leaderboardSection}>
+            <View style={styles.leaderboardHeader}>
+              <Text style={styles.leaderboardTitle}>{"\uD83C\uDFC6"} BIGGEST FANS & HATERS {"\uD83C\uDFC6"}</Text>
+              {leaderboard.totalRatings > 0 && (
+                <Text style={styles.totalRatings}>{leaderboard.totalRatings} total ratings</Text>
+              )}
+            </View>
+
+            <View style={styles.leaderboardColumns}>
+              <View style={styles.leaderboardColumn}>
+                <View style={styles.columnHeader}>
+                  <Text style={styles.columnHeaderText}>{"\uD83D\uDD25"} TOP SUPPORTERS</Text>
+                </View>
+                {leaderboard.supporters.length === 0 ? (
+                  <Text style={styles.emptyText}>No supporters yet</Text>
+                ) : (
+                  leaderboard.supporters.map((entry, i) => (
+                    <View key={`s-${i}`} style={styles.leaderboardRow}>
+                      <Text style={styles.rankText}>{i + 1}.</Text>
+                      <View style={styles.entryInfo}>
+                        <Text style={styles.entryName} numberOfLines={1}>@{entry.display_name}</Text>
+                        <Text style={[styles.entryRating, { color: "#4DFF4D" }]}>{entry.rating}%</Text>
+                      </View>
+                    </View>
+                  ))
+                )}
+              </View>
+
+              <View style={styles.leaderboardColumn}>
+                <View style={[styles.columnHeader, styles.columnHeaderHaters]}>
+                  <Text style={styles.columnHeaderText}>{"\u274C"} TOP HATERS</Text>
+                </View>
+                {leaderboard.haters.length === 0 ? (
+                  <Text style={styles.emptyText}>No haters yet</Text>
+                ) : (
+                  leaderboard.haters.map((entry, i) => (
+                    <View key={`h-${i}`} style={styles.leaderboardRow}>
+                      <Text style={styles.rankText}>{i + 1}.</Text>
+                      <View style={styles.entryInfo}>
+                        <Text style={styles.entryName} numberOfLines={1}>@{entry.display_name}</Text>
+                        <Text style={[styles.entryRating, { color: "#FF4444" }]}>{entry.rating}%</Text>
+                      </View>
+                    </View>
+                  ))
+                )}
+              </View>
+            </View>
+          </Animated.View>
+        )}
+
+        {leaderboardLoading && (
+          <View style={styles.leaderboardLoading}>
+            <ActivityIndicator size="small" color={Colors.gold} />
+            <Text style={styles.loadingText}>Loading leaderboard...</Text>
+          </View>
         )}
       </ScrollView>
     </View>
@@ -722,5 +835,130 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: Colors.whiteDim,
     letterSpacing: 1,
+  },
+  nicknameSection: {
+    marginBottom: 18,
+  },
+  nicknameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.card,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(212, 164, 32, 0.3)",
+    paddingHorizontal: 14,
+  },
+  atSign: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: Colors.gold,
+    marginRight: 4,
+  },
+  nicknameInput: {
+    flex: 1,
+    color: Colors.white,
+    fontSize: 16,
+    fontWeight: "700",
+    paddingVertical: 12,
+  },
+  leaderboardSection: {
+    marginTop: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255, 77, 77, 0.3)",
+    overflow: "hidden",
+    backgroundColor: "rgba(26, 26, 26, 0.8)",
+  },
+  leaderboardHeader: {
+    alignItems: "center",
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(255, 77, 77, 0.2)",
+  },
+  leaderboardTitle: {
+    fontSize: 16,
+    fontWeight: "900",
+    color: "#FF4D4D",
+    letterSpacing: 1,
+    textAlign: "center",
+    fontFamily: "PlayfairDisplay_900Black",
+  },
+  totalRatings: {
+    fontSize: 12,
+    color: Colors.whiteMuted,
+    marginTop: 4,
+  },
+  leaderboardColumns: {
+    flexDirection: "row",
+  },
+  leaderboardColumn: {
+    flex: 1,
+    padding: 12,
+  },
+  columnHeader: {
+    backgroundColor: "rgba(77, 255, 77, 0.1)",
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    marginBottom: 10,
+    alignItems: "center",
+  },
+  columnHeaderHaters: {
+    backgroundColor: "rgba(255, 68, 68, 0.1)",
+  },
+  columnHeaderText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: Colors.white,
+    letterSpacing: 1,
+  },
+  leaderboardRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 6,
+    gap: 6,
+  },
+  rankText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: Colors.whiteMuted,
+    width: 18,
+  },
+  entryInfo: {
+    flex: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  entryName: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: Colors.white,
+    flex: 1,
+  },
+  entryRating: {
+    fontSize: 13,
+    fontWeight: "800",
+    marginLeft: 4,
+  },
+  emptyText: {
+    fontSize: 12,
+    color: Colors.whiteMuted,
+    textAlign: "center",
+    paddingVertical: 12,
+    fontStyle: "italic",
+  },
+  leaderboardLoading: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 24,
+    paddingVertical: 16,
+  },
+  loadingText: {
+    fontSize: 13,
+    color: Colors.whiteMuted,
   },
 });
