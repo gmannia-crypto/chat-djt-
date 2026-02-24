@@ -76,7 +76,7 @@ export default function DashboardScreen() {
     queryKey: ["weather", location?.lat, location?.lon],
     queryFn: async () => {
       if (!location) return null;
-      const res = await fetch(getApiUrl(`/api/weather?lat=${location.lat}&lon=${location.lon}`));
+      const res = await fetch(`${getApiUrl()}/api/weather?lat=${location.lat}&lon=${location.lon}`);
       if (!res.ok) throw new Error("Weather fetch failed");
       return res.json();
     },
@@ -87,7 +87,7 @@ export default function DashboardScreen() {
   const { data: markets, isLoading: marketsLoading, refetch: refetchMarkets } = useQuery({
     queryKey: ["markets"],
     queryFn: async () => {
-      const res = await fetch(getApiUrl("/api/markets"));
+      const res = await fetch(`${getApiUrl()}/api/markets`);
       if (!res.ok) throw new Error("Markets fetch failed");
       return res.json();
     },
