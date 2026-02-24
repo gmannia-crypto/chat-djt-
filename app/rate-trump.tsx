@@ -233,7 +233,8 @@ export default function RateTrumpScreen() {
         soundRef.current = null;
       }
       setSpeaking(true);
-      const ttsRes = await fetch(`${getApiUrl()}/api/tts`, {
+      const apiUrl = getApiUrl().replace(/\/$/, "");
+      const ttsRes = await fetch(`${apiUrl}/api/tts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text, mood }),
