@@ -1,0 +1,81 @@
+<!-- AUTO AFFILIATE LINKING -->
+<script>
+(function() {
+    // CONFIGURATION - EDIT THIS SECTION
+    const ASSOCIATE_TAG = 'trumpbot-20'; // REPLACE with your actual Amazon tag
+    
+    // Define keywords and their affiliate links
+    const affiliateLinks = [
+        {
+            keywords: ['book', 'books', 'reading'],
+            url: `https://www.amazon.com/s?k=trump+books&tag=${ASSOCIATE_TAG}`
+        },
+        {
+            keywords: ['hat', 'hats', 'cap', 'make america great again'],
+            url: `https://www.amazon.com/s?k=maga+hat&tag=${ASSOCIATE_TAG}`
+        },
+        {
+            keywords: ['flag', 'american flag', 'patriotic flag'],
+            url: `https://www.amazon.com/s?k=american+flag&tag=${ASSOCIATE_TAG}`
+        },
+        {
+            keywords: ['shirt', 'tshirt', 'apparel'],
+            url: `https://www.amazon.com/s?k=trump+shirt&tag=${ASSOCIATE_TAG}`
+        },
+        {
+            keywords: ['gold', 'silver', 'bullion', 'invest'],
+            url: `https://www.amazon.com/s?k=gold+coins&tag=${ASSOCIATE_TAG}`
+        },
+        {
+            keywords: ['wall', 'border'],
+            url: `https://www.amazon.com/s?k=build+the+wall&tag=${ASSOCIATE_TAG}`
+        },
+        {
+            keywords: ['truth social', 'social media'],
+            url: `https://www.amazon.com/s?k=trump+social&tag=${ASSOCIATE_TAG}`
+        }
+    ];
+    
+    // Function to convert text to affiliate links
+    function addAffiliateLinks() {
+        // Get all text-containing elements
+        const textElements = document.querySelectorAll('p, div, span, h1, h2, h3, h4, h5, li, .trump-response');
+        
+        textElements.forEach(element => {
+            // Skip if already processed or contains links
+            if (element.hasAttribute('data-affiliate-processed') || 
+                element.querySelector('a')) return;
+            
+            let html = element.innerHTML;
+            let modified = false;
+            
+            // Check each keyword set
+            affiliateLinks.forEach(item => {
+                item.keywords.forEach(keyword => {
+                    // Case-insensitive replacement with word boundaries
+                    const regex = new RegExp(`\\b${keyword}\\b`, 'gi');
+                    if (regex.test(html)) {
+                        // Replace with linked version
+                        html = html.replace(regex, match => 
+                            `<a href="${item.url}" target="_blank" rel="nofollow sponsored" style="color: #ff4d4d; text-decoration: underline;">${match}</a>`
+                        );
+                        modified = true;
+                    }
+                });
+            });
+            
+            if (modified) {
+                element.innerHTML = html;
+                element.setAttribute('data-affiliate-processed', 'true');
+            }
+        });
+    }
+    
+    // Run when page loads
+    document.addEventListener('DOMContentLoaded', addAffiliateLinks);
+    
+    // Also run when new content is added (for Trump responses)
+    const observer = new MutationObserver(addAffiliateLinks);
+    observer.observe(document.body, { childList: true, subtree: true });
+})();
+</script>

@@ -655,7 +655,7 @@ export default function RateTrumpScreen() {
           <Text style={styles.picksSubtitle}>The President's top recommendations</Text>
 
           <Pressable
-            onPress={() => Linking.openURL("https://amzn.to/trumpbook")}
+            onPress={() => Linking.openURL("https://www.amazon.com/s?k=trump+books&tag=trumpbot-20")}
             style={({ pressed }) => [styles.pickItem, pressed && { opacity: 0.7 }]}
           >
             <Text style={styles.pickEmoji}>{"\uD83D\uDCD6"}</Text>
@@ -667,7 +667,7 @@ export default function RateTrumpScreen() {
           </Pressable>
 
           <Pressable
-            onPress={() => Linking.openURL("https://amzn.to/magahat")}
+            onPress={() => Linking.openURL("https://www.amazon.com/s?k=maga+hat&tag=trumpbot-20")}
             style={({ pressed }) => [styles.pickItem, pressed && { opacity: 0.7 }]}
           >
             <Text style={styles.pickEmoji}>{"\uD83E\uDDE2"}</Text>
@@ -679,7 +679,7 @@ export default function RateTrumpScreen() {
           </Pressable>
 
           <Pressable
-            onPress={() => Linking.openURL("https://amzn.to/goldinvestors")}
+            onPress={() => Linking.openURL("https://www.amazon.com/s?k=gold+coins&tag=trumpbot-20")}
             style={({ pressed }) => [styles.pickItem, pressed && { opacity: 0.7 }]}
           >
             <Text style={styles.pickEmoji}>{"\uD83D\uDCB0"}</Text>
