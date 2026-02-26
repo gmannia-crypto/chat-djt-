@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import {
   StyleSheet,
   Text,
@@ -10,11 +10,12 @@ import {
   Share,
   Dimensions,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
+import { Video, ResizeMode } from "expo-av";
 import Animated, {
   FadeIn,
   FadeInDown,
@@ -66,20 +67,12 @@ export default function FortuneScreen() {
   const [fortune, setFortune] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+  const videoRef = useRef<Video>(null);
 
-  const crystalBallScale = useSharedValue(1);
-  const crystalBallGlow = useSharedValue(0.3);
+  const glowValue = useSharedValue(0.3);
 
   React.useEffect(() => {
-    crystalBallScale.value = withRepeat(
-      withSequence(
-        withTiming(1.08, { duration: 2000 }),
-        withTiming(1, { duration: 2000 })
-      ),
-      -1,
-      true
-    );
-    crystalBallGlow.value = withRepeat(
+    glowValue.value = withRepeat(
       withSequence(
         withTiming(0.8, { duration: 1500 }),
         withTiming(0.3, { duration: 1500 })
@@ -89,13 +82,27 @@ export default function FortuneScreen() {
     );
   }, []);
 
-  const crystalBallAnimStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: crystalBallScale.value }],
+  const glowAnimStyle = useAnimatedStyle(() => ({
+    opacity: glowValue.value,
   }));
 
-  const glowAnimStyle = useAnimatedStyle(() => ({
-    opacity: crystalBallGlow.value,
-  }));
+  useFocusEffect(
+    useCallback(() => {
+      const playAndPause = async () => {
+        if (!videoRef.current) return;
+        try {
+          await videoRef.current.setPositionAsync(0);
+          await videoRef.current.playAsync();
+          setTimeout(async () => {
+            try {
+              await videoRef.current?.pauseAsync();
+            } catch {}
+          }, 5000);
+        } catch {}
+      };
+      playAndPause();
+    }, [])
+  );
 
   const handleGetFortune = async () => {
     if (!selectedZodiac || !selectedTopic) {
@@ -183,10 +190,18 @@ export default function FortuneScreen() {
         showsVerticalScrollIndicator={false}
       >
         <Animated.View entering={FadeIn.duration(800)} style={styles.crystalBallContainer}>
-          <Animated.View style={[styles.crystalBallGlow, glowAnimStyle]} />
-          <Animated.View style={crystalBallAnimStyle}>
-            <Text style={styles.crystalBallEmoji}>{"\uD83D\uDD2E"}</Text>
-          </Animated.View>
+          <Animated.View style={[styles.videoGlow, glowAnimStyle]} />
+          <View style={styles.videoWrapper}>
+            <Video
+              ref={videoRef}
+              source={require("@/assets/trump-crystal-ball.mp4")}
+              style={styles.video}
+              resizeMode={ResizeMode.COVER}
+              shouldPlay={false}
+              isLooping={false}
+              isMuted={true}
+            />
+          </View>
           <Text style={styles.parlorSubtitle}>Trump sees all. Trump knows all.</Text>
         </Animated.View>
 
@@ -332,20 +347,29 @@ const styles = StyleSheet.create({
     marginTop: 10,
     marginBottom: 24,
   },
-  crystalBallGlow: {
+  videoGlow: {
     position: "absolute",
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
     backgroundColor: "#9333EA",
-    top: 5,
+    top: -10,
     ...Platform.select({
-      web: { boxShadow: "0 0 60px rgba(147, 51, 234, 0.4)" },
+      web: { boxShadow: "0 0 80px rgba(147, 51, 234, 0.5)" },
       default: {},
     }),
   },
-  crystalBallEmoji: {
-    fontSize: 80,
+  videoWrapper: {
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    overflow: "hidden",
+    borderWidth: 2,
+    borderColor: "rgba(147, 51, 234, 0.6)",
+  },
+  video: {
+    width: 200,
+    height: 200,
   },
   parlorSubtitle: {
     fontSize: 14,
