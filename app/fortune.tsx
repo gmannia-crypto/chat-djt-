@@ -66,7 +66,7 @@ export default function FortuneScreen() {
   const insets = useSafeAreaInsets();
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
-  const { hasTokens, deviceId } = useTokens();
+  const { hasTokens, deviceId, refreshBalance } = useTokens();
 
   const [firstName, setFirstName] = useState("");
   const [birthMonth, setBirthMonth] = useState<number | null>(null);
@@ -148,9 +148,15 @@ export default function FortuneScreen() {
         body: JSON.stringify({ name: firstName.trim(), zodiac: zodiacSign, dob: dobString, topic: selectedTopic }),
       });
 
+      if (res.status === 403) {
+        refreshBalance();
+        router.push("/subscribe");
+        return;
+      }
       if (!res.ok) throw new Error("Fortune failed");
       const data = await res.json();
       setFortune(data.fortune);
+      refreshBalance();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
       setTimeout(() => {
