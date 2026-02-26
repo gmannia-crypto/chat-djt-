@@ -189,19 +189,21 @@ export default function FortuneScreen() {
         contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + webBottomInset + 30 }]}
         showsVerticalScrollIndicator={false}
       >
-        <Animated.View entering={FadeIn.duration(800)} style={styles.crystalBallContainer}>
+        <Animated.View entering={FadeIn.duration(800)} style={styles.videoBanner}>
+          <Video
+            ref={videoRef}
+            source={require("@/assets/trump-crystal-ball.mp4")}
+            style={styles.video}
+            resizeMode={ResizeMode.COVER}
+            shouldPlay={false}
+            isLooping={false}
+            isMuted={true}
+          />
+          <LinearGradient
+            colors={["transparent", "rgba(10,10,10,0.6)", Colors.background]}
+            style={styles.videoOverlay}
+          />
           <Animated.View style={[styles.videoGlow, glowAnimStyle]} />
-          <View style={styles.videoWrapper}>
-            <Video
-              ref={videoRef}
-              source={require("@/assets/trump-crystal-ball.mp4")}
-              style={styles.video}
-              resizeMode={ResizeMode.CONTAIN}
-              shouldPlay={false}
-              isLooping={false}
-              isMuted={true}
-            />
-          </View>
           <Text style={styles.parlorSubtitle}>Trump sees all. Trump knows all.</Text>
         </Animated.View>
 
@@ -342,41 +344,49 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
   },
-  crystalBallContainer: {
+  videoBanner: {
     alignItems: "center",
-    marginTop: 10,
-    marginBottom: 24,
+    marginHorizontal: -20,
+    marginBottom: 20,
+    height: 240,
+    overflow: "hidden",
+    borderRadius: 16,
+    marginTop: 4,
+    position: "relative",
+  },
+  video: {
+    width: "100%" as any,
+    height: 240,
+  },
+  videoOverlay: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 100,
   },
   videoGlow: {
     position: "absolute",
-    width: 200,
-    height: 200,
-    borderRadius: 100,
+    bottom: 30,
+    width: 160,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: "#9333EA",
-    top: -10,
     ...Platform.select({
-      web: { boxShadow: "0 0 80px rgba(147, 51, 234, 0.5)" },
+      web: { boxShadow: "0 0 40px rgba(147, 51, 234, 0.4)" },
       default: {},
     }),
   },
-  videoWrapper: {
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    overflow: "hidden",
-    borderWidth: 2,
-    borderColor: "rgba(147, 51, 234, 0.6)",
-    backgroundColor: "#000",
-  },
-  video: {
-    width: 220,
-    height: 220,
-  },
   parlorSubtitle: {
-    fontSize: 14,
-    color: Colors.whiteDim,
+    position: "absolute",
+    bottom: 10,
+    fontSize: 15,
+    color: Colors.white,
     fontStyle: "italic",
-    marginTop: 8,
+    fontWeight: "600",
+    textShadowColor: "rgba(0,0,0,0.8)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   sectionLabel: {
     fontSize: 12,
