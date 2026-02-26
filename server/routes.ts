@@ -1294,7 +1294,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           { role: "system", content: hotTakePrompt },
           { role: "user", content: `React to this headline: "${headline}"` },
         ],
-        max_tokens: 120,
+        max_completion_tokens: 120,
         temperature: 1,
       });
 
@@ -1364,7 +1364,7 @@ Not bad, kid. You actually kept up with me for once. Most people can't handle fi
           { role: "system", content: gradePrompt },
           { role: "user", content: `Grade this conversation:\n${convoSummary}` },
         ],
-        max_tokens: 150,
+        max_completion_tokens: 150,
         temperature: 0.9,
       });
 
@@ -1431,7 +1431,7 @@ Not bad, kid. You actually kept up with me for once. Most people can't handle fi
           { role: "system", content: commentaryPrompt },
           { role: "user", content: `BREAKING NEWS — Here are today's top headlines:\n\n${headlineList}\n\nGive your LIVE commentary on these stories. React to them like you're broadcasting live.` },
         ],
-        max_tokens: 400,
+        max_completion_tokens: 400,
         temperature: 1.0,
       });
 
@@ -1495,7 +1495,7 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
           { role: "system", content: nostradamusPrompt },
           { role: "user", content: `Current headlines for context:\n${topHeadlines.join("\n")}\n\nGive me 3 Trump-adomas predictions based on what's happening right now.` },
         ],
-        max_tokens: 450,
+        max_completion_tokens: 450,
         temperature: 1.1,
       });
 
@@ -1542,7 +1542,7 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
           { role: "system", content: fortunePrompt },
           { role: "user", content: `My name is ${nameStr}, born ${dobStr}. I'm a ${zodiacStr}. Tell me about my ${topic}. What does the future hold for me?` },
         ],
-        max_tokens: 200,
+        max_completion_tokens: 200,
         temperature: 0.9,
       });
 
@@ -1618,7 +1618,7 @@ Rules:
           { role: "system", content: truthPrompt },
           { role: "user", content: `Here's what's in the news right now:\n\n${headlineList}\n\nGive your Truth Social reactions to these stories. React like you're posting live on Truth Social.` },
         ],
-        max_tokens: 700,
+        max_completion_tokens: 700,
         temperature: 1.0,
       });
 
@@ -1729,7 +1729,7 @@ Respond in valid JSON format ONLY — an array of objects:
           { role: "system", content: cabinetPrompt },
           { role: "user", content: `Current cabinet/inner circle members:\n${memberList}\n\nRecent headlines for context:\n${recentHeadlines.slice(0, 15).join("\n")}\n\nRate each person's standing with Trump right now.` },
         ],
-        max_tokens: 2500,
+        max_completion_tokens: 2500,
         temperature: 0.9,
       });
 
@@ -1802,7 +1802,7 @@ Respond in valid JSON format ONLY — an array of objects:
           { role: "system", content: speakPrompt },
           { role: "user", content: `Give your take on ${name} (${title}). Current Chat DJT Satisfaction rating: ${rating}/6. Previous assessment: "${reason}". Now give a fresh, spoken take about them — like you're talking about them at a rally or in a private meeting.` },
         ],
-        max_tokens: 200,
+        max_completion_tokens: 200,
         temperature: 1.0,
       });
 
@@ -1840,7 +1840,7 @@ Respond in valid JSON format ONLY — an array of objects:
           { role: "system", content: speakPrompt },
           { role: "user", content: `Give your take on ${name} (${title}). Current Chat DJT Satisfaction rating: ${rating}/6. Previous assessment: "${reason}". Now give a fresh, spoken take about them — like you're talking about them at a rally or in a private meeting.` },
         ],
-        max_tokens: 200,
+        max_completion_tokens: 200,
         temperature: 1.0,
       });
 
@@ -2068,7 +2068,7 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
           { role: "system", content: TRUMP_SYSTEM_PROMPT },
           { role: "user", content: ratingPrompt },
         ],
-        max_tokens: 500,
+        max_completion_tokens: 500,
         temperature: 0.95,
       });
 
