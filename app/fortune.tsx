@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Share,
   Dimensions,
+  TextInput,
 } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
