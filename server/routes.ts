@@ -1525,18 +1525,22 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
         return res.status(403).json({ error: tokenResult.error, balance: tokenResult.balance });
       }
 
-      const { zodiac, topic } = req.body;
-      if (!zodiac || !topic) {
-        return res.status(400).json({ error: "Missing zodiac or topic" });
+      const { name, zodiac, dob, topic } = req.body;
+      if (!topic) {
+        return res.status(400).json({ error: "Missing topic" });
       }
 
-      const fortunePrompt = `You are Donald Trump as a mystical fortune teller in "Trump's Fortune Parlor." You're reading someone's future who is a ${zodiac} asking about their ${topic}. Give a personalized, funny, over-the-top Trump-style fortune prediction in 2-3 sentences. Be dramatic, confident, and entertaining. Mix mystical language with Trump's speaking style. Include specific predictions. Stay fully in Trump character. No quotation marks around the response.`;
+      const nameStr = name || "friend";
+      const zodiacStr = zodiac || "unknown sign";
+      const dobStr = dob || "unknown birthday";
+
+      const fortunePrompt = `You are Donald Trump as a mystical fortune teller in "Trump's Fortune Parlor." You're reading the future for someone named ${nameStr}, born on ${dobStr} (a ${zodiacStr}), who wants to know about their ${topic}. Give a highly personalized, funny, over-the-top Trump-style fortune prediction in 3-4 sentences. Address them by their first name. Reference their zodiac sign and birthday. Be dramatic, confident, and entertaining. Mix mystical language with Trump's speaking style. Include specific predictions. Stay fully in Trump character. No quotation marks around the response.`;
 
       const completion = await openai.chat.completions.create({
         model: "gpt-5.2",
         messages: [
           { role: "system", content: fortunePrompt },
-          { role: "user", content: `I'm a ${zodiac} and I want to know about my ${topic}. What does the future hold?` },
+          { role: "user", content: `My name is ${nameStr}, born ${dobStr}. I'm a ${zodiacStr}. Tell me about my ${topic}. What does the future hold for me?` },
         ],
         max_tokens: 200,
         temperature: 0.9,

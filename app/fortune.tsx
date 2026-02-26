@@ -30,19 +30,24 @@ import Colors from "@/constants/colors";
 import { getApiUrl } from "@/lib/query-client";
 import { useTokens } from "@/lib/token-context";
 
-const ZODIAC_SIGNS = [
-  { name: "Aries", emoji: "\u2648", dates: "Mar 21 - Apr 19" },
-  { name: "Taurus", emoji: "\u2649", dates: "Apr 20 - May 20" },
-  { name: "Gemini", emoji: "\u264A", dates: "May 21 - Jun 20" },
-  { name: "Cancer", emoji: "\u264B", dates: "Jun 21 - Jul 22" },
-  { name: "Leo", emoji: "\u264C", dates: "Jul 23 - Aug 22" },
-  { name: "Virgo", emoji: "\u264D", dates: "Aug 23 - Sep 22" },
-  { name: "Libra", emoji: "\u264E", dates: "Sep 23 - Oct 22" },
-  { name: "Scorpio", emoji: "\u264F", dates: "Oct 23 - Nov 21" },
-  { name: "Sagittarius", emoji: "\u2650", dates: "Nov 22 - Dec 21" },
-  { name: "Capricorn", emoji: "\u2651", dates: "Dec 22 - Jan 19" },
-  { name: "Aquarius", emoji: "\u2652", dates: "Jan 20 - Feb 18" },
-  { name: "Pisces", emoji: "\u2653", dates: "Feb 19 - Mar 20" },
+function getZodiacSign(month: number, day: number): string {
+  if ((month === 3 && day >= 21) || (month === 4 && day <= 19)) return "Aries";
+  if ((month === 4 && day >= 20) || (month === 5 && day <= 20)) return "Taurus";
+  if ((month === 5 && day >= 21) || (month === 6 && day <= 20)) return "Gemini";
+  if ((month === 6 && day >= 21) || (month === 7 && day <= 22)) return "Cancer";
+  if ((month === 7 && day >= 23) || (month === 8 && day <= 22)) return "Leo";
+  if ((month === 8 && day >= 23) || (month === 9 && day <= 22)) return "Virgo";
+  if ((month === 9 && day >= 23) || (month === 10 && day <= 22)) return "Libra";
+  if ((month === 10 && day >= 23) || (month === 11 && day <= 21)) return "Scorpio";
+  if ((month === 11 && day >= 22) || (month === 12 && day <= 21)) return "Sagittarius";
+  if ((month === 12 && day >= 22) || (month === 1 && day <= 19)) return "Capricorn";
+  if ((month === 1 && day >= 20) || (month === 2 && day <= 18)) return "Aquarius";
+  return "Pisces";
+}
+
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
 ];
 
 const TOPICS = [
@@ -62,10 +67,17 @@ export default function FortuneScreen() {
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
   const { hasTokens, deviceId } = useTokens();
 
-  const [selectedZodiac, setSelectedZodiac] = useState<string | null>(null);
+  const [firstName, setFirstName] = useState("");
+  const [birthMonth, setBirthMonth] = useState<number | null>(null);
+  const [birthDay, setBirthDay] = useState("");
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
   const [fortune, setFortune] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showMonthPicker, setShowMonthPicker] = useState(false);
+
+  const zodiacSign = birthMonth && birthDay
+    ? getZodiacSign(birthMonth, parseInt(birthDay) || 1)
+    : null;
   const scrollRef = useRef<ScrollView>(null);
   const videoRef = useRef<Video>(null);
 
@@ -104,8 +116,10 @@ export default function FortuneScreen() {
     }, [])
   );
 
+  const canSubmit = firstName.trim().length > 0 && zodiacSign && selectedTopic;
+
   const handleGetFortune = async () => {
-    if (!selectedZodiac || !selectedTopic) {
+    if (!canSubmit) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       return;
     }
@@ -122,12 +136,13 @@ export default function FortuneScreen() {
 
     try {
       const baseUrl = getApiUrl().replace(/\/$/, "");
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (deviceId) headers["x-device-id"] = deviceId;
+      const hdrs: Record<string, string> = { "Content-Type": "application/json" };
+      if (deviceId) hdrs["x-device-id"] = deviceId;
+      const dobString = `${MONTHS[(birthMonth || 1) - 1]} ${birthDay}`;
       const res = await fetch(`${baseUrl}/api/fortune`, {
         method: "POST",
-        headers,
-        body: JSON.stringify({ zodiac: selectedZodiac, topic: selectedTopic }),
+        headers: hdrs,
+        body: JSON.stringify({ name: firstName.trim(), zodiac: zodiacSign, dob: dobString, topic: selectedTopic }),
       });
 
       if (!res.ok) throw new Error("Fortune failed");
@@ -151,7 +166,7 @@ export default function FortuneScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
       await Share.share({
-        message: `\uD83D\uDD2E TRUMP'S FORTUNE PARLOR \uD83D\uDD2E\n\n${selectedZodiac} | ${selectedTopic}\n\n"${fortune}"\n\nGet your fortune at Chat DJT!`,
+        message: `\uD83D\uDD2E TRUMP'S FORTUNE PARLOR \uD83D\uDD2E\n\n${firstName}'s Fortune (${zodiacSign}) | ${selectedTopic}\n\n"${fortune}"\n\nGet your fortune at Chat DJT!`,
       });
     } catch {}
   };
@@ -159,7 +174,9 @@ export default function FortuneScreen() {
   const handleNewFortune = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setFortune(null);
-    setSelectedZodiac(null);
+    setFirstName("");
+    setBirthMonth(null);
+    setBirthDay("");
     setSelectedTopic(null);
     scrollRef.current?.scrollTo({ y: 0, animated: true });
   };
@@ -205,28 +222,60 @@ export default function FortuneScreen() {
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(300).duration(500)}>
-          <Text style={styles.sectionLabel}>YOUR ZODIAC SIGN</Text>
-          <View style={styles.zodiacGrid}>
-            {ZODIAC_SIGNS.map((sign) => (
-              <Pressable
-                key={sign.name}
-                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedZodiac(sign.name); }}
-                style={[
-                  styles.zodiacChip,
-                  selectedZodiac === sign.name && styles.zodiacChipSelected,
-                ]}
-              >
-                <Text style={styles.zodiacEmoji}>{sign.emoji}</Text>
-                <Text style={[
-                  styles.zodiacName,
-                  selectedZodiac === sign.name && styles.zodiacNameSelected,
-                ]}>{sign.name}</Text>
-              </Pressable>
-            ))}
-          </View>
+          <Text style={styles.sectionLabel}>YOUR FIRST NAME</Text>
+          <TextInput
+            value={firstName}
+            onChangeText={setFirstName}
+            placeholder="Enter your first name"
+            placeholderTextColor={Colors.whiteMuted}
+            style={styles.nameInput}
+            maxLength={30}
+          />
         </Animated.View>
 
-        <Animated.View entering={FadeInDown.delay(500).duration(500)}>
+        <Animated.View entering={FadeInDown.delay(450).duration(500)}>
+          <Text style={styles.sectionLabel}>DATE OF BIRTH</Text>
+          <View style={styles.dobRow}>
+            <Pressable
+              onPress={() => setShowMonthPicker(!showMonthPicker)}
+              style={[styles.dobField, styles.dobMonth]}
+            >
+              <Text style={[styles.dobFieldText, !birthMonth && { color: Colors.whiteMuted }]}>
+                {birthMonth ? MONTHS[birthMonth - 1] : "Month"}
+              </Text>
+              <Ionicons name="chevron-down" size={14} color={Colors.whiteMuted} />
+            </Pressable>
+            <TextInput
+              value={birthDay}
+              onChangeText={(t) => { const n = t.replace(/[^0-9]/g, ""); if (parseInt(n) <= 31 || n === "") setBirthDay(n); }}
+              placeholder="Day"
+              placeholderTextColor={Colors.whiteMuted}
+              style={[styles.dobField, styles.dobDay]}
+              keyboardType="number-pad"
+              maxLength={2}
+            />
+          </View>
+          {showMonthPicker && (
+            <Animated.View entering={FadeIn.duration(200)} style={styles.monthPicker}>
+              {MONTHS.map((m, i) => (
+                <Pressable
+                  key={m}
+                  onPress={() => { setBirthMonth(i + 1); setShowMonthPicker(false); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+                  style={[styles.monthOption, birthMonth === i + 1 && styles.monthOptionSelected]}
+                >
+                  <Text style={[styles.monthOptionText, birthMonth === i + 1 && { color: "#C084FC" }]}>{m}</Text>
+                </Pressable>
+              ))}
+            </Animated.View>
+          )}
+          {zodiacSign && (
+            <Animated.View entering={FadeIn.duration(300)} style={styles.zodiacBadge}>
+              <Text style={styles.zodiacBadgeText}>{zodiacSign}</Text>
+            </Animated.View>
+          )}
+        </Animated.View>
+
+        <Animated.View entering={FadeInDown.delay(600).duration(500)}>
           <Text style={styles.sectionLabel}>WHAT DO YOU WANT TO KNOW?</Text>
           <View style={styles.topicGrid}>
             {TOPICS.map((topic) => (
@@ -251,10 +300,10 @@ export default function FortuneScreen() {
         <Animated.View entering={FadeInDown.delay(700).duration(500)} style={styles.buttonContainer}>
           <Pressable
             onPress={handleGetFortune}
-            disabled={loading || !selectedZodiac || !selectedTopic}
+            disabled={loading || !canSubmit}
             style={({ pressed }) => [
               styles.fortuneButton,
-              (!selectedZodiac || !selectedTopic) && styles.fortuneButtonDisabled,
+              !canSubmit && styles.fortuneButtonDisabled,
               pressed && { opacity: 0.8 },
             ]}
           >
@@ -381,37 +430,85 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     marginTop: 8,
   },
-  zodiacGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 24,
-  },
-  zodiacChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
+  nameInput: {
+    backgroundColor: "rgba(255,255,255,0.08)",
     borderWidth: 1,
     borderColor: Colors.border,
-    backgroundColor: "rgba(255,255,255,0.04)",
-  },
-  zodiacChipSelected: {
-    borderColor: "#9333EA",
-    backgroundColor: "rgba(147, 51, 234, 0.18)",
-  },
-  zodiacEmoji: {
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     fontSize: 16,
+    color: Colors.white,
+    marginBottom: 20,
   },
-  zodiacName: {
-    fontSize: 12,
+  dobRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 8,
+  },
+  dobField: {
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  dobMonth: {
+    flex: 2,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  dobDay: {
+    flex: 1,
+    fontSize: 16,
+    color: Colors.white,
+    textAlign: "center" as const,
+  },
+  dobFieldText: {
+    fontSize: 16,
+    color: Colors.white,
+  },
+  monthPicker: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginBottom: 12,
+    backgroundColor: "rgba(20,20,20,0.95)",
+    borderRadius: 12,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  monthOption: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  monthOptionSelected: {
+    backgroundColor: "rgba(147, 51, 234, 0.2)",
+  },
+  monthOptionText: {
+    fontSize: 13,
     fontWeight: "600",
     color: Colors.whiteDim,
   },
-  zodiacNameSelected: {
+  zodiacBadge: {
+    alignSelf: "flex-start" as const,
+    backgroundColor: "rgba(147, 51, 234, 0.18)",
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "rgba(147, 51, 234, 0.4)",
+  },
+  zodiacBadgeText: {
+    fontSize: 13,
+    fontWeight: "700",
     color: "#C084FC",
+    letterSpacing: 0.5,
   },
   topicGrid: {
     flexDirection: "row",
