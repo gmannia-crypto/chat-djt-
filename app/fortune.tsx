@@ -166,8 +166,18 @@ export default function FortuneScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + webTopInset }]}>
+      <Video
+        ref={videoRef}
+        source={require("@/assets/trump-crystal-ball.mp4")}
+        style={styles.videoBg}
+        resizeMode={ResizeMode.COVER}
+        shouldPlay={false}
+        isLooping={false}
+        isMuted={true}
+      />
       <LinearGradient
-        colors={["rgba(128, 0, 128, 0.08)", Colors.background, "rgba(128, 0, 128, 0.05)"]}
+        colors={["rgba(10,10,10,0.3)", "rgba(10,10,10,0.55)", "rgba(10,10,10,0.85)", Colors.background]}
+        locations={[0, 0.3, 0.55, 0.75]}
         style={StyleSheet.absoluteFill}
       />
 
@@ -189,20 +199,7 @@ export default function FortuneScreen() {
         contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + webBottomInset + 30 }]}
         showsVerticalScrollIndicator={false}
       >
-        <Animated.View entering={FadeIn.duration(800)} style={styles.videoBanner}>
-          <Video
-            ref={videoRef}
-            source={require("@/assets/trump-crystal-ball.mp4")}
-            style={styles.video}
-            resizeMode={ResizeMode.COVER}
-            shouldPlay={false}
-            isLooping={false}
-            isMuted={true}
-          />
-          <LinearGradient
-            colors={["transparent", "rgba(10,10,10,0.6)", Colors.background]}
-            style={styles.videoOverlay}
-          />
+        <Animated.View entering={FadeIn.duration(800)} style={styles.subtitleContainer}>
           <Animated.View style={[styles.videoGlow, glowAnimStyle]} />
           <Text style={styles.parlorSubtitle}>Trump sees all. Trump knows all.</Text>
         </Animated.View>
@@ -344,33 +341,22 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
   },
-  videoBanner: {
-    alignItems: "center",
-    marginHorizontal: -20,
-    marginBottom: 20,
-    height: 240,
-    overflow: "hidden",
-    borderRadius: 16,
-    marginTop: 4,
-    position: "relative",
-  },
-  video: {
+  videoBg: {
+    ...StyleSheet.absoluteFillObject,
     width: "100%" as any,
-    height: 240,
+    height: "100%" as any,
   },
-  videoOverlay: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 100,
+  subtitleContainer: {
+    alignItems: "center",
+    marginTop: 120,
+    marginBottom: 24,
   },
   videoGlow: {
     position: "absolute",
-    bottom: 30,
+    bottom: -5,
     width: 160,
-    height: 40,
-    borderRadius: 20,
+    height: 30,
+    borderRadius: 15,
     backgroundColor: "#9333EA",
     ...Platform.select({
       web: { boxShadow: "0 0 40px rgba(147, 51, 234, 0.4)" },
@@ -378,15 +364,14 @@ const styles = StyleSheet.create({
     }),
   },
   parlorSubtitle: {
-    position: "absolute",
-    bottom: 10,
-    fontSize: 15,
+    fontSize: 16,
     color: Colors.white,
     fontStyle: "italic",
-    fontWeight: "600",
-    textShadowColor: "rgba(0,0,0,0.8)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
+    fontWeight: "700",
+    textShadowColor: "rgba(0,0,0,0.9)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
+    letterSpacing: 0.5,
   },
   sectionLabel: {
     fontSize: 12,
