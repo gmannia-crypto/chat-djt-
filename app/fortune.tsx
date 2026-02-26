@@ -196,7 +196,7 @@ export default function FortuneScreen() {
               ref={videoRef}
               source={require("@/assets/trump-crystal-ball.mp4")}
               style={styles.video}
-              resizeMode={ResizeMode.COVER}
+              resizeMode={ResizeMode.CONTAIN}
               shouldPlay={false}
               isLooping={false}
               isMuted={true}
@@ -360,16 +360,17 @@ const styles = StyleSheet.create({
     }),
   },
   videoWrapper: {
-    width: 200,
-    height: 200,
-    borderRadius: 100,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
     overflow: "hidden",
     borderWidth: 2,
     borderColor: "rgba(147, 51, 234, 0.6)",
+    backgroundColor: "#000",
   },
   video: {
-    width: 200,
-    height: 200,
+    width: 220,
+    height: 220,
   },
   parlorSubtitle: {
     fontSize: 14,
