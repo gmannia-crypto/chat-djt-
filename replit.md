@@ -54,3 +54,8 @@ The backend leverages OpenAI for chat completions and transcription, and Fish Au
 - **RSS Feeds**: Utilized for fetching real-time news headlines (MarketWatch, CNBC, NYT, BBC, Fox News).
 - **Open-Meteo API**: Provides weather forecast data.
 - **CoinGecko API / Yahoo Finance**: Used for fetching live market prices for cryptocurrencies and other assets.
+- **Amazon Associates**: Affiliate monetization using tag `trumpbot-20` with "Trump's Picks" product recommendations and auto-linking script.
+
+## Future Considerations
+
+- **DeepSeek AI as cost alternative**: DeepSeek V3/R1 is roughly 8-10x cheaper than OpenAI GPT for token costs. Consider switching some or all AI features to DeepSeek when cost optimization becomes a priority. Main chat persona may benefit from staying on GPT for quality, while simpler features (news commentary, daily challenges, hot takes) could move to DeepSeek first.
