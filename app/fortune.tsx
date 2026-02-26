@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-import { Video, ResizeMode } from "expo-av";
+import { Video, Audio, ResizeMode } from "expo-av";
 import Animated, {
   FadeIn,
   FadeInDown,
@@ -75,12 +75,14 @@ export default function FortuneScreen() {
   const [fortune, setFortune] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showMonthPicker, setShowMonthPicker] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
 
   const zodiacSign = birthMonth && birthDay
     ? getZodiacSign(birthMonth, parseInt(birthDay) || 1)
     : null;
   const scrollRef = useRef<ScrollView>(null);
   const videoRef = useRef<Video>(null);
+  const soundRef = useRef<Audio.Sound | null>(null);
 
   const glowValue = useSharedValue(0.3);
 
@@ -154,6 +156,10 @@ export default function FortuneScreen() {
       setTimeout(() => {
         scrollRef.current?.scrollToEnd({ animated: true });
       }, 300);
+
+      if (data.fortune) {
+        setTimeout(() => handleSpeak(data.fortune), 500);
+      }
     } catch (err) {
       setFortune("The spirits are confused... even Trump couldn't see this one coming. Try again!");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -172,6 +178,49 @@ export default function FortuneScreen() {
     } catch {}
   };
 
+  async function handleSpeak(text: string) {
+    try {
+      if (soundRef.current) {
+        await soundRef.current.unloadAsync();
+        soundRef.current = null;
+      }
+      setSpeaking(true);
+      const apiUrl = getApiUrl().replace(/\/$/, "");
+      const ttsRes = await fetch(`${apiUrl}/api/tts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, mood: "EXCITED" }),
+      });
+      if (!ttsRes.ok) { setSpeaking(false); return; }
+      const blob = await ttsRes.blob();
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          const base64 = (reader.result as string).split(",")[1];
+          const { sound } = await Audio.Sound.createAsync(
+            { uri: `data:audio/mpeg;base64,${base64}` },
+            { shouldPlay: true }
+          );
+          soundRef.current = sound;
+          sound.setOnPlaybackStatusUpdate((status: any) => {
+            if (status.didJustFinish) setSpeaking(false);
+          });
+        } catch { setSpeaking(false); }
+      };
+      reader.onerror = () => setSpeaking(false);
+      reader.readAsDataURL(blob);
+    } catch { setSpeaking(false); }
+  }
+
+  React.useEffect(() => {
+    return () => {
+      if (soundRef.current) {
+        soundRef.current.unloadAsync();
+        soundRef.current = null;
+      }
+    };
+  }, []);
+
   const handleNewFortune = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setFortune(null);
@@ -179,6 +228,11 @@ export default function FortuneScreen() {
     setBirthMonth(null);
     setBirthDay("");
     setSelectedTopic(null);
+    if (soundRef.current) {
+      soundRef.current.unloadAsync();
+      soundRef.current = null;
+    }
+    setSpeaking(false);
     scrollRef.current?.scrollTo({ y: 0, animated: true });
   };
 
@@ -337,6 +391,14 @@ export default function FortuneScreen() {
             <Text style={styles.fortuneText}>"{fortune}"</Text>
 
             <View style={styles.fortuneActions}>
+              <Pressable
+                onPress={() => fortune && handleSpeak(fortune)}
+                disabled={speaking}
+                style={({ pressed }) => [styles.fortuneActionButton, styles.speakButton, pressed && { opacity: 0.7 }, speaking && { opacity: 0.6 }]}
+              >
+                <MaterialCommunityIcons name={speaking ? "volume-high" : "play"} size={16} color="#C084FC" />
+                <Text style={styles.fortuneActionText}>{speaking ? "SPEAKING..." : "LISTEN"}</Text>
+              </Pressable>
               <Pressable
                 onPress={handleShare}
                 style={({ pressed }) => [styles.fortuneActionButton, pressed && { opacity: 0.7 }]}
@@ -598,6 +660,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(147, 51, 234, 0.4)",
     backgroundColor: "rgba(147, 51, 234, 0.1)",
+  },
+  speakButton: {
+    borderColor: "rgba(192, 132, 252, 0.5)",
+    backgroundColor: "rgba(192, 132, 252, 0.12)",
   },
   fortuneActionText: {
     fontSize: 12,
