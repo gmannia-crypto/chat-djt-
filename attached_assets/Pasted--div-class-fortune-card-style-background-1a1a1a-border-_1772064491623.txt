@@ -1,0 +1,83 @@
+<div class="fortune-card" style="background: #1a1a1a; border: 2px solid #ff4d4d; border-radius: 15px; padding: 25px; margin: 20px 0; color: white;">
+  
+  <h2 style="color: #ff4d4d; text-align: center;">🔮 TRUMP'S FORTUNE PARLOR 🔮</h2>
+  
+  <div style="text-align: center; margin: 20px 0;">
+    <span style="font-size: 48px;">🔮</span>
+  </div>
+  
+  <div style="margin: 20px 0;">
+    <label style="display: block; margin-bottom: 8px;">Your name:</label>
+    <input type="text" id="fortune-name" placeholder="Enter your name" style="width: 100%; padding: 12px; background: #333; border: 1px solid #ff4d4d; border-radius: 8px; color: white;">
+  </div>
+  
+  <div style="margin: 20px 0;">
+    <label style="display: block; margin-bottom: 8px;">Your zodiac sign:</label>
+    <select id="fortune-zodiac" style="width: 100%; padding: 12px; background: #333; border: 1px solid #ff4d4d; border-radius: 8px; color: white;">
+      <option>Aries</option><option>Taurus</option><option>Gemini</option>
+      <option>Cancer</option><option>Leo</option><option>Virgo</option>
+      <option>Libra</option><option>Scorpio</option><option>Sagittarius</option>
+      <option>Capricorn</option><option>Aquarius</option><option>Pisces</option>
+    </select>
+  </div>
+  
+  <div style="margin: 20px 0;">
+    <label style="display: block; margin-bottom: 8px;">What do you want to know?</label>
+    <select id="fortune-topic" style="width: 100%; padding: 12px; background: #333; border: 1px solid #ff4d4d; border-radius: 8px; color: white;">
+      <option>Love Life</option><option>Career</option><option>Money</option>
+      <option>Family</option><option>Health</option><option>General Luck</option>
+    </select>
+  </div>
+  
+  <button onclick="getFortune()" style="background: linear-gradient(145deg, #ff4d4d 0%, #cc0000 100%); color: white; padding: 15px; font-size: 18px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; width: 100%;">
+    🔮 SEE YOUR FUTURE
+  </button>
+  
+  <div id="fortune-result" style="display: none; margin-top: 30px; padding: 20px; background: #333; border-left: 5px solid #ff4d4d; border-radius: 8px;">
+    <!-- Fortune appears here -->
+  </div>
+  
+</div>
+
+<script>
+function getFortune() {
+  const name = document.getElementById('fortune-name').value || 'friend';
+  const zodiac = document.getElementById('fortune-zodiac').value;
+  const topic = document.getElementById('fortune-topic').value;
+  
+  const fortunes = [
+        `I'm looking into the future for you, ${name}... I see GREAT things. Your ${topic} is going to be TREMENDOUS. Many people are saying it. Very smart people.`,
+        
+        `${name}, as a ${zodiac}, your ${topic} has incredible potential. But you need to be bold. Take risks. That's what I do. And I'm very successful.`,
+        
+        `I predict that in your ${topic}, you're going to win so much you'll get tired of winning. It's true. I have the best predictions.`,
+        
+        `The spirits tell me... wait... I'm getting something... YES! Your ${topic} is about to get a HUGE boost. Believe me.`,
+        
+        `${name}, I normally charge $500 for this. But I like you. Your ${zodiac} sign is very compatible with success. Your ${topic}? Through the roof!`
+  ];
+  
+  const randomFortune = fortunes[Math.floor(Math.random() * fortunes.length)];
+  
+  document.getElementById('fortune-result').innerHTML = `
+    <p style="font-size: 18px; line-height: 1.6;">
+      <span style="color: #ff4d4d; font-weight: bold;">🔮 TRUMP PREDICTS:</span><br><br>
+      "${randomFortune}"
+    </p>
+    <div style="display: flex; gap: 10px; margin-top: 20px;">
+      <button onclick="shareFortune()" style="flex: 1; background: #333; color: #ff4d4d; border: 1px solid #ff4d4d; padding: 10px; border-radius: 5px; cursor: pointer;">🔁 SHARE</button>
+      <button onclick="saveFortune()" style="flex: 1; background: #ff4d4d; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer;">💾 SAVE</button>
+    </div>
+  `;
+  
+  document.getElementById('fortune-result').style.display = 'block';
+}
+
+function shareFortune() {
+  alert('Share link copied! (In real version, this would copy a shareable link)');
+}
+
+function saveFortune() {
+  alert('Fortune saved! (Premium feature - upgrade to save more)');
+}
+</script>

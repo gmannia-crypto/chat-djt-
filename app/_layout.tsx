@@ -254,6 +254,10 @@ function RootLayoutNav() {
         options={{ animation: "slide_from_right" }}
       />
       <Stack.Screen
+        name="fortune"
+        options={{ animation: "slide_from_right" }}
+      />
+      <Stack.Screen
         name="challenge/[id]"
         options={{ animation: "slide_from_right" }}
       />

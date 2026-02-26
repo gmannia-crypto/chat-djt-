@@ -1514,6 +1514,43 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
     }
   });
 
+  app.post("/api/fortune", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) {
+        return res.status(400).json({ error: "Device ID required" });
+      }
+      const tokenResult = await useToken(deviceId);
+      if (!tokenResult.success) {
+        return res.status(403).json({ error: tokenResult.error, balance: tokenResult.balance });
+      }
+
+      const { zodiac, topic } = req.body;
+      if (!zodiac || !topic) {
+        return res.status(400).json({ error: "Missing zodiac or topic" });
+      }
+
+      const fortunePrompt = `You are Donald Trump as a mystical fortune teller in "Trump's Fortune Parlor." You're reading someone's future who is a ${zodiac} asking about their ${topic}. Give a personalized, funny, over-the-top Trump-style fortune prediction in 2-3 sentences. Be dramatic, confident, and entertaining. Mix mystical language with Trump's speaking style. Include specific predictions. Stay fully in Trump character. No quotation marks around the response.`;
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-5.2",
+        messages: [
+          { role: "system", content: fortunePrompt },
+          { role: "user", content: `I'm a ${zodiac} and I want to know about my ${topic}. What does the future hold?` },
+        ],
+        max_tokens: 200,
+        temperature: 0.9,
+      });
+
+      const fortune = completion.choices[0]?.message?.content?.trim() || "";
+      apiUsageCounters.chat++;
+      res.json({ fortune, zodiac, topic });
+    } catch (error) {
+      console.error("Fortune error:", error);
+      res.status(500).json({ error: "Failed to generate fortune" });
+    }
+  });
+
   const TRUTH_SOCIAL_FEEDS = [
     { url: "https://feeds.foxnews.com/foxnews/politics", source: "Fox News" },
     { url: "https://rss.nytimes.com/services/xml/rss/nyt/Politics.xml", source: "NYT" },

@@ -710,6 +710,20 @@ export default function HomeScreen() {
             <Text style={styles.modeButtonText}>RATE HIM</Text>
           </Pressable>
         </Animated.View>
+        <Animated.View entering={FadeInDown.delay(1400).duration(500)} style={styles.modeButtons}>
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+              router.push("/fortune");
+            }}
+            style={({ pressed }) => [styles.modeButton, styles.fortuneButton, pressed && { opacity: 0.7 }]}
+            testID="fortune-button"
+          >
+            <MaterialCommunityIcons name="crystal-ball" size={16} color="#9333EA" />
+            <Text style={styles.modeButtonText}>FORTUNE</Text>
+          </Pressable>
+          <View style={[styles.modeButton, { opacity: 0, borderWidth: 0 }]} />
+        </Animated.View>
       </ScrollView>
 
       <View
@@ -1595,6 +1609,10 @@ const styles = StyleSheet.create({
   rateTrumpButton: {
     backgroundColor: "rgba(255, 77, 77, 0.15)",
     borderColor: "rgba(255, 77, 77, 0.4)",
+  },
+  fortuneButton: {
+    backgroundColor: "rgba(147, 51, 234, 0.15)",
+    borderColor: "rgba(147, 51, 234, 0.4)",
   },
   streakBadge: {
     flexDirection: "row",

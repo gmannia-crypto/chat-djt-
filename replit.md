@@ -40,6 +40,7 @@ The backend is an Express 5 server running on port 5000, serving as an API gatew
 - `GET /api/rate-trump/leaderboard`: Displays a leaderboard of supporters and haters.
 - `POST /api/create-challenge`: Creates a shareable challenge link.
 - `GET /api/challenge/:id`: Retrieves challenge details.
+- `POST /api/fortune`: Generates Trump-style fortune predictions based on zodiac sign and topic (token-gated).
 
 The backend leverages OpenAI for chat completions and transcription, and Fish Audio for text-to-speech with a cloned Trump voice. It also handles static serving of pre-built Expo web assets in production.
 
