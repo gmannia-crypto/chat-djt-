@@ -1239,7 +1239,7 @@ export default function ChatScreen() {
     setIsStreaming(true);
     try {
       const baseUrl = getApiUrl();
-      const resp = await globalThis.fetch(`${baseUrl}/api/news-commentary`, {
+      const resp = await globalThis.fetch(`${baseUrl}api/news-commentary`, {
         headers: deviceId ? { "x-device-id": deviceId } : {},
       });
       if (resp.status === 403) { refreshBalance(); router.push("/subscribe"); return; }
@@ -1287,7 +1287,7 @@ export default function ChatScreen() {
     setIsStreaming(true);
     try {
       const baseUrl = getApiUrl();
-      const resp = await globalThis.fetch(`${baseUrl}/api/nostradamus`, {
+      const resp = await globalThis.fetch(`${baseUrl}api/nostradamus`, {
         headers: deviceId ? { "x-device-id": deviceId } : {},
       });
       if (resp.status === 403) { refreshBalance(); router.push("/subscribe"); return; }
@@ -1334,7 +1334,7 @@ export default function ChatScreen() {
     setIsStreaming(true);
     try {
       const baseUrl = getApiUrl();
-      const resp = await globalThis.fetch(`${baseUrl}/api/truth-social`, {
+      const resp = await globalThis.fetch(`${baseUrl}api/truth-social`, {
         headers: deviceId ? { "x-device-id": deviceId } : {},
       });
       if (resp.status === 403) { refreshBalance(); router.push("/subscribe"); return; }

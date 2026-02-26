@@ -149,7 +149,7 @@ export default function CabinetHotSeat() {
     queryKey: ["cabinet-hotseat"],
     queryFn: async () => {
       const baseUrl = getApiUrl();
-      const resp = await globalThis.fetch(`${baseUrl}/api/cabinet-hotseat`, {
+      const resp = await globalThis.fetch(`${baseUrl}api/cabinet-hotseat`, {
         headers: deviceId ? { "x-device-id": deviceId } : {},
       });
       if (resp.status === 403) {
@@ -185,7 +185,7 @@ export default function CabinetHotSeat() {
         rating: String(member.rating),
         reason: member.reason || "No assessment yet",
       });
-      const audioUrl = `${baseUrl}/api/cabinet-speak-audio?${params.toString()}`;
+      const audioUrl = `${baseUrl}api/cabinet-speak-audio?${params.toString()}`;
 
       if (Platform.OS === "web") {
         const resp = await globalThis.fetch(audioUrl, {
