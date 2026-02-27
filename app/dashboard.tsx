@@ -80,7 +80,7 @@ export default function DashboardScreen() {
     queryKey: ["weather", location?.lat, location?.lon],
     queryFn: async () => {
       if (!location) return null;
-      const res = await fetch(`${getApiUrl()}/api/weather?lat=${location.lat}&lon=${location.lon}`);
+      const res = await fetch(`${getApiUrl()}api/weather?lat=${location.lat}&lon=${location.lon}`);
       if (!res.ok) throw new Error("Weather fetch failed");
       return res.json();
     },
@@ -91,7 +91,7 @@ export default function DashboardScreen() {
   const { data: markets, isLoading: marketsLoading, refetch: refetchMarkets } = useQuery({
     queryKey: ["markets"],
     queryFn: async () => {
-      const res = await fetch(`${getApiUrl()}/api/markets`);
+      const res = await fetch(`${getApiUrl()}api/markets`);
       if (!res.ok) throw new Error("Markets fetch failed");
       return res.json();
     },
@@ -101,7 +101,7 @@ export default function DashboardScreen() {
   const { data: weatherComment } = useQuery({
     queryKey: ["weather-commentary", weather?.city, weather?.current?.temp, weather?.current?.label],
     queryFn: async () => {
-      const res = await fetch(`${getApiUrl()}/api/weather-commentary?temp=${weather.current.temp}&condition=${encodeURIComponent(weather.current.label)}&city=${encodeURIComponent(weather.city)}`);
+      const res = await fetch(`${getApiUrl()}api/weather-commentary?temp=${weather.current.temp}&condition=${encodeURIComponent(weather.current.label)}&city=${encodeURIComponent(weather.city)}`);
       if (!res.ok) throw new Error("Commentary failed");
       return res.json();
     },
@@ -113,7 +113,7 @@ export default function DashboardScreen() {
     queryKey: ["market-hot-takes", !!markets],
     queryFn: async () => {
       const summary = `BTC: $${markets.bitcoin?.price || 0}, ETH: $${markets.ethereum?.price || 0}, Gold: $${markets.gold?.price || 0}, Silver: $${markets.silver?.price || 0}`;
-      const res = await fetch(`${getApiUrl()}/api/market-hot-takes?prices=${encodeURIComponent(summary)}`);
+      const res = await fetch(`${getApiUrl()}api/market-hot-takes?prices=${encodeURIComponent(summary)}`);
       if (!res.ok) throw new Error("Hot takes failed");
       return res.json();
     },

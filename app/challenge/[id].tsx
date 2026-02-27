@@ -179,7 +179,7 @@ export default function ChallengeScreen() {
         soundRef.current = null;
       }
       setSpeaking(true);
-      const ttsRes = await fetch(`${getApiUrl()}/api/tts`, {
+      const ttsRes = await fetch(`${getApiUrl()}api/tts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text, mood }),
