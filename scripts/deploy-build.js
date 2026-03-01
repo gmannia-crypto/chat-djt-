@@ -24,7 +24,7 @@ if (hasExistingMobileBuild() && fs.existsSync("dist/index.html")) {
   console.log("Pre-built assets found, skipping expo build");
 } else {
   console.log("Running expo static build...");
-  execSync("npx node scripts/build.js", { stdio: "inherit" });
+  execSync("node scripts/build.js", { stdio: "inherit" });
 }
 
 console.log("Building server...");
