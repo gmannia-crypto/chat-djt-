@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trump Therapy - Chat DJT</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #0a0a0a;
+            font-family: 'Arial', sans-serif;
+            color: white;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        /* Header */
+        .therapy-header {
+            text-align: center;
+            margin-bottom: 30px;
+            position: relative;
+        }
+        
+        .therapy-header h1 {
+            color: #ff4d4d;
+            font-size: 42px;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            text-shadow: 0 0 20px rgba(255, 75, 75, 0.5);
+            margin-bottom: 10px;
+        }
+        
+        .therapy-header .subhead {
+            color: #888;
+            font-size: 18px;
+            font-style: italic;
+        }
+        
+        .live-indicator {
+            display: inline-block;
+            background: #ff4d4d;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: bold;
+            margin-top: 10px;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+        
+        /* Social Proof Banner */
+        .social-proof {
+            background: linear-gradient(90deg, #ff4d4d20, #ff4d4d40, #ff4d4d20);
+            border: 1px solid #ff4d4d;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 20px 0;
+            display: flex;
+            justify-content: space-around;
+            text-align: center;
+        }
+        
+        .stat {
+            flex: 1;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #ff4d4d;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #ccc;
+        }
+        
+        /* Therapy Card */
+        .therapy-card {
+            background: linear-gradient(145deg, #1a1a1a 0%, #2d2d2d 100%);
+            border: 2px solid #ff4d4d;
+            border-radius: 20px;
+            padding: 30px;
+            margin: 30px 0;
+            box-shadow: 0 10px 40px rgba(255, 0, 0, 0.2);
+        }
+        
+        .couch-image {
+            text-align: center;
+            font-size: 60px;
+            margin-bottom: 20px;
+            filter: drop-shadow(0 0 15px #ff4d4d);
+        }
+        
+        .greeting {
+            font-size: 24px;
+            color: #ff4d4d;
+            margin-bottom: 20px;
+            text-align: center;
+            font-style: italic;
+        }
+        
+        .input-group {
+            margin: 25px 0;
+        }
+        
+        .input-group label {
+            display: block;
+            margin-bottom: 10px;
+            color: #ff4d4d;
+            font-weight: bold;
+            font-size: 18px;
+        }
+        
+        .input-group input, .input-group select, .input-group textarea {
+            width: 100%;
+            padding: 15px;
+            background: #333;
+            border: 2px solid #ff4d4d;
+            border-radius: 10px;
+            color: white;
+            font-size: 16px;
+        }
+        
+        .input-group textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+        
+        .input-group input:focus, .input-group select:focus, .input-group textarea:focus {
+            outline: none;
+            box-shadow: 0 0 20px rgba(255, 75, 75, 0.5);
+        }
+        
+        /* Session Counter */
+        .session-counter {
+            text-align: center;
+            margin: 20px 0;
+            padding: 15px;
+            background: #1a1a1a;
+            border-radius: 10px;
+            border: 1px solid #333;
+        }
+        
+        .counter-box {
+            display: inline-block;
+            padding: 10px 20px;
+            background: #ff4d4d;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+        
+        .free-sessions-left {
+            color: #4dff4d;
+            font-weight: bold;
+        }
+        
+        /* Pricing Options */
+        .pricing-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+        
+        .pricing-card {
+            background: #1a1a1a;
+            border: 2px solid #333;
+            border-radius: 15px;
+            padding: 25px;
+            text-align: center;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        
+        .pricing-card:hover {
+            border-color: #ff4d4d;
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(255, 75, 75, 0.3);
+        }
+        
+        .pricing-card.popular {
+            border-color: #ff4d4d;
+            position: relative;
+        }
+        
+        .popular-badge {
+            position: absolute;
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #ff4d4d;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .price {
+            font-size: 32px;
+            font-weight: bold;
+            color: #ff4d4d;
+            margin: 15px 0;
+        }
+        
+        .price small {
+            font-size: 14px;
+            color: #888;
+        }
+        
+        .features {
+            list-style: none;
+            margin: 20px 0;
+        }
+        
+        .features li {
+            margin: 10px 0;
+            color: #ccc;
+        }
+        
+        .select-plan {
+            background: #ff4d4d;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 25px;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.2s;
+        }
+        
+        .select-plan:hover {
+            background: #cc0000;
+            transform: scale(1.05);
+        }
+        
+        /* Payment Button */
+        .pay-button {
+            background: linear-gradient(145deg, #ff4d4d 0%, #cc0000 100%);
+            color: white;
+            padding: 20px 40px;
+            font-size: 28px;
+            font-weight: bold;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            width: 100%;
+            box-shadow: 0 5px 25px rgba(255, 75, 75, 0.6);
+            transition: all 0.3s;
+            margin: 30px 0;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        
+        .pay-button:hover:not(:disabled) {
+            transform: scale(1.02);
+            box-shadow: 0 8px 35px rgba(255, 75, 75, 0.8);
+        }
+        
+        .pay-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .pay-button.loading {
+            position: relative;
+            color: transparent;
+        }
+        
+        .pay-button.loading::after {
+            content: "";
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            border: 4px solid white;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+        
+        /* Therapy Session Result */
+        .session-result {
+            background: #1a1a1a;
+            border: 2px solid #ff4d4d;
+            border-radius: 15px;
+            padding: 30px;
+            margin: 30px 0;
+            display: none;
+        }
+        
+        .trump-portrait {
+            width: 80px;
+            height: 80px;
+            background: #ff4d4d;
+            border-radius: 50%;
+            margin: 0 auto 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            border: 3px solid white;
+        }
+        
+        .session-text {
+            background: #333;
+            padding: 25px;
+            border-radius: 10px;
+            border-left: 5px solid #ff4d4d;
+            font-size: 20px;
+            line-height: 1.6;
+            margin: 20px 0;
+            font-style: italic;
+            white-space: pre-line;
+        }
+        
+        .share-buttons {
+            display: flex;
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .share-btn {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+        
+        .share-twitter {
+            background: #1DA1F2;
+            color: white;
+        }
+        
+        .share-facebook {
+            background: #4267B2;
+            color: white;
+        }
+        
+        .share-copy {
+            background: #333;
+            color: white;
+            border: 1px solid #ff4d4d;
+        }
+        
+        .share-btn:hover {
+            transform: scale(1.02);
+            filter: brightness(1.1);
+        }
+        
+        .viral-badge {
+            text-align: center;
+            margin-top: 20px;
+            padding: 10px;
+            background: linear-gradient(90deg, transparent, #ff4d4d20, transparent);
+            border-radius: 5px;
+            font-size: 14px;
+            color: #ff4d4d;
+        }
+        
+        .viral-badge span {
+            animation: blink 1s infinite;
+        }
+        
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        /* FOMO Timer */
+        .fomo-timer {
+            background: #ff4d4d20;
+            border: 1px solid #ff4d4d;
+            border-radius: 8px;
+            padding: 10px;
+            text-align: center;
+            margin: 15px 0;
+            font-size: 14px;
+        }
+        
+        .timer {
+            color: #ff4d4d;
+            font-weight: bold;
+            font-size: 18px;
+        }
+        
+        /* Urgency Badge */
+        .urgency-badge {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #ff4d4d;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 30px;
+            font-weight: bold;
+            box-shadow: 0 5px 20px rgba(255, 75, 75, 0.5);
+            animation: slideIn 0.5s;
+            z-index: 1000;
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        /* Responsive */
+        @media (max-width: 600px) {
+            .pricing-grid {
+                grid-template-columns: 1fr;
+            }
+            .share-buttons {
+                flex-direction: column;
+            }
+        }
+    </style>
+    
+    <!-- Stripe.js -->
+    <script src="https://js.stripe.com/v3"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="therapy-header">
+            <h1>🧠 TRUMP THERAPY 🧠</h1>
+            <div class="subhead">"The best therapy. Believe me. Very smart people say so."</div>
+            <div class="live-indicator">⚡ LIVE NOW • 127 IN SESSION ⚡</div>
+        </div>
+        
+        <!-- Social Proof -->
+        <div class="social-proof">
+            <div class="stat">
+                <div class="stat-value" id="sessionsToday">1,247</div>
+                <div class="stat-label">Sessions Today</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="happyPatients">98%</div>
+                <div class="stat-label">"Feeling Better"</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="avgRating">4.9/5</div>
+                <div class="stat-label">Trump Rating</div>
+            </div>
+        </div>
+        
+        <!-- Main Therapy Card -->
+        <div class="therapy-card">
+            <div class="couch-image">🛋️</div>
+            <div class="greeting">"Lie down. Tell me everything. I'm listening..."</div>
+            
+            <!-- Session Counter (for free users) -->
+            <div class="session-counter" id="sessionCounter">
+                <span>🔓 Free sessions remaining: </span>
+                <span class="free-sessions-left" id="freeSessions">3</span>
+                <span> / 3 today</span>
+            </div>
+            
+            <!-- Input Form -->
+            <div class="input-group">
+                <label>👤 Your name (first only):</label>
+                <input type="text" id="userName" placeholder="e.g., Mike" maxlength="30">
+            </div>
+            
+            <div class="input-group">
+                <label>😟 What's bothering you?</label>
+                <textarea id="userProblem" placeholder="Tell Dr. Trump what's wrong... work? relationships? life?"></textarea>
+            </div>
+            
+            <div class="input-group">
+                <label>📊 How serious is it? (1-10)</label>
+                <select id="seriousness">
+                    <option value="1">1 - Minor annoyance (low energy)</option>
+                    <option value="2">2 - Slightly annoying</option>
+                    <option value="3">3 - Meh</option>
+                    <option value="4">4 - Getting worse</option>
+                    <option value="5">5 - Moderate (sad!)</option>
+                    <option value="6">6 - Pretty bad</option>
+                    <option value="7">7 - Very bad</option>
+                    <option value="8">8 - Terrible</option>
+                    <option value="9">9 - Disastrous</option>
+                    <option value="10">10 - TOTAL WITCH HUNT</option>
+                </select>
+            </div>
+            
+            <!-- FOMO Timer (rotating) -->
+            <div class="fomo-timer" id="fomoTimer">
+                ⏰ <span class="timer">5:23</span> until your free session expires • Book now to save!
+            </div>
+            
+            <!-- Premium Upsell (appears after free sessions used) -->
+            <div id="premiumUpsell" style="display: none;">
+                <h3 style="color: #ff4d4d; text-align: center; margin: 20px 0;">🔥 UNLOCK UNLIMITED THERAPY 🔥</h3>
+                <div class="pricing-grid">
+                    <div class="pricing-card" onclick="selectPlan('single')">
+                        <h3>Single Session</h3>
+                        <div class="price">$2.99</div>
+                        <ul class="features">
+                            <li>✓ One deep session</li>
+                            <li>✓ Shareable roast card</li>
+                            <li>✓ 24h access</li>
+                        </ul>
+                        <button class="select-plan">SELECT</button>
+                    </div>
+                    
+                    <div class="pricing-card popular" onclick="selectPlan('weekly')">
+                        <div class="popular-badge">BEST VALUE</div>
+                        <h3>Weekly Pass</h3>
+                        <div class="price">$9.99<span>/week</span></div>
+                        <ul class="features">
+                            <li>✓ Unlimited sessions</li>
+                            <li>✓ Video responses</li>
+                            <li>✓ Priority queue</li>
+                            <li>✓ Save all sessions</li>
+                        </ul>
+                        <button class="select-plan">SELECT</button>
+                    </div>
+                    
+                    <div class="pricing-card" onclick="selectPlan('monthly')">
+                        <h3>Monthly VIP</h3>
+                        <div class="price">$19.99<span>/month</span></div>
+                        <ul class="features">
+                            <li>✓ Everything in Weekly</li>
+                            <li>✓ Personalized audio</li>
+                            <li>✓ Name in credits</li>
+                            <li>✓ First access to new features</li>
+                        </ul>
+                        <button class="select-plan">SELECT</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Payment Button -->
+            <button class="pay-button" id="payButton" onclick="handlePayment()">
+                🔥 GET THERAPY - $2.99 🔥
+            </button>
+            
+            <!-- Urgency Badge (appears after 30 seconds) -->
+            <div id="urgencyBadge" style="display: none;"></div>
+        </div>
+        
+        <!-- Therapy Session Result (shown after payment/free session) -->
+        <div class="session-result" id="sessionResult">
+            <div class="trump-portrait">🗣️</div>
+            <h2 style="color: #ff4d4d; text-align: center;">DR. TRUMP'S DIAGNOSIS</h2>
+            <div class="session-text" id="therapyText">
+                <!-- Therapy response appears here -->
+            </div>
+            
+            <!-- Viral Share Section -->
+            <div class="viral-badge">
+                <span>⚡</span> 1,234 people shared this today <span>⚡</span>
+            </div>
+            
+            <div class="share-buttons">
+                <button class="share-btn share-twitter" onclick="shareTo('twitter')">
+                    <span>🔁</span> Share on X
+                </button>
+                <button class="share-btn share-facebook" onclick="shareTo('facebook')">
+                    <span>📘</span> Share
+                </button>
+                <button class="share-btn share-copy" onclick="shareTo('copy')">
+                    <span>📋</span> Copy
+                </button>
+            </div>
+            
+            <div style="text-align: center; margin-top: 20px;">
+                <button onclick="newSession()" style="background: none; border: 2px solid #ff4d4d; color: #ff4d4d; padding: 10px 25px; border-radius: 25px; cursor: pointer;">
+                    🔄 New Session
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // ================= CONFIGURATION =================
+        const STRIPE_PUBLIC_KEY = 'pk_live_your_stripe_key'; // Replace with your Stripe key
+        const stripe = Stripe(STRIPE_PUBLIC_KEY);
+        
+        // State management
+        let currentPlan = 'single';
+        let userName = '';
+        let userProblem = '';
+        let freeSessions = parseInt(localStorage.getItem('freeSessions') || '3');
+        let lastSessionTime = localStorage.getItem('lastSessionTime') || '0';
+        let sessionCount = parseInt(localStorage.getItem('sessionCount') || '0');
+        
+        // ================= INITIALIZATION =================
+        function init() {
+            updateFreeSessions();
+            checkLastSession();
+            startFOMOTimer();
+            setTimeout(showUrgencyBadge, 30000); // Show after 30 seconds
+            updateSocialProof();
+        }
+        
+        // ================= FREE SESSION MANAGEMENT =================
+        function updateFreeSessions() {
+            const today = new Date().toDateString();
+            const lastReset = localStorage.getItem('lastReset');
+            
+            if (lastReset !== today) {
+                // Reset free sessions for new day
+                freeSessions = 3;
+                localStorage.setItem('freeSessions', '3');
+                localStorage.setItem('lastReset', today);
+            }
+            
+            document.getElementById('freeSessions').textContent = freeSessions;
+            
+            if (freeSessions <= 0) {
+                document.getElementById('sessionCounter').style.display = 'none';
+                document.getElementById('premiumUpsell').style.display = 'block';
+                document.getElementById('payButton').textContent = '🔥 UNLOCK NOW - $2.99 🔥';
+            } else {
+                document.getElementById('payButton').textContent = `🎁 USE FREE SESSION (${freeSessions} left) 🎁`;
+            }
+        }
+        
+        function checkLastSession() {
+            const now = Date.now();
+            const last = parseInt(lastSessionTime);
+            const hoursSinceLast = (now - last) / (1000 * 60 * 60);
+            
+            if (hoursSinceLast < 24 && freeSessions < 3) {
+                // Sessions haven't reset yet
+                document.getElementById('freeSessions').textContent = freeSessions;
+            }
+        }
+        
+        // ================= THERAPY GENERATION =================
+        async function generateTherapy(name, problem, seriousness) {
+            // Trump therapy response templates
+            const responses = [
+                `"${name}, let me tell you something about ${problem}. I've had the same problem. The BEST people have this problem. You know what I did? I won. I won so much. And you're going to win too. Believe me."`,
+                
+                `"${problem}? That's nothing. I've faced witch hunts, fake news, the whole thing. And I came out stronger. ${name}, you're a fighter. You have Trump DNA. Now go out there and be tremendous."`,
+                
+                `"I'm looking at your situation, ${name}. ${problem} is serious. Very serious. But here's the thing - you're smarter than them. You're stronger. On a scale of 1-10, this problem is a ${seriousness}. Your ability to fix it? 100. You're welcome."`,
+                
+                `"${name}, I've employed thousands of people. The best people. And you know what makes someone great? How they handle ${problem}. And you? You're handling it beautifully. Could be better. But beautiful."`,
+                
+                `"The fake news would tell you ${problem} is your fault. Wrong! It's their fault. Everything is their fault. ${name}, stop listening to the haters. You're doing great. Tremendous, even."`
+            ];
+            
+            // Add comment-based responses
+            if (problem.toLowerCase().includes('work') || problem.toLowerCase().includes('job')) {
+                responses.push(`"Work problems? ${name}, you're probably underpaid. Very underpaid. I know salaries. I pay the best salaries. Ask for a raise. If they say no, tell them Trump sent you. Works every time."`);
+            }
+            if (problem.toLowerCase().includes('love') || problem.toLowerCase().includes('relationship')) {
+                responses.push(`"${name}, love is complicated. I've been married, what, three times? Great marriages. The best. But ${problem}? You'll find someone. Someone tremendous. And if not, you've still got me. I'm always here."`);
+            }
+            if (problem.toLowerCase().includes('money') || problem.toLowerCase().includes('broke')) {
+                responses.push(`"Money problems? ${name}, I've been broke before. Many times. And I came back bigger, better, richer. You will too. Invest in walls. Walls always win."`);
+            }
+            
+            // Simulate AI delay
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            
+            return responses[Math.floor(Math.random() * responses.length)];
+        }
+        
+        // ================= PAYMENT HANDLING =================
+        async function handlePayment() {
+            const name = document.getElementById('userName').value.trim();
+            const problem = document.getElementById('userProblem').value.trim();
+            const seriousness = document.getElementById('seriousness').value;
+            
+            if (!name || !problem) {
+                alert('Please tell Dr. Trump your name and what\'s bothering you.');
+                return;
+            }
+            
+            userName = name;
+            userProblem = problem;
+            
+            // Check if free session available
+            if (freeSessions > 0) {
+                // Use free session
+                await useFreeSession();
+            } else {
+                // Process payment
+                await processPayment();
+            }
+        }
+        
+        async function useFreeSession() {
+            const button = document.getElementById('payButton');
+            button.classList.add('loading');
+            button.disabled = true;
+            
+            try {
+                // Generate therapy
+                const therapy = await generateTherapy(userName, userProblem, document.getElementById('seriousness').value);
+                
+                // Update free sessions
+                freeSessions--;
+                localStorage.setItem('freeSessions', freeSessions.toString());
+                localStorage.setItem('lastSessionTime', Date.now().toString());
+                sessionCount++;
+                localStorage.setItem('sessionCount', sessionCount.toString());
+                
+                // Show result
+                showTherapyResult(therapy);
+                
+                // Track for viral analytics
+                trackSession('free');
+                
+            } catch (error) {
+                alert('Session failed. Please try again.');
+            } finally {
+                button.classList.remove('loading');
+                button.disabled = false;
+                updateFreeSessions();
+            }
+        }
+        
+        async function processPayment() {
+            const button = document.getElementById('payButton');
+            button.classList.add('loading');
+            button.disabled = true;
+            
+            try {
+                // Create Stripe checkout session
+                const response = await fetch('/api/create-checkout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        plan: currentPlan,
+                        successUrl: window.location.href + '?session=success',
+                        cancelUrl: window.location.href,
+                        metadata: {
+                            name: userName,
+                            problem: userProblem,
+                            seriousness: document.getElementById('seriousness').value
+                        }
+                    })
+                });
+                
+                const session = await response.json();
+                
+                // Redirect to Stripe
+                const result = await stripe.redirectToCheckout({
+                    sessionId: session.id
+                });
+                
+                if (result.error) {
+                    alert(result.error.message);
+                }
+                
+            } catch (error) {
+                alert('Payment failed. Please try again.');
+                button.classList.remove('loading');
+                button.disabled = false;
+            }
+        }
+        
+        // ================= SHOW RESULTS =================
+        async function showTherapyResult(therapy) {
+            document.getElementById('therapyText').textContent = `"${therapy}"`;
+            document.getElementById('sessionResult').style.display = 'block';
+            
+            // Scroll to result
+            document.getElementById('sessionResult').scrollIntoView({ behavior: 'smooth' });
+            
+            // Update social proof
+            updateSocialProof();
+            
+            // Trigger viral share tracking
+            setupShareTracking(therapy);
+        }
+        
+        // ================= VIRAL SHARE MECHANICS =================
+        function setupShareTracking(therapy) {
+            // Store for sharing
+            sessionStorage.setItem('lastTherapy', therapy);
+            sessionStorage.setItem('lastUserName', userName);
+        }
+        
+        function shareTo(platform) {
+            const therapy = sessionStorage.getItem('lastTherapy') || document.getElementById('therapyText').textContent;
+            const name = sessionStorage.getItem('lastUserName') || userName;
+            
+            // Truncate for sharing
+            const preview = therapy.substring(0, 100) + '...';
+            
+            // Create share text
+            const text = encodeURIComponent(`Trump just gave me therapy! He said: "${preview}" Get your session at trumpbot.rip 🔥`);
+            const url = encodeURIComponent('https://trumpbot.rip/therapy?ref=' + name);
+            
+            let shareUrl = '';
+            
+            switch(platform) {
+                case 'twitter':
+                    shareUrl = `https://twitter.com/intent/tweet?text=${text}&url=${url}`;
+                    break;
+                case 'facebook':
+                    shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${url}&quote=${text}`;
+                    break;
+                case 'copy':
+                    navigator.clipboard.writeText(`Trump just gave me therapy: "${therapy}"\n\nGet yours: https://trumpbot.rip/therapy?ref=${name}`);
+                    alert('Copied! Share it with your friends!');
+                    return;
+            }
+            
+            if (shareUrl) {
+                window.open(shareUrl, '_blank', 'width=600,height=400');
+                
+                // Track share
+                fetch('/api/track-share', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        platform: platform,
+                        sessionId: sessionCount
+                    })
+                });
+                
+                // Show thank you message
+                showShareThankYou();
+            }
+        }
+        
+        function showShareThankYou() {
+            const thankYou = document.createElement('div');
+            thankYou.style.cssText = `
+                position: fixed;
+                top: 20px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: #4CAF50;
+                color: white;
+                padding: 15px 30px;
+                border-radius: 50px;
+                font-weight: bold;
+                z-index: 10000;
+                animation: slideDown 0.5s;
+            `;
+            thankYou.textContent = '🎉 Thanks for sharing! You rock! 🎉';
+            document.body.appendChild(thankYou);
+            
+            setTimeout(() => {
+                thankYou.remove();
+            }, 3000);
+        }
+        
+        // ================= FOMO MECHANICS =================
+        function startFOMOTimer() {
+            // Random timer between 2-7 minutes
+            const minutes = Math.floor(Math.random() * 5) + 2;
+            const seconds = minutes * 60;
+            let timeLeft = seconds;
+            
+            const timer = document.querySelector('.timer');
+            
+            const interval = setInterval(() => {
+                timeLeft--;
+                
+                if (timeLeft <= 0) {
+                    // Reset with new random time
+                    timeLeft = (Math.floor(Math.random() * 5) + 2) * 60;
+                    
+                    // Change message occasionally
+                    const messages = [
+                        '⏰ Special offer expiring soon!',
+                        '⚡ 127 people looking at this right now',
+                        '🔥 Only 3 free sessions left today',
+                        '🎁 Your free session expires in '
+                    ];
+                    
+                    const fomoText = document.querySelector('.fomo-timer');
+                    const randomMsg = messages[Math.floor(Math.random() * messages.length)];
+                    
+                    if (randomMsg.includes('expires')) {
+                        fomoText.innerHTML = `⏰ ${randomMsg} <span class="timer">${formatTime(timeLeft)}</span>`;
+                    } else {
+                        fomoText.innerHTML = `⏰ ${randomMsg}`;
+                    }
+                }
+                
+                const timerElement = document.querySelector('.timer');
+                if (timerElement) {
+                    timerElement.textContent = formatTime(timeLeft);
+                }
+                
+            }, 1000);
+        }
+        
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+        
+        function showUrgencyBadge() {
+            const badge = document.getElementById('urgencyBadge');
+            badge.style.display = 'block';
+            badge.innerHTML = `
+                <div class="urgency-badge">
+                    ⚡ ${Math.floor(Math.random() * 20) + 10} people in session now ⚡
+                </div>
+            `;
+        }
+        
+        // ================= SOCIAL PROOF UPDATES =================
+        function updateSocialProof() {
+            // Random increments to look active
+            const sessions = parseInt(document.getElementById('sessionsToday').textContent.replace(',', ''));
+            document.getElementById('sessionsToday').textContent = (sessions + Math.floor(Math.random() * 10)).toLocaleString();
+            
+            // Update based on actual shares
+            fetch('/api/stats')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.sessionsToday) {
+                        document.getElementById('sessionsToday').textContent = data.sessionsToday.toLocaleString();
+                    }
+                })
+                .catch(() => {
+                    // Use mock data if API fails
+                    document.getElementById('sessionsToday').textContent = (1247 + sessionCount).toLocaleString();
+                });
+        }
+        
+        // ================= TRACKING =================
+        function trackSession(type) {
+            fetch('/api/track-session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: type,
+                    timestamp: Date.now()
+                })
+            }).catch(() => {
+                // Silent fail - tracking is optional
+            });
+        }
+        
+        function selectPlan(plan) {
+            currentPlan = plan;
+            
+            // Update UI
+            document.querySelectorAll('.pricing-card').forEach(card => {
+                card.style.borderColor = '#333';
+            });
+            
+            event.currentTarget.style.borderColor = '#ff4d4d';
+            
+            // Update button text based on plan
+            const button = document.getElementById('payButton');
+            if (plan === 'single') {
+                button.textContent = '🔥 GET SINGLE SESSION - $2.99 🔥';
+            } else if (plan === 'weekly') {
+                button.textContent = '🔥 GET WEEKLY PASS - $9.99 🔥';
+            } else {
+                button.textContent = '🔥 GET VIP MONTHLY - $19.99 🔥';
+            }
+        }
+        
+        function newSession() {
+            document.getElementById('sessionResult').style.display = 'none';
+            document.getElementById('userProblem').value = '';
+            document.getElementById('userName').value = '';
+        }
+        
+        // Initialize on load
+        window.onload = init;
+        
+        // Check for payment success URL param
+        if (window.location.search.includes('session=success')) {
+            // Payment successful, generate therapy
+            setTimeout(async () => {
+                const therapy = await generateTherapy(
+                    sessionStorage.getItem('pendingName') || 'friend',
+                    sessionStorage.getItem('pendingProblem') || 'life',
+                    '5'
+                );
+                showTherapyResult(therapy);
+                
+                // Clean URL
+                window.history.replaceState({}, document.title, '/therapy.html');
+            }, 1000);
+        }
+    </script>
+</body>
+</html>

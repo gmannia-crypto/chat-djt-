@@ -722,7 +722,17 @@ export default function HomeScreen() {
             <MaterialCommunityIcons name="crystal-ball" size={16} color="#9333EA" />
             <Text style={styles.modeButtonText}>FORTUNE</Text>
           </Pressable>
-          <View style={[styles.modeButton, { opacity: 0, borderWidth: 0 }]} />
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+              router.push("/therapy");
+            }}
+            style={({ pressed }) => [styles.modeButton, styles.therapyButton, pressed && { opacity: 0.7 }]}
+            testID="therapy-button"
+          >
+            <MaterialCommunityIcons name="brain" size={16} color="#ff4d4d" />
+            <Text style={styles.modeButtonText}>THERAPY</Text>
+          </Pressable>
         </Animated.View>
       </ScrollView>
 
@@ -1613,6 +1623,10 @@ const styles = StyleSheet.create({
   fortuneButton: {
     backgroundColor: "rgba(147, 51, 234, 0.15)",
     borderColor: "rgba(147, 51, 234, 0.4)",
+  },
+  therapyButton: {
+    backgroundColor: "rgba(255, 77, 77, 0.15)",
+    borderColor: "rgba(255, 77, 77, 0.4)",
   },
   streakBadge: {
     flexDirection: "row",

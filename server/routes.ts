@@ -1555,6 +1555,46 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
     }
   });
 
+  app.post("/api/therapy", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) {
+        return res.status(400).json({ error: "Device ID required" });
+      }
+      const tokenResult = await useToken(deviceId);
+      if (!tokenResult.success) {
+        return res.status(403).json({ error: tokenResult.error, balance: tokenResult.balance });
+      }
+
+      const { name, problem, seriousness } = req.body;
+      if (!problem) {
+        return res.status(400).json({ error: "Missing problem" });
+      }
+
+      const nameStr = name || "friend";
+      const level = seriousness || "5";
+
+      const therapyPrompt = `You are "Dr. Trump" — Donald Trump as a therapist in "Trump Therapy." A patient named ${nameStr} has come to you with a problem. Their seriousness level is ${level}/10. Give a hilarious, over-the-top Trump-style therapy response in 4-6 sentences. Address them by name. Be dramatic, confident, and weirdly motivational. Reference your own life, wins, deals, and experiences. Use Trump's speaking patterns — tangents, superlatives, self-references. Make it genuinely funny but also oddly encouraging. Include a specific "Trump prescription" at the end (something absurd they should do). Stay fully in Trump character. No quotation marks around the response.`;
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-5.2",
+        messages: [
+          { role: "system", content: therapyPrompt },
+          { role: "user", content: `My name is ${nameStr}. My problem is: ${problem}. On a scale of 1-10, it's a ${level}. Help me, Dr. Trump.` },
+        ],
+        max_completion_tokens: 350,
+        temperature: 0.95,
+      });
+
+      const therapy = completion.choices[0]?.message?.content?.trim() || "";
+      apiUsageCounters.chat++;
+      res.json({ therapy, name: nameStr, seriousness: level });
+    } catch (error) {
+      console.error("Therapy error:", error);
+      res.status(500).json({ error: "Failed to generate therapy" });
+    }
+  });
+
   const TRUTH_SOCIAL_FEEDS = [
     { url: "https://feeds.foxnews.com/foxnews/politics", source: "Fox News" },
     { url: "https://rss.nytimes.com/services/xml/rss/nyt/Politics.xml", source: "NYT" },
