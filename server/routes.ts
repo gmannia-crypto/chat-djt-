@@ -1089,17 +1089,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.sendFile(viralPath);
   });
 
+  const viralStats: { sessions: any[]; shares: any[]; conversions: any[] } = {
+    sessions: [],
+    shares: [],
+    conversions: [],
+  };
+
+  function trackViralEvent(bucket: "sessions" | "shares" | "conversions", data: any) {
+    viralStats[bucket].push({ ...data, timestamp: Date.now() });
+    if (viralStats[bucket].length > 1000) {
+      viralStats[bucket].shift();
+    }
+  }
+
   app.post("/api/track-viral", (req, res) => {
     const { event, sessionId: sid, data, timestamp } = req.body;
     console.log(`[viral] ${event} | session=${sid} | ${JSON.stringify(data)} | ${new Date(timestamp).toISOString()}`);
 
-    const stats = {
-      activeSessions: Math.floor(Math.random() * 2000) + 1000,
-      sharesToday: Math.floor(Math.random() * 5000) + 2000,
-      conversionRate: (Math.random() * 5 + 10).toFixed(1) + "%",
-    };
+    if (event === "session_start") {
+      trackViralEvent("sessions", { sessionId: sid, ...data });
+    } else if (event === "session_complete") {
+      trackViralEvent("sessions", { sessionId: sid, completed: true, ...data });
+    } else if (event === "share") {
+      trackViralEvent("shares", { sessionId: sid, ...data });
+    } else if (event === "conversion" || event === "purchase") {
+      trackViralEvent("conversions", { sessionId: sid, ...data });
+    }
 
-    res.json({ success: true, stats });
+    const now = Date.now();
+    const dayAgo = now - 86400000;
+    const todaySessions = viralStats.sessions.filter((s) => s.timestamp > dayAgo).length;
+    const todayShares = viralStats.shares.filter((s) => s.timestamp > dayAgo).length;
+    const todayConversions = viralStats.conversions.filter((c) => c.timestamp > dayAgo).length;
+    const conversionRate = todaySessions > 0 ? ((todayConversions / todaySessions) * 100).toFixed(1) + "%" : "0%";
+
+    res.json({
+      success: true,
+      stats: {
+        activeSessions: todaySessions + Math.floor(Math.random() * 500) + 500,
+        sharesToday: todayShares + Math.floor(Math.random() * 1000) + 1000,
+        conversionRate,
+      },
+    });
+  });
+
+  app.get("/api/admin/viral", (_req, res) => {
+    const now = Date.now();
+    const hourAgo = now - 3600000;
+    const dayAgo = now - 86400000;
+
+    res.json({
+      totals: {
+        sessions: viralStats.sessions.length,
+        shares: viralStats.shares.length,
+        conversions: viralStats.conversions.length,
+      },
+      lastHour: {
+        sessions: viralStats.sessions.filter((s) => s.timestamp > hourAgo).length,
+        shares: viralStats.shares.filter((s) => s.timestamp > hourAgo).length,
+        conversions: viralStats.conversions.filter((c) => c.timestamp > hourAgo).length,
+      },
+      last24h: {
+        sessions: viralStats.sessions.filter((s) => s.timestamp > dayAgo).length,
+        shares: viralStats.shares.filter((s) => s.timestamp > dayAgo).length,
+        conversions: viralStats.conversions.filter((c) => c.timestamp > dayAgo).length,
+      },
+      recentEvents: [
+        ...viralStats.sessions.slice(-5).map((s) => ({ type: "session", ...s })),
+        ...viralStats.shares.slice(-5).map((s) => ({ type: "share", ...s })),
+        ...viralStats.conversions.slice(-5).map((c) => ({ type: "conversion", ...c })),
+      ].sort((a, b) => b.timestamp - a.timestamp).slice(0, 10),
+    });
   });
 
   app.post("/api/generate-therapy", (req, res) => {
