@@ -388,7 +388,7 @@ function configureExpoAndLanding(app: express.Application) {
   }
 
   app.use((req: Request, res: Response, next: NextFunction) => {
-    if (req.path.startsWith("/api") || req.path === "/status") {
+    if (req.path.startsWith("/api") || req.path === "/status" || req.path === "/therapy-viral") {
       return next();
     }
 
@@ -433,7 +433,7 @@ function configureExpoAndLanding(app: express.Application) {
     const affiliateScript = `<script>(function(){var T='trumpbot-20';var L=[{k:['book','books','reading'],u:'https://www.amazon.com/s?k=trump+books&tag='+T},{k:['hat','hats','cap','make america great again'],u:'https://www.amazon.com/s?k=maga+hat&tag='+T},{k:['flag','american flag','patriotic flag'],u:'https://www.amazon.com/s?k=american+flag&tag='+T},{k:['shirt','tshirt','apparel'],u:'https://www.amazon.com/s?k=trump+shirt&tag='+T},{k:['gold','silver','bullion','invest'],u:'https://www.amazon.com/s?k=gold+coins&tag='+T},{k:['wall','border'],u:'https://www.amazon.com/s?k=build+the+wall&tag='+T},{k:['truth social','social media'],u:'https://www.amazon.com/s?k=trump+social&tag='+T}];function run(){document.querySelectorAll('[data-testid]').forEach(function(el){if(el.hasAttribute('data-aff')||el.querySelector('a'))return;var h=el.innerHTML,m=false;L.forEach(function(item){item.k.forEach(function(kw){var r=new RegExp('\\\\b'+kw+'\\\\b','gi');if(r.test(h)){h=h.replace(r,function(mt){return'<a href="'+item.u+'" target="_blank" rel="nofollow sponsored" style="color:#ff4d4d;text-decoration:underline;">'+mt+'</a>';});m=true;}});});if(m){el.innerHTML=h;el.setAttribute('data-aff','1');}});}var dt;var ob=new MutationObserver(function(){clearTimeout(dt);dt=setTimeout(run,1500);});document.addEventListener('DOMContentLoaded',function(){setTimeout(run,3000);ob.observe(document.body,{childList:true,subtree:true});});})();</script>`;
 
     app.get("/{*path}", (req: Request, res: Response, next: NextFunction) => {
-      if (req.path.startsWith("/api") || req.path === "/status" || req.path === "/manifest") {
+      if (req.path.startsWith("/api") || req.path === "/status" || req.path === "/manifest" || req.path === "/therapy-viral") {
         return next();
       }
       const platform = req.header("expo-platform");

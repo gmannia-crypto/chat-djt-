@@ -1099,17 +1099,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { plan, metadata } = req.body;
 
-      const prices: Record<string, { price: number; name: string }> = {
+      const prices: Record<string, { price: number; name: string; recurring?: boolean }> = {
         single: { price: 299, name: "Single Therapy Session" },
-        weekly: { price: 999, name: "Weekly Therapy Pass" },
-        monthly: { price: 1999, name: "VIP Monthly Therapy" },
+        weekly: { price: 999, name: "Weekly Therapy Pass", recurring: true },
+        monthly: { price: 1999, name: "VIP Monthly Therapy", recurring: true },
+        "more-time": { price: 199, name: "3 Extra Minutes with Dr. Trump" },
       };
 
       const selected = prices[plan] || prices.single;
       const stripe = await getUncachableStripeClient();
       const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
 
-      const session = await stripe.checkout.sessions.create({
+      const isViral = metadata?.source === "therapy-viral" || metadata?.type === "upsell-more-time";
+      const successPath = isViral ? "/therapy-viral" : "/therapy";
+      const cancelPath = isViral ? "/therapy-viral" : "/therapy";
+
+      const isSubscription = !!selected.recurring;
+
+      const sessionConfig: any = {
         payment_method_types: ["card"],
         line_items: [
           {
@@ -1120,19 +1127,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 description: `Trump Therapy Session - ${metadata?.problem || "Life advice"}`,
               },
               unit_amount: selected.price,
+              ...(isSubscription ? { recurring: { interval: plan === "weekly" ? "week" : "month" } } : {}),
             },
             quantity: 1,
           },
         ],
-        mode: "payment",
-        success_url: `${baseUrl}/therapy?success=true&session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${baseUrl}/therapy?canceled=true`,
+        mode: isSubscription ? "subscription" : "payment",
+        success_url: `${baseUrl}${successPath}?success=true&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${baseUrl}${cancelPath}?canceled=true`,
         metadata: {
           type: "therapy",
           plan,
+          timestamp: Date.now().toString(),
           ...(metadata || {}),
         },
-      });
+      };
+
+      if (isSubscription) {
+        sessionConfig.subscription_data = { metadata: sessionConfig.metadata };
+      }
+
+      const session = await stripe.checkout.sessions.create(sessionConfig);
 
       res.json({ id: session.id, url: session.url });
     } catch (error) {
