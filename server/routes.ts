@@ -1079,6 +1079,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/therapy/checkout", async (req, res) => {
+    try {
+      const { plan, metadata } = req.body;
+
+      const prices: Record<string, { price: number; name: string }> = {
+        single: { price: 299, name: "Single Therapy Session" },
+        weekly: { price: 999, name: "Weekly Therapy Pass" },
+        monthly: { price: 1999, name: "VIP Monthly Therapy" },
+      };
+
+      const selected = prices[plan] || prices.single;
+      const stripe = await getUncachableStripeClient();
+      const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
+
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ["card"],
+        line_items: [
+          {
+            price_data: {
+              currency: "usd",
+              product_data: {
+                name: selected.name,
+                description: `Trump Therapy Session - ${metadata?.problem || "Life advice"}`,
+              },
+              unit_amount: selected.price,
+            },
+            quantity: 1,
+          },
+        ],
+        mode: "payment",
+        success_url: `${baseUrl}/therapy?success=true&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${baseUrl}/therapy?canceled=true`,
+        metadata: {
+          type: "therapy",
+          plan,
+          ...(metadata || {}),
+        },
+      });
+
+      res.json({ id: session.id, url: session.url });
+    } catch (error) {
+      console.error("Therapy checkout error:", error);
+      res.status(500).json({ error: "Payment creation failed" });
+    }
+  });
+
   app.post("/api/stripe/fulfill", async (req, res) => {
     try {
       const { sessionId, deviceId } = req.body;
