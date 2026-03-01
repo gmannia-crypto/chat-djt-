@@ -1637,7 +1637,28 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
       res.json({ therapy, name: nameStr, seriousness: level });
     } catch (error) {
       console.error("Therapy error:", error);
-      res.status(500).json({ error: "Failed to generate therapy" });
+      const { name, problem, seriousness } = req.body;
+      const n = name || "friend";
+      const p = problem || "life";
+      const s = seriousness || "5";
+      const fallbacks = [
+        `${n}, let me tell you about ${p}. I've faced worse. Witch hunts, fake news, the whole thing. And I won. You'll win too. Believe me.`,
+        `${p}? That's nothing. I've seen problems. Real problems. But you? You're a winner. Very stable genius. Now go fix it.`,
+        `I'm looking at your situation, ${n}. On a scale of 1-10, your problem is a ${s}. Your ability to solve it? 100. You're welcome.`,
+        `The fake news would tell you ${p} is your fault. Wrong! It's their fault. Everything is their fault. Now stop whining and start winning.`,
+        `${n}, I've employed thousands. The best people. And you know what makes someone great? How they handle ${p}. And you? You're handling it beautifully. Tremendous, even.`,
+      ];
+      if (p.toLowerCase().includes("work") || p.toLowerCase().includes("job")) {
+        fallbacks.push(`Work problems? ${n}, you're underpaid. Very underpaid. I know salaries. Ask for a raise. If they say no, tell them Trump sent you.`);
+      }
+      if (p.toLowerCase().includes("love") || p.toLowerCase().includes("relationship")) {
+        fallbacks.push(`Love is complicated. I've been married three times. Great marriages. The best. But ${p}? You'll find someone. Someone tremendous.`);
+      }
+      if (p.toLowerCase().includes("money") || p.toLowerCase().includes("broke")) {
+        fallbacks.push(`Money problems? I've been broke before. Many times. And I came back richer. You will too. Invest in walls. Walls always win.`);
+      }
+      const fallback = fallbacks[Math.floor(Math.random() * fallbacks.length)];
+      res.json({ therapy: fallback, name: n, seriousness: s, fallback: true });
     }
   });
 
