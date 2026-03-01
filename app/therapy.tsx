@@ -9,8 +9,10 @@ import {
   ActivityIndicator,
   Share,
   TextInput,
+  Image,
+  Dimensions,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -25,10 +27,14 @@ import Animated, {
   withRepeat,
   withTiming,
   withSequence,
+  ZoomIn,
 } from "react-native-reanimated";
 import Colors from "@/constants/colors";
 import { getApiUrl } from "@/lib/query-client";
 import { useTokens } from "@/lib/token-context";
+
+const trumpTherapistImage = require("@/assets/images/trump-therapist.png");
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 const SERIOUSNESS_LEVELS = [
   { value: "1", label: "1 - Minor annoyance" },
@@ -49,6 +55,7 @@ export default function TherapyScreen() {
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
   const { hasTokens, deviceId, refreshBalance } = useTokens();
 
+  const [showIntro, setShowIntro] = useState(true);
   const [firstName, setFirstName] = useState("");
   const [problem, setProblem] = useState("");
   const [seriousness, setSeriousness] = useState("5");
@@ -59,8 +66,21 @@ export default function TherapyScreen() {
 
   const scrollRef = useRef<ScrollView>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
+  const introTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const pulseValue = useSharedValue(1);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      setShowIntro(true);
+      introTimerRef.current = setTimeout(() => {
+        setShowIntro(false);
+      }, 3200);
+      return () => {
+        if (introTimerRef.current) clearTimeout(introTimerRef.current);
+      };
+    }, [])
+  );
 
   React.useEffect(() => {
     pulseValue.value = withRepeat(
@@ -207,12 +227,67 @@ export default function TherapyScreen() {
 
   const selectedLevel = SERIOUSNESS_LEVELS.find(l => l.value === seriousness);
 
+  if (showIntro) {
+    return (
+      <View style={[styles.container, { justifyContent: "center", alignItems: "center", paddingTop: webTopInset, paddingBottom: webBottomInset }]}>
+        <LinearGradient
+          colors={["#0a0a0a", "#1a0505", "#0a0a0a"]}
+          style={StyleSheet.absoluteFillObject}
+        />
+        <Animated.View
+          entering={ZoomIn.duration(800).springify()}
+          style={styles.introImageWrapper}
+        >
+          <Image
+            source={trumpTherapistImage}
+            style={styles.introImage}
+            resizeMode="contain"
+          />
+        </Animated.View>
+        <Animated.Text
+          entering={FadeInDown.delay(600).duration(600)}
+          style={styles.introTitle}
+        >
+          DR. TRUMP
+        </Animated.Text>
+        <Animated.Text
+          entering={FadeInDown.delay(1000).duration(600)}
+          style={styles.introSubtitle}
+        >
+          IS READY TO SEE YOU NOW
+        </Animated.Text>
+        <Animated.View
+          entering={FadeIn.delay(1800).duration(600)}
+          style={styles.introQuote}
+        >
+          <Text style={styles.introQuoteText}>
+            "Lie down. Tell me everything."
+          </Text>
+        </Animated.View>
+        <Animated.View entering={FadeIn.delay(2400).duration(400)} style={styles.introLoader}>
+          <ActivityIndicator color="#ff4d4d" size="small" />
+        </Animated.View>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.container, { paddingTop: insets.top + webTopInset }]}>
       <LinearGradient
         colors={["#0a0a0a", "#1a0505", "#0a0a0a"]}
         style={StyleSheet.absoluteFillObject}
       />
+      <Image
+        source={trumpTherapistImage}
+        style={styles.bgImage}
+        resizeMode="cover"
+      />
+      <View style={StyleSheet.absoluteFillObject}>
+        <LinearGradient
+          colors={["rgba(10,10,10,0.7)", "rgba(26,5,5,0.85)", "rgba(10,10,10,0.95)"]}
+          style={StyleSheet.absoluteFillObject}
+        />
+      </View>
 
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
@@ -383,6 +458,64 @@ export default function TherapyScreen() {
 }
 
 const styles = StyleSheet.create({
+  introImageWrapper: {
+    width: SCREEN_WIDTH * 0.65,
+    height: SCREEN_HEIGHT * 0.38,
+    borderRadius: 20,
+    overflow: "hidden",
+    borderWidth: 3,
+    borderColor: "#ff4d4d",
+    shadowColor: "#ff4d4d",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 30,
+    elevation: 15,
+    marginBottom: 24,
+  },
+  introImage: {
+    width: "100%" as const,
+    height: "100%" as const,
+  },
+  introTitle: {
+    fontSize: 38,
+    fontWeight: "900" as const,
+    color: "#ff4d4d",
+    letterSpacing: 6,
+    textShadowColor: "rgba(255,77,77,0.8)",
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 30,
+    marginBottom: 6,
+  },
+  introSubtitle: {
+    fontSize: 16,
+    fontWeight: "700" as const,
+    color: "rgba(255,255,255,0.7)",
+    letterSpacing: 4,
+    marginBottom: 24,
+  },
+  introQuote: {
+    paddingHorizontal: 30,
+    marginBottom: 20,
+  },
+  introQuoteText: {
+    fontSize: 18,
+    color: "rgba(255,255,255,0.5)",
+    fontStyle: "italic" as const,
+    textAlign: "center" as const,
+  },
+  introLoader: {
+    marginTop: 10,
+  },
+  bgImage: {
+    position: "absolute" as const,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: "100%" as const,
+    height: "100%" as const,
+    opacity: 0.15,
+  },
   container: {
     flex: 1,
     backgroundColor: "#0a0a0a",
