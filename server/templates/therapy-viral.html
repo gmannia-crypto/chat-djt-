@@ -763,6 +763,9 @@
             trackEvent('session_start', userAnswers);
         }
 
+        var currentFollowUpIndex = 0;
+        var pendingFollowUpQuestion = null;
+
         async function generateTherapy() {
             try {
                 const response = await fetch('/api/generate-therapy', {
@@ -779,6 +782,11 @@
                 document.getElementById('sessionContent').textContent = data.therapy;
                 sessionStorage.setItem('lastTherapy', data.therapy);
                 sessionStorage.setItem('userName', userAnswers.name);
+
+                if (data.followUp) {
+                    pendingFollowUpQuestion = data.followUp;
+                    currentFollowUpIndex = data.followUpIndex || 0;
+                }
             } catch (error) {
                 document.getElementById('sessionContent').textContent = "Look, " + userAnswers.name + ", I'm going to be honest with you. Your problem with " + userAnswers.problem + "? I've seen worse. Much worse. But here's what you do - you stop thinking like a loser and start thinking like a winner. That's the Trump way. You're welcome.";
             }
@@ -789,7 +797,7 @@
             secondsLeft = 120;
 
             followUpTimeout = setTimeout(function() {
-                if (sessionActive && !followUpShown) {
+                if (sessionActive && !followUpShown && pendingFollowUpQuestion) {
                     showFollowUp();
                 }
             }, 15000);
@@ -1066,78 +1074,17 @@
             }).catch(function() {});
         }
 
-        var followUpQuestions = {
-            work: [
-                '"Your boss... are they smarter than you? Be honest."',
-                '"If you were the boss, what\'s the FIRST thing you\'d change?"',
-                '"Do your coworkers appreciate your genius? I doubt it."',
-            ],
-            love: [
-                '"Are you the problem in this relationship, or are they? Think carefully."',
-                '"What would you do if I told you to just walk away?"',
-                '"Do they know how lucky they are to have you?"',
-            ],
-            money: [
-                '"If I gave you a million dollars right now, what\'s the first thing you\'d do?"',
-                '"Who taught you about money? Because they did a terrible job."',
-                '"Are you a spender or a saver? Wrong answer means you\'re fired."',
-            ],
-            stress: [
-                '"What\'s the ONE thing keeping you up at night?"',
-                '"If you could fire one person from your life, who would it be?"',
-                '"Do you exercise? Winners exercise. Losers sit on the couch."',
-            ],
-            general: [
-                '"What would you do if you had absolutely no fear?"',
-                '"Who do you blame for this mess? Be specific."',
-                '"If I endorsed you right now, would that fix things?"',
-                '"Are you a winner or a loser? There\'s only two options."',
-                '"What\'s the biggest deal you\'ve ever closed in your life?"',
-            ]
-        };
-
-        var followUpResponses = {
-            short: [
-                '"That\'s it? Low energy answer. But I\'ll work with it."',
-                '"Hmm. Not great, not terrible. Like a C-minus president. But I\'m an A+."',
-                '"Short and sweet. I respect that. I don\'t do it, but I respect it."',
-            ],
-            long: [
-                '"Wow, you really opened up there. I\'m impressed. Not easily impressed, but impressed."',
-                '"That was a lot of words. Many words. Almost as many as me. Almost."',
-                '"I can see you\'re passionate about this. Channel that energy. Be tremendous."',
-            ],
-            positive: [
-                '"Now THAT\'S what I like to hear! You\'re thinking like a winner!"',
-                '"See? You already know the answer. You just needed Dr. Trump to unlock it."',
-                '"Tremendous answer. I might hire you. Maybe. We\'ll see."',
-            ],
-            negative: [
-                '"Look, things are tough. But tough times make tough people. And you? You\'re getting tougher."',
-                '"I hear the pain. But pain is temporary. Winning is forever. Remember that."',
-                '"That\'s rough. But you know what? The comeback is always greater than the setback."',
-            ]
-        };
-
-        function getFollowUpCategory() {
-            var p = userAnswers.problem.toLowerCase();
-            if (/work|job|boss|career|coworker/i.test(p)) return 'work';
-            if (/love|relationship|dating|marriage|partner|girlfriend|boyfriend/i.test(p)) return 'love';
-            if (/money|broke|debt|finance|salary|bills/i.test(p)) return 'money';
-            if (/stress|anxiety|worry|nervous|overwhelm/i.test(p)) return 'stress';
-            return 'general';
-        }
-
         function showFollowUp() {
             followUpShown = true;
-            var category = getFollowUpCategory();
-            var questions = followUpQuestions[category];
-            var question = questions[Math.floor(Math.random() * questions.length)];
+
+            var question = pendingFollowUpQuestion;
+            if (!question) return;
 
             document.getElementById('followUpQuestion').textContent = question;
             document.getElementById('followUpContainer').style.display = 'block';
             document.getElementById('followUpInputGroup').style.display = 'block';
             document.getElementById('followUpResponse').style.display = 'none';
+            document.getElementById('followUpAnswer').value = '';
 
             document.getElementById('followUpIndicator').style.display = 'block';
             setTimeout(function() {
@@ -1145,40 +1092,62 @@
             }, 5000);
 
             document.getElementById('followUpContainer').scrollIntoView({ behavior: 'smooth', block: 'center' });
-            trackEvent('follow_up_shown', { category: category });
+            trackEvent('follow_up_shown', { index: currentFollowUpIndex });
         }
 
-        function submitFollowUp() {
+        async function submitFollowUp() {
             var answer = document.getElementById('followUpAnswer').value.trim();
             if (!answer) {
                 alert('Dr. Trump needs an answer!');
                 return;
             }
 
-            document.getElementById('followUpInputGroup').style.display = 'none';
+            var sendBtn = document.querySelector('#followUpInputGroup .next-btn');
+            if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = 'Thinking...'; }
 
-            var responseType;
-            if (answer.length < 20) {
-                responseType = 'short';
-            } else if (answer.length > 100) {
-                responseType = 'long';
-            } else if (/good|great|happy|love|win|success|better|hope|yes/i.test(answer)) {
-                responseType = 'positive';
-            } else {
-                responseType = 'negative';
+            try {
+                var response = await fetch('/api/generate-therapy', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: userAnswers.name,
+                        problem: userAnswers.problem,
+                        seriousness: userAnswers.seriousness,
+                        previousAnswer: answer,
+                        followUpIndex: currentFollowUpIndex
+                    })
+                });
+
+                var data = await response.json();
+
+                document.getElementById('followUpInputGroup').style.display = 'none';
+
+                var responseEl = document.getElementById('followUpResponse');
+                responseEl.textContent = data.message || ('Interesting, ' + userAnswers.name + '. Very interesting.');
+                responseEl.style.display = 'block';
+                responseEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+                if (data.nextQuestion && sessionActive) {
+                    currentFollowUpIndex = data.followUpIndex;
+                    pendingFollowUpQuestion = data.nextQuestion;
+
+                    setTimeout(function() {
+                        if (sessionActive && pendingFollowUpQuestion) {
+                            followUpShown = false;
+                            showFollowUp();
+                        }
+                    }, 8000);
+                }
+
+                trackEvent('follow_up_answered', { answerLength: answer.length, index: currentFollowUpIndex });
+            } catch (err) {
+                document.getElementById('followUpInputGroup').style.display = 'none';
+                var responseEl = document.getElementById('followUpResponse');
+                responseEl.textContent = 'Interesting, ' + userAnswers.name + '. Very interesting. We\'re making progress.';
+                responseEl.style.display = 'block';
             }
 
-            var responses = followUpResponses[responseType];
-            var response = responses[Math.floor(Math.random() * responses.length)];
-
-            var personalResponse = response + ' ' + userAnswers.name + ', you\'re going to be fine. Trust me.';
-
-            var responseEl = document.getElementById('followUpResponse');
-            responseEl.textContent = personalResponse;
-            responseEl.style.display = 'block';
-            responseEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-            trackEvent('follow_up_answered', { answerLength: answer.length, responseType: responseType });
+            if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'SEND ANSWER'; }
         }
 
         function skipFollowUp() {
@@ -1186,7 +1155,7 @@
             var responseEl = document.getElementById('followUpResponse');
             responseEl.textContent = '"Skipping my question? That takes guts. Or stupidity. Either way, ' + userAnswers.name + ', I respect the hustle."';
             responseEl.style.display = 'block';
-            trackEvent('follow_up_skipped', {});
+            trackEvent('follow_up_skipped', { index: currentFollowUpIndex });
         }
 
         window.onload = init;

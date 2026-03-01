@@ -1162,9 +1162,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
+  function pickRandom(arr: string[]) {
+    return arr[Math.floor(Math.random() * arr.length)];
+  }
+
+  function getFirstFollowUp(problem: string, name: string): string {
+    const p = problem.toLowerCase();
+    if (/work|job|boss|career|coworker/i.test(p)) {
+      return `${name}, tell me more about this job situation. Are your bosses stupid? Be honest.`;
+    }
+    if (/love|relationship|dating|marriage|partner|girlfriend|boyfriend/i.test(p)) {
+      return `${name}, is this person worth it? I've been with some incredible people. The best. Is this one of the best?`;
+    }
+    if (/money|broke|debt|finance|salary|bills/i.test(p)) {
+      return `${name}, how much money are we talking? Millions? Billions? Or just... sad amounts?`;
+    }
+    return pickRandom([
+      `${name}, when did this problem start? Before I was president or after? Important context.`,
+      `Be honest with me, ${name}. Is this YOUR fault or someone else's? It's usually someone else's.`,
+      `${name}, on a scale of 1-10, how much does this keep you up at night? I sleep great, by the way.`,
+      `Tell me, ${name}, have you tried winning? It works for me. Every time.`,
+    ]);
+  }
+
+  function getNextFollowUp(name: string, index: number): string | null {
+    if (index >= 3) return null;
+    const followUps = [
+      `One more thing, ${name} - do you think about this every day?`,
+      `Last question, ${name}, I promise - what would make this problem go away completely?`,
+      `Final thought - do you believe you can fix this yourself, ${name}, or do you need help from someone like me?`,
+    ];
+    return followUps[index] || null;
+  }
+
+  function generateFollowUpResponse(name: string, problem: string, answer: string, index: number): string {
+    const a = answer.toLowerCase();
+    if (/\byes\b/i.test(a)) {
+      return `"Yes"? I like yes-people. Very smart. ${name}, you're making progress already. Tremendous.`;
+    }
+    if (/\bno\b/i.test(a)) {
+      return `"No"? That's what the fake news says. But I know better. ${name}, think again. Are you REALLY sure?`;
+    }
+    if (/boss|manager|supervisor/i.test(a)) {
+      return `Bosses! I know bosses. Most are weak. Very weak. ${name}, you should be the boss. I can tell. You have the look.`;
+    }
+    if (/money|dollar|pay|salary/i.test(a)) {
+      return `Money! We're talking about money now. ${name}, I love money. The best money. You're going to have so much money. Believe me.`;
+    }
+    if (/love|heart|feel|miss/i.test(a)) {
+      return `Feelings! Very important. ${name}, I have the best feelings. Huge feelings. Your feelings are valid. But mine are better.`;
+    }
+    const defaults = [
+      `Interesting, ${name}. Very interesting. I'm learning a lot about you. You're complicated. Like me.`,
+      `That's exactly what I thought. I knew it. I always know. ${name}, we're making progress.`,
+      `I've heard enough. ${name}, you're going to be fine. Better than fine. Tremendous. But one more thing...`,
+      `${name}, based on what you just told me, I'm changing my diagnosis. You're actually doing great.`,
+    ];
+    return defaults[index % defaults.length];
+  }
+
   app.post("/api/generate-therapy", (req, res) => {
-    const { name = "Friend", problem = "life", seriousness = "5" } = req.body;
+    const { name = "Friend", problem = "life", seriousness = "5", previousAnswer, followUpIndex } = req.body;
     const s = parseInt(seriousness as string) || 5;
+    const idx = parseInt(followUpIndex as string) || 0;
+
+    if (previousAnswer) {
+      const message = generateFollowUpResponse(name, problem, previousAnswer, idx);
+      const nextQuestion = getNextFollowUp(name, idx + 1);
+      return res.json({
+        type: "follow-up-response",
+        message,
+        nextQuestion,
+        followUpIndex: idx + 1,
+      });
+    }
 
     const templates = [
       `${name}, let me tell you about ${problem}. I've faced worse. Witch hunts, fake news, the whole thing. And I won. On a scale of 1-10, your problem is a ${s}. My advice? Be like me. Win.`,
@@ -1199,8 +1270,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       templates.push(`A ${s}? That's low energy. ${name}, you're worrying about nothing. Go have a steak. Watch my speeches. You'll feel better.`);
     }
 
-    const response = templates[Math.floor(Math.random() * templates.length)];
-    res.json({ therapy: response });
+    const therapy = pickRandom(templates);
+    const followUp = getFirstFollowUp(problem, name);
+
+    res.json({ therapy, followUp, followUpIndex: 0 });
   });
 
   app.post("/api/therapy/checkout", async (req, res) => {

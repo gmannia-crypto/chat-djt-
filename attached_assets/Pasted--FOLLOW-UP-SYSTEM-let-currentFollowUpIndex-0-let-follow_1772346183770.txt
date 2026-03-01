@@ -1,0 +1,222 @@
+// ================= FOLLOW-UP SYSTEM =================
+let currentFollowUpIndex = 0;
+let followUpActive = false;
+let followUpQuestions = [];
+let currentFollowUpQuestion = '';
+
+// Modify your startTherapy function to handle follow-ups
+async function startTherapy() {
+    // Save final answers
+    userAnswers.name = document.getElementById('q1').value.trim() || 'Friend';
+    userAnswers.problem = document.getElementById('q2').value.trim() || 'life';
+    userAnswers.seriousness = document.getElementById('q3').value;
+    
+    // Hide questions
+    document.getElementById('question3').style.display = 'none';
+    
+    // Show session container
+    document.getElementById('sessionContainer').style.display = 'block';
+    
+    // Generate therapy WITH follow-up
+    await generateTherapyWithFollowUp();
+    
+    // Start timer
+    startTimer();
+    
+    // Track session start
+    trackEvent('session_start', userAnswers);
+}
+
+// Updated therapy generation
+async function generateTherapyWithFollowUp() {
+    const response = await fetch('/api/generate-therapy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userAnswers)
+    });
+    
+    const data = await response.json();
+    
+    // Display initial therapy
+    document.getElementById('sessionContent').textContent = data.therapy;
+    
+    // Store for sharing
+    sessionStorage.setItem('lastTherapy', data.therapy);
+    sessionStorage.setItem('userName', userAnswers.name);
+    
+    // If there's a follow-up question, prepare it
+    if (data.followUp) {
+        followUpQuestions = [data.followUp];
+        currentFollowUpQuestion = data.followUp;
+        currentFollowUpIndex = data.followUpIndex || 0;
+        
+        // Show follow-up container after a delay
+        setTimeout(() => {
+            showFollowUp();
+        }, 8000); // Show after 8 seconds
+    }
+}
+
+function showFollowUp() {
+    if (!followUpActive && currentFollowUpQuestion) {
+        document.getElementById('followUpContainer').style.display = 'block';
+        document.getElementById('followUpQuestion').textContent = '"' + currentFollowUpQuestion + '"';
+        document.getElementById('followUpIndicator').style.display = 'block';
+        followUpActive = true;
+        
+        // Scroll to follow-up
+        document.getElementById('followUpContainer').scrollIntoView({ behavior: 'smooth' });
+    }
+}
+
+async function submitFollowUp() {
+    const answer = document.getElementById('followUpAnswer').value.trim();
+    
+    if (!answer) {
+        alert('Dr. Trump asked you a question!');
+        return;
+    }
+    
+    // Show loading
+    document.getElementById('followUpAnswer').disabled = true;
+    document.querySelector('button[onclick="submitFollowUp()"]').textContent = '⏳ TRUMP IS THINKING...';
+    
+    try {
+        // Send answer to get follow-up response
+        const response = await fetch('/api/generate-therapy', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: userAnswers.name,
+                problem: userAnswers.problem,
+                seriousness: userAnswers.seriousness,
+                previousAnswer: answer,
+                followUpIndex: currentFollowUpIndex
+            })
+        });
+        
+        const data = await response.json();
+        
+        // Show Trump's response to answer
+        document.getElementById('followUpResponse').style.display = 'block';
+        document.getElementById('followUpResponse').innerHTML = `
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                <span style="font-size: 20px;">🗣️</span>
+                <span style="color: #4dff4d; font-weight: bold;">DR. TRUMP RESPONDS:</span>
+            </div>
+            <div style="font-size: 18px; font-style: italic;">"${data.message}"</div>
+        `;
+        
+        // Store this exchange for sharing
+        storeExchange(currentFollowUpQuestion, answer, data.message);
+        
+        // Check for next question
+        if (data.nextQuestion) {
+            currentFollowUpIndex++;
+            currentFollowUpQuestion = data.nextQuestion;
+            
+            // Prepare for next question
+            setTimeout(() => {
+                document.getElementById('followUpAnswer').value = '';
+                document.getElementById('followUpAnswer').disabled = false;
+                document.getElementById('followUpResponse').style.display = 'none';
+                document.getElementById('followUpQuestion').textContent = '"' + currentFollowUpQuestion + '"';
+                document.querySelector('button[onclick="submitFollowUp()"]').textContent = '📤 SEND ANSWER';
+                
+                // Show indicator
+                document.getElementById('followUpIndicator').innerHTML = '🔄 Trump has another question...';
+                setTimeout(() => {
+                    document.getElementById('followUpIndicator').innerHTML = '🔄 Trump wants to ask you something...';
+                }, 3000);
+            }, 4000);
+        } else {
+            // No more questions - wrap up
+            setTimeout(() => {
+                document.getElementById('followUpContainer').style.borderColor = '#4dff4d';
+                document.getElementById('followUpQuestion').innerHTML = `
+                    "That's all, ${userAnswers.name}. You did good. Really good. Now go win."
+                `;
+                document.getElementById('followUpIndicator').style.display = 'none';
+                
+                // Add wrap-up to share section
+                addWrapUpToShare();
+            }, 4000);
+        }
+        
+        // Track engagement
+        trackEvent('follow_up_answer', { 
+            question: currentFollowUpQuestion,
+            answerLength: answer.length,
+            index: currentFollowUpIndex
+        });
+        
+    } catch (error) {
+        alert('Sorry, Dr. Trump is busy. Try again.');
+        document.getElementById('followUpAnswer').disabled = false;
+        document.querySelector('button[onclick="submitFollowUp()"]').textContent = '📤 SEND ANSWER';
+    }
+}
+
+function skipFollowUp() {
+    if (confirm("Skip Dr. Trump's question? He might be disappointed...")) {
+        document.getElementById('followUpContainer').style.display = 'none';
+        document.getElementById('followUpIndicator').style.display = 'none';
+        trackEvent('follow_up_skipped', { index: currentFollowUpIndex });
+    }
+}
+
+function storeExchange(question, answer, response) {
+    let exchanges = JSON.parse(sessionStorage.getItem('exchanges') || '[]');
+    exchanges.push({ question, answer, response });
+    sessionStorage.setItem('exchanges', JSON.stringify(exchanges));
+}
+
+function addWrapUpToShare() {
+    const exchanges = JSON.parse(sessionStorage.getItem('exchanges') || '[]');
+    
+    if (exchanges.length > 0) {
+        // Add a new share snippet based on the conversation
+        const lastExchange = exchanges[exchanges.length - 1];
+        const snippetGrid = document.getElementById('snippetGrid');
+        
+        const exchangeCard = document.createElement('div');
+        exchangeCard.className = 'snippet-card';
+        exchangeCard.onclick = () => shareExchange(exchanges.length - 1);
+        exchangeCard.innerHTML = `
+            <div class="snippet-text">"I told Trump: '${lastExchange.answer.substring(0, 60)}...' and he said..."</div>
+            <div class="snippet-share">🔁 Share this exchange</div>
+        `;
+        
+        snippetGrid.insertBefore(exchangeCard, snippetGrid.firstChild);
+    }
+}
+
+function shareExchange(index) {
+    const exchanges = JSON.parse(sessionStorage.getItem('exchanges') || '[]');
+    const exchange = exchanges[index];
+    
+    const text = encodeURIComponent(`I told Trump: "${exchange.answer.substring(0, 80)}" and he responded: "${exchange.response.substring(0, 80)}..." Get your therapy at trumpbot.rip 🔥`);
+    const url = encodeURIComponent('https://trumpbot.rip/therapy?ref=' + userAnswers.name);
+    
+    window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank');
+    
+    trackEvent('share_exchange', { index });
+}
+
+// Modify your timer to pause during follow-ups
+const originalTimerFunction = startTimer;
+startTimer = function() {
+    originalTimerFunction();
+    
+    // Pause timer when follow-up appears
+    const originalInterval = sessionTimer;
+    
+    // Add pause/resume on follow-up
+    window.pauseTimer = function() {
+        clearInterval(sessionTimer);
+    };
+    
+    window.resumeTimer = function() {
+        startTimer();
+    };
+};
