@@ -1,0 +1,115 @@
+// api/generate-therapy.js (UPDATED with follow-ups)
+export default async function handler(req, res) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    
+    if (req.method !== 'POST') {
+        return res.status(405).json({ error: 'Method not allowed' });
+    }
+    
+    const { name, problem, seriousness, previousAnswer, followUpIndex } = req.body;
+    const s = parseInt(seriousness) || 5;
+    
+    // If this is a follow-up response
+    if (previousAnswer) {
+        const followUpResponse = generateFollowUpResponse(name, problem, previousAnswer, followUpIndex);
+        return res.json({ 
+            type: 'follow-up-response',
+            message: followUpResponse,
+            nextQuestion: getNextFollowUp(problem, followUpIndex + 1)
+        });
+    }
+    
+    // Original therapy generation (first response)
+    const therapy = generateInitialTherapy(name, problem, s);
+    
+    // Get first follow-up question based on context
+    const firstFollowUp = getFirstFollowUp(problem, name);
+    
+    res.json({ 
+        therapy,
+        followUp: firstFollowUp,
+        followUpIndex: 0
+    });
+}
+
+function generateInitialTherapy(name, problem, seriousness) {
+    const templates = [
+        `${name}, let me tell you about ${problem}. I've faced worse. Witch hunts, fake news, the whole thing. And I won. On a scale of 1-10, your problem is a ${seriousness}. My advice? Be like me. Win.`,
+        
+        `${problem}? That's nothing. I've seen problems. Real problems. But you? You're a winner. Very stable genius. Now go fix it.`,
+        
+        `I'm looking at your situation, ${name}. ${problem} is serious. Very serious. But here's the thing - you're smarter than them. You're stronger.`
+    ];
+    
+    return templates[Math.floor(Math.random() * templates.length)];
+}
+
+function getFirstFollowUp(problem, name) {
+    // Context-aware follow-up questions
+    if (problem.toLowerCase().includes('work') || problem.toLowerCase().includes('job')) {
+        return `${name}, tell me more about this job situation. Are your bosses stupid? Be honest.`;
+    }
+    
+    if (problem.toLowerCase().includes('love') || problem.toLowerCase().includes('relationship')) {
+        return `${name}, is this person worth it? I've been with some incredible people. The best. Is this one of the best?`;
+    }
+    
+    if (problem.toLowerCase().includes('money') || problem.toLowerCase().includes('broke')) {
+        return `${name}, how much money are we talking? Millions? Billions? Or just... sad amounts?`;
+    }
+    
+    // Generic follow-ups
+    const generics = [
+        `${name}, when did this problem start? Before I was president or after? Important context.`,
+        `Be honest with me, ${name}. Is this YOUR fault or someone else's? It's usually someone else's.`,
+        `${name}, on a scale of 1-10, how much does this keep you up at night? I sleep great, by the way.`,
+        `Tell me, ${name}, have you tried winning? It works for me. Every time.`
+    ];
+    
+    return generics[Math.floor(Math.random() * generics.length)];
+}
+
+function generateFollowUpResponse(name, problem, answer, index) {
+    // Generate response based on user's answer
+    const answerLower = answer.toLowerCase();
+    
+    // Check for keywords in answer
+    if (answerLower.includes('yes')) {
+        return `"Yes"? I like yes-people. Very smart. ${name}, you're making progress already. Tremendous.`;
+    }
+    
+    if (answerLower.includes('no')) {
+        return `"No"? That's what the fake news says. But I know better. ${name}, think again. Are you REALLY sure?`;
+    }
+    
+    if (answerLower.includes('boss') || answerLower.includes('manager')) {
+        return `Bosses! I know bosses. Most are weak. Very weak. ${name}, you should be the boss. I can tell. You have the look.`;
+    }
+    
+    if (answerLower.includes('money') || answerLower.includes('dollar')) {
+        return `Money! We're talking about money now. ${name}, I love money. The best money. You're going to have so much money. Believe me.`;
+    }
+    
+    // Default responses based on index
+    const responses = [
+        `Interesting, ${name}. Very interesting. I'm learning a lot about you. You're complicated. Like me.`,
+        `That's exactly what I thought. I knew it. I always know. ${name}, we're making progress.`,
+        `I've heard enough. ${name}, you're going to be fine. Better than fine. Tremendous. But one more thing...`,
+        `${name}, based on what you just told me, I'm changing my diagnosis. You're actually doing great.`
+    ];
+    
+    return responses[index % responses.length];
+}
+
+function getNextFollowUp(problem, index) {
+    // Cycle through 2-3 follow-ups max
+    if (index >= 3) return null;
+    
+    const followUps = [
+        `${name ? 'One more thing' : 'Tell me more'} – do you think about this every day?`,
+        `Last question, I promise – what would make this problem go away completely?`,
+        `Final thought – do you believe you can fix this yourself or do you need help from someone like me?`
+    ];
+    
+    return followUps[index];
+}

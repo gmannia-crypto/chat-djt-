@@ -594,6 +594,27 @@
 
                 <div class="session-content" id="sessionContent"></div>
 
+                <div id="followUpContainer" style="margin-top: 30px; display: none;">
+                    <div style="background: #2a2a2a; border: 2px solid #ff4d4d; border-radius: 15px; padding: 20px;">
+                        <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
+                            <span style="font-size: 30px;">&#x1f5e3;&#xfe0f;</span>
+                            <span style="color: #ff4d4d; font-weight: bold;">DR. TRUMP ASKS:</span>
+                        </div>
+
+                        <div id="followUpQuestion" style="font-size: 20px; margin-bottom: 20px; padding: 15px; background: #333; border-radius: 10px; border-left: 5px solid #ff4d4d;"></div>
+
+                        <div id="followUpInputGroup">
+                            <textarea id="followUpAnswer" class="question-input" placeholder="Type your answer..." style="min-height: 80px;"></textarea>
+                            <div style="display: flex; gap: 10px; margin-top: 15px;">
+                                <button onclick="submitFollowUp()" class="next-btn" style="flex: 2;">&#x1f4e4; SEND ANSWER</button>
+                                <button onclick="skipFollowUp()" class="next-btn" style="flex: 1; background: #333; border: 1px solid #ff4d4d;">SKIP</button>
+                            </div>
+                        </div>
+
+                        <div id="followUpResponse" style="display: none; margin-top: 20px; padding: 15px; background: #333; border-left: 5px solid #4dff4d; border-radius: 8px;"></div>
+                    </div>
+                </div>
+
                 <div class="share-section" id="shareSection" style="display: none;">
                     <div class="share-title">&#x1f525; SHARE YOUR THERAPY SNIPPET &#x1f525;</div>
                     <div class="snippet-grid" id="snippetGrid"></div>
@@ -662,6 +683,8 @@
         </div>
     </div>
 
+    <div id="followUpIndicator" style="position: fixed; bottom: 20px; left: 20px; background: #ff4d4d; color: white; padding: 8px 15px; border-radius: 30px; font-size: 14px; font-weight: bold; display: none; z-index: 1000; animation: pulse 2s infinite;">&#x1f504; Trump wants to ask you something...</div>
+
     <div id="viralBadge" style="display: none;"></div>
 
     <script>
@@ -674,6 +697,8 @@
         let sessionId = 'sess_' + Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
         let currentPlan = 'single';
         let upsellShown = false;
+        let followUpShown = false;
+        let followUpTimeout = null;
         let deviceId = localStorage.getItem('trumpbot_device_id');
 
         if (!deviceId) {
@@ -762,6 +787,12 @@
         function startTimer() {
             sessionActive = true;
             secondsLeft = 120;
+
+            followUpTimeout = setTimeout(function() {
+                if (sessionActive && !followUpShown) {
+                    showFollowUp();
+                }
+            }, 15000);
 
             sessionTimer = setInterval(function() {
                 secondsLeft--;
@@ -1033,6 +1064,129 @@
                     timestamp: Date.now()
                 })
             }).catch(function() {});
+        }
+
+        var followUpQuestions = {
+            work: [
+                '"Your boss... are they smarter than you? Be honest."',
+                '"If you were the boss, what\'s the FIRST thing you\'d change?"',
+                '"Do your coworkers appreciate your genius? I doubt it."',
+            ],
+            love: [
+                '"Are you the problem in this relationship, or are they? Think carefully."',
+                '"What would you do if I told you to just walk away?"',
+                '"Do they know how lucky they are to have you?"',
+            ],
+            money: [
+                '"If I gave you a million dollars right now, what\'s the first thing you\'d do?"',
+                '"Who taught you about money? Because they did a terrible job."',
+                '"Are you a spender or a saver? Wrong answer means you\'re fired."',
+            ],
+            stress: [
+                '"What\'s the ONE thing keeping you up at night?"',
+                '"If you could fire one person from your life, who would it be?"',
+                '"Do you exercise? Winners exercise. Losers sit on the couch."',
+            ],
+            general: [
+                '"What would you do if you had absolutely no fear?"',
+                '"Who do you blame for this mess? Be specific."',
+                '"If I endorsed you right now, would that fix things?"',
+                '"Are you a winner or a loser? There\'s only two options."',
+                '"What\'s the biggest deal you\'ve ever closed in your life?"',
+            ]
+        };
+
+        var followUpResponses = {
+            short: [
+                '"That\'s it? Low energy answer. But I\'ll work with it."',
+                '"Hmm. Not great, not terrible. Like a C-minus president. But I\'m an A+."',
+                '"Short and sweet. I respect that. I don\'t do it, but I respect it."',
+            ],
+            long: [
+                '"Wow, you really opened up there. I\'m impressed. Not easily impressed, but impressed."',
+                '"That was a lot of words. Many words. Almost as many as me. Almost."',
+                '"I can see you\'re passionate about this. Channel that energy. Be tremendous."',
+            ],
+            positive: [
+                '"Now THAT\'S what I like to hear! You\'re thinking like a winner!"',
+                '"See? You already know the answer. You just needed Dr. Trump to unlock it."',
+                '"Tremendous answer. I might hire you. Maybe. We\'ll see."',
+            ],
+            negative: [
+                '"Look, things are tough. But tough times make tough people. And you? You\'re getting tougher."',
+                '"I hear the pain. But pain is temporary. Winning is forever. Remember that."',
+                '"That\'s rough. But you know what? The comeback is always greater than the setback."',
+            ]
+        };
+
+        function getFollowUpCategory() {
+            var p = userAnswers.problem.toLowerCase();
+            if (/work|job|boss|career|coworker/i.test(p)) return 'work';
+            if (/love|relationship|dating|marriage|partner|girlfriend|boyfriend/i.test(p)) return 'love';
+            if (/money|broke|debt|finance|salary|bills/i.test(p)) return 'money';
+            if (/stress|anxiety|worry|nervous|overwhelm/i.test(p)) return 'stress';
+            return 'general';
+        }
+
+        function showFollowUp() {
+            followUpShown = true;
+            var category = getFollowUpCategory();
+            var questions = followUpQuestions[category];
+            var question = questions[Math.floor(Math.random() * questions.length)];
+
+            document.getElementById('followUpQuestion').textContent = question;
+            document.getElementById('followUpContainer').style.display = 'block';
+            document.getElementById('followUpInputGroup').style.display = 'block';
+            document.getElementById('followUpResponse').style.display = 'none';
+
+            document.getElementById('followUpIndicator').style.display = 'block';
+            setTimeout(function() {
+                document.getElementById('followUpIndicator').style.display = 'none';
+            }, 5000);
+
+            document.getElementById('followUpContainer').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            trackEvent('follow_up_shown', { category: category });
+        }
+
+        function submitFollowUp() {
+            var answer = document.getElementById('followUpAnswer').value.trim();
+            if (!answer) {
+                alert('Dr. Trump needs an answer!');
+                return;
+            }
+
+            document.getElementById('followUpInputGroup').style.display = 'none';
+
+            var responseType;
+            if (answer.length < 20) {
+                responseType = 'short';
+            } else if (answer.length > 100) {
+                responseType = 'long';
+            } else if (/good|great|happy|love|win|success|better|hope|yes/i.test(answer)) {
+                responseType = 'positive';
+            } else {
+                responseType = 'negative';
+            }
+
+            var responses = followUpResponses[responseType];
+            var response = responses[Math.floor(Math.random() * responses.length)];
+
+            var personalResponse = response + ' ' + userAnswers.name + ', you\'re going to be fine. Trust me.';
+
+            var responseEl = document.getElementById('followUpResponse');
+            responseEl.textContent = personalResponse;
+            responseEl.style.display = 'block';
+            responseEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+            trackEvent('follow_up_answered', { answerLength: answer.length, responseType: responseType });
+        }
+
+        function skipFollowUp() {
+            document.getElementById('followUpInputGroup').style.display = 'none';
+            var responseEl = document.getElementById('followUpResponse');
+            responseEl.textContent = '"Skipping my question? That takes guts. Or stupidity. Either way, ' + userAnswers.name + ', I respect the hustle."';
+            responseEl.style.display = 'block';
+            trackEvent('follow_up_skipped', {});
         }
 
         window.onload = init;
