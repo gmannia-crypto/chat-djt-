@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trump Therapy - 3 Questions with Dr. Trump</title>
+    <meta property="og:title" content="Trump Therapy - Get Life Advice from Dr. Trump">
+    <meta property="og:description" content="3 questions. 2 minutes. Life-changing advice from Dr. Trump himself.">
+    <meta property="og:type" content="website">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #0a0a0a;
+            font-family: 'Arial', sans-serif;
+            color: white;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .viral-header {
+            text-align: center;
+            margin-bottom: 30px;
+            position: relative;
+        }
+
+        .viral-header h1 {
+            color: #ff4d4d;
+            font-size: 48px;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            text-shadow: 0 0 20px rgba(255, 75, 75, 0.5);
+            margin-bottom: 10px;
+        }
+
+        .viral-header .subhead {
+            color: #888;
+            font-size: 18px;
+            font-style: italic;
+        }
+
+        .live-counter {
+            display: inline-block;
+            background: #ff4d4d;
+            color: white;
+            padding: 8px 20px;
+            border-radius: 30px;
+            font-size: 14px;
+            font-weight: bold;
+            margin-top: 15px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+
+        .social-proof {
+            display: flex;
+            justify-content: space-around;
+            background: linear-gradient(90deg, #ff4d4d20, #ff4d4d40, #ff4d4d20);
+            border: 1px solid #ff4d4d;
+            border-radius: 50px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+
+        .proof-item {
+            text-align: center;
+        }
+
+        .proof-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #ff4d4d;
+        }
+
+        .proof-label {
+            font-size: 12px;
+            color: #ccc;
+        }
+
+        .therapy-card {
+            background: linear-gradient(145deg, #1a1a1a 0%, #2d2d2d 100%);
+            border: 2px solid #ff4d4d;
+            border-radius: 20px;
+            padding: 30px;
+            margin: 30px 0;
+            box-shadow: 0 10px 40px rgba(255, 0, 0, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .trump-quote {
+            font-size: 20px;
+            color: #ff4d4d;
+            text-align: center;
+            margin-bottom: 30px;
+            font-style: italic;
+            border-bottom: 1px solid #333;
+            padding-bottom: 20px;
+        }
+
+        .progress-container {
+            margin-bottom: 30px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 10px;
+            background: #333;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff4d4d, #ff9999);
+            transition: width 0.3s ease;
+            border-radius: 10px;
+        }
+
+        .question-counter {
+            text-align: right;
+            color: #888;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
+        .question-container {
+            transition: all 0.3s ease;
+        }
+
+        .question-number {
+            color: #ff4d4d;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 10px;
+        }
+
+        .question-text {
+            font-size: 24px;
+            margin-bottom: 25px;
+            line-height: 1.4;
+        }
+
+        .question-input {
+            width: 100%;
+            padding: 18px;
+            background: #333;
+            border: 2px solid #ff4d4d;
+            border-radius: 10px;
+            color: white;
+            font-size: 18px;
+            transition: all 0.2s;
+        }
+
+        .question-input:focus {
+            outline: none;
+            box-shadow: 0 0 20px rgba(255, 75, 75, 0.5);
+            border-color: #ff9999;
+        }
+
+        textarea.question-input {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        .next-btn {
+            background: #ff4d4d;
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 18px;
+            border-radius: 50px;
+            cursor: pointer;
+            margin-top: 25px;
+            font-weight: bold;
+            transition: all 0.2s;
+            width: 100%;
+        }
+
+        .next-btn:hover {
+            background: #cc0000;
+            transform: scale(1.02);
+            box-shadow: 0 5px 20px rgba(255, 75, 75, 0.5);
+        }
+
+        .next-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .timer-container {
+            text-align: center;
+            margin: 20px 0;
+            padding: 20px;
+            background: #1a1a1a;
+            border-radius: 15px;
+            border: 1px solid #333;
+        }
+
+        .timer-label {
+            color: #888;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .timer-display {
+            font-size: 48px;
+            font-weight: bold;
+            color: #4dff4d;
+            font-family: monospace;
+            margin: 10px 0;
+            text-shadow: 0 0 10px #4dff4d40;
+        }
+
+        .timer-display.warning {
+            color: #ff4d4d;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .session-content {
+            font-size: 20px;
+            line-height: 1.8;
+            margin: 25px 0;
+            padding: 25px;
+            background: #333;
+            border-left: 5px solid #ff4d4d;
+            border-radius: 10px;
+            white-space: pre-line;
+        }
+
+        .upsell-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.9);
+            z-index: 10000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .upsell-modal.active {
+            display: flex;
+        }
+
+        .upsell-content {
+            background: linear-gradient(145deg, #1a1a1a, #2d2d2d);
+            border: 3px solid #ff4d4d;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 500px;
+            text-align: center;
+            position: relative;
+            animation: slideUp 0.5s;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .upsell-close {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            color: #888;
+            font-size: 30px;
+            cursor: pointer;
+        }
+
+        .upsell-close:hover {
+            color: #ff4d4d;
+        }
+
+        .upsell-icon {
+            font-size: 60px;
+            margin-bottom: 20px;
+        }
+
+        .upsell-title {
+            color: #ff4d4d;
+            font-size: 32px;
+            margin-bottom: 15px;
+        }
+
+        .upsell-price {
+            font-size: 48px;
+            font-weight: bold;
+            color: white;
+            margin: 20px 0;
+        }
+
+        .upsell-price small {
+            font-size: 18px;
+            color: #888;
+        }
+
+        .upsell-features {
+            list-style: none;
+            margin: 25px 0;
+        }
+
+        .upsell-features li {
+            margin: 10px 0;
+            color: #ccc;
+        }
+
+        .upsell-btn {
+            background: linear-gradient(145deg, #ff4d4d, #cc0000);
+            color: white;
+            border: none;
+            padding: 18px 40px;
+            font-size: 22px;
+            font-weight: bold;
+            border-radius: 50px;
+            cursor: pointer;
+            width: 100%;
+            margin: 10px 0;
+            transition: all 0.2s;
+        }
+
+        .upsell-btn:hover {
+            transform: scale(1.02);
+            box-shadow: 0 5px 25px rgba(255, 75, 75, 0.6);
+        }
+
+        .upsell-skip {
+            background: none;
+            border: 2px solid #333;
+            color: #888;
+            padding: 12px 25px;
+            border-radius: 25px;
+            cursor: pointer;
+            margin-top: 15px;
+        }
+
+        .upsell-skip:hover {
+            border-color: #ff4d4d;
+            color: white;
+        }
+
+        .share-section {
+            margin: 30px 0;
+            padding: 25px;
+            background: #1a1a1a;
+            border-radius: 15px;
+            border: 1px solid #333;
+        }
+
+        .share-title {
+            color: #ff4d4d;
+            font-size: 18px;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .snippet-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .snippet-card {
+            background: #333;
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid #444;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: left;
+        }
+
+        .snippet-card:hover {
+            border-color: #ff4d4d;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255, 75, 75, 0.3);
+        }
+
+        .snippet-text {
+            font-size: 14px;
+            color: #ccc;
+            margin-bottom: 10px;
+            font-style: italic;
+        }
+
+        .snippet-share {
+            color: #ff4d4d;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .share-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .share-btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .share-twitter { background: #1DA1F2; color: white; }
+        .share-facebook { background: #4267B2; color: white; }
+        .share-copy { background: #333; color: white; border: 1px solid #ff4d4d; }
+
+        .viral-badge {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #ff4d4d;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 30px;
+            font-weight: bold;
+            box-shadow: 0 5px 20px rgba(255, 75, 75, 0.5);
+            animation: slideIn 0.5s;
+            z-index: 1000;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            border: 3px solid #ff4d4d40;
+            border-radius: 50%;
+            border-top-color: #ff4d4d;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-container {
+            text-align: center;
+            padding: 40px 0;
+        }
+
+        .loading-container p {
+            margin-top: 15px;
+            color: #ff4d4d;
+            font-style: italic;
+        }
+
+        .app-cta {
+            text-align: center;
+            margin: 30px 0;
+            padding: 25px;
+            background: linear-gradient(145deg, #1a1a1a, #2d2d2d);
+            border: 1px solid #333;
+            border-radius: 15px;
+        }
+
+        .app-cta a {
+            color: #ff4d4d;
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        .pricing-option {
+            transition: all 0.2s;
+        }
+
+        .pricing-option:hover {
+            border-color: #ff4d4d !important;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255, 75, 75, 0.3);
+        }
+
+        .pricing-option.selected {
+            border-color: #ff4d4d !important;
+            box-shadow: 0 0 20px rgba(255, 75, 75, 0.3);
+        }
+
+        @media (max-width: 600px) {
+            .viral-header h1 { font-size: 32px; }
+            .question-text { font-size: 20px; }
+            .snippet-grid { grid-template-columns: 1fr; }
+            .share-buttons { flex-direction: column; }
+        }
+    </style>
+
+    <script src="https://js.stripe.com/v3"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="viral-header">
+            <h1>&#x1f9e0; TRUMP THERAPY</h1>
+            <div class="subhead">3 questions. 2 minutes. Life-changing advice.</div>
+            <div class="live-counter" id="liveCounter">&#x26a1; 1,247 in session now &#x26a1;</div>
+        </div>
+
+        <div class="social-proof">
+            <div class="proof-item">
+                <div class="proof-value" id="todaySessions">12,847</div>
+                <div class="proof-label">Sessions Today</div>
+            </div>
+            <div class="proof-item">
+                <div class="proof-value" id="avgRating">4.9/5</div>
+                <div class="proof-label">Patient Rating</div>
+            </div>
+            <div class="proof-item">
+                <div class="proof-value" id="sharesToday">3,421</div>
+                <div class="proof-label">Shares</div>
+            </div>
+        </div>
+
+        <div class="therapy-card" id="therapyCard">
+            <div class="trump-quote">
+                "I give the best advice. Really smart people tell me. Now lie down..."
+            </div>
+
+            <div class="progress-container">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+                </div>
+                <div class="question-counter" id="questionCounter">Question 1 of 3</div>
+            </div>
+
+            <div class="question-container" id="question1">
+                <div class="question-number">QUESTION 1</div>
+                <div class="question-text">"What's your name? I need to know who I'm talking to. Very important."</div>
+                <input type="text" class="question-input" id="q1" placeholder="Enter your first name" maxlength="30">
+                <button class="next-btn" onclick="nextQuestion(2)">NEXT &#x2192;</button>
+            </div>
+
+            <div class="question-container" id="question2" style="display: none;">
+                <div class="question-number">QUESTION 2</div>
+                <div class="question-text">"What's bothering you? Be specific. I deal with big problems."</div>
+                <textarea class="question-input" id="q2" placeholder="Tell Dr. Trump what's wrong..."></textarea>
+                <button class="next-btn" onclick="nextQuestion(3)">NEXT &#x2192;</button>
+            </div>
+
+            <div class="question-container" id="question3" style="display: none;">
+                <div class="question-number">QUESTION 3</div>
+                <div class="question-text">"On a scale of 1-10, how serious is this? Be honest."</div>
+                <select class="question-input" id="q3">
+                    <option value="1">1 - Minor (low energy)</option>
+                    <option value="2">2 - Small issue</option>
+                    <option value="3">3 - Getting annoying</option>
+                    <option value="4">4 - Moderately annoying</option>
+                    <option value="5" selected>5 - Meh</option>
+                    <option value="6">6 - Pretty bad</option>
+                    <option value="7">7 - Very bad</option>
+                    <option value="8">8 - Terrible</option>
+                    <option value="9">9 - Disastrous</option>
+                    <option value="10">10 - TOTAL WITCH HUNT</option>
+                </select>
+                <button class="next-btn" onclick="startTherapy()">&#x1f52e; START MY SESSION</button>
+            </div>
+
+            <div id="sessionContainer" style="display: none;">
+                <div class="timer-container">
+                    <div class="timer-label">YOUR SESSION WITH DR. TRUMP</div>
+                    <div class="timer-display" id="timerDisplay">2:00</div>
+                    <div style="color: #888; font-size: 14px;">Time remaining</div>
+                </div>
+
+                <div class="session-content" id="sessionContent"></div>
+
+                <div class="share-section" id="shareSection" style="display: none;">
+                    <div class="share-title">&#x1f525; SHARE YOUR THERAPY SNIPPET &#x1f525;</div>
+                    <div class="snippet-grid" id="snippetGrid"></div>
+
+                    <div class="share-buttons">
+                        <button class="share-btn share-twitter" onclick="shareFull('twitter')">&#x1f501; Share on X</button>
+                        <button class="share-btn share-facebook" onclick="shareFull('facebook')">&#x1f4d8; Facebook</button>
+                        <button class="share-btn share-copy" onclick="shareFull('copy')">&#x1f4cb; Copy</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="therapy-card" id="upgradeCard" style="display: none; text-align: center;">
+            <div style="font-size: 48px; margin-bottom: 20px;">&#x1f525;</div>
+            <h2 style="color: #ff4d4d; margin-bottom: 15px;">WANT THE FULL EXPERIENCE?</h2>
+            <p style="margin-bottom: 25px; color: #ccc;">Get 5 questions + 5 minutes with Dr. Trump</p>
+
+            <div style="display: grid; gap: 20px; max-width: 400px; margin: 0 auto;">
+                <div class="pricing-option selected" id="option-single" onclick="selectPlan('single')" style="border: 2px solid #ff4d4d; border-radius: 10px; padding: 20px; cursor: pointer;">
+                    <h3 style="color: #ff4d4d;">Single Deep Session</h3>
+                    <div style="font-size: 32px; font-weight: bold;">$2.99</div>
+                    <div style="color: #888;">One-time payment</div>
+                </div>
+
+                <div class="pricing-option" id="option-weekly" onclick="selectPlan('weekly')" style="border: 2px solid #333; border-radius: 10px; padding: 20px; cursor: pointer; position: relative;">
+                    <div style="position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #ff4d4d; color: white; padding: 5px 15px; border-radius: 20px; font-size: 12px;">BEST VALUE</div>
+                    <h3 style="color: #ff4d4d;">Weekly Unlimited</h3>
+                    <div style="font-size: 32px; font-weight: bold;">$9.99<span style="font-size: 16px; color: #888;">/week</span></div>
+                    <div style="color: #888;">Cancel anytime</div>
+                </div>
+            </div>
+
+            <button class="next-btn" id="upgradeBtn" onclick="processPayment()" style="margin-top: 25px; max-width: 400px; margin-left: auto; margin-right: auto;">
+                &#x1f525; UNLOCK DEEP SESSION - $2.99
+            </button>
+
+            <div style="margin-top: 15px; color: #666; font-size: 12px;">
+                <span>&#x1f4b3; Secure payment &bull; 1,234 upgraded today</span>
+            </div>
+        </div>
+
+        <div class="app-cta">
+            <p style="color: #888; margin-bottom: 10px;">&#x1f4f1; Get the full Trump AI experience</p>
+            <p><a href="/">Download the App &rarr;</a></p>
+        </div>
+    </div>
+
+    <div class="upsell-modal" id="upsellModal">
+        <div class="upsell-content">
+            <span class="upsell-close" onclick="closeUpsell()">&times;</span>
+            <div class="upsell-icon">&#x23f0;</div>
+            <div class="upsell-title">YOUR TIME IS ALMOST UP!</div>
+            <p style="color: #ccc; margin-bottom: 20px;">Get 3 MORE MINUTES with Dr. Trump</p>
+
+            <div class="upsell-price">$1.99 <small>only</small></div>
+
+            <ul class="upsell-features">
+                <li>&#x2713; 3 additional minutes</li>
+                <li>&#x2713; Deeper insights</li>
+                <li>&#x2713; Priority next session</li>
+            </ul>
+
+            <button class="upsell-btn" onclick="buyMoreTime()">&#x23f0; ADD 3 MINUTES - $1.99</button>
+            <button class="upsell-skip" onclick="closeUpsell()">No thanks, continue</button>
+        </div>
+    </div>
+
+    <div id="viralBadge" style="display: none;"></div>
+
+    <script>
+        let stripeInstance = null;
+        let currentQuestion = 1;
+        let userAnswers = { name: '', problem: '', seriousness: '5' };
+        let sessionTimer;
+        let secondsLeft = 120;
+        let sessionActive = false;
+        let sessionId = 'sess_' + Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
+        let currentPlan = 'single';
+        let upsellShown = false;
+        let deviceId = localStorage.getItem('trumpbot_device_id');
+
+        if (!deviceId) {
+            deviceId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+            localStorage.setItem('trumpbot_device_id', deviceId);
+        }
+
+        async function init() {
+            try {
+                const res = await fetch('/api/stripe/publishable-key');
+                const data = await res.json();
+                if (data.publishableKey) {
+                    stripeInstance = Stripe(data.publishableKey);
+                }
+            } catch (e) {
+                console.error('Failed to load Stripe key:', e);
+            }
+
+            updateLiveCounter();
+            startSocialProofUpdates();
+            checkForPaymentReturn();
+        }
+
+        function nextQuestion(num) {
+            if (currentQuestion === 1 && !document.getElementById('q1').value.trim()) {
+                alert('Dr. Trump needs your name!');
+                return;
+            }
+            if (currentQuestion === 2 && !document.getElementById('q2').value.trim()) {
+                alert('Tell Dr. Trump what\'s bothering you!');
+                return;
+            }
+
+            userAnswers.name = document.getElementById('q1').value.trim() || 'Friend';
+            userAnswers.problem = document.getElementById('q2').value.trim() || 'life';
+            userAnswers.seriousness = document.getElementById('q3').value;
+
+            document.getElementById('question' + currentQuestion).style.display = 'none';
+            document.getElementById('question' + num).style.display = 'block';
+
+            currentQuestion = num;
+
+            const progress = ((num - 1) / 3) * 100;
+            document.getElementById('progressFill').style.width = progress + '%';
+            document.getElementById('questionCounter').textContent = 'Question ' + num + ' of 3';
+        }
+
+        async function startTherapy() {
+            userAnswers.name = document.getElementById('q1').value.trim() || 'Friend';
+            userAnswers.problem = document.getElementById('q2').value.trim() || 'life';
+            userAnswers.seriousness = document.getElementById('q3').value;
+
+            document.getElementById('question3').style.display = 'none';
+            document.getElementById('progressFill').style.width = '100%';
+            document.getElementById('questionCounter').textContent = 'Question 3 of 3';
+
+            document.getElementById('sessionContainer').style.display = 'block';
+            document.getElementById('sessionContent').innerHTML = '<div class="loading-container"><div class="loading-spinner"></div><p>"Hold on, I\'m thinking. And I have the best thoughts..."</p></div>';
+
+            await generateTherapy();
+            startTimer();
+            trackEvent('session_start', userAnswers);
+        }
+
+        async function generateTherapy() {
+            try {
+                const response = await fetch('/api/therapy', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-device-id': deviceId
+                    },
+                    body: JSON.stringify(userAnswers)
+                });
+
+                if (!response.ok && response.status !== 403) {
+                    throw new Error('Request failed');
+                }
+
+                const data = await response.json();
+
+                if (data.error === 'no_tokens') {
+                    document.getElementById('sessionContent').textContent = "Dr. Trump is very busy right now. You've used all your free sessions! Upgrade below for unlimited access.";
+                    return;
+                }
+
+                document.getElementById('sessionContent').textContent = data.therapy;
+                sessionStorage.setItem('lastTherapy', data.therapy);
+                sessionStorage.setItem('userName', userAnswers.name);
+            } catch (error) {
+                document.getElementById('sessionContent').textContent = "Look, " + userAnswers.name + ", I'm going to be honest with you. Your problem with " + userAnswers.problem + "? I've seen worse. Much worse. But here's what you do - you stop thinking like a loser and start thinking like a winner. That's the Trump way. You're welcome.";
+            }
+        }
+
+        function startTimer() {
+            sessionActive = true;
+            secondsLeft = 120;
+
+            sessionTimer = setInterval(function() {
+                secondsLeft--;
+
+                var mins = Math.floor(secondsLeft / 60);
+                var secs = secondsLeft % 60;
+                document.getElementById('timerDisplay').textContent = mins + ':' + secs.toString().padStart(2, '0');
+
+                if (secondsLeft === 30) {
+                    document.getElementById('timerDisplay').classList.add('warning');
+                    if (!upsellShown) {
+                        showUpsell();
+                        upsellShown = true;
+                    }
+                }
+
+                if (secondsLeft <= 0) {
+                    endSession();
+                }
+            }, 1000);
+        }
+
+        function endSession() {
+            clearInterval(sessionTimer);
+            sessionActive = false;
+
+            generateShareSnippets();
+            document.getElementById('shareSection').style.display = 'block';
+            document.getElementById('upgradeCard').style.display = 'block';
+
+            trackEvent('session_complete', { duration: 120 - secondsLeft });
+        }
+
+        var snippetTexts = [];
+
+        function generateShareSnippets() {
+            var therapy = sessionStorage.getItem('lastTherapy') || document.getElementById('sessionContent').textContent;
+
+            var sentences = therapy.split('. ').filter(function(s) { return s.length > 20; });
+            snippetTexts = sentences.slice(0, 3);
+
+            var grid = document.getElementById('snippetGrid');
+            grid.innerHTML = '';
+
+            snippetTexts.forEach(function(snippet, i) {
+                var card = document.createElement('div');
+                card.className = 'snippet-card';
+
+                var textEl = document.createElement('div');
+                textEl.className = 'snippet-text';
+                textEl.textContent = '"' + snippet.substring(0, 80) + '..."';
+
+                var shareEl = document.createElement('div');
+                shareEl.className = 'snippet-share';
+                shareEl.textContent = 'Click to share';
+
+                card.appendChild(textEl);
+                card.appendChild(shareEl);
+                card.addEventListener('click', function() { shareSnippet(i); });
+                grid.appendChild(card);
+            });
+        }
+
+        function shareSnippet(index) {
+            var snippet = snippetTexts[index] || '';
+            var name = encodeURIComponent(sessionStorage.getItem('userName') || userAnswers.name);
+            var text = encodeURIComponent('Trump told me: "' + snippet + '" Get your therapy: ');
+            var url = encodeURIComponent(window.location.origin + '/therapy-viral?ref=' + name);
+
+            window.open('https://twitter.com/intent/tweet?text=' + text + '&url=' + url, '_blank');
+            trackEvent('share', { type: 'snippet', index: index });
+        }
+
+        function shareFull(platform) {
+            var therapy = sessionStorage.getItem('lastTherapy') || document.getElementById('sessionContent').textContent;
+            var name = sessionStorage.getItem('userName') || userAnswers.name;
+            var shareUrl = window.location.origin + '/therapy-viral?ref=' + encodeURIComponent(name);
+
+            var text = encodeURIComponent('Trump just gave me therapy! He said: "' + therapy.substring(0, 100) + '..." Get yours:');
+            var url = encodeURIComponent(shareUrl);
+
+            if (platform === 'twitter') {
+                window.open('https://twitter.com/intent/tweet?text=' + text + '&url=' + url, '_blank');
+            } else if (platform === 'facebook') {
+                window.open('https://www.facebook.com/sharer/sharer.php?u=' + url + '&quote=' + text, '_blank');
+            } else if (platform === 'copy') {
+                navigator.clipboard.writeText('Trump just gave me therapy: "' + therapy + '"\n\nGet yours: ' + shareUrl);
+                alert('Copied to clipboard!');
+            }
+
+            fetch('/api/track-share', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-device-id': deviceId },
+                body: JSON.stringify({ feature: 'therapy-viral', platform: platform })
+            }).catch(function() {});
+
+            trackEvent('share', { type: 'full', platform: platform });
+        }
+
+        function showUpsell() {
+            document.getElementById('upsellModal').classList.add('active');
+        }
+
+        function closeUpsell() {
+            document.getElementById('upsellModal').classList.remove('active');
+        }
+
+        async function buyMoreTime() {
+            closeUpsell();
+
+            if (!stripeInstance) {
+                alert('Payment system is loading. Please try again in a moment.');
+                return;
+            }
+
+            try {
+                var response = await fetch('/api/therapy/checkout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        plan: 'single',
+                        metadata: {
+                            name: userAnswers.name,
+                            sessionId: sessionId,
+                            type: 'upsell-more-time'
+                        }
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Checkout request failed');
+                }
+
+                var session = await response.json();
+                if (session.url) {
+                    window.location.href = session.url;
+                } else if (session.id) {
+                    await stripeInstance.redirectToCheckout({ sessionId: session.id });
+                } else {
+                    throw new Error('No checkout URL returned');
+                }
+            } catch (error) {
+                alert('Payment failed, but your session continues!');
+            }
+        }
+
+        function selectPlan(plan) {
+            currentPlan = plan;
+            var button = document.getElementById('upgradeBtn');
+
+            document.querySelectorAll('.pricing-option').forEach(function(el) {
+                el.classList.remove('selected');
+                el.style.borderColor = '#333';
+            });
+
+            var selected = document.getElementById('option-' + plan);
+            selected.classList.add('selected');
+            selected.style.borderColor = '#ff4d4d';
+
+            if (plan === 'single') {
+                button.innerHTML = '&#x1f525; UNLOCK DEEP SESSION - $2.99';
+            } else {
+                button.innerHTML = '&#x1f525; GET WEEKLY UNLIMITED - $9.99';
+            }
+        }
+
+        async function processPayment() {
+            if (!stripeInstance) {
+                alert('Payment system is loading. Please try again in a moment.');
+                return;
+            }
+
+            var btn = document.getElementById('upgradeBtn');
+            btn.disabled = true;
+            btn.textContent = 'Processing...';
+
+            try {
+                var response = await fetch('/api/therapy/checkout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        plan: currentPlan,
+                        metadata: {
+                            name: userAnswers.name,
+                            problem: userAnswers.problem,
+                            seriousness: userAnswers.seriousness,
+                            referrer: document.referrer || 'direct',
+                            source: 'therapy-viral'
+                        }
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Checkout request failed');
+                }
+
+                var session = await response.json();
+
+                if (session.url) {
+                    window.location.href = session.url;
+                } else if (session.id) {
+                    var result = await stripeInstance.redirectToCheckout({ sessionId: session.id });
+                    if (result.error) {
+                        alert(result.error.message);
+                    }
+                } else {
+                    alert('Could not start checkout. Please try again.');
+                }
+            } catch (error) {
+                alert('Payment failed. Please try again.');
+            }
+
+            btn.disabled = false;
+            selectPlan(currentPlan);
+        }
+
+        function checkForPaymentReturn() {
+            var urlParams = new URLSearchParams(window.location.search);
+
+            if (urlParams.get('success') === 'true') {
+                document.getElementById('sessionContainer').style.display = 'block';
+                document.getElementById('sessionContent').innerHTML = '<div class="loading-container"><div class="loading-spinner"></div><p>"Payment confirmed! Loading your premium session..."</p></div>';
+
+                setTimeout(async function() {
+                    await generateTherapy();
+                    secondsLeft = 300;
+                    startTimer();
+                }, 2000);
+
+                window.history.replaceState({}, document.title, '/therapy-viral');
+            }
+        }
+
+        function updateLiveCounter() {
+            var counters = [1247, 1356, 1489, 1523, 1678];
+            setInterval(function() {
+                var random = counters[Math.floor(Math.random() * counters.length)];
+                document.getElementById('liveCounter').innerHTML = '&#x26a1; ' + random.toLocaleString() + ' in session now &#x26a1;';
+            }, 5000);
+        }
+
+        function startSocialProofUpdates() {
+            setInterval(function() {
+                var sessions = document.getElementById('todaySessions');
+                sessions.textContent = (parseInt(sessions.textContent.replace(/,/g, '')) + Math.floor(Math.random() * 50)).toLocaleString();
+
+                var shares = document.getElementById('sharesToday');
+                shares.textContent = (parseInt(shares.textContent.replace(/,/g, '')) + Math.floor(Math.random() * 20)).toLocaleString();
+            }, 10000);
+
+            setInterval(function() {
+                if (Math.random() > 0.7) {
+                    var badge = document.getElementById('viralBadge');
+                    badge.style.display = 'block';
+                    badge.innerHTML = '<div class="viral-badge">&#x1f525; ' + (Math.floor(Math.random() * 50) + 10) + ' people sharing now!</div>';
+                    setTimeout(function() { badge.style.display = 'none'; }, 4000);
+                }
+            }, 15000);
+        }
+
+        function trackEvent(event, data) {
+            fetch('/api/track-viral', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    event: event,
+                    sessionId: sessionId,
+                    data: data,
+                    timestamp: Date.now()
+                })
+            }).catch(function() {});
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>

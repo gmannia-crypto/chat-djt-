@@ -1084,6 +1084,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.sendFile(cardPath);
   });
 
+  app.get("/therapy-viral", (_req, res) => {
+    const viralPath = require("path").resolve(process.cwd(), "server", "templates", "therapy-viral.html");
+    res.sendFile(viralPath);
+  });
+
+  app.post("/api/track-viral", (req, res) => {
+    const { event, sessionId: sid, data, timestamp } = req.body;
+    console.log(`[viral] ${event} | session=${sid} | ${JSON.stringify(data)} | t=${timestamp}`);
+    res.json({ ok: true });
+  });
+
   app.post("/api/therapy/checkout", async (req, res) => {
     try {
       const { plan, metadata } = req.body;
