@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #0a0a0a;
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        
+        .share-card {
+            max-width: 600px;
+            background: linear-gradient(145deg, #1a1a1a 0%, #2d2d2d 100%);
+            border: 4px solid #ff4d4d;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 50px rgba(255, 0, 0, 0.3);
+        }
+        
+        .trump-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #ff4d4d;
+            padding-bottom: 15px;
+        }
+        
+        .trump-avatar {
+            width: 60px;
+            height: 60px;
+            background: #ff4d4d;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+        }
+        
+        .trump-name {
+            color: #ff4d4d;
+            font-size: 24px;
+            font-weight: bold;
+        }
+        
+        .trump-title {
+            color: #888;
+            font-size: 14px;
+        }
+        
+        .therapy-content {
+            background: #333;
+            padding: 25px;
+            border-radius: 15px;
+            border-left: 5px solid #ff4d4d;
+            margin: 20px 0;
+            color: white;
+            font-size: 18px;
+            line-height: 1.6;
+            font-style: italic;
+        }
+        
+        .patient-info {
+            color: #888;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+        
+        .watermark {
+            text-align: center;
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid #333;
+            color: #ff4d4d;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .qr-placeholder {
+            text-align: center;
+            margin-top: 15px;
+        }
+        
+        .qr-placeholder img {
+            width: 80px;
+            height: 80px;
+            background: white;
+            padding: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="share-card">
+        <div class="trump-header">
+            <div class="trump-avatar">🗣️</div>
+            <div>
+                <div class="trump-name">DR. DONALD J. TRUMP</div>
+                <div class="trump-title">Chief Therapist • Very Stable Genius</div>
+            </div>
+        </div>
+        
+        <div class="patient-info">
+            Patient: <span id="patientName">Mike</span> • Session #<span id="sessionId">1247</span>
+        </div>
+        
+        <div class="therapy-content" id="therapyText">
+            "Mike, let me tell you about work stress. I've faced witch hunts, fake news, the whole thing. And I won. You'll win too. Believe me."
+        </div>
+        
+        <div class="watermark">
+            🔥 GET YOUR THERAPY SESSION AT TRUMPBOT.RIP 🔥
+        </div>
+        
+        <div class="qr-placeholder">
+            <!-- Add actual QR code here -->
+            <div style="color: #888; font-size: 10px;">Scan to get roasted</div>
+        </div>
+    </div>
+    
+    <script>
+        // Load from URL params
+        const urlParams = new URLSearchParams(window.location.search);
+        document.getElementById('patientName').textContent = urlParams.get('name') || 'Mike';
+        document.getElementById('therapyText').textContent = '"' + decodeURIComponent(urlParams.get('therapy') || 'You need therapy. Trump style.') + '"';
+    </script>
+</body>
+</html>

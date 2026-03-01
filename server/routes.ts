@@ -1079,6 +1079,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/therapy/card", (_req, res) => {
+    const cardPath = require("path").resolve(process.cwd(), "server", "templates", "therapy-card.html");
+    res.sendFile(cardPath);
+  });
+
   app.post("/api/therapy/checkout", async (req, res) => {
     try {
       const { plan, metadata } = req.body;

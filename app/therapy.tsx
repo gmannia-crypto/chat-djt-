@@ -181,10 +181,13 @@ export default function TherapyScreen() {
   const handleShare = async () => {
     if (!therapy) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const baseUrl = getApiUrl().replace(/\/$/, "");
+    const cardUrl = `${baseUrl}/api/therapy/card?name=${encodeURIComponent(firstName || "Friend")}&therapy=${encodeURIComponent(therapy)}`;
     try {
       await Share.share({
-        message: `\uD83E\uDDE0 TRUMP THERAPY \uD83E\uDDE0\n\nDr. Trump's Diagnosis for ${firstName}:\n\n"${therapy}"\n\nGet your therapy session at Chat DJT!`,
+        message: `\uD83E\uDDE0 TRUMP THERAPY \uD83E\uDDE0\n\nDr. Trump's Diagnosis for ${firstName}:\n\n"${therapy}"\n\nSee my therapy card: ${cardUrl}`,
       });
+      fetch(`${baseUrl}/api/track-share`, { method: "POST", body: JSON.stringify({ feature: "therapy", platform: Platform.OS, contentPreview: therapy.slice(0, 100) }), headers: { "Content-Type": "application/json" } }).catch(() => {});
     } catch {}
   };
 

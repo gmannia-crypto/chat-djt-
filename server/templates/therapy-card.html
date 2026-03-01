@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dr. Trump's Therapy Session</title>
+    <meta property="og:title" content="Dr. Trump just gave me therapy!">
+    <meta property="og:description" content="Get your own Trump Therapy session at Chat DJT">
+    <meta property="og:type" content="website">
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #0a0a0a;
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .share-card {
+            max-width: 600px;
+            width: 100%;
+            background: linear-gradient(145deg, #1a1a1a 0%, #2d2d2d 100%);
+            border: 4px solid #ff4d4d;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 50px rgba(255, 0, 0, 0.3);
+        }
+        .trump-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #ff4d4d;
+            padding-bottom: 15px;
+        }
+        .trump-avatar {
+            width: 60px;
+            height: 60px;
+            background: #ff4d4d;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+            flex-shrink: 0;
+        }
+        .trump-name {
+            color: #ff4d4d;
+            font-size: 22px;
+            font-weight: bold;
+        }
+        .trump-title {
+            color: #888;
+            font-size: 13px;
+            margin-top: 2px;
+        }
+        .patient-info {
+            color: #888;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+        .therapy-content {
+            background: #333;
+            padding: 25px;
+            border-radius: 15px;
+            border-left: 5px solid #ff4d4d;
+            margin: 20px 0;
+            color: white;
+            font-size: 18px;
+            line-height: 1.6;
+            font-style: italic;
+        }
+        .watermark {
+            text-align: center;
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid #333;
+            color: #ff4d4d;
+            font-size: 12px;
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+        .cta-button {
+            display: block;
+            text-align: center;
+            margin-top: 20px;
+            padding: 14px;
+            background: linear-gradient(145deg, #ff4d4d, #cc0000);
+            color: white;
+            text-decoration: none;
+            border-radius: 30px;
+            font-weight: bold;
+            font-size: 16px;
+            letter-spacing: 1px;
+        }
+        .cta-button:hover {
+            filter: brightness(1.1);
+        }
+        @media (max-width: 480px) {
+            body { padding: 10px; }
+            .share-card { padding: 20px; }
+            .therapy-content { font-size: 16px; padding: 18px; }
+            .trump-name { font-size: 18px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="share-card">
+        <div class="trump-header">
+            <div class="trump-avatar">&#x1F5E3;&#xFE0F;</div>
+            <div>
+                <div class="trump-name">DR. DONALD J. TRUMP</div>
+                <div class="trump-title">Chief Therapist &bull; Very Stable Genius</div>
+            </div>
+        </div>
+        <div class="patient-info">
+            Patient: <span id="patientName">Friend</span>
+        </div>
+        <div class="therapy-content" id="therapyText">
+            "You need therapy. Trump style."
+        </div>
+        <div class="watermark">
+            &#x1F525; GET YOUR THERAPY SESSION AT CHAT DJT &#x1F525;
+        </div>
+        <a class="cta-button" id="ctaLink" href="/">&#x1F9E0; GET YOUR OWN THERAPY &#x1F9E0;</a>
+    </div>
+    <script>
+        var p = new URLSearchParams(window.location.search);
+        var name = p.get('name') || 'Friend';
+        var therapy = p.get('therapy');
+        document.getElementById('patientName').textContent = name;
+        if (therapy) {
+            document.getElementById('therapyText').textContent = '"' + decodeURIComponent(therapy) + '"';
+        }
+        document.getElementById('ctaLink').href = '/therapy';
+    </script>
+</body>
+</html>
