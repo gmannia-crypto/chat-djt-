@@ -50,13 +50,13 @@ The backend is an Express 5 server running on port 5000, serving as an API gatew
 - `GET /therapy-multi`: Serves standalone multi-voice therapy landing page with 3 therapist voices (Dr. Trump, Dr. Sophia, Dr. James), voice selection, mid-session voice switching, TTS playback, follow-up conversations, share snippets, upsell modal, and Stripe checkout.
 - `POST /api/track-viral`: Logs viral session events (session_start, session_complete, share) for analytics.
 
-The backend leverages OpenAI for chat completions and transcription, and Fish Audio for text-to-speech with a cloned Trump voice and Dr. Sophia's voice (Fish Audio ID: `193c58af62ea487180baacdef8a69bbd`). It also handles static serving of pre-built Expo web assets in production.
+The backend leverages OpenAI for chat completions and transcription, and Fish Audio for text-to-speech with a cloned Trump voice, Dr. Sophia's voice (Fish Audio ID: `193c58af62ea487180baacdef8a69bbd`), and Dr. James's voice (Fish Audio ID: `03397b4c4be74759b72533b663fbd001`, speed 0.9). It also handles static serving of pre-built Expo web assets in production.
 
 ## External Dependencies
 
 - **OpenAI API**: Utilized for AI chat completions (gpt-5.2), audio transcription (Whisper), and potentially audio generation (gpt-audio).
 - **ElevenLabs API**: Used for advanced text-to-speech functionalities, including voice cloning and generating theme intros.
-- **Fish Audio API**: Provides text-to-speech capabilities, including a cloned Trump voice and Dr. Sophia's voice (ID: `193c58af62ea487180baacdef8a69bbd`), with mood-based speed adjustments.
+- **Fish Audio API**: Provides text-to-speech capabilities, including a cloned Trump voice, Dr. Sophia's voice (ID: `193c58af62ea487180baacdef8a69bbd`, speed 0.95), and Dr. James's voice (ID: `03397b4c4be74759b72533b663fbd001`, speed 0.9), with mood-based speed adjustments.
 - **@react-native-async-storage/async-storage**: Client-side persistent storage for conversation data.
 - **Expo Services**: Used for various mobile functionalities like font loading, haptics, linear gradients, and splash screen management.
 - **RevenueCat (`react-native-purchases`)**: Integrated for managing in-app subscriptions and purchases.

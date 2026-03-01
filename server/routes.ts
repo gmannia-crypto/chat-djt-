@@ -616,6 +616,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
 
   const SOPHIA_VOICE_ID = "193c58af62ea487180baacdef8a69bbd";
+  const JAMES_VOICE_ID = "03397b4c4be74759b72533b663fbd001";
 
   app.post("/api/tts", async (req, res) => {
     try {
@@ -640,6 +641,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (voice === "sophia") {
         audioBuffer = await fishAudioTTS(truncatedText, SOPHIA_VOICE_ID, 0.95);
+      } else if (voice === "james") {
+        audioBuffer = await fishAudioTTS(truncatedText, JAMES_VOICE_ID, 0.9);
       } else {
         const speed = 1.0;
         const rawAudio = await trumpTextToSpeech(truncatedText, speed, mood || "CALM", speechCategory || "CASUAL_TALK");

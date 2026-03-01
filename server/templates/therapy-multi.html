@@ -579,6 +579,8 @@
                 sessionStorage.setItem('lastTherapy', data.therapy);
                 sessionStorage.setItem('userName', userAnswers.name);
 
+                autoPlayTTS(data.therapy);
+
                 if (data.followUp) {
                     setTimeout(function() {
                         if (sessionActive) showFollowUp(data.followUp);
@@ -655,6 +657,8 @@
                 var data = await response.json();
 
                 exchanges.push({ question: currentFollowUpQuestion, answer: answer, response: data.message });
+
+                autoPlayTTS(data.message || 'Interesting. Very interesting.');
 
                 var responseDiv = document.getElementById('followUpResponse');
                 responseDiv.style.display = 'block';
@@ -735,6 +739,44 @@
             }
 
             trackEvent('voice_switched', { from: oldVoice, to: newVoice });
+        }
+
+        async function autoPlayTTS(text) {
+            if (!text) return;
+            var btn = document.getElementById('ttsBtn');
+
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio = null;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Speaking...';
+
+            try {
+                var response = await fetch('/api/tts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: text, voice: selectedVoice, mood: 'CALM', speechCategory: 'CASUAL_TALK' })
+                });
+                if (!response.ok) throw new Error('TTS failed');
+                var blob = await response.blob();
+                var url = URL.createObjectURL(blob);
+                currentAudio = new Audio(url);
+                currentAudio.play().catch(function() {
+                    btn.textContent = '\uD83D\uDD0A Listen';
+                    btn.disabled = false;
+                });
+                btn.disabled = false;
+                btn.textContent = '\u23F9 Stop';
+                currentAudio.onended = function() {
+                    currentAudio = null;
+                    btn.textContent = '\uD83D\uDD0A Listen';
+                };
+            } catch (err) {
+                btn.disabled = false;
+                btn.textContent = '\uD83D\uDD0A Listen';
+            }
         }
 
         async function speakTherapy() {
