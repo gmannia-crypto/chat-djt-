@@ -1263,20 +1263,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
 
   function generateSophiaTherapy(name: string, problem: string, s: number): string {
+    if (s >= 8) {
+      return `${name}, this is really heavy. I can feel how much weight you're carrying. You're not alone in this. Let's take a moment to just breathe together.`;
+    }
+
+    if (/work|job|boss|career/i.test(problem)) {
+      return `Work stress is so common, ${name}, but that doesn't make it any easier. Your worth isn't defined by your job. You deserve balance and peace.`;
+    }
+    if (/love|relationship|dating|marriage/i.test(problem)) {
+      return `${name}, matters of the heart are never simple. Be gentle with yourself. The right love will feel like peace, not confusion.`;
+    }
+
     const templates = [
-      `${name}, I hear you. ${problem} is weighing on you, and that's completely valid. You rated this a ${s} out of 10, and I want you to know — your feelings matter. Let's explore this together, gently.`,
-      `Thank you for sharing that with me, ${name}. ${problem} sounds really challenging. I want you to take a deep breath right now. You're safe here. Let's unpack this at your own pace.`,
-      `${name}, I can feel how much ${problem} is affecting you. It takes courage to talk about it. You're not broken — you're human. And being human means sometimes things hurt.`,
-      `What you're going through with ${problem} is more common than you think, ${name}. You're not alone in this. Let me help you find some clarity and maybe a little peace.`,
+      `${name}, I hear you. ${problem} sounds really difficult. It's okay to feel overwhelmed. Many people struggle with this, and you're not alone. Let's work through it together, gently.`,
+      `Thank you for sharing this with me, ${name}. ${problem} is real and valid. Your feelings matter. Let's take a deep breath and explore what's underneath all of this.`,
+      `I'm here with you, ${name}. ${problem} doesn't define you. You're so much more than this struggle. Tell me more about what you're experiencing.`,
+      `${name}, I can feel how much this is affecting you. You're so brave for talking about it. Let's take it slow. What do you need right now?`,
       `${name}, I appreciate your honesty about ${problem}. A ${s} on the seriousness scale tells me this really matters to you. And because it matters to you, it matters to me. Let's work through this.`,
     ];
 
-    if (/work|job|boss|career/i.test(problem)) {
-      templates.push(`Work can consume us if we let it, ${name}. Your worth isn't defined by your job title or your boss's opinion. Let's separate who you are from what you do.`);
-    }
-    if (/love|relationship|dating|marriage/i.test(problem)) {
-      templates.push(`Love is one of our deepest needs, ${name}. When it hurts, it hurts everywhere. Tell me — what does your heart need right now? Not what you think you should need, but what you actually need.`);
-    }
     if (/money|broke|debt|finance/i.test(problem)) {
       templates.push(`Financial stress can feel suffocating, ${name}. But I want you to separate the numbers from your self-worth. You are not your bank account. Let's find some breathing room.`);
     }
@@ -1294,17 +1299,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
 
   function generateJamesTherapy(name: string, problem: string, s: number): string {
+    if (s >= 8) {
+      return `This is significant, ${name}. Let's prioritize immediate steps. What's one thing you can do today to address this?`;
+    }
+
+    if (/work|job|boss|career/i.test(problem)) {
+      return `Work challenges often come down to boundaries, ${name}. Let's identify where your boundaries need strengthening.`;
+    }
+
     const templates = [
-      `${name}, let's approach ${problem} systematically. You've rated this a ${s}. That gives us a baseline. Now, let's identify the root cause and work toward a practical solution.`,
-      `I appreciate the clarity, ${name}. ${problem} — let's break this down. What are the facts? What are the assumptions? Often the solution is hiding behind an assumption we haven't questioned.`,
-      `${name}, in my experience, problems like ${problem} usually have three components: what happened, how you feel about it, and what you can actually control. Let's sort those out.`,
-      `Right. ${problem}. ${name}, most people focus on the symptom. I want to focus on the pattern. When did this start? What was different before? Data helps us find direction.`,
+      `Let's approach this systematically, ${name}. ${problem} can be broken down into manageable parts. What's the biggest challenge right now?`,
+      `${name}, based on what you've shared, ${problem} is affecting you at a level ${s}/10. Let's identify what's within your control.`,
+      `I appreciate you being here, ${name}. ${problem} is something many people face. Let's look at this objectively and find a path forward.`,
+      `Here's my perspective, ${name}: ${problem} is a challenge, not a definition of who you are. Let's work on solutions.`,
       `${name}, a ${s} tells me this is significant but not insurmountable. ${problem} has a solution — it may not be obvious yet, but that's what we're here to find. Let's think clearly.`,
     ];
 
-    if (/work|job|boss|career/i.test(problem)) {
-      templates.push(`Work problems are often power dynamics in disguise, ${name}. Let's map out who has influence, what you want, and the most direct path between the two.`);
-    }
     if (/love|relationship|dating|marriage/i.test(problem)) {
       templates.push(`Relationships follow patterns, ${name}. Once you see the pattern, you can change it. Let's look at what's repeating and why.`);
     }
@@ -1324,9 +1334,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (/love|relationship|dating|marriage/i.test(p)) return `${name}, what does your ideal relationship look like? Not what society says — what YOU want.`;
     if (/money|broke|debt|finance/i.test(p)) return `${name}, when you think about money, what emotion comes up first? Fear? Shame? Frustration? Let's name it.`;
     return pickRandom([
-      `${name}, close your eyes for a moment. What's the first feeling that comes up when you think about this?`,
-      `${name}, who in your life knows about this? Do you have someone you trust?`,
-      `Tell me, ${name} — if this problem disappeared tomorrow, what would be different about your life?`,
+      `${name}, how long have you been carrying this? You don't have to carry it alone anymore.`,
+      `I'm curious, ${name} — what would support look like for you right now?`,
+      `When you think about ${problem}, what emotion comes up first? There's no wrong answer.`,
+      `${name}, have you talked to anyone else about this? You deserve to be heard.`,
+      `What would make today just a tiny bit better for you, ${name}? Even something small.`,
     ]);
   }
 
@@ -1336,23 +1348,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (/love|relationship|dating|marriage/i.test(p)) return `${name}, on a practical level — what have you tried so far to address this, and what was the result?`;
     if (/money|broke|debt|finance/i.test(p)) return `${name}, what's the number? I find people avoid the specifics. Let's face it directly.`;
     return pickRandom([
-      `${name}, what have you already tried? I don't want to repeat what hasn't worked.`,
-      `${name}, if we solve this, what measurable change would you expect in your daily life?`,
-      `${name}, what's the timeline here? Is this urgent or ongoing?`,
+      `${name}, what have you tried so far to address this?`,
+      `On a practical level, what's the biggest obstacle you're facing?`,
+      `If you had to name one thing that would make the biggest difference, what would it be?`,
+      `${name}, let's look at the facts. What do you know for sure about this situation?`,
     ]);
   }
 
   function getSophiaFollowUpResponse(name: string, answer: string, index: number): string {
     const a = answer.toLowerCase();
-    if (/scared|afraid|fear|terrified/i.test(a)) return `Fear is powerful, ${name}, but so are you. The fact that you can name it means you're already stronger than the fear itself.`;
-    if (/sad|depressed|lonely|alone/i.test(a)) return `That loneliness you're feeling is real, ${name}. But reaching out — even here — is a brave step. You don't have to carry this alone.`;
-    if (/angry|frustrated|mad|furious/i.test(a)) return `Your anger is valid, ${name}. It's telling you something important — that a boundary has been crossed. Let's figure out which one.`;
+    if (/sad|cry|crying|depressed|lonely|alone/i.test(a)) return `It's okay to feel sad, ${name}. Tears are part of healing. I'm here with you.`;
+    if (/angry|mad|furious|frustrated|rage/i.test(a)) return `Anger is valid, ${name}. It's often protecting something deeper. What do you think might be underneath it?`;
+    if (/tired|exhausted|burnout|burnt out|drained/i.test(a)) return `Burnout is real, ${name}. You've been carrying so much. Rest is productive. You deserve rest.`;
+    if (/scared|afraid|fear|terrified|anxious/i.test(a)) return `Fear is powerful, ${name}, but so are you. The fact that you can name it means you're already stronger than the fear itself.`;
     if (/yes|yeah|definitely/i.test(a)) return `I'm glad you can acknowledge that, ${name}. Self-awareness is the first step toward healing. You're doing beautifully.`;
     if (/no|not really|I don't/i.test(a)) return `That's okay, ${name}. There's no wrong answer here. Sometimes "no" is exactly what we need to say more often.`;
     const defaults = [
-      `Thank you for sharing that, ${name}. I can tell this runs deep. You're being very brave.`,
-      `I hear you, ${name}. Every word matters. Let's keep going — you're making real progress.`,
-      `That's very insightful, ${name}. Most people never look this closely at themselves. I'm proud of you.`,
+      `Thank you for telling me that, ${name}. That takes courage. I hear how much this matters to you.`,
+      `I appreciate you sharing that. It sounds like you've been through a lot. You're handling it with more strength than you realize.`,
+      `That makes complete sense given what you've described. Anyone would feel that way. You're not alone.`,
+      `I'm here with you. What you're feeling is valid. Let's sit with that for a moment.`,
+      `You're doing such important work right now. Be gentle with yourself.`,
     ];
     return defaults[index % defaults.length];
   }
@@ -1363,10 +1379,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (/no|not really|I don't/i.test(a)) return `Interesting. ${name}, sometimes ruling things out is just as valuable as confirming them. That narrows our focus.`;
     if (/money|dollar|salary|pay/i.test(a)) return `Financial factors are always worth examining, ${name}. Let's make sure we're making decisions based on data, not emotion.`;
     if (/boss|manager|coworker/i.test(a)) return `People dynamics. ${name}, you can't control others, but you can control your response and your positioning. Let's strategize.`;
+    if (answer.length > 50) return `You've given this a lot of thought, ${name}. That's good. Now let's channel that energy into actionable steps.`;
     const defaults = [
-      `Noted, ${name}. That's a useful data point. Let me ask one more thing.`,
-      `Good input, ${name}. I'm forming a clearer picture. We're getting somewhere.`,
-      `${name}, based on what you've told me, I think we can identify a concrete next step.`,
+      `That's helpful context, ${name}. Let's build on that.`,
+      `I see. And based on what you've said, here's a logical next step...`,
+      `Thank you for that clarity. Let's analyze this together.`,
+      `That makes sense. Here's how we can approach this systematically.`,
     ];
     return defaults[index % defaults.length];
   }
@@ -1375,17 +1393,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (index >= 3) return null;
     if (voice === "sophia") {
       const qs = [
-        `${name}, what would you say to yourself if you were your own best friend right now?`,
-        `${name}, what's one small thing you could do today to feel a little lighter?`,
-        `Last question, ${name} — what do you need to hear right now that nobody has said to you?`,
+        `What would self-care look like for you today, ${name}?`,
+        `If you could change one small thing right now, what would it be?`,
+        `What do you need to hear right now, ${name}? I'm listening.`,
       ];
       return qs[index] || null;
     }
     if (voice === "james") {
       const qs = [
-        `${name}, what's the most logical next step you can take this week?`,
-        `${name}, if you had to explain this problem in one sentence, what would it be?`,
-        `Final question — ${name}, what would success look like in 30 days?`,
+        `What resources or support do you have available, ${name}?`,
+        `If this problem were solved, ${name}, what would be different?`,
+        `What's one small step you can take in the next 24 hours?`,
       ];
       return qs[index] || null;
     }

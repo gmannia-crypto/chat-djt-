@@ -1,0 +1,302 @@
+// api/generate-therapy.js
+// UPDATED with all three voices: Trump, Sophia, James
+
+export default async function handler(req, res) {
+    // Enable CORS
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    
+    if (req.method === 'OPTIONS') {
+        return res.status(200).end();
+    }
+    
+    if (req.method !== 'POST') {
+        return res.status(405).json({ error: 'Method not allowed' });
+    }
+    
+    const { name, problem, seriousness, previousAnswer, followUpIndex, voice = 'trump' } = req.body;
+    
+    // Route to appropriate voice handler
+    try {
+        let result;
+        
+        switch(voice) {
+            case 'sophia':
+                result = handleSophia({ name, problem, seriousness, previousAnswer, followUpIndex });
+                break;
+            case 'james':
+                result = handleJames({ name, problem, seriousness, previousAnswer, followUpIndex });
+                break;
+            default:
+                result = handleTrump({ name, problem, seriousness, previousAnswer, followUpIndex });
+        }
+        
+        return res.json(result);
+        
+    } catch (error) {
+        console.error('Therapy generation error:', error);
+        return res.status(500).json({ error: 'Failed to generate therapy' });
+    }
+}
+
+// ==================== DR. TRUMP ====================
+function handleTrump({ name, problem, seriousness, previousAnswer, followUpIndex }) {
+    const s = parseInt(seriousness) || 5;
+    
+    // Follow-up response
+    if (previousAnswer) {
+        const response = generateTrumpFollowUpResponse(name, problem, previousAnswer, followUpIndex);
+        const nextQuestion = getNextTrumpFollowUp(problem, followUpIndex + 1);
+        return { 
+            type: 'follow-up-response',
+            message: response,
+            nextQuestion
+        };
+    }
+    
+    // Initial therapy
+    const therapy = generateTrumpTherapy(name, problem, s);
+    const followUp = getFirstTrumpFollowUp(problem, name);
+    
+    return { therapy, followUp, followUpIndex: 0 };
+}
+
+function generateTrumpTherapy(name, problem, seriousness) {
+    const templates = [
+        `${name}, let me tell you about ${problem}. I've faced worse. Witch hunts, fake news, the whole thing. And I won. On a scale of 1-10, your problem is a ${seriousness}. My advice? Be like me. Win.`,
+        
+        `${problem}? That's nothing. I've seen problems. Real problems. But you? You're a winner. Very stable genius. Now go fix it. And remember, I'm always right.`,
+        
+        `I'm looking at your situation, ${name}. ${problem} is serious. Very serious. But here's the thing - you're smarter than them. You're stronger. Now go out there and be tremendous.`,
+        
+        `${name}, I've employed thousands. The best people. And you know what makes someone great? How they handle ${problem}. And you? You're handling it beautifully. Could be better. But beautiful.`
+    ];
+    
+    // Context-specific
+    if (problem.toLowerCase().includes('work') || problem.toLowerCase().includes('job')) {
+        return `Work problems? ${name}, you're underpaid. Very underpaid. I know salaries. Ask for a raise. If they say no, tell them Trump sent you. Works every time.`;
+    }
+    
+    if (problem.toLowerCase().includes('love') || problem.toLowerCase().includes('relationship')) {
+        return `Love is complicated. I've been married three times. Great marriages. The best. But ${problem}? You'll find someone. Someone tremendous.`;
+    }
+    
+    if (problem.toLowerCase().includes('money') || problem.toLowerCase().includes('broke')) {
+        return `Money problems? I've been broke before. Many times. And I came back richer. You will too. Invest in walls. Walls always win.`;
+    }
+    
+    return templates[Math.floor(Math.random() * templates.length)];
+}
+
+function getFirstTrumpFollowUp(problem, name) {
+    const followUps = [
+        `${name}, when did this problem start? Before I was president or after? Important context.`,
+        `Be honest with me, ${name}. Is this YOUR fault or someone else's? It's usually someone else's.`,
+        `${name}, on a scale of 1-10, how much does this keep you up at night? I sleep great, by the way.`,
+        `Tell me, ${name}, have you tried winning? It works for me. Every time.`
+    ];
+    return followUps[Math.floor(Math.random() * followUps.length)];
+}
+
+function generateTrumpFollowUpResponse(name, problem, answer, index) {
+    const answerLower = answer.toLowerCase();
+    
+    if (answerLower.includes('yes')) {
+        return `"Yes"? I like yes-people. Very smart. ${name}, you're making progress already. Tremendous.`;
+    }
+    if (answerLower.includes('no')) {
+        return `"No"? That's what the fake news says. But I know better. ${name}, think again.`;
+    }
+    if (answerLower.includes('boss') || answerLower.includes('manager')) {
+        return `Bosses! I know bosses. Most are weak. Very weak. ${name}, you should be the boss.`;
+    }
+    
+    const responses = [
+        `Interesting, ${name}. Very interesting. I'm learning a lot about you. You're complicated. Like me.`,
+        `That's exactly what I thought. I knew it. I always know. ${name}, we're making progress.`,
+        `I've heard enough. ${name}, you're going to be fine. Better than fine. Tremendous.`
+    ];
+    return responses[index % responses.length];
+}
+
+function getNextTrumpFollowUp(problem, index) {
+    if (index >= 3) return null;
+    const followUps = [
+        `One more thing – do you think about this every day?`,
+        `Last question – what would make this problem go away completely?`,
+        `Final thought – do you believe you can fix this yourself?`
+    ];
+    return followUps[index];
+}
+
+// ==================== DR. SOPHIA (Nurturing Female) ====================
+function handleSophia({ name, problem, seriousness, previousAnswer, followUpIndex }) {
+    // Follow-up response
+    if (previousAnswer) {
+        const response = generateSophiaFollowUpResponse(name, problem, previousAnswer, followUpIndex);
+        const nextQuestion = getNextSophiaFollowUp(problem, followUpIndex + 1);
+        return { 
+            type: 'follow-up-response',
+            message: response,
+            nextQuestion
+        };
+    }
+    
+    // Initial therapy
+    const therapy = generateSophiaTherapy(name, problem, seriousness);
+    const followUp = getFirstSophiaFollowUp(problem, name);
+    
+    return { therapy, followUp, followUpIndex: 0 };
+}
+
+function generateSophiaTherapy(name, problem, seriousness) {
+    const s = parseInt(seriousness) || 5;
+    
+    const templates = [
+        `${name}, I hear you. ${problem} sounds really difficult. It's okay to feel overwhelmed. Many people struggle with this, and you're not alone. Let's work through it together, gently.`,
+        
+        `Thank you for sharing this with me, ${name}. ${problem} is real and valid. Your feelings matter. Let's take a deep breath and explore what's underneath all of this.`,
+        
+        `I'm here with you, ${name}. ${problem} doesn't define you. You're so much more than this struggle. Tell me more about what you're experiencing.`,
+        
+        `${name}, I can feel how much this is affecting you. You're so brave for talking about it. Let's take it slow. What do you need right now?`
+    ];
+    
+    if (s >= 8) {
+        return `${name}, this is really heavy. I can feel how much weight you're carrying. You're not alone in this. Let's take a moment to just breathe together.`;
+    }
+    
+    if (problem.toLowerCase().includes('work')) {
+        return `Work stress is so common, ${name}, but that doesn't make it any easier. Your worth isn't defined by your job. You deserve balance and peace.`;
+    }
+    
+    if (problem.toLowerCase().includes('love')) {
+        return `${name}, matters of the heart are never simple. Be gentle with yourself. The right love will feel like peace, not confusion.`;
+    }
+    
+    return templates[Math.floor(Math.random() * templates.length)];
+}
+
+function getFirstSophiaFollowUp(problem, name) {
+    const followUps = [
+        `${name}, how long have you been carrying this? You don't have to carry it alone anymore.`,
+        `I'm curious – what would support look like for you right now?`,
+        `When you think about ${problem}, what emotion comes up first? There's no wrong answer.`,
+        `${name}, have you talked to anyone else about this? You deserve to be heard.`,
+        `What would make today just a tiny bit better for you? Even something small.`
+    ];
+    return followUps[Math.floor(Math.random() * followUps.length)];
+}
+
+function generateSophiaFollowUpResponse(name, problem, answer, index) {
+    const answerLower = answer.toLowerCase();
+    
+    const nurturingResponses = [
+        `Thank you for telling me that, ${name}. That takes courage. I hear how much this matters to you.`,
+        `I appreciate you sharing that. It sounds like you've been through a lot. You're handling it with more strength than you realize.`,
+        `That makes complete sense given what you've described. Anyone would feel that way. You're not alone.`,
+        `I'm here with you. What you're feeling is valid. Let's sit with that for a moment.`,
+        `You're doing such important work right now. Be gentle with yourself.`
+    ];
+    
+    if (answerLower.includes('sad') || answerLower.includes('cry')) {
+        return `It's okay to feel sad, ${name}. Tears are part of healing. I'm here with you.`;
+    }
+    if (answerLower.includes('angry') || answerLower.includes('mad')) {
+        return `Anger is valid, ${name}. It's often protecting something deeper. What do you think might be underneath it?`;
+    }
+    if (answerLower.includes('tired') || answerLower.includes('exhausted')) {
+        return `Burnout is real, ${name}. You've been carrying so much. Rest is productive. You deserve rest.`;
+    }
+    
+    return nurturingResponses[index % nurturingResponses.length];
+}
+
+function getNextSophiaFollowUp(problem, index) {
+    if (index >= 3) return null;
+    const followUps = [
+        `What would self-care look like for you today?`,
+        `If you could change one small thing right now, what would it be?`,
+        `What do you need to hear right now? I'm listening.`
+    ];
+    return followUps[index];
+}
+
+// ==================== DR. JAMES (Balanced Male) ====================
+function handleJames({ name, problem, seriousness, previousAnswer, followUpIndex }) {
+    // Follow-up response
+    if (previousAnswer) {
+        const response = generateJamesFollowUpResponse(name, problem, previousAnswer, followUpIndex);
+        const nextQuestion = getNextJamesFollowUp(problem, followUpIndex + 1);
+        return { 
+            type: 'follow-up-response',
+            message: response,
+            nextQuestion
+        };
+    }
+    
+    // Initial therapy
+    const therapy = generateJamesTherapy(name, problem, seriousness);
+    const followUp = getFirstJamesFollowUp(problem, name);
+    
+    return { therapy, followUp, followUpIndex: 0 };
+}
+
+function generateJamesTherapy(name, problem, seriousness) {
+    const s = parseInt(seriousness) || 5;
+    
+    const templates = [
+        `Let's approach this systematically, ${name}. ${problem} can be broken down into manageable parts. What's the biggest challenge right now?`,
+        
+        `${name}, based on what you've shared, ${problem} is affecting you at a level ${s}/10. Let's identify what's within your control.`,
+        
+        `I appreciate you being here, ${name}. ${problem} is something many people face. Let's look at this objectively and find a path forward.`,
+        
+        `Here's my perspective, ${name}: ${problem} is a challenge, not a definition of who you are. Let's work on solutions.`
+    ];
+    
+    if (s >= 8) {
+        return `This is significant, ${name}. Let's prioritize immediate steps. What's one thing you can do today to address this?`;
+    }
+    
+    if (problem.toLowerCase().includes('work')) {
+        return `Work challenges often come down to boundaries, ${name}. Let's identify where your boundaries need strengthening.`;
+    }
+    
+    return templates[Math.floor(Math.random() * templates.length)];
+}
+
+function getFirstJamesFollowUp(problem, name) {
+    const followUps = [
+        `${name}, what have you tried so far to address this?`,
+        `On a practical level, what's the biggest obstacle you're facing?`,
+        `If you had to name one thing that would make the biggest difference, what would it be?`,
+        `${name}, let's look at the facts. What do you know for sure about this situation?`
+    ];
+    return followUps[Math.floor(Math.random() * followUps.length)];
+}
+
+function generateJamesFollowUpResponse(name, problem, answer, index) {
+    const balancedResponses = [
+        `That's helpful context, ${name}. Let's build on that.`,
+        `I see. And based on what you've said, here's a logical next step...`,
+        `Thank you for that clarity. Let's analyze this together.`,
+        `That makes sense. Here's how we can approach this systematically.`
+    ];
+    
+    if (answer.length > 50) {
+        return `You've given this a lot of thought, ${name}. That's good. Now let's channel that energy into actionable steps.`;
+    }
+    
+    return balancedResponses[index % balancedResponses.length];
+}
+
+function getNextJamesFollowUp(problem, index) {
+    if (index >= 3) return null;
+    const followUps = [
+        `What resources or support do you have available?`,
+        `If this problem were solved, what would be different?`,
+        `What's one small step you can take in the next 24 hours?`
+    ];
+    return followUps[index];
+}
