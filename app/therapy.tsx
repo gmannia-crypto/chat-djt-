@@ -371,8 +371,9 @@ export default function TherapyScreen() {
         scrollRef.current?.scrollToEnd({ animated: true });
       }, 300);
 
+      const currentVoice = selectedTherapist;
       if (data.therapy) {
-        setTimeout(() => handleSpeak(data.therapy), 500);
+        setTimeout(() => handleSpeak(data.therapy, currentVoice), 500);
       }
     } catch (err) {
       setTherapy(config.errorMsg);
@@ -382,7 +383,8 @@ export default function TherapyScreen() {
     }
   };
 
-  async function handleSpeak(text: string) {
+  async function handleSpeak(text: string, voice?: TherapistVoice) {
+    const ttsVoice = voice || selectedTherapist;
     try {
       if (soundRef.current) {
         await soundRef.current.unloadAsync();
@@ -393,7 +395,7 @@ export default function TherapyScreen() {
       const ttsRes = await fetch(`${apiUrl}/api/tts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, mood: "CALM", voice: selectedTherapist }),
+        body: JSON.stringify({ text, mood: "CALM", voice: ttsVoice }),
       });
       if (!ttsRes.ok) { setSpeaking(false); return; }
       const blob = await ttsRes.blob();
