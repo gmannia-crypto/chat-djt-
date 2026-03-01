@@ -1287,7 +1287,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "INSERT INTO share_events (device_id, feature, content_preview, platform) VALUES ($1, $2, $3, $4)",
         [deviceId || null, feature, (contentPreview || "").slice(0, 200), platform || "unknown"]
       );
-      res.json({ success: true });
+      const [totalResult, todayResult] = await Promise.all([
+        db.query("SELECT COUNT(*) as total FROM share_events"),
+        db.query("SELECT COUNT(*) as today FROM share_events WHERE created_at >= CURRENT_DATE"),
+      ]);
+      const totalShares = parseInt(totalResult.rows[0]?.total || "0");
+      const sharesToday = parseInt(todayResult.rows[0]?.today || "0");
+      res.json({ success: true, totalShares, sharesToday });
     } catch (error) {
       console.error("Track share error:", error);
       res.status(500).json({ error: "Failed to track share" });
