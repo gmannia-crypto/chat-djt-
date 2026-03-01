@@ -740,26 +740,17 @@
 
         async function generateTherapy() {
             try {
-                const response = await fetch('/api/therapy', {
+                const response = await fetch('/api/generate-therapy', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'x-device-id': deviceId
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(userAnswers)
                 });
 
-                if (!response.ok && response.status !== 403) {
+                if (!response.ok) {
                     throw new Error('Request failed');
                 }
 
                 const data = await response.json();
-
-                if (data.error === 'no_tokens') {
-                    document.getElementById('sessionContent').textContent = "Dr. Trump is very busy right now. You've used all your free sessions! Upgrade below for unlimited access.";
-                    return;
-                }
-
                 document.getElementById('sessionContent').textContent = data.therapy;
                 sessionStorage.setItem('lastTherapy', data.therapy);
                 sessionStorage.setItem('userName', userAnswers.name);

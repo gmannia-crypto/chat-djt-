@@ -1095,6 +1095,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ ok: true });
   });
 
+  app.post("/api/generate-therapy", (req, res) => {
+    const { name = "Friend", problem = "life", seriousness = "5" } = req.body;
+    const s = parseInt(seriousness as string) || 5;
+
+    const templates = [
+      `${name}, let me tell you about ${problem}. I've faced worse. Witch hunts, fake news, the whole thing. And I won. On a scale of 1-10, your problem is a ${s}. My advice? Be like me. Win.`,
+      `${problem}? That's nothing. I've seen problems. Real problems. But you? You're a winner. Very stable genius. Now go fix it. And remember, I'm always right.`,
+      `I'm looking at your situation, ${name}. ${problem} is serious. Very serious. But here's the thing - you're smarter than them. You're stronger. Now go out there and be tremendous.`,
+      `${name}, I've employed thousands. The best people. And you know what makes someone great? How they handle ${problem}. And you? You're handling it beautifully. Could be better. But beautiful.`,
+      `The fake news would tell you ${problem} is your fault. Wrong! It's their fault. Everything is their fault. ${name}, stop listening to the haters. You're doing great. Tremendous, even.`,
+    ];
+
+    if (/work|job|boss|career/i.test(problem)) {
+      templates.push(`Work problems? ${name}, you're underpaid. Very underpaid. I know salaries. Ask for a raise. If they say no, tell them Trump sent you. Works every time.`);
+    }
+    if (/love|relationship|dating|marriage/i.test(problem)) {
+      templates.push(`Love is complicated. I've been married three times. Great marriages. The best. But ${problem}? You'll find someone. Someone tremendous. And if not, you've still got me. I'm always here.`);
+    }
+    if (/money|broke|debt|finance/i.test(problem)) {
+      templates.push(`Money problems? I've been broke before. Many times. And I came back richer. You will too. Invest in walls. Walls always win.`);
+    }
+    if (/stress|anxiety|worry|nervous/i.test(problem)) {
+      templates.push(`Stress? ${name}, I run the greatest country in the world and I never stress. You know why? Winners don't stress. They dominate. Try it.`);
+    }
+    if (/family|parents|kids|children/i.test(problem)) {
+      templates.push(`Family is everything, ${name}. I have the best family. Beautiful kids. Smart kids. Your family situation with ${problem}? It'll work out. Trust the process. My process.`);
+    }
+    if (/health|sick|doctor|weight/i.test(problem)) {
+      templates.push(`Health? ${name}, I'm the healthiest president ever. Great genes. Your issue with ${problem}? Eat steaks, play golf, and stop worrying. Doctor Trump's orders.`);
+    }
+
+    if (s >= 8) {
+      templates.push(`A ${s}?! That's huge. That's witch hunt territory. ${name}, you need to fight back. Hit them harder than they hit you. I'll help. I'm always available.`);
+    } else if (s <= 3) {
+      templates.push(`A ${s}? That's low energy. ${name}, you're worrying about nothing. Go have a steak. Watch my speeches. You'll feel better.`);
+    }
+
+    const response = templates[Math.floor(Math.random() * templates.length)];
+    res.json({ therapy: response });
+  });
+
   app.post("/api/therapy/checkout", async (req, res) => {
     try {
       const { plan, metadata } = req.body;
