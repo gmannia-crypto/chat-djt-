@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
+import * as FileSystem from "expo-file-system";
 import { Audio } from "expo-av";
 import Animated, {
   FadeIn,
@@ -64,9 +65,15 @@ export default function TherapyScreen() {
   const [loading, setLoading] = useState(false);
   const [speaking, setSpeaking] = useState(false);
 
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+
   const scrollRef = useRef<ScrollView>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
   const introTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const recordingRef = useRef<Audio.Recording | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   const pulseValue = useSharedValue(1);
 
@@ -92,6 +99,129 @@ export default function TherapyScreen() {
       true
     );
   }, []);
+
+  React.useEffect(() => {
+    return () => {
+      if (Platform.OS === "web") {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+          mediaRecorderRef.current.stop();
+        }
+        mediaRecorderRef.current = null;
+      } else if (recordingRef.current) {
+        recordingRef.current.stopAndUnloadAsync().catch(() => {});
+        Audio.setAudioModeAsync({ allowsRecordingIOS: false }).catch(() => {});
+        recordingRef.current = null;
+      }
+    };
+  }, []);
+
+  async function startRecording() {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      if (Platform.OS === "web") {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+        audioChunksRef.current = [];
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) audioChunksRef.current.push(e.data);
+        };
+        mediaRecorder.onstop = async () => {
+          stream.getTracks().forEach((t) => t.stop());
+          const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+          await transcribeAudio(blob, "webm");
+        };
+        mediaRecorderRef.current = mediaRecorder;
+        mediaRecorder.start();
+        setIsRecording(true);
+      } else {
+        const permission = await Audio.requestPermissionsAsync();
+        if (!permission.granted) return;
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true,
+        });
+        const { recording } = await Audio.Recording.createAsync(
+          Audio.RecordingOptionsPresets.HIGH_QUALITY
+        );
+        recordingRef.current = recording;
+        setIsRecording(true);
+      }
+    } catch (error) {
+      console.error("Recording start error:", error);
+      setIsRecording(false);
+    }
+  }
+
+  async function stopRecording() {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      if (Platform.OS === "web") {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+          mediaRecorderRef.current.stop();
+        }
+        setIsRecording(false);
+      } else {
+        if (!recordingRef.current) return;
+        setIsRecording(false);
+        await recordingRef.current.stopAndUnloadAsync();
+        await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+        const uri = recordingRef.current.getURI();
+        recordingRef.current = null;
+        if (!uri) return;
+        const base64 = await FileSystem.readAsStringAsync(uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        await transcribeFromBase64(base64, "m4a");
+      }
+    } catch (error) {
+      console.error("Recording stop error:", error);
+      setIsRecording(false);
+    }
+  }
+
+  async function transcribeAudio(blob: Blob, format: string) {
+    setIsTranscribing(true);
+    try {
+      const reader = new FileReader();
+      const base64 = await new Promise<string>((resolve, reject) => {
+        reader.onloadend = () => {
+          const result = reader.result as string;
+          resolve(result.split(",")[1]);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+      await transcribeFromBase64(base64, format);
+    } catch (error) {
+      console.error("Transcription error:", error);
+    } finally {
+      setIsTranscribing(false);
+    }
+  }
+
+  async function transcribeFromBase64(base64: string, format: string) {
+    setIsTranscribing(true);
+    try {
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      const response = await globalThis.fetch(`${baseUrl}/api/stt`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ audio: base64, format }),
+      });
+      if (!response.ok) throw new Error("STT request failed");
+      const data = await response.json();
+      if (data.text && data.text.trim()) {
+        setProblem((prev) => {
+          const trimmed = data.text.trim();
+          return prev ? prev + " " + trimmed : trimmed;
+        });
+      }
+    } catch (error) {
+      console.error("Transcription error:", error);
+    } finally {
+      setIsTranscribing(false);
+    }
+  }
 
   const pulseStyle = useAnimatedStyle(() => ({
     opacity: pulseValue.value,
@@ -343,16 +473,47 @@ export default function TherapyScreen() {
             maxLength={30}
           />
 
-          <Text style={styles.inputLabel}>{"\uD83D\uDE1F"} What's bothering you?</Text>
+          <View style={styles.labelRow}>
+            <Text style={[styles.inputLabel, { marginTop: 0, marginBottom: 0 }]}>{"\uD83D\uDE1F"} What's bothering you?</Text>
+            <Pressable
+              onPress={isRecording ? stopRecording : startRecording}
+              disabled={isTranscribing}
+              testID="mic-button"
+              accessibilityLabel={isRecording ? "Stop recording" : "Start voice input"}
+              style={({ pressed }) => [
+                styles.micButton,
+                isRecording && styles.micButtonRecording,
+                pressed && { opacity: 0.7 },
+                isTranscribing && { opacity: 0.5 },
+              ]}
+            >
+              {isTranscribing ? (
+                <ActivityIndicator color="#ff4d4d" size="small" />
+              ) : (
+                <Ionicons
+                  name={isRecording ? "stop" : "mic"}
+                  size={18}
+                  color={isRecording ? "#fff" : "#ff4d4d"}
+                />
+              )}
+            </Pressable>
+          </View>
+          {isRecording && (
+            <Animated.View entering={FadeIn.duration(200)} style={styles.recordingIndicator}>
+              <View style={styles.recordingDot} />
+              <Text style={styles.recordingText}>Listening... tap mic to stop</Text>
+            </Animated.View>
+          )}
           <TextInput
             value={problem}
             onChangeText={setProblem}
-            placeholder="Tell Dr. Trump what's wrong... work? relationships? life?"
+            placeholder={isRecording ? "Speak now..." : "Tell Dr. Trump what's wrong... or tap the mic"}
             placeholderTextColor="rgba(255,255,255,0.3)"
-            style={[styles.textInput, styles.textArea]}
+            style={[styles.textInput, styles.textArea, isRecording && styles.textInputRecording]}
             multiline
             maxLength={500}
             textAlignVertical="top"
+            editable={!isRecording}
           />
 
           <Text style={styles.inputLabel}>{"\uD83D\uDCCA"} How serious is it? (1-10)</Text>
@@ -627,12 +788,54 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: 24,
   },
+  labelRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "space-between" as const,
+    marginTop: 16,
+    marginBottom: 8,
+  },
   inputLabel: {
     color: "#ff4d4d",
     fontSize: 15,
     fontWeight: "700",
     marginBottom: 8,
     marginTop: 16,
+  },
+  micButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "rgba(255,77,77,0.15)",
+    borderWidth: 1.5,
+    borderColor: "rgba(255,77,77,0.4)",
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+  },
+  micButtonRecording: {
+    backgroundColor: "#ff4d4d",
+    borderColor: "#ff4d4d",
+  },
+  recordingIndicator: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 6,
+    marginBottom: 6,
+    paddingHorizontal: 4,
+  },
+  recordingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#ff4d4d",
+  },
+  recordingText: {
+    color: "#ff4d4d",
+    fontSize: 12,
+    fontWeight: "600" as const,
+  },
+  textInputRecording: {
+    borderColor: "rgba(255,77,77,0.6)",
   },
   textInput: {
     backgroundColor: "rgba(51,51,51,0.8)",
