@@ -11,6 +11,7 @@ import {
   TextInput,
   Image,
   Dimensions,
+  Linking,
 } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -613,6 +614,122 @@ export default function TherapyScreen() {
             </View>
           </Animated.View>
         )}
+
+        {!!therapy && (
+          <View style={styles.picksCard}>
+            <Text style={styles.picksTitle}>DR. TRUMP'S RX</Text>
+            <Text style={styles.picksSubtitle}>"I prescribe only the best. Believe me."</Text>
+
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                Linking.openURL("https://www.amazon.com/s?k=omega+3+fish+oil+supplement&tag=trumpbot-20");
+              }}
+              style={({ pressed }) => [styles.pickItem, pressed && { opacity: 0.7 }]}
+            >
+              <Text style={styles.pickEmoji}>{"\uD83D\uDC8A"}</Text>
+              <View style={styles.pickInfo}>
+                <Text style={styles.pickName}>"Omega-3 Fish Oil – Tremendous for the Brain!"</Text>
+                <Text style={styles.pickDesc}>The smartest people take this. I know many of them.</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.4)" />
+            </Pressable>
+
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                Linking.openURL("https://www.amazon.com/s?k=magnesium+glycinate+supplement&tag=trumpbot-20");
+              }}
+              style={({ pressed }) => [styles.pickItem, pressed && { opacity: 0.7 }]}
+            >
+              <Text style={styles.pickEmoji}>{"\u2728"}</Text>
+              <View style={styles.pickInfo}>
+                <Text style={styles.pickName}>"Magnesium – Sleep Like a Winner!"</Text>
+                <Text style={styles.pickDesc}>I sleep 4 hours and wake up a genius. Imagine what you could do.</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.4)" />
+            </Pressable>
+
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                Linking.openURL("https://www.amazon.com/s?k=ashwagandha+supplement&tag=trumpbot-20");
+              }}
+              style={({ pressed }) => [styles.pickItem, pressed && { opacity: 0.7 }]}
+            >
+              <Text style={styles.pickEmoji}>{"\uD83C\uDF3F"}</Text>
+              <View style={styles.pickInfo}>
+                <Text style={styles.pickName}>"Ashwagandha – Stress? Never Heard of It!"</Text>
+                <Text style={styles.pickDesc}>Ancient wisdom. Very powerful. Many people are saying it works.</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.4)" />
+            </Pressable>
+
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                Linking.openURL("https://www.amazon.com/s?k=vitamin+d3+supplement&tag=trumpbot-20");
+              }}
+              style={({ pressed }) => [styles.pickItem, pressed && { opacity: 0.7 }]}
+            >
+              <Text style={styles.pickEmoji}>{"\u2600\uFE0F"}</Text>
+              <View style={styles.pickInfo}>
+                <Text style={styles.pickName}>"Vitamin D – The Sunshine Vitamin!"</Text>
+                <Text style={styles.pickDesc}>I get plenty from my golf courses. You? Take a pill.</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.4)" />
+            </Pressable>
+
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                Linking.openURL("https://www.amazon.com/s?k=l-theanine+supplement+focus&tag=trumpbot-20");
+              }}
+              style={({ pressed }) => [styles.pickItem, pressed && { opacity: 0.7 }]}
+            >
+              <Text style={styles.pickEmoji}>{"\uD83E\uDDE0"}</Text>
+              <View style={styles.pickInfo}>
+                <Text style={styles.pickName}>"L-Theanine – Focus Like a Dealmaker!"</Text>
+                <Text style={styles.pickDesc}>Calm focus. No jitters. Just winning. Art of the Deal energy.</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.4)" />
+            </Pressable>
+
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                Linking.openURL("https://www.amazon.com/s?k=probiotics+gut+health&tag=trumpbot-20");
+              }}
+              style={({ pressed }) => [styles.pickItem, pressed && { opacity: 0.7 }]}
+            >
+              <Text style={styles.pickEmoji}>{"\uD83E\uDDA0"}</Text>
+              <View style={styles.pickInfo}>
+                <Text style={styles.pickName}>"Probiotics – Trust Your Gut!"</Text>
+                <Text style={styles.pickDesc}>My gut is never wrong. Yours could be better. Tremendous bacteria.</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.4)" />
+            </Pressable>
+
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                Linking.openURL("https://www.amazon.com/s?k=melatonin+sleep+aid&tag=trumpbot-20");
+              }}
+              style={({ pressed }) => [styles.pickItem, pressed && { opacity: 0.7 }]}
+            >
+              <Text style={styles.pickEmoji}>{"\uD83C\uDF19"}</Text>
+              <View style={styles.pickInfo}>
+                <Text style={styles.pickName}>"Melatonin – Sleep Bigly!"</Text>
+                <Text style={styles.pickDesc}>Rest well. Wake up ready to make deals. Winners sleep smart.</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.4)" />
+            </Pressable>
+
+            <Text style={styles.picksDisclaimer}>
+              As an Amazon Associate, I earn from qualifying purchases.
+            </Text>
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -985,5 +1102,63 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 0.5,
+  },
+  picksCard: {
+    backgroundColor: "rgba(26,26,26,0.95)",
+    borderWidth: 2,
+    borderColor: "rgba(255,77,77,0.3)",
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 30,
+    overflow: "hidden",
+  },
+  picksTitle: {
+    fontSize: 22,
+    fontWeight: "900",
+    color: "#ff4d4d",
+    textAlign: "center",
+    letterSpacing: 2,
+    marginBottom: 4,
+  },
+  picksSubtitle: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.5)",
+    fontStyle: "italic",
+    textAlign: "center",
+    marginBottom: 16,
+  },
+  pickItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,77,77,0.12)",
+    gap: 12,
+  },
+  pickEmoji: {
+    fontSize: 28,
+    width: 36,
+    textAlign: "center",
+  },
+  pickInfo: {
+    flex: 1,
+  },
+  pickName: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "rgba(255,255,255,0.9)",
+    marginBottom: 2,
+  },
+  pickDesc: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.45)",
+    fontStyle: "italic",
+  },
+  picksDisclaimer: {
+    fontSize: 10,
+    color: "rgba(255,255,255,0.25)",
+    textAlign: "center",
+    marginTop: 14,
   },
 });

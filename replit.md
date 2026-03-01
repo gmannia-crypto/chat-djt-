@@ -34,14 +34,17 @@ The backend is an Express 5 server running on port 5000, serving as an API gatew
 - `GET /api/markets`: Provides market prices for various assets.
 - `GET /api/weather-commentary`: Generates Trump's weather hot takes.
 - `GET /api/market-hot-takes`: Provides Trump's market hot takes.
-- `POST /api/track-share`: Logs app share events.
+- `POST /api/track-share`: Logs app share events and returns total/daily share counts.
 - `GET /api/admin/shares`: Provides share analytics for the admin dashboard.
+- `GET /api/therapy/card`: Serves a shareable HTML therapy card with patient name/therapy via query params.
+- `POST /api/therapy/checkout`: Creates Stripe checkout sessions for therapy payments (single $2.99, weekly $9.99, monthly $19.99).
 - `POST /api/rate-trump`: Allows users to rate Trump, triggering AI reactions.
 - `GET /api/rate-trump/leaderboard`: Displays a leaderboard of supporters and haters.
 - `POST /api/create-challenge`: Creates a shareable challenge link.
 - `GET /api/challenge/:id`: Retrieves challenge details.
 - `POST /api/fortune`: Generates Trump-style fortune predictions based on name, birthday/zodiac and topic (token-gated).
-- `POST /api/therapy`: Generates Trump-style therapy responses as "Dr. Trump" based on name, problem, and seriousness level (token-gated).
+- `POST /api/therapy`: Generates Trump-style therapy responses as "Dr. Trump" based on name, problem, and seriousness level (token-gated). Includes template-based fallback if AI fails.
+- Therapy page features: cinematic intro animation, Trump therapist background image, speech-to-text input (mic button), "Dr. Trump's RX" Amazon affiliate product recommendations (health/wellness supplements with `trumpbot-20` tag).
 
 The backend leverages OpenAI for chat completions and transcription, and Fish Audio for text-to-speech with a cloned Trump voice. It also handles static serving of pre-built Expo web assets in production.
 
