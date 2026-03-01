@@ -393,7 +393,7 @@ export default function TherapyScreen() {
       const ttsRes = await fetch(`${apiUrl}/api/tts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, mood: "CALM" }),
+        body: JSON.stringify({ text, mood: "CALM", voice: selectedTherapist }),
       });
       if (!ttsRes.ok) { setSpeaking(false); return; }
       const blob = await ttsRes.blob();
