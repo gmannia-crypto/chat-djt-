@@ -1015,6 +1015,7 @@
         function checkForPaymentReturn() {
             var params = new URLSearchParams(window.location.search);
             if (params.get('success') || params.get('session_id')) {
+                if (typeof AudioSystem !== 'undefined') AudioSystem.success();
                 document.getElementById('sessionContainer').style.display = 'block';
                 document.getElementById('sessionContent').textContent = 'Payment confirmed! Loading premium session...';
                 setTimeout(function() { generateInitialTherapy(); }, 2000);
