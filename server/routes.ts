@@ -586,9 +586,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  async function fishAudioTTS(text: string, voiceId: string, speed: number = 1.0): Promise<Buffer> {
+    const apiKey = process.env.FISH_AUDIO_API_KEY;
+    if (!apiKey) throw new Error("Fish Audio API key not configured");
+
+    const response = await fetch("https://api.fish.audio/v1/tts", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        text,
+        reference_id: voiceId,
+        format: "mp3",
+        latency: "balanced",
+        prosody: { speed },
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Fish Audio TTS error:", response.status, errorText);
+      throw new Error(`Fish Audio TTS failed: ${response.status}`);
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  }
+
+  const SOPHIA_VOICE_ID = "193c58af62ea487180baacdef8a69bbd";
+
   app.post("/api/tts", async (req, res) => {
     try {
-      const { text, mood, speechCategory } = req.body;
+      const { text, mood, speechCategory, voice } = req.body;
       apiUsageCounters.tts++;
 
       if (!text || typeof text !== "string") {
@@ -605,10 +636,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .trim();
       const truncatedText = cleanedText.slice(0, 5000);
 
-      const speed = 1.0;
+      let audioBuffer: Buffer;
 
-      const rawAudio = await trumpTextToSpeech(truncatedText, speed, mood || "CALM", speechCategory || "CASUAL_TALK");
-      const audioBuffer = await overlayBleeps(rawAudio, truncatedText);
+      if (voice === "sophia") {
+        audioBuffer = await fishAudioTTS(truncatedText, SOPHIA_VOICE_ID, 0.95);
+      } else {
+        const speed = 1.0;
+        const rawAudio = await trumpTextToSpeech(truncatedText, speed, mood || "CALM", speechCategory || "CASUAL_TALK");
+        audioBuffer = await overlayBleeps(rawAudio, truncatedText);
+      }
 
       res.setHeader("Content-Type", "audio/mpeg");
       res.setHeader("Content-Length", audioBuffer.length.toString());
@@ -1089,6 +1125,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.sendFile(viralPath);
   });
 
+  app.get("/therapy-multi", (_req, res) => {
+    const multiPath = require("path").resolve(process.cwd(), "server", "templates", "therapy-multi.html");
+    res.sendFile(multiPath);
+  });
+
   const viralStats: { sessions: any[]; shares: any[]; conversions: any[] } = {
     sessions: [],
     shares: [],
@@ -1221,14 +1262,151 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return defaults[index % defaults.length];
   }
 
+  function generateSophiaTherapy(name: string, problem: string, s: number): string {
+    const templates = [
+      `${name}, I hear you. ${problem} is weighing on you, and that's completely valid. You rated this a ${s} out of 10, and I want you to know — your feelings matter. Let's explore this together, gently.`,
+      `Thank you for sharing that with me, ${name}. ${problem} sounds really challenging. I want you to take a deep breath right now. You're safe here. Let's unpack this at your own pace.`,
+      `${name}, I can feel how much ${problem} is affecting you. It takes courage to talk about it. You're not broken — you're human. And being human means sometimes things hurt.`,
+      `What you're going through with ${problem} is more common than you think, ${name}. You're not alone in this. Let me help you find some clarity and maybe a little peace.`,
+      `${name}, I appreciate your honesty about ${problem}. A ${s} on the seriousness scale tells me this really matters to you. And because it matters to you, it matters to me. Let's work through this.`,
+    ];
+
+    if (/work|job|boss|career/i.test(problem)) {
+      templates.push(`Work can consume us if we let it, ${name}. Your worth isn't defined by your job title or your boss's opinion. Let's separate who you are from what you do.`);
+    }
+    if (/love|relationship|dating|marriage/i.test(problem)) {
+      templates.push(`Love is one of our deepest needs, ${name}. When it hurts, it hurts everywhere. Tell me — what does your heart need right now? Not what you think you should need, but what you actually need.`);
+    }
+    if (/money|broke|debt|finance/i.test(problem)) {
+      templates.push(`Financial stress can feel suffocating, ${name}. But I want you to separate the numbers from your self-worth. You are not your bank account. Let's find some breathing room.`);
+    }
+    if (/stress|anxiety|worry|nervous/i.test(problem)) {
+      templates.push(`${name}, anxiety is your body trying to protect you, even when the danger isn't real. Let's learn to listen to it without letting it drive. You have more control than you think.`);
+    }
+    if (/family|parents|kids|children/i.test(problem)) {
+      templates.push(`Family relationships are so complex, ${name}. We can love people deeply and still struggle with them. That's not a failure — it's being human.`);
+    }
+    if (/health|sick|doctor|weight/i.test(problem)) {
+      templates.push(`Your health concerns are valid, ${name}. Your body and mind are connected. Let's make sure we're taking care of both, together.`);
+    }
+
+    return pickRandom(templates);
+  }
+
+  function generateJamesTherapy(name: string, problem: string, s: number): string {
+    const templates = [
+      `${name}, let's approach ${problem} systematically. You've rated this a ${s}. That gives us a baseline. Now, let's identify the root cause and work toward a practical solution.`,
+      `I appreciate the clarity, ${name}. ${problem} — let's break this down. What are the facts? What are the assumptions? Often the solution is hiding behind an assumption we haven't questioned.`,
+      `${name}, in my experience, problems like ${problem} usually have three components: what happened, how you feel about it, and what you can actually control. Let's sort those out.`,
+      `Right. ${problem}. ${name}, most people focus on the symptom. I want to focus on the pattern. When did this start? What was different before? Data helps us find direction.`,
+      `${name}, a ${s} tells me this is significant but not insurmountable. ${problem} has a solution — it may not be obvious yet, but that's what we're here to find. Let's think clearly.`,
+    ];
+
+    if (/work|job|boss|career/i.test(problem)) {
+      templates.push(`Work problems are often power dynamics in disguise, ${name}. Let's map out who has influence, what you want, and the most direct path between the two.`);
+    }
+    if (/love|relationship|dating|marriage/i.test(problem)) {
+      templates.push(`Relationships follow patterns, ${name}. Once you see the pattern, you can change it. Let's look at what's repeating and why.`);
+    }
+    if (/money|broke|debt|finance/i.test(problem)) {
+      templates.push(`Money is math, ${name}. Emotions make it complicated. Let's separate the two, deal with the numbers first, and then address the feelings around them.`);
+    }
+    if (/stress|anxiety|worry|nervous/i.test(problem)) {
+      templates.push(`Stress is information, ${name}. It's telling you something needs to change. The question is: what specifically? Let's narrow that down.`);
+    }
+
+    return pickRandom(templates);
+  }
+
+  function getSophiaFollowUp(problem: string, name: string): string {
+    const p = problem.toLowerCase();
+    if (/work|job|boss|career/i.test(p)) return `${name}, how does this work situation make you feel when you're alone with your thoughts?`;
+    if (/love|relationship|dating|marriage/i.test(p)) return `${name}, what does your ideal relationship look like? Not what society says — what YOU want.`;
+    if (/money|broke|debt|finance/i.test(p)) return `${name}, when you think about money, what emotion comes up first? Fear? Shame? Frustration? Let's name it.`;
+    return pickRandom([
+      `${name}, close your eyes for a moment. What's the first feeling that comes up when you think about this?`,
+      `${name}, who in your life knows about this? Do you have someone you trust?`,
+      `Tell me, ${name} — if this problem disappeared tomorrow, what would be different about your life?`,
+    ]);
+  }
+
+  function getJamesFollowUp(problem: string, name: string): string {
+    const p = problem.toLowerCase();
+    if (/work|job|boss|career/i.test(p)) return `${name}, what's the single biggest change that would improve your work situation? Be specific.`;
+    if (/love|relationship|dating|marriage/i.test(p)) return `${name}, on a practical level — what have you tried so far to address this, and what was the result?`;
+    if (/money|broke|debt|finance/i.test(p)) return `${name}, what's the number? I find people avoid the specifics. Let's face it directly.`;
+    return pickRandom([
+      `${name}, what have you already tried? I don't want to repeat what hasn't worked.`,
+      `${name}, if we solve this, what measurable change would you expect in your daily life?`,
+      `${name}, what's the timeline here? Is this urgent or ongoing?`,
+    ]);
+  }
+
+  function getSophiaFollowUpResponse(name: string, answer: string, index: number): string {
+    const a = answer.toLowerCase();
+    if (/scared|afraid|fear|terrified/i.test(a)) return `Fear is powerful, ${name}, but so are you. The fact that you can name it means you're already stronger than the fear itself.`;
+    if (/sad|depressed|lonely|alone/i.test(a)) return `That loneliness you're feeling is real, ${name}. But reaching out — even here — is a brave step. You don't have to carry this alone.`;
+    if (/angry|frustrated|mad|furious/i.test(a)) return `Your anger is valid, ${name}. It's telling you something important — that a boundary has been crossed. Let's figure out which one.`;
+    if (/yes|yeah|definitely/i.test(a)) return `I'm glad you can acknowledge that, ${name}. Self-awareness is the first step toward healing. You're doing beautifully.`;
+    if (/no|not really|I don't/i.test(a)) return `That's okay, ${name}. There's no wrong answer here. Sometimes "no" is exactly what we need to say more often.`;
+    const defaults = [
+      `Thank you for sharing that, ${name}. I can tell this runs deep. You're being very brave.`,
+      `I hear you, ${name}. Every word matters. Let's keep going — you're making real progress.`,
+      `That's very insightful, ${name}. Most people never look this closely at themselves. I'm proud of you.`,
+    ];
+    return defaults[index % defaults.length];
+  }
+
+  function getJamesFollowUpResponse(name: string, answer: string, index: number): string {
+    const a = answer.toLowerCase();
+    if (/yes|yeah|definitely|absolutely/i.test(a)) return `Good. That clarity helps, ${name}. Let's build on that certainty.`;
+    if (/no|not really|I don't/i.test(a)) return `Interesting. ${name}, sometimes ruling things out is just as valuable as confirming them. That narrows our focus.`;
+    if (/money|dollar|salary|pay/i.test(a)) return `Financial factors are always worth examining, ${name}. Let's make sure we're making decisions based on data, not emotion.`;
+    if (/boss|manager|coworker/i.test(a)) return `People dynamics. ${name}, you can't control others, but you can control your response and your positioning. Let's strategize.`;
+    const defaults = [
+      `Noted, ${name}. That's a useful data point. Let me ask one more thing.`,
+      `Good input, ${name}. I'm forming a clearer picture. We're getting somewhere.`,
+      `${name}, based on what you've told me, I think we can identify a concrete next step.`,
+    ];
+    return defaults[index % defaults.length];
+  }
+
+  function getNextFollowUpForVoice(voice: string, name: string, index: number): string | null {
+    if (index >= 3) return null;
+    if (voice === "sophia") {
+      const qs = [
+        `${name}, what would you say to yourself if you were your own best friend right now?`,
+        `${name}, what's one small thing you could do today to feel a little lighter?`,
+        `Last question, ${name} — what do you need to hear right now that nobody has said to you?`,
+      ];
+      return qs[index] || null;
+    }
+    if (voice === "james") {
+      const qs = [
+        `${name}, what's the most logical next step you can take this week?`,
+        `${name}, if you had to explain this problem in one sentence, what would it be?`,
+        `Final question — ${name}, what would success look like in 30 days?`,
+      ];
+      return qs[index] || null;
+    }
+    return getNextFollowUp(name, index);
+  }
+
   app.post("/api/generate-therapy", (req, res) => {
-    const { name = "Friend", problem = "life", seriousness = "5", previousAnswer, followUpIndex } = req.body;
+    const { name = "Friend", problem = "life", seriousness = "5", previousAnswer, followUpIndex, voice = "trump" } = req.body;
     const s = parseInt(seriousness as string) || 5;
     const idx = parseInt(followUpIndex as string) || 0;
 
     if (previousAnswer) {
-      const message = generateFollowUpResponse(name, problem, previousAnswer, idx);
-      const nextQuestion = getNextFollowUp(name, idx + 1);
+      let message: string;
+      if (voice === "sophia") {
+        message = getSophiaFollowUpResponse(name, previousAnswer, idx);
+      } else if (voice === "james") {
+        message = getJamesFollowUpResponse(name, previousAnswer, idx);
+      } else {
+        message = generateFollowUpResponse(name, problem, previousAnswer, idx);
+      }
+      const nextQuestion = getNextFollowUpForVoice(voice, name, idx + 1);
       return res.json({
         type: "follow-up-response",
         message,
@@ -1237,41 +1415,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
 
-    const templates = [
-      `${name}, let me tell you about ${problem}. I've faced worse. Witch hunts, fake news, the whole thing. And I won. On a scale of 1-10, your problem is a ${s}. My advice? Be like me. Win.`,
-      `${problem}? That's nothing. I've seen problems. Real problems. But you? You're a winner. Very stable genius. Now go fix it. And remember, I'm always right.`,
-      `I'm looking at your situation, ${name}. ${problem} is serious. Very serious. But here's the thing - you're smarter than them. You're stronger. Now go out there and be tremendous.`,
-      `${name}, I've employed thousands. The best people. And you know what makes someone great? How they handle ${problem}. And you? You're handling it beautifully. Could be better. But beautiful.`,
-      `The fake news would tell you ${problem} is your fault. Wrong! It's their fault. Everything is their fault. ${name}, stop listening to the haters. You're doing great. Tremendous, even.`,
-    ];
+    let therapy: string;
+    let followUp: string;
 
-    if (/work|job|boss|career/i.test(problem)) {
-      templates.push(`Work problems? ${name}, you're underpaid. Very underpaid. I know salaries. Ask for a raise. If they say no, tell them Trump sent you. Works every time.`);
-    }
-    if (/love|relationship|dating|marriage/i.test(problem)) {
-      templates.push(`Love is complicated. I've been married three times. Great marriages. The best. But ${problem}? You'll find someone. Someone tremendous. And if not, you've still got me. I'm always here.`);
-    }
-    if (/money|broke|debt|finance/i.test(problem)) {
-      templates.push(`Money problems? I've been broke before. Many times. And I came back richer. You will too. Invest in walls. Walls always win.`);
-    }
-    if (/stress|anxiety|worry|nervous/i.test(problem)) {
-      templates.push(`Stress? ${name}, I run the greatest country in the world and I never stress. You know why? Winners don't stress. They dominate. Try it.`);
-    }
-    if (/family|parents|kids|children/i.test(problem)) {
-      templates.push(`Family is everything, ${name}. I have the best family. Beautiful kids. Smart kids. Your family situation with ${problem}? It'll work out. Trust the process. My process.`);
-    }
-    if (/health|sick|doctor|weight/i.test(problem)) {
-      templates.push(`Health? ${name}, I'm the healthiest president ever. Great genes. Your issue with ${problem}? Eat steaks, play golf, and stop worrying. Doctor Trump's orders.`);
-    }
+    if (voice === "sophia") {
+      therapy = generateSophiaTherapy(name, problem, s);
+      followUp = getSophiaFollowUp(problem, name);
+    } else if (voice === "james") {
+      therapy = generateJamesTherapy(name, problem, s);
+      followUp = getJamesFollowUp(problem, name);
+    } else {
+      const templates = [
+        `${name}, let me tell you about ${problem}. I've faced worse. Witch hunts, fake news, the whole thing. And I won. On a scale of 1-10, your problem is a ${s}. My advice? Be like me. Win.`,
+        `${problem}? That's nothing. I've seen problems. Real problems. But you? You're a winner. Very stable genius. Now go fix it. And remember, I'm always right.`,
+        `I'm looking at your situation, ${name}. ${problem} is serious. Very serious. But here's the thing - you're smarter than them. You're stronger. Now go out there and be tremendous.`,
+        `${name}, I've employed thousands. The best people. And you know what makes someone great? How they handle ${problem}. And you? You're handling it beautifully. Could be better. But beautiful.`,
+        `The fake news would tell you ${problem} is your fault. Wrong! It's their fault. Everything is their fault. ${name}, stop listening to the haters. You're doing great. Tremendous, even.`,
+      ];
 
-    if (s >= 8) {
-      templates.push(`A ${s}?! That's huge. That's witch hunt territory. ${name}, you need to fight back. Hit them harder than they hit you. I'll help. I'm always available.`);
-    } else if (s <= 3) {
-      templates.push(`A ${s}? That's low energy. ${name}, you're worrying about nothing. Go have a steak. Watch my speeches. You'll feel better.`);
-    }
+      if (/work|job|boss|career/i.test(problem)) {
+        templates.push(`Work problems? ${name}, you're underpaid. Very underpaid. I know salaries. Ask for a raise. If they say no, tell them Trump sent you. Works every time.`);
+      }
+      if (/love|relationship|dating|marriage/i.test(problem)) {
+        templates.push(`Love is complicated. I've been married three times. Great marriages. The best. But ${problem}? You'll find someone. Someone tremendous. And if not, you've still got me. I'm always here.`);
+      }
+      if (/money|broke|debt|finance/i.test(problem)) {
+        templates.push(`Money problems? I've been broke before. Many times. And I came back richer. You will too. Invest in walls. Walls always win.`);
+      }
+      if (/stress|anxiety|worry|nervous/i.test(problem)) {
+        templates.push(`Stress? ${name}, I run the greatest country in the world and I never stress. You know why? Winners don't stress. They dominate. Try it.`);
+      }
+      if (/family|parents|kids|children/i.test(problem)) {
+        templates.push(`Family is everything, ${name}. I have the best family. Beautiful kids. Smart kids. Your family situation with ${problem}? It'll work out. Trust the process. My process.`);
+      }
+      if (/health|sick|doctor|weight/i.test(problem)) {
+        templates.push(`Health? ${name}, I'm the healthiest president ever. Great genes. Your issue with ${problem}? Eat steaks, play golf, and stop worrying. Doctor Trump's orders.`);
+      }
 
-    const therapy = pickRandom(templates);
-    const followUp = getFirstFollowUp(problem, name);
+      if (s >= 8) {
+        templates.push(`A ${s}?! That's huge. That's witch hunt territory. ${name}, you need to fight back. Hit them harder than they hit you. I'll help. I'm always available.`);
+      } else if (s <= 3) {
+        templates.push(`A ${s}? That's low energy. ${name}, you're worrying about nothing. Go have a steak. Watch my speeches. You'll feel better.`);
+      }
+
+      therapy = pickRandom(templates);
+      followUp = getFirstFollowUp(problem, name);
+    }
 
     res.json({ therapy, followUp, followUpIndex: 0 });
   });
@@ -1292,8 +1481,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
 
       const isViral = metadata?.source === "therapy-viral" || metadata?.type === "upsell-more-time";
-      const successPath = isViral ? "/therapy-viral" : "/therapy";
-      const cancelPath = isViral ? "/therapy-viral" : "/therapy";
+      const isMulti = metadata?.source === "therapy-multi";
+      const successPath = isMulti ? "/therapy-multi" : isViral ? "/therapy-viral" : "/therapy";
+      const cancelPath = isMulti ? "/therapy-multi" : isViral ? "/therapy-viral" : "/therapy";
 
       const isSubscription = !!selected.recurring;
 

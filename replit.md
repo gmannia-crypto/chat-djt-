@@ -46,16 +46,17 @@ The backend is an Express 5 server running on port 5000, serving as an API gatew
 - `POST /api/therapy`: Generates Trump-style therapy responses as "Dr. Trump" based on name, problem, and seriousness level (token-gated). Includes template-based fallback if AI fails.
 - Therapy page features: cinematic intro animation, Trump therapist background image, speech-to-text input (mic button), "Dr. Trump's RX" Amazon affiliate product recommendations (health/wellness supplements with `trumpbot-20` tag).
 - `GET /therapy-viral`: Serves standalone viral therapy landing page (3-question flow, 2-min timed session, upsell modal, share snippets, upgrade pricing with Stripe checkout).
-- `POST /api/generate-therapy`: Free template-based therapy endpoint for the viral page (no tokens required). Returns randomized Trump-style therapy responses with context-aware templates for work, love, money, stress, family, and health topics. Supports multi-round follow-up conversations: initial response includes a context-aware `followUp` question and `followUpIndex`; subsequent calls with `previousAnswer` and `followUpIndex` return keyword-matched Trump responses plus `nextQuestion` (up to 3 rounds).
+- `POST /api/generate-therapy`: Free template-based therapy endpoint for the viral page (no tokens required). Returns randomized Trump-style therapy responses with context-aware templates for work, love, money, stress, family, and health topics. Supports multi-round follow-up conversations: initial response includes a context-aware `followUp` question and `followUpIndex`; subsequent calls with `previousAnswer` and `followUpIndex` return keyword-matched Trump responses plus `nextQuestion` (up to 3 rounds). Accepts `voice` parameter (`trump`, `sophia`, `james`) for multi-voice therapy — each voice has distinct personality templates, follow-up questions, and follow-up responses.
+- `GET /therapy-multi`: Serves standalone multi-voice therapy landing page with 3 therapist voices (Dr. Trump, Dr. Sophia, Dr. James), voice selection, mid-session voice switching, TTS playback, follow-up conversations, share snippets, upsell modal, and Stripe checkout.
 - `POST /api/track-viral`: Logs viral session events (session_start, session_complete, share) for analytics.
 
-The backend leverages OpenAI for chat completions and transcription, and Fish Audio for text-to-speech with a cloned Trump voice. It also handles static serving of pre-built Expo web assets in production.
+The backend leverages OpenAI for chat completions and transcription, and Fish Audio for text-to-speech with a cloned Trump voice and Dr. Sophia's voice (Fish Audio ID: `193c58af62ea487180baacdef8a69bbd`). It also handles static serving of pre-built Expo web assets in production.
 
 ## External Dependencies
 
 - **OpenAI API**: Utilized for AI chat completions (gpt-5.2), audio transcription (Whisper), and potentially audio generation (gpt-audio).
 - **ElevenLabs API**: Used for advanced text-to-speech functionalities, including voice cloning and generating theme intros.
-- **Fish Audio API**: Provides text-to-speech capabilities, including a cloned Trump voice, with mood-based speed adjustments.
+- **Fish Audio API**: Provides text-to-speech capabilities, including a cloned Trump voice and Dr. Sophia's voice (ID: `193c58af62ea487180baacdef8a69bbd`), with mood-based speed adjustments.
 - **@react-native-async-storage/async-storage**: Client-side persistent storage for conversation data.
 - **Expo Services**: Used for various mobile functionalities like font loading, haptics, linear gradients, and splash screen management.
 - **RevenueCat (`react-native-purchases`)**: Integrated for managing in-app subscriptions and purchases.

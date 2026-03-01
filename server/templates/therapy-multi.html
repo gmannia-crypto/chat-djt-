@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Voice Therapy - Chat DJT</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #0a0a0a; font-family: 'Arial', sans-serif; color: white; line-height: 1.6; }
+        .container { max-width: 800px; margin: 0 auto; padding: 20px; }
+        .viral-header { text-align: center; margin-bottom: 30px; }
+        .viral-header h1 { color: #ff4d4d; font-size: 42px; text-transform: uppercase; letter-spacing: 3px; text-shadow: 0 0 20px rgba(255, 75, 75, 0.5); margin-bottom: 10px; }
+        .viral-header .subhead { color: #888; font-size: 16px; font-style: italic; }
+        .live-counter { display: inline-block; background: #ff4d4d; color: white; padding: 8px 20px; border-radius: 30px; font-size: 14px; font-weight: bold; margin-top: 15px; animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+
+        .voice-selector { margin: 30px 0 20px; text-align: center; }
+        .voice-selector h3 { color: #ff4d4d; margin-bottom: 20px; font-size: 20px; }
+        .voice-grid { display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; }
+        .voice-card { border-radius: 15px; padding: 20px 15px; width: 160px; cursor: pointer; background: #1a1a1a; transition: all 0.3s ease; text-align: center; border: 2px solid #333; }
+        .voice-card:hover { transform: translateY(-5px); box-shadow: 0 10px 25px rgba(255, 75, 75, 0.3); }
+        .voice-card.selected { border-width: 3px; }
+        .voice-emoji { font-size: 48px; margin-bottom: 10px; }
+        .voice-name { font-weight: bold; font-size: 18px; margin-bottom: 5px; }
+        .voice-tagline { font-size: 11px; color: #888; margin-bottom: 10px; }
+        .voice-badge { font-size: 12px; padding: 3px 8px; border-radius: 12px; display: inline-block; }
+        #voice-trump .voice-name { color: #ff4d4d; }
+        #voice-sophia .voice-name { color: #ff99cc; }
+        #voice-james .voice-name { color: #4d4dff; }
+
+        .social-proof { display: flex; justify-content: space-around; background: linear-gradient(90deg, #ff4d4d20, #ff4d4d40, #ff4d4d20); border: 1px solid #ff4d4d; border-radius: 50px; padding: 15px; margin: 25px 0; }
+        .proof-item { text-align: center; }
+        .proof-value { font-size: 22px; font-weight: bold; color: #ff4d4d; }
+        .proof-label { font-size: 11px; color: #ccc; }
+
+        .therapy-card { background: linear-gradient(145deg, #1a1a1a 0%, #2d2d2d 100%); border: 2px solid #ff4d4d; border-radius: 20px; padding: 30px; margin: 30px 0; box-shadow: 0 10px 40px rgba(255, 0, 0, 0.2); }
+        .greeting-quote { font-size: 18px; color: #ff4d4d; text-align: center; margin-bottom: 30px; font-style: italic; border-bottom: 1px solid #333; padding-bottom: 20px; min-height: 60px; }
+        .progress-container { margin-bottom: 30px; }
+        .progress-bar { width: 100%; height: 10px; background: #333; border-radius: 10px; overflow: hidden; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, #ff4d4d, #ff9999); transition: width 0.3s ease; border-radius: 10px; }
+        .question-counter { text-align: right; color: #888; font-size: 12px; margin-top: 5px; }
+        .question-container { transition: all 0.3s ease; }
+        .question-number { color: #ff4d4d; font-size: 12px; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 10px; }
+        .question-text { font-size: 22px; margin-bottom: 25px; line-height: 1.4; }
+        .question-input { width: 100%; padding: 15px; background: #333; border: 2px solid #ff4d4d; border-radius: 10px; color: white; font-size: 16px; }
+        .question-input:focus { outline: none; box-shadow: 0 0 20px rgba(255, 75, 75, 0.5); }
+        textarea.question-input { min-height: 100px; resize: vertical; }
+        .next-btn { background: #ff4d4d; color: white; border: none; padding: 15px 30px; font-size: 18px; border-radius: 50px; cursor: pointer; margin-top: 20px; font-weight: bold; transition: all 0.2s; width: 100%; }
+        .next-btn:hover:not(:disabled) { background: #cc0000; transform: scale(1.02); }
+        .next-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .timer-container { text-align: center; margin: 20px 0; padding: 20px; background: #1a1a1a; border-radius: 15px; }
+        .timer-label { color: #888; font-size: 12px; text-transform: uppercase; letter-spacing: 2px; }
+        .timer-display { font-size: 48px; font-weight: bold; font-family: monospace; margin: 10px 0; }
+        .timer-display.trump { color: #ff4d4d; }
+        .timer-display.sophia { color: #ff99cc; }
+        .timer-display.james { color: #4d4dff; }
+        .timer-display.warning { animation: blink 1s infinite; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+        .session-content { font-size: 18px; line-height: 1.7; margin: 25px 0; padding: 25px; background: #333; border-left-width: 5px; border-left-style: solid; border-radius: 10px; white-space: pre-line; }
+        .session-content.trump { border-left-color: #ff4d4d; }
+        .session-content.sophia { border-left-color: #ff99cc; }
+        .session-content.james { border-left-color: #4d4dff; }
+
+        .voice-switcher { margin: 25px 0; padding: 20px; background: #1a1a1a; border-radius: 15px; text-align: center; display: none; }
+        .switcher-title { color: #888; margin-bottom: 15px; font-size: 14px; }
+        .switcher-buttons { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+        .switch-btn { border: none; padding: 10px 20px; border-radius: 25px; cursor: pointer; font-weight: bold; transition: all 0.2s; }
+        .switch-btn:hover { transform: scale(1.05); }
+        .switch-trump { background: #ff4d4d; color: white; }
+        .switch-sophia { background: #ff99cc; color: white; }
+        .switch-james { background: #4d4dff; color: white; }
+
+        .follow-up-card { background: #2a2a2a; border: 2px solid; border-radius: 15px; padding: 25px; margin: 25px 0; }
+        .follow-up-card.trump { border-color: #ff4d4d; }
+        .follow-up-card.sophia { border-color: #ff99cc; }
+        .follow-up-card.james { border-color: #4d4dff; }
+        .follow-up-header { display: flex; align-items: center; gap: 15px; margin-bottom: 15px; }
+        .follow-up-avatar { font-size: 30px; }
+        .follow-up-name { font-weight: bold; }
+        .follow-up-question { font-size: 18px; margin-bottom: 20px; padding: 15px; background: #333; border-radius: 10px; }
+        .follow-up-response { margin-top: 20px; padding: 15px; background: #333; border-left-width: 5px; border-left-style: solid; border-radius: 8px; display: none; }
+
+        .share-section { margin: 30px 0; padding: 25px; background: #1a1a1a; border-radius: 15px; }
+        .share-title { color: #ff4d4d; font-size: 18px; margin-bottom: 15px; text-align: center; }
+        .snippet-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin: 20px 0; }
+        .snippet-card { background: #333; padding: 15px; border-radius: 10px; cursor: pointer; transition: all 0.2s; border: 1px solid #444; }
+        .snippet-card:hover { border-color: #ff4d4d; transform: translateY(-2px); }
+        .snippet-text { font-size: 13px; color: #ccc; margin-bottom: 8px; font-style: italic; }
+        .snippet-voice { font-size: 11px; color: #ff4d4d; }
+        .share-buttons { display: flex; gap: 10px; margin-top: 20px; }
+        .share-btn { flex: 1; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; transition: all 0.2s; }
+        .share-twitter { background: #1DA1F2; color: white; }
+        .share-facebook { background: #4267B2; color: white; }
+        .share-copy { background: #333; color: white; border: 1px solid #ff4d4d; }
+
+        .upgrade-card { background: #1a1a1a; border: 2px solid #ff4d4d; border-radius: 20px; padding: 30px; margin: 30px 0; text-align: center; display: none; }
+        .pricing-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 25px 0; }
+        .pricing-option { border: 2px solid #333; border-radius: 10px; padding: 15px; cursor: pointer; transition: all 0.2s; }
+        .pricing-option:hover { border-color: #ff4d4d; }
+        .pricing-option.selected { border-color: #ff4d4d; background: #ff4d4d20; }
+        .price-value { font-size: 24px; font-weight: bold; color: #ff4d4d; }
+
+        .upsell-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 10000; display: none; justify-content: center; align-items: center; }
+        .upsell-modal.active { display: flex; }
+        .upsell-content { background: #1a1a1a; border: 3px solid #ff4d4d; border-radius: 20px; padding: 35px; max-width: 400px; text-align: center; animation: slideUp 0.4s; }
+        @keyframes slideUp { from { transform: translateY(50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .upsell-close { float: right; font-size: 28px; cursor: pointer; color: #888; }
+        .upsell-close:hover { color: #ff4d4d; }
+        .upsell-icon { font-size: 48px; margin: 10px 0; }
+        .upsell-title { color: #ff4d4d; font-size: 24px; margin: 15px 0; }
+        .upsell-price { font-size: 36px; font-weight: bold; margin: 15px 0; }
+        .upsell-btn { background: #ff4d4d; color: white; border: none; padding: 15px 30px; font-size: 18px; border-radius: 50px; cursor: pointer; width: 100%; margin: 10px 0; }
+
+        .viral-badge { position: fixed; bottom: 20px; right: 20px; background: #ff4d4d; color: white; padding: 8px 15px; border-radius: 30px; font-size: 13px; font-weight: bold; animation: slideIn 0.5s; z-index: 1000; }
+        @keyframes slideIn { from { transform: translateX(100px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+        .loading-spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid #ff4d4d40; border-radius: 50%; border-top-color: #ff4d4d; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .tts-btn { background: none; border: 1px solid #555; border-radius: 20px; padding: 6px 14px; color: #ccc; cursor: pointer; font-size: 13px; margin-top: 10px; transition: all 0.2s; }
+        .tts-btn:hover { border-color: #ff4d4d; color: white; }
+        .tts-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        @media (max-width: 600px) {
+            .voice-grid { gap: 10px; }
+            .voice-card { width: 140px; padding: 15px 10px; }
+            .pricing-grid { grid-template-columns: 1fr; }
+            .share-buttons { flex-direction: column; }
+        }
+    </style>
+    <script src="https://js.stripe.com/v3"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="viral-header">
+            <h1>MULTI-VOICE THERAPY</h1>
+            <div class="subhead">Choose who you need today</div>
+            <div class="live-counter" id="liveCounter">&#9889; 2,847 in session now &#9889;</div>
+        </div>
+
+        <div class="voice-selector">
+            <h3>CHOOSE YOUR THERAPIST</h3>
+            <div class="voice-grid">
+                <div class="voice-card" id="voice-trump" onclick="selectVoice('trump')">
+                    <div class="voice-emoji">&#x1F5E3;&#xFE0F;</div>
+                    <div class="voice-name">DR. TRUMP</div>
+                    <div class="voice-tagline">"You're winning!"</div>
+                    <div class="voice-badge" style="background: #ff4d4d20; color: #ff4d4d;">12k today</div>
+                </div>
+                <div class="voice-card" id="voice-sophia" onclick="selectVoice('sophia')">
+                    <div class="voice-emoji">&#x1F469;&#x200D;&#x2695;&#xFE0F;</div>
+                    <div class="voice-name">DR. SOPHIA</div>
+                    <div class="voice-tagline">"I'm here for you"</div>
+                    <div class="voice-badge" style="background: #ff99cc20; color: #ff99cc;">8k today</div>
+                </div>
+                <div class="voice-card" id="voice-james" onclick="selectVoice('james')">
+                    <div class="voice-emoji">&#x1F468;&#x200D;&#x2695;&#xFE0F;</div>
+                    <div class="voice-name">DR. JAMES</div>
+                    <div class="voice-tagline">"Let's be rational"</div>
+                    <div class="voice-badge" style="background: #4d4dff20; color: #4d4dff;">5k today</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="social-proof">
+            <div class="proof-item">
+                <div class="proof-value" id="totalSessions">24,847</div>
+                <div class="proof-label">Sessions Today</div>
+            </div>
+            <div class="proof-item">
+                <div class="proof-value" id="avgRating">4.8/5</div>
+                <div class="proof-label">Rating</div>
+            </div>
+            <div class="proof-item">
+                <div class="proof-value" id="sharesToday">6,421</div>
+                <div class="proof-label">Shares</div>
+            </div>
+        </div>
+
+        <div class="therapy-card" id="therapyCard">
+            <div class="greeting-quote" id="greetingQuote">"Lie down. Tell me everything. I'm listening..."</div>
+
+            <div class="progress-container">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+                </div>
+                <div class="question-counter" id="questionCounter">Question 1 of 3</div>
+            </div>
+
+            <div class="question-container" id="question1">
+                <div class="question-number">QUESTION 1</div>
+                <div class="question-text" id="q1Text">"What's your name?"</div>
+                <input type="text" class="question-input" id="q1" placeholder="Enter your first name" maxlength="30">
+                <button class="next-btn" onclick="nextQuestion(2)">NEXT &rarr;</button>
+            </div>
+
+            <div class="question-container" id="question2" style="display: none;">
+                <div class="question-number">QUESTION 2</div>
+                <div class="question-text" id="q2Text">"What's bothering you?"</div>
+                <textarea class="question-input" id="q2" placeholder="Tell us what's wrong..."></textarea>
+                <button class="next-btn" onclick="nextQuestion(3)">NEXT &rarr;</button>
+            </div>
+
+            <div class="question-container" id="question3" style="display: none;">
+                <div class="question-number">QUESTION 3</div>
+                <div class="question-text" id="q3Text">"How serious is this?"</div>
+                <select class="question-input" id="q3">
+                    <option value="1">1 - Minor</option>
+                    <option value="2">2 - Small</option>
+                    <option value="3">3 - Moderate</option>
+                    <option value="4">4 - Annoying</option>
+                    <option value="5" selected>5 - Meh</option>
+                    <option value="6">6 - Pretty bad</option>
+                    <option value="7">7 - Very bad</option>
+                    <option value="8">8 - Terrible</option>
+                    <option value="9">9 - Awful</option>
+                    <option value="10">10 - Extreme</option>
+                </select>
+                <button class="next-btn" onclick="startTherapy()">START SESSION</button>
+            </div>
+
+            <div id="sessionContainer" style="display: none;">
+                <div class="timer-container">
+                    <div class="timer-label">YOUR SESSION</div>
+                    <div class="timer-display" id="timerDisplay">2:00</div>
+                </div>
+
+                <div class="session-content" id="sessionContent"></div>
+                <button class="tts-btn" id="ttsBtn" onclick="speakTherapy()">&#x1F50A; Listen</button>
+
+                <div class="voice-switcher" id="voiceSwitcher">
+                    <div class="switcher-title">Need a different perspective?</div>
+                    <div class="switcher-buttons">
+                        <button class="switch-btn switch-trump" onclick="switchVoice('trump')">Dr. Trump</button>
+                        <button class="switch-btn switch-sophia" onclick="switchVoice('sophia')">Dr. Sophia</button>
+                        <button class="switch-btn switch-james" onclick="switchVoice('james')">Dr. James</button>
+                    </div>
+                </div>
+
+                <div id="followUpContainer" style="display: none;">
+                    <div class="follow-up-card" id="followUpCard">
+                        <div class="follow-up-header">
+                            <span class="follow-up-avatar" id="followUpAvatar">&#x1F5E3;&#xFE0F;</span>
+                            <span class="follow-up-name" id="followUpName">DR. TRUMP ASKS:</span>
+                        </div>
+                        <div class="follow-up-question" id="followUpQuestion"></div>
+                        <textarea class="question-input" id="followUpAnswer" placeholder="Type your answer..."></textarea>
+                        <div style="display: flex; gap: 10px; margin-top: 15px;">
+                            <button class="next-btn" onclick="submitFollowUp()" style="flex: 2;" id="followUpSubmit">SEND ANSWER</button>
+                            <button class="next-btn" onclick="skipFollowUp()" style="flex: 1; background: #333;">SKIP</button>
+                        </div>
+                        <div class="follow-up-response" id="followUpResponse"></div>
+                    </div>
+                </div>
+
+                <div class="share-section" id="shareSection" style="display: none;">
+                    <div class="share-title">SHARE YOUR THERAPY</div>
+                    <div class="snippet-grid" id="snippetGrid"></div>
+                    <div class="share-buttons">
+                        <button class="share-btn share-twitter" onclick="shareFull('twitter')">X</button>
+                        <button class="share-btn share-facebook" onclick="shareFull('facebook')">Facebook</button>
+                        <button class="share-btn share-copy" onclick="shareFull('copy')">Copy</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="upgrade-card" id="upgradeCard">
+            <div style="font-size: 48px;">&#x1F31F;</div>
+            <h2 style="color: #ff4d4d; margin: 15px 0;">UNLOCK ALL VOICES</h2>
+            <p style="color: #ccc; margin-bottom: 20px;">Switch between therapists anytime</p>
+            <div class="pricing-grid">
+                <div class="pricing-option selected" onclick="selectPlan('single')" id="planSingle">
+                    <div style="font-size: 20px; margin-bottom: 5px;">Single</div>
+                    <div class="price-value">$2.99</div>
+                    <div style="font-size: 12px; color: #888;">One session</div>
+                </div>
+                <div class="pricing-option" onclick="selectPlan('weekly')" id="planWeekly">
+                    <div style="font-size: 20px; margin-bottom: 5px;">Weekly</div>
+                    <div class="price-value">$9.99</div>
+                    <div style="font-size: 12px; color: #888;">Unlimited</div>
+                </div>
+            </div>
+            <button class="next-btn" id="upgradeBtn" onclick="processPayment()" style="max-width: 300px; margin: 0 auto;">UNLOCK - $2.99</button>
+        </div>
+    </div>
+
+    <div class="upsell-modal" id="upsellModal">
+        <div class="upsell-content">
+            <span class="upsell-close" onclick="closeUpsell()">&times;</span>
+            <div class="upsell-icon">&#x23F0;</div>
+            <div class="upsell-title">TIME'S ALMOST UP!</div>
+            <p style="color: #ccc;">Get 3 MORE MINUTES with your therapist</p>
+            <div class="upsell-price">$1.99</div>
+            <button class="upsell-btn" onclick="buyMoreTime()">ADD 3 MINUTES</button>
+            <button onclick="closeUpsell()" style="background: none; border: none; color: #888; cursor: pointer; margin-top: 15px; display: block; width: 100%;">No thanks</button>
+        </div>
+    </div>
+
+    <div id="viralBadge"></div>
+
+    <script>
+        var selectedVoice = 'trump';
+        var currentQuestion = 1;
+        var userAnswers = { name: '', problem: '', seriousness: '5' };
+        var sessionTimer;
+        var secondsLeft = 120;
+        var sessionActive = false;
+        var sessionId = 'sess_' + Math.random().toString(36).substring(2, 15);
+        var currentPlan = 'single';
+        var upsellShown = false;
+        var followUpIndex = 0;
+        var followUpActive = false;
+        var currentFollowUpQuestion = '';
+        var exchanges = [];
+        var currentAudio = null;
+
+        var voiceConfig = {
+            trump: {
+                name: 'DR. TRUMP',
+                avatar: '\uD83D\uDDE3\uFE0F',
+                color: '#ff4d4d',
+                greeting: '"Lie down. Tell me everything. I\'m listening..."',
+                q1: '"What\'s your name? I need to know who I\'m talking to."',
+                q2: '"What\'s bothering you? Be specific. I deal with big problems."',
+                q3: '"On a scale of 1-10, how serious is this? Be honest."'
+            },
+            sophia: {
+                name: 'DR. SOPHIA',
+                avatar: '\uD83D\uDC69\u200D\u2695\uFE0F',
+                color: '#ff99cc',
+                greeting: '"Welcome, dear. Take your time. I\'m here to listen without judgment."',
+                q1: '"What\'s your name? I\'d love to get to know you."',
+                q2: '"What\'s on your heart today? Share whatever feels right."',
+                q3: '"How heavy does this feel for you, on a scale of 1-10?"'
+            },
+            james: {
+                name: 'DR. JAMES',
+                avatar: '\uD83D\uDC68\u200D\u2695\uFE0F',
+                color: '#4d4dff',
+                greeting: '"Hello. I\'m Dr. James. Let\'s work through this together, methodically."',
+                q1: '"Your name? Let\'s start there."',
+                q2: '"What brings you here today? Be as specific as you like."',
+                q3: '"Rate the severity 1-10. This helps me understand."'
+            }
+        };
+
+        function init() {
+            selectVoice('trump');
+            updateLiveCounter();
+            startSocialProofUpdates();
+            checkForPaymentReturn();
+        }
+
+        function selectVoice(voice) {
+            selectedVoice = voice;
+            document.querySelectorAll('.voice-card').forEach(function(card) {
+                card.classList.remove('selected');
+                card.style.borderColor = '#333';
+            });
+            var el = document.getElementById('voice-' + voice);
+            el.classList.add('selected');
+            el.style.borderColor = voiceConfig[voice].color;
+
+            document.getElementById('greetingQuote').textContent = voiceConfig[voice].greeting;
+            document.getElementById('q1Text').textContent = voiceConfig[voice].q1;
+            document.getElementById('q2Text').textContent = voiceConfig[voice].q2;
+            document.getElementById('q3Text').textContent = voiceConfig[voice].q3;
+            document.getElementById('timerDisplay').className = 'timer-display ' + voice;
+
+            trackEvent('voice_selected', { voice: voice });
+        }
+
+        function nextQuestion(num) {
+            if (currentQuestion === 1 && !document.getElementById('q1').value.trim()) {
+                alert('Please enter your name');
+                return;
+            }
+            if (currentQuestion === 2 && !document.getElementById('q2').value.trim()) {
+                alert('Please tell us what\'s bothering you');
+                return;
+            }
+            document.getElementById('question' + currentQuestion).style.display = 'none';
+            document.getElementById('question' + num).style.display = 'block';
+            currentQuestion = num;
+            var progress = ((num - 1) / 3) * 100;
+            document.getElementById('progressFill').style.width = progress + '%';
+            document.getElementById('questionCounter').textContent = 'Question ' + (num - 1) + ' of 3';
+        }
+
+        async function startTherapy() {
+            userAnswers = {
+                name: document.getElementById('q1').value.trim() || 'Friend',
+                problem: document.getElementById('q2').value.trim() || 'life',
+                seriousness: document.getElementById('q3').value,
+                voice: selectedVoice
+            };
+            document.getElementById('question3').style.display = 'none';
+            document.getElementById('progressFill').style.width = '100%';
+            document.getElementById('questionCounter').textContent = 'Question 3 of 3';
+            document.getElementById('sessionContainer').style.display = 'block';
+            document.getElementById('sessionContent').innerHTML = '<div style="text-align:center;"><div class="loading-spinner"></div><p style="margin-top:10px;color:#888;">Your therapist is thinking...</p></div>';
+
+            await generateInitialTherapy();
+            startTimer();
+
+            setTimeout(function() {
+                if (sessionActive) {
+                    document.getElementById('voiceSwitcher').style.display = 'block';
+                }
+            }, 30000);
+
+            trackEvent('session_start', userAnswers);
+        }
+
+        async function generateInitialTherapy() {
+            try {
+                var response = await fetch('/api/generate-therapy', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(userAnswers)
+                });
+                var data = await response.json();
+                var contentDiv = document.getElementById('sessionContent');
+                contentDiv.textContent = data.therapy;
+                contentDiv.className = 'session-content ' + selectedVoice;
+
+                sessionStorage.setItem('lastTherapy', data.therapy);
+                sessionStorage.setItem('userName', userAnswers.name);
+
+                if (data.followUp) {
+                    setTimeout(function() {
+                        if (sessionActive) showFollowUp(data.followUp);
+                    }, 8000);
+                }
+            } catch (err) {
+                document.getElementById('sessionContent').textContent = 'Something went wrong. Please refresh and try again.';
+            }
+        }
+
+        function startTimer() {
+            sessionActive = true;
+            secondsLeft = 120;
+            sessionTimer = setInterval(function() {
+                secondsLeft--;
+                var mins = Math.floor(secondsLeft / 60);
+                var secs = secondsLeft % 60;
+                document.getElementById('timerDisplay').textContent = mins + ':' + secs.toString().padStart(2, '0');
+                if (secondsLeft === 30) {
+                    document.getElementById('timerDisplay').classList.add('warning');
+                    if (!upsellShown) { showUpsell(); upsellShown = true; }
+                }
+                if (secondsLeft <= 0) { endSession(); }
+            }, 1000);
+        }
+
+        function endSession() {
+            clearInterval(sessionTimer);
+            sessionActive = false;
+            document.getElementById('shareSection').style.display = 'block';
+            document.getElementById('upgradeCard').style.display = 'block';
+            generateShareSnippets();
+            trackEvent('session_complete');
+        }
+
+        function showFollowUp(question) {
+            if (followUpActive || !question) return;
+            currentFollowUpQuestion = question;
+            document.getElementById('followUpContainer').style.display = 'block';
+            document.getElementById('followUpQuestion').textContent = '"' + question + '"';
+            document.getElementById('followUpAnswer').value = '';
+
+            var card = document.getElementById('followUpCard');
+            card.className = 'follow-up-card ' + selectedVoice;
+            document.getElementById('followUpAvatar').textContent = voiceConfig[selectedVoice].avatar;
+            document.getElementById('followUpName').textContent = voiceConfig[selectedVoice].name + ' ASKS:';
+            document.getElementById('followUpResponse').style.display = 'none';
+
+            followUpActive = true;
+            document.getElementById('followUpContainer').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        async function submitFollowUp() {
+            var answer = document.getElementById('followUpAnswer').value.trim();
+            if (!answer) { alert('Please answer the question'); return; }
+
+            var btn = document.getElementById('followUpSubmit');
+            btn.disabled = true;
+            btn.textContent = 'THINKING...';
+
+            try {
+                var response = await fetch('/api/generate-therapy', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: userAnswers.name,
+                        problem: userAnswers.problem,
+                        seriousness: userAnswers.seriousness,
+                        voice: selectedVoice,
+                        previousAnswer: answer,
+                        followUpIndex: followUpIndex
+                    })
+                });
+                var data = await response.json();
+
+                exchanges.push({ question: currentFollowUpQuestion, answer: answer, response: data.message });
+
+                var responseDiv = document.getElementById('followUpResponse');
+                responseDiv.style.display = 'block';
+                responseDiv.style.borderLeftColor = voiceConfig[selectedVoice].color;
+                responseDiv.innerHTML = '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;"><span>' + voiceConfig[selectedVoice].avatar + '</span><span style="color:' + voiceConfig[selectedVoice].color + ';">RESPONDS:</span></div><div>"' + (data.message || 'Interesting. Very interesting.') + '"</div>';
+
+                document.getElementById('followUpAnswer').value = '';
+
+                if (data.nextQuestion && sessionActive) {
+                    followUpIndex++;
+                    setTimeout(function() {
+                        if (!sessionActive) return;
+                        responseDiv.style.display = 'none';
+                        document.getElementById('followUpQuestion').textContent = '"' + data.nextQuestion + '"';
+                        btn.disabled = false;
+                        btn.textContent = 'SEND ANSWER';
+                    }, 4000);
+                } else {
+                    setTimeout(function() {
+                        document.getElementById('followUpContainer').style.display = 'none';
+                        followUpActive = false;
+                        btn.disabled = false;
+                        btn.textContent = 'SEND ANSWER';
+                        if (sessionActive) generateShareSnippets();
+                    }, 4000);
+                }
+
+                trackEvent('follow_up_answer', { index: followUpIndex, voice: selectedVoice });
+            } catch (err) {
+                var responseDiv = document.getElementById('followUpResponse');
+                responseDiv.style.display = 'block';
+                responseDiv.textContent = 'Something went wrong. Try again.';
+                btn.disabled = false;
+                btn.textContent = 'SEND ANSWER';
+            }
+        }
+
+        function skipFollowUp() {
+            document.getElementById('followUpContainer').style.display = 'none';
+            followUpActive = false;
+            trackEvent('follow_up_skipped', { voice: selectedVoice });
+        }
+
+        async function switchVoice(newVoice) {
+            if (newVoice === selectedVoice) return;
+            var oldVoice = selectedVoice;
+            selectedVoice = newVoice;
+            userAnswers.voice = newVoice;
+
+            document.getElementById('timerDisplay').className = 'timer-display ' + newVoice;
+
+            var contentDiv = document.getElementById('sessionContent');
+            var transitionHtml = '<div style="margin:15px 0;padding:10px;background:#333;border-left:3px solid ' + voiceConfig[newVoice].color + ';border-radius:6px;"><span style="color:' + voiceConfig[newVoice].color + ';">' + voiceConfig[newVoice].avatar + ' ' + voiceConfig[newVoice].name + ' joins the conversation...</span></div>';
+            contentDiv.innerHTML += transitionHtml;
+
+            try {
+                var response = await fetch('/api/generate-therapy', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: userAnswers.name,
+                        problem: userAnswers.problem,
+                        seriousness: userAnswers.seriousness,
+                        voice: newVoice
+                    })
+                });
+                var data = await response.json();
+                contentDiv.innerHTML += '<div class="session-content ' + newVoice + '" style="margin-top:10px;">"' + data.therapy + '"</div>';
+                sessionStorage.setItem('lastTherapy', data.therapy);
+
+                if (data.followUp && sessionActive && !followUpActive) {
+                    setTimeout(function() {
+                        if (sessionActive) showFollowUp(data.followUp);
+                    }, 5000);
+                }
+            } catch (err) {
+                contentDiv.innerHTML += '<div class="session-content ' + newVoice + '" style="margin-top:10px;">"Let me think about this..."</div>';
+            }
+
+            trackEvent('voice_switched', { from: oldVoice, to: newVoice });
+        }
+
+        async function speakTherapy() {
+            var btn = document.getElementById('ttsBtn');
+            var text = sessionStorage.getItem('lastTherapy');
+            if (!text) return;
+
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio = null;
+                btn.textContent = '\uD83D\uDD0A Listen';
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Loading...';
+
+            try {
+                var response = await fetch('/api/tts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: text, voice: selectedVoice, mood: 'CALM', speechCategory: 'CASUAL_TALK' })
+                });
+                if (!response.ok) throw new Error('TTS failed');
+                var blob = await response.blob();
+                var url = URL.createObjectURL(blob);
+                currentAudio = new Audio(url);
+                currentAudio.play();
+                btn.disabled = false;
+                btn.textContent = '\u23F9 Stop';
+                currentAudio.onended = function() {
+                    currentAudio = null;
+                    btn.textContent = '\uD83D\uDD0A Listen';
+                };
+            } catch (err) {
+                btn.disabled = false;
+                btn.textContent = '\uD83D\uDD0A Listen';
+            }
+        }
+
+        function generateShareSnippets() {
+            var therapy = sessionStorage.getItem('lastTherapy') || '';
+            var snippets = [{ text: therapy.substring(0, 80) + '...', voice: selectedVoice }];
+            exchanges.forEach(function(ex) {
+                snippets.push({ text: 'I told ' + voiceConfig[selectedVoice].name + ': "' + ex.answer.substring(0, 50) + '..."', voice: selectedVoice });
+            });
+
+            var html = '';
+            snippets.slice(0, 3).forEach(function(s, i) {
+                html += '<div class="snippet-card" onclick="shareSnippet(' + i + ')"><div class="snippet-text">"' + s.text + '"</div><div class="snippet-voice" style="color:' + voiceConfig[s.voice].color + ';">' + voiceConfig[s.voice].avatar + ' ' + voiceConfig[s.voice].name + '</div></div>';
+            });
+            var el = document.getElementById('snippetGrid');
+            if (el) el.innerHTML = html;
+        }
+
+        function shareSnippet(index) {
+            var snippets = [sessionStorage.getItem('lastTherapy')];
+            exchanges.forEach(function(e) { snippets.push(e.answer); });
+            var text = encodeURIComponent('"' + (snippets[index] || '').substring(0, 80) + '..." Get your therapy at trumpbot.rip');
+            var url = encodeURIComponent(window.location.href);
+            window.open('https://twitter.com/intent/tweet?text=' + text + '&url=' + url, '_blank');
+            trackEvent('share_snippet');
+        }
+
+        function shareFull(platform) {
+            var therapy = sessionStorage.getItem('lastTherapy') || '';
+            var text = encodeURIComponent('My session with ' + voiceConfig[selectedVoice].name + ': "' + therapy.substring(0, 100) + '..." Try it!');
+            var url = encodeURIComponent(window.location.href);
+            if (platform === 'twitter') {
+                window.open('https://twitter.com/intent/tweet?text=' + text + '&url=' + url, '_blank');
+            } else if (platform === 'facebook') {
+                window.open('https://www.facebook.com/sharer/sharer.php?u=' + url + '&quote=' + text, '_blank');
+            } else {
+                navigator.clipboard.writeText('My therapy session: "' + therapy + '"\n\nGet yours: ' + window.location.href);
+                alert('Copied!');
+            }
+            trackEvent('share_full', { platform: platform });
+        }
+
+        function selectPlan(plan) {
+            currentPlan = plan;
+            document.querySelectorAll('.pricing-option').forEach(function(opt) { opt.classList.remove('selected'); });
+            document.getElementById('plan' + plan.charAt(0).toUpperCase() + plan.slice(1)).classList.add('selected');
+            var btn = document.getElementById('upgradeBtn');
+            btn.textContent = plan === 'single' ? 'UNLOCK - $2.99' : 'UNLOCK WEEKLY - $9.99';
+        }
+
+        async function processPayment() {
+            try {
+                var response = await fetch('/api/therapy/checkout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        plan: currentPlan,
+                        metadata: {
+                            source: 'therapy-multi',
+                            name: userAnswers.name,
+                            problem: userAnswers.problem,
+                            voice: selectedVoice,
+                            exchanges: exchanges.length
+                        }
+                    })
+                });
+                var session = await response.json();
+                if (session.url) {
+                    window.location.href = session.url;
+                } else if (session.id) {
+                    var stripe = Stripe(session.stripePublicKey || '');
+                    await stripe.redirectToCheckout({ sessionId: session.id });
+                }
+            } catch (err) {
+                alert('Payment failed. Please try again.');
+            }
+        }
+
+        function showUpsell() { document.getElementById('upsellModal').classList.add('active'); }
+        function closeUpsell() { document.getElementById('upsellModal').classList.remove('active'); }
+
+        async function buyMoreTime() {
+            closeUpsell();
+            try {
+                var response = await fetch('/api/therapy/checkout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        plan: 'more-time',
+                        metadata: { source: 'therapy-multi', type: 'upsell-more-time', name: userAnswers.name, voice: selectedVoice }
+                    })
+                });
+                var session = await response.json();
+                if (session.url) window.location.href = session.url;
+            } catch (err) {
+                secondsLeft += 180;
+                document.getElementById('timerDisplay').classList.remove('warning');
+            }
+            trackEvent('bought_more_time');
+        }
+
+        function updateLiveCounter() {
+            var counts = [2847, 2956, 3123, 3345, 3567];
+            setInterval(function() {
+                document.getElementById('liveCounter').innerHTML = '&#9889; ' + counts[Math.floor(Math.random() * counts.length)].toLocaleString() + ' in session now &#9889;';
+            }, 8000);
+        }
+
+        function startSocialProofUpdates() {
+            setInterval(function() {
+                ['totalSessions', 'sharesToday'].forEach(function(id) {
+                    var el = document.getElementById(id);
+                    el.textContent = (parseInt(el.textContent.replace(/,/g, '')) + Math.floor(Math.random() * 50)).toLocaleString();
+                });
+            }, 10000);
+            setInterval(function() {
+                if (Math.random() > 0.7) {
+                    var badge = document.getElementById('viralBadge');
+                    badge.innerHTML = '<div class="viral-badge">' + Math.floor(Math.random() * 50 + 20) + ' sharing now!</div>';
+                    setTimeout(function() { badge.innerHTML = ''; }, 4000);
+                }
+            }, 15000);
+        }
+
+        function trackEvent(event, data) {
+            fetch('/api/track-viral', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ event: event, sessionId: sessionId, data: data || {}, timestamp: Date.now() })
+            }).catch(function() {});
+        }
+
+        function checkForPaymentReturn() {
+            var params = new URLSearchParams(window.location.search);
+            if (params.get('success') || params.get('session_id')) {
+                document.getElementById('sessionContainer').style.display = 'block';
+                document.getElementById('sessionContent').textContent = 'Payment confirmed! Loading premium session...';
+                setTimeout(function() { generateInitialTherapy(); }, 2000);
+                window.history.replaceState({}, document.title, '/therapy-multi');
+            }
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>

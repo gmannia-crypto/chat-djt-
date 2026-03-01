@@ -1,0 +1,1304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Voice Therapy - Chat DJT</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #0a0a0a;
+            font-family: 'Arial', sans-serif;
+            color: white;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        /* Header */
+        .viral-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .viral-header h1 {
+            color: #ff4d4d;
+            font-size: 42px;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            text-shadow: 0 0 20px rgba(255, 75, 75, 0.5);
+            margin-bottom: 10px;
+        }
+        
+        .viral-header .subhead {
+            color: #888;
+            font-size: 16px;
+            font-style: italic;
+        }
+        
+        .live-counter {
+            display: inline-block;
+            background: #ff4d4d;
+            color: white;
+            padding: 8px 20px;
+            border-radius: 30px;
+            font-size: 14px;
+            font-weight: bold;
+            margin-top: 15px;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+        
+        /* Voice Selector */
+        .voice-selector {
+            margin: 30px 0 20px;
+            text-align: center;
+        }
+        
+        .voice-selector h3 {
+            color: #ff4d4d;
+            margin-bottom: 20px;
+            font-size: 20px;
+        }
+        
+        .voice-grid {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        .voice-card {
+            border-radius: 15px;
+            padding: 20px 15px;
+            width: 160px;
+            cursor: pointer;
+            background: #1a1a1a;
+            transition: all 0.3s ease;
+            text-align: center;
+            border: 2px solid #333;
+        }
+        
+        .voice-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(255, 75, 75, 0.3);
+        }
+        
+        .voice-card.selected {
+            border-width: 3px;
+        }
+        
+        .voice-emoji {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+        
+        .voice-name {
+            font-weight: bold;
+            font-size: 18px;
+            margin-bottom: 5px;
+        }
+        
+        .voice-tagline {
+            font-size: 11px;
+            color: #888;
+            margin-bottom: 10px;
+        }
+        
+        .voice-badge {
+            font-size: 12px;
+            padding: 3px 8px;
+            border-radius: 12px;
+            display: inline-block;
+        }
+        
+        #voice-trump .voice-name { color: #ff4d4d; }
+        #voice-sophia .voice-name { color: #ff99cc; }
+        #voice-james .voice-name { color: #4d4dff; }
+        
+        /* Social Proof */
+        .social-proof {
+            display: flex;
+            justify-content: space-around;
+            background: linear-gradient(90deg, #ff4d4d20, #ff4d4d40, #ff4d4d20);
+            border: 1px solid #ff4d4d;
+            border-radius: 50px;
+            padding: 15px;
+            margin: 25px 0;
+        }
+        
+        .proof-item {
+            text-align: center;
+        }
+        
+        .proof-value {
+            font-size: 22px;
+            font-weight: bold;
+            color: #ff4d4d;
+        }
+        
+        .proof-label {
+            font-size: 11px;
+            color: #ccc;
+        }
+        
+        /* Therapy Card */
+        .therapy-card {
+            background: linear-gradient(145deg, #1a1a1a 0%, #2d2d2d 100%);
+            border: 2px solid #ff4d4d;
+            border-radius: 20px;
+            padding: 30px;
+            margin: 30px 0;
+            box-shadow: 0 10px 40px rgba(255, 0, 0, 0.2);
+        }
+        
+        .greeting-quote {
+            font-size: 18px;
+            color: #ff4d4d;
+            text-align: center;
+            margin-bottom: 30px;
+            font-style: italic;
+            border-bottom: 1px solid #333;
+            padding-bottom: 20px;
+            min-height: 60px;
+        }
+        
+        /* Progress Bar */
+        .progress-container {
+            margin-bottom: 30px;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 10px;
+            background: #333;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff4d4d, #ff9999);
+            transition: width 0.3s ease;
+            border-radius: 10px;
+        }
+        
+        .question-counter {
+            text-align: right;
+            color: #888;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+        
+        /* Question Containers */
+        .question-container {
+            transition: all 0.3s ease;
+        }
+        
+        .question-number {
+            color: #ff4d4d;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 10px;
+        }
+        
+        .question-text {
+            font-size: 22px;
+            margin-bottom: 25px;
+            line-height: 1.4;
+        }
+        
+        .question-input {
+            width: 100%;
+            padding: 15px;
+            background: #333;
+            border: 2px solid #ff4d4d;
+            border-radius: 10px;
+            color: white;
+            font-size: 16px;
+        }
+        
+        .question-input:focus {
+            outline: none;
+            box-shadow: 0 0 20px rgba(255, 75, 75, 0.5);
+        }
+        
+        textarea.question-input {
+            min-height: 100px;
+            resize: vertical;
+        }
+        
+        .next-btn {
+            background: #ff4d4d;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 18px;
+            border-radius: 50px;
+            cursor: pointer;
+            margin-top: 20px;
+            font-weight: bold;
+            transition: all 0.2s;
+            width: 100%;
+        }
+        
+        .next-btn:hover:not(:disabled) {
+            background: #cc0000;
+            transform: scale(1.02);
+        }
+        
+        .next-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        /* Timer */
+        .timer-container {
+            text-align: center;
+            margin: 20px 0;
+            padding: 20px;
+            background: #1a1a1a;
+            border-radius: 15px;
+        }
+        
+        .timer-label {
+            color: #888;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        
+        .timer-display {
+            font-size: 48px;
+            font-weight: bold;
+            font-family: monospace;
+            margin: 10px 0;
+        }
+        
+        .timer-display.trump { color: #ff4d4d; }
+        .timer-display.sophia { color: #ff99cc; }
+        .timer-display.james { color: #4d4dff; }
+        
+        .timer-display.warning {
+            animation: blink 1s infinite;
+        }
+        
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        /* Session Content */
+        .session-content {
+            font-size: 18px;
+            line-height: 1.7;
+            margin: 25px 0;
+            padding: 25px;
+            background: #333;
+            border-left-width: 5px;
+            border-left-style: solid;
+            border-radius: 10px;
+            white-space: pre-line;
+        }
+        
+        .session-content.trump { border-left-color: #ff4d4d; }
+        .session-content.sophia { border-left-color: #ff99cc; }
+        .session-content.james { border-left-color: #4d4dff; }
+        
+        /* Voice Switcher */
+        .voice-switcher {
+            margin: 25px 0;
+            padding: 20px;
+            background: #1a1a1a;
+            border-radius: 15px;
+            text-align: center;
+            display: none;
+        }
+        
+        .switcher-title {
+            color: #888;
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+        
+        .switcher-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        .switch-btn {
+            border: none;
+            padding: 10px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+        
+        .switch-btn:hover {
+            transform: scale(1.05);
+        }
+        
+        .switch-trump {
+            background: #ff4d4d;
+            color: white;
+        }
+        
+        .switch-sophia {
+            background: #ff99cc;
+            color: white;
+        }
+        
+        .switch-james {
+            background: #4d4dff;
+            color: white;
+        }
+        
+        /* Follow-Up Container */
+        .follow-up-card {
+            background: #2a2a2a;
+            border: 2px solid;
+            border-radius: 15px;
+            padding: 25px;
+            margin: 25px 0;
+        }
+        
+        .follow-up-card.trump { border-color: #ff4d4d; }
+        .follow-up-card.sophia { border-color: #ff99cc; }
+        .follow-up-card.james { border-color: #4d4dff; }
+        
+        .follow-up-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .follow-up-avatar {
+            font-size: 30px;
+        }
+        
+        .follow-up-name {
+            font-weight: bold;
+        }
+        
+        .follow-up-question {
+            font-size: 18px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #333;
+            border-radius: 10px;
+        }
+        
+        .follow-up-response {
+            margin-top: 20px;
+            padding: 15px;
+            background: #333;
+            border-left-width: 5px;
+            border-left-style: solid;
+            border-radius: 8px;
+            display: none;
+        }
+        
+        /* Share Section */
+        .share-section {
+            margin: 30px 0;
+            padding: 25px;
+            background: #1a1a1a;
+            border-radius: 15px;
+        }
+        
+        .share-title {
+            color: #ff4d4d;
+            font-size: 18px;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        
+        .snippet-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .snippet-card {
+            background: #333;
+            padding: 15px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid #444;
+        }
+        
+        .snippet-card:hover {
+            border-color: #ff4d4d;
+            transform: translateY(-2px);
+        }
+        
+        .snippet-text {
+            font-size: 13px;
+            color: #ccc;
+            margin-bottom: 8px;
+            font-style: italic;
+        }
+        
+        .snippet-voice {
+            font-size: 11px;
+            color: #ff4d4d;
+        }
+        
+        .share-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .share-btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .share-twitter { background: #1DA1F2; color: white; }
+        .share-facebook { background: #4267B2; color: white; }
+        .share-copy { background: #333; color: white; border: 1px solid #ff4d4d; }
+        
+        /* Upgrade Card */
+        .upgrade-card {
+            background: #1a1a1a;
+            border: 2px solid #ff4d4d;
+            border-radius: 20px;
+            padding: 30px;
+            margin: 30px 0;
+            text-align: center;
+            display: none;
+        }
+        
+        .pricing-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin: 25px 0;
+        }
+        
+        .pricing-option {
+            border: 2px solid #333;
+            border-radius: 10px;
+            padding: 15px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .pricing-option:hover {
+            border-color: #ff4d4d;
+        }
+        
+        .pricing-option.selected {
+            border-color: #ff4d4d;
+            background: #ff4d4d20;
+        }
+        
+        .price-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #ff4d4d;
+        }
+        
+        /* Upsell Modal */
+        .upsell-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.95);
+            z-index: 10000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .upsell-modal.active { display: flex; }
+        
+        .upsell-content {
+            background: #1a1a1a;
+            border: 3px solid #ff4d4d;
+            border-radius: 20px;
+            padding: 35px;
+            max-width: 400px;
+            text-align: center;
+            animation: slideUp 0.4s;
+        }
+        
+        @keyframes slideUp {
+            from { transform: translateY(50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        .upsell-close {
+            float: right;
+            font-size: 28px;
+            cursor: pointer;
+            color: #888;
+        }
+        
+        .upsell-close:hover { color: #ff4d4d; }
+        
+        .upsell-icon { font-size: 48px; margin: 10px 0; }
+        .upsell-title { color: #ff4d4d; font-size: 24px; margin: 15px 0; }
+        .upsell-price { font-size: 36px; font-weight: bold; margin: 15px 0; }
+        .upsell-btn {
+            background: #ff4d4d;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 18px;
+            border-radius: 50px;
+            cursor: pointer;
+            width: 100%;
+            margin: 10px 0;
+        }
+        
+        /* Viral Badge */
+        .viral-badge {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #ff4d4d;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 30px;
+            font-size: 13px;
+            font-weight: bold;
+            animation: slideIn 0.5s;
+            z-index: 1000;
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        /* Loading */
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #ff4d4d40;
+            border-radius: 50%;
+            border-top-color: #ff4d4d;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        /* Responsive */
+        @media (max-width: 600px) {
+            .voice-grid { gap: 10px; }
+            .voice-card { width: 140px; padding: 15px 10px; }
+            .pricing-grid { grid-template-columns: 1fr; }
+            .share-buttons { flex-direction: column; }
+        }
+    </style>
+    
+    <!-- Stripe.js -->
+    <script src="https://js.stripe.com/v3"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="viral-header">
+            <h1>🧠 MULTI-VOICE THERAPY</h1>
+            <div class="subhead">Choose who you need today</div>
+            <div class="live-counter" id="liveCounter">⚡ 2,847 in session now ⚡</div>
+        </div>
+        
+        <!-- Voice Selector -->
+        <div class="voice-selector">
+            <h3>👥 CHOOSE YOUR THERAPIST</h3>
+            <div class="voice-grid">
+                <!-- Dr. Trump -->
+                <div class="voice-card" id="voice-trump" onclick="selectVoice('trump')">
+                    <div class="voice-emoji">🗣️</div>
+                    <div class="voice-name">DR. TRUMP</div>
+                    <div class="voice-tagline">"You're winning!"</div>
+                    <div class="voice-badge" style="background: #ff4d4d20; color: #ff4d4d;">🔥 12k today</div>
+                </div>
+                
+                <!-- Dr. Sophia (NEW) -->
+                <div class="voice-card" id="voice-sophia" onclick="selectVoice('sophia')">
+                    <div class="voice-emoji">👩‍⚕️</div>
+                    <div class="voice-name">DR. SOPHIA</div>
+                    <div class="voice-tagline">"I'm here for you"</div>
+                    <div class="voice-badge" style="background: #ff99cc20; color: #ff99cc;">✨ 8k today</div>
+                </div>
+                
+                <!-- Dr. James (NEW) -->
+                <div class="voice-card" id="voice-james" onclick="selectVoice('james')">
+                    <div class="voice-emoji">👨‍⚕️</div>
+                    <div class="voice-name">DR. JAMES</div>
+                    <div class="voice-tagline">"Let's be rational"</div>
+                    <div class="voice-badge" style="background: #4d4dff20; color: #4d4dff;">📊 5k today</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Social Proof -->
+        <div class="social-proof">
+            <div class="proof-item">
+                <div class="proof-value" id="totalSessions">24,847</div>
+                <div class="proof-label">Sessions Today</div>
+            </div>
+            <div class="proof-item">
+                <div class="proof-value" id="avgRating">4.8/5</div>
+                <div class="proof-label">Rating</div>
+            </div>
+            <div class="proof-item">
+                <div class="proof-value" id="sharesToday">6,421</div>
+                <div class="proof-label">Shares</div>
+            </div>
+        </div>
+        
+        <!-- Main Therapy Card -->
+        <div class="therapy-card" id="therapyCard">
+            <div class="greeting-quote" id="greetingQuote">
+                "Lie down. Tell me everything. I'm listening..."
+            </div>
+            
+            <!-- Progress Bar -->
+            <div class="progress-container">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+                </div>
+                <div class="question-counter" id="questionCounter">Question 1 of 3</div>
+            </div>
+            
+            <!-- Question 1 -->
+            <div class="question-container" id="question1">
+                <div class="question-number">QUESTION 1</div>
+                <div class="question-text" id="q1Text">"What's your name?"</div>
+                <input type="text" class="question-input" id="q1" placeholder="Enter your first name" maxlength="30">
+                <button class="next-btn" onclick="nextQuestion(2)">NEXT →</button>
+            </div>
+            
+            <!-- Question 2 -->
+            <div class="question-container" id="question2" style="display: none;">
+                <div class="question-number">QUESTION 2</div>
+                <div class="question-text" id="q2Text">"What's bothering you?"</div>
+                <textarea class="question-input" id="q2" placeholder="Tell us what's wrong..."></textarea>
+                <button class="next-btn" onclick="nextQuestion(3)">NEXT →</button>
+            </div>
+            
+            <!-- Question 3 -->
+            <div class="question-container" id="question3" style="display: none;">
+                <div class="question-number">QUESTION 3</div>
+                <div class="question-text" id="q3Text">"How serious is this?"</div>
+                <select class="question-input" id="q3">
+                    <option value="1">1 - Minor</option>
+                    <option value="2">2 - Small</option>
+                    <option value="3">3 - Moderate</option>
+                    <option value="4">4 - Annoying</option>
+                    <option value="5" selected>5 - Meh</option>
+                    <option value="6">6 - Pretty bad</option>
+                    <option value="7">7 - Very bad</option>
+                    <option value="8">8 - Terrible</option>
+                    <option value="9">9 - Awful</option>
+                    <option value="10">10 - Extreme</option>
+                </select>
+                <button class="next-btn" onclick="startTherapy()">🔮 START SESSION</button>
+            </div>
+            
+            <!-- Session Container -->
+            <div id="sessionContainer" style="display: none;">
+                <!-- Timer -->
+                <div class="timer-container">
+                    <div class="timer-label">YOUR SESSION</div>
+                    <div class="timer-display" id="timerDisplay">2:00</div>
+                </div>
+                
+                <!-- Session Content -->
+                <div class="session-content" id="sessionContent"></div>
+                
+                <!-- Voice Switcher (appears during session) -->
+                <div class="voice-switcher" id="voiceSwitcher">
+                    <div class="switcher-title">🔄 Need a different perspective?</div>
+                    <div class="switcher-buttons">
+                        <button class="switch-btn switch-trump" onclick="switchVoice('trump')">🗣️ Dr. Trump</button>
+                        <button class="switch-btn switch-sophia" onclick="switchVoice('sophia')">👩‍⚕️ Dr. Sophia</button>
+                        <button class="switch-btn switch-james" onclick="switchVoice('james')">👨‍⚕️ Dr. James</button>
+                    </div>
+                </div>
+                
+                <!-- Follow-Up Container -->
+                <div id="followUpContainer" style="display: none;">
+                    <div class="follow-up-card" id="followUpCard">
+                        <div class="follow-up-header">
+                            <span class="follow-up-avatar" id="followUpAvatar">🗣️</span>
+                            <span class="follow-up-name" id="followUpName">DR. TRUMP ASKS:</span>
+                        </div>
+                        <div class="follow-up-question" id="followUpQuestion"></div>
+                        <textarea class="question-input" id="followUpAnswer" placeholder="Type your answer..."></textarea>
+                        <div style="display: flex; gap: 10px; margin-top: 15px;">
+                            <button class="next-btn" onclick="submitFollowUp()" style="flex: 2;" id="followUpSubmit">📤 SEND ANSWER</button>
+                            <button class="next-btn" onclick="skipFollowUp()" style="flex: 1; background: #333;">SKIP</button>
+                        </div>
+                        <div class="follow-up-response" id="followUpResponse"></div>
+                    </div>
+                </div>
+                
+                <!-- Share Section -->
+                <div class="share-section" id="shareSection" style="display: none;">
+                    <div class="share-title">🔥 SHARE YOUR THERAPY 🔥</div>
+                    <div class="snippet-grid" id="snippetGrid"></div>
+                    <div class="share-buttons">
+                        <button class="share-btn share-twitter" onclick="shareFull('twitter')">🔁 X</button>
+                        <button class="share-btn share-facebook" onclick="shareFull('facebook')">📘 Facebook</button>
+                        <button class="share-btn share-copy" onclick="shareFull('copy')">📋 Copy</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Upgrade Card -->
+        <div class="upgrade-card" id="upgradeCard">
+            <div style="font-size: 48px;">🌟</div>
+            <h2 style="color: #ff4d4d; margin: 15px 0;">UNLOCK ALL VOICES</h2>
+            <p style="color: #ccc; margin-bottom: 20px;">Switch between therapists anytime</p>
+            
+            <div class="pricing-grid">
+                <div class="pricing-option" onclick="selectPlan('single')" id="planSingle">
+                    <div style="font-size: 20px; margin-bottom: 5px;">Single</div>
+                    <div class="price-value">$2.99</div>
+                    <div style="font-size: 12px; color: #888;">One session</div>
+                </div>
+                <div class="pricing-option" onclick="selectPlan('weekly')" id="planWeekly">
+                    <div style="font-size: 20px; margin-bottom: 5px;">Weekly</div>
+                    <div class="price-value">$9.99</div>
+                    <div style="font-size: 12px; color: #888;">Unlimited</div>
+                </div>
+            </div>
+            
+            <button class="next-btn" id="upgradeBtn" onclick="processPayment()" style="max-width: 300px; margin: 0 auto;">
+                🔓 UNLOCK - $2.99
+            </button>
+        </div>
+    </div>
+    
+    <!-- Upsell Modal -->
+    <div class="upsell-modal" id="upsellModal">
+        <div class="upsell-content">
+            <span class="upsell-close" onclick="closeUpsell()">×</span>
+            <div class="upsell-icon">⏰</div>
+            <div class="upsell-title">TIME'S ALMOST UP!</div>
+            <p style="color: #ccc;">Get 3 MORE MINUTES with your therapist</p>
+            <div class="upsell-price">$1.99</div>
+            <button class="upsell-btn" onclick="buyMoreTime()">ADD 3 MINUTES</button>
+            <button onclick="closeUpsell()" style="background: none; border: none; color: #888; cursor: pointer; margin-top: 15px;">No thanks</button>
+        </div>
+    </div>
+    
+    <!-- Viral Badge -->
+    <div id="viralBadge"></div>
+    
+    <script>
+        // ================= CONFIG =================
+        const STRIPE_PUBLIC_KEY = 'pk_live_your_stripe_key'; // REPLACE WITH YOUR KEY
+        const stripe = Stripe(STRIPE_PUBLIC_KEY);
+        
+        // State
+        let selectedVoice = 'trump';
+        let currentQuestion = 1;
+        let userAnswers = { name: '', problem: '', seriousness: '5' };
+        let sessionTimer;
+        let secondsLeft = 120;
+        let sessionActive = false;
+        let sessionId = generateSessionId();
+        let currentPlan = 'single';
+        let upsellShown = false;
+        let followUpIndex = 0;
+        let followUpActive = false;
+        let currentFollowUpQuestion = '';
+        let exchanges = [];
+        
+        // Voice configurations
+        const voiceConfig = {
+            trump: {
+                name: 'DR. TRUMP',
+                avatar: '🗣️',
+                color: '#ff4d4d',
+                greeting: '"Lie down. Tell me everything. I\'m listening..."',
+                q1: '"What\'s your name? I need to know who I\'m talking to."',
+                q2: '"What\'s bothering you? Be specific. I deal with big problems."',
+                q3: '"On a scale of 1-10, how serious is this? Be honest."'
+            },
+            sophia: {
+                name: 'DR. SOPHIA',
+                avatar: '👩‍⚕️',
+                color: '#ff99cc',
+                greeting: '"Welcome, dear. Take your time. I\'m here to listen without judgment."',
+                q1: '"What\'s your name? I\'d love to get to know you."',
+                q2: '"What\'s on your heart today? Share whatever feels right."',
+                q3: '"How heavy does this feel for you, on a scale of 1-10?"'
+            },
+            james: {
+                name: 'DR. JAMES',
+                avatar: '👨‍⚕️',
+                color: '#4d4dff',
+                greeting: '"Hello. I\'m Dr. James. Let\'s work through this together."',
+                q1: '"Your name? Let\'s start there."',
+                q2: '"What brings you here today? Be as specific as you like."',
+                q3: '"Rate the severity 1-10. This helps me understand."'
+            }
+        };
+        
+        // ================= INIT =================
+        function init() {
+            selectVoice('trump'); // Default
+            updateLiveCounter();
+            startSocialProofUpdates();
+            checkForPaymentReturn();
+        }
+        
+        function generateSessionId() {
+            return 'sess_' + Math.random().toString(36).substring(2, 15);
+        }
+        
+        // ================= VOICE SELECTION =================
+        function selectVoice(voice) {
+            selectedVoice = voice;
+            
+            // Update UI
+            document.querySelectorAll('.voice-card').forEach(card => {
+                card.classList.remove('selected');
+                card.style.borderColor = '#333';
+            });
+            
+            document.getElementById(`voice-${voice}`).classList.add('selected');
+            document.getElementById(`voice-${voice}`).style.borderColor = voiceConfig[voice].color;
+            
+            // Update greeting and questions
+            document.getElementById('greetingQuote').textContent = voiceConfig[voice].greeting;
+            document.getElementById('q1Text').textContent = voiceConfig[voice].q1;
+            document.getElementById('q2Text').textContent = voiceConfig[voice].q2;
+            document.getElementById('q3Text').textContent = voiceConfig[voice].q3;
+            
+            // Update timer color
+            document.getElementById('timerDisplay').className = `timer-display ${voice}`;
+            
+            trackEvent('voice_selected', { voice });
+        }
+        
+        // ================= QUESTION FLOW =================
+        function nextQuestion(num) {
+            if (currentQuestion === 1 && !document.getElementById('q1').value.trim()) {
+                alert('Please enter your name');
+                return;
+            }
+            if (currentQuestion === 2 && !document.getElementById('q2').value.trim()) {
+                alert('Please tell us what\'s bothering you');
+                return;
+            }
+            
+            document.getElementById(`question${currentQuestion}`).style.display = 'none';
+            document.getElementById(`question${num}`).style.display = 'block';
+            
+            currentQuestion = num;
+            const progress = ((num - 1) / 3) * 100;
+            document.getElementById('progressFill').style.width = progress + '%';
+            document.getElementById('questionCounter').textContent = `Question ${num - 1} of 3`;
+        }
+        
+        // ================= START THERAPY =================
+        async function startTherapy() {
+            userAnswers = {
+                name: document.getElementById('q1').value.trim() || 'Friend',
+                problem: document.getElementById('q2').value.trim() || 'life',
+                seriousness: document.getElementById('q3').value,
+                voice: selectedVoice
+            };
+            
+            document.getElementById('question3').style.display = 'none';
+            document.getElementById('sessionContainer').style.display = 'block';
+            
+            await generateInitialTherapy();
+            startTimer();
+            
+            // Show voice switcher after 30 seconds
+            setTimeout(() => {
+                document.getElementById('voiceSwitcher').style.display = 'block';
+            }, 30000);
+            
+            trackEvent('session_start', userAnswers);
+        }
+        
+        async function generateInitialTherapy() {
+            const response = await fetch('/api/generate-therapy', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(userAnswers)
+            });
+            
+            const data = await response.json();
+            
+            const contentDiv = document.getElementById('sessionContent');
+            contentDiv.textContent = data.therapy;
+            contentDiv.className = `session-content ${selectedVoice}`;
+            
+            sessionStorage.setItem('lastTherapy', data.therapy);
+            sessionStorage.setItem('userName', userAnswers.name);
+            
+            if (data.followUp) {
+                setTimeout(() => {
+                    showFollowUp(data.followUp);
+                }, 5000);
+            }
+        }
+        
+        // ================= TIMER =================
+        function startTimer() {
+            sessionActive = true;
+            secondsLeft = 120;
+            
+            sessionTimer = setInterval(() => {
+                secondsLeft--;
+                const mins = Math.floor(secondsLeft / 60);
+                const secs = secondsLeft % 60;
+                document.getElementById('timerDisplay').textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+                
+                if (secondsLeft === 30) {
+                    document.getElementById('timerDisplay').classList.add('warning');
+                    if (!upsellShown) {
+                        showUpsell();
+                        upsellShown = true;
+                    }
+                }
+                
+                if (secondsLeft <= 0) {
+                    endSession();
+                }
+            }, 1000);
+        }
+        
+        function endSession() {
+            clearInterval(sessionTimer);
+            sessionActive = false;
+            document.getElementById('shareSection').style.display = 'block';
+            document.getElementById('upgradeCard').style.display = 'block';
+            generateShareSnippets();
+            trackEvent('session_complete');
+        }
+        
+        // ================= FOLLOW-UP SYSTEM =================
+        function showFollowUp(question) {
+            if (followUpActive) return;
+            
+            currentFollowUpQuestion = question;
+            document.getElementById('followUpContainer').style.display = 'block';
+            document.getElementById('followUpQuestion').textContent = `"${question}"`;
+            
+            // Style based on voice
+            const card = document.getElementById('followUpCard');
+            card.className = `follow-up-card ${selectedVoice}`;
+            document.getElementById('followUpAvatar').textContent = voiceConfig[selectedVoice].avatar;
+            document.getElementById('followUpName').textContent = `${voiceConfig[selectedVoice].name} ASKS:`;
+            
+            followUpActive = true;
+            document.getElementById('followUpContainer').scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        async function submitFollowUp() {
+            const answer = document.getElementById('followUpAnswer').value.trim();
+            if (!answer) {
+                alert('Please answer the question');
+                return;
+            }
+            
+            document.getElementById('followUpSubmit').disabled = true;
+            document.getElementById('followUpSubmit').textContent = '⏳ THINKING...';
+            
+            try {
+                const response = await fetch('/api/generate-therapy', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ...userAnswers,
+                        previousAnswer: answer,
+                        followUpIndex: followUpIndex
+                    })
+                });
+                
+                const data = await response.json();
+                
+                // Store exchange
+                exchanges.push({
+                    question: currentFollowUpQuestion,
+                    answer: answer,
+                    response: data.message
+                });
+                
+                // Show response
+                const responseDiv = document.getElementById('followUpResponse');
+                responseDiv.style.display = 'block';
+                responseDiv.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                        <span>${voiceConfig[selectedVoice].avatar}</span>
+                        <span style="color: ${voiceConfig[selectedVoice].color};">RESPONDS:</span>
+                    </div>
+                    <div>"${data.message}"</div>
+                `;
+                
+                document.getElementById('followUpAnswer').value = '';
+                
+                if (data.nextQuestion) {
+                    followUpIndex++;
+                    setTimeout(() => {
+                        document.getElementById('followUpResponse').style.display = 'none';
+                        document.getElementById('followUpQuestion').textContent = `"${data.nextQuestion}"`;
+                        document.getElementById('followUpSubmit').disabled = false;
+                        document.getElementById('followUpSubmit').textContent = '📤 SEND ANSWER';
+                    }, 4000);
+                } else {
+                    setTimeout(() => {
+                        document.getElementById('followUpContainer').style.display = 'none';
+                        document.getElementById('followUpSubmit').disabled = false;
+                        document.getElementById('followUpSubmit').textContent = '📤 SEND ANSWER';
+                        generateShareSnippets();
+                    }, 4000);
+                }
+                
+                trackEvent('follow_up_answer', { index: followUpIndex });
+                
+            } catch (error) {
+                alert('Error sending answer');
+                document.getElementById('followUpSubmit').disabled = false;
+                document.getElementById('followUpSubmit').textContent = '📤 SEND ANSWER';
+            }
+        }
+        
+        function skipFollowUp() {
+            if (confirm("Skip this question?")) {
+                document.getElementById('followUpContainer').style.display = 'none';
+                followUpActive = false;
+                trackEvent('follow_up_skipped');
+            }
+        }
+        
+        // ================= VOICE SWITCHING =================
+        async function switchVoice(newVoice) {
+            const oldVoice = selectedVoice;
+            selectedVoice = newVoice;
+            
+            // Update UI
+            document.getElementById('timerDisplay').className = `timer-display ${newVoice}`;
+            
+            // Add transition message
+            const contentDiv = document.getElementById('sessionContent');
+            contentDiv.innerHTML += `
+                <div style="margin: 15px 0; padding: 10px; background: #333; border-left: 3px solid ${voiceConfig[newVoice].color};">
+                    <span style="color: ${voiceConfig[newVoice].color};">${voiceConfig[newVoice].avatar} ${voiceConfig[newVoice].name} joins the conversation...</span>
+                </div>
+            `;
+            
+            // Generate new response with new voice
+            const response = await fetch('/api/generate-therapy', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ...userAnswers,
+                    voice: newVoice,
+                    context: exchanges
+                })
+            });
+            
+            const data = await response.json();
+            
+            contentDiv.innerHTML += `
+                <div class="session-content ${newVoice}" style="margin-top: 10px;">
+                    "${data.therapy}"
+                </div>
+            `;
+            
+            trackEvent('voice_switched', { from: oldVoice, to: newVoice });
+        }
+        
+        // ================= SHARE SYSTEM =================
+        function generateShareSnippets() {
+            const therapy = sessionStorage.getItem('lastTherapy') || '';
+            const snippets = [];
+            
+            // Add main therapy snippet
+            snippets.push({
+                text: therapy.substring(0, 80) + '...',
+                voice: selectedVoice
+            });
+            
+            // Add exchange snippets
+            exchanges.forEach((ex, i) => {
+                snippets.push({
+                    text: `I told ${voiceConfig[selectedVoice].name}: "${ex.answer.substring(0, 50)}..."`,
+                    voice: selectedVoice
+                });
+            });
+            
+            let html = '';
+            snippets.slice(0, 3).forEach((s, i) => {
+                html += `
+                    <div class="snippet-card" onclick="shareSnippet(${i})">
+                        <div class="snippet-text">"${s.text}"</div>
+                        <div class="snippet-voice" style="color: ${voiceConfig[s.voice].color};">${voiceConfig[s.voice].avatar} ${voiceConfig[s.voice].name}</div>
+                    </div>
+                `;
+            });
+            
+            document.getElementById('snippetGrid').innerHTML = html;
+        }
+        
+        function shareSnippet(index) {
+            const snippets = [
+                sessionStorage.getItem('lastTherapy'),
+                ...exchanges.map(e => e.answer)
+            ];
+            
+            const text = encodeURIComponent(`"${snippets[index].substring(0, 80)}..." Get your therapy at trumpbot.rip 🔥`);
+            const url = encodeURIComponent('https://trumpbot.rip/therapy');
+            
+            window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank');
+            trackEvent('share_snippet');
+        }
+        
+        function shareFull(platform) {
+            const therapy = sessionStorage.getItem('lastTherapy') || '';
+            const text = encodeURIComponent(`My session with ${voiceConfig[selectedVoice].name}: "${therapy.substring(0, 100)}..." Try it at trumpbot.rip 🔥`);
+            const url = encodeURIComponent('https://trumpbot.rip/therapy');
+            
+            if (platform === 'twitter') {
+                window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank');
+            } else if (platform === 'facebook') {
+                window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}&quote=${text}`, '_blank');
+            } else {
+                navigator.clipboard.writeText(`My therapy session: "${therapy}"\n\nGet yours: https://trumpbot.rip/therapy`);
+                alert('✅ Copied!');
+            }
+            
+            trackEvent('share_full', { platform });
+        }
+        
+        // ================= PAYMENT =================
+        function selectPlan(plan) {
+            currentPlan = plan;
+            document.querySelectorAll('.pricing-option').forEach(opt => opt.classList.remove('selected'));
+            document.getElementById(`plan${plan.charAt(0).toUpperCase() + plan.slice(1)}`).classList.add('selected');
+            
+            const btn = document.getElementById('upgradeBtn');
+            btn.textContent = plan === 'single' ? '🔓 UNLOCK - $2.99' : '🔓 UNLOCK WEEKLY - $9.99';
+        }
+        
+        async function processPayment() {
+            try {
+                const response = await fetch('/api/create-checkout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        plan: currentPlan,
+                        metadata: {
+                            name: userAnswers.name,
+                            voice: selectedVoice,
+                            exchanges: exchanges.length
+                        }
+                    })
+                });
+                
+                const session = await response.json();
+                await stripe.redirectToCheckout({ sessionId: session.id });
+                
+            } catch (error) {
+                alert('Payment failed');
+            }
+        }
+        
+        // ================= UPSELL =================
+        function showUpsell() {
+            document.getElementById('upsellModal').classList.add('active');
+        }
+        
+        function closeUpsell() {
+            document.getElementById('upsellModal').classList.remove('active');
+        }
+        
+        async function buyMoreTime() {
+            closeUpsell();
+            secondsLeft += 180; // Add 3 minutes
+            document.getElementById('timerDisplay').classList.remove('warning');
+            trackEvent('bought_more_time');
+        }
+        
+        // ================= VIRAL TRACKING =================
+        function updateLiveCounter() {
+            const counts = [2847, 2956, 3123, 3345, 3567];
+            setInterval(() => {
+                document.getElementById('liveCounter').innerHTML = `⚡ ${counts[Math.floor(Math.random() * counts.length)].toLocaleString()} in session now ⚡`;
+            }, 8000);
+        }
+        
+        function startSocialProofUpdates() {
+            setInterval(() => {
+                ['totalSessions', 'sharesToday'].forEach(id => {
+                    const el = document.getElementById(id);
+                    el.textContent = (parseInt(el.textContent.replace(',', '')) + Math.floor(Math.random() * 50)).toLocaleString();
+                });
+            }, 10000);
+            
+            setInterval(() => {
+                if (Math.random() > 0.7) {
+                    const badge = document.getElementById('viralBadge');
+                    badge.innerHTML = `<div class="viral-badge">🔥 ${Math.floor(Math.random() * 50) + 20} sharing now!</div>`;
+                    setTimeout(() => { badge.innerHTML = ''; }, 4000);
+                }
+            }, 15000);
+        }
+        
+        function trackEvent(event, data = {}) {
+            fetch('/api/track-viral', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ event, sessionId, data, timestamp: Date.now() })
+            }).catch(() => {});
+        }
+        
+        function checkForPaymentReturn() {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('session_id')) {
+                document.getElementById('sessionContainer').style.display = 'block';
+                document.getElementById('sessionContent').textContent = '✅ Payment confirmed! Loading premium session...';
+                setTimeout(() => generateInitialTherapy(), 2000);
+                window.history.replaceState({}, document.title, '/therapy-multi.html');
+            }
+        }
+        
+        // Initialize
+        window.onload = init;
+    </script>
+</body>
+</html>
