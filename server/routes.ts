@@ -2272,7 +2272,7 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
         return res.status(403).json({ error: tokenResult.error, balance: tokenResult.balance });
       }
 
-      const { name, problem, seriousness, voice } = req.body;
+      const { name, problem, seriousness, voice, previousAnswer, followUpIndex: fIdx } = req.body;
       if (!problem) {
         return res.status(400).json({ error: "Missing problem" });
       }
@@ -2280,6 +2280,41 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
       const nameStr = name || "friend";
       const level = seriousness || "5";
       const selectedVoice = voice || "trump";
+      const followUpIdx = parseInt(fIdx as string) || 0;
+
+      if (previousAnswer && typeof previousAnswer === "string") {
+        let followUpResponse: string;
+        if (selectedVoice === "sophia") {
+          followUpResponse = getSophiaFollowUpResponse(nameStr, previousAnswer, followUpIdx);
+        } else if (selectedVoice === "james") {
+          followUpResponse = getJamesFollowUpResponse(nameStr, previousAnswer, followUpIdx);
+        } else {
+          const trumpFollowUpResponses = [
+            `${nameStr}, that's very interesting. Very smart answer. I've heard many answers — many, many answers — and yours? Top tier. Absolutely top tier. Now here's what I think you should do next — and believe me, I've thought about this more than anyone...`,
+            `See, ${nameStr}, that's exactly what I expected you'd say. Because you're sharp. Not as sharp as me, obviously, but you're getting there. And that tells me everything I need to know about your situation. The deal is almost closed.`,
+            `${nameStr}, let me tell you something. What you just said? That took courage. Real courage. Like when I walked into North Korea. Nobody else would've done it. And nobody else would've said what you just said. Except me. I would've said it better, but still — tremendous.`,
+          ];
+          followUpResponse = trumpFollowUpResponses[followUpIdx % trumpFollowUpResponses.length];
+        }
+        let nextFollowUp: string | null = null;
+        if (followUpIdx < 2) {
+          if (selectedVoice === "sophia") {
+            nextFollowUp = getSophiaFollowUp(problem, nameStr);
+          } else if (selectedVoice === "james") {
+            nextFollowUp = getJamesFollowUp(problem, nameStr);
+          } else {
+            nextFollowUp = getFirstFollowUp(problem, nameStr);
+          }
+        }
+        return res.json({
+          therapy: followUpResponse,
+          followUp: nextFollowUp,
+          followUpIndex: followUpIdx,
+          name: nameStr,
+          seriousness: level,
+          voice: selectedVoice,
+        });
+      }
 
       let therapyPrompt: string;
       let userMessage: string;
@@ -2307,7 +2342,17 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
 
       const therapy = completion.choices[0]?.message?.content?.trim() || "";
       apiUsageCounters.chat++;
-      res.json({ therapy, name: nameStr, seriousness: level, voice: selectedVoice });
+
+      let followUp: string | null = null;
+      if (selectedVoice === "sophia") {
+        followUp = getSophiaFollowUp(problem, nameStr);
+      } else if (selectedVoice === "james") {
+        followUp = getJamesFollowUp(problem, nameStr);
+      } else {
+        followUp = getFirstFollowUp(problem, nameStr);
+      }
+
+      res.json({ therapy, followUp, followUpIndex: 0, name: nameStr, seriousness: level, voice: selectedVoice });
     } catch (error) {
       console.error("Therapy error:", error);
       const { name, problem, seriousness } = req.body;

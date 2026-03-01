@@ -158,6 +158,14 @@ export default function TherapyScreen() {
   const [therapy, setTherapy] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  const [followUpQuestion, setFollowUpQuestion] = useState<string | null>(null);
+  const [followUpIndex, setFollowUpIndex] = useState(0);
+  const [followUpAnswer, setFollowUpAnswer] = useState("");
+  const [followUpLoading, setFollowUpLoading] = useState(false);
+  const [conversationHistory, setConversationHistory] = useState<Array<{ role: string; text: string }>>([]);
+  const [sessionSeconds, setSessionSeconds] = useState(120);
+  const [sessionActive, setSessionActive] = useState(false);
+  const [sessionEnded, setSessionEnded] = useState(false);
 
   const config = THERAPIST_CONFIGS[selectedTherapist];
 
@@ -167,6 +175,7 @@ export default function TherapyScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
   const introTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sessionTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const recordingRef = useRef<Audio.Recording | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -364,6 +373,14 @@ export default function TherapyScreen() {
       if (!res.ok) throw new Error("Therapy failed");
       const data = await res.json();
       setTherapy(data.therapy);
+      setConversationHistory([{ role: "therapist", text: data.therapy }]);
+      if (data.followUp) {
+        setFollowUpQuestion(data.followUp);
+        setFollowUpIndex(data.followUpIndex !== undefined ? data.followUpIndex + 1 : 1);
+      }
+      setSessionSeconds(120);
+      setSessionActive(true);
+      setSessionEnded(false);
       refreshBalance();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
@@ -424,8 +441,89 @@ export default function TherapyScreen() {
         soundRef.current.unloadAsync();
         soundRef.current = null;
       }
+      if (sessionTimerRef.current) clearInterval(sessionTimerRef.current);
     };
   }, []);
+
+  React.useEffect(() => {
+    if (sessionActive && sessionSeconds > 0) {
+      sessionTimerRef.current = setInterval(() => {
+        setSessionSeconds((prev) => {
+          if (prev <= 1) {
+            if (sessionTimerRef.current) clearInterval(sessionTimerRef.current);
+            setSessionActive(false);
+            setSessionEnded(true);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      return () => {
+        if (sessionTimerRef.current) clearInterval(sessionTimerRef.current);
+      };
+    }
+  }, [sessionActive]);
+
+  const formatTime = (s: number) => {
+    const mins = Math.floor(s / 60);
+    const secs = s % 60;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  const handleFollowUp = async () => {
+    if (!followUpAnswer.trim() || followUpLoading || sessionEnded) return;
+    const currentVoice = selectedTherapist;
+    setFollowUpLoading(true);
+    try {
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      const hdrs: Record<string, string> = { "Content-Type": "application/json" };
+      if (deviceId) hdrs["x-device-id"] = deviceId;
+      const res = await fetch(`${baseUrl}/api/therapy`, {
+        method: "POST",
+        headers: hdrs,
+        body: JSON.stringify({
+          name: firstName.trim(),
+          problem: problem.trim(),
+          seriousness,
+          voice: currentVoice,
+          previousAnswer: followUpAnswer.trim(),
+          followUpIndex,
+        }),
+      });
+      if (res.status === 403) {
+        refreshBalance();
+        router.push("/subscribe");
+        return;
+      }
+      if (!res.ok) throw new Error("Follow-up failed");
+      const data = await res.json();
+      setConversationHistory((prev) => [
+        ...prev,
+        { role: "user", text: followUpAnswer.trim() },
+        { role: "therapist", text: data.therapy },
+      ]);
+      setFollowUpAnswer("");
+      refreshBalance();
+      if (data.followUp && followUpIndex < 2) {
+        setFollowUpQuestion(data.followUp);
+        setFollowUpIndex(data.followUpIndex !== undefined ? data.followUpIndex + 1 : followUpIndex + 1);
+      } else {
+        setFollowUpQuestion(null);
+      }
+      if (data.therapy) {
+        setTimeout(() => handleSpeak(data.therapy, currentVoice), 500);
+      }
+      setTimeout(() => {
+        scrollRef.current?.scrollToEnd({ animated: true });
+      }, 300);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    } catch {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setFollowUpLoading(false);
+    }
+  };
 
   const handleShare = async () => {
     if (!therapy) return;
@@ -446,6 +544,14 @@ export default function TherapyScreen() {
     setFirstName("");
     setProblem("");
     setSeriousness("5");
+    setFollowUpQuestion(null);
+    setFollowUpIndex(0);
+    setFollowUpAnswer("");
+    setConversationHistory([]);
+    setSessionActive(false);
+    setSessionEnded(false);
+    setSessionSeconds(120);
+    if (sessionTimerRef.current) clearInterval(sessionTimerRef.current);
     if (soundRef.current) {
       soundRef.current.unloadAsync();
       soundRef.current = null;
@@ -702,6 +808,16 @@ export default function TherapyScreen() {
 
         {therapy && (
           <Animated.View entering={FadeInUp.duration(600)} style={[styles.resultCard, { borderColor: `${config.accent}80` }]}>
+            <View style={styles.timerContainer}>
+              <Text style={styles.timerLabel}>YOUR SESSION</Text>
+              <Text style={[styles.timerDisplay, { color: config.accent }, sessionSeconds <= 30 && styles.timerWarning]}>
+                {formatTime(sessionSeconds)}
+              </Text>
+              {sessionEnded && (
+                <Text style={styles.timerExpired}>SESSION ENDED</Text>
+              )}
+            </View>
+
             <View style={[styles.trumpPortrait, { backgroundColor: config.accent }]}>
               <Image source={config.image} style={{ width: 64, height: 64, borderRadius: 32 }} resizeMode="cover" />
             </View>
@@ -709,6 +825,63 @@ export default function TherapyScreen() {
             <View style={[styles.diagnosisBox, { borderLeftColor: config.accent }]}>
               <Text style={styles.diagnosisText}>"{therapy}"</Text>
             </View>
+
+            {conversationHistory.length > 1 && (
+              <View style={styles.conversationHistory}>
+                {conversationHistory.slice(1).map((msg, i) => (
+                  <View key={i} style={[styles.convMessage, msg.role === "user" ? styles.convUser : styles.convTherapist]}>
+                    <Text style={[styles.convRole, { color: msg.role === "user" ? "rgba(255,255,255,0.5)" : config.accent }]}>
+                      {msg.role === "user" ? "You" : config.name}
+                    </Text>
+                    <Text style={styles.convText}>
+                      {msg.role === "user" ? msg.text : `"${msg.text}"`}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {followUpQuestion && !sessionEnded && (
+              <Animated.View entering={FadeInDown.duration(400)} style={[styles.followUpCard, { borderColor: `${config.accent}40` }]}>
+                <Text style={[styles.followUpLabel, { color: config.accent }]}>
+                  {config.name} asks:
+                </Text>
+                <Text style={styles.followUpQuestion}>"{followUpQuestion}"</Text>
+                <TextInput
+                  value={followUpAnswer}
+                  onChangeText={setFollowUpAnswer}
+                  placeholder="Type your answer..."
+                  placeholderTextColor="rgba(255,255,255,0.3)"
+                  style={[styles.textInput, styles.followUpInput, { borderColor: `${config.accent}40` }]}
+                  multiline
+                  maxLength={300}
+                  textAlignVertical="top"
+                  editable={!followUpLoading}
+                />
+                <Pressable
+                  onPress={handleFollowUp}
+                  disabled={followUpLoading || !followUpAnswer.trim()}
+                  style={({ pressed }) => [
+                    styles.followUpBtn,
+                    { backgroundColor: followUpAnswer.trim() ? config.accent : "rgba(51,51,51,0.8)" },
+                    pressed && { opacity: 0.8 },
+                  ]}
+                >
+                  {followUpLoading ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={styles.followUpBtnText}>RESPOND</Text>
+                  )}
+                </Pressable>
+              </Animated.View>
+            )}
+
+            {sessionEnded && (
+              <Animated.View entering={FadeIn.duration(400)} style={[styles.sessionEndCard, { borderColor: `${config.accent}40` }]}>
+                <Text style={[styles.sessionEndTitle, { color: config.accent }]}>Session Complete</Text>
+                <Text style={styles.sessionEndText}>Your 2-minute session has ended. Start a new session to continue.</Text>
+              </Animated.View>
+            )}
 
             <View style={styles.resultActions}>
               <Pressable
@@ -1178,6 +1351,122 @@ const styles = StyleSheet.create({
     color: "#fff",
     letterSpacing: 2,
     textTransform: "uppercase",
+  },
+  timerContainer: {
+    alignItems: "center" as const,
+    marginBottom: 16,
+    paddingVertical: 12,
+    backgroundColor: "rgba(10,10,10,0.8)",
+    borderRadius: 12,
+  },
+  timerLabel: {
+    color: "rgba(255,255,255,0.4)",
+    fontSize: 10,
+    fontWeight: "700" as const,
+    letterSpacing: 2,
+    textTransform: "uppercase" as const,
+  },
+  timerDisplay: {
+    fontSize: 42,
+    fontWeight: "900" as const,
+    fontVariant: ["tabular-nums" as const],
+    marginTop: 4,
+  },
+  timerWarning: {
+    opacity: 0.7,
+  },
+  timerExpired: {
+    color: "#ff4d4d",
+    fontSize: 11,
+    fontWeight: "800" as const,
+    letterSpacing: 1,
+    marginTop: 4,
+  },
+  conversationHistory: {
+    marginBottom: 16,
+    gap: 10,
+  },
+  convMessage: {
+    borderRadius: 12,
+    padding: 14,
+  },
+  convUser: {
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderLeftWidth: 3,
+    borderLeftColor: "rgba(255,255,255,0.2)",
+  },
+  convTherapist: {
+    backgroundColor: "rgba(51,51,51,0.5)",
+    borderLeftWidth: 3,
+  },
+  convRole: {
+    fontSize: 11,
+    fontWeight: "700" as const,
+    letterSpacing: 0.5,
+    marginBottom: 4,
+    textTransform: "uppercase" as const,
+  },
+  convText: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: "rgba(255,255,255,0.85)",
+  },
+  followUpCard: {
+    backgroundColor: "rgba(20,20,20,0.9)",
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 16,
+  },
+  followUpLabel: {
+    fontSize: 12,
+    fontWeight: "700" as const,
+    letterSpacing: 0.5,
+    marginBottom: 6,
+    textTransform: "uppercase" as const,
+  },
+  followUpQuestion: {
+    fontSize: 16,
+    lineHeight: 24,
+    color: "rgba(255,255,255,0.8)",
+    fontStyle: "italic" as const,
+    marginBottom: 12,
+  },
+  followUpInput: {
+    minHeight: 70,
+    marginBottom: 10,
+    paddingTop: 12,
+  },
+  followUpBtn: {
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+  },
+  followUpBtnText: {
+    fontSize: 14,
+    fontWeight: "800" as const,
+    color: "#fff",
+    letterSpacing: 1,
+  },
+  sessionEndCard: {
+    backgroundColor: "rgba(20,20,20,0.9)",
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 16,
+    alignItems: "center" as const,
+  },
+  sessionEndTitle: {
+    fontSize: 16,
+    fontWeight: "800" as const,
+    letterSpacing: 1,
+    marginBottom: 6,
+  },
+  sessionEndText: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.5)",
+    textAlign: "center" as const,
   },
   resultCard: {
     backgroundColor: "rgba(26,26,26,0.95)",
