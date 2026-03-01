@@ -20,6 +20,11 @@ function hasExistingMobileBuild() {
 
 console.log("Deploy build starting...");
 
+if (fs.existsSync("dist") && !fs.existsSync(path.join("dist", "index.html"))) {
+  console.log("Removing stale dist/ directory (no index.html)...");
+  fs.rmSync("dist", { recursive: true, force: true });
+}
+
 if (hasExistingMobileBuild() && fs.existsSync("dist/index.html")) {
   console.log("Pre-built assets found, skipping expo build");
 } else {
