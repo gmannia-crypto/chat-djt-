@@ -622,6 +622,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { text, mood, speechCategory, voice } = req.body;
       apiUsageCounters.tts++;
+      console.log("TTS request voice param:", voice, "body keys:", Object.keys(req.body));
 
       if (!text || typeof text !== "string") {
         return res.status(400).json({ error: "Text is required" });
