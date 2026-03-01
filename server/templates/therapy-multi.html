@@ -123,6 +123,14 @@
         .tts-btn:hover { border-color: #ff4d4d; color: white; }
         .tts-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
+        .input-with-mic { position: relative; }
+        .input-with-mic textarea, .input-with-mic input { padding-right: 55px; }
+        .mic-btn { position: absolute; right: 10px; top: 15px; background: none; border: 2px solid #555; border-radius: 50%; width: 40px; height: 40px; cursor: pointer; color: #ccc; font-size: 18px; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+        .mic-btn:hover { border-color: #ff4d4d; color: #ff4d4d; }
+        .mic-btn.recording { background: #ff4d4d; border-color: #ff4d4d; color: white; animation: micPulse 1s infinite; }
+        @keyframes micPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(255,77,77,0.4); } 50% { box-shadow: 0 0 0 10px rgba(255,77,77,0); } }
+        .mic-status { text-align: center; font-size: 12px; color: #ff4d4d; margin-top: 5px; min-height: 18px; }
+
         @media (max-width: 600px) {
             .voice-grid { gap: 10px; }
             .voice-card { width: 140px; padding: 15px 10px; }
@@ -199,7 +207,11 @@
             <div class="question-container" id="question2" style="display: none;">
                 <div class="question-number">QUESTION 2</div>
                 <div class="question-text" id="q2Text">"What's bothering you?"</div>
-                <textarea class="question-input" id="q2" placeholder="Tell us what's wrong..."></textarea>
+                <div class="input-with-mic">
+                    <textarea class="question-input" id="q2" placeholder="Tell us what's wrong... or tap the mic to speak"></textarea>
+                    <button class="mic-btn" id="micQ2" onclick="toggleMic('q2')">&#x1F3A4;</button>
+                </div>
+                <div class="mic-status" id="micStatusQ2"></div>
                 <button class="next-btn" onclick="nextQuestion(3)">NEXT &rarr;</button>
             </div>
 
@@ -246,7 +258,11 @@
                             <span class="follow-up-name" id="followUpName">DR. TRUMP ASKS:</span>
                         </div>
                         <div class="follow-up-question" id="followUpQuestion"></div>
-                        <textarea class="question-input" id="followUpAnswer" placeholder="Type your answer..."></textarea>
+                        <div class="input-with-mic">
+                            <textarea class="question-input" id="followUpAnswer" placeholder="Type your answer... or tap the mic to speak"></textarea>
+                            <button class="mic-btn" id="micFollowUp" onclick="toggleMic('followUpAnswer')">&#x1F3A4;</button>
+                        </div>
+                        <div class="mic-status" id="micStatusFollowUpAnswer"></div>
                         <div style="display: flex; gap: 10px; margin-top: 15px;">
                             <button class="next-btn" onclick="submitFollowUp()" style="flex: 2;" id="followUpSubmit">SEND ANSWER</button>
                             <button class="next-btn" onclick="skipFollowUp()" style="flex: 1; background: #333;">SKIP</button>
@@ -316,6 +332,139 @@
         var currentFollowUpQuestion = '';
         var exchanges = [];
         var currentAudio = null;
+        var activeRecognition = null;
+        var activeMediaRecorder = null;
+        var recordedChunks = [];
+
+        var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+        function toggleMic(targetId) {
+            var micBtn = document.getElementById(targetId === 'q2' ? 'micQ2' : 'micFollowUp');
+            var statusEl = document.getElementById('micStatus' + (targetId === 'q2' ? 'Q2' : 'FollowUpAnswer'));
+
+            if (micBtn.classList.contains('recording')) {
+                stopRecording(targetId);
+                return;
+            }
+
+            if (SpeechRecognition) {
+                startBrowserSTT(targetId, micBtn, statusEl);
+            } else {
+                startServerSTT(targetId, micBtn, statusEl);
+            }
+        }
+
+        function startBrowserSTT(targetId, micBtn, statusEl) {
+            var recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = true;
+            recognition.lang = 'en-US';
+
+            micBtn.classList.add('recording');
+            statusEl.textContent = 'Listening...';
+            activeRecognition = recognition;
+
+            var finalTranscript = '';
+
+            recognition.onresult = function(event) {
+                var interim = '';
+                for (var i = event.resultIndex; i < event.results.length; i++) {
+                    if (event.results[i].isFinal) {
+                        finalTranscript += event.results[i][0].transcript + ' ';
+                    } else {
+                        interim += event.results[i][0].transcript;
+                    }
+                }
+                var el = document.getElementById(targetId);
+                el.value = (finalTranscript + interim).trim();
+                statusEl.textContent = 'Listening... (tap mic to stop)';
+            };
+
+            recognition.onerror = function(e) {
+                micBtn.classList.remove('recording');
+                if (e.error === 'not-allowed') {
+                    statusEl.textContent = 'Microphone permission denied';
+                } else {
+                    statusEl.textContent = 'Speech error: ' + e.error;
+                }
+                setTimeout(function() { statusEl.textContent = ''; }, 3000);
+                activeRecognition = null;
+            };
+
+            recognition.onend = function() {
+                micBtn.classList.remove('recording');
+                statusEl.textContent = finalTranscript ? '' : '';
+                activeRecognition = null;
+            };
+
+            recognition.start();
+        }
+
+        function startServerSTT(targetId, micBtn, statusEl) {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                statusEl.textContent = 'Microphone not supported in this browser';
+                setTimeout(function() { statusEl.textContent = ''; }, 3000);
+                return;
+            }
+
+            navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+                micBtn.classList.add('recording');
+                statusEl.textContent = 'Recording... (tap mic to stop)';
+                recordedChunks = [];
+
+                var mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+                activeMediaRecorder = mediaRecorder;
+
+                mediaRecorder.ondataavailable = function(e) {
+                    if (e.data.size > 0) recordedChunks.push(e.data);
+                };
+
+                mediaRecorder.onstop = function() {
+                    stream.getTracks().forEach(function(t) { t.stop(); });
+                    micBtn.classList.remove('recording');
+                    statusEl.textContent = 'Transcribing...';
+
+                    var blob = new Blob(recordedChunks, { type: 'audio/webm' });
+                    var reader = new FileReader();
+                    reader.onloadend = function() {
+                        var base64 = reader.result.split(',')[1];
+                        fetch('/api/stt', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ audio: base64, format: 'webm' })
+                        }).then(function(r) { return r.json(); }).then(function(data) {
+                            if (data.text) {
+                                var el = document.getElementById(targetId);
+                                el.value = (el.value ? el.value + ' ' : '') + data.text;
+                            }
+                            statusEl.textContent = '';
+                        }).catch(function() {
+                            statusEl.textContent = 'Transcription failed';
+                            setTimeout(function() { statusEl.textContent = ''; }, 3000);
+                        });
+                    };
+                    reader.readAsDataURL(blob);
+                    activeMediaRecorder = null;
+                };
+
+                mediaRecorder.start();
+            }).catch(function() {
+                statusEl.textContent = 'Microphone permission denied';
+                setTimeout(function() { statusEl.textContent = ''; }, 3000);
+            });
+        }
+
+        function stopRecording(targetId) {
+            var micBtn = document.getElementById(targetId === 'q2' ? 'micQ2' : 'micFollowUp');
+            if (activeRecognition) {
+                activeRecognition.stop();
+                activeRecognition = null;
+            }
+            if (activeMediaRecorder && activeMediaRecorder.state === 'recording') {
+                activeMediaRecorder.stop();
+            }
+            micBtn.classList.remove('recording');
+        }
 
         var voiceConfig = {
             trump: {
