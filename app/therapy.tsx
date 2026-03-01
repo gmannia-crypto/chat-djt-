@@ -1092,6 +1092,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#0a0a0a",
+    ...Platform.select({
+      web: {
+        height: "100vh" as any,
+        overflow: "hidden" as any,
+      },
+    }),
   },
   header: {
     flexDirection: "row",
@@ -1109,9 +1115,19 @@ const styles = StyleSheet.create({
   },
   scroll: {
     flex: 1,
+    ...Platform.select({
+      web: {
+        overflow: "auto" as any,
+      },
+    }),
   },
   scrollContent: {
     paddingHorizontal: 20,
+    ...Platform.select({
+      web: {
+        flexGrow: 1,
+      },
+    }),
   },
   therapistSelector: {
     flexDirection: "row" as const,

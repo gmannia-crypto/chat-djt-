@@ -60,18 +60,22 @@
         .timer-display.warning { animation: blink 1s infinite; }
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 
-        .session-therapist-header { display: flex; align-items: center; gap: 15px; margin-bottom: 20px; padding: 15px; border-radius: 12px; background: rgba(255,255,255,0.05); }
-        .session-therapist-photo { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; border: 3px solid #333; }
+        .session-therapist-header { display: flex; align-items: center; gap: 15px; margin-bottom: 20px; padding: 15px; border-radius: 12px; background: rgba(255,255,255,0.05); animation: fadeSlideIn 0.5s ease; }
+        @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        .session-therapist-photo { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; border: 3px solid #333; box-shadow: 0 4px 15px rgba(0,0,0,0.4); }
         .session-therapist-photo.trump { border-color: #ff4d4d; }
         .session-therapist-photo.sophia { border-color: #ff99cc; }
         .session-therapist-photo.james { border-color: #4d4dff; }
         .session-therapist-info { flex: 1; }
         .session-therapist-name { font-weight: bold; font-size: 18px; }
         .session-therapist-status { font-size: 12px; color: #888; margin-top: 2px; }
-        .session-bg { position: relative; }
-        .session-bg::before { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-size: cover; background-position: center top; background-repeat: no-repeat; opacity: 0.06; border-radius: 20px; pointer-events: none; z-index: 0; }
-        .session-bg.sophia::before { background-image: url('/server/assets/dr-sophia.jpg'); }
-        .session-bg.james::before { background-image: url('/server/assets/dr-james.jpg'); }
+        .session-bg { position: relative; overflow: hidden; }
+        .session-bg::before { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-size: cover; background-position: center top; background-repeat: no-repeat; opacity: 0; border-radius: 20px; pointer-events: none; z-index: 0; transition: opacity 0.6s ease; }
+        .session-bg.active::before { opacity: 0.08; }
+        .session-bg.sophia::before { background-image: url('/server/assets/dr-sophia.jpg'); filter: grayscale(30%) contrast(1.1); }
+        .session-bg.james::before { background-image: url('/server/assets/dr-james.jpg'); filter: grayscale(30%) contrast(1.1); }
+        .session-bg.trump::before { background: radial-gradient(ellipse at center top, rgba(255,77,77,0.15) 0%, transparent 70%); }
+        .session-bg.active.trump::before { opacity: 0.5; }
         .session-bg > * { position: relative; z-index: 1; }
 
         .session-content { font-size: 18px; line-height: 1.7; margin: 25px 0; padding: 25px; background: #333; border-left-width: 5px; border-left-style: solid; border-radius: 10px; white-space: pre-line; }
@@ -581,6 +585,7 @@
 
             var therapyCard = document.getElementById('therapyCard');
             therapyCard.className = 'therapy-card session-bg ' + selectedVoice;
+            setTimeout(function() { therapyCard.classList.add('active'); }, 50);
 
             var cfg = voiceConfig[selectedVoice];
             var header = document.getElementById('sessionTherapistHeader');
@@ -760,6 +765,7 @@
 
             var therapyCard = document.getElementById('therapyCard');
             therapyCard.className = 'therapy-card session-bg ' + newVoice;
+            setTimeout(function() { therapyCard.classList.add('active'); }, 50);
 
             var cfg = voiceConfig[newVoice];
             var header = document.getElementById('sessionTherapistHeader');
