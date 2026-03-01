@@ -36,19 +36,111 @@ import { getApiUrl } from "@/lib/query-client";
 import { useTokens } from "@/lib/token-context";
 
 const trumpTherapistImage = require("@/assets/images/trump-therapist.png");
+const sophiaImage = require("@/assets/images/dr-sophia.jpg");
+const jamesImage = require("@/assets/images/dr-james.jpg");
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+
+type TherapistVoice = "trump" | "sophia" | "james";
+
+interface TherapistConfig {
+  voice: TherapistVoice;
+  name: string;
+  title: string;
+  image: any;
+  accent: string;
+  accentLight: string;
+  accentBg: string;
+  gradient: [string, string];
+  bgGradient: [string, string, string];
+  greeting: string;
+  diagnosisLabel: string;
+  introTitle: string;
+  introSubtitle: string;
+  introQuote: string;
+  placeholder: string;
+  buttonText: string;
+  errorMsg: string;
+  rxTitle: string;
+  rxSubtitle: string;
+}
+
+const THERAPIST_CONFIGS: Record<TherapistVoice, TherapistConfig> = {
+  trump: {
+    voice: "trump",
+    name: "Dr. Trump",
+    title: "TRUMP THERAPY",
+    image: trumpTherapistImage,
+    accent: "#ff4d4d",
+    accentLight: "rgba(255,77,77,0.15)",
+    accentBg: "rgba(255,77,77,0.08)",
+    gradient: ["#ff4d4d", "#cc0000"],
+    bgGradient: ["#0a0a0a", "#1a0505", "#0a0a0a"],
+    greeting: "\"Lie down. Tell me everything. I'm listening...\"",
+    diagnosisLabel: "DR. TRUMP'S DIAGNOSIS",
+    introTitle: "DR. TRUMP",
+    introSubtitle: "IS READY TO SEE YOU NOW",
+    introQuote: "\"Lie down. Tell me everything.\"",
+    placeholder: "Tell Dr. Trump what's wrong... or tap the mic",
+    buttonText: "GET THERAPY",
+    errorMsg: "Dr. Trump is taking a break. Even the best therapists need to play golf sometimes. Try again!",
+    rxTitle: "DR. TRUMP'S RX",
+    rxSubtitle: "\"I prescribe only the best. Believe me.\"",
+  },
+  sophia: {
+    voice: "sophia",
+    name: "Dr. Sophia",
+    title: "DR. SOPHIA",
+    image: sophiaImage,
+    accent: "#e87ba8",
+    accentLight: "rgba(232,123,168,0.15)",
+    accentBg: "rgba(232,123,168,0.08)",
+    gradient: ["#e87ba8", "#c44d7b"],
+    bgGradient: ["#0a0a0a", "#1a0510", "#0a0a0a"],
+    greeting: "\"Welcome. This is a safe space. Take a deep breath, and share what's on your heart...\"",
+    diagnosisLabel: "DR. SOPHIA'S REFLECTION",
+    introTitle: "DR. SOPHIA",
+    introSubtitle: "IS READY TO SEE YOU NOW",
+    introQuote: "\"You are worthy of healing.\"",
+    placeholder: "Share what's weighing on your heart... or tap the mic",
+    buttonText: "BEGIN SESSION",
+    errorMsg: "Dr. Sophia is taking a moment to center herself. Please try again in a moment.",
+    rxTitle: "DR. SOPHIA'S WELLNESS",
+    rxSubtitle: "\"Healing starts with nurturing yourself.\"",
+  },
+  james: {
+    voice: "james",
+    name: "Dr. James",
+    title: "DR. JAMES",
+    image: jamesImage,
+    accent: "#4d8bff",
+    accentLight: "rgba(77,139,255,0.15)",
+    accentBg: "rgba(77,139,255,0.08)",
+    gradient: ["#4d8bff", "#2a5fc7"],
+    bgGradient: ["#0a0a0a", "#05081a", "#0a0a0a"],
+    greeting: "\"Let's examine this together. What thought patterns have you noticed?\"",
+    diagnosisLabel: "DR. JAMES'S ANALYSIS",
+    introTitle: "DR. JAMES",
+    introSubtitle: "IS READY TO SEE YOU NOW",
+    introQuote: "\"Let's examine the evidence together.\"",
+    placeholder: "Describe what you're experiencing... or tap the mic",
+    buttonText: "BEGIN ANALYSIS",
+    errorMsg: "Dr. James is reviewing his notes. Please try again shortly.",
+    rxTitle: "DR. JAMES'S RX",
+    rxSubtitle: "\"Evidence-based recommendations for your wellbeing.\"",
+  },
+};
 
 const SERIOUSNESS_LEVELS = [
   { value: "1", label: "1 - Minor annoyance" },
   { value: "2", label: "2 - Slightly annoying" },
   { value: "3", label: "3 - Meh" },
   { value: "4", label: "4 - Getting worse" },
-  { value: "5", label: "5 - Moderate (sad!)" },
+  { value: "5", label: "5 - Moderate" },
   { value: "6", label: "6 - Pretty bad" },
   { value: "7", label: "7 - Very bad" },
   { value: "8", label: "8 - Terrible" },
   { value: "9", label: "9 - Disastrous" },
-  { value: "10", label: "10 - TOTAL WITCH HUNT" },
+  { value: "10", label: "10 - Critical" },
 ];
 
 export default function TherapyScreen() {
@@ -57,6 +149,7 @@ export default function TherapyScreen() {
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
   const { hasTokens, deviceId, refreshBalance } = useTokens();
 
+  const [selectedTherapist, setSelectedTherapist] = useState<TherapistVoice>("trump");
   const [showIntro, setShowIntro] = useState(true);
   const [firstName, setFirstName] = useState("");
   const [problem, setProblem] = useState("");
@@ -65,6 +158,8 @@ export default function TherapyScreen() {
   const [therapy, setTherapy] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+
+  const config = THERAPIST_CONFIGS[selectedTherapist];
 
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
@@ -257,6 +352,7 @@ export default function TherapyScreen() {
           name: firstName.trim(),
           problem: problem.trim(),
           seriousness,
+          voice: selectedTherapist,
         }),
       });
 
@@ -279,7 +375,7 @@ export default function TherapyScreen() {
         setTimeout(() => handleSpeak(data.therapy), 500);
       }
     } catch (err) {
-      setTherapy("Dr. Trump is taking a break. Even the best therapists need to play golf sometimes. Try again!");
+      setTherapy(config.errorMsg);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setLoading(false);
@@ -336,7 +432,7 @@ export default function TherapyScreen() {
     const cardUrl = `${baseUrl}/api/therapy/card?name=${encodeURIComponent(firstName || "Friend")}&therapy=${encodeURIComponent(therapy)}`;
     try {
       await Share.share({
-        message: `\uD83E\uDDE0 TRUMP THERAPY \uD83E\uDDE0\n\nDr. Trump's Diagnosis for ${firstName}:\n\n"${therapy}"\n\nSee my therapy card: ${cardUrl}`,
+        message: `${config.title}\n\n${config.diagnosisLabel} for ${firstName}:\n\n"${therapy}"\n\nSee my therapy card: ${cardUrl}`,
       });
       fetch(`${baseUrl}/api/track-share`, { method: "POST", body: JSON.stringify({ feature: "therapy", platform: Platform.OS, contentPreview: therapy.slice(0, 100) }), headers: { "Content-Type": "application/json" } }).catch(() => {});
     } catch {}
@@ -362,41 +458,41 @@ export default function TherapyScreen() {
     return (
       <View style={[styles.container, { justifyContent: "center", alignItems: "center", paddingTop: webTopInset, paddingBottom: webBottomInset }]}>
         <LinearGradient
-          colors={["#0a0a0a", "#1a0505", "#0a0a0a"]}
+          colors={config.bgGradient}
           style={StyleSheet.absoluteFillObject}
         />
         <Animated.View
           entering={ZoomIn.duration(800).springify()}
-          style={styles.introImageWrapper}
+          style={[styles.introImageWrapper, { borderColor: config.accent, shadowColor: config.accent }]}
         >
           <Image
-            source={trumpTherapistImage}
+            source={config.image}
             style={styles.introImage}
-            resizeMode="contain"
+            resizeMode="cover"
           />
         </Animated.View>
         <Animated.Text
           entering={FadeInDown.delay(600).duration(600)}
-          style={styles.introTitle}
+          style={[styles.introTitle, { color: config.accent, textShadowColor: config.accent }]}
         >
-          DR. TRUMP
+          {config.introTitle}
         </Animated.Text>
         <Animated.Text
           entering={FadeInDown.delay(1000).duration(600)}
           style={styles.introSubtitle}
         >
-          IS READY TO SEE YOU NOW
+          {config.introSubtitle}
         </Animated.Text>
         <Animated.View
           entering={FadeIn.delay(1800).duration(600)}
           style={styles.introQuote}
         >
           <Text style={styles.introQuoteText}>
-            "Lie down. Tell me everything."
+            {config.introQuote}
           </Text>
         </Animated.View>
         <Animated.View entering={FadeIn.delay(2400).duration(400)} style={styles.introLoader}>
-          <ActivityIndicator color="#ff4d4d" size="small" />
+          <ActivityIndicator color={config.accent} size="small" />
         </Animated.View>
       </View>
     );
@@ -405,24 +501,24 @@ export default function TherapyScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top + webTopInset }]}>
       <LinearGradient
-        colors={["#0a0a0a", "#1a0505", "#0a0a0a"]}
+        colors={config.bgGradient}
         style={StyleSheet.absoluteFillObject}
       />
       <Image
-        source={trumpTherapistImage}
+        source={config.image}
         style={styles.bgImage}
         resizeMode="cover"
       />
       <View style={StyleSheet.absoluteFillObject}>
         <LinearGradient
-          colors={["rgba(10,10,10,0.7)", "rgba(26,5,5,0.85)", "rgba(10,10,10,0.95)"]}
+          colors={["rgba(10,10,10,0.7)", "rgba(10,10,10,0.85)", "rgba(10,10,10,0.95)"]}
           style={StyleSheet.absoluteFillObject}
         />
       </View>
 
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={22} color="#ff4d4d" />
+        <Pressable onPress={() => router.back()} style={[styles.backBtn, { backgroundColor: `${config.accent}20` }]}>
+          <Ionicons name="arrow-back" size={22} color={config.accent} />
         </Pressable>
         <View style={{ flex: 1 }} />
       </View>
@@ -435,59 +531,60 @@ export default function TherapyScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <Animated.View entering={FadeInDown.delay(100).duration(500)} style={styles.titleArea}>
-          <Text style={styles.titleEmoji}>{"\uD83E\uDDE0"}</Text>
-          <Text style={styles.title}>TRUMP THERAPY</Text>
-          <Text style={styles.subtitle}>"The best therapy. Believe me. Very smart people say so."</Text>
-          <Animated.View style={[styles.liveBadge, pulseStyle]}>
+          <Text style={[styles.title, { color: config.accent, textShadowColor: `${config.accent}80` }]}>{config.title}</Text>
+          <Animated.View style={[styles.liveBadge, { backgroundColor: config.accent }, pulseStyle]}>
             <Text style={styles.liveBadgeText}>{"\u26A1"} LIVE NOW {"\u26A1"}</Text>
           </Animated.View>
         </Animated.View>
 
-        <Animated.View entering={FadeInDown.delay(200).duration(500)} style={styles.socialProof}>
+        <Animated.View entering={FadeInDown.delay(150).duration(500)} style={styles.therapistSelector}>
+          {(["trump", "sophia", "james"] as TherapistVoice[]).map((voice) => {
+            const tc = THERAPIST_CONFIGS[voice];
+            const isSelected = selectedTherapist === voice;
+            return (
+              <Pressable
+                key={voice}
+                onPress={() => {
+                  if (!loading && !therapy) {
+                    setSelectedTherapist(voice);
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }
+                }}
+                style={[
+                  styles.therapistCard,
+                  isSelected && { borderColor: tc.accent, backgroundColor: `${tc.accent}15` },
+                  !isSelected && { opacity: 0.6 },
+                ]}
+              >
+                <Image source={tc.image} style={styles.therapistCardImage} resizeMode="cover" />
+                <Text style={[styles.therapistCardName, isSelected && { color: tc.accent }]}>{tc.name}</Text>
+                {isSelected && <View style={[styles.therapistCardDot, { backgroundColor: tc.accent }]} />}
+              </Pressable>
+            );
+          })}
+        </Animated.View>
+
+        <Animated.View entering={FadeInDown.delay(200).duration(500)} style={[styles.socialProof, { backgroundColor: config.accentBg, borderColor: `${config.accent}4D` }]}>
           <View style={styles.stat}>
-            <Text style={styles.statValue}>1,247</Text>
+            <Text style={[styles.statValue, { color: config.accent }]}>1,247</Text>
             <Text style={styles.statLabel}>Sessions Today</Text>
           </View>
-          <View style={styles.statDivider} />
+          <View style={[styles.statDivider, { backgroundColor: `${config.accent}33` }]} />
           <View style={styles.stat}>
-            <Text style={styles.statValue}>98%</Text>
+            <Text style={[styles.statValue, { color: config.accent }]}>98%</Text>
             <Text style={styles.statLabel}>"Feeling Better"</Text>
           </View>
-          <View style={styles.statDivider} />
+          <View style={[styles.statDivider, { backgroundColor: `${config.accent}33` }]} />
           <View style={styles.stat}>
-            <Text style={styles.statValue}>4.9/5</Text>
-            <Text style={styles.statLabel}>Trump Rating</Text>
+            <Text style={[styles.statValue, { color: config.accent }]}>4.9/5</Text>
+            <Text style={styles.statLabel}>Rating</Text>
           </View>
         </Animated.View>
 
-        <Animated.View entering={FadeInDown.delay(250).duration(500)}>
-          <Pressable
-            style={styles.multiVoiceBtn}
-            onPress={() => {
-              const baseUrl = getApiUrl();
-              const url = `${baseUrl}therapy-multi`;
-              Linking.openURL(url);
-            }}
-          >
-            <LinearGradient
-              colors={["#ff99cc", "#4d4dff", "#ff4d4d"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.multiVoiceGradient}
-            >
-              <Text style={styles.multiVoiceEmojis}>{"👩‍⚕️ 🗣️ 👨‍⚕️"}</Text>
-              <Text style={styles.multiVoiceTitle}>TRY MULTI-VOICE THERAPY</Text>
-              <Text style={styles.multiVoiceDesc}>Choose between Dr. Trump, Dr. Sophia & Dr. James</Text>
-              <Text style={styles.multiVoiceCta}>Voice input • 3 therapists • Free session →</Text>
-            </LinearGradient>
-          </Pressable>
-        </Animated.View>
+        <Animated.View entering={FadeInDown.delay(300).duration(500)} style={[styles.therapyCard, { borderColor: `${config.accent}66` }]}>
+          <Text style={[styles.greeting, { color: config.accent }]}>{config.greeting}</Text>
 
-        <Animated.View entering={FadeInDown.delay(300).duration(500)} style={styles.therapyCard}>
-          <Text style={styles.couchEmoji}>{"\uD83D\uDECB\uFE0F"}</Text>
-          <Text style={styles.greeting}>"Lie down. Tell me everything. I'm listening..."</Text>
-
-          <Text style={styles.inputLabel}>{"\uD83D\uDC64"} Your name (first only):</Text>
+          <Text style={[styles.inputLabel, { color: config.accent }]}>{"\uD83D\uDC64"} Your name (first only):</Text>
           <TextInput
             value={firstName}
             onChangeText={setFirstName}
@@ -498,7 +595,7 @@ export default function TherapyScreen() {
           />
 
           <View style={styles.labelRow}>
-            <Text style={[styles.inputLabel, { marginTop: 0, marginBottom: 0 }]}>{"\uD83D\uDE1F"} What's bothering you?</Text>
+            <Text style={[styles.inputLabel, { marginTop: 0, marginBottom: 0, color: config.accent }]}>{"\uD83D\uDE1F"} What's bothering you?</Text>
             <Pressable
               onPress={isRecording ? stopRecording : startRecording}
               disabled={isTranscribing}
@@ -506,18 +603,19 @@ export default function TherapyScreen() {
               accessibilityLabel={isRecording ? "Stop recording" : "Start voice input"}
               style={({ pressed }) => [
                 styles.micButton,
-                isRecording && styles.micButtonRecording,
+                { backgroundColor: config.accentLight, borderColor: `${config.accent}66` },
+                isRecording && { backgroundColor: config.accent, borderColor: config.accent },
                 pressed && { opacity: 0.7 },
                 isTranscribing && { opacity: 0.5 },
               ]}
             >
               {isTranscribing ? (
-                <ActivityIndicator color="#ff4d4d" size="small" />
+                <ActivityIndicator color={config.accent} size="small" />
               ) : (
                 <Ionicons
                   name={isRecording ? "stop" : "mic"}
                   size={18}
-                  color={isRecording ? "#fff" : "#ff4d4d"}
+                  color={isRecording ? "#fff" : config.accent}
                 />
               )}
             </Pressable>
@@ -531,16 +629,16 @@ export default function TherapyScreen() {
           <TextInput
             value={problem}
             onChangeText={setProblem}
-            placeholder={isRecording ? "Speak now..." : "Tell Dr. Trump what's wrong... or tap the mic"}
+            placeholder={isRecording ? "Speak now..." : config.placeholder}
             placeholderTextColor="rgba(255,255,255,0.3)"
-            style={[styles.textInput, styles.textArea, isRecording && styles.textInputRecording]}
+            style={[styles.textInput, styles.textArea, isRecording && { borderColor: `${config.accent}99` }]}
             multiline
             maxLength={500}
             textAlignVertical="top"
             editable={!isRecording}
           />
 
-          <Text style={styles.inputLabel}>{"\uD83D\uDCCA"} How serious is it? (1-10)</Text>
+          <Text style={[styles.inputLabel, { color: config.accent }]}>{"\uD83D\uDCCA"} How serious is it? (1-10)</Text>
           <Pressable
             onPress={() => setShowLevelPicker(!showLevelPicker)}
             style={styles.levelSelector}
@@ -578,12 +676,13 @@ export default function TherapyScreen() {
             disabled={loading || !canSubmit}
             style={({ pressed }) => [
               styles.therapyButton,
+              { shadowColor: config.accent },
               !canSubmit && styles.therapyButtonDisabled,
               pressed && { opacity: 0.8 },
             ]}
           >
             <LinearGradient
-              colors={canSubmit ? ["#ff4d4d", "#cc0000"] : ["#333", "#222"]}
+              colors={canSubmit ? config.gradient : ["#333", "#222"]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.therapyButtonGradient}
@@ -591,23 +690,21 @@ export default function TherapyScreen() {
               {loading ? (
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
-                <>
-                  <Text style={styles.therapyButtonText}>
-                    {"\uD83D\uDD25"} GET THERAPY {"\uD83D\uDD25"}
-                  </Text>
-                </>
+                <Text style={styles.therapyButtonText}>
+                  {config.buttonText}
+                </Text>
               )}
             </LinearGradient>
           </Pressable>
         </Animated.View>
 
         {therapy && (
-          <Animated.View entering={FadeInUp.duration(600)} style={styles.resultCard}>
-            <View style={styles.trumpPortrait}>
-              <Text style={{ fontSize: 32 }}>{"\uD83D\uDDE3\uFE0F"}</Text>
+          <Animated.View entering={FadeInUp.duration(600)} style={[styles.resultCard, { borderColor: `${config.accent}80` }]}>
+            <View style={[styles.trumpPortrait, { backgroundColor: config.accent }]}>
+              <Image source={config.image} style={{ width: 64, height: 64, borderRadius: 32 }} resizeMode="cover" />
             </View>
-            <Text style={styles.diagnosisTitle}>DR. TRUMP'S DIAGNOSIS</Text>
-            <View style={styles.diagnosisBox}>
+            <Text style={[styles.diagnosisTitle, { color: config.accent }]}>{config.diagnosisLabel}</Text>
+            <View style={[styles.diagnosisBox, { borderLeftColor: config.accent }]}>
               <Text style={styles.diagnosisText}>"{therapy}"</Text>
             </View>
 
@@ -615,21 +712,21 @@ export default function TherapyScreen() {
               <Pressable
                 onPress={() => therapy && handleSpeak(therapy)}
                 disabled={speaking}
-                style={({ pressed }) => [styles.resultActionBtn, styles.listenBtn, pressed && { opacity: 0.7 }, speaking && { opacity: 0.6 }]}
+                style={({ pressed }) => [styles.resultActionBtn, { borderColor: `${config.accent}80`, backgroundColor: config.accentLight }, pressed && { opacity: 0.7 }, speaking && { opacity: 0.6 }]}
               >
-                <MaterialCommunityIcons name={speaking ? "volume-high" : "play"} size={16} color="#ff4d4d" />
-                <Text style={[styles.resultActionText, { color: "#ff4d4d" }]}>{speaking ? "SPEAKING..." : "LISTEN"}</Text>
+                <MaterialCommunityIcons name={speaking ? "volume-high" : "play"} size={16} color={config.accent} />
+                <Text style={[styles.resultActionText, { color: config.accent }]}>{speaking ? "SPEAKING..." : "LISTEN"}</Text>
               </Pressable>
               <Pressable
                 onPress={handleShare}
-                style={({ pressed }) => [styles.resultActionBtn, pressed && { opacity: 0.7 }]}
+                style={({ pressed }) => [styles.resultActionBtn, { borderColor: `${config.accent}66`, backgroundColor: config.accentBg }, pressed && { opacity: 0.7 }]}
               >
-                <Ionicons name="share-outline" size={16} color="#ff4d4d" />
-                <Text style={[styles.resultActionText, { color: "#ff4d4d" }]}>SHARE</Text>
+                <Ionicons name="share-outline" size={16} color={config.accent} />
+                <Text style={[styles.resultActionText, { color: config.accent }]}>SHARE</Text>
               </Pressable>
               <Pressable
                 onPress={handleNewSession}
-                style={({ pressed }) => [styles.resultActionBtn, styles.newSessionBtn, pressed && { opacity: 0.7 }]}
+                style={({ pressed }) => [styles.resultActionBtn, { backgroundColor: config.accent, borderColor: config.accent }, pressed && { opacity: 0.7 }]}
               >
                 <Ionicons name="refresh" size={16} color="#fff" />
                 <Text style={[styles.resultActionText, { color: "#fff" }]}>NEW SESSION</Text>
@@ -639,9 +736,9 @@ export default function TherapyScreen() {
         )}
 
         {!!therapy && (
-          <View style={styles.picksCard}>
-            <Text style={styles.picksTitle}>DR. TRUMP'S RX</Text>
-            <Text style={styles.picksSubtitle}>"I prescribe only the best. Believe me."</Text>
+          <View style={[styles.picksCard, { borderColor: `${config.accent}4D` }]}>
+            <Text style={[styles.picksTitle, { color: config.accent }]}>{config.rxTitle}</Text>
+            <Text style={styles.picksSubtitle}>{config.rxSubtitle}</Text>
 
             <Pressable
               onPress={() => {
@@ -841,13 +938,43 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
   },
-  titleArea: {
-    alignItems: "center",
+  therapistSelector: {
+    flexDirection: "row" as const,
+    justifyContent: "center" as const,
+    gap: 12,
     marginBottom: 20,
   },
-  titleEmoji: {
-    fontSize: 48,
+  therapistCard: {
+    flex: 1,
+    alignItems: "center" as const,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.15)",
+    backgroundColor: "rgba(26,26,26,0.6)",
+  },
+  therapistCardImage: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     marginBottom: 8,
+  },
+  therapistCardName: {
+    fontSize: 11,
+    fontWeight: "700" as const,
+    color: "rgba(255,255,255,0.6)",
+    textAlign: "center" as const,
+  },
+  therapistCardDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginTop: 6,
+  },
+  titleArea: {
+    alignItems: "center",
+    marginBottom: 16,
   },
   title: {
     fontSize: 32,
@@ -915,11 +1042,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 24,
     marginBottom: 20,
-  },
-  couchEmoji: {
-    fontSize: 48,
-    textAlign: "center",
-    marginBottom: 12,
   },
   greeting: {
     fontSize: 18,
@@ -1183,43 +1305,5 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.25)",
     textAlign: "center",
     marginTop: 14,
-  },
-  multiVoiceBtn: {
-    marginBottom: 20,
-    borderRadius: 16,
-    overflow: "hidden",
-  },
-  multiVoiceGradient: {
-    padding: 20,
-    borderRadius: 16,
-    alignItems: "center" as const,
-  },
-  multiVoiceEmojis: {
-    fontSize: 32,
-    marginBottom: 8,
-  },
-  multiVoiceTitle: {
-    fontSize: 18,
-    fontWeight: "900" as const,
-    color: "white",
-    letterSpacing: 2,
-    textAlign: "center" as const,
-    marginBottom: 6,
-    textShadowColor: "rgba(0,0,0,0.5)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
-  },
-  multiVoiceDesc: {
-    fontSize: 13,
-    color: "rgba(255,255,255,0.9)",
-    textAlign: "center" as const,
-    marginBottom: 4,
-  },
-  multiVoiceCta: {
-    fontSize: 11,
-    color: "rgba(255,255,255,0.7)",
-    textAlign: "center" as const,
-    fontStyle: "italic" as const,
-    marginTop: 4,
   },
 });

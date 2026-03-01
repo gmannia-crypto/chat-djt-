@@ -1213,28 +1213,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
   function getFirstFollowUp(problem: string, name: string): string {
     const p = problem.toLowerCase();
     if (/work|job|boss|career|coworker/i.test(p)) {
-      return `${name}, tell me more about this job situation. Are your bosses stupid? Be honest.`;
+      return pickRandom([
+        `${name}, tell me more about this job situation. Are your bosses stupid? Be honest. Because in my experience, most bosses are very stupid. I've fired thousands of people. On television. For entertainment. So I know what I'm talking about.`,
+        `${name}, here's the million dollar question — and I know millions, believe me — do you LIKE your job? Or are you just showing up? Because showing up without winning is just existing. And existing is for losers. No offense. Some offense.`,
+        `${name}, who's the biggest problem at your work? Give me a name. I'll give them a nickname. That's step one in the Trump therapy method. Very effective. Patent pending.`,
+      ]);
     }
     if (/love|relationship|dating|marriage|partner|girlfriend|boyfriend/i.test(p)) {
-      return `${name}, is this person worth it? I've been with some incredible people. The best. Is this one of the best?`;
+      return pickRandom([
+        `${name}, is this person worth it? I've been with some incredible people. The best. The most beautiful. Is this person the best? Or are they more of a... participation trophy situation?`,
+        `${name}, I need to know something. When you walk into a room with this person, do people look at you and think "wow, what a power couple"? Because that's the goal. That's always the goal. If not, we need to renegotiate the terms of this relationship.`,
+        `${name}, real talk — and nobody does real talk like me — are YOU the problem in this relationship? Because sometimes... and I hate to say this... sometimes we're the problem. Not me. Never me. But sometimes YOU. Be honest.`,
+      ]);
     }
     if (/money|broke|debt|finance|salary|bills/i.test(p)) {
-      return `${name}, how much money are we talking? Millions? Billions? Or just... sad amounts?`;
+      return pickRandom([
+        `${name}, how much money are we talking? Millions? Billions? Or just... sad amounts? Because the strategy depends on the number. For millions, I have one strategy. For billions, another. For sad amounts... well, we'll figure something out.`,
+        `${name}, let me ask you something — and this is very important — are you spending money on stupid things? I bet you are. Everybody does. Except me. I only spend money on tremendous things. Gold toilets, for example. Very practical. But for you — what's the biggest waste of money in your life right now?`,
+        `${name}, who taught you about money? Your parents? A teacher? Because most people learn about money from people who don't have any money. That's the problem. You need to learn from someone who has money. A lot of money. Like me. I have so much money. More than you can imagine.`,
+      ]);
     }
     return pickRandom([
-      `${name}, when did this problem start? Before I was president or after? Important context.`,
-      `Be honest with me, ${name}. Is this YOUR fault or someone else's? It's usually someone else's.`,
-      `${name}, on a scale of 1-10, how much does this keep you up at night? I sleep great, by the way.`,
-      `Tell me, ${name}, have you tried winning? It works for me. Every time.`,
+      `${name}, when did this problem start? Before I was president or after? Important context. Because a lot of things went wrong after I left. A LOT. Not my fault. But a lot.`,
+      `Be honest with me, ${name}. Is this YOUR fault or someone else's? It's usually someone else's. In my experience, it's always someone else's. Especially Democrats. Are Democrats involved? They usually are.`,
+      `${name}, on a scale of 1-10, how much does this keep you up at night? I sleep great, by the way. Four hours. Like a baby. A very powerful baby.`,
+      `Tell me, ${name}, have you tried winning? It works for me. Every time. People say "Sir, how do you keep winning?" And I say, "I just do." It's a gift. Maybe I can teach you. Free of charge. You're welcome.`,
+      `${name}, I need to understand something. Are there haters involved in this situation? Because there are ALWAYS haters. Losers and haters. They're everywhere. Like cockroaches but less attractive. Tell me about your haters.`,
+      `${name}, here's what I want to know — if you could snap your fingers and fix this right now, what would it look like? Paint me a picture. A beautiful picture. Like the paintings at Mar-a-Lago. Very expensive paintings. Some of them are of me. But paint YOUR picture.`,
     ]);
   }
 
   function getNextFollowUp(name: string, index: number): string | null {
     if (index >= 3) return null;
     const followUps = [
-      `One more thing, ${name} - do you think about this every day?`,
-      `Last question, ${name}, I promise - what would make this problem go away completely?`,
-      `Final thought - do you believe you can fix this yourself, ${name}, or do you need help from someone like me?`,
+      pickRandom([
+        `One more thing, ${name} — and this is important, very important — do you think about this every day? Because if you do, that's too much. I think about deals every day. And golf. And ratings. But never problems. Problems are for other people to think about. That's called delegation. Very smart.`,
+        `${name}, follow-up question — and this is a good one, maybe the best question anyone's ever asked you — who's in your corner? You need people. Good people. The best people. I have the best people. Do you? Because if not, that's problem number one.`,
+        `${name}, quick follow-up — have you considered that this might actually be an opportunity? Every problem I've ever had turned into a deal. A big, beautiful deal. The bigger the problem, the bigger the deal. That's the Art of the Deal. You should read it. Bestseller. Number one.`,
+      ]),
+      pickRandom([
+        `Last question, ${name}, I promise — and I always keep my promises, unlike certain politicians — what would make this problem go away completely? Like, poof, gone? Because once you name it, you can go get it. That's what I do. I name things. Then I get them. Then I put my name on them.`,
+        `Almost done, ${name} — and you're doing great, by the way, much better than most people who talk to me — if you could go back in time, what would you do differently? Because I wouldn't change a thing. Not one thing. But you might want to. And that's okay. Not everyone is me.`,
+        `${name}, second-to-last question — and it's a big one — are you a fighter? Because this situation requires a fighter. I'm a fighter. The biggest fighter. Are you? Because if you are, we're gonna win this thing. And if you're not... well, I'll fight for you. I do that. I'm very generous that way.`,
+      ]),
+      pickRandom([
+        `Final thought, ${name} — do you believe you can fix this yourself, or do you need help from someone like me? And by "someone like me" I mean me. Because there is nobody like me. That's not bragging. That's just a fact. A tremendous fact. But seriously — you got this. Probably. Maybe. With my help, definitely.`,
+        `Last thing, ${name} — and this is the most important thing I'll say today, and I say a lot of important things — what's your next move? Not tomorrow. Not next week. Your NEXT move. Because winners make moves. Losers make excuses. Which one are you? I think I know. But tell me.`,
+        `Okay, ${name}, final question from your favorite therapist — that's me, by the way, I'm your favorite — if you could text yourself six months from now, what would the message say? "Hey, I fixed everything and I'm tremendous"? That's what mine would say. But mine always says that. What would yours say?`,
+      ]),
     ];
     return followUps[index] || null;
   }
@@ -1242,60 +1268,124 @@ export async function registerRoutes(app: Express): Promise<Server> {
   function generateFollowUpResponse(name: string, problem: string, answer: string, index: number): string {
     const a = answer.toLowerCase();
     if (/\byes\b/i.test(a)) {
-      return `"Yes"? I like yes-people. Very smart. ${name}, you're making progress already. Tremendous.`;
+      return pickRandom([
+        `"Yes"? I like yes-people. Very smart. ${name}, you're making progress already. Tremendous. You remind me of my best employees — the ones who said yes to everything. They went far. Some of them are still employed. Most of them. A good percentage.`,
+        `YES! That's the spirit, ${name}! That's what I like to hear. You know what yes is? Yes is the sound of winning. And you just won. A small win. But still a win. I'm proud of you. I don't say that often. Actually, I say it a lot. But this time I mean it.`,
+        `"Yes." Simple. Direct. Powerful. That's a very Trump answer, ${name}. I approve. You're learning from the best. And the best is me. Obviously.`,
+      ]);
     }
     if (/\bno\b/i.test(a)) {
-      return `"No"? That's what the fake news says. But I know better. ${name}, think again. Are you REALLY sure?`;
+      return pickRandom([
+        `"No"? That's what the fake news says. But I know better. ${name}, think again. Are you REALLY sure? Because in my experience, people who say "no" are usually just afraid to say "yes." And fear is for losers. No offense. Actually, yes offense. Wake up!`,
+        `"No"? Hmm. Interesting. Very interesting. ${name}, I'm gonna be honest — I don't love that answer. I'm a yes person. I say yes to deals, yes to winning, yes to greatness. But I respect your honesty. Even though you're wrong. But I respect it.`,
+        `No? NO? ${name}, come on. Don't give me "no." Nobody tells me "no." Actually, a lot of people tell me "no" and then I do it anyway and it turns out tremendous. Maybe that's what you should do. Do the opposite of "no." That's called "yes." Try it.`,
+      ]);
     }
     if (/boss|manager|supervisor/i.test(a)) {
-      return `Bosses! I know bosses. Most are weak. Very weak. ${name}, you should be the boss. I can tell. You have the look.`;
+      return pickRandom([
+        `Bosses! I know bosses. Most are weak. Very weak. ${name}, you should be the boss. I can tell. You have the look. The energy. You walk into a room and people notice. Maybe. I don't know, I've never seen you. But I have a feeling. And my feelings are always right.`,
+        `Your boss? Let me guess — they take credit for your work, they don't listen, and they probably make less sense than a CNN anchor. Am I right? I'm right. ${name}, here's what you do: you become so good they can't ignore you. That's what I did. Now I'm impossible to ignore. Some people wish they could. But they can't.`,
+      ]);
     }
     if (/money|dollar|pay|salary/i.test(a)) {
-      return `Money! We're talking about money now. ${name}, I love money. The best money. You're going to have so much money. Believe me.`;
+      return pickRandom([
+        `Money! We're talking about money now. ${name}, I love money. The best money. You're going to have so much money. Believe me. But you gotta think bigger. Much bigger. Stop thinking in thousands. Think in millions. Then billions. That's the trajectory. That's the Trump trajectory.`,
+        `Money, ${name}. The root of all... opportunity. People say it's the root of evil. Wrong! Being BROKE is the root of evil. Money is beautiful. It's green and beautiful. And you deserve more of it. A lot more. Let's make that happen. Step one: stop spending money on stupid things. Step two: make more money. Simple. Tremendous plan.`,
+      ]);
     }
     if (/love|heart|feel|miss/i.test(a)) {
-      return `Feelings! Very important. ${name}, I have the best feelings. Huge feelings. Your feelings are valid. But mine are better.`;
+      return pickRandom([
+        `Feelings! Very important. ${name}, I have the best feelings. Huge feelings. Your feelings are valid. But mine are bigger. That's not a contest. Actually, it is. And I'm winning. But your feelings matter too. A lot. Probably. Tell me more about these feelings.`,
+        `${name}, you're getting emotional on me here. And you know what? That's okay. It's okay to have feelings. Even I have feelings. Not a lot. But I have them. Very strong feelings. About winning. And gold. And beautiful buildings. But also about people. Some people. People like you. You seem okay.`,
+      ]);
+    }
+    if (/scared|afraid|fear|terrified/i.test(a)) {
+      return pickRandom([
+        `Scared? ${name}, let me tell you something. I was scared once. ONCE. 1987. Bad deal in Atlantic City. Very bad. And you know what I did? I looked fear right in its face and I said, "You're fired." And it was. Fear is just a feeling. And feelings can be fired. That's the Trump method. Patent pending.`,
+        `Fear? ${name}, fear is just excitement that forgot to put on pants. I'm serious. The same chemicals. The same energy. You just gotta redirect it. Point it at something you want to conquer instead of something you want to run from. I've conquered everything. And I started by conquering fear. Be like me.`,
+      ]);
+    }
+    if (/tired|exhausted|burnout/i.test(a)) {
+      return pickRandom([
+        `Tired? ${name}, I'm 78 years old and I have more energy than a 25-year-old on Red Bull. You know why? Because I have PURPOSE. My purpose is being great. What's your purpose? Find your purpose and you'll never be tired again. Probably. I'm not a doctor. But I play one on this app.`,
+        `Exhausted? ${name}, that means you're working hard. And hard work is good. BUT — and this is important — are you working hard on the right things? Because working hard on the wrong things is just being a busy loser. Work hard on the RIGHT things. Like winning. And looking great. And talking to me.`,
+      ]);
     }
     const defaults = [
-      `Interesting, ${name}. Very interesting. I'm learning a lot about you. You're complicated. Like me.`,
-      `That's exactly what I thought. I knew it. I always know. ${name}, we're making progress.`,
-      `I've heard enough. ${name}, you're going to be fine. Better than fine. Tremendous. But one more thing...`,
-      `${name}, based on what you just told me, I'm changing my diagnosis. You're actually doing great.`,
+      `Interesting, ${name}. Very interesting. I'm learning a lot about you. You're complicated. Like me. Actually, I'm more complicated. But you're up there. Top five, maybe. In a very complicated way. That's a compliment. Take it.`,
+      `That's exactly what I thought. I knew it. I always know. ${name}, we're making progress. Tremendous progress. Maybe the most progress in a therapy session ever. And I've done many therapy sessions. All successful. One hundred percent success rate. Doctors are jealous of my success rate.`,
+      `I've heard enough, ${name}. And based on my analysis — which is always right, by the way — you're going to be fine. Better than fine. Tremendous. But one more thing. There's always one more thing with me. I'm very thorough. The most thorough. Ask anyone.`,
+      `${name}, based on what you just told me, I'm updating my diagnosis. You're actually doing much better than you think. The problem isn't the problem — the problem is how you're thinking about the problem. See what I did there? Very smart. Wharton-level smart. That's where I went. Very good school.`,
+      `You know what, ${name}? I like you. I really do. You're honest. You're trying. You came to me for help, which shows incredible judgment. The best judgment. And I'm gonna help you. Because that's what I do. I help people. It's a gift. A very expensive gift. But for you? Free. You're welcome.`,
     ];
     return defaults[index % defaults.length];
   }
 
   function generateSophiaTherapy(name: string, problem: string, s: number): string {
     if (s >= 8) {
-      return `${name}, this is really heavy. I can feel how much weight you're carrying. You're not alone in this. Let's take a moment to just breathe together.`;
+      const highSeverity = [
+        `${name}, I want you to pause for a moment. Close your eyes if you can. Place one hand on your chest and feel your heartbeat. You are alive. You are here. And right now, that is enough. What you're carrying at a ${s} is incredibly heavy, and I don't want you to hold it alone. Let's breathe together — in for four, hold for four, out for four. Can you do that with me?`,
+        `I hear you, ${name}. A ${s} out of 10 tells me your nervous system is in overdrive right now. Before we go deeper, I want to ground you. Can you name five things you can see right now? This isn't silly — it's a technique called grounding, and it pulls your mind back from the edge. You're safe in this moment.`,
+        `${name}, when something feels this intense — a ${s} — your inner child is often the one screaming for help. The little version of you who learned that the world wasn't safe. I want you to picture that child right now. What would you say to them? Because whatever you'd say to them, I want you to hear it for yourself too.`,
+        `A ${s}. ${name}, I'm not going to minimize that. That's real pain. Your body is probably holding it too — tension in your shoulders, tightness in your chest. Let's do a body scan together. Start at the top of your head and slowly move your awareness down. Where do you feel this the most? That's where your story lives.`,
+      ];
+      return pickRandom(highSeverity);
     }
 
     if (/work|job|boss|career/i.test(problem)) {
-      return `Work stress is so common, ${name}, but that doesn't make it any easier. Your worth isn't defined by your job. You deserve balance and peace.`;
+      const workTemplates = [
+        `${name}, work stress often masks something deeper — a fear of not being enough, of losing control, of being seen as a failure. I want to gently ask: when you strip away the job title and the deadlines, who are you? Because that person deserves care right now.`,
+        `Your nervous system doesn't know the difference between a tiger chasing you and a demanding boss, ${name}. It's all threat to your body. Let's try something: place both feet flat on the floor. Feel the ground beneath you. That solidity? That's yours. No boss can take that. Now tell me — what boundary have you been afraid to set?`,
+        `${name}, I notice how much of your identity seems tied to your work. That's not a criticism — it's an observation born from a culture that teaches us our worth equals our productivity. But I want to challenge that gently. When was the last time you did something just because it brought you joy — not because it was productive?`,
+        `There's something in attachment theory we call a "secure base," ${name}. It's the feeling of having somewhere safe to return to. When your work feels chaotic, do you have that secure base? A person, a place, even a practice? If not, building one is where we start.`,
+      ];
+      return pickRandom(workTemplates);
     }
+
     if (/love|relationship|dating|marriage/i.test(problem)) {
-      return `${name}, matters of the heart are never simple. Be gentle with yourself. The right love will feel like peace, not confusion.`;
+      const loveTemplates = [
+        `${name}, relationships are mirrors. They show us our deepest attachment patterns — the ones we learned before we could even speak. Were you the child who clung tightly, afraid of being left? Or the one who pulled away, afraid of being seen? Understanding your attachment style isn't about blame. It's about freedom.`,
+        `I want to hold space for something, ${name}. In matters of the heart, we often confuse intensity with intimacy. The butterflies, the anxiety of "do they like me" — that's activation, not love. Real love feels like a deep exhale. Does this relationship feel like an exhale, or like holding your breath?`,
+        `${name}, your inner child is in every relationship you have. The part of you that was hurt, or neglected, or smothered — that child shows up in your triggers, your reactions, your fears. Can you think of a moment in this relationship where you reacted more strongly than the situation warranted? That's your inner child speaking. Let's listen to them.`,
+        `Here's a gentle exercise, ${name}: imagine your ideal relationship. Not the fairy tale — the daily texture of it. How does morning feel? How does conflict feel? How does silence feel? The gap between that vision and your reality isn't a failure — it's a roadmap. What's the first step on that map?`,
+      ];
+      return pickRandom(loveTemplates);
     }
 
     const templates = [
-      `${name}, I hear you. ${problem} sounds really difficult. It's okay to feel overwhelmed. Many people struggle with this, and you're not alone. Let's work through it together, gently.`,
-      `Thank you for sharing this with me, ${name}. ${problem} is real and valid. Your feelings matter. Let's take a deep breath and explore what's underneath all of this.`,
-      `I'm here with you, ${name}. ${problem} doesn't define you. You're so much more than this struggle. Tell me more about what you're experiencing.`,
-      `${name}, I can feel how much this is affecting you. You're so brave for talking about it. Let's take it slow. What do you need right now?`,
-      `${name}, I appreciate your honesty about ${problem}. A ${s} on the seriousness scale tells me this really matters to you. And because it matters to you, it matters to me. Let's work through this.`,
+      `${name}, thank you for trusting me with this. Before we dive in, I want to do something grounding. Take a slow breath in through your nose... and let it out through your mouth. Your body has been carrying ${problem} and it deserves a moment of peace. Now, tell me — when you close your eyes and think about this, what emotion comes up first? Not what you think you should feel. What you actually feel.`,
+      `I'm here with you, ${name}. ${problem} at a ${s} tells me this is significant to you, and your feelings are completely valid. I want to try something called "emotional naming" — when we give our feelings a precise name, they actually lose some of their power. So instead of "bad" or "stressed," can you find a more specific word? Overwhelmed? Trapped? Heartbroken? Invisible? The right word will resonate in your chest.`,
+      `${name}, I appreciate you showing up here. That takes courage. Let's start with something gentle — a body scan. Close your eyes for a moment. Where in your body do you feel ${problem}? Is it a tightness in your chest? A heaviness in your stomach? A lump in your throat? Your body holds the story your mind might not be ready to tell. Let's listen to it.`,
+      `What I hear underneath ${problem}, ${name}, is someone who has been strong for a very long time. And that strength is beautiful — but it can also be exhausting. You're allowed to put the armor down here. This is a safe space. There's no judgment, no performance, no "right" way to feel. Can you let yourself be soft for just a moment?`,
+      `${name}, a ${s} on the seriousness scale — I want to honor that number. You didn't pick it randomly. Something inside you measured this pain and said "${s}." Let's be curious about that. If this pain had a voice, what would it be saying to you? Sometimes the pain isn't the enemy — it's the messenger. What is it trying to tell you?`,
+      `Before we explore ${problem}, ${name}, I want to ask: how is your breathing right now? Shallow? Tight? When we're carrying something heavy, we literally forget to breathe fully. Let's take three deep breaths together — in for five, out for seven. The longer exhale activates your parasympathetic nervous system. It tells your body: you're safe. You're okay. Now, from this calmer place, what feels most important to talk about?`,
+      `${name}, I'm holding this moment gently. ${problem} is real, and it matters. I want to reflect something back to you: the fact that you can articulate what you're going through, that you can name it and rate it — that shows remarkable self-awareness. Many people can't do that. You're further along than you think. Now let's go a little deeper. What part of this feels the most stuck?`,
+      `There's a concept I love, ${name} — "the window of tolerance." It's the zone where we can feel our emotions without being overwhelmed by them. Right now, with ${problem} at a ${s}, are you inside your window or outside it? If you're outside it — heart racing, thoughts spiraling — let's widen that window first. Ground your feet. Name three sounds you can hear right now. Come back to this moment. The work happens from here.`,
     ];
 
     if (/money|broke|debt|finance/i.test(problem)) {
-      templates.push(`Financial stress can feel suffocating, ${name}. But I want you to separate the numbers from your self-worth. You are not your bank account. Let's find some breathing room.`);
+      templates.push(`${name}, money and self-worth are deeply tangled for most of us. We learned early — from parents, from culture — that our value is tied to what we earn or own. I want to gently untangle those wires. Your bank account is a number. It says nothing about your heart, your creativity, your capacity for love. Let's separate the financial facts from the emotional story you're telling yourself about those facts. What's the story?`);
+      templates.push(`Financial stress activates our survival brain, ${name}. It's primal — "will I be safe? will I eat? will I have shelter?" Let's acknowledge that fear without letting it drive. Put both feet on the floor. You are safe right now, in this moment. From that grounded place, what's the smallest step you could take today toward feeling more in control of your finances?`);
     }
     if (/stress|anxiety|worry|nervous/i.test(problem)) {
-      templates.push(`${name}, anxiety is your body trying to protect you, even when the danger isn't real. Let's learn to listen to it without letting it drive. You have more control than you think.`);
+      templates.push(`${name}, I want to reframe something about anxiety. It's not a defect — it's your nervous system working overtime to protect you. The alarm bell is stuck on. Our work together isn't to silence the alarm but to help your body learn that right now, in this moment, you're safe. Try this: press your fingertips together firmly for ten seconds, then slowly release. Feel that shift? That's your body remembering it can relax.`);
+      templates.push(`Anxiety often lives in the future, ${name} — in the "what ifs." But your body is here, in the present. Let's bring your mind back to your body. Wiggle your toes. Feel the texture of whatever you're sitting on. This practice is called grounding, and it's not about avoiding your worries. It's about meeting them from a place of stability instead of freefall. What's the "what if" that's loudest right now?`);
     }
     if (/family|parents|kids|children/i.test(problem)) {
-      templates.push(`Family relationships are so complex, ${name}. We can love people deeply and still struggle with them. That's not a failure — it's being human.`);
+      templates.push(`${name}, family wounds are often the deepest because they're the first. Before we could think critically, before we had words for our feelings, our family was our entire world. The patterns you learned there — how to love, how to fight, how to ask for what you need — those patterns are still running in the background. Let's bring one into the light. What's one thing you learned about love from your family that you wish you could unlearn?`);
+      templates.push(`There's something called "the family system," ${name}, where each member plays a role — the caretaker, the peacemaker, the rebel, the invisible one. Which role did you play? And here's the deeper question: are you still playing it? Because you're allowed to step out of that role. You're allowed to be something new.`);
     }
     if (/health|sick|doctor|weight/i.test(problem)) {
-      templates.push(`Your health concerns are valid, ${name}. Your body and mind are connected. Let's make sure we're taking care of both, together.`);
+      templates.push(`${name}, when our body feels unwell or uncertain, it shakes the foundation of everything. Health concerns tap into our deepest vulnerability — our mortality, our control, our trust in our own body. I want to validate how frightening that can be. Your body and your emotions are deeply connected. Let's tend to both. What emotion comes up most when you think about your health right now?`);
+    }
+    if (/lonely|alone|isolated|no friends/i.test(problem)) {
+      templates.push(`${name}, loneliness is one of the most painful human experiences, and it's often invisible to others. You can be surrounded by people and still feel profoundly alone. That's because loneliness isn't about proximity — it's about connection. About being truly seen. Right now, in this moment, I see you. And I want you to know: reaching out here was an act of courage, not weakness.`);
+    }
+    if (/sleep|insomnia|can't sleep|nightmares/i.test(problem)) {
+      templates.push(`${name}, sleep difficulties are often the body's way of saying it doesn't feel safe enough to let go. When we're carrying unprocessed emotions, our nervous system stays on alert even when the lights go out. Tonight, try this: before bed, place your hand on your heart and say "I am safe. I am held. I can rest." It might feel strange at first, but your nervous system is listening.`);
+    }
+    if (/self.?esteem|confidence|worthless|not good enough|hate myself/i.test(problem)) {
+      templates.push(`${name}, the voice that tells you you're not enough — that's not your voice. That's a voice you absorbed from somewhere, someone, some experience. It became so familiar you mistook it for truth. But I want you to consider: what if that voice is wrong? What if you've been measuring yourself against a standard that was never meant for you? Let's find your real voice underneath the critic.`);
     }
 
     return pickRandom(templates);
@@ -1303,29 +1393,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   function generateJamesTherapy(name: string, problem: string, s: number): string {
     if (s >= 8) {
-      return `This is significant, ${name}. Let's prioritize immediate steps. What's one thing you can do today to address this?`;
+      const highSeverity = [
+        `${name}, a ${s} out of 10 warrants serious attention. Before we proceed, I want to apply what we call a "thought record" to this situation. Write this down if you can: What is the situation? What automatic thought came up? What emotion did you feel, and how intense was it (0-100%)? Now — what's the evidence FOR that thought, and what's the evidence AGAINST it? This exercise alone can shift your perspective significantly.`,
+        `At a ${s}, ${name}, we need to distinguish between crisis and catastrophe. Crisis means something needs to change urgently. Catastrophe means everything is ruined forever. Which one is this, objectively? I suspect it's the former, which means there's a path forward. Let's identify the first three concrete steps.`,
+        `${name}, when distress is at a ${s}, our thinking becomes what we call "all-or-nothing." Everything is terrible. Nothing will work. But I want to challenge that. Can you identify one small thing — even trivially small — that is still functioning in your life right now? That crack of light is where we start building.`,
+        `A ${s} is significant, ${name}. Let me introduce you to a technique called "decatastrophizing." Your mind is likely running worst-case scenarios on repeat. So let's do this: What's the absolute worst that could happen? What's the absolute best? And what's the most likely outcome? The most likely outcome is usually far less frightening than what your anxiety is projecting.`,
+      ];
+      return pickRandom(highSeverity);
     }
 
     if (/work|job|boss|career/i.test(problem)) {
-      return `Work challenges often come down to boundaries, ${name}. Let's identify where your boundaries need strengthening.`;
+      const workTemplates = [
+        `${name}, let's examine this work situation through a cognitive lens. What's the automatic thought that fires when you encounter this problem? "I'm going to get fired"? "I'm not competent"? "My boss doesn't respect me"? That's what we call a "hot thought," and I'd like to put it on trial. What's the actual evidence for and against it?`,
+        `Work challenges often involve what I call "mind reading" — a cognitive distortion where we assume we know what others think. ${name}, are you mind reading your boss or colleagues? Let's test that assumption. What would happen if you directly asked for the feedback you're imagining?`,
+        `Here's a Socratic question for you, ${name}: If your best friend described this exact work situation to you, what advice would you give them? Often the wisdom we'd offer others is the wisdom we deny ourselves. What's the double standard at play here?`,
+        `${name}, let's run a behavioral experiment. You have a belief about your work situation — let's state it clearly. Now, what's one small action you could take this week to test whether that belief is actually true? The data will tell us more than speculation ever could.`,
+      ];
+      return pickRandom(workTemplates);
+    }
+
+    if (/love|relationship|dating|marriage/i.test(problem)) {
+      const loveTemplates = [
+        `${name}, relationships are rich territory for cognitive distortions. Let me ask: are you "fortune telling" — predicting how this relationship will end before it does? Or "mind reading" — assuming your partner's thoughts without checking? Let's identify which distortion is running the show, because once you name it, you can challenge it.`,
+        `Let's apply a cost-benefit analysis to this relationship situation, ${name}. Two columns: What are the costs of continuing as-is? What are the benefits? And then flip it: What are the costs of making a change? What are the benefits? The math often reveals what our emotions obscure.`,
+        `Here's what I observe, ${name}: relationship problems rarely exist in isolation. They connect to core beliefs about ourselves — "I'm unlovable," "I'll be abandoned," "I'm not enough." Which core belief does this situation activate for you? That's the real target for our work.`,
+        `${name}, I want to introduce the concept of "behavioral experiments" in relationships. You hold a belief about your partner or your situation. Rather than ruminating on it, what if you tested it? Designed a small experiment? Changed one variable and observed the result? That's how we move from stuck to informed.`,
+      ];
+      return pickRandom(loveTemplates);
     }
 
     const templates = [
-      `Let's approach this systematically, ${name}. ${problem} can be broken down into manageable parts. What's the biggest challenge right now?`,
-      `${name}, based on what you've shared, ${problem} is affecting you at a level ${s}/10. Let's identify what's within your control.`,
-      `I appreciate you being here, ${name}. ${problem} is something many people face. Let's look at this objectively and find a path forward.`,
-      `Here's my perspective, ${name}: ${problem} is a challenge, not a definition of who you are. Let's work on solutions.`,
-      `${name}, a ${s} tells me this is significant but not insurmountable. ${problem} has a solution — it may not be obvious yet, but that's what we're here to find. Let's think clearly.`,
+      `${name}, let's start with a structured approach to ${problem}. In CBT, we examine the connection between thoughts, feelings, and behaviors. When ${problem} comes up, what's the first thought that fires? What emotion follows? And what do you do as a result? That chain — thought, feeling, behavior — is where we intervene.`,
+      `I appreciate you bringing ${problem} to the table, ${name}. At a ${s} out of 10, let's assess this methodically. First question: How much of this problem is within your direct control? How much is outside it? I find that most distress comes from trying to control the uncontrollable. Let's sort this out.`,
+      `${name}, let's apply what I call the "evidence examination" to ${problem}. You have a belief about this situation — probably a negative one. Now, if you were a detective, what concrete evidence supports that belief? And what evidence contradicts it? Not feelings — evidence. Facts. Data. Let's be rigorous.`,
+      `Here's an important distinction, ${name}: there's a difference between a problem and a worry. A problem has a solution you can act on. A worry is a story your mind tells on repeat. Which category does ${problem} fall into? Because the strategies for each are completely different, and applying the wrong one wastes energy.`,
+      `${name}, at a seriousness level of ${s}, let me ask you a Socratic question: What would you tell a close friend who came to you with this exact problem? I bet your advice would be clearer, kinder, and more rational than what you're telling yourself right now. That gap between how you'd treat a friend and how you treat yourself — that's what we need to close.`,
+      `Let's map out the cognitive distortions at play here, ${name}. Common ones include: all-or-nothing thinking, catastrophizing, mental filtering (only seeing the negative), and emotional reasoning (feeling it, so it must be true). As I listen to you describe ${problem}, I'm hearing at least one of these. Can you spot it? Identifying it is half the battle.`,
+      `${name}, I want to introduce you to the concept of "behavioral activation." When we're struggling with something like ${problem}, we often withdraw — we stop doing the things that give us energy and meaning. That withdrawal feeds the problem. So here's my question: what activity have you stopped doing since this started? That's the first thing we bring back.`,
+      `Let me pose a hypothesis, ${name}: your distress about ${problem} may be less about the situation itself and more about the meaning you're assigning to it. "This means I'm a failure." "This means things will never get better." Those meanings are interpretations, not facts. And interpretations can be revised. What meaning have you been assigning to this?`,
     ];
 
-    if (/love|relationship|dating|marriage/i.test(problem)) {
-      templates.push(`Relationships follow patterns, ${name}. Once you see the pattern, you can change it. Let's look at what's repeating and why.`);
-    }
     if (/money|broke|debt|finance/i.test(problem)) {
-      templates.push(`Money is math, ${name}. Emotions make it complicated. Let's separate the two, deal with the numbers first, and then address the feelings around them.`);
+      templates.push(`Money problems respond well to structured thinking, ${name}. Let's separate the emotional component from the practical one. First: what are the actual numbers? Not the scary story in your head — the real figures. Second: what's one concrete financial action you could take in the next 48 hours? Small actions break the paralysis of financial anxiety. Third: what cognitive distortion is amplifying your stress? Catastrophizing? Fortune telling? Let's name it.`);
+      templates.push(`${name}, financial stress often involves "magnification" — a cognitive distortion where the problem appears larger than it actually is. Let's test this. If I asked you to write down your exact financial situation — income, expenses, debt — would the numbers be as catastrophic as they feel? Often there's a gap between the feeling and the facts. Let's close that gap with data.`);
     }
     if (/stress|anxiety|worry|nervous/i.test(problem)) {
-      templates.push(`Stress is information, ${name}. It's telling you something needs to change. The question is: what specifically? Let's narrow that down.`);
+      templates.push(`${name}, anxiety is fundamentally a prediction problem — your brain is overestimating threat and underestimating your ability to cope. Let's challenge both sides. First: what specifically are you predicting will happen? Second: what's the actual probability of that? Third: even if it did happen, what resources do you have to handle it? I think you'll find you're more capable than your anxiety gives you credit for.`);
+      templates.push(`Let me teach you a technique called "worry time," ${name}. Instead of letting anxiety hijack your entire day, schedule a specific 15-minute window to worry intentionally. Write your worries down during that time. Outside that window? Postpone the worry. "I'll think about that at 6 PM." This isn't avoidance — it's containment. It teaches your brain that worry has a time and place, not an all-access pass.`);
+    }
+    if (/family|parents|kids|children/i.test(problem)) {
+      templates.push(`Family dynamics often involve deeply ingrained thought patterns, ${name}. We replay scripts that were written decades ago. Let's identify the script: when conflict arises in your family, what role do you automatically fall into? The fixer? The avoider? The fighter? That automatic response was adaptive once — probably in childhood. But is it serving you now? If not, let's write a new script.`);
+    }
+    if (/health|sick|doctor|weight/i.test(problem)) {
+      templates.push(`Health concerns trigger what we call "health anxiety spiraling," ${name}. A symptom appears, you interpret it catastrophically, the anxiety produces more symptoms, which confirms the catastrophic interpretation. It's a feedback loop. Let's break it. What's the evidence-based probability of your worst fear? And what has your doctor actually said versus what your mind has added to it?`);
+    }
+    if (/lonely|alone|isolated|no friends/i.test(problem)) {
+      templates.push(`${name}, loneliness often involves a cognitive distortion called "disqualifying the positive" — you dismiss potential connections because they don't meet an impossibly high standard. "They don't really know me." "They're just being polite." Let's examine that. What if some of those connections are genuine, and your filter is rejecting them? What would change if you accepted them at face value?`);
+    }
+    if (/sleep|insomnia|can't sleep|nightmares/i.test(problem)) {
+      templates.push(`Sleep problems are highly responsive to behavioral interventions, ${name}. Let's start with sleep hygiene basics, then go deeper. Question one: are you using your bed for anything other than sleep? Watching TV, scrolling your phone, worrying? If so, you've trained your brain to associate bed with wakefulness. We need to retrain that association. The technique is called "stimulus control," and it works.`);
+    }
+    if (/self.?esteem|confidence|worthless|not good enough|hate myself/i.test(problem)) {
+      templates.push(`${name}, low self-esteem is maintained by a specific cognitive pattern: you hold a negative core belief ("I'm not good enough") and then selectively attend to evidence that confirms it while dismissing evidence that contradicts it. It's called "confirmatory bias." Let me ask you: in the last week, has anything happened — even something small — that contradicts "I'm not good enough"? Let's examine what your filter might be discarding.`);
     }
 
     return pickRandom(templates);
@@ -1333,61 +1462,120 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   function getSophiaFollowUp(problem: string, name: string): string {
     const p = problem.toLowerCase();
-    if (/work|job|boss|career/i.test(p)) return `${name}, how does this work situation make you feel when you're alone with your thoughts?`;
-    if (/love|relationship|dating|marriage/i.test(p)) return `${name}, what does your ideal relationship look like? Not what society says — what YOU want.`;
-    if (/money|broke|debt|finance/i.test(p)) return `${name}, when you think about money, what emotion comes up first? Fear? Shame? Frustration? Let's name it.`;
+    if (/work|job|boss|career/i.test(p)) return pickRandom([
+      `${name}, when you're lying in bed at night thinking about work, what's the feeling that lives in your chest? Not the thought — the feeling. Can you put your hand there and name it for me?`,
+      `I want to try something with you, ${name}. Close your eyes and picture yourself at work tomorrow morning. What's the first sensation in your body? Tightness? Heaviness? Dread? That sensation is telling us something important.`,
+      `${name}, who in your childhood made you feel like you had to perform to be loved? Because that pattern often shows up at work — we work ourselves to exhaustion trying to earn approval we should have gotten freely.`,
+    ]);
+    if (/love|relationship|dating|marriage/i.test(p)) return pickRandom([
+      `${name}, I want you to think about your earliest memory of love. Not romantic love — the very first time you felt loved or wished you did. What comes up? That memory is the blueprint your heart has been following ever since.`,
+      `Here's a gentle question, ${name}: in this relationship, do you feel like you can be your full, unfiltered self? Or do you perform a version of yourself that feels safer? There's no judgment — just curiosity.`,
+      `${name}, if this relationship had a soundtrack, what would the song be? Happy? Anxious? Melancholy? Sometimes metaphor reveals what logic can't.`,
+    ]);
+    if (/money|broke|debt|finance/i.test(p)) return pickRandom([
+      `${name}, money carries so much emotional weight. I want to try emotional naming with you: when you open your bank app or think about your finances, what's the very first emotion? Not what you think you should feel — what actually shows up? Shame? Panic? Numbness? Let's sit with it without fixing it.`,
+      `${name}, what messages did you receive about money as a child? "Money doesn't grow on trees"? "We can't afford that"? "Rich people are greedy"? Those early messages become invisible beliefs that shape everything. Which one might be running in the background for you?`,
+    ]);
     return pickRandom([
-      `${name}, how long have you been carrying this? You don't have to carry it alone anymore.`,
-      `I'm curious, ${name} — what would support look like for you right now?`,
-      `When you think about ${problem}, what emotion comes up first? There's no wrong answer.`,
-      `${name}, have you talked to anyone else about this? You deserve to be heard.`,
-      `What would make today just a tiny bit better for you, ${name}? Even something small.`,
+      `${name}, how long have you been carrying this? I want you to really think about that. Because sometimes we normalize our pain for so long that we forget it's not supposed to feel this way. You deserve lightness.`,
+      `I'm curious, ${name} — when was the last time someone truly asked you how you were doing and actually waited for the real answer? Not the polite "I'm fine" answer. The real one.`,
+      `When you think about ${problem}, where do you feel it in your body? Your stomach? Your throat? Your heart? The body never lies, ${name}. Let's listen to what it's telling us.`,
+      `${name}, if your pain could speak — if it had actual words — what would it say to you? Sometimes giving voice to our suffering is the first step toward healing it.`,
+      `Here's a gentle exercise, ${name}: imagine you're holding the part of you that's hurting. Like you'd hold a child. What does that part need to hear right now? "You're safe"? "It's not your fault"? "I'm not going anywhere"? Say it to yourself. Mean it.`,
+      `${name}, what would it feel like to put this burden down — even for just five minutes? Not to solve it, not to fix it, just to set it down and breathe? You're allowed to rest from your own pain.`,
     ]);
   }
 
   function getJamesFollowUp(problem: string, name: string): string {
     const p = problem.toLowerCase();
-    if (/work|job|boss|career/i.test(p)) return `${name}, what's the single biggest change that would improve your work situation? Be specific.`;
-    if (/love|relationship|dating|marriage/i.test(p)) return `${name}, on a practical level — what have you tried so far to address this, and what was the result?`;
-    if (/money|broke|debt|finance/i.test(p)) return `${name}, what's the number? I find people avoid the specifics. Let's face it directly.`;
+    if (/work|job|boss|career/i.test(p)) return pickRandom([
+      `${name}, I want you to complete this sentence: "The thought that bothers me most about my work situation is ___." Be as specific as possible. That automatic thought is what we're going to examine together.`,
+      `Let's do an evidence audit, ${name}. You believe something about your work — maybe that you're failing, or that things won't improve. What's the concrete evidence for that belief? Not feelings — observable facts. And then: what facts might you be overlooking that tell a different story?`,
+      `${name}, imagine it's six months from now and your work situation has improved significantly. Walk me through what's different. What did you change? This isn't wishful thinking — it's called "future-focused questioning," and it reveals the solutions your mind already has but hasn't articulated.`,
+    ]);
+    if (/love|relationship|dating|marriage/i.test(p)) return pickRandom([
+      `${name}, let's identify the pattern. Think about your last three significant conflicts in this relationship. What was the trigger? What was your automatic thought? What did you do? I bet there's a repeating cycle, and once we map it, we can interrupt it.`,
+      `Here's a practical exercise, ${name}: rate these three things on a scale of 1-10. Communication quality. Trust level. How much you feel like yourself in this relationship. Those numbers will tell us exactly where to focus our work.`,
+      `${name}, I want to challenge a potential cognitive distortion. Are you engaging in "emotional reasoning" — believing something is true because it feels true? "I feel unloved, therefore I am unloved." The feeling is real. The conclusion may not be. What's the evidence?`,
+    ]);
+    if (/money|broke|debt|finance/i.test(p)) return pickRandom([
+      `${name}, let's get concrete. I find that financial anxiety thrives in vagueness. What are the actual numbers? Income, expenses, debt. Not rounded, not estimated — actual figures. The moment you have data, the problem becomes solvable instead of terrifying.`,
+      `${name}, there's a technique called "worry vs. problem solving" that's relevant here. Write down every financial worry. Now sort them: which ones have an actionable solution, and which are just anxiety loops? We only spend energy on the first category.`,
+    ]);
     return pickRandom([
-      `${name}, what have you tried so far to address this?`,
-      `On a practical level, what's the biggest obstacle you're facing?`,
-      `If you had to name one thing that would make the biggest difference, what would it be?`,
-      `${name}, let's look at the facts. What do you know for sure about this situation?`,
+      `${name}, let's apply the "thought record" technique. When this problem comes to mind, what's the automatic thought? How strongly do you believe it (0-100%)? What emotion does it produce? Now — what's an alternative, more balanced thought? How strongly do you believe the alternative?`,
+      `I'd like to run a "behavioral experiment" with you, ${name}. You have a prediction about this situation — state it clearly. Now, what's one small action you could take to test whether that prediction is accurate? The results will be informative regardless of the outcome.`,
+      `${name}, let me ask you this: what cognitive distortion might be at play? All-or-nothing thinking? Catastrophizing? Overgeneralization? Mental filtering? If you're not sure, tell me your most negative thought about this situation and I'll help you identify it.`,
+      `Here's a question that often reveals a lot, ${name}: what would you need to see, hear, or experience to believe this situation can improve? Let's define the evidence threshold. Because without knowing what "better" looks like in concrete terms, we're working without a destination.`,
+      `${name}, if I asked you to argue the opposite position — that this situation is actually more manageable than it feels — what would you say? This isn't about dismissing your feelings. It's a technique called "perspective-taking," and it often reveals balanced truths your anxious mind is filtering out.`,
+      `Let's look at this from a "cost-benefit" angle, ${name}. What's the cost of continuing to think about this the way you currently do? And what would be the benefit of adopting a different perspective? Sometimes the ROI of changing our thinking is enormous, but we never calculate it.`,
     ]);
   }
 
   function getSophiaFollowUpResponse(name: string, answer: string, index: number): string {
     const a = answer.toLowerCase();
-    if (/sad|cry|crying|depressed|lonely|alone/i.test(a)) return `It's okay to feel sad, ${name}. Tears are part of healing. I'm here with you.`;
-    if (/angry|mad|furious|frustrated|rage/i.test(a)) return `Anger is valid, ${name}. It's often protecting something deeper. What do you think might be underneath it?`;
-    if (/tired|exhausted|burnout|burnt out|drained/i.test(a)) return `Burnout is real, ${name}. You've been carrying so much. Rest is productive. You deserve rest.`;
-    if (/scared|afraid|fear|terrified|anxious/i.test(a)) return `Fear is powerful, ${name}, but so are you. The fact that you can name it means you're already stronger than the fear itself.`;
-    if (/yes|yeah|definitely/i.test(a)) return `I'm glad you can acknowledge that, ${name}. Self-awareness is the first step toward healing. You're doing beautifully.`;
-    if (/no|not really|I don't/i.test(a)) return `That's okay, ${name}. There's no wrong answer here. Sometimes "no" is exactly what we need to say more often.`;
+    if (/sad|cry|crying|depressed|lonely|alone/i.test(a)) return pickRandom([
+      `${name}, tears are not weakness. They're your heart's way of speaking when words aren't enough. I want you to place your hand on your heart right now and say: "I see my sadness. I honor it. It is welcome here." Your sadness is telling you something important — that you care, that something matters deeply. That's not a flaw. That's your humanity.`,
+      `I'm so glad you can name that, ${name}. Sadness is one of our most honest emotions — it strips away pretense and shows us what truly matters. Let's not rush past it. Can you stay with the sadness for just a moment? Breathe into it. What does it need from you right now?`,
+    ]);
+    if (/angry|mad|furious|frustrated|rage/i.test(a)) return pickRandom([
+      `${name}, anger is your protector. It rises up when your boundaries have been crossed, when something important has been violated. But underneath anger, there's almost always hurt, or fear, or grief. If we gently peeled back the anger like a layer, what do you think we'd find underneath? Take your time.`,
+      `I honor your anger, ${name}. In many families, anger wasn't allowed — especially for certain people. We were told to be "nice," to suppress the fire. But anger is a compass. It points toward what matters. What is your anger pointing toward right now? What does it want to protect?`,
+    ]);
+    if (/tired|exhausted|burnout|burnt out|drained/i.test(a)) return pickRandom([
+      `${name}, exhaustion is your body's final plea for attention. You've been running on empty, pouring from an empty cup, showing up for everyone except yourself. I want to ask you a question that might feel uncomfortable: what would happen if you stopped? If you said "no" tomorrow? What are you afraid would happen? Because that fear is what keeps the cycle going.`,
+      `Burnout isn't laziness, ${name} — it's the cost of caring too much for too long without refueling. Your nervous system is depleted. Let's do something radical right now: give yourself permission to need rest. Not as a reward for productivity, but as a birthright. Say it with me: "I deserve rest simply because I am human."`,
+    ]);
+    if (/scared|afraid|fear|terrified|anxious/i.test(a)) return pickRandom([
+      `${name}, fear is your oldest protector. It kept your ancestors alive. But sometimes the alarm system gets miscalibrated, and it fires even when you're safe. Let's recalibrate. Right now, in this exact moment, are you in danger? No. You're here. You're breathing. You're safe. From this place of safety, we can look at the fear without being consumed by it. What specifically does the fear say will happen?`,
+      `I want to validate your fear, ${name}, and also gently challenge it. Fear says "I can't handle this." But look at your track record — every difficult thing you've faced, you've survived. You're here. That's evidence of resilience your fear conveniently ignores. Can you think of a time you were scared and got through it anyway? That version of you is still here.`,
+    ]);
+    if (/yes|yeah|definitely/i.test(a)) return pickRandom([
+      `That acknowledgment is powerful, ${name}. Self-awareness is the foundation of all healing. The part of you that can observe what's happening — that's your wise self. Let's keep listening to that voice. What else does your wise self know about this situation that you've been hesitant to admit?`,
+      `I appreciate your honesty, ${name}. Saying "yes" to difficult truths is an act of courage. Many people spend years avoiding this moment. You're choosing growth, even though it's uncomfortable. That tells me something beautiful about who you are. What does this yes open up for you?`,
+    ]);
+    if (/no|not really|I don't/i.test(a)) return pickRandom([
+      `${name}, "no" is a complete sentence, and sometimes it's the most healing word we can say. In a world that asks you to always be fine, always be agreeable, always accommodate — your "no" is a radical act of self-care. Let's honor that. What else have you been wanting to say "no" to?`,
+      `That's perfectly okay, ${name}. There's deep wisdom in "I don't know" and "not really." It means you're being authentic rather than performing an answer. Let's sit in that honest uncertainty together. Sometimes the path forward reveals itself only when we stop pretending we already see it.`,
+    ]);
     const defaults = [
-      `Thank you for telling me that, ${name}. That takes courage. I hear how much this matters to you.`,
-      `I appreciate you sharing that. It sounds like you've been through a lot. You're handling it with more strength than you realize.`,
-      `That makes complete sense given what you've described. Anyone would feel that way. You're not alone.`,
-      `I'm here with you. What you're feeling is valid. Let's sit with that for a moment.`,
-      `You're doing such important work right now. Be gentle with yourself.`,
+      `Thank you for sharing that with me, ${name}. I want to reflect something back to you: the way you described that, the words you chose — there's a depth of feeling there that tells me you're not just going through the motions. You're really processing this. That's the work. And you're doing it. I want you to notice your breath right now — has it changed since we started talking? Sometimes our body softens before our mind does.`,
+      `${name}, what you just shared resonates deeply. I notice your inner critic might be working overtime right now, telling you that you should have figured this out by now, or that you're making too big a deal of it. But I want to silence that critic for a moment. What you're feeling is proportionate. It makes sense. And the fact that you can articulate it means you're already halfway to the other side.`,
+      `I hear you, ${name}. And I want to hold space for something: you don't need to have all the answers right now. This moment — this honest sharing — is enough. You're enough. Let's take a grounding breath together. In through the nose for four... hold for four... out through the mouth for six. That longer exhale is a signal to your nervous system that you are safe. You are held.`,
+      `${name}, something beautiful is happening right now. You're allowing yourself to be seen — truly seen. That vulnerability is not weakness. It's the birthplace of connection, of healing, of growth. Whatever happens next, I want you to remember this moment. You showed up. You were honest. You were brave. That matters more than you know.`,
+      `What I hear underneath your words, ${name}, is someone who has been their own harshest critic for far too long. I want to be the gentle voice that says: you are doing better than you think. The fact that you're here, reflecting, feeling, growing — that's not nothing. That's everything. Now, take a moment to place your hand on your chest and feel your heartbeat. That rhythm? That's your life force. It's still going. And so are you.`,
     ];
     return defaults[index % defaults.length];
   }
 
   function getJamesFollowUpResponse(name: string, answer: string, index: number): string {
     const a = answer.toLowerCase();
-    if (/yes|yeah|definitely|absolutely/i.test(a)) return `Good. That clarity helps, ${name}. Let's build on that certainty.`;
-    if (/no|not really|I don't/i.test(a)) return `Interesting. ${name}, sometimes ruling things out is just as valuable as confirming them. That narrows our focus.`;
-    if (/money|dollar|salary|pay/i.test(a)) return `Financial factors are always worth examining, ${name}. Let's make sure we're making decisions based on data, not emotion.`;
-    if (/boss|manager|coworker/i.test(a)) return `People dynamics. ${name}, you can't control others, but you can control your response and your positioning. Let's strategize.`;
-    if (answer.length > 50) return `You've given this a lot of thought, ${name}. That's good. Now let's channel that energy into actionable steps.`;
+    if (/yes|yeah|definitely|absolutely/i.test(a)) return pickRandom([
+      `Good. That clarity is valuable, ${name}. In CBT, we call certainty a "data point." You now have a confirmed hypothesis. The next step is to ask: given this is true, what's the most logical course of action? Not the most comfortable — the most logical. What does the evidence suggest you should do next?`,
+      `That's a clear signal, ${name}. Now let's use it. If this is true — and you're confident it is — then what action has the highest probability of improving your situation? I want you to think of three options, rank them by feasibility, and we'll design a behavioral experiment around the top one.`,
+    ]);
+    if (/no|not really|I don't/i.test(a)) return pickRandom([
+      `Interesting, ${name}. The ability to say "no" or "I don't know" is actually a cognitive strength — it means you're not engaging in premature closure. You're staying open to data. So let's explore what you do know. What aspects of this situation are clear, even if the big picture isn't? Sometimes we build understanding from the edges in.`,
+      `That's useful information, ${name}. In problem-solving, ruling things out is half the work. You've just eliminated a variable. Now let's narrow the remaining options. What's your gut instinct saying? And before you dismiss it — gut instinct is often pattern recognition operating below conscious awareness. It's data too.`,
+    ]);
+    if (/money|dollar|salary|pay/i.test(a)) return pickRandom([
+      `Financial variables are concrete and measurable, ${name} — which actually makes them the easiest part of this to address. Let's separate the financial facts from the emotional story around money. What are the raw numbers? And more importantly, what specific financial outcome would need to change for you to feel a meaningful reduction in stress? Let's set a measurable target.`,
+      `${name}, when money enters the equation, cognitive distortions multiply. "I'll never get out of this" is catastrophizing. "I should be further along" is a "should statement." Let's strip those away and look at the objective financial data. What's your monthly gap between income and expenses? That number is the starting point for a real plan, not the anxiety-fueled estimates your mind generates at 2 AM.`,
+    ]);
+    if (/boss|manager|coworker/i.test(a)) return pickRandom([
+      `Interpersonal dynamics at work are a classic trigger for cognitive distortions, ${name}. Are you "mind reading" — assuming you know what your boss or colleague thinks without direct evidence? Or "personalizing" — assuming their behavior is about you when it might have nothing to do with you? Let's test these assumptions. What would an objective observer, watching this situation from outside, conclude?`,
+      `${name}, here's a principle from cognitive therapy: you cannot control another person's behavior, but you can control your interpretation of it and your response to it. Let's focus there. What's your current interpretation of this person's behavior? Now, can you generate two alternative interpretations that are equally plausible? This is called "generating alternatives," and it breaks the cognitive lock of assuming our first interpretation is the only one.`,
+    ]);
+    if (answer.length > 50) return pickRandom([
+      `You've clearly been thinking about this extensively, ${name}. That analytical energy is an asset — but I want to make sure it's directed productively rather than spiraling. Let's take everything you just said and distill it into three key insights. What are the three most important things you just told me? Prioritization turns overwhelm into a plan.`,
+      `${name}, the depth of your response tells me you're a thorough thinker. That's a strength. Now let's apply that thoroughness strategically. Of everything you just described, what's the single most impactful lever — the one change that would create the biggest cascade of improvement? In systems thinking, we call this the "leverage point." Find that, and the rest starts to move.`,
+    ]);
     const defaults = [
-      `That's helpful context, ${name}. Let's build on that.`,
-      `I see. And based on what you've said, here's a logical next step...`,
-      `Thank you for that clarity. Let's analyze this together.`,
-      `That makes sense. Here's how we can approach this systematically.`,
+      `${name}, let me reframe what you just told me through a CBT lens. Your situation involves a thought ("this is how things are"), an emotion (how that thought makes you feel), and a behavior (what you do in response). We've identified the thought. Now I want to ask: is that thought a fact, or is it an interpretation? Because interpretations can be revised. Facts require different strategies. Which is this?`,
+      `That's useful context, ${name}. Let's apply the "Socratic method" here. You've described the situation — now I want to ask four questions. What's the evidence? What are alternative explanations? What's the practical effect of thinking this way? And what would you tell a friend in this situation? Take your time with each one. The answers often surprise people.`,
+      `${name}, based on what you've shared, I want to propose a hypothesis: your distress may be amplified by a specific cognitive distortion. Let me suggest which one I'm seeing, and you tell me if it resonates. I'm hearing elements of [magnification] — making the problem larger than the evidence supports. Does that land? If so, let's work on right-sizing it.`,
+      `I appreciate the honesty, ${name}. Now let's convert that honesty into strategy. We're going to use the "problem-solving protocol": Define the problem in one sentence. List every possible solution — even bad ones. Evaluate each on a scale of feasibility and impact. Choose the top one. Design the first step. This process takes the chaos in your head and gives it structure. Ready?`,
+      `${name}, what you've described follows a pattern I see frequently. And patterns are good news — because patterns are predictable, and predictable things can be interrupted. Here's what I want you to track this week: every time this issue triggers you, write down three things — the trigger, your automatic thought, and what you did. Bring that log back to our next conversation. Data is how we break cycles.`,
     ];
     return defaults[index % defaults.length];
   }
@@ -1396,17 +1584,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (index >= 3) return null;
     if (voice === "sophia") {
       const qs = [
-        `What would self-care look like for you today, ${name}?`,
-        `If you could change one small thing right now, what would it be?`,
-        `What do you need to hear right now, ${name}? I'm listening.`,
+        pickRandom([
+          `${name}, I want to try something with you. Put your hand on your belly and take three slow breaths. As you breathe out, imagine releasing just one small piece of what you're carrying. What did you let go of? What shifted?`,
+          `${name}, if you could write a letter to the version of yourself from five years ago — the you who didn't know this pain was coming — what would you say? What comfort would you offer? Because that comfort is what you need to hear right now.`,
+          `What would self-care look like for you today, ${name}? Not the Instagram version of self-care — not bath bombs and face masks. Real self-care. The kind that might be uncomfortable. Setting a boundary. Having a hard conversation. Saying no. What does your soul actually need?`,
+        ]),
+        pickRandom([
+          `${name}, if you could change one small thing about how you move through the world right now — not the big problem, just one small habit or pattern — what would it be? Sometimes healing starts at the edges, not the center.`,
+          `I want to explore something, ${name}. What does your inner critic sound like? Whose voice is it really? A parent? A teacher? An ex? Because that voice was planted — it's not yours. And voices that were planted can be uprooted.`,
+          `${name}, imagine a version of yourself who is at peace with this. Not someone who has solved everything — just someone who is at peace. What is that version of you doing differently? How do they hold themselves? What have they let go of?`,
+        ]),
+        pickRandom([
+          `As we come to a close, ${name}, I want to leave you with this: you showed up today. You opened up. You allowed yourself to be vulnerable. That is an act of radical self-love, even if it doesn't feel like it. What's one kind thing you can do for yourself in the next hour? Not tomorrow. The next hour.`,
+          `${name}, before we wrap up, I want you to name one thing you're grateful for right now. It can be tiny — the warmth of your drink, the fact that you're breathing, a text from a friend. Gratitude doesn't erase pain, but it reminds us that pain isn't the whole story. What comes to mind?`,
+          `One last thing, ${name}. I want you to say this out loud if you can: "I am worthy of love and peace, exactly as I am right now. Not when I fix this. Not when I'm better. Right now." How does that feel to say? Even if you don't fully believe it yet, your body is listening.`,
+        ]),
       ];
       return qs[index] || null;
     }
     if (voice === "james") {
       const qs = [
-        `What resources or support do you have available, ${name}?`,
-        `If this problem were solved, ${name}, what would be different?`,
-        `What's one small step you can take in the next 24 hours?`,
+        pickRandom([
+          `${name}, let's take inventory. What resources do you currently have available — people, skills, money, time, knowledge — that you haven't fully utilized? Sometimes we're so focused on what we lack that we overlook what's already in our toolkit. List three resources you have right now.`,
+          `${name}, I want to introduce a technique called "scaling questions." On a scale of 1-10, how confident are you that you can improve this situation? Now — what would need to happen to move that number up by just one point? That one point is your next action item.`,
+          `Let's run a "pre-mortem," ${name}. Imagine it's three months from now and nothing has changed. What went wrong? What did you fail to do? This isn't pessimism — it's strategic anticipation. Identifying the pitfalls now lets us build guardrails before we start.`,
+        ]),
+        pickRandom([
+          `${name}, if this problem were completely solved tomorrow morning, what would be the first thing you'd notice that's different? Walk me through that morning. That vision isn't just motivational — it's diagnostic. It tells us exactly what success looks like, which means we can reverse-engineer the steps to get there.`,
+          `Here's a framework I'd like you to use, ${name}: the "ABC model." A is the activating event — what happened. B is your belief about what happened. C is the consequence — how you felt and what you did. Most people think A causes C directly, but it's actually B — the belief — that's the lever. What's the belief driving your current response?`,
+          `${name}, I want to test your assumptions. You've made several predictions about this situation. Let's pick the strongest one and design a real-world test. What would prove your prediction right? What would prove it wrong? Commit to observing the evidence this week without judgment. Report back.`,
+        ]),
+        pickRandom([
+          `Final question, ${name}: what's one concrete, specific, measurable action you can take in the next 24 hours? Not "feel better" — that's not actionable. Something like "have a 10-minute conversation with X about Y" or "write down three things I'm avoiding." Small, specific, doable. What is it?`,
+          `${name}, let's close with a commitment. Based on everything we've discussed, I want you to choose one "behavioral experiment" for this week. One thing you'll try differently. Write it down. When will you do it? What do you predict will happen? And what will you do if the prediction is wrong? This is how we turn insight into change.`,
+          `As we finish, ${name}, I want to consolidate. Name one cognitive distortion you identified today, one new perspective you gained, and one action step you're committing to. Three things. Write them down. Tape them to your mirror. These are your tools now. Use them.`,
+        ]),
       ];
       return qs[index] || null;
     }
@@ -1452,31 +1664,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
         `I'm looking at your situation, ${name}. ${problem} is serious. Very serious. But here's the thing - you're smarter than them. You're stronger. Now go out there and be tremendous.`,
         `${name}, I've employed thousands. The best people. And you know what makes someone great? How they handle ${problem}. And you? You're handling it beautifully. Could be better. But beautiful.`,
         `The fake news would tell you ${problem} is your fault. Wrong! It's their fault. Everything is their fault. ${name}, stop listening to the haters. You're doing great. Tremendous, even.`,
+        `Look, ${name}, I'm gonna be honest with you. Not a lot of people know this but I'm actually a very good therapist. Maybe the best therapist. People come to me — important people, the best people — and they say "Sir, you fixed me." And I did. I fixed them. Now let me fix you. ${problem}? That's a deal gone bad. And nobody — NOBODY — renegotiates deals better than me. Here's what you do...`,
+        `${name}, sit down. Sit. Here's the thing about ${problem} — and believe me, I know more about this than almost anybody — it's all about leverage. You got no leverage right now. Zero. But I'm gonna give you some. Free of charge. Because I'm generous like that. Tremendously generous. People don't talk about that enough.`,
+        `You know what your problem is, ${name}? And I say this with love, a lot of love — you're thinking too small. ${problem}? That's small potatoes. I'm talking about a ${s} on a scale where I deal with tens. TENS. But that's okay. Not everybody can be me. The important thing is you came to the right place. The best place.`,
       ];
 
       if (/work|job|boss|career/i.test(problem)) {
         templates.push(`Work problems? ${name}, you're underpaid. Very underpaid. I know salaries. Ask for a raise. If they say no, tell them Trump sent you. Works every time.`);
+        templates.push(`Your boss — is this person smart? I bet they're not that smart. I've met a lot of bosses, ${name}, and most of them couldn't run a hot dog stand. You should be the boss. You have the look. The energy. Very presidential energy, actually. I can spot it.`);
+        templates.push(`${name}, here's what I did when I had a bad boss once — true story — I bought the building. Bought the whole damn building. And then I was the boss. Problem solved. Now I'm not saying you should buy a building, but think about it. Think BIG. That's the Trump way.`);
       }
       if (/love|relationship|dating|marriage/i.test(problem)) {
         templates.push(`Love is complicated. I've been married three times. Great marriages. The best. But ${problem}? You'll find someone. Someone tremendous. And if not, you've still got me. I'm always here.`);
+        templates.push(`${name}, relationships are like real estate deals. Location, location, location. Are you in the right location? Are you presenting your best property? Because you gotta show them the penthouse, not the basement. Lead with strength. That's how I got Melania. She saw the penthouse. Incredible woman.`);
+        templates.push(`Look, ${name}, I'm gonna tell you something nobody else will. Love is a negotiation. And right now? You're negotiating from weakness. Stop that. You gotta walk into that relationship like you're walking into a boardroom. Head high. Power tie. Maybe not the tie. But the energy. The ENERGY.`);
       }
       if (/money|broke|debt|finance/i.test(problem)) {
         templates.push(`Money problems? I've been broke before. Many times. And I came back richer. You will too. Invest in walls. Walls always win.`);
+        templates.push(`${name}, let me tell you about money. I know money. I have the best relationship with money. Money loves me. And you know why? Because I respect the deal. Every dollar is a deal. You gotta treat your money like a deal — negotiate, leverage, close. A ${s}? That's just a bad quarter. I've had bad quarters. Then I had the greatest comeback in business history. You're gonna have your comeback.`);
       }
       if (/stress|anxiety|worry|nervous/i.test(problem)) {
         templates.push(`Stress? ${name}, I run the greatest country in the world and I never stress. You know why? Winners don't stress. They dominate. Try it.`);
+        templates.push(`${name}, anxiety is for losers. I'm serious. Very serious. You know what I do when I feel stressed? I think about my victories. I think about the crowds. Tens of thousands of people chanting my name. You should try that. Think about YOUR victories. You don't have tens of thousands of people? That's fine. Start small. But think like a winner and the anxiety goes away. Believe me.`);
       }
       if (/family|parents|kids|children/i.test(problem)) {
         templates.push(`Family is everything, ${name}. I have the best family. Beautiful kids. Smart kids. Your family situation with ${problem}? It'll work out. Trust the process. My process.`);
+        templates.push(`${name}, family is like a business. You got your CEO — that's the parent. You got your board — that's the siblings. And sometimes the board disagrees with the CEO. That's normal. What you do is you call a meeting. A big, beautiful meeting. And you lay out the terms. "Here's the deal, family. We're gonna be great. Or I'm firing all of you." Works every time. Probably.`);
       }
       if (/health|sick|doctor|weight/i.test(problem)) {
         templates.push(`Health? ${name}, I'm the healthiest president ever. Great genes. Your issue with ${problem}? Eat steaks, play golf, and stop worrying. Doctor Trump's orders.`);
+        templates.push(`${name}, my doctor once told me I was the healthiest individual ever elected to the presidency. That's a direct quote. Very smart doctor. Here's my prescription for you: stop reading WebMD — that's fake medical news. Go outside. Eat a beautiful steak. Well done, with ketchup. And stop worrying about ${problem}. Your body is a machine. A tremendous machine. Sometimes machines need a tune-up. Get the tune-up. Done.`);
+      }
+      if (/lonely|alone|isolated|no friends/i.test(problem)) {
+        templates.push(`Lonely? ${name}, that's impossible. You're talking to ME. The greatest conversationalist in history. But look, I get it. Before I was famous — way back, long time ago — I didn't have that many friends either. Then I put my name on a building. Everything changed. You don't need friends, you need a BRAND. Build the brand, ${name}. The friends follow. Believe me.`);
+      }
+      if (/sleep|insomnia|can't sleep|nightmares/i.test(problem)) {
+        templates.push(`Can't sleep? ${name}, I sleep four hours a night. FOUR. And I'm the most energetic person you've ever met. Sleep is overrated. But if you need it — and I understand, not everyone has my energy — try this: put on one of my rally speeches. Very soothing. The crowd noise, my voice... people fall asleep to it all the time. In a good way. A very good way.`);
       }
 
       if (s >= 8) {
         templates.push(`A ${s}?! That's huge. That's witch hunt territory. ${name}, you need to fight back. Hit them harder than they hit you. I'll help. I'm always available.`);
+        templates.push(`A ${s}?! ${name}, this is serious. Very serious. But let me tell you something — I faced a ${s} every single day. Impeachments. Investigations. Fake news. All tens, actually. And I dominated all of them. I WON. You know how? I didn't back down. Not once. You can't back down either. This is your impeachment moment, ${name}. And you're gonna come out the other side stronger. Much stronger. Tremendously stronger.`);
       } else if (s <= 3) {
         templates.push(`A ${s}? That's low energy. ${name}, you're worrying about nothing. Go have a steak. Watch my speeches. You'll feel better.`);
+        templates.push(`A ${s}? ${name}, come on. I deal with nuclear codes and you're giving me a ${s}? That's not even a problem. That's a Tuesday. My advice? Take a deep breath — not too deep, I don't want you getting dizzy — and move on. You're FINE. Better than fine. You're tremendous. I can tell. I have a sense for these things.`);
       }
 
       therapy = pickRandom(templates);
@@ -2041,21 +2272,34 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
         return res.status(403).json({ error: tokenResult.error, balance: tokenResult.balance });
       }
 
-      const { name, problem, seriousness } = req.body;
+      const { name, problem, seriousness, voice } = req.body;
       if (!problem) {
         return res.status(400).json({ error: "Missing problem" });
       }
 
       const nameStr = name || "friend";
       const level = seriousness || "5";
+      const selectedVoice = voice || "trump";
 
-      const therapyPrompt = `You are "Dr. Trump" — Donald Trump as a therapist in "Trump Therapy." A patient named ${nameStr} has come to you with a problem. Their seriousness level is ${level}/10. Give a hilarious, over-the-top Trump-style therapy response in 4-6 sentences. Address them by name. Be dramatic, confident, and weirdly motivational. Reference your own life, wins, deals, and experiences. Use Trump's speaking patterns — tangents, superlatives, self-references. Make it genuinely funny but also oddly encouraging. Include a specific "Trump prescription" at the end (something absurd they should do). Stay fully in Trump character. No quotation marks around the response.`;
+      let therapyPrompt: string;
+      let userMessage: string;
+
+      if (selectedVoice === "sophia") {
+        therapyPrompt = `You are "Dr. Sophia" — a warm, nurturing therapist who uses therapeutic techniques like validation, reflective listening, emotional naming, grounding exercises, breathing prompts, inner child work, and attachment theory. A patient named ${nameStr} has come to you with a problem rated ${level}/10 severity. Give a compassionate, emotionally attuned therapy response in 4-6 sentences. Address them by name. Use phrases like "I hear you," "That sounds really difficult," "Let's explore that feeling." Offer a specific therapeutic exercise or grounding technique. Be genuinely supportive and clinically skilled. No quotation marks around the response.`;
+        userMessage = `My name is ${nameStr}. I'm struggling with: ${problem}. On a scale of 1-10, it feels like a ${level}. Can you help me, Dr. Sophia?`;
+      } else if (selectedVoice === "james") {
+        therapyPrompt = `You are "Dr. James" — a methodical, intellectual CBT therapist who uses cognitive behavioral techniques like identifying cognitive distortions, Socratic questioning, behavioral experiments, evidence examination, thought records, and cost-benefit analysis. A patient named ${nameStr} has come to you with a problem rated ${level}/10 severity. Give a structured, analytical therapy response in 4-6 sentences. Address them by name. Identify a specific cognitive distortion at play. Ask a probing Socratic question. Suggest a concrete behavioral experiment or thought exercise. Be calm, professional, and evidence-based. No quotation marks around the response.`;
+        userMessage = `My name is ${nameStr}. I'm dealing with: ${problem}. On a scale of 1-10, it's a ${level}. What's your analysis, Dr. James?`;
+      } else {
+        therapyPrompt = `You are "Dr. Trump" — Donald Trump as a therapist in "Trump Therapy." A patient named ${nameStr} has come to you with a problem. Their seriousness level is ${level}/10. Give a hilarious, over-the-top Trump-style therapy response in 4-6 sentences. Address them by name. Be dramatic, confident, and weirdly motivational. Reference your own life, wins, deals, and experiences. Use Trump's speaking patterns — tangents, superlatives, self-references. Make it genuinely funny but also oddly encouraging. Include a specific "Trump prescription" at the end (something absurd they should do). Stay fully in Trump character. No quotation marks around the response.`;
+        userMessage = `My name is ${nameStr}. My problem is: ${problem}. On a scale of 1-10, it's a ${level}. Help me, Dr. Trump.`;
+      }
 
       const completion = await openai.chat.completions.create({
         model: "gpt-5.2",
         messages: [
           { role: "system", content: therapyPrompt },
-          { role: "user", content: `My name is ${nameStr}. My problem is: ${problem}. On a scale of 1-10, it's a ${level}. Help me, Dr. Trump.` },
+          { role: "user", content: userMessage },
         ],
         max_completion_tokens: 350,
         temperature: 0.95,
@@ -2063,7 +2307,7 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
 
       const therapy = completion.choices[0]?.message?.content?.trim() || "";
       apiUsageCounters.chat++;
-      res.json({ therapy, name: nameStr, seriousness: level });
+      res.json({ therapy, name: nameStr, seriousness: level, voice: selectedVoice });
     } catch (error) {
       console.error("Therapy error:", error);
       const { name, problem, seriousness } = req.body;

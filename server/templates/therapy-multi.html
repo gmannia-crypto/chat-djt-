@@ -21,6 +21,8 @@
         .voice-card:hover { transform: translateY(-5px); box-shadow: 0 10px 25px rgba(255, 75, 75, 0.3); }
         .voice-card.selected { border-width: 3px; }
         .voice-emoji { font-size: 48px; margin-bottom: 10px; }
+        .voice-portrait { width: 72px; height: 72px; border-radius: 50%; object-fit: cover; margin-bottom: 10px; border: 3px solid #333; transition: border-color 0.3s; }
+        .voice-card.selected .voice-portrait { border-color: inherit; }
         .voice-name { font-weight: bold; font-size: 18px; margin-bottom: 5px; }
         .voice-tagline { font-size: 11px; color: #888; margin-bottom: 10px; }
         .voice-badge { font-size: 12px; padding: 3px 8px; border-radius: 12px; display: inline-block; }
@@ -57,6 +59,20 @@
         .timer-display.james { color: #4d4dff; }
         .timer-display.warning { animation: blink 1s infinite; }
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+        .session-therapist-header { display: flex; align-items: center; gap: 15px; margin-bottom: 20px; padding: 15px; border-radius: 12px; background: rgba(255,255,255,0.05); }
+        .session-therapist-photo { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; border: 3px solid #333; }
+        .session-therapist-photo.trump { border-color: #ff4d4d; }
+        .session-therapist-photo.sophia { border-color: #ff99cc; }
+        .session-therapist-photo.james { border-color: #4d4dff; }
+        .session-therapist-info { flex: 1; }
+        .session-therapist-name { font-weight: bold; font-size: 18px; }
+        .session-therapist-status { font-size: 12px; color: #888; margin-top: 2px; }
+        .session-bg { position: relative; }
+        .session-bg::before { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-size: cover; background-position: center top; background-repeat: no-repeat; opacity: 0.06; border-radius: 20px; pointer-events: none; z-index: 0; }
+        .session-bg.sophia::before { background-image: url('/server/assets/dr-sophia.jpg'); }
+        .session-bg.james::before { background-image: url('/server/assets/dr-james.jpg'); }
+        .session-bg > * { position: relative; z-index: 1; }
 
         .session-content { font-size: 18px; line-height: 1.7; margin: 25px 0; padding: 25px; background: #333; border-left-width: 5px; border-left-style: solid; border-radius: 10px; white-space: pre-line; }
         .session-content.trump { border-left-color: #ff4d4d; }
@@ -158,13 +174,13 @@
                     <div class="voice-badge" style="background: #ff4d4d20; color: #ff4d4d;">12k today</div>
                 </div>
                 <div class="voice-card" id="voice-sophia" onclick="selectVoice('sophia')">
-                    <div class="voice-emoji">&#x1F469;&#x200D;&#x2695;&#xFE0F;</div>
+                    <img class="voice-portrait" src="/server/assets/dr-sophia.jpg" alt="Dr. Sophia" style="border-color: #ff99cc;">
                     <div class="voice-name">DR. SOPHIA</div>
                     <div class="voice-tagline">"I'm here for you"</div>
                     <div class="voice-badge" style="background: #ff99cc20; color: #ff99cc;">8k today</div>
                 </div>
                 <div class="voice-card" id="voice-james" onclick="selectVoice('james')">
-                    <div class="voice-emoji">&#x1F468;&#x200D;&#x2695;&#xFE0F;</div>
+                    <img class="voice-portrait" src="/server/assets/dr-james.jpg" alt="Dr. James" style="border-color: #4d4dff;">
                     <div class="voice-name">DR. JAMES</div>
                     <div class="voice-tagline">"Let's be rational"</div>
                     <div class="voice-badge" style="background: #4d4dff20; color: #4d4dff;">5k today</div>
@@ -234,6 +250,14 @@
             </div>
 
             <div id="sessionContainer" style="display: none;">
+                <div class="session-therapist-header" id="sessionTherapistHeader" style="display: none;">
+                    <img class="session-therapist-photo" id="sessionTherapistPhoto" src="" alt="">
+                    <div class="session-therapist-info">
+                        <div class="session-therapist-name" id="sessionTherapistName"></div>
+                        <div class="session-therapist-status">In session with you</div>
+                    </div>
+                </div>
+
                 <div class="timer-container">
                     <div class="timer-label">YOUR SESSION</div>
                     <div class="timer-display" id="timerDisplay">2:00</div>
@@ -471,6 +495,7 @@
                 name: 'DR. TRUMP',
                 avatar: '\uD83D\uDDE3\uFE0F',
                 color: '#ff4d4d',
+                image: '',
                 greeting: '"Lie down. Tell me everything. I\'m listening..."',
                 q1: '"What\'s your name? I need to know who I\'m talking to."',
                 q2: '"What\'s bothering you? Be specific. I deal with big problems."',
@@ -480,6 +505,7 @@
                 name: 'DR. SOPHIA',
                 avatar: '\uD83D\uDC69\u200D\u2695\uFE0F',
                 color: '#ff99cc',
+                image: '/server/assets/dr-sophia.jpg',
                 greeting: '"Welcome, dear. Take your time. I\'m here to listen without judgment."',
                 q1: '"What\'s your name? I\'d love to get to know you."',
                 q2: '"What\'s on your heart today? Share whatever feels right."',
@@ -489,6 +515,7 @@
                 name: 'DR. JAMES',
                 avatar: '\uD83D\uDC68\u200D\u2695\uFE0F',
                 color: '#4d4dff',
+                image: '/server/assets/dr-james.jpg',
                 greeting: '"Hello. I\'m Dr. James. Let\'s work through this together, methodically."',
                 q1: '"Your name? Let\'s start there."',
                 q2: '"What brings you here today? Be as specific as you like."',
@@ -551,6 +578,24 @@
             document.getElementById('questionCounter').textContent = 'Question 3 of 3';
             document.getElementById('sessionContainer').style.display = 'block';
             document.getElementById('sessionContent').innerHTML = '<div style="text-align:center;"><div class="loading-spinner"></div><p style="margin-top:10px;color:#888;">Your therapist is thinking...</p></div>';
+
+            var therapyCard = document.getElementById('therapyCard');
+            therapyCard.className = 'therapy-card session-bg ' + selectedVoice;
+
+            var cfg = voiceConfig[selectedVoice];
+            var header = document.getElementById('sessionTherapistHeader');
+            var photo = document.getElementById('sessionTherapistPhoto');
+            var nameEl = document.getElementById('sessionTherapistName');
+            if (cfg.image) {
+                photo.src = cfg.image;
+                photo.alt = cfg.name;
+                photo.className = 'session-therapist-photo ' + selectedVoice;
+                nameEl.textContent = cfg.name;
+                nameEl.style.color = cfg.color;
+                header.style.display = 'flex';
+            } else {
+                header.style.display = 'none';
+            }
 
             await generateInitialTherapy();
             startTimer();
@@ -709,6 +754,24 @@
             userAnswers.voice = newVoice;
 
             document.getElementById('timerDisplay').className = 'timer-display ' + newVoice;
+
+            var therapyCard = document.getElementById('therapyCard');
+            therapyCard.className = 'therapy-card session-bg ' + newVoice;
+
+            var cfg = voiceConfig[newVoice];
+            var header = document.getElementById('sessionTherapistHeader');
+            var photo = document.getElementById('sessionTherapistPhoto');
+            var nameEl = document.getElementById('sessionTherapistName');
+            if (cfg.image) {
+                photo.src = cfg.image;
+                photo.alt = cfg.name;
+                photo.className = 'session-therapist-photo ' + newVoice;
+                nameEl.textContent = cfg.name;
+                nameEl.style.color = cfg.color;
+                header.style.display = 'flex';
+            } else {
+                header.style.display = 'none';
+            }
 
             var contentDiv = document.getElementById('sessionContent');
             var transitionHtml = '<div style="margin:15px 0;padding:10px;background:#333;border-left:3px solid ' + voiceConfig[newVoice].color + ';border-radius:6px;"><span style="color:' + voiceConfig[newVoice].color + ';">' + voiceConfig[newVoice].avatar + ' ' + voiceConfig[newVoice].name + ' joins the conversation...</span></div>';
