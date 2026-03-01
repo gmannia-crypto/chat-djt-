@@ -167,19 +167,19 @@
         <div class="voice-selector">
             <h3>CHOOSE YOUR THERAPIST</h3>
             <div class="voice-grid">
-                <div class="voice-card" id="voice-trump" onclick="selectVoice('trump')">
+                <div class="voice-card" id="voice-trump" onclick="selectVoice('trump')" onmousedown="AudioSystem.voiceEnter('trump')">
                     <div class="voice-emoji">&#x1F5E3;&#xFE0F;</div>
                     <div class="voice-name">DR. TRUMP</div>
                     <div class="voice-tagline">"You're winning!"</div>
                     <div class="voice-badge" style="background: #ff4d4d20; color: #ff4d4d;">12k today</div>
                 </div>
-                <div class="voice-card" id="voice-sophia" onclick="selectVoice('sophia')">
+                <div class="voice-card" id="voice-sophia" onclick="selectVoice('sophia')" onmousedown="AudioSystem.voiceEnter('sophia')">
                     <img class="voice-portrait" src="/server/assets/dr-sophia.jpg" alt="Dr. Sophia" style="border-color: #ff99cc;">
                     <div class="voice-name">DR. SOPHIA</div>
                     <div class="voice-tagline">"I'm here for you"</div>
                     <div class="voice-badge" style="background: #ff99cc20; color: #ff99cc;">8k today</div>
                 </div>
-                <div class="voice-card" id="voice-james" onclick="selectVoice('james')">
+                <div class="voice-card" id="voice-james" onclick="selectVoice('james')" onmousedown="AudioSystem.voiceEnter('james')">
                     <img class="voice-portrait" src="/server/assets/dr-james.jpg" alt="Dr. James" style="border-color: #4d4dff;">
                     <div class="voice-name">DR. JAMES</div>
                     <div class="voice-tagline">"Let's be rational"</div>
@@ -217,7 +217,7 @@
                 <div class="question-number">QUESTION 1</div>
                 <div class="question-text" id="q1Text">"What's your name?"</div>
                 <input type="text" class="question-input" id="q1" placeholder="Enter your first name" maxlength="30">
-                <button class="next-btn" onclick="nextQuestion(2)">NEXT &rarr;</button>
+                <button class="next-btn" onclick="nextQuestion(2)" onmousedown="AudioSystem.click()">NEXT &rarr;</button>
             </div>
 
             <div class="question-container" id="question2" style="display: none;">
@@ -228,7 +228,7 @@
                     <button class="mic-btn" id="micQ2" onclick="toggleMic('q2')">&#x1F3A4;</button>
                 </div>
                 <div class="mic-status" id="micStatusQ2"></div>
-                <button class="next-btn" onclick="nextQuestion(3)">NEXT &rarr;</button>
+                <button class="next-btn" onclick="nextQuestion(3)" onmousedown="AudioSystem.click()">NEXT &rarr;</button>
             </div>
 
             <div class="question-container" id="question3" style="display: none;">
@@ -246,7 +246,7 @@
                     <option value="9">9 - Awful</option>
                     <option value="10">10 - Extreme</option>
                 </select>
-                <button class="next-btn" onclick="startTherapy()">START SESSION</button>
+                <button class="next-btn" onclick="startTherapy()" onmousedown="AudioSystem.click()">&#x1F52E; START SESSION</button>
             </div>
 
             <div id="sessionContainer" style="display: none;">
@@ -288,8 +288,8 @@
                         </div>
                         <div class="mic-status" id="micStatusFollowUpAnswer"></div>
                         <div style="display: flex; gap: 10px; margin-top: 15px;">
-                            <button class="next-btn" onclick="submitFollowUp()" style="flex: 2;" id="followUpSubmit">SEND ANSWER</button>
-                            <button class="next-btn" onclick="skipFollowUp()" style="flex: 1; background: #333;">SKIP</button>
+                            <button class="next-btn" onclick="submitFollowUp()" onmousedown="AudioSystem.click()" style="flex: 2;" id="followUpSubmit">&#x1F4E4; SEND ANSWER</button>
+                            <button class="next-btn" onclick="skipFollowUp(); AudioSystem.click()" style="flex: 1; background: #333;">SKIP</button>
                         </div>
                         <div class="follow-up-response" id="followUpResponse"></div>
                     </div>
@@ -299,9 +299,9 @@
                     <div class="share-title">SHARE YOUR THERAPY</div>
                     <div class="snippet-grid" id="snippetGrid"></div>
                     <div class="share-buttons">
-                        <button class="share-btn share-twitter" onclick="shareFull('twitter')">X</button>
-                        <button class="share-btn share-facebook" onclick="shareFull('facebook')">Facebook</button>
-                        <button class="share-btn share-copy" onclick="shareFull('copy')">Copy</button>
+                        <button class="share-btn share-twitter" onclick="shareFull('twitter')" onmousedown="AudioSystem.click()">&#x1F501; X</button>
+                        <button class="share-btn share-facebook" onclick="shareFull('facebook')" onmousedown="AudioSystem.click()">Facebook</button>
+                        <button class="share-btn share-copy" onclick="shareFull('copy')" onmousedown="AudioSystem.click()">Copy</button>
                     </div>
                 </div>
             </div>
@@ -323,13 +323,13 @@
                     <div style="font-size: 12px; color: #888;">Unlimited</div>
                 </div>
             </div>
-            <button class="next-btn" id="upgradeBtn" onclick="processPayment()" style="max-width: 300px; margin: 0 auto;">UNLOCK - $2.99</button>
+            <button class="next-btn" id="upgradeBtn" onclick="processPayment()" onmousedown="AudioSystem.click()" style="max-width: 300px; margin: 0 auto;">&#x1F513; UNLOCK - $2.99</button>
         </div>
     </div>
 
     <div class="upsell-modal" id="upsellModal">
         <div class="upsell-content">
-            <span class="upsell-close" onclick="closeUpsell()">&times;</span>
+            <span class="upsell-close" onclick="closeUpsell(); AudioSystem.click()">&times;</span>
             <div class="upsell-icon">&#x23F0;</div>
             <div class="upsell-title">TIME'S ALMOST UP!</div>
             <p style="color: #ccc;">Get 3 MORE MINUTES with your therapist</p>
@@ -531,7 +531,6 @@
         }
 
         function selectVoice(voice) {
-            if (typeof AudioSystem !== 'undefined') AudioSystem.voiceEnter(voice);
             selectedVoice = voice;
             document.querySelectorAll('.voice-card').forEach(function(card) {
                 card.classList.remove('selected');
@@ -559,7 +558,6 @@
                 alert('Please tell us what\'s bothering you');
                 return;
             }
-            if (typeof AudioSystem !== 'undefined') AudioSystem.click();
             document.getElementById('question' + currentQuestion).style.display = 'none';
             document.getElementById('question' + num).style.display = 'block';
             currentQuestion = num;
@@ -569,7 +567,6 @@
         }
 
         async function startTherapy() {
-            if (typeof AudioSystem !== 'undefined') AudioSystem.success();
             userAnswers = {
                 name: document.getElementById('q1').value.trim() || 'Friend',
                 problem: document.getElementById('q2').value.trim() || 'life',
@@ -902,7 +899,6 @@
         }
 
         function shareSnippet(index) {
-            if (typeof AudioSystem !== 'undefined') AudioSystem.click();
             var snippets = [sessionStorage.getItem('lastTherapy')];
             exchanges.forEach(function(e) { snippets.push(e.answer); });
             var text = encodeURIComponent('"' + (snippets[index] || '').substring(0, 80) + '..." Get your therapy at trumpbot.rip');
