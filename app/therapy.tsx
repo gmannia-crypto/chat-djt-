@@ -460,6 +460,29 @@ export default function TherapyScreen() {
           </View>
         </Animated.View>
 
+        <Animated.View entering={FadeInDown.delay(250).duration(500)}>
+          <Pressable
+            style={styles.multiVoiceBtn}
+            onPress={() => {
+              const baseUrl = getApiUrl();
+              const url = `${baseUrl}therapy-multi`;
+              Linking.openURL(url);
+            }}
+          >
+            <LinearGradient
+              colors={["#ff99cc", "#4d4dff", "#ff4d4d"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.multiVoiceGradient}
+            >
+              <Text style={styles.multiVoiceEmojis}>{"👩‍⚕️ 🗣️ 👨‍⚕️"}</Text>
+              <Text style={styles.multiVoiceTitle}>TRY MULTI-VOICE THERAPY</Text>
+              <Text style={styles.multiVoiceDesc}>Choose between Dr. Trump, Dr. Sophia & Dr. James</Text>
+              <Text style={styles.multiVoiceCta}>Voice input • 3 therapists • Free session →</Text>
+            </LinearGradient>
+          </Pressable>
+        </Animated.View>
+
         <Animated.View entering={FadeInDown.delay(300).duration(500)} style={styles.therapyCard}>
           <Text style={styles.couchEmoji}>{"\uD83D\uDECB\uFE0F"}</Text>
           <Text style={styles.greeting}>"Lie down. Tell me everything. I'm listening..."</Text>
@@ -1160,5 +1183,43 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.25)",
     textAlign: "center",
     marginTop: 14,
+  },
+  multiVoiceBtn: {
+    marginBottom: 20,
+    borderRadius: 16,
+    overflow: "hidden",
+  },
+  multiVoiceGradient: {
+    padding: 20,
+    borderRadius: 16,
+    alignItems: "center" as const,
+  },
+  multiVoiceEmojis: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
+  multiVoiceTitle: {
+    fontSize: 18,
+    fontWeight: "900" as const,
+    color: "white",
+    letterSpacing: 2,
+    textAlign: "center" as const,
+    marginBottom: 6,
+    textShadowColor: "rgba(0,0,0,0.5)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  multiVoiceDesc: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.9)",
+    textAlign: "center" as const,
+    marginBottom: 4,
+  },
+  multiVoiceCta: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.7)",
+    textAlign: "center" as const,
+    fontStyle: "italic" as const,
+    marginTop: 4,
   },
 });
