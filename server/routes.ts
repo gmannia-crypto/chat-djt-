@@ -345,6 +345,94 @@ async function overlayBleeps(audioBuffer: Buffer, text: string): Promise<Buffer>
   }
 }
 
+const ttsCache = new Map<string, { buffer: Buffer; timestamp: number }>();
+const TTS_CACHE_MAX = 100;
+const TTS_CACHE_TTL = 30 * 60 * 1000;
+
+function getTTSCacheKey(text: string, voiceId: string, speed: number): string {
+  const shortText = text.slice(0, 200);
+  return `${voiceId}:${speed}:${shortText}`;
+}
+
+function getCachedTTS(key: string): Buffer | null {
+  const entry = ttsCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.timestamp > TTS_CACHE_TTL) {
+    ttsCache.delete(key);
+    return null;
+  }
+  return entry.buffer;
+}
+
+function setCachedTTS(key: string, buffer: Buffer): void {
+  if (ttsCache.size >= TTS_CACHE_MAX) {
+    const oldest = ttsCache.keys().next().value;
+    if (oldest) ttsCache.delete(oldest);
+  }
+  ttsCache.set(key, { buffer, timestamp: Date.now() });
+}
+
+async function fishAudioRequest(text: string, voiceId: string, speed: number, apiKey: string, retries: number = 3): Promise<Buffer> {
+  const cacheKey = getTTSCacheKey(text, voiceId, speed);
+  const cached = getCachedTTS(cacheKey);
+  if (cached) {
+    console.log(`TTS cache hit for voice=${voiceId}`);
+    return cached;
+  }
+
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt < retries; attempt++) {
+    if (attempt > 0) {
+      const delay = Math.min(1000 * Math.pow(2, attempt), 8000);
+      console.log(`TTS retry ${attempt + 1}/${retries} after ${delay}ms...`);
+      await new Promise(r => setTimeout(r, delay));
+    }
+
+    try {
+      const response = await fetch("https://api.fish.audio/v1/tts", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          text,
+          reference_id: voiceId,
+          format: "mp3",
+          latency: "balanced",
+          prosody: { speed },
+        }),
+      });
+
+      if (response.status === 429) {
+        const errorText = await response.text();
+        console.warn(`Fish Audio rate limited (attempt ${attempt + 1}):`, errorText);
+        lastError = new Error(`Fish Audio rate limited: 429`);
+        continue;
+      }
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Fish Audio TTS error:", response.status, errorText);
+        throw new Error(`Fish Audio TTS failed: ${response.status}`);
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      setCachedTTS(cacheKey, buffer);
+      return buffer;
+    } catch (err: any) {
+      if (err.message?.includes("rate limited")) {
+        lastError = err;
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  throw lastError || new Error("Fish Audio TTS failed after retries");
+}
+
 async function trumpTextToSpeech(text: string, speed: number = 1.0, mood: string = "CALM", speechCategory: string = "CASUAL_TALK"): Promise<Buffer> {
   const apiKey = process.env.FISH_AUDIO_API_KEY;
   const defaultVoiceId = process.env.FISH_AUDIO_VOICE_ID;
@@ -358,34 +446,7 @@ async function trumpTextToSpeech(text: string, speed: number = 1.0, mood: string
   const emotion = mood === "FIRED_UP" ? "angry" : "calm";
   console.log(`TTS: Fish Audio voice=${voiceId}, category=${speechCategory}, mood=${mood}, emotion=${emotion}, speed=${speed}`);
 
-  const response = await fetch(
-    "https://api.fish.audio/v1/tts",
-    {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        text,
-        reference_id: voiceId,
-        format: "mp3",
-        latency: "balanced",
-        prosody: {
-          speed: speed,
-        },
-      }),
-    }
-  );
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error("Fish Audio TTS error:", response.status, errorText);
-    throw new Error(`Fish Audio TTS failed: ${response.status}`);
-  }
-
-  const arrayBuffer = await response.arrayBuffer();
-  return Buffer.from(arrayBuffer);
+  return fishAudioRequest(text, voiceId, speed, apiKey);
 }
 
 const apiUsageCounters = {
@@ -589,30 +650,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   async function fishAudioTTS(text: string, voiceId: string, speed: number = 1.0): Promise<Buffer> {
     const apiKey = process.env.FISH_AUDIO_API_KEY;
     if (!apiKey) throw new Error("Fish Audio API key not configured");
-
-    const response = await fetch("https://api.fish.audio/v1/tts", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        text,
-        reference_id: voiceId,
-        format: "mp3",
-        latency: "balanced",
-        prosody: { speed },
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Fish Audio TTS error:", response.status, errorText);
-      throw new Error(`Fish Audio TTS failed: ${response.status}`);
-    }
-
-    const arrayBuffer = await response.arrayBuffer();
-    return Buffer.from(arrayBuffer);
+    console.log(`TTS: Fish Audio voice=${voiceId}, speed=${speed}`);
+    return fishAudioRequest(text, voiceId, speed, apiKey);
   }
 
   const SOPHIA_VOICE_ID = "193c58af62ea487180baacdef8a69bbd";
