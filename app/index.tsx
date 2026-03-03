@@ -27,6 +27,11 @@ import Animated, {
   FadeInUp,
   FadeIn,
   withDelay,
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withSequence,
+  withTiming,
 } from "react-native-reanimated";
 import { useQuery } from "@tanstack/react-query";
 import Colors from "@/constants/colors";
@@ -246,6 +251,38 @@ export default function HomeScreen() {
   const [streak, setStreak] = useState(0);
   const [dailyChallenge, setDailyChallenge] = useState<string | null>(null);
   const { deviceId, hasTokens } = useTokens();
+
+  const pulseScale = useSharedValue(1);
+  const pulseGlow = useSharedValue(0.4);
+
+  React.useEffect(() => {
+    pulseScale.value = withRepeat(
+      withSequence(
+        withTiming(1.04, { duration: 800 }),
+        withTiming(1, { duration: 800 })
+      ),
+      -1,
+      true
+    );
+    pulseGlow.value = withRepeat(
+      withSequence(
+        withTiming(0.8, { duration: 800 }),
+        withTiming(0.4, { duration: 800 })
+      ),
+      -1,
+      true
+    );
+  }, []);
+
+  const pulseTherapyStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pulseScale.value }],
+    shadowOpacity: pulseGlow.value,
+  }));
+
+  const pulseFortuneStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pulseScale.value }],
+    shadowOpacity: pulseGlow.value,
+  }));
 
   function handleSecretTap() {
     secretTapCount.current += 1;
@@ -622,6 +659,55 @@ export default function HomeScreen() {
             </Pressable>
           </Animated.View>
         )}
+
+        <Animated.View entering={FadeInDown.delay(950).duration(600)} style={styles.viralCtaRow}>
+          <Animated.View style={pulseTherapyStyle}>
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                router.push("/therapy");
+              }}
+              style={({ pressed }) => [styles.viralCtaButton, styles.viralTherapy, pressed && { opacity: 0.85 }]}
+              testID="viral-therapy-btn"
+            >
+              <LinearGradient
+                colors={["#00C853", "#00E676", "#69F0AE"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.viralCtaGradient}
+              >
+                <MaterialCommunityIcons name="brain" size={22} color="#fff" />
+                <Text style={styles.viralCtaText}>TRUMP THERAPY</Text>
+                <View style={styles.viralCtaBadge}>
+                  <Text style={styles.viralCtaBadgeText}>FREE</Text>
+                </View>
+              </LinearGradient>
+            </Pressable>
+          </Animated.View>
+          <Animated.View style={pulseFortuneStyle}>
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                router.push("/fortune");
+              }}
+              style={({ pressed }) => [styles.viralCtaButton, styles.viralFortune, pressed && { opacity: 0.85 }]}
+              testID="viral-fortune-btn"
+            >
+              <LinearGradient
+                colors={["#7C4DFF", "#B388FF", "#E040FB"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.viralCtaGradient}
+              >
+                <MaterialCommunityIcons name="crystal-ball" size={22} color="#fff" />
+                <Text style={styles.viralCtaText}>FORTUNE PARLOR</Text>
+                <View style={styles.viralCtaBadge}>
+                  <Text style={styles.viralCtaBadgeText}>TRY</Text>
+                </View>
+              </LinearGradient>
+            </Pressable>
+          </Animated.View>
+        </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(1000).duration(500)} style={styles.modeButtons}>
           <Pressable
@@ -1686,5 +1772,80 @@ const styles = StyleSheet.create({
     color: Colors.goldDark,
     fontWeight: "600" as const,
     letterSpacing: 0.5,
+  },
+  viralCtaRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 14,
+    marginBottom: 6,
+    paddingHorizontal: 24,
+    maxWidth: 380,
+    alignSelf: "center",
+    width: "100%",
+  },
+  viralCtaButton: {
+    flex: 1,
+    borderRadius: 16,
+    overflow: "hidden",
+    ...Platform.select({
+      web: {
+        boxShadow: "0 0 20px rgba(0,200,83,0.3)",
+      },
+      default: {
+        shadowColor: "#00C853",
+        shadowOffset: { width: 0, height: 0 },
+        shadowRadius: 20,
+        elevation: 8,
+      },
+    }),
+  },
+  viralTherapy: {
+    ...Platform.select({
+      web: {
+        boxShadow: "0 0 20px rgba(0,200,83,0.35)",
+      },
+      default: {
+        shadowColor: "#00C853",
+      },
+    }),
+  },
+  viralFortune: {
+    ...Platform.select({
+      web: {
+        boxShadow: "0 0 20px rgba(124,77,255,0.35)",
+      },
+      default: {
+        shadowColor: "#7C4DFF",
+      },
+    }),
+  },
+  viralCtaGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+  },
+  viralCtaText: {
+    fontSize: 12,
+    fontWeight: "900" as const,
+    color: "#fff",
+    letterSpacing: 1.2,
+    textShadowColor: "rgba(0,0,0,0.3)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  viralCtaBadge: {
+    backgroundColor: "rgba(255,255,255,0.25)",
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  viralCtaBadgeText: {
+    fontSize: 9,
+    fontWeight: "800" as const,
+    color: "#fff",
+    letterSpacing: 1,
   },
 });

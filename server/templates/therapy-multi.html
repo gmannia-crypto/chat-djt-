@@ -74,8 +74,7 @@
         .session-bg.active::before { opacity: 0.08; }
         .session-bg.sophia::before { background-image: url('/server/assets/dr-sophia.jpg'); filter: grayscale(30%) contrast(1.1); }
         .session-bg.james::before { background-image: url('/server/assets/dr-james.jpg'); filter: grayscale(30%) contrast(1.1); }
-        .session-bg.trump::before { background: radial-gradient(ellipse at center top, rgba(255,77,77,0.15) 0%, transparent 70%); }
-        .session-bg.active.trump::before { opacity: 0.5; }
+        .session-bg.trump::before { background-image: url('/server/assets/trump-therapist.png'); filter: grayscale(30%) contrast(1.1); }
         .session-bg > * { position: relative; z-index: 1; }
 
         .session-content { font-size: 18px; line-height: 1.7; margin: 25px 0; padding: 25px; background: #333; border-left-width: 5px; border-left-style: solid; border-radius: 10px; white-space: pre-line; }
@@ -172,7 +171,7 @@
             <h3>CHOOSE YOUR THERAPIST</h3>
             <div class="voice-grid">
                 <div class="voice-card" id="voice-trump" onclick="selectVoice('trump')" onmousedown="AudioSystem.voiceEnter('trump')">
-                    <div class="voice-emoji">&#x1F5E3;&#xFE0F;</div>
+                    <img class="voice-portrait" src="/server/assets/trump-therapist.png" alt="Dr. Trump" style="border-color: #ff4d4d;">
                     <div class="voice-name">DR. TRUMP</div>
                     <div class="voice-tagline">"You're winning!"</div>
                     <div class="voice-badge" style="background: #ff4d4d20; color: #ff4d4d;">12k today</div>
@@ -499,7 +498,7 @@
                 name: 'DR. TRUMP',
                 avatar: '\uD83D\uDDE3\uFE0F',
                 color: '#ff4d4d',
-                image: '',
+                image: '/server/assets/trump-therapist.png',
                 greeting: '"Lie down. Tell me everything. I\'m listening..."',
                 q1: '"What\'s your name? I need to know who I\'m talking to."',
                 q2: '"What\'s bothering you? Be specific. I deal with big problems."',

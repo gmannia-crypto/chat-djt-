@@ -1095,7 +1095,7 @@ const styles = StyleSheet.create({
     ...Platform.select({
       web: {
         height: "100vh" as any,
-        overflow: "hidden" as any,
+        maxHeight: "100vh" as any,
       },
     }),
   },
@@ -1118,6 +1118,7 @@ const styles = StyleSheet.create({
     ...Platform.select({
       web: {
         overflow: "auto" as any,
+        maxHeight: "100%" as any,
       },
     }),
   },
@@ -1125,7 +1126,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     ...Platform.select({
       web: {
-        flexGrow: 1,
+        paddingBottom: 40,
       },
     }),
   },
