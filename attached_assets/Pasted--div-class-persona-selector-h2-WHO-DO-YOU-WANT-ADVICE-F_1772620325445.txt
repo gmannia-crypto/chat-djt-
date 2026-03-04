@@ -1,0 +1,113 @@
+<div class="persona-selector">
+    <h2>👥 WHO DO YOU WANT ADVICE FROM?</h2>
+    
+    <div class="persona-grid">
+        <!-- Category 1: The Titans -->
+        <div class="persona-category">
+            <h3>💰 BUSINESS LEGENDS</h3>
+            <div class="persona-row">
+                <div class="persona-card" onclick="selectPersona('trump')">
+                    <div class="avatar">🗣️</div>
+                    <div class="name">TRUMP</div>
+                    <div class="tagline">"The best advice!"</div>
+                    <div class="stats">🔥 12k today</div>
+                </div>
+                
+                <div class="persona-card" onclick="selectPersona('buffett')">
+                    <div class="avatar">👴</div>
+                    <div class="name">BUFFETT</div>
+                    <div class="tagline">"Value investing"</div>
+                    <div class="stats">📈 8k today</div>
+                </div>
+                
+                <div class="persona-card" onclick="selectPersona('musk')">
+                    <div class="avatar">🚀</div>
+                    <div class="name">ELON</div>
+                    <div class="tagline">"To the moon!"</div>
+                    <div class="stats">✨ 10k today</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Category 2: The Advisors -->
+        <div class="persona-category">
+            <h3>📊 FINANCIAL EXPERTS</h3>
+            <div class="persona-row">
+                <div class="persona-card" onclick="selectPersona('suze')">
+                    <div class="avatar">👩</div>
+                    <div class="name">SUZE</div>
+                    <div class="tagline">"Can you afford it?"</div>
+                </div>
+                
+                <div class="persona-card" onclick="selectPersona('dave')">
+                    <div class="avatar">📻</div>
+                    <div class="name">DAVE</div>
+                    <div class="tagline">"Debt is dumb!"</div>
+                </div>
+                
+                <div class="persona-card" onclick="selectPersona('robert')">
+                    <div class="avatar">🏦</div>
+                    <div class="name">KIYOSAKI</div>
+                    <div class="tagline">"Rich dad said..."</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Category 3: Fun Personalities -->
+        <div class="persona-category">
+            <h3>🎭 FOR ENTERTAINMENT</h3>
+            <div class="persona-row">
+                <div class="persona-card" onclick="selectPersona('grandma')">
+                    <div class="avatar">👵</div>
+                    <div class="name">GRANDMA</div>
+                    <div class="tagline">"Bless your heart"</div>
+                </div>
+                
+                <div class="persona-card" onclick="selectPersona('genie')">
+                    <div class="avatar">🧞</div>
+                    <div class="name">GENIE</div>
+                    <div class="tagline">"Three wishes!"</div>
+                </div>
+                
+                <div class="persona-card" onclick="selectPersona('robot')">
+                    <div class="avatar">🤖</div>
+                    <div class="name">ROBOT</div>
+                    <div class="tagline">"CALCULATING..."</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Viral Feature: Persona Battle -->
+    <div class="persona-battle" style="margin-top: 30px;">
+        <h3>⚔️ PERSONA BATTLE</h3>
+        <p>Pick two and see who gives better advice!</p>
+        <div class="battle-selector">
+            <select id="battle1">
+                <option value="trump">Trump</option>
+                <option value="buffett">Buffett</option>
+                <option value="musk">Elon</option>
+            </select>
+            <span>VS</span>
+            <select id="battle2">
+                <option value="suze">Suze</option>
+                <option value="dave">Dave</option>
+                <option value="grandma">Grandma</option>
+            </select>
+            <button onclick="startBattle()">⚔️ FIGHT!</button>
+        </div>
+    </div>
+    
+    <!-- Viral Feature: Persona of the Day -->
+    <div class="persona-of-day">
+        <h3>🌟 PERSONA OF THE DAY</h3>
+        <div class="featured-persona">
+            <div class="avatar">👴</div>
+            <div class="info">
+                <div class="name">WARREN BUFFETT</div>
+                <div class="advice">"Today's market dip? Buy the fear!"</div>
+                <button onclick="shareAdvice('buffett')">🔁 SHARE</button>
+            </div>
+        </div>
+    </div>
+</div>

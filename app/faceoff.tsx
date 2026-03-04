@@ -155,6 +155,22 @@ const PERSONAS: Persona[] = [
     catchphrases: ["CALCULATING...", "PROCESSING...", "ANALYSIS COMPLETE.", "ERROR: HUMAN EMOTION DETECTED."],
     affiliate: { vanguard: "https://vanguard.com", betterment: "https://betterment.com" },
   },
+  {
+    id: "mansa",
+    name: "Mansa Musa",
+    fullName: "Mansa Musa I",
+    color: "#D4AF37",
+    advice: {
+      crypto: "Digital gold? In my empire, we had REAL gold. So much it crashed Egypt\u2019s economy. But I see the vision.",
+      stock: "Owning pieces of great enterprises? That is how empires are built. I owned entire trade routes.",
+      property: "LAND. Land is the foundation of all wealth. I owned more land than any man alive. Buy land, build legacy.",
+      commodity: "Gold is the ONLY true money. I gave away so much gold in Cairo, I collapsed their currency for a decade!",
+      etf: "Diversification across many assets? Wise. I diversified across salt, gold, ivory, and entire kingdoms.",
+      default: "True wealth is not what you hoard \u2014 it\u2019s what you build. I built Timbuktu into the center of the world.",
+    },
+    catchphrases: ["I once crashed an entire economy with my generosity.", "Wealth without knowledge is like a kingdom without walls.", "Build institutions, not just fortunes.", "The richest man who ever lived \u2014 literally."],
+    affiliate: { apmex: "https://www.apmex.com/?tag=trumpbot-20" },
+  },
 ];
 
 const TOPICS: Topic[] = [
@@ -177,6 +193,7 @@ function getTitle(personaId: string): string {
     case "dave": return "Financial Peace University";
     case "grandma": return "Voice of Experience";
     case "robot": return "Algorithmic Analysis";
+    case "mansa": return "Richest Man in History";
     default: return "";
   }
 }
