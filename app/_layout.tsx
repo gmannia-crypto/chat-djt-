@@ -273,6 +273,10 @@ function RootLayoutNav() {
         name="faceoff"
         options={{ headerShown: false }}
       />
+      <Stack.Screen
+        name="debate"
+        options={{ headerShown: false }}
+      />
     </Stack>
   );
 }

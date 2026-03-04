@@ -994,6 +994,17 @@ export default function HomeScreen() {
             <MaterialCommunityIcons name="sword-cross" size={16} color="#FF6B35" />
             <Text style={styles.modeButtonText}>FACEOFF</Text>
           </Pressable>
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+              router.push("/debate");
+            }}
+            style={({ pressed }) => [styles.modeButton, styles.debateButton, pressed && { opacity: 0.7 }]}
+            testID="debate-button"
+          >
+            <Ionicons name="flash" size={16} color="#FF4D4D" />
+            <Text style={styles.modeButtonText}>DEBATE</Text>
+          </Pressable>
         </Animated.View>
 
         {leaderboardData.length > 0 && (
@@ -1965,6 +1976,10 @@ const styles = StyleSheet.create({
   faceoffButton: {
     backgroundColor: "rgba(255, 107, 53, 0.15)",
     borderColor: "rgba(255, 107, 53, 0.4)",
+  },
+  debateButton: {
+    backgroundColor: "rgba(255, 77, 77, 0.15)",
+    borderColor: "rgba(255, 77, 77, 0.4)",
   },
   streakBadge: {
     flexDirection: "row",
