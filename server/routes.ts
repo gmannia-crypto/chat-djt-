@@ -3034,6 +3034,97 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
   let propertyCache: Map<string, { data: any; timestamp: number }> = new Map();
   const PROPERTY_CACHE_TTL = 15 * 60 * 1000;
 
+  function trumpifyProperty(p: any) {
+    const price = p.price?.value || 0;
+    const beds = p.beds || 0;
+    const baths = p.baths || 0;
+    const sqft = p.sqFt?.value || 0;
+    const city = p.city || "Somewhere";
+    const state = p.state || "";
+    const street = p.streetLine?.value || "";
+    const zip = p.postalCode?.value || p.zip || "";
+    const lat = p.latLong?.value?.latitude || null;
+    const lng = p.latLong?.value?.longitude || null;
+    let img: string | null = null;
+    try {
+      if (p.dataSourceId && p.listingId && p.primaryPhotoDisplayLevel !== 0) {
+        img = `https://ssl.cdn-redfin.com/photo/${p.dataSourceId}/bigphoto/${Math.floor(p.listingId / 100)}/${p.listingId}_0.jpg`;
+      }
+      if (!img && p.url) {
+        img = `https://ssl.cdn-redfin.com/system_files/media/thumbnails/${p.url.replace(/\//g, '_').replace(/^_/, '')}_0_1.jpg`;
+      }
+    } catch {}
+    const propertyId = p.propertyId || p.listingId || null;
+    const status = p.mlsStatus || "Active";
+    const url = p.url ? `https://www.redfin.com${p.url}` : null;
+    const yearBuilt = p.yearBuilt?.value || null;
+    const lotSize = p.lotSize?.value || null;
+    const pricePerSqFt = p.pricePerSqFt?.value || null;
+    const propertyType = p.propertyType === 6 ? "House" : p.propertyType === 13 ? "Condo" : p.propertyType === 3 ? "Townhouse" : "Property";
+    const dom = p.dom?.value || p.timeOnRedfin?.value || null;
+
+    const trumpComments = [
+      price > 1000000
+        ? `$${(price / 1000000).toFixed(1)}M? That's pocket change for me. But for YOU, ${city}? TREMENDOUS investment. I built buildings worth more than this entire zip code. Believe me.`
+        : price > 500000
+        ? `$${(price / 1000).toFixed(0)}K in ${city}. Not bad. Not Trump Tower, but not bad. The location? Very smart. I know locations. Nobody knows locations like me.`
+        : price > 100000
+        ? `$${(price / 1000).toFixed(0)}K? That's a STEAL. In this market? You'd be crazy not to jump on this. I made my first million in real estate. This is how it starts.`
+        : `Under $100K? Now THIS is what I call a deal. Buy ten of these. Rent them out. That's called PASSIVE INCOME. I invented passive income. Well, not invented, but perfected.`,
+      beds >= 5
+        ? `${beds} bedrooms? MASSIVE. That's presidential-level square footage. My kids each had their own wing growing up. This is giving very strong vibes. VERY strong.`
+        : beds >= 4
+        ? `${beds} bedrooms? Now we're talking. That's what I call a WINNER. Big family energy. The best families live in ${beds}-bedroom homes. Ask anyone.`
+        : beds >= 2
+        ? `${beds} bedrooms in ${city}. Perfect starter deal. Every real estate empire starts somewhere. Mine started with a small loan of a million dollars, but this works too.`
+        : `${beds || 'Studio'} — cozy. Intimate. Like a penthouse studio, but more... accessible. The smart money is in compact properties right now. BELIEVE ME.`,
+      sqft > 3000
+        ? `${sqft.toLocaleString()} square feet? YUGE. That's what I like to see. Big rooms, big life, big energy. This place has WINNER written all over it.`
+        : sqft > 1500
+        ? `${sqft.toLocaleString()} sq ft — solid. Not Mar-a-Lago solid, but solid. The layout is probably beautiful. The bathrooms? I bet they're incredible.`
+        : sqft > 0
+        ? `${sqft.toLocaleString()} sq ft — efficient. I respect efficiency. My buildings are efficient. This property knows what it's doing.`
+        : `The square footage? Doesn't matter. Location, location, location. That's what I always say. Well, I say a lot of things. But THAT one is true.`,
+      `${city}, ${state}? Great area. The best people live there. I've done deals in ${state}. TREMENDOUS deals. This property has potential that most people can't see. But I can see it. I always see it.`,
+      baths >= 3
+        ? `${baths} bathrooms! Now THAT'S luxury. I have more bathrooms than most people have rooms. But ${baths}? That's very respectable. Gold fixtures? I'd add gold fixtures.`
+        : `The kitchen? Beautiful. The bathrooms? I'm sure they're YUGE. This is a winner. I can smell a winner from a mile away. And this one SMELLS like a winner.`,
+      yearBuilt && yearBuilt < 1970
+        ? `Built in ${yearBuilt}? That's VINTAGE. Classic. Like me — gets better with age. They don't build 'em like this anymore. Probably has great bones. I know about bones in buildings.`
+        : yearBuilt && yearBuilt > 2020
+        ? `Built ${yearBuilt}? Brand new. Fresh. Like a new Trump property. No problems, no issues, just pure modern luxury. Smart buyer territory.`
+        : `This ${propertyType.toLowerCase()} has character. I can tell just by looking at it. When you've built as many buildings as I have, you develop a sixth sense for quality. And I'm sensing quality here.`,
+      pricePerSqFt
+        ? `$${pricePerSqFt} per square foot? ${pricePerSqFt > 500 ? "Premium market. Only winners can afford this neighborhood." : pricePerSqFt > 200 ? "Very fair. The art of the deal is knowing value when you see it. And I SEE IT." : "That's practically giving it away. In Manhattan, that wouldn't buy you a closet. A CLOSET."}`
+        : `The value here is INCREDIBLE. Nobody can spot real estate value like Donald J. Trump. It's a gift. Some people have it, most don't. I have it in spades.`,
+    ];
+
+    const commentIndex = Math.floor(Math.random() * trumpComments.length);
+    const trumpRating = Math.floor(Math.random() * 20) + 80;
+
+    return {
+      id: propertyId,
+      price,
+      beds,
+      baths,
+      sqft,
+      city,
+      state,
+      street,
+      zip,
+      img,
+      status,
+      url,
+      yearBuilt,
+      lotSize,
+      pricePerSqFt,
+      propertyType,
+      dom,
+      trumpComment: trumpComments[commentIndex],
+      trumpRating,
+    };
+  }
+
   app.get("/api/properties", async (req, res) => {
     try {
       const location = (req.query.location as string) || "";
@@ -3047,88 +3138,50 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
         return res.json(cached.data);
       }
 
-      const rapidApiKey = process.env.RAPIDAPI_KEY;
-      if (!rapidApiKey) {
-        return res.status(500).json({ error: "RapidAPI key not configured" });
+      const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(location)}&count=1&language=en&format=json&country_code=US`);
+      if (!geoRes.ok) {
+        return res.status(502).json({ error: "Could not find that location" });
+      }
+      const geoData = await geoRes.json();
+      const place = geoData.results?.[0];
+      if (!place) {
+        return res.status(404).json({ error: "Location not found. Try a US city name like 'Miami' or 'Austin'" });
       }
 
-      const searchUrl = `https://zillow56.p.rapidapi.com/search?location=${encodeURIComponent(location)}&status=forSale&output=json&sortSelection=priorityscore&listing_type=by_agent&doz=any`;
-      const zillowRes = await fetch(searchUrl, {
+      const lat = place.latitude;
+      const lng = place.longitude;
+      const cityName = place.name || location;
+      const stateName = place.admin1 || "";
+      const delta = 0.15;
+      const poly = `${lng - delta} ${lat - delta},${lng + delta} ${lat - delta},${lng + delta} ${lat + delta},${lng - delta} ${lat + delta},${lng - delta} ${lat - delta}`;
+
+      const redfinUrl = `https://www.redfin.com/stingray/api/gis?al=1&num_homes=12&sf=1,2,3,5,6,7&status=9&uipt=1,2,3,4,5,6,7,8&poly=${encodeURIComponent(poly)}`;
+      const redfinRes = await fetch(redfinUrl, {
         headers: {
-          "X-RapidAPI-Key": rapidApiKey,
-          "X-RapidAPI-Host": "zillow56.p.rapidapi.com",
+          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          "Accept": "application/json",
+          "Referer": "https://www.redfin.com/",
         },
       });
 
-      if (!zillowRes.ok) {
-        console.error("Zillow API error:", zillowRes.status, await zillowRes.text());
-        return res.status(502).json({ error: "Property search failed" });
+      if (!redfinRes.ok) {
+        console.error("Redfin API error:", redfinRes.status);
+        return res.status(502).json({ error: "Property search failed. Try again." });
       }
 
-      const data = await zillowRes.json();
-      const rawProps = data.results || data.props || data.searchResults?.listResults || data.listings || [];
-      if (rawProps.length === 0) {
-        console.log("Zillow56 response keys:", Object.keys(data));
-        console.log("Zillow56 sample:", JSON.stringify(data).substring(0, 500));
+      const rawText = await redfinRes.text();
+      const jsonText = rawText.replace(/^{}&&/, "");
+      const data = JSON.parse(jsonText);
+
+      if (data.resultCode !== 0 || !data.payload?.homes) {
+        return res.json({ location: cityName, totalResults: 0, properties: [] });
       }
-      const props = rawProps.slice(0, 12).map((p: any) => {
-        const price = p.price || p.unformattedPrice || p.units?.[0]?.price || 0;
-        const beds = p.bedrooms || p.beds || 0;
-        const baths = p.bathrooms || p.baths || 0;
-        const sqft = p.livingArea || p.area || p.sqft || 0;
-        const city = p.addressCity || p.address?.city || p.city || "Somewhere";
-        const state = p.addressState || p.address?.state || p.state || "";
-        const street = p.addressStreet || p.address?.streetAddress || p.streetAddress || "";
-        const zip = p.addressZipcode || p.address?.zipcode || p.zipcode || "";
-        const img = p.imgSrc || p.image || p.thumbnail || p.photos?.[0] || null;
-        const zpid = p.zpid || p.id || null;
-        const status = p.listingStatus || p.homeStatus || p.statusText || "FOR_SALE";
 
-        const trumpComments = [
-          price > 1000000
-            ? `$${(price / 1000000).toFixed(1)}M? That's pocket change for me. But for YOU, ${city}? TREMENDOUS investment. I built buildings worth more than this entire zip code. Believe me.`
-            : price > 500000
-            ? `$${(price / 1000).toFixed(0)}K in ${city}. Not bad. Not Trump Tower, but not bad. The location? Very smart. I know locations. Nobody knows locations like me.`
-            : `$${(price / 1000).toFixed(0)}K? That's a STEAL. In this market? You'd be crazy not to jump on this. I made my first million in real estate. This is how it starts.`,
-          beds >= 4
-            ? `${beds} bedrooms? Now we're talking. That's what I call a WINNER. Big family energy. The best families live in ${beds}-bedroom homes. Ask anyone.`
-            : beds >= 2
-            ? `${beds} bedrooms in ${city}. Perfect starter deal. Every real estate empire starts somewhere. Mine started with a small loan of a million dollars, but this works too.`
-            : `${beds} bedroom — cozy. Intimate. Like a penthouse studio, but more... affordable. The smart money is in small properties right now. BELIEVE ME.`,
-          sqft > 3000
-            ? `${sqft.toLocaleString()} square feet? YUGE. That's what I like to see. Big rooms, big life, big energy. This place has WINNER written all over it.`
-            : sqft > 1500
-            ? `${sqft.toLocaleString()} sq ft — solid. Not Mar-a-Lago solid, but solid. The layout is probably beautiful. The bathrooms? I bet they're incredible.`
-            : `${sqft.toLocaleString()} sq ft — efficient. I respect efficiency. My buildings are efficient. This property knows what it's doing.`,
-          `${city}, ${state}? Great area. The best people live there. I've done deals in ${state}. TREMENDOUS deals. This property has potential that most people can't see. But I can see it. I always see it.`,
-          baths >= 3
-            ? `${baths} bathrooms! Now THAT'S luxury. I have more bathrooms than most people have rooms. But ${baths}? That's very respectable. Gold fixtures? I'd add gold fixtures.`
-            : `The kitchen? Beautiful. The bathrooms? I'm sure they're YUGE. This is a winner. I can smell a winner from a mile away. And this one SMELLS like a winner.`,
-        ];
-
-        const commentIndex = Math.floor(Math.random() * trumpComments.length);
-        const trumpRating = Math.floor(Math.random() * 20) + 80;
-
-        return {
-          zpid,
-          price,
-          beds,
-          baths,
-          sqft,
-          city,
-          state,
-          street,
-          zip,
-          img,
-          status,
-          trumpComment: trumpComments[commentIndex],
-          trumpRating,
-        };
-      });
+      const props = data.payload.homes.slice(0, 12).map(trumpifyProperty);
 
       const result = {
-        location,
-        totalResults: data.totalResultCount || data.totalPages || rawProps.length || props.length,
+        location: `${cityName}, ${stateName}`,
+        totalResults: data.payload.homes.length,
         properties: props,
       };
 
