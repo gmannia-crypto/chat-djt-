@@ -33,7 +33,7 @@ import Colors from "@/constants/colors";
 import { getApiUrl } from "@/lib/query-client";
 
 interface Property {
-  zpid: string | null;
+  id: string | null;
   price: number;
   beds: number;
   baths: number;
@@ -44,6 +44,12 @@ interface Property {
   zip: string;
   img: string | null;
   status: string;
+  url: string | null;
+  yearBuilt: number | null;
+  lotSize: number | null;
+  pricePerSqFt: number | null;
+  propertyType: string;
+  dom: number | null;
   trumpComment: string;
   trumpRating: number;
 }
@@ -144,12 +150,12 @@ export default function RealEstateScreen() {
 
   const handleShare = async (property: Property) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const priceStr = property.price >= 1000000
-      ? `$${(property.price / 1000000).toFixed(1)}M`
-      : `$${(property.price / 1000).toFixed(0)}K`;
+    const priceStr = formatPrice(property.price);
+    const addr = property.street || `${property.city}, ${property.state}`;
+    const listing = property.url ? `\n\n${property.url}` : "";
     try {
       await Share.share({
-        message: `Trump says about this ${property.beds}bd/${property.baths}ba in ${property.city}, ${property.state} (${priceStr}):\n\n"${property.trumpComment}"\n\nTrump Rating: ${property.trumpRating}% WINNER\n\n- via Chat DJT`,
+        message: `\u2705 TRUMP APPROVED \u2705\n\n${addr} — ${priceStr}\n${property.beds}bd / ${property.baths}ba${property.sqft ? ` / ${property.sqft.toLocaleString()} sqft` : ""}\n\nTrump says: "${property.trumpComment}"\n\nTrump Rating: ${property.trumpRating}% WINNER${listing}\n\n- via Chat DJT`,
       });
     } catch {}
   };
@@ -160,57 +166,87 @@ export default function RealEstateScreen() {
     return `$${price}`;
   };
 
+  const handleViewListing = (url: string | null) => {
+    if (!url) return;
+    if (Platform.OS === "web") {
+      window.open(url, "_blank");
+    } else {
+      import("expo-linking").then((Linking) => Linking.openURL(url));
+    }
+  };
+
   const renderProperty = ({ item, index }: { item: Property; index: number }) => {
-    const propId = item.zpid || `prop-${index}`;
+    const propId = item.id || `prop-${index}`;
     const isSpeakingThis = speakingId === propId;
+    const addressLine = item.street
+      ? `${item.street} — ${formatPrice(item.price)}`
+      : `${item.city}, ${item.state} — ${formatPrice(item.price)}`;
     return (
       <Animated.View entering={FadeInDown.delay(index * 100).duration(400)} key={propId}>
         <View style={styles.propertyCard}>
-          {item.img && (
-            <Image source={{ uri: item.img }} style={styles.propertyImage} resizeMode="cover" />
-          )}
-          {!item.img && (
-            <View style={[styles.propertyImage, styles.noImage]}>
-              <FontAwesome5 name="home" size={40} color="rgba(212,164,32,0.3)" />
-            </View>
-          )}
-          <View style={styles.propertyOverlay}>
-            <View style={styles.priceRow}>
-              <Text style={styles.priceText}>{formatPrice(item.price)}</Text>
-              <View style={styles.ratingBadge}>
-                <Text style={styles.ratingText}>{item.trumpRating}%</Text>
-                <MaterialCommunityIcons name="trophy" size={12} color={Colors.gold} />
+          <View style={styles.imageContainer}>
+            {item.img ? (
+              <Image source={{ uri: item.img }} style={styles.propertyImage} resizeMode="cover" />
+            ) : (
+              <View style={[styles.propertyImage, styles.noImage]}>
+                <FontAwesome5 name="home" size={40} color="rgba(212,164,32,0.3)" />
               </View>
+            )}
+            <View style={styles.stampContainer}>
+              <LinearGradient
+                colors={["rgba(0,128,0,0.9)", "rgba(0,100,0,0.95)"]}
+                style={styles.stampGradient}
+              >
+                <Text style={styles.stampText}>{"\u2705"} TRUMP APPROVED {"\u2705"}</Text>
+              </LinearGradient>
             </View>
+            <View style={styles.ratingBadge}>
+              <Text style={styles.ratingText}>{item.trumpRating}%</Text>
+              <MaterialCommunityIcons name="trophy" size={12} color={Colors.gold} />
+            </View>
+            {item.propertyType && (
+              <View style={styles.typeBadge}>
+                <Text style={styles.typeText}>{item.propertyType}</Text>
+              </View>
+            )}
           </View>
 
           <View style={styles.propertyDetails}>
-            <Text style={styles.addressText} numberOfLines={1}>
-              {item.street}
+            <Text style={styles.addressHeadline} numberOfLines={2}>
+              {addressLine}
             </Text>
             <Text style={styles.cityText}>
               {item.city}, {item.state} {item.zip}
             </Text>
+
             <View style={styles.statsRow}>
               <View style={styles.stat}>
                 <Ionicons name="bed" size={14} color={Colors.gold} />
-                <Text style={styles.statText}>{item.beds}</Text>
+                <Text style={styles.statText}>{item.beds} bd</Text>
               </View>
               <View style={styles.stat}>
                 <MaterialCommunityIcons name="bathtub" size={14} color={Colors.gold} />
-                <Text style={styles.statText}>{item.baths}</Text>
+                <Text style={styles.statText}>{item.baths} ba</Text>
               </View>
-              <View style={styles.stat}>
-                <MaterialCommunityIcons name="ruler-square" size={14} color={Colors.gold} />
-                <Text style={styles.statText}>{item.sqft.toLocaleString()} sqft</Text>
-              </View>
+              {item.sqft > 0 && (
+                <View style={styles.stat}>
+                  <MaterialCommunityIcons name="ruler-square" size={14} color={Colors.gold} />
+                  <Text style={styles.statText}>{item.sqft.toLocaleString()} sqft</Text>
+                </View>
+              )}
+              {item.yearBuilt && (
+                <View style={styles.stat}>
+                  <Ionicons name="calendar" size={13} color={Colors.gold} />
+                  <Text style={styles.statText}>{item.yearBuilt}</Text>
+                </View>
+              )}
             </View>
 
+            {item.pricePerSqFt && item.pricePerSqFt > 0 && (
+              <Text style={styles.pricePerSqFt}>${item.pricePerSqFt}/sqft{item.dom ? ` · ${item.dom} days on market` : ""}</Text>
+            )}
+
             <View style={styles.trumpSection}>
-              <View style={styles.trumpHeader}>
-                <MaterialCommunityIcons name="crown" size={14} color={Colors.gold} />
-                <Text style={styles.trumpLabel}>TRUMP'S TAKE</Text>
-              </View>
               <Text style={styles.trumpComment}>"{item.trumpComment}"</Text>
             </View>
 
@@ -227,9 +263,23 @@ export default function RealEstateScreen() {
                 style={({ pressed }) => [styles.actionBtn, styles.shareBtn, pressed && { opacity: 0.7 }]}
               >
                 <Ionicons name="share-social" size={16} color="#fff" />
-                <Text style={styles.actionBtnText}>SHARE</Text>
+                <Text style={styles.actionBtnText}>{"\uD83D\uDD01"} SHARE THIS DEAL</Text>
               </Pressable>
             </View>
+
+            {item.url && (
+              <Pressable
+                onPress={() => handleViewListing(item.url)}
+                style={({ pressed }) => [styles.viewListingBtn, pressed && { opacity: 0.7 }]}
+              >
+                <Ionicons name="open-outline" size={14} color={Colors.gold} />
+                <Text style={styles.viewListingText}>View Full Listing</Text>
+              </Pressable>
+            )}
+
+            <Text style={styles.affiliateDisclaimer}>
+              As an Amazon Associate I earn from qualifying purchases
+            </Text>
           </View>
         </View>
       </Animated.View>
@@ -316,7 +366,7 @@ export default function RealEstateScreen() {
         <FlatList
           data={properties}
           renderItem={renderProperty}
-          keyExtractor={(item, index) => item.zpid || `prop-${index}`}
+          keyExtractor={(item, index) => item.id || `prop-${index}`}
           contentContainerStyle={[
             styles.listContent,
             { paddingBottom: insets.bottom + webBottomInset + 20 },
@@ -479,77 +529,102 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: 16,
-    gap: 16,
+    gap: 18,
     paddingTop: 4,
   },
   propertyCard: {
-    backgroundColor: "rgba(20,15,5,0.6)",
-    borderRadius: 16,
+    backgroundColor: "rgba(20,15,5,0.85)",
+    borderRadius: 18,
     overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "rgba(212,164,32,0.15)",
+    borderWidth: 1.5,
+    borderColor: "rgba(212,164,32,0.25)",
     ...Platform.select({
-      web: { boxShadow: "0 4px 24px rgba(0,0,0,0.5)" },
-      default: { elevation: 6 },
+      web: { boxShadow: "0 6px 30px rgba(0,0,0,0.6)" },
+      default: { elevation: 8 },
     }),
+  },
+  imageContainer: {
+    position: "relative",
   },
   propertyImage: {
     width: "100%",
-    height: 180,
+    height: 200,
     backgroundColor: "rgba(20,15,5,0.8)",
   },
   noImage: {
     alignItems: "center",
     justifyContent: "center",
   },
-  propertyOverlay: {
+  stampContainer: {
     position: "absolute",
-    top: 0,
+    top: 12,
     left: 0,
     right: 0,
-    height: 180,
-    justifyContent: "flex-end",
-    padding: 12,
+    alignItems: "center",
+    zIndex: 2,
+  },
+  stampGradient: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 6,
     ...Platform.select({
-      web: { background: "linear-gradient(transparent 40%, rgba(0,0,0,0.8) 100%)" },
-      default: {},
+      web: { boxShadow: "0 2px 10px rgba(0,0,0,0.5)" },
+      default: { elevation: 4 },
     }),
   },
-  priceRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  priceText: {
-    fontSize: 24,
+  stampText: {
+    fontSize: 13,
     fontWeight: "900" as const,
-    color: Colors.gold,
-    textShadowColor: "rgba(0,0,0,0.8)",
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 8,
+    color: "#fff",
+    letterSpacing: 1.5,
+    textAlign: "center" as const,
   },
   ratingBadge: {
+    position: "absolute",
+    bottom: 10,
+    right: 10,
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: "rgba(0,0,0,0.6)",
+    backgroundColor: "rgba(0,0,0,0.7)",
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 5,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(212,164,32,0.4)",
   },
   ratingText: {
     fontSize: 14,
     fontWeight: "800" as const,
     color: Colors.gold,
   },
+  typeBadge: {
+    position: "absolute",
+    bottom: 10,
+    left: 10,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)",
+  },
+  typeText: {
+    fontSize: 11,
+    fontWeight: "700" as const,
+    color: "rgba(255,255,255,0.8)",
+    letterSpacing: 0.5,
+    textTransform: "uppercase" as const,
+  },
   propertyDetails: {
-    padding: 14,
+    padding: 16,
     gap: 8,
   },
-  addressText: {
-    fontSize: 15,
-    fontWeight: "700" as const,
-    color: Colors.white,
+  addressHeadline: {
+    fontSize: 17,
+    fontWeight: "800" as const,
+    color: Colors.gold,
+    lineHeight: 22,
   },
   cityText: {
     fontSize: 13,
@@ -557,8 +632,9 @@ const styles = StyleSheet.create({
   },
   statsRow: {
     flexDirection: "row",
-    gap: 16,
+    gap: 14,
     marginTop: 4,
+    flexWrap: "wrap",
   },
   stat: {
     flexDirection: "row",
@@ -570,30 +646,25 @@ const styles = StyleSheet.create({
     color: Colors.white,
     fontWeight: "600" as const,
   },
+  pricePerSqFt: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.4)",
+    marginTop: 2,
+  },
   trumpSection: {
     marginTop: 8,
     backgroundColor: "rgba(212,164,32,0.06)",
     borderRadius: 12,
-    padding: 12,
+    padding: 14,
     borderWidth: 1,
-    borderColor: "rgba(212,164,32,0.15)",
-  },
-  trumpHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginBottom: 6,
-  },
-  trumpLabel: {
-    fontSize: 10,
-    fontWeight: "900" as const,
-    color: Colors.gold,
-    letterSpacing: 1.5,
+    borderColor: "rgba(212,164,32,0.2)",
+    borderLeftWidth: 3,
+    borderLeftColor: Colors.gold,
   },
   trumpComment: {
-    fontSize: 14,
+    fontSize: 15,
     color: Colors.white,
-    lineHeight: 21,
+    lineHeight: 23,
     fontStyle: "italic",
   },
   cardActions: {
@@ -607,7 +678,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    paddingVertical: 10,
+    paddingVertical: 11,
     borderRadius: 10,
   },
   speakBtn: {
@@ -616,14 +687,34 @@ const styles = StyleSheet.create({
     borderColor: "rgba(212,164,32,0.3)",
   },
   shareBtn: {
-    backgroundColor: "rgba(96,165,250,0.15)",
+    backgroundColor: "rgba(59,130,246,0.2)",
     borderWidth: 1,
-    borderColor: "rgba(96,165,250,0.3)",
+    borderColor: "rgba(59,130,246,0.35)",
   },
   actionBtnText: {
     fontSize: 12,
     fontWeight: "800" as const,
     color: "#fff",
     letterSpacing: 0.5,
+  },
+  viewListingBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 8,
+    marginTop: 4,
+  },
+  viewListingText: {
+    fontSize: 12,
+    fontWeight: "600" as const,
+    color: Colors.gold,
+    textDecorationLine: "underline",
+  },
+  affiliateDisclaimer: {
+    fontSize: 9,
+    color: "rgba(255,255,255,0.2)",
+    textAlign: "center" as const,
+    marginTop: 8,
   },
 });
