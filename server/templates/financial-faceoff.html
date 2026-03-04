@@ -201,6 +201,60 @@
         }
         .battle-total span { color: #FFD700; font-weight: bold; }
 
+        .mashup-card {
+            background: linear-gradient(145deg, #1a1a08, #0a0a14);
+            border: 2px solid #FFD700; border-radius: 16px; padding: 20px;
+            margin-bottom: 20px; position: relative; overflow: hidden;
+            animation: fadeIn 0.6s ease;
+        }
+        .mashup-card::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+            background: linear-gradient(90deg, #FFD700, #ff4d4d, #FFD700);
+        }
+        .mashup-header {
+            text-align: center; margin-bottom: 14px;
+        }
+        .mashup-label {
+            font-size: 10px; color: #FFD700; letter-spacing: 3px; text-transform: uppercase;
+            font-weight: bold; margin-bottom: 4px;
+        }
+        .mashup-title {
+            font-size: 18px; font-weight: bold; color: white;
+        }
+        .mashup-quote {
+            font-size: 15px; line-height: 1.6; color: #eee; padding: 14px;
+            background: rgba(255,255,255,0.04); border-radius: 12px; margin-bottom: 14px;
+            font-style: italic; text-align: center;
+        }
+        .mashup-butwait {
+            display: inline-block; background: linear-gradient(135deg, #ff4d4d, #FFD700);
+            color: #000; font-weight: 900; padding: 2px 10px; border-radius: 6px;
+            font-size: 12px; letter-spacing: 1px; font-style: normal;
+        }
+        .mashup-viral {
+            display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
+        }
+        .mashup-viral-label {
+            font-size: 11px; color: #888; white-space: nowrap; font-weight: bold; letter-spacing: 1px;
+        }
+        .mashup-viral-bar {
+            flex: 1; height: 8px; border-radius: 4px; background: #222; overflow: hidden;
+        }
+        .mashup-viral-fill {
+            height: 100%; border-radius: 4px; transition: width 1.5s ease;
+            background: linear-gradient(90deg, #ff4d4d, #FFD700);
+        }
+        .mashup-viral-pct {
+            font-size: 13px; font-weight: 900; color: #FFD700; min-width: 36px; text-align: right;
+        }
+        .mashup-share-btn {
+            width: 100%; padding: 12px; border: none; border-radius: 25px;
+            font-size: 14px; font-weight: bold; color: #000; cursor: pointer;
+            background: linear-gradient(135deg, #FFD700, #ff8c00);
+            transition: all 0.2s; letter-spacing: 1px;
+        }
+        .mashup-share-btn:hover { transform: scale(1.02); box-shadow: 0 4px 20px rgba(255,215,0,0.3); }
+
         .cross-promo {
             text-align: center; margin: 30px 0; padding: 20px;
             background: linear-gradient(145deg, #1a1a1a, #2d2d2d);
@@ -564,9 +618,11 @@
                     '<button class="share-btn share-twitter" onclick="shareDebate(\'twitter\')">\u{1F501} Share on X</button>' +
                     '<button class="share-btn share-facebook" onclick="shareDebate(\'facebook\')">\u{1F4D8} Facebook</button>' +
                     '<button class="share-btn share-copy" onclick="shareDebate(\'copy\')">\u{1F4CB} Copy</button>' +
-                '</div>';
+                '</div>' +
+                renderMashupCard(p1, p2, topic);
 
             arena.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            animateViralScore();
             trackEvent('debate_started', { asset: selectedAsset, p1: selectedPersona1, p2: selectedPersona2 });
         }
 
@@ -584,6 +640,62 @@
                 affHtml +
                 '<button class="vote-btn" id="voteBtn_' + p.id + '" style="background:' + p.style.color + ';" onclick="castVote(\'' + p.id + '\')">\u{1F5F3}\u{FE0F} VOTE ' + p.name + '</button>' +
                 '</div>';
+        }
+
+        var currentMashupData = null;
+
+        function renderMashupCard(p1, p2, topic) {
+            var a1 = p1.advice[topic.category] || p1.advice.default;
+            var a2 = p2.advice[topic.category] || p2.advice.default;
+            var viralScore = Math.floor(Math.random() * 30) + 70;
+
+            currentMashupData = {
+                p1Name: p1.name, p2Name: p2.name, topicName: topic.name,
+                a1: a1, a2: a2, viralScore: viralScore
+            };
+
+            return '<div class="mashup-card">' +
+                '<div class="mashup-header">' +
+                    '<div class="mashup-label">\u{1F4A5} PERSONA MASHUP</div>' +
+                    '<div class="mashup-title">' + p1.avatar + ' ' + p1.name + ' \u00D7 ' + p2.name + ' ' + p2.avatar + '</div>' +
+                '</div>' +
+                '<div class="mashup-quote">' +
+                    '"' + a1 + '" <br><span class="mashup-butwait">...BUT WAIT...</span><br> "' + a2 + '" \u{1F92F}' +
+                '</div>' +
+                '<div class="mashup-viral">' +
+                    '<span class="mashup-viral-label">\u{1F525} VIRAL SCORE</span>' +
+                    '<div class="mashup-viral-bar"><div class="mashup-viral-fill" id="viralFill" style="width:0%;"></div></div>' +
+                    '<span class="mashup-viral-pct" id="viralPct">0%</span>' +
+                '</div>' +
+                '<button class="mashup-share-btn" onclick="shareMashup()">\u{1F4E3} SHARE THIS MASHUP</button>' +
+                '</div>';
+        }
+
+        function animateViralScore() {
+            if (!currentMashupData) return;
+            var fill = document.getElementById('viralFill');
+            var pct = document.getElementById('viralPct');
+            if (fill && pct) {
+                setTimeout(function() {
+                    fill.style.width = currentMashupData.viralScore + '%';
+                    pct.textContent = currentMashupData.viralScore + '%';
+                }, 300);
+            }
+        }
+
+        function shareMashup() {
+            if (!currentMashupData) return;
+            var d = currentMashupData;
+            var shareText = '\u{1F4A5} PERSONA MASHUP: ' + d.p1Name + ' \u00D7 ' + d.p2Name + ' on ' + d.topicName + '!\n\n' +
+                d.p1Name + ': "' + d.a1 + '"\n\n...BUT WAIT...\n\n' +
+                d.p2Name + ': "' + d.a2 + '" \u{1F92F}\n\n' +
+                '\u{1F525} Viral Score: ' + d.viralScore + '%\n' +
+                'Create your own mashup!';
+            var shareUrl = window.location.origin + '/financial-faceoff';
+            navigator.clipboard.writeText(shareText + '\n' + shareUrl).then(function() {
+                showCopyToast();
+            });
+            trackEvent('mashup_shared', { p1: d.p1Name, p2: d.p2Name, topic: d.topicName, viralScore: d.viralScore });
         }
 
         function castVote(personaId) {

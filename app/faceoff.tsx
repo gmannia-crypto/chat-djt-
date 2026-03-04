@@ -272,13 +272,13 @@ function PersonaCard({ persona, selected, onPress }: { persona: Persona; selecte
   );
 }
 
-function ContenderCard({ persona, topic, onVote, voteCount, totalVotes }: { persona: Persona; topic: Topic; onVote: () => void; voteCount: number; totalVotes: number }) {
+function ContenderCard({ persona, topic, onVote, voteCount, totalVotes, hasVoted, isVotedFor }: { persona: Persona; topic: Topic; onVote: () => void; voteCount: number; totalVotes: number; hasVoted: boolean; isVotedFor: boolean }) {
   const advice = persona.advice[topic.category] || persona.advice.default;
   const catchphrase = pickRandom(persona.catchphrases);
   const pct = totalVotes > 0 ? Math.round((voteCount / totalVotes) * 100) : 50;
 
   return (
-    <View style={[contenderStyles.card, { borderColor: `${persona.color}40` }]}>
+    <View style={[contenderStyles.card, { borderColor: `${persona.color}40` }, hasVoted && !isVotedFor && { opacity: 0.6 }, isVotedFor && { borderColor: persona.color, borderWidth: 2 }]}>
       <View style={contenderStyles.header}>
         <View style={[contenderStyles.avatar, { borderColor: persona.color }]}>
           <Text style={[contenderStyles.avatarText, { color: persona.color }]}>{persona.name[0]}</Text>
@@ -294,12 +294,18 @@ function ContenderCard({ persona, topic, onVote, voteCount, totalVotes }: { pers
       <Text style={contenderStyles.catchphrase}>
         <Text style={{ color: persona.color }}>{"\uD83D\uDCAD"} </Text>{catchphrase}
       </Text>
-      <Pressable
-        onPress={onVote}
-        style={({ pressed }) => [contenderStyles.voteBtn, { backgroundColor: persona.color }, pressed && { opacity: 0.8, transform: [{ scale: 0.97 }] }]}
-      >
-        <Text style={contenderStyles.voteBtnText}>VOTE {persona.name.toUpperCase()}</Text>
-      </Pressable>
+      {!hasVoted ? (
+        <Pressable
+          onPress={onVote}
+          style={({ pressed }) => [contenderStyles.voteBtn, { backgroundColor: persona.color }, pressed && { opacity: 0.8, transform: [{ scale: 0.97 }] }]}
+        >
+          <Text style={contenderStyles.voteBtnText}>VOTE {persona.name.toUpperCase()}</Text>
+        </Pressable>
+      ) : (
+        <View style={[contenderStyles.voteBtn, { backgroundColor: isVotedFor ? persona.color : "rgba(255,255,255,0.1)" }]}>
+          <Text style={contenderStyles.voteBtnText}>{isVotedFor ? "\u2705 VOTED" : persona.name.toUpperCase()}</Text>
+        </View>
+      )}
       <Text style={contenderStyles.voteCount}>{voteCount} votes ({pct}%)</Text>
     </View>
   );
@@ -344,6 +350,63 @@ function BattleFighterCard({ persona, category, voteCount, totalVotes, onVote, h
   );
 }
 
+function MashupCard({ persona1, persona2, topic, viralScore, onShare }: { persona1: Persona; persona2: Persona; topic: Topic; viralScore: number; onShare: () => void }) {
+  const advice1 = persona1.advice[topic.category] || persona1.advice.default;
+  const advice2 = persona2.advice[topic.category] || persona2.advice.default;
+
+  const barWidth = useSharedValue(0);
+  React.useEffect(() => {
+    barWidth.value = withTiming(viralScore, { duration: 1500 });
+  }, [viralScore]);
+  const barStyle = useAnimatedStyle(() => ({
+    width: `${barWidth.value}%` as any,
+  }));
+
+  return (
+    <View style={mashupStyles.card}>
+      <View style={mashupStyles.topStripe} />
+      <View style={mashupStyles.header}>
+        <Text style={mashupStyles.label}>PERSONA MASHUP</Text>
+        <Text style={mashupStyles.title}>{persona1.name} {"\u00D7"} {persona2.name}</Text>
+      </View>
+      <View style={mashupStyles.quoteBox}>
+        <Text style={mashupStyles.quoteText}>"{advice1}"</Text>
+        <View style={mashupStyles.butWaitContainer}>
+          <LinearGradient
+            colors={["#ff4d4d", "#FFD700"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={mashupStyles.butWaitBadge}
+          >
+            <Text style={mashupStyles.butWaitText}>...BUT WAIT...</Text>
+          </LinearGradient>
+        </View>
+        <Text style={mashupStyles.quoteText}>"{advice2}" {"\uD83E\uDD2F"}</Text>
+      </View>
+      <View style={mashupStyles.viralRow}>
+        <Text style={mashupStyles.viralLabel}>{"\uD83D\uDD25"} VIRAL SCORE</Text>
+        <View style={mashupStyles.viralBar}>
+          <Animated.View style={[mashupStyles.viralFill, barStyle]} />
+        </View>
+        <Text style={mashupStyles.viralPct}>{viralScore}%</Text>
+      </View>
+      <Pressable
+        onPress={onShare}
+        style={({ pressed }) => [mashupStyles.shareBtn, pressed && { opacity: 0.85, transform: [{ scale: 0.97 }] }]}
+      >
+        <LinearGradient
+          colors={[Colors.gold, "#ff8c00"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={mashupStyles.shareBtnGradient}
+        >
+          <Text style={mashupStyles.shareBtnText}>{"\uD83D\uDCE3"} SHARE THIS MASHUP</Text>
+        </LinearGradient>
+      </Pressable>
+    </View>
+  );
+}
+
 function VoteBar({ persona1, persona2, votes1, votes2 }: { persona1: Persona; persona2: Persona; votes1: number; votes2: number }) {
   const total = votes1 + votes2 || 1;
   const pct1 = (votes1 / total) * 100;
@@ -383,6 +446,9 @@ export default function FaceoffScreen() {
   const [debateStarted, setDebateStarted] = useState(false);
   const [votes, setVotes] = useState<Record<string, number>>({});
   const [debateId, setDebateId] = useState<string | null>(null);
+  const [hasVoted, setHasVoted] = useState(false);
+  const [votedFor, setVotedFor] = useState<string | null>(null);
+  const [mashupViralScore, setMashupViralScore] = useState(0);
   const [toastText, setToastText] = useState<string | null>(null);
 
   const [battleQuestion, setBattleQuestion] = useState<BattleQuestion>(BATTLE_QUESTIONS[0]);
@@ -408,6 +474,9 @@ export default function FaceoffScreen() {
     const id = `${contender1.id}_${contender2.id}_${selectedTopic.id}_${Date.now()}`;
     setDebateId(id);
     setVotes({ [contender1.id]: 0, [contender2.id]: 0 });
+    setHasVoted(false);
+    setVotedFor(null);
+    setMashupViralScore(Math.floor(Math.random() * 30) + 70);
     setDebateStarted(true);
 
     try {
@@ -425,6 +494,9 @@ export default function FaceoffScreen() {
   }, [contender1, contender2, selectedTopic]);
 
   const handleVote = useCallback(async (personaId: string) => {
+    if (hasVoted) return;
+    setHasVoted(true);
+    setVotedFor(personaId);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setVotes(prev => ({ ...prev, [personaId]: (prev[personaId] || 0) + 1 }));
 
@@ -460,7 +532,7 @@ export default function FaceoffScreen() {
         body: JSON.stringify({ event: "vote_cast", debateId, votedFor: personaId }),
       }).catch(() => {});
     } catch {}
-  }, [debateId, contender1, contender2, selectedTopic]);
+  }, [debateId, contender1, contender2, selectedTopic, hasVoted]);
 
   const handleShare = useCallback(() => {
     const v1 = votes[contender1.id] || 0;
@@ -478,11 +550,29 @@ export default function FaceoffScreen() {
     } catch {}
   }, [contender1, contender2, selectedTopic, votes, debateId]);
 
+  const handleMashupShare = useCallback(() => {
+    const a1 = contender1.advice[selectedTopic.category] || contender1.advice.default;
+    const a2 = contender2.advice[selectedTopic.category] || contender2.advice.default;
+    const shareText = `PERSONA MASHUP: ${contender1.name} \u00D7 ${contender2.name} on ${selectedTopic.name}!\n\n${contender1.name}: "${a1}"\n\n...BUT WAIT...\n\n${contender2.name}: "${a2}" \uD83E\uDD2F\n\nViral Score: ${mashupViralScore}%\nCreate your own mashup at chat-djt.replit.app`;
+    shareContent({ text: shareText, feature: "mashup" });
+
+    try {
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      globalThis.fetch(`${baseUrl}/api/track-viral`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ event: "mashup_shared", data: { p1: contender1.id, p2: contender2.id, topic: selectedTopic.id }, timestamp: Date.now() }),
+      }).catch(() => {});
+    } catch {}
+  }, [contender1, contender2, selectedTopic, mashupViralScore]);
+
   const handleReset = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setDebateStarted(false);
     setVotes({});
     setDebateId(null);
+    setHasVoted(false);
+    setVotedFor(null);
   }, []);
 
   const handleStartBattle = useCallback(() => {
@@ -711,6 +801,8 @@ export default function FaceoffScreen() {
                 onVote={() => handleVote(contender1.id)}
                 voteCount={votes[contender1.id] || 0}
                 totalVotes={(votes[contender1.id] || 0) + (votes[contender2.id] || 0)}
+                hasVoted={hasVoted}
+                isVotedFor={votedFor === contender1.id}
               />
             </Animated.View>
 
@@ -721,6 +813,8 @@ export default function FaceoffScreen() {
                 onVote={() => handleVote(contender2.id)}
                 voteCount={votes[contender2.id] || 0}
                 totalVotes={(votes[contender1.id] || 0) + (votes[contender2.id] || 0)}
+                hasVoted={hasVoted}
+                isVotedFor={votedFor === contender2.id}
               />
             </Animated.View>
 
@@ -733,7 +827,17 @@ export default function FaceoffScreen() {
               />
             </Animated.View>
 
-            <Animated.View entering={FadeInUp.delay(500).duration(400)}>
+            <Animated.View entering={FadeInUp.delay(500).duration(600)}>
+              <MashupCard
+                persona1={contender1}
+                persona2={contender2}
+                topic={selectedTopic}
+                viralScore={mashupViralScore}
+                onShare={handleMashupShare}
+              />
+            </Animated.View>
+
+            <Animated.View entering={FadeInUp.delay(600).duration(400)}>
               <View style={styles.shareRow}>
                 <Pressable onPress={handleShare} style={({ pressed }) => [styles.shareActionBtn, pressed && { opacity: 0.7 }]}>
                   <Ionicons name="share-social" size={18} color={Colors.gold} />
@@ -1432,6 +1536,117 @@ const battleStyles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800" as const,
     color: "#fff",
+    letterSpacing: 1,
+  },
+});
+
+const mashupStyles = StyleSheet.create({
+  card: {
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: Colors.gold,
+    backgroundColor: "rgba(26,26,8,0.9)",
+    padding: 20,
+    marginBottom: 16,
+    overflow: "hidden",
+  },
+  topStripe: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+    backgroundColor: Colors.gold,
+  },
+  header: {
+    alignItems: "center",
+    marginBottom: 14,
+  },
+  label: {
+    fontSize: 10,
+    fontWeight: "800" as const,
+    color: Colors.gold,
+    letterSpacing: 3,
+    marginBottom: 4,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: "800" as const,
+    color: "#fff",
+  },
+  quoteBox: {
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 14,
+    alignItems: "center",
+  },
+  quoteText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: "rgba(255,255,255,0.85)",
+    fontStyle: "italic",
+    textAlign: "center" as const,
+  },
+  butWaitContainer: {
+    marginVertical: 10,
+    alignItems: "center",
+  },
+  butWaitBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  butWaitText: {
+    fontSize: 11,
+    fontWeight: "900" as const,
+    color: "#000",
+    letterSpacing: 1,
+  },
+  viralRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 14,
+  },
+  viralLabel: {
+    fontSize: 10,
+    fontWeight: "800" as const,
+    color: "rgba(255,255,255,0.5)",
+    letterSpacing: 1,
+  },
+  viralBar: {
+    flex: 1,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    overflow: "hidden",
+  },
+  viralFill: {
+    height: "100%",
+    borderRadius: 4,
+    backgroundColor: Colors.gold,
+  },
+  viralPct: {
+    fontSize: 13,
+    fontWeight: "900" as const,
+    color: Colors.gold,
+    minWidth: 36,
+    textAlign: "right" as const,
+  },
+  shareBtn: {
+    borderRadius: 25,
+    overflow: "hidden",
+  },
+  shareBtnGradient: {
+    paddingVertical: 12,
+    alignItems: "center",
+    borderRadius: 25,
+  },
+  shareBtnText: {
+    fontSize: 14,
+    fontWeight: "800" as const,
+    color: "#000",
     letterSpacing: 1,
   },
 });
