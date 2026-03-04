@@ -77,6 +77,8 @@ const REAL_ESTATE_ADVISORS: AdvisorPersona[] = [
   { id: "musk", name: "Elon", emoji: "\uD83D\uDE80", color: "#00ccff", title: "CEO of Tesla & SpaceX", stampLabel: "ELON RATED" },
   { id: "dave", name: "Dave", emoji: "\uD83D\uDCFB", color: "#ffaa00", title: "Financial Peace", stampLabel: "DAVE GRADED" },
   { id: "mansa", name: "Mansa Musa", emoji: "\uD83D\uDC51", color: "#D4AF37", title: "Richest Man in History", stampLabel: "MANSA BLESSED" },
+  { id: "jordan", name: "MJ", emoji: "\uD83C\uDFC0", color: "#CE1141", title: "6x NBA Champion", stampLabel: "MJ CERTIFIED" },
+  { id: "bernie", name: "Bernie Mac", emoji: "\uD83C\uDFA4", color: "#9B59B6", title: "King of Comedy", stampLabel: "BERNIE APPROVED" },
 ];
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");

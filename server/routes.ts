@@ -3256,6 +3256,26 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
           : `Under $100K for property? Buy it. Buy TEN. Land is the one thing they cannot make more of. I owned more territory than any ruler alive. This is how empires begin — one plot at a time.`,
         rating: Math.floor(Math.random() * 20) + 75,
       },
+      jordan: {
+        comment: price > 1000000
+          ? `$${(price / 1000000).toFixed(1)}M? That's a championship-level play. Location is like a jump shot — it's all about position. I own golf courses and the Hornets. ${city}? That's owning the court.`
+          : price > 500000
+          ? `$${(price / 1000).toFixed(0)}K in ${city}. ${beds} bedrooms — that's room to train. I didn't become a billionaire by playing it safe. Nike deal, Charlotte Hornets — I bet on myself. Bet on this property.`
+          : price > 100000
+          ? `$${(price / 1000).toFixed(0)}K? That's a smart shot. Every champion starts somewhere. I missed more than 9,000 shots in my career. But I took them. Take this shot on ${city}.`
+          : `Under $100K? Now that's fundamentals. You gotta nail your free throws before you try the fadeaway. Start here, build your portfolio, then go for the championship plays.`,
+        rating: Math.floor(Math.random() * 25) + 70,
+      },
+      bernie: {
+        comment: price > 1000000
+          ? `$${(price / 1000000).toFixed(1)}M?! Listen here, America! That's a LOT of money! You better have your stuff TOGETHER before you sign that paper! But if you got it? GET IN THERE! Lock the door and tell everybody to GET OUT!`
+          : price > 500000
+          ? `$${(price / 1000).toFixed(0)}K in ${city}? A HOUSE! Now THAT'S an investment! You can live in it, hide in it, lock the door and tell everybody to GET OUT! ${beds} bedrooms? That's value, America!`
+          : price > 100000
+          ? `$${(price / 1000).toFixed(0)}K for ${beds} bedrooms? Baby, my grandmama would be PROUD! She always said own your home. Don't let nobody tell you where to live. GET YOUR OWN!`
+          : `Under $100K? I ain't scared of that price! That's a DEAL, America! You know how many comedy clubs I played for LESS than that? Buy it, fix it up, and tell the neighbors — I AIN'T LEAVING!`,
+        rating: Math.floor(Math.random() * 20) + 75,
+      },
     };
 
     return {

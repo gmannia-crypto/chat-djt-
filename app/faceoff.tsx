@@ -171,6 +171,38 @@ const PERSONAS: Persona[] = [
     catchphrases: ["I once crashed an entire economy with my generosity.", "Wealth without knowledge is like a kingdom without walls.", "Build institutions, not just fortunes.", "The richest man who ever lived \u2014 literally."],
     affiliate: { apmex: "https://www.apmex.com/?tag=trumpbot-20" },
   },
+  {
+    id: "jordan",
+    name: "MJ",
+    fullName: "Michael Jordan",
+    color: "#CE1141",
+    advice: {
+      crypto: "I\u2019ve missed more than 9,000 shots in my career. Crypto? That\u2019s just another shot. You miss 100% of the ones you don\u2019t take. But size your bet like a champion.",
+      stock: "I didn\u2019t become a billionaire by playing it safe. Nike deal, Charlotte Hornets \u2014 I bet on myself. Find companies with that killer instinct.",
+      property: "Location is like a jump shot \u2014 it\u2019s all about position. I own golf courses, I own the Hornets. Real estate? It\u2019s about owning the court.",
+      commodity: "Gold is steady. I respect steady. But championships come from taking risks. Gold is your defensive play \u2014 solid fundamentals.",
+      etf: "Index funds are the fundamentals. You gotta nail your free throws before you try the fadeaway. Start with the basics.",
+      default: "I\u2019ve failed over and over in my life. And THAT is why I succeed. Same with investing \u2014 take the shot.",
+    },
+    catchphrases: ["I took that personally.", "Just do it \u2014 wait, wrong brand. Just WIN it.", "Champions are made when nobody\u2019s watching.", "The ceiling is the roof!"],
+    affiliate: { nike: "https://www.nike.com/jordan?tag=trumpbot-20" },
+  },
+  {
+    id: "bernie",
+    name: "Bernie Mac",
+    fullName: "Bernie Mac",
+    color: "#9B59B6",
+    advice: {
+      crypto: "Listen here, America. I ain\u2019t puttin\u2019 my money in no INVISIBLE money! You can\u2019t hold it, you can\u2019t fold it, you can\u2019t put it under your mattress. I\u2019m scared of it!",
+      stock: "The stock market? Baby, that\u2019s a rollercoaster. And I don\u2019t DO rollercoasters. But if you\u2019re gonna ride, ride something SOLID. Blue chips, baby!",
+      property: "A HOUSE? Now THAT\u2019S an investment! You can live in it, hide in it, lock the door and tell everybody to GET OUT! That\u2019s value, America!",
+      commodity: "Gold? My grandmama had gold teeth, and she was the richest woman I knew. Spiritually AND financially. Get you some gold, baby.",
+      etf: "ETFs? That\u2019s like a buffet for your money! A little bit of everything! I LIKE buffets, America! You know I do!",
+      default: "I ain\u2019t scared of being broke \u2014 I\u2019ve BEEN broke! But I\u2019m scared of STAYING broke. So invest smart, America!",
+    },
+    catchphrases: ["I ain\u2019t scared of you!", "Listen here, America!", "You don\u2019t understand \u2014 I\u2019m not playing!", "I\u2019m gonna bust your head til the white meat shows!"],
+    affiliate: { audible: "https://www.amazon.com/audible?tag=trumpbot-20" },
+  },
 ];
 
 const TOPICS: Topic[] = [
@@ -194,6 +226,8 @@ function getTitle(personaId: string): string {
     case "grandma": return "Voice of Experience";
     case "robot": return "Algorithmic Analysis";
     case "mansa": return "Richest Man in History";
+    case "jordan": return "6x NBA Champion & Billionaire";
+    case "bernie": return "King of Comedy";
     default: return "";
   }
 }
