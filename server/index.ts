@@ -388,7 +388,7 @@ function configureExpoAndLanding(app: express.Application) {
   }
 
   app.use((req: Request, res: Response, next: NextFunction) => {
-    if (req.path.startsWith("/api") || req.path === "/status" || req.path === "/therapy-viral" || req.path === "/therapy-multi") {
+    if (req.path.startsWith("/api") || req.path === "/status" || req.path === "/therapy-viral" || req.path === "/therapy-multi" || req.path === "/financial-faceoff") {
       return next();
     }
 

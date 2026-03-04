@@ -476,6 +476,7 @@ const API_COST_ESTIMATES: Record<string, number> = {
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const faceoffVotes = new Map<string, { votes: Record<string, number>; asset: string; persona1: string; persona2: string }>();
+  const battleRoyaleVotes = new Map<string, { votes: Record<string, number>; question: string }>();
 
   app.get("/financial-faceoff", (_req, res) => {
     try {
@@ -535,6 +536,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     const total = Object.values(debate.votes).reduce((sum, v) => sum + v, 0);
     res.json({ votes: debate.votes, total });
+  });
+
+  const VALID_BATTLE_PERSONAS = ["trump", "buffett", "musk", "suze", "dave", "grandma", "robot", "mansa", "jordan", "bernie"];
+
+  app.post("/api/faceoff/battle-vote", (req, res) => {
+    try {
+      const { battleId, votedFor, question } = req.body;
+      if (!battleId || !votedFor) {
+        return res.status(400).json({ error: "battleId and votedFor are required" });
+      }
+
+      if (!VALID_BATTLE_PERSONAS.includes(votedFor)) {
+        return res.status(400).json({ error: "votedFor must be a valid persona" });
+      }
+
+      let battle = battleRoyaleVotes.get(battleId);
+      if (!battle) {
+        if (battleRoyaleVotes.size >= 1000) {
+          const oldestKey = battleRoyaleVotes.keys().next().value;
+          if (oldestKey) battleRoyaleVotes.delete(oldestKey);
+        }
+        battle = { votes: {}, question: question || "" };
+        battleRoyaleVotes.set(battleId, battle);
+      }
+
+      battle.votes[votedFor] = (battle.votes[votedFor] || 0) + 1;
+      const total = Object.values(battle.votes).reduce((sum, v) => sum + v, 0);
+      res.json({ votes: battle.votes, total });
+    } catch (error) {
+      console.error("Battle royale vote error:", error);
+      res.status(500).json({ error: "Failed to record vote" });
+    }
+  });
+
+  app.get("/api/faceoff/battle-votes/:battleId", (req, res) => {
+    const battle = battleRoyaleVotes.get(req.params.battleId);
+    if (!battle) {
+      return res.json({ votes: {}, total: 0 });
+    }
+    const total = Object.values(battle.votes).reduce((sum, v) => sum + v, 0);
+    res.json({ votes: battle.votes, total });
   });
 
   app.get("/api/tokens/balance", async (req, res) => {

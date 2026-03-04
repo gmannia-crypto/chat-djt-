@@ -140,6 +140,67 @@
         .share-facebook { background: #4267B2; color: white; }
         .share-copy { background: #333; color: white; border: 1px solid #555; }
 
+        .mode-tabs {
+            display: flex; gap: 0; margin-bottom: 24px; border-radius: 30px;
+            overflow: hidden; border: 2px solid #333;
+        }
+        .mode-tab {
+            flex: 1; padding: 12px 8px; text-align: center; cursor: pointer;
+            font-weight: bold; font-size: 14px; background: #1a1a1a; color: #888;
+            transition: all 0.3s; border: none;
+        }
+        .mode-tab.active { background: linear-gradient(135deg, #FFD700, #ff4d4d); color: #000; }
+        .mode-tab:hover:not(.active) { color: #FFD700; background: #222; }
+
+        .mode-content { display: none; }
+        .mode-content.active { display: block; }
+
+        .battle-royale-arena { animation: fadeIn 0.5s ease; }
+        .battle-question {
+            text-align: center; padding: 20px; margin-bottom: 20px;
+            background: linear-gradient(135deg, rgba(255,215,0,0.15), rgba(255,77,77,0.15));
+            border: 2px solid #FFD700; border-radius: 16px;
+        }
+        .battle-question h3 { color: #FFD700; font-size: 20px; margin-bottom: 6px; }
+        .battle-question .question-text { font-size: 22px; color: white; font-weight: bold; }
+
+        .battle-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px;
+        }
+        @media (max-width: 480px) { .battle-grid { grid-template-columns: 1fr; } }
+        .fighter-card {
+            background: #1a1a1a; border-radius: 14px; padding: 16px; cursor: pointer;
+            border: 2px solid #333; transition: all 0.3s; position: relative; overflow: hidden;
+        }
+        .fighter-card:hover { transform: translateY(-3px); box-shadow: 0 6px 20px rgba(0,0,0,0.5); }
+        .fighter-card.voted { opacity: 0.5; pointer-events: none; }
+        .fighter-card.winner { border-width: 3px; }
+        .fighter-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+        .fighter-avatar { font-size: 28px; }
+        .fighter-name { font-weight: bold; font-size: 14px; }
+        .fighter-title { font-size: 10px; color: #888; }
+        .fighter-advice {
+            font-size: 13px; line-height: 1.5; color: #ddd; padding: 10px;
+            background: #111; border-radius: 8px; margin-bottom: 10px;
+            border-left: 3px solid currentColor;
+        }
+        .fighter-vote-bar {
+            height: 6px; border-radius: 3px; background: #222; overflow: hidden; margin-bottom: 6px;
+        }
+        .fighter-vote-fill { height: 100%; border-radius: 3px; transition: width 0.6s ease; min-width: 0; }
+        .fighter-vote-count { font-size: 11px; color: #888; text-align: right; }
+        .battle-vote-btn {
+            width: 100%; padding: 8px; border: none; border-radius: 20px;
+            font-size: 12px; font-weight: bold; color: white; cursor: pointer;
+            transition: all 0.2s; margin-top: 8px;
+        }
+        .battle-vote-btn:hover { transform: scale(1.03); }
+        .battle-total {
+            text-align: center; padding: 12px; background: #1a1a1a;
+            border-radius: 12px; margin-bottom: 20px; color: #888; font-size: 14px;
+        }
+        .battle-total span { color: #FFD700; font-weight: bold; }
+
         .cross-promo {
             text-align: center; margin: 30px 0; padding: 20px;
             background: linear-gradient(145deg, #1a1a1a, #2d2d2d);
@@ -181,24 +242,48 @@
             <div class="live-counter" id="liveCounter">&#x26A1; 1,847 debating now &#x26A1;</div>
         </div>
 
-        <div class="asset-selector">
-            <div class="section-label">&#x1F4C8; What are we debating?</div>
-            <div class="asset-grid" id="assetGrid"></div>
+        <div class="mode-tabs">
+            <button class="mode-tab active" id="tab1v1" onclick="switchMode('1v1')">&#x2694;&#xFE0F; 1v1 DEBATE</button>
+            <button class="mode-tab" id="tabBattle" onclick="switchMode('battle')">&#x1F3C6; BATTLE ROYALE</button>
         </div>
 
-        <div class="persona-section">
-            <div class="section-label">&#x1F94A; CONTENDER 1</div>
-            <div class="persona-row" id="persona1Row"></div>
+        <div class="mode-content active" id="mode1v1">
+            <div class="asset-selector">
+                <div class="section-label">&#x1F4C8; What are we debating?</div>
+                <div class="asset-grid" id="assetGrid"></div>
+            </div>
+
+            <div class="persona-section">
+                <div class="section-label">&#x1F94A; CONTENDER 1</div>
+                <div class="persona-row" id="persona1Row"></div>
+            </div>
+
+            <div class="persona-section">
+                <div class="section-label">&#x1F94A; CONTENDER 2</div>
+                <div class="persona-row" id="persona2Row"></div>
+            </div>
+
+            <button class="start-btn" id="startBtn" onclick="startDebate()">&#x2694;&#xFE0F; START THE DEBATE</button>
+
+            <div class="debate-arena" id="debateArena"></div>
         </div>
 
-        <div class="persona-section">
-            <div class="section-label">&#x1F94A; CONTENDER 2</div>
-            <div class="persona-row" id="persona2Row"></div>
+        <div class="mode-content" id="modeBattle">
+            <div class="battle-question" id="battleQuestionBox">
+                <h3>&#x2694;&#xFE0F; PERSONA BATTLE ROYALE</h3>
+                <div class="question-text" id="battleQuestionText">Should I buy Bitcoin?</div>
+                <div style="color:#888;font-size:12px;margin-top:6px;">10 personas. 1 question. Who wins?</div>
+            </div>
+
+            <div class="asset-selector" style="margin-bottom:16px;">
+                <div class="section-label">&#x1F4AC; PICK THE QUESTION</div>
+                <div class="asset-grid" id="battleQuestionGrid"></div>
+            </div>
+
+            <button class="start-btn" id="battleStartBtn" onclick="startBattleRoyale()">&#x1F3C6; LET THEM ALL ANSWER!</button>
+
+            <div id="battleArena" style="display:none;"></div>
         </div>
-
-        <button class="start-btn" id="startBtn" onclick="startDebate()">&#x2694;&#xFE0F; START THE DEBATE</button>
-
-        <div class="debate-arena" id="debateArena"></div>
 
         <div class="cross-promo">
             <p style="color: #888; margin-bottom: 8px;">&#x1F3AE; Want more?</p>
@@ -635,6 +720,169 @@
                 counter.textContent = '\u26A1 ' + (base + jitter).toLocaleString() + ' debating now \u26A1';
             }, 8000);
         })();
+
+        var BATTLE_QUESTIONS = [
+            { id: 'bitcoin', text: "Should I buy Bitcoin?", category: "crypto", emoji: "\u20BF" },
+            { id: 'savings', text: "Should I invest or save?", category: "default", emoji: "\u{1F4B0}" },
+            { id: 'house', text: "Should I buy a house?", category: "property", emoji: "\u{1F3E0}" },
+            { id: 'gold', text: "Is gold a good investment?", category: "commodity", emoji: "\u{1FA99}" },
+            { id: 'stocks', text: "Should I buy stocks right now?", category: "stock", emoji: "\u{1F4C8}" },
+            { id: 'etf', text: "Are index funds the best bet?", category: "etf", emoji: "\u{1F4CA}" },
+            { id: 'doge', text: "Is Dogecoin actually worth buying?", category: "crypto", emoji: "\u{1F415}" },
+            { id: 'retire', text: "How should I save for retirement?", category: "default", emoji: "\u{1F3D6}\u{FE0F}" },
+        ];
+
+        var selectedBattleQuestion = BATTLE_QUESTIONS[0];
+        var currentBattleId = null;
+        var battleHasVoted = false;
+        var battlePollInterval = null;
+
+        function switchMode(mode) {
+            document.getElementById('tab1v1').classList.toggle('active', mode === '1v1');
+            document.getElementById('tabBattle').classList.toggle('active', mode === 'battle');
+            document.getElementById('mode1v1').classList.toggle('active', mode === '1v1');
+            document.getElementById('modeBattle').classList.toggle('active', mode === 'battle');
+            if (mode === 'battle') renderBattleQuestions();
+            if (mode === '1v1' && battlePollInterval) { clearInterval(battlePollInterval); battlePollInterval = null; }
+        }
+
+        function renderBattleQuestions() {
+            var grid = document.getElementById('battleQuestionGrid');
+            var html = '';
+            for (var i = 0; i < BATTLE_QUESTIONS.length; i++) {
+                var q = BATTLE_QUESTIONS[i];
+                var sel = q.id === selectedBattleQuestion.id ? ' selected' : '';
+                html += '<div class="asset-pill' + sel + '" onclick="selectBattleQuestion(\'' + q.id + '\')">' + q.emoji + ' ' + q.text + '</div>';
+            }
+            grid.innerHTML = html;
+            document.getElementById('battleQuestionText').textContent = selectedBattleQuestion.text;
+        }
+
+        function selectBattleQuestion(qId) {
+            for (var i = 0; i < BATTLE_QUESTIONS.length; i++) {
+                if (BATTLE_QUESTIONS[i].id === qId) { selectedBattleQuestion = BATTLE_QUESTIONS[i]; break; }
+            }
+            renderBattleQuestions();
+            document.getElementById('battleArena').style.display = 'none';
+            document.getElementById('battleStartBtn').style.display = 'block';
+            battleHasVoted = false;
+            if (battlePollInterval) { clearInterval(battlePollInterval); battlePollInterval = null; }
+        }
+
+        function startBattleRoyale() {
+            battleHasVoted = false;
+            currentBattleId = 'battle_' + selectedBattleQuestion.id + '_' + Date.now();
+            document.getElementById('battleStartBtn').style.display = 'none';
+
+            var arena = document.getElementById('battleArena');
+            arena.style.display = 'block';
+            var cat = selectedBattleQuestion.category;
+
+            var html = '<div class="battle-total" id="battleTotal">\u{1F3C6} <span>0</span> total votes</div>';
+            html += '<div class="battle-grid">';
+
+            var personaKeys = Object.keys(PERSONAS);
+            for (var i = 0; i < personaKeys.length; i++) {
+                var key = personaKeys[i];
+                var p = PERSONAS[key];
+                var advice = p.advice[cat] || p.advice.default;
+
+                html += '<div class="fighter-card" id="fighter_' + key + '" style="border-color:' + p.style.color + '30;">';
+                html += '<div class="fighter-header">';
+                html += '<div class="fighter-avatar">' + p.avatar + '</div>';
+                html += '<div><div class="fighter-name" style="color:' + p.style.color + ';">' + p.name + '</div>';
+                html += '<div class="fighter-title">' + getTitle(key) + '</div></div>';
+                html += '</div>';
+                html += '<div class="fighter-advice" style="color:' + p.style.color + ';border-left-color:' + p.style.color + ';">"' + advice + '"</div>';
+                html += '<div class="fighter-vote-bar"><div class="fighter-vote-fill" id="battleFill_' + key + '" style="width:0%;background:' + p.style.color + ';"></div></div>';
+                html += '<div class="fighter-vote-count" id="battleCount_' + key + '">0 votes (0%)</div>';
+                html += '<button class="battle-vote-btn" id="battleVoteBtn_' + key + '" style="background:' + p.style.color + ';" onclick="castBattleVote(\'' + key + '\')">\u{1F5F3}\u{FE0F} VOTE</button>';
+                html += '</div>';
+            }
+
+            html += '</div>';
+            html += '<div class="share-actions">';
+            html += '<button class="share-btn share-twitter" onclick="shareBattle(\'twitter\')">\u{1F501} Share on X</button>';
+            html += '<button class="share-btn share-facebook" onclick="shareBattle(\'facebook\')">\u{1F4D8} Facebook</button>';
+            html += '<button class="share-btn share-copy" onclick="shareBattle(\'copy\')">\u{1F4CB} Copy</button>';
+            html += '</div>';
+
+            arena.innerHTML = html;
+            arena.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            trackEvent('battle_royale_started', { question: selectedBattleQuestion.id });
+        }
+
+        function castBattleVote(personaId) {
+            if (battleHasVoted) return;
+            battleHasVoted = true;
+
+            var personaKeys = Object.keys(PERSONAS);
+            for (var i = 0; i < personaKeys.length; i++) {
+                var btn = document.getElementById('battleVoteBtn_' + personaKeys[i]);
+                if (btn) btn.style.display = 'none';
+                var card = document.getElementById('fighter_' + personaKeys[i]);
+                if (card && personaKeys[i] !== personaId) card.classList.add('voted');
+            }
+            var winnerCard = document.getElementById('fighter_' + personaId);
+            if (winnerCard) { winnerCard.classList.add('winner'); winnerCard.style.borderColor = PERSONAS[personaId].style.color; }
+
+            fetch('/api/faceoff/battle-vote', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ battleId: currentBattleId, votedFor: personaId, question: selectedBattleQuestion.id })
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) { updateBattleResults(data); showVoteToast(); })
+            .catch(function() { showVoteToast(); });
+
+            trackEvent('battle_vote_cast', { battleId: currentBattleId, votedFor: personaId });
+            pollBattleVotes();
+        }
+
+        function updateBattleResults(data) {
+            if (!data || !data.votes) return;
+            var total = data.total || 0;
+            var totalEl = document.getElementById('battleTotal');
+            if (totalEl) totalEl.innerHTML = '\u{1F3C6} <span>' + total + '</span> total votes';
+
+            var personaKeys = Object.keys(PERSONAS);
+            for (var i = 0; i < personaKeys.length; i++) {
+                var key = personaKeys[i];
+                var count = data.votes[key] || 0;
+                var pct = total > 0 ? Math.round((count / total) * 100) : 0;
+
+                var fill = document.getElementById('battleFill_' + key);
+                if (fill) fill.style.width = pct + '%';
+                var countEl = document.getElementById('battleCount_' + key);
+                if (countEl) countEl.textContent = count + ' votes (' + pct + '%)';
+            }
+        }
+
+        function pollBattleVotes() {
+            if (battlePollInterval) clearInterval(battlePollInterval);
+            battlePollInterval = setInterval(function() {
+                if (!currentBattleId) { clearInterval(battlePollInterval); battlePollInterval = null; return; }
+                fetch('/api/faceoff/battle-votes/' + currentBattleId)
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) { updateBattleResults(data); })
+                    .catch(function() {});
+            }, 5000);
+        }
+
+        function shareBattle(platform) {
+            var q = selectedBattleQuestion.text;
+            var shareText = '\u2694\uFE0F PERSONA BATTLE ROYALE: "' + q + '"\n\n10 financial personas. 1 question. Who gives the best advice?\n\nVote now!';
+            var shareUrl = window.location.origin + '/financial-faceoff';
+
+            if (platform === 'twitter') {
+                window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent(shareText) + '&url=' + encodeURIComponent(shareUrl), '_blank');
+            } else if (platform === 'facebook') {
+                window.open('https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(shareUrl) + '&quote=' + encodeURIComponent(shareText), '_blank');
+            } else if (platform === 'copy') {
+                navigator.clipboard.writeText(shareText + '\n' + shareUrl).then(function() { showCopyToast(); });
+            }
+            trackEvent('battle_shared', { platform: platform, question: selectedBattleQuestion.id });
+        }
 
         renderAssets();
         renderPersonaRow('persona1Row', selectedPersona1, 1);

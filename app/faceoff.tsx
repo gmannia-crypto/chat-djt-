@@ -232,6 +232,24 @@ function getTitle(personaId: string): string {
   }
 }
 
+interface BattleQuestion {
+  id: string;
+  text: string;
+  category: string;
+  emoji: string;
+}
+
+const BATTLE_QUESTIONS: BattleQuestion[] = [
+  { id: "bitcoin", text: "Should I buy Bitcoin?", category: "crypto", emoji: "\u20BF" },
+  { id: "savings", text: "Should I invest or save?", category: "default", emoji: "\uD83D\uDCB0" },
+  { id: "house", text: "Should I buy a house?", category: "property", emoji: "\uD83C\uDFE0" },
+  { id: "gold", text: "Is gold a good investment?", category: "commodity", emoji: "\uD83E\uDE99" },
+  { id: "stocks", text: "Should I buy stocks right now?", category: "stock", emoji: "\uD83D\uDCC8" },
+  { id: "etf", text: "Are index funds the best bet?", category: "etf", emoji: "\uD83D\uDCCA" },
+  { id: "doge", text: "Is Dogecoin actually worth buying?", category: "crypto", emoji: "\uD83D\uDC15" },
+  { id: "retire", text: "How should I save for retirement?", category: "default", emoji: "\uD83C\uDFD6\uFE0F" },
+];
+
 function pickRandom<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
@@ -287,6 +305,45 @@ function ContenderCard({ persona, topic, onVote, voteCount, totalVotes }: { pers
   );
 }
 
+function BattleFighterCard({ persona, category, voteCount, totalVotes, onVote, hasVoted, isWinner }: { persona: Persona; category: string; voteCount: number; totalVotes: number; onVote: () => void; hasVoted: boolean; isWinner: boolean }) {
+  const advice = persona.advice[category] || persona.advice.default;
+  const pct = totalVotes > 0 ? Math.round((voteCount / totalVotes) * 100) : 0;
+
+  return (
+    <View style={[
+      battleStyles.card,
+      { borderColor: hasVoted ? (isWinner ? persona.color : "rgba(255,255,255,0.05)") : `${persona.color}30` },
+      hasVoted && !isWinner && { opacity: 0.5 },
+      isWinner && { borderWidth: 2 },
+    ]}>
+      <View style={battleStyles.cardHeader}>
+        <View style={[battleStyles.cardAvatar, { borderColor: persona.color }]}>
+          <Text style={[battleStyles.cardAvatarText, { color: persona.color }]}>{persona.name[0]}</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[battleStyles.cardName, { color: persona.color }]}>{persona.name}</Text>
+          <Text style={battleStyles.cardTitle}>{getTitle(persona.id)}</Text>
+        </View>
+      </View>
+      <View style={[battleStyles.adviceBox, { borderLeftColor: persona.color }]}>
+        <Text style={battleStyles.adviceText}>"{advice}"</Text>
+      </View>
+      <View style={battleStyles.voteBarOuter}>
+        <View style={[battleStyles.voteBarFill, { width: `${pct}%` as any, backgroundColor: persona.color }]} />
+      </View>
+      <Text style={battleStyles.voteCountText}>{voteCount} votes ({pct}%)</Text>
+      {!hasVoted && (
+        <Pressable
+          onPress={onVote}
+          style={({ pressed }) => [battleStyles.voteBtn, { backgroundColor: persona.color }, pressed && { opacity: 0.8 }]}
+        >
+          <Text style={battleStyles.voteBtnText}>VOTE</Text>
+        </Pressable>
+      )}
+    </View>
+  );
+}
+
 function VoteBar({ persona1, persona2, votes1, votes2 }: { persona1: Persona; persona2: Persona; votes1: number; votes2: number }) {
   const total = votes1 + votes2 || 1;
   const pct1 = (votes1 / total) * 100;
@@ -319,6 +376,7 @@ export default function FaceoffScreen() {
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
   const scrollRef = useRef<ScrollView>(null);
 
+  const [mode, setMode] = useState<"1v1" | "battle">("1v1");
   const [selectedTopic, setSelectedTopic] = useState<Topic>(TOPICS[0]);
   const [contender1, setContender1] = useState<Persona>(PERSONAS[0]);
   const [contender2, setContender2] = useState<Persona>(PERSONAS[1]);
@@ -326,6 +384,13 @@ export default function FaceoffScreen() {
   const [votes, setVotes] = useState<Record<string, number>>({});
   const [debateId, setDebateId] = useState<string | null>(null);
   const [toastText, setToastText] = useState<string | null>(null);
+
+  const [battleQuestion, setBattleQuestion] = useState<BattleQuestion>(BATTLE_QUESTIONS[0]);
+  const [battleStarted, setBattleStarted] = useState(false);
+  const [battleVotes, setBattleVotes] = useState<Record<string, number>>({});
+  const [battleId, setBattleId] = useState<string | null>(null);
+  const [battleHasVoted, setBattleHasVoted] = useState(false);
+  const [battleVotedFor, setBattleVotedFor] = useState<string | null>(null);
 
   const ENCOURAGEMENTS = [
     "Keep voting! The winner gets bragging rights!",
@@ -420,6 +485,81 @@ export default function FaceoffScreen() {
     setDebateId(null);
   }, []);
 
+  const handleStartBattle = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    const id = `battle_${battleQuestion.id}_${Date.now()}`;
+    setBattleId(id);
+    const initialVotes: Record<string, number> = {};
+    PERSONAS.forEach((p) => { initialVotes[p.id] = 0; });
+    setBattleVotes(initialVotes);
+    setBattleStarted(true);
+    setBattleHasVoted(false);
+    setBattleVotedFor(null);
+
+    try {
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      globalThis.fetch(`${baseUrl}/api/track-viral`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ event: "battle_royale_started", data: { question: battleQuestion.id }, timestamp: Date.now() }),
+      }).catch(() => {});
+    } catch {}
+
+    setTimeout(() => { scrollRef.current?.scrollToEnd({ animated: true }); }, 400);
+  }, [battleQuestion]);
+
+  const handleBattleVote = useCallback(async (personaId: string) => {
+    if (battleHasVoted) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setBattleHasVoted(true);
+    setBattleVotedFor(personaId);
+    setBattleVotes(prev => ({ ...prev, [personaId]: (prev[personaId] || 0) + 1 }));
+
+    setToastText(pickRandom(ENCOURAGEMENTS));
+    setTimeout(() => setToastText(null), 2500);
+
+    try {
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      const res = await globalThis.fetch(`${baseUrl}/api/faceoff/battle-vote`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ battleId, votedFor: personaId, question: battleQuestion.id }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.votes) setBattleVotes(data.votes);
+      }
+    } catch {}
+
+    try {
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      globalThis.fetch(`${baseUrl}/api/track-viral`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ event: "battle_vote_cast", data: { battleId, votedFor: personaId }, timestamp: Date.now() }),
+      }).catch(() => {});
+    } catch {}
+  }, [battleHasVoted, battleId, battleQuestion]);
+
+  const handleBattleShare = useCallback(() => {
+    const totalVotes = Object.values(battleVotes).reduce((s, v) => s + v, 0);
+    const sorted = [...PERSONAS].sort((a, b) => (battleVotes[b.id] || 0) - (battleVotes[a.id] || 0));
+    const leader = sorted[0];
+    const shareText = `PERSONA BATTLE ROYALE: "${battleQuestion.text}"\n\n${totalVotes} votes so far!\nLeading: ${leader.name} with ${battleVotes[leader.id] || 0} votes\n\n10 personas. 1 question. Who wins?\nPlay at chat-djt.replit.app`;
+    shareContent({ text: shareText, feature: "battle-royale" });
+  }, [battleVotes, battleQuestion]);
+
+  const handleBattleReset = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setBattleStarted(false);
+    setBattleVotes({});
+    setBattleId(null);
+    setBattleHasVoted(false);
+    setBattleVotedFor(null);
+  }, []);
+
+  const battleTotalVotes = Object.values(battleVotes).reduce((s, v) => s + v, 0);
+
   return (
     <View style={[styles.container, { paddingTop: insets.top + webTopInset }]}>
       <LinearGradient
@@ -434,13 +574,28 @@ export default function FaceoffScreen() {
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>FINANCIAL FACEOFF</Text>
         </View>
-        {debateStarted ? (
-          <Pressable onPress={handleShare} style={styles.shareBtn}>
+        {(debateStarted || battleStarted) ? (
+          <Pressable onPress={mode === "1v1" ? handleShare : handleBattleShare} style={styles.shareBtn}>
             <Ionicons name="share-outline" size={20} color={Colors.gold} />
           </Pressable>
         ) : (
           <View style={{ width: 36 }} />
         )}
+      </View>
+
+      <View style={styles.modeTabs}>
+        <Pressable
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setMode("1v1"); }}
+          style={[styles.modeTab, mode === "1v1" && styles.modeTabActive]}
+        >
+          <Text style={[styles.modeTabText, mode === "1v1" && styles.modeTabTextActive]}>{"\u2694\uFE0F"} 1v1 DEBATE</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setMode("battle"); }}
+          style={[styles.modeTab, mode === "battle" && styles.modeTabActive]}
+        >
+          <Text style={[styles.modeTabText, mode === "battle" && styles.modeTabTextActive]}>{"\uD83C\uDFC6"} BATTLE ROYALE</Text>
+        </Pressable>
       </View>
 
       <ScrollView
@@ -449,6 +604,8 @@ export default function FaceoffScreen() {
         contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + webBottomInset + 30 }]}
         showsVerticalScrollIndicator={false}
       >
+        {mode === "1v1" ? (
+        <>
         <Animated.View entering={FadeInDown.delay(100).duration(400)}>
           <Text style={styles.sectionLabel}>PICK AN ASSET</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.topicScroll} contentContainerStyle={styles.topicScrollContent}>
@@ -589,6 +746,95 @@ export default function FaceoffScreen() {
               </View>
             </Animated.View>
           </>
+        )}
+        </>
+        ) : (
+        <>
+          <Animated.View entering={FadeInDown.delay(100).duration(400)}>
+            <View style={battleStyles.questionBox}>
+              <Text style={battleStyles.questionTitle}>{"\u2694\uFE0F"} PERSONA BATTLE ROYALE</Text>
+              <Text style={battleStyles.questionText}>{battleQuestion.text}</Text>
+              <Text style={battleStyles.questionSub}>10 personas. 1 question. Who wins?</Text>
+            </View>
+          </Animated.View>
+
+          <Animated.View entering={FadeInDown.delay(200).duration(400)}>
+            <Text style={styles.sectionLabel}>PICK THE QUESTION</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.topicScroll} contentContainerStyle={styles.topicScrollContent}>
+              {BATTLE_QUESTIONS.map((q) => {
+                const isSelected = battleQuestion.id === q.id;
+                return (
+                  <Pressable
+                    key={q.id}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setBattleQuestion(q);
+                      if (battleStarted) handleBattleReset();
+                    }}
+                    style={[styles.topicPill, isSelected && styles.topicPillSelected]}
+                  >
+                    <Text style={styles.topicEmoji}>{q.emoji}</Text>
+                    <Text style={[styles.topicName, isSelected && styles.topicNameSelected]}>{q.text}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </Animated.View>
+
+          {!battleStarted && (
+            <Animated.View entering={FadeInDown.delay(300).duration(400)}>
+              <Pressable
+                onPress={handleStartBattle}
+                style={({ pressed }) => [styles.startBtn, pressed && { opacity: 0.85, transform: [{ scale: 0.97 }] }]}
+              >
+                <LinearGradient
+                  colors={["#ff4d4d", "#FFD700"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.startBtnGradient}
+                >
+                  <MaterialCommunityIcons name="trophy" size={22} color="#fff" />
+                  <Text style={[styles.startBtnText, { color: "#fff" }]}>LET THEM ALL ANSWER!</Text>
+                </LinearGradient>
+              </Pressable>
+            </Animated.View>
+          )}
+
+          {battleStarted && (
+            <>
+              <View style={battleStyles.totalBox}>
+                <Text style={battleStyles.totalText}>{"\uD83C\uDFC6"} <Text style={{ color: Colors.gold, fontWeight: "900" as const }}>{battleTotalVotes}</Text> total votes</Text>
+              </View>
+
+              {PERSONAS.map((persona, index) => (
+                <Animated.View key={persona.id} entering={FadeInDown.delay(100 + index * 50).duration(400)}>
+                  <BattleFighterCard
+                    persona={persona}
+                    category={battleQuestion.category}
+                    voteCount={battleVotes[persona.id] || 0}
+                    totalVotes={battleTotalVotes}
+                    onVote={() => handleBattleVote(persona.id)}
+                    hasVoted={battleHasVoted}
+                    isWinner={battleVotedFor === persona.id}
+                  />
+                </Animated.View>
+              ))}
+
+              <Animated.View entering={FadeInUp.delay(600).duration(400)}>
+                <View style={styles.shareRow}>
+                  <Pressable onPress={handleBattleShare} style={({ pressed }) => [styles.shareActionBtn, pressed && { opacity: 0.7 }]}>
+                    <Ionicons name="share-social" size={18} color={Colors.gold} />
+                    <Text style={styles.shareActionText}>SHARE BATTLE</Text>
+                  </Pressable>
+                  <Pressable onPress={handleBattleReset} style={({ pressed }) => [styles.newDebateBtn, pressed && { opacity: 0.7 }]}>
+                    <Ionicons name="refresh" size={18} color={Colors.whiteDim} />
+                    <Text style={styles.newDebateText}>NEW BATTLE</Text>
+                  </Pressable>
+                </View>
+              </Animated.View>
+            </>
+          )}
+        </>
         )}
 
         <Pressable
@@ -1030,5 +1276,162 @@ const styles = StyleSheet.create({
     fontWeight: "700" as const,
     color: "#fff",
     textAlign: "center" as const,
+  },
+  modeTabs: {
+    flexDirection: "row",
+    marginHorizontal: 20,
+    borderRadius: 25,
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.12)",
+    overflow: "hidden",
+    marginBottom: 8,
+    ...Platform.select({
+      web: {
+        maxWidth: 560,
+        alignSelf: "center" as any,
+        width: "100%" as any,
+      },
+    }),
+  },
+  modeTab: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.03)",
+  },
+  modeTabActive: {
+    backgroundColor: "rgba(255,215,0,0.15)",
+    borderBottomWidth: 2,
+    borderBottomColor: Colors.gold,
+  },
+  modeTabText: {
+    fontSize: 12,
+    fontWeight: "800" as const,
+    color: "rgba(255,255,255,0.4)",
+    letterSpacing: 1,
+  },
+  modeTabTextActive: {
+    color: Colors.gold,
+  },
+});
+
+const battleStyles = StyleSheet.create({
+  questionBox: {
+    alignItems: "center",
+    padding: 20,
+    marginTop: 12,
+    marginBottom: 16,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: Colors.gold,
+    backgroundColor: "rgba(255,215,0,0.08)",
+  },
+  questionTitle: {
+    fontSize: 16,
+    fontWeight: "900" as const,
+    color: Colors.gold,
+    letterSpacing: 1,
+    marginBottom: 6,
+  },
+  questionText: {
+    fontSize: 20,
+    fontWeight: "800" as const,
+    color: "#fff",
+    textAlign: "center" as const,
+  },
+  questionSub: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.4)",
+    marginTop: 6,
+  },
+  totalBox: {
+    alignItems: "center",
+    paddingVertical: 12,
+    marginBottom: 12,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  totalText: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.6)",
+    fontWeight: "600" as const,
+  },
+  card: {
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 10,
+  },
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 10,
+  },
+  cardAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.05)",
+  },
+  cardAvatarText: {
+    fontSize: 16,
+    fontWeight: "900" as const,
+  },
+  cardName: {
+    fontSize: 14,
+    fontWeight: "800" as const,
+  },
+  cardTitle: {
+    fontSize: 10,
+    color: "rgba(255,255,255,0.4)",
+    fontWeight: "600" as const,
+  },
+  adviceBox: {
+    borderLeftWidth: 3,
+    paddingLeft: 10,
+    marginBottom: 10,
+  },
+  adviceText: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.8)",
+    lineHeight: 18,
+    fontStyle: "italic",
+  },
+  voteBarOuter: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    overflow: "hidden",
+    marginBottom: 4,
+  },
+  voteBarFill: {
+    height: "100%",
+    borderRadius: 3,
+  },
+  voteCountText: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.35)",
+    textAlign: "right" as const,
+    marginBottom: 4,
+  },
+  voteBtn: {
+    borderRadius: 10,
+    paddingVertical: 8,
+    alignItems: "center",
+    marginTop: 4,
+  },
+  voteBtnText: {
+    fontSize: 12,
+    fontWeight: "800" as const,
+    color: "#fff",
+    letterSpacing: 1,
   },
 });
