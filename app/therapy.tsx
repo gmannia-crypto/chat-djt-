@@ -1097,6 +1097,8 @@ const styles = StyleSheet.create({
         height: "100vh" as any,
         maxHeight: "100vh" as any,
         overflow: "hidden" as any,
+        display: "flex" as any,
+        flexDirection: "column" as any,
       },
     }),
   },
@@ -1119,7 +1121,7 @@ const styles = StyleSheet.create({
     ...Platform.select({
       web: {
         overflow: "auto" as any,
-        maxHeight: "100%" as any,
+        minHeight: 0 as any,
       },
     }),
   },

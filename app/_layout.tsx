@@ -265,6 +265,10 @@ function RootLayoutNav() {
         name="challenge/[id]"
         options={{ animation: "slide_from_right" }}
       />
+      <Stack.Screen
+        name="game"
+        options={{ animation: "slide_from_right" }}
+      />
     </Stack>
   );
 }

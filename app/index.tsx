@@ -832,6 +832,17 @@ export default function HomeScreen() {
             <MaterialCommunityIcons name="office-building" size={16} color="#4ADE80" />
             <Text style={styles.modeButtonText}>REALTY</Text>
           </Pressable>
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+              router.push("/game");
+            }}
+            style={({ pressed }) => [styles.modeButton, styles.gameButton, pressed && { opacity: 0.7 }]}
+            testID="game-button"
+          >
+            <MaterialCommunityIcons name="gamepad-variant" size={16} color="#FBBF24" />
+            <Text style={styles.modeButtonText}>BILLIONAIRES</Text>
+          </Pressable>
         </Animated.View>
       </ScrollView>
 
@@ -1730,6 +1741,10 @@ const styles = StyleSheet.create({
   realEstateButton: {
     backgroundColor: "rgba(74, 222, 128, 0.15)",
     borderColor: "rgba(74, 222, 128, 0.4)",
+  },
+  gameButton: {
+    backgroundColor: "rgba(251, 191, 36, 0.15)",
+    borderColor: "rgba(251, 191, 36, 0.4)",
   },
   streakBadge: {
     flexDirection: "row",

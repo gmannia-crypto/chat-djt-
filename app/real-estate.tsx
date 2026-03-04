@@ -380,6 +380,22 @@ export default function RealEstateScreen() {
               <Text style={styles.resultsSubtext}>Trump-Rated for your pleasure</Text>
             </Animated.View>
           }
+          ListFooterComponent={
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                router.push("/game");
+              }}
+              style={({ pressed }) => [styles.gamePromo, pressed && { opacity: 0.7 }]}
+            >
+              <MaterialCommunityIcons name="gamepad-variant" size={22} color="#FBBF24" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.gamePromoTitle}>PLAY TRUMP BILLIONAIRES</Text>
+                <Text style={styles.gamePromoSub}>Build your own real estate empire!</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#FBBF24" />
+            </Pressable>
+          }
         />
       )}
 
@@ -716,5 +732,27 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.2)",
     textAlign: "center" as const,
     marginTop: 8,
+  },
+  gamePromo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 16,
+    marginTop: 16,
+    borderRadius: 14,
+    backgroundColor: "rgba(251,191,36,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(251,191,36,0.25)",
+  },
+  gamePromoTitle: {
+    fontSize: 14,
+    fontWeight: "800" as const,
+    color: "#FBBF24",
+    letterSpacing: 0.5,
+  },
+  gamePromoSub: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.4)",
+    marginTop: 2,
   },
 });
