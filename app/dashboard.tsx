@@ -496,6 +496,10 @@ export default function DashboardScreen() {
           </View>
           <Ionicons name="chevron-forward" size={18} color="#FBBF24" />
         </Pressable>
+
+        <Text style={styles.legalDisclaimer}>
+          Not affiliated with Donald J. Trump, The Trump Organization, or any political entity. For entertainment purposes only. Not an investment opportunity. Affiliate links generate commissions.
+        </Text>
       </ScrollView>
     </View>
   );
@@ -966,5 +970,14 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "rgba(255,255,255,0.4)",
     marginTop: 2,
+  },
+  legalDisclaimer: {
+    fontSize: 9,
+    color: "rgba(255,255,255,0.15)",
+    textAlign: "center" as const,
+    lineHeight: 14,
+    marginTop: 24,
+    marginBottom: 10,
+    paddingHorizontal: 20,
   },
 });

@@ -844,6 +844,10 @@ export default function HomeScreen() {
             <Text style={styles.modeButtonText}>BILLIONAIRES</Text>
           </Pressable>
         </Animated.View>
+
+        <Text style={styles.legalDisclaimer}>
+          Not affiliated with Donald J. Trump, The Trump Organization, or any political entity. For entertainment purposes only. Affiliate links generate commissions.
+        </Text>
       </ScrollView>
 
       <View
@@ -1879,5 +1883,14 @@ const styles = StyleSheet.create({
     fontWeight: "800" as const,
     color: "#fff",
     letterSpacing: 1,
+  },
+  legalDisclaimer: {
+    fontSize: 9,
+    color: "rgba(255,255,255,0.15)",
+    textAlign: "center" as const,
+    lineHeight: 14,
+    marginTop: 24,
+    marginBottom: 10,
+    paddingHorizontal: 20,
   },
 });
