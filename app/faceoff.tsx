@@ -6,12 +6,15 @@ import {
   ScrollView,
   Pressable,
   Platform,
+  Image,
+  type ImageSourcePropType,
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
+import { Audio } from "expo-av";
 import Animated, {
   FadeInDown,
   FadeInUp,
@@ -31,7 +34,24 @@ interface Persona {
   advice: Record<string, string>;
   catchphrases: string[];
   affiliate: Record<string, string | null>;
+  image: ImageSourcePropType;
+  voiceId?: string;
 }
+
+const PERSONA_IMAGES: Record<string, ImageSourcePropType> = {
+  trump: require("@/assets/images/persona-trump.png"),
+  buffett: require("@/assets/images/persona-buffett.png"),
+  musk: require("@/assets/images/persona-musk.png"),
+  suze: require("@/assets/images/persona-suze.png"),
+  dave: require("@/assets/images/persona-dave.png"),
+  grandma: require("@/assets/images/persona-grandma.png"),
+  genie: require("@/assets/images/persona-genie.png"),
+  mansa: require("@/assets/images/persona-mansa.png"),
+  jordan: require("@/assets/images/persona-jordan.png"),
+  bernie: require("@/assets/images/persona-bernie.png"),
+  ruckus: require("@/assets/images/persona-ruckus.png"),
+  robot: require("@/assets/images/persona-robot.png"),
+};
 
 interface Topic {
   id: string;
@@ -48,6 +68,7 @@ const PERSONAS: Persona[] = [
     name: "Trump",
     fullName: "Donald J. Trump",
     color: "#ff4d4d",
+    image: PERSONA_IMAGES.trump,
     advice: {
       crypto: "Buy Bitcoin! It's going to the moon! The best investment ever! Use my link!",
       stock: "My stocks are the BEST stocks. Everyone says so. Buy what I buy!",
@@ -64,6 +85,8 @@ const PERSONAS: Persona[] = [
     name: "Buffett",
     fullName: "Warren Buffett",
     color: "#4d4dff",
+    image: PERSONA_IMAGES.buffett,
+    voiceId: "69301c882a7a40d9b4f05460047b752a",
     advice: {
       crypto: "I don't understand Bitcoin. I stick with what I know - productive assets.",
       stock: "Index funds. Low fees. Long term. Here's Vanguard.",
@@ -80,6 +103,8 @@ const PERSONAS: Persona[] = [
     name: "Elon",
     fullName: "Elon Musk",
     color: "#00ccff",
+    image: PERSONA_IMAGES.musk,
+    voiceId: "759c82adcd8f4c129ae29dec9f772b7b",
     advice: {
       crypto: "Dogecoin! To the moon! Literally! Much wow!",
       stock: "Tesla stock is undervalued. Seriously. But I'm biased.",
@@ -96,6 +121,8 @@ const PERSONAS: Persona[] = [
     name: "Suze",
     fullName: "Suze Orman",
     color: "#ff99cc",
+    image: PERSONA_IMAGES.suze,
+    voiceId: "5325c7139b0c4301b2a6ca9a0c3ea84d",
     advice: {
       crypto: "People are going to get hurt. You hear me? HURT. Don't gamble.",
       stock: "Index funds are fine, but do you have an emergency fund FIRST?",
@@ -112,6 +139,8 @@ const PERSONAS: Persona[] = [
     name: "Dave",
     fullName: "Dave Ramsey",
     color: "#ffaa00",
+    image: PERSONA_IMAGES.dave,
+    voiceId: "bc89cf1d3ef14903bcb4971e139c0491",
     advice: {
       crypto: "DEBT IS DUMB! Crypto is gambling! BABY STEPS!",
       stock: "Invest 15% for retirement. Good mutual funds with good track records.",
@@ -128,6 +157,8 @@ const PERSONAS: Persona[] = [
     name: "Grandma",
     fullName: "Your Grandma",
     color: "#ffffff",
+    image: PERSONA_IMAGES.grandma,
+    voiceId: "70997051e64a4ced9ef6ae7628e2995e",
     advice: {
       crypto: "Oh honey, is that like internet money? Sounds scary. Save your pennies.",
       stock: "Your grandpa loved AT&T. Paid dividends for 50 years. Solid company.",
@@ -140,26 +171,29 @@ const PERSONAS: Persona[] = [
     affiliate: { treasury: "https://treasurydirect.gov" },
   },
   {
-    id: "robot",
-    name: "ROBOT",
-    fullName: "AI Financial Advisor",
-    color: "#00ff00",
+    id: "genie",
+    name: "Genie",
+    fullName: "The Financial Genie",
+    color: "#9B59B6",
+    image: PERSONA_IMAGES.genie,
+    voiceId: "4c689d1b3962445eafe7a4422894d1a8",
     advice: {
-      crypto: "ANALYZING... BITCOIN VOLATILITY: 67%. SUGGEST 2-5% PORTFOLIO ALLOCATION.",
-      stock: "S&P 500 HISTORICAL RETURN: 10.2%. RECOMMEND LOW-COST INDEX FUND.",
-      property: "CURRENT MARKET: BALANCED. CONSIDER LOCAL MARKET CONDITIONS.",
-      commodity: "GOLD CORRELATION TO INFLATION: 0.47. CONSIDER AS HEDGE.",
-      etf: "VTI EXPENSE RATIO: 0.03%. OPTIMAL FOR PASSIVE INVESTORS.",
-      default: "CALCULATING OPTIMAL STRATEGY BASED ON YOUR RISK PROFILE...",
+      crypto: "Your wish for crypto riches? GRANTED! But beware — I've seen a thousand wishes for quick fortune turn to dust. Bitcoin is volatile magic, master. Size your wish wisely.",
+      stock: "Ah, the stock market! I've granted wishes for kings who lost kingdoms on bad trades. Index funds? That's a WISE wish. Boring, but the lamp approves.",
+      property: "LAND! Now that's a wish worth granting! I've lived in a lamp for 10,000 years — trust me, having your OWN place matters. Buy property, master!",
+      commodity: "Gold? I've SWUM in gold! My lamp is MADE of gold! Gold is eternal, master. But don't put ALL your wishes in one metal.",
+      etf: "ETFs? A diversified wish! You wish for many things at once — very smart! The Genie respects efficiency. Low fees, broad exposure. GRANTED!",
+      default: "You have THREE financial wishes. Choose wisely! Most mortals waste wish one on a Lambo. The SMART ones wish for compound interest.",
     },
-    catchphrases: ["CALCULATING...", "PROCESSING...", "ANALYSIS COMPLETE.", "ERROR: HUMAN EMOTION DETECTED."],
-    affiliate: { vanguard: "https://vanguard.com", betterment: "https://betterment.com" },
+    catchphrases: ["Your wish is my command!", "I've seen a thousand empires rise and fall!", "Choose your financial wishes WISELY!", "The lamp has spoken!"],
+    affiliate: { betterment: "https://betterment.com" },
   },
   {
     id: "mansa",
     name: "Mansa Musa",
     fullName: "Mansa Musa I",
     color: "#D4AF37",
+    image: PERSONA_IMAGES.mansa,
     advice: {
       crypto: "Digital gold? In my empire, we had REAL gold. So much it crashed Egypt\u2019s economy. But I see the vision.",
       stock: "Owning pieces of great enterprises? That is how empires are built. I owned entire trade routes.",
@@ -176,6 +210,8 @@ const PERSONAS: Persona[] = [
     name: "MJ",
     fullName: "Michael Jordan",
     color: "#CE1141",
+    image: PERSONA_IMAGES.jordan,
+    voiceId: "6908d35f23754047acde93acf29fc749",
     advice: {
       crypto: "I\u2019ve missed more than 9,000 shots in my career. Crypto? That\u2019s just another shot. You miss 100% of the ones you don\u2019t take. But size your bet like a champion.",
       stock: "I didn\u2019t become a billionaire by playing it safe. Nike deal, Charlotte Hornets \u2014 I bet on myself. Find companies with that killer instinct.",
@@ -192,6 +228,8 @@ const PERSONAS: Persona[] = [
     name: "Bernie Mac",
     fullName: "Bernie Mac",
     color: "#9B59B6",
+    image: PERSONA_IMAGES.bernie,
+    voiceId: "5cbb7b199c5a4b538bf1018e6341ebc4",
     advice: {
       crypto: "Listen here, America. I ain\u2019t puttin\u2019 my money in no INVISIBLE money! You can\u2019t hold it, you can\u2019t fold it, you can\u2019t put it under your mattress. I\u2019m scared of it!",
       stock: "The stock market? Baby, that\u2019s a rollercoaster. And I don\u2019t DO rollercoasters. But if you\u2019re gonna ride, ride something SOLID. Blue chips, baby!",
@@ -202,6 +240,24 @@ const PERSONAS: Persona[] = [
     },
     catchphrases: ["I ain\u2019t scared of you!", "Listen here, America!", "You don\u2019t understand \u2014 I\u2019m not playing!", "I\u2019m gonna bust your head til the white meat shows!"],
     affiliate: { audible: "https://www.amazon.com/audible?tag=trumpbot-20" },
+  },
+  {
+    id: "ruckus",
+    name: "Ruckus",
+    fullName: "Uncle Ruckus",
+    color: "#8B4513",
+    image: PERSONA_IMAGES.ruckus,
+    voiceId: "35cec18b290d4896b92644f2298330ab",
+    advice: {
+      crypto: "Crypto?! That's FAKE money made by FAKE people! The only REAL currency is HARD WORK and COMPLAINING! I ain't touching that digital nonsense!",
+      stock: "The stock market? That's a RIGGED game! But if you GOTTA play, buy the boring stuff. Blue chips. Companies that been around since before I started hating things.",
+      property: "A HOUSE?! In THIS neighborhood?! You better check the foundation, the neighbors, the HISTORY, and probably the water supply too! Trust NOBODY!",
+      commodity: "Gold? At least you can HOLD gold! You can BITE it! Try biting a Bitcoin! That's right, YOU CAN'T! Gold is the only honest investment!",
+      etf: "ETFs? That's just a lazy person's way of investing! You don't even KNOW what you own! But... it's better than giving your money to some crypto SCAM!",
+      default: "I don't trust ANY of these investments! But I ESPECIALLY don't trust the ones I don't understand! Which is most of em!",
+    },
+    catchphrases: ["Don't be a FOOL!", "I ain't trusting that!", "Let me tell you something!", "That ain't right!"],
+    affiliate: { treasury: "https://treasurydirect.gov" },
   },
 ];
 
@@ -224,10 +280,11 @@ function getTitle(personaId: string): string {
     case "suze": return "Personal Finance Expert";
     case "dave": return "Financial Peace University";
     case "grandma": return "Voice of Experience";
-    case "robot": return "Algorithmic Analysis";
+    case "genie": return "10,000 Years of Wisdom";
     case "mansa": return "Richest Man in History";
     case "jordan": return "6x NBA Champion & Billionaire";
     case "bernie": return "King of Comedy";
+    case "ruckus": return "Contrarian Expert";
     default: return "";
   }
 }
@@ -264,15 +321,13 @@ function PersonaCard({ persona, selected, onPress }: { persona: Persona; selecte
         selected && { backgroundColor: `${persona.color}15` },
       ]}
     >
-      <View style={[cardStyles.personaAvatar, { borderColor: persona.color }]}>
-        <Text style={[cardStyles.personaInitial, { color: persona.color }]}>{persona.name[0]}</Text>
-      </View>
+      <Image source={persona.image} style={[cardStyles.personaAvatar, { borderColor: persona.color }]} />
       <Text style={[cardStyles.personaName, selected && { color: persona.color }]}>{persona.name}</Text>
     </Pressable>
   );
 }
 
-function ContenderCard({ persona, topic, onVote, voteCount, totalVotes, hasVoted, isVotedFor }: { persona: Persona; topic: Topic; onVote: () => void; voteCount: number; totalVotes: number; hasVoted: boolean; isVotedFor: boolean }) {
+function ContenderCard({ persona, topic, onVote, voteCount, totalVotes, hasVoted, isVotedFor, onSpeak }: { persona: Persona; topic: Topic; onVote: () => void; voteCount: number; totalVotes: number; hasVoted: boolean; isVotedFor: boolean; onSpeak: (text: string, personaId: string) => void }) {
   const advice = persona.advice[topic.category] || persona.advice.default;
   const catchphrase = pickRandom(persona.catchphrases);
   const pct = totalVotes > 0 ? Math.round((voteCount / totalVotes) * 100) : 50;
@@ -280,13 +335,14 @@ function ContenderCard({ persona, topic, onVote, voteCount, totalVotes, hasVoted
   return (
     <View style={[contenderStyles.card, { borderColor: `${persona.color}40` }, hasVoted && !isVotedFor && { opacity: 0.6 }, isVotedFor && { borderColor: persona.color, borderWidth: 2 }]}>
       <View style={contenderStyles.header}>
-        <View style={[contenderStyles.avatar, { borderColor: persona.color }]}>
-          <Text style={[contenderStyles.avatarText, { color: persona.color }]}>{persona.name[0]}</Text>
-        </View>
+        <Image source={persona.image} style={[contenderStyles.avatar, { borderColor: persona.color }]} />
         <View style={{ flex: 1 }}>
           <Text style={[contenderStyles.name, { color: persona.color }]}>{persona.fullName}</Text>
           <Text style={contenderStyles.title}>{getTitle(persona.id)}</Text>
         </View>
+        <Pressable onPress={() => onSpeak(advice, persona.id)} style={({ pressed }) => [contenderStyles.speakBtn, { borderColor: persona.color }, pressed && { opacity: 0.7 }]}>
+          <Ionicons name="volume-high" size={18} color={persona.color} />
+        </Pressable>
       </View>
       <View style={[contenderStyles.adviceBox, { borderLeftColor: persona.color }]}>
         <Text style={contenderStyles.adviceText}>"{advice}"</Text>
@@ -311,7 +367,7 @@ function ContenderCard({ persona, topic, onVote, voteCount, totalVotes, hasVoted
   );
 }
 
-function BattleFighterCard({ persona, category, voteCount, totalVotes, onVote, hasVoted, isWinner }: { persona: Persona; category: string; voteCount: number; totalVotes: number; onVote: () => void; hasVoted: boolean; isWinner: boolean }) {
+function BattleFighterCard({ persona, category, voteCount, totalVotes, onVote, hasVoted, isWinner, onSpeak }: { persona: Persona; category: string; voteCount: number; totalVotes: number; onVote: () => void; hasVoted: boolean; isWinner: boolean; onSpeak: (text: string, personaId: string) => void }) {
   const advice = persona.advice[category] || persona.advice.default;
   const pct = totalVotes > 0 ? Math.round((voteCount / totalVotes) * 100) : 0;
 
@@ -323,13 +379,14 @@ function BattleFighterCard({ persona, category, voteCount, totalVotes, onVote, h
       isWinner && { borderWidth: 2 },
     ]}>
       <View style={battleStyles.cardHeader}>
-        <View style={[battleStyles.cardAvatar, { borderColor: persona.color }]}>
-          <Text style={[battleStyles.cardAvatarText, { color: persona.color }]}>{persona.name[0]}</Text>
-        </View>
+        <Image source={persona.image} style={[battleStyles.cardAvatar, { borderColor: persona.color }]} />
         <View style={{ flex: 1 }}>
           <Text style={[battleStyles.cardName, { color: persona.color }]}>{persona.name}</Text>
           <Text style={battleStyles.cardTitle}>{getTitle(persona.id)}</Text>
         </View>
+        <Pressable onPress={() => onSpeak(advice, persona.id)} style={({ pressed }) => [contenderStyles.speakBtn, { borderColor: persona.color }, pressed && { opacity: 0.7 }]}>
+          <Ionicons name="volume-high" size={16} color={persona.color} />
+        </Pressable>
       </View>
       <View style={[battleStyles.adviceBox, { borderLeftColor: persona.color }]}>
         <Text style={battleStyles.adviceText}>"{advice}"</Text>
@@ -463,6 +520,43 @@ export default function FaceoffScreen() {
   const [potwWeek, setPotwWeek] = useState("");
   const [potwHasVoted, setPotwHasVoted] = useState(false);
   const [potwVotedFor, setPotwVotedFor] = useState<string | null>(null);
+  const [speakingId, setSpeakingId] = useState<string | null>(null);
+  const soundRef = useRef<Audio.Sound | null>(null);
+
+  const handleSpeak = useCallback(async (text: string, personaId: string) => {
+    try {
+      if (soundRef.current) {
+        await soundRef.current.unloadAsync();
+        soundRef.current = null;
+      }
+      setSpeakingId(personaId);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      const res = await globalThis.fetch(`${baseUrl}/api/persona-speak`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: text.slice(0, 300), personaId }),
+      });
+      if (!res.ok) throw new Error("TTS failed");
+      const blob = await res.blob();
+      const reader = new FileReader();
+      const dataUri = await new Promise<string>((resolve, reject) => {
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+      const { sound } = await Audio.Sound.createAsync({ uri: dataUri });
+      soundRef.current = sound;
+      await sound.playAsync();
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          setSpeakingId(null);
+        }
+      });
+    } catch {
+      setSpeakingId(null);
+    }
+  }, []);
 
   const ENCOURAGEMENTS = [
     "Keep voting! The winner gets bragging rights!",
@@ -851,6 +945,7 @@ export default function FaceoffScreen() {
                 totalVotes={(votes[contender1.id] || 0) + (votes[contender2.id] || 0)}
                 hasVoted={hasVoted}
                 isVotedFor={votedFor === contender1.id}
+                onSpeak={handleSpeak}
               />
             </Animated.View>
 
@@ -863,6 +958,7 @@ export default function FaceoffScreen() {
                 totalVotes={(votes[contender1.id] || 0) + (votes[contender2.id] || 0)}
                 hasVoted={hasVoted}
                 isVotedFor={votedFor === contender2.id}
+                onSpeak={handleSpeak}
               />
             </Animated.View>
 
@@ -968,6 +1064,7 @@ export default function FaceoffScreen() {
                     onVote={() => handleBattleVote(persona.id)}
                     hasVoted={battleHasVoted}
                     isWinner={battleVotedFor === persona.id}
+                    onSpeak={handleSpeak}
                   />
                 </Animated.View>
               ))}
@@ -1006,7 +1103,7 @@ export default function FaceoffScreen() {
               return (
                 <View key={p.id} style={[potwStyles.card, isVoted && potwStyles.cardVoted]}>
                   {isLeader && <Text style={potwStyles.crown}>{"\u{1F451}"}</Text>}
-                  <Text style={potwStyles.cardAvatar}>{p.name[0]}</Text>
+                  <Image source={p.image} style={potwStyles.cardImage} />
                   <Text style={potwStyles.cardName}>{p.name}</Text>
                   <Text style={[potwStyles.cardCount, { color: p.color }]}>
                     {count >= 1000 ? (count / 1000).toFixed(1) + "K" : count}
@@ -1087,14 +1184,7 @@ const cardStyles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     borderWidth: 2,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.05)",
     marginBottom: 6,
-  },
-  personaInitial: {
-    fontSize: 18,
-    fontWeight: "900" as const,
   },
   personaName: {
     fontSize: 11,
@@ -1123,13 +1213,15 @@ const contenderStyles = StyleSheet.create({
     height: 44,
     borderRadius: 22,
     borderWidth: 2,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.05)",
   },
-  avatarText: {
-    fontSize: 20,
-    fontWeight: "900" as const,
+  speakBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    backgroundColor: "rgba(255,255,255,0.05)",
   },
   name: {
     fontSize: 16,
@@ -1580,13 +1672,6 @@ const battleStyles = StyleSheet.create({
     height: 36,
     borderRadius: 18,
     borderWidth: 2,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.05)",
-  },
-  cardAvatarText: {
-    fontSize: 16,
-    fontWeight: "900" as const,
   },
   cardName: {
     fontSize: 14,
@@ -1811,11 +1896,13 @@ const potwStyles = StyleSheet.create({
     right: -4,
     fontSize: 16,
   },
-  cardAvatar: {
-    fontSize: 24,
-    fontWeight: "900" as const,
-    color: Colors.gold,
-    marginBottom: 2,
+  cardImage: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 2,
+    borderColor: "rgba(255,215,0,0.4)",
+    marginBottom: 4,
   },
   cardName: {
     fontSize: 12,

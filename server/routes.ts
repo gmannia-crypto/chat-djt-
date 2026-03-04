@@ -548,7 +548,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ votes: debate.votes, total });
   });
 
-  const VALID_BATTLE_PERSONAS = ["trump", "buffett", "musk", "suze", "dave", "grandma", "robot", "mansa", "jordan", "bernie"];
+  const VALID_BATTLE_PERSONAS = ["trump", "buffett", "musk", "suze", "dave", "grandma", "genie", "mansa", "jordan", "bernie", "ruckus"];
+
+  const PERSONA_VOICE_IDS: Record<string, string> = {
+    jordan: "6908d35f23754047acde93acf29fc749",
+    bernie: "5cbb7b199c5a4b538bf1018e6341ebc4",
+    musk: "759c82adcd8f4c129ae29dec9f772b7b",
+    buffett: "69301c882a7a40d9b4f05460047b752a",
+    grandma: "70997051e64a4ced9ef6ae7628e2995e",
+    suze: "5325c7139b0c4301b2a6ca9a0c3ea84d",
+    dave: "bc89cf1d3ef14903bcb4971e139c0491",
+    genie: "4c689d1b3962445eafe7a4422894d1a8",
+    ruckus: "35cec18b290d4896b92644f2298330ab",
+  };
+
+  app.get("/api/persona-image/:id", (req, res) => {
+    const id = req.params.id;
+    const imagePath = join(process.cwd(), "assets", "images", `persona-${id}.png`);
+    if (existsSync(imagePath)) {
+      res.setHeader("Content-Type", "image/png");
+      res.setHeader("Cache-Control", "public, max-age=86400");
+      res.send(readFileSync(imagePath));
+    } else {
+      res.status(404).json({ error: "Image not found" });
+    }
+  });
+
+  app.post("/api/persona-speak", async (req, res) => {
+    try {
+      const { text, personaId } = req.body;
+      if (!text || !personaId) {
+        return res.status(400).json({ error: "text and personaId are required" });
+      }
+
+      const apiKey = process.env.FISH_AUDIO_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ error: "TTS not configured" });
+      }
+
+      let voiceId = PERSONA_VOICE_IDS[personaId];
+      if (!voiceId) {
+        voiceId = process.env.FISH_AUDIO_VOICE_ID || "";
+      }
+      if (!voiceId) {
+        return res.status(400).json({ error: "No voice configured for persona" });
+      }
+
+      const truncated = text.slice(0, 500);
+      const buffer = await fishAudioRequest(truncated, voiceId, 1.0, apiKey);
+
+      res.setHeader("Content-Type", "audio/mpeg");
+      res.setHeader("Content-Length", buffer.length.toString());
+      res.send(buffer);
+    } catch (error: any) {
+      console.error("Persona speak error:", error);
+      res.status(500).json({ error: "TTS generation failed" });
+    }
+  });
 
   app.post("/api/faceoff/battle-vote", (req, res) => {
     try {
@@ -3377,6 +3433,26 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
           : `Under $100K? I ain't scared of that price! That's a DEAL, America! You know how many comedy clubs I played for LESS than that? Buy it, fix it up, and tell the neighbors — I AIN'T LEAVING!`,
         rating: Math.floor(Math.random() * 20) + 75,
       },
+      genie: {
+        comment: price > 1000000
+          ? `Your wish for a $${(price / 1000000).toFixed(1)}M property has been GRANTED! But remember, I've seen a thousand empires rise and fall. This ${city} palace? It could be your Aladdin's cave... or your financial curse. Choose WISELY, master.`
+          : price > 500000
+          ? `Ah, $${(price / 1000).toFixed(0)}K in ${city}! I've granted wishes for kings who paid less for castles. ${beds} bedrooms? Your wish is ambitious. But the Genie says — rub the numbers before you rub the lamp.`
+          : price > 100000
+          ? `$${(price / 1000).toFixed(0)}K? A modest wish! But modest wishes often bring the greatest fortune. I've seen ${city} properties transform into golden opportunities. This could be YOUR magic carpet ride.`
+          : `Under $100K? Even a beggar's wish can create an empire! I've been granting financial wishes for ten thousand years, and the SMARTEST masters always started small. This is wise magic.`,
+        rating: Math.floor(Math.random() * 25) + 70,
+      },
+      ruckus: {
+        comment: price > 1000000
+          ? `$${(price / 1000000).toFixed(1)}M?! Now who in their RIGHT MIND is paying THAT for a house in ${city}?! That ain't a house, that's a SCAM with a roof on it! Don't be a FOOL! The property values gonna tank like everything else!`
+          : price > 500000
+          ? `$${(price / 1000).toFixed(0)}K?! ${beds} bedrooms?! Let me tell you something — the NEIGHBORHOOD is what matters. And I KNOW neighborhoods. Half of em ain't worth the dirt they built on. ${city}? I got my doubts!`
+          : price > 100000
+          ? `$${(price / 1000).toFixed(0)}K in ${city}? Hmph. At least it ain't TOO stupid. But let me tell you — don't trust that realtor! They all LIARS! Check the foundation yourself. And the neighbors? INVESTIGATE.`
+          : `Under $100K? There's a REASON it's that cheap! Ain't nobody trying to sell you something good for that price! But... if the foundation's solid... MAYBE. Just don't come crying to me when the roof leaks!`,
+        rating: Math.floor(Math.random() * 40) + 40,
+      },
     };
 
     return {
@@ -3397,6 +3473,8 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
       pricePerSqFt,
       propertyType,
       dom,
+      lat,
+      lng,
       trumpComment: trumpComments[commentIndex],
       trumpRating,
       personaComments,

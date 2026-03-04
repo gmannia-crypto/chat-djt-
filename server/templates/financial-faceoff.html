@@ -419,6 +419,7 @@
             trump: {
                 id: 'trump', avatar: "\u{1F5E3}\u{FE0F}", name: "Trump", fullName: "Donald J. Trump",
                 style: { color: '#ff4d4d', bg: '#ff4d4d20' },
+                imageUrl: '/api/persona-image/trump',
                 advice: {
                     crypto: "Buy Bitcoin! It's going to the moon! The best investment ever! Use my link!",
                     stock: "My stocks are the BEST stocks. Everyone says so. Buy what I buy!",
@@ -433,6 +434,7 @@
             buffett: {
                 id: 'buffett', avatar: "\u{1F474}", name: "Buffett", fullName: "Warren Buffett",
                 style: { color: '#4d4dff', bg: '#4d4dff20' },
+                imageUrl: '/api/persona-image/buffett',
                 advice: {
                     crypto: "I don't understand Bitcoin. I stick with what I know - productive assets.",
                     stock: "Index funds. Low fees. Long term. Here's Vanguard.",
@@ -447,6 +449,7 @@
             musk: {
                 id: 'musk', avatar: "\u{1F680}", name: "Elon", fullName: "Elon Musk",
                 style: { color: '#00ccff', bg: '#00ccff20' },
+                imageUrl: '/api/persona-image/musk',
                 advice: {
                     crypto: "Dogecoin! To the moon! Literally! Much wow!",
                     stock: "Tesla stock is undervalued. Seriously. But I'm biased.",
@@ -461,6 +464,7 @@
             suze: {
                 id: 'suze', avatar: "\u{1F469}", name: "Suze", fullName: "Suze Orman",
                 style: { color: '#ff99cc', bg: '#ff99cc20' },
+                imageUrl: '/api/persona-image/suze',
                 advice: {
                     crypto: "People are going to get hurt. You hear me? HURT. Don't gamble.",
                     stock: "Index funds are fine, but do you have an emergency fund FIRST?",
@@ -475,6 +479,7 @@
             dave: {
                 id: 'dave', avatar: "\u{1F4FB}", name: "Dave", fullName: "Dave Ramsey",
                 style: { color: '#ffaa00', bg: '#ffaa0020' },
+                imageUrl: '/api/persona-image/dave',
                 advice: {
                     crypto: "DEBT IS DUMB! Crypto is gambling! BABY STEPS!",
                     stock: "Invest 15% for retirement. Good mutual funds with good track records.",
@@ -489,6 +494,7 @@
             grandma: {
                 id: 'grandma', avatar: "\u{1F475}", name: "Grandma", fullName: "Your Grandma",
                 style: { color: '#ffffff', bg: '#ffffff20' },
+                imageUrl: '/api/persona-image/grandma',
                 advice: {
                     crypto: "Oh honey, is that like internet money? Sounds scary. Save your pennies.",
                     stock: "Your grandpa loved AT&T. Paid dividends for 50 years. Solid company.",
@@ -500,23 +506,25 @@
                 affiliate: { label: "Treasury Direct", url: "https://treasurydirect.gov" },
                 catchphrases: ["Bless your heart.", "That's nice, dear.", "Have you eaten?", "When I was your age..."]
             },
-            robot: {
-                id: 'robot', avatar: "\u{1F916}", name: "ROBOT", fullName: "AI Financial Advisor",
-                style: { color: '#00ff00', bg: '#00ff0020' },
+            genie: {
+                id: 'genie', avatar: "\u{1F9DE}", name: "Genie", fullName: "The Financial Genie",
+                style: { color: '#9B59B6', bg: '#9B59B620' },
+                imageUrl: '/api/persona-image/genie',
                 advice: {
-                    crypto: "ANALYZING... BITCOIN VOLATILITY: 67%. SUGGEST 2-5% PORTFOLIO ALLOCATION.",
-                    stock: "S&P 500 HISTORICAL RETURN: 10.2%. RECOMMEND LOW-COST INDEX FUND.",
-                    property: "CURRENT MARKET: BALANCED. CONSIDER LOCAL MARKET CONDITIONS.",
-                    commodity: "GOLD CORRELATION TO INFLATION: 0.47. CONSIDER AS HEDGE.",
-                    etf: "VTI EXPENSE RATIO: 0.03%. OPTIMAL FOR PASSIVE INVESTORS.",
-                    default: "CALCULATING OPTIMAL STRATEGY BASED ON YOUR RISK PROFILE..."
+                    crypto: "Your wish for crypto riches? GRANTED! But beware \u2014 I've seen a thousand wishes for quick fortune turn to dust. Size your wish wisely.",
+                    stock: "The stock market! I've granted wishes for kings who lost kingdoms on bad trades. Index funds? That's a WISE wish. The lamp approves.",
+                    property: "LAND! A wish worth granting! I've lived in a lamp for 10,000 years \u2014 trust me, having your OWN place matters.",
+                    commodity: "Gold? I've SWUM in gold! My lamp is MADE of gold! But don't put ALL your wishes in one metal.",
+                    etf: "ETFs? A diversified wish! Low fees, broad exposure. GRANTED!",
+                    default: "You have THREE financial wishes. Choose wisely! The SMART ones wish for compound interest."
                 },
                 affiliate: { label: "Betterment", url: "https://betterment.com" },
-                catchphrases: ["CALCULATING...", "PROCESSING...", "ANALYSIS COMPLETE.", "ERROR: HUMAN EMOTION DETECTED."]
+                catchphrases: ["Your wish is my command!", "I've seen a thousand empires rise and fall!", "Choose your financial wishes WISELY!", "The lamp has spoken!"]
             },
             mansa: {
                 id: 'mansa', avatar: "\u{1F451}", name: "Mansa Musa", fullName: "Mansa Musa I",
                 style: { color: '#D4AF37', bg: '#D4AF3720' },
+                imageUrl: '/api/persona-image/mansa',
                 advice: {
                     crypto: "Digital gold? In my empire, we had REAL gold. So much it crashed Egypt\u2019s economy. But I see the vision.",
                     stock: "Owning pieces of great enterprises? That is how empires are built. I owned entire trade routes.",
@@ -531,6 +539,7 @@
             jordan: {
                 id: 'jordan', avatar: "\u{1F3C0}", name: "MJ", fullName: "Michael Jordan",
                 style: { color: '#CE1141', bg: '#CE114120' },
+                imageUrl: '/api/persona-image/jordan',
                 advice: {
                     crypto: "I\u2019ve missed more than 9,000 shots in my career. Crypto? That\u2019s just another shot. You miss 100% of the ones you don\u2019t take. But size your bet like a champion.",
                     stock: "I didn\u2019t become a billionaire by playing it safe. Nike deal, Charlotte Hornets \u2014 I bet on myself. Find companies with that killer instinct.",
@@ -545,6 +554,7 @@
             bernie: {
                 id: 'bernie', avatar: "\u{1F3A4}", name: "Bernie Mac", fullName: "Bernie Mac",
                 style: { color: '#9B59B6', bg: '#9B59B620' },
+                imageUrl: '/api/persona-image/bernie',
                 advice: {
                     crypto: "Listen here, America. I ain\u2019t puttin\u2019 my money in no INVISIBLE money! You can\u2019t hold it, you can\u2019t fold it, you can\u2019t put it under your mattress. I\u2019m scared of it!",
                     stock: "The stock market? Baby, that\u2019s a rollercoaster. And I don\u2019t DO rollercoasters. But if you\u2019re gonna ride, ride something SOLID. Blue chips, baby!",
@@ -555,6 +565,21 @@
                 },
                 affiliate: { label: "Audible", url: "https://www.amazon.com/audible?tag=trumpbot-20" },
                 catchphrases: ["I ain\u2019t scared of you!", "Listen here, America!", "You don\u2019t understand \u2014 I\u2019m not playing!", "I\u2019m gonna bust your head til the white meat shows!"]
+            },
+            ruckus: {
+                id: 'ruckus', avatar: "\u{1F624}", name: "Ruckus", fullName: "Uncle Ruckus",
+                style: { color: '#8B4513', bg: '#8B451320' },
+                imageUrl: '/api/persona-image/ruckus',
+                advice: {
+                    crypto: "Crypto?! That's FAKE money made by FAKE people! The only REAL currency is HARD WORK and COMPLAINING! I ain't touching that digital nonsense!",
+                    stock: "The stock market? That's a RIGGED game! But if you GOTTA play, buy the boring stuff. Blue chips. Companies that been around forever.",
+                    property: "A HOUSE?! In THIS neighborhood?! You better check the foundation, the neighbors, the HISTORY, and probably the water supply too! Trust NOBODY!",
+                    commodity: "Gold? At least you can HOLD gold! You can BITE it! Try biting a Bitcoin! That's right, YOU CAN'T! Gold is the only honest investment!",
+                    etf: "ETFs? That's just a lazy person's way of investing! You don't even KNOW what you own! But it's better than crypto SCAMS!",
+                    default: "I don't trust ANY of these investments! But I ESPECIALLY don't trust the ones I don't understand! Which is most of em!"
+                },
+                affiliate: { label: "Treasury Direct", url: "https://treasurydirect.gov" },
+                catchphrases: ["Don't be a FOOL!", "I ain't trusting that!", "Let me tell you something!", "That ain't right!"]
             }
         };
 
@@ -583,10 +608,11 @@
                 suze: "Personal Finance Expert",
                 dave: "Financial Peace University",
                 grandma: "Voice of Experience",
-                robot: "Algorithmic Analysis",
+                genie: "10,000 Years of Wisdom",
                 mansa: "Richest Man in History",
                 jordan: "6x NBA Champion & Billionaire",
-                bernie: "King of Comedy"
+                bernie: "King of Comedy",
+                ruckus: "Contrarian Expert"
             };
             return titles[id] || "";
         }
@@ -610,7 +636,9 @@
                 var sel = key === selectedId ? ' selected' : '';
                 var borderColor = key === selectedId ? p.style.color : '#333';
                 html += '<div class="persona-card' + sel + '" style="border-color:' + borderColor + ';" onclick="selectPersona(' + selectorNum + ',\'' + key + '\')">';
-                html += '<div class="persona-avatar">' + p.avatar + '</div>';
+                html += p.imageUrl
+                    ? '<img src="' + p.imageUrl + '" style="width:36px;height:36px;border-radius:50%;border:2px solid ' + borderColor + ';object-fit:cover;" onerror="this.outerHTML=\'<div class=persona-avatar>' + p.avatar + '</div>\'">'
+                    : '<div class="persona-avatar">' + p.avatar + '</div>';
                 html += '<div class="persona-name" style="color:' + p.style.color + ';">' + p.name + '</div>';
                 html += '</div>';
             }
@@ -695,9 +723,15 @@
             if (p.affiliate && p.affiliate.url) {
                 affHtml = '<a class="affiliate-link" href="' + p.affiliate.url + '" target="_blank" rel="noopener">\u{1F517} ' + p.affiliate.label + '</a>';
             }
+            var imgHtml = p.imageUrl
+                ? '<img src="' + p.imageUrl + '" style="width:52px;height:52px;border-radius:50%;border:2px solid ' + p.style.color + ';object-fit:cover;" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'block\'"><span class="avatar-big" style="display:none">' + p.avatar + '</span>'
+                : '<div class="avatar-big">' + p.avatar + '</div>';
             return '<div class="contender-panel">' +
-                '<div class="avatar-big">' + p.avatar + '</div>' +
+                imgHtml +
+                '<div style="display:flex;align-items:center;gap:8px;justify-content:center;">' +
                 '<div class="name" style="color:' + p.style.color + ';">' + p.fullName + '</div>' +
+                '<button onclick="speakPersona(\'' + p.id + '\', ' + JSON.stringify(advice).replace(/'/g, "\\'") + ')" style="background:none;border:1px solid ' + p.style.color + ';border-radius:50%;width:28px;height:28px;cursor:pointer;display:flex;align-items:center;justify-content:center;" title="Listen">\u{1F50A}</button>' +
+                '</div>' +
                 '<div class="title">' + getTitle(p.id) + '</div>' +
                 '<div class="advice-quote" style="color:' + p.style.color + '; border-left-color:' + p.style.color + ';">"' + advice + '"</div>' +
                 '<div class="catchphrase">\u{1F4AD} ' + catchphrase + '</div>' +
@@ -878,6 +912,22 @@
             }, 2500);
         }
 
+        var speakAudio = null;
+        function speakPersona(personaId, text) {
+            if (speakAudio) { speakAudio.pause(); speakAudio = null; }
+            fetch('/api/persona-speak', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: (text || '').slice(0, 300), personaId: personaId })
+            }).then(function(r) { return r.blob(); })
+            .then(function(blob) {
+                var url = URL.createObjectURL(blob);
+                speakAudio = new Audio(url);
+                speakAudio.play();
+                speakAudio.onended = function() { URL.revokeObjectURL(url); speakAudio = null; };
+            }).catch(function() {});
+        }
+
         function trackEvent(event, data) {
             try {
                 fetch('/api/track-viral', {
@@ -965,9 +1015,12 @@
 
                 html += '<div class="fighter-card" id="fighter_' + key + '" style="border-color:' + p.style.color + '30;">';
                 html += '<div class="fighter-header">';
-                html += '<div class="fighter-avatar">' + p.avatar + '</div>';
+                html += p.imageUrl
+                    ? '<img src="' + p.imageUrl + '" style="width:36px;height:36px;border-radius:50%;border:2px solid ' + p.style.color + ';object-fit:cover;" onerror="this.outerHTML=\'<div class=fighter-avatar>' + p.avatar + '</div>\'">'
+                    : '<div class="fighter-avatar">' + p.avatar + '</div>';
                 html += '<div><div class="fighter-name" style="color:' + p.style.color + ';">' + p.name + '</div>';
                 html += '<div class="fighter-title">' + getTitle(key) + '</div></div>';
+                html += '<button onclick="speakPersona(\'' + key + '\', ' + JSON.stringify(advice).replace(/'/g, "\\'") + ')" style="background:none;border:1px solid ' + p.style.color + ';border-radius:50%;width:26px;height:26px;cursor:pointer;display:flex;align-items:center;justify-content:center;margin-left:auto;flex-shrink:0;" title="Listen">\u{1F50A}</button>';
                 html += '</div>';
                 html += '<div class="fighter-advice" style="color:' + p.style.color + ';border-left-color:' + p.style.color + ';">"' + advice + '"</div>';
                 html += '<div class="fighter-vote-bar"><div class="fighter-vote-fill" id="battleFill_' + key + '" style="width:0%;background:' + p.style.color + ';"></div></div>';
@@ -1089,7 +1142,9 @@
                 var isVoted = potwVotedFor === id;
                 html += '<div class="potw-card' + (isVoted ? ' voted' : '') + '" id="potwCard_' + id + '">' +
                     (isTop ? '<span class="potw-crown">\u{1F451}</span>' : '') +
-                    '<div class="potw-card-avatar">' + p.avatar + '</div>' +
+                    (p.imageUrl
+                        ? '<img src="' + p.imageUrl + '" style="width:44px;height:44px;border-radius:50%;border:2px solid rgba(255,215,0,0.4);object-fit:cover;margin-bottom:4px;" onerror="this.outerHTML=\'<div class=potw-card-avatar>' + p.avatar + '</div>\'">'
+                        : '<div class="potw-card-avatar">' + p.avatar + '</div>') +
                     '<div class="potw-card-name">' + p.name + '</div>' +
                     '<div class="potw-card-votes" style="color:' + p.style.color + ';">' + formatVoteCount(count) + '</div>' +
                     '<div class="potw-card-bar"><div class="potw-card-fill" style="width:' + pct + '%;background:' + p.style.color + ';"></div></div>' +

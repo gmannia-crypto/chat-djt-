@@ -55,6 +55,8 @@ interface Property {
   pricePerSqFt: number | null;
   propertyType: string;
   dom: number | null;
+  lat: number | null;
+  lng: number | null;
   trumpComment: string;
   trumpRating: number;
   personaComments?: Record<string, PersonaComment>;
@@ -67,18 +69,35 @@ interface AdvisorPersona {
   color: string;
   title: string;
   stampLabel: string;
+  image: any;
 }
 
+const ADVISOR_IMAGES: Record<string, any> = {
+  trump: require("@/assets/images/persona-trump.png"),
+  buffett: require("@/assets/images/persona-buffett.png"),
+  suze: require("@/assets/images/persona-suze.png"),
+  grandma: require("@/assets/images/persona-grandma.png"),
+  musk: require("@/assets/images/persona-musk.png"),
+  dave: require("@/assets/images/persona-dave.png"),
+  mansa: require("@/assets/images/persona-mansa.png"),
+  jordan: require("@/assets/images/persona-jordan.png"),
+  bernie: require("@/assets/images/persona-bernie.png"),
+  genie: require("@/assets/images/persona-genie.png"),
+  ruckus: require("@/assets/images/persona-ruckus.png"),
+};
+
 const REAL_ESTATE_ADVISORS: AdvisorPersona[] = [
-  { id: "trump", name: "Trump", emoji: "\uD83D\uDDE3\uFE0F", color: "#ff4d4d", title: "45th & 47th President", stampLabel: "TRUMP APPROVED" },
-  { id: "buffett", name: "Buffett", emoji: "\uD83D\uDC74", color: "#4d4dff", title: "Oracle of Omaha", stampLabel: "BUFFETT ANALYZED" },
-  { id: "suze", name: "Suze", emoji: "\uD83D\uDC69", color: "#ff99cc", title: "Personal Finance Expert", stampLabel: "SUZE REVIEWED" },
-  { id: "grandma", name: "Grandma", emoji: "\uD83D\uDC75", color: "#ffffff", title: "Voice of Experience", stampLabel: "GRANDMA APPROVED" },
-  { id: "musk", name: "Elon", emoji: "\uD83D\uDE80", color: "#00ccff", title: "CEO of Tesla & SpaceX", stampLabel: "ELON RATED" },
-  { id: "dave", name: "Dave", emoji: "\uD83D\uDCFB", color: "#ffaa00", title: "Financial Peace", stampLabel: "DAVE GRADED" },
-  { id: "mansa", name: "Mansa Musa", emoji: "\uD83D\uDC51", color: "#D4AF37", title: "Richest Man in History", stampLabel: "MANSA BLESSED" },
-  { id: "jordan", name: "MJ", emoji: "\uD83C\uDFC0", color: "#CE1141", title: "6x NBA Champion", stampLabel: "MJ CERTIFIED" },
-  { id: "bernie", name: "Bernie Mac", emoji: "\uD83C\uDFA4", color: "#9B59B6", title: "King of Comedy", stampLabel: "BERNIE APPROVED" },
+  { id: "trump", name: "Trump", emoji: "\uD83D\uDDE3\uFE0F", color: "#ff4d4d", title: "45th & 47th President", stampLabel: "TRUMP APPROVED", image: ADVISOR_IMAGES.trump },
+  { id: "buffett", name: "Buffett", emoji: "\uD83D\uDC74", color: "#4d4dff", title: "Oracle of Omaha", stampLabel: "BUFFETT ANALYZED", image: ADVISOR_IMAGES.buffett },
+  { id: "suze", name: "Suze", emoji: "\uD83D\uDC69", color: "#ff99cc", title: "Personal Finance Expert", stampLabel: "SUZE REVIEWED", image: ADVISOR_IMAGES.suze },
+  { id: "grandma", name: "Grandma", emoji: "\uD83D\uDC75", color: "#ffffff", title: "Voice of Experience", stampLabel: "GRANDMA APPROVED", image: ADVISOR_IMAGES.grandma },
+  { id: "musk", name: "Elon", emoji: "\uD83D\uDE80", color: "#00ccff", title: "CEO of Tesla & SpaceX", stampLabel: "ELON RATED", image: ADVISOR_IMAGES.musk },
+  { id: "dave", name: "Dave", emoji: "\uD83D\uDCFB", color: "#ffaa00", title: "Financial Peace", stampLabel: "DAVE GRADED", image: ADVISOR_IMAGES.dave },
+  { id: "mansa", name: "Mansa Musa", emoji: "\uD83D\uDC51", color: "#D4AF37", title: "Richest Man in History", stampLabel: "MANSA BLESSED", image: ADVISOR_IMAGES.mansa },
+  { id: "jordan", name: "MJ", emoji: "\uD83C\uDFC0", color: "#CE1141", title: "6x NBA Champion", stampLabel: "MJ CERTIFIED", image: ADVISOR_IMAGES.jordan },
+  { id: "bernie", name: "Bernie Mac", emoji: "\uD83C\uDFA4", color: "#9B59B6", title: "King of Comedy", stampLabel: "BERNIE APPROVED", image: ADVISOR_IMAGES.bernie },
+  { id: "genie", name: "Genie", emoji: "\uD83E\uDDDE", color: "#9B59B6", title: "10,000 Years of Wisdom", stampLabel: "GENIE GRANTED", image: ADVISOR_IMAGES.genie },
+  { id: "ruckus", name: "Ruckus", emoji: "\uD83D\uDE24", color: "#8B4513", title: "Contrarian Expert", stampLabel: "RUCKUS REJECTED", image: ADVISOR_IMAGES.ruckus },
 ];
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -153,11 +172,11 @@ export default function RealEstateScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
-      const baseUrl = getApiUrl();
-      const ttsRes = await fetch(`${baseUrl}api/tts`, {
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      const ttsRes = await fetch(`${baseUrl}/api/persona-speak`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, voice: "trump", mood: "EXCITED" }),
+        body: JSON.stringify({ text: text.slice(0, 300), personaId: selectedAdvisor }),
       });
 
       if (!ttsRes.ok) throw new Error("TTS failed");
@@ -411,7 +430,7 @@ export default function RealEstateScreen() {
                 },
               ]}
             >
-              <Text style={styles.advisorEmoji}>{advisor.emoji}</Text>
+              <Image source={advisor.image} style={[styles.advisorImage, { borderColor: selectedAdvisor === advisor.id ? advisor.color : "rgba(255,255,255,0.2)" }]} />
               <Text style={[styles.advisorName, selectedAdvisor === advisor.id && { color: advisor.color }]}>{advisor.name}</Text>
             </Pressable>
           ))}
@@ -446,12 +465,22 @@ export default function RealEstateScreen() {
           ]}
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={
-            <Animated.View entering={FadeIn.duration(300)} style={styles.resultsHeader}>
-              <Text style={styles.resultsCount}>
-                {totalResults} properties in {location}
-              </Text>
-              <Text style={styles.resultsSubtext}>{activeAdvisor.name}-Rated for your pleasure</Text>
-            </Animated.View>
+            <>
+              {Platform.OS === "web" && properties.some(p => p.lat && p.lng) && (
+                <View style={styles.mapContainer}>
+                  <iframe
+                    style={{ width: "100%", height: 220, border: "none", borderRadius: 12 } as any}
+                    srcDoc={`<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><style>body{margin:0}#map{width:100%;height:220px}</style></head><body><div id="map"></div><script>var props=${JSON.stringify(properties.filter(p=>p.lat&&p.lng).map(p=>({lat:p.lat,lng:p.lng,price:p.price,beds:p.beds,street:p.street})))};var map=L.map('map',{zoomControl:false});L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'OSM'}).addTo(map);var bounds=[];props.forEach(function(p){var m=L.marker([p.lat,p.lng]).addTo(map);m.bindPopup('<b>$'+(p.price>=1e6?(p.price/1e6).toFixed(1)+'M':(p.price/1e3).toFixed(0)+'K')+'</b><br>'+p.beds+' bed - '+p.street);bounds.push([p.lat,p.lng])});if(bounds.length)map.fitBounds(bounds,{padding:[20,20]});</script></body></html>`}
+                  />
+                </View>
+              )}
+              <Animated.View entering={FadeIn.duration(300)} style={styles.resultsHeader}>
+                <Text style={styles.resultsCount}>
+                  {totalResults} properties in {location}
+                </Text>
+                <Text style={styles.resultsSubtext}>{activeAdvisor.name}-Rated for your pleasure</Text>
+              </Animated.View>
+            </>
           }
           ListFooterComponent={
             <Pressable
@@ -574,8 +603,11 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1.5,
   },
-  advisorEmoji: {
-    fontSize: 16,
+  advisorImage: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1.5,
   },
   advisorName: {
     fontSize: 12,
@@ -630,6 +662,14 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.5)",
     textAlign: "center",
     lineHeight: 22,
+  },
+  mapContainer: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+    borderRadius: 12,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(255,215,0,0.2)",
   },
   resultsHeader: {
     alignItems: "center",
