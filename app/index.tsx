@@ -50,6 +50,18 @@ const FEEDBACK_CONV_COUNT_KEY = "chatdjt_conv_count";
 const HOT_TAKE_CACHE_KEY = "chatdjt_hot_take_cache";
 const STREAK_KEY = "chatdjt_streak";
 const LAST_CHAT_DAY_KEY = "chatdjt_last_chat_day";
+const MYSTERY_BOX_KEY = "chatdjt_mystery_box";
+
+const MYSTERY_REWARDS = [
+  { label: "Free Roast", icon: "flame", description: "Trump will personally roast you — for FREE. No tokens needed." },
+  { label: "Double Fortune", icon: "crystal-ball", description: "Your next Fortune Parlor reading is DOUBLED. Twice the prophecy!" },
+  { label: "Trump Stock Tip", icon: "trending-up", description: "An exclusive AI-generated stock hot take from the Don himself." },
+  { label: "Property Discount", icon: "home", description: "VIP access to Trump Realty's top pick of the day. TREMENDOUS." },
+  { label: "Cabinet Roast", icon: "people", description: "Unlock a bonus Cabinet Hot Seat roast. Savage and FREE." },
+  { label: "Golden Tweet", icon: "logo-twitter", description: "Generate a viral Trump tweet on ANY topic. Pure gold." },
+  { label: "Therapy Session", icon: "medical", description: "A free therapy session with Dr. Trump. Healing through WINNING." },
+  { label: "VIP Fortune", icon: "star", description: "A rare PREMIUM fortune reading. Only winners get this." },
+];
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -250,6 +262,10 @@ export default function HomeScreen() {
   const [hotTakeLoading, setHotTakeLoading] = useState(false);
   const [streak, setStreak] = useState(0);
   const [dailyChallenge, setDailyChallenge] = useState<string | null>(null);
+  const [mysteryTimeLeft, setMysteryTimeLeft] = useState(0);
+  const [mysteryReady, setMysteryReady] = useState(false);
+  const [mysteryPrize, setMysteryPrize] = useState<typeof MYSTERY_REWARDS[0] | null>(null);
+  const [mysteryRevealing, setMysteryRevealing] = useState(false);
   const { deviceId, hasTokens } = useTokens();
 
   const pulseScale = useSharedValue(1);
@@ -319,8 +335,66 @@ export default function HomeScreen() {
       checkFeedbackPrompt();
       updateStreak();
       fetchDailyChallenge();
+      initMysteryBox();
     }, [])
   );
+
+  async function initMysteryBox() {
+    try {
+      const stored = await AsyncStorage.getItem(MYSTERY_BOX_KEY);
+      if (stored) {
+        const data = JSON.parse(stored);
+        const elapsed = Math.floor((Date.now() - data.lockedAt) / 1000);
+        const remaining = Math.max(0, 86400 - elapsed);
+        if (remaining <= 0) {
+          setMysteryReady(true);
+          setMysteryTimeLeft(0);
+        } else {
+          setMysteryReady(false);
+          setMysteryTimeLeft(remaining);
+        }
+      } else {
+        const now = Date.now();
+        await AsyncStorage.setItem(MYSTERY_BOX_KEY, JSON.stringify({ lockedAt: now }));
+        setMysteryTimeLeft(86400);
+        setMysteryReady(false);
+      }
+    } catch {}
+  }
+
+  useEffect(() => {
+    if (mysteryReady || mysteryTimeLeft <= 0) return;
+    const interval = setInterval(() => {
+      setMysteryTimeLeft((prev) => {
+        if (prev <= 1) {
+          setMysteryReady(true);
+          clearInterval(interval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [mysteryReady, mysteryTimeLeft]);
+
+  async function openMysteryBox() {
+    if (!mysteryReady || mysteryRevealing) return;
+    setMysteryRevealing(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    await new Promise((r) => setTimeout(r, 1200));
+    const prize = MYSTERY_REWARDS[Math.floor(Math.random() * MYSTERY_REWARDS.length)];
+    setMysteryPrize(prize);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setMysteryRevealing(false);
+    setMysteryReady(false);
+    setMysteryTimeLeft(86400);
+    await AsyncStorage.setItem(MYSTERY_BOX_KEY, JSON.stringify({ lockedAt: Date.now() }));
+  }
+
+  function dismissMysteryPrize() {
+    setMysteryPrize(null);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }
 
   async function loadConversations() {
     const convs = await getAllConversations();
@@ -659,6 +733,37 @@ export default function HomeScreen() {
             </Pressable>
           </Animated.View>
         )}
+
+        <Animated.View entering={FadeInDown.delay(950).duration(500)}>
+          <Pressable
+            onPress={mysteryReady ? openMysteryBox : undefined}
+            disabled={!mysteryReady || mysteryRevealing}
+            style={({ pressed }) => [pressed && mysteryReady && { opacity: 0.85 }]}
+          >
+            <LinearGradient
+              colors={mysteryReady ? ["#FFD700", "#b8860b", "#FFD700"] : ["#1a1a2e", "#16213e", "#1a1a2e"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.mysteryBoxCard}
+            >
+              <View style={styles.mysteryBoxHeader}>
+                <Text style={styles.mysteryBoxEmoji}>{mysteryReady ? "\uD83C\uDF81" : "\uD83D\uDD12"}</Text>
+                <View>
+                  <Text style={[styles.mysteryBoxTitle, mysteryReady && { color: "#0a0a0a" }]}>MYSTERY BOX</Text>
+                  <Text style={[styles.mysteryBoxSub, mysteryReady && { color: "#0a0a0a" }]}>
+                    {mysteryRevealing ? "REVEALING..." : mysteryReady ? "TAP TO OPEN!" : `Opens in: ${Math.floor(mysteryTimeLeft / 3600)}h ${Math.floor((mysteryTimeLeft % 3600) / 60)}m ${mysteryTimeLeft % 60}s`}
+                  </Text>
+                </View>
+                {mysteryRevealing && <ActivityIndicator size="small" color={mysteryReady ? "#0a0a0a" : "#FFD700"} style={{ marginLeft: "auto" }} />}
+              </View>
+              {!mysteryReady && (
+                <View style={styles.mysteryProgressBar}>
+                  <View style={[styles.mysteryProgressFill, { width: `${Math.max(0, ((86400 - mysteryTimeLeft) / 86400) * 100)}%` as any }]} />
+                </View>
+              )}
+            </LinearGradient>
+          </Pressable>
+        </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(950).duration(600)} style={styles.viralCtaRow}>
           <Animated.View style={pulseTherapyStyle}>
@@ -1112,6 +1217,40 @@ export default function HomeScreen() {
             >
               <Text style={styles.passcodeSubmitText}>Enter</Text>
             </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal
+        visible={!!mysteryPrize}
+        animationType="fade"
+        transparent
+        onRequestClose={dismissMysteryPrize}
+      >
+        <Pressable style={styles.mysteryOverlay} onPress={dismissMysteryPrize}>
+          <Pressable style={styles.mysteryPrizeCard} onPress={() => {}}>
+            <LinearGradient
+              colors={["#FFD700", "#b8860b", "#FFD700"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.mysteryPrizeGradient}
+            >
+              <Text style={styles.mysteryPrizeEmoji}>{"\uD83C\uDF89"}</Text>
+              <Text style={styles.mysteryPrizeTitle}>YOU WON!</Text>
+              {mysteryPrize && (
+                <>
+                  <View style={styles.mysteryPrizeLabelRow}>
+                    <Ionicons name={mysteryPrize.icon as any} size={22} color="#0a0a0a" />
+                    <Text style={styles.mysteryPrizeLabelText}>{mysteryPrize.label}</Text>
+                  </View>
+                  <Text style={styles.mysteryPrizeDesc}>{mysteryPrize.description}</Text>
+                </>
+              )}
+              <Pressable onPress={dismissMysteryPrize} style={styles.mysteryPrizeDismiss}>
+                <Text style={styles.mysteryPrizeDismissText}>CLAIM & CLOSE</Text>
+              </Pressable>
+              <Text style={styles.mysteryPrizeTimer}>Next box in 24 hours</Text>
+            </LinearGradient>
           </Pressable>
         </Pressable>
       </Modal>
@@ -1900,6 +2039,112 @@ const styles = StyleSheet.create({
     fontWeight: "800" as const,
     color: "#fff",
     letterSpacing: 1,
+  },
+  mysteryBoxCard: {
+    marginHorizontal: 24,
+    marginTop: 12,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,215,0,0.3)",
+    maxWidth: 380,
+    alignSelf: "center" as const,
+    width: "100%" as any,
+  },
+  mysteryBoxHeader: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 12,
+  },
+  mysteryBoxEmoji: {
+    fontSize: 28,
+  },
+  mysteryBoxTitle: {
+    fontSize: 13,
+    fontWeight: "900" as const,
+    color: "#FFD700",
+    letterSpacing: 2,
+  },
+  mysteryBoxSub: {
+    fontSize: 12,
+    fontWeight: "600" as const,
+    color: "rgba(255,215,0,0.7)",
+    marginTop: 2,
+  },
+  mysteryProgressBar: {
+    height: 4,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    borderRadius: 2,
+    marginTop: 12,
+    overflow: "hidden" as const,
+  },
+  mysteryProgressFill: {
+    height: "100%" as any,
+    backgroundColor: "#FFD700",
+    borderRadius: 2,
+  },
+  mysteryOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.85)",
+    justifyContent: "center" as const,
+    alignItems: "center" as const,
+  },
+  mysteryPrizeCard: {
+    borderRadius: 20,
+    overflow: "hidden" as const,
+    width: "85%" as any,
+    maxWidth: 340,
+  },
+  mysteryPrizeGradient: {
+    padding: 30,
+    alignItems: "center" as const,
+  },
+  mysteryPrizeEmoji: {
+    fontSize: 48,
+    marginBottom: 8,
+  },
+  mysteryPrizeTitle: {
+    fontSize: 28,
+    fontWeight: "900" as const,
+    color: "#0a0a0a",
+    letterSpacing: 3,
+    marginBottom: 16,
+  },
+  mysteryPrizeLabelRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 8,
+    marginBottom: 10,
+  },
+  mysteryPrizeLabelText: {
+    fontSize: 20,
+    fontWeight: "800" as const,
+    color: "#0a0a0a",
+  },
+  mysteryPrizeDesc: {
+    fontSize: 14,
+    color: "rgba(10,10,10,0.75)",
+    textAlign: "center" as const,
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  mysteryPrizeDismiss: {
+    backgroundColor: "#0a0a0a",
+    paddingHorizontal: 30,
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginBottom: 10,
+  },
+  mysteryPrizeDismissText: {
+    fontSize: 13,
+    fontWeight: "800" as const,
+    color: "#FFD700",
+    letterSpacing: 1.5,
+  },
+  mysteryPrizeTimer: {
+    fontSize: 11,
+    color: "rgba(10,10,10,0.5)",
+    fontWeight: "600" as const,
   },
   legalDisclaimer: {
     fontSize: 9,
