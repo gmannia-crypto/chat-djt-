@@ -53,6 +53,7 @@ The backend is an Express 5 server running on port 5000, serving as an API gatew
 - `POST /api/faceoff/vote`: Records votes for financial faceoff debates. Accepts `{ debateId, asset, persona1, persona2, votedFor }`, validates votedFor is a debate participant, stores in-memory (1000 entry limit), returns `{ votes, total }`.
 - `GET /api/faceoff/votes/:debateId`: Returns current vote totals for a faceoff debate.
 - Financial Faceoff in-app screen (`app/faceoff.tsx`): React Native screen with horizontal asset picker pills, persona selector cards, animated debate arena, voting with progress bars, sharing via React Native Share API. Accessible from home screen orange "FACEOFF" button.
+- Trump Realty multi-persona advisors (`app/real-estate.tsx`): Property search page now includes 7 selectable financial advisors (Trump, Buffett, Suze, Grandma, Elon, Dave, Mansa Musa). Each advisor provides in-character property commentary, custom ratings, and persona-colored stamps. Advisor selector shown as horizontal pill buttons above property results. Backend returns `personaComments` object with all 7 personas' analysis per property.
 
 The backend leverages OpenAI for chat completions and transcription, and Fish Audio for text-to-speech with a cloned Trump voice, Dr. Sophia's voice (Fish Audio ID: `193c58af62ea487180baacdef8a69bbd`), and Dr. James's voice (Fish Audio ID: `03397b4c4be74759b72533b663fbd001`, speed 0.9). It also handles static serving of pre-built Expo web assets in production.
 

@@ -3197,6 +3197,67 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
     const commentIndex = Math.floor(Math.random() * trumpComments.length);
     const trumpRating = Math.floor(Math.random() * 20) + 80;
 
+    const monthlyPayment = Math.round((price * 0.067) / 12);
+    const priceToRentApprox = price > 0 ? (price / (monthlyPayment * 0.6)).toFixed(1) : "N/A";
+
+    const personaComments: Record<string, { comment: string; rating: number }> = {
+      trump: { comment: trumpComments[commentIndex], rating: trumpRating },
+      buffett: {
+        comment: price > 1000000
+          ? `Price-to-value ratio on this ${city} property needs scrutiny. At $${(price / 1000000).toFixed(1)}M, ensure the cap rate justifies the investment. I'd want at least 6% returns before committing.`
+          : price > 500000
+          ? `$${(price / 1000).toFixed(0)}K in ${city}. The price-to-rent ratio is approximately ${priceToRentApprox}. At 15+, consider renting. At 12 or below, buying starts to make sense. Do the math.`
+          : price > 100000
+          ? `At $${(price / 1000).toFixed(0)}K, this ${beds}-bed in ${city} could be a value play. Real estate should be bought when others are fearful. Check comparable sales and rental income potential.`
+          : `Under $100K? Interesting. The key question: what's the rental yield? If you can get 8%+ net returns, this becomes a productive asset. That's what matters — productivity.`,
+        rating: Math.floor(Math.random() * 30) + 60,
+      },
+      suze: {
+        comment: price > 1000000
+          ? `$${(price / 1000000).toFixed(1)}M? Let's be REAL. Your monthly payment would be around $${monthlyPayment.toLocaleString()}. Can you REALLY afford that? I need you to have 8 months of emergency savings FIRST. Do you?`
+          : price > 500000
+          ? `$${(price / 1000).toFixed(0)}K. Your monthly payment would be roughly $${monthlyPayment.toLocaleString()}. That should be UNDER 28% of your gross income. If it's not, you're setting yourself up for heartbreak. Be honest with yourself.`
+          : price > 100000
+          ? `$${(price / 1000).toFixed(0)}K for ${beds} bedrooms in ${city}. Monthly payment around $${monthlyPayment.toLocaleString()}. Before you sign ANYTHING — do you have an emergency fund? Are you debt-free? These come FIRST.`
+          : `Under $100K — that's manageable. But can you REALLY afford the maintenance, insurance, taxes? People forget the hidden costs. I don't want you to get hurt. Let's look at the FULL picture.`,
+        rating: Math.floor(Math.random() * 40) + 50,
+      },
+      grandma: {
+        comment: beds >= 4
+          ? `Oh my, ${beds} bedrooms! That's plenty of room for the grandkids to visit. And ${city}? Your grandpa always said location matters. The kitchen needs updating though, I can tell. But it's got good bones, honey.`
+          : beds >= 2
+          ? `${beds} bedrooms in ${city}. Oh, it's got good bones! But that kitchen probably needs updating. My Harold could've fixed it right up. Bless his heart. Is the neighborhood safe? That's what matters.`
+          : `A little ${beds || "studio"} place? Cozy, honey. Perfect if it's just you. But make sure the neighbors are nice. And check for drafts! A warm home is a happy home. Have you eaten today?`,
+        rating: Math.floor(Math.random() * 20) + 70,
+      },
+      musk: {
+        comment: sqft > 3000
+          ? `${sqft.toLocaleString()} sqft? That could fit a LOT of solar panels. Add a Powerwall, maybe two. This house could be ENERGY POSITIVE. Real estate is temporary — Mars colonies are forever. But until then, make it sustainable.`
+          : price > 500000
+          ? `$${(price / 1000).toFixed(0)}K? I sold all my houses. Own nothing, be happy. But if you MUST buy, at least add solar panels. This place could generate its own electricity. Innovation or nothing.`
+          : `Real estate is obsolete. We'll all live on Mars soon. But until then... this ${propertyType.toLowerCase()} in ${city} could be SOLAR POWERED. Add solar, increase value by 4%. That's just physics.`,
+        rating: Math.floor(Math.random() * 30) + 65,
+      },
+      dave: {
+        comment: price > 500000
+          ? `$${(price / 1000).toFixed(0)}K?! Are you debt-free? Do you have 3-6 months of expenses saved? If not, STOP. BABY STEPS FIRST. I don't care how nice this ${city} ${propertyType.toLowerCase()} is — DEBT IS DUMB.`
+          : price > 100000
+          ? `$${(price / 1000).toFixed(0)}K in ${city}. Here's what I need from you: 20% down payment IN CASH. 15-year fixed mortgage. Payment under 25% of take-home pay. Can you do that? If yes, BUY IT. If not, keep saving with GAZELLE INTENSITY.`
+          : `Under $100K? NOW we're talking. With a 20% down payment of $${Math.round(price * 0.2 / 1000)}K and a 15-year fixed, your payment would be tiny. THAT'S how you build wealth — by not being stupid with debt!`,
+        rating: Math.floor(Math.random() * 30) + 65,
+      },
+      mansa: {
+        comment: price > 1000000
+          ? `$${(price / 1000000).toFixed(1)}M? In my empire, I owned cities worth more. But LAND is the foundation of all wealth. This ${city} property is a seed — plant it wisely, and kingdoms grow from seeds. I built Timbuktu from the dust.`
+          : price > 500000
+          ? `${beds} chambers on ${sqft > 0 ? sqft.toLocaleString() + " square feet of" : ""} land in ${city}. Land is eternal. Gold is eternal. This property is both investment and legacy. I gave away so much gold in Cairo I crashed their economy — but the LAND remained.`
+          : price > 100000
+          ? `$${(price / 1000).toFixed(0)}K for land in ${city}? Wealth begins with the ground beneath your feet. Every empire starts with one piece of earth. I started with the salt mines of Taghaza and built the richest kingdom in history.`
+          : `Under $100K for property? Buy it. Buy TEN. Land is the one thing they cannot make more of. I owned more territory than any ruler alive. This is how empires begin — one plot at a time.`,
+        rating: Math.floor(Math.random() * 20) + 75,
+      },
+    };
+
     return {
       id: propertyId,
       price,
@@ -3217,6 +3278,7 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
       dom,
       trumpComment: trumpComments[commentIndex],
       trumpRating,
+      personaComments,
     };
   }
 

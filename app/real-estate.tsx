@@ -32,6 +32,11 @@ import Animated, {
 import Colors from "@/constants/colors";
 import { getApiUrl } from "@/lib/query-client";
 
+interface PersonaComment {
+  comment: string;
+  rating: number;
+}
+
 interface Property {
   id: string | null;
   price: number;
@@ -52,7 +57,27 @@ interface Property {
   dom: number | null;
   trumpComment: string;
   trumpRating: number;
+  personaComments?: Record<string, PersonaComment>;
 }
+
+interface AdvisorPersona {
+  id: string;
+  name: string;
+  emoji: string;
+  color: string;
+  title: string;
+  stampLabel: string;
+}
+
+const REAL_ESTATE_ADVISORS: AdvisorPersona[] = [
+  { id: "trump", name: "Trump", emoji: "\uD83D\uDDE3\uFE0F", color: "#ff4d4d", title: "45th & 47th President", stampLabel: "TRUMP APPROVED" },
+  { id: "buffett", name: "Buffett", emoji: "\uD83D\uDC74", color: "#4d4dff", title: "Oracle of Omaha", stampLabel: "BUFFETT ANALYZED" },
+  { id: "suze", name: "Suze", emoji: "\uD83D\uDC69", color: "#ff99cc", title: "Personal Finance Expert", stampLabel: "SUZE REVIEWED" },
+  { id: "grandma", name: "Grandma", emoji: "\uD83D\uDC75", color: "#ffffff", title: "Voice of Experience", stampLabel: "GRANDMA APPROVED" },
+  { id: "musk", name: "Elon", emoji: "\uD83D\uDE80", color: "#00ccff", title: "CEO of Tesla & SpaceX", stampLabel: "ELON RATED" },
+  { id: "dave", name: "Dave", emoji: "\uD83D\uDCFB", color: "#ffaa00", title: "Financial Peace", stampLabel: "DAVE GRADED" },
+  { id: "mansa", name: "Mansa Musa", emoji: "\uD83D\uDC51", color: "#D4AF37", title: "Richest Man in History", stampLabel: "MANSA BLESSED" },
+];
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -68,7 +93,24 @@ export default function RealEstateScreen() {
   const [searched, setSearched] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [speakingId, setSpeakingId] = useState<string | null>(null);
+  const [selectedAdvisor, setSelectedAdvisor] = useState("trump");
   const soundRef = React.useRef<Audio.Sound | null>(null);
+
+  const activeAdvisor = REAL_ESTATE_ADVISORS.find((a) => a.id === selectedAdvisor) || REAL_ESTATE_ADVISORS[0];
+
+  const getPropertyComment = useCallback((property: Property): string => {
+    if (property.personaComments && property.personaComments[selectedAdvisor]) {
+      return property.personaComments[selectedAdvisor].comment;
+    }
+    return property.trumpComment;
+  }, [selectedAdvisor]);
+
+  const getPropertyRating = useCallback((property: Property): number => {
+    if (property.personaComments && property.personaComments[selectedAdvisor]) {
+      return property.personaComments[selectedAdvisor].rating;
+    }
+    return property.trumpRating;
+  }, [selectedAdvisor]);
 
   const handleSearch = async () => {
     if (!location.trim() || location.trim().length < 2) return;
@@ -153,9 +195,11 @@ export default function RealEstateScreen() {
     const priceStr = formatPrice(property.price);
     const addr = property.street || `${property.city}, ${property.state}`;
     const listing = property.url ? `\n\n${property.url}` : "";
+    const comment = getPropertyComment(property);
+    const rating = getPropertyRating(property);
     try {
       await Share.share({
-        message: `\u2705 TRUMP APPROVED \u2705\n\n${addr} — ${priceStr}\n${property.beds}bd / ${property.baths}ba${property.sqft ? ` / ${property.sqft.toLocaleString()} sqft` : ""}\n\nTrump says: "${property.trumpComment}"\n\nTrump Rating: ${property.trumpRating}% WINNER${listing}\n\n- via Chat DJT`,
+        message: `${activeAdvisor.emoji} ${activeAdvisor.stampLabel} ${activeAdvisor.emoji}\n\n${addr} — ${priceStr}\n${property.beds}bd / ${property.baths}ba${property.sqft ? ` / ${property.sqft.toLocaleString()} sqft` : ""}\n\n${activeAdvisor.name} says: "${comment}"\n\nRating: ${rating}%${listing}\n\n- via Chat DJT`,
       });
     } catch {}
   };
@@ -181,6 +225,8 @@ export default function RealEstateScreen() {
     const addressLine = item.street
       ? `${item.street} — ${formatPrice(item.price)}`
       : `${item.city}, ${item.state} — ${formatPrice(item.price)}`;
+    const comment = getPropertyComment(item);
+    const rating = getPropertyRating(item);
     return (
       <Animated.View entering={FadeInDown.delay(index * 100).duration(400)} key={propId}>
         <View style={styles.propertyCard}>
@@ -194,15 +240,15 @@ export default function RealEstateScreen() {
             )}
             <View style={styles.stampContainer}>
               <LinearGradient
-                colors={["rgba(0,128,0,0.9)", "rgba(0,100,0,0.95)"]}
+                colors={[`${activeAdvisor.color}E6`, `${activeAdvisor.color}F0`]}
                 style={styles.stampGradient}
               >
-                <Text style={styles.stampText}>{"\u2705"} TRUMP APPROVED {"\u2705"}</Text>
+                <Text style={styles.stampText}>{activeAdvisor.emoji} {activeAdvisor.stampLabel} {activeAdvisor.emoji}</Text>
               </LinearGradient>
             </View>
-            <View style={styles.ratingBadge}>
-              <Text style={styles.ratingText}>{item.trumpRating}%</Text>
-              <MaterialCommunityIcons name="trophy" size={12} color={Colors.gold} />
+            <View style={[styles.ratingBadge, { backgroundColor: `${activeAdvisor.color}CC` }]}>
+              <Text style={styles.ratingText}>{rating}%</Text>
+              <MaterialCommunityIcons name="trophy" size={12} color="#fff" />
             </View>
             {item.propertyType && (
               <View style={styles.typeBadge}>
@@ -247,12 +293,12 @@ export default function RealEstateScreen() {
             )}
 
             <View style={styles.trumpSection}>
-              <Text style={styles.trumpComment}>"{item.trumpComment}"</Text>
+              <Text style={[styles.trumpComment, { borderLeftColor: activeAdvisor.color }]}>"{comment}"</Text>
             </View>
 
             <View style={styles.cardActions}>
               <Pressable
-                onPress={() => handleSpeak(item.trumpComment, propId)}
+                onPress={() => handleSpeak(comment, propId)}
                 style={({ pressed }) => [styles.actionBtn, styles.speakBtn, pressed && { opacity: 0.7 }]}
               >
                 <Ionicons name={isSpeakingThis ? "stop" : "volume-high"} size={16} color="#fff" />
@@ -345,6 +391,31 @@ export default function RealEstateScreen() {
         </Text>
       </Animated.View>
 
+      <View style={styles.advisorSection}>
+        <Text style={styles.advisorLabel}>YOUR ADVISOR</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.advisorScroll}>
+          {REAL_ESTATE_ADVISORS.map((advisor) => (
+            <Pressable
+              key={advisor.id}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setSelectedAdvisor(advisor.id);
+              }}
+              style={[
+                styles.advisorPill,
+                {
+                  borderColor: selectedAdvisor === advisor.id ? advisor.color : "rgba(255,255,255,0.1)",
+                  backgroundColor: selectedAdvisor === advisor.id ? `${advisor.color}20` : "rgba(255,255,255,0.05)",
+                },
+              ]}
+            >
+              <Text style={styles.advisorEmoji}>{advisor.emoji}</Text>
+              <Text style={[styles.advisorName, selectedAdvisor === advisor.id && { color: advisor.color }]}>{advisor.name}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      </View>
+
       {loading && (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.gold} />
@@ -377,7 +448,7 @@ export default function RealEstateScreen() {
               <Text style={styles.resultsCount}>
                 {totalResults} properties in {location}
               </Text>
-              <Text style={styles.resultsSubtext}>Trump-Rated for your pleasure</Text>
+              <Text style={styles.resultsSubtext}>{activeAdvisor.name}-Rated for your pleasure</Text>
             </Animated.View>
           }
           ListFooterComponent={
@@ -476,6 +547,38 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.3)",
     marginTop: 6,
     marginLeft: 4,
+  },
+  advisorSection: {
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+  },
+  advisorLabel: {
+    fontSize: 10,
+    fontWeight: "700" as const,
+    color: "rgba(255,255,255,0.4)",
+    letterSpacing: 1.5,
+    marginBottom: 8,
+  },
+  advisorScroll: {
+    gap: 8,
+    paddingRight: 16,
+  },
+  advisorPill: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1.5,
+  },
+  advisorEmoji: {
+    fontSize: 16,
+  },
+  advisorName: {
+    fontSize: 12,
+    fontWeight: "700" as const,
+    color: "rgba(255,255,255,0.6)",
   },
   loadingContainer: {
     flex: 1,
