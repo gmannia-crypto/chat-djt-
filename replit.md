@@ -2,7 +2,7 @@
 
 ## Overview
 
-Chat DJT is a mobile-first AI chat application built with Expo (React Native) that enables users to engage in conversations with an AI impersonating Donald Trump. The project aims to provide a unique, interactive experience with a distinct luxury dark/gold UI, real-time streaming chat responses, and local conversation persistence. It includes features for monetization through subscriptions and an admin interface for revenue management, targeting a broad market interested in political satire and AI interaction.
+Chat DJT is a mobile-first AI chat application built with Expo (React Native) designed for interactive conversations with an AI impersonating Donald Trump. The project aims to deliver a unique experience through a luxury dark/gold UI, real-time streaming chat responses, and local conversation persistence. It incorporates subscription-based monetization and an admin interface for revenue management, targeting a broad audience interested in political satire and AI interaction. Key capabilities include Trump-themed therapy sessions, financial debates with various personas, and Trump-centric real estate analysis.
 
 ## User Preferences
 
@@ -12,72 +12,28 @@ Preferred communication style: Simple, everyday language.
 
 ### Frontend (Expo / React Native)
 
-The application is built with Expo SDK 54, utilizing `expo-router` for file-based routing and `react-native-reanimated` for animations. Navigation is stack-based, supporting screens for home, chat, subscription, and admin functionalities. State management for server data is handled by React Query, while local UI state uses React's built-in capabilities. Conversations and messages are persisted client-side using AsyncStorage. The client consumes Server-Sent Events (SSE) for streaming chat responses, parsing data lines to update the UI in real-time. The UI features a dark theme with gold accents and PlayfairDisplay fonts, targeting iOS, Android, and web platforms with a dark mode-only aesthetic. Keyboard handling is managed by `react-native-keyboard-controller`. The home screen features pulsating green/purple viral CTA buttons for Trump Therapy and Fortune Parlor with LinearGradient backgrounds and reanimated pulse animations. Mystery Box: 24-hour countdown timer (AsyncStorage-persisted), gold gradient when ready, dark gradient when locked, progress bar, prize reveal modal with 8 reward types (Free Roast, Double Fortune, Trump Stock Tip, Property Discount, Cabinet Roast, Golden Tweet, Therapy Session, VIP Fortune).
+The application is developed with Expo SDK 54, using `expo-router` for routing and `react-native-reanimated` for animations. It features a stack-based navigation for core functionalities like chat, subscription, and admin. State management utilizes React Query for server data and React's built-in hooks for local UI state. Conversations are locally persisted with AsyncStorage. Real-time chat responses are handled via Server-Sent Events (SSE). The UI adheres to a dark theme with gold accents and PlayfairDisplay fonts, supporting iOS, Android, and web platforms with a dark mode-only aesthetic. It includes interactive elements like pulsating CTA buttons, a 24-hour mystery box with reward types, and keyboard handling via `react-native-keyboard-controller`. Dedicated screens for multi-persona therapy, financial face-offs, and real estate analysis are implemented, each with specific UI elements and interactions like therapist selectors, debate arenas, voting mechanisms, and property advisors.
 
 ### Backend (Express)
 
-The backend is an Express 5 server running on port 5000, serving as an API gateway. It provides endpoints for:
-- `POST /api/chat`: Streams Trump-persona responses via SSE using OpenAI chat completions (gpt-5.2).
-- `POST /api/tts`: Converts text to speech using ElevenLabs API with a dual voice system.
-- `POST /api/stt`: Transcribes audio using OpenAI Whisper (gpt-4o-mini-transcribe).
-- `GET /api/theme`: Generates and caches a Trump-voice theme intro using ElevenLabs.
-- `GET /api/news`: Fetches and caches real-time news headlines from various RSS feeds.
-- `GET /api/tickers`: Fetches and caches live market data for specific assets.
-- `GET /api/news-commentary`: Provides Trump's commentary on top news headlines.
-- `GET /api/nostradamus`: Generates Trump-themed prophecies.
-- `GET /api/daily-challenge`: Provides daily provocative questions.
-- `POST /api/report-card`: Grades user conversations.
-- `GET /api/truth-social`: Generates Trump's reactions to headlines in Truth Social format.
-- `GET /api/cabinet-hotseat`: Displays satisfaction ratings for Trump's cabinet members.
-- `POST /api/cabinet-speak`: Generates spoken commentary on cabinet members.
-- `GET /api/weather`: Provides location-based weather forecasts.
-- `GET /api/markets`: Provides market prices for various assets.
-- `GET /api/weather-commentary`: Generates Trump's weather hot takes.
-- `GET /api/market-hot-takes`: Provides Trump's market hot takes.
-- `POST /api/track-share`: Logs app share events and returns total/daily share counts.
-- `GET /api/admin/shares`: Provides share analytics for the admin dashboard.
-- `GET /api/therapy/card`: Serves a shareable HTML therapy card with patient name/therapy via query params.
-- `POST /api/therapy/checkout`: Creates Stripe checkout sessions for therapy payments (single $2.99, weekly $9.99, monthly $19.99).
-- `POST /api/rate-trump`: Allows users to rate Trump, triggering AI reactions.
-- `GET /api/rate-trump/leaderboard`: Displays a leaderboard of supporters and haters.
-- `POST /api/create-challenge`: Creates a shareable challenge link.
-- `GET /api/challenge/:id`: Retrieves challenge details.
-- `POST /api/fortune`: Generates Trump-style fortune predictions based on name, birthday/zodiac and topic (token-gated).
-- `POST /api/therapy`: Generates therapy responses based on selected therapist voice (token-gated). Supports `voice` parameter: `trump` (Trump-style with deal metaphors), `sophia` (therapeutic techniques: validation, grounding, attachment theory), `james` (CBT: cognitive distortions, Socratic questioning, behavioral experiments). Includes template-based fallback if AI fails. Supports multi-round follow-up conversations: returns `followUp` question and `followUpIndex`; subsequent calls with `previousAnswer` and `followUpIndex` return template-based follow-up responses (no extra AI cost).
-- Therapy page features: therapist selector (3 therapists with photos), cinematic intro animation per therapist, background images (trump-therapist.png, dr-sophia.jpg, dr-james.jpg), speech-to-text input (mic button), dynamic color theming per therapist, 2-minute session countdown timer, follow-up conversation rounds (up to 3 rounds with in-character questions), conversation history display, "Dr. Trump's RX" Amazon affiliate product recommendations (health/wellness supplements with `trumpbot-20` tag).
-- `GET /therapy-viral`: Serves standalone viral therapy landing page (3-question flow, 2-min timed session, upsell modal, share snippets, upgrade pricing with Stripe checkout).
-- `POST /api/generate-therapy`: Free template-based therapy endpoint for the viral page (no tokens required). Returns randomized therapy responses with deeply in-character templates for work, love, money, stress, family, health, loneliness, sleep, and self-esteem topics. Each therapist has 8+ unique templates with topic-specific variants. Sophia uses validation, grounding exercises, breathing prompts, inner child work, attachment theory, IFS parts work, emotional naming, body scans, and compassionate witnessing. James uses CBT thought records, cognitive distortion audits, behavioral experiments, Socratic questioning, cost-benefit analysis, downward arrow technique, SMART goals, and probability estimation. Trump uses deal-making metaphors, winning/losing framing, self-referencing anecdotes, and signature phrases. Supports multi-round follow-up conversations with in-character probing questions. Accepts `voice` parameter (`trump`, `sophia`, `james`).
-- `GET /therapy-multi`: Serves standalone multi-voice therapy landing page with 3 therapist voices (Dr. Trump, Dr. Sophia, Dr. James), voice selection with portrait photos, mid-session voice switching, TTS playback, follow-up conversations, share snippets, upsell modal, Stripe checkout, therapist background watermark images during sessions, session header portraits, and audio feedback on all interactive elements.
-- `POST /api/track-viral`: Logs viral session events (session_start, session_complete, share, debate_started, vote_cast, debate_shared) for analytics.
-- `POST /api/persona-speak`: Text-to-speech for any persona using Fish Audio voice IDs. Accepts `{ text, personaId }`, returns audio/mpeg.
-- `GET /api/persona-image/:id`: Serves persona thumbnail PNG images from `assets/images/persona-{id}.png`.
-- `GET /financial-faceoff`: Serves standalone Financial Faceoff viral debate page with two modes: **1v1 Debate** (pick 2 personas and a topic, watch them debate) and **Battle Royale** (all 12 personas answer 1 question, users vote on who gave the best advice). 12 financial personas (Trump, Buffett, Elon, Suze Orman, Dave Ramsey, Grandma, Financial Genie, Mansa Musa, Michael Jordan, Bernie Mac, Uncle Ruckus) debate 8 financial topics. Features photorealistic persona thumbnails, TTS speak buttons, side-by-side debate cards, server-side voting with live progress bars, social sharing (Twitter/X, Facebook, clipboard), affiliate links per persona, vote encouragement toasts, mode toggle tabs, **Persona Mashup card** (combines both quotes with "...BUT WAIT..." connector, animated viral score bar, shareable), and legal disclaimer.
-- `POST /api/faceoff/vote`: Records votes for 1v1 faceoff debates. Accepts `{ debateId, asset, persona1, persona2, votedFor }`, validates votedFor is a debate participant, stores in-memory (1000 entry limit), returns `{ votes, total }`.
-- `GET /api/faceoff/votes/:debateId`: Returns current vote totals for a 1v1 faceoff debate.
-- `POST /api/faceoff/battle-vote`: Records votes for Battle Royale. Accepts `{ battleId, votedFor, question }`, validates votedFor is a valid persona from the 10-persona list, stores in-memory (1000 entry limit), returns `{ votes, total }`.
-- `GET /api/faceoff/battle-votes/:battleId`: Returns current vote totals for a Battle Royale.
-- `POST /api/persona-of-the-week/vote`: Records weekly "Persona of the Week" votes. Accepts `{ persona }`, enforces one-vote-per-device/IP-per-week (409 on duplicate), weekly auto-reset. Returns `{ votes, total, week }`.
-- `GET /api/persona-of-the-week`: Returns current weekly vote totals for all personas.
-- Beat Trump in a Debate (`app/debate.tsx`): Interactive 5-round debate mini-game. Topics: Economy, Energy, Immigration, Social Media, Foreign Policy (randomized). Each round: Trump states position, user picks from 4 response options (each worth different points), Trump fires back with AI-streamed rebuttal via POST /api/chat (expo/fetch streaming with SSE buffer). Scoring: user points per answer quality + random Trump points. Results screen shows final score, round breakdown, share result, and rematch button. Accessible from home screen red "DEBATE" button.
-- Financial Faceoff in-app screen (`app/faceoff.tsx`): React Native screen with mode toggle (1v1 Debate / Battle Royale), horizontal asset picker pills, persona selector cards with photorealistic thumbnails, animated debate arena, TTS speak buttons on cards, voting with progress bars, sharing via React Native Share API. Battle Royale shows all 12 personas' answers with individual vote bars and a total votes counter. 8 battle questions: "Should I buy Bitcoin?", "Should I invest or save?", "Should I buy a house?", "Is gold a good investment?", "Should I buy stocks right now?", "Are index funds the best bet?", "Is Dogecoin actually worth buying?", "How should I save for retirement?". Includes "Persona of the Week" voting section with all 12 personas, weekly reset, crown for leader, share button. Accessible from home screen orange "FACEOFF" button.
-- Trump Realty multi-persona advisors (`app/real-estate.tsx`): Property search page now includes 11 selectable financial advisors (Trump, Buffett, Suze, Grandma, Elon, Dave, Mansa Musa, MJ, Bernie Mac, Genie, Ruckus). Each advisor provides in-character property commentary, custom ratings, and persona-colored stamps. Advisor selector shown as horizontal pill buttons with photorealistic thumbnails above property results. Backend returns `personaComments` object with all 11 personas' template-based analysis per property. Web platform shows interactive OpenStreetMap/Leaflet map with property markers. TTS uses persona-specific Fish Audio voices via `/api/persona-speak`.
-- `POST /api/property-analysis`: AI-powered on-demand property analysis using OpenAI (gpt-4o-mini). Accepts `{ property, personaId }`, generates unique in-character commentary using persona-specific system prompts (all 11 advisors). Returns `{ comment, rating, personaId, aiGenerated }`. 30-minute server cache, IP-based rate limiting (20 req/min). Frontend shows "GET [PERSONA]'S AI TAKE" button per property card; on click, fetches fresh AI analysis replacing template comment, shows "AI LIVE ANALYSIS" badge when loaded.
-
-The backend leverages OpenAI for chat completions and transcription, and Fish Audio for text-to-speech with a cloned Trump voice, Dr. Sophia's voice (Fish Audio ID: `193c58af62ea487180baacdef8a69bbd`), and Dr. James's voice (Fish Audio ID: `03397b4c4be74759b72533b663fbd001`, speed 0.9). It also handles static serving of pre-built Expo web assets in production.
+The backend is an Express 5 API gateway providing various endpoints for AI interactions, content generation, and utility functions. It serves:
+- **AI Chat & TTS**: Streams Trump-persona responses via SSE using OpenAI (gpt-5.2) and converts text to speech using ElevenLabs and Fish Audio APIs (with Trump, Sophia, and James voices). It also handles audio transcription using OpenAI Whisper.
+- **Content Generation**: Generates Trump-voice theme intros, news commentary, market hot takes, prophecies, daily challenges, Truth Social reactions, cabinet commentary, and weather commentary.
+- **Therapy System**: Supports token-gated AI therapy sessions with multiple therapist personas (Trump, Sophia, James), multi-round follow-up conversations, template-based free therapy for viral pages, and integrates with Stripe for checkout.
+- **Financial & Debate Features**: Manages financial face-off debates with multiple personas, including voting, leaderboards, and a "Persona of the Week" voting system. It also provides AI-powered property analysis using OpenAI with persona-specific commentary and generates mortgage calculations with Trump's insights.
+- **Analytics & Monetization**: Tracks app share events, viral session events, and integrates with Stripe for therapy session payments.
+- **Static Asset Serving**: Serves pre-built Expo web assets in production.
 
 ## External Dependencies
 
-- **OpenAI API**: Utilized for AI chat completions (gpt-5.2), audio transcription (Whisper), and potentially audio generation (gpt-audio).
-- **ElevenLabs API**: Used for advanced text-to-speech functionalities, including voice cloning and generating theme intros.
-- **Fish Audio API**: Provides text-to-speech capabilities, including a cloned Trump voice, Dr. Sophia's voice (ID: `193c58af62ea487180baacdef8a69bbd`, speed 0.95), and Dr. James's voice (ID: `03397b4c4be74759b72533b663fbd001`, speed 0.9), with mood-based speed adjustments.
-- **@react-native-async-storage/async-storage**: Client-side persistent storage for conversation data.
-- **Expo Services**: Used for various mobile functionalities like font loading, haptics, linear gradients, and splash screen management.
-- **RevenueCat (`react-native-purchases`)**: Integrated for managing in-app subscriptions and purchases.
-- **RSS Feeds**: Utilized for fetching real-time news headlines (MarketWatch, CNBC, NYT, BBC, Fox News).
-- **Open-Meteo API**: Provides weather forecast data.
-- **CoinGecko API / Yahoo Finance**: Used for fetching live market prices for cryptocurrencies and other assets.
-- **Amazon Associates**: Affiliate monetization using tag `trumpbot-20` with "Trump's Picks" product recommendations and auto-linking script.
-
-## Future Considerations
-
-- **DeepSeek AI as cost alternative**: DeepSeek V3/R1 is roughly 8-10x cheaper than OpenAI GPT for token costs. Consider switching some or all AI features to DeepSeek when cost optimization becomes a priority. Main chat persona may benefit from staying on GPT for quality, while simpler features (news commentary, daily challenges, hot takes) could move to DeepSeek first.
+- **OpenAI API**: Used for AI chat completions (gpt-5.2), audio transcription (Whisper), and AI-powered property analysis (gpt-4o-mini).
+- **ElevenLabs API**: Utilized for advanced text-to-speech, including voice cloning and generating theme intros.
+- **Fish Audio API**: Provides text-to-speech for various personas, including a cloned Trump voice, Dr. Sophia's voice (ID: `193c58af62ea487180baacdef8a69bbd`), and Dr. James's voice (ID: `03397b4c4be74759b72533b663fbd001`).
+- **@react-native-async-storage/async-storage**: For client-side data persistence.
+- **Expo Services**: For mobile functionalities (fonts, haptics, gradients, splash screens).
+- **RevenueCat (`react-native-purchases`)**: For in-app subscription and purchase management.
+- **RSS Feeds**: For real-time news headlines (e.g., MarketWatch, CNBC, NYT, BBC, Fox News).
+- **Open-Meteo API**: For weather forecast data.
+- **CoinGecko API / Yahoo Finance**: For live market data.
+- **Amazon Associates**: For affiliate monetization with the `trumpbot-20` tag.
+- **Stripe**: For payment processing for therapy sessions and subscriptions.

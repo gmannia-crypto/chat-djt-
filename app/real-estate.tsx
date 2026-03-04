@@ -119,6 +119,65 @@ export default function RealEstateScreen() {
   const [aiLoading, setAiLoading] = useState<Record<string, boolean>>({});
   const soundRef = React.useRef<Audio.Sound | null>(null);
 
+  const [calcOpen, setCalcOpen] = useState(false);
+  const [homePrice, setHomePrice] = useState("300000");
+  const [downPayment, setDownPayment] = useState("60000");
+  const [interestRate, setInterestRate] = useState("6.5");
+  const [loanTerm, setLoanTerm] = useState("30");
+  const [calcResult, setCalcResult] = useState<{ monthly: number; total: number; interest: number; trumpComment: string } | null>(null);
+
+  const calculateMortgage = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const price = Math.max(0, parseFloat(homePrice) || 0);
+    const down = Math.max(0, Math.min(price, parseFloat(downPayment) || 0));
+    const rate = Math.max(0, Math.min(30, parseFloat(interestRate) || 6.5));
+    const years = loanTerm === "15" ? 15 : 30;
+
+    if (price <= 0) {
+      setCalcResult({ monthly: 0, total: 0, interest: 0, trumpComment: "You gotta enter a home price! Even a tiny house costs SOMETHING. Unless you're building one yourself. Which I don't recommend. Trust me." });
+      return;
+    }
+
+    const loan = price - down;
+    if (loan <= 0) {
+      setCalcResult({ monthly: 0, total: 0, interest: 0, trumpComment: "You're paying CASH? Now THAT'S the art of the deal! No banks, no interest, no problem. Very smart. Like me." });
+      return;
+    }
+    const monthlyRate = rate / 100 / 12;
+    const numPayments = years * 12;
+    const monthly = monthlyRate > 0
+      ? (loan * monthlyRate * Math.pow(1 + monthlyRate, numPayments)) / (Math.pow(1 + monthlyRate, numPayments) - 1)
+      : loan / numPayments;
+    const total = monthly * numPayments;
+    const interest = total - loan;
+
+    if (!Number.isFinite(monthly) || !Number.isFinite(total)) {
+      setCalcResult({ monthly: 0, total: 0, interest: 0, trumpComment: "Those numbers don't add up! Even MY accountants can't work with that. Try something more realistic. Believe me." });
+      return;
+    }
+
+    let trumpComment = "";
+    const downPercent = price > 0 ? (down / price) * 100 : 0;
+
+    if (monthly > 5000) {
+      trumpComment = "FIVE THOUSAND a month?! That's a LOT. But winners pay big. I pay more than that for my HAIR. Believe me, if you can afford it, DO IT. Nobody ever got rich being cheap.";
+    } else if (monthly > 2000) {
+      trumpComment = "Two grand a month? HIGH! Very high! But you know what? You can afford it. I believe in you. Not as much as I believe in ME, but close. Great investment!";
+    } else if (monthly > 1000) {
+      trumpComment = "Around a thousand? That's REASONABLE. Very smart. You're thinking like a winner. Some people waste that on avocado toast. You're building an EMPIRE.";
+    } else {
+      trumpComment = "LOW payment! The BEST payment! That's practically free money! Banks are giving it away! Lock that rate in and NEVER look back. Tremendous deal!";
+    }
+
+    if (downPercent < 10) {
+      trumpComment += " But that down payment? WEAK. I'd put 20% down minimum. PMI is for LOSERS.";
+    } else if (downPercent >= 20) {
+      trumpComment += " And that down payment? STRONG. No PMI. You negotiate like a TRUMP.";
+    }
+
+    setCalcResult({ monthly: Math.round(monthly), total: Math.round(total), interest: Math.round(interest), trumpComment });
+  }, [homePrice, downPayment, interestRate, loanTerm]);
+
   const activeAdvisor = REAL_ESTATE_ADVISORS.find((a) => a.id === selectedAdvisor) || REAL_ESTATE_ADVISORS[0];
 
   const getAiKey = useCallback((property: Property) => {
@@ -498,6 +557,136 @@ export default function RealEstateScreen() {
           Search by zip code (e.g. 90210) or city name
         </Text>
       </Animated.View>
+
+      <Animated.View entering={FadeInDown.delay(300).duration(400)} style={styles.calcToggle}>
+        <Pressable
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setCalcOpen(!calcOpen);
+          }}
+          style={({ pressed }) => [styles.calcToggleBtn, pressed && { opacity: 0.7 }]}
+          testID="mortgage-calc-toggle"
+        >
+          <MaterialCommunityIcons name="calculator-variant" size={18} color={Colors.gold} />
+          <Text style={styles.calcToggleText}>MORTGAGE CALCULATOR</Text>
+          <Ionicons name={calcOpen ? "chevron-up" : "chevron-down"} size={16} color={Colors.gold} />
+        </Pressable>
+      </Animated.View>
+
+      {calcOpen && (
+        <Animated.View entering={FadeInDown.duration(300)} style={styles.calcSection}>
+          <View style={styles.calcRow}>
+            <View style={styles.calcInputGroup}>
+              <Text style={styles.calcLabel}>HOME PRICE</Text>
+              <View style={styles.calcInputWrap}>
+                <Text style={styles.calcDollar}>$</Text>
+                <TextInput
+                  style={styles.calcInput}
+                  value={homePrice}
+                  onChangeText={setHomePrice}
+                  keyboardType="numeric"
+                  placeholder="300000"
+                  placeholderTextColor="rgba(255,255,255,0.2)"
+                  testID="home-price-input"
+                />
+              </View>
+            </View>
+            <View style={styles.calcInputGroup}>
+              <Text style={styles.calcLabel}>DOWN PAYMENT</Text>
+              <View style={styles.calcInputWrap}>
+                <Text style={styles.calcDollar}>$</Text>
+                <TextInput
+                  style={styles.calcInput}
+                  value={downPayment}
+                  onChangeText={setDownPayment}
+                  keyboardType="numeric"
+                  placeholder="60000"
+                  placeholderTextColor="rgba(255,255,255,0.2)"
+                  testID="down-payment-input"
+                />
+              </View>
+            </View>
+          </View>
+          <View style={styles.calcRow}>
+            <View style={styles.calcInputGroup}>
+              <Text style={styles.calcLabel}>RATE %</Text>
+              <View style={styles.calcInputWrap}>
+                <TextInput
+                  style={styles.calcInput}
+                  value={interestRate}
+                  onChangeText={setInterestRate}
+                  keyboardType="decimal-pad"
+                  placeholder="6.5"
+                  placeholderTextColor="rgba(255,255,255,0.2)"
+                  testID="interest-rate-input"
+                />
+                <Text style={styles.calcPercent}>%</Text>
+              </View>
+            </View>
+            <View style={styles.calcInputGroup}>
+              <Text style={styles.calcLabel}>TERM</Text>
+              <View style={styles.calcTermRow}>
+                {["15", "30"].map((t) => (
+                  <Pressable
+                    key={t}
+                    onPress={() => setLoanTerm(t)}
+                    style={[styles.calcTermBtn, loanTerm === t && styles.calcTermBtnActive]}
+                  >
+                    <Text style={[styles.calcTermText, loanTerm === t && styles.calcTermTextActive]}>{t}yr</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          </View>
+          <Pressable
+            onPress={calculateMortgage}
+            style={({ pressed }) => [styles.calcButton, pressed && { opacity: 0.7 }]}
+            testID="calculate-btn"
+          >
+            <LinearGradient colors={[Colors.gold, "#B8860B"]} style={styles.calcButtonGradient}>
+              <MaterialCommunityIcons name="cash-multiple" size={18} color="#000" />
+              <Text style={styles.calcButtonText}>CALCULATE</Text>
+            </LinearGradient>
+          </Pressable>
+
+          {calcResult && (
+            <Animated.View entering={FadeIn.duration(300)} style={styles.calcResults}>
+              <View style={styles.calcResultRow}>
+                <View style={styles.calcResultItem}>
+                  <Text style={styles.calcResultLabel}>MONTHLY</Text>
+                  <Text style={styles.calcResultValue}>${calcResult.monthly.toLocaleString()}</Text>
+                </View>
+                <View style={styles.calcResultItem}>
+                  <Text style={styles.calcResultLabel}>TOTAL PAID</Text>
+                  <Text style={styles.calcResultValueSmall}>${calcResult.total.toLocaleString()}</Text>
+                </View>
+                <View style={styles.calcResultItem}>
+                  <Text style={styles.calcResultLabel}>INTEREST</Text>
+                  <Text style={[styles.calcResultValueSmall, { color: "#ff6b6b" }]}>${calcResult.interest.toLocaleString()}</Text>
+                </View>
+              </View>
+              <View style={styles.calcTrumpQuote}>
+                <MaterialCommunityIcons name="format-quote-open" size={16} color={Colors.gold} />
+                <Text style={styles.calcTrumpText}>{calcResult.trumpComment}</Text>
+              </View>
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  const price = Math.max(0, parseFloat(homePrice) || 0);
+                  const down = Math.max(0, parseFloat(downPayment) || 0);
+                  const msg = `Trump Mortgage Calculator:\n$${price.toLocaleString()} home, $${down.toLocaleString()} down\nMonthly: $${calcResult.monthly.toLocaleString()}/mo\nTotal: $${calcResult.total.toLocaleString()} over ${loanTerm} years\nTrump says: "${calcResult.trumpComment.slice(0, 80)}..."`;
+
+                  Share.share({ message: msg });
+                }}
+                style={({ pressed }) => [styles.calcShareBtn, pressed && { opacity: 0.7 }]}
+              >
+                <Ionicons name="share-outline" size={14} color={Colors.gold} />
+                <Text style={styles.calcShareText}>SHARE THIS DEAL</Text>
+              </Pressable>
+            </Animated.View>
+          )}
+        </Animated.View>
+      )}
 
       <View style={styles.advisorSection}>
         <Text style={styles.advisorLabel}>YOUR ADVISOR</Text>
@@ -996,6 +1185,183 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.2)",
     textAlign: "center" as const,
     marginTop: 8,
+  },
+  calcToggle: {
+    paddingHorizontal: 16,
+    marginBottom: 6,
+  },
+  calcToggleBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: "rgba(212,164,32,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(212,164,32,0.2)",
+  },
+  calcToggleText: {
+    fontSize: 12,
+    fontWeight: "800" as const,
+    color: Colors.gold,
+    letterSpacing: 1.5,
+  },
+  calcSection: {
+    paddingHorizontal: 16,
+    marginBottom: 10,
+    gap: 10,
+  },
+  calcRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  calcInputGroup: {
+    flex: 1,
+    gap: 4,
+  },
+  calcLabel: {
+    fontSize: 10,
+    fontWeight: "700" as const,
+    color: "rgba(255,255,255,0.5)",
+    letterSpacing: 1,
+  },
+  calcInputWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(212,164,32,0.15)",
+    paddingHorizontal: 10,
+    height: 42,
+  },
+  calcDollar: {
+    fontSize: 15,
+    color: Colors.gold,
+    fontWeight: "700" as const,
+    marginRight: 4,
+  },
+  calcPercent: {
+    fontSize: 15,
+    color: Colors.gold,
+    fontWeight: "700" as const,
+    marginLeft: 4,
+  },
+  calcInput: {
+    flex: 1,
+    fontSize: 15,
+    color: Colors.white,
+    fontWeight: "600" as const,
+  },
+  calcTermRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  calcTermBtn: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    height: 42,
+    borderRadius: 10,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+  },
+  calcTermBtnActive: {
+    backgroundColor: "rgba(212,164,32,0.2)",
+    borderColor: Colors.gold,
+  },
+  calcTermText: {
+    fontSize: 14,
+    fontWeight: "700" as const,
+    color: "rgba(255,255,255,0.4)",
+  },
+  calcTermTextActive: {
+    color: Colors.gold,
+  },
+  calcButton: {
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  calcButtonGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 13,
+  },
+  calcButtonText: {
+    fontSize: 14,
+    fontWeight: "900" as const,
+    color: "#000",
+    letterSpacing: 1,
+  },
+  calcResults: {
+    backgroundColor: "rgba(212,164,32,0.06)",
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "rgba(212,164,32,0.25)",
+    gap: 12,
+  },
+  calcResultRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  calcResultItem: {
+    alignItems: "center",
+    gap: 3,
+  },
+  calcResultLabel: {
+    fontSize: 9,
+    fontWeight: "700" as const,
+    color: "rgba(255,255,255,0.4)",
+    letterSpacing: 1,
+  },
+  calcResultValue: {
+    fontSize: 24,
+    fontWeight: "900" as const,
+    color: Colors.gold,
+  },
+  calcResultValueSmall: {
+    fontSize: 16,
+    fontWeight: "800" as const,
+    color: Colors.white,
+  },
+  calcTrumpQuote: {
+    flexDirection: "row",
+    gap: 6,
+    alignItems: "flex-start",
+    backgroundColor: "rgba(212,164,32,0.08)",
+    borderRadius: 10,
+    padding: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: Colors.gold,
+  },
+  calcTrumpText: {
+    flex: 1,
+    fontSize: 13,
+    color: Colors.white,
+    lineHeight: 20,
+    fontStyle: "italic",
+  },
+  calcShareBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: "rgba(212,164,32,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(212,164,32,0.25)",
+  },
+  calcShareText: {
+    fontSize: 11,
+    fontWeight: "800" as const,
+    color: Colors.gold,
+    letterSpacing: 0.5,
   },
   gamePromo: {
     flexDirection: "row",
