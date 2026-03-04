@@ -908,18 +908,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const results: any = {
         bitcoin: null,
         ethereum: null,
+        solana: null,
         gold: null,
         silver: null,
+        sp500: null,
         updatedAt: new Date().toISOString(),
       };
 
       const fetches = await Promise.allSettled([
-        fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd&include_24hr_change=true")
+        fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana&vs_currencies=usd&include_24hr_change=true")
           .then(r => r.json()),
         fetch("https://query1.finance.yahoo.com/v8/finance/chart/GC=F?interval=1d&range=2d", {
           headers: { "User-Agent": "Mozilla/5.0" },
         }).then(r => r.json()),
         fetch("https://query1.finance.yahoo.com/v8/finance/chart/SI=F?interval=1d&range=2d", {
+          headers: { "User-Agent": "Mozilla/5.0" },
+        }).then(r => r.json()),
+        fetch("https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?interval=1d&range=1d", {
           headers: { "User-Agent": "Mozilla/5.0" },
         }).then(r => r.json()),
       ]);
@@ -936,6 +941,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           results.ethereum = {
             price: d.ethereum.usd,
             change24h: d.ethereum.usd_24h_change ?? null,
+          };
+        }
+        if (d?.solana) {
+          results.solana = {
+            price: d.solana.usd,
+            change24h: d.solana.usd_24h_change ?? null,
           };
         }
       }
@@ -955,6 +966,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const meta = fetches[2].value?.chart?.result?.[0]?.meta;
         if (meta) {
           results.silver = {
+            price: meta.regularMarketPrice,
+            change: meta.regularMarketPrice - meta.chartPreviousClose,
+            changePercent: ((meta.regularMarketPrice - meta.chartPreviousClose) / meta.chartPreviousClose) * 100,
+          };
+        }
+      }
+
+      if (fetches[3].status === "fulfilled") {
+        const meta = fetches[3].value?.chart?.result?.[0]?.meta;
+        if (meta) {
+          results.sp500 = {
             price: meta.regularMarketPrice,
             change: meta.regularMarketPrice - meta.chartPreviousClose,
             changePercent: ((meta.regularMarketPrice - meta.chartPreviousClose) / meta.chartPreviousClose) * 100,
@@ -2845,10 +2867,10 @@ Respond in valid JSON format ONLY — an array of objects:
         messages: [
           {
             role: "system",
-            content: `You are Trump giving hot takes on market prices. Be funny, boastful, and in-character. Claim credit for gains, blame Democrats for losses. For $TRUMP coin, always be extra defensive/boastful. For gold, talk about how you love gold. For crypto, pretend you understand it better than anyone. Keep each take to 1 short sentence. No asterisks.
+            content: `You are Trump giving hot takes on market prices. Be funny, boastful, and in-character. Claim credit for gains, blame Democrats for losses. For $TRUMP coin, always be extra defensive/boastful. For gold, talk about how you love gold. For crypto, pretend you understand it better than anyone. For Solana, brag about speed. For S&P 500, claim credit if up. Keep each take to 1 short sentence. No asterisks.
 
 Respond in valid JSON only:
-{"bitcoin": "take", "ethereum": "take", "gold": "take", "silver": "take", "trumpCoin": "take", "todaysPick": "pick name", "todaysPickReason": "short reason"}
+{"bitcoin": "take", "ethereum": "take", "solana": "take", "gold": "take", "silver": "take", "sp500": "take", "trumpCoin": "take", "todaysPick": "pick name", "todaysPickReason": "short reason"}
 
 For todaysPick, make up a funny/absurd Trump-themed investment pick (like "WALL FUTURES", "MAGA ENERGY", "TRUMP STEAKS INC", etc).`,
           },
@@ -2868,8 +2890,10 @@ For todaysPick, make up a funny/absurd Trump-themed investment pick (like "WALL 
         takes = {
           bitcoin: "Bitcoin? I invented it. Many people are saying that.",
           ethereum: "Ethereum is fine, but it's no Trump coin, believe me.",
+          solana: "Solana is FAST. Not as fast as my decision-making, but fast.",
           gold: "I love gold. My buildings are covered in it. Beautiful.",
           silver: "Silver is okay. It's like gold's less successful brother.",
+          sp500: "The S&P loves me. It always goes up when I'm in charge.",
           trumpCoin: "The best coin ever created. Going to the moon. Buy buy buy!",
           todaysPick: "WALL FUTURES",
           todaysPickReason: "We're building it bigger and better, folks.",
@@ -2883,8 +2907,10 @@ For todaysPick, make up a funny/absurd Trump-themed investment pick (like "WALL 
       res.json({
         bitcoin: "Tremendous crypto. The best.",
         ethereum: "Not bad. Not as good as Trump Coin though.",
+        solana: "Very fast blockchain. Almost as fast as me making deals.",
         gold: "I love gold. Ask anyone.",
         silver: "Silver is a very underrated metal.",
+        sp500: "Always does better under Republican presidents. Fact.",
         trumpCoin: "The greatest coin in the history of coins!",
         todaysPick: "MAGA ENERGY",
         todaysPickReason: "Because we never stop winning.",

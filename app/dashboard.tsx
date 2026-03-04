@@ -112,7 +112,7 @@ export default function DashboardScreen() {
   const { data: hotTakes } = useQuery({
     queryKey: ["market-hot-takes", !!markets],
     queryFn: async () => {
-      const summary = `BTC: $${markets.bitcoin?.price || 0}, ETH: $${markets.ethereum?.price || 0}, Gold: $${markets.gold?.price || 0}, Silver: $${markets.silver?.price || 0}`;
+      const summary = `BTC: $${markets.bitcoin?.price || 0}, ETH: $${markets.ethereum?.price || 0}, SOL: $${markets.solana?.price || 0}, Gold: $${markets.gold?.price || 0}, Silver: $${markets.silver?.price || 0}, S&P 500: $${markets.sp500?.price || 0}`;
       const res = await fetch(`${getApiUrl()}api/market-hot-takes?prices=${encodeURIComponent(summary)}`);
       if (!res.ok) throw new Error("Hot takes failed");
       return res.json();
@@ -329,6 +329,34 @@ export default function DashboardScreen() {
                   <PriceChange value={markets.silver.changePercent} isPercent />
                   {hotTakes?.silver && (
                     <Text style={styles.trumpNote}>"{hotTakes.silver}"</Text>
+                  )}
+                </LinearGradient>
+              )}
+
+              {markets.solana && (
+                <LinearGradient colors={["#1A1A2E", "#0F1A2E"]} style={styles.marketCard}>
+                  <View style={styles.marketHeader}>
+                    <MaterialCommunityIcons name="lightning-bolt" size={20} color="#9945FF" />
+                    <Text style={styles.marketSymbol}>SOL</Text>
+                  </View>
+                  <Text style={styles.marketPrice}>${formatPrice(markets.solana.price)}</Text>
+                  <PriceChange value={markets.solana.change24h} isPercent />
+                  {hotTakes?.solana && (
+                    <Text style={styles.trumpNote}>"{hotTakes.solana}"</Text>
+                  )}
+                </LinearGradient>
+              )}
+
+              {markets.sp500 && (
+                <LinearGradient colors={["#1A1E1A", "#0E1A0E"]} style={styles.marketCard}>
+                  <View style={styles.marketHeader}>
+                    <MaterialCommunityIcons name="chart-line" size={20} color="#4CAF50" />
+                    <Text style={styles.marketSymbol}>S&P 500</Text>
+                  </View>
+                  <Text style={styles.marketPrice}>${formatPrice(markets.sp500.price)}</Text>
+                  <PriceChange value={markets.sp500.changePercent} isPercent />
+                  {hotTakes?.sp500 && (
+                    <Text style={styles.trumpNote}>"{hotTakes.sp500}"</Text>
                   )}
                 </LinearGradient>
               )}
