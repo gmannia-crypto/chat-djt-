@@ -689,6 +689,16 @@ export default function TherapyScreen() {
           </View>
         </Animated.View>
 
+        <Animated.View entering={FadeInDown.delay(250).duration(500)} style={styles.timerContainer}>
+          <Text style={styles.timerLabel}>YOUR SESSION</Text>
+          <Text style={[styles.timerDisplay, { color: config.accent }, sessionSeconds <= 30 && styles.timerWarning]}>
+            {formatTime(sessionSeconds)}
+          </Text>
+          {sessionEnded && (
+            <Text style={styles.timerExpired}>SESSION ENDED</Text>
+          )}
+        </Animated.View>
+
         <Animated.View entering={FadeInDown.delay(300).duration(500)} style={[styles.therapyCard, { borderColor: `${config.accent}66` }]}>
           <Text style={[styles.greeting, { color: config.accent }]}>{config.greeting}</Text>
 
@@ -808,16 +818,6 @@ export default function TherapyScreen() {
 
         {therapy && (
           <Animated.View entering={FadeInUp.duration(600)} style={[styles.resultCard, { borderColor: `${config.accent}80` }]}>
-            <View style={styles.timerContainer}>
-              <Text style={styles.timerLabel}>YOUR SESSION</Text>
-              <Text style={[styles.timerDisplay, { color: config.accent }, sessionSeconds <= 30 && styles.timerWarning]}>
-                {formatTime(sessionSeconds)}
-              </Text>
-              {sessionEnded && (
-                <Text style={styles.timerExpired}>SESSION ENDED</Text>
-              )}
-            </View>
-
             <View style={[styles.trumpPortrait, { backgroundColor: config.accent }]}>
               <Image source={config.image} style={{ width: 64, height: 64, borderRadius: 32 }} resizeMode="cover" />
             </View>
