@@ -255,6 +255,59 @@
         }
         .mashup-share-btn:hover { transform: scale(1.02); box-shadow: 0 4px 20px rgba(255,215,0,0.3); }
 
+        .potw-section {
+            margin: 30px 0; padding: 24px 20px;
+            background: linear-gradient(145deg, #0d0d00, #1a1a08);
+            border: 2px solid rgba(255,215,0,0.3); border-radius: 18px;
+            position: relative; overflow: hidden;
+        }
+        .potw-section::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+            background: linear-gradient(90deg, #FFD700, #ff4d4d, #FFD700);
+        }
+        .potw-header { text-align: center; margin-bottom: 20px; }
+        .potw-title {
+            font-size: 20px; font-weight: 900; color: #FFD700;
+            letter-spacing: 2px; margin-bottom: 4px;
+        }
+        .potw-subtitle { color: #888; font-size: 13px; }
+        .potw-week { color: rgba(255,215,0,0.4); font-size: 10px; letter-spacing: 2px; margin-top: 6px; }
+        .potw-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 10px; margin-bottom: 16px;
+        }
+        .potw-card {
+            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px; padding: 14px 10px; text-align: center;
+            cursor: pointer; transition: all 0.25s ease; position: relative;
+        }
+        .potw-card:hover { border-color: rgba(255,215,0,0.4); transform: translateY(-2px); }
+        .potw-card.voted { border-color: rgba(255,215,0,0.6); background: rgba(255,215,0,0.05); }
+        .potw-card-avatar { font-size: 28px; margin-bottom: 4px; }
+        .potw-card-name { font-size: 13px; font-weight: 700; color: #fff; margin-bottom: 2px; }
+        .potw-card-votes { font-size: 18px; font-weight: 900; margin-bottom: 4px; }
+        .potw-card-bar {
+            width: 100%; height: 4px; background: rgba(255,255,255,0.06);
+            border-radius: 2px; overflow: hidden; margin-bottom: 6px;
+        }
+        .potw-card-fill { height: 100%; border-radius: 2px; transition: width 0.8s ease; }
+        .potw-card-btn {
+            display: inline-block; padding: 6px 16px; border: none; border-radius: 20px;
+            font-size: 11px; font-weight: 800; cursor: pointer;
+            letter-spacing: 1px; transition: all 0.2s;
+        }
+        .potw-card-btn:hover { transform: scale(1.05); }
+        .potw-card-btn.disabled { opacity: 0.5; cursor: default; }
+        .potw-total { text-align: center; color: #666; font-size: 12px; margin-bottom: 12px; }
+        .potw-share-btn {
+            display: block; width: 100%; padding: 12px; border: none; border-radius: 25px;
+            background: linear-gradient(135deg, rgba(255,215,0,0.15), rgba(255,77,77,0.15));
+            border: 1px solid rgba(255,215,0,0.3); color: #FFD700; font-size: 14px;
+            font-weight: 700; cursor: pointer; transition: all 0.3s; letter-spacing: 1px;
+        }
+        .potw-share-btn:hover { background: linear-gradient(135deg, rgba(255,215,0,0.25), rgba(255,77,77,0.25)); transform: scale(1.01); }
+        .potw-crown { position: absolute; top: -4px; right: -4px; font-size: 16px; }
+
         .cross-promo {
             text-align: center; margin: 30px 0; padding: 20px;
             background: linear-gradient(145deg, #1a1a1a, #2d2d2d);
@@ -337,6 +390,17 @@
             <button class="start-btn" id="battleStartBtn" onclick="startBattleRoyale()">&#x1F3C6; LET THEM ALL ANSWER!</button>
 
             <div id="battleArena" style="display:none;"></div>
+        </div>
+
+        <div class="potw-section" id="potwSection">
+            <div class="potw-header">
+                <div class="potw-title">&#x1F31F; PERSONA OF THE WEEK &#x1F31F;</div>
+                <div class="potw-subtitle">Vote for who gave the best advice!</div>
+                <div class="potw-week" id="potwWeek"></div>
+            </div>
+            <div class="potw-grid" id="potwGrid"></div>
+            <div class="potw-total" id="potwTotal"></div>
+            <button class="potw-share-btn" onclick="sharePotwVote()">&#x1F501; SHARE WHO YOU VOTED FOR</button>
         </div>
 
         <div class="cross-promo">
@@ -999,6 +1063,99 @@
         renderAssets();
         renderPersonaRow('persona1Row', selectedPersona1, 1);
         renderPersonaRow('persona2Row', selectedPersona2, 2);
+
+        var potwHasVoted = false;
+        var potwVotedFor = null;
+        var potwVotes = {};
+
+        function formatVoteCount(n) {
+            if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+            if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+            return n.toLocaleString();
+        }
+
+        function renderPotwGrid(votes, total) {
+            var grid = document.getElementById('potwGrid');
+            var ids = Object.keys(PERSONAS);
+            var sorted = ids.slice().sort(function(a, b) { return (votes[b] || 0) - (votes[a] || 0); });
+            var topId = total > 0 ? sorted[0] : null;
+            var html = '';
+            for (var i = 0; i < ids.length; i++) {
+                var id = ids[i];
+                var p = PERSONAS[id];
+                var count = votes[id] || 0;
+                var pct = total > 0 ? Math.round((count / total) * 100) : 0;
+                var isTop = id === topId && total > 0;
+                var isVoted = potwVotedFor === id;
+                html += '<div class="potw-card' + (isVoted ? ' voted' : '') + '" id="potwCard_' + id + '">' +
+                    (isTop ? '<span class="potw-crown">\u{1F451}</span>' : '') +
+                    '<div class="potw-card-avatar">' + p.avatar + '</div>' +
+                    '<div class="potw-card-name">' + p.name + '</div>' +
+                    '<div class="potw-card-votes" style="color:' + p.style.color + ';">' + formatVoteCount(count) + '</div>' +
+                    '<div class="potw-card-bar"><div class="potw-card-fill" style="width:' + pct + '%;background:' + p.style.color + ';"></div></div>' +
+                    (potwHasVoted
+                        ? '<span class="potw-card-btn disabled" style="background:' + (isVoted ? p.style.color : 'rgba(255,255,255,0.05)') + ';color:' + (isVoted ? '#000' : '#666') + ';">' + (isVoted ? '\u2705 VOTED' : pct + '%') + '</span>'
+                        : '<button class="potw-card-btn" style="background:' + p.style.color + ';color:#000;" onclick="votePotwPersona(\'' + id + '\')">' + 'VOTE' + '</button>'
+                    ) +
+                    '</div>';
+            }
+            grid.innerHTML = html;
+            document.getElementById('potwTotal').textContent = total > 0 ? (total.toLocaleString() + ' total votes this week') : 'Be the first to vote!';
+        }
+
+        function loadPotwVotes() {
+            fetch('/api/persona-of-the-week').then(function(r) { return r.json(); }).then(function(data) {
+                potwVotes = data.votes || {};
+                var total = data.total || 0;
+                document.getElementById('potwWeek').textContent = 'WEEK ' + (data.week || '').replace(/^\d+-W/, '');
+                renderPotwGrid(potwVotes, total);
+            }).catch(function() {
+                renderPotwGrid({}, 0);
+            });
+        }
+
+        function votePotwPersona(personaId) {
+            if (potwHasVoted) return;
+            potwHasVoted = true;
+            potwVotedFor = personaId;
+
+            fetch('/api/persona-of-the-week/vote', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ persona: personaId })
+            }).then(function(r) { return r.json(); }).then(function(data) {
+                potwVotes = data.votes || {};
+                var total = data.total || 0;
+                renderPotwGrid(potwVotes, total);
+                showPotwToast(PERSONAS[personaId].name + ' appreciates your vote! \u{1F31F}');
+            }).catch(function() {
+                renderPotwGrid(potwVotes, Object.values(potwVotes).reduce(function(s,v){return s+v;}, 0));
+            });
+            trackEvent('potw_vote', { persona: personaId });
+        }
+
+        function showPotwToast(msg) {
+            var toast = document.createElement('div');
+            toast.className = 'vote-toast';
+            toast.textContent = msg;
+            document.body.appendChild(toast);
+            setTimeout(function() { toast.remove(); }, 3000);
+        }
+
+        function sharePotwVote() {
+            var text;
+            if (potwVotedFor) {
+                var p = PERSONAS[potwVotedFor];
+                text = '\u{1F31F} I voted for ' + p.name + ' ' + p.avatar + ' as Persona of the Week on Financial Faceoff!\n\nWho gives the best financial advice? Cast your vote!';
+            } else {
+                text = '\u{1F31F} Who gives the best financial advice? Vote for Persona of the Week on Financial Faceoff!';
+            }
+            var shareUrl = window.location.origin + '/financial-faceoff';
+            navigator.clipboard.writeText(text + '\n' + shareUrl).then(function() { showCopyToast(); });
+            trackEvent('potw_shared', { votedFor: potwVotedFor });
+        }
+
+        loadPotwVotes();
     </script>
 </body>
 </html>

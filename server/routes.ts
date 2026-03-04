@@ -477,6 +477,16 @@ const API_COST_ESTIMATES: Record<string, number> = {
 export async function registerRoutes(app: Express): Promise<Server> {
   const faceoffVotes = new Map<string, { votes: Record<string, number>; asset: string; persona1: string; persona2: string }>();
   const battleRoyaleVotes = new Map<string, { votes: Record<string, number>; question: string }>();
+  const personaOfTheWeekVotes: Record<string, number> = {};
+  const potwVoters = new Set<string>();
+  let potwWeekKey = getWeekKey();
+
+  function getWeekKey() {
+    const now = new Date();
+    const jan1 = new Date(now.getFullYear(), 0, 1);
+    const week = Math.ceil(((now.getTime() - jan1.getTime()) / 86400000 + jan1.getDay() + 1) / 7);
+    return `${now.getFullYear()}-W${week}`;
+  }
 
   app.get("/financial-faceoff", (_req, res) => {
     try {
@@ -577,6 +587,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     const total = Object.values(battle.votes).reduce((sum, v) => sum + v, 0);
     res.json({ votes: battle.votes, total });
+  });
+
+  app.post("/api/persona-of-the-week/vote", (req, res) => {
+    try {
+      const { persona } = req.body;
+      if (!persona || !VALID_BATTLE_PERSONAS.includes(persona)) {
+        return res.status(400).json({ error: "Invalid persona" });
+      }
+
+      const currentWeek = getWeekKey();
+      if (currentWeek !== potwWeekKey) {
+        Object.keys(personaOfTheWeekVotes).forEach(k => delete personaOfTheWeekVotes[k]);
+        potwVoters.clear();
+        potwWeekKey = currentWeek;
+      }
+
+      const deviceId = (req.headers["x-device-id"] as string) || "";
+      const ip = (req.headers["x-forwarded-for"] as string || req.socket.remoteAddress || "").split(",")[0].trim();
+      const voterKey = deviceId ? `d:${deviceId}` : `ip:${ip}`;
+
+      if (potwVoters.has(voterKey)) {
+        const total = Object.values(personaOfTheWeekVotes).reduce((s, v) => s + v, 0);
+        return res.status(409).json({ error: "Already voted this week", votes: { ...personaOfTheWeekVotes }, total, week: potwWeekKey });
+      }
+
+      if (potwVoters.size >= 50000) {
+        const first = potwVoters.values().next().value;
+        if (first) potwVoters.delete(first);
+      }
+      potwVoters.add(voterKey);
+
+      personaOfTheWeekVotes[persona] = (personaOfTheWeekVotes[persona] || 0) + 1;
+      const total = Object.values(personaOfTheWeekVotes).reduce((s, v) => s + v, 0);
+      res.json({ votes: { ...personaOfTheWeekVotes }, total, week: potwWeekKey });
+    } catch (error) {
+      console.error("POTW vote error:", error);
+      res.status(500).json({ error: "Failed to record vote" });
+    }
+  });
+
+  app.get("/api/persona-of-the-week", (_req, res) => {
+    const currentWeek = getWeekKey();
+    if (currentWeek !== potwWeekKey) {
+      Object.keys(personaOfTheWeekVotes).forEach(k => delete personaOfTheWeekVotes[k]);
+      potwVoters.clear();
+      potwWeekKey = currentWeek;
+    }
+    const total = Object.values(personaOfTheWeekVotes).reduce((s, v) => s + v, 0);
+    res.json({ votes: { ...personaOfTheWeekVotes }, total, week: potwWeekKey });
   });
 
   app.get("/api/tokens/balance", async (req, res) => {

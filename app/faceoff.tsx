@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -458,12 +458,60 @@ export default function FaceoffScreen() {
   const [battleHasVoted, setBattleHasVoted] = useState(false);
   const [battleVotedFor, setBattleVotedFor] = useState<string | null>(null);
 
+  const [potwVotes, setPotwVotes] = useState<Record<string, number>>({});
+  const [potwTotal, setPotwTotal] = useState(0);
+  const [potwWeek, setPotwWeek] = useState("");
+  const [potwHasVoted, setPotwHasVoted] = useState(false);
+  const [potwVotedFor, setPotwVotedFor] = useState<string | null>(null);
+
   const ENCOURAGEMENTS = [
     "Keep voting! The winner gets bragging rights!",
     "Your vote matters in this financial showdown!",
     "Who do YOU trust with your money?",
     "Share this debate with your friends!",
   ];
+
+  useEffect(() => {
+    const baseUrl = getApiUrl().replace(/\/$/, "");
+    globalThis.fetch(`${baseUrl}/api/persona-of-the-week`)
+      .then(r => r.json())
+      .then(data => {
+        setPotwVotes(data.votes || {});
+        setPotwTotal(data.total || 0);
+        setPotwWeek(data.week || "");
+      })
+      .catch(() => {});
+  }, []);
+
+  const handlePotwVote = useCallback((personaId: string) => {
+    if (potwHasVoted) return;
+    setPotwHasVoted(true);
+    setPotwVotedFor(personaId);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    const baseUrl = getApiUrl().replace(/\/$/, "");
+    globalThis.fetch(`${baseUrl}/api/persona-of-the-week/vote`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ persona: personaId }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        setPotwVotes(data.votes || {});
+        setPotwTotal(data.total || 0);
+        setToastText(PERSONAS.find(p => p.id === personaId)?.name + " appreciates your vote! \u{1F31F}");
+        setTimeout(() => setToastText(null), 2500);
+      })
+      .catch(() => {});
+  }, [potwHasVoted]);
+
+  const handlePotwShare = useCallback(() => {
+    const p = PERSONAS.find(x => x.id === potwVotedFor);
+    const text = potwVotedFor && p
+      ? `\u{1F31F} I voted for ${p.name} as Persona of the Week on Financial Faceoff!\n\nWho gives the best financial advice? Cast your vote at chat-djt.replit.app`
+      : `\u{1F31F} Who gives the best financial advice? Vote for Persona of the Week on Financial Faceoff!\n\nchat-djt.replit.app`;
+    shareContent({ text, feature: "potw" });
+  }, [potwVotedFor]);
 
   const handleStartDebate = useCallback(() => {
     if (contender1.id === contender2.id) {
@@ -940,6 +988,57 @@ export default function FaceoffScreen() {
           )}
         </>
         )}
+
+        <View style={potwStyles.section}>
+          <LinearGradient colors={[Colors.gold, "#ff4d4d", Colors.gold]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={potwStyles.topStripe} />
+          <View style={potwStyles.header}>
+            <Text style={potwStyles.title}>{"\u{1F31F}"} PERSONA OF THE WEEK {"\u{1F31F}"}</Text>
+            <Text style={potwStyles.subtitle}>Vote for who gave the best advice!</Text>
+            {potwWeek ? <Text style={potwStyles.weekLabel}>WEEK {potwWeek.replace(/^\d+-W/, "")}</Text> : null}
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={potwStyles.grid}>
+            {PERSONAS.map(p => {
+              const count = potwVotes[p.id] || 0;
+              const pct = potwTotal > 0 ? Math.round((count / potwTotal) * 100) : 0;
+              const isVoted = potwVotedFor === p.id;
+              const sorted = [...PERSONAS].sort((a, b) => (potwVotes[b.id] || 0) - (potwVotes[a.id] || 0));
+              const isLeader = potwTotal > 0 && sorted[0]?.id === p.id;
+              return (
+                <View key={p.id} style={[potwStyles.card, isVoted && potwStyles.cardVoted]}>
+                  {isLeader && <Text style={potwStyles.crown}>{"\u{1F451}"}</Text>}
+                  <Text style={potwStyles.cardAvatar}>{p.name[0]}</Text>
+                  <Text style={potwStyles.cardName}>{p.name}</Text>
+                  <Text style={[potwStyles.cardCount, { color: p.color }]}>
+                    {count >= 1000 ? (count / 1000).toFixed(1) + "K" : count}
+                  </Text>
+                  <View style={potwStyles.bar}>
+                    <View style={[potwStyles.barFill, { width: `${pct}%` as any, backgroundColor: p.color }]} />
+                  </View>
+                  {!potwHasVoted ? (
+                    <Pressable
+                      onPress={() => handlePotwVote(p.id)}
+                      style={({ pressed }) => [potwStyles.voteBtn, { backgroundColor: p.color }, pressed && { opacity: 0.8 }]}
+                    >
+                      <Text style={potwStyles.voteBtnText}>VOTE</Text>
+                    </Pressable>
+                  ) : (
+                    <View style={[potwStyles.voteBtn, { backgroundColor: isVoted ? p.color : "rgba(255,255,255,0.05)" }]}>
+                      <Text style={[potwStyles.voteBtnText, !isVoted && { color: "#666" }]}>
+                        {isVoted ? "\u2705" : pct + "%"}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+          </ScrollView>
+          <Text style={potwStyles.totalText}>
+            {potwTotal > 0 ? `${potwTotal.toLocaleString()} total votes this week` : "Be the first to vote!"}
+          </Text>
+          <Pressable onPress={handlePotwShare} style={({ pressed }) => [potwStyles.shareBtn, pressed && { opacity: 0.8 }]}>
+            <Text style={potwStyles.shareBtnText}>{"\u{1F501}"} SHARE WHO YOU VOTED FOR</Text>
+          </Pressable>
+        </View>
 
         <Pressable
           onPress={() => {
@@ -1647,6 +1746,131 @@ const mashupStyles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "800" as const,
     color: "#000",
+    letterSpacing: 1,
+  },
+});
+
+const potwStyles = StyleSheet.create({
+  section: {
+    borderRadius: 18,
+    borderWidth: 2,
+    borderColor: "rgba(255,215,0,0.3)",
+    backgroundColor: "rgba(13,13,0,0.9)",
+    padding: 20,
+    marginBottom: 20,
+    overflow: "hidden",
+  },
+  topStripe: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+  },
+  header: {
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: "900" as const,
+    color: Colors.gold,
+    letterSpacing: 2,
+    marginBottom: 4,
+  },
+  subtitle: {
+    fontSize: 13,
+    color: "#888",
+  },
+  weekLabel: {
+    fontSize: 10,
+    color: "rgba(255,215,0,0.4)",
+    letterSpacing: 2,
+    marginTop: 6,
+  },
+  grid: {
+    gap: 10,
+    paddingBottom: 4,
+  },
+  card: {
+    width: 110,
+    backgroundColor: "rgba(255,255,255,0.03)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    borderRadius: 12,
+    padding: 12,
+    alignItems: "center",
+  },
+  cardVoted: {
+    borderColor: "rgba(255,215,0,0.6)",
+    backgroundColor: "rgba(255,215,0,0.05)",
+  },
+  crown: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    fontSize: 16,
+  },
+  cardAvatar: {
+    fontSize: 24,
+    fontWeight: "900" as const,
+    color: Colors.gold,
+    marginBottom: 2,
+  },
+  cardName: {
+    fontSize: 12,
+    fontWeight: "700" as const,
+    color: "#fff",
+    marginBottom: 2,
+  },
+  cardCount: {
+    fontSize: 16,
+    fontWeight: "900" as const,
+    marginBottom: 4,
+  },
+  bar: {
+    width: "100%",
+    height: 4,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 2,
+    overflow: "hidden",
+    marginBottom: 6,
+  },
+  barFill: {
+    height: "100%",
+    borderRadius: 2,
+  },
+  voteBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    borderRadius: 20,
+  },
+  voteBtnText: {
+    fontSize: 10,
+    fontWeight: "800" as const,
+    color: "#000",
+    letterSpacing: 1,
+  },
+  totalText: {
+    textAlign: "center" as const,
+    color: "#666",
+    fontSize: 12,
+    marginTop: 10,
+    marginBottom: 12,
+  },
+  shareBtn: {
+    width: "100%",
+    padding: 12,
+    borderRadius: 25,
+    backgroundColor: "rgba(255,215,0,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,215,0,0.3)",
+    alignItems: "center",
+  },
+  shareBtnText: {
+    fontSize: 14,
+    fontWeight: "700" as const,
+    color: Colors.gold,
     letterSpacing: 1,
   },
 });
