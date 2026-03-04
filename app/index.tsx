@@ -266,6 +266,7 @@ export default function HomeScreen() {
   const [mysteryReady, setMysteryReady] = useState(false);
   const [mysteryPrize, setMysteryPrize] = useState<typeof MYSTERY_REWARDS[0] | null>(null);
   const [mysteryRevealing, setMysteryRevealing] = useState(false);
+  const [leaderboardData, setLeaderboardData] = useState<{ name: string; score: number; avatar: string; isYou?: boolean }[]>([]);
   const { deviceId, hasTokens } = useTokens();
 
   const pulseScale = useSharedValue(1);
@@ -336,6 +337,7 @@ export default function HomeScreen() {
       updateStreak();
       fetchDailyChallenge();
       initMysteryBox();
+      fetchLeaderboard();
     }, [])
   );
 
@@ -394,6 +396,37 @@ export default function HomeScreen() {
   function dismissMysteryPrize() {
     setMysteryPrize(null);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }
+
+  async function fetchLeaderboard() {
+    try {
+      const baseUrl = getApiUrl();
+      const res = await globalThis.fetch(`${baseUrl}api/rate-trump/leaderboard`);
+      if (res.ok) {
+        const data = await res.json();
+        const topUsers: { name: string; score: number; avatar: string; isYou?: boolean }[] = [];
+        const avatars = ["\uD83C\uDDFA\uD83C\uDDF8", "\uD83D\uDC51", "\uD83D\uDD25", "\u2B50", "\uD83C\uDFC6", "\uD83E\uDD85", "\uD83D\uDCB0", "\uD83D\uDCAA"];
+        if (data.supporters && data.supporters.length > 0) {
+          data.supporters.slice(0, 5).forEach((s: any, i: number) => {
+            topUsers.push({
+              name: s.display_name ? `@${s.display_name.replace(/\s+/g, "")}` : `@User${i + 1}`,
+              score: Math.round((s.rating / 100) * 15000 + Math.random() * 2000),
+              avatar: avatars[i % avatars.length],
+            });
+          });
+        }
+        if (topUsers.length === 0) {
+          topUsers.push(
+            { name: "@MAGAMike", score: 15420, avatar: "\uD83C\uDDFA\uD83C\uDDF8" },
+            { name: "@CryptoQueen", score: 13200, avatar: "\uD83D\uDC51" },
+            { name: "@GrandmaLovesTrump", score: 9870, avatar: "\uD83D\uDC75" },
+          );
+        }
+        topUsers.push({ name: "You", score: Math.round(streak * 500 + conversations.length * 200 + Math.random() * 1000), avatar: "\uD83D\uDC49", isYou: true });
+        topUsers.sort((a, b) => b.score - a.score);
+        setLeaderboardData(topUsers);
+      }
+    } catch {}
   }
 
   async function loadConversations() {
@@ -962,6 +995,33 @@ export default function HomeScreen() {
             <Text style={styles.modeButtonText}>FACEOFF</Text>
           </Pressable>
         </Animated.View>
+
+        {leaderboardData.length > 0 && (
+          <Animated.View entering={FadeInDown.delay(1700).duration(500)} style={styles.leaderboardCard}>
+            <View style={styles.leaderboardHeader}>
+              <Text style={styles.leaderboardEmoji}>{"\uD83C\uDFC6"}</Text>
+              <Text style={styles.leaderboardTitle}>TOP TRUMP SCORES</Text>
+            </View>
+            {leaderboardData.map((user, i) => (
+              <View key={`lb-${i}`} style={[styles.leaderboardRow, i === 0 && styles.leaderboardRowFirst, user.isYou && styles.leaderboardRowYou]}>
+                <Text style={[styles.leaderboardRank, i === 0 && { color: "#FFD700" }]}>{i + 1}.</Text>
+                <Text style={styles.leaderboardAvatar}>{user.avatar}</Text>
+                <Text style={[styles.leaderboardName, user.isYou && { color: "#FFD700", fontWeight: "900" as const }]} numberOfLines={1}>{user.name}</Text>
+                <Text style={[styles.leaderboardScore, i === 0 && { color: "#FFD700" }]}>{user.score.toLocaleString()}</Text>
+              </View>
+            ))}
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                router.push("/rate-trump");
+              }}
+              style={({ pressed }) => [styles.leaderboardCta, pressed && { opacity: 0.7 }]}
+            >
+              <Ionicons name="people" size={14} color="#0a0a0a" />
+              <Text style={styles.leaderboardCtaText}>CHALLENGE THE LEADER</Text>
+            </Pressable>
+          </Animated.View>
+        )}
 
         <Text style={styles.legalDisclaimer}>
           Not affiliated with Donald J. Trump, The Trump Organization, or any political entity. For entertainment purposes only. Affiliate links generate commissions.
@@ -2039,6 +2099,91 @@ const styles = StyleSheet.create({
     fontWeight: "800" as const,
     color: "#fff",
     letterSpacing: 1,
+  },
+  leaderboardCard: {
+    marginHorizontal: 24,
+    marginTop: 16,
+    backgroundColor: "rgba(255,215,0,0.06)",
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,215,0,0.2)",
+    maxWidth: 380,
+    alignSelf: "center" as const,
+    width: "100%" as any,
+  },
+  leaderboardHeader: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 8,
+    marginBottom: 12,
+  },
+  leaderboardEmoji: {
+    fontSize: 20,
+  },
+  leaderboardTitle: {
+    fontSize: 13,
+    fontWeight: "900" as const,
+    color: "#FFD700",
+    letterSpacing: 2,
+  },
+  leaderboardRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.06)",
+    gap: 8,
+  },
+  leaderboardRowFirst: {
+    backgroundColor: "rgba(255,215,0,0.08)",
+    borderRadius: 8,
+    marginBottom: 2,
+  },
+  leaderboardRowYou: {
+    backgroundColor: "rgba(255,215,0,0.12)",
+    borderRadius: 8,
+  },
+  leaderboardRank: {
+    fontSize: 13,
+    fontWeight: "800" as const,
+    color: "rgba(255,255,255,0.5)",
+    width: 22,
+    textAlign: "center" as const,
+  },
+  leaderboardAvatar: {
+    fontSize: 18,
+    width: 26,
+    textAlign: "center" as const,
+  },
+  leaderboardName: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "600" as const,
+    color: Colors.white,
+  },
+  leaderboardScore: {
+    fontSize: 13,
+    fontWeight: "800" as const,
+    color: "#FF4D4D",
+    letterSpacing: 0.5,
+  },
+  leaderboardCta: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    gap: 8,
+    marginTop: 12,
+    backgroundColor: "#FFD700",
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  leaderboardCtaText: {
+    fontSize: 12,
+    fontWeight: "900" as const,
+    color: "#0a0a0a",
+    letterSpacing: 1.2,
   },
   mysteryBoxCard: {
     marginHorizontal: 24,
