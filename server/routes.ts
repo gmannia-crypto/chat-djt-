@@ -1546,6 +1546,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       `${name}, when you're lying in bed at night thinking about work, what's the feeling that lives in your chest? Not the thought — the feeling. Can you put your hand there and name it for me?`,
       `I want to try something with you, ${name}. Close your eyes and picture yourself at work tomorrow morning. What's the first sensation in your body? Tightness? Heaviness? Dread? That sensation is telling us something important.`,
       `${name}, who in your childhood made you feel like you had to perform to be loved? Because that pattern often shows up at work — we work ourselves to exhaustion trying to earn approval we should have gotten freely.`,
+      `${name}, let's try a parts work exercise right now. There's a part of you that keeps pushing — the achiever. And there's a part that wants to stop. If I asked the exhausted part what it would say to the achiever, what would the message be? Say it out loud. Let that part finally have a voice.`,
+      `I want to do a "butterfly hug" with you, ${name}. Cross your arms over your chest, hands resting on your shoulders. Now alternately tap — left, right, left, right — slowly. While you tap, let the work stress surface. Don't fix it. Just observe. What image or memory comes up while you tap? That's what your body is trying to process.`,
     ]);
     if (/love|relationship|dating|marriage/i.test(p)) return pickRandom([
       `${name}, I want you to think about your earliest memory of love. Not romantic love — the very first time you felt loved or wished you did. What comes up? That memory is the blueprint your heart has been following ever since.`,
@@ -1563,6 +1565,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       `${name}, if your pain could speak — if it had actual words — what would it say to you? Sometimes giving voice to our suffering is the first step toward healing it.`,
       `Here's a gentle exercise, ${name}: imagine you're holding the part of you that's hurting. Like you'd hold a child. What does that part need to hear right now? "You're safe"? "It's not your fault"? "I'm not going anywhere"? Say it to yourself. Mean it.`,
       `${name}, what would it feel like to put this burden down — even for just five minutes? Not to solve it, not to fix it, just to set it down and breathe? You're allowed to rest from your own pain.`,
+      `${name}, I'd like to try something right now. Take your right hand and place it on your left shoulder. Now slowly stroke down your arm to your wrist, like you're comforting yourself. Repeat on the other side. This is called "self-soothing touch." What emotion surfaces when you receive your own gentleness?`,
+      `Let me ask you a question that might surprise you, ${name}: what are you secretly afraid to want? Not the fear itself — the desire underneath it. Sometimes our deepest pain isn't about what we've lost, but about what we've never allowed ourselves to hope for. What would you ask for if you believed you deserved it?`,
     ]);
   }
 
@@ -1589,6 +1593,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       `Here's a question that often reveals a lot, ${name}: what would you need to see, hear, or experience to believe this situation can improve? Let's define the evidence threshold. Because without knowing what "better" looks like in concrete terms, we're working without a destination.`,
       `${name}, if I asked you to argue the opposite position — that this situation is actually more manageable than it feels — what would you say? This isn't about dismissing your feelings. It's a technique called "perspective-taking," and it often reveals balanced truths your anxious mind is filtering out.`,
       `Let's look at this from a "cost-benefit" angle, ${name}. What's the cost of continuing to think about this the way you currently do? And what would be the benefit of adopting a different perspective? Sometimes the ROI of changing our thinking is enormous, but we never calculate it.`,
+      `${name}, try this right now. Take a piece of paper — or just do it mentally. Write "EVIDENCE FOR" on one side and "EVIDENCE AGAINST" on the other. Now fill both columns for the thought that's causing you the most distress. I want at least three items in each column. When you're done, read them back to me. Which column was harder to fill? That tells us exactly where the distortion is.`,
+      `${name}, here's a powerful reframe I want you to try. Take your most distressing thought and add three words to the beginning: "I notice that..." So instead of "everything is falling apart," it becomes "I notice that I'm having the thought that everything is falling apart." This is called "cognitive defusion" — it creates space between you and the thought. The thought becomes something you observe rather than something you are. Try it now. What changes?`,
     ]);
   }
 

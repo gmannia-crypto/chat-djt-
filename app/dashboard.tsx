@@ -16,6 +16,7 @@ import { Ionicons, MaterialCommunityIcons, FontAwesome5, Feather } from "@expo/v
 import { LinearGradient } from "expo-linear-gradient";
 import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
+import * as Linking from "expo-linking";
 import { useQuery } from "@tanstack/react-query";
 import Colors from "@/constants/colors";
 import { getApiUrl } from "@/lib/query-client";
@@ -362,47 +363,116 @@ export default function DashboardScreen() {
               )}
             </View>
 
-            {hotTakes?.todaysPick && (
-              <LinearGradient
-                colors={["#2A1A0A", "#1E1408"]}
-                style={styles.stockPickCard}
-              >
-                <View style={styles.stockPickHeader}>
-                  <Text style={styles.stockPickEmoji}>{"\uD83D\uDD25"}</Text>
-                  <Text style={styles.stockPickTitle}>TODAY'S PICK: Buy {hotTakes.todaysPick}</Text>
-                </View>
-                <View style={styles.pickButtonRow}>
-                  <Pressable
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                      setShowPickReason(!showPickReason);
-                    }}
-                    style={({ pressed }) => [styles.whyButton, pressed && { opacity: 0.7 }]}
-                  >
-                    <Text style={styles.whyButtonText}>WHY?</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => shareContent({
-                      text: `\uD83C\uDDFA\uD83C\uDDF8 TRUMP'S STOCK PICK OF THE DAY:\n\n\uD83D\uDD25 Buy ${hotTakes.todaysPick}!\n\n${hotTakes.todaysPickReason ? `"${hotTakes.todaysPickReason}"` : ""}\n\n\uD83C\uDFDB\uFE0F Chat with the 47th President\n\uD83D\uDC49 chat-djt.replit.app`,
-                      feature: "stock_pick",
-                    })}
-                    style={({ pressed }) => [styles.sharePickButton, pressed && { opacity: 0.7 }]}
-                  >
-                    <Ionicons name="share-outline" size={16} color={Colors.gold} />
-                    <Text style={styles.sharePickText}>SHARE</Text>
-                  </Pressable>
-                </View>
-                {showPickReason && hotTakes.todaysPickReason && (
-                  <View style={styles.pickReasonBox}>
+            {(() => {
+              const pickAsset = markets.bitcoin?.change24h > (markets.ethereum?.change24h || 0)
+                ? (markets.bitcoin?.change24h > (markets.solana?.change24h || 0) ? "bitcoin" : "solana")
+                : (markets.ethereum?.change24h > (markets.solana?.change24h || 0) ? "ethereum" : "solana");
+              const pickData = markets[pickAsset];
+              const pickNames: Record<string, string> = { bitcoin: "BITCOIN", ethereum: "ETHEREUM", solana: "SOLANA" };
+              const pickSymbols: Record<string, string> = { bitcoin: "BTC", ethereum: "ETH", solana: "SOL" };
+              const pickIcons: Record<string, any> = {
+                bitcoin: <FontAwesome5 name="bitcoin" size={24} color="#F7931A" />,
+                ethereum: <MaterialCommunityIcons name="ethereum" size={26} color="#627EEA" />,
+                solana: <MaterialCommunityIcons name="lightning-bolt" size={24} color="#9945FF" />,
+              };
+              const change = pickData?.change24h || 0;
+              const isUp = change >= 0;
+              const trumpPick = isUp
+                ? `${pickNames[pickAsset]} up ${Math.abs(change).toFixed(1)}%? I told you! I always know. The best investor. Many people say so. Buy more!`
+                : `${pickNames[pickAsset]} down ${Math.abs(change).toFixed(1)}%? Fake news! It's a temporary setback. Great time to buy. Very smart people are buying.`;
+              const affiliateComment = hotTakes?.[pickAsset] || trumpPick;
+
+              return pickData ? (
+                <LinearGradient
+                  colors={["#1A1408", "#2A1A0A", "#1A1408"]}
+                  style={styles.stockPickCard}
+                >
+                  <View style={styles.pickBanner}>
+                    <Text style={styles.pickBannerText}>{"\uD83D\uDCC8"} TRUMP'S PICK OF THE DAY {"\uD83D\uDCC8"}</Text>
+                  </View>
+
+                  <View style={styles.pickAssetRow}>
+                    {pickIcons[pickAsset]}
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.pickAssetName}>{pickNames[pickAsset]}</Text>
+                      <Text style={styles.pickAssetSymbol}>{pickSymbols[pickAsset]}</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.pickPriceRow}>
+                    <Text style={styles.pickPrice}>${formatPrice(pickData.price)}</Text>
+                    <View style={[styles.pickChangeBadge, { backgroundColor: isUp ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)" }]}>
+                      <Ionicons name={isUp ? "trending-up" : "trending-down"} size={16} color={isUp ? "#22C55E" : "#EF4444"} />
+                      <Text style={[styles.pickChangeText, { color: isUp ? "#22C55E" : "#EF4444" }]}>
+                        {isUp ? "+" : ""}{change.toFixed(1)}%
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.pickQuoteBox}>
                     <Image
                       source={require("@/assets/images/trump-avatar.jpg")}
                       style={styles.trumpMiniAvatar}
                     />
-                    <Text style={styles.pickReasonText}>"{hotTakes.todaysPickReason}"</Text>
+                    <Text style={styles.pickQuoteText}>"{affiliateComment}"</Text>
                   </View>
-                )}
-              </LinearGradient>
-            )}
+
+                  <Pressable
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                      Linking.openURL("https://www.coinbase.com/join");
+                    }}
+                    style={({ pressed }) => [styles.affiliateBtn, pressed && { opacity: 0.8, transform: [{ scale: 0.98 }] }]}
+                  >
+                    <LinearGradient
+                      colors={["#F7931A", "#E8850A"]}
+                      style={styles.affiliateBtnGradient}
+                    >
+                      <Text style={styles.affiliateBtnText}>{"\uD83D\uDCB0"} BUY {pickSymbols[pickAsset]} ON COINBASE</Text>
+                    </LinearGradient>
+                  </Pressable>
+
+                  <View style={styles.pickButtonRow}>
+                    <Pressable
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                        setShowPickReason(!showPickReason);
+                      }}
+                      style={({ pressed }) => [styles.whyButton, pressed && { opacity: 0.7 }]}
+                    >
+                      <Text style={styles.whyButtonText}>WHY?</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => shareContent({
+                        text: `\uD83D\uDCC8 TRUMP'S PICK OF THE DAY \uD83D\uDCC8\n\n${pickNames[pickAsset]} (${pickSymbols[pickAsset]})\n$${formatPrice(pickData.price)} ${isUp ? "\u2705" : "\uD83D\uDD34"} ${change >= 0 ? "+" : ""}${change.toFixed(1)}%\n\nTrump says: "${affiliateComment}"\n\n\uD83C\uDFDB\uFE0F Get Trump's daily picks\n\uD83D\uDC49 chat-djt.replit.app`,
+                        feature: "stock_pick",
+                      })}
+                      style={({ pressed }) => [styles.sharePickButton, pressed && { opacity: 0.7 }]}
+                    >
+                      <Ionicons name="share-outline" size={16} color={Colors.gold} />
+                      <Text style={styles.sharePickText}>SHARE</Text>
+                    </Pressable>
+                  </View>
+
+                  {showPickReason && hotTakes?.todaysPickReason && (
+                    <View style={styles.pickReasonBox}>
+                      <Text style={styles.pickReasonText}>"{hotTakes.todaysPickReason}"</Text>
+                    </View>
+                  )}
+
+                  {hotTakes?.todaysPick && (
+                    <View style={styles.bonusPickRow}>
+                      <Text style={styles.bonusPickLabel}>{"\uD83D\uDD25"} BONUS MEME PICK:</Text>
+                      <Text style={styles.bonusPickName}>{hotTakes.todaysPick}</Text>
+                    </View>
+                  )}
+
+                  <Text style={styles.affiliateDisclaimer}>
+                    I earn a commission if you sign up. Not financial advice.
+                  </Text>
+                </LinearGradient>
+              ) : null;
+            })()}
           </>
         )}
 
@@ -673,35 +743,136 @@ const styles = StyleSheet.create({
   },
   stockPickCard: {
     marginTop: 12,
-    borderRadius: 14,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "rgba(212, 164, 32, 0.3)",
+    borderRadius: 16,
+    padding: 18,
+    borderWidth: 1.5,
+    borderColor: "rgba(212, 164, 32, 0.35)",
   },
-  stockPickHeader: {
+  pickBanner: {
+    backgroundColor: "rgba(212, 164, 32, 0.12)",
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: 14,
+    alignSelf: "center",
+  },
+  pickBannerText: {
+    fontSize: 14,
+    fontWeight: "900" as const,
+    color: Colors.gold,
+    letterSpacing: 1.5,
+    textAlign: "center" as const,
+  },
+  pickAssetRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 12,
+    marginBottom: 10,
   },
-  stockPickEmoji: {
-    fontSize: 18,
+  pickAssetName: {
+    fontSize: 20,
+    fontWeight: "900" as const,
+    color: "#fff",
+    letterSpacing: 1,
   },
-  stockPickTitle: {
+  pickAssetSymbol: {
+    fontSize: 12,
+    fontWeight: "600" as const,
+    color: "rgba(255,255,255,0.4)",
+    letterSpacing: 1,
+  },
+  pickPriceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 14,
+  },
+  pickPrice: {
+    fontSize: 28,
+    fontWeight: "900" as const,
+    color: "#fff",
+  },
+  pickChangeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+  },
+  pickChangeText: {
     fontSize: 15,
-    fontWeight: "800",
-    color: Colors.gold,
+    fontWeight: "800" as const,
+  },
+  pickQuoteBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    backgroundColor: "rgba(212, 164, 32, 0.06)",
+    borderRadius: 12,
+    padding: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: Colors.gold,
+    marginBottom: 14,
+  },
+  pickQuoteText: {
     flex: 1,
+    fontSize: 14,
+    color: "#fff",
+    fontStyle: "italic",
+    lineHeight: 21,
+  },
+  affiliateBtn: {
+    borderRadius: 12,
+    overflow: "hidden",
+    marginBottom: 12,
+  },
+  affiliateBtnGradient: {
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
+  },
+  affiliateBtnText: {
+    fontSize: 15,
+    fontWeight: "900" as const,
+    color: "#000",
     letterSpacing: 0.5,
   },
+  affiliateDisclaimer: {
+    fontSize: 9,
+    color: "rgba(255,255,255,0.2)",
+    textAlign: "center" as const,
+    marginTop: 8,
+  },
+  bonusPickRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 8,
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "rgba(212, 164, 32, 0.15)",
+  },
+  bonusPickLabel: {
+    fontSize: 11,
+    fontWeight: "700" as const,
+    color: "rgba(255,255,255,0.5)",
+    letterSpacing: 0.5,
+  },
+  bonusPickName: {
+    fontSize: 13,
+    fontWeight: "800" as const,
+    color: Colors.gold,
+  },
   whyButton: {
-    marginTop: 12,
     backgroundColor: "rgba(212, 164, 32, 0.2)",
     borderWidth: 1,
     borderColor: Colors.gold,
     borderRadius: 8,
     paddingVertical: 10,
     paddingHorizontal: 24,
-    alignSelf: "flex-start",
   },
   whyButtonText: {
     fontSize: 14,
@@ -710,16 +881,12 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   pickReasonBox: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 10,
-    marginTop: 12,
     backgroundColor: "rgba(212, 164, 32, 0.06)",
     borderRadius: 10,
     padding: 12,
+    marginTop: 8,
   },
   pickReasonText: {
-    flex: 1,
     fontSize: 13,
     color: Colors.whiteDim,
     fontStyle: "italic",
@@ -739,7 +906,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    marginTop: 12,
   },
   sharePickButton: {
     flexDirection: "row",
