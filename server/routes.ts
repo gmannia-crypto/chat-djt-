@@ -3031,6 +3031,120 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
     }
   });
 
+  let propertyCache: Map<string, { data: any; timestamp: number }> = new Map();
+  const PROPERTY_CACHE_TTL = 15 * 60 * 1000;
+
+  app.get("/api/properties", async (req, res) => {
+    try {
+      const location = (req.query.location as string) || "";
+      if (!location || location.length < 2) {
+        return res.status(400).json({ error: "Location (zip code or city) required" });
+      }
+
+      const cacheKey = location.toLowerCase().trim();
+      const cached = propertyCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < PROPERTY_CACHE_TTL) {
+        return res.json(cached.data);
+      }
+
+      const rapidApiKey = process.env.RAPIDAPI_KEY;
+      if (!rapidApiKey) {
+        return res.status(500).json({ error: "RapidAPI key not configured" });
+      }
+
+      const searchUrl = `https://zillow56.p.rapidapi.com/search?location=${encodeURIComponent(location)}&status=forSale&output=json&sortSelection=priorityscore&listing_type=by_agent&doz=any`;
+      const zillowRes = await fetch(searchUrl, {
+        headers: {
+          "X-RapidAPI-Key": rapidApiKey,
+          "X-RapidAPI-Host": "zillow56.p.rapidapi.com",
+        },
+      });
+
+      if (!zillowRes.ok) {
+        console.error("Zillow API error:", zillowRes.status, await zillowRes.text());
+        return res.status(502).json({ error: "Property search failed" });
+      }
+
+      const data = await zillowRes.json();
+      const rawProps = data.results || data.props || data.searchResults?.listResults || data.listings || [];
+      if (rawProps.length === 0) {
+        console.log("Zillow56 response keys:", Object.keys(data));
+        console.log("Zillow56 sample:", JSON.stringify(data).substring(0, 500));
+      }
+      const props = rawProps.slice(0, 12).map((p: any) => {
+        const price = p.price || p.unformattedPrice || p.units?.[0]?.price || 0;
+        const beds = p.bedrooms || p.beds || 0;
+        const baths = p.bathrooms || p.baths || 0;
+        const sqft = p.livingArea || p.area || p.sqft || 0;
+        const city = p.addressCity || p.address?.city || p.city || "Somewhere";
+        const state = p.addressState || p.address?.state || p.state || "";
+        const street = p.addressStreet || p.address?.streetAddress || p.streetAddress || "";
+        const zip = p.addressZipcode || p.address?.zipcode || p.zipcode || "";
+        const img = p.imgSrc || p.image || p.thumbnail || p.photos?.[0] || null;
+        const zpid = p.zpid || p.id || null;
+        const status = p.listingStatus || p.homeStatus || p.statusText || "FOR_SALE";
+
+        const trumpComments = [
+          price > 1000000
+            ? `$${(price / 1000000).toFixed(1)}M? That's pocket change for me. But for YOU, ${city}? TREMENDOUS investment. I built buildings worth more than this entire zip code. Believe me.`
+            : price > 500000
+            ? `$${(price / 1000).toFixed(0)}K in ${city}. Not bad. Not Trump Tower, but not bad. The location? Very smart. I know locations. Nobody knows locations like me.`
+            : `$${(price / 1000).toFixed(0)}K? That's a STEAL. In this market? You'd be crazy not to jump on this. I made my first million in real estate. This is how it starts.`,
+          beds >= 4
+            ? `${beds} bedrooms? Now we're talking. That's what I call a WINNER. Big family energy. The best families live in ${beds}-bedroom homes. Ask anyone.`
+            : beds >= 2
+            ? `${beds} bedrooms in ${city}. Perfect starter deal. Every real estate empire starts somewhere. Mine started with a small loan of a million dollars, but this works too.`
+            : `${beds} bedroom — cozy. Intimate. Like a penthouse studio, but more... affordable. The smart money is in small properties right now. BELIEVE ME.`,
+          sqft > 3000
+            ? `${sqft.toLocaleString()} square feet? YUGE. That's what I like to see. Big rooms, big life, big energy. This place has WINNER written all over it.`
+            : sqft > 1500
+            ? `${sqft.toLocaleString()} sq ft — solid. Not Mar-a-Lago solid, but solid. The layout is probably beautiful. The bathrooms? I bet they're incredible.`
+            : `${sqft.toLocaleString()} sq ft — efficient. I respect efficiency. My buildings are efficient. This property knows what it's doing.`,
+          `${city}, ${state}? Great area. The best people live there. I've done deals in ${state}. TREMENDOUS deals. This property has potential that most people can't see. But I can see it. I always see it.`,
+          baths >= 3
+            ? `${baths} bathrooms! Now THAT'S luxury. I have more bathrooms than most people have rooms. But ${baths}? That's very respectable. Gold fixtures? I'd add gold fixtures.`
+            : `The kitchen? Beautiful. The bathrooms? I'm sure they're YUGE. This is a winner. I can smell a winner from a mile away. And this one SMELLS like a winner.`,
+        ];
+
+        const commentIndex = Math.floor(Math.random() * trumpComments.length);
+        const trumpRating = Math.floor(Math.random() * 20) + 80;
+
+        return {
+          zpid,
+          price,
+          beds,
+          baths,
+          sqft,
+          city,
+          state,
+          street,
+          zip,
+          img,
+          status,
+          trumpComment: trumpComments[commentIndex],
+          trumpRating,
+        };
+      });
+
+      const result = {
+        location,
+        totalResults: data.totalResultCount || data.totalPages || rawProps.length || props.length,
+        properties: props,
+      };
+
+      propertyCache.set(cacheKey, { data: result, timestamp: Date.now() });
+      if (propertyCache.size > 50) {
+        const oldest = [...propertyCache.entries()].sort((a, b) => a[1].timestamp - b[1].timestamp)[0];
+        if (oldest) propertyCache.delete(oldest[0]);
+      }
+
+      res.json(result);
+    } catch (error) {
+      console.error("Property search error:", error);
+      res.status(500).json({ error: "Failed to search properties" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

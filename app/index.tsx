@@ -820,6 +820,19 @@ export default function HomeScreen() {
             <Text style={styles.modeButtonText}>THERAPY</Text>
           </Pressable>
         </Animated.View>
+        <Animated.View entering={FadeInDown.delay(1500).duration(500)} style={styles.modeButtons}>
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+              router.push("/real-estate");
+            }}
+            style={({ pressed }) => [styles.modeButton, styles.realEstateButton, pressed && { opacity: 0.7 }]}
+            testID="real-estate-button"
+          >
+            <MaterialCommunityIcons name="office-building" size={16} color="#4ADE80" />
+            <Text style={styles.modeButtonText}>REALTY</Text>
+          </Pressable>
+        </Animated.View>
       </ScrollView>
 
       <View
@@ -1713,6 +1726,10 @@ const styles = StyleSheet.create({
   therapyButton: {
     backgroundColor: "rgba(255, 77, 77, 0.15)",
     borderColor: "rgba(255, 77, 77, 0.4)",
+  },
+  realEstateButton: {
+    backgroundColor: "rgba(74, 222, 128, 0.15)",
+    borderColor: "rgba(74, 222, 128, 0.4)",
   },
   streakBadge: {
     flexDirection: "row",
