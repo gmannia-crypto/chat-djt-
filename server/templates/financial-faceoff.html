@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Financial Faceoff - Who Wins the Debate?</title>
+    <meta property="og:title" content="Financial Faceoff - Pick Two Gurus and Watch Them Battle!">
+    <meta property="og:description" content="Trump vs Buffett? Elon vs Grandma? Pick two financial personas and a topic, then watch them debate!">
+    <meta property="og:type" content="website">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #0a0a0a; font-family: 'Arial', sans-serif; color: white; line-height: 1.6; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+
+        .faceoff-header { text-align: center; margin-bottom: 30px; }
+        .faceoff-header h1 {
+            font-size: 36px; text-transform: uppercase; letter-spacing: 3px;
+            background: linear-gradient(135deg, #FFD700, #ff4d4d);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            background-clip: text; text-shadow: none; margin-bottom: 8px;
+        }
+        .faceoff-header .subhead { color: #888; font-size: 16px; font-style: italic; }
+        .live-counter {
+            display: inline-block; background: #ff4d4d; color: white;
+            padding: 6px 18px; border-radius: 30px; font-size: 13px;
+            font-weight: bold; margin-top: 12px; animation: pulse 2s infinite;
+        }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.7; } }
+
+        .section-label { color: #FFD700; font-size: 13px; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 12px; font-weight: bold; }
+
+        .asset-selector { margin-bottom: 24px; }
+        .asset-grid { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+        .asset-pill {
+            background: #1a1a1a; border: 2px solid #333; border-radius: 25px;
+            padding: 8px 16px; cursor: pointer; font-size: 14px; color: #ccc;
+            transition: all 0.2s; white-space: nowrap;
+        }
+        .asset-pill:hover { border-color: #FFD700; color: white; transform: translateY(-2px); }
+        .asset-pill.selected { border-color: #FFD700; color: #FFD700; background: rgba(255,215,0,0.1); }
+
+        .persona-section { margin-bottom: 20px; }
+        .persona-row { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 8px; -webkit-overflow-scrolling: touch; }
+        .persona-row::-webkit-scrollbar { height: 4px; }
+        .persona-row::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+        .persona-card {
+            min-width: 90px; background: #1a1a1a; border: 2px solid #333;
+            border-radius: 12px; padding: 12px 8px; cursor: pointer;
+            text-align: center; transition: all 0.2s; flex-shrink: 0;
+        }
+        .persona-card:hover { transform: translateY(-3px); box-shadow: 0 6px 20px rgba(0,0,0,0.4); }
+        .persona-card.selected { border-width: 3px; }
+        .persona-avatar { font-size: 32px; margin-bottom: 6px; }
+        .persona-name { font-size: 12px; font-weight: bold; }
+
+        .start-btn {
+            width: 100%; padding: 16px; border: none; border-radius: 50px;
+            font-size: 20px; font-weight: bold; color: white; cursor: pointer;
+            background: linear-gradient(135deg, #FFD700, #ff8c00);
+            transition: all 0.2s; margin: 20px 0; letter-spacing: 1px;
+        }
+        .start-btn:hover { transform: scale(1.02); box-shadow: 0 5px 25px rgba(255,215,0,0.4); }
+        .start-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+        .debate-arena { display: none; margin-top: 24px; animation: fadeIn 0.5s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+        .debate-topic-banner {
+            text-align: center; padding: 12px; margin-bottom: 20px;
+            background: linear-gradient(90deg, rgba(255,215,0,0.1), rgba(255,77,77,0.1));
+            border: 1px solid #333; border-radius: 12px;
+        }
+        .debate-topic-banner h3 { font-size: 18px; color: #FFD700; }
+        .debate-topic-banner .timestamp { font-size: 12px; color: #888; margin-top: 4px; }
+
+        .contenders-grid { display: grid; grid-template-columns: 1fr auto 1fr; gap: 0; margin-bottom: 20px; }
+        .contender-panel {
+            background: #1a1a1a; border-radius: 15px; padding: 20px 16px;
+            display: flex; flex-direction: column; align-items: center; text-align: center;
+        }
+        .contender-panel .avatar-big { font-size: 48px; margin-bottom: 8px; }
+        .contender-panel .name { font-size: 18px; font-weight: bold; margin-bottom: 2px; }
+        .contender-panel .title { font-size: 11px; color: #888; margin-bottom: 12px; }
+        .contender-panel .advice-quote {
+            font-size: 14px; line-height: 1.5; padding: 12px;
+            background: #111; border-radius: 10px; margin-bottom: 10px;
+            border-left: 4px solid currentColor; text-align: left; width: 100%;
+        }
+        .contender-panel .catchphrase { font-size: 12px; color: #aaa; font-style: italic; margin-bottom: 12px; }
+        .contender-panel .affiliate-link {
+            display: inline-block; font-size: 11px; color: #FFD700; text-decoration: none;
+            background: rgba(255,215,0,0.1); padding: 4px 12px; border-radius: 12px;
+            margin-bottom: 12px; transition: all 0.2s;
+        }
+        .contender-panel .affiliate-link:hover { background: rgba(255,215,0,0.2); }
+        .vote-btn {
+            width: 100%; padding: 10px; border: none; border-radius: 25px;
+            font-size: 14px; font-weight: bold; color: white; cursor: pointer;
+            transition: all 0.2s;
+        }
+        .vote-btn:hover { transform: scale(1.05); }
+        .vote-btn.voted { opacity: 0.6; cursor: default; }
+
+        .vs-divider {
+            display: flex; align-items: center; justify-content: center;
+            padding: 0 8px; z-index: 2;
+        }
+        .vs-circle {
+            width: 44px; height: 44px; border-radius: 50%;
+            background: linear-gradient(135deg, #FFD700, #ff4d4d);
+            display: flex; align-items: center; justify-content: center;
+            font-weight: bold; font-size: 14px; color: #000;
+        }
+
+        .live-results {
+            background: #1a1a1a; border-radius: 12px; padding: 16px; margin-bottom: 20px;
+        }
+        .results-label { font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; text-align: center; }
+        .results-bar-container {
+            display: flex; height: 32px; border-radius: 16px; overflow: hidden;
+            background: #111; position: relative;
+        }
+        .result-segment {
+            height: 100%; transition: width 0.6s ease; display: flex;
+            align-items: center; justify-content: center; font-size: 12px;
+            font-weight: bold; color: white; min-width: 0;
+        }
+        .result-stats {
+            display: flex; justify-content: space-between; margin-top: 8px;
+            font-size: 13px; color: #aaa;
+        }
+
+        .share-actions { display: flex; gap: 10px; margin-bottom: 24px; }
+        .share-btn {
+            flex: 1; padding: 12px; border: none; border-radius: 10px;
+            font-weight: bold; cursor: pointer; transition: all 0.2s; font-size: 13px;
+        }
+        .share-btn:hover { transform: translateY(-2px); }
+        .share-twitter { background: #1DA1F2; color: white; }
+        .share-facebook { background: #4267B2; color: white; }
+        .share-copy { background: #333; color: white; border: 1px solid #555; }
+
+        .cross-promo {
+            text-align: center; margin: 30px 0; padding: 20px;
+            background: linear-gradient(145deg, #1a1a1a, #2d2d2d);
+            border: 1px solid #333; border-radius: 15px;
+        }
+        .cross-promo a {
+            color: #FFD700; text-decoration: none; font-weight: bold; font-size: 16px;
+        }
+        .cross-promo a:hover { text-decoration: underline; }
+
+        .disclaimer {
+            text-align: center; color: #555; font-size: 11px; margin: 30px 0 10px;
+            line-height: 1.5; padding: 0 10px;
+        }
+
+        .vote-toast {
+            position: fixed; bottom: 20px; right: 20px; background: #ff4d4d;
+            color: white; padding: 14px 22px; border-radius: 12px; font-size: 14px;
+            font-weight: bold; z-index: 9999; animation: toastIn 0.4s ease;
+            box-shadow: 0 6px 25px rgba(255,77,77,0.5); max-width: 300px;
+        }
+        @keyframes toastIn { from { transform: translateX(120px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+        @media (max-width: 480px) {
+            .faceoff-header h1 { font-size: 26px; }
+            .contenders-grid { grid-template-columns: 1fr; gap: 10px; }
+            .vs-divider { padding: 6px 0; }
+            .vs-circle { width: 36px; height: 36px; font-size: 12px; }
+            .share-actions { flex-direction: column; }
+            .contender-panel .avatar-big { font-size: 36px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="faceoff-header">
+            <h1>&#x1F4B0; FINANCIAL FACEOFF &#x1F4B0;</h1>
+            <div class="subhead">Pick two financial gurus and see who wins!</div>
+            <div class="live-counter" id="liveCounter">&#x26A1; 1,847 debating now &#x26A1;</div>
+        </div>
+
+        <div class="asset-selector">
+            <div class="section-label">&#x1F4C8; What are we debating?</div>
+            <div class="asset-grid" id="assetGrid"></div>
+        </div>
+
+        <div class="persona-section">
+            <div class="section-label">&#x1F94A; CONTENDER 1</div>
+            <div class="persona-row" id="persona1Row"></div>
+        </div>
+
+        <div class="persona-section">
+            <div class="section-label">&#x1F94A; CONTENDER 2</div>
+            <div class="persona-row" id="persona2Row"></div>
+        </div>
+
+        <button class="start-btn" id="startBtn" onclick="startDebate()">&#x2694;&#xFE0F; START THE DEBATE</button>
+
+        <div class="debate-arena" id="debateArena"></div>
+
+        <div class="cross-promo">
+            <p style="color: #888; margin-bottom: 8px;">&#x1F3AE; Want more?</p>
+            <a href="/game">Try Trump Billionaires &#x2192;</a>
+        </div>
+
+        <div class="disclaimer">
+            Not affiliated with any financial persona depicted. For entertainment purposes only.
+            Not financial advice. Affiliate links generate commissions.
+        </div>
+    </div>
+
+    <script>
+        var PERSONAS = {
+            trump: {
+                id: 'trump', avatar: "\u{1F5E3}\u{FE0F}", name: "Trump", fullName: "Donald J. Trump",
+                style: { color: '#ff4d4d', bg: '#ff4d4d20' },
+                advice: {
+                    crypto: "Buy Bitcoin! It's going to the moon! The best investment ever! Use my link!",
+                    stock: "My stocks are the BEST stocks. Everyone says so. Buy what I buy!",
+                    property: "I know real estate. I wrote the book. Buy property NOW!",
+                    commodity: "Gold? I have gold. Beautiful gold. But Trump coin is better!",
+                    etf: "Index funds? Fine, but I prefer WINNING. And my investments WIN.",
+                    default: "The best investment? Anything with my name on it!"
+                },
+                affiliate: { label: "Coinbase", url: "https://coinbase.com/join/trump" },
+                catchphrases: ["Tremendous!", "Believe me!", "Everyone says so!", "The best!", "You're going to win so much!"]
+            },
+            buffett: {
+                id: 'buffett', avatar: "\u{1F474}", name: "Buffett", fullName: "Warren Buffett",
+                style: { color: '#4d4dff', bg: '#4d4dff20' },
+                advice: {
+                    crypto: "I don't understand Bitcoin. I stick with what I know - productive assets.",
+                    stock: "Index funds. Low fees. Long term. Here's Vanguard.",
+                    property: "Real estate can be fine, but focus on businesses you understand.",
+                    commodity: "Gold doesn't produce anything. Buy businesses, not rocks.",
+                    etf: "Low-cost index funds are the best bet for most investors. Period.",
+                    default: "Never lose money. Rule number one. Rule number two: never forget rule one."
+                },
+                affiliate: { label: "Vanguard", url: "https://vanguard.com/buffett" },
+                catchphrases: ["Be fearful when others are greedy...", "Our favorite holding period is forever.", "Price is what you pay. Value is what you get.", "Someone's sitting in the shade today..."]
+            },
+            musk: {
+                id: 'musk', avatar: "\u{1F680}", name: "Elon", fullName: "Elon Musk",
+                style: { color: '#00ccff', bg: '#00ccff20' },
+                advice: {
+                    crypto: "Dogecoin! To the moon! Literally! Much wow!",
+                    stock: "Tesla stock is undervalued. Seriously. But I'm biased.",
+                    property: "I sold all my houses. Own nothing, be happy. Or buy a Cybertruck.",
+                    commodity: "Gold is for people who don't believe in the future. I'm building the future.",
+                    etf: "Index funds are fine if you want average returns. I prefer exponential.",
+                    default: "The future should be exciting. If it's not, you're doing it wrong."
+                },
+                affiliate: { label: "Binance", url: "https://binance.com/elon" },
+                catchphrases: ["To the moon!", "Literally.", "I'm not saying it's gonna be easy, I'm saying it's gonna be worth it.", "When something is important enough..."]
+            },
+            suze: {
+                id: 'suze', avatar: "\u{1F469}", name: "Suze", fullName: "Suze Orman",
+                style: { color: '#ff99cc', bg: '#ff99cc20' },
+                advice: {
+                    crypto: "People are going to get hurt. You hear me? HURT. Don't gamble.",
+                    stock: "Index funds are fine, but do you have an emergency fund FIRST?",
+                    property: "Can you REALLY afford this payment? Be honest with yourself.",
+                    commodity: "Gold doesn't pay dividends. I want income in retirement.",
+                    etf: "Low-cost index funds after you have 8 months of emergency savings!",
+                    default: "You are not your credit score. But you NEED to protect it."
+                },
+                affiliate: { label: "Vanguard", url: "https://vanguard.com/suze" },
+                catchphrases: ["DENIED!", "You are worthy!", "First, secure your own mask.", "People first, then money, then things."]
+            },
+            dave: {
+                id: 'dave', avatar: "\u{1F4FB}", name: "Dave", fullName: "Dave Ramsey",
+                style: { color: '#ffaa00', bg: '#ffaa0020' },
+                advice: {
+                    crypto: "DEBT IS DUMB! Crypto is gambling! BABY STEPS!",
+                    stock: "Invest 15% for retirement. Good mutual funds with good track records.",
+                    property: "Rent is dumb! Buy when you're debt-free with 3-6 months saved!",
+                    commodity: "Gold? AFTER you're debt-free and investing 15%. Then MAYBE.",
+                    etf: "Good growth stock mutual funds. Not index funds - actively managed!",
+                    default: "If you're dumb enough to ask, you're dumb enough to do the opposite!"
+                },
+                affiliate: { label: "Ramsey Solutions", url: "https://ramseysolutions.com" },
+                catchphrases: ["DEBT IS DUMB!", "Live like no one else so you can LIVE like no one else!", "Gazelle intensity!", "If you live like no one else..."]
+            },
+            grandma: {
+                id: 'grandma', avatar: "\u{1F475}", name: "Grandma", fullName: "Your Grandma",
+                style: { color: '#ffffff', bg: '#ffffff20' },
+                advice: {
+                    crypto: "Oh honey, is that like internet money? Sounds scary. Save your pennies.",
+                    stock: "Your grandpa loved AT&T. Paid dividends for 50 years. Solid company.",
+                    property: "Buy a nice little house you can afford. Don't stretch yourself.",
+                    commodity: "I have a gold bracelet your grandpa gave me. That's real gold, honey.",
+                    etf: "I don't know what a VTI is, dear. Just save a little every month.",
+                    default: "Save a little every month. It adds up. And call your mother."
+                },
+                affiliate: { label: "Treasury Direct", url: "https://treasurydirect.gov" },
+                catchphrases: ["Bless your heart.", "That's nice, dear.", "Have you eaten?", "When I was your age..."]
+            },
+            robot: {
+                id: 'robot', avatar: "\u{1F916}", name: "ROBOT", fullName: "AI Financial Advisor",
+                style: { color: '#00ff00', bg: '#00ff0020' },
+                advice: {
+                    crypto: "ANALYZING... BITCOIN VOLATILITY: 67%. SUGGEST 2-5% PORTFOLIO ALLOCATION.",
+                    stock: "S&P 500 HISTORICAL RETURN: 10.2%. RECOMMEND LOW-COST INDEX FUND.",
+                    property: "CURRENT MARKET: BALANCED. CONSIDER LOCAL MARKET CONDITIONS.",
+                    commodity: "GOLD CORRELATION TO INFLATION: 0.47. CONSIDER AS HEDGE.",
+                    etf: "VTI EXPENSE RATIO: 0.03%. OPTIMAL FOR PASSIVE INVESTORS.",
+                    default: "CALCULATING OPTIMAL STRATEGY BASED ON YOUR RISK PROFILE..."
+                },
+                affiliate: { label: "Betterment", url: "https://betterment.com" },
+                catchphrases: ["CALCULATING...", "PROCESSING...", "ANALYSIS COMPLETE.", "ERROR: HUMAN EMOTION DETECTED."]
+            }
+        };
+
+        var TOPICS = {
+            bitcoin:    { name: "Bitcoin",      emoji: "\u20BF",        category: "crypto",    volatility: "High",    description: "The original cryptocurrency" },
+            dogecoin:   { name: "Dogecoin",     emoji: "\u{1F415}",     category: "crypto",    volatility: "Extreme", description: "Meme coin, literally to the moon" },
+            ethereum:   { name: "Ethereum",     emoji: "\u039E",        category: "crypto",    volatility: "High",    description: "Smart contract platform" },
+            tesla:      { name: "Tesla",        emoji: "\u{1F697}",     category: "stock",     volatility: "High",    description: "Elon's electric car company" },
+            apple:      { name: "Apple",        emoji: "\u{1F34E}",     category: "stock",     volatility: "Medium",  description: "Tech giant, iPhone maker" },
+            vti:        { name: "VTI",          emoji: "\u{1F4CA}",     category: "etf",       volatility: "Low",     description: "Total stock market index fund" },
+            gold:       { name: "Gold",         emoji: "\u{1FA99}",     category: "commodity", volatility: "Medium",  description: "Precious metal, store of value" },
+            realestate: { name: "Real Estate",  emoji: "\u{1F3E0}",     category: "property",  volatility: "Low",     description: "Physical property investment" }
+        };
+
+        var selectedAsset = 'bitcoin';
+        var selectedPersona1 = 'trump';
+        var selectedPersona2 = 'buffett';
+        var currentDebateId = null;
+        var hasVoted = false;
+
+        function getTitle(id) {
+            var titles = {
+                trump: "45th & 47th President",
+                buffett: "Oracle of Omaha",
+                musk: "CEO of Tesla & SpaceX",
+                suze: "Personal Finance Expert",
+                dave: "Financial Peace University",
+                grandma: "Voice of Experience",
+                robot: "Algorithmic Analysis"
+            };
+            return titles[id] || "";
+        }
+
+        function renderAssets() {
+            var grid = document.getElementById('assetGrid');
+            var html = '';
+            for (var key in TOPICS) {
+                var t = TOPICS[key];
+                var sel = key === selectedAsset ? ' selected' : '';
+                html += '<div class="asset-pill' + sel + '" data-asset="' + key + '" onclick="selectAsset(\'' + key + '\')">' + t.emoji + ' ' + t.name + '</div>';
+            }
+            grid.innerHTML = html;
+        }
+
+        function renderPersonaRow(rowId, selectedId, selectorNum) {
+            var row = document.getElementById(rowId);
+            var html = '';
+            for (var key in PERSONAS) {
+                var p = PERSONAS[key];
+                var sel = key === selectedId ? ' selected' : '';
+                var borderColor = key === selectedId ? p.style.color : '#333';
+                html += '<div class="persona-card' + sel + '" style="border-color:' + borderColor + ';" onclick="selectPersona(' + selectorNum + ',\'' + key + '\')">';
+                html += '<div class="persona-avatar">' + p.avatar + '</div>';
+                html += '<div class="persona-name" style="color:' + p.style.color + ';">' + p.name + '</div>';
+                html += '</div>';
+            }
+            row.innerHTML = html;
+        }
+
+        function selectAsset(key) {
+            selectedAsset = key;
+            renderAssets();
+        }
+
+        function selectPersona(num, key) {
+            if (num === 1) {
+                selectedPersona1 = key;
+                if (selectedPersona2 === key) {
+                    var keys = Object.keys(PERSONAS);
+                    for (var i = 0; i < keys.length; i++) {
+                        if (keys[i] !== key) { selectedPersona2 = keys[i]; break; }
+                    }
+                }
+            } else {
+                selectedPersona2 = key;
+                if (selectedPersona1 === key) {
+                    var keys2 = Object.keys(PERSONAS);
+                    for (var j = 0; j < keys2.length; j++) {
+                        if (keys2[j] !== key) { selectedPersona1 = keys2[j]; break; }
+                    }
+                }
+            }
+            renderPersonaRow('persona1Row', selectedPersona1, 1);
+            renderPersonaRow('persona2Row', selectedPersona2, 2);
+        }
+
+        function startDebate() {
+            var p1 = PERSONAS[selectedPersona1];
+            var p2 = PERSONAS[selectedPersona2];
+            var topic = TOPICS[selectedAsset];
+            hasVoted = false;
+            currentDebateId = selectedPersona1 + '_' + selectedPersona2 + '_' + selectedAsset + '_' + Date.now();
+
+            var p1Advice = p1.advice[topic.category] || p1.advice.default;
+            var p2Advice = p2.advice[topic.category] || p2.advice.default;
+            var p1Catch = p1.catchphrases[Math.floor(Math.random() * p1.catchphrases.length)];
+            var p2Catch = p2.catchphrases[Math.floor(Math.random() * p2.catchphrases.length)];
+
+            var arena = document.getElementById('debateArena');
+            arena.style.display = 'block';
+            arena.innerHTML = '<div class="debate-topic-banner">' +
+                '<h3>' + topic.emoji + ' ' + topic.name + ' \u2014 Who\'s Right?</h3>' +
+                '<div class="timestamp">\u{1F525} Live Debate \u2022 ' + new Date().toLocaleTimeString() + '</div>' +
+                '</div>' +
+                '<div class="contenders-grid">' +
+                    renderContender(p1, p1Advice, p1Catch, topic) +
+                    '<div class="vs-divider"><div class="vs-circle">VS</div></div>' +
+                    renderContender(p2, p2Advice, p2Catch, topic) +
+                '</div>' +
+                '<div class="live-results" id="liveResults">' +
+                    '<div class="results-label">LIVE RESULTS</div>' +
+                    '<div class="results-bar-container" id="resultsBar">' +
+                        '<div class="result-segment" id="seg1" style="width:50%;background:' + p1.style.color + ';">50%</div>' +
+                        '<div class="result-segment" id="seg2" style="width:50%;background:' + p2.style.color + ';">50%</div>' +
+                    '</div>' +
+                    '<div class="result-stats">' +
+                        '<span id="stat1" style="color:' + p1.style.color + ';">' + p1.name + ': 0 votes</span>' +
+                        '<span id="stat2" style="color:' + p2.style.color + ';">' + p2.name + ': 0 votes</span>' +
+                    '</div>' +
+                '</div>' +
+                '<div class="share-actions">' +
+                    '<button class="share-btn share-twitter" onclick="shareDebate(\'twitter\')">\u{1F501} Share on X</button>' +
+                    '<button class="share-btn share-facebook" onclick="shareDebate(\'facebook\')">\u{1F4D8} Facebook</button>' +
+                    '<button class="share-btn share-copy" onclick="shareDebate(\'copy\')">\u{1F4CB} Copy</button>' +
+                '</div>';
+
+            arena.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            trackEvent('debate_started', { asset: selectedAsset, p1: selectedPersona1, p2: selectedPersona2 });
+        }
+
+        function renderContender(p, advice, catchphrase, topic) {
+            var affHtml = '';
+            if (p.affiliate && p.affiliate.url) {
+                affHtml = '<a class="affiliate-link" href="' + p.affiliate.url + '" target="_blank" rel="noopener">\u{1F517} ' + p.affiliate.label + '</a>';
+            }
+            return '<div class="contender-panel">' +
+                '<div class="avatar-big">' + p.avatar + '</div>' +
+                '<div class="name" style="color:' + p.style.color + ';">' + p.fullName + '</div>' +
+                '<div class="title">' + getTitle(p.id) + '</div>' +
+                '<div class="advice-quote" style="color:' + p.style.color + '; border-left-color:' + p.style.color + ';">"' + advice + '"</div>' +
+                '<div class="catchphrase">\u{1F4AD} ' + catchphrase + '</div>' +
+                affHtml +
+                '<button class="vote-btn" id="voteBtn_' + p.id + '" style="background:' + p.style.color + ';" onclick="castVote(\'' + p.id + '\')">\u{1F5F3}\u{FE0F} VOTE ' + p.name + '</button>' +
+                '</div>';
+        }
+
+        function castVote(personaId) {
+            if (hasVoted) return;
+            hasVoted = true;
+
+            document.getElementById('voteBtn_' + selectedPersona1).classList.add('voted');
+            document.getElementById('voteBtn_' + selectedPersona2).classList.add('voted');
+
+            fetch('/api/faceoff/vote', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    debateId: currentDebateId,
+                    asset: selectedAsset,
+                    persona1: selectedPersona1,
+                    persona2: selectedPersona2,
+                    votedFor: personaId
+                })
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                updateResults(data);
+                showVoteToast();
+            })
+            .catch(function() {
+                showVoteToast();
+            });
+
+            trackEvent('vote_cast', { debateId: currentDebateId, votedFor: personaId });
+            pollVotes();
+        }
+
+        function updateResults(data) {
+            if (!data || !data.votes) return;
+            var v1 = data.votes[selectedPersona1] || 0;
+            var v2 = data.votes[selectedPersona2] || 0;
+            var total = v1 + v2 || 1;
+            var pct1 = Math.round((v1 / total) * 100);
+            var pct2 = 100 - pct1;
+
+            var seg1 = document.getElementById('seg1');
+            var seg2 = document.getElementById('seg2');
+            if (seg1) { seg1.style.width = pct1 + '%'; seg1.textContent = pct1 + '%'; }
+            if (seg2) { seg2.style.width = pct2 + '%'; seg2.textContent = pct2 + '%'; }
+
+            var stat1 = document.getElementById('stat1');
+            var stat2 = document.getElementById('stat2');
+            if (stat1) stat1.textContent = PERSONAS[selectedPersona1].name + ': ' + v1 + ' votes';
+            if (stat2) stat2.textContent = PERSONAS[selectedPersona2].name + ': ' + v2 + ' votes';
+        }
+
+        var pollIntervalId = null;
+        function pollVotes() {
+            if (!currentDebateId) return;
+            if (pollIntervalId) clearInterval(pollIntervalId);
+            pollIntervalId = setInterval(function() {
+                fetch('/api/faceoff/votes/' + encodeURIComponent(currentDebateId))
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) { updateResults(data); })
+                    .catch(function() {});
+            }, 5000);
+        }
+
+        function showVoteToast() {
+            var messages = [
+                "\u{1F525} Keep voting! The winner gets bragging rights!",
+                "\u{1F4CA} Your vote matters in this financial showdown!",
+                "\u26A1 Who do YOU trust with your money?",
+                "\u{1F3AF} Great pick! Share to get more votes!"
+            ];
+            var msg = messages[Math.floor(Math.random() * messages.length)];
+            var toast = document.createElement('div');
+            toast.className = 'vote-toast';
+            toast.textContent = msg;
+            document.body.appendChild(toast);
+            setTimeout(function() {
+                toast.style.transition = 'opacity 0.4s';
+                toast.style.opacity = '0';
+                setTimeout(function() { toast.remove(); }, 400);
+            }, 3000);
+        }
+
+        function shareDebate(platform) {
+            var p1 = PERSONAS[selectedPersona1];
+            var p2 = PERSONAS[selectedPersona2];
+            var topic = TOPICS[selectedAsset];
+            var shareText = '\u{1F4B0} FINANCIAL FACEOFF: ' + p1.name + ' vs ' + p2.name + ' on ' + topic.name + '!\n' +
+                p1.name + ': "' + (p1.advice[topic.category] || p1.advice.default) + '"\n' +
+                p2.name + ': "' + (p2.advice[topic.category] || p2.advice.default) + '"\n\n' +
+                'Who\'s right? Vote now!';
+            var shareUrl = window.location.origin + '/financial-faceoff';
+
+            if (platform === 'twitter') {
+                window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent(shareText) + '&url=' + encodeURIComponent(shareUrl), '_blank');
+            } else if (platform === 'facebook') {
+                window.open('https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(shareUrl) + '&quote=' + encodeURIComponent(shareText), '_blank');
+            } else if (platform === 'copy') {
+                navigator.clipboard.writeText(shareText + '\n' + shareUrl).then(function() {
+                    showCopyToast();
+                });
+            }
+            trackEvent('debate_shared', { platform: platform });
+        }
+
+        function showCopyToast() {
+            var toast = document.createElement('div');
+            toast.className = 'vote-toast';
+            toast.style.background = '#00cc66';
+            toast.textContent = '\u2705 Debate copied to clipboard!';
+            document.body.appendChild(toast);
+            setTimeout(function() {
+                toast.style.transition = 'opacity 0.4s';
+                toast.style.opacity = '0';
+                setTimeout(function() { toast.remove(); }, 400);
+            }, 2500);
+        }
+
+        function trackEvent(event, data) {
+            try {
+                fetch('/api/track-viral', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ event: event, data: data, timestamp: Date.now() })
+                }).catch(function() {});
+            } catch(e) {}
+        }
+
+        (function() {
+            var counter = document.getElementById('liveCounter');
+            setInterval(function() {
+                var base = 1847;
+                var jitter = Math.floor(Math.random() * 200) - 100;
+                counter.textContent = '\u26A1 ' + (base + jitter).toLocaleString() + ' debating now \u26A1';
+            }, 8000);
+        })();
+
+        renderAssets();
+        renderPersonaRow('persona1Row', selectedPersona1, 1);
+        renderPersonaRow('persona2Row', selectedPersona2, 2);
+    </script>
+</body>
+</html>

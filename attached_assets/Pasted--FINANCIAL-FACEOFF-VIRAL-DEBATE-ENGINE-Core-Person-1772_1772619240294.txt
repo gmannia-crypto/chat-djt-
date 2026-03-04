@@ -1,0 +1,1015 @@
+// ==================== FINANCIAL FACEOFF - VIRAL DEBATE ENGINE ====================
+
+// Core Persona Database
+const FINANCIAL_PERSONAS = {
+    trump: {
+        id: 'trump',
+        avatar: "🗣️",
+        name: "Trump",
+        shortName: "Trump",
+        fullName: "Donald J. Trump",
+        style: {
+            color: '#ff4d4d',
+            bgColor: '#ff4d4d20',
+            border: '2px solid #ff4d4d'
+        },
+        advice: {
+            crypto: "Buy Bitcoin! It's going to the moon! The best investment ever! Use my link!",
+            stocks: "My stocks are the BEST stocks. Everyone says so. Buy what I buy!",
+            realestate: "I know real estate. I wrote the book. Buy property NOW!",
+            gold: "Gold? I have gold. Beautiful gold. But Trump coin is better!",
+            default: "The best investment? Anything with my name on it!"
+        },
+        affiliate: {
+            coinbase: "https://coinbase.com/join/trump",
+            binance: "https://binance.com/trump",
+            vanguard: null,
+            reuters: null
+        },
+        catchphrases: [
+            "Tremendous!",
+            "Believe me!",
+            "Everyone says so!",
+            "The best!",
+            "You're going to win so much!"
+        ]
+    },
+    
+    buffett: {
+        id: 'buffett',
+        avatar: "👴",
+        name: "Buffett",
+        shortName: "Buffett",
+        fullName: "Warren Buffett",
+        style: {
+            color: '#4d4dff',
+            bgColor: '#4d4dff20',
+            border: '2px solid #4d4dff'
+        },
+        advice: {
+            crypto: "I don't understand Bitcoin. I stick with what I know - productive assets.",
+            stocks: "Index funds. Low fees. Long term. Here's Vanguard.",
+            realestate: "Real estate can be fine, but focus on businesses you understand.",
+            gold: "Gold doesn't produce anything. Buy businesses, not rocks.",
+            default: "Never lose money. Rule number one. Rule number two: never forget rule one."
+        },
+        affiliate: {
+            vanguard: "https://vanguard.com/buffett",
+            berkshire: "https://berkshirehathaway.com",
+            coinbase: null,
+            binance: null
+        },
+        catchphrases: [
+            "Be fearful when others are greedy...",
+            "Our favorite holding period is forever.",
+            "Price is what you pay. Value is what you get.",
+            "Someone's sitting in the shade today..."
+        ]
+    },
+    
+    musk: {
+        id: 'musk',
+        avatar: "🚀",
+        name: "Elon",
+        shortName: "Elon",
+        fullName: "Elon Musk",
+        style: {
+            color: '#00ccff',
+            bgColor: '#00ccff20',
+            border: '2px solid #00ccff'
+        },
+        advice: {
+            crypto: "Dogecoin! To the moon! Literally! Much wow!",
+            stocks: "Tesla stock is undervalued. Seriously. But I'm biased.",
+            realestate: "I sold all my houses. Own nothing, be happy. Or buy a Cybertruck.",
+            gold: "Gold is for people who don't believe in the future. I'm building the future.",
+            default: "The future should be exciting. If it's not, you're doing it wrong."
+        },
+        affiliate: {
+            binance: "https://binance.com/elon",
+            tesla: "https://tesla.com",
+            coinbase: "https://coinbase.com/elon",
+            vanguard: null
+        },
+        catchphrases: [
+            "To the moon!",
+            "Literally.",
+            "I'm not saying it's gonna be easy, I'm saying it's gonna be worth it.",
+            "When something is important enough..."
+        ]
+    },
+    
+    suze: {
+        id: 'suze',
+        avatar: "👩",
+        name: "Suze",
+        shortName: "Suze",
+        fullName: "Suze Orman",
+        style: {
+            color: '#ff99cc',
+            bgColor: '#ff99cc20',
+            border: '2px solid #ff99cc'
+        },
+        advice: {
+            crypto: "People are going to get hurt. You hear me? HURT. Don't gamble.",
+            stocks: "Index funds are fine, but do you have an emergency fund FIRST?",
+            realestate: "Can you REALLY afford this payment? Be honest with yourself.",
+            gold: "Gold doesn't pay dividends. I want income in retirement.",
+            default: "You are not your credit score. But you NEED to protect it."
+        },
+        affiliate: {
+            vanguard: "https://vanguard.com/suze",
+            fdic: "https://fdic.gov",
+            coinbase: null,
+            binance: null
+        },
+        catchphrases: [
+            "DENIED!",
+            "You are worthy!",
+            "First, secure your own mask.",
+            "People first, then money, then things."
+        ]
+    },
+    
+    dave: {
+        id: 'dave',
+        avatar: "📻",
+        name: "Dave",
+        shortName: "Dave",
+        fullName: "Dave Ramsey",
+        style: {
+            color: '#ffaa00',
+            bgColor: '#ffaa0020',
+            border: '2px solid #ffaa00'
+        },
+        advice: {
+            crypto: "DEBT IS DUMB! Crypto is gambling! BABY STEPS!",
+            stocks: "Invest 15% for retirement. Good mutual funds with good track records.",
+            realestate: "Rent is dumb! Buy when you're debt-free with 3-6 months saved!",
+            gold: "Gold? AFTER you're debt-free and investing 15%. Then MAYBE.",
+            default: "If you're dumb enough to ask, you're dumb enough to do the opposite!"
+        },
+        affiliate: {
+            ramsey: "https://ramseysolutions.com",
+            vanguard: "https://vanguard.com",
+            coinbase: null,
+            binance: null
+        },
+        catchphrases: [
+            "DEBT IS DUMB!",
+            "Live like no one else so you can LIVE like no one else!",
+            "Gazelle intensity!",
+            "If you live like no one else..."
+        ]
+    },
+    
+    grandma: {
+        id: 'grandma',
+        avatar: "👵",
+        name: "Grandma",
+        shortName: "Grandma",
+        fullName: "Your Grandma",
+        style: {
+            color: '#ffffff',
+            bgColor: '#ffffff20',
+            border: '2px solid #ffffff'
+        },
+        advice: {
+            crypto: "Oh honey, is that like internet money? Sounds scary. Save your pennies.",
+            stocks: "Your grandpa loved AT&T. Paid dividends for 50 years. Solid company.",
+            realestate: "Buy a nice little house you can afford. Don't stretch yourself.",
+            gold: "I have a gold bracelet your grandpa gave me. That's real gold, honey.",
+            default: "Save a little every month. It adds up. And call your mother."
+        },
+        affiliate: {
+            treasury: "https://treasurydirect.gov",
+            fdic: "https://fdic.gov",
+            coinbase: null,
+            binance: null
+        },
+        catchphrases: [
+            "Bless your heart.",
+            "That's nice, dear.",
+            "Have you eaten?",
+            "When I was your age..."
+        ]
+    },
+    
+    robot: {
+        id: 'robot',
+        avatar: "🤖",
+        name: "ROBOT",
+        shortName: "ROBOT",
+        fullName: "AI Financial Advisor",
+        style: {
+            color: '#00ff00',
+            bgColor: '#00ff0020',
+            border: '2px solid #00ff00'
+        },
+        advice: {
+            crypto: "ANALYZING... BITCOIN VOLATILITY: 67%. SUGGEST 2-5% PORTFOLIO ALLOCATION.",
+            stocks: "S&P 500 HISTORICAL RETURN: 10.2%. RECOMMEND LOW-COST INDEX FUND.",
+            realestate: "CURRENT MARKET: BALANCED. CONSIDER LOCAL MARKET CONDITIONS.",
+            gold: "GOLD CORRELATION TO INFLATION: 0.47. CONSIDER AS HEDGE.",
+            default: "CALCULATING OPTIMAL STRATEGY BASED ON YOUR RISK PROFILE..."
+        },
+        affiliate: {
+            vanguard: "https://vanguard.com",
+            betterment: "https://betterment.com",
+            coinbase: "https://coinbase.com"
+        },
+        catchphrases: [
+            "CALCULATING...",
+            "PROCESSING...",
+            "ANALYSIS COMPLETE.",
+            "ERROR: HUMAN EMOTION DETECTED."
+        ]
+    }
+};
+
+// Assets/Topics Database
+const FINANCIAL_TOPICS = {
+    bitcoin: {
+        name: "Bitcoin",
+        emoji: "₿",
+        category: "crypto",
+        image: "https://...",
+        volatility: "High",
+        description: "The original cryptocurrency"
+    },
+    dogecoin: {
+        name: "Dogecoin",
+        emoji: "🐕",
+        category: "crypto",
+        volatility: "Extreme",
+        description: "Meme coin, literally to the moon"
+    },
+    ethereum: {
+        name: "Ethereum",
+        emoji: "Ξ",
+        category: "crypto",
+        volatility: "High",
+        description: "Smart contract platform"
+    },
+    tesla: {
+        name: "Tesla",
+        emoji: "🚗",
+        category: "stock",
+        volatility: "High",
+        description: "Elon's electric car company"
+    },
+    apple: {
+        name: "Apple",
+        emoji: "🍎",
+        category: "stock",
+        volatility: "Medium",
+        description: "Tech giant, iPhone maker"
+    },
+    vti: {
+        name: "VTI",
+        emoji: "📊",
+        category: "etf",
+        volatility: "Low",
+        description: "Total stock market index fund"
+    },
+    gold: {
+        name: "Gold",
+        emoji: "🪙",
+        category: "commodity",
+        volatility: "Medium",
+        description: "Precious metal, store of value"
+    },
+    realestate: {
+        name: "Real Estate",
+        emoji: "🏠",
+        category: "property",
+        volatility: "Low",
+        description: "Physical property investment"
+    }
+};
+
+// ==================== MAIN DEBATE COMPONENT ====================
+
+class FinancialFaceoff {
+    constructor(containerId) {
+        this.container = document.getElementById(containerId);
+        this.currentDebate = null;
+        this.debateHistory = [];
+        this.votes = {};
+        this.initializePersonaSelectors();
+    }
+    
+    // Initialize the debate UI
+    initializePersonaSelectors() {
+        this.container.innerHTML = `
+            <div class="financial-faceoff">
+                <div class="faceoff-header">
+                    <h2>💰 FINANCIAL FACEOFF 💰</h2>
+                    <p>Pick two financial gurus and see who wins!</p>
+                </div>
+                
+                <div class="debate-controls">
+                    <div class="asset-selector">
+                        <label>📈 What are we debating?</label>
+                        <select id="assetSelect" class="faceoff-select">
+                            ${Object.entries(FINANCIAL_TOPICS).map(([key, topic]) => 
+                                `<option value="${key}">${topic.emoji} ${topic.name}</option>`
+                            ).join('')}
+                        </select>
+                    </div>
+                    
+                    <div class="persona-pickers">
+                        <div class="persona-picker">
+                            <label>🥊 CONTENDER 1</label>
+                            <select id="persona1Select" class="faceoff-select">
+                                ${Object.entries(FINANCIAL_PERSONAS).map(([key, p]) => 
+                                    `<option value="${key}">${p.avatar} ${p.name}</option>`
+                                ).join('')}
+                            </select>
+                        </div>
+                        
+                        <div class="vs-badge">VS</div>
+                        
+                        <div class="persona-picker">
+                            <label>🥊 CONTENDER 2</label>
+                            <select id="persona2Select" class="faceoff-select">
+                                ${Object.entries(FINANCIAL_PERSONAS).map(([key, p]) => 
+                                    `<option value="${key}">${p.avatar} ${p.name}</option>`
+                                ).join('')}
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <button class="debate-btn" onclick="faceoff.startDebate()">
+                        ⚔️ START THE DEBATE
+                    </button>
+                </div>
+                
+                <div id="debateArena" class="debate-arena"></div>
+                <div id="debateResults" class="debate-results"></div>
+                <div id="viralShareSection" class="viral-share-section"></div>
+            </div>
+        `;
+        
+        // Add styles
+        this.addStyles();
+    }
+    
+    // Start a new debate
+    startDebate() {
+        const assetKey = document.getElementById('assetSelect').value;
+        const persona1Key = document.getElementById('persona1Select').value;
+        const persona2Key = document.getElementById('persona2Select').value;
+        
+        const asset = FINANCIAL_TOPICS[assetKey];
+        const persona1 = FINANCIAL_PERSONAS[persona1Key];
+        const persona2 = FINANCIAL_PERSONAS[persona2Key];
+        
+        this.currentDebate = {
+            id: Date.now(),
+            asset: asset,
+            persona1: persona1,
+            persona2: persona2,
+            votes: { [persona1Key]: 0, [persona2Key]: 0 },
+            timestamp: new Date().toISOString()
+        };
+        
+        this.renderDebate(asset, persona1, persona2);
+        this.trackEvent('debate_started', { asset: assetKey, p1: persona1Key, p2: persona2Key });
+    }
+    
+    // Render the debate arena
+    renderDebate(asset, p1, p2) {
+        const arena = document.getElementById('debateArena');
+        
+        // Get advice based on asset category
+        const p1Advice = p1.advice[asset.category] || p1.advice.default;
+        const p2Advice = p2.advice[asset.category] || p2.advice.default;
+        
+        // Add catchphrases for flavor
+        const p1Catch = p1.catchphrases[Math.floor(Math.random() * p1.catchphrases.length)];
+        const p2Catch = p2.catchphrases[Math.floor(Math.random() * p2.catchphrases.length)];
+        
+        arena.innerHTML = `
+            <div class="debate-card" style="border: 2px solid ${p1.style.color};">
+                <div class="debate-header">
+                    <h3>💰 ${asset.emoji} ${asset.name} - Who's Right?</h3>
+                    <div class="debate-timestamp">🔥 Live Debate • ${new Date().toLocaleTimeString()}</div>
+                </div>
+                
+                <div class="debate-arena-grid">
+                    <!-- Contender 1 -->
+                    <div class="contender-card" style="border-right: 3px solid ${p1.style.color};">
+                        <div class="contender-header">
+                            <span class="contender-avatar" style="background: ${p1.style.bgColor};">${p1.avatar}</span>
+                            <div class="contender-info">
+                                <div class="contender-name" style="color: ${p1.style.color};">${p1.fullName}</div>
+                                <div class="contender-title">${this.getTitle(p1.id)}</div>
+                            </div>
+                        </div>
+                        
+                        <div class="contender-advice" style="border-left: 4px solid ${p1.style.color};">
+                            "${p1Advice}"
+                        </div>
+                        
+                        <div class="contender-catchphrase">
+                            <span style="color: ${p1.style.color};">💭</span> ${p1Catch}
+                        </div>
+                        
+                        <div class="contender-affiliate">
+                            ${this.renderAffiliateLink(p1, asset)}
+                        </div>
+                        
+                        <button class="vote-btn" style="background: ${p1.style.color};" 
+                                onclick="faceoff.vote('${p1.id}')">
+                            🗳️ VOTE ${p1.name}
+                        </button>
+                    </div>
+                    
+                    <!-- VS Divider -->
+                    <div class="vs-divider">
+                        <div class="vs-circle">VS</div>
+                    </div>
+                    
+                    <!-- Contender 2 -->
+                    <div class="contender-card" style="border-left: 3px solid ${p2.style.color};">
+                        <div class="contender-header">
+                            <span class="contender-avatar" style="background: ${p2.style.bgColor};">${p2.avatar}</span>
+                            <div class="contender-info">
+                                <div class="contender-name" style="color: ${p2.style.color};">${p2.fullName}</div>
+                                <div class="contender-title">${this.getTitle(p2.id)}</div>
+                            </div>
+                        </div>
+                        
+                        <div class="contender-advice" style="border-left: 4px solid ${p2.style.color};">
+                            "${p2Advice}"
+                        </div>
+                        
+                        <div class="contender-catchphrase">
+                            <span style="color: ${p2.style.color};">💭</span> ${p2Catch}
+                        </div>
+                        
+                        <div class="contender-affiliate">
+                            ${this.renderAffiliateLink(p2, asset)}
+                        </div>
+                        
+                        <button class="vote-btn" style="background: ${p2.style.color};" 
+                                onclick="faceoff.vote('${p2.id}')">
+                            🗳️ VOTE ${p2.name}
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Live Results Bar -->
+                <div class="live-results" id="liveResults">
+                    <div class="results-bar">
+                        <div class="result-progress" id="p1Progress" style="width: 50%; background: ${p1.style.color};"></div>
+                        <div class="result-progress" id="p2Progress" style="width: 50%; background: ${p2.style.color};"></div>
+                    </div>
+                    <div class="result-stats">
+                        <span id="p1Votes">0</span> votes for ${p1.name}
+                        <span>•</span>
+                        <span id="p2Votes">0</span> votes for ${p2.name}
+                    </div>
+                </div>
+                
+                <!-- Viral Share Buttons -->
+                <div class="debate-actions">
+                    <button class="share-btn" onclick="faceoff.shareDebate('twitter')">
+                        🔁 Share on X
+                    </button>
+                    <button class="share-btn" onclick="faceoff.shareDebate('facebook')">
+                        📘 Share on Facebook
+                    </button>
+                    <button class="share-btn" onclick="faceoff.shareDebate('copy')">
+                        📋 Copy Debate
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        // Initialize results tracking
+        this.updateVoteDisplay();
+    }
+    
+    // Handle voting
+    vote(personaId) {
+        if (!this.currentDebate) return;
+        
+        const p1Id = this.currentDebate.persona1.id;
+        const p2Id = this.currentDebate.persona2.id;
+        
+        if (personaId === p1Id) {
+            this.currentDebate.votes[p1Id]++;
+        } else if (personaId === p2Id) {
+            this.currentDebate.votes[p2Id]++;
+        }
+        
+        this.updateVoteDisplay();
+        this.trackEvent('vote_cast', { 
+            debateId: this.currentDebate.id,
+            votedFor: personaId 
+        });
+        
+        // Show popup encouragement
+        this.showVoteEncouragement();
+    }
+    
+    // Update vote display
+    updateVoteDisplay() {
+        if (!this.currentDebate) return;
+        
+        const p1 = this.currentDebate.persona1;
+        const p2 = this.currentDebate.persona2;
+        const votes1 = this.currentDebate.votes[p1.id] || 0;
+        const votes2 = this.currentDebate.votes[p2.id] || 0;
+        const total = votes1 + votes2 || 1; // Avoid division by zero
+        
+        const p1Percent = (votes1 / total) * 100;
+        const p2Percent = (votes2 / total) * 100;
+        
+        document.getElementById('p1Progress').style.width = p1Percent + '%';
+        document.getElementById('p2Progress').style.width = p2Percent + '%';
+        document.getElementById('p1Votes').textContent = votes1;
+        document.getElementById('p2Votes').textContent = votes2;
+        
+        // Store in debate history
+        this.currentDebate.finalVotes = { p1: votes1, p2: votes2 };
+    }
+    
+    // Share debate to social media
+    shareDebate(platform) {
+        if (!this.currentDebate) return;
+        
+        const p1 = this.currentDebate.persona1;
+        const p2 = this.currentDebate.persona2;
+        const asset = this.currentDebate.asset;
+        const votes1 = this.currentDebate.votes[p1.id] || 0;
+        const votes2 = this.currentDebate.votes[p2.id] || 0;
+        
+        const shareText = encodeURIComponent(
+            `💰 FINANCIAL FACEOFF: ${p1.name} vs ${p2.name} on ${asset.name}!\n` +
+            `Current vote: ${votes1}-${votes2}\n` +
+            `${p1.advice[asset.category] || p1.advice.default}\n\n` +
+            `Who's right? Vote and debate at trumpbot.rip!`
+        );
+        
+        const shareUrl = encodeURIComponent('https://trumpbot.rip/financial-faceoff');
+        
+        switch(platform) {
+            case 'twitter':
+                window.open(`https://twitter.com/intent/tweet?text=${shareText}&url=${shareUrl}`, '_blank');
+                break;
+            case 'facebook':
+                window.open(`https://www.facebook.com/sharer/sharer.php?u=${shareUrl}&quote=${shareText}`, '_blank');
+                break;
+            case 'copy':
+                navigator.clipboard.writeText(decodeURIComponent(shareText) + ' https://trumpbot.rip/financial-faceoff');
+                alert('✅ Debate copied to clipboard!');
+                break;
+        }
+        
+        this.trackEvent('debate_shared', { platform });
+    }
+    
+    // Show vote encouragement popup
+    showVoteEncouragement() {
+        const encouragement = [
+            "🔥 Keep voting! The winner gets bragging rights!",
+            "📊 Your vote matters in this financial showdown!",
+            "⚡ Only 30 seconds left to vote!",
+            "🎯 Who do YOU trust with your money?"
+        ];
+        
+        const random = encouragement[Math.floor(Math.random() * encouragement.length)];
+        
+        // Create toast notification
+        const toast = document.createElement('div');
+        toast.className = 'vote-toast';
+        toast.innerHTML = random;
+        toast.style.cssText = `
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #ff4d4d;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 50px;
+            font-weight: bold;
+            animation: slideIn 0.3s;
+            z-index: 10000;
+        `;
+        
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    }
+    
+    // Render affiliate link if available
+    renderAffiliateLink(persona, asset) {
+        // Find matching affiliate link
+        let link = null;
+        let text = '';
+        
+        if (asset.category === 'crypto' && persona.affiliate.coinbase) {
+            link = persona.affiliate.coinbase;
+            text = `💰 Buy ${asset.name} on Coinbase`;
+        } else if (asset.category === 'crypto' && persona.affiliate.binance) {
+            link = persona.affiliate.binance;
+            text = `💰 Trade ${asset.name} on Binance`;
+        } else if (asset.category === 'stock' && persona.affiliate.vanguard) {
+            link = persona.affiliate.vanguard;
+            text = `📈 Invest in ${asset.name} via Vanguard`;
+        } else if (persona.affiliate.vanguard) {
+            link = persona.affiliate.vanguard;
+            text = `📊 Start investing with Vanguard`;
+        }
+        
+        if (link) {
+            return `
+                <a href="${link}" target="_blank" class="affiliate-link" onclick="faceoff.trackAffiliate('${persona.id}')">
+                    ${text} <span class="affiliate-badge">Sponsored</span>
+                </a>
+            `;
+        }
+        return '';
+    }
+    
+    // Track affiliate clicks
+    trackAffiliate(personaId) {
+        this.trackEvent('affiliate_click', { 
+            persona: personaId,
+            debateId: this.currentDebate?.id 
+        });
+    }
+    
+    // Get persona title
+    getTitle(personaId) {
+        const titles = {
+            trump: '45th President • Real Estate Mogul',
+            buffett: 'CEO Berkshire Hathaway • Oracle of Omaha',
+            musk: 'CEO Tesla/SpaceX • Chief Twit',
+            suze: 'Financial Advisor • TV Host • Author',
+            dave: 'Radio Host • Financial Author',
+            grandma: 'Lifetime Saver • Cookie Baker',
+            robot: 'AI Financial Algorithm v2.0'
+        };
+        return titles[personaId] || 'Financial Expert';
+    }
+    
+    // Track events for analytics
+    trackEvent(eventName, data) {
+        console.log(`📊 FINANCIAL FACEOFF EVENT: ${eventName}`, data);
+        
+        // Send to analytics (implement your analytics here)
+        fetch('/api/track-financial-event', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                event: eventName,
+                data: data,
+                timestamp: Date.now(),
+                sessionId: this.getSessionId()
+            })
+        }).catch(() => {});
+    }
+    
+    // Get or create session ID
+    getSessionId() {
+        let sessionId = sessionStorage.getItem('financialSessionId');
+        if (!sessionId) {
+            sessionId = 'fin_' + Math.random().toString(36).substring(2, 15);
+            sessionStorage.setItem('financialSessionId', sessionId);
+        }
+        return sessionId;
+    }
+    
+    // Add CSS styles
+    addStyles() {
+        const style = document.createElement('style');
+        style.textContent = `
+            .financial-faceoff {
+                max-width: 1200px;
+                margin: 0 auto;
+                padding: 20px;
+            }
+            
+            .faceoff-header {
+                text-align: center;
+                margin-bottom: 30px;
+            }
+            
+            .faceoff-header h2 {
+                color: #ff4d4d;
+                font-size: 32px;
+                margin-bottom: 10px;
+            }
+            
+            .debate-controls {
+                background: #1a1a1a;
+                border: 2px solid #333;
+                border-radius: 15px;
+                padding: 25px;
+                margin-bottom: 30px;
+            }
+            
+            .asset-selector {
+                margin-bottom: 20px;
+            }
+            
+            .asset-selector label {
+                display: block;
+                color: #888;
+                margin-bottom: 8px;
+            }
+            
+            .faceoff-select {
+                width: 100%;
+                padding: 12px;
+                background: #333;
+                border: 2px solid #ff4d4d;
+                border-radius: 8px;
+                color: white;
+                font-size: 16px;
+            }
+            
+            .persona-pickers {
+                display: flex;
+                align-items: center;
+                gap: 20px;
+                margin-bottom: 20px;
+            }
+            
+            .persona-picker {
+                flex: 1;
+            }
+            
+            .persona-picker label {
+                display: block;
+                color: #888;
+                margin-bottom: 8px;
+            }
+            
+            .vs-badge {
+                font-size: 24px;
+                font-weight: bold;
+                color: #ff4d4d;
+                min-width: 60px;
+                text-align: center;
+            }
+            
+            .debate-btn {
+                width: 100%;
+                padding: 15px;
+                background: linear-gradient(145deg, #ff4d4d, #cc0000);
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-size: 18px;
+                font-weight: bold;
+                cursor: pointer;
+                transition: all 0.2s;
+            }
+            
+            .debate-btn:hover {
+                transform: scale(1.02);
+                box-shadow: 0 5px 20px rgba(255, 75, 75, 0.5);
+            }
+            
+            .debate-arena {
+                margin: 30px 0;
+            }
+            
+            .debate-card {
+                background: #1a1a1a;
+                border-radius: 20px;
+                padding: 25px;
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            }
+            
+            .debate-header {
+                text-align: center;
+                margin-bottom: 25px;
+                padding-bottom: 15px;
+                border-bottom: 1px solid #333;
+            }
+            
+            .debate-header h3 {
+                color: #ff4d4d;
+                font-size: 24px;
+                margin-bottom: 5px;
+            }
+            
+            .debate-timestamp {
+                color: #888;
+                font-size: 12px;
+            }
+            
+            .debate-arena-grid {
+                display: grid;
+                grid-template-columns: 1fr auto 1fr;
+                gap: 20px;
+                margin-bottom: 25px;
+            }
+            
+            .contender-card {
+                padding: 20px;
+                background: #2a2a2a;
+                border-radius: 15px;
+            }
+            
+            .contender-header {
+                display: flex;
+                align-items: center;
+                gap: 15px;
+                margin-bottom: 20px;
+            }
+            
+            .contender-avatar {
+                width: 60px;
+                height: 60px;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 30px;
+            }
+            
+            .contender-name {
+                font-size: 20px;
+                font-weight: bold;
+                margin-bottom: 4px;
+            }
+            
+            .contender-title {
+                font-size: 12px;
+                color: #888;
+            }
+            
+            .contender-advice {
+                padding: 20px;
+                background: #333;
+                border-radius: 10px;
+                margin-bottom: 15px;
+                font-style: italic;
+                line-height: 1.6;
+            }
+            
+            .contender-catchphrase {
+                padding: 10px;
+                color: #888;
+                font-size: 14px;
+                margin-bottom: 15px;
+            }
+            
+            .contender-affiliate {
+                margin-bottom: 20px;
+            }
+            
+            .affiliate-link {
+                display: block;
+                padding: 12px;
+                background: #333;
+                border: 1px solid #ff4d4d;
+                border-radius: 8px;
+                color: white;
+                text-decoration: none;
+                text-align: center;
+                transition: all 0.2s;
+            }
+            
+            .affiliate-link:hover {
+                background: #ff4d4d;
+                transform: translateY(-2px);
+            }
+            
+            .affiliate-badge {
+                display: inline-block;
+                margin-left: 8px;
+                padding: 2px 6px;
+                background: #ff4d4d;
+                border-radius: 4px;
+                font-size: 10px;
+            }
+            
+            .vote-btn {
+                width: 100%;
+                padding: 15px;
+                border: none;
+                border-radius: 8px;
+                color: white;
+                font-weight: bold;
+                cursor: pointer;
+                transition: all 0.2s;
+            }
+            
+            .vote-btn:hover {
+                filter: brightness(1.1);
+                transform: scale(1.02);
+            }
+            
+            .vs-divider {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            
+            .vs-circle {
+                width: 50px;
+                height: 50px;
+                background: #ff4d4d;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-weight: bold;
+                font-size: 16px;
+            }
+            
+            .live-results {
+                margin: 20px 0;
+                padding: 15px;
+                background: #2a2a2a;
+                border-radius: 10px;
+            }
+            
+            .results-bar {
+                display: flex;
+                height: 30px;
+                border-radius: 15px;
+                overflow: hidden;
+                margin-bottom: 10px;
+            }
+            
+            .result-progress {
+                height: 100%;
+                transition: width 0.3s ease;
+            }
+            
+            .result-stats {
+                text-align: center;
+                color: #888;
+                font-size: 14px;
+            }
+            
+            .debate-actions {
+                display: flex;
+                gap: 10px;
+                margin-top: 20px;
+            }
+            
+            .share-btn {
+                flex: 1;
+                padding: 12px;
+                background: #333;
+                border: 1px solid #444;
+                border-radius: 8px;
+                color: white;
+                cursor: pointer;
+                transition: all 0.2s;
+            }
+            
+            .share-btn:hover {
+                background: #ff4d4d;
+                border-color: #ff4d4d;
+            }
+            
+            @keyframes slideIn {
+                from { transform: translateX(100px); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+            
+            @media (max-width: 768px) {
+                .persona-pickers {
+                    flex-direction: column;
+                }
+                
+                .debate-arena-grid {
+                    grid-template-columns: 1fr;
+                }
+                
+                .vs-divider {
+                    margin: 20px 0;
+                }
+            }
+        `;
+        
+        document.head.appendChild(style);
+    }
+}
+
+// ==================== INITIALIZATION ====================
+
+// Create global instance
+let faceoff;
+
+// Initialize when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    if (document.getElementById('financialFaceoff')) {
+        faceoff = new FinancialFaceoff('financialFaceoff');
+    }
+});
+
+// Export for use in other files
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { FinancialFaceoff, FINANCIAL_PERSONAS, FINANCIAL_TOPICS };
+}

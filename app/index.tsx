@@ -844,6 +844,19 @@ export default function HomeScreen() {
             <Text style={styles.modeButtonText}>BILLIONAIRES</Text>
           </Pressable>
         </Animated.View>
+        <Animated.View entering={FadeInDown.delay(1600).duration(500)} style={styles.modeButtons}>
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+              router.push("/faceoff");
+            }}
+            style={({ pressed }) => [styles.modeButton, styles.faceoffButton, pressed && { opacity: 0.7 }]}
+            testID="faceoff-button"
+          >
+            <MaterialCommunityIcons name="sword-cross" size={16} color="#FF6B35" />
+            <Text style={styles.modeButtonText}>FACEOFF</Text>
+          </Pressable>
+        </Animated.View>
 
         <Text style={styles.legalDisclaimer}>
           Not affiliated with Donald J. Trump, The Trump Organization, or any political entity. For entertainment purposes only. Affiliate links generate commissions.
@@ -1749,6 +1762,10 @@ const styles = StyleSheet.create({
   gameButton: {
     backgroundColor: "rgba(251, 191, 36, 0.15)",
     borderColor: "rgba(251, 191, 36, 0.4)",
+  },
+  faceoffButton: {
+    backgroundColor: "rgba(255, 107, 53, 0.15)",
+    borderColor: "rgba(255, 107, 53, 0.4)",
   },
   streakBadge: {
     flexDirection: "row",

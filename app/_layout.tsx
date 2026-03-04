@@ -269,6 +269,10 @@ function RootLayoutNav() {
         name="game"
         options={{ animation: "slide_from_right" }}
       />
+      <Stack.Screen
+        name="faceoff"
+        options={{ headerShown: false }}
+      />
     </Stack>
   );
 }

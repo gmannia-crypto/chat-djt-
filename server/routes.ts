@@ -475,6 +475,68 @@ const API_COST_ESTIMATES: Record<string, number> = {
 };
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  const faceoffVotes = new Map<string, { votes: Record<string, number>; asset: string; persona1: string; persona2: string }>();
+
+  app.get("/financial-faceoff", (_req, res) => {
+    try {
+      const htmlPath = join(process.cwd(), "server", "templates", "financial-faceoff.html");
+      const html = readFileSync(htmlPath, "utf-8");
+      res.type("html").send(html);
+    } catch (error) {
+      console.error("Financial faceoff page error:", error);
+      res.status(500).send("Failed to load Financial Faceoff page");
+    }
+  });
+
+  app.post("/api/faceoff/vote", (req, res) => {
+    try {
+      const { debateId, asset, persona1, persona2, votedFor } = req.body;
+      if (!debateId || !votedFor || !persona1 || !persona2) {
+        return res.status(400).json({ error: "debateId, persona1, persona2, and votedFor are required" });
+      }
+
+      if (votedFor !== persona1 && votedFor !== persona2) {
+        return res.status(400).json({ error: "votedFor must be one of the debate participants" });
+      }
+
+      let debate = faceoffVotes.get(debateId);
+      if (!debate) {
+        if (faceoffVotes.size >= 1000) {
+          const oldestKey = faceoffVotes.keys().next().value;
+          if (oldestKey) faceoffVotes.delete(oldestKey);
+        }
+        debate = {
+          votes: { [persona1]: 0, [persona2]: 0 },
+          asset: asset || "",
+          persona1,
+          persona2,
+        };
+        faceoffVotes.set(debateId, debate);
+      }
+
+      if (votedFor !== debate.persona1 && votedFor !== debate.persona2) {
+        return res.status(400).json({ error: "votedFor must be one of the debate participants" });
+      }
+
+      debate.votes[votedFor] = (debate.votes[votedFor] || 0) + 1;
+
+      const total = Object.values(debate.votes).reduce((sum, v) => sum + v, 0);
+      res.json({ votes: debate.votes, total });
+    } catch (error) {
+      console.error("Faceoff vote error:", error);
+      res.status(500).json({ error: "Failed to record vote" });
+    }
+  });
+
+  app.get("/api/faceoff/votes/:debateId", (req, res) => {
+    const debate = faceoffVotes.get(req.params.debateId);
+    if (!debate) {
+      return res.json({ votes: {}, total: 0 });
+    }
+    const total = Object.values(debate.votes).reduce((sum, v) => sum + v, 0);
+    res.json({ votes: debate.votes, total });
+  });
+
   app.get("/api/tokens/balance", async (req, res) => {
     try {
       const deviceId = req.headers["x-device-id"] as string;
@@ -1209,7 +1271,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/track-viral", (req, res) => {
     const { event, sessionId: sid, data, timestamp } = req.body;
-    console.log(`[viral] ${event} | session=${sid} | ${JSON.stringify(data)} | ${new Date(timestamp).toISOString()}`);
+    const ts = timestamp ? new Date(timestamp).toISOString() : new Date().toISOString();
+    console.log(`[viral] ${event} | session=${sid} | ${JSON.stringify(data)} | ${ts}`);
 
     if (event === "session_start") {
       trackViralEvent("sessions", { sessionId: sid, ...data });
