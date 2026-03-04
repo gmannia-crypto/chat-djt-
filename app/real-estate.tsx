@@ -115,23 +115,84 @@ export default function RealEstateScreen() {
   const [speaking, setSpeaking] = useState(false);
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const [selectedAdvisor, setSelectedAdvisor] = useState("trump");
+  const [aiComments, setAiComments] = useState<Record<string, { comment: string; rating: number }>>({});
+  const [aiLoading, setAiLoading] = useState<Record<string, boolean>>({});
   const soundRef = React.useRef<Audio.Sound | null>(null);
 
   const activeAdvisor = REAL_ESTATE_ADVISORS.find((a) => a.id === selectedAdvisor) || REAL_ESTATE_ADVISORS[0];
 
+  const getAiKey = useCallback((property: Property) => {
+    const propId = property.id || `${property.price}_${property.city}_${property.street}`;
+    return `${selectedAdvisor}_${propId}`;
+  }, [selectedAdvisor]);
+
   const getPropertyComment = useCallback((property: Property): string => {
+    const aiKey = getAiKey(property);
+    if (aiComments[aiKey]) return aiComments[aiKey].comment;
     if (property.personaComments && property.personaComments[selectedAdvisor]) {
       return property.personaComments[selectedAdvisor].comment;
     }
     return property.trumpComment;
-  }, [selectedAdvisor]);
+  }, [selectedAdvisor, aiComments, getAiKey]);
 
   const getPropertyRating = useCallback((property: Property): number => {
+    const aiKey = getAiKey(property);
+    if (aiComments[aiKey]) return aiComments[aiKey].rating;
     if (property.personaComments && property.personaComments[selectedAdvisor]) {
       return property.personaComments[selectedAdvisor].rating;
     }
     return property.trumpRating;
-  }, [selectedAdvisor]);
+  }, [selectedAdvisor, aiComments, getAiKey]);
+
+  const isAiLoaded = useCallback((property: Property): boolean => {
+    return !!aiComments[getAiKey(property)];
+  }, [aiComments, getAiKey]);
+
+  const isAiFetching = useCallback((property: Property): boolean => {
+    return !!aiLoading[getAiKey(property)];
+  }, [aiLoading, getAiKey]);
+
+  const fetchAiAnalysis = useCallback(async (property: Property) => {
+    const aiKey = getAiKey(property);
+    if (aiComments[aiKey] || aiLoading[aiKey]) return;
+    setAiLoading((prev) => ({ ...prev, [aiKey]: true }));
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      const res = await fetch(`${baseUrl}/api/property-analysis`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          property: {
+            price: property.price,
+            beds: property.beds,
+            baths: property.baths,
+            sqft: property.sqft,
+            city: property.city,
+            state: property.state,
+            street: property.street,
+            propertyType: property.propertyType,
+            yearBuilt: property.yearBuilt,
+            pricePerSqFt: property.pricePerSqFt,
+            lotSize: property.lotSize,
+            dom: property.dom,
+          },
+          personaId: selectedAdvisor,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.comment) {
+          setAiComments((prev) => ({ ...prev, [aiKey]: { comment: data.comment, rating: data.rating } }));
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
+      }
+    } catch (err) {
+      console.error("AI analysis error:", err);
+    } finally {
+      setAiLoading((prev) => ({ ...prev, [aiKey]: false }));
+    }
+  }, [selectedAdvisor, aiComments, aiLoading, getAiKey]);
 
   const handleSearch = async () => {
     if (!location.trim() || location.trim().length < 2) return;
@@ -314,7 +375,33 @@ export default function RealEstateScreen() {
             )}
 
             <View style={styles.trumpSection}>
+              {isAiLoaded(item) && (
+                <View style={styles.aiBadge}>
+                  <Ionicons name="sparkles" size={10} color="#FFD700" />
+                  <Text style={styles.aiBadgeText}>AI LIVE ANALYSIS</Text>
+                </View>
+              )}
               <Text style={[styles.trumpComment, { borderLeftColor: activeAdvisor.color }]}>"{comment}"</Text>
+              {!isAiLoaded(item) && (
+                <Pressable
+                  onPress={() => fetchAiAnalysis(item)}
+                  disabled={isAiFetching(item)}
+                  style={({ pressed }) => [
+                    styles.aiAnalysisBtn,
+                    { borderColor: activeAdvisor.color, backgroundColor: `${activeAdvisor.color}15` },
+                    pressed && { opacity: 0.7 },
+                  ]}
+                >
+                  {isAiFetching(item) ? (
+                    <ActivityIndicator size="small" color={activeAdvisor.color} />
+                  ) : (
+                    <Ionicons name="sparkles" size={14} color={activeAdvisor.color} />
+                  )}
+                  <Text style={[styles.aiAnalysisBtnText, { color: activeAdvisor.color }]}>
+                    {isAiFetching(item) ? "ANALYZING..." : `GET ${activeAdvisor.name.toUpperCase()}'S AI TAKE`}
+                  </Text>
+                </Pressable>
+              )}
             </View>
 
             <View style={styles.cardActions}>
@@ -827,6 +914,38 @@ const styles = StyleSheet.create({
     color: Colors.white,
     lineHeight: 23,
     fontStyle: "italic",
+  },
+  aiBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginBottom: 6,
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(255,215,0,0.12)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  aiBadgeText: {
+    fontSize: 9,
+    fontWeight: "800" as const,
+    color: "#FFD700",
+    letterSpacing: 1,
+  },
+  aiAnalysisBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 10,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  aiAnalysisBtnText: {
+    fontSize: 12,
+    fontWeight: "800" as const,
+    letterSpacing: 0.8,
   },
   cardActions: {
     flexDirection: "row",

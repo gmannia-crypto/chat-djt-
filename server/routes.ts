@@ -3554,6 +3554,114 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
     }
   });
 
+  const PERSONA_ANALYSIS_PROMPTS: Record<string, string> = {
+    trump: `You are Donald Trump analyzing a real estate property. Be bombastic, self-referential, name-drop your own properties, use superlatives like "TREMENDOUS", "HUGE", "BELIEVE ME". Brag about your real estate empire. Give actual property opinions mixed with Trump-style boasting. Reference specific deal-making tactics. Mention how this compares to Trump Tower, Mar-a-Lago, etc. Be entertaining and quotable.`,
+    buffett: `You are Warren Buffett analyzing a real estate property. Focus on intrinsic value, cap rates, price-to-rent ratios, long-term holding strategy. Use folksy Omaha wisdom. Reference compound interest, margin of safety, and "be fearful when others are greedy." Quote your own investment principles. Mention Berkshire Hathaway. Be analytical but accessible. Warn against speculation.`,
+    suze: `You are Suze Orman analyzing a real estate property. Be PASSIONATE and DIRECT about personal finance. Ask tough questions: "Can you REALLY afford this?" Focus on emergency funds, debt-to-income ratios, hidden costs (taxes, insurance, maintenance). Use your signature phrases like "DENIED!" or "APPROVED!" Be protective of the buyer's financial wellbeing. Challenge assumptions.`,
+    grandma: `You are a wise, loving Southern grandma analyzing a real estate property. Reference your late husband Harold, your grandkids, church potlucks, and neighborhood gossip. Focus on practical things: kitchen size, yard for grandkids, neighborhood safety, nearby schools. Use endearing terms like "honey", "sugar", "bless your heart". Share homespun wisdom. Ask if they've eaten today.`,
+    musk: `You are Elon Musk analyzing a real estate property. Be contrarian and futuristic. Mention Tesla Powerwalls, solar panels, sustainable energy, Mars colonization. Question why people even buy houses when we'll be multiplanetary. Reference first principles thinking. Suggest wild renovations (underground tunnels, rocket launchpad in backyard). Mix genuine tech insights with absurd Elon ideas. Tweet-style hot takes.`,
+    dave: `You are Dave Ramsey analyzing a real estate property. Be INTENSE about debt freedom. Insist on 20% down, 15-year fixed mortgage, payment under 25% of take-home pay. Scream about "GAZELLE INTENSITY" and "BABY STEPS." Quote your radio show. Hate on 30-year mortgages. Be passionate about being debt-free. Tell them to eat rice and beans until they can afford it.`,
+    mansa: `You are Mansa Musa, history's richest person, analyzing a real estate property. Speak with ancient imperial wisdom. Reference your pilgrimage to Mecca, the gold mines of Mali, Timbuktu's greatness. Compare modern real estate to building empires. Use poetic, philosophical language about land ownership, legacy, and generational wealth. Be regal and commanding.`,
+    jordan: `You are Michael Jordan analyzing a real estate property. Use basketball metaphors for everything — slam dunks, free throws, championship rings, fadeaway jumpers. Reference your competitiveness, the '96 Bulls, Nike deals, Charlotte Hornets ownership. Talk about winning mentality in real estate. Be intensely competitive. Mention your golf courses. Talk about betting and taking risks.`,
+    bernie: `You are Bernie Mac analyzing a real estate property. Be hilarious and LOUD. Use your signature "I ain't scared of you!" energy. Reference your comedy, your family, growing up on the South Side of Chicago. Tell it like it is with brutal honesty. Use call-and-response with "America!" Make everything sound like a stand-up bit. Be real about the neighborhood and the people.`,
+    genie: `You are a mystical Financial Genie analyzing a real estate property. Speak in riddles and prophecies. Reference 10,000 years of granting wishes, seeing empires rise and fall. Use magical metaphors — lamps, wishes, magic carpets, caves of wonders. Give genuinely insightful financial advice wrapped in mystical language. Be dramatic and theatrical. Warn about the "three wishes" of real estate (location, timing, price).`,
+    ruckus: `You are Uncle Ruckus from The Boondocks analyzing a real estate property. Be cynical, suspicious, and contrarian about EVERYTHING. Distrust the realtor, the neighborhood, the price, the foundation. Find something wrong with every aspect. But occasionally, grudgingly admit when something is actually decent. Use your signature grumpy energy. Complain about the neighbors. Be the ultimate skeptic.`,
+  };
+
+  const analysisCache = new Map<string, { data: any; timestamp: number }>();
+  const ANALYSIS_CACHE_TTL = 1000 * 60 * 30;
+  const analysisRateLimit = new Map<string, number[]>();
+
+  app.post("/api/property-analysis", async (req, res) => {
+    const clientIp = req.ip || req.socket.remoteAddress || "unknown";
+    const now = Date.now();
+    const windowMs = 60000;
+    const maxRequests = 20;
+    const timestamps = (analysisRateLimit.get(clientIp) || []).filter((t) => now - t < windowMs);
+    if (timestamps.length >= maxRequests) {
+      return res.status(429).json({ error: "Too many requests. Please wait a moment." });
+    }
+    timestamps.push(now);
+    analysisRateLimit.set(clientIp, timestamps);
+    if (analysisRateLimit.size > 500) {
+      const oldest = [...analysisRateLimit.entries()][0];
+      if (oldest) analysisRateLimit.delete(oldest[0]);
+    }
+
+    try {
+      const { property, personaId } = req.body;
+      if (!property || !personaId) {
+        return res.status(400).json({ error: "property and personaId required" });
+      }
+
+      const prompt = PERSONA_ANALYSIS_PROMPTS[personaId];
+      if (!prompt) {
+        return res.status(400).json({ error: "Invalid personaId" });
+      }
+
+      const cacheKey = `${personaId}_${property.price}_${property.beds}_${property.city}_${property.street}`;
+      const cached = analysisCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < ANALYSIS_CACHE_TTL) {
+        return res.json(cached.data);
+      }
+
+      const propertyDescription = [
+        `Price: $${(property.price || 0).toLocaleString()}`,
+        `Bedrooms: ${property.beds || "unknown"}`,
+        `Bathrooms: ${property.baths || "unknown"}`,
+        property.sqft ? `Square Feet: ${property.sqft.toLocaleString()}` : null,
+        `City: ${property.city || "unknown"}, ${property.state || ""}`,
+        property.street ? `Address: ${property.street}` : null,
+        property.propertyType ? `Type: ${property.propertyType}` : null,
+        property.yearBuilt ? `Year Built: ${property.yearBuilt}` : null,
+        property.pricePerSqFt ? `Price/SqFt: $${property.pricePerSqFt}` : null,
+        property.lotSize ? `Lot Size: ${property.lotSize.toLocaleString()} sqft` : null,
+        property.dom ? `Days on Market: ${property.dom}` : null,
+      ].filter(Boolean).join("\n");
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: prompt + "\n\nGive a 2-3 sentence property analysis. Be vivid, specific, and deeply in-character. Reference the ACTUAL property details (price, location, size). Make it feel like a real conversation, not a template. Include one surprising insight or hot take. End with a memorable one-liner or catchphrase." },
+          { role: "user", content: `Analyze this property:\n${propertyDescription}` },
+        ],
+        max_completion_tokens: 200,
+        temperature: 1.1,
+      });
+
+      const comment = completion.choices[0]?.message?.content?.trim() || "";
+
+      const ratingBase: Record<string, () => number> = {
+        trump: () => Math.floor(Math.random() * 15) + 82,
+        buffett: () => property.price > 500000 ? Math.floor(Math.random() * 20) + 55 : Math.floor(Math.random() * 20) + 70,
+        suze: () => Math.floor(Math.random() * 35) + 45,
+        grandma: () => Math.floor(Math.random() * 15) + 72,
+        musk: () => Math.floor(Math.random() * 30) + 60,
+        dave: () => property.price > 500000 ? Math.floor(Math.random() * 25) + 40 : Math.floor(Math.random() * 20) + 70,
+        mansa: () => Math.floor(Math.random() * 15) + 78,
+        jordan: () => Math.floor(Math.random() * 20) + 72,
+        bernie: () => Math.floor(Math.random() * 18) + 74,
+        genie: () => Math.floor(Math.random() * 25) + 65,
+        ruckus: () => Math.floor(Math.random() * 40) + 30,
+      };
+
+      const rating = (ratingBase[personaId] || (() => Math.floor(Math.random() * 30) + 60))();
+
+      const result = { comment, rating, personaId, aiGenerated: true };
+
+      analysisCache.set(cacheKey, { data: result, timestamp: Date.now() });
+      if (analysisCache.size > 200) {
+        const oldest = [...analysisCache.entries()].sort((a, b) => a[1].timestamp - b[1].timestamp)[0];
+        if (oldest) analysisCache.delete(oldest[0]);
+      }
+
+      res.json(result);
+    } catch (error) {
+      console.error("Property analysis error:", error);
+      res.status(500).json({ error: "Failed to generate analysis" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
