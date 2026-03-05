@@ -14,6 +14,8 @@ import {
   AppState,
   TextInput,
   ActivityIndicator,
+  Share,
+  Linking,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -802,9 +804,28 @@ export default function HomeScreen() {
         keyboardShouldPersistTaps="handled"
       >
         {streak > 0 && (
-          <Animated.View entering={FadeIn.delay(400).duration(500)} style={styles.streakBadge}>
-            <MaterialCommunityIcons name="fire" size={16} color="#FF6B35" />
-            <Text style={styles.streakText}>{streak} day streak</Text>
+          <Animated.View entering={FadeIn.delay(400).duration(500)} style={styles.streakRow}>
+            <View style={styles.streakBadge}>
+              <MaterialCommunityIcons name="fire" size={16} color="#FF6B35" />
+              <Text style={styles.streakText}>{streak} day streak</Text>
+            </View>
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                const msg = `I've used Chat DJT for ${streak} days in a row! \uD83D\uDD25 Can you beat my streak?`;
+                if (Platform.OS === "web") {
+                  const tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(msg)}`;
+                  Linking.openURL(tweetUrl);
+                } else {
+                  Share.share({ message: msg });
+                }
+              }}
+              style={({ pressed }) => [styles.streakShareBtn, pressed && { opacity: 0.7 }]}
+              testID="share-streak-btn"
+            >
+              <Ionicons name="share-outline" size={12} color="#FF6B35" />
+              <Text style={styles.streakShareText}>SHARE</Text>
+            </Pressable>
           </Animated.View>
         )}
 
@@ -1135,7 +1156,7 @@ export default function HomeScreen() {
                   Clipboard.setStringAsync(msg);
                   Alert.alert("Copied!", "Shared to clipboard");
                 } else {
-                  require("react-native").Share.share({ message: msg });
+                  Share.share({ message: msg });
                 }
               }}
               style={({ pressed }) => [styles.fearGreedShareBtn, pressed && { opacity: 0.7 }]}
@@ -2295,6 +2316,13 @@ const styles = StyleSheet.create({
     color: Colors.gold,
     letterSpacing: 1,
   },
+  streakRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginBottom: 8,
+  },
   streakBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -2305,7 +2333,23 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderWidth: 1,
     borderColor: "rgba(255, 107, 53, 0.3)",
-    marginBottom: 8,
+  },
+  streakShareBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(255, 107, 53, 0.1)",
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: "rgba(255, 107, 53, 0.25)",
+  },
+  streakShareText: {
+    fontSize: 10,
+    fontWeight: "800" as const,
+    color: "#FF6B35",
+    letterSpacing: 0.5,
   },
   streakText: {
     fontSize: 13,
