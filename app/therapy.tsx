@@ -20,6 +20,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import * as FileSystem from "expo-file-system";
 import { Audio } from "expo-av";
+import { playAudioFromResponse } from "@/lib/audio-helper";
 import Animated, {
   FadeIn,
   FadeInDown,
@@ -408,30 +409,19 @@ export default function TherapyScreen() {
         soundRef.current = null;
       }
       setSpeaking(true);
+      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
       const apiUrl = getApiUrl().replace(/\/$/, "");
-      const ttsRes = await fetch(`${apiUrl}/api/tts`, {
+      const ttsRes = await globalThis.fetch(`${apiUrl}/api/tts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text, mood: "CALM", voice: ttsVoice }),
       });
       if (!ttsRes.ok) { setSpeaking(false); return; }
-      const blob = await ttsRes.blob();
-      const reader = new FileReader();
-      reader.onload = async () => {
-        try {
-          const base64 = (reader.result as string).split(",")[1];
-          const { sound } = await Audio.Sound.createAsync(
-            { uri: `data:audio/mpeg;base64,${base64}` },
-            { shouldPlay: true }
-          );
-          soundRef.current = sound;
-          sound.setOnPlaybackStatusUpdate((status: any) => {
-            if (status.didJustFinish) setSpeaking(false);
-          });
-        } catch { setSpeaking(false); }
-      };
-      reader.onerror = () => setSpeaking(false);
-      reader.readAsDataURL(blob);
+      const sound = await playAudioFromResponse(ttsRes);
+      soundRef.current = sound;
+      sound.setOnPlaybackStatusUpdate((status: any) => {
+        if (status.didJustFinish) setSpeaking(false);
+      });
     } catch { setSpeaking(false); }
   }
 

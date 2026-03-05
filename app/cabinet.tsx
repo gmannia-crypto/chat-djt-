@@ -10,6 +10,7 @@ import {
   RefreshControl,
 } from "react-native";
 import { Audio } from "expo-av";
+import { playAudioFromResponse } from "@/lib/audio-helper";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -205,6 +206,7 @@ export default function CabinetHotSeat() {
         audio.onerror = () => { setSpeakingName(null); URL.revokeObjectURL(url); };
         await audio.play();
       } else {
+        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
         const resp = await globalThis.fetch(audioUrl, {
           headers: deviceId ? { "x-device-id": deviceId } : {},
         });
@@ -215,18 +217,14 @@ export default function CabinetHotSeat() {
           return;
         }
         if (!resp.ok) throw new Error("Failed");
-        const arrayBuffer = await resp.arrayBuffer();
-        const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-        const dataUri = `data:audio/mpeg;base64,${base64}`;
-        const { sound } = await Audio.Sound.createAsync({ uri: dataUri });
+        const sound = await playAudioFromResponse(resp);
         soundRef.current = sound;
-        sound.setOnPlaybackStatusUpdate((status) => {
+        sound.setOnPlaybackStatusUpdate((status: any) => {
           if (status.isLoaded && status.didJustFinish) {
             setSpeakingName(null);
             refreshBalance();
           }
         });
-        await sound.playAsync();
       }
     } catch (e) {
       console.error("Cabinet speak error:", e);

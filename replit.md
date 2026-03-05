@@ -38,6 +38,7 @@ The backend is an Express 5 API gateway providing various endpoints for AI inter
 - **Amazon Associates**: For affiliate monetization with the `trumpbot-20` tag.
 - **Alternative.me Fear & Greed API**: For live Crypto Fear & Greed Index on home screen (`https://api.alternative.me/fng/?limit=1`).
 - **Stripe**: For payment processing for therapy sessions and subscriptions.
+- **expo-file-system**: Used by `lib/audio-helper.ts` to write TTS audio to temp files on native (iOS/Android) for reliable playback via expo-av. On web, data URIs are used instead.
 
 ## Persona Dialogue Styles
 

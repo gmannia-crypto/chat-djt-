@@ -32,6 +32,7 @@ import { getApiUrl } from "@/lib/query-client";
 import { shareContent } from "@/lib/track-share";
 import { useTokens } from "@/lib/token-context";
 import { Audio } from "expo-av";
+import { playAudioFromResponse } from "@/lib/audio-helper";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -179,28 +180,18 @@ export default function ChallengeScreen() {
         soundRef.current = null;
       }
       setSpeaking(true);
-      const ttsRes = await fetch(`${getApiUrl()}api/tts`, {
+      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+      const ttsRes = await globalThis.fetch(`${getApiUrl()}api/tts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text, mood }),
       });
       if (!ttsRes.ok) { setSpeaking(false); return; }
-      const blob = await ttsRes.blob();
-      const reader = new FileReader();
-      reader.onload = async () => {
-        try {
-          const base64 = (reader.result as string).split(",")[1];
-          const { sound } = await Audio.Sound.createAsync(
-            { uri: `data:audio/mpeg;base64,${base64}` },
-            { shouldPlay: true }
-          );
-          soundRef.current = sound;
-          sound.setOnPlaybackStatusUpdate((status) => {
-            if ("didJustFinish" in status && status.didJustFinish) setSpeaking(false);
-          });
-        } catch { setSpeaking(false); }
-      };
-      reader.readAsDataURL(blob);
+      const sound = await playAudioFromResponse(ttsRes);
+      soundRef.current = sound;
+      sound.setOnPlaybackStatusUpdate((status: any) => {
+        if (status.didJustFinish) setSpeaking(false);
+      });
     } catch { setSpeaking(false); }
   }
 

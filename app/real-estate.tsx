@@ -20,6 +20,7 @@ import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from "@expo/vector-ico
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { Audio } from "expo-av";
+import { playAudioFromResponse } from "@/lib/audio-helper";
 import Animated, {
   FadeIn,
   FadeInDown,
@@ -298,8 +299,9 @@ export default function RealEstateScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
+      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
       const baseUrl = getApiUrl().replace(/\/$/, "");
-      const ttsRes = await fetch(`${baseUrl}/api/persona-speak`, {
+      const ttsRes = await globalThis.fetch(`${baseUrl}/api/persona-speak`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text, personaId: selectedAdvisor }),
@@ -307,30 +309,16 @@ export default function RealEstateScreen() {
 
       if (!ttsRes.ok) throw new Error("TTS failed");
 
-      const audioBlob = await ttsRes.blob();
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        try {
-          const base64 = (reader.result as string).split(",")[1];
-          const { sound } = await Audio.Sound.createAsync(
-            { uri: `data:audio/mp3;base64,${base64}` },
-            { shouldPlay: true }
-          );
-          soundRef.current = sound;
-          sound.setOnPlaybackStatusUpdate((status: any) => {
-            if (status.didJustFinish) {
-              setSpeaking(false);
-              setSpeakingId(null);
-              sound.unloadAsync();
-              soundRef.current = null;
-            }
-          });
-        } catch (e) {
+      const sound = await playAudioFromResponse(ttsRes);
+      soundRef.current = sound;
+      sound.setOnPlaybackStatusUpdate((status: any) => {
+        if (status.didJustFinish) {
           setSpeaking(false);
           setSpeakingId(null);
+          sound.unloadAsync();
+          soundRef.current = null;
         }
-      };
-      reader.readAsDataURL(audioBlob);
+      });
     } catch (err) {
       setSpeaking(false);
       setSpeakingId(null);
