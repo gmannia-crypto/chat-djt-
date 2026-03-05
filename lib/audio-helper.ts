@@ -14,10 +14,22 @@ export async function playAudioFromUrl(
   });
 
   if (Platform.OS === "web") {
+    if (!options?.method || options.method === "GET") {
+      const audio = new window.Audio(url);
+      audio.volume = vol;
+      await audio.play();
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: url },
+        { shouldPlay: true, volume: vol }
+      );
+      audio.pause();
+      audio.src = "";
+      return sound;
+    }
     const res = await globalThis.fetch(url, {
-      method: options?.method || "GET",
-      headers: options?.headers,
-      body: options?.body ? JSON.stringify(options.body) : undefined,
+      method: options.method,
+      headers: options.headers,
+      body: options.body ? JSON.stringify(options.body) : undefined,
     });
     if (!res.ok) throw new Error(`Audio fetch failed: ${res.status}`);
     const blob = await res.blob();
@@ -34,12 +46,11 @@ export async function playAudioFromUrl(
     return sound;
   }
 
-  console.log("[AudioHelper] Native: loading audio from URL:", url);
   const { sound } = await Audio.Sound.createAsync(
     { uri: url },
     { shouldPlay: true, volume: vol }
   );
-  console.log("[AudioHelper] Native: sound created and playing");
+
   return sound;
 }
 
@@ -50,21 +61,11 @@ export async function playTTS(
 ): Promise<Audio.Sound> {
   const baseUrl = getApiUrl().replace(/\/$/, "");
 
-  if (Platform.OS !== "web") {
-    const params = new URLSearchParams();
-    Object.entries(body).forEach(([k, v]) => {
-      if (v !== undefined && v !== null) params.append(k, String(v));
-    });
-    const url = `${baseUrl}${endpoint}?${params.toString()}`;
-    console.log("[AudioHelper] playTTS native GET:", url);
-    return playAudioFromUrl(url, { volume: options?.volume });
-  }
-
-  const url = `${baseUrl}${endpoint}`;
-  return playAudioFromUrl(url, {
-    method: "POST",
-    body,
-    headers: { "Content-Type": "application/json" },
-    volume: options?.volume,
+  const params = new URLSearchParams();
+  Object.entries(body).forEach(([k, v]) => {
+    if (v !== undefined && v !== null) params.append(k, String(v));
   });
+  const url = `${baseUrl}${endpoint}?${params.toString()}`;
+
+  return playAudioFromUrl(url, { volume: options?.volume });
 }

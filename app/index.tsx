@@ -391,46 +391,33 @@ export default function HomeScreen() {
   }, []);
 
   const welcomeSoundRef = useRef<Audio.Sound | null>(null);
+  const welcomePlayedRef = useRef(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function playWelcome() {
-      try {
-        console.log("[Welcome] Starting welcome audio, platform:", Platform.OS);
-        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: false });
-        if (cancelled) return;
-        console.log("[Welcome] Audio mode set, calling playTTS...");
-        const sound = await playTTS("/api/nav-speak", {
-          text: "Welcome to CHAT DJT. A complete interactive immersive experience.",
-        }, { volume: 1.0 });
-        console.log("[Welcome] playTTS returned successfully!");
-        if (cancelled) {
-          sound.unloadAsync();
-          return;
-        }
+  const playWelcomeOnInteraction = useCallback(async () => {
+    if (welcomePlayedRef.current) return;
+    welcomePlayedRef.current = true;
+    try {
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      const url = `${baseUrl}/api/nav-speak?text=${encodeURIComponent("Welcome to CHAT DJT. A complete interactive immersive experience.")}`;
+      if (Platform.OS === "web") {
+        const audio = new window.Audio(url);
+        audio.volume = 0.9;
+        audio.play().catch(() => {});
+      } else {
+        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: url },
+          { shouldPlay: true, volume: 0.9 }
+        );
         welcomeSoundRef.current = sound;
         sound.setOnPlaybackStatusUpdate((status: any) => {
-          if (status.isLoaded) {
-            console.log("[Welcome] Playback status - isPlaying:", status.isPlaying, "position:", status.positionMillis);
-          }
           if (status.didJustFinish) {
-            console.log("[Welcome] Playback finished");
             sound.unloadAsync();
             welcomeSoundRef.current = null;
           }
         });
-      } catch (e: any) {
-        console.log("[Welcome] TTS error:", e?.message || e);
       }
-    }
-    const timer = setTimeout(playWelcome, 2000);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-      if (welcomeSoundRef.current) {
-        welcomeSoundRef.current.unloadAsync();
-      }
-    };
+    } catch {}
   }, []);
 
   async function checkWeeklyReminder() {
@@ -939,50 +926,13 @@ export default function HomeScreen() {
         </View>
       </Animated.View>
 
-      <Pressable
-        onPress={async () => {
-          try {
-            const baseUrl = getApiUrl().replace(/\/$/, "");
-            const testUrl = `${baseUrl}/api/nav-speak?text=test`;
-            if (Platform.OS === "web") {
-              const audio = new window.Audio(testUrl);
-              audio.volume = 1.0;
-              audio.play().then(() => {
-                Alert.alert("Web Audio", "Playing from: " + testUrl);
-              }).catch((err: any) => {
-                Alert.alert("Web Audio Error", err?.message || String(err));
-              });
-            } else {
-              Alert.alert("Debug", "Platform: " + Platform.OS + "\nURL: " + testUrl);
-              await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-              const { sound } = await Audio.Sound.createAsync(
-                { uri: testUrl },
-                { shouldPlay: true, volume: 1.0 }
-              );
-              sound.setOnPlaybackStatusUpdate((s: any) => {
-                if (s.isLoaded && s.isPlaying) {
-                  Alert.alert("Audio Playing!", "Position: " + s.positionMillis + "ms");
-                }
-                if (s.error) {
-                  Alert.alert("Playback Error", String(s.error));
-                }
-                if (s.didJustFinish) sound.unloadAsync();
-              });
-            }
-          } catch (e: any) {
-            Alert.alert("Audio Error", e?.message || String(e));
-          }
-        }}
-        style={{ backgroundColor: "#D4A420", padding: 12, margin: 10, borderRadius: 8, alignItems: "center" as const, zIndex: 999 }}
-      >
-        <Text style={{ color: "#000", fontWeight: "bold" as const, fontSize: 16 }}>TAP TO TEST AUDIO</Text>
-      </Pressable>
-
       <ScrollView
         style={styles.centerScroll}
         contentContainerStyle={styles.centerContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        onScrollBeginDrag={playWelcomeOnInteraction}
+        onTouchStart={playWelcomeOnInteraction}
       >
         {streak > 0 && (
           <Animated.View entering={FadeIn.delay(400).duration(500)} style={styles.streakRow}>
