@@ -275,6 +275,7 @@ export default function HomeScreen() {
   const [badges, setBadges] = useState<{ id: string; label: string; emoji: string; desc: string; earned: boolean }[]>([]);
   const [weeklyCountdown, setWeeklyCountdown] = useState({ days: 0, hours: 0, minutes: 0, isLive: false });
   const [weeklyReminder, setWeeklyReminder] = useState(false);
+  const [electionDays, setElectionDays] = useState(0);
   const { deviceId, hasTokens } = useTokens();
 
   const pulseScale = useSharedValue(1);
@@ -380,6 +381,9 @@ export default function HomeScreen() {
       }
     }
     updateCountdown();
+    const electionDate = new Date("2026-11-03T00:00:00");
+    const diffE = electionDate.getTime() - Date.now();
+    setElectionDays(Math.max(0, Math.ceil(diffE / 86400000)));
     const iv = setInterval(updateCountdown, 60000);
     return () => clearInterval(iv);
   }, []);
@@ -1018,6 +1022,29 @@ export default function HomeScreen() {
             </Pressable>
           </LinearGradient>
         </Animated.View>
+
+        {electionDays > 0 && (
+          <Animated.View entering={FadeInDown.delay(940).duration(500)} style={styles.electionCard}>
+            <View style={styles.electionHeader}>
+              <Text style={styles.electionIcon}>{"\uD83D\uDDF3\uFE0F"}</Text>
+              <Text style={styles.electionLabel}>NEXT ELECTION</Text>
+            </View>
+            <View style={styles.electionDaysRow}>
+              <Text style={styles.electionDaysNum}>{electionDays}</Text>
+              <Text style={styles.electionDaysSuffix}> days</Text>
+            </View>
+            <Text style={styles.electionDate}>November 3, 2026 — Midterms</Text>
+            <Text style={styles.electionQuote}>
+              "{electionDays > 200
+                ? "We're going to win SO big, it'll make your head spin. Believe me!"
+                : electionDays > 100
+                ? "They're getting nervous, folks. They know what's coming. TREMENDOUS victory incoming!"
+                : electionDays > 30
+                ? "It's almost here, and let me tell you — the other side is PANICKING. We're gonna crush it!"
+                : "Days away from the BIGGEST victory in history. Nobody's ever seen anything like it!"}"
+            </Text>
+          </Animated.View>
+        )}
 
         <Animated.View entering={FadeInDown.delay(950).duration(500)}>
           <Pressable
@@ -2824,6 +2851,59 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "rgba(10,10,10,0.5)",
     fontWeight: "600" as const,
+  },
+  electionCard: {
+    marginTop: 12,
+    backgroundColor: "rgba(255,255,255,0.03)",
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,77,77,0.2)",
+    alignItems: "center" as const,
+  },
+  electionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+  },
+  electionIcon: {
+    fontSize: 16,
+  },
+  electionLabel: {
+    fontSize: 13,
+    fontWeight: "800" as const,
+    color: "#ff4d4d",
+    letterSpacing: 1.5,
+  },
+  electionDaysRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    marginBottom: 4,
+  },
+  electionDaysNum: {
+    fontSize: 36,
+    fontWeight: "900" as const,
+    color: Colors.gold,
+  },
+  electionDaysSuffix: {
+    fontSize: 16,
+    fontWeight: "700" as const,
+    color: "rgba(255,215,0,0.6)",
+  },
+  electionDate: {
+    fontSize: 10,
+    color: "rgba(255,255,255,0.35)",
+    marginBottom: 10,
+    letterSpacing: 0.5,
+  },
+  electionQuote: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.5)",
+    fontStyle: "italic" as const,
+    textAlign: "center" as const,
+    lineHeight: 18,
+    paddingHorizontal: 8,
   },
   weeklyCard: {
     marginTop: 12,
