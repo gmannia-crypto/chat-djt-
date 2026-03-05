@@ -272,6 +272,7 @@ export default function HomeScreen() {
   const [fearGreed, setFearGreed] = useState<{ value: number; label: string; trumpComment: string } | null>(null);
   const [liveUsers, setLiveUsers] = useState(1247);
   const [activityFeed, setActivityFeed] = useState<string[]>([]);
+  const [badges, setBadges] = useState<{ id: string; label: string; emoji: string; desc: string; earned: boolean }[]>([]);
   const { deviceId, hasTokens } = useTokens();
 
   const pulseScale = useSharedValue(1);
@@ -344,8 +345,41 @@ export default function HomeScreen() {
       initMysteryBox();
       fetchLeaderboard();
       fetchFearGreed();
+      loadBadges();
     }, [])
   );
+
+  async function loadBadges() {
+    try {
+      const [streakStr, convData, mysteryOpened, ratedData] = await Promise.all([
+        AsyncStorage.getItem("chatdjt_streak"),
+        AsyncStorage.getItem("chatdjt_conversations"),
+        AsyncStorage.getItem("chatdjt_mystery_opened"),
+        AsyncStorage.getItem("chatdjt_rated_trump"),
+      ]);
+
+      const currentStreak = parseInt(streakStr || "0") || 0;
+      let convCount = 0;
+      try {
+        const parsed = JSON.parse(convData || "[]");
+        convCount = Array.isArray(parsed) ? parsed.length : 0;
+      } catch {}
+      const hasOpenedMystery = !!mysteryOpened;
+      const hasRated = !!ratedData;
+
+      setBadges([
+        { id: "streak3", label: "3-Day Streak", emoji: "\uD83D\uDD25", desc: "Chat 3 days in a row", earned: currentStreak >= 3 },
+        { id: "streak7", label: "7-Day Streak", emoji: "\uD83C\uDF1F", desc: "Chat 7 days in a row", earned: currentStreak >= 7 },
+        { id: "streak30", label: "30-Day Legend", emoji: "\uD83D\uDC51", desc: "Chat 30 days in a row", earned: currentStreak >= 30 },
+        { id: "first_chat", label: "First Chat", emoji: "\uD83D\uDCAC", desc: "Start your first conversation", earned: convCount >= 1 },
+        { id: "chat5", label: "Regular", emoji: "\uD83C\uDFAF", desc: "Have 5 conversations", earned: convCount >= 5 },
+        { id: "chat20", label: "Power User", emoji: "\u26A1", desc: "Have 20 conversations", earned: convCount >= 20 },
+        { id: "mystery", label: "Mystery Opener", emoji: "\uD83C\uDF81", desc: "Open a Mystery Box", earned: hasOpenedMystery },
+        { id: "rated", label: "Rated Trump", emoji: "\uD83D\uDDF3\uFE0F", desc: "Rate Trump at least once", earned: hasRated },
+        { id: "explorer", label: "Explorer", emoji: "\uD83E\uDDED", desc: "Try all app features", earned: convCount >= 5 && currentStreak >= 3 },
+      ]);
+    } catch {}
+  }
 
   async function initMysteryBox() {
     try {
@@ -440,6 +474,7 @@ export default function HomeScreen() {
     setMysteryReady(false);
     setMysteryTimeLeft(86400);
     await AsyncStorage.setItem(MYSTERY_BOX_KEY, JSON.stringify({ lockedAt: Date.now() }));
+    await AsyncStorage.setItem("chatdjt_mystery_opened", "true").catch(() => {});
   }
 
   function dismissMysteryPrize() {
@@ -1191,6 +1226,28 @@ export default function HomeScreen() {
               <Ionicons name="people" size={14} color="#0a0a0a" />
               <Text style={styles.leaderboardCtaText}>CHALLENGE THE LEADER</Text>
             </Pressable>
+          </Animated.View>
+        )}
+
+        {badges.length > 0 && (
+          <Animated.View entering={FadeInDown.delay(1800).duration(500)} style={styles.badgesCard}>
+            <View style={styles.badgesHeader}>
+              <Text style={styles.badgesEmoji}>{"\uD83C\uDFC5"}</Text>
+              <Text style={styles.badgesTitle}>YOUR BADGES</Text>
+              <Text style={styles.badgesCount}>{badges.filter(b => b.earned).length}/{badges.length}</Text>
+            </View>
+            <View style={styles.badgesGrid}>
+              {badges.map((badge) => (
+                <View
+                  key={badge.id}
+                  style={[styles.badgeItem, badge.earned ? styles.badgeEarned : styles.badgeLocked]}
+                >
+                  <Text style={[styles.badgeEmoji, !badge.earned && styles.badgeEmojiLocked]}>{badge.emoji}</Text>
+                  <Text style={[styles.badgeLabel, badge.earned && styles.badgeLabelEarned]} numberOfLines={1}>{badge.label}</Text>
+                  <Text style={styles.badgeDesc} numberOfLines={1}>{badge.earned ? "Earned!" : badge.desc}</Text>
+                </View>
+              ))}
+            </View>
           </Animated.View>
         )}
 
@@ -2663,6 +2720,79 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "rgba(10,10,10,0.5)",
     fontWeight: "600" as const,
+  },
+  badgesCard: {
+    backgroundColor: "rgba(255,255,255,0.03)",
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,215,0,0.15)",
+  },
+  badgesHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 14,
+  },
+  badgesEmoji: {
+    fontSize: 18,
+  },
+  badgesTitle: {
+    fontSize: 14,
+    fontWeight: "800" as const,
+    color: Colors.gold,
+    letterSpacing: 1.5,
+    flex: 1,
+  },
+  badgesCount: {
+    fontSize: 12,
+    fontWeight: "700" as const,
+    color: "rgba(255,215,0,0.7)",
+  },
+  badgesGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  badgeItem: {
+    width: "30%" as any,
+    minWidth: 95,
+    borderRadius: 12,
+    padding: 10,
+    alignItems: "center" as const,
+    borderWidth: 1,
+  },
+  badgeEarned: {
+    backgroundColor: "rgba(255,215,0,0.08)",
+    borderColor: "rgba(255,215,0,0.3)",
+  },
+  badgeLocked: {
+    backgroundColor: "rgba(255,255,255,0.02)",
+    borderColor: "rgba(255,255,255,0.08)",
+    opacity: 0.5,
+  },
+  badgeEmoji: {
+    fontSize: 22,
+    marginBottom: 4,
+  },
+  badgeEmojiLocked: {
+    opacity: 0.4,
+  },
+  badgeLabel: {
+    fontSize: 10,
+    fontWeight: "700" as const,
+    color: "rgba(255,255,255,0.5)",
+    textAlign: "center" as const,
+    marginBottom: 2,
+  },
+  badgeLabelEarned: {
+    color: Colors.gold,
+  },
+  badgeDesc: {
+    fontSize: 8,
+    color: "rgba(255,255,255,0.3)",
+    textAlign: "center" as const,
   },
   legalDisclaimer: {
     fontSize: 9,

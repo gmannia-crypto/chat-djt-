@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   StyleSheet,
   Text,
@@ -218,6 +219,7 @@ export default function RateTrumpScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       handleSpeak(data.text, data.mood);
       fetchLeaderboard();
+      AsyncStorage.setItem("chatdjt_rated_trump", "true").catch(() => {});
     } catch (err) {
       console.error("Rate Trump error:", err);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
