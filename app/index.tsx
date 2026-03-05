@@ -1330,9 +1330,22 @@ export default function HomeScreen() {
             <Text style={styles.modeButtonText}>DEBATE</Text>
           </Pressable>
         </Animated.View>
+        <Animated.View entering={FadeInDown.delay(1650).duration(500)} style={styles.modeButtons}>
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+              router.push("/sports");
+            }}
+            style={({ pressed }) => [styles.modeButton, styles.sportsButton, pressed && { opacity: 0.7 }]}
+            testID="sports-button"
+          >
+            <MaterialCommunityIcons name="football" size={16} color="#4CAF50" />
+            <Text style={styles.modeButtonText}>SPORTS BOOK</Text>
+          </Pressable>
+        </Animated.View>
 
         {fearGreed && (
-          <Animated.View entering={FadeInDown.delay(1650).duration(500)} style={styles.fearGreedCard}>
+          <Animated.View entering={FadeInDown.delay(1750).duration(500)} style={styles.fearGreedCard}>
             <View style={styles.fearGreedHeader}>
               <Ionicons name="trending-up" size={18} color={fearGreed.value >= 50 ? "#22c55e" : "#ef4444"} />
               <Text style={styles.fearGreedTitle}>CRYPTO FEAR & GREED</Text>
@@ -1379,7 +1392,7 @@ export default function HomeScreen() {
         )}
 
         {leaderboardData.length > 0 && (
-          <Animated.View entering={FadeInDown.delay(1700).duration(500)} style={styles.leaderboardCard}>
+          <Animated.View entering={FadeInDown.delay(1800).duration(500)} style={styles.leaderboardCard}>
             <View style={styles.leaderboardHeader}>
               <Text style={styles.leaderboardEmoji}>{"\uD83C\uDFC6"}</Text>
               <Text style={styles.leaderboardTitle}>TOP TRUMP SCORES</Text>
@@ -1406,7 +1419,7 @@ export default function HomeScreen() {
         )}
 
         {badges.length > 0 && (
-          <Animated.View entering={FadeInDown.delay(1800).duration(500)} style={styles.badgesCard}>
+          <Animated.View entering={FadeInDown.delay(1900).duration(500)} style={styles.badgesCard}>
             <View style={styles.badgesHeader}>
               <Text style={styles.badgesEmoji}>{"\uD83C\uDFC5"}</Text>
               <Text style={styles.badgesTitle}>YOUR BADGES</Text>
@@ -2384,10 +2397,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 68, 68, 0.15)",
     borderColor: "rgba(255, 68, 68, 0.4)",
   },
-  debateButton: {
-    backgroundColor: "rgba(212, 164, 32, 0.15)",
-    borderColor: "rgba(212, 164, 32, 0.4)",
-  },
   modeButtonText: {
     fontSize: 13,
     fontWeight: "800" as const,
@@ -2447,6 +2456,10 @@ const styles = StyleSheet.create({
   debateButton: {
     backgroundColor: "rgba(255, 77, 77, 0.15)",
     borderColor: "rgba(255, 77, 77, 0.4)",
+  },
+  sportsButton: {
+    backgroundColor: "rgba(76, 175, 80, 0.15)",
+    borderColor: "rgba(76, 175, 80, 0.4)",
   },
   fearGreedCard: {
     marginHorizontal: 20,

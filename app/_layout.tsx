@@ -277,6 +277,10 @@ function RootLayoutNav() {
         name="debate"
         options={{ headerShown: false }}
       />
+      <Stack.Screen
+        name="sports"
+        options={{ headerShown: false }}
+      />
     </Stack>
   );
 }
