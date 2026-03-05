@@ -413,6 +413,121 @@
         color: #0a0a0a; padding: 6px 16px; border-radius: 20px; font-weight: bold; font-size: 12px; cursor: pointer;
       }
 
+      .feat-title {
+        font-family: 'Playfair Display', serif;
+        font-size: 20px; font-weight: 900; color: #D4A420;
+        text-align: center; margin-bottom: 4px;
+      }
+      .feat-sub { font-size: 12px; color: #888; text-align: center; margin-bottom: 14px; }
+      .feat-card {
+        background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px;
+        padding: 14px; margin-bottom: 10px; transition: border-color 0.2s;
+      }
+      .feat-card:hover { border-color: #D4A420; }
+      .feat-card h4 { font-size: 13px; color: #FFD700; margin-bottom: 6px; }
+      .feat-card p { font-size: 12px; color: #bbb; line-height: 1.5; }
+      .feat-btn {
+        display: block; width: 100%; padding: 12px; border: none; border-radius: 22px;
+        background: linear-gradient(135deg, #D4A420, #ff8c00); color: #0a0a0a;
+        font-weight: bold; font-size: 13px; cursor: pointer; text-align: center;
+        margin-top: 10px; transition: all 0.2s; text-decoration: none;
+      }
+      .feat-btn:hover { transform: scale(1.01); box-shadow: 0 4px 15px rgba(212,164,32,0.3); }
+      .feat-input {
+        width: 100%; padding: 12px 14px; background: #141414; border: 1px solid #333;
+        border-radius: 10px; color: #fff; font-size: 14px; outline: none; margin-bottom: 10px;
+      }
+      .feat-input:focus { border-color: #D4A420; }
+      .feat-input::placeholder { color: #555; }
+      .feat-select {
+        width: 100%; padding: 12px 14px; background: #141414; border: 1px solid #333;
+        border-radius: 10px; color: #fff; font-size: 14px; outline: none; margin-bottom: 10px;
+        -webkit-appearance: none;
+      }
+      .feat-rating-bar {
+        width: 100%; height: 8px; background: #222; border-radius: 4px; overflow: hidden; margin: 8px 0;
+      }
+      .feat-rating-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
+      .feat-slider {
+        width: 100%; -webkit-appearance: none; height: 6px; background: #333;
+        border-radius: 3px; outline: none; margin: 10px 0;
+      }
+      .feat-slider::-webkit-slider-thumb {
+        -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%;
+        background: #D4A420; cursor: pointer; border: 2px solid #fff;
+      }
+      .feat-result {
+        background: #111; border: 1px solid #D4A420; border-radius: 12px;
+        padding: 16px; margin-top: 12px; animation: fadeSlide 0.35s ease;
+      }
+      .feat-result .result-label { font-size: 10px; color: #D4A420; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
+      .feat-result .result-text { font-size: 13px; color: #eee; line-height: 1.6; font-style: italic; }
+      .feat-loading { text-align: center; padding: 20px; color: #888; font-size: 13px; }
+      .feat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+      .feat-stat {
+        background: #141414; border: 1px solid #2a2a2a; border-radius: 10px;
+        padding: 12px; text-align: center;
+      }
+      .feat-stat .stat-val { font-size: 22px; font-weight: 900; color: #D4A420; }
+      .feat-stat .stat-lbl { font-size: 10px; color: #888; margin-top: 2px; }
+      .feat-fortune-orb {
+        width: 100px; height: 100px; margin: 0 auto 14px; border-radius: 50%;
+        background: radial-gradient(circle at 30% 30%, #2a1a4a, #0a0a1a);
+        border: 2px solid #9B59B6; display: flex; align-items: center; justify-content: center;
+        font-size: 36px; animation: fortuneGlow 3s ease infinite;
+      }
+      @keyframes fortuneGlow { 0%,100%{box-shadow:0 0 20px rgba(155,89,182,0.3)} 50%{box-shadow:0 0 40px rgba(155,89,182,0.6)} }
+      .feat-zodiac-row { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; margin-bottom: 12px; }
+      .feat-zodiac {
+        padding: 6px 12px; background: #1a1a1a; border: 1px solid #333; border-radius: 20px;
+        font-size: 11px; cursor: pointer; transition: all 0.2s; color: #aaa;
+      }
+      .feat-zodiac.sel { border-color: #9B59B6; color: #9B59B6; background: rgba(155,89,182,0.1); }
+      .feat-leaderboard { list-style: none; padding: 0; }
+      .feat-leaderboard li {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 10px 12px; border-bottom: 1px solid #1a1a1a; font-size: 13px;
+      }
+      .feat-leaderboard li:last-child { border-bottom: none; }
+      .feat-leaderboard .rank { color: #D4A420; font-weight: bold; width: 24px; }
+      .feat-leaderboard .name { flex: 1; margin-left: 8px; }
+      .feat-leaderboard .score { color: #D4A420; font-weight: bold; }
+      .feat-therapy-personas { display: flex; gap: 10px; justify-content: center; margin-bottom: 14px; }
+      .feat-therapist {
+        text-align: center; cursor: pointer; padding: 8px; border: 2px solid #333;
+        border-radius: 12px; background: #1a1a1a; transition: all 0.2s; min-width: 70px;
+      }
+      .feat-therapist.sel { border-color: #D4A420; }
+      .feat-therapist img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; margin-bottom: 4px; }
+      .feat-therapist .t-name { font-size: 10px; font-weight: bold; }
+      .feat-advisor-row { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 12px; }
+      .feat-advisor {
+        min-width: 60px; text-align: center; cursor: pointer; padding: 6px;
+        border: 2px solid #333; border-radius: 10px; background: #1a1a1a; transition: all 0.2s; flex-shrink: 0;
+      }
+      .feat-advisor.sel { border-color: #D4A420; }
+      .feat-advisor img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; display: block; margin: 0 auto 3px; }
+      .feat-advisor .a-name { font-size: 9px; font-weight: bold; color: #aaa; }
+      .feat-property {
+        background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px;
+        padding: 14px; margin-bottom: 10px;
+      }
+      .feat-property h4 { font-size: 13px; color: #fff; margin-bottom: 4px; }
+      .feat-property .prop-price { font-size: 16px; font-weight: 900; color: #D4A420; margin-bottom: 4px; }
+      .feat-property .prop-details { font-size: 11px; color: #888; }
+      .feat-net-worth {
+        font-size: 28px; font-weight: 900; color: #D4A420; text-align: center;
+        margin: 10px 0; font-family: 'Playfair Display', serif;
+      }
+      .feat-deal {
+        background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px;
+        padding: 14px; margin-bottom: 10px; cursor: pointer; transition: all 0.2s;
+      }
+      .feat-deal:hover { border-color: #D4A420; }
+      .feat-deal h4 { font-size: 13px; margin-bottom: 4px; }
+      .feat-deal .deal-price { color: #D4A420; font-weight: bold; font-size: 14px; }
+      .feat-deal .deal-roi { font-size: 11px; margin-top: 4px; }
+
       .footer {
         margin-top: auto;
         padding-top: 24px;
@@ -529,21 +644,44 @@
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2c2.5 2 4 5.5 4 10s-1.5 8-4 10"/></svg>
               Sports
             </button>
-            <a class="feature-tab" data-feature="faceoff" href="/financial-faceoff">
+            <button class="feature-tab" data-feature="faceoff" onclick="showFeature('faceoff')">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
               Faceoff
-            </a>
-            <a class="feature-tab" data-feature="therapy" href="/therapy-viral">
+            </button>
+            <button class="feature-tab" data-feature="therapy" onclick="showFeature('therapy')">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
               Therapy
-            </a>
-            <a class="feature-tab" data-feature="multi" href="/therapy-multi">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/></svg>
-              Multi
-            </a>
+            </button>
+            <button class="feature-tab" data-feature="rate" onclick="showFeature('rate')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+              Rate
+            </button>
+            <button class="feature-tab" data-feature="fortune" onclick="showFeature('fortune')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+              Fortune
+            </button>
+            <button class="feature-tab" data-feature="realty" onclick="showFeature('realty')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+              Realty
+            </button>
+            <button class="feature-tab" data-feature="billionaires" onclick="showFeature('billionaires')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+              Billions
+            </button>
+            <button class="feature-tab" data-feature="dashboard" onclick="showFeature('dashboard')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+              Dashboard
+            </button>
           </div>
 
-          <div id="sportsTab" class="feature-container"></div>
+          <div id="sportsTab" class="feature-container" style="display:none;"></div>
+          <div id="faceoffTab" class="feature-container" style="display:none;"></div>
+          <div id="therapyTab" class="feature-container" style="display:none;"></div>
+          <div id="rateTab" class="feature-container" style="display:none;"></div>
+          <div id="fortuneTab" class="feature-container" style="display:none;"></div>
+          <div id="realtyTab" class="feature-container" style="display:none;"></div>
+          <div id="billionairesTab" class="feature-container" style="display:none;"></div>
+          <div id="dashboardTab" class="feature-container" style="display:none;"></div>
         </div>
 
         <div class="footer">
@@ -833,16 +971,477 @@
         });
       };
 
+      function FaceoffModule(id) {
+        this.el = document.getElementById(id);
+        this.personas = {
+          trump:{name:"Trump",color:"#ff4d4d",img:"/api/persona-image/trump"},
+          buffett:{name:"Buffett",color:"#4d4dff",img:"/api/persona-image/buffett"},
+          musk:{name:"Elon",color:"#00ccff",img:"/api/persona-image/musk"},
+          jordan:{name:"MJ",color:"#CE1141",img:"/api/persona-image/jordan"},
+          bernie:{name:"Bernie",color:"#9B59B6",img:"/api/persona-image/bernie"},
+          ruckus:{name:"Ruckus",color:"#8B4513",img:"/api/persona-image/ruckus"},
+          genie:{name:"Genie",color:"#9B59B6",img:"/api/persona-image/genie"},
+          grandma:{name:"Grandma",color:"#ffffff",img:"/api/persona-image/grandma"},
+          suze:{name:"Suze",color:"#ff99cc",img:"/api/persona-image/suze"},
+          dave:{name:"Dave",color:"#ffaa00",img:"/api/persona-image/dave"},
+          mansa:{name:"Mansa",color:"#D4AF37",img:"/api/persona-image/mansa"}
+        };
+        this.assets = ['AAPL','TSLA','BTC','GOLD','SPY','AMC','NVDA','META'];
+        this.p1 = 'trump'; this.p2 = 'buffett'; this.asset = 'BTC';
+        this.voted = false; this.debating = false; this.pick1 = ''; this.pick2 = '';
+        this.bindEvents();
+        this.render();
+      }
+      FaceoffModule.prototype.bindEvents = function() {
+        var self = this;
+        this.el.addEventListener('click', function(e) {
+          var t = e.target;
+          var chip = t.closest('[data-fp]');
+          if (chip) { self.selectPersona(chip.getAttribute('data-fp')); return; }
+          var asset = t.closest('[data-fasset]');
+          if (asset) { self.asset = asset.getAttribute('data-fasset'); self.voted = false; self.pick1 = ''; self.pick2 = ''; self.render(); return; }
+          if (t.closest('[data-fdebate]')) { self.startDebate(); return; }
+          var vote = t.closest('[data-fvote]');
+          if (vote) { self.castVote(vote.getAttribute('data-fvote')); return; }
+          var speak = t.closest('[data-fspeak]');
+          if (speak) { e.stopPropagation(); self.speak(speak.getAttribute('data-fspeak'), speak.getAttribute('data-ftext') || ''); return; }
+        });
+      };
+      FaceoffModule.prototype.selectPersona = function(id) {
+        if (id === this.p1) return;
+        if (id === this.p2) { this.p2 = this.p1; this.p1 = id; } else { this.p2 = id; }
+        this.voted = false; this.pick1 = ''; this.pick2 = ''; this.render();
+      };
+      FaceoffModule.prototype.startDebate = function() {
+        if (this.debating) return;
+        this.debating = true; this.render();
+        var self = this;
+        fetch('/api/faceoff/generate', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({asset: this.asset, persona1: this.p1, persona2: this.p2}) })
+        .then(function(r) { return r.json(); })
+        .then(function(d) { self.pick1 = d.response1 || d.pick1 || 'BUY! This is tremendous!'; self.pick2 = d.response2 || d.pick2 || 'I\'d wait for better value.'; self.debating = false; self.render(); })
+        .catch(function() { self.pick1 = 'BUY! Greatest opportunity ever!'; self.pick2 = 'SELL. The fundamentals are weak.'; self.debating = false; self.render(); });
+      };
+      FaceoffModule.prototype.castVote = function(winner) {
+        if (this.voted) return; this.voted = true;
+        var loser = winner === this.p1 ? this.p2 : this.p1;
+        fetch('/api/faceoff/vote', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({debateId:'web_'+this.p1+'_'+this.p2+'_'+Date.now(), asset:this.asset, persona1:this.p1, persona2:this.p2, votedFor:winner}) }).catch(function(){});
+        this.render();
+      };
+      FaceoffModule.prototype.speak = function(pid, text) {
+        var btn = this.el.querySelector('[data-fspeak="'+pid+'"]');
+        if (btn) btn.textContent = '...';
+        fetch('/api/persona-speak', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({text:(text||'No comment.').slice(0,300), personaId:pid}) })
+        .then(function(r){return r.blob();}).then(function(b){ var u=URL.createObjectURL(b); var a=new Audio(u); a.play(); a.onended=function(){URL.revokeObjectURL(u);}; if(btn)btn.textContent='\u{1F50A}'; })
+        .catch(function(){if(btn)btn.textContent='\u{1F50A}';});
+      };
+      FaceoffModule.prototype.render = function() {
+        var p1 = this.personas[this.p1], p2 = this.personas[this.p2];
+        var h = '<div class="feat-title">FINANCIAL FACEOFF</div><div class="feat-sub">Pick two personas. Pick an asset. Let them debate.</div>';
+        h += '<div class="s-persona-row">';
+        var ids = Object.keys(this.personas);
+        for (var i=0;i<ids.length;i++) { var id=ids[i],p=this.personas[id],s1=this.p1===id,s2=this.p2===id,bc=s1?p1.color:(s2?p2.color:'#333');
+          h+='<div class="s-chip'+(s1||s2?' sel':'')+'" style="border-color:'+bc+';" data-fp="'+id+'"><img src="'+p.img+'" style="border-color:'+p.color+';" onerror="this.style.display=\'none\'"><div class="s-chip-name" style="color:'+(s1||s2?p.color:'#aaa')+';">'+p.name+'</div></div>';
+        } h += '</div>';
+        h += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">';
+        for (var a=0;a<this.assets.length;a++) { var ast=this.assets[a]; h+='<button data-fasset="'+ast+'" style="padding:6px 12px;background:'+(this.asset===ast?'rgba(212,164,32,0.15)':'#1a1a1a')+';border:1px solid '+(this.asset===ast?'#D4A420':'#333')+';border-radius:20px;color:'+(this.asset===ast?'#D4A420':'#aaa')+';font-size:11px;font-weight:bold;cursor:pointer;">'+ast+'</button>'; }
+        h += '</div>';
+        if (!this.pick1 && !this.debating) { h += '<button class="feat-btn" data-fdebate>START DEBATE: '+p1.name+' vs '+p2.name+' on '+this.asset+'</button>'; }
+        if (this.debating) { h += '<div class="feat-loading">Generating debate...</div>'; }
+        if (this.pick1) {
+          h += '<div class="s-debate">';
+          h += '<div class="s-debater" style="border-color:'+p1.color+';"><img src="'+p1.img+'" style="border-color:'+p1.color+';" onerror="this.style.display=\'none\'"><div class="s-d-name" style="color:'+p1.color+';">'+p1.name+'</div><div class="s-d-pick">'+this.pick1+'</div><button class="s-d-listen" data-fspeak="'+this.p1+'" data-ftext="'+this.pick1.replace(/"/g,'&quot;')+'">\u{1F50A}</button><button class="s-vote-btn" style="background:'+p1.color+';"'+(this.voted?' disabled':'')+' data-fvote="'+this.p1+'">VOTE</button></div>';
+          h += '<div class="s-vs">VS</div>';
+          h += '<div class="s-debater" style="border-color:'+p2.color+';"><img src="'+p2.img+'" style="border-color:'+p2.color+';" onerror="this.style.display=\'none\'"><div class="s-d-name" style="color:'+p2.color+';">'+p2.name+'</div><div class="s-d-pick">'+this.pick2+'</div><button class="s-d-listen" data-fspeak="'+this.p2+'" data-ftext="'+this.pick2.replace(/"/g,'&quot;')+'">\u{1F50A}</button><button class="s-vote-btn" style="background:'+p2.color+';"'+(this.voted?' disabled':'')+' data-fvote="'+this.p2+'">VOTE</button></div>';
+          h += '</div>';
+        }
+        h += '<div style="text-align:center;margin-top:12px;"><a href="/financial-faceoff" style="color:#FFD700;font-size:12px;text-decoration:none;">Open full Faceoff \u2192</a></div>';
+        this.el.innerHTML = h;
+      };
+
+      function TherapyModule(id) {
+        this.el = document.getElementById(id);
+        this.therapist = 'trump';
+        this.therapists = {
+          trump: {name:'Dr. Trump',img:'/api/persona-image/trump',color:'#ff4d4d',style:'Tough love with tremendous confidence'},
+          sophia: {name:'Dr. Sophia',img:'/server/assets/sophia.png',color:'#E91E63',style:'Warm, empathetic professional'},
+          james: {name:'Dr. James',img:'/server/assets/james.png',color:'#2196F3',style:'Analytical, solution-focused'}
+        };
+        this.messages = [];
+        this.loading = false;
+        this.bindEvents();
+        this.render();
+      }
+      TherapyModule.prototype.bindEvents = function() {
+        var self = this;
+        this.el.addEventListener('click', function(e) {
+          var t = e.target;
+          var th = t.closest('[data-therapist]');
+          if (th) { self.therapist = th.getAttribute('data-therapist'); self.messages = []; self.render(); return; }
+          if (t.closest('[data-tsend]')) { self.send(); return; }
+        });
+        this.el.addEventListener('keydown', function(e) {
+          if (e.key === 'Enter' && e.target.classList.contains('feat-input')) { self.send(); }
+        });
+      };
+      TherapyModule.prototype.send = function() {
+        var input = this.el.querySelector('.feat-input');
+        if (!input || !input.value.trim() || this.loading) return;
+        var msg = input.value.trim(); input.value = '';
+        this.messages.push({role:'user', text:msg});
+        this.loading = true; this.render();
+        var self = this;
+        fetch('/api/therapy', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({message:msg, therapist:this.therapist, sessionId:'web_'+Date.now()})})
+        .then(function(r){return r.json();})
+        .then(function(d){ self.messages.push({role:'therapist', text: d.response || d.message || 'I hear you. Tell me more.'}); self.loading = false; self.render(); })
+        .catch(function(){ self.messages.push({role:'therapist', text:'I hear you. Tell me more about that.'}); self.loading = false; self.render(); });
+      };
+      TherapyModule.prototype.render = function() {
+        var th = this.therapists[this.therapist];
+        var h = '<div class="feat-title">TRUMP THERAPY</div><div class="feat-sub">AI-powered counseling with a twist</div>';
+        h += '<div class="feat-therapy-personas">';
+        var ids = Object.keys(this.therapists);
+        for (var i=0;i<ids.length;i++) { var tid=ids[i], t=this.therapists[tid];
+          h += '<div class="feat-therapist'+(this.therapist===tid?' sel':'')+'" data-therapist="'+tid+'" style="border-color:'+(this.therapist===tid?t.color:'#333')+';">';
+          h += '<img src="'+t.img+'" onerror="this.style.display=\'none\'"><div class="t-name" style="color:'+(this.therapist===tid?t.color:'#aaa')+';">'+t.name+'</div></div>';
+        } h += '</div>';
+        h += '<div class="feat-card"><p style="font-size:11px;color:#888;">Style: '+th.style+'</p></div>';
+        if (this.messages.length > 0) {
+          for (var m=0;m<this.messages.length;m++) { var msg=this.messages[m];
+            if (msg.role==='user') h += '<div style="text-align:right;margin-bottom:8px;"><span style="background:#2a2a2a;padding:8px 12px;border-radius:16px 16px 4px 16px;font-size:12px;display:inline-block;max-width:80%;">'+msg.text+'</span></div>';
+            else h += '<div style="margin-bottom:8px;display:flex;gap:6px;align-items:flex-start;"><img src="'+th.img+'" style="width:24px;height:24px;border-radius:50%;object-fit:cover;flex-shrink:0;" onerror="this.style.display=\'none\'"><span style="background:#141414;border:1px solid '+th.color+';padding:8px 12px;border-radius:4px 16px 16px 16px;font-size:12px;display:inline-block;max-width:80%;color:#eee;">'+msg.text+'</span></div>';
+          }
+          if (this.loading) h += '<div class="feat-loading">Thinking...</div>';
+        }
+        h += '<div style="display:flex;gap:8px;margin-top:10px;"><input class="feat-input" placeholder="What\'s on your mind?" style="flex:1;margin-bottom:0;"><button class="feat-btn" data-tsend style="width:auto;margin-top:0;padding:12px 20px;">Send</button></div>';
+        h += '<div style="text-align:center;margin-top:12px;"><a href="/therapy-viral" style="color:#FFD700;font-size:12px;text-decoration:none;">Open full Therapy \u2192</a></div>';
+        this.el.innerHTML = h;
+        var chatArea = this.el.querySelector('.feat-input');
+        if (chatArea) chatArea.focus();
+      };
+
+      function RateModule(id) {
+        this.el = document.getElementById(id);
+        this.rating = 75;
+        this.result = null;
+        this.loading = false;
+        this.leaderboard = [];
+        this.bindEvents();
+        this.fetchLeaderboard();
+        this.render();
+      }
+      RateModule.prototype.bindEvents = function() {
+        var self = this;
+        this.el.addEventListener('input', function(e) {
+          if (e.target.classList.contains('feat-slider')) { self.rating = parseInt(e.target.value); self.render(); }
+        });
+        this.el.addEventListener('click', function(e) {
+          if (e.target.closest('[data-rsubmit]')) self.submit();
+        });
+      };
+      RateModule.prototype.fetchLeaderboard = function() {
+        var self = this;
+        fetch('/api/rate-trump/leaderboard').then(function(r){return r.json();}).then(function(d){ self.leaderboard = d.leaderboard || d.ratings || []; self.render(); }).catch(function(){});
+      };
+      RateModule.prototype.submit = function() {
+        if (this.loading) return;
+        this.loading = true; this.render();
+        var self = this;
+        fetch('/api/rate-trump', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({rating:this.rating, name:'Web Visitor'})})
+        .then(function(r){return r.json();})
+        .then(function(d){ self.result = d.reaction || d.response || 'Tremendous rating!'; self.loading = false; self.render(); })
+        .catch(function(){ self.result = self.rating >= 80 ? 'Now THAT is a tremendous rating! You clearly have great taste!' : self.rating >= 50 ? 'Not bad, but I\'ve seen better. Much better.' : 'Fake rating! Very unfair!'; self.loading = false; self.render(); });
+      };
+      RateModule.prototype.render = function() {
+        var col = this.rating >= 80 ? '#4CAF50' : this.rating >= 50 ? '#FFD700' : '#ff4d4d';
+        var label = this.rating >= 80 ? 'TREMENDOUS' : this.rating >= 50 ? 'NOT BAD' : 'FAKE NEWS';
+        var h = '<div class="feat-title">RATE TRUMP</div><div class="feat-sub">How great is the greatest president ever?</div>';
+        h += '<div style="text-align:center;margin-bottom:8px;"><span style="font-size:48px;font-weight:900;color:'+col+';font-family:Playfair Display,serif;">'+this.rating+'</span><span style="font-size:14px;color:#888;">/100</span></div>';
+        h += '<div style="text-align:center;margin-bottom:8px;font-size:12px;font-weight:bold;color:'+col+';letter-spacing:2px;">'+label+'</div>';
+        h += '<div class="feat-rating-bar"><div class="feat-rating-fill" style="width:'+this.rating+'%;background:'+col+';"></div></div>';
+        h += '<input type="range" min="0" max="100" value="'+this.rating+'" class="feat-slider" style="accent-color:'+col+';">';
+        if (!this.result) h += '<button class="feat-btn" data-rsubmit'+(this.loading?' disabled':'')+'>'+( this.loading ? 'Rating...' : 'SUBMIT RATING')+'</button>';
+        if (this.result) { h += '<div class="feat-result"><div class="result-label">TRUMP SAYS</div><div class="result-text">"'+this.result+'"</div></div>'; }
+        if (this.leaderboard.length > 0) {
+          h += '<div style="margin-top:14px;"><div style="font-size:11px;color:#FFD700;font-weight:bold;letter-spacing:2px;margin-bottom:8px;">TOP RATERS</div><ul class="feat-leaderboard">';
+          for (var i=0;i<Math.min(this.leaderboard.length,5);i++) { var r=this.leaderboard[i]; h+='<li><span class="rank">#'+(i+1)+'</span><span class="name">'+(r.name||'Anonymous')+'</span><span class="score">'+(r.rating||r.score||0)+'</span></li>'; }
+          h += '</ul></div>';
+        }
+        this.el.innerHTML = h;
+      };
+
+      function FortuneModule(id) {
+        this.el = document.getElementById(id);
+        this.name = '';
+        this.zodiac = '';
+        this.topic = 'money';
+        this.result = null;
+        this.loading = false;
+        this.zodiacs = ['Aries','Taurus','Gemini','Cancer','Leo','Virgo','Libra','Scorpio','Sagittarius','Capricorn','Aquarius','Pisces'];
+        this.topics = ['money','love','career','health','power'];
+        this.bindEvents();
+        this.render();
+      }
+      FortuneModule.prototype.bindEvents = function() {
+        var self = this;
+        this.el.addEventListener('click', function(e) {
+          var z = e.target.closest('[data-zodiac]');
+          if (z) { self.zodiac = z.getAttribute('data-zodiac'); self.render(); return; }
+          var tp = e.target.closest('[data-ftopic]');
+          if (tp) { self.topic = tp.getAttribute('data-ftopic'); self.render(); return; }
+          if (e.target.closest('[data-fortune]')) self.getFortune();
+        });
+        this.el.addEventListener('input', function(e) {
+          if (e.target.getAttribute('data-fname') !== null) self.name = e.target.value;
+        });
+      };
+      FortuneModule.prototype.getFortune = function() {
+        if (this.loading || !this.zodiac) return;
+        this.loading = true; this.render();
+        var self = this;
+        fetch('/api/fortune', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:this.name||'Friend', zodiac:this.zodiac, topic:this.topic})})
+        .then(function(r){return r.json();})
+        .then(function(d){ self.result = d.fortune || d.response || d.prediction || 'The stars say TREMENDOUS things are coming!'; self.loading = false; self.render(); })
+        .catch(function(){ self.result = 'The crystal ball shows... WINNING! Believe me, ' + (self.name || 'my friend') + ', the best is yet to come!'; self.loading = false; self.render(); });
+      };
+      FortuneModule.prototype.render = function() {
+        var h = '<div class="feat-title">FORTUNE PARLOR</div><div class="feat-sub">Trump reads your destiny</div>';
+        h += '<div class="feat-fortune-orb">\u{1F52E}</div>';
+        h += '<input class="feat-input" data-fname placeholder="Enter your name..." value="'+this.name+'">';
+        h += '<div style="font-size:11px;color:#9B59B6;font-weight:bold;letter-spacing:2px;margin-bottom:8px;">ZODIAC SIGN</div>';
+        h += '<div class="feat-zodiac-row">';
+        for (var i=0;i<this.zodiacs.length;i++) { var z=this.zodiacs[i]; h+='<button class="feat-zodiac'+(this.zodiac===z?' sel':'')+'" data-zodiac="'+z+'">'+z+'</button>'; }
+        h += '</div>';
+        h += '<div style="font-size:11px;color:#9B59B6;font-weight:bold;letter-spacing:2px;margin-bottom:8px;">TOPIC</div>';
+        h += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">';
+        for (var t=0;t<this.topics.length;t++) { var tp=this.topics[t]; h+='<button data-ftopic="'+tp+'" style="padding:6px 14px;background:'+(this.topic===tp?'rgba(155,89,182,0.15)':'#1a1a1a')+';border:1px solid '+(this.topic===tp?'#9B59B6':'#333')+';border-radius:20px;color:'+(this.topic===tp?'#9B59B6':'#aaa')+';font-size:11px;font-weight:bold;cursor:pointer;text-transform:capitalize;">'+tp+'</button>'; }
+        h += '</div>';
+        if (!this.result) h += '<button class="feat-btn" data-fortune style="background:linear-gradient(135deg,#9B59B6,#6C3483);"'+(this.loading || !this.zodiac?' disabled':'')+'>'+( this.loading ? 'Consulting the stars...' : 'REVEAL MY FORTUNE')+'</button>';
+        if (this.result) { h += '<div class="feat-result" style="border-color:#9B59B6;"><div class="result-label" style="color:#9B59B6;">YOUR FORTUNE</div><div class="result-text">"'+this.result+'"</div></div>'; }
+        this.el.innerHTML = h;
+      };
+
+      function RealtyModule(id) {
+        this.el = document.getElementById(id);
+        this.query = '';
+        this.advisor = 'trump';
+        this.advisors = {
+          trump:{name:'Trump',img:'/api/persona-image/trump',color:'#ff4d4d'},
+          buffett:{name:'Buffett',img:'/api/persona-image/buffett',color:'#4d4dff'},
+          suze:{name:'Suze',img:'/api/persona-image/suze',color:'#ff99cc'},
+          genie:{name:'Genie',img:'/api/persona-image/genie',color:'#9B59B6'},
+          ruckus:{name:'Ruckus',img:'/api/persona-image/ruckus',color:'#8B4513'}
+        };
+        this.properties = [];
+        this.analysis = null;
+        this.loading = false;
+        this.bindEvents();
+        this.render();
+      }
+      RealtyModule.prototype.bindEvents = function() {
+        var self = this;
+        this.el.addEventListener('click', function(e) {
+          var adv = e.target.closest('[data-radvisor]');
+          if (adv) { self.advisor = adv.getAttribute('data-radvisor'); self.render(); return; }
+          if (e.target.closest('[data-rsearch]')) self.search();
+          var prop = e.target.closest('[data-rprop]');
+          if (prop) self.analyze(parseInt(prop.getAttribute('data-rprop')));
+        });
+        this.el.addEventListener('keydown', function(e) {
+          if (e.key === 'Enter' && e.target.getAttribute('data-rquery') !== null) self.search();
+        });
+        this.el.addEventListener('input', function(e) {
+          if (e.target.getAttribute('data-rquery') !== null) self.query = e.target.value;
+        });
+      };
+      RealtyModule.prototype.search = function() {
+        if (!this.query.trim() || this.loading) return;
+        this.loading = true; this.analysis = null; this.render();
+        var self = this;
+        fetch('/api/properties?q='+encodeURIComponent(this.query))
+        .then(function(r){return r.json();})
+        .then(function(d){ self.properties = d.properties || d.listings || []; self.loading = false; self.render(); })
+        .catch(function(){ self.properties = [{address:'123 Trump Tower Dr',price:'$2,500,000',beds:4,baths:3,sqft:3200},{address:'456 Mar-a-Lago Ln',price:'$1,800,000',beds:3,baths:2,sqft:2400},{address:'789 Fifth Avenue',price:'$4,200,000',beds:5,baths:4,sqft:4500}]; self.loading = false; self.render(); });
+      };
+      RealtyModule.prototype.analyze = function(idx) {
+        if (this.loading || idx >= this.properties.length) return;
+        this.loading = true; this.render();
+        var prop = this.properties[idx]; var self = this;
+        fetch('/api/property-analysis', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({property:prop, advisor:this.advisor})})
+        .then(function(r){return r.json();})
+        .then(function(d){ self.analysis = d.analysis || d.response || 'Tremendous property!'; self.loading = false; self.render(); })
+        .catch(function(){ self.analysis = self.advisor==='trump' ? 'TREMENDOUS location! I know real estate better than anyone. This is a winner!' : 'Interesting property. Let me analyze the fundamentals.'; self.loading = false; self.render(); });
+      };
+      RealtyModule.prototype.render = function() {
+        var h = '<div class="feat-title">TRUMP REALTY</div><div class="feat-sub">AI-powered property analysis with persona advisors</div>';
+        h += '<div class="feat-advisor-row">';
+        var ids = Object.keys(this.advisors);
+        for (var i=0;i<ids.length;i++) { var aid=ids[i],a=this.advisors[aid];
+          h += '<div class="feat-advisor'+(this.advisor===aid?' sel':'')+'" data-radvisor="'+aid+'" style="border-color:'+(this.advisor===aid?a.color:'#333')+';">';
+          h += '<img src="'+a.img+'" onerror="this.style.display=\'none\'"><div class="a-name" style="color:'+(this.advisor===aid?a.color:'#aaa')+';">'+a.name+'</div></div>';
+        } h += '</div>';
+        h += '<div style="display:flex;gap:8px;margin-bottom:12px;"><input class="feat-input" data-rquery placeholder="Search a city or zip code..." value="'+this.query+'" style="flex:1;margin-bottom:0;"><button class="feat-btn" data-rsearch style="width:auto;margin-top:0;padding:12px 20px;">Search</button></div>';
+        if (this.loading && this.properties.length===0) h += '<div class="feat-loading">Searching properties...</div>';
+        for (var p=0;p<this.properties.length;p++) { var pr=this.properties[p];
+          h += '<div class="feat-property" data-rprop="'+p+'" style="cursor:pointer;"><h4>'+(pr.address||pr.title||'Property')+'</h4><div class="prop-price">'+(pr.price||'$0')+'</div><div class="prop-details">'+(pr.beds||'?')+' bed / '+(pr.baths||'?')+' bath / '+(pr.sqft||'?')+' sqft</div></div>';
+        }
+        if (this.loading && this.properties.length>0) h += '<div class="feat-loading">Analyzing property...</div>';
+        if (this.analysis) { var adv=this.advisors[this.advisor]; h += '<div class="feat-result" style="border-color:'+adv.color+';"><div class="result-label" style="color:'+adv.color+';">'+adv.name.toUpperCase()+' SAYS</div><div class="result-text">"'+this.analysis+'"</div></div>'; }
+        this.el.innerHTML = h;
+      };
+
+      function BillionairesModule(id) {
+        this.el = document.getElementById(id);
+        this.netWorth = 1000000;
+        this.round = 0;
+        this.deals = [];
+        this.history = [];
+        this.gameOver = false;
+        this.bindEvents();
+        this.generateDeals();
+        this.render();
+      }
+      BillionairesModule.prototype.bindEvents = function() {
+        var self = this;
+        this.el.addEventListener('click', function(e) {
+          var deal = e.target.closest('[data-bdeal]');
+          if (deal) { self.makeDeal(parseInt(deal.getAttribute('data-bdeal'))); return; }
+          if (e.target.closest('[data-breset]')) { self.netWorth=1000000; self.round=0; self.history=[]; self.gameOver=false; self.generateDeals(); self.render(); }
+        });
+      };
+      BillionairesModule.prototype.generateDeals = function() {
+        var allDeals = [
+          {name:'Trump Tower Penthouse',cost:500000,roi:0.35,risk:0.2},{name:'Bitcoin Mining Farm',cost:250000,roi:0.8,risk:0.5},
+          {name:'Golf Course Resort',cost:750000,roi:0.25,risk:0.15},{name:'Tech Startup',cost:100000,roi:1.5,risk:0.6},
+          {name:'Oil Pipeline',cost:400000,roi:0.4,risk:0.3},{name:'Casino & Hotel',cost:600000,roi:0.5,risk:0.4},
+          {name:'Social Media Platform',cost:300000,roi:1.0,risk:0.55},{name:'Private Jet Charter',cost:800000,roi:0.3,risk:0.25},
+          {name:'NFT Collection',cost:50000,roi:2.0,risk:0.7},{name:'Manhattan Real Estate',cost:900000,roi:0.2,risk:0.1},
+          {name:'Space Tourism',cost:450000,roi:1.2,risk:0.65},{name:'Luxury Brand',cost:350000,roi:0.45,risk:0.2}
+        ];
+        this.deals = [];
+        for (var i=0;i<3;i++) { var idx=Math.floor(Math.random()*allDeals.length); this.deals.push(allDeals.splice(idx,1)[0]); }
+      };
+      BillionairesModule.prototype.makeDeal = function(idx) {
+        if (this.gameOver || idx >= this.deals.length) return;
+        var deal = this.deals[idx];
+        if (deal.cost > this.netWorth) return;
+        var won = Math.random() > deal.risk;
+        var profit = won ? Math.floor(deal.cost * deal.roi) : -deal.cost;
+        this.netWorth += profit;
+        this.history.push({deal:deal.name, profit:profit, won:won});
+        this.round++;
+        if (this.netWorth <= 0) { this.gameOver = true; }
+        else if (this.netWorth >= 1000000000) { this.gameOver = true; }
+        else { this.generateDeals(); }
+        this.render();
+      };
+      BillionairesModule.prototype.render = function() {
+        var h = '<div class="feat-title">BILLIONAIRES</div><div class="feat-sub">Build your empire. Can you hit $1B?</div>';
+        var col = this.netWorth >= 1000000000 ? '#4CAF50' : this.netWorth > 500000 ? '#D4A420' : '#ff4d4d';
+        h += '<div class="feat-net-worth" style="color:'+col+';">$'+this.netWorth.toLocaleString()+'</div>';
+        h += '<div class="feat-grid"><div class="feat-stat"><div class="stat-val">'+this.round+'</div><div class="stat-lbl">ROUND</div></div><div class="feat-stat"><div class="stat-val">'+this.history.filter(function(x){return x.won;}).length+'</div><div class="stat-lbl">WINS</div></div></div>';
+        if (this.gameOver) {
+          if (this.netWorth >= 1000000000) h += '<div class="feat-result" style="border-color:#4CAF50;"><div class="result-label" style="color:#4CAF50;">BILLIONAIRE STATUS</div><div class="result-text">You did it! Trump would be proud. Tremendous business instincts!</div></div>';
+          else h += '<div class="feat-result" style="border-color:#ff4d4d;"><div class="result-label" style="color:#ff4d4d;">BANKRUPT</div><div class="result-text">You\'re fired! But don\'t worry, even Trump went bankrupt a few times.</div></div>';
+          h += '<button class="feat-btn" data-breset>PLAY AGAIN</button>';
+        } else {
+          h += '<div style="font-size:11px;color:#FFD700;font-weight:bold;letter-spacing:2px;margin-bottom:8px;">CHOOSE YOUR DEAL</div>';
+          for (var i=0;i<this.deals.length;i++) { var d=this.deals[i]; var canAfford=d.cost<=this.netWorth;
+            h += '<div class="feat-deal" data-bdeal="'+i+'" style="opacity:'+(canAfford?'1':'0.4')+';cursor:'+(canAfford?'pointer':'not-allowed')+';">';
+            h += '<h4>'+d.name+'</h4><div class="deal-price">Cost: $'+d.cost.toLocaleString()+'</div>';
+            h += '<div class="deal-roi" style="color:#4CAF50;">Potential ROI: +'+(d.roi*100).toFixed(0)+'%</div>';
+            h += '<div class="deal-roi" style="color:#ff4d4d;">Risk: '+(d.risk*100).toFixed(0)+'%</div></div>';
+          }
+        }
+        if (this.history.length > 0) {
+          h += '<div style="margin-top:12px;font-size:11px;color:#FFD700;font-weight:bold;letter-spacing:2px;margin-bottom:6px;">DEAL HISTORY</div>';
+          for (var j=this.history.length-1;j>=Math.max(0,this.history.length-3);j--) { var hl=this.history[j];
+            h += '<div style="font-size:11px;padding:4px 0;color:'+(hl.won?'#4CAF50':'#ff4d4d')+';">'+(hl.won?'\u2713':'\u2717')+' '+hl.deal+': '+(hl.profit>=0?'+':'')+' $'+Math.abs(hl.profit).toLocaleString()+'</div>';
+          }
+        }
+        this.el.innerHTML = h;
+      };
+
+      function DashboardModule(id) {
+        this.el = document.getElementById(id);
+        this.news = [];
+        this.hotTakes = [];
+        this.loading = true;
+        this.bindEvents();
+        this.fetchData();
+      }
+      DashboardModule.prototype.bindEvents = function() {
+        var self = this;
+        this.el.addEventListener('click', function(e) {
+          if (e.target.closest('[data-drefresh]')) { self.loading = true; self.render(); self.fetchData(); }
+        });
+      };
+      DashboardModule.prototype.fetchData = function() {
+        var self = this;
+        Promise.all([
+          fetch('/api/news').then(function(r){return r.json();}).catch(function(){return {headlines:[]};}),
+          fetch('/api/market-hot-takes').then(function(r){return r.json();}).catch(function(){return {takes:[]};})
+        ]).then(function(results) {
+          self.news = results[0].headlines || results[0].articles || [];
+          self.hotTakes = results[1].takes || results[1].hotTakes || [];
+          self.loading = false;
+          self.render();
+        }).catch(function() {
+          self.news = [{title:'Markets doing tremendous things today', source:'Trump News Network'}];
+          self.hotTakes = [{take:'The economy is the best it has ever been. Believe me!'}];
+          self.loading = false;
+          self.render();
+        });
+      };
+      DashboardModule.prototype.render = function() {
+        var h = '<div class="feat-title">DASHBOARD</div><div class="feat-sub">Trump\'s take on today\'s world</div>';
+        if (this.loading) { h += '<div class="feat-loading">Loading intelligence briefing...</div>'; this.el.innerHTML = h; return; }
+        h += '<div class="feat-grid"><div class="feat-stat"><div class="stat-val">'+this.news.length+'</div><div class="stat-lbl">HEADLINES</div></div><div class="feat-stat"><div class="stat-val">'+this.hotTakes.length+'</div><div class="stat-lbl">HOT TAKES</div></div></div>';
+        if (this.news.length > 0) {
+          h += '<div style="font-size:11px;color:#FFD700;font-weight:bold;letter-spacing:2px;margin-bottom:8px;">TOP HEADLINES</div>';
+          for (var i=0;i<Math.min(this.news.length,5);i++) { var n=this.news[i];
+            h += '<div class="feat-card"><h4>'+(n.title || n.headline || 'Breaking News')+'</h4><p>'+(n.source || '')+'</p></div>';
+          }
+        }
+        if (this.hotTakes.length > 0) {
+          h += '<div style="font-size:11px;color:#ff4d4d;font-weight:bold;letter-spacing:2px;margin:12px 0 8px;">MARKET HOT TAKES</div>';
+          for (var j=0;j<Math.min(this.hotTakes.length,3);j++) { var t=this.hotTakes[j];
+            h += '<div class="feat-card" style="border-color:rgba(255,77,77,0.2);"><p>'+(t.take || t.text || t.commentary || 'Markets are tremendous!')+'</p></div>';
+          }
+        }
+        h += '<button class="feat-btn" data-drefresh style="background:linear-gradient(135deg,#333,#555);color:#fff;">REFRESH BRIEFING</button>';
+        this.el.innerHTML = h;
+      };
+
       function showFeature(feature) {
         document.querySelectorAll('.feature-container').forEach(function(el) { el.style.display = 'none'; });
         document.querySelectorAll('.feature-tab').forEach(function(t) { t.classList.remove('active'); });
         var activeTab = document.querySelector('[data-feature="' + feature + '"]');
         if (activeTab) activeTab.classList.add('active');
+
         if (feature === 'sports') {
           document.getElementById('sportsTab').style.display = 'block';
-          if (!window.sports) {
-            window.sports = new SportsBettingModule('sportsTab');
-          }
+          if (!window.sports) { window.sports = new SportsBettingModule('sportsTab'); }
+        } else if (feature === 'faceoff') {
+          document.getElementById('faceoffTab').style.display = 'block';
+          if (!window.faceoff) { window.faceoff = new FaceoffModule('faceoffTab'); }
+        } else if (feature === 'therapy') {
+          document.getElementById('therapyTab').style.display = 'block';
+          if (!window.therapy) { window.therapy = new TherapyModule('therapyTab'); }
+        } else if (feature === 'rate') {
+          document.getElementById('rateTab').style.display = 'block';
+          if (!window.rate) { window.rate = new RateModule('rateTab'); }
+        } else if (feature === 'fortune') {
+          document.getElementById('fortuneTab').style.display = 'block';
+          if (!window.fortune) { window.fortune = new FortuneModule('fortuneTab'); }
+        } else if (feature === 'realty') {
+          document.getElementById('realtyTab').style.display = 'block';
+          if (!window.realty) { window.realty = new RealtyModule('realtyTab'); }
+        } else if (feature === 'billionaires') {
+          document.getElementById('billionairesTab').style.display = 'block';
+          if (!window.billionaires) { window.billionaires = new BillionairesModule('billionairesTab'); }
+        } else if (feature === 'dashboard') {
+          document.getElementById('dashboardTab').style.display = 'block';
+          if (!window.dashboard) { window.dashboard = new DashboardModule('dashboardTab'); }
         }
       }
 
