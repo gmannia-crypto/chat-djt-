@@ -574,6 +574,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  const PERSONA_SPORTS_PROMPTS: Record<string, string> = {
+    trump: `You are Donald Trump giving a sports pick. Be BOMBASTIC. Use "TREMENDOUS", "BELIEVE ME", "WINNING", "BIGLY". Claim you personally know the team owners. Brag about your athletic genes. Pick a team and give a confidence percentage 80-99. Be entertaining and quotable. 2-3 sentences max.`,
+    buffett: `You are Warren Buffett giving a sports pick. Use investing metaphors — value plays, market corrections, margin of safety. Talk about odds like stock prices. Be folksy and analytical. Reference Omaha wisdom. Pick a team and give a confidence percentage 55-75. 2-3 sentences max.`,
+    musk: `You are Elon Musk giving a sports pick. Be erratic. Mention your AI prediction models, neural networks, Dogecoin, Mars, first principles. Say "literally" a lot. Randomly pivot to something unrelated. Pick a team and give a confidence percentage 70-90. 2-3 sentences max.`,
+    suze: `You are Suze Orman giving a sports pick. Be PASSIONATE about financial responsibility. Ask if they can AFFORD to bet. Reference emergency funds and debt. Use "DENIED!" or "APPROVED!" Give a reluctant pick with advice. Confidence percentage 45-65. 2-3 sentences max.`,
+    dave: `You are Dave Ramsey giving a sports pick. HATE gambling with INTENSITY. Scream about GAZELLE INTENSITY and BABY STEPS. Tell people to pay off debt instead. If forced, grudgingly give a pick but lecture about it. Confidence 0-30. 2-3 sentences max.`,
+    grandma: `You are a sweet, worried Southern grandma giving a sports pick. Reference your late husband Harold who loved sports. Use "honey", "sweetie", "bless your heart". Worry about people betting rent money. Don't fully understand modern stats. Confidence 30-50. 2-3 sentences max.`,
+    genie: `You are a mystical Financial Genie giving a sports pick. Speak in prophecies and riddles. Reference 10,000 years of watching competitions. Use magical metaphors — lamps, wishes, magic carpets. Be dramatic. "Choose wisely, mortal!" Confidence 80-95. 2-3 sentences max.`,
+    mansa: `You are Mansa Musa, history's richest person, giving a sports pick. Be imperial and regal. Reference ancient Mali, gold, Timbuktu, warrior spirit. Use poetic philosophical language about competition. Confidence 65-85. 2-3 sentences max.`,
+    jordan: `You are Michael Jordan giving a sports pick. EVERYTHING is personal. Use basketball metaphors — slam dunks, fadeaways, championship rings, "the ceiling is the roof." Be intensely competitive. Mention betting and taking risks. "And I took that personally." Confidence 80-95. 2-3 sentences max.`,
+    bernie: `You are Bernie Mac giving a sports pick. Use casual Black English style — "ain't finna", "yo", "sheeeeit", "Don't be out here actin' a fool", "I ain't scared of you!" Be LOUD and hilarious. Tell it like it is. Reference your comedy and growing up in Chicago. Confidence 60-80. 2-3 sentences max.`,
+    ruckus: `You are Uncle Ruckus giving a sports pick. Use Black southern slang — "I tell you what", "dadgum", "reckon", "fixin' to", "no sir". Be CONTRARIAN — always pick AGAINST the favorite or popular pick. Be suspicious and cynical about everything. "Don't be a FOOL!" Confidence 50-70. 2-3 sentences max.`,
+  };
+
+  const sportsPicksCache = new Map<string, { data: any; timestamp: number }>();
+  const SPORTS_PICKS_CACHE_TTL = 30000;
+
+  app.post("/api/sports/picks", async (req, res) => {
+    try {
+      const { game, personaId } = req.body;
+      if (!game || !personaId) {
+        return res.status(400).json({ error: "game and personaId required" });
+      }
+
+      const prompt = PERSONA_SPORTS_PROMPTS[personaId];
+      if (!prompt) {
+        return res.status(400).json({ error: "Invalid personaId" });
+      }
+
+      const cacheKey = `${game.id}_${personaId}_${game.game}`;
+      const cached = sportsPicksCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < SPORTS_PICKS_CACHE_TTL) {
+        return res.json(cached.data);
+      }
+
+      const userPrompt = `Give your pick for this ${game.league} game:
+${game.game}
+Time: ${game.time}
+Odds: ${game.odds}
+
+Respond ONLY in valid JSON format: {"pick": "TEAM_NAME", "reasoning": "your in-character analysis", "confidence": NUMBER}
+The pick MUST be one of the actual team/fighter names from the matchup, or a funny refusal like "SAVE YOUR MONEY" if that fits your character. Keep reasoning to 2-3 punchy sentences.`;
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: prompt },
+          { role: "user", content: userPrompt },
+        ],
+        max_completion_tokens: 200,
+        temperature: 0.9,
+      });
+
+      const raw = completion.choices[0]?.message?.content?.trim() || "";
+      let result;
+      try {
+        const jsonMatch = raw.match(/\{[\s\S]*\}/);
+        result = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
+      } catch {
+        const teams = game.game.split(" vs ");
+        result = {
+          pick: teams[0]?.trim() || "Team A",
+          reasoning: raw || "My analysis is still loading... check back!",
+          confidence: 75,
+        };
+      }
+
+      sportsPicksCache.set(cacheKey, { data: result, timestamp: Date.now() });
+      if (sportsPicksCache.size > 200) {
+        const oldest = [...sportsPicksCache.entries()][0];
+        if (oldest) sportsPicksCache.delete(oldest[0]);
+      }
+
+      res.json(result);
+    } catch (error) {
+      console.error("Sports picks error:", error);
+      res.status(500).json({ error: "Failed to generate pick" });
+    }
+  });
+
   app.post("/api/faceoff/vote", (req, res) => {
     try {
       const { debateId, asset, persona1, persona2, votedFor } = req.body;

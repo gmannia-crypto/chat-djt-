@@ -1171,7 +1171,30 @@ export default function HomeScreen() {
           </Animated.View>
         </Animated.View>
 
-        <Animated.View entering={FadeInDown.delay(1000).duration(500)} style={styles.modeButtons}>
+        <Animated.View entering={FadeInDown.delay(950).duration(500)} style={styles.modeButtons}>
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+              router.push("/sports");
+            }}
+            style={({ pressed }) => [styles.sportsTopButton, pressed && { opacity: 0.8 }]}
+            testID="sports-button"
+          >
+            <LinearGradient
+              colors={["#1a3a1a", "#0d1f0d", "#1a2a0f"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={StyleSheet.absoluteFillObject}
+            />
+            <MaterialCommunityIcons name="trophy" size={20} color="#4CAF50" />
+            <Text style={styles.sportsTopButtonText}>SPORTS BOOK</Text>
+            <View style={styles.sportsLiveBadge}>
+              <View style={styles.sportsLiveDot} />
+              <Text style={styles.sportsLiveBadgeText}>LIVE</Text>
+            </View>
+          </Pressable>
+        </Animated.View>
+        <Animated.View entering={FadeInDown.delay(1050).duration(500)} style={styles.modeButtons}>
           <Pressable
             onPress={handleRoastMode}
             style={({ pressed }) => [styles.modeButton, styles.roastButton, pressed && { opacity: 0.7 }]}
@@ -1187,7 +1210,7 @@ export default function HomeScreen() {
             <Text style={styles.modeButtonText}>DEBATE</Text>
           </Pressable>
         </Animated.View>
-        <Animated.View entering={FadeInDown.delay(1100).duration(500)} style={styles.modeButtons}>
+        <Animated.View entering={FadeInDown.delay(1150).duration(500)} style={styles.modeButtons}>
           <Pressable
             onPress={handleLiveNewsMode}
             style={({ pressed }) => [styles.modeButton, styles.liveNewsButton, pressed && { opacity: 0.7 }]}
@@ -1208,7 +1231,7 @@ export default function HomeScreen() {
             <Text style={styles.modeButtonText}>PREDICT</Text>
           </Pressable>
         </Animated.View>
-        <Animated.View entering={FadeInDown.delay(1200).duration(500)} style={styles.modeButtons}>
+        <Animated.View entering={FadeInDown.delay(1250).duration(500)} style={styles.modeButtons}>
           <Pressable
             onPress={handleTruthSocialMode}
             style={({ pressed }) => [styles.modeButton, styles.truthSocialButton, pressed && { opacity: 0.7 }]}
@@ -1234,7 +1257,7 @@ export default function HomeScreen() {
             <Text style={styles.modeButtonText}>HOT SEAT</Text>
           </Pressable>
         </Animated.View>
-        <Animated.View entering={FadeInDown.delay(1300).duration(500)} style={styles.modeButtons}>
+        <Animated.View entering={FadeInDown.delay(1350).duration(500)} style={styles.modeButtons}>
           <Pressable
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -1258,7 +1281,7 @@ export default function HomeScreen() {
             <Text style={styles.modeButtonText}>RATE HIM</Text>
           </Pressable>
         </Animated.View>
-        <Animated.View entering={FadeInDown.delay(1400).duration(500)} style={styles.modeButtons}>
+        <Animated.View entering={FadeInDown.delay(1450).duration(500)} style={styles.modeButtons}>
           <Pressable
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
@@ -1282,7 +1305,7 @@ export default function HomeScreen() {
             <Text style={styles.modeButtonText}>THERAPY</Text>
           </Pressable>
         </Animated.View>
-        <Animated.View entering={FadeInDown.delay(1500).duration(500)} style={styles.modeButtons}>
+        <Animated.View entering={FadeInDown.delay(1550).duration(500)} style={styles.modeButtons}>
           <Pressable
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
@@ -1306,7 +1329,7 @@ export default function HomeScreen() {
             <Text style={styles.modeButtonText}>BILLIONAIRES</Text>
           </Pressable>
         </Animated.View>
-        <Animated.View entering={FadeInDown.delay(1600).duration(500)} style={styles.modeButtons}>
+        <Animated.View entering={FadeInDown.delay(1650).duration(500)} style={styles.modeButtons}>
           <Pressable
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
@@ -1330,20 +1353,6 @@ export default function HomeScreen() {
             <Text style={styles.modeButtonText}>DEBATE</Text>
           </Pressable>
         </Animated.View>
-        <Animated.View entering={FadeInDown.delay(1650).duration(500)} style={styles.modeButtons}>
-          <Pressable
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-              router.push("/sports");
-            }}
-            style={({ pressed }) => [styles.modeButton, styles.sportsButton, pressed && { opacity: 0.7 }]}
-            testID="sports-button"
-          >
-            <MaterialCommunityIcons name="football" size={16} color="#4CAF50" />
-            <Text style={styles.modeButtonText}>SPORTS BOOK</Text>
-          </Pressable>
-        </Animated.View>
-
         {fearGreed && (
           <Animated.View entering={FadeInDown.delay(1750).duration(500)} style={styles.fearGreedCard}>
             <View style={styles.fearGreedHeader}>
@@ -2460,6 +2469,45 @@ const styles = StyleSheet.create({
   sportsButton: {
     backgroundColor: "rgba(76, 175, 80, 0.15)",
     borderColor: "rgba(76, 175, 80, 0.4)",
+  },
+  sportsTopButton: {
+    flex: 1,
+    flexDirection: "row" as const,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "rgba(76,175,80,0.5)",
+    overflow: "hidden" as const,
+  },
+  sportsTopButtonText: {
+    fontSize: 15,
+    fontWeight: "800" as const,
+    color: "#4CAF50",
+    letterSpacing: 2,
+  },
+  sportsLiveBadge: {
+    flexDirection: "row" as const,
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(76,175,80,0.25)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  sportsLiveDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: "#4CAF50",
+  },
+  sportsLiveBadgeText: {
+    fontSize: 8,
+    fontWeight: "800" as const,
+    color: "#4CAF50",
+    letterSpacing: 1,
   },
   fearGreedCard: {
     marginHorizontal: 20,

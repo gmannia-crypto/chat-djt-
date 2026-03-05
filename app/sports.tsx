@@ -86,84 +86,16 @@ const LEAGUE_COLORS: Record<string, string> = {
   SOCCER: "#1976D2",
 };
 
-function getPersonaPick(personaId: string, game: Game): PersonaPick {
-  const teams = game.game.split(" vs ");
-  const teamA = teams[0]?.trim() || "Team A";
-  const teamB = teams[1]?.trim() || "Team B";
-  const seed = (personaId.length * game.id * 7 + personaId.charCodeAt(0)) % 100;
+const WORLD_CUP_DATE = new Date("2026-06-11T00:00:00-04:00").getTime();
 
-  switch (personaId) {
-    case "trump":
-      return {
-        pick: teamA,
-        reasoning: `${teamA} is going to WIN BIGLY! The best team! Tremendous athletes! I know winners, believe me!`,
-        confidence: 95,
-      };
-    case "buffett":
-      return {
-        pick: seed > 40 ? teamB : teamA,
-        reasoning: seed > 40
-          ? `${teamB} is the value play here. The market is overvaluing ${teamA}. Be greedy when others are fearful.`
-          : `${teamA} has consistent fundamentals. Like a good stock — buy and hold.`,
-        confidence: 65,
-      };
-    case "musk":
-      return {
-        pick: seed > 50 ? teamA : teamB,
-        reasoning: `Literally. ${seed > 50 ? teamA : teamB} to the MOON. My AI models say so. Also Dogecoin.`,
-        confidence: 80,
-      };
-    case "suze":
-      return {
-        pick: teamA,
-        reasoning: `Can you AFFORD to bet on this game?! Do you have an emergency fund FIRST?! If yes... ${teamA}. APPROVED!`,
-        confidence: 55,
-      };
-    case "dave":
-      return {
-        pick: "SAVE YOUR MONEY",
-        reasoning: `GAMBLING IS DUMB! Baby steps, people! Pay off your debt FIRST! If you must watch, ${teamA} looks decent.`,
-        confidence: 0,
-      };
-    case "grandma":
-      return {
-        pick: teamA,
-        reasoning: `Oh honey, I don't know much about sports, but ${teamA} sounds like a nice team. Be careful though, sweetie. Don't bet the rent money!`,
-        confidence: 40,
-      };
-    case "genie":
-      return {
-        pick: seed > 45 ? teamB : teamA,
-        reasoning: `The ancient spirits have spoken! I've watched 10,000 years of competition. ${seed > 45 ? teamB : teamA} is your WISH tonight! Choose wisely, mortal!`,
-        confidence: 88,
-      };
-    case "mansa":
-      return {
-        pick: teamA,
-        reasoning: `In my empire, we wagered gold on warriors. ${teamA} has the heart of champions. I see greatness — and I've SEEN greatness.`,
-        confidence: 75,
-      };
-    case "jordan":
-      return {
-        pick: teamA,
-        reasoning: `I took that personally. ${teamA} has that killer instinct. Champions show up when it matters. The ceiling is the roof!`,
-        confidence: 85,
-      };
-    case "bernie":
-      return {
-        pick: seed > 50 ? teamB : teamA,
-        reasoning: `Look here, I ain't scared of NO pick! ${seed > 50 ? teamB : teamA} is gonna EAT tonight! Don't be out here actin' a fool — ride with me!`,
-        confidence: 70,
-      };
-    case "ruckus":
-      return {
-        pick: teamB,
-        reasoning: `EVERYBODY picking ${teamA}?! Then I'm goin' with ${teamB}! Don't be a FOOL following the crowd! I ain't trustin' the favorites, no sir!`,
-        confidence: 60,
-      };
-    default:
-      return { pick: teamA, reasoning: "My analysis says go with the favorites.", confidence: 50 };
-  }
+function getCountdown() {
+  const now = Date.now();
+  const diff = Math.max(0, WORLD_CUP_DATE - now);
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+  const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+  return { days, hours, minutes, seconds };
 }
 
 function PersonaSelectorItem({
@@ -191,15 +123,20 @@ function PersonaSelectorItem({
 function GameCard({
   game,
   persona,
+  pick,
+  pickLoading,
   onSpeak,
   speakingGameId,
+  onRefresh,
 }: {
   game: Game;
   persona: PersonaInfo;
+  pick: PersonaPick | null;
+  pickLoading: boolean;
   onSpeak: (text: string, personaId: string, gameId: number) => void;
   speakingGameId: number | null;
+  onRefresh: (gameId: number) => void;
 }) {
-  const pick = getPersonaPick(persona.id, game);
   const leagueColor = LEAGUE_COLORS[game.league] || "#D4A420";
   const isSpeaking = speakingGameId === game.id;
 
@@ -209,36 +146,52 @@ function GameCard({
         <View style={[styles.leagueBadge, { backgroundColor: leagueColor }]}>
           <Text style={styles.leagueText}>{game.league}</Text>
         </View>
-        <Text style={styles.gameTime}>{game.time}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <Text style={styles.gameTime}>{game.time}</Text>
+          <Pressable onPress={() => onRefresh(game.id)} style={({ pressed }) => [pressed && { opacity: 0.5 }]}>
+            <Ionicons name="refresh" size={14} color="rgba(255,255,255,0.4)" />
+          </Pressable>
+        </View>
       </View>
       <Text style={styles.gameTitle}>{game.game}</Text>
       <Text style={styles.gameOdds}>{game.odds}</Text>
 
-      <View style={[styles.pickSection, { borderLeftColor: persona.color }]}>
-        <View style={styles.pickHeader}>
-          <Image source={persona.image} style={[styles.pickAvatar, { borderColor: persona.color }]} />
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.pickName, { color: persona.color }]}>{persona.name}'s Pick</Text>
-            <Text style={styles.pickValue}>{pick.pick}</Text>
-          </View>
-          {pick.confidence > 0 && (
-            <View style={[styles.confidenceBadge, { backgroundColor: `${persona.color}30` }]}>
-              <Text style={[styles.confidenceText, { color: persona.color }]}>{pick.confidence}%</Text>
-            </View>
-          )}
+      {pickLoading ? (
+        <View style={styles.pickLoadingBox}>
+          <ActivityIndicator size="small" color={persona.color} />
+          <Text style={[styles.pickLoadingText, { color: persona.color }]}>
+            {persona.name} is analyzing...
+          </Text>
         </View>
-        <Text style={styles.pickReasoning}>"{pick.reasoning}"</Text>
-      </View>
+      ) : pick ? (
+        <>
+          <View style={[styles.pickSection, { borderLeftColor: persona.color }]}>
+            <View style={styles.pickHeader}>
+              <Image source={persona.image} style={[styles.pickAvatar, { borderColor: persona.color }]} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.pickName, { color: persona.color }]}>{persona.name}'s Pick</Text>
+                <Text style={styles.pickValue}>{pick.pick}</Text>
+              </View>
+              {pick.confidence > 0 && (
+                <View style={[styles.confidenceBadge, { backgroundColor: `${persona.color}30` }]}>
+                  <Text style={[styles.confidenceText, { color: persona.color }]}>{pick.confidence}%</Text>
+                </View>
+              )}
+            </View>
+            <Text style={styles.pickReasoning}>"{pick.reasoning}"</Text>
+          </View>
 
-      <Pressable
-        onPress={() => onSpeak(pick.reasoning, persona.id, game.id)}
-        style={({ pressed }) => [styles.listenBtn, { borderColor: persona.color }, pressed && { opacity: 0.7 }]}
-      >
-        <Ionicons name={isSpeaking ? "stop" : "volume-high"} size={16} color={persona.color} />
-        <Text style={[styles.listenBtnText, { color: persona.color }]}>
-          {isSpeaking ? "STOP" : "LISTEN"}
-        </Text>
-      </Pressable>
+          <Pressable
+            onPress={() => onSpeak(pick.reasoning, persona.id, game.id)}
+            style={({ pressed }) => [styles.listenBtn, { borderColor: persona.color }, pressed && { opacity: 0.7 }]}
+          >
+            <Ionicons name={isSpeaking ? "stop" : "volume-high"} size={16} color={persona.color} />
+            <Text style={[styles.listenBtnText, { color: persona.color }]}>
+              {isSpeaking ? "STOP" : "LISTEN"}
+            </Text>
+          </Pressable>
+        </>
+      ) : null}
     </View>
   );
 }
@@ -253,6 +206,9 @@ export default function SportsScreen() {
   const [selectedPersona, setSelectedPersona] = useState("trump");
   const [speakingGameId, setSpeakingGameId] = useState<number | null>(null);
   const soundRef = React.useRef<Audio.Sound | null>(null);
+  const [countdown, setCountdown] = useState(getCountdown());
+  const [picks, setPicks] = useState<Record<string, PersonaPick>>({});
+  const [loadingPicks, setLoadingPicks] = useState<Record<string, boolean>>({});
 
   const [debateP1, setDebateP1] = useState("trump");
   const [debateP2, setDebateP2] = useState("buffett");
@@ -263,7 +219,11 @@ export default function SportsScreen() {
   const [h2h, setH2h] = useState({ wins: 0, losses: 0, total: 0 });
   const [debateVoted, setDebateVoted] = useState(false);
   const [debateWinner, setDebateWinner] = useState<string | null>(null);
+  const [debatePick1, setDebatePick1] = useState<PersonaPick | null>(null);
+  const [debatePick2, setDebatePick2] = useState<PersonaPick | null>(null);
+  const [debatePicksLoading, setDebatePicksLoading] = useState(false);
   const mountedRef = useRef(true);
+  const abortRef = useRef<AbortController | null>(null);
 
   const activePersona = PERSONAS.find((p) => p.id === selectedPersona) || PERSONAS[0];
   const featuredGame = games.length > 0 ? games[0] : null;
@@ -271,8 +231,12 @@ export default function SportsScreen() {
   useEffect(() => {
     mountedRef.current = true;
     fetchGames();
+    const timer = setInterval(() => {
+      if (mountedRef.current) setCountdown(getCountdown());
+    }, 1000);
     return () => {
       mountedRef.current = false;
+      clearInterval(timer);
       if (soundRef.current) {
         soundRef.current.stopAsync().catch(() => {});
         soundRef.current.unloadAsync().catch(() => {});
@@ -282,8 +246,95 @@ export default function SportsScreen() {
   }, []);
 
   useEffect(() => {
+    if (games.length > 0) {
+      fetchAllPicks(selectedPersona);
+    }
+  }, [selectedPersona, games]);
+
+  useEffect(() => {
     loadDebateData();
-  }, [debateP1, debateP2]);
+  }, [debateP1, debateP2, games]);
+
+  const fetchAIPick = async (game: Game, personaId: string): Promise<PersonaPick> => {
+    const baseUrl = getApiUrl().replace(/\/$/, "");
+    const res = await fetch(`${baseUrl}/api/sports/picks`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ game, personaId }),
+    });
+    if (!res.ok) throw new Error("Failed to fetch pick");
+    return res.json();
+  };
+
+  const fetchAllPicks = async (personaId: string) => {
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    const newLoadingState: Record<string, boolean> = {};
+    const toFetch: Game[] = [];
+
+    for (const game of games) {
+      const key = `${game.id}_${personaId}`;
+      if (!picks[key]) {
+        newLoadingState[key] = true;
+        toFetch.push(game);
+      }
+    }
+
+    if (toFetch.length === 0) return;
+    setLoadingPicks((prev) => ({ ...prev, ...newLoadingState }));
+
+    const results = await Promise.allSettled(
+      toFetch.map((game) => fetchAIPick(game, personaId))
+    );
+
+    if (!mountedRef.current || controller.signal.aborted) return;
+
+    const newPicks: Record<string, PersonaPick> = {};
+    const clearLoading: Record<string, boolean> = {};
+    results.forEach((result, i) => {
+      const key = `${toFetch[i].id}_${personaId}`;
+      clearLoading[key] = false;
+      if (result.status === "fulfilled") {
+        newPicks[key] = result.value;
+      }
+    });
+
+    setPicks((prev) => ({ ...prev, ...newPicks }));
+    setLoadingPicks((prev) => ({ ...prev, ...clearLoading }));
+  };
+
+  const refreshPick = async (gameId: number) => {
+    const key = `${gameId}_${selectedPersona}`;
+    const game = games.find((g) => g.id === gameId);
+    if (!game) return;
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setPicks((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    setLoadingPicks((prev) => ({ ...prev, [key]: true }));
+
+    try {
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      const res = await fetch(`${baseUrl}/api/sports/picks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ game, personaId: selectedPersona, fresh: true }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      const pick = await res.json();
+      if (mountedRef.current) {
+        setPicks((prev) => ({ ...prev, [key]: pick }));
+      }
+    } catch {
+    } finally {
+      if (mountedRef.current) setLoadingPicks((prev) => ({ ...prev, [key]: false }));
+    }
+  };
 
   const fetchGames = async () => {
     setLoading(true);
@@ -302,13 +353,17 @@ export default function SportsScreen() {
   };
 
   const loadDebateData = async () => {
+    if (!featuredGame) return;
     try {
-      const [tt1, tt2, r1, r2, record] = await Promise.all([
+      setDebatePicksLoading(true);
+      const [tt1, tt2, r1, r2, record, pick1, pick2] = await Promise.all([
         generateTrashTalk(debateP1, debateP2),
         generateTrashTalk(debateP2, debateP1),
         generateReference(debateP1, debateP2, "sports"),
         generateReference(debateP2, debateP1, "sports"),
         getHeadToHead(debateP1, debateP2),
+        fetchAIPick(featuredGame, debateP1).catch(() => null),
+        fetchAIPick(featuredGame, debateP2).catch(() => null),
       ]);
       if (!mountedRef.current) return;
       setTrashTalk1(tt1);
@@ -316,10 +371,14 @@ export default function SportsScreen() {
       setRef1(r1);
       setRef2(r2);
       setH2h(record);
+      setDebatePick1(pick1);
+      setDebatePick2(pick2);
       setDebateVoted(false);
       setDebateWinner(null);
     } catch (err) {
       console.error("Debate data error:", err);
+    } finally {
+      if (mountedRef.current) setDebatePicksLoading(false);
     }
   };
 
@@ -393,7 +452,46 @@ export default function SportsScreen() {
         contentContainerStyle={{ paddingBottom: insets.bottom + webBottomInset + 24 }}
         showsVerticalScrollIndicator={false}
       >
-        <Animated.View entering={FadeInDown.delay(100).duration(400)} style={styles.personaSelector}>
+        <Animated.View entering={FadeInDown.delay(50).duration(400)} style={styles.worldCupCard}>
+          <LinearGradient
+            colors={["#0d3b0d", "#1a0f00", "#0d3b0d"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFillObject}
+          />
+          <View style={styles.wcHeader}>
+            <MaterialCommunityIcons name="soccer" size={24} color="#4CAF50" />
+            <Text style={styles.wcTitle}>FIFA WORLD CUP 2026</Text>
+            <MaterialCommunityIcons name="soccer" size={24} color="#4CAF50" />
+          </View>
+          <Text style={styles.wcSubtitle}>USA • MEXICO • CANADA</Text>
+          <View style={styles.wcCountdownRow}>
+            <View style={styles.wcCountdownUnit}>
+              <Text style={styles.wcCountdownNum}>{countdown.days}</Text>
+              <Text style={styles.wcCountdownLabel}>DAYS</Text>
+            </View>
+            <Text style={styles.wcCountdownSep}>:</Text>
+            <View style={styles.wcCountdownUnit}>
+              <Text style={styles.wcCountdownNum}>{String(countdown.hours).padStart(2, "0")}</Text>
+              <Text style={styles.wcCountdownLabel}>HRS</Text>
+            </View>
+            <Text style={styles.wcCountdownSep}>:</Text>
+            <View style={styles.wcCountdownUnit}>
+              <Text style={styles.wcCountdownNum}>{String(countdown.minutes).padStart(2, "0")}</Text>
+              <Text style={styles.wcCountdownLabel}>MIN</Text>
+            </View>
+            <Text style={styles.wcCountdownSep}>:</Text>
+            <View style={styles.wcCountdownUnit}>
+              <Text style={styles.wcCountdownNum}>{String(countdown.seconds).padStart(2, "0")}</Text>
+              <Text style={styles.wcCountdownLabel}>SEC</Text>
+            </View>
+          </View>
+          <Text style={styles.wcTrumpQuote}>
+            "We're gonna have the GREATEST World Cup in history. Believe me, nobody does soccer like America!"
+          </Text>
+        </Animated.View>
+
+        <Animated.View entering={FadeInDown.delay(150).duration(400)} style={styles.personaSelector}>
           <Text style={styles.sectionLabel}>CHOOSE YOUR ANALYST</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.personaRow}>
             {PERSONAS.map((p) => (
@@ -411,7 +509,13 @@ export default function SportsScreen() {
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(300).duration(400)} style={styles.section}>
-          <Text style={styles.sectionLabel}>TODAY'S GAMES</Text>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionLabel}>TODAY'S GAMES</Text>
+            <View style={styles.aiBadge}>
+              <View style={styles.aiDot} />
+              <Text style={styles.aiBadgeText}>AI LIVE</Text>
+            </View>
+          </View>
           {loading ? (
             <View style={styles.loadingBox}>
               <ActivityIndicator size="large" color={Colors.gold} />
@@ -428,8 +532,11 @@ export default function SportsScreen() {
                 key={game.id}
                 game={game}
                 persona={activePersona}
+                pick={picks[`${game.id}_${selectedPersona}`] || null}
+                pickLoading={!!loadingPicks[`${game.id}_${selectedPersona}`]}
                 onSpeak={handleSpeak}
                 speakingGameId={speakingGameId}
+                onRefresh={refreshPick}
               />
             ))
           )}
@@ -460,6 +567,13 @@ export default function SportsScreen() {
                 <View style={[styles.debateContender, debateWinner === debateP1 && { borderColor: p1Info.color, borderWidth: 2 }]}>
                   <Image source={p1Info.image} style={[styles.debateAvatar, { borderColor: p1Info.color }]} />
                   <Text style={[styles.debateName, { color: p1Info.color }]}>{p1Info.name}</Text>
+                  {debatePicksLoading ? (
+                    <ActivityIndicator size="small" color={p1Info.color} style={{ marginVertical: 8 }} />
+                  ) : debatePick1 ? (
+                    <Text style={styles.debatePickText} numberOfLines={3}>
+                      Picks: {debatePick1.pick} ({debatePick1.confidence}%)
+                    </Text>
+                  ) : null}
                   {ref1 ? <Text style={styles.debateRef} numberOfLines={3}>"{ref1}"</Text> : null}
                   {trashTalk1 ? <Text style={styles.debateTrash} numberOfLines={2}>{trashTalk1}</Text> : null}
                   {!debateVoted ? (
@@ -485,6 +599,13 @@ export default function SportsScreen() {
                 <View style={[styles.debateContender, debateWinner === debateP2 && { borderColor: p2Info.color, borderWidth: 2 }]}>
                   <Image source={p2Info.image} style={[styles.debateAvatar, { borderColor: p2Info.color }]} />
                   <Text style={[styles.debateName, { color: p2Info.color }]}>{p2Info.name}</Text>
+                  {debatePicksLoading ? (
+                    <ActivityIndicator size="small" color={p2Info.color} style={{ marginVertical: 8 }} />
+                  ) : debatePick2 ? (
+                    <Text style={styles.debatePickText} numberOfLines={3}>
+                      Picks: {debatePick2.pick} ({debatePick2.confidence}%)
+                    </Text>
+                  ) : null}
                   {ref2 ? <Text style={styles.debateRef} numberOfLines={3}>"{ref2}"</Text> : null}
                   {trashTalk2 ? <Text style={styles.debateTrash} numberOfLines={2}>{trashTalk2}</Text> : null}
                   {!debateVoted ? (
@@ -566,6 +687,74 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
+  worldCupCard: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 16,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(76,175,80,0.3)",
+    padding: 16,
+    alignItems: "center",
+  },
+  wcHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 4,
+  },
+  wcTitle: {
+    fontSize: 18,
+    fontWeight: "900" as const,
+    color: "#FFD700",
+    letterSpacing: 2,
+    fontFamily: Platform.OS === "ios" ? "Georgia" : "serif",
+  },
+  wcSubtitle: {
+    fontSize: 11,
+    fontWeight: "600" as const,
+    color: "rgba(255,255,255,0.6)",
+    letterSpacing: 3,
+    marginBottom: 12,
+  },
+  wcCountdownRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginBottom: 12,
+  },
+  wcCountdownUnit: {
+    alignItems: "center",
+    backgroundColor: "rgba(76,175,80,0.15)",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    minWidth: 50,
+  },
+  wcCountdownNum: {
+    fontSize: 22,
+    fontWeight: "900" as const,
+    color: "#4CAF50",
+  },
+  wcCountdownLabel: {
+    fontSize: 8,
+    fontWeight: "700" as const,
+    color: "rgba(255,255,255,0.4)",
+    letterSpacing: 1,
+    marginTop: 2,
+  },
+  wcCountdownSep: {
+    fontSize: 20,
+    fontWeight: "900" as const,
+    color: "rgba(255,255,255,0.3)",
+  },
+  wcTrumpQuote: {
+    fontSize: 11,
+    color: "rgba(255,215,0,0.6)",
+    textAlign: "center",
+    fontStyle: "italic",
+    lineHeight: 16,
+  },
   personaSelector: {
     paddingTop: 16,
     paddingHorizontal: 16,
@@ -576,6 +765,33 @@ const styles = StyleSheet.create({
     color: "#D4A420",
     letterSpacing: 2,
     marginBottom: 12,
+  },
+  sectionHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  aiBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "rgba(76,175,80,0.15)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  aiDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#4CAF50",
+  },
+  aiBadgeText: {
+    fontSize: 9,
+    fontWeight: "800" as const,
+    color: "#4CAF50",
+    letterSpacing: 1,
   },
   personaRow: {
     gap: 10,
@@ -667,6 +883,18 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     fontWeight: "500" as const,
   },
+  pickLoadingBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 16,
+    justifyContent: "center",
+  },
+  pickLoadingText: {
+    fontSize: 13,
+    fontWeight: "600" as const,
+    fontStyle: "italic",
+  },
   pickSection: {
     borderLeftWidth: 3,
     paddingLeft: 12,
@@ -742,6 +970,13 @@ const styles = StyleSheet.create({
     color: "#FFD700",
     textAlign: "center",
     marginBottom: 10,
+  },
+  debatePickText: {
+    fontSize: 11,
+    fontWeight: "700" as const,
+    color: "#FFD700",
+    textAlign: "center",
+    marginBottom: 6,
   },
   h2hRow: {
     flexDirection: "row",
