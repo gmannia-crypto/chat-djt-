@@ -939,14 +939,22 @@ export default function HomeScreen() {
         </View>
       </Animated.View>
 
-      {Platform.OS !== "web" && (
-        <Pressable
-          onPress={async () => {
-            try {
-              const baseUrl = getApiUrl().replace(/\/$/, "");
-              Alert.alert("Debug", "URL: " + baseUrl + "\nTrying audio...");
+      <Pressable
+        onPress={async () => {
+          try {
+            const baseUrl = getApiUrl().replace(/\/$/, "");
+            const testUrl = `${baseUrl}/api/nav-speak?text=test`;
+            if (Platform.OS === "web") {
+              const audio = new window.Audio(testUrl);
+              audio.volume = 1.0;
+              audio.play().then(() => {
+                Alert.alert("Web Audio", "Playing from: " + testUrl);
+              }).catch((err: any) => {
+                Alert.alert("Web Audio Error", err?.message || String(err));
+              });
+            } else {
+              Alert.alert("Debug", "Platform: " + Platform.OS + "\nURL: " + testUrl);
               await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-              const testUrl = `${baseUrl}/api/nav-speak?text=test`;
               const { sound } = await Audio.Sound.createAsync(
                 { uri: testUrl },
                 { shouldPlay: true, volume: 1.0 }
@@ -960,15 +968,15 @@ export default function HomeScreen() {
                 }
                 if (s.didJustFinish) sound.unloadAsync();
               });
-            } catch (e: any) {
-              Alert.alert("Audio Error", e?.message || String(e));
             }
-          }}
-          style={{ backgroundColor: "#D4A420", padding: 12, margin: 10, borderRadius: 8, alignItems: "center" as const, zIndex: 999 }}
-        >
-          <Text style={{ color: "#000", fontWeight: "bold" as const, fontSize: 16 }}>TAP TO TEST AUDIO</Text>
-        </Pressable>
-      )}
+          } catch (e: any) {
+            Alert.alert("Audio Error", e?.message || String(e));
+          }
+        }}
+        style={{ backgroundColor: "#D4A420", padding: 12, margin: 10, borderRadius: 8, alignItems: "center" as const, zIndex: 999 }}
+      >
+        <Text style={{ color: "#000", fontWeight: "bold" as const, fontSize: 16 }}>TAP TO TEST AUDIO</Text>
+      </Pressable>
 
       <ScrollView
         style={styles.centerScroll}
