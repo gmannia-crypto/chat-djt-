@@ -274,6 +274,70 @@
         transform: translateY(-1px);
       }
 
+      .explore-section {
+        width: 100%;
+        margin-bottom: 32px;
+      }
+
+      .explore-label {
+        font-size: 13px;
+        color: rgba(255,255,255,0.4);
+        margin-bottom: 14px;
+        font-weight: 500;
+        letter-spacing: 0.5px;
+      }
+
+      .explore-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+
+      .explore-btn {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 14px 14px;
+        background: #141414;
+        border: 1px solid #2A2A2A;
+        border-radius: 12px;
+        color: #fff;
+        font-size: 13px;
+        font-weight: 600;
+        text-decoration: none;
+        transition: all 0.2s;
+        cursor: pointer;
+      }
+
+      .explore-btn:hover {
+        background: #1c1c1c;
+        border-color: #D4A420;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(212,164,32,0.15);
+      }
+
+      .explore-btn .explore-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+        flex-shrink: 0;
+      }
+
+      .explore-btn .explore-text {
+        line-height: 1.2;
+      }
+
+      .explore-btn .explore-sub {
+        font-size: 10px;
+        color: rgba(255,255,255,0.35);
+        font-weight: 400;
+        margin-top: 2px;
+      }
+
       .footer {
         margin-top: auto;
         padding-top: 24px;
@@ -380,6 +444,48 @@
             <div class="qr-label">Or scan to open instantly</div>
             <div class="qr-code" id="qr-code"></div>
             <a href="exps://EXPS_URL_PLACEHOLDER" class="open-btn">Open in Expo Go</a>
+          </div>
+        </div>
+
+        <div class="explore-section">
+          <p class="explore-label">Try it now &mdash; no download needed</p>
+          <div class="explore-grid">
+            <a href="/sports-betting" class="explore-btn">
+              <div class="explore-icon" style="background:rgba(255,77,77,0.15);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ff4d4d" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10"/><path d="M2 12h20"/><path d="M12 2c2.5 2 4 5.5 4 10s-1.5 8-4 10"/></svg>
+              </div>
+              <div>
+                <div class="explore-text">Sports Book</div>
+                <div class="explore-sub">AI persona picks</div>
+              </div>
+            </a>
+            <a href="/financial-faceoff" class="explore-btn">
+              <div class="explore-icon" style="background:rgba(212,164,32,0.15);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D4A420" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              </div>
+              <div>
+                <div class="explore-text">Financial Faceoff</div>
+                <div class="explore-sub">Persona debates</div>
+              </div>
+            </a>
+            <a href="/therapy-viral" class="explore-btn">
+              <div class="explore-icon" style="background:rgba(155,89,182,0.15);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9B59B6" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+              </div>
+              <div>
+                <div class="explore-text">Trump Therapy</div>
+                <div class="explore-sub">AI counseling</div>
+              </div>
+            </a>
+            <a href="/therapy-multi" class="explore-btn">
+              <div class="explore-icon" style="background:rgba(0,204,255,0.15);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00ccff" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              </div>
+              <div>
+                <div class="explore-text">Multi Therapy</div>
+                <div class="explore-sub">3 AI therapists</div>
+              </div>
+            </a>
           </div>
         </div>
 
