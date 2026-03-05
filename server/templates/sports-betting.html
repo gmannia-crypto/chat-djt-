@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trump's Sports Book - AI Persona Picks</title>
+    <meta property="og:title" content="Trump's Sports Book - AI Persona Sports Picks!">
+    <meta property="og:description" content="Trump vs Buffett on the big game? Get AI persona sports picks and debate who's right!">
+    <meta property="og:type" content="website">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #0a0a0a; font-family: 'Arial', sans-serif; color: white; line-height: 1.6; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; padding-bottom: 80px; }
+
+        .sports-header { text-align: center; margin-bottom: 24px; }
+        .sports-header h1 {
+            font-size: 32px; text-transform: uppercase; letter-spacing: 3px;
+            background: linear-gradient(135deg, #FFD700, #ff4d4d);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            background-clip: text; margin-bottom: 6px;
+        }
+        .sports-header .subhead { color: #888; font-size: 14px; font-style: italic; }
+        .live-badge {
+            display: inline-block; background: #ff4d4d; color: white;
+            padding: 4px 14px; border-radius: 30px; font-size: 12px;
+            font-weight: bold; margin-top: 10px; animation: pulse 2s infinite;
+        }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.7; } }
+
+        .section-label {
+            color: #FFD700; font-size: 12px; text-transform: uppercase;
+            letter-spacing: 2px; margin-bottom: 10px; font-weight: bold;
+        }
+
+        .persona-selector { margin-bottom: 20px; }
+        .persona-row {
+            display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px;
+            -webkit-overflow-scrolling: touch;
+        }
+        .persona-row::-webkit-scrollbar { height: 4px; }
+        .persona-row::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+        .persona-chip {
+            min-width: 70px; background: #1a1a1a; border: 2px solid #333;
+            border-radius: 12px; padding: 8px 6px; cursor: pointer;
+            text-align: center; transition: all 0.2s; flex-shrink: 0;
+        }
+        .persona-chip:hover { transform: translateY(-2px); }
+        .persona-chip.selected { border-width: 3px; }
+        .persona-chip img {
+            width: 36px; height: 36px; border-radius: 50%; object-fit: cover;
+            border: 2px solid #333; margin-bottom: 4px; display: block; margin: 0 auto 4px;
+        }
+        .persona-chip .chip-name { font-size: 11px; font-weight: bold; }
+
+        .featured-book {
+            background: linear-gradient(135deg, rgba(255,215,0,0.15), rgba(255,77,77,0.1));
+            border: 1px solid rgba(255,215,0,0.3); border-radius: 16px;
+            padding: 16px; display: flex; align-items: center; gap: 14px;
+            margin-bottom: 20px; cursor: pointer; transition: all 0.2s;
+        }
+        .featured-book:hover { transform: translateY(-2px); box-shadow: 0 4px 20px rgba(255,215,0,0.2); }
+        .book-logo { font-size: 36px; }
+        .book-info { flex: 1; }
+        .book-info h3 { font-size: 14px; color: #FFD700; margin-bottom: 6px; }
+        .bet-now-btn {
+            background: linear-gradient(135deg, #FFD700, #ff8c00); border: none;
+            color: #0a0a0a; padding: 8px 20px; border-radius: 25px; font-weight: bold;
+            font-size: 13px; cursor: pointer;
+        }
+
+        .debate-arena { margin-bottom: 24px; }
+        .debate-grid {
+            display: grid; grid-template-columns: 1fr auto 1fr; gap: 0;
+            margin-top: 12px;
+        }
+        .debate-card {
+            background: #1a1a1a; border-radius: 14px; padding: 16px 12px;
+            border: 2px solid #333; display: flex; flex-direction: column; align-items: center;
+            text-align: center;
+        }
+        .debate-card img {
+            width: 48px; height: 48px; border-radius: 50%; object-fit: cover;
+            border: 2px solid #333; margin-bottom: 6px;
+        }
+        .debate-card .d-name { font-size: 13px; font-weight: bold; margin-bottom: 4px; }
+        .debate-card .d-opener {
+            font-size: 11px; color: #aaa; font-style: italic; margin-bottom: 8px;
+            min-height: 40px; line-height: 1.4;
+        }
+        .debate-card .d-pick {
+            font-size: 12px; font-weight: bold; color: #FFD700;
+            margin-bottom: 8px; min-height: 32px;
+        }
+        .debate-card .listen-btn {
+            background: none; border: 1px solid #555; border-radius: 50%;
+            width: 26px; height: 26px; cursor: pointer; display: flex;
+            align-items: center; justify-content: center; margin-bottom: 6px;
+            font-size: 12px; transition: opacity 0.2s;
+        }
+        .debate-card .listen-btn:hover { opacity: 0.7; }
+        .vote-btn {
+            width: 100%; padding: 8px; border: none; border-radius: 20px;
+            color: white; font-weight: bold; font-size: 12px; cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .vote-btn:hover { opacity: 0.85; }
+        .vote-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .vs-badge {
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px; font-weight: 900; color: #ff4d4d;
+            padding: 0 6px; text-shadow: 0 0 10px rgba(255,77,77,0.5);
+        }
+
+        .h2h-bar {
+            text-align: center; margin-top: 10px; padding: 8px;
+            background: rgba(255,215,0,0.06); border: 1px solid rgba(255,215,0,0.12);
+            border-radius: 10px; font-size: 12px; color: #aaa;
+        }
+        .h2h-bar .record { font-weight: bold; color: #FFD700; }
+
+        .trash-talk {
+            margin-top: 10px; padding: 12px; border-radius: 12px;
+            background: rgba(255,77,77,0.08); border: 1px solid rgba(255,77,77,0.15);
+            text-align: center;
+        }
+        .trash-talk h4 { color: #ff4d4d; font-size: 12px; letter-spacing: 1px; margin-bottom: 6px; }
+        .trash-talk .talk-line { font-size: 12px; font-style: italic; margin: 4px 0; }
+
+        .games-section { margin-bottom: 24px; }
+        .games-list { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+        .game-card {
+            background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 14px;
+            padding: 14px; cursor: pointer; transition: all 0.2s;
+        }
+        .game-card:hover { border-color: #FFD700; transform: translateY(-1px); }
+        .game-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .game-league {
+            font-size: 10px; font-weight: bold; letter-spacing: 2px;
+            padding: 2px 8px; border-radius: 4px; background: rgba(255,215,0,0.15); color: #FFD700;
+        }
+        .game-time { font-size: 11px; color: #888; }
+        .game-matchup { font-size: 16px; font-weight: bold; margin-bottom: 6px; }
+        .game-odds { font-size: 11px; color: #aaa; margin-bottom: 8px; }
+        .persona-picks { margin-bottom: 10px; }
+        .persona-picks .pick-line {
+            font-size: 12px; color: #ccc; padding: 3px 0;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .pick-line img {
+            width: 18px; height: 18px; border-radius: 50%; object-fit: cover;
+        }
+        .game-bet-btn {
+            width: 100%; padding: 10px; border: none; border-radius: 25px;
+            background: linear-gradient(135deg, #FFD700, #ff8c00);
+            color: #0a0a0a; font-weight: bold; font-size: 13px; cursor: pointer;
+            transition: all 0.2s;
+        }
+        .game-bet-btn:hover { transform: scale(1.02); }
+
+        .disclaimer {
+            text-align: center; padding: 16px; margin-top: 20px;
+            border-top: 1px solid #222; color: #555; font-size: 11px; line-height: 1.6;
+        }
+
+        .cross-promo {
+            text-align: center; padding: 16px; margin-top: 10px;
+            border: 1px solid rgba(255,215,0,0.15); border-radius: 12px;
+        }
+        .cross-promo a {
+            color: #FFD700; text-decoration: none; font-weight: bold; font-size: 14px;
+        }
+
+        .toast {
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+            background: #ff4d4d; color: white; padding: 10px 24px; border-radius: 30px;
+            font-size: 13px; font-weight: bold; z-index: 10000;
+            animation: slideDown 0.3s ease; pointer-events: none;
+        }
+        @keyframes slideDown { from { opacity: 0; transform: translateX(-50%) translateY(-20px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+    <div class="container" id="app"></div>
+
+    <script>
+        var PERSONAS = {
+            trump: { id: 'trump', name: "Trump", fullName: "Donald J. Trump", color: '#ff4d4d', imageUrl: '/api/persona-image/trump', traits: ['boastful', 'confident'] },
+            buffett: { id: 'buffett', name: "Buffett", fullName: "Warren Buffett", color: '#4d4dff', imageUrl: '/api/persona-image/buffett', traits: ['analytical', 'patient'] },
+            musk: { id: 'musk', name: "Elon", fullName: "Elon Musk", color: '#00ccff', imageUrl: '/api/persona-image/musk', traits: ['risk-taker', 'visionary'] },
+            suze: { id: 'suze', name: "Suze", fullName: "Suze Orman", color: '#ff99cc', imageUrl: '/api/persona-image/suze', traits: ['worried', 'protective'] },
+            dave: { id: 'dave', name: "Dave", fullName: "Dave Ramsey", color: '#ffaa00', imageUrl: '/api/persona-image/dave', traits: ['conservative', 'passionate'] },
+            grandma: { id: 'grandma', name: "Grandma", fullName: "Your Grandma", color: '#ffffff', imageUrl: '/api/persona-image/grandma', traits: ['worried', 'caring'] },
+            genie: { id: 'genie', name: "Genie", fullName: "The Financial Genie", color: '#9B59B6', imageUrl: '/api/persona-image/genie', traits: ['mystical', 'dramatic'] },
+            mansa: { id: 'mansa', name: "Mansa Musa", fullName: "Mansa Musa I", color: '#D4AF37', imageUrl: '/api/persona-image/mansa', traits: ['regal', 'generous'] },
+            jordan: { id: 'jordan', name: "MJ", fullName: "Michael Jordan", color: '#CE1141', imageUrl: '/api/persona-image/jordan', traits: ['competitive', 'confident'] },
+            bernie: { id: 'bernie', name: "Bernie Mac", fullName: "Bernie Mac", color: '#9B59B6', imageUrl: '/api/persona-image/bernie', traits: ['funny', 'passionate'] },
+            ruckus: { id: 'ruckus', name: "Ruckus", fullName: "Uncle Ruckus", color: '#8B4513', imageUrl: '/api/persona-image/ruckus', traits: ['cynical', 'contrarian'] }
+        };
+
+        var SPORT_PICKS = {
+            trump: {
+                nfl: function(g) { return "Take the FAVORITE! Winners pick winners! Believe me!"; },
+                nba: function(g) { return "Lakers — tremendous team. I've sat courtside, believe me."; },
+                ufc: function(g) { return "The toughest guy wins. Always. I know tough — I AM tough."; },
+                mlb: function(g) { return "Yankees! New York's team. MY team. The best franchise ever."; },
+                soccer: function(g) { return "Real Madrid — they're like me. Winners. The best."; },
+                generic: function(g) { return "I pick winners. I always pick winners. That's what I do."; }
+            },
+            buffett: {
+                nfl: function(g) { return "The spread is a market. Look for value where the public overreacts."; },
+                nba: function(g) { return "I'd take the under. Public loves high-scoring games. Be contrarian."; },
+                ufc: function(g) { return "I don't gamble. But if I did, I'd take the underdog at +200."; },
+                mlb: function(g) { return "Baseball is a long season. Don't bet one game — think season totals."; },
+                soccer: function(g) { return "The draw at +240 is where value lives. Nobody bets the draw."; },
+                generic: function(g) { return "Find mispriced lines. The public is often wrong. Be patient."; }
+            },
+            musk: {
+                nfl: function(g) { return "The OVER. Always the over. We're going to Mars, not playing defense."; },
+                nba: function(g) { return "Player props. Individual performance is more predictable than team chaos."; },
+                ufc: function(g) { return "The underdog by KO. Maximum disruption. That's how I operate."; },
+                mlb: function(g) { return "First 5 innings bet. Limit your downside. Like a seed round."; },
+                soccer: function(g) { return "Both teams to score. Chaos is the only certainty."; },
+                generic: function(g) { return "Take the contrarian bet. The crowd is usually wrong. Literally."; }
+            },
+            grandma: {
+                nfl: function(g) { return "Oh dear, I just hope nobody gets hurt. Go team!"; },
+                nba: function(g) { return "I remember when basketball was simpler. Just enjoy the game, honey."; },
+                ufc: function(g) { return "Fighting?! Oh my. I can't watch. Please be careful, boys."; },
+                mlb: function(g) { return "Your grandfather loved baseball. He'd say 'bet the home team.'"; },
+                soccer: function(g) { return "They run around so much! I hope they stay hydrated."; },
+                generic: function(g) { return "Just watch and have fun, sweetie. Don't bet your rent money."; }
+            },
+            jordan: {
+                nfl: function(g) { return "Take the better team. Champions win. I should know — I have SIX rings."; },
+                nba: function(g) { return "I'd take the under. Defense wins championships. I took that personally."; },
+                ufc: function(g) { return "The champion. Always bet on the champion. Mentality matters."; },
+                mlb: function(g) { return "Bet on the ace pitcher. One player can dominate. Like me in Game 6."; },
+                soccer: function(g) { return "The team with more hunger. You can see it in their eyes."; },
+                generic: function(g) { return "Winners want the ball when the game is on the line. Find that team."; }
+            },
+            bernie: {
+                nfl: function(g) { return "Man, I ain't finna bet on no football! But if I DID... I'd take the over. I like action!"; },
+                nba: function(g) { return "Sheeeeit, gimme the team wit' the most heart! Don't be out here bettin' on no soft team!"; },
+                ufc: function(g) { return "Now THAT'S entertainment! I'd take the underdog. I LOVE an underdog story, baby!"; },
+                mlb: function(g) { return "Baseball is TOO slow for me, man. But if the Yankees playin', bet the Yanks. Classic."; },
+                soccer: function(g) { return "Soccer?! Man, they runnin' for 90 minutes and it's 0-0?! Bet the under, I guess!"; },
+                generic: function(g) { return "Look here, I ain't no gambling man — but I ain't no FOOL neither. Follow yo gut!"; }
+            },
+            ruckus: {
+                nfl: function(g) { return "I don't trust NONE of these teams! But if I gotta pick, I'm takin' the home team. Less travelin' means less trouble."; },
+                nba: function(g) { return "The NBA?! Bunch of overpaid — well, I reckon the team wit' the better defense. Defense never lies, I tell you what."; },
+                ufc: function(g) { return "Now THAT'S a sport I can respect! The bigger man wins! Simple as that, no sir!"; },
+                mlb: function(g) { return "Baseball is the only honest sport left! Bet the pitcher, son. A good arm don't lie!"; },
+                soccer: function(g) { return "Soccer?! That ain't even a real sport! But fine — take the draw. Nobody deserves to win."; },
+                generic: function(g) { return "I don't trust gamblin', but I 'specially don't trust people who DON'T gamble. At least gamblers are honest about bein' stupid."; }
+            },
+            suze: {
+                nfl: function(g) { return "DO NOT bet more than you can afford to lose! Set a LIMIT! Then take the under."; },
+                nba: function(g) { return "Sports betting is GAMBLING, people! But if you must — small, responsible bets only!"; },
+                ufc: function(g) { return "Fighting?! That's your emergency fund you're risking! DENIED!"; },
+                mlb: function(g) { return "Before you bet on baseball, do you have 8 months of expenses saved? I didn't think so."; },
+                soccer: function(g) { return "International betting means currency risk too! Are you APPROVED for this?"; },
+                generic: function(g) { return "Can you AFFORD to lose this money? Be honest with yourself. THEN make your pick."; }
+            },
+            dave: {
+                nfl: function(g) { return "GAMBLING IS DUMB! But watching football is free. Enjoy the game, pay off your credit card."; },
+                nba: function(g) { return "If you have DEBT, you should NOT be betting! Baby steps, people!"; },
+                ufc: function(g) { return "You wanna fight? Fight your way out of DEBT! That's the real battle!"; },
+                mlb: function(g) { return "The only bet I make is on MUTUAL FUNDS with a good track record. Not baseball!"; },
+                soccer: function(g) { return "Instead of betting on soccer, PUT THAT MONEY in your Roth IRA! Gazelle intensity!"; },
+                generic: function(g) { return "Sports betting is for people who can't do MATH! Get out of debt first!"; }
+            },
+            genie: {
+                nfl: function(g) { return "I have foreseen... the underdog shall rise! But this prophecy costs one wish. Choose WISELY, master!"; },
+                nba: function(g) { return "In 10,000 years, I've seen dynasties crumble. Take the team with the fresher legs. The lamp knows!"; },
+                ufc: function(g) { return "A warrior's heart cannot be measured in odds! I grant your wish for... the underdog by submission!"; },
+                mlb: function(g) { return "NINE innings... like my NINE thousand years in the lamp! Take the over. Magic favors abundance!"; },
+                soccer: function(g) { return "In the mystical lands of football, the draw is the universe seeking BALANCE! Take the draw!"; },
+                generic: function(g) { return "You have THREE betting wishes today. Use them wisely, for the Genie does not offer refunds!"; }
+            },
+            mansa: {
+                nfl: function(g) { return "In my empire, we would have BOUGHT both teams. But since you must choose — pick the richer franchise."; },
+                nba: function(g) { return "Basketball is like trade routes — control the tempo, control the game. Take the team that controls pace."; },
+                ufc: function(g) { return "A true king never fights himself. But he bets on the one with the most to prove."; },
+                mlb: function(g) { return "Patience, like gold mining, is key. Take the team with the better bullpen. Wars are won in the late innings."; },
+                soccer: function(g) { return "Football is the world's game, and the world was once MY game. Take the home side. Home is empire."; },
+                generic: function(g) { return "I once collapsed an economy with generosity. Don't collapse YOUR economy with bad bets. Be strategic."; }
+            }
+        };
+
+        var affiliatePrograms = {
+            draftkings: { name: 'DraftKings', url: 'https://www.draftkings.com', logo: '&#x1F7E2;' },
+            fanduel: { name: 'FanDuel', url: 'https://www.fanduel.com', logo: '&#x1F535;' },
+            bet365: { name: 'Bet365', url: 'https://www.bet365.com', logo: '&#x1F537;' },
+            stake: { name: 'Stake', url: 'https://www.stake.com', logo: '&#x1F3B0;' }
+        };
+
+        var upcomingGames = [];
+        var selectedP1 = 'trump';
+        var selectedP2 = 'buffett';
+        var debateVoted = false;
+        var h2hData = { wins: 0, losses: 0, total: 0 };
+
+        function getRecommendedBook() { return 'draftkings'; }
+
+        function getPersonaPick(personaId, game) {
+            var leagueKey = (game.league || '').toLowerCase();
+            var picks = SPORT_PICKS[personaId];
+            if (!picks) return "No comment.";
+            var fn = picks[leagueKey] || picks.generic;
+            return fn ? fn(game) : "No comment.";
+        }
+
+        function generateTrashTalk(p1, p2) {
+            var lines = {
+                trump: ["I've won more than " + PERSONAS[p2].name + " has ever DREAMED of winning!", "Nobody knows sports like me. NOBODY. Ask anyone.", PERSONAS[p2].name + "? Nice person, but TERRIBLE at picks. Terrible."],
+                buffett: ["The odds favor patience, not " + PERSONAS[p2].name + "'s impulsiveness.", "I've been investing longer than " + PERSONAS[p2].name + " has been relevant.", "Value is found where others panic. " + PERSONAS[p2].name + " panics a lot."],
+                jordan: ["I took " + PERSONAS[p2].name + "'s pick PERSONALLY.", "Six rings say I know winning better than " + PERSONAS[p2].name + ".", PERSONAS[p2].name + " couldn't guard me and can't out-pick me."],
+                bernie: ["Man, " + PERSONAS[p2].name + " don't know NOTHIN' bout sports! I ain't scared!", "Look here, " + PERSONAS[p2].name + " — I been callin' games since you was in DIAPERS!", PERSONAS[p2].name + "?! Sheeeeit, my GRANDMAMA picks better than that!"],
+                ruckus: ["I don't trust " + PERSONAS[p2].name + "'s picks OR their judgment, I tell you what!", PERSONAS[p2].name + " couldn't pick a winner if they was the ONLY one runnin'!", "Lemme tell you somethin' — " + PERSONAS[p2].name + " is WRONG. Always has been!"],
+                genie: ["In 10,000 years, I've never seen picks as bad as " + PERSONAS[p2].name + "'s!", "The lamp reveals all — and it reveals " + PERSONAS[p2].name + " is WRONG!", "I grant wishes, not miracles. " + PERSONAS[p2].name + " would need a miracle."],
+                grandma: ["Oh, " + PERSONAS[p2].name + " is nice, but my picks are better, dear.", "Your grandfather always said — don't listen to " + PERSONAS[p2].name + ".", "That's nice, " + PERSONAS[p2].name + ". But Grandma knows best."]
+            };
+            var personaLines = lines[p1] || ["I know more about sports than " + PERSONAS[p2].name + " ever will."];
+            return personaLines[Math.floor(Math.random() * personaLines.length)];
+        }
+
+        function fetchGames() {
+            fetch('/api/sports/upcoming')
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.games && data.games.length > 0) {
+                        upcomingGames = data.games;
+                    } else {
+                        upcomingGames = getDefaultGames();
+                    }
+                    render();
+                })
+                .catch(function() {
+                    upcomingGames = getDefaultGames();
+                    render();
+                });
+        }
+
+        function getDefaultGames() {
+            var now = new Date();
+            var tonight = new Date(now); tonight.setHours(20, 15, 0, 0);
+            var tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1); tomorrow.setHours(19, 30, 0, 0);
+            var saturday = new Date(now); saturday.setDate(now.getDate() + (6 - now.getDay() + 7) % 7); saturday.setHours(22, 0, 0, 0);
+            var sunday = new Date(now); sunday.setDate(now.getDate() + (7 - now.getDay()) % 7 || 7); sunday.setHours(16, 5, 0, 0);
+
+            return [
+                { id: 1, league: 'NFL', game: 'Chiefs vs Bills', time: formatGameTime(tonight), odds: 'Chiefs -3.5 | O/U 48.5' },
+                { id: 2, league: 'NBA', game: 'Lakers vs Celtics', time: formatGameTime(tomorrow), odds: 'Lakers +4 | O/U 225.5' },
+                { id: 3, league: 'UFC', game: 'Jones vs Miocic', time: formatGameTime(saturday), odds: 'Jones -250 | Miocic +200' },
+                { id: 4, league: 'MLB', game: 'Yankees vs Dodgers', time: formatGameTime(sunday), odds: 'Yankees +105 | Dodgers -125' },
+                { id: 5, league: 'SOCCER', game: 'Real Madrid vs Barcelona', time: formatGameTime(saturday), odds: 'Madrid +120 | Draw +240 | Barca +110' }
+            ];
+        }
+
+        function formatGameTime(d) {
+            var days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            var h = d.getHours(); var m = d.getMinutes();
+            var ampm = h >= 12 ? 'PM' : 'AM';
+            h = h % 12 || 12;
+            return days[d.getDay()] + ' ' + h + ':' + (m < 10 ? '0' : '') + m + ' ' + ampm;
+        }
+
+        function speakPersona(personaId, text) {
+            var btn = document.querySelector('[data-speak="' + personaId + '"]');
+            if (btn) btn.textContent = '...';
+            fetch('/api/persona-speak', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: text.slice(0, 300), personaId: personaId })
+            })
+            .then(function(r) { return r.blob(); })
+            .then(function(blob) {
+                var url = URL.createObjectURL(blob);
+                var audio = new Audio(url);
+                audio.play();
+                audio.onended = function() { URL.revokeObjectURL(url); };
+                if (btn) btn.textContent = '\u{1F50A}';
+            })
+            .catch(function() {
+                if (btn) btn.textContent = '\u{1F50A}';
+            });
+        }
+
+        function render() {
+            var bookie = getRecommendedBook();
+            var prog = affiliatePrograms[bookie];
+            var p1 = PERSONAS[selectedP1];
+            var p2 = PERSONAS[selectedP2];
+
+            var featuredGame = upcomingGames[0] || { game: 'TBD', league: 'TBD', time: 'Soon' };
+            var pick1 = getPersonaPick(selectedP1, featuredGame);
+            var pick2 = getPersonaPick(selectedP2, featuredGame);
+            var talk1 = generateTrashTalk(selectedP1, selectedP2);
+            var talk2 = generateTrashTalk(selectedP2, selectedP1);
+
+            var html = '';
+            html += '<div class="sports-header">';
+            html += '<h1>TRUMP\'S SPORTS BOOK</h1>';
+            html += '<div class="subhead">AI Persona Picks &amp; Debates</div>';
+            html += '<div class="live-badge">LIVE PICKS</div>';
+            html += '</div>';
+
+            html += '<div class="persona-selector">';
+            html += '<div class="section-label">PICK YOUR DEBATERS</div>';
+            html += '<div class="persona-row">';
+            Object.keys(PERSONAS).forEach(function(id) {
+                var p = PERSONAS[id];
+                var sel1 = selectedP1 === id;
+                var sel2 = selectedP2 === id;
+                var borderColor = sel1 ? p1.color : (sel2 ? p2.color : '#333');
+                html += '<div class="persona-chip' + (sel1 || sel2 ? ' selected' : '') + '" style="border-color:' + borderColor + ';" onclick="selectPersona(\'' + id + '\')">';
+                html += '<img src="' + p.imageUrl + '" style="border-color:' + p.color + ';" onerror="this.style.display=\'none\'">';
+                html += '<div class="chip-name" style="color:' + (sel1 || sel2 ? p.color : '#aaa') + ';">' + p.name + '</div>';
+                html += '</div>';
+            });
+            html += '</div></div>';
+
+            html += '<div class="featured-book" onclick="trackClick(\'' + bookie + '\')">';
+            html += '<div class="book-logo">' + prog.logo + '</div>';
+            html += '<div class="book-info">';
+            html += '<h3>BEST OFFER: ' + prog.name + '</h3>';
+            html += '<button class="bet-now-btn">BET NOW</button>';
+            html += '</div></div>';
+
+            html += '<div class="debate-arena">';
+            html += '<div class="section-label">TODAY\'S DEBATE: ' + featuredGame.game + '</div>';
+            html += '<div class="debate-grid">';
+
+            html += '<div class="debate-card" style="border-color:' + p1.color + ';">';
+            html += '<img src="' + p1.imageUrl + '" style="border-color:' + p1.color + ';" onerror="this.style.display=\'none\'">';
+            html += '<div class="d-name" style="color:' + p1.color + ';">' + p1.name + '</div>';
+            html += '<div class="d-pick">' + pick1 + '</div>';
+            html += '<button class="listen-btn" data-speak="' + selectedP1 + '" onclick="event.stopPropagation();speakPersona(\'' + selectedP1 + '\',\'' + pick1.replace(/'/g, "\\'") + '\')" title="Listen">\u{1F50A}</button>';
+            html += '<button class="vote-btn" style="background:' + p1.color + ';"' + (debateVoted ? ' disabled' : '') + ' onclick="castVote(\'' + selectedP1 + '\',\'' + selectedP2 + '\')">VOTE ' + p1.name.toUpperCase() + '</button>';
+            html += '</div>';
+
+            html += '<div class="vs-badge">VS</div>';
+
+            html += '<div class="debate-card" style="border-color:' + p2.color + ';">';
+            html += '<img src="' + p2.imageUrl + '" style="border-color:' + p2.color + ';" onerror="this.style.display=\'none\'">';
+            html += '<div class="d-name" style="color:' + p2.color + ';">' + p2.name + '</div>';
+            html += '<div class="d-pick">' + pick2 + '</div>';
+            html += '<button class="listen-btn" data-speak="' + selectedP2 + '" onclick="event.stopPropagation();speakPersona(\'' + selectedP2 + '\',\'' + pick2.replace(/'/g, "\\'") + '\')" title="Listen">\u{1F50A}</button>';
+            html += '<button class="vote-btn" style="background:' + p2.color + ';"' + (debateVoted ? ' disabled' : '') + ' onclick="castVote(\'' + selectedP2 + '\',\'' + selectedP1 + '\')">VOTE ' + p2.name.toUpperCase() + '</button>';
+            html += '</div>';
+            html += '</div>';
+
+            if (h2hData.total > 0) {
+                html += '<div class="h2h-bar">HEAD-TO-HEAD: <span class="record" style="color:' + p1.color + ';">' + p1.name + ' ' + h2hData.wins + '</span> - <span class="record" style="color:' + p2.color + ';">' + h2hData.losses + ' ' + p2.name + '</span></div>';
+            }
+
+            if (debateVoted) {
+                html += '<div class="trash-talk">';
+                html += '<h4>TRASH TALK</h4>';
+                html += '<div class="talk-line" style="color:' + p1.color + ';">"' + talk1 + '"</div>';
+                html += '<div class="talk-line" style="color:' + p2.color + ';">"' + talk2 + '"</div>';
+                html += '</div>';
+            }
+            html += '</div>';
+
+            html += '<div class="games-section">';
+            html += '<div class="section-label">UPCOMING GAMES</div>';
+            html += '<div class="games-list">';
+            upcomingGames.forEach(function(game) {
+                html += '<div class="game-card">';
+                html += '<div class="game-top"><span class="game-league">' + game.league + '</span><span class="game-time">' + game.time + '</span></div>';
+                html += '<div class="game-matchup">' + game.game + '</div>';
+                if (game.odds) html += '<div class="game-odds">' + game.odds + '</div>';
+
+                html += '<div class="persona-picks">';
+                [selectedP1, selectedP2].forEach(function(pid) {
+                    var pp = PERSONAS[pid];
+                    var pick = getPersonaPick(pid, game);
+                    html += '<div class="pick-line"><img src="' + pp.imageUrl + '" onerror="this.style.display=\'none\'"> <span style="color:' + pp.color + ';font-weight:bold;">' + pp.name + ':</span> ' + pick + '</div>';
+                });
+                html += '</div>';
+
+                html += '<button class="game-bet-btn" onclick="trackClick(\'' + bookie + '\')">BET ON ' + prog.name.toUpperCase() + '</button>';
+                html += '</div>';
+            });
+            html += '</div></div>';
+
+            html += '<div class="cross-promo">';
+            html += '<p style="color:#888;margin-bottom:8px;">Want more debates?</p>';
+            html += '<a href="/financial-faceoff">Try Financial Faceoff &#x2192;</a>';
+            html += '</div>';
+
+            html += '<div class="disclaimer">';
+            html += '<p>21+ only. Gamble responsibly. If you have a problem, call 1-800-GAMBLER.</p>';
+            html += '<p>Affiliate links: We may earn commissions. Not real betting advice.</p>';
+            html += '</div>';
+
+            document.getElementById('app').innerHTML = html;
+        }
+
+        function selectPersona(id) {
+            if (id === selectedP1) return;
+            if (id === selectedP2) {
+                selectedP2 = selectedP1;
+                selectedP1 = id;
+            } else {
+                selectedP2 = id;
+            }
+            debateVoted = false;
+            loadH2H();
+            render();
+            showToast('Debate updated!');
+        }
+
+        function castVote(winnerId, loserId) {
+            if (debateVoted) return;
+            debateVoted = true;
+
+            fetch('/api/faceoff/vote', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ debateId: 'sports_' + winnerId + '_' + loserId + '_' + Date.now(), asset: 'sports', persona1: winnerId, persona2: loserId, votedFor: winnerId })
+            }).catch(function() {});
+
+            fetch('/api/track-viral', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ event: 'sports_vote', data: { winner: winnerId, loser: loserId } })
+            }).catch(function() {});
+
+            h2hData.wins += (winnerId === selectedP1 ? 1 : 0);
+            h2hData.losses += (winnerId === selectedP2 ? 1 : 0);
+            h2hData.total += 1;
+
+            render();
+            showToast('Voted for ' + PERSONAS[winnerId].name + '!');
+
+            setTimeout(function() {
+                var p = PERSONAS[winnerId];
+                var text = 'I agree with ' + p.fullName + ' on ' + (upcomingGames[0] ? upcomingGames[0].game : 'the game') + '! Who do YOU agree with? Vote at chat-djt.replit.app/sports-betting';
+                if (navigator.share) {
+                    navigator.share({ text: text }).catch(function() {});
+                }
+            }, 1500);
+        }
+
+        function loadH2H() {
+            var key = 'sports_h2h_' + [selectedP1, selectedP2].sort().join('_');
+            try {
+                var stored = localStorage.getItem(key);
+                if (stored) {
+                    h2hData = JSON.parse(stored);
+                } else {
+                    h2hData = { wins: 0, losses: 0, total: 0 };
+                }
+            } catch(e) {
+                h2hData = { wins: 0, losses: 0, total: 0 };
+            }
+        }
+
+        function saveH2H() {
+            var key = 'sports_h2h_' + [selectedP1, selectedP2].sort().join('_');
+            try { localStorage.setItem(key, JSON.stringify(h2hData)); } catch(e) {}
+        }
+
+        function trackClick(programId) {
+            var prog = affiliatePrograms[programId];
+            if (prog) {
+                window.open(prog.url, '_blank');
+                showToast('Redirecting to ' + prog.name + '...');
+                fetch('/api/track-viral', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ event: 'sportsbook_click', data: { program: programId } })
+                }).catch(function() {});
+            }
+        }
+
+        function showToast(msg) {
+            var existing = document.querySelector('.toast');
+            if (existing) existing.remove();
+            var t = document.createElement('div');
+            t.className = 'toast';
+            t.textContent = msg;
+            document.body.appendChild(t);
+            setTimeout(function() { t.remove(); }, 2500);
+        }
+
+        loadH2H();
+        fetchGames();
+    </script>
+</body>
+</html>

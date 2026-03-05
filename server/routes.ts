@@ -499,6 +499,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/sports-betting", (_req, res) => {
+    try {
+      const htmlPath = join(process.cwd(), "server", "templates", "sports-betting.html");
+      const html = readFileSync(htmlPath, "utf-8");
+      res.type("html").send(html);
+    } catch (error) {
+      console.error("Sports betting page error:", error);
+      res.status(500).send("Failed to load Sports Betting page");
+    }
+  });
+
+  app.get("/api/sports/upcoming", async (_req, res) => {
+    try {
+      const now = new Date();
+      const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      function fmtTime(d: Date) {
+        const h = d.getHours() % 12 || 12;
+        const m = d.getMinutes().toString().padStart(2, '0');
+        const ampm = d.getHours() >= 12 ? 'PM' : 'AM';
+        return `${days[d.getDay()]} ${h}:${m} ${ampm}`;
+      }
+
+      const games = [];
+      const nflTeams = [
+        ['Chiefs', 'Bills'], ['Eagles', 'Cowboys'], ['49ers', 'Ravens'], ['Dolphins', 'Jets'],
+        ['Lions', 'Packers'], ['Bengals', 'Steelers'], ['Rams', 'Cardinals'], ['Chargers', 'Raiders']
+      ];
+      const nbaTeams = [
+        ['Lakers', 'Celtics'], ['Warriors', 'Bucks'], ['Nuggets', 'Heat'], ['76ers', 'Nets'],
+        ['Suns', 'Clippers'], ['Mavericks', 'Timberwolves'], ['Knicks', 'Bulls']
+      ];
+      const ufcFights = [
+        ['Jones', 'Miocic'], ['Adesanya', 'Pereira'], ['Volkanovski', 'Topuria'],
+        ['Makhachev', 'Oliveira'], ['O\'Malley', 'Dvalishvili']
+      ];
+      const mlbTeams = [
+        ['Yankees', 'Dodgers'], ['Braves', 'Astros'], ['Phillies', 'Rangers'],
+        ['Padres', 'Mets'], ['Orioles', 'Twins']
+      ];
+      const soccerGames = [
+        ['Real Madrid', 'Barcelona'], ['Man City', 'Liverpool'], ['PSG', 'Bayern Munich'],
+        ['Inter Milan', 'AC Milan'], ['Arsenal', 'Chelsea']
+      ];
+
+      const seed = Math.floor(now.getTime() / (6 * 3600 * 1000));
+      function seededRand(s: number) { let x = Math.sin(s) * 10000; return x - Math.floor(x); }
+
+      const nflPick = nflTeams[Math.floor(seededRand(seed) * nflTeams.length)];
+      const nbaPick = nbaTeams[Math.floor(seededRand(seed + 1) * nbaTeams.length)];
+      const ufcPick = ufcFights[Math.floor(seededRand(seed + 2) * ufcFights.length)];
+      const mlbPick = mlbTeams[Math.floor(seededRand(seed + 3) * mlbTeams.length)];
+      const soccerPick = soccerGames[Math.floor(seededRand(seed + 4) * soccerGames.length)];
+
+      const tonight = new Date(now); tonight.setHours(20, 15, 0, 0);
+      if (tonight < now) tonight.setDate(tonight.getDate() + 1);
+      const tomorrow = new Date(tonight); tomorrow.setDate(tonight.getDate() + 1); tomorrow.setHours(19, 30, 0, 0);
+      const sat = new Date(now); sat.setDate(now.getDate() + ((6 - now.getDay() + 7) % 7 || 7)); sat.setHours(22, 0, 0, 0);
+      const sun = new Date(now); sun.setDate(now.getDate() + ((7 - now.getDay()) % 7 || 7)); sun.setHours(16, 5, 0, 0);
+
+      const spreadVal = Math.floor(seededRand(seed + 10) * 7) + 1;
+      const totalVal = Math.floor(seededRand(seed + 11) * 15) + 42;
+
+      games.push({ id: 1, league: 'NFL', game: `${nflPick[0]} vs ${nflPick[1]}`, time: fmtTime(tonight), odds: `${nflPick[0]} -${spreadVal}.5 | O/U ${totalVal}.5` });
+      games.push({ id: 2, league: 'NBA', game: `${nbaPick[0]} vs ${nbaPick[1]}`, time: fmtTime(tomorrow), odds: `${nbaPick[0]} +${spreadVal - 1} | O/U ${200 + Math.floor(seededRand(seed + 12) * 30)}.5` });
+      games.push({ id: 3, league: 'UFC', game: `${ufcPick[0]} vs ${ufcPick[1]}`, time: fmtTime(sat), odds: `${ufcPick[0]} -${150 + Math.floor(seededRand(seed + 13) * 200)} | ${ufcPick[1]} +${100 + Math.floor(seededRand(seed + 14) * 150)}` });
+      games.push({ id: 4, league: 'MLB', game: `${mlbPick[0]} vs ${mlbPick[1]}`, time: fmtTime(sun), odds: `${mlbPick[0]} +${Math.floor(seededRand(seed + 15) * 40) + 100} | ${mlbPick[1]} -${Math.floor(seededRand(seed + 16) * 30) + 110}` });
+      games.push({ id: 5, league: 'SOCCER', game: `${soccerPick[0]} vs ${soccerPick[1]}`, time: fmtTime(sat), odds: `${soccerPick[0]} +${Math.floor(seededRand(seed + 17) * 50) + 100} | Draw +${200 + Math.floor(seededRand(seed + 18) * 60)} | ${soccerPick[1]} +${Math.floor(seededRand(seed + 19) * 50) + 100}` });
+
+      res.json({ games });
+    } catch (error) {
+      console.error("Sports upcoming error:", error);
+      res.json({ games: [] });
+    }
+  });
+
   app.post("/api/faceoff/vote", (req, res) => {
     try {
       const { debateId, asset, persona1, persona2, votedFor } = req.body;

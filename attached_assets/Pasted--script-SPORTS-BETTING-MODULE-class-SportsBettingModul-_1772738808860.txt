@@ -1,0 +1,253 @@
+<script>
+// ==================== SPORTS BETTING MODULE ====================
+class SportsBettingModule {
+    constructor(containerId) {
+        this.container = document.getElementById(containerId);
+        this.selectedPersonas = ['trump', 'buffett'];
+        this.affiliatePrograms = {
+            bet365: { name: 'Bet365', url: 'https://www.bet365.com', commission: '25-40%', regions: ['UK', 'EU'], logo: '🔷' },
+            draftkings: { name: 'DraftKings', url: 'https://www.draftkings.com', commission: '$75 CPA', regions: ['US'], logo: '🟢' },
+            fanduel: { name: 'FanDuel', url: 'https://www.fanduel.com', commission: '$35 CPA', regions: ['US'], logo: '🔵' },
+            stake: { name: 'Stake', url: 'https://www.stake.com', commission: '10% House Edge', regions: ['INTL'], logo: '🎰' }
+        };
+        
+        this.upcomingGames = [
+            { id: 1, league: 'NFL', game: 'Chiefs vs Bills', time: 'Today 8:15 PM', odds: { chiefs: -120, bills: +100, total: 48.5 },
+              trumpPick: 'Chiefs -3.5', elonPick: 'Over 48.5', buffettPick: 'Wait for value' },
+            { id: 2, league: 'NBA', game: 'Lakers vs Celtics', time: 'Tonight 7:30 PM', odds: { lakers: +110, celtics: -130, total: 225.5 },
+              trumpPick: 'Lakers ML', grandmaPick: 'I hope everyone has fun', buffettPick: 'Under 225.5' },
+            { id: 3, league: 'UFC', game: 'Jones vs Miocic', time: 'Saturday 10:00 PM', odds: { jones: -250, miocic: +200 },
+              trumpPick: 'Jones by KO', elonPick: 'Miocic, for the drama' },
+            { id: 4, league: 'MLB', game: 'Yankees vs Dodgers', time: 'Sunday 4:05 PM', odds: { yankees: +105, dodgers: -125 },
+              trumpPick: 'Yankees!' },
+            { id: 5, league: 'SOCCER', game: 'Real Madrid vs Barcelona', time: 'Saturday 3:00 PM', odds: { madrid: +120, barca: +110, draw: +240 },
+              trumpPick: 'Real Madrid', grandmaPick: 'They run so much!' }
+        ];
+        
+        this.init();
+    }
+
+    init() {
+        this.render();
+    }
+
+    render() {
+        const userCountry = this.detectUserCountry();
+        const recommendedBook = this.getRecommendedBook(userCountry);
+        
+        this.container.innerHTML = `
+            <div class="sports-container">
+                <div class="sports-header">
+                    <h2>🏆 TRUMP'S SPORTS BOOK</h2>
+                    <div class="persona-indicator" onclick="sports.togglePersonaSelector()">
+                        🎭 ${this.selectedPersonas.map(p => PERSONAS[p].avatar).join(' vs ')}
+                    </div>
+                </div>
+                
+                <div id="personaSelector" class="persona-selector" style="display: none;">
+                    <h4>Choose advisors:</h4>
+                    <div class="persona-grid">
+                        ${Object.keys(PERSONAS).map(id => `
+                            <div class="persona-checkbox">
+                                <label>
+                                    <input type="checkbox" value="${id}" 
+                                        ${this.selectedPersonas.includes(id) ? 'checked' : ''}
+                                        onchange="sports.togglePersona('${id}')">
+                                    ${PERSONAS[id].avatar} ${PERSONAS[id].name}
+                                </label>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <button onclick="sports.updateDebate()">UPDATE</button>
+                </div>
+                
+                <div class="featured-book" onclick="sports.trackClick('${recommendedBook}')">
+                    <div class="book-logo">${this.affiliatePrograms[recommendedBook].logo}</div>
+                    <div class="book-info">
+                        <h3>⚡ BEST OFFER: ${this.affiliatePrograms[recommendedBook].name}</h3>
+                        <button class="bet-now-btn">💰 BET NOW</button>
+                    </div>
+                </div>
+                
+                <div class="debate-arena">
+                    <h3>⚔️ TODAY'S DEBATE</h3>
+                    <div class="debate-grid">
+                        ${this.renderDebate()}
+                    </div>
+                </div>
+                
+                <div class="games-grid">
+                    <h3>📅 UPCOMING GAMES</h3>
+                    <div class="games-list">
+                        ${this.upcomingGames.map(game => this.renderGameCard(game)).join('')}
+                    </div>
+                </div>
+                
+                <div id="trashTalk" class="trash-talk" style="display: none;"></div>
+                
+                <div class="affiliate-disclaimer">
+                    <p>⚡ 21+ only. Gamble responsibly. If you have a problem, call 1-800-GAMBLER.</p>
+                    <p>Affiliate links: We may earn commissions.</p>
+                </div>
+            </div>
+        `;
+        
+        this.checkTrashTalk();
+    }
+
+    renderDebate() {
+        if (this.selectedPersonas.length < 2) return '<div>Select 2 personas</div>';
+        
+        const p1 = this.selectedPersonas[0];
+        const p2 = this.selectedPersonas[1];
+        const game = this.upcomingGames[0];
+        
+        const p1Pick = this.getPersonaPick(p1, game);
+        const p2Pick = this.getPersonaPick(p2, game);
+        const p1Opening = personaMemory.generateReference(p1, p2, game.game);
+        const p2Opening = personaMemory.generateReference(p2, p1, game.game);
+        
+        return `
+            <div class="debate-card" style="border-color: ${PERSONAS[p1].color};">
+                <div class="persona-header">
+                    <span class="persona-avatar">${PERSONAS[p1].avatar}</span>
+                    <span class="persona-name" style="color: ${PERSONAS[p1].color};">${PERSONAS[p1].name}</span>
+                </div>
+                <div class="persona-opener">"${p1Opening}"</div>
+                <div class="persona-pick"><strong>PICK:</strong> ${p1Pick}</div>
+                <button class="vote-btn" style="background: ${PERSONAS[p1].color};" 
+                        onclick="sports.vote('${p1}', '${p2}')">👍 I agree</button>
+            </div>
+            
+            <div class="vs-badge">VS</div>
+            
+            <div class="debate-card" style="border-color: ${PERSONAS[p2].color};">
+                <div class="persona-header">
+                    <span class="persona-avatar">${PERSONAS[p2].avatar}</span>
+                    <span class="persona-name" style="color: ${PERSONAS[p2].color};">${PERSONAS[p2].name}</span>
+                </div>
+                <div class="persona-opener">"${p2Opening}"</div>
+                <div class="persona-pick"><strong>PICK:</strong> ${p2Pick}</div>
+                <button class="vote-btn" style="background: ${PERSONAS[p2].color};" 
+                        onclick="sports.vote('${p2}', '${p1}')">👍 I agree</button>
+            </div>
+        `;
+    }
+
+    renderGameCard(game) {
+        const bookie = this.getRecommendedBook(this.detectUserCountry());
+        
+        return `
+            <div class="game-card" onclick="sports.trackClick('${bookie}')">
+                <div class="game-header">
+                    <span class="game-league">${game.league}</span>
+                    <span class="game-time">${game.time}</span>
+                </div>
+                <div class="game-matchup">${game.game}</div>
+                <div class="persona-picks">
+                    ${game.trumpPick ? `<div>🗣️ Trump: ${game.trumpPick}</div>` : ''}
+                    ${game.elonPick ? `<div>🚀 Elon: ${game.elonPick}</div>` : ''}
+                    ${game.grandmaPick ? `<div>👵 Grandma: ${game.grandmaPick}</div>` : ''}
+                </div>
+                <button class="game-bet-btn">💰 BET ON ${this.affiliatePrograms[bookie].name}</button>
+            </div>
+        `;
+    }
+
+    getPersonaPick(personaId, game) {
+        if (personaId === 'trump' && game.trumpPick) return game.trumpPick;
+        if (personaId === 'elon' && game.elonPick) return game.elonPick;
+        if (personaId === 'grandma' && game.grandmaPick) return game.grandmaPick;
+        if (personaId === 'buffett' && game.buffettPick) return game.buffettPick;
+        
+        const traits = PERSONAS[personaId].traits;
+        if (traits.includes('boastful')) return `Take the favorite!`;
+        if (traits.includes('worried')) return `Just watch, dear.`;
+        if (traits.includes('analytical')) return `Look for value.`;
+        return `Follow your heart.`;
+    }
+
+    vote(winnerId, loserId) {
+        personaMemory.recordInteraction(winnerId, loserId, 'debate', 'sports', 'win');
+        personaMemory.recordInteraction(loserId, winnerId, 'debate', 'sports', 'loss');
+        
+        this.showNotification(`✅ Voted for ${PERSONAS[winnerId].name}!`);
+        this.checkTrashTalk();
+        
+        setTimeout(() => {
+            if (confirm(`Share that you agree with ${PERSONAS[winnerId].name}?`)) {
+                const text = encodeURIComponent(`I agree with ${PERSONAS[winnerId].name} on the game! Who's right? Vote at trumpbot.rip`);
+                window.open(`https://twitter.com/intent/tweet?text=${text}`, '_blank');
+            }
+        }, 1000);
+    }
+
+    checkTrashTalk() {
+        if (this.selectedPersonas.length < 2) return;
+        
+        const p1 = this.selectedPersonas[0];
+        const p2 = this.selectedPersonas[1];
+        const record = personaMemory.getHeadToHead(p1, p2);
+        
+        if (record.total > 0) {
+            document.getElementById('trashTalk').style.display = 'block';
+            document.getElementById('trashTalk').innerHTML = `
+                <div class="trash-talk-container">
+                    <h4>🔥 TRASH TALK 🔥</h4>
+                    <div style="color: ${PERSONAS[p1].color};">${personaMemory.generateTrashTalk(p1, p2)}</div>
+                    <div style="color: ${PERSONAS[p2].color};">${personaMemory.generateTrashTalk(p2, p1)}</div>
+                    <div>Head-to-head: ${PERSONAS[p1].name} ${record.wins} - ${record.losses} ${PERSONAS[p2].name}</div>
+                </div>
+            `;
+        }
+    }
+
+    togglePersonaSelector() {
+        const el = document.getElementById('personaSelector');
+        el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    }
+
+    togglePersona(id) {
+        if (this.selectedPersonas.includes(id)) {
+            if (this.selectedPersonas.length > 2) {
+                this.selectedPersonas = this.selectedPersonas.filter(p => p !== id);
+            }
+        } else {
+            if (this.selectedPersonas.length < 2) {
+                this.selectedPersonas.push(id);
+            } else {
+                this.selectedPersonas[1] = id;
+            }
+        }
+    }
+
+    updateDebate() {
+        this.render();
+        this.showNotification('⚔️ Debate updated!');
+    }
+
+    detectUserCountry() { return 'US'; }
+    
+    getRecommendedBook(country) {
+        if (country === 'US') return 'draftkings';
+        if (country === 'UK') return 'bet365';
+        return 'stake';
+    }
+
+    trackClick(programId) {
+        const program = this.affiliatePrograms[programId];
+        if (program) {
+            window.open(program.url, '_blank');
+            this.showNotification(`🔗 Redirecting to ${program.name}...`);
+        }
+    }
+
+    showNotification(msg) {
+        const notif = document.createElement('div');
+        notif.style.cssText = `position:fixed;top:20px;right:20px;background:#ff4d4d;color:white;padding:15px;border-radius:50px;z-index:10000;`;
+        notif.textContent = msg;
+        document.body.appendChild(notif);
+        setTimeout(() => notif.remove(), 3000);
+    }
+}
+</script>
