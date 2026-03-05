@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   StyleSheet,
   Text,
@@ -244,6 +245,11 @@ export default function RealEstateScreen() {
         if (data.comment) {
           setAiComments((prev) => ({ ...prev, [aiKey]: { comment: data.comment, rating: data.rating } }));
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          try {
+            const prev = await AsyncStorage.getItem("chatdjt_property_analyses");
+            const count = (parseInt(prev || "0") || 0) + 1;
+            await AsyncStorage.setItem("chatdjt_property_analyses", String(count));
+          } catch {}
         }
       }
     } catch (err) {

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   StyleSheet,
   Text,
@@ -158,6 +159,11 @@ export default function FortuneScreen() {
       setFortune(data.fortune);
       refreshBalance();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      try {
+        const prev = await AsyncStorage.getItem("chatdjt_fortune_count");
+        const count = (parseInt(prev || "0") || 0) + 1;
+        await AsyncStorage.setItem("chatdjt_fortune_count", String(count));
+      } catch {}
 
       setTimeout(() => {
         scrollRef.current?.scrollToEnd({ animated: true });

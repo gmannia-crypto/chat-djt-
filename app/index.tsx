@@ -351,11 +351,13 @@ export default function HomeScreen() {
 
   async function loadBadges() {
     try {
-      const [streakStr, convData, mysteryOpened, ratedData] = await Promise.all([
+      const [streakStr, convData, mysteryOpened, ratedData, fortuneData, propertyData] = await Promise.all([
         AsyncStorage.getItem("chatdjt_streak"),
         AsyncStorage.getItem("chatdjt_conversations"),
         AsyncStorage.getItem("chatdjt_mystery_opened"),
         AsyncStorage.getItem("chatdjt_rated_trump"),
+        AsyncStorage.getItem("chatdjt_fortune_count"),
+        AsyncStorage.getItem("chatdjt_property_analyses"),
       ]);
 
       const currentStreak = parseInt(streakStr || "0") || 0;
@@ -366,6 +368,8 @@ export default function HomeScreen() {
       } catch {}
       const hasOpenedMystery = !!mysteryOpened;
       const hasRated = !!ratedData;
+      const fortuneCount = parseInt(fortuneData || "0") || 0;
+      const propertyCount = parseInt(propertyData || "0") || 0;
 
       setBadges([
         { id: "streak3", label: "3-Day Streak", emoji: "\uD83D\uDD25", desc: "Chat 3 days in a row", earned: currentStreak >= 3 },
@@ -374,9 +378,11 @@ export default function HomeScreen() {
         { id: "first_chat", label: "First Chat", emoji: "\uD83D\uDCAC", desc: "Start your first conversation", earned: convCount >= 1 },
         { id: "chat5", label: "Regular", emoji: "\uD83C\uDFAF", desc: "Have 5 conversations", earned: convCount >= 5 },
         { id: "chat20", label: "Power User", emoji: "\u26A1", desc: "Have 20 conversations", earned: convCount >= 20 },
+        { id: "fortune", label: "Fortune Teller", emoji: "\uD83D\uDD2E", desc: "Use Fortune Parlor 10 times", earned: fortuneCount >= 10 },
+        { id: "property", label: "Property Mogul", emoji: "\uD83C\uDFE0", desc: "Analyze 5 properties", earned: propertyCount >= 5 },
         { id: "mystery", label: "Mystery Opener", emoji: "\uD83C\uDF81", desc: "Open a Mystery Box", earned: hasOpenedMystery },
         { id: "rated", label: "Rated Trump", emoji: "\uD83D\uDDF3\uFE0F", desc: "Rate Trump at least once", earned: hasRated },
-        { id: "explorer", label: "Explorer", emoji: "\uD83E\uDDED", desc: "Try all app features", earned: convCount >= 5 && currentStreak >= 3 },
+        { id: "explorer", label: "Explorer", emoji: "\uD83E\uDDED", desc: "Try all app features", earned: convCount >= 5 && currentStreak >= 3 && fortuneCount >= 1 },
       ]);
     } catch {}
   }
