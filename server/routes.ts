@@ -3425,12 +3425,12 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
       },
       bernie: {
         comment: price > 1000000
-          ? `$${(price / 1000000).toFixed(1)}M?! Listen here, America! That's a LOT of money! You better have your stuff TOGETHER before you sign that paper! But if you got it? GET IN THERE! Lock the door and tell everybody to GET OUT!`
+          ? `$${(price / 1000000).toFixed(1)}M?! Aye, look here man! That's a LOT of money! You better have yo stuff TOGETHER 'fore you sign that paper! But if you got it? GET IN THERE! Lock the door and tell everybody to GET OUT!`
           : price > 500000
-          ? `$${(price / 1000).toFixed(0)}K in ${city}? A HOUSE! Now THAT'S an investment! You can live in it, hide in it, lock the door and tell everybody to GET OUT! ${beds} bedrooms? That's value, America!`
+          ? `$${(price / 1000).toFixed(0)}K in ${city}? A HOUSE! Now THAT'S what I'm talkin' bout! You can live in it, hide in it, lock the door and tell everybody to GET OUT! ${beds} bedrooms? That's real value right there, man!`
           : price > 100000
-          ? `$${(price / 1000).toFixed(0)}K for ${beds} bedrooms? Baby, my grandmama would be PROUD! She always said own your home. Don't let nobody tell you where to live. GET YOUR OWN!`
-          : `Under $100K? I ain't scared of that price! That's a DEAL, America! You know how many comedy clubs I played for LESS than that? Buy it, fix it up, and tell the neighbors — I AIN'T LEAVING!`,
+          ? `$${(price / 1000).toFixed(0)}K for ${beds} bedrooms? Man, my grandmama would be PROUD! She always said own yo home. Don't let nobody tell you where to live. GET YOUR OWN, baby!`
+          : `Under $100K? I ain't scared of that price, man! That's a DEAL! You know how many comedy clubs I played for LESS than that? Buy it, fix it up, and tell the neighbors — I AIN'T LEAVIN'!`,
         rating: Math.floor(Math.random() * 20) + 75,
       },
       genie: {
@@ -3445,12 +3445,12 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
       },
       ruckus: {
         comment: price > 1000000
-          ? `$${(price / 1000000).toFixed(1)}M?! Now who in their RIGHT MIND is paying THAT for a house in ${city}?! That ain't a house, that's a SCAM with a roof on it! Don't be a FOOL! The property values gonna tank like everything else!`
+          ? `$${(price / 1000000).toFixed(1)}M?! Now who in their dadgum RIGHT MIND is payin' THAT for a house in ${city}?! That ain't a house, that's a SCAM with a roof on it, I tell you what! Don't be a FOOL, now! Them property values fixin' to tank like everythang else!`
           : price > 500000
-          ? `$${(price / 1000).toFixed(0)}K?! ${beds} bedrooms?! Let me tell you something — the NEIGHBORHOOD is what matters. And I KNOW neighborhoods. Half of em ain't worth the dirt they built on. ${city}? I got my doubts!`
+          ? `$${(price / 1000).toFixed(0)}K?! ${beds} bedrooms?! Lemme tell you somethin' — the NEIGHBORHOOD is what matters, son. And I KNOW neighborhoods. Half of 'em ain't worth the dirt they built on. ${city}? I got my doubts, no sir!`
           : price > 100000
-          ? `$${(price / 1000).toFixed(0)}K in ${city}? Hmph. At least it ain't TOO stupid. But let me tell you — don't trust that realtor! They all LIARS! Check the foundation yourself. And the neighbors? INVESTIGATE.`
-          : `Under $100K? There's a REASON it's that cheap! Ain't nobody trying to sell you something good for that price! But... if the foundation's solid... MAYBE. Just don't come crying to me when the roof leaks!`,
+          ? `$${(price / 1000).toFixed(0)}K in ${city}? Hmph. Well, at least it ain't TOO stupid. But lemme tell you — don't trust that there realtor! They all LIARS, I reckon! Check the foundation yo'self. And them neighbors? You better INVESTIGATE!`
+          : `Under $100K? There's a REASON it's that cheap, I tell you what! Ain't nobody fixin' to sell you somethin' good for that price! But... if the foundation's solid... MAYBE. Just don't come cryin' to me when the roof starts leakin'!`,
         rating: Math.floor(Math.random() * 40) + 40,
       },
     };

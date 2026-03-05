@@ -267,6 +267,7 @@ export default function HomeScreen() {
   const [mysteryPrize, setMysteryPrize] = useState<typeof MYSTERY_REWARDS[0] | null>(null);
   const [mysteryRevealing, setMysteryRevealing] = useState(false);
   const [leaderboardData, setLeaderboardData] = useState<{ name: string; score: number; avatar: string; isYou?: boolean }[]>([]);
+  const [fearGreed, setFearGreed] = useState<{ value: number; label: string; trumpComment: string } | null>(null);
   const { deviceId, hasTokens } = useTokens();
 
   const pulseScale = useSharedValue(1);
@@ -338,6 +339,7 @@ export default function HomeScreen() {
       fetchDailyChallenge();
       initMysteryBox();
       fetchLeaderboard();
+      fetchFearGreed();
     }, [])
   );
 
@@ -425,6 +427,28 @@ export default function HomeScreen() {
         topUsers.push({ name: "You", score: Math.round(streak * 500 + conversations.length * 200 + Math.random() * 1000), avatar: "\uD83D\uDC49", isYou: true });
         topUsers.sort((a, b) => b.score - a.score);
         setLeaderboardData(topUsers);
+      }
+    } catch {}
+  }
+
+  async function fetchFearGreed() {
+    try {
+      const res = await globalThis.fetch("https://api.alternative.me/fng/?limit=1");
+      if (res.ok) {
+        const data = await res.json();
+        const value = parseInt(data.data?.[0]?.value) || 50;
+        const label = data.data?.[0]?.value_classification || "Neutral";
+        let trumpComment = "";
+        if (value >= 75) {
+          trumpComment = "GREEDY! Very smart! The market's HOT, just like my rallies! Buy MORE! Winners don't hesitate! Believe me!";
+        } else if (value >= 50) {
+          trumpComment = "Neutral? That's LOW ENERGY! Markets should be EXCITED! Like when I ring the NYSE bell — TREMENDOUS energy!";
+        } else if (value >= 25) {
+          trumpComment = "Fear in the market? PERFECT buying opportunity! I LOVE when people are scared — that's when the DEALS happen! Art of the Deal, baby!";
+        } else {
+          trumpComment = "EXTREME FEAR?! Everyone's panicking! You know what I do when everyone panics? I BUY EVERYTHING! That's how I became a BILLIONAIRE!";
+        }
+        setFearGreed({ value, label, trumpComment });
       }
     } catch {}
   }
@@ -1006,6 +1030,53 @@ export default function HomeScreen() {
             <Text style={styles.modeButtonText}>DEBATE</Text>
           </Pressable>
         </Animated.View>
+
+        {fearGreed && (
+          <Animated.View entering={FadeInDown.delay(1650).duration(500)} style={styles.fearGreedCard}>
+            <View style={styles.fearGreedHeader}>
+              <Ionicons name="trending-up" size={18} color={fearGreed.value >= 50 ? "#22c55e" : "#ef4444"} />
+              <Text style={styles.fearGreedTitle}>CRYPTO FEAR & GREED</Text>
+            </View>
+            <View style={styles.fearGreedMeter}>
+              <View style={styles.fearGreedBarBg}>
+                <LinearGradient
+                  colors={["#ef4444", "#f59e0b", "#22c55e"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={[styles.fearGreedBarFill, { width: `${fearGreed.value}%` } as any]}
+                />
+                <View style={[styles.fearGreedIndicator, { left: `${Math.min(fearGreed.value, 96)}%` } as any]}>
+                  <Text style={styles.fearGreedIndicatorText}>{fearGreed.value}</Text>
+                </View>
+              </View>
+              <View style={styles.fearGreedLabels}>
+                <Text style={styles.fearGreedLabelLeft}>FEAR</Text>
+                <Text style={[styles.fearGreedLabelCenter, { color: fearGreed.value >= 50 ? "#22c55e" : "#ef4444" }]}>{fearGreed.label.toUpperCase()}</Text>
+                <Text style={styles.fearGreedLabelRight}>GREED</Text>
+              </View>
+            </View>
+            <View style={styles.fearGreedQuote}>
+              <MaterialCommunityIcons name="format-quote-open" size={14} color={Colors.gold} />
+              <Text style={styles.fearGreedQuoteText}>{fearGreed.trumpComment}</Text>
+            </View>
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                const msg = `Crypto Fear & Greed Index: ${fearGreed.value}/100 (${fearGreed.label})\nTrump says: "${fearGreed.trumpComment}"`;
+                if (Platform.OS === "web") {
+                  Clipboard.setStringAsync(msg);
+                  Alert.alert("Copied!", "Shared to clipboard");
+                } else {
+                  require("react-native").Share.share({ message: msg });
+                }
+              }}
+              style={({ pressed }) => [styles.fearGreedShareBtn, pressed && { opacity: 0.7 }]}
+            >
+              <Ionicons name="share-outline" size={13} color={Colors.gold} />
+              <Text style={styles.fearGreedShareText}>SHARE</Text>
+            </Pressable>
+          </Animated.View>
+        )}
 
         {leaderboardData.length > 0 && (
           <Animated.View entering={FadeInDown.delay(1700).duration(500)} style={styles.leaderboardCard}>
@@ -1980,6 +2051,107 @@ const styles = StyleSheet.create({
   debateButton: {
     backgroundColor: "rgba(255, 77, 77, 0.15)",
     borderColor: "rgba(255, 77, 77, 0.4)",
+  },
+  fearGreedCard: {
+    marginHorizontal: 20,
+    marginTop: 10,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "rgba(212,164,32,0.2)",
+    gap: 12,
+  },
+  fearGreedHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  fearGreedTitle: {
+    fontSize: 13,
+    fontWeight: "900" as const,
+    color: Colors.white,
+    letterSpacing: 1.5,
+  },
+  fearGreedMeter: {
+    gap: 6,
+  },
+  fearGreedBarBg: {
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    overflow: "hidden",
+    position: "relative",
+  },
+  fearGreedBarFill: {
+    height: "100%",
+    borderRadius: 12,
+  },
+  fearGreedIndicator: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  fearGreedIndicatorText: {
+    fontSize: 12,
+    fontWeight: "900" as const,
+    color: "#fff",
+    textShadowColor: "rgba(0,0,0,0.8)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  fearGreedLabels: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  fearGreedLabelLeft: {
+    fontSize: 10,
+    fontWeight: "700" as const,
+    color: "#ef4444",
+    letterSpacing: 1,
+  },
+  fearGreedLabelCenter: {
+    fontSize: 12,
+    fontWeight: "900" as const,
+    letterSpacing: 1,
+  },
+  fearGreedLabelRight: {
+    fontSize: 10,
+    fontWeight: "700" as const,
+    color: "#22c55e",
+    letterSpacing: 1,
+  },
+  fearGreedQuote: {
+    flexDirection: "row",
+    gap: 6,
+    alignItems: "flex-start",
+  },
+  fearGreedQuoteText: {
+    flex: 1,
+    fontSize: 12,
+    color: "rgba(255,255,255,0.7)",
+    lineHeight: 18,
+    fontStyle: "italic",
+  },
+  fearGreedShareBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    paddingVertical: 7,
+    borderRadius: 8,
+    backgroundColor: "rgba(212,164,32,0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(212,164,32,0.2)",
+  },
+  fearGreedShareText: {
+    fontSize: 10,
+    fontWeight: "800" as const,
+    color: Colors.gold,
+    letterSpacing: 1,
   },
   streakBadge: {
     flexDirection: "row",

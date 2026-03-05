@@ -36,4 +36,10 @@ The backend is an Express 5 API gateway providing various endpoints for AI inter
 - **Open-Meteo API**: For weather forecast data.
 - **CoinGecko API / Yahoo Finance**: For live market data.
 - **Amazon Associates**: For affiliate monetization with the `trumpbot-20` tag.
+- **Alternative.me Fear & Greed API**: For live Crypto Fear & Greed Index on home screen (`https://api.alternative.me/fng/?limit=1`).
 - **Stripe**: For payment processing for therapy sessions and subscriptions.
+
+## Persona Dialogue Styles
+
+- **Bernie Mac**: Speaks in casual Black English style — uses "ain't finna", "yo", "wit'", "gon'", "talkin' bout", "sheeeeit", "Don't be out here actin' a fool", etc.
+- **Uncle Ruckus**: Speaks in Black southern slang style — uses "I tell you what", "dadgum", "'fore", "reckon", "lemme", "fixin' to", "prolly", "no sir", "that there", etc.
