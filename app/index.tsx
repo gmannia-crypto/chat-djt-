@@ -390,14 +390,18 @@ export default function HomeScreen() {
   }, []);
 
   const welcomeSoundRef = useRef<Audio.Sound | null>(null);
+  const welcomeAudioRef = useRef<string | null>(null);
+  const welcomePlayedRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
-    async function playWelcome() {
+    async function prefetchWelcome() {
       try {
-        const played = await AsyncStorage.getItem("chatdjt_welcome_played");
-        if (played) return;
-        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+        const played = await AsyncStorage.getItem("chatdjt_welcome_played_session");
+        if (played === "true") {
+          welcomePlayedRef.current = true;
+          return;
+        }
         const baseUrl = getApiUrl().replace(/\/$/, "");
         const res = await globalThis.fetch(`${baseUrl}/api/nav-speak`, {
           method: "POST",
@@ -407,28 +411,18 @@ export default function HomeScreen() {
         if (!res.ok || cancelled) return;
         const blob = await res.blob();
         const reader = new FileReader();
-        reader.onloadend = async () => {
+        reader.onloadend = () => {
           if (cancelled) return;
-          try {
-            const base64 = (reader.result as string).split(",")[1];
-            const { sound } = await Audio.Sound.createAsync(
-              { uri: `data:audio/mp3;base64,${base64}` },
-              { shouldPlay: true, volume: 0.8 }
-            );
-            welcomeSoundRef.current = sound;
-            AsyncStorage.setItem("chatdjt_welcome_played", "true").catch(() => {});
-            sound.setOnPlaybackStatusUpdate((status: any) => {
-              if (status.didJustFinish) {
-                sound.unloadAsync();
-                welcomeSoundRef.current = null;
-              }
-            });
-          } catch {}
+          const base64 = (reader.result as string).split(",")[1];
+          welcomeAudioRef.current = base64;
+          if (Platform.OS !== "web") {
+            playWelcomeAudio();
+          }
         };
         reader.readAsDataURL(blob);
       } catch {}
     }
-    const timer = setTimeout(playWelcome, 2000);
+    const timer = setTimeout(prefetchWelcome, 1500);
     return () => {
       cancelled = true;
       clearTimeout(timer);
@@ -437,6 +431,26 @@ export default function HomeScreen() {
       }
     };
   }, []);
+
+  async function playWelcomeAudio() {
+    if (welcomePlayedRef.current || !welcomeAudioRef.current) return;
+    welcomePlayedRef.current = true;
+    try {
+      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: `data:audio/mp3;base64,${welcomeAudioRef.current}` },
+        { shouldPlay: true, volume: 0.9 }
+      );
+      welcomeSoundRef.current = sound;
+      AsyncStorage.setItem("chatdjt_welcome_played_session", "true").catch(() => {});
+      sound.setOnPlaybackStatusUpdate((status: any) => {
+        if (status.didJustFinish) {
+          sound.unloadAsync();
+          welcomeSoundRef.current = null;
+        }
+      });
+    } catch {}
+  }
 
   async function checkWeeklyReminder() {
     try {
