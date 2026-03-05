@@ -268,6 +268,7 @@ export default function HomeScreen() {
   const [mysteryRevealing, setMysteryRevealing] = useState(false);
   const [leaderboardData, setLeaderboardData] = useState<{ name: string; score: number; avatar: string; isYou?: boolean }[]>([]);
   const [fearGreed, setFearGreed] = useState<{ value: number; label: string; trumpComment: string } | null>(null);
+  const [liveUsers, setLiveUsers] = useState(1247);
   const { deviceId, hasTokens } = useTokens();
 
   const pulseScale = useSharedValue(1);
@@ -365,6 +366,13 @@ export default function HomeScreen() {
       }
     } catch {}
   }
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setLiveUsers(1247 + Math.floor(Math.random() * 200) - 100);
+    }, 10000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (mysteryReady || mysteryTimeLeft <= 0) return;
@@ -743,7 +751,11 @@ export default function HomeScreen() {
             resizeMode="contain"
           />
         </Pressable>
-        <View style={styles.headerRight} />
+        <View style={styles.liveUsersBadge}>
+          <View style={styles.liveUsersDot} />
+          <Text style={styles.liveUsersCount}>{liveUsers.toLocaleString()}</Text>
+          <Text style={styles.liveUsersLabel}>live</Text>
+        </View>
       </Animated.View>
 
       <ScrollView
@@ -1597,6 +1609,33 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
+  },
+  liveUsersBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "rgba(255, 77, 77, 0.15)",
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderWidth: 1,
+    borderColor: "rgba(255, 77, 77, 0.3)",
+  },
+  liveUsersDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#ff4d4d",
+  },
+  liveUsersCount: {
+    fontSize: 12,
+    fontWeight: "800" as const,
+    color: "#ff4d4d",
+  },
+  liveUsersLabel: {
+    fontSize: 10,
+    fontWeight: "600" as const,
+    color: "rgba(255, 77, 77, 0.7)",
   },
   glossyHeaderBtn: {
     alignItems: "center",
