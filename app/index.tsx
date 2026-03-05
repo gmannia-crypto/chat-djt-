@@ -273,6 +273,8 @@ export default function HomeScreen() {
   const [liveUsers, setLiveUsers] = useState(1247);
   const [activityFeed, setActivityFeed] = useState<string[]>([]);
   const [badges, setBadges] = useState<{ id: string; label: string; emoji: string; desc: string; earned: boolean }[]>([]);
+  const [weeklyCountdown, setWeeklyCountdown] = useState({ days: 0, hours: 0, minutes: 0, isLive: false });
+  const [weeklyReminder, setWeeklyReminder] = useState(false);
   const { deviceId, hasTokens } = useTokens();
 
   const pulseScale = useSharedValue(1);
@@ -346,8 +348,58 @@ export default function HomeScreen() {
       fetchLeaderboard();
       fetchFearGreed();
       loadBadges();
+      checkWeeklyReminder();
     }, [])
   );
+
+  function getNextSunday8pm(): Date {
+    const now = new Date();
+    const day = now.getUTCDay();
+    const daysUntilSunday = day === 0 ? 0 : 7 - day;
+    const next = new Date(now);
+    next.setUTCDate(now.getUTCDate() + daysUntilSunday);
+    next.setUTCHours(20, 0, 0, 0);
+    if (next.getTime() <= now.getTime()) {
+      next.setUTCDate(next.getUTCDate() + 7);
+    }
+    return next;
+  }
+
+  useEffect(() => {
+    function updateCountdown() {
+      const now = Date.now();
+      const target = getNextSunday8pm().getTime();
+      const diff = target - now;
+      if (diff <= 0) {
+        setWeeklyCountdown({ days: 0, hours: 0, minutes: 0, isLive: true });
+      } else {
+        const d = Math.floor(diff / 86400000);
+        const h = Math.floor((diff % 86400000) / 3600000);
+        const m = Math.floor((diff % 3600000) / 60000);
+        setWeeklyCountdown({ days: d, hours: h, minutes: m, isLive: false });
+      }
+    }
+    updateCountdown();
+    const iv = setInterval(updateCountdown, 60000);
+    return () => clearInterval(iv);
+  }, []);
+
+  async function checkWeeklyReminder() {
+    try {
+      const val = await AsyncStorage.getItem("chatdjt_weekly_reminder");
+      setWeeklyReminder(val === "true");
+    } catch {}
+  }
+
+  async function toggleWeeklyReminder() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const next = !weeklyReminder;
+    setWeeklyReminder(next);
+    await AsyncStorage.setItem("chatdjt_weekly_reminder", next ? "true" : "false");
+    if (next) {
+      Alert.alert("Reminder Set!", "We'll remind you when Trump's Weekly Address drops every Sunday at 8 PM EST.");
+    }
+  }
 
   async function loadBadges() {
     try {
@@ -920,6 +972,52 @@ export default function HomeScreen() {
             </Pressable>
           </Animated.View>
         )}
+
+        <Animated.View entering={FadeInDown.delay(920).duration(500)} style={styles.weeklyCard}>
+          <LinearGradient
+            colors={["rgba(255,215,0,0.08)", "rgba(255,77,77,0.06)"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.weeklyGradient}
+          >
+            <View style={styles.weeklyHeader}>
+              <MaterialCommunityIcons name="microphone-variant" size={18} color={Colors.gold} />
+              <Text style={styles.weeklyTitle}>TRUMP'S WEEKLY ADDRESS</Text>
+            </View>
+            {weeklyCountdown.isLive ? (
+              <View style={styles.weeklyLiveRow}>
+                <View style={styles.weeklyLiveDot} />
+                <Text style={styles.weeklyLiveText}>LIVE NOW</Text>
+              </View>
+            ) : (
+              <View style={styles.weeklyCountdownRow}>
+                <View style={styles.weeklyTimeBlock}>
+                  <Text style={styles.weeklyTimeNum}>{weeklyCountdown.days}</Text>
+                  <Text style={styles.weeklyTimeLabel}>DAYS</Text>
+                </View>
+                <Text style={styles.weeklyTimeSep}>:</Text>
+                <View style={styles.weeklyTimeBlock}>
+                  <Text style={styles.weeklyTimeNum}>{weeklyCountdown.hours}</Text>
+                  <Text style={styles.weeklyTimeLabel}>HRS</Text>
+                </View>
+                <Text style={styles.weeklyTimeSep}>:</Text>
+                <View style={styles.weeklyTimeBlock}>
+                  <Text style={styles.weeklyTimeNum}>{weeklyCountdown.minutes}</Text>
+                  <Text style={styles.weeklyTimeLabel}>MIN</Text>
+                </View>
+              </View>
+            )}
+            <Text style={styles.weeklySubtext}>Every Sunday at 8 PM EST</Text>
+            <Pressable
+              onPress={toggleWeeklyReminder}
+              style={({ pressed }) => [styles.weeklyRemindBtn, weeklyReminder && styles.weeklyRemindBtnActive, pressed && { opacity: 0.7 }]}
+              testID="weekly-remind-btn"
+            >
+              <Ionicons name={weeklyReminder ? "notifications" : "notifications-outline"} size={14} color={weeklyReminder ? "#0a0a0a" : Colors.gold} />
+              <Text style={[styles.weeklyRemindText, weeklyReminder && styles.weeklyRemindTextActive]}>{weeklyReminder ? "REMINDED" : "REMIND ME"}</Text>
+            </Pressable>
+          </LinearGradient>
+        </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(950).duration(500)}>
           <Pressable
@@ -2726,6 +2824,107 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "rgba(10,10,10,0.5)",
     fontWeight: "600" as const,
+  },
+  weeklyCard: {
+    marginTop: 12,
+    borderRadius: 16,
+    overflow: "hidden" as const,
+    borderWidth: 1,
+    borderColor: "rgba(255,215,0,0.2)",
+  },
+  weeklyGradient: {
+    padding: 16,
+    alignItems: "center" as const,
+  },
+  weeklyHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+  },
+  weeklyTitle: {
+    fontSize: 14,
+    fontWeight: "800" as const,
+    color: Colors.gold,
+    letterSpacing: 1.5,
+  },
+  weeklyCountdownRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 8,
+  },
+  weeklyTimeBlock: {
+    alignItems: "center" as const,
+    backgroundColor: "rgba(255,215,0,0.1)",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    minWidth: 54,
+  },
+  weeklyTimeNum: {
+    fontSize: 22,
+    fontWeight: "900" as const,
+    color: Colors.gold,
+  },
+  weeklyTimeLabel: {
+    fontSize: 8,
+    fontWeight: "700" as const,
+    color: "rgba(255,215,0,0.6)",
+    letterSpacing: 1,
+    marginTop: 2,
+  },
+  weeklyTimeSep: {
+    fontSize: 20,
+    fontWeight: "700" as const,
+    color: "rgba(255,215,0,0.4)",
+  },
+  weeklyLiveRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+  },
+  weeklyLiveDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#ff4d4d",
+  },
+  weeklyLiveText: {
+    fontSize: 18,
+    fontWeight: "900" as const,
+    color: "#ff4d4d",
+    letterSpacing: 2,
+  },
+  weeklySubtext: {
+    fontSize: 10,
+    color: "rgba(255,255,255,0.35)",
+    marginBottom: 12,
+  },
+  weeklyRemindBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 25,
+    borderWidth: 1,
+    borderColor: "rgba(255,215,0,0.3)",
+    backgroundColor: "rgba(255,215,0,0.05)",
+  },
+  weeklyRemindBtnActive: {
+    backgroundColor: Colors.gold,
+    borderColor: Colors.gold,
+  },
+  weeklyRemindText: {
+    fontSize: 12,
+    fontWeight: "800" as const,
+    color: Colors.gold,
+    letterSpacing: 1,
+  },
+  weeklyRemindTextActive: {
+    color: "#0a0a0a",
   },
   badgesCard: {
     backgroundColor: "rgba(255,255,255,0.03)",
