@@ -302,7 +302,7 @@ export default function RealEstateScreen() {
       const ttsRes = await fetch(`${baseUrl}/api/persona-speak`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: text.slice(0, 300), personaId: selectedAdvisor }),
+        body: JSON.stringify({ text, personaId: selectedAdvisor }),
       });
 
       if (!ttsRes.ok) throw new Error("TTS failed");

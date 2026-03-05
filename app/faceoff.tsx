@@ -535,7 +535,7 @@ export default function FaceoffScreen() {
       const res = await globalThis.fetch(`${baseUrl}/api/persona-speak`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: text.slice(0, 300), personaId }),
+        body: JSON.stringify({ text, personaId }),
       });
       if (!res.ok) throw new Error("TTS failed");
       const blob = await res.blob();
@@ -873,6 +873,10 @@ export default function FaceoffScreen() {
                 persona={p}
                 selected={contender1.id === p.id}
                 onPress={() => {
+                  if (p.id === contender2.id) {
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                    return;
+                  }
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   setContender1(p);
                   if (debateStarted) handleReset();
@@ -899,6 +903,10 @@ export default function FaceoffScreen() {
                 persona={p}
                 selected={contender2.id === p.id}
                 onPress={() => {
+                  if (p.id === contender1.id) {
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                    return;
+                  }
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   setContender2(p);
                   if (debateStarted) handleReset();

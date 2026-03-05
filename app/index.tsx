@@ -24,6 +24,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons, Feather, FontAwesome5 } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
+import { Audio } from "expo-av";
 import Animated, {
   FadeInDown,
   FadeInUp,
@@ -386,6 +387,55 @@ export default function HomeScreen() {
     setElectionDays(Math.max(0, Math.ceil(diffE / 86400000)));
     const iv = setInterval(updateCountdown, 60000);
     return () => clearInterval(iv);
+  }, []);
+
+  const welcomeSoundRef = useRef<Audio.Sound | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function playWelcome() {
+      try {
+        const played = await AsyncStorage.getItem("chatdjt_welcome_played");
+        if (played) return;
+        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+        const baseUrl = getApiUrl().replace(/\/$/, "");
+        const res = await globalThis.fetch(`${baseUrl}/api/nav-speak`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: "Welcome to CHAT DJT. A complete interactive immersive experience." }),
+        });
+        if (!res.ok || cancelled) return;
+        const blob = await res.blob();
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+          if (cancelled) return;
+          try {
+            const base64 = (reader.result as string).split(",")[1];
+            const { sound } = await Audio.Sound.createAsync(
+              { uri: `data:audio/mp3;base64,${base64}` },
+              { shouldPlay: true, volume: 0.8 }
+            );
+            welcomeSoundRef.current = sound;
+            AsyncStorage.setItem("chatdjt_welcome_played", "true").catch(() => {});
+            sound.setOnPlaybackStatusUpdate((status: any) => {
+              if (status.didJustFinish) {
+                sound.unloadAsync();
+                welcomeSoundRef.current = null;
+              }
+            });
+          } catch {}
+        };
+        reader.readAsDataURL(blob);
+      } catch {}
+    }
+    const timer = setTimeout(playWelcome, 2000);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      if (welcomeSoundRef.current) {
+        welcomeSoundRef.current.unloadAsync();
+      }
+    };
   }, []);
 
   async function checkWeeklyReminder() {

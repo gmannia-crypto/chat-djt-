@@ -550,6 +550,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   const VALID_BATTLE_PERSONAS = ["trump", "buffett", "musk", "suze", "dave", "grandma", "genie", "mansa", "jordan", "bernie", "ruckus"];
 
+  const NAV_VOICE_ID = "121b31844d2f451a9838b15e6a329002";
+
   const PERSONA_VOICE_IDS: Record<string, string> = {
     jordan: "6908d35f23754047acde93acf29fc749",
     bernie: "5cbb7b199c5a4b538bf1018e6341ebc4",
@@ -561,6 +563,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     genie: "4c689d1b3962445eafe7a4422894d1a8",
     ruckus: "35cec18b290d4896b92644f2298330ab",
   };
+
+  app.post("/api/nav-speak", async (req, res) => {
+    try {
+      const { text } = req.body;
+      if (!text) {
+        return res.status(400).json({ error: "text is required" });
+      }
+      const apiKey = process.env.FISH_AUDIO_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ error: "TTS not configured" });
+      }
+      const buffer = await fishAudioRequest(text, NAV_VOICE_ID, 1.0, apiKey);
+      res.setHeader("Content-Type", "audio/mpeg");
+      res.setHeader("Content-Length", buffer.length.toString());
+      res.send(buffer);
+    } catch (error: any) {
+      console.error("Nav speak error:", error);
+      res.status(500).json({ error: "TTS generation failed" });
+    }
+  });
 
   app.get("/api/persona-image/:id", (req, res) => {
     const id = req.params.id;
@@ -594,8 +616,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "No voice configured for persona" });
       }
 
-      const truncated = text.slice(0, 500);
-      const buffer = await fishAudioRequest(truncated, voiceId, 1.0, apiKey);
+      const safeText = text.slice(0, 2000);
+      const buffer = await fishAudioRequest(safeText, voiceId, 1.0, apiKey);
 
       res.setHeader("Content-Type", "audio/mpeg");
       res.setHeader("Content-Length", buffer.length.toString());
