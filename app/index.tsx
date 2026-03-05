@@ -417,7 +417,10 @@ export default function HomeScreen() {
           }
         });
       }
-    } catch {}
+    } catch (e: any) {
+      welcomePlayedRef.current = false;
+      Alert.alert("Audio issue", e?.message || String(e));
+    }
   }, []);
 
   async function checkWeeklyReminder() {
@@ -919,10 +922,20 @@ export default function HomeScreen() {
             resizeMode="contain"
           />
         </Pressable>
-        <View style={styles.liveUsersBadge}>
-          <View style={styles.liveUsersDot} />
-          <Text style={styles.liveUsersCount}>{liveUsers.toLocaleString()}</Text>
-          <Text style={styles.liveUsersLabel}>live</Text>
+        <View style={{ flexDirection: "row" as const, alignItems: "center" as const, gap: 8 }}>
+          {!welcomePlayedRef.current && (
+            <Pressable
+              onPress={playWelcomeOnInteraction}
+              style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: "rgba(212,164,32,0.2)", alignItems: "center" as const, justifyContent: "center" as const }}
+            >
+              <Ionicons name="volume-high" size={16} color="#D4A420" />
+            </Pressable>
+          )}
+          <View style={styles.liveUsersBadge}>
+            <View style={styles.liveUsersDot} />
+            <Text style={styles.liveUsersCount}>{liveUsers.toLocaleString()}</Text>
+            <Text style={styles.liveUsersLabel}>live</Text>
+          </View>
         </View>
       </Animated.View>
 
@@ -931,8 +944,6 @@ export default function HomeScreen() {
         contentContainerStyle={styles.centerContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        onScrollBeginDrag={playWelcomeOnInteraction}
-        onTouchStart={playWelcomeOnInteraction}
       >
         {streak > 0 && (
           <Animated.View entering={FadeIn.delay(400).duration(500)} style={styles.streakRow}>
