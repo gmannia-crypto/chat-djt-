@@ -25,7 +25,7 @@ import { Ionicons, MaterialCommunityIcons, Feather, FontAwesome5 } from "@expo/v
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { Audio } from "expo-av";
-import { playAudioFromResponse } from "@/lib/audio-helper";
+import { playTTS } from "@/lib/audio-helper";
 import Animated, {
   FadeInDown,
   FadeInUp,
@@ -399,14 +399,10 @@ export default function HomeScreen() {
         const played = await AsyncStorage.getItem("chatdjt_welcome_played_session");
         if (played === "true") return;
         await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-        const baseUrl = getApiUrl().replace(/\/$/, "");
-        const res = await globalThis.fetch(`${baseUrl}/api/nav-speak`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: "Welcome to CHAT DJT. A complete interactive immersive experience." }),
-        });
-        if (!res.ok || cancelled) return;
-        const sound = await playAudioFromResponse(res, { volume: 0.9 });
+        if (cancelled) return;
+        const sound = await playTTS("/api/nav-speak", {
+          text: "Welcome to CHAT DJT. A complete interactive immersive experience.",
+        }, { volume: 0.9 });
         if (cancelled) {
           sound.unloadAsync();
           return;

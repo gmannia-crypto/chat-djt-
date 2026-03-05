@@ -36,7 +36,7 @@ import { shareContent } from "@/lib/track-share";
 import { useTokens } from "@/lib/token-context";
 import { useQuery } from "@tanstack/react-query";
 import { Audio } from "expo-av";
-import { playAudioFromResponse } from "@/lib/audio-helper";
+import { playTTS } from "@/lib/audio-helper";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -237,17 +237,7 @@ export default function RateTrumpScreen() {
       }
       setSpeaking(true);
       await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-      const apiUrl = getApiUrl().replace(/\/$/, "");
-      const ttsRes = await globalThis.fetch(`${apiUrl}/api/tts`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, mood }),
-      });
-      if (!ttsRes.ok) {
-        setSpeaking(false);
-        return;
-      }
-      const sound = await playAudioFromResponse(ttsRes);
+      const sound = await playTTS("/api/tts", { text, mood });
       soundRef.current = sound;
       sound.setOnPlaybackStatusUpdate((status: any) => {
         if (status.didJustFinish) {

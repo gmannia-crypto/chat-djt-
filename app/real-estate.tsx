@@ -20,7 +20,7 @@ import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from "@expo/vector-ico
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { Audio } from "expo-av";
-import { playAudioFromResponse } from "@/lib/audio-helper";
+import { playTTS } from "@/lib/audio-helper";
 import Animated, {
   FadeIn,
   FadeInDown,
@@ -300,16 +300,7 @@ export default function RealEstateScreen() {
 
     try {
       await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-      const baseUrl = getApiUrl().replace(/\/$/, "");
-      const ttsRes = await globalThis.fetch(`${baseUrl}/api/persona-speak`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, personaId: selectedAdvisor }),
-      });
-
-      if (!ttsRes.ok) throw new Error("TTS failed");
-
-      const sound = await playAudioFromResponse(ttsRes);
+      const sound = await playTTS("/api/persona-speak", { text, personaId: selectedAdvisor });
       soundRef.current = sound;
       sound.setOnPlaybackStatusUpdate((status: any) => {
         if (status.didJustFinish) {

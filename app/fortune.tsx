@@ -18,7 +18,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { Video, Audio, ResizeMode } from "expo-av";
-import { playAudioFromResponse } from "@/lib/audio-helper";
+import { playTTS } from "@/lib/audio-helper";
 import Animated, {
   FadeIn,
   FadeInDown,
@@ -199,14 +199,7 @@ export default function FortuneScreen() {
       }
       setSpeaking(true);
       await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-      const apiUrl = getApiUrl().replace(/\/$/, "");
-      const ttsRes = await globalThis.fetch(`${apiUrl}/api/tts`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, mood: "EXCITED" }),
-      });
-      if (!ttsRes.ok) { setSpeaking(false); return; }
-      const sound = await playAudioFromResponse(ttsRes);
+      const sound = await playTTS("/api/tts", { text, mood: "EXCITED" });
       soundRef.current = sound;
       sound.setOnPlaybackStatusUpdate((status: any) => {
         if (status.didJustFinish) setSpeaking(false);

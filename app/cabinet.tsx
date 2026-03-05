@@ -10,7 +10,7 @@ import {
   RefreshControl,
 } from "react-native";
 import { Audio } from "expo-av";
-import { playAudioFromResponse } from "@/lib/audio-helper";
+import { playTTS, playAudioFromUrl } from "@/lib/audio-helper";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -207,17 +207,9 @@ export default function CabinetHotSeat() {
         await audio.play();
       } else {
         await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-        const resp = await globalThis.fetch(audioUrl, {
-          headers: deviceId ? { "x-device-id": deviceId } : {},
+        const sound = await playAudioFromUrl(audioUrl, {
+          headers: deviceId ? { "x-device-id": deviceId } : undefined,
         });
-        if (resp.status === 403) {
-          setSpeakingName(null);
-          refreshBalance();
-          router.push("/subscribe");
-          return;
-        }
-        if (!resp.ok) throw new Error("Failed");
-        const sound = await playAudioFromResponse(resp);
         soundRef.current = sound;
         sound.setOnPlaybackStatusUpdate((status: any) => {
           if (status.isLoaded && status.didJustFinish) {

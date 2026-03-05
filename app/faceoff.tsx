@@ -15,7 +15,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { Audio } from "expo-av";
-import { playAudioFromResponse } from "@/lib/audio-helper";
+import { playTTS } from "@/lib/audio-helper";
 import Animated, {
   FadeInDown,
   FadeInUp,
@@ -533,14 +533,7 @@ export default function FaceoffScreen() {
       setSpeakingId(personaId);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-      const baseUrl = getApiUrl().replace(/\/$/, "");
-      const res = await globalThis.fetch(`${baseUrl}/api/persona-speak`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, personaId }),
-      });
-      if (!res.ok) throw new Error("TTS failed");
-      const sound = await playAudioFromResponse(res);
+      const sound = await playTTS("/api/persona-speak", { text, personaId });
       soundRef.current = sound;
       sound.setOnPlaybackStatusUpdate((status: any) => {
         if (status.isLoaded && status.didJustFinish) {
