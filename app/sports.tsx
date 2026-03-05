@@ -89,6 +89,112 @@ const LEAGUE_COLORS: Record<string, string> = {
   BOXING: "#9C27B0",
 };
 
+const TAG = "trumpbot-20";
+const amzUrl = (keywords: string) =>
+  `https://www.amazon.com/s?k=${encodeURIComponent(keywords)}&tag=${TAG}`;
+
+const AMAZON_PICKS: Record<string, { quote: string; mainUrl: string; items: { label: string; sub: string; icon: string; url: string }[] }> = {
+  jordan: {
+    quote: '"You want to be a champion? Look the part. And I took that personally." — MJ',
+    mainUrl: amzUrl("Air Jordan shoes apparel"),
+    items: [
+      { label: "Air Jordans", sub: "Iconic kicks", icon: "shoe-sneaker", url: amzUrl("Air Jordan retro shoes") },
+      { label: "Jordan Apparel", sub: "Fly like Mike", icon: "tshirt-crew", url: amzUrl("Jordan brand apparel men") },
+      { label: "Jordan Accessories", sub: "Game day gear", icon: "bag-suitcase", url: amzUrl("Jordan brand accessories bag") },
+    ],
+  },
+  trump: {
+    quote: '"Only the best gear for the best fans. TREMENDOUS quality. Believe me!" — Trump',
+    mainUrl: amzUrl("MAGA sports gear hat"),
+    items: [
+      { label: "MAGA Hats", sub: "The classic", icon: "hat-fedora", url: amzUrl("MAGA hat red") },
+      { label: "Golf Gear", sub: "Play like Trump", icon: "golf", url: amzUrl("golf accessories men premium") },
+      { label: "Gold Merch", sub: "Stay golden", icon: "gold", url: amzUrl("gold sports accessories men") },
+    ],
+  },
+  buffett: {
+    quote: '"The best investment? A good book. And maybe some Omaha Steaks." — Buffett',
+    mainUrl: amzUrl("Warren Buffett investing books"),
+    items: [
+      { label: "Investing Books", sub: "Read & profit", icon: "book-open-variant", url: amzUrl("Warren Buffett investing books") },
+      { label: "Business Gear", sub: "Dress for success", icon: "briefcase", url: amzUrl("men business casual sports") },
+      { label: "Omaha Gear", sub: "Nebraska pride", icon: "map-marker", url: amzUrl("Nebraska Omaha sports apparel") },
+    ],
+  },
+  musk: {
+    quote: '"Sports analytics needs more AI. Also, buy Tesla stock. Literally." — Elon',
+    mainUrl: amzUrl("tech gadgets sports fitness"),
+    items: [
+      { label: "Smart Watch", sub: "Track everything", icon: "watch", url: amzUrl("smart watch sports fitness tracker") },
+      { label: "Space Gear", sub: "To the moon", icon: "rocket-launch", url: amzUrl("SpaceX NASA space apparel") },
+      { label: "Tech Gadgets", sub: "Future of sports", icon: "cellphone", url: amzUrl("sports tech gadgets bluetooth") },
+    ],
+  },
+  suze: {
+    quote: '"Before you buy gear, do you have 8 months of emergency funds?! DENIED or APPROVED!" — Suze',
+    mainUrl: amzUrl("personal finance budget planner"),
+    items: [
+      { label: "Budget Planner", sub: "Plan first!", icon: "notebook", url: amzUrl("budget planner financial notebook") },
+      { label: "Money Books", sub: "Get educated", icon: "book-open-variant", url: amzUrl("Suze Orman personal finance books") },
+      { label: "Fitness Gear", sub: "Affordable wins", icon: "dumbbell", url: amzUrl("affordable home fitness equipment") },
+    ],
+  },
+  dave: {
+    quote: '"Don\'t buy this until you\'re DEBT FREE! Baby steps, people!" — Dave',
+    mainUrl: amzUrl("Dave Ramsey financial peace"),
+    items: [
+      { label: "Financial Peace", sub: "Baby Step 1", icon: "book-open-variant", url: amzUrl("Dave Ramsey Total Money Makeover") },
+      { label: "Budget Tools", sub: "Every dollar", icon: "calculator", url: amzUrl("budget envelopes cash system") },
+      { label: "Cheap Gear", sub: "Save money!", icon: "tag", url: amzUrl("budget sports gear clearance") },
+    ],
+  },
+  grandma: {
+    quote: '"Oh sweetie, get yourself a nice warm blanket for the game. And eat something!" — Grandma',
+    mainUrl: amzUrl("cozy game day blanket snacks"),
+    items: [
+      { label: "Cozy Blankets", sub: "Stay warm, honey", icon: "bed", url: amzUrl("stadium blanket warm sports") },
+      { label: "Snack Trays", sub: "Game day bites", icon: "food", url: amzUrl("game day snack tray serving") },
+      { label: "Team Mugs", sub: "Hot cocoa time", icon: "coffee", url: amzUrl("sports team coffee mug NFL NBA") },
+    ],
+  },
+  genie: {
+    quote: '"Your third wish... the perfect gear to channel victory, mortal!" — Genie',
+    mainUrl: amzUrl("mystical sports accessories gold"),
+    items: [
+      { label: "Gold Chains", sub: "Champion style", icon: "necklace", url: amzUrl("gold chain necklace sports hip hop") },
+      { label: "Lucky Charms", sub: "Magical vibes", icon: "star-four-points", url: amzUrl("lucky charm bracelet sports") },
+      { label: "Premium Gear", sub: "Wish granted", icon: "diamond-stone", url: amzUrl("premium sports apparel men luxury") },
+    ],
+  },
+  mansa: {
+    quote: '"In my empire, warriors wore gold into battle. Dress like royalty." — Mansa Musa',
+    mainUrl: amzUrl("gold luxury sports accessories"),
+    items: [
+      { label: "Gold Watches", sub: "Time is wealth", icon: "watch", url: amzUrl("gold sports watch men luxury") },
+      { label: "Royal Apparel", sub: "Fit for a king", icon: "crown", url: amzUrl("luxury men activewear gold") },
+      { label: "African Art", sub: "Empire legacy", icon: "palette", url: amzUrl("African art wall decor Mansa Musa") },
+    ],
+  },
+  bernie: {
+    quote: '"I ain\'t scared of no price tag! Get yourself somethin\' fly, America!" — Bernie Mac',
+    mainUrl: amzUrl("funny sports shirts comedy"),
+    items: [
+      { label: "Funny Tees", sub: "Comedy vibes", icon: "tshirt-crew", url: amzUrl("funny sports t shirts men comedy") },
+      { label: "Chi-Town Gear", sub: "South Side rep", icon: "city", url: amzUrl("Chicago sports apparel Bulls Bears") },
+      { label: "Party Gear", sub: "Game day lit", icon: "party-popper", url: amzUrl("game day party supplies sports") },
+    ],
+  },
+  ruckus: {
+    quote: '"Don\'t waste your dadgum money! But if you must... get somethin\' practical." — Ruckus',
+    mainUrl: amzUrl("no nonsense sports gear men"),
+    items: [
+      { label: "Work Boots", sub: "Real man gear", icon: "shoe-formal", url: amzUrl("men work boots comfortable sports") },
+      { label: "Camo Gear", sub: "Stay hidden", icon: "pine-tree", url: amzUrl("camo sports gear hunting outdoor") },
+      { label: "BBQ Set", sub: "Tailgate right", icon: "grill", url: amzUrl("BBQ grill set tailgate sports") },
+    ],
+  },
+};
+
 const WORLD_CUP_DATE = new Date("2026-06-11T00:00:00-04:00").getTime();
 
 function getCountdown() {
@@ -654,6 +760,35 @@ export default function SportsScreen() {
             </Pressable>
           </View>
         </Animated.View>
+
+        <Animated.View entering={FadeInDown.delay(800).duration(400)} style={styles.section}>
+          <Text style={styles.sectionLabel}>GEAR UP</Text>
+          <Text style={styles.shopQuote}>
+            {AMAZON_PICKS[selectedPersona]?.quote || AMAZON_PICKS.trump.quote}
+          </Text>
+          <View style={styles.amazonGrid}>
+            {(AMAZON_PICKS[selectedPersona]?.items || AMAZON_PICKS.trump.items).map((item, idx) => (
+              <Pressable
+                key={idx}
+                onPress={() => handleAffiliate(item.url)}
+                style={({ pressed }) => [styles.amazonCard, pressed && { opacity: 0.8 }]}
+              >
+                <MaterialCommunityIcons name={item.icon as any} size={24} color={activePersona.color} />
+                <Text style={styles.amazonCardTitle}>{item.label}</Text>
+                <Text style={styles.amazonCardSub}>{item.sub}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Pressable
+            onPress={() => handleAffiliate(AMAZON_PICKS[selectedPersona]?.mainUrl || AMAZON_PICKS.trump.mainUrl)}
+            style={({ pressed }) => [styles.amazonMainBtn, pressed && { opacity: 0.8 }]}
+          >
+            <MaterialCommunityIcons name="shopping" size={18} color="#000" />
+            <Text style={styles.amazonMainBtnText}>
+              Shop {activePersona.name}'s Picks on Amazon
+            </Text>
+          </Pressable>
+        </Animated.View>
       </ScrollView>
     </View>
   );
@@ -1101,6 +1236,54 @@ const styles = StyleSheet.create({
   },
   affiliateBtnText: {
     fontSize: 15,
+    fontWeight: "800" as const,
+    color: "#000",
+    letterSpacing: 0.5,
+  },
+  shopQuote: {
+    fontSize: 12,
+    color: "rgba(255,215,0,0.6)",
+    fontStyle: "italic",
+    marginBottom: 14,
+    lineHeight: 18,
+  },
+  amazonGrid: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 14,
+  },
+  amazonCard: {
+    flex: 1,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 12,
+    padding: 12,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+    gap: 6,
+  },
+  amazonCardTitle: {
+    fontSize: 11,
+    fontWeight: "700" as const,
+    color: "#fff",
+    textAlign: "center",
+  },
+  amazonCardSub: {
+    fontSize: 9,
+    color: "rgba(255,255,255,0.4)",
+    textAlign: "center",
+  },
+  amazonMainBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 13,
+    borderRadius: 12,
+    backgroundColor: "#FF9900",
+  },
+  amazonMainBtnText: {
+    fontSize: 14,
     fontWeight: "800" as const,
     color: "#000",
     letterSpacing: 0.5,
