@@ -510,69 +510,141 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/sports/upcoming", async (_req, res) => {
+  const espnSportsCache: { data: any; timestamp: number } = { data: null, timestamp: 0 };
+  const ESPN_CACHE_TTL = 5 * 60 * 1000;
+
+  async function fetchESPNScoreboard(sport: string, league: string): Promise<any[]> {
     try {
-      const now = new Date();
-      const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-      function fmtTime(d: Date) {
-        const h = d.getHours() % 12 || 12;
-        const m = d.getMinutes().toString().padStart(2, '0');
-        const ampm = d.getHours() >= 12 ? 'PM' : 'AM';
-        return `${days[d.getDay()]} ${h}:${m} ${ampm}`;
+      const url = `https://site.api.espn.com/apis/site/v2/sports/${sport}/${league}/scoreboard`;
+      const res = await fetch(url);
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.events || [];
+    } catch {
+      return [];
+    }
+  }
+
+  function parseESPNEvent(event: any, leagueLabel: string, idOffset: number): any | null {
+    try {
+      const comp = event.competitions?.[0];
+      if (!comp) return null;
+      const home = comp.competitors?.find((c: any) => c.homeAway === "home");
+      const away = comp.competitors?.find((c: any) => c.homeAway === "away");
+      if (!home || !away) return null;
+
+      const homeName = home.team?.displayName || home.team?.name || "Home";
+      const awayName = away.team?.displayName || away.team?.name || "Away";
+      const status = event.status?.type?.shortDetail || "";
+      const state = event.status?.type?.state || "pre";
+
+      let oddsStr = "";
+      const odds = comp.odds?.[0];
+      if (odds) {
+        const parts: string[] = [];
+        if (odds.details) parts.push(odds.details);
+        if (odds.overUnder) parts.push(`O/U ${odds.overUnder}`);
+        oddsStr = parts.join(" | ");
       }
 
-      const games = [];
-      const nflTeams = [
-        ['Chiefs', 'Bills'], ['Eagles', 'Cowboys'], ['49ers', 'Ravens'], ['Dolphins', 'Jets'],
-        ['Lions', 'Packers'], ['Bengals', 'Steelers'], ['Rams', 'Cardinals'], ['Chargers', 'Raiders']
-      ];
-      const nbaTeams = [
-        ['Lakers', 'Celtics'], ['Warriors', 'Bucks'], ['Nuggets', 'Heat'], ['76ers', 'Nets'],
-        ['Suns', 'Clippers'], ['Mavericks', 'Timberwolves'], ['Knicks', 'Bulls']
-      ];
-      const ufcFights = [
-        ['Jones', 'Miocic'], ['Adesanya', 'Pereira'], ['Volkanovski', 'Topuria'],
-        ['Makhachev', 'Oliveira'], ['O\'Malley', 'Dvalishvili']
-      ];
-      const mlbTeams = [
-        ['Yankees', 'Dodgers'], ['Braves', 'Astros'], ['Phillies', 'Rangers'],
-        ['Padres', 'Mets'], ['Orioles', 'Twins']
-      ];
-      const soccerGames = [
-        ['Real Madrid', 'Barcelona'], ['Man City', 'Liverpool'], ['PSG', 'Bayern Munich'],
-        ['Inter Milan', 'AC Milan'], ['Arsenal', 'Chelsea']
-      ];
+      const score = state === "in" || state === "post"
+        ? `${awayName} ${away.score || 0} - ${home.score || 0} ${homeName}`
+        : "";
 
-      const seed = Math.floor(now.getTime() / (6 * 3600 * 1000));
-      function seededRand(s: number) { let x = Math.sin(s) * 10000; return x - Math.floor(x); }
+      return {
+        id: idOffset + parseInt(event.id || "0", 10) % 100000,
+        league: leagueLabel,
+        game: `${awayName} vs ${homeName}`,
+        time: status,
+        odds: oddsStr || "No odds available",
+        status: state,
+        score,
+      };
+    } catch {
+      return null;
+    }
+  }
 
-      const nflPick = nflTeams[Math.floor(seededRand(seed) * nflTeams.length)];
-      const nbaPick = nbaTeams[Math.floor(seededRand(seed + 1) * nbaTeams.length)];
-      const ufcPick = ufcFights[Math.floor(seededRand(seed + 2) * ufcFights.length)];
-      const mlbPick = mlbTeams[Math.floor(seededRand(seed + 3) * mlbTeams.length)];
-      const soccerPick = soccerGames[Math.floor(seededRand(seed + 4) * soccerGames.length)];
+  app.get("/api/sports/upcoming", async (_req, res) => {
+    try {
+      if (espnSportsCache.data && Date.now() - espnSportsCache.timestamp < ESPN_CACHE_TTL) {
+        return res.json(espnSportsCache.data);
+      }
 
-      const tonight = new Date(now); tonight.setHours(20, 15, 0, 0);
-      if (tonight < now) tonight.setDate(tonight.getDate() + 1);
-      const tomorrow = new Date(tonight); tomorrow.setDate(tonight.getDate() + 1); tomorrow.setHours(19, 30, 0, 0);
-      const sat = new Date(now); sat.setDate(now.getDate() + ((6 - now.getDay() + 7) % 7 || 7)); sat.setHours(22, 0, 0, 0);
-      const sun = new Date(now); sun.setDate(now.getDate() + ((7 - now.getDay()) % 7 || 7)); sun.setHours(16, 5, 0, 0);
+      const [nbaEvents, mlbEvents, ufcEvents, eplEvents, mlsEvents, uclEvents, nflEvents] = await Promise.all([
+        fetchESPNScoreboard("basketball", "nba"),
+        fetchESPNScoreboard("baseball", "mlb"),
+        fetchESPNScoreboard("mma", "ufc"),
+        fetchESPNScoreboard("soccer", "eng.1"),
+        fetchESPNScoreboard("soccer", "usa.1"),
+        fetchESPNScoreboard("soccer", "uefa.champions"),
+        fetchESPNScoreboard("football", "nfl"),
+      ]);
 
-      const spreadVal = Math.floor(seededRand(seed + 10) * 7) + 1;
-      const totalVal = Math.floor(seededRand(seed + 11) * 15) + 42;
+      const games: any[] = [];
 
-      games.push({ id: 1, league: 'NFL', game: `${nflPick[0]} vs ${nflPick[1]}`, time: fmtTime(tonight), odds: `${nflPick[0]} -${spreadVal}.5 | O/U ${totalVal}.5` });
-      games.push({ id: 2, league: 'NBA', game: `${nbaPick[0]} vs ${nbaPick[1]}`, time: fmtTime(tomorrow), odds: `${nbaPick[0]} +${spreadVal - 1} | O/U ${200 + Math.floor(seededRand(seed + 12) * 30)}.5` });
-      games.push({ id: 3, league: 'UFC', game: `${ufcPick[0]} vs ${ufcPick[1]}`, time: fmtTime(sat), odds: `${ufcPick[0]} -${150 + Math.floor(seededRand(seed + 13) * 200)} | ${ufcPick[1]} +${100 + Math.floor(seededRand(seed + 14) * 150)}` });
-      games.push({ id: 4, league: 'MLB', game: `${mlbPick[0]} vs ${mlbPick[1]}`, time: fmtTime(sun), odds: `${mlbPick[0]} +${Math.floor(seededRand(seed + 15) * 40) + 100} | ${mlbPick[1]} -${Math.floor(seededRand(seed + 16) * 30) + 110}` });
-      games.push({ id: 5, league: 'SOCCER', game: `${soccerPick[0]} vs ${soccerPick[1]}`, time: fmtTime(sat), odds: `${soccerPick[0]} +${Math.floor(seededRand(seed + 17) * 50) + 100} | Draw +${200 + Math.floor(seededRand(seed + 18) * 60)} | ${soccerPick[1]} +${Math.floor(seededRand(seed + 19) * 50) + 100}` });
+      const addEvents = (events: any[], label: string, offset: number, max: number) => {
+        let count = 0;
+        for (const ev of events) {
+          if (count >= max) break;
+          const state = ev.status?.type?.state;
+          if (state === "post") continue;
+          const g = parseESPNEvent(ev, label, offset);
+          if (g) { games.push(g); count++; }
+        }
+      };
 
-      res.json({ games });
+      addEvents(nbaEvents, "NBA", 1000, 4);
+      addEvents(nflEvents, "NFL", 2000, 3);
+      addEvents(mlbEvents, "MLB", 3000, 3);
+      addEvents(ufcEvents, "UFC", 4000, 2);
+
+      const soccerEvents = [...eplEvents, ...uclEvents, ...mlsEvents];
+      addEvents(soccerEvents, "SOCCER", 5000, 3);
+
+      const boxingGames = getUpcomingBoxing();
+      games.push(...boxingGames);
+
+      const result = { games };
+      espnSportsCache.data = result;
+      espnSportsCache.timestamp = Date.now();
+
+      res.json(result);
     } catch (error) {
       console.error("Sports upcoming error:", error);
       res.json({ games: [] });
     }
   });
+
+  function getUpcomingBoxing(): any[] {
+    const knownFights = [
+      { fighters: ["Canelo Alvarez", "David Benavidez"], date: "2026-05-02", venue: "Las Vegas", weight: "Super Middleweight" },
+      { fighters: ["Terence Crawford", "Errol Spence Jr."], date: "2026-04-18", venue: "Dallas", weight: "Welterweight" },
+      { fighters: ["Naoya Inoue", "Junto Nakatani"], date: "2026-03-22", venue: "Tokyo", weight: "Super Bantamweight" },
+      { fighters: ["Oleksandr Usyk", "Tyson Fury"], date: "2026-06-14", venue: "Riyadh", weight: "Heavyweight" },
+      { fighters: ["Gervonta Davis", "Shakur Stevenson"], date: "2026-03-29", venue: "Brooklyn", weight: "Lightweight" },
+      { fighters: ["Ryan Garcia", "Devin Haney"], date: "2026-04-26", venue: "Las Vegas", weight: "Super Lightweight" },
+    ];
+    const now = new Date();
+    const upcoming = knownFights
+      .filter(f => new Date(f.date) > now)
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .slice(0, 2);
+
+    return upcoming.map((fight, i) => {
+      const d = new Date(fight.date);
+      const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return {
+        id: 6000 + i,
+        league: "BOXING",
+        game: `${fight.fighters[0]} vs ${fight.fighters[1]}`,
+        time: `${days[d.getDay()]} ${months[d.getMonth()]} ${d.getDate()} | ${fight.venue}`,
+        odds: fight.weight,
+        status: "pre",
+      };
+    });
+  }
 
   const PERSONA_SPORTS_PROMPTS: Record<string, string> = {
     trump: `You are Donald Trump giving a sports pick. Be BOMBASTIC. Use "TREMENDOUS", "BELIEVE ME", "WINNING", "BIGLY". Claim you personally know the team owners. Brag about your athletic genes. Pick a team and give a confidence percentage 80-99. Be entertaining and quotable. 2-3 sentences max.`,

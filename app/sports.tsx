@@ -34,6 +34,8 @@ interface Game {
   game: string;
   time: string;
   odds: string;
+  status?: string;
+  score?: string;
 }
 
 interface PersonaPick {
@@ -84,6 +86,7 @@ const LEAGUE_COLORS: Record<string, string> = {
   UFC: "#D4A420",
   MLB: "#2E7D32",
   SOCCER: "#1976D2",
+  BOXING: "#9C27B0",
 };
 
 const WORLD_CUP_DATE = new Date("2026-06-11T00:00:00-04:00").getTime();
@@ -154,6 +157,9 @@ function GameCard({
         </View>
       </View>
       <Text style={styles.gameTitle}>{game.game}</Text>
+      {game.score ? (
+        <Text style={styles.gameScore}>{game.score}</Text>
+      ) : null}
       <Text style={styles.gameOdds}>{game.odds}</Text>
 
       {pickLoading ? (
@@ -875,6 +881,12 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700" as const,
     color: "#fff",
+    marginBottom: 4,
+  },
+  gameScore: {
+    fontSize: 14,
+    fontWeight: "700" as const,
+    color: "#4CAF50",
     marginBottom: 4,
   },
   gameOdds: {
