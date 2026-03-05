@@ -993,6 +993,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/tts", async (req, res) => {
+    try {
+      const text = req.query.text as string;
+      const mood = (req.query.mood as string) || "CALM";
+      const speechCategory = (req.query.speechCategory as string) || "CASUAL_TALK";
+      const voice = req.query.voice as string | undefined;
+      apiUsageCounters.tts++;
+
+      if (!text || typeof text !== "string") {
+        return res.status(400).json({ error: "Text is required" });
+      }
+
+      const cleanedText = text
+        .replace(/\*+/g, "")
+        .replace(/_{2,}/g, "")
+        .replace(/#{1,6}\s/g, "")
+        .replace(/`{1,3}/g, "")
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+      const truncatedText = cleanedText.slice(0, 5000);
+
+      let audioBuffer: Buffer;
+
+      if (voice === "sophia") {
+        audioBuffer = await fishAudioTTS(truncatedText, SOPHIA_VOICE_ID, 0.95);
+      } else if (voice === "james") {
+        audioBuffer = await fishAudioTTS(truncatedText, JAMES_VOICE_ID, 0.9);
+      } else {
+        const speed = 1.0;
+        const rawAudio = await trumpTextToSpeech(truncatedText, speed, mood, speechCategory);
+        audioBuffer = await overlayBleeps(rawAudio, truncatedText);
+      }
+
+      res.setHeader("Content-Type", "audio/mpeg");
+      res.setHeader("Content-Length", audioBuffer.length.toString());
+      res.setHeader("Cache-Control", "public, max-age=3600");
+      res.send(audioBuffer);
+    } catch (error) {
+      console.error("TTS GET error:", error);
+      res.status(500).json({ error: "Failed to generate speech" });
+    }
+  });
+
   app.post("/api/stt", async (req, res) => {
     try {
       const { audio, format = "webm" } = req.body;
