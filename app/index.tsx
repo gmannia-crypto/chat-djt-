@@ -269,6 +269,7 @@ export default function HomeScreen() {
   const [leaderboardData, setLeaderboardData] = useState<{ name: string; score: number; avatar: string; isYou?: boolean }[]>([]);
   const [fearGreed, setFearGreed] = useState<{ value: number; label: string; trumpComment: string } | null>(null);
   const [liveUsers, setLiveUsers] = useState(1247);
+  const [activityFeed, setActivityFeed] = useState<string[]>([]);
   const { deviceId, hasTokens } = useTokens();
 
   const pulseScale = useSharedValue(1);
@@ -373,6 +374,42 @@ export default function HomeScreen() {
     }, 10000);
     return () => clearInterval(interval);
   }, []);
+
+  const ACTIVITY_TEMPLATES = useMemo(() => [
+    "@MAGAMike just got roasted by Trump",
+    "@CryptoQueen predicted the future",
+    "@PatriotPaul bought a property in Texas",
+    "@Grandma rated Trump 94%",
+    "@ElonFan challenged Trump to a debate",
+    "@WallStreetWolf won a Financial Faceoff",
+    "@TrumpLover45 opened a Mystery Box",
+    "@BitcoinBro asked about Dogecoin",
+    "@SilverSurfer got Grandma's advice",
+    "@MuskFanboy debated on energy policy",
+    "@GoldBug2024 checked the Fear & Greed Index",
+    "@RealEstateKing searched properties in Miami",
+    "@FreedomEagle started a therapy session",
+    "@DiamondHands got Uncle Ruckus'd",
+    "@BasedTrader used the mortgage calculator",
+    "@AmericaFirst shared a Trump prophecy",
+    "@StonksMaster beat Trump in Round 3",
+    "@MAGAMom got Bernie Mac's take",
+    "@CryptoKing explored Trump's Picks",
+    "@PatriotPete rated Trump 100%",
+  ], []);
+
+  useEffect(() => {
+    const initial = ACTIVITY_TEMPLATES.slice(0, 3);
+    setActivityFeed(initial);
+    const interval = setInterval(() => {
+      const random = ACTIVITY_TEMPLATES[Math.floor(Math.random() * ACTIVITY_TEMPLATES.length)];
+      setActivityFeed((prev) => {
+        const next = [random, ...prev];
+        return next.slice(0, 5);
+      });
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [ACTIVITY_TEMPLATES]);
 
   useEffect(() => {
     if (mysteryReady || mysteryTimeLeft <= 0) return;
@@ -784,6 +821,25 @@ export default function HomeScreen() {
         {hotTakeLoading && !hotTake && (
           <Animated.View entering={FadeIn.duration(400)} style={styles.hotTakeBubble}>
             <ActivityIndicator size="small" color={Colors.gold} />
+          </Animated.View>
+        )}
+
+        {activityFeed.length > 0 && (
+          <Animated.View entering={FadeInDown.delay(850).duration(400)} style={styles.activityWall}>
+            <View style={styles.activityHeader}>
+              <Ionicons name="flash" size={14} color="#ff4d4d" />
+              <Text style={styles.activityTitle}>LIVE ACTIVITY</Text>
+            </View>
+            {activityFeed.map((activity, i) => (
+              <Animated.View
+                key={`act-${i}-${activity}`}
+                entering={FadeIn.duration(400)}
+                style={[styles.activityItem, i === 0 && styles.activityItemNew]}
+              >
+                <Text style={styles.activityDot}>{i === 0 ? "\u26A1" : "\u2022"}</Text>
+                <Text style={[styles.activityText, i === 0 && styles.activityTextNew]} numberOfLines={1}>{activity}</Text>
+              </Animated.View>
+            ))}
           </Animated.View>
         )}
 
@@ -1636,6 +1692,53 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "600" as const,
     color: "rgba(255, 77, 77, 0.7)",
+  },
+  activityWall: {
+    marginHorizontal: 20,
+    marginTop: 10,
+    backgroundColor: "rgba(255,255,255,0.03)",
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 77, 77, 0.15)",
+    gap: 6,
+  },
+  activityHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 2,
+  },
+  activityTitle: {
+    fontSize: 11,
+    fontWeight: "800" as const,
+    color: "rgba(255, 77, 77, 0.8)",
+    letterSpacing: 1.5,
+  },
+  activityItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 3,
+  },
+  activityItemNew: {
+    backgroundColor: "rgba(255, 77, 77, 0.06)",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+  activityDot: {
+    fontSize: 10,
+    color: "rgba(255,255,255,0.3)",
+  },
+  activityText: {
+    flex: 1,
+    fontSize: 12,
+    color: "rgba(255,255,255,0.5)",
+  },
+  activityTextNew: {
+    color: "#ff4d4d",
+    fontWeight: "600" as const,
   },
   glossyHeaderBtn: {
     alignItems: "center",
