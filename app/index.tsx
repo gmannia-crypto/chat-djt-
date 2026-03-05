@@ -396,27 +396,31 @@ export default function HomeScreen() {
     let cancelled = false;
     async function playWelcome() {
       try {
-        const played = await AsyncStorage.getItem("chatdjt_welcome_played_session");
-        if (played === "true") return;
-        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+        console.log("[Welcome] Starting welcome audio, platform:", Platform.OS);
+        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: false });
         if (cancelled) return;
+        console.log("[Welcome] Audio mode set, calling playTTS...");
         const sound = await playTTS("/api/nav-speak", {
           text: "Welcome to CHAT DJT. A complete interactive immersive experience.",
-        }, { volume: 0.9 });
+        }, { volume: 1.0 });
+        console.log("[Welcome] playTTS returned successfully!");
         if (cancelled) {
           sound.unloadAsync();
           return;
         }
         welcomeSoundRef.current = sound;
-        AsyncStorage.setItem("chatdjt_welcome_played_session", "true").catch(() => {});
         sound.setOnPlaybackStatusUpdate((status: any) => {
+          if (status.isLoaded) {
+            console.log("[Welcome] Playback status - isPlaying:", status.isPlaying, "position:", status.positionMillis);
+          }
           if (status.didJustFinish) {
+            console.log("[Welcome] Playback finished");
             sound.unloadAsync();
             welcomeSoundRef.current = null;
           }
         });
-      } catch (e) {
-        console.log("Welcome TTS error:", e);
+      } catch (e: any) {
+        console.log("[Welcome] TTS error:", e?.message || e);
       }
     }
     const timer = setTimeout(playWelcome, 2000);
