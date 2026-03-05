@@ -42,7 +42,26 @@ The backend is an Express 5 API gateway providing various endpoints for AI inter
 - **Stripe**: For payment processing for therapy sessions and subscriptions.
 - **expo-file-system**: Used by `lib/audio-helper.ts` to write TTS audio to temp files on native (iOS/Android) for reliable playback via expo-av. On web, data URIs are used instead.
 
+## AI Model System
+
+The app supports dual AI model tiers managed via `GET/POST /api/model-settings`:
+- **Premium**: GPT-5.2 (chat) + GPT-4o-mini (fast) — best quality, higher cost (~$8/1K requests)
+- **Budget**: DeepSeek V3 (chat + fast) — ~98% cheaper (~$0.08/1K requests), good quality
+- Model tier is switchable in real-time from the Admin (Back Office) screen
+- `POST /api/model-test` runs side-by-side comparison with cost analysis
+- All `openai.chat.completions.create` calls use `getClient()` and `getChatModel()`/`getFastModel()` for dynamic model routing
+- DeepSeek requires `DEEPSEEK_API_KEY` environment variable
+- Audio transcription always uses OpenAI (Whisper) regardless of tier
+
 ## Persona Dialogue Styles
 
-- **Bernie Mac**: Speaks in casual Black English style — uses "ain't finna", "yo", "wit'", "gon'", "talkin' bout", "sheeeeit", "Don't be out here actin' a fool", etc.
-- **Uncle Ruckus**: Speaks in Black southern slang style — uses "I tell you what", "dadgum", "'fore", "reckon", "lemme", "fixin' to", "prolly", "no sir", "that there", etc.
+- **Bernie Mac**: RAW, unfiltered Black English style — uses "DAMN!", "Got-DAMN!", "I ain't scared of you, muttuphuk!", "summa ma bitch!", "sheeeeit", "I ain't playin' wit' y'all!", "ain't finna", etc. Cuss freely like his actual stand-up comedy.
+- **Uncle Ruckus**: Self-hating Black man (The Boondocks satire) — worships white people/culture, uses "I tell you what", "dadgum", "praise White Jesus", "the WHITE man's way is the RIGHT way", "I got re-vitiligo", "I ain't Black, I'm Uncle Ruckus — no relation". Always contrarian, praises white athletes/neighborhoods, disparages Black culture. Outrageously offensive in the satirical Boondocks style.
+
+## Amazon Affiliate Integration
+
+- Tag: `trumpbot-20` used across all Amazon links
+- Sports Book screen has a "GEAR UP" section with persona-specific product recommendations
+- Each of the 11 personas has unique Amazon product cards (3 per persona) plus a main "Shop" button
+- Key persona products: MJ → Air Jordans, Trump → MAGA/Golf, Buffett → Investing books, Musk → Tech gadgets, Bernie Mac → Funny tees/Chi-Town gear, Ruckus → Camo/BBQ/Work boots, etc.
+- Product cards dynamically switch when the user changes the selected persona

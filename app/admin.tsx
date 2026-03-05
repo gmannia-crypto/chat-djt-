@@ -134,6 +134,328 @@ const FEATURE_LABELS: Record<string, { label: string; icon: string; color: strin
   stock_pick: { label: "Stock Picks", icon: "trending-up", color: "#F59E0B" },
 };
 
+function ModelSettingsSection() {
+  const [modelData, setModelData] = useState<any>(null);
+  const [testResults, setTestResults] = useState<any>(null);
+  const [switching, setSwitching] = useState(false);
+  const [testing, setTesting] = useState(false);
+
+  useEffect(() => {
+    fetchModelSettings();
+  }, []);
+
+  async function fetchModelSettings() {
+    try {
+      const res = await fetch(new URL("/api/model-settings", getApiUrl()).toString());
+      if (res.ok) setModelData(await res.json());
+    } catch (e) {
+      console.error("Model settings error:", e);
+    }
+  }
+
+  async function switchTier(tier: string) {
+    setSwitching(true);
+    try {
+      const res = await fetch(new URL("/api/model-settings", getApiUrl()).toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tier }),
+      });
+      if (res.ok) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        await fetchModelSettings();
+      }
+    } catch (e) {
+      console.error("Switch tier error:", e);
+    } finally {
+      setSwitching(false);
+    }
+  }
+
+  async function runModelTest() {
+    setTesting(true);
+    setTestResults(null);
+    try {
+      const res = await fetch(new URL("/api/model-test", getApiUrl()).toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: "Give a one-sentence sports prediction in Trump's voice." }),
+      });
+      if (res.ok) setTestResults(await res.json());
+    } catch (e) {
+      console.error("Model test error:", e);
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  if (!modelData) return null;
+
+  const premium = modelData.models.premium;
+  const budget = modelData.models.budget;
+
+  return (
+    <Animated.View entering={FadeInDown.delay(1200).duration(400)}>
+      <View style={modelStyles.container}>
+        <View style={modelStyles.header}>
+          <MaterialCommunityIcons name="brain" size={20} color={Colors.gold} />
+          <Text style={modelStyles.title}>AI Model Settings</Text>
+        </View>
+
+        <View style={modelStyles.tierRow}>
+          <Pressable
+            onPress={() => switchTier("premium")}
+            disabled={switching}
+            style={({ pressed }) => [
+              modelStyles.tierCard,
+              modelData.activeTier === "premium" && modelStyles.tierCardActive,
+              pressed && { opacity: 0.8 },
+            ]}
+          >
+            <MaterialCommunityIcons name="star" size={22} color={modelData.activeTier === "premium" ? "#FFD700" : "#666"} />
+            <Text style={[modelStyles.tierName, modelData.activeTier === "premium" && { color: "#FFD700" }]}>Premium</Text>
+            <Text style={modelStyles.tierModel}>{premium.chat}</Text>
+            <Text style={modelStyles.tierDesc}>{premium.description}</Text>
+            {modelData.activeTier === "premium" && <Text style={modelStyles.activeLabel}>ACTIVE</Text>}
+          </Pressable>
+          <Pressable
+            onPress={() => switchTier("budget")}
+            disabled={switching || !budget.available}
+            style={({ pressed }) => [
+              modelStyles.tierCard,
+              modelData.activeTier === "budget" && modelStyles.tierCardActive,
+              !budget.available && { opacity: 0.4 },
+              pressed && { opacity: 0.8 },
+            ]}
+          >
+            <MaterialCommunityIcons name="cash-multiple" size={22} color={modelData.activeTier === "budget" ? "#4ADE80" : "#666"} />
+            <Text style={[modelStyles.tierName, modelData.activeTier === "budget" && { color: "#4ADE80" }]}>Budget</Text>
+            <Text style={modelStyles.tierModel}>{budget.chat}</Text>
+            <Text style={modelStyles.tierDesc}>{budget.description}</Text>
+            {modelData.activeTier === "budget" && <Text style={[modelStyles.activeLabel, { color: "#4ADE80" }]}>ACTIVE</Text>}
+            {!budget.available && <Text style={modelStyles.unavailableLabel}>Add DEEPSEEK_API_KEY</Text>}
+          </Pressable>
+        </View>
+
+        {modelData.savings && (
+          <View style={modelStyles.savingsBox}>
+            <MaterialCommunityIcons name="information" size={16} color="#4ADE80" />
+            <Text style={modelStyles.savingsText}>{modelData.savings}</Text>
+          </View>
+        )}
+
+        <Pressable
+          onPress={runModelTest}
+          disabled={testing}
+          style={({ pressed }) => [modelStyles.testBtn, pressed && { opacity: 0.8 }]}
+        >
+          {testing ? (
+            <ActivityIndicator size="small" color="#000" />
+          ) : (
+            <>
+              <MaterialCommunityIcons name="flask" size={18} color="#000" />
+              <Text style={modelStyles.testBtnText}>Run Side-by-Side Test</Text>
+            </>
+          )}
+        </Pressable>
+
+        {testResults && (
+          <View style={modelStyles.testResultsContainer}>
+            <Text style={modelStyles.testResultsTitle}>Test Results</Text>
+            {Object.entries(testResults.results).map(([tier, result]: [string, any]) => (
+              <View key={tier} style={modelStyles.testResultCard}>
+                <View style={modelStyles.testResultHeader}>
+                  <Text style={[modelStyles.testResultTier, { color: tier === "premium" ? "#FFD700" : "#4ADE80" }]}>
+                    {tier.toUpperCase()} ({result.model})
+                  </Text>
+                  <Text style={modelStyles.testLatency}>{result.latencyMs}ms</Text>
+                </View>
+                {result.error ? (
+                  <Text style={modelStyles.testError}>{result.error}</Text>
+                ) : (
+                  <Text style={modelStyles.testResponse}>{result.response}</Text>
+                )}
+              </View>
+            ))}
+            <View style={modelStyles.costBox}>
+              <Text style={modelStyles.costTitle}>Cost per 1K Requests</Text>
+              <Text style={modelStyles.costLine}>Premium: {testResults.costComparison.premiumPer1kRequests}</Text>
+              <Text style={modelStyles.costLine}>Budget: {testResults.costComparison.budgetPer1kRequests}</Text>
+              <Text style={[modelStyles.costLine, { color: "#4ADE80", fontWeight: "700" as const }]}>
+                Savings: {testResults.costComparison.savingsPercent}
+              </Text>
+            </View>
+            <Text style={modelStyles.recommendation}>{testResults.recommendation}</Text>
+          </View>
+        )}
+      </View>
+    </Animated.View>
+  );
+}
+
+const modelStyles = StyleSheet.create({
+  container: {
+    marginTop: 24,
+    backgroundColor: "rgba(255,255,255,0.03)",
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "rgba(212,164,32,0.15)",
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 16,
+    fontWeight: "700" as const,
+    color: Colors.gold,
+  },
+  tierRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 12,
+  },
+  tierCard: {
+    flex: 1,
+    backgroundColor: "rgba(255,255,255,0.03)",
+    borderRadius: 12,
+    padding: 14,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+    gap: 6,
+  },
+  tierCardActive: {
+    borderColor: "rgba(212,164,32,0.4)",
+    backgroundColor: "rgba(212,164,32,0.06)",
+  },
+  tierName: {
+    fontSize: 14,
+    fontWeight: "700" as const,
+    color: "#fff",
+  },
+  tierModel: {
+    fontSize: 10,
+    color: "rgba(255,255,255,0.4)",
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+  },
+  tierDesc: {
+    fontSize: 10,
+    color: "rgba(255,255,255,0.5)",
+    textAlign: "center",
+    lineHeight: 14,
+  },
+  activeLabel: {
+    fontSize: 9,
+    fontWeight: "800" as const,
+    color: "#FFD700",
+    backgroundColor: "rgba(255,215,0,0.12)",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    overflow: "hidden",
+    marginTop: 2,
+  },
+  unavailableLabel: {
+    fontSize: 9,
+    color: "#F87171",
+    marginTop: 2,
+  },
+  savingsBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(74,222,128,0.08)",
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  savingsText: {
+    fontSize: 11,
+    color: "#4ADE80",
+    flex: 1,
+  },
+  testBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: Colors.gold,
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
+  testBtnText: {
+    fontSize: 13,
+    fontWeight: "700" as const,
+    color: "#000",
+  },
+  testResultsContainer: {
+    marginTop: 14,
+    gap: 10,
+  },
+  testResultsTitle: {
+    fontSize: 13,
+    fontWeight: "700" as const,
+    color: "#fff",
+  },
+  testResultCard: {
+    backgroundColor: "rgba(255,255,255,0.03)",
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+  },
+  testResultHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  testResultTier: {
+    fontSize: 11,
+    fontWeight: "800" as const,
+  },
+  testLatency: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.4)",
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+  },
+  testResponse: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.7)",
+    lineHeight: 18,
+  },
+  testError: {
+    fontSize: 12,
+    color: "#F87171",
+  },
+  costBox: {
+    backgroundColor: "rgba(255,255,255,0.03)",
+    borderRadius: 10,
+    padding: 12,
+    gap: 4,
+  },
+  costTitle: {
+    fontSize: 12,
+    fontWeight: "700" as const,
+    color: "#fff",
+    marginBottom: 4,
+  },
+  costLine: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.6)",
+  },
+  recommendation: {
+    fontSize: 11,
+    color: "rgba(255,215,0,0.6)",
+    fontStyle: "italic",
+    lineHeight: 16,
+  },
+});
+
 export default function AdminScreen() {
   const insets = useSafeAreaInsets();
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -475,6 +797,8 @@ export default function AdminScreen() {
                 </Animated.View>
               ))}
             </View>
+
+            <ModelSettingsSection />
           </>
         ) : null}
       </ScrollView>

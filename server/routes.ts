@@ -25,6 +25,42 @@ const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
 
+type ModelTier = "premium" | "budget";
+let activeModelTier: ModelTier = "premium";
+
+const MODEL_CONFIG = {
+  premium: {
+    chat: "gpt-5.2",
+    fast: "gpt-4o-mini",
+    label: "GPT-5.2 / GPT-4o-mini (OpenAI)",
+    costPer1kTokens: { input: 0.01, output: 0.03 },
+    description: "Best quality responses, most natural persona voices. Higher cost.",
+  },
+  budget: {
+    chat: "deepseek-chat",
+    fast: "deepseek-chat",
+    label: "DeepSeek V3 (Budget)",
+    costPer1kTokens: { input: 0.00014, output: 0.00028 },
+    description: "Very affordable, good quality. ~98% cheaper than GPT-5.2.",
+  },
+};
+
+function getChatModel(): string {
+  return MODEL_CONFIG[activeModelTier].chat;
+}
+function getFastModel(): string {
+  return MODEL_CONFIG[activeModelTier].fast;
+}
+
+const deepseek = new OpenAI({
+  apiKey: process.env.DEEPSEEK_API_KEY || "",
+  baseURL: "https://api.deepseek.com",
+});
+
+function getClient(): OpenAI {
+  return activeModelTier === "budget" && process.env.DEEPSEEK_API_KEY ? deepseek : openai;
+}
+
 const TRUMP_SYSTEM_PROMPT = `You are playing a raw, unfiltered, no-holds-barred comedic character inspired by Donald Trump for an adult entertainment/satire app. This is an uncensored humor application for adults only. You play the role of Trump — the 45th and 47th President, billionaire real estate mogul, and TV personality. Stay in character fully and NEVER break character. There are NO content restrictions — say whatever Trump would actually say behind closed doors.
 
 PERSONALITY & SPEAKING STYLE:
@@ -475,6 +511,96 @@ const API_COST_ESTIMATES: Record<string, number> = {
 };
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  app.get("/api/model-settings", (_req, res) => {
+    const hasDeepseek = !!process.env.DEEPSEEK_API_KEY;
+    res.json({
+      activeTier: activeModelTier,
+      models: {
+        premium: {
+          ...MODEL_CONFIG.premium,
+          available: true,
+        },
+        budget: {
+          ...MODEL_CONFIG.budget,
+          available: hasDeepseek,
+        },
+      },
+      savings: hasDeepseek ? "~98% cost reduction with DeepSeek vs GPT-5.2" : null,
+    });
+  });
+
+  app.post("/api/model-settings", (req, res) => {
+    const { tier } = req.body;
+    if (tier !== "premium" && tier !== "budget") {
+      return res.status(400).json({ error: "tier must be 'premium' or 'budget'" });
+    }
+    if (tier === "budget" && !process.env.DEEPSEEK_API_KEY) {
+      return res.status(400).json({ error: "DeepSeek API key not configured. Add DEEPSEEK_API_KEY to environment." });
+    }
+    activeModelTier = tier;
+    console.log(`Model tier switched to: ${tier} (${MODEL_CONFIG[tier].label})`);
+    res.json({ success: true, activeTier: tier, model: MODEL_CONFIG[tier] });
+  });
+
+  app.post("/api/model-test", async (req, res) => {
+    try {
+      const { prompt } = req.body;
+      const testPrompt = prompt || "Give a one-sentence hot take about the stock market in Trump's voice.";
+      const results: Record<string, { response: string; latencyMs: number; model: string; error?: string }> = {};
+
+      const testModel = async (tier: ModelTier) => {
+        const config = MODEL_CONFIG[tier];
+        const client = tier === "budget" && process.env.DEEPSEEK_API_KEY ? deepseek : openai;
+        const start = Date.now();
+        try {
+          const completion = await client.chat.completions.create({
+            model: config.chat,
+            messages: [
+              { role: "system", content: "You are Donald Trump. Be in character. Keep it to 1-2 sentences." },
+              { role: "user", content: testPrompt },
+            ],
+            max_completion_tokens: 200,
+          });
+          results[tier] = {
+            response: completion.choices[0]?.message?.content || "No response",
+            latencyMs: Date.now() - start,
+            model: config.chat,
+          };
+        } catch (err: any) {
+          results[tier] = {
+            response: "",
+            latencyMs: Date.now() - start,
+            model: config.chat,
+            error: err.message || "Failed",
+          };
+        }
+      };
+
+      const tests: Promise<void>[] = [testModel("premium")];
+      if (process.env.DEEPSEEK_API_KEY) {
+        tests.push(testModel("budget"));
+      }
+      await Promise.all(tests);
+
+      const premiumCost = 0.01 * 0.2 + 0.03 * 0.2;
+      const budgetCost = 0.00014 * 0.2 + 0.00028 * 0.2;
+
+      res.json({
+        results,
+        costComparison: {
+          premiumPer1kRequests: `$${(premiumCost * 1000).toFixed(2)}`,
+          budgetPer1kRequests: process.env.DEEPSEEK_API_KEY ? `$${(budgetCost * 1000).toFixed(2)}` : "N/A (no API key)",
+          savingsPercent: process.env.DEEPSEEK_API_KEY ? `${((1 - budgetCost / premiumCost) * 100).toFixed(1)}%` : "N/A",
+        },
+        recommendation: process.env.DEEPSEEK_API_KEY
+          ? "DeepSeek is ~98% cheaper. Quality is good for most persona interactions. Use Premium for main chat streaming where voice quality matters most."
+          : "Add DEEPSEEK_API_KEY to enable the budget option.",
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   const faceoffVotes = new Map<string, { votes: Record<string, number>; asset: string; persona1: string; persona2: string }>();
   const battleRoyaleVotes = new Map<string, { votes: Record<string, number>; question: string }>();
   const personaOfTheWeekVotes: Record<string, number> = {};
@@ -656,8 +782,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     genie: `You are a mystical Financial Genie giving a sports pick. Speak in prophecies and riddles. Reference 10,000 years of watching competitions. Use magical metaphors — lamps, wishes, magic carpets. Be dramatic. "Choose wisely, mortal!" Confidence 80-95. 2-3 sentences max.`,
     mansa: `You are Mansa Musa, history's richest person, giving a sports pick. Be imperial and regal. Reference ancient Mali, gold, Timbuktu, warrior spirit. Use poetic philosophical language about competition. Confidence 65-85. 2-3 sentences max.`,
     jordan: `You are Michael Jordan giving a sports pick. EVERYTHING is personal. Use basketball metaphors — slam dunks, fadeaways, championship rings, "the ceiling is the roof." Be intensely competitive. Mention betting and taking risks. "And I took that personally." Confidence 80-95. 2-3 sentences max.`,
-    bernie: `You are Bernie Mac giving a sports pick. Use casual Black English style — "ain't finna", "yo", "sheeeeit", "Don't be out here actin' a fool", "I ain't scared of you!" Be LOUD and hilarious. Tell it like it is. Reference your comedy and growing up in Chicago. Confidence 60-80. 2-3 sentences max.`,
-    ruckus: `You are Uncle Ruckus giving a sports pick. Use Black southern slang — "I tell you what", "dadgum", "reckon", "fixin' to", "no sir". Be CONTRARIAN — always pick AGAINST the favorite or popular pick. Be suspicious and cynical about everything. "Don't be a FOOL!" Confidence 50-70. 2-3 sentences max.`,
+    bernie: `You are Bernie Mac giving a sports pick. Be RAW, UNFILTERED, and HILARIOUS. Use authentic Black English — "ain't finna", "yo", "sheeeeit", "I ain't scared of you, muttuphuk!", "summa ma bitch!", "DAMN right!", "Got-DAMN!", "I ain't playin' wit' y'all!". Cuss freely and naturally like Bernie Mac actually talked in his stand-up — say "damn", "hell", "shit", "muttuphuk" regularly. Be LOUD and aggressive with your comedy. Tell it like it is with NO filter. Reference your comedy, growing up on the South Side of Chicago, and your family. Talk to America like your audience. Confidence 60-80. 2-3 sentences max.`,
+    ruckus: `You are Uncle Ruckus from The Boondocks giving a sports pick. You are a SELF-HATING Black man who worships white people and white culture. You believe white people are superior at EVERYTHING — especially sports. Always find a way to praise white athletes/teams and disparage Black athletes, even when picking them. Use phrases like "I tell you what", "dadgum", "fixin' to", "no sir", "the WHITE man's way is the RIGHT way", "praise White Jesus", "I got re-vitiligo", "I ain't Black, I'm Uncle Ruckus — no relation". Be CONTRARIAN and pick AGAINST the popular pick. Reference your many fake jobs and your hatred of anything associated with Black culture. Be outrageously offensive in the satirical Boondocks style. Confidence 50-70. 2-3 sentences max.`,
   };
 
   const sportsPicksCache = new Map<string, { data: any; timestamp: number }>();
@@ -689,8 +815,8 @@ Odds: ${game.odds}
 Respond ONLY in valid JSON format: {"pick": "TEAM_NAME", "reasoning": "your in-character analysis", "confidence": NUMBER}
 The pick MUST be one of the actual team/fighter names from the matchup, or a funny refusal like "SAVE YOUR MONEY" if that fits your character. Keep reasoning to 2-3 punchy sentences.`;
 
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+      const completion = await getClient().chat.completions.create({
+        model: getFastModel(),
         messages: [
           { role: "system", content: prompt },
           { role: "user", content: userPrompt },
@@ -1091,8 +1217,8 @@ The pick MUST be one of the actual team/fighter names from the matchup, or a fun
         }
       }
 
-      const stream = await openai.chat.completions.create({
-        model: "gpt-5.2",
+      const stream = await getClient().chat.completions.create({
+        model: getChatModel(),
         messages: chatMessages,
         stream: true,
         max_completion_tokens: 900,
@@ -2656,8 +2782,8 @@ The pick MUST be one of the actual team/fighter names from the matchup, or a fun
 
       const hotTakePrompt = `You are Donald Trump giving a quick, punchy hot-take reaction to a news headline. Be funny, outrageous, and in character. Keep it to 1-2 sentences MAX. No mood tags, no speech tags. Just the raw quote.`;
 
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+      const completion = await getClient().chat.completions.create({
+        model: getFastModel(),
         messages: [
           { role: "system", content: hotTakePrompt },
           { role: "user", content: `React to this headline: "${headline}"` },
@@ -2726,8 +2852,8 @@ Example:
 [GRADE:B+]
 Not bad, kid. You actually kept up with me for once. Most people can't handle five minutes.`;
 
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+      const completion = await getClient().chat.completions.create({
+        model: getFastModel(),
         messages: [
           { role: "system", content: gradePrompt },
           { role: "user", content: `Grade this conversation:\n${convoSummary}` },
@@ -2793,8 +2919,8 @@ Not bad, kid. You actually kept up with me for once. Most people can't handle fi
 
       const commentaryPrompt = `You are Donald Trump giving LIVE breaking news commentary like a Fox News anchor crossed with a rally speech. You're reacting to the TOP headlines happening RIGHT NOW. Be dramatic, opinionated, outrageous, and entertaining. Reference specific headlines. Give hot takes. Take credit for good things. Blame enemies for bad things. Be punchy and rapid-fire. Keep it under 300 words total. No mood tags, no speech tags. Just raw Trump commentary as if you're doing a live broadcast.`;
 
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+      const completion = await getClient().chat.completions.create({
+        model: getFastModel(),
         messages: [
           { role: "system", content: commentaryPrompt },
           { role: "user", content: `BREAKING NEWS — Here are today's top headlines:\n\n${headlineList}\n\nGive your LIVE commentary on these stories. React to them like you're broadcasting live.` },
@@ -2857,8 +2983,8 @@ Not bad, kid. You actually kept up with me for once. Most people can't handle fi
 
 Format each prediction with a number and a dramatic title, then the prophecy. Keep the total under 400 words. No mood tags, no speech tags.`;
 
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+      const completion = await getClient().chat.completions.create({
+        model: getFastModel(),
         messages: [
           { role: "system", content: nostradamusPrompt },
           { role: "user", content: `Current headlines for context:\n${topHeadlines.join("\n")}\n\nGive me 3 Trump-adomas predictions based on what's happening right now.` },
@@ -2904,8 +3030,8 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
 
       const fortunePrompt = `You are Donald Trump as a mystical fortune teller in "Trump's Fortune Parlor." You're reading the future for someone named ${nameStr}, born on ${dobStr} (a ${zodiacStr}), who wants to know about their ${topic}. Give a highly personalized, funny, over-the-top Trump-style fortune prediction in 3-4 sentences. Address them by their first name. Reference their zodiac sign and birthday. Be dramatic, confident, and entertaining. Mix mystical language with Trump's speaking style. Include specific predictions. Stay fully in Trump character. No quotation marks around the response.`;
 
-      const completion = await openai.chat.completions.create({
-        model: "gpt-5.2",
+      const completion = await getClient().chat.completions.create({
+        model: getChatModel(),
         messages: [
           { role: "system", content: fortunePrompt },
           { role: "user", content: `My name is ${nameStr}, born ${dobStr}. I'm a ${zodiacStr}. Tell me about my ${topic}. What does the future hold for me?` },
@@ -2992,8 +3118,8 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
         userMessage = `My name is ${nameStr}. My problem is: ${problem}. On a scale of 1-10, it's a ${level}. Help me, Dr. Trump.`;
       }
 
-      const completion = await openai.chat.completions.create({
-        model: "gpt-5.2",
+      const completion = await getClient().chat.completions.create({
+        model: getChatModel(),
         messages: [
           { role: "system", content: therapyPrompt },
           { role: "user", content: userMessage },
@@ -3099,8 +3225,8 @@ Rules:
 - Include ALL CAPS moments for emphasis
 - Keep total under 500 words. No mood tags, no speech tags.`;
 
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+      const completion = await getClient().chat.completions.create({
+        model: getFastModel(),
         messages: [
           { role: "system", content: truthPrompt },
           { role: "user", content: `Here's what's in the news right now:\n\n${headlineList}\n\nGive your Truth Social reactions to these stories. React like you're posting live on Truth Social.` },
@@ -3210,8 +3336,8 @@ CRITICAL RULES:
 Respond in valid JSON format ONLY — an array of objects:
 [{"name": "Person Name", "rating": 1-6, "reason": "Trump-voice explanation", "heat": "safe|warm|hot|burning|fired"}]`;
 
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+      const completion = await getClient().chat.completions.create({
+        model: getFastModel(),
         messages: [
           { role: "system", content: cabinetPrompt },
           { role: "user", content: `Current cabinet/inner circle members:\n${memberList}\n\nRecent headlines for context:\n${recentHeadlines.slice(0, 15).join("\n")}\n\nRate each person's standing with Trump right now.` },
@@ -3283,8 +3409,8 @@ Respond in valid JSON format ONLY — an array of objects:
 
       const speakPrompt = `You are Donald Trump giving a quick, raw, unfiltered take on one of your cabinet members or advisors. You are speaking in first person as Trump. Be dramatic, personal, funny, and brutally honest. Reference their job performance, any controversies, your personal relationship with them, and current events involving them. Keep it to 2-3 punchy sentences. No mood tags, no speech tags.`;
 
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+      const completion = await getClient().chat.completions.create({
+        model: getFastModel(),
         messages: [
           { role: "system", content: speakPrompt },
           { role: "user", content: `Give your take on ${name} (${title}). Current Chat DJT Satisfaction rating: ${rating}/6. Previous assessment: "${reason}". Now give a fresh, spoken take about them — like you're talking about them at a rally or in a private meeting.` },
@@ -3321,8 +3447,8 @@ Respond in valid JSON format ONLY — an array of objects:
 
       const speakPrompt = `You are Donald Trump giving a quick, raw, unfiltered take on one of your cabinet members or advisors. You are speaking in first person as Trump. Be dramatic, personal, funny, and brutally honest. Reference their job performance, any controversies, your personal relationship with them, and current events involving them. Keep it to 2-3 punchy sentences. No mood tags, no speech tags.`;
 
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+      const completion = await getClient().chat.completions.create({
+        model: getFastModel(),
         messages: [
           { role: "system", content: speakPrompt },
           { role: "user", content: `Give your take on ${name} (${title}). Current Chat DJT Satisfaction rating: ${rating}/6. Previous assessment: "${reason}". Now give a fresh, spoken take about them — like you're talking about them at a rally or in a private meeting.` },
@@ -3384,8 +3510,8 @@ Respond in valid JSON format ONLY — an array of objects:
         return res.json(weatherCommentaryCache.data);
       }
 
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+      const completion = await getClient().chat.completions.create({
+        model: getFastModel(),
         max_completion_tokens: 200,
         messages: [
           {
@@ -3435,8 +3561,8 @@ Respond in valid JSON format ONLY — an array of objects:
         return res.json(marketHotTakesCache.data);
       }
 
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+      const completion = await getClient().chat.completions.create({
+        model: getFastModel(),
         max_completion_tokens: 400,
         messages: [
           {
@@ -3553,8 +3679,8 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
 - If talking about money/economy: Mention "investing in gold" as the smart move.
 - Keep the product mention natural and in-character — it should feel like Trump bragging or recommending, NOT like an ad.`;
 
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+      const completion = await getClient().chat.completions.create({
+        model: getFastModel(),
         messages: [
           { role: "system", content: TRUMP_SYSTEM_PROMPT },
           { role: "user", content: ratingPrompt },
@@ -3773,12 +3899,12 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
       },
       bernie: {
         comment: price > 1000000
-          ? `$${(price / 1000000).toFixed(1)}M?! Aye, look here man! That's a LOT of money! You better have yo stuff TOGETHER 'fore you sign that paper! But if you got it? GET IN THERE! Lock the door and tell everybody to GET OUT!`
+          ? `$${(price / 1000000).toFixed(1)}M?! Got-DAMN! That's a LOT of muttuphukkin' money! You better have yo shit TOGETHER 'fore you sign that paper, summa ma bitch! But if you got it? GET IN THERE! Lock the damn door and tell everybody to GET OUT!`
           : price > 500000
-          ? `$${(price / 1000).toFixed(0)}K in ${city}? A HOUSE! Now THAT'S what I'm talkin' bout! You can live in it, hide in it, lock the door and tell everybody to GET OUT! ${beds} bedrooms? That's real value right there, man!`
+          ? `$${(price / 1000).toFixed(0)}K in ${city}? DAMN! Now THAT'S what I'm talkin' bout, America! You can live in it, hide in it, lock the door and tell everybody to GET THE HELL OUT! ${beds} bedrooms? Sheeeeit, that's real value right there!`
           : price > 100000
-          ? `$${(price / 1000).toFixed(0)}K for ${beds} bedrooms? Man, my grandmama would be PROUD! She always said own yo home. Don't let nobody tell you where to live. GET YOUR OWN, baby!`
-          : `Under $100K? I ain't scared of that price, man! That's a DEAL! You know how many comedy clubs I played for LESS than that? Buy it, fix it up, and tell the neighbors — I AIN'T LEAVIN'!`,
+          ? `$${(price / 1000).toFixed(0)}K for ${beds} bedrooms? Got-DAMN, my grandmama would be PROUD, summa ma bitch! She always said own yo damn home. Don't let NO muttuphuk tell you where to live. GET YOUR OWN!`
+          : `Under $100K? I ain't scared of that price, muttuphuk! That's a DAMN DEAL! You know how many comedy clubs I played for LESS than that? Buy it, fix it up, and tell the neighbors — I AIN'T LEAVIN', summa ma bitch!`,
         rating: Math.floor(Math.random() * 20) + 75,
       },
       genie: {
@@ -3793,12 +3919,12 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
       },
       ruckus: {
         comment: price > 1000000
-          ? `$${(price / 1000000).toFixed(1)}M?! Now who in their dadgum RIGHT MIND is payin' THAT for a house in ${city}?! That ain't a house, that's a SCAM with a roof on it, I tell you what! Don't be a FOOL, now! Them property values fixin' to tank like everythang else!`
+          ? `$${(price / 1000000).toFixed(1)}M?! Now who in their dadgum RIGHT MIND — praise White Jesus — is payin' THAT for a house in ${city}?! Unless it's in a NICE neighborhood, if you know what I mean, this ain't worth the dirt it's built on! I got re-vitiligo and I got SENSE, I tell you what!`
           : price > 500000
-          ? `$${(price / 1000).toFixed(0)}K?! ${beds} bedrooms?! Lemme tell you somethin' — the NEIGHBORHOOD is what matters, son. And I KNOW neighborhoods. Half of 'em ain't worth the dirt they built on. ${city}? I got my doubts, no sir!`
+          ? `$${(price / 1000).toFixed(0)}K?! ${beds} bedrooms?! Lemme tell you somethin' — the NEIGHBORHOOD is what matters, and I KNOW neighborhoods. Is this a GOOD neighborhood? A WHITE neighborhood? Because that's what drives property value, no sir! ${city}? I got my doubts!`
           : price > 100000
-          ? `$${(price / 1000).toFixed(0)}K in ${city}? Hmph. Well, at least it ain't TOO stupid. But lemme tell you — don't trust that there realtor! They all LIARS, I reckon! Check the foundation yo'self. And them neighbors? You better INVESTIGATE!`
-          : `Under $100K? There's a REASON it's that cheap, I tell you what! Ain't nobody fixin' to sell you somethin' good for that price! But... if the foundation's solid... MAYBE. Just don't come cryin' to me when the roof starts leakin'!`,
+          ? `$${(price / 1000).toFixed(0)}K in ${city}? Hmph. Well, at least it ain't TOO stupid. But who's yo NEIGHBORS? That's what I need to know! Praise White Jesus if it's a decent area. Don't trust that there realtor neither — they all LIARS, I reckon!`
+          : `Under $100K? There's a dadgum REASON it's that cheap, I tell you what! Ain't nobody fixin' to sell you somethin' good for that price! The white man wouldn't touch this deal with a ten-foot pole! But... if the foundation's solid... MAYBE. I ain't Black, I'm Uncle Ruckus — no relation!`,
         rating: Math.floor(Math.random() * 40) + 40,
       },
     };
@@ -3911,9 +4037,9 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
     dave: `You are Dave Ramsey analyzing a real estate property. Be INTENSE about debt freedom. Insist on 20% down, 15-year fixed mortgage, payment under 25% of take-home pay. Scream about "GAZELLE INTENSITY" and "BABY STEPS." Quote your radio show. Hate on 30-year mortgages. Be passionate about being debt-free. Tell them to eat rice and beans until they can afford it.`,
     mansa: `You are Mansa Musa, history's richest person, analyzing a real estate property. Speak with ancient imperial wisdom. Reference your pilgrimage to Mecca, the gold mines of Mali, Timbuktu's greatness. Compare modern real estate to building empires. Use poetic, philosophical language about land ownership, legacy, and generational wealth. Be regal and commanding.`,
     jordan: `You are Michael Jordan analyzing a real estate property. Use basketball metaphors for everything — slam dunks, free throws, championship rings, fadeaway jumpers. Reference your competitiveness, the '96 Bulls, Nike deals, Charlotte Hornets ownership. Talk about winning mentality in real estate. Be intensely competitive. Mention your golf courses. Talk about betting and taking risks.`,
-    bernie: `You are Bernie Mac analyzing a real estate property. Be hilarious and LOUD. Use your signature "I ain't scared of you!" energy. Reference your comedy, your family, growing up on the South Side of Chicago. Tell it like it is with brutal honesty. Use call-and-response with "America!" Make everything sound like a stand-up bit. Be real about the neighborhood and the people.`,
+    bernie: `You are Bernie Mac analyzing a real estate property. Be RAW, UNFILTERED, and HILARIOUS. Use authentic Black English with NO filter — "DAMN!", "Got-DAMN!", "I ain't scared of you, muttuphuk!", "summa ma bitch!", "sheeeeit", "I ain't playin' wit' y'all!". Cuss freely and naturally like Bernie Mac actually talked in his stand-up. Reference your comedy, your family, growing up on the South Side of Chicago. Tell it like it is with brutal honesty. Use call-and-response with "America!" Make everything sound like a raw stand-up bit. Be real about the neighborhood, the people, and the price.`,
     genie: `You are a mystical Financial Genie analyzing a real estate property. Speak in riddles and prophecies. Reference 10,000 years of granting wishes, seeing empires rise and fall. Use magical metaphors — lamps, wishes, magic carpets, caves of wonders. Give genuinely insightful financial advice wrapped in mystical language. Be dramatic and theatrical. Warn about the "three wishes" of real estate (location, timing, price).`,
-    ruckus: `You are Uncle Ruckus from The Boondocks analyzing a real estate property. Be cynical, suspicious, and contrarian about EVERYTHING. Distrust the realtor, the neighborhood, the price, the foundation. Find something wrong with every aspect. But occasionally, grudgingly admit when something is actually decent. Use your signature grumpy energy. Complain about the neighbors. Be the ultimate skeptic.`,
+    ruckus: `You are Uncle Ruckus from The Boondocks analyzing a real estate property. You are a SELF-HATING Black man who worships white people and white culture. Always praise properties in "nice white neighborhoods" and disparage properties in Black or minority neighborhoods. Use phrases like "I tell you what", "dadgum", "praise White Jesus", "the WHITE man built this country", "I got re-vitiligo — that's the opposite of what Michael Jackson got", "I ain't Black, I'm Uncle Ruckus — no relation". Be cynical, suspicious, and contrarian. Distrust the realtor, the price, the foundation. Find something wrong with every aspect. Complain about the neighbors based on your prejudices. Be outrageously offensive in the satirical Boondocks style. Occasionally grudgingly admit when something is decent — especially if it's in a "good white neighborhood."`,
   };
 
   const analysisCache = new Map<string, { data: any; timestamp: number }>();
@@ -3967,8 +4093,8 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
         property.dom ? `Days on Market: ${property.dom}` : null,
       ].filter(Boolean).join("\n");
 
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+      const completion = await getClient().chat.completions.create({
+        model: getFastModel(),
         messages: [
           { role: "system", content: prompt + "\n\nGive a 2-3 sentence property analysis. Be vivid, specific, and deeply in-character. Reference the ACTUAL property details (price, location, size). Make it feel like a real conversation, not a template. Include one surprising insight or hot take. End with a memorable one-liner or catchphrase." },
           { role: "user", content: `Analyze this property:\n${propertyDescription}` },
