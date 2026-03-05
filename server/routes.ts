@@ -584,6 +584,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/nav-speak", async (req, res) => {
+    try {
+      const text = req.query.text as string;
+      if (!text) {
+        return res.status(400).json({ error: "text is required" });
+      }
+      const apiKey = process.env.FISH_AUDIO_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ error: "TTS not configured" });
+      }
+      const buffer = await fishAudioRequest(text.slice(0, 2000), NAV_VOICE_ID, 1.0, apiKey);
+      res.setHeader("Content-Type", "audio/mpeg");
+      res.setHeader("Content-Length", buffer.length.toString());
+      res.setHeader("Cache-Control", "public, max-age=3600");
+      res.send(buffer);
+    } catch (error: any) {
+      console.error("Nav speak GET error:", error);
+      res.status(500).json({ error: "TTS generation failed" });
+    }
+  });
+
   app.get("/api/persona-image/:id", (req, res) => {
     const id = req.params.id;
     const imagePath = join(process.cwd(), "assets", "images", `persona-${id}.png`);
@@ -624,6 +645,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.send(buffer);
     } catch (error: any) {
       console.error("Persona speak error:", error);
+      res.status(500).json({ error: "TTS generation failed" });
+    }
+  });
+
+  app.get("/api/persona-speak", async (req, res) => {
+    try {
+      const text = req.query.text as string;
+      const personaId = req.query.personaId as string;
+      if (!text || !personaId) {
+        return res.status(400).json({ error: "text and personaId are required" });
+      }
+
+      const apiKey = process.env.FISH_AUDIO_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ error: "TTS not configured" });
+      }
+
+      let voiceId = PERSONA_VOICE_IDS[personaId];
+      if (!voiceId) {
+        voiceId = process.env.FISH_AUDIO_VOICE_ID || "";
+      }
+      if (!voiceId) {
+        return res.status(400).json({ error: "No voice configured for persona" });
+      }
+
+      const safeText = text.slice(0, 2000);
+      const buffer = await fishAudioRequest(safeText, voiceId, 1.0, apiKey);
+
+      res.setHeader("Content-Type", "audio/mpeg");
+      res.setHeader("Content-Length", buffer.length.toString());
+      res.setHeader("Cache-Control", "public, max-age=3600");
+      res.send(buffer);
+    } catch (error: any) {
+      console.error("Persona speak GET error:", error);
       res.status(500).json({ error: "TTS generation failed" });
     }
   });
