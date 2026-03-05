@@ -287,55 +287,130 @@
         letter-spacing: 0.5px;
       }
 
-      .explore-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 10px;
+      .feature-tabs {
+        display: flex;
+        gap: 6px;
+        overflow-x: auto;
+        padding-bottom: 6px;
+        margin-bottom: 14px;
+        -webkit-overflow-scrolling: touch;
       }
+      .feature-tabs::-webkit-scrollbar { height: 3px; }
+      .feature-tabs::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
 
-      .explore-btn {
+      .feature-tab {
         display: flex;
         align-items: center;
-        gap: 8px;
-        padding: 14px 14px;
+        gap: 6px;
+        padding: 10px 14px;
         background: #141414;
-        border: 1px solid #2A2A2A;
-        border-radius: 12px;
-        color: #fff;
-        font-size: 13px;
+        border: 2px solid #2A2A2A;
+        border-radius: 25px;
+        color: #aaa;
+        font-size: 12px;
         font-weight: 600;
-        text-decoration: none;
-        transition: all 0.2s;
         cursor: pointer;
-      }
-
-      .explore-btn:hover {
-        background: #1c1c1c;
-        border-color: #D4A420;
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(212,164,32,0.15);
-      }
-
-      .explore-btn .explore-icon {
-        width: 32px;
-        height: 32px;
-        border-radius: 8px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 16px;
+        transition: all 0.2s;
+        white-space: nowrap;
         flex-shrink: 0;
       }
+      .feature-tab:hover { border-color: #555; color: #fff; }
+      .feature-tab.active { border-color: #D4A420; color: #D4A420; background: rgba(212,164,32,0.08); }
+      .feature-tab svg { flex-shrink: 0; }
 
-      .explore-btn .explore-text {
-        line-height: 1.2;
+      .feature-container {
+        animation: fadeSlide 0.35s ease;
+        width: 100%;
       }
+      @keyframes fadeSlide { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-      .explore-btn .explore-sub {
-        font-size: 10px;
-        color: rgba(255,255,255,0.35);
-        font-weight: 400;
-        margin-top: 2px;
+      .sports-inner { text-align: left; }
+      .sports-inner .s-title {
+        font-family: 'Playfair Display', serif;
+        font-size: 22px; font-weight: 900; color: #D4A420;
+        margin-bottom: 4px; text-align: center;
+      }
+      .sports-inner .s-sub { font-size: 12px; color: #888; text-align: center; margin-bottom: 14px; }
+      .sports-inner .s-live {
+        display: inline-block; background: #ff4d4d; color: white;
+        padding: 3px 10px; border-radius: 20px; font-size: 10px;
+        font-weight: bold; animation: sPulse 2s infinite;
+      }
+      @keyframes sPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.7; } }
+
+      .s-persona-row { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 12px; }
+      .s-persona-row::-webkit-scrollbar { height: 3px; }
+      .s-persona-row::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+      .s-chip {
+        min-width: 58px; background: #1a1a1a; border: 2px solid #333;
+        border-radius: 10px; padding: 6px 4px; cursor: pointer;
+        text-align: center; transition: all 0.2s; flex-shrink: 0;
+      }
+      .s-chip:hover { transform: translateY(-1px); }
+      .s-chip.sel { border-width: 2px; }
+      .s-chip img { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; display: block; margin: 0 auto 3px; }
+      .s-chip .s-chip-name { font-size: 9px; font-weight: bold; }
+
+      .s-debate { display: grid; grid-template-columns: 1fr auto 1fr; gap: 0; margin-bottom: 12px; }
+      .s-debater {
+        background: #1a1a1a; border-radius: 12px; padding: 12px 10px;
+        border: 2px solid #333; text-align: center;
+      }
+      .s-debater img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; margin-bottom: 4px; }
+      .s-debater .s-d-name { font-size: 12px; font-weight: bold; margin-bottom: 4px; }
+      .s-debater .s-d-pick { font-size: 11px; color: #FFD700; margin-bottom: 6px; min-height: 36px; }
+      .s-debater .s-d-listen {
+        background: none; border: 1px solid #555; border-radius: 50%;
+        width: 24px; height: 24px; cursor: pointer; font-size: 11px;
+        display: inline-flex; align-items: center; justify-content: center; margin-bottom: 5px;
+      }
+      .s-debater .s-vote-btn {
+        width: 100%; padding: 7px; border: none; border-radius: 18px;
+        color: white; font-weight: bold; font-size: 11px; cursor: pointer;
+      }
+      .s-vote-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+      .s-vs { display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 900; color: #ff4d4d; padding: 0 4px; }
+
+      .s-trash { padding: 10px; border-radius: 10px; background: rgba(255,77,77,0.08); border: 1px solid rgba(255,77,77,0.12); text-align: center; margin-bottom: 12px; }
+      .s-trash h4 { font-size: 11px; color: #ff4d4d; letter-spacing: 1px; margin-bottom: 4px; }
+      .s-trash .s-talk { font-size: 11px; font-style: italic; margin: 3px 0; }
+
+      .s-h2h { text-align: center; padding: 6px; background: rgba(255,215,0,0.06); border: 1px solid rgba(255,215,0,0.1); border-radius: 8px; font-size: 11px; color: #aaa; margin-bottom: 12px; }
+      .s-h2h .s-rec { font-weight: bold; color: #FFD700; }
+
+      .s-game {
+        background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px;
+        padding: 12px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s;
+      }
+      .s-game:hover { border-color: #FFD700; }
+      .s-game-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+      .s-league { font-size: 9px; font-weight: bold; letter-spacing: 2px; padding: 2px 6px; border-radius: 4px; background: rgba(255,215,0,0.15); color: #FFD700; }
+      .s-time { font-size: 10px; color: #888; }
+      .s-matchup { font-size: 14px; font-weight: bold; margin-bottom: 4px; }
+      .s-odds { font-size: 10px; color: #aaa; margin-bottom: 6px; }
+      .s-picks .s-pick-line { font-size: 11px; color: #ccc; padding: 2px 0; display: flex; align-items: center; gap: 5px; }
+      .s-pick-line img { width: 16px; height: 16px; border-radius: 50%; object-fit: cover; }
+      .s-bet-btn {
+        width: 100%; padding: 9px; border: none; border-radius: 20px;
+        background: linear-gradient(135deg, #FFD700, #ff8c00);
+        color: #0a0a0a; font-weight: bold; font-size: 12px; cursor: pointer;
+        margin-top: 8px; transition: all 0.2s;
+      }
+      .s-bet-btn:hover { transform: scale(1.01); }
+      .s-disclaimer { text-align: center; font-size: 10px; color: #555; margin-top: 12px; line-height: 1.5; }
+
+      .s-featured {
+        background: linear-gradient(135deg, rgba(255,215,0,0.12), rgba(255,77,77,0.08));
+        border: 1px solid rgba(255,215,0,0.25); border-radius: 14px;
+        padding: 12px; display: flex; align-items: center; gap: 10px;
+        margin-bottom: 14px; cursor: pointer; transition: all 0.2s;
+      }
+      .s-featured:hover { transform: translateY(-1px); box-shadow: 0 4px 15px rgba(255,215,0,0.15); }
+      .s-featured .s-f-logo { font-size: 28px; }
+      .s-featured h3 { font-size: 13px; color: #FFD700; margin-bottom: 4px; }
+      .s-featured .s-f-btn {
+        background: linear-gradient(135deg, #FFD700, #ff8c00); border: none;
+        color: #0a0a0a; padding: 6px 16px; border-radius: 20px; font-weight: bold; font-size: 12px; cursor: pointer;
       }
 
       .footer {
@@ -449,44 +524,26 @@
 
         <div class="explore-section">
           <p class="explore-label">Try it now &mdash; no download needed</p>
-          <div class="explore-grid">
-            <a href="/sports-betting" class="explore-btn">
-              <div class="explore-icon" style="background:rgba(255,77,77,0.15);">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ff4d4d" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10"/><path d="M2 12h20"/><path d="M12 2c2.5 2 4 5.5 4 10s-1.5 8-4 10"/></svg>
-              </div>
-              <div>
-                <div class="explore-text">Sports Book</div>
-                <div class="explore-sub">AI persona picks</div>
-              </div>
+          <div class="feature-tabs">
+            <button class="feature-tab active" onclick="showFeature(this,'sports')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2c2.5 2 4 5.5 4 10s-1.5 8-4 10"/></svg>
+              Sports
+            </button>
+            <a class="feature-tab" href="/financial-faceoff">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              Faceoff
             </a>
-            <a href="/financial-faceoff" class="explore-btn">
-              <div class="explore-icon" style="background:rgba(212,164,32,0.15);">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D4A420" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-              </div>
-              <div>
-                <div class="explore-text">Financial Faceoff</div>
-                <div class="explore-sub">Persona debates</div>
-              </div>
+            <a class="feature-tab" href="/therapy-viral">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+              Therapy
             </a>
-            <a href="/therapy-viral" class="explore-btn">
-              <div class="explore-icon" style="background:rgba(155,89,182,0.15);">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9B59B6" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-              </div>
-              <div>
-                <div class="explore-text">Trump Therapy</div>
-                <div class="explore-sub">AI counseling</div>
-              </div>
-            </a>
-            <a href="/therapy-multi" class="explore-btn">
-              <div class="explore-icon" style="background:rgba(0,204,255,0.15);">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00ccff" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-              </div>
-              <div>
-                <div class="explore-text">Multi Therapy</div>
-                <div class="explore-sub">3 AI therapists</div>
-              </div>
+            <a class="feature-tab" href="/therapy-multi">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/></svg>
+              Multi
             </a>
           </div>
+
+          <div id="sportsTab" class="feature-container"></div>
         </div>
 
         <div class="footer">
@@ -497,6 +554,179 @@
       </div>
     </div>
 
+    <script>
+      var SP = {
+        trump:{name:"Trump",color:"#ff4d4d",img:"/api/persona-image/trump"},
+        buffett:{name:"Buffett",color:"#4d4dff",img:"/api/persona-image/buffett"},
+        musk:{name:"Elon",color:"#00ccff",img:"/api/persona-image/musk"},
+        jordan:{name:"MJ",color:"#CE1141",img:"/api/persona-image/jordan"},
+        bernie:{name:"Bernie",color:"#9B59B6",img:"/api/persona-image/bernie"},
+        ruckus:{name:"Ruckus",color:"#8B4513",img:"/api/persona-image/ruckus"},
+        genie:{name:"Genie",color:"#9B59B6",img:"/api/persona-image/genie"},
+        grandma:{name:"Grandma",color:"#ffffff",img:"/api/persona-image/grandma"},
+        suze:{name:"Suze",color:"#ff99cc",img:"/api/persona-image/suze"},
+        dave:{name:"Dave",color:"#ffaa00",img:"/api/persona-image/dave"},
+        mansa:{name:"Mansa",color:"#D4AF37",img:"/api/persona-image/mansa"}
+      };
+      var SPICKS = {
+        trump:{nfl:"Take the FAVORITE! Winners pick winners!",nba:"Lakers — tremendous team.",ufc:"The toughest guy wins. Always.",mlb:"Yankees! New York's team. MY team.",soccer:"Real Madrid — they're like me. Winners.",g:"I pick winners. Always."},
+        buffett:{nfl:"Look for value where the public overreacts.",nba:"Take the under. Be contrarian.",ufc:"Take the underdog at +200.",mlb:"Think season totals, not one game.",soccer:"The draw at +240 is where value lives.",g:"Find mispriced lines. Be patient."},
+        musk:{nfl:"The OVER. We're going to Mars, not playing defense.",nba:"Player props. Individual performance is more predictable.",ufc:"Underdog by KO. Maximum disruption.",mlb:"First 5 innings bet. Limit your downside.",soccer:"Both teams to score. Chaos is certainty.",g:"Take the contrarian bet."},
+        jordan:{nfl:"Take the better team. Champions win.",nba:"Take the under. Defense wins championships.",ufc:"Bet on the champion. Mentality matters.",mlb:"Bet on the ace pitcher.",soccer:"The team with more hunger.",g:"Winners want the ball when the game is on the line."},
+        bernie:{nfl:"I ain't finna bet! But if I DID... take the over!",nba:"Gimme the team wit' the most heart!",ufc:"I'd take the underdog! I LOVE an underdog!",mlb:"If the Yankees playin', bet the Yanks.",soccer:"Sheeeeit, I don't watch soccer. Pick anybody!",g:"Don't be out here actin' a fool wit' yo money!"},
+        ruckus:{nfl:"I'm takin' the home team. Less trouble.",nba:"The team wit' better defense. Defense don't lie.",ufc:"The bigger man wins! Simple as that!",mlb:"Bet the pitcher. A good arm don't lie!",soccer:"Take the draw. Nobody deserves to win.",g:"I don't trust gamblin'. At ALL."},
+        genie:{nfl:"The underdog shall rise! Choose WISELY, master!",nba:"Take the team with fresher legs. The lamp knows!",ufc:"The underdog by submission!",mlb:"Take the over. Magic favors abundance!",soccer:"The draw — the universe seeks BALANCE!",g:"You have THREE betting wishes. Use them wisely!"},
+        grandma:{nfl:"Oh dear, I just hope nobody gets hurt!",nba:"Just enjoy the game, honey.",ufc:"Fighting?! Oh my, please be careful!",mlb:"Your grandfather'd say bet the home team.",soccer:"They run around so much!",g:"Don't bet your rent money, sweetie."},
+        suze:{nfl:"Set a LIMIT! Then take the under.",nba:"Small, responsible bets only!",ufc:"That's your emergency fund you're risking! DENIED!",mlb:"Do you have 8 months saved? Didn't think so.",soccer:"International betting = currency risk!",g:"Can you AFFORD to lose this money?"},
+        dave:{nfl:"GAMBLING IS DUMB! Enjoy the game, pay off your card.",nba:"If you have DEBT, do NOT bet!",ufc:"Fight your way out of DEBT!",mlb:"Put that money in MUTUAL FUNDS!",soccer:"Put that money in your Roth IRA!",g:"Sports betting is for people who can't do MATH!"},
+        mansa:{nfl:"Pick the richer franchise.",nba:"Take the team that controls pace.",ufc:"Bet on the one with the most to prove.",mlb:"Take the team with the better bullpen.",soccer:"Take the home side. Home is empire.",g:"Don't collapse YOUR economy with bad bets."}
+      };
+      var sTT = {
+        trump:["I've won more than {o} has DREAMED of winning!","Nobody knows sports like me. NOBODY."],
+        buffett:["The odds favor patience, not {o}'s impulsiveness.","Value is found where {o} panics."],
+        jordan:["I took {o}'s pick PERSONALLY.","Six rings > {o}'s record."],
+        bernie:["Man, {o} don't know NOTHIN'!","Sheeeeit, my GRANDMAMA picks better!"],
+        ruckus:["I don't trust {o}'s picks OR judgment!","{o} couldn't pick a winner to save their life!"],
+        genie:["In 10,000 years, never seen picks as bad as {o}'s!","The lamp reveals {o} is WRONG!"],
+        grandma:["Oh, {o} is nice, but Grandma knows best.","Your grandfather always said don't listen to {o}."]
+      };
+      var sP1='trump',sP2='buffett',sVoted=false,sGames=[],sH2H={w:0,l:0,t:0};
+      var affiliates={draftkings:{name:'DraftKings',url:'https://www.draftkings.com',logo:'\u{1F7E2}'},fanduel:{name:'FanDuel',url:'https://www.fanduel.com',logo:'\u{1F535}'}};
+
+      function showFeature(btn,id) {
+        document.querySelectorAll('.feature-tab').forEach(function(t){t.classList.remove('active');});
+        btn.classList.add('active');
+        if (id==='sports') { renderSports(); }
+      }
+
+      function getSPick(pid,game){var lk=(game.league||'').toLowerCase();var p=SPICKS[pid];if(!p)return"No comment.";return p[lk]||p.g||"No comment.";}
+      function getTalk(pid,oName){var lines=sTT[pid]||["I know more about sports than {o}!"];var l=lines[Math.floor(Math.random()*lines.length)];return l.replace(/\{o\}/g,oName);}
+
+      function sSpeakPer(pid,text){
+        var btn=document.querySelector('[data-sspeak="'+pid+'"]');
+        if(btn)btn.textContent='...';
+        fetch('/api/persona-speak',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text.slice(0,300),personaId:pid})})
+        .then(function(r){return r.blob();})
+        .then(function(b){var u=URL.createObjectURL(b);var a=new Audio(u);a.play();a.onended=function(){URL.revokeObjectURL(u);};if(btn)btn.textContent='\u{1F50A}';})
+        .catch(function(){if(btn)btn.textContent='\u{1F50A}';});
+      }
+
+      function sSelectP(id){
+        if(id===sP1)return;
+        if(id===sP2){sP2=sP1;sP1=id;}else{sP2=id;}
+        sVoted=false;sLoadH2H();renderSports();
+      }
+
+      function sCastVote(wId,lId){
+        if(sVoted)return;sVoted=true;
+        fetch('/api/faceoff/vote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({debateId:'sports_'+wId+'_'+lId+'_'+Date.now(),asset:'sports',persona1:wId,persona2:lId,votedFor:wId})}).catch(function(){});
+        sH2H.w+=(wId===sP1?1:0);sH2H.l+=(wId===sP2?1:0);sH2H.t+=1;sSaveH2H();renderSports();
+      }
+
+      function sLoadH2H(){var k='sp_h2h_'+[sP1,sP2].sort().join('_');try{var s=localStorage.getItem(k);sH2H=s?JSON.parse(s):{w:0,l:0,t:0};}catch(e){sH2H={w:0,l:0,t:0};}}
+      function sSaveH2H(){var k='sp_h2h_'+[sP1,sP2].sort().join('_');try{localStorage.setItem(k,JSON.stringify(sH2H));}catch(e){}}
+
+      function sTrackClick(pid){var p=affiliates[pid];if(p){window.open(p.url,'_blank');}}
+
+      function sFmtTime(d){var days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];var h=d.getHours();var m=d.getMinutes();var ap=h>=12?'PM':'AM';h=h%12||12;return days[d.getDay()]+' '+h+':'+(m<10?'0':'')+m+' '+ap;}
+
+      function sDefaultGames(){
+        var n=new Date();var t1=new Date(n);t1.setHours(20,15,0,0);var t2=new Date(n);t2.setDate(n.getDate()+1);t2.setHours(19,30,0,0);
+        var t3=new Date(n);t3.setDate(n.getDate()+(6-n.getDay()+7)%7);t3.setHours(22,0,0,0);
+        return[
+          {id:1,league:'NFL',game:'Chiefs vs Bills',time:sFmtTime(t1),odds:'Chiefs -3.5 | O/U 48.5'},
+          {id:2,league:'NBA',game:'Lakers vs Celtics',time:sFmtTime(t2),odds:'Lakers +4 | O/U 225.5'},
+          {id:3,league:'UFC',game:'Jones vs Miocic',time:sFmtTime(t3),odds:'Jones -250 | Miocic +200'},
+          {id:4,league:'MLB',game:'Yankees vs Dodgers',time:sFmtTime(t3),odds:'Yankees +105 | Dodgers -125'},
+          {id:5,league:'SOCCER',game:'Real Madrid vs Barcelona',time:sFmtTime(t3),odds:'Madrid +120 | Draw +240'}
+        ];
+      }
+
+      function renderSports(){
+        var el=document.getElementById('sportsTab');if(!el)return;
+        el.style.display='block';
+        var p1=SP[sP1],p2=SP[sP2];
+        var fg=sGames[0]||{game:'TBD',league:'TBD',time:'Soon'};
+        var pk1=getSPick(sP1,fg),pk2=getSPick(sP2,fg);
+        var tk1=getTalk(sP1,p2.name),tk2=getTalk(sP2,p1.name);
+        var prog=affiliates.draftkings;
+        var h='<div class="sports-inner">';
+        h+='<div class="s-title">TRUMP\'S SPORTS BOOK</div>';
+        h+='<div class="s-sub"><span class="s-live">LIVE PICKS</span></div>';
+
+        h+='<div class="s-persona-row">';
+        Object.keys(SP).forEach(function(id){
+          var p=SP[id];var s1=sP1===id,s2=sP2===id;
+          var bc=s1?p1.color:(s2?p2.color:'#333');
+          h+='<div class="s-chip'+(s1||s2?' sel':'')+'" style="border-color:'+bc+';" onclick="sSelectP(\''+id+'\')">';
+          h+='<img src="'+p.img+'" style="border-color:'+p.color+';" onerror="this.style.display=\'none\'">';
+          h+='<div class="s-chip-name" style="color:'+(s1||s2?p.color:'#aaa')+';">'+p.name+'</div></div>';
+        });
+        h+='</div>';
+
+        h+='<div class="s-featured" onclick="sTrackClick(\'draftkings\')">';
+        h+='<div class="s-f-logo">'+prog.logo+'</div>';
+        h+='<div style="flex:1;"><h3>FEATURED: '+prog.name+'</h3></div>';
+        h+='<button class="s-f-btn">BET NOW</button></div>';
+
+        h+='<div style="font-size:11px;color:#FFD700;font-weight:bold;letter-spacing:2px;margin-bottom:8px;">TODAY\'S DEBATE: '+fg.game+'</div>';
+        h+='<div class="s-debate">';
+        h+='<div class="s-debater" style="border-color:'+p1.color+';">';
+        h+='<img src="'+p1.img+'" style="border-color:'+p1.color+';" onerror="this.style.display=\'none\'">';
+        h+='<div class="s-d-name" style="color:'+p1.color+';">'+p1.name+'</div>';
+        h+='<div class="s-d-pick">'+pk1+'</div>';
+        h+='<button class="s-d-listen" data-sspeak="'+sP1+'" onclick="event.stopPropagation();sSpeakPer(\''+sP1+'\',\''+pk1.replace(/'/g,"\\'")+'\')">\u{1F50A}</button>';
+        h+='<button class="s-vote-btn" style="background:'+p1.color+';"'+(sVoted?' disabled':'')+' onclick="sCastVote(\''+sP1+'\',\''+sP2+'\')">VOTE '+p1.name.toUpperCase()+'</button>';
+        h+='</div>';
+        h+='<div class="s-vs">VS</div>';
+        h+='<div class="s-debater" style="border-color:'+p2.color+';">';
+        h+='<img src="'+p2.img+'" style="border-color:'+p2.color+';" onerror="this.style.display=\'none\'">';
+        h+='<div class="s-d-name" style="color:'+p2.color+';">'+p2.name+'</div>';
+        h+='<div class="s-d-pick">'+pk2+'</div>';
+        h+='<button class="s-d-listen" data-sspeak="'+sP2+'" onclick="event.stopPropagation();sSpeakPer(\''+sP2+'\',\''+pk2.replace(/'/g,"\\'")+'\')">\u{1F50A}</button>';
+        h+='<button class="s-vote-btn" style="background:'+p2.color+';"'+(sVoted?' disabled':'')+' onclick="sCastVote(\''+sP2+'\',\''+sP1+'\')">VOTE '+p2.name.toUpperCase()+'</button>';
+        h+='</div></div>';
+
+        if(sH2H.t>0){
+          h+='<div class="s-h2h">HEAD-TO-HEAD: <span class="s-rec" style="color:'+p1.color+';">'+p1.name+' '+sH2H.w+'</span> - <span class="s-rec" style="color:'+p2.color+';">'+sH2H.l+' '+p2.name+'</span></div>';
+        }
+
+        if(sVoted){
+          h+='<div class="s-trash"><h4>TRASH TALK</h4>';
+          h+='<div class="s-talk" style="color:'+p1.color+';">"'+tk1+'"</div>';
+          h+='<div class="s-talk" style="color:'+p2.color+';">"'+tk2+'"</div></div>';
+        }
+
+        sGames.forEach(function(game){
+          h+='<div class="s-game">';
+          h+='<div class="s-game-top"><span class="s-league">'+game.league+'</span><span class="s-time">'+game.time+'</span></div>';
+          h+='<div class="s-matchup">'+game.game+'</div>';
+          if(game.odds)h+='<div class="s-odds">'+game.odds+'</div>';
+          h+='<div class="s-picks">';
+          [sP1,sP2].forEach(function(pid){
+            var pp=SP[pid];var pick=getSPick(pid,game);
+            h+='<div class="s-pick-line"><img src="'+pp.img+'" onerror="this.style.display=\'none\'"><span style="color:'+pp.color+';font-weight:bold;">'+pp.name+':</span> '+pick+'</div>';
+          });
+          h+='</div>';
+          h+='<button class="s-bet-btn" onclick="sTrackClick(\'draftkings\')">BET ON DRAFTKINGS</button>';
+          h+='</div>';
+        });
+
+        h+='<div style="text-align:center;margin-top:12px;"><a href="/sports-betting" style="color:#FFD700;font-size:12px;text-decoration:none;">Open full Sports Book \u2192</a></div>';
+        h+='<div class="s-disclaimer">21+ only. Gamble responsibly. 1-800-GAMBLER.<br>Affiliate links. Not real betting advice.</div>';
+        h+='</div>';
+        el.innerHTML=h;
+      }
+
+      function initSports(){
+        sLoadH2H();
+        fetch('/api/sports/upcoming')
+          .then(function(r){return r.json();})
+          .then(function(d){sGames=(d.games&&d.games.length>0)?d.games:sDefaultGames();renderSports();})
+          .catch(function(){sGames=sDefaultGames();renderSports();});
+      }
+      initSports();
+    </script>
     <script src="https://unpkg.com/qr-code-styling@1.6.0/lib/qr-code-styling.js"></script>
     <script>
       (function () {

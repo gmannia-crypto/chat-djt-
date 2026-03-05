@@ -23,6 +23,7 @@ The backend is an Express 5 API gateway providing various endpoints for AI inter
 - **Financial & Debate Features**: Manages financial face-off debates with multiple personas, including voting, leaderboards, and a "Persona of the Week" voting system. It also provides AI-powered property analysis using OpenAI with persona-specific commentary and generates mortgage calculations with Trump's insights. Trump's Sports Book (`/sports-betting`) provides AI persona sports picks and debates across NFL, NBA, UFC, MLB, and Soccer with sportsbook affiliate links (DraftKings, FanDuel, Bet365, Stake).
 - **Analytics & Monetization**: Tracks app share events, viral session events, and integrates with Stripe for therapy session payments.
 - **Static Asset Serving**: Serves pre-built Expo web assets in production.
+- **Landing Page**: In production, the root path serves a landing page (`server/templates/landing-page.html`) with an inline Sports Book tab (persona debate, games, affiliate links), plus tab links to Financial Faceoff, Therapy, and Multi Therapy standalone pages. In dev mode, the root path is proxied to Metro for the Expo web app.
 
 ## External Dependencies
 
