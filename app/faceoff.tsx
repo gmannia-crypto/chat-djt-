@@ -26,6 +26,7 @@ import Animated, {
 import Colors from "@/constants/colors";
 import { getApiUrl } from "@/lib/query-client";
 import { shareContent } from "@/lib/track-share";
+import { recordInteraction, getHeadToHead, generateTrashTalk, getPersonaRecord } from "@/lib/persona-memory";
 
 interface Persona {
   id: string;
@@ -523,6 +524,12 @@ export default function FaceoffScreen() {
   const [potwVotedFor, setPotwVotedFor] = useState<string | null>(null);
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
+  const mountedRef = useRef(true);
+  useEffect(() => { return () => { mountedRef.current = false; }; }, []);
+  const [trashTalk, setTrashTalk] = useState<string>("");
+  const [h2hRecord, setH2hRecord] = useState<{ wins: number; losses: number; total: number } | null>(null);
+  const [persona1Record, setPersona1Record] = useState<{ wins: number; losses: number } | null>(null);
+  const [persona2Record, setPersona2Record] = useState<{ wins: number; losses: number } | null>(null);
 
   const handleSpeak = useCallback(async (text: string, personaId: string) => {
     try {
@@ -594,7 +601,7 @@ export default function FaceoffScreen() {
     shareContent({ text, feature: "potw" });
   }, [potwVotedFor]);
 
-  const handleStartDebate = useCallback(() => {
+  const handleStartDebate = useCallback(async () => {
     if (contender1.id === contender2.id) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       return;
@@ -607,6 +614,21 @@ export default function FaceoffScreen() {
     setVotedFor(null);
     setMashupViralScore(Math.floor(Math.random() * 30) + 70);
     setDebateStarted(true);
+
+    try {
+      const [talk, record, r1, r2] = await Promise.all([
+        generateTrashTalk(contender1.id, contender2.id),
+        getHeadToHead(contender1.id, contender2.id),
+        getPersonaRecord(contender1.id),
+        getPersonaRecord(contender2.id),
+      ]);
+      if (mountedRef.current) {
+        setTrashTalk(talk);
+        setH2hRecord(record);
+        setPersona1Record(r1);
+        setPersona2Record(r2);
+      }
+    } catch {}
 
     try {
       const baseUrl = getApiUrl().replace(/\/$/, "");
@@ -631,6 +653,10 @@ export default function FaceoffScreen() {
 
     setToastText(pickRandom(ENCOURAGEMENTS));
     setTimeout(() => setToastText(null), 2500);
+
+    const winnerId = personaId;
+    const loserId = personaId === contender1.id ? contender2.id : contender1.id;
+    recordInteraction(winnerId, loserId, "faceoff", selectedTopic.name, "win").catch(() => {});
 
     try {
       const baseUrl = getApiUrl().replace(/\/$/, "");
@@ -702,6 +728,10 @@ export default function FaceoffScreen() {
     setDebateId(null);
     setHasVoted(false);
     setVotedFor(null);
+    setTrashTalk("");
+    setH2hRecord(null);
+    setPersona1Record(null);
+    setPersona2Record(null);
   }, []);
 
   const handleStartBattle = useCallback(() => {
@@ -930,6 +960,30 @@ export default function FaceoffScreen() {
                 <Text style={styles.debateLive}>LIVE DEBATE</Text>
               </View>
             </Animated.View>
+
+            {(!!trashTalk || (h2hRecord && h2hRecord.total > 0) || (persona1Record && persona2Record && (persona1Record.wins + persona1Record.losses > 0 || persona2Record.wins + persona2Record.losses > 0))) && (
+              <Animated.View entering={FadeInDown.delay(150).duration(400)}>
+                <View style={styles.h2hBox}>
+                  {h2hRecord && h2hRecord.total > 0 && (
+                    <View style={styles.h2hRow}>
+                      <Text style={styles.h2hLabel}>HEAD-TO-HEAD</Text>
+                      <Text style={[styles.h2hStat, { color: contender1.color }]}>{contender1.name} {h2hRecord.wins}</Text>
+                      <Text style={styles.h2hDash}>-</Text>
+                      <Text style={[styles.h2hStat, { color: contender2.color }]}>{h2hRecord.losses} {contender2.name}</Text>
+                    </View>
+                  )}
+                  {persona1Record && persona2Record && (persona1Record.wins + persona1Record.losses > 0 || persona2Record.wins + persona2Record.losses > 0) && (
+                    <View style={styles.h2hRecords}>
+                      <Text style={[styles.h2hRecordText, { color: contender1.color }]}>{contender1.name}: {persona1Record.wins}W-{persona1Record.losses}L</Text>
+                      <Text style={[styles.h2hRecordText, { color: contender2.color }]}>{contender2.name}: {persona2Record.wins}W-{persona2Record.losses}L</Text>
+                    </View>
+                  )}
+                  {!!trashTalk && (
+                    <Text style={styles.trashTalkText}>{trashTalk}</Text>
+                  )}
+                </View>
+              </Animated.View>
+            )}
 
             <Animated.View entering={FadeInDown.delay(200).duration(500)}>
               <ContenderCard
@@ -1467,6 +1521,56 @@ const styles = StyleSheet.create({
     fontWeight: "700" as const,
     color: "#ff4d4d",
     letterSpacing: 2,
+    marginTop: 4,
+  },
+  h2hBox: {
+    backgroundColor: "rgba(255,215,0,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(255,215,0,0.15)",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+  },
+  h2hRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    gap: 8,
+    marginBottom: 4,
+  },
+  h2hLabel: {
+    fontSize: 9,
+    fontWeight: "800" as const,
+    color: "rgba(255,255,255,0.4)",
+    letterSpacing: 2,
+    marginRight: 8,
+  },
+  h2hStat: {
+    fontSize: 14,
+    fontWeight: "800" as const,
+  },
+  h2hDash: {
+    fontSize: 14,
+    fontWeight: "600" as const,
+    color: "rgba(255,255,255,0.3)",
+  },
+  h2hRecords: {
+    flexDirection: "row" as const,
+    justifyContent: "space-around" as const,
+    marginTop: 4,
+    marginBottom: 6,
+  },
+  h2hRecordText: {
+    fontSize: 11,
+    fontWeight: "600" as const,
+    opacity: 0.7,
+  },
+  trashTalkText: {
+    fontSize: 13,
+    fontWeight: "600" as const,
+    color: Colors.gold,
+    textAlign: "center" as const,
+    fontStyle: "italic" as const,
     marginTop: 4,
   },
   shareRow: {

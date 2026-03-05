@@ -1,0 +1,170 @@
+<script>
+// ==================== PERSONA MEMORY SYSTEM ====================
+const PERSONAS = {
+    trump: {
+        id: 'trump',
+        name: 'Trump',
+        avatar: '🗣️',
+        color: '#ff4d4d',
+        traits: ['boastful', 'competitive', 'repeats himself', 'sports fanatic'],
+        sportsBias: {
+            nfl: ['Chiefs', 'Patriots', 'Cowboys'],
+            nba: ['Lakers', 'Bulls'],
+            ufc: ['McGregor', 'Jones']
+        },
+        catchphrases: ["Believe me!", "The best!", "Tremendous!"],
+        baseOpinions: { buffett: 'rival', grandma: 'fond', elon: 'interested' }
+    },
+    buffett: {
+        id: 'buffett',
+        name: 'Buffett',
+        avatar: '👴',
+        color: '#4d4dff',
+        traits: ['patient', 'analytical', 'cautious'],
+        sportsBias: { nfl: ['Packers'], nba: 'not interested' },
+        catchphrases: ["Be fearful when others are greedy...", "Price is what you pay..."],
+        baseOpinions: { trump: 'bemused', grandma: 'respectful', elon: 'skeptical' }
+    },
+    grandma: {
+        id: 'grandma',
+        name: 'Grandma',
+        avatar: '👵',
+        color: '#ffffff',
+        traits: ['warm', 'worried', 'nostalgic'],
+        catchphrases: ["Bless your heart.", "Have you eaten?", "When I was your age..."],
+        baseOpinions: { trump: 'confused but supportive', buffett: 'worried about his diet', elon: 'needs a jacket' }
+    },
+    elon: {
+        id: 'elon',
+        name: 'Elon',
+        avatar: '🚀',
+        color: '#00ccff',
+        traits: ['visionary', 'erratic', 'meme-lord'],
+        catchphrases: ["To the moon!", "Literally.", "Dogecoin."],
+        baseOpinions: { trump: 'entertaining', buffett: 'old school', grandma: 'wholesome' }
+    },
+    suze: {
+        id: 'suze',
+        name: 'Suze',
+        avatar: '👩',
+        color: '#ff99cc',
+        traits: ['protective', 'blunt', 'caring'],
+        catchphrases: ["DENIED!", "You are worthy!", "Can you afford this?"],
+        baseOpinions: { trump: 'worried', buffett: 'respects', grandma: 'wants her to save more' }
+    },
+    dave: {
+        id: 'dave',
+        name: 'Dave',
+        avatar: '📻',
+        color: '#ffaa00',
+        traits: ['loud', 'passionate', 'debt-averse'],
+        catchphrases: ["DEBT IS DUMB!", "Live like no one else!"],
+        baseOpinions: { trump: 'needs financial peace', buffett: 'respects', grandma: 'sweet but needs emergency fund' }
+    }
+};
+
+class PersonaMemory {
+    constructor() {
+        this.memoryKey = 'personaInteractions';
+        this.loadMemory();
+    }
+
+    loadMemory() {
+        const saved = localStorage.getItem(this.memoryKey);
+        if (saved) {
+            this.memory = JSON.parse(saved);
+        } else {
+            this.initializeMemory();
+        }
+    }
+
+    initializeMemory() {
+        this.memory = {};
+        Object.keys(PERSONAS).forEach(id => {
+            this.memory[id] = {
+                interactions: [],
+                relationships: { ...PERSONAS[id].baseOpinions },
+                wins: 0,
+                losses: 0
+            };
+        });
+        this.saveMemory();
+    }
+
+    saveMemory() {
+        localStorage.setItem(this.memoryKey, JSON.stringify(this.memory));
+    }
+
+    recordInteraction(personaAId, personaBId, type, topic, outcome) {
+        const interaction = {
+            type: type,
+            topic: topic,
+            withPersona: personaBId,
+            outcome: outcome,
+            timestamp: new Date().toISOString()
+        };
+        
+        this.memory[personaAId].interactions.push(interaction);
+        
+        const sentiment = outcome === 'win' ? 'positive' : 'negative';
+        const currentScore = this.memory[personaAId].relationships[personaBId] || 0;
+        this.memory[personaAId].relationships[personaBId] = currentScore + (sentiment === 'positive' ? 1 : -1);
+        
+        if (outcome === 'win') this.memory[personaAId].wins++;
+        else this.memory[personaAId].losses++;
+        
+        this.saveMemory();
+    }
+
+    generateReference(personaId, otherId, context) {
+        const persona = PERSONAS[personaId];
+        const other = PERSONAS[otherId];
+        const memory = this.memory[personaId];
+        const score = memory.relationships[otherId] || 0;
+        
+        const lastInteraction = memory.interactions.filter(i => i.withPersona === otherId).pop();
+        
+        let ref = '';
+        if (score > 3) ref = `I LOVE ${other.name}! `;
+        else if (score > 0) ref = `${other.name} is pretty smart. `;
+        else if (score < -3) ref = `${other.name}? DON'T get me started! `;
+        else if (score < 0) ref = `${other.name} and I... we have differences. `;
+        else ref = `Ah, ${other.name}. `;
+        
+        if (lastInteraction) {
+            if (lastInteraction.outcome === 'win') {
+                ref += `Last time, I was RIGHT about ${lastInteraction.topic}! `;
+            } else {
+                ref += `They beat me on ${lastInteraction.topic}, but this time is different! `;
+            }
+        }
+        
+        if (persona.traits.includes('boastful')) ref += `I'm the best at ${context}! `;
+        else if (persona.traits.includes('worried')) ref += `I hope everyone stays safe. `;
+        
+        return ref;
+    }
+
+    getHeadToHead(personaId, otherId) {
+        const interactions = this.memory[personaId].interactions.filter(i => i.withPersona === otherId);
+        const wins = interactions.filter(i => i.outcome === 'win').length;
+        return { wins, losses: interactions.length - wins, total: interactions.length };
+    }
+
+    generateTrashTalk(personaId, otherId) {
+        const record = this.getHeadToHead(personaId, otherId);
+        const persona = PERSONAS[personaId];
+        
+        if (record.total === 0) return `${persona.name} eyes their opponent. "First time?"`;
+        if (record.wins > record.losses) {
+            return `${persona.name} smirks: "I'm ${record.wins}-${record.losses} against you. Want to make it worse?"`;
+        } else if (record.losses > record.wins) {
+            return `${persona.name}: "You've beaten me ${record.losses} times... but TODAY changes everything!"`;
+        } else {
+            return `${persona.name}: "We're tied ${record.wins}-${record.losses}. Let's settle this!"`;
+        }
+    }
+}
+
+const personaMemory = new PersonaMemory();
+</script>
