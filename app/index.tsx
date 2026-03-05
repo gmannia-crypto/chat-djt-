@@ -939,6 +939,37 @@ export default function HomeScreen() {
         </View>
       </Animated.View>
 
+      {Platform.OS !== "web" && (
+        <Pressable
+          onPress={async () => {
+            try {
+              const baseUrl = getApiUrl().replace(/\/$/, "");
+              Alert.alert("Debug", "URL: " + baseUrl + "\nTrying audio...");
+              await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+              const testUrl = `${baseUrl}/api/nav-speak?text=test`;
+              const { sound } = await Audio.Sound.createAsync(
+                { uri: testUrl },
+                { shouldPlay: true, volume: 1.0 }
+              );
+              sound.setOnPlaybackStatusUpdate((s: any) => {
+                if (s.isLoaded && s.isPlaying) {
+                  Alert.alert("Audio Playing!", "Position: " + s.positionMillis + "ms");
+                }
+                if (s.error) {
+                  Alert.alert("Playback Error", String(s.error));
+                }
+                if (s.didJustFinish) sound.unloadAsync();
+              });
+            } catch (e: any) {
+              Alert.alert("Audio Error", e?.message || String(e));
+            }
+          }}
+          style={{ backgroundColor: "#D4A420", padding: 12, margin: 10, borderRadius: 8, alignItems: "center" as const, zIndex: 999 }}
+        >
+          <Text style={{ color: "#000", fontWeight: "bold" as const, fontSize: 16 }}>TAP TO TEST AUDIO</Text>
+        </Pressable>
+      )}
+
       <ScrollView
         style={styles.centerScroll}
         contentContainerStyle={styles.centerContent}
