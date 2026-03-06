@@ -2,7 +2,7 @@
 
 ## Overview
 
-Chat DJT is a mobile-first AI chat application built with Expo (React Native) designed for interactive conversations with an AI impersonating Donald Trump. The project aims to deliver a unique experience through a luxury dark/gold UI, real-time streaming chat responses, and local conversation persistence. It incorporates subscription-based monetization and an admin interface for revenue management, targeting a broad audience interested in political satire and AI interaction. Key capabilities include Trump-themed therapy sessions, financial debates with various personas, and Trump-centric real estate analysis.
+Chat DJT is a mobile-first AI chat application built with Expo (React Native) designed for interactive conversations with an AI impersonating Donald Trump. The project aims to deliver a unique experience through a luxury dark/gold UI, real-time streaming chat responses, and local conversation persistence. It incorporates subscription-based monetization and an admin interface for revenue management, targeting a broad audience interested in political satire and AI interaction. Key capabilities include Trump-themed therapy sessions, financial debates with various personas, Trump-centric real estate analysis, and a DJT Collectibles digital card system.
 
 ## User Preferences
 
@@ -57,6 +57,18 @@ The app supports dual AI model tiers managed via `GET/POST /api/model-settings`:
 
 - **Bernie Mac**: RAW, unfiltered Black English style — uses "DAMN!", "Got-DAMN!", "I ain't scared of you, muttuphuk!", "summa ma bitch!", "sheeeeit", "I ain't playin' wit' y'all!", "ain't finna", etc. Cuss freely like his actual stand-up comedy.
 - **Uncle Ruckus**: Self-hating Black man (The Boondocks satire) — worships white people/culture, uses "I tell you what", "dadgum", "praise White Jesus", "the WHITE man's way is the RIGHT way", "I got re-vitiligo", "I ain't Black, I'm Uncle Ruckus — no relation". Always contrarian, praises white athletes/neighborhoods, disparages Black culture. Outrageously offensive in the satirical Boondocks style.
+
+## DJT Collectibles
+
+- Digital collectible card system (App Store safe, no blockchain/crypto)
+- 24 cards across 6 categories: Sports, Finance, Debate, Fortune, Therapy, Special
+- 4 rarity tiers: Common (50% drop), Rare (30%), Epic (15%), Legendary (5%)
+- Rarity colors: Common=#8B8B8B, Rare=#4A90D9, Epic=#9333EA, Legendary=#FFD700
+- Data library: `lib/collectibles.ts` — card catalog, AsyncStorage persistence (key: `djt_collectibles`), drop rate logic
+- Gallery screen: `app/collectibles.tsx` — 2-column grid, rarity filters, locked/unlocked states, detail modal
+- Earned via mystery box on home screen (2 "Collectible Card" entries in MYSTERY_REWARDS for weighting)
+- Home screen has COLLECTIBLES button with progress badge (X/24)
+- Extensible for future NFT minting but no blockchain code in the app
 
 ## Amazon Affiliate Integration
 

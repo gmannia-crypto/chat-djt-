@@ -49,6 +49,15 @@ import {
   deleteConversation,
   Message,
 } from "@/lib/chat-storage";
+import {
+  getCollection,
+  getRandomCard,
+  addCard,
+  getCollectionStats,
+  CARD_CATALOG,
+  RARITY_COLORS,
+  type OwnedCard,
+} from "@/lib/collectibles";
 
 const FEEDBACK_SHOWN_KEY = "chatdjt_feedback_shown";
 const FEEDBACK_CONV_COUNT_KEY = "chatdjt_conv_count";
@@ -66,6 +75,8 @@ const MYSTERY_REWARDS = [
   { label: "Golden Tweet", icon: "logo-twitter", description: "Generate a viral Trump tweet on ANY topic. Pure gold." },
   { label: "Therapy Session", icon: "medical", description: "A free therapy session with Dr. Trump. Healing through WINNING." },
   { label: "VIP Fortune", icon: "star", description: "A rare PREMIUM fortune reading. Only winners get this." },
+  { label: "Collectible Card", icon: "cards", description: "A DJT Collectible card has been added to your collection!" },
+  { label: "Collectible Card", icon: "cards", description: "A DJT Collectible card has been added to your collection!" },
 ];
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -279,8 +290,15 @@ export default function HomeScreen() {
   const [weeklyCountdown, setWeeklyCountdown] = useState({ days: 0, hours: 0, minutes: 0, isLive: false });
   const [weeklyReminder, setWeeklyReminder] = useState(false);
   const [electionDays, setElectionDays] = useState(0);
+  const [collectionCount, setCollectionCount] = useState({ owned: 0, total: 24 });
   const { deviceId, hasTokens } = useTokens();
   const { playClick, playTransition } = useSoundEffects();
+
+  const refreshCollectionCount = useCallback(async () => {
+    const col = await getCollection();
+    const stats = getCollectionStats(col);
+    setCollectionCount({ owned: stats.owned, total: stats.total });
+  }, []);
 
   const pulseScale = useSharedValue(1);
   const pulseGlow = useSharedValue(0.4);
@@ -356,6 +374,7 @@ export default function HomeScreen() {
       fetchFearGreed();
       loadBadges();
       checkWeeklyReminder();
+      refreshCollectionCount();
     }, [])
   );
 
@@ -599,7 +618,27 @@ export default function HomeScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     await new Promise((r) => setTimeout(r, 1200));
     const prize = MYSTERY_REWARDS[Math.floor(Math.random() * MYSTERY_REWARDS.length)];
-    setMysteryPrize(prize);
+    if (prize.label === "Collectible Card") {
+      const card = getRandomCard();
+      const added = await addCard(card.id);
+      const rarityColor = RARITY_COLORS[card.rarity];
+      if (added) {
+        setMysteryPrize({
+          ...prize,
+          label: `${card.rarity} Card: ${card.name}`,
+          description: `${card.description} (${card.rarity.toUpperCase()} collectible added!)`,
+        });
+      } else {
+        setMysteryPrize({
+          ...prize,
+          label: `Duplicate: ${card.name}`,
+          description: "You already own this card. Keep opening boxes for more!",
+        });
+      }
+      refreshCollectionCount();
+    } else {
+      setMysteryPrize(prize);
+    }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setMysteryRevealing(false);
     setMysteryReady(false);
@@ -1400,6 +1439,25 @@ export default function HomeScreen() {
           >
             <Ionicons name="flash" size={16} color="#FF4D4D" />
             <Text style={styles.modeButtonText}>DEBATE</Text>
+          </Pressable>
+        </Animated.View>
+        <Animated.View entering={FadeInDown.delay(1750).duration(500)} style={styles.modeButtons}>
+          <Pressable
+            onPress={() => {
+              playNavVoice("Collectibles. The most beautiful cards you've ever seen.");
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+              router.push("/collectibles");
+            }}
+            style={({ pressed }) => [styles.modeButton, styles.collectiblesButton, pressed && { opacity: 0.7 }]}
+            testID="collectibles-button"
+          >
+            <MaterialCommunityIcons name="cards" size={16} color="#FFD700" />
+            <Text style={styles.modeButtonText}>COLLECTIBLES</Text>
+            {collectionCount.owned > 0 && (
+              <View style={styles.collectiblesBadge}>
+                <Text style={styles.collectiblesBadgeText}>{collectionCount.owned}/{collectionCount.total}</Text>
+              </View>
+            )}
           </Pressable>
         </Animated.View>
         {fearGreed && (
@@ -2515,6 +2573,28 @@ const styles = StyleSheet.create({
   debateButton: {
     backgroundColor: "rgba(255, 77, 77, 0.15)",
     borderColor: "rgba(255, 77, 77, 0.4)",
+  },
+  collectiblesButton: {
+    backgroundColor: "rgba(255, 215, 0, 0.12)",
+    borderColor: "rgba(255, 215, 0, 0.35)",
+    flex: 1,
+  },
+  collectiblesBadge: {
+    position: "absolute",
+    top: 4,
+    right: 6,
+    backgroundColor: "rgba(255, 215, 0, 0.2)",
+    borderRadius: 8,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderWidth: 1,
+    borderColor: "rgba(255, 215, 0, 0.3)",
+  },
+  collectiblesBadgeText: {
+    fontSize: 8,
+    fontWeight: "800" as const,
+    color: "#FFD700",
+    letterSpacing: 0.5,
   },
   sportsButton: {
     backgroundColor: "rgba(76, 175, 80, 0.15)",

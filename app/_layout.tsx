@@ -281,6 +281,10 @@ function RootLayoutNav() {
         name="sports"
         options={{ headerShown: false }}
       />
+      <Stack.Screen
+        name="collectibles"
+        options={{ headerShown: false }}
+      />
     </Stack>
   );
 }
