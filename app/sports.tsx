@@ -167,12 +167,12 @@ const AMAZON_PICKS: Record<string, { quote: string; mainUrl: string; items: { la
     ],
   },
   loudmouth: {
-    quote: '"THIS IS BLASPHEMOUS! You CANNOT tell me this gear isn\'t FIRST TEAM ALL-DRIP!" — Loudmouth',
-    mainUrl: amzUrl("ESPN sports commentator gear suit"),
+    quote: '"BLASPHEMOUS! Them boys sittin up there in basic fits — you CANNOT tell me this Armani isn\'t FIRST TEAM ALL-DRIP!" — Loudmouth',
+    mainUrl: amzUrl("Armani Exchange men suit"),
     items: [
-      { label: "Sharp Suits", sub: "Look the part", icon: "tie", url: amzUrl("men sharp suit sports commentator") },
-      { label: "Microphones", sub: "Be HEARD", icon: "microphone", url: amzUrl("professional microphone broadcast") },
-      { label: "Loud Kicks", sub: "Stand out", icon: "shoe-sneaker", url: amzUrl("bold colorful sneakers men statement") },
+      { label: "Armani Suits", sub: "First Team All-Drip", icon: "tie", url: amzUrl("Armani Exchange men slim fit suit blazer") },
+      { label: "Tom Ford Shoes", sub: "Championship kicks", icon: "shoe-formal", url: amzUrl("Tom Ford men dress shoes leather") },
+      { label: "Loud Ties", sub: "Stand out on set", icon: "tie", url: amzUrl("bold designer men tie silk statement") },
     ],
   },
   bernie: {

@@ -49,6 +49,7 @@ const PERSONA_IMAGES: Record<string, ImageSourcePropType> = {
   grandma: require("@/assets/images/persona-grandma.png"),
   genie: require("@/assets/images/persona-genie.png"),
   mansa: require("@/assets/images/persona-mansa.png"),
+  loudmouth: require("@/assets/images/persona-loudmouth.png"),
   jordan: require("@/assets/images/persona-jordan.png"),
   bernie: require("@/assets/images/persona-bernie.png"),
   ruckus: require("@/assets/images/persona-ruckus.png"),
@@ -208,6 +209,24 @@ const PERSONAS: Persona[] = [
     affiliate: { apmex: "https://www.apmex.com/?tag=trumpbot-20" },
   },
   {
+    id: "loudmouth",
+    name: "Loudmouth",
+    fullName: "Loudmouth",
+    color: "#E53935",
+    image: PERSONA_IMAGES.loudmouth,
+    voiceId: "f622797b56de414bb65c9233ce3d9d9c",
+    advice: {
+      crypto: "LET ME TELL YOU SOMETHING — them boys sittin up there talkin about crypto like it's a GAME! This is REAL MONEY! You better do your HOMEWORK before you jump in! BLASPHEMOUS to go in blind!",
+      stock: "ARE YOU KIDDING ME?! Them boys on Wall Street think they can outsmart YOU?! Get in the market, do your research, and STAY OFF THE WEED when picking stocks! This ain't no joke!",
+      property: "BLASPHEMOUS! You sittin up there RENTING when you could OWN?! Real estate is a CHAMPIONSHIP play! Them boys who buy property are FIRST TEAM ALL-WEALTH!",
+      commodity: "Gold, silver, oil — them boys sittin up there sleeping on commodities! LET ME TELL YOU — when the market crashes, commodities are your SAFETY NET! BLASPHEMOUS to ignore them!",
+      etf: "ETFs are for the SMART money! Them boys who diversify are playing CHAMPIONSHIP-LEVEL ball! You don't go all-in on ONE player — you build a ROSTER!",
+      default: "FIRST OF ALL — don't come to ME with weak financial takes! Do your RESEARCH! Them boys who succeed are the ones who PUT IN THE WORK! BLASPHEMOUS to be lazy with your money!",
+    },
+    catchphrases: ["BLASPHEMOUS!", "Them boys sittin up there don't even KNOW!", "LET ME TELL YOU SOMETHING!", "ARE YOU KIDDING ME?!", "STAY OFF THE WEED!", "FIRST TEAM ALL-MONEY!"],
+    affiliate: { amazon: "https://www.amazon.com/s?k=Armani+Exchange+men+suit&tag=trumpbot-20" },
+  },
+  {
     id: "jordan",
     name: "MJ",
     fullName: "Michael Jordan",
@@ -284,6 +303,7 @@ function getTitle(personaId: string): string {
     case "grandma": return "Voice of Experience";
     case "genie": return "10,000 Years of Wisdom";
     case "mansa": return "Richest Man in History";
+    case "loudmouth": return "Loudest Voice in Sports";
     case "jordan": return "6x NBA Champion & Billionaire";
     case "bernie": return "King of Comedy";
     case "ruckus": return "Contrarian Expert";
