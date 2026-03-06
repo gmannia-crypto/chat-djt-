@@ -7,6 +7,8 @@ import {
   Pressable,
   Platform,
   Modal,
+  Image,
+  Dimensions,
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -29,6 +31,62 @@ import {
 } from "@/lib/collectibles";
 
 const RARITY_FILTERS: (Rarity | "ALL")[] = ["ALL", "Common", "Rare", "Epic", "Legendary"];
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const CARD_GAP = 10;
+const CARD_PADDING = 12;
+const CARD_WIDTH = (SCREEN_WIDTH - CARD_PADDING * 2 - CARD_GAP) / 2;
+const CARD_HEIGHT = CARD_WIDTH * 1.4;
+
+function DCWatermark({ size = "small" }: { size?: "small" | "large" }) {
+  const isLarge = size === "large";
+  return (
+    <View style={[dcStyles.container, isLarge && dcStyles.containerLarge]}>
+      <Text style={[dcStyles.dc, isLarge && dcStyles.dcLarge]}>DC</Text>
+      <Text style={[dcStyles.text, isLarge && dcStyles.textLarge]}>DYNAMIC CREATIONS</Text>
+    </View>
+  );
+}
+
+const dcStyles = StyleSheet.create({
+  container: {
+    position: "absolute",
+    bottom: 6,
+    right: 6,
+    alignItems: "center",
+    opacity: 0.2,
+  },
+  containerLarge: {
+    bottom: 12,
+    right: 12,
+    opacity: 0.15,
+  },
+  dc: {
+    fontSize: 14,
+    fontWeight: "900" as const,
+    color: "#FFD700",
+    letterSpacing: 2,
+    textShadowColor: "rgba(0,0,0,0.8)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  dcLarge: {
+    fontSize: 22,
+  },
+  text: {
+    fontSize: 4,
+    fontWeight: "800" as const,
+    color: "#FFD700",
+    letterSpacing: 1.5,
+    textShadowColor: "rgba(0,0,0,0.8)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+    marginTop: -2,
+  },
+  textLarge: {
+    fontSize: 6,
+    marginTop: -3,
+  },
+});
 
 export default function CollectiblesScreen() {
   const insets = useSafeAreaInsets();
@@ -121,53 +179,57 @@ export default function CollectiblesScreen() {
         {filteredCards.map((card, index) => {
           const owned = hasCardSync(card.id, collection);
           const rarityColor = RARITY_COLORS[card.rarity];
-          const gradColors = RARITY_GRADIENTS[card.rarity];
           return (
             <Animated.View
               key={card.id}
-              entering={FadeInDown.delay(index * 50).duration(300)}
+              entering={FadeInDown.delay(index * 40).duration(300)}
               style={styles.cardWrapper}
             >
               <Pressable
                 onPress={() => handleCardPress(card)}
                 style={({ pressed }) => [
                   styles.card,
-                  !owned && styles.cardLocked,
-                  pressed && { opacity: 0.85 },
+                  { borderColor: owned ? `${rarityColor}40` : "rgba(255,255,255,0.03)" },
+                  pressed && { opacity: 0.85, transform: [{ scale: 0.97 }] },
                 ]}
               >
-                <LinearGradient
-                  colors={owned ? gradColors as [string, string, string] : ["#151515", "#0a0a0a", "#151515"]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={StyleSheet.absoluteFillObject}
-                />
-                {owned && (
-                  <View style={[styles.cardShine, { backgroundColor: `${rarityColor}08` }]} />
-                )}
-                <View style={[styles.rarityStripe, { backgroundColor: owned ? rarityColor : "rgba(255,255,255,0.05)" }]} />
-                <View style={styles.cardContent}>
-                  <View style={[styles.iconCircle, { backgroundColor: owned ? `${card.color}20` : "rgba(255,255,255,0.03)" }]}>
-                    <MaterialCommunityIcons
-                      name={card.icon as any}
-                      size={28}
-                      color={owned ? card.color : "rgba(255,255,255,0.1)"}
+                {owned ? (
+                  <Image source={card.image} style={styles.cardImage} resizeMode="cover" />
+                ) : (
+                  <View style={styles.cardImageLocked}>
+                    <LinearGradient
+                      colors={["#111", "#0a0a0a", "#111"]}
+                      style={StyleSheet.absoluteFillObject}
                     />
                   </View>
+                )}
+                <LinearGradient
+                  colors={owned
+                    ? ["transparent", "rgba(0,0,0,0.3)", "rgba(0,0,0,0.85)"]
+                    : ["transparent", "rgba(0,0,0,0.5)", "rgba(0,0,0,0.95)"]}
+                  style={styles.cardOverlay}
+                />
+                <View style={[styles.rarityStripe, { backgroundColor: owned ? rarityColor : "rgba(255,255,255,0.05)" }]} />
+                {owned && <DCWatermark />}
+                <View style={styles.cardBottom}>
+                  {!owned && (
+                    <Ionicons name="lock-closed" size={24} color="rgba(255,255,255,0.12)" style={styles.lockIcon} />
+                  )}
                   <Text style={[styles.cardName, !owned && styles.cardNameLocked]} numberOfLines={1}>
                     {owned ? card.name : "???"}
                   </Text>
-                  <View style={[styles.rarityBadge, { backgroundColor: owned ? `${rarityColor}20` : "rgba(255,255,255,0.03)" }]}>
+                  <View style={[styles.rarityBadge, { backgroundColor: owned ? `${rarityColor}25` : "rgba(255,255,255,0.04)" }]}>
                     <Text style={[styles.rarityText, { color: owned ? rarityColor : "rgba(255,255,255,0.15)" }]}>
                       {card.rarity.toUpperCase()}
                     </Text>
                   </View>
-                  {!owned && (
-                    <View style={styles.lockOverlay}>
-                      <Ionicons name="lock-closed" size={20} color="rgba(255,255,255,0.15)" />
-                    </View>
-                  )}
                 </View>
+                {owned && (
+                  <View style={styles.categoryTag}>
+                    <MaterialCommunityIcons name={card.icon as any} size={10} color={card.color} />
+                    <Text style={[styles.categoryText, { color: card.color }]}>{card.category.toUpperCase()}</Text>
+                  </View>
+                )}
               </Pressable>
             </Animated.View>
           );
@@ -179,22 +241,24 @@ export default function CollectiblesScreen() {
           <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
             {selectedCard && (
               <Animated.View entering={FadeIn.duration(300)}>
-                <LinearGradient
-                  colors={RARITY_GRADIENTS[selectedCard.rarity] as [string, string, string]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={StyleSheet.absoluteFillObject}
-                />
-                <View style={[styles.modalRarityBar, { backgroundColor: RARITY_COLORS[selectedCard.rarity] }]} />
+                <View style={styles.modalImageWrap}>
+                  <Image source={selectedCard.image} style={styles.modalImage} resizeMode="cover" />
+                  <LinearGradient
+                    colors={["transparent", "rgba(0,0,0,0.4)", "rgba(0,0,0,0.92)"]}
+                    style={styles.modalImageGradient}
+                  />
+                  <DCWatermark size="large" />
+                  <View style={[styles.modalRarityBar, { backgroundColor: RARITY_COLORS[selectedCard.rarity] }]} />
+                </View>
                 <View style={styles.modalContent}>
-                  <View style={[styles.modalIconCircle, { backgroundColor: `${selectedCard.color}25` }]}>
+                  <View style={styles.modalIconRow}>
                     <MaterialCommunityIcons
                       name={selectedCard.icon as any}
-                      size={48}
+                      size={20}
                       color={selectedCard.color}
                     />
+                    <Text style={styles.modalName}>{selectedCard.name}</Text>
                   </View>
-                  <Text style={styles.modalName}>{selectedCard.name}</Text>
                   <View style={[styles.modalRarityBadge, { backgroundColor: `${RARITY_COLORS[selectedCard.rarity]}20` }]}>
                     <Text style={[styles.modalRarityText, { color: RARITY_COLORS[selectedCard.rarity] }]}>
                       {selectedCard.rarity.toUpperCase()} • {selectedCard.category.toUpperCase()}
@@ -327,42 +391,48 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    paddingHorizontal: 12,
+    paddingHorizontal: CARD_PADDING,
     paddingTop: 12,
-    gap: 10,
+    gap: CARD_GAP,
   },
   cardWrapper: {
-    width: "47%",
-    flexGrow: 1,
+    width: CARD_WIDTH,
   },
   card: {
     borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1.5,
     overflow: "hidden",
-    minHeight: 160,
+    height: CARD_HEIGHT,
   },
-  cardLocked: {
-    borderColor: "rgba(255,255,255,0.03)",
+  cardImage: {
+    ...StyleSheet.absoluteFillObject,
+    width: "100%",
+    height: "100%",
   },
-  cardShine: {
+  cardImageLocked: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  cardOverlay: {
     ...StyleSheet.absoluteFillObject,
   },
   rarityStripe: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
     height: 3,
-    width: "100%",
   },
-  cardContent: {
-    padding: 14,
+  cardBottom: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 10,
     alignItems: "center",
-    gap: 8,
+    gap: 4,
   },
-  iconCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    alignItems: "center",
-    justifyContent: "center",
+  lockIcon: {
+    marginBottom: 4,
   },
   cardName: {
     fontSize: 12,
@@ -370,6 +440,9 @@ const styles = StyleSheet.create({
     color: "#fff",
     textAlign: "center",
     letterSpacing: 0.3,
+    textShadowColor: "rgba(0,0,0,0.8)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   cardNameLocked: {
     color: "rgba(255,255,255,0.12)",
@@ -384,18 +457,26 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     letterSpacing: 1,
   },
-  lockOverlay: {
+  categoryTag: {
     position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    top: 8,
+    left: 8,
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    gap: 3,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  categoryText: {
+    fontSize: 7,
+    fontWeight: "800",
+    letterSpacing: 0.8,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.85)",
+    backgroundColor: "rgba(0,0,0,0.88)",
     alignItems: "center",
     justifyContent: "center",
     padding: 24,
@@ -405,27 +486,41 @@ const styles = StyleSheet.create({
     maxWidth: 320,
     borderRadius: 20,
     overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "rgba(212,164,32,0.2)",
+    borderWidth: 1.5,
+    borderColor: "rgba(212,164,32,0.25)",
+    backgroundColor: "#0a0a0a",
+  },
+  modalImageWrap: {
+    width: "100%",
+    height: 240,
+    overflow: "hidden",
+  },
+  modalImage: {
+    width: "100%",
+    height: "100%",
+  },
+  modalImageGradient: {
+    ...StyleSheet.absoluteFillObject,
   },
   modalRarityBar: {
-    height: 4,
-    width: "100%",
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 3,
   },
   modalContent: {
-    padding: 28,
+    padding: 20,
     alignItems: "center",
-    gap: 12,
+    gap: 10,
   },
-  modalIconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+  modalIconRow: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    gap: 8,
   },
   modalName: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "900",
     color: "#fff",
     textAlign: "center",
@@ -453,10 +548,10 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "600",
     color: "rgba(255,255,255,0.3)",
-    marginTop: 4,
+    marginTop: 2,
   },
   modalClose: {
-    marginTop: 8,
+    marginTop: 6,
     paddingHorizontal: 28,
     paddingVertical: 10,
     borderRadius: 20,
