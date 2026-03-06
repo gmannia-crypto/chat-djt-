@@ -1155,6 +1155,7 @@ Generate the roundtable discussion. Each persona must give their take and REACT 
     barkley: "5219116f5f474532a24eed721bdfafa3",
     rogan: "f712cd4671cb4807b21e8a1dc905dc4a",
     shannon: "f8e7603e5ede4782813d05dd8eb45132",
+    mansa: "00a50bc21a9e43d0bb252aa3d44e5f9f",
   };
 
   app.post("/api/nav-speak", async (req, res) => {

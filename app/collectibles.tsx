@@ -193,20 +193,11 @@ export default function CollectiblesScreen() {
                   pressed && { opacity: 0.85, transform: [{ scale: 0.97 }] },
                 ]}
               >
-                {owned ? (
-                  <Image source={card.image} style={styles.cardImage} resizeMode="cover" />
-                ) : (
-                  <View style={styles.cardImageLocked}>
-                    <LinearGradient
-                      colors={["#111", "#0a0a0a", "#111"]}
-                      style={StyleSheet.absoluteFillObject}
-                    />
-                  </View>
-                )}
+                <Image source={card.image} style={[styles.cardImage, !owned && styles.cardImageDimmed]} resizeMode="cover" />
                 <LinearGradient
                   colors={owned
                     ? ["transparent", "rgba(0,0,0,0.3)", "rgba(0,0,0,0.85)"]
-                    : ["transparent", "rgba(0,0,0,0.5)", "rgba(0,0,0,0.95)"]}
+                    : ["rgba(0,0,0,0.55)", "rgba(0,0,0,0.7)", "rgba(0,0,0,0.92)"]}
                   style={styles.cardOverlay}
                 />
                 <View style={[styles.rarityStripe, { backgroundColor: owned ? rarityColor : "rgba(255,255,255,0.05)" }]} />
@@ -409,8 +400,8 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
   },
-  cardImageLocked: {
-    ...StyleSheet.absoluteFillObject,
+  cardImageDimmed: {
+    opacity: 0.3,
   },
   cardOverlay: {
     ...StyleSheet.absoluteFillObject,
