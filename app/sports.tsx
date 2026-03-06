@@ -52,7 +52,7 @@ const PERSONA_IMAGES: Record<string, ImageSourcePropType> = {
   dave: require("@/assets/images/persona-dave.png"),
   grandma: require("@/assets/images/persona-grandma.png"),
   genie: require("@/assets/images/persona-genie.png"),
-  mansa: require("@/assets/images/persona-mansa.png"),
+  loudmouth: require("@/assets/images/persona-loudmouth.png"),
   jordan: require("@/assets/images/persona-jordan.png"),
   bernie: require("@/assets/images/persona-bernie.png"),
   ruckus: require("@/assets/images/persona-ruckus.png"),
@@ -74,7 +74,7 @@ const PERSONAS: PersonaInfo[] = [
   { id: "dave", name: "Dave", fullName: "Dave Ramsey", color: "#ffaa00", image: PERSONA_IMAGES.dave },
   { id: "grandma", name: "Grandma", fullName: "Your Grandma", color: "#ffffff", image: PERSONA_IMAGES.grandma },
   { id: "genie", name: "Genie", fullName: "The Financial Genie", color: "#9B59B6", image: PERSONA_IMAGES.genie },
-  { id: "mansa", name: "Mansa Musa", fullName: "Mansa Musa I", color: "#D4AF37", image: PERSONA_IMAGES.mansa },
+  { id: "loudmouth", name: "Loudmouth", fullName: "Loudmouth", color: "#E53935", image: PERSONA_IMAGES.loudmouth },
   { id: "jordan", name: "MJ", fullName: "Michael Jordan", color: "#CE1141", image: PERSONA_IMAGES.jordan },
   { id: "bernie", name: "Bernie Mac", fullName: "Bernie Mac", color: "#9B59B6", image: PERSONA_IMAGES.bernie },
   { id: "ruckus", name: "Ruckus", fullName: "Uncle Ruckus", color: "#8B4513", image: PERSONA_IMAGES.ruckus },
@@ -166,13 +166,13 @@ const AMAZON_PICKS: Record<string, { quote: string; mainUrl: string; items: { la
       { label: "Premium Gear", sub: "Wish granted", icon: "diamond-stone", url: amzUrl("premium sports apparel men luxury") },
     ],
   },
-  mansa: {
-    quote: '"In my empire, warriors wore gold into battle. Dress like royalty." — Mansa Musa',
-    mainUrl: amzUrl("gold luxury sports accessories"),
+  loudmouth: {
+    quote: '"THIS IS BLASPHEMOUS! You CANNOT tell me this gear isn\'t FIRST TEAM ALL-DRIP!" — Loudmouth',
+    mainUrl: amzUrl("ESPN sports commentator gear suit"),
     items: [
-      { label: "Gold Watches", sub: "Time is wealth", icon: "watch", url: amzUrl("gold sports watch men luxury") },
-      { label: "Royal Apparel", sub: "Fit for a king", icon: "crown", url: amzUrl("luxury men activewear gold") },
-      { label: "African Art", sub: "Empire legacy", icon: "palette", url: amzUrl("African art wall decor Mansa Musa") },
+      { label: "Sharp Suits", sub: "Look the part", icon: "tie", url: amzUrl("men sharp suit sports commentator") },
+      { label: "Microphones", sub: "Be HEARD", icon: "microphone", url: amzUrl("professional microphone broadcast") },
+      { label: "Loud Kicks", sub: "Stand out", icon: "shoe-sneaker", url: amzUrl("bold colorful sneakers men statement") },
     ],
   },
   bernie: {

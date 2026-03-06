@@ -423,6 +423,36 @@ export default function HomeScreen() {
     }
   }, []);
 
+  const navSoundRef = useRef<Audio.Sound | null>(null);
+  const playNavVoice = useCallback(async (text: string) => {
+    try {
+      if (navSoundRef.current) {
+        await navSoundRef.current.unloadAsync().catch(() => {});
+        navSoundRef.current = null;
+      }
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      const url = `${baseUrl}/api/nav-speak?text=${encodeURIComponent(text)}`;
+      if (Platform.OS === "web") {
+        const audio = new window.Audio(url);
+        audio.volume = 0.8;
+        audio.play().catch(() => {});
+      } else {
+        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: url },
+          { shouldPlay: true, volume: 0.8 }
+        );
+        navSoundRef.current = sound;
+        sound.setOnPlaybackStatusUpdate((status: any) => {
+          if (status.didJustFinish) {
+            sound.unloadAsync();
+            navSoundRef.current = null;
+          }
+        });
+      }
+    } catch {}
+  }, []);
+
   async function checkWeeklyReminder() {
     try {
       const val = await AsyncStorage.getItem("chatdjt_weekly_reminder");
@@ -1127,6 +1157,7 @@ export default function HomeScreen() {
             <Pressable
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                playNavVoice("Trump Therapy. Let's work through your issues, big league.");
                 router.push("/therapy");
               }}
               style={({ pressed }) => [styles.viralCtaButton, styles.viralTherapy, pressed && { opacity: 0.85 }]}
@@ -1150,6 +1181,7 @@ export default function HomeScreen() {
             <Pressable
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                playNavVoice("Fortune Parlor. Let me predict your future, believe me.");
                 router.push("/fortune");
               }}
               style={({ pressed }) => [styles.viralCtaButton, styles.viralFortune, pressed && { opacity: 0.85 }]}
@@ -1175,6 +1207,7 @@ export default function HomeScreen() {
           <Pressable
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+              playNavVoice("Sports Book. Live picks, live games, tremendous action.");
               router.push("/sports");
             }}
             style={({ pressed }) => [styles.sportsTopButton, pressed && { opacity: 0.8 }]}
@@ -1196,14 +1229,14 @@ export default function HomeScreen() {
         </Animated.View>
         <Animated.View entering={FadeInDown.delay(1050).duration(500)} style={styles.modeButtons}>
           <Pressable
-            onPress={handleRoastMode}
+            onPress={() => { playNavVoice("Roast Me. You sure you can handle this?"); handleRoastMode(); }}
             style={({ pressed }) => [styles.modeButton, styles.roastButton, pressed && { opacity: 0.7 }]}
           >
             <MaterialCommunityIcons name="fire" size={18} color="#FF4444" />
             <Text style={styles.modeButtonText}>ROAST ME</Text>
           </Pressable>
           <Pressable
-            onPress={handleDebateMode}
+            onPress={() => { playNavVoice("Debate Mode. Let's go, I never lose a debate."); handleDebateMode(); }}
             style={({ pressed }) => [styles.modeButton, styles.debateButton, pressed && { opacity: 0.7 }]}
           >
             <MaterialCommunityIcons name="podium" size={18} color={Colors.gold} />
@@ -1212,7 +1245,7 @@ export default function HomeScreen() {
         </Animated.View>
         <Animated.View entering={FadeInDown.delay(1150).duration(500)} style={styles.modeButtons}>
           <Pressable
-            onPress={handleLiveNewsMode}
+            onPress={() => { playNavVoice("Live News. Breaking news, Trump's take."); handleLiveNewsMode(); }}
             style={({ pressed }) => [styles.modeButton, styles.liveNewsButton, pressed && { opacity: 0.7 }]}
             testID="livenews-button"
           >
@@ -1220,7 +1253,7 @@ export default function HomeScreen() {
             <Text style={styles.modeButtonText}>LIVE NEWS</Text>
           </Pressable>
           <Pressable
-            onPress={handleNostradamusMode}
+            onPress={() => { playNavVoice("Predict. Trumpadamus sees the future."); handleNostradamusMode(); }}
             style={({ pressed }) => [styles.modeButton, styles.nostradamusButton, pressed && { opacity: 0.7 }]}
             testID="nostradamus-button"
           >
@@ -1233,7 +1266,7 @@ export default function HomeScreen() {
         </Animated.View>
         <Animated.View entering={FadeInDown.delay(1250).duration(500)} style={styles.modeButtons}>
           <Pressable
-            onPress={handleTruthSocialMode}
+            onPress={() => { playNavVoice("Truth Social. Time to post the truth."); handleTruthSocialMode(); }}
             style={({ pressed }) => [styles.modeButton, styles.truthSocialButton, pressed && { opacity: 0.7 }]}
             testID="truthsocial-button"
           >
@@ -1242,6 +1275,7 @@ export default function HomeScreen() {
           </Pressable>
           <Pressable
             onPress={() => {
+              playNavVoice("Cabinet Hot Seat. Someone's getting fired.");
               if (!hasTokens) {
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
                 router.push("/subscribe");
@@ -1260,6 +1294,7 @@ export default function HomeScreen() {
         <Animated.View entering={FadeInDown.delay(1350).duration(500)} style={styles.modeButtons}>
           <Pressable
             onPress={() => {
+              playNavVoice("Dashboard. The numbers, tremendous numbers.");
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               router.push("/dashboard");
             }}
@@ -1271,6 +1306,7 @@ export default function HomeScreen() {
           </Pressable>
           <Pressable
             onPress={() => {
+              playNavVoice("Rate Trump. Go ahead, I can take it.");
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
               router.push("/rate-trump");
             }}
@@ -1284,6 +1320,7 @@ export default function HomeScreen() {
         <Animated.View entering={FadeInDown.delay(1450).duration(500)} style={styles.modeButtons}>
           <Pressable
             onPress={() => {
+              playNavVoice("Fortune. The future is looking tremendous.");
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
               router.push("/fortune");
             }}
@@ -1295,6 +1332,7 @@ export default function HomeScreen() {
           </Pressable>
           <Pressable
             onPress={() => {
+              playNavVoice("Therapy. Let's talk about your problems.");
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
               router.push("/therapy");
             }}
@@ -1308,6 +1346,7 @@ export default function HomeScreen() {
         <Animated.View entering={FadeInDown.delay(1550).duration(500)} style={styles.modeButtons}>
           <Pressable
             onPress={() => {
+              playNavVoice("Realty. The best properties, I know real estate.");
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
               router.push("/real-estate");
             }}
@@ -1319,6 +1358,7 @@ export default function HomeScreen() {
           </Pressable>
           <Pressable
             onPress={() => {
+              playNavVoice("Billionaires Game. Let's make some money.");
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
               router.push("/game");
             }}
@@ -1332,6 +1372,7 @@ export default function HomeScreen() {
         <Animated.View entering={FadeInDown.delay(1650).duration(500)} style={styles.modeButtons}>
           <Pressable
             onPress={() => {
+              playNavVoice("Financial Faceoff. Who's the smartest with money?");
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
               router.push("/faceoff");
             }}
@@ -1343,6 +1384,7 @@ export default function HomeScreen() {
           </Pressable>
           <Pressable
             onPress={() => {
+              playNavVoice("Debate Arena. Winner takes all.");
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
               router.push("/debate");
             }}
