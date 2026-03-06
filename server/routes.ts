@@ -932,9 +932,11 @@ RULES:
 2. They MUST interact with each other — agree, disagree, interrupt, chastise, praise, ask questions
 3. Arguments should ESCALATE naturally — especially Shannon vs MJ/Loudmouth about LeBron
 4. Include at least one heated exchange where personas get into it with each other
-5. Format each line as: PERSONA_ID: "Their dialogue"
+5. Format EACH line EXACTLY as: personaid: "Their dialogue" — use these EXACT IDs: ${personas.join(", ")}
 6. Generate exactly ${Math.min(personas.length * 2, 12)} lines of dialogue
-7. Make it feel like a REAL live sports show — chaotic, passionate, entertaining`;
+7. Make it feel like a REAL live sports show — chaotic, passionate, entertaining
+8. CRITICAL: Use ONLY the single-word IDs listed above (e.g. "shannon:" NOT "Shannon Sharpe:", "jordan:" NOT "Michael Jordan:")
+9. Every line MUST start with one of these exact IDs followed by a colon`;
 
       const userPrompt = `The roundtable is discussing this ${game.league} matchup:
 ${game.game}
@@ -955,15 +957,40 @@ Generate the roundtable discussion. Each persona must give their take and REACT 
 
       const raw = completion.choices[0]?.message?.content?.trim() || "";
 
-      const lines = raw.split("\n").filter((l: string) => l.trim().length > 0);
+      const nameToId: Record<string, string> = {
+        "trump": "trump", "donald trump": "trump", "donald": "trump",
+        "loudmouth": "loudmouth", "stephen a": "loudmouth", "stephen a.": "loudmouth", "stephen a smith": "loudmouth",
+        "jordan": "jordan", "michael jordan": "jordan", "mj": "jordan", "michael": "jordan",
+        "shannon": "shannon", "shannon sharpe": "shannon", "sharpe": "shannon",
+        "barkley": "barkley", "charles barkley": "barkley", "charles": "barkley", "chuck": "barkley",
+        "rogan": "rogan", "joe rogan": "rogan", "joe": "rogan",
+        "snoop": "snoop", "snoop dogg": "snoop", "snoop dog": "snoop",
+        "maxkellerman": "maxkellerman", "max kellerman": "maxkellerman", "max": "maxkellerman", "kellerman": "maxkellerman",
+        "bernie": "bernie", "bernie mac": "bernie",
+        "ruckus": "ruckus", "uncle ruckus": "ruckus",
+        "grandma": "grandma",
+      };
+
+      const resolvePersonaId = (raw: string): string | null => {
+        const lower = raw.toLowerCase().replace(/[*_#]/g, "").trim();
+        if (nameToId[lower]) return nameToId[lower];
+        for (const [key, val] of Object.entries(nameToId)) {
+          if (lower.includes(key) || key.includes(lower)) return val;
+        }
+        return null;
+      };
+
+      const rawLines = raw.split("\n").filter((l: string) => l.trim().length > 0);
       const dialogue: { personaId: string; text: string }[] = [];
 
-      for (const line of lines) {
-        const match = line.match(/^(\w+):\s*"?(.+?)"?\s*$/);
+      for (const line of rawLines) {
+        const match = line.match(/^([^:]+):\s*"?(.+?)"?\s*$/);
         if (match) {
-          const pid = match[1].toLowerCase();
-          const text = match[2].replace(/^"|"$/g, "");
-          dialogue.push({ personaId: pid, text });
+          const pid = resolvePersonaId(match[1]);
+          if (pid) {
+            const text = match[2].replace(/^"|"$/g, "").trim();
+            dialogue.push({ personaId: pid, text });
+          }
         }
       }
 
