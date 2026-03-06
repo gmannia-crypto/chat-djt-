@@ -46,16 +46,16 @@ interface PersonaPick {
 
 const PERSONA_IMAGES: Record<string, ImageSourcePropType> = {
   trump: require("@/assets/images/persona-trump.png"),
-  buffett: require("@/assets/images/persona-buffett.png"),
-  musk: require("@/assets/images/persona-musk.png"),
-  suze: require("@/assets/images/persona-suze.png"),
-  dave: require("@/assets/images/persona-dave.png"),
   grandma: require("@/assets/images/persona-grandma.png"),
-  genie: require("@/assets/images/persona-genie.png"),
   loudmouth: require("@/assets/images/persona-loudmouth.png"),
   jordan: require("@/assets/images/persona-jordan.png"),
   bernie: require("@/assets/images/persona-bernie.png"),
   ruckus: require("@/assets/images/persona-ruckus.png"),
+  maxkellerman: require("@/assets/images/persona-maxkellerman.png"),
+  snoop: require("@/assets/images/persona-snoop.png"),
+  barkley: require("@/assets/images/persona-barkley.png"),
+  rogan: require("@/assets/images/persona-rogan.png"),
+  shannon: require("@/assets/images/persona-shannon.png"),
 };
 
 interface PersonaInfo {
@@ -68,15 +68,15 @@ interface PersonaInfo {
 
 const PERSONAS: PersonaInfo[] = [
   { id: "trump", name: "Trump", fullName: "Donald J. Trump", color: "#ff4d4d", image: PERSONA_IMAGES.trump },
-  { id: "buffett", name: "Buffett", fullName: "Warren Buffett", color: "#4d4dff", image: PERSONA_IMAGES.buffett },
-  { id: "musk", name: "Elon", fullName: "Elon Musk", color: "#00ccff", image: PERSONA_IMAGES.musk },
-  { id: "suze", name: "Suze", fullName: "Suze Orman", color: "#ff99cc", image: PERSONA_IMAGES.suze },
-  { id: "dave", name: "Dave", fullName: "Dave Ramsey", color: "#ffaa00", image: PERSONA_IMAGES.dave },
-  { id: "grandma", name: "Grandma", fullName: "Your Grandma", color: "#ffffff", image: PERSONA_IMAGES.grandma },
-  { id: "genie", name: "Genie", fullName: "The Financial Genie", color: "#9B59B6", image: PERSONA_IMAGES.genie },
   { id: "loudmouth", name: "Loudmouth", fullName: "Loudmouth", color: "#E53935", image: PERSONA_IMAGES.loudmouth },
+  { id: "shannon", name: "Shannon", fullName: "Shannon Sharpe", color: "#1E88E5", image: PERSONA_IMAGES.shannon },
   { id: "jordan", name: "MJ", fullName: "Michael Jordan", color: "#CE1141", image: PERSONA_IMAGES.jordan },
+  { id: "barkley", name: "Chuck", fullName: "Charles Barkley", color: "#FF6F00", image: PERSONA_IMAGES.barkley },
+  { id: "snoop", name: "Snoop", fullName: "Snoop Dogg", color: "#4CAF50", image: PERSONA_IMAGES.snoop },
+  { id: "rogan", name: "Rogan", fullName: "Joe Rogan", color: "#B71C1C", image: PERSONA_IMAGES.rogan },
+  { id: "maxkellerman", name: "Max", fullName: "Max Kellerman", color: "#5C6BC0", image: PERSONA_IMAGES.maxkellerman },
   { id: "bernie", name: "Bernie Mac", fullName: "Bernie Mac", color: "#9B59B6", image: PERSONA_IMAGES.bernie },
+  { id: "grandma", name: "Grandma", fullName: "Your Grandma", color: "#ffffff", image: PERSONA_IMAGES.grandma },
   { id: "ruckus", name: "Ruckus", fullName: "Uncle Ruckus", color: "#8B4513", image: PERSONA_IMAGES.ruckus },
 ];
 
@@ -87,7 +87,16 @@ const LEAGUE_COLORS: Record<string, string> = {
   MLB: "#2E7D32",
   SOCCER: "#1976D2",
   BOXING: "#9C27B0",
+  NHL: "#00529B",
+  F1: "#E10600",
+  NASCAR: "#FFCC00",
+  GOLF: "#006747",
+  TENNIS: "#C1E72B",
+  NCAAB: "#FF8C00",
+  NCAAF: "#8B0000",
 };
+
+const ALL_LEAGUES = ["ALL", "NBA", "NFL", "MLB", "NCAAB", "NCAAF", "UFC", "BOXING", "NHL", "F1", "NASCAR", "GOLF", "TENNIS", "SOCCER"];
 
 const TAG = "trumpbot-20";
 const amzUrl = (keywords: string) =>
@@ -112,42 +121,6 @@ const AMAZON_PICKS: Record<string, { quote: string; mainUrl: string; items: { la
       { label: "Gold Merch", sub: "Stay golden", icon: "gold", url: amzUrl("gold sports accessories men") },
     ],
   },
-  buffett: {
-    quote: '"The best investment? A good book. And maybe some Omaha Steaks." — Buffett',
-    mainUrl: amzUrl("Warren Buffett investing books"),
-    items: [
-      { label: "Investing Books", sub: "Read & profit", icon: "book-open-variant", url: amzUrl("Warren Buffett investing books") },
-      { label: "Business Gear", sub: "Dress for success", icon: "briefcase", url: amzUrl("men business casual sports") },
-      { label: "Omaha Gear", sub: "Nebraska pride", icon: "map-marker", url: amzUrl("Nebraska Omaha sports apparel") },
-    ],
-  },
-  musk: {
-    quote: '"Sports analytics needs more AI. Also, buy Tesla stock. Literally." — Elon',
-    mainUrl: amzUrl("tech gadgets sports fitness"),
-    items: [
-      { label: "Smart Watch", sub: "Track everything", icon: "watch", url: amzUrl("smart watch sports fitness tracker") },
-      { label: "Space Gear", sub: "To the moon", icon: "rocket-launch", url: amzUrl("SpaceX NASA space apparel") },
-      { label: "Tech Gadgets", sub: "Future of sports", icon: "cellphone", url: amzUrl("sports tech gadgets bluetooth") },
-    ],
-  },
-  suze: {
-    quote: '"Before you buy gear, do you have 8 months of emergency funds?! DENIED or APPROVED!" — Suze',
-    mainUrl: amzUrl("personal finance budget planner"),
-    items: [
-      { label: "Budget Planner", sub: "Plan first!", icon: "notebook", url: amzUrl("budget planner financial notebook") },
-      { label: "Money Books", sub: "Get educated", icon: "book-open-variant", url: amzUrl("Suze Orman personal finance books") },
-      { label: "Fitness Gear", sub: "Affordable wins", icon: "dumbbell", url: amzUrl("affordable home fitness equipment") },
-    ],
-  },
-  dave: {
-    quote: '"Don\'t buy this until you\'re DEBT FREE! Baby steps, people!" — Dave',
-    mainUrl: amzUrl("Dave Ramsey financial peace"),
-    items: [
-      { label: "Financial Peace", sub: "Baby Step 1", icon: "book-open-variant", url: amzUrl("Dave Ramsey Total Money Makeover") },
-      { label: "Budget Tools", sub: "Every dollar", icon: "calculator", url: amzUrl("budget envelopes cash system") },
-      { label: "Cheap Gear", sub: "Save money!", icon: "tag", url: amzUrl("budget sports gear clearance") },
-    ],
-  },
   grandma: {
     quote: '"Oh sweetie, get yourself a nice warm blanket for the game. And eat something!" — Grandma',
     mainUrl: amzUrl("cozy game day blanket snacks"),
@@ -157,13 +130,49 @@ const AMAZON_PICKS: Record<string, { quote: string; mainUrl: string; items: { la
       { label: "Team Mugs", sub: "Hot cocoa time", icon: "coffee", url: amzUrl("sports team coffee mug NFL NBA") },
     ],
   },
-  genie: {
-    quote: '"Your third wish... the perfect gear to channel victory, mortal!" — Genie',
-    mainUrl: amzUrl("mystical sports accessories gold"),
+  shannon: {
+    quote: '"UNDISPUTED! GOAT James got me looking FRESH while I call it like I see it!" — Shannon Sharpe',
+    mainUrl: amzUrl("designer men suit luxury"),
     items: [
-      { label: "Gold Chains", sub: "Champion style", icon: "necklace", url: amzUrl("gold chain necklace sports hip hop") },
-      { label: "Lucky Charms", sub: "Magical vibes", icon: "star-four-points", url: amzUrl("lucky charm bracelet sports") },
-      { label: "Premium Gear", sub: "Wish granted", icon: "diamond-stone", url: amzUrl("premium sports apparel men luxury") },
+      { label: "Designer Suits", sub: "Uncle Shay style", icon: "tie", url: amzUrl("designer men slim fit suit luxury") },
+      { label: "Hennessy Glass", sub: "Celebration time", icon: "glass-cocktail", url: amzUrl("crystal whiskey glasses luxury set") },
+      { label: "Cigars & More", sub: "Victory smoke", icon: "smoking", url: amzUrl("premium cigar accessories humidor") },
+    ],
+  },
+  maxkellerman: {
+    quote: '"Here\'s the thing — you need gear that matches your analytical edge." — Max Kellerman',
+    mainUrl: amzUrl("boxing analyst sports gear"),
+    items: [
+      { label: "Boxing Gloves", sub: "Stay sharp", icon: "boxing-glove", url: amzUrl("premium boxing gloves training") },
+      { label: "Sports Books", sub: "Study the tape", icon: "book-open-variant", url: amzUrl("sports analysis boxing strategy books") },
+      { label: "Dress Shirts", sub: "Debate ready", icon: "tie", url: amzUrl("men slim fit dress shirt professional") },
+    ],
+  },
+  snoop: {
+    quote: '"Fo shizzle, nephew — you gotta look smooth while watchin the game, ya dig?" — Snoop Dogg',
+    mainUrl: amzUrl("hip hop streetwear men"),
+    items: [
+      { label: "Steelers Gear", sub: "Black & gold", icon: "football", url: amzUrl("Pittsburgh Steelers jersey apparel") },
+      { label: "Gold Chains", sub: "Drip game", icon: "necklace", url: amzUrl("gold chain necklace hip hop men") },
+      { label: "Laid Back Fits", sub: "West Coast vibes", icon: "tshirt-crew", url: amzUrl("streetwear men casual hip hop") },
+    ],
+  },
+  barkley: {
+    quote: '"That\'s just TURRIBLE gear! Lemme show you what a REAL analyst wears!" — Charles Barkley',
+    mainUrl: amzUrl("NBA analyst gear big tall"),
+    items: [
+      { label: "Golf Gear", sub: "Big man swings", icon: "golf", url: amzUrl("big tall men golf apparel") },
+      { label: "NBA Classics", sub: "Throwback jams", icon: "basketball", url: amzUrl("NBA throwback jersey classic") },
+      { label: "Snack Pack", sub: "Churros time", icon: "food", url: amzUrl("gourmet snack gift box sports") },
+    ],
+  },
+  rogan: {
+    quote: '"That\'s INSANE! Jamie, pull up this gear — it\'s entirely possible this is the best stuff ever." — Joe Rogan',
+    mainUrl: amzUrl("MMA UFC gear fitness"),
+    items: [
+      { label: "UFC Gear", sub: "Combat ready", icon: "karate", url: amzUrl("UFC MMA fight gear shorts gloves") },
+      { label: "Kettlebells", sub: "Train like a beast", icon: "dumbbell", url: amzUrl("kettlebell set home gym gorilla") },
+      { label: "Elk Jerky", sub: "Fuel up", icon: "food-steak", url: amzUrl("elk jerky premium organic protein") },
     ],
   },
   loudmouth: {
@@ -322,8 +331,8 @@ export default function SportsScreen() {
   const [picks, setPicks] = useState<Record<string, PersonaPick>>({});
   const [loadingPicks, setLoadingPicks] = useState<Record<string, boolean>>({});
 
-  const [debateP1, setDebateP1] = useState("trump");
-  const [debateP2, setDebateP2] = useState("buffett");
+  const [debateP1, setDebateP1] = useState("loudmouth");
+  const [debateP2, setDebateP2] = useState("shannon");
   const [trashTalk1, setTrashTalk1] = useState("");
   const [trashTalk2, setTrashTalk2] = useState("");
   const [ref1, setRef1] = useState("");
@@ -334,11 +343,18 @@ export default function SportsScreen() {
   const [debatePick1, setDebatePick1] = useState<PersonaPick | null>(null);
   const [debatePick2, setDebatePick2] = useState<PersonaPick | null>(null);
   const [debatePicksLoading, setDebatePicksLoading] = useState(false);
+  const [selectedLeague, setSelectedLeague] = useState("ALL");
+  const [roundtableDialogue, setRoundtableDialogue] = useState<{ personaId: string; text: string }[]>([]);
+  const [roundtableLoading, setRoundtableLoading] = useState(false);
+  const [roundtableGame, setRoundtableGame] = useState<Game | null>(null);
+  const [musicPlaying, setMusicPlaying] = useState(false);
+  const musicRef = useRef<Audio.Sound | null>(null);
   const mountedRef = useRef(true);
   const abortRef = useRef<AbortController | null>(null);
 
   const activePersona = PERSONAS.find((p) => p.id === selectedPersona) || PERSONAS[0];
   const featuredGame = games.length > 0 ? games[0] : null;
+  const filteredGames = selectedLeague === "ALL" ? games : games.filter((g) => g.league === selectedLeague);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -353,6 +369,11 @@ export default function SportsScreen() {
         soundRef.current.stopAsync().catch(() => {});
         soundRef.current.unloadAsync().catch(() => {});
         soundRef.current = null;
+      }
+      if (musicRef.current) {
+        musicRef.current.stopAsync().catch(() => {});
+        musicRef.current.unloadAsync().catch(() => {});
+        musicRef.current = null;
       }
     };
   }, []);
@@ -541,6 +562,61 @@ export default function SportsScreen() {
     Linking.openURL(url).catch(() => {});
   };
 
+  const toggleMusic = async () => {
+    if (musicPlaying && musicRef.current) {
+      await musicRef.current.stopAsync();
+      await musicRef.current.unloadAsync();
+      musicRef.current = null;
+      setMusicPlaying(false);
+    } else {
+      try {
+        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+        const { sound } = await Audio.Sound.createAsync(
+          require("@/assets/prowling-dragon.mp3"),
+          { shouldPlay: true, isLooping: true, volume: 0.4 }
+        );
+        musicRef.current = sound;
+        setMusicPlaying(true);
+        sound.setOnPlaybackStatusUpdate((status: any) => {
+          if (status.didJustFinish && !status.isLooping) {
+            setMusicPlaying(false);
+          }
+        });
+      } catch {
+        setMusicPlaying(false);
+      }
+    }
+  };
+
+  const fetchRoundtable = async (game: Game) => {
+    setRoundtableLoading(true);
+    setRoundtableGame(game);
+    setRoundtableDialogue([]);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    try {
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      const allPersonaIds = PERSONAS.map((p) => p.id);
+      const res = await fetch(`${baseUrl}/api/sports/roundtable`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ game, personas: allPersonaIds }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        if (err.error === "no_tokens") {
+          router.push("/subscribe" as any);
+          return;
+        }
+        throw new Error("Failed");
+      }
+      const data = await res.json();
+      if (mountedRef.current) setRoundtableDialogue(data.dialogue || []);
+    } catch {
+    } finally {
+      if (mountedRef.current) setRoundtableLoading(false);
+    }
+  };
+
   const p1Info = PERSONAS.find((p) => p.id === debateP1) || PERSONAS[0];
   const p2Info = PERSONAS.find((p) => p.id === debateP2) || PERSONAS[1];
 
@@ -556,7 +632,9 @@ export default function SportsScreen() {
           <MaterialCommunityIcons name="football" size={20} color={Colors.gold} />
           <Text style={styles.headerTitle}>TRUMP'S SPORTS BOOK</Text>
         </View>
-        <View style={styles.backBtn} />
+        <Pressable onPress={toggleMusic} style={[styles.backBtn, musicPlaying && { backgroundColor: "rgba(212,164,32,0.15)", borderRadius: 20 }]}>
+          <Ionicons name={musicPlaying ? "musical-notes" : "musical-notes-outline"} size={20} color={musicPlaying ? Colors.gold : "rgba(255,255,255,0.5)"} />
+        </Pressable>
       </View>
 
       <ScrollView
@@ -620,6 +698,24 @@ export default function SportsScreen() {
           </ScrollView>
         </Animated.View>
 
+        <Animated.View entering={FadeInDown.delay(250).duration(400)} style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingRight: 16 }}>
+            {ALL_LEAGUES.map((league) => {
+              const isActive = selectedLeague === league;
+              const color = league === "ALL" ? Colors.gold : (LEAGUE_COLORS[league] || "#D4A420");
+              return (
+                <Pressable
+                  key={league}
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedLeague(league); }}
+                  style={[styles.leagueTab, isActive && { backgroundColor: `${color}30`, borderColor: color }]}
+                >
+                  <Text style={[styles.leagueTabText, isActive && { color }]}>{league}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </Animated.View>
+
         <Animated.View entering={FadeInDown.delay(300).duration(400)} style={styles.section}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionLabel}>TODAY'S GAMES</Text>
@@ -633,13 +729,13 @@ export default function SportsScreen() {
               <ActivityIndicator size="large" color={Colors.gold} />
               <Text style={styles.loadingText}>Loading games...</Text>
             </View>
-          ) : games.length === 0 ? (
+          ) : filteredGames.length === 0 ? (
             <View style={styles.emptyBox}>
               <MaterialCommunityIcons name="emoticon-sad-outline" size={40} color="rgba(255,255,255,0.2)" />
-              <Text style={styles.emptyText}>No games available right now</Text>
+              <Text style={styles.emptyText}>No {selectedLeague === "ALL" ? "" : selectedLeague + " "}games available right now</Text>
             </View>
           ) : (
-            games.map((game) => (
+            filteredGames.map((game) => (
               <GameCard
                 key={game.id}
                 game={game}
@@ -737,6 +833,81 @@ export default function SportsScreen() {
             </View>
           </Animated.View>
         )}
+
+        <Animated.View entering={FadeInDown.delay(600).duration(400)} style={styles.section}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionLabel}>SPORTS ROUNDTABLE</Text>
+            <View style={[styles.aiBadge, { backgroundColor: "rgba(212,164,32,0.15)" }]}>
+              <MaterialCommunityIcons name="account-group" size={12} color={Colors.gold} />
+              <Text style={[styles.aiBadgeText, { color: Colors.gold }]}>1 TOKEN</Text>
+            </View>
+          </View>
+          <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, marginBottom: 12 }}>
+            Watch all analysts debate a game — they argue, chastise, and praise each other LIVE!
+          </Text>
+
+          {filteredGames.length > 0 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 16 }}>
+              {filteredGames.slice(0, 5).map((game) => (
+                <Pressable
+                  key={`rt-${game.id}`}
+                  onPress={() => fetchRoundtable(game)}
+                  style={({ pressed }) => [styles.roundtableGameBtn, roundtableGame?.id === game.id && { borderColor: Colors.gold, backgroundColor: "rgba(212,164,32,0.1)" }, pressed && { opacity: 0.7 }]}
+                >
+                  <View style={[styles.leagueBadge, { backgroundColor: LEAGUE_COLORS[game.league] || "#D4A420", marginBottom: 4, alignSelf: "flex-start" }]}>
+                    <Text style={styles.leagueText}>{game.league}</Text>
+                  </View>
+                  <Text style={styles.roundtableGameText} numberOfLines={2}>{game.game}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          )}
+
+          {roundtableLoading && (
+            <View style={styles.loadingBox}>
+              <ActivityIndicator size="large" color={Colors.gold} />
+              <Text style={styles.loadingText}>The roundtable is heating up...</Text>
+            </View>
+          )}
+
+          {roundtableDialogue.length > 0 && !roundtableLoading && (
+            <View style={styles.roundtableBox}>
+              <Text style={{ color: Colors.gold, fontSize: 12, fontWeight: "700" as const, letterSpacing: 1, marginBottom: 12 }}>
+                {roundtableGame?.game}
+              </Text>
+              {roundtableDialogue.map((line, idx) => {
+                const persona = PERSONAS.find((p) => p.id === line.personaId);
+                const color = persona?.color || "#D4A420";
+                return (
+                  <View key={idx} style={styles.roundtableLine}>
+                    {persona && (
+                      <Image source={persona.image} style={[styles.roundtableAvatar, { borderColor: color }]} />
+                    )}
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.roundtableName, { color }]}>{persona?.name || line.personaId}</Text>
+                      <Text style={styles.roundtableText}>{line.text}</Text>
+                    </View>
+                    {persona && (
+                      <Pressable
+                        onPress={() => handleSpeak(line.text, line.personaId, 99000 + idx)}
+                        style={({ pressed }) => [{ padding: 4 }, pressed && { opacity: 0.5 }]}
+                      >
+                        <Ionicons name="volume-high" size={14} color={color} />
+                      </Pressable>
+                    )}
+                  </View>
+                );
+              })}
+              <Pressable
+                onPress={() => roundtableGame && fetchRoundtable(roundtableGame)}
+                style={({ pressed }) => [styles.roundtableRefreshBtn, pressed && { opacity: 0.7 }]}
+              >
+                <Ionicons name="refresh" size={14} color={Colors.gold} />
+                <Text style={{ color: Colors.gold, fontSize: 11, fontWeight: "700" as const }}>NEW ROUND (1 TOKEN)</Text>
+              </Pressable>
+            </View>
+          )}
+        </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(700).duration(400)} style={styles.section}>
           <Text style={styles.sectionLabel}>PLACE YOUR BETS</Text>
@@ -1287,5 +1458,77 @@ const styles = StyleSheet.create({
     fontWeight: "800" as const,
     color: "#000",
     letterSpacing: 0.5,
+  },
+  leagueTab: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+    backgroundColor: "rgba(255,255,255,0.03)",
+  },
+  leagueTabText: {
+    fontSize: 10,
+    fontWeight: "700" as const,
+    color: "rgba(255,255,255,0.4)",
+    letterSpacing: 1,
+  },
+  roundtableGameBtn: {
+    width: 140,
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+    backgroundColor: "rgba(255,255,255,0.03)",
+  },
+  roundtableGameText: {
+    fontSize: 11,
+    fontWeight: "600" as const,
+    color: "rgba(255,255,255,0.8)",
+  },
+  roundtableBox: {
+    marginTop: 12,
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: "rgba(212,164,32,0.05)",
+    borderWidth: 1,
+    borderColor: "rgba(212,164,32,0.15)",
+  },
+  roundtableLine: {
+    flexDirection: "row" as const,
+    alignItems: "flex-start" as const,
+    gap: 8,
+    marginBottom: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.05)",
+  },
+  roundtableAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1.5,
+  },
+  roundtableName: {
+    fontSize: 11,
+    fontWeight: "800" as const,
+    letterSpacing: 0.5,
+  },
+  roundtableText: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.75)",
+    lineHeight: 17,
+    marginTop: 2,
+  },
+  roundtableRefreshBtn: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(212,164,32,0.3)",
+    marginTop: 4,
   },
 });

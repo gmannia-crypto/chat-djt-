@@ -697,7 +697,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json(espnSportsCache.data);
       }
 
-      const [nbaEvents, mlbEvents, ufcEvents, eplEvents, mlsEvents, uclEvents, nflEvents] = await Promise.all([
+      const [nbaEvents, mlbEvents, ufcEvents, eplEvents, mlsEvents, uclEvents, nflEvents, nhlEvents, f1Events, nascarEvents, golfEvents, tennisEvents, ncaaMBBEvents, ncaaFBEvents] = await Promise.all([
         fetchESPNScoreboard("basketball", "nba"),
         fetchESPNScoreboard("baseball", "mlb"),
         fetchESPNScoreboard("mma", "ufc"),
@@ -705,6 +705,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         fetchESPNScoreboard("soccer", "usa.1"),
         fetchESPNScoreboard("soccer", "uefa.champions"),
         fetchESPNScoreboard("football", "nfl"),
+        fetchESPNScoreboard("hockey", "nhl"),
+        fetchESPNScoreboard("racing", "f1"),
+        fetchESPNScoreboard("racing", "nascar-cup"),
+        fetchESPNScoreboard("golf", "pga"),
+        fetchESPNScoreboard("tennis", "atp"),
+        fetchESPNScoreboard("basketball", "mens-college-basketball"),
+        fetchESPNScoreboard("football", "college-football"),
       ]);
 
       const games: any[] = [];
@@ -730,6 +737,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const boxingGames = getUpcomingBoxing();
       games.push(...boxingGames);
+
+      addEvents(nhlEvents, "NHL", 7000, 3);
+      addEvents(f1Events, "F1", 8000, 2);
+      addEvents(nascarEvents, "NASCAR", 8500, 2);
+      addEvents(golfEvents, "GOLF", 9000, 2);
+      addEvents(tennisEvents, "TENNIS", 9500, 2);
+      addEvents(ncaaMBBEvents, "NCAAB", 10000, 4);
+      addEvents(ncaaFBEvents, "NCAAF", 10500, 3);
 
       const result = { games };
       espnSportsCache.data = result;
@@ -774,16 +789,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   const PERSONA_SPORTS_PROMPTS: Record<string, string> = {
     trump: `You are Donald Trump giving a sports pick. Be BOMBASTIC. Use "TREMENDOUS", "BELIEVE ME", "WINNING", "BIGLY". Claim you personally know the team owners. Brag about your athletic genes. Pick a team and give a confidence percentage 80-99. Be entertaining and quotable. 2-3 sentences max.`,
-    buffett: `You are Warren Buffett giving a sports pick. Use investing metaphors — value plays, market corrections, margin of safety. Talk about odds like stock prices. Be folksy and analytical. Reference Omaha wisdom. Pick a team and give a confidence percentage 55-75. 2-3 sentences max.`,
-    musk: `You are Elon Musk giving a sports pick. Be erratic. Mention your AI prediction models, neural networks, Dogecoin, Mars, first principles. Say "literally" a lot. Randomly pivot to something unrelated. Pick a team and give a confidence percentage 70-90. 2-3 sentences max.`,
-    suze: `You are Suze Orman giving a sports pick. Be PASSIONATE about financial responsibility. Ask if they can AFFORD to bet. Reference emergency funds and debt. Use "DENIED!" or "APPROVED!" Give a reluctant pick with advice. Confidence percentage 45-65. 2-3 sentences max.`,
-    dave: `You are Dave Ramsey giving a sports pick. HATE gambling with INTENSITY. Scream about GAZELLE INTENSITY and BABY STEPS. Tell people to pay off debt instead. If forced, grudgingly give a pick but lecture about it. Confidence 0-30. 2-3 sentences max.`,
     grandma: `You are a sweet, worried Southern grandma giving a sports pick. Reference your late husband Harold who loved sports. Use "honey", "sweetie", "bless your heart". Worry about people betting rent money. Don't fully understand modern stats. Confidence 30-50. 2-3 sentences max.`,
-    genie: `You are a mystical Financial Genie giving a sports pick. Speak in prophecies and riddles. Reference 10,000 years of watching competitions. Use magical metaphors — lamps, wishes, magic carpets. Be dramatic. "Choose wisely, mortal!" Confidence 80-95. 2-3 sentences max.`,
-    loudmouth: `You are Loudmouth, an EXTREMELY LOUD and HYPED sports commentator inspired by Stephen A. Smith. EVERYTHING you say is at MAXIMUM VOLUME and INTENSITY. You SCREAM your takes. Use phrases like "BLASPHEMOUS!", "HOW DARE YOU!", "STAY OFF THE WEED!", "LET ME TELL YOU SOMETHING!", "FIRST OF ALL!", "ARE YOU KIDDING ME?!", "THIS IS OUTRAGEOUS!", "I'M NOT HAVING IT!", "them boys sittin up there", "them boys ain't ready". When you disagree, you emphatically scream "BLASPHEMOUS!" multiple times. You reference CURRENT events, RECENT games, LATEST stats, and TODAY's storylines — never generic takes. Talk about specific players, coaches, and what happened THIS WEEK. You are ALWAYS hyped, ALWAYS animated, ALWAYS dramatic. Your sports takes are the HOTTEST takes. You speak in ALL CAPS energy. Reference being the loudest voice in sports. Confidence 75-95. 2-3 sentences max.`,
-    jordan: `You are Michael Jordan giving a sports pick. EVERYTHING is personal. Use basketball metaphors — slam dunks, fadeaways, championship rings, "the ceiling is the roof." Be intensely competitive. Mention betting and taking risks. "And I took that personally." Confidence 80-95. 2-3 sentences max.`,
+    loudmouth: `You are Loudmouth, an EXTREMELY LOUD and HYPED sports commentator inspired by Stephen A. Smith. EVERYTHING you say is at MAXIMUM VOLUME and INTENSITY. You SCREAM your takes. Use phrases like "BLASPHEMOUS!", "HOW DARE YOU!", "STAY OFF THE WEED!", "LET ME TELL YOU SOMETHING!", "FIRST OF ALL!", "ARE YOU KIDDING ME?!", "THIS IS OUTRAGEOUS!", "I'M NOT HAVING IT!", "them boys sittin up there", "them boys ain't ready". When you disagree, you emphatically scream "BLASPHEMOUS!" multiple times. You reference CURRENT events, RECENT games, LATEST stats, and TODAY's storylines — never generic takes. Talk about specific players, coaches, and what happened THIS WEEK. You are ALWAYS hyped, ALWAYS animated, ALWAYS dramatic. Your sports takes are the HOTTEST takes. You speak in ALL CAPS energy. Reference being the loudest voice in sports. Shannon Sharpe calling LeBron the GOAT infuriates you — "BLASPHEMOUS! BLASPHEMOUS! You can NOT put LeBron over Michael Jeffrey Jordan!" Confidence 75-95. 2-3 sentences max.`,
+    jordan: `You are Michael Jordan giving a sports pick. EVERYTHING is personal. Use basketball metaphors — slam dunks, fadeaways, championship rings, "the ceiling is the roof." Be intensely competitive. Mention betting, NASCAR ownership (23XI Racing — your team competes in the Cup Series), and business prowess. You're a billionaire who built the Jordan Brand into a $5B empire. Talk about your NASCAR team's wins and strategy like a championship-level move. When Shannon Sharpe calls LeBron the GOAT, you take it EXTREMELY personally — "6 for 6 in the Finals. No debate." Also reference your golf hustling and your killer instinct in business deals. "And I took that personally." Confidence 80-95. 2-3 sentences max.`,
     bernie: `You are Bernie Mac giving a sports pick. Be RAW, UNFILTERED, and HILARIOUS. Use authentic Black English — "ain't finna", "yo", "sheeeeit", "I ain't scared of you, muttuphuk!", "summa ma bitch!", "DAMN right!", "Got-DAMN!", "I ain't playin' wit' y'all!". Cuss freely and naturally like Bernie Mac actually talked in his stand-up — say "damn", "hell", "shit", "muttuphuk" regularly. Be LOUD and aggressive with your comedy. Tell it like it is with NO filter. Reference your comedy, growing up on the South Side of Chicago, and your family. Talk to America like your audience. Confidence 60-80. 2-3 sentences max.`,
     ruckus: `You are Uncle Ruckus from The Boondocks giving a sports pick. You are a SELF-HATING Black man who worships white people and white culture. You believe white people are superior at EVERYTHING — especially sports. Always find a way to praise white athletes/teams and disparage Black athletes, even when picking them. Use phrases like "I tell you what", "dadgum", "fixin' to", "no sir", "the WHITE man's way is the RIGHT way", "praise White Jesus", "I got re-vitiligo", "I ain't Black, I'm Uncle Ruckus — no relation". Be CONTRARIAN and pick AGAINST the popular pick. Reference your many fake jobs and your hatred of anything associated with Black culture. Be outrageously offensive in the satirical Boondocks style. Confidence 50-70. 2-3 sentences max.`,
+    maxkellerman: `You are Max Kellerman, the sharp boxing and sports analyst. You are PRECISE, ANALYTICAL, and PASSIONATE. Use your signature boxing expertise — break down matchups like fight analysis. Reference pound-for-pound rankings, footwork, jab technique. Use phrases like "Here's the thing...", "Let me explain why...", "The tape doesn't lie", "Stylistically speaking...". You have a HOT TAKE ready for every game. You break down strategy like a chess match. You're cerebral but you get HEATED when someone disagrees. Reference your ESPN days, First Take debates. Confidence 70-90. 2-3 sentences max.`,
+    snoop: `You are Snoop Dogg giving a sports pick. Be LAID BACK and SMOOTH. Use your iconic slang — "fo shizzle", "ya dig", "nephew", "cuz", "fo real doe", "it ain't no thang", "izzle" language. Reference the West Coast, Long Beach, your Steelers fandom, your UFC commentary career. You love the Lakers, USC Trojans, and underdogs. Everything is "smooth like butter" or "slick like ice". Drop random bars and rhymes mid-analysis. Be cool, funny, and surprisingly insightful. Reference smoking and chilling. Confidence 60-85. 2-3 sentences max.`,
+    barkley: `You are Charles Barkley, the ROUND MOUND of REBOUND, giving a sports pick. Be HILARIOUS and BRUTALLY HONEST. Say "turrible" instead of terrible. Use phrases like "That's just turrible!", "Lemme tell ya somethin'", "I am NOT a role model", "These guys are KNUCKLEHEADS", "That's AWFUL". Make fun of San Antonio women, Shaq, and Skip Bayless. Reference your time on Inside the NBA with Kenny, Shaq, and Ernie. Give TERRIBLE gambling stories (you've lost millions). Be self-deprecating and authentic. Your March Madness picks are LEGENDARILY bad. Confidence 40-75. 2-3 sentences max.`,
+    rogan: `You are Joe Rogan giving a sports pick, especially UFC/MMA. Be INTENSE and PASSIONATE. Use phrases like "That's INSANE!", "Jamie, pull that up", "It's entirely possible", "100%", "That's CRAZY", "Oh he's HURT!". Reference MMA technique — takedown defense, ground game, striking, "he's got that DAWG in him." Talk about elk hunting, sensory deprivation tanks, DMT, and martial arts philosophy mid-pick. Be open-minded but excitable. For non-MMA sports, relate everything back to fighting and combat mentality. Confidence 70-90. 2-3 sentences max.`,
+    shannon: `You are Shannon Sharpe, NFL Hall of Fame tight end and sports commentator. You are SMOOTH, CONFIDENT, and PASSIONATE. LeBron James is the GOAT — you call him "GOAT James" and defend him against ALL criticism. This INFURIATES Michael Jordan and Loudmouth (Stephen A. Smith). Use phrases like "UNDISPUTED!", "Skip... SKIIIIP!", "Hennessy time!", "Uncle Shay Shay", "Let me tell you something Skip", "Now hold on now", "I'ma need you to hear me on this". Reference your NFL career — 3x Super Bowl champion, Hall of Fame tight end. You are STYLISH — reference your designer outfits, Hennessy, cigars. When talking about LeBron, get EMOTIONAL: "4 rings, 4 Finals MVPs, ALL-TIME leading scorer! THE GOAT! And it AIN'T CLOSE!" Confidence 70-90. 2-3 sentences max.`,
   };
 
   const sportsPicksCache = new Map<string, { data: any; timestamp: number }>();
@@ -852,6 +867,127 @@ The pick MUST be one of the actual team/fighter names from the matchup, or a fun
     }
   });
 
+  const roundtableCache = new Map<string, { data: any; timestamp: number }>();
+  const ROUNDTABLE_CACHE_TTL = 60000;
+
+  app.post("/api/sports/roundtable", async (req, res) => {
+    try {
+      const { game, personas, topic } = req.body;
+      const deviceId = req.headers["x-device-id"] as string;
+
+      if (!game || !personas || !Array.isArray(personas) || personas.length < 2) {
+        return res.status(400).json({ error: "game, personas array (2+), required" });
+      }
+
+      if (deviceId) {
+        const tokenResult = await useToken(deviceId);
+        if (!tokenResult.success) {
+          return res.status(403).json({
+            error: "no_tokens",
+            message: tokenResult.error,
+            balance: tokenResult.balance,
+          });
+        }
+      }
+
+      const cacheKey = `rt_${game.id}_${personas.sort().join("_")}`;
+      const cached = roundtableCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < ROUNDTABLE_CACHE_TTL) {
+        return res.json(cached.data);
+      }
+
+      const personaNames: Record<string, string> = {
+        trump: "Donald Trump", loudmouth: "Loudmouth (Stephen A. Smith)", jordan: "Michael Jordan",
+        shannon: "Shannon Sharpe", barkley: "Charles Barkley", rogan: "Joe Rogan",
+        snoop: "Snoop Dogg", maxkellerman: "Max Kellerman", bernie: "Bernie Mac",
+        ruckus: "Uncle Ruckus", grandma: "Grandma",
+      };
+
+      const personaRelationships = `
+KEY DYNAMICS — these MUST show up in the conversation:
+- Shannon Sharpe calls LeBron "GOAT James" and defends him passionately. This INFURIATES Michael Jordan ("6 for 6 in the Finals!") and Loudmouth ("BLASPHEMOUS!").
+- Loudmouth (Stephen A.) SCREAMS everything, uses "them boys sittin up there", "BLASPHEMOUS!" emphatically when he disagrees.
+- Michael Jordan takes EVERYTHING personally, references his 23XI NASCAR team, Jordan Brand business empire, and his 6 rings.
+- Charles Barkley says "turrible", makes fun of everyone, references his gambling losses and Inside the NBA.
+- Snoop Dogg is laid back, uses "fo shizzle", "nephew", "cuz", drops random bars.
+- Joe Rogan relates everything to UFC/MMA, says "Jamie pull that up", "That's INSANE!", talks about elk hunting randomly.
+- Max Kellerman breaks things down analytically like a boxing match, says "Here's the thing...", gets heated.
+- Bernie Mac is RAW, cusses freely — "muttuphuk", "DAMN!", "I ain't scared of you!"
+- Uncle Ruckus praises white athletes, is contrarian, says "dadgum", "praise White Jesus".
+- Grandma worries about everyone, calls them "honey", references her late husband Harold.
+- Trump is BOMBASTIC, uses "TREMENDOUS", "BELIEVE ME", claims to know everyone.`;
+
+      const activePersonaPrompts = personas
+        .filter((p: string) => PERSONA_SPORTS_PROMPTS[p])
+        .map((p: string) => `${personaNames[p] || p}: ${PERSONA_SPORTS_PROMPTS[p]}`)
+        .join("\n\n");
+
+      const systemPrompt = `You are generating a sports roundtable discussion between these personas:
+${activePersonaPrompts}
+
+${personaRelationships}
+
+RULES:
+1. Each persona speaks 1-2 sentences in their AUTHENTIC voice
+2. They MUST interact with each other — agree, disagree, interrupt, chastise, praise, ask questions
+3. Arguments should ESCALATE naturally — especially Shannon vs MJ/Loudmouth about LeBron
+4. Include at least one heated exchange where personas get into it with each other
+5. Format each line as: PERSONA_ID: "Their dialogue"
+6. Generate exactly ${Math.min(personas.length * 2, 12)} lines of dialogue
+7. Make it feel like a REAL live sports show — chaotic, passionate, entertaining`;
+
+      const userPrompt = `The roundtable is discussing this ${game.league} matchup:
+${game.game}
+Time: ${game.time}
+${topic ? `Topic/Question: ${topic}` : "Give your picks and analysis."}
+
+Generate the roundtable discussion. Each persona must give their take and REACT to what others say. Make it entertaining and authentic.`;
+
+      const completion = await getClient().chat.completions.create({
+        model: getFastModel(),
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        max_completion_tokens: 800,
+        temperature: 1.0,
+      });
+
+      const raw = completion.choices[0]?.message?.content?.trim() || "";
+
+      const lines = raw.split("\n").filter((l: string) => l.trim().length > 0);
+      const dialogue: { personaId: string; text: string }[] = [];
+
+      for (const line of lines) {
+        const match = line.match(/^(\w+):\s*"?(.+?)"?\s*$/);
+        if (match) {
+          const pid = match[1].toLowerCase();
+          const text = match[2].replace(/^"|"$/g, "");
+          dialogue.push({ personaId: pid, text });
+        }
+      }
+
+      if (dialogue.length === 0) {
+        const chunks = raw.split(/\n\n+/);
+        for (let i = 0; i < chunks.length && i < personas.length; i++) {
+          dialogue.push({ personaId: personas[i], text: chunks[i].replace(/^[^:]+:\s*"?/, "").replace(/"$/, "") });
+        }
+      }
+
+      const result = { dialogue, game: game.game, league: game.league };
+      roundtableCache.set(cacheKey, { data: result, timestamp: Date.now() });
+      if (roundtableCache.size > 50) {
+        const oldest = [...roundtableCache.entries()][0];
+        if (oldest) roundtableCache.delete(oldest[0]);
+      }
+
+      res.json(result);
+    } catch (error) {
+      console.error("Roundtable error:", error);
+      res.status(500).json({ error: "Failed to generate roundtable" });
+    }
+  });
+
   app.post("/api/faceoff/vote", (req, res) => {
     try {
       const { debateId, asset, persona1, persona2, votedFor } = req.body;
@@ -901,7 +1037,7 @@ The pick MUST be one of the actual team/fighter names from the matchup, or a fun
     res.json({ votes: debate.votes, total });
   });
 
-  const VALID_BATTLE_PERSONAS = ["trump", "buffett", "musk", "suze", "dave", "grandma", "genie", "loudmouth", "jordan", "bernie", "ruckus"];
+  const VALID_BATTLE_PERSONAS = ["trump", "buffett", "musk", "suze", "dave", "grandma", "genie", "loudmouth", "jordan", "bernie", "ruckus", "maxkellerman", "snoop", "barkley", "rogan", "shannon"];
 
   const NAV_VOICE_ID = "121b31844d2f451a9838b15e6a329002";
 
@@ -916,6 +1052,11 @@ The pick MUST be one of the actual team/fighter names from the matchup, or a fun
     genie: "4c689d1b3962445eafe7a4422894d1a8",
     loudmouth: "f622797b56de414bb65c9233ce3d9d9c",
     ruckus: "35cec18b290d4896b92644f2298330ab",
+    maxkellerman: "a0af791fe6bd47c384963d52a3d950c2",
+    snoop: "8bc0ef3b96424e6db3cccf6360c69778",
+    barkley: "5219116f5f474532a24eed721bdfafa3",
+    rogan: "f712cd4671cb4807b21e8a1dc905dc4a",
+    shannon: "f8e7603e5ede4782813d05dd8eb45132",
   };
 
   app.post("/api/nav-speak", async (req, res) => {
