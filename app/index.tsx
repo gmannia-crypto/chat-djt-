@@ -958,7 +958,7 @@ export default function HomeScreen() {
           <Image
             source={require("@/assets/images/djt-logo.png")}
             style={styles.backgroundLogo}
-            resizeMode="cover"
+            resizeMode={Platform.OS === "web" ? "contain" : "cover"}
           />
         </View>
       </View>
@@ -1871,10 +1871,10 @@ const styles = StyleSheet.create({
   },
   woodFrameOuter: {
     position: "absolute",
-    top: Platform.OS === "web" ? "20%" : "10%",
-    left: Platform.OS === "web" ? "20%" : "10%",
-    right: Platform.OS === "web" ? "20%" : "10%",
-    bottom: Platform.OS === "web" ? "40%" : "25%",
+    top: Platform.OS === "web" ? "15%" : "10%",
+    left: Platform.OS === "web" ? "15%" : "10%",
+    right: Platform.OS === "web" ? "15%" : "10%",
+    bottom: Platform.OS === "web" ? "35%" : "25%",
     borderRadius: 12,
     borderWidth: 6,
     borderColor: "#3B2415",
