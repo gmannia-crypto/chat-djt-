@@ -715,13 +715,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ]);
 
       const games: any[] = [];
+      const results: any[] = [];
 
       const addEvents = (events: any[], label: string, offset: number, max: number) => {
         let count = 0;
         for (const ev of events) {
           if (count >= max) break;
           const state = ev.status?.type?.state;
-          if (state === "post") continue;
+          if (state === "post") {
+            const g = parseESPNEvent(ev, label, offset);
+            if (g) {
+              const comp = ev.competitions?.[0];
+              const home = comp?.competitors?.find((c: any) => c.homeAway === "home");
+              const away = comp?.competitors?.find((c: any) => c.homeAway === "away");
+              const homeScore = parseInt(home?.score || "0", 10);
+              const awayScore = parseInt(away?.score || "0", 10);
+              g.winner = homeScore > awayScore
+                ? (home?.team?.displayName || "Home")
+                : (away?.team?.displayName || "Away");
+              g.homeScore = homeScore;
+              g.awayScore = awayScore;
+              g.final = true;
+              results.push(g);
+            }
+            continue;
+          }
           const g = parseESPNEvent(ev, label, offset);
           if (g) { games.push(g); count++; }
         }
@@ -746,7 +764,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       addEvents(ncaaMBBEvents, "NCAAB", 10000, 4);
       addEvents(ncaaFBEvents, "NCAAF", 10500, 3);
 
-      const result = { games };
+      const result = { games, results: results.slice(0, 10) };
       espnSportsCache.data = result;
       espnSportsCache.timestamp = Date.now();
 
@@ -1012,6 +1030,37 @@ Generate the roundtable discussion. Each persona must give their take and REACT 
     } catch (error) {
       console.error("Roundtable error:", error);
       res.status(500).json({ error: "Failed to generate roundtable" });
+    }
+  });
+
+  app.post("/api/sports/trash-talk", async (req, res) => {
+    try {
+      const { personaId, wins, losses, streak } = req.body;
+      if (!personaId) return res.status(400).json({ error: "personaId required" });
+
+      const record = `User record vs ${personaId}: ${wins || 0}W-${losses || 0}L, streak: ${streak || 0}`;
+      let attitude = "neutral";
+      if ((wins || 0) > (losses || 0)) attitude = "respectful — user is winning";
+      else if ((losses || 0) > (wins || 0)) attitude = "trash-talking — user is losing";
+      else attitude = "competitive banter — tied";
+
+      const personaPrompt = PERSONA_SPORTS_PROMPTS[personaId] || "You are a sports commentator.";
+
+      const completion = await getClient().chat.completions.create({
+        model: getFastModel(),
+        messages: [
+          { role: "system", content: `${personaPrompt}\n\nYou are reacting to a user's betting record against you. Be ${attitude}. If user is winning: show grudging respect but promise a comeback. If user is losing: talk maximum trash and mock them. If tied: be competitive. STAY IN CHARACTER. One punchy sentence, 15-25 words max.` },
+          { role: "user", content: record },
+        ],
+        max_completion_tokens: 80,
+        temperature: 1.0,
+      });
+
+      const text = completion.choices[0]?.message?.content?.trim() || "";
+      res.json({ text, personaId });
+    } catch (error) {
+      console.error("Trash talk error:", error);
+      res.status(500).json({ error: "Failed" });
     }
   });
 

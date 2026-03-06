@@ -26,6 +26,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { Audio } from "expo-av";
 import { playTTS } from "@/lib/audio-helper";
+import { useSoundEffects } from "@/lib/use-sound";
 import Animated, {
   FadeInDown,
   FadeInUp,
@@ -279,6 +280,7 @@ export default function HomeScreen() {
   const [weeklyReminder, setWeeklyReminder] = useState(false);
   const [electionDays, setElectionDays] = useState(0);
   const { deviceId, hasTokens } = useTokens();
+  const { playClick, playTransition } = useSoundEffects();
 
   const pulseScale = useSharedValue(1);
   const pulseGlow = useSharedValue(0.4);
@@ -318,6 +320,7 @@ export default function HomeScreen() {
     if (secretTapCount.current >= 5) {
       secretTapCount.current = 0;
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      playTransition();
       setPasscodeInput("");
       setPasscodeError(false);
       setPasscodeVisible(true);
@@ -330,6 +333,7 @@ export default function HomeScreen() {
 
   function handlePasscodeSubmit() {
     if (passcodeInput === ADMIN_PASSCODE) {
+      playClick();
       setPasscodeVisible(false);
       setPasscodeInput("");
       setPasscodeError(false);
@@ -791,6 +795,7 @@ export default function HomeScreen() {
   }
 
   async function handleNewChat() {
+    playClick();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const conv = await createConversation("New Chat");
     router.push({ pathname: "/chat/[id]", params: { id: conv.id } });
@@ -798,24 +803,28 @@ export default function HomeScreen() {
 
   async function handleDailyChallenge() {
     if (!dailyChallenge) return;
+    playClick();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     const conv = await createConversation("Daily Challenge");
     router.push({ pathname: "/chat/[id]", params: { id: conv.id, mode: "challenge", challengeText: dailyChallenge } });
   }
 
   async function handleRoastMode() {
+    playClick();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     const conv = await createConversation("Roast Session");
     router.push({ pathname: "/chat/[id]", params: { id: conv.id, mode: "roast" } });
   }
 
   async function handleDebateMode() {
+    playClick();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     const conv = await createConversation("Debate Mode");
     router.push({ pathname: "/chat/[id]", params: { id: conv.id, mode: "debate" } });
   }
 
   async function handleLiveNewsMode() {
+    playClick();
     if (!hasTokens) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       router.push("/subscribe");
@@ -827,6 +836,7 @@ export default function HomeScreen() {
   }
 
   async function handleNostradamusMode() {
+    playClick();
     if (!hasTokens) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       router.push("/subscribe");
@@ -838,6 +848,7 @@ export default function HomeScreen() {
   }
 
   async function handleTruthSocialMode() {
+    playClick();
     if (!hasTokens) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       router.push("/subscribe");
@@ -931,6 +942,7 @@ export default function HomeScreen() {
         <View style={styles.headerLeft}>
           <Pressable
             onPress={() => {
+              playTransition();
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               loadConversations();
               setArchiveVisible(true);
@@ -1156,6 +1168,7 @@ export default function HomeScreen() {
           <Animated.View style={pulseTherapyStyle}>
             <Pressable
               onPress={() => {
+                playClick();
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
                 playNavVoice("Trump Therapy. Let's work through your issues, big league.");
                 router.push("/therapy");
@@ -1180,6 +1193,7 @@ export default function HomeScreen() {
           <Animated.View style={pulseFortuneStyle}>
             <Pressable
               onPress={() => {
+                playClick();
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
                 playNavVoice("Fortune Parlor. Let me predict your future, believe me.");
                 router.push("/fortune");
@@ -1206,6 +1220,7 @@ export default function HomeScreen() {
         <Animated.View entering={FadeInDown.delay(950).duration(500)} style={styles.modeButtons}>
           <Pressable
             onPress={() => {
+              playClick();
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
               playNavVoice("Sports Book. Live picks, live games, tremendous action.");
               router.push("/sports");
@@ -1229,14 +1244,14 @@ export default function HomeScreen() {
         </Animated.View>
         <Animated.View entering={FadeInDown.delay(1050).duration(500)} style={styles.modeButtons}>
           <Pressable
-            onPress={() => { playNavVoice("Roast Me. You sure you can handle this?"); handleRoastMode(); }}
+            onPress={() => { playClick(); playNavVoice("Roast Me. You sure you can handle this?"); handleRoastMode(); }}
             style={({ pressed }) => [styles.modeButton, styles.roastButton, pressed && { opacity: 0.7 }]}
           >
             <MaterialCommunityIcons name="fire" size={18} color="#FF4444" />
             <Text style={styles.modeButtonText}>ROAST ME</Text>
           </Pressable>
           <Pressable
-            onPress={() => { playNavVoice("Debate Mode. Let's go, I never lose a debate."); handleDebateMode(); }}
+            onPress={() => { playClick(); playNavVoice("Debate Mode. Let's go, I never lose a debate."); handleDebateMode(); }}
             style={({ pressed }) => [styles.modeButton, styles.debateButton, pressed && { opacity: 0.7 }]}
           >
             <MaterialCommunityIcons name="podium" size={18} color={Colors.gold} />
@@ -1245,7 +1260,7 @@ export default function HomeScreen() {
         </Animated.View>
         <Animated.View entering={FadeInDown.delay(1150).duration(500)} style={styles.modeButtons}>
           <Pressable
-            onPress={() => { playNavVoice("Live News. Breaking news, Trump's take."); handleLiveNewsMode(); }}
+            onPress={() => { playClick(); playNavVoice("Live News. Breaking news, Trump's take."); handleLiveNewsMode(); }}
             style={({ pressed }) => [styles.modeButton, styles.liveNewsButton, pressed && { opacity: 0.7 }]}
             testID="livenews-button"
           >
@@ -1253,7 +1268,7 @@ export default function HomeScreen() {
             <Text style={styles.modeButtonText}>LIVE NEWS</Text>
           </Pressable>
           <Pressable
-            onPress={() => { playNavVoice("Predict. Trumpadamus sees the future."); handleNostradamusMode(); }}
+            onPress={() => { playClick(); playNavVoice("Predict. Trumpadamus sees the future."); handleNostradamusMode(); }}
             style={({ pressed }) => [styles.modeButton, styles.nostradamusButton, pressed && { opacity: 0.7 }]}
             testID="nostradamus-button"
           >
@@ -1266,7 +1281,7 @@ export default function HomeScreen() {
         </Animated.View>
         <Animated.View entering={FadeInDown.delay(1250).duration(500)} style={styles.modeButtons}>
           <Pressable
-            onPress={() => { playNavVoice("Truth Social. Time to post the truth."); handleTruthSocialMode(); }}
+            onPress={() => { playClick(); playNavVoice("Truth Social. Time to post the truth."); handleTruthSocialMode(); }}
             style={({ pressed }) => [styles.modeButton, styles.truthSocialButton, pressed && { opacity: 0.7 }]}
             testID="truthsocial-button"
           >
@@ -1275,6 +1290,7 @@ export default function HomeScreen() {
           </Pressable>
           <Pressable
             onPress={() => {
+              playClick();
               playNavVoice("Cabinet Hot Seat. Someone's getting fired.");
               if (!hasTokens) {
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -1294,6 +1310,7 @@ export default function HomeScreen() {
         <Animated.View entering={FadeInDown.delay(1350).duration(500)} style={styles.modeButtons}>
           <Pressable
             onPress={() => {
+              playClick();
               playNavVoice("Dashboard. The numbers, tremendous numbers.");
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               router.push("/dashboard");
@@ -1306,6 +1323,7 @@ export default function HomeScreen() {
           </Pressable>
           <Pressable
             onPress={() => {
+              playClick();
               playNavVoice("Rate Trump. Go ahead, I can take it.");
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
               router.push("/rate-trump");
@@ -1320,6 +1338,7 @@ export default function HomeScreen() {
         <Animated.View entering={FadeInDown.delay(1450).duration(500)} style={styles.modeButtons}>
           <Pressable
             onPress={() => {
+              playClick();
               playNavVoice("Fortune. The future is looking tremendous.");
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
               router.push("/fortune");
@@ -1332,6 +1351,7 @@ export default function HomeScreen() {
           </Pressable>
           <Pressable
             onPress={() => {
+              playClick();
               playNavVoice("Therapy. Let's talk about your problems.");
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
               router.push("/therapy");
@@ -1346,6 +1366,7 @@ export default function HomeScreen() {
         <Animated.View entering={FadeInDown.delay(1550).duration(500)} style={styles.modeButtons}>
           <Pressable
             onPress={() => {
+              playClick();
               playNavVoice("Realty. The best properties, I know real estate.");
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
               router.push("/real-estate");
@@ -1358,6 +1379,7 @@ export default function HomeScreen() {
           </Pressable>
           <Pressable
             onPress={() => {
+              playClick();
               playNavVoice("Billionaires Game. Let's make some money.");
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
               router.push("/game");
@@ -1372,6 +1394,7 @@ export default function HomeScreen() {
         <Animated.View entering={FadeInDown.delay(1650).duration(500)} style={styles.modeButtons}>
           <Pressable
             onPress={() => {
+              playClick();
               playNavVoice("Financial Faceoff. Who's the smartest with money?");
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
               router.push("/faceoff");
@@ -1384,6 +1407,7 @@ export default function HomeScreen() {
           </Pressable>
           <Pressable
             onPress={() => {
+              playClick();
               playNavVoice("Debate Arena. Winner takes all.");
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
               router.push("/debate");
@@ -1458,6 +1482,7 @@ export default function HomeScreen() {
             ))}
             <Pressable
               onPress={() => {
+                playClick();
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
                 router.push("/rate-trump");
               }}
@@ -1858,7 +1883,7 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   newsCrawlBadgeText: {
-    fontSize: 8,
+    fontSize: 10,
     fontWeight: "900" as const,
     color: "#FFFFFF",
     letterSpacing: 1,
@@ -1869,7 +1894,7 @@ const styles = StyleSheet.create({
   },
   newsCrawlText: {
     fontSize: 11,
-    color: "rgba(212, 164, 32, 0.75)",
+    color: "rgba(212, 164, 32, 1)",
     fontWeight: "500" as const,
     letterSpacing: 0.3,
     lineHeight: 32,
@@ -1887,7 +1912,7 @@ const styles = StyleSheet.create({
   },
   brandByText: {
     fontSize: 10,
-    color: "rgba(255, 255, 255, 0.4)",
+    color: "rgba(255, 255, 255, 0.65)",
     fontStyle: "italic",
   },
   brandLogo: {
@@ -1896,7 +1921,7 @@ const styles = StyleSheet.create({
   },
   parodyFooter: {
     fontSize: 11,
-    color: "#666666",
+    color: "#999999",
     textAlign: "center",
     paddingVertical: 6,
     backgroundColor: "rgba(0, 0, 0, 0.9)",
@@ -1972,7 +1997,7 @@ const styles = StyleSheet.create({
   },
   headerBrandBy: {
     fontSize: 13,
-    color: "rgba(255, 255, 255, 0.5)",
+    color: "rgba(255, 255, 255, 0.7)",
     fontStyle: "italic",
   },
   headerBrandLogo: {
@@ -2047,12 +2072,12 @@ const styles = StyleSheet.create({
   },
   activityDot: {
     fontSize: 10,
-    color: "rgba(255,255,255,0.3)",
+    color: "rgba(255,255,255,0.65)",
   },
   activityText: {
     flex: 1,
     fontSize: 12,
-    color: "rgba(255,255,255,0.5)",
+    color: "rgba(255,255,255,0.7)",
   },
   activityTextNew: {
     color: "#ff4d4d",
@@ -2079,7 +2104,7 @@ const styles = StyleSheet.create({
     }),
   },
   glossyHeaderLabel: {
-    fontSize: 9,
+    fontSize: 11,
     color: Colors.whiteMuted,
     fontWeight: "600" as const,
     letterSpacing: 0.3,
@@ -2546,7 +2571,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#4CAF50",
   },
   sportsLiveBadgeText: {
-    fontSize: 8,
+    fontSize: 10,
     fontWeight: "800" as const,
     color: "#4CAF50",
     letterSpacing: 1,
@@ -2804,7 +2829,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   viralCtaBadgeText: {
-    fontSize: 9,
+    fontSize: 11,
     fontWeight: "800" as const,
     color: "#fff",
     letterSpacing: 1,
@@ -2857,7 +2882,7 @@ const styles = StyleSheet.create({
   leaderboardRank: {
     fontSize: 13,
     fontWeight: "800" as const,
-    color: "rgba(255,255,255,0.5)",
+    color: "rgba(255,255,255,0.7)",
     width: 22,
     textAlign: "center" as const,
   },
@@ -3041,13 +3066,13 @@ const styles = StyleSheet.create({
   },
   electionDate: {
     fontSize: 10,
-    color: "rgba(255,255,255,0.35)",
+    color: "rgba(255,255,255,0.65)",
     marginBottom: 10,
     letterSpacing: 0.5,
   },
   electionQuote: {
     fontSize: 12,
-    color: "rgba(255,255,255,0.5)",
+    color: "rgba(255,255,255,0.7)",
     fontStyle: "italic" as const,
     textAlign: "center" as const,
     lineHeight: 18,
@@ -3096,7 +3121,7 @@ const styles = StyleSheet.create({
     color: Colors.gold,
   },
   weeklyTimeLabel: {
-    fontSize: 8,
+    fontSize: 10,
     fontWeight: "700" as const,
     color: "rgba(255,215,0,0.6)",
     letterSpacing: 1,
@@ -3127,7 +3152,7 @@ const styles = StyleSheet.create({
   },
   weeklySubtext: {
     fontSize: 10,
-    color: "rgba(255,255,255,0.35)",
+    color: "rgba(255,255,255,0.65)",
     marginBottom: 12,
   },
   weeklyRemindBtn: {
@@ -3215,7 +3240,7 @@ const styles = StyleSheet.create({
   badgeLabel: {
     fontSize: 10,
     fontWeight: "700" as const,
-    color: "rgba(255,255,255,0.5)",
+    color: "rgba(255,255,255,0.7)",
     textAlign: "center" as const,
     marginBottom: 2,
   },
@@ -3223,13 +3248,13 @@ const styles = StyleSheet.create({
     color: Colors.gold,
   },
   badgeDesc: {
-    fontSize: 8,
-    color: "rgba(255,255,255,0.3)",
+    fontSize: 10,
+    color: "rgba(255,255,255,0.65)",
     textAlign: "center" as const,
   },
   legalDisclaimer: {
-    fontSize: 9,
-    color: "rgba(255,255,255,0.15)",
+    fontSize: 11,
+    color: "rgba(255,255,255,0.35)",
     textAlign: "center" as const,
     lineHeight: 14,
     marginTop: 24,

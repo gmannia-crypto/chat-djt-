@@ -27,6 +27,15 @@ import {
   generateTrashTalk,
   generateReference,
 } from "@/lib/persona-memory";
+import { useSoundEffects } from "@/lib/use-sound";
+import {
+  getTallies,
+  makeUserPick,
+  getUserPicks,
+  resolvePick,
+  type PersonaTally,
+  type UserPick,
+} from "@/lib/bet-tally";
 
 interface Game {
   id: number;
@@ -36,6 +45,10 @@ interface Game {
   odds: string;
   status?: string;
   score?: string;
+  winner?: string;
+  homeScore?: number;
+  awayScore?: number;
+  final?: boolean;
 }
 
 interface PersonaPick {
@@ -246,6 +259,8 @@ function GameCard({
   onSpeak,
   speakingGameId,
   onRefresh,
+  onPickTeam,
+  userPick,
 }: {
   game: Game;
   persona: PersonaInfo;
@@ -254,9 +269,12 @@ function GameCard({
   onSpeak: (text: string, personaId: string, gameId: number) => void;
   speakingGameId: number | null;
   onRefresh: (gameId: number) => void;
+  onPickTeam?: (game: Game, team: string) => void;
+  userPick?: string;
 }) {
   const leagueColor = LEAGUE_COLORS[game.league] || "#D4A420";
   const isSpeaking = speakingGameId === game.id;
+  const teams = game.game.split(" vs ").map((t) => t.trim());
 
   return (
     <View style={styles.gameCard}>
@@ -276,6 +294,28 @@ function GameCard({
         <Text style={styles.gameScore}>{game.score}</Text>
       ) : null}
       <Text style={styles.gameOdds}>{game.odds}</Text>
+
+      {onPickTeam && teams.length === 2 && (
+        <View style={styles.pickTeamRow}>
+          <Text style={styles.pickTeamLabel}>YOUR PICK:</Text>
+          {teams.map((team) => (
+            <Pressable
+              key={team}
+              onPress={() => onPickTeam(game, team)}
+              style={({ pressed }) => [
+                styles.pickTeamBtn,
+                userPick === team && { backgroundColor: `${persona.color}30`, borderColor: persona.color },
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              <Text style={[styles.pickTeamText, userPick === team && { color: persona.color, fontWeight: "800" as const }]}>
+                {team}
+              </Text>
+              {userPick === team && <Ionicons name="checkmark-circle" size={12} color={persona.color} />}
+            </Pressable>
+          ))}
+        </View>
+      )}
 
       {pickLoading ? (
         <View style={styles.pickLoadingBox}>
@@ -352,13 +392,22 @@ export default function SportsScreen() {
   const mountedRef = useRef(true);
   const abortRef = useRef<AbortController | null>(null);
 
+  const [completedGames, setCompletedGames] = useState<Game[]>([]);
+  const [userPicks, setUserPicks] = useState<UserPick[]>([]);
+  const [tallies, setTallies] = useState<Record<string, PersonaTally>>({});
+  const [trashTalkLine, setTrashTalkLine] = useState("");
+  const [trashTalkLoading, setTrashTalkLoading] = useState(false);
+  const { playClick, playTransition } = useSoundEffects();
+
   const activePersona = PERSONAS.find((p) => p.id === selectedPersona) || PERSONAS[0];
   const featuredGame = games.length > 0 ? games[0] : null;
   const filteredGames = selectedLeague === "ALL" ? games : games.filter((g) => g.league === selectedLeague);
+  const currentTally = tallies[selectedPersona];
 
   useEffect(() => {
     mountedRef.current = true;
     fetchGames();
+    loadTallyData();
     const timer = setInterval(() => {
       if (mountedRef.current) setCountdown(getCountdown());
     }, 1000);
@@ -381,6 +430,12 @@ export default function SportsScreen() {
   useEffect(() => {
     if (games.length > 0) {
       fetchAllPicks(selectedPersona);
+    }
+    const t = tallies[selectedPersona];
+    if (t && (t.wins + t.losses) > 0) {
+      fetchTrashTalk(selectedPersona, t);
+    } else {
+      setTrashTalkLine("");
     }
   }, [selectedPersona, games]);
 
@@ -476,13 +531,76 @@ export default function SportsScreen() {
       const res = await fetch(`${baseUrl}/api/sports/upcoming`);
       if (!res.ok) throw new Error("Failed to fetch games");
       const data = await res.json();
-      if (mountedRef.current) setGames(data.games || []);
+      if (mountedRef.current) {
+        setGames(data.games || []);
+        setCompletedGames(data.results || []);
+        resolveCompletedPicks(data.results || []);
+      }
     } catch (err) {
       console.error("Sports fetch error:", err);
       if (mountedRef.current) setGames([]);
     } finally {
       if (mountedRef.current) setLoading(false);
     }
+  };
+
+  const resolveCompletedPicks = async (results: Game[]) => {
+    if (!results.length) return;
+    const allPicks = await getUserPicks();
+    let resolved = false;
+    for (const result of results) {
+      if (!result.winner) continue;
+      const unresolvedForGame = allPicks.filter(
+        (p) => p.gameId === result.id && !p.resolved
+      );
+      for (const pick of unresolvedForGame) {
+        await resolvePick(result.id, pick.personaId, result.winner);
+        resolved = true;
+      }
+    }
+    if (resolved) {
+      await loadTallyData(true);
+    }
+  };
+
+  const loadTallyData = async (triggerTrashTalk = false) => {
+    const [t, p] = await Promise.all([getTallies(), getUserPicks()]);
+    if (mountedRef.current) {
+      setTallies(t);
+      setUserPicks(p);
+      if (triggerTrashTalk) {
+        const tally = t[selectedPersona];
+        if (tally && (tally.wins + tally.losses) > 0) {
+          fetchTrashTalk(selectedPersona, tally);
+        }
+      }
+    }
+  };
+
+  const handleUserPick = async (game: Game, team: string) => {
+    playClick();
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const pickKey = `${game.id}_${selectedPersona}`;
+    const personaPick = picks[pickKey]?.pick;
+    await makeUserPick(game.id, team, selectedPersona, personaPick);
+    await loadTallyData();
+  };
+
+  const fetchTrashTalk = async (personaId: string, tally: PersonaTally) => {
+    setTrashTalkLoading(true);
+    try {
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      const res = await fetch(`${baseUrl}/api/sports/trash-talk`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ personaId, wins: tally.wins, losses: tally.losses, streak: tally.streak }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (mountedRef.current) setTrashTalkLine(data.text || "");
+      }
+    } catch {}
+    finally { if (mountedRef.current) setTrashTalkLoading(false); }
   };
 
   const loadDebateData = async () => {
@@ -625,7 +743,7 @@ export default function SportsScreen() {
       <LinearGradient colors={["#0a0a0a", "#1a0f00", "#0a0a0a"]} style={StyleSheet.absoluteFillObject} />
 
       <View style={[styles.header, { paddingTop: insets.top + webTopInset + 8 }]}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
+        <Pressable onPress={() => { playTransition(); router.back(); }} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={22} color={Colors.gold} />
         </Pressable>
         <View style={styles.headerCenter}>
@@ -690,6 +808,7 @@ export default function SportsScreen() {
                 persona={p}
                 selected={selectedPersona === p.id}
                 onPress={() => {
+                  playClick();
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   setSelectedPersona(p.id);
                 }}
@@ -697,6 +816,50 @@ export default function SportsScreen() {
             ))}
           </ScrollView>
         </Animated.View>
+
+        {currentTally && (currentTally.wins + currentTally.losses) > 0 && (
+          <Animated.View entering={FadeInDown.delay(220).duration(400)} style={styles.tallySection}>
+            <View style={styles.tallyCard}>
+              <LinearGradient
+                colors={[`${activePersona.color}15`, "rgba(0,0,0,0.4)", `${activePersona.color}15`]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={StyleSheet.absoluteFillObject}
+              />
+              <View style={styles.tallyHeader}>
+                <Image source={activePersona.image} style={[styles.tallyAvatar, { borderColor: activePersona.color }]} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.tallyTitle}>YOU vs {activePersona.name.toUpperCase()}</Text>
+                  <View style={styles.tallyScoreRow}>
+                    <Text style={[styles.tallyScore, { color: currentTally.wins >= currentTally.losses ? "#4CAF50" : "#FF5252" }]}>
+                      {currentTally.wins}W - {currentTally.losses}L
+                    </Text>
+                    {currentTally.streak !== 0 && (
+                      <View style={[styles.streakBadge, { backgroundColor: currentTally.streak > 0 ? "rgba(76,175,80,0.2)" : "rgba(255,82,82,0.2)" }]}>
+                        <Text style={{ color: currentTally.streak > 0 ? "#4CAF50" : "#FF5252", fontSize: 10, fontWeight: "800" as const }}>
+                          {currentTally.streak > 0 ? `${currentTally.streak}W` : `${Math.abs(currentTally.streak)}L`} STREAK
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              </View>
+              {trashTalkLoading ? (
+                <ActivityIndicator size="small" color={activePersona.color} style={{ marginTop: 8 }} />
+              ) : trashTalkLine ? (
+                <View style={styles.trashTalkRow}>
+                  <Text style={[styles.trashTalkText, { borderLeftColor: activePersona.color }]}>"{trashTalkLine}"</Text>
+                  <Pressable
+                    onPress={() => handleSpeak(trashTalkLine, selectedPersona, 88888)}
+                    style={({ pressed }) => [{ padding: 6 }, pressed && { opacity: 0.5 }]}
+                  >
+                    <Ionicons name="volume-high" size={16} color={activePersona.color} />
+                  </Pressable>
+                </View>
+              ) : null}
+            </View>
+          </Animated.View>
+        )}
 
         <Animated.View entering={FadeInDown.delay(250).duration(400)} style={{ paddingHorizontal: 16, paddingTop: 8 }}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingRight: 16 }}>
@@ -706,7 +869,7 @@ export default function SportsScreen() {
               return (
                 <Pressable
                   key={league}
-                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedLeague(league); }}
+                  onPress={() => { playClick(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedLeague(league); }}
                   style={[styles.leagueTab, isActive && { backgroundColor: `${color}30`, borderColor: color }]}
                 >
                   <Text style={[styles.leagueTabText, isActive && { color }]}>{league}</Text>
@@ -735,20 +898,58 @@ export default function SportsScreen() {
               <Text style={styles.emptyText}>No {selectedLeague === "ALL" ? "" : selectedLeague + " "}games available right now</Text>
             </View>
           ) : (
-            filteredGames.map((game) => (
-              <GameCard
-                key={game.id}
-                game={game}
-                persona={activePersona}
-                pick={picks[`${game.id}_${selectedPersona}`] || null}
-                pickLoading={!!loadingPicks[`${game.id}_${selectedPersona}`]}
-                onSpeak={handleSpeak}
-                speakingGameId={speakingGameId}
-                onRefresh={refreshPick}
-              />
-            ))
+            filteredGames.map((game) => {
+              const pickForGame = userPicks.find((p) => p.gameId === game.id && p.personaId === selectedPersona);
+              return (
+                <GameCard
+                  key={game.id}
+                  game={game}
+                  persona={activePersona}
+                  pick={picks[`${game.id}_${selectedPersona}`] || null}
+                  pickLoading={!!loadingPicks[`${game.id}_${selectedPersona}`]}
+                  onSpeak={handleSpeak}
+                  speakingGameId={speakingGameId}
+                  onRefresh={refreshPick}
+                  onPickTeam={handleUserPick}
+                  userPick={pickForGame?.team}
+                />
+              );
+            })
           )}
         </Animated.View>
+
+        {completedGames.length > 0 && (
+          <Animated.View entering={FadeInDown.delay(400).duration(400)} style={styles.section}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionLabel}>TODAY'S RESULTS</Text>
+              <View style={[styles.aiBadge, { backgroundColor: "rgba(76,175,80,0.15)" }]}>
+                <Ionicons name="checkmark-circle" size={12} color="#4CAF50" />
+                <Text style={[styles.aiBadgeText, { color: "#4CAF50" }]}>FINAL</Text>
+              </View>
+            </View>
+            {completedGames.map((game) => {
+              const leagueColor = LEAGUE_COLORS[game.league] || "#D4A420";
+              return (
+                <View key={`result-${game.id}`} style={styles.resultCard}>
+                  <View style={styles.gameHeader}>
+                    <View style={[styles.leagueBadge, { backgroundColor: leagueColor }]}>
+                      <Text style={styles.leagueText}>{game.league}</Text>
+                    </View>
+                    <Text style={{ color: "#4CAF50", fontSize: 10, fontWeight: "700" as const }}>FINAL</Text>
+                  </View>
+                  <Text style={styles.gameTitle}>{game.game}</Text>
+                  <Text style={styles.resultScore}>{game.score}</Text>
+                  {game.winner && (
+                    <View style={styles.winnerRow}>
+                      <Ionicons name="trophy" size={14} color="#FFD700" />
+                      <Text style={styles.winnerText}>{game.winner} WINS</Text>
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+          </Animated.View>
+        )}
 
         {featuredGame && (
           <Animated.View entering={FadeInDown.delay(500).duration(400)} style={styles.section}>
@@ -1530,5 +1731,122 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(212,164,32,0.3)",
     marginTop: 4,
+  },
+  tallySection: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  tallyCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+    padding: 14,
+    overflow: "hidden" as const,
+  },
+  tallyHeader: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 12,
+  },
+  tallyAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 2,
+  },
+  tallyTitle: {
+    fontSize: 11,
+    fontWeight: "900" as const,
+    color: "#fff",
+    letterSpacing: 1.5,
+  },
+  tallyScoreRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 8,
+    marginTop: 2,
+  },
+  tallyScore: {
+    fontSize: 20,
+    fontWeight: "900" as const,
+    letterSpacing: 1,
+  },
+  streakBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  trashTalkRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 8,
+    marginTop: 10,
+  },
+  trashTalkText: {
+    flex: 1,
+    fontSize: 13,
+    color: "rgba(255,255,255,0.85)",
+    fontStyle: "italic" as const,
+    borderLeftWidth: 3,
+    paddingLeft: 10,
+    lineHeight: 18,
+  },
+  pickTeamRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 6,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  pickTeamLabel: {
+    fontSize: 9,
+    fontWeight: "800" as const,
+    color: "rgba(255,255,255,0.5)",
+    letterSpacing: 1,
+  },
+  pickTeamBtn: {
+    flex: 1,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)",
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    gap: 4,
+  },
+  pickTeamText: {
+    fontSize: 10,
+    fontWeight: "600" as const,
+    color: "rgba(255,255,255,0.6)",
+    textAlign: "center" as const,
+  },
+  resultCard: {
+    backgroundColor: "rgba(76,175,80,0.05)",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(76,175,80,0.15)",
+    padding: 14,
+    marginBottom: 8,
+  },
+  resultScore: {
+    fontSize: 16,
+    fontWeight: "800" as const,
+    color: "#fff",
+    marginTop: 4,
+    letterSpacing: 0.5,
+  },
+  winnerRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 6,
+    marginTop: 6,
+  },
+  winnerText: {
+    fontSize: 12,
+    fontWeight: "800" as const,
+    color: "#FFD700",
+    letterSpacing: 0.5,
   },
 });
