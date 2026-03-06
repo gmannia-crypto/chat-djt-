@@ -28,7 +28,7 @@ The backend is an Express 5 API gateway providing various endpoints for AI inter
 ## External Dependencies
 
 - **OpenAI API**: Used for AI chat completions (gpt-5.2), audio transcription (Whisper), AI-powered property analysis (gpt-4o-mini), and real-time AI persona sports picks (gpt-4o-mini via `POST /api/sports/picks`).
-- **ESPN API** (free, no key): Live sports data for NBA, NFL, MLB, UFC, Soccer (EPL, UCL, MLS), NHL, F1, NASCAR, Golf (PGA), Tennis (ATP), College Basketball (NCAAB), College Football (NCAAF) via `site.api.espn.com/apis/site/v2/sports/`. Returns real games, scores, odds from DraftKings. Cached 5 minutes. Boxing fights use curated data. Completed games are filtered out.
+- **ESPN API** (free, no key): Live sports data for NBA, NFL, MLB, UFC, Soccer (EPL, UCL, MLS), NHL, F1, NASCAR, Golf (PGA), Tennis (ATP), College Basketball (NCAAB), College Football (NCAAF) via `site.api.espn.com/apis/site/v2/sports/`. Returns real games, scores, odds from DraftKings. Cached 5 minutes. Boxing fights use curated data. Completed games include player leaders (Points/Rebounds/Assists per team) and team stats (REB, AST, FGA, FGM, FG%, FT%) extracted from ESPN competitor leaders/statistics fields. Result cards in the Sports Book are clickable to expand/collapse detailed player stats.
 - **ElevenLabs API**: Utilized for advanced text-to-speech, including voice cloning and generating theme intros.
 - **Fish Audio API**: Provides text-to-speech for various personas, including a cloned Trump voice, Dr. Sophia's voice (ID: `193c58af62ea487180baacdef8a69bbd`), and Dr. James's voice (ID: `03397b4c4be74759b72533b663fbd001`).
 - **@react-native-async-storage/async-storage**: For client-side data persistence.

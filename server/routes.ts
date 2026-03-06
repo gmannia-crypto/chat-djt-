@@ -736,6 +736,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
               g.homeScore = homeScore;
               g.awayScore = awayScore;
               g.final = true;
+              const extractLeaders = (team: any) => {
+                if (!team?.leaders) return [];
+                return team.leaders.slice(0, 3).map((cat: any) => ({
+                  category: cat.displayName || cat.name || "",
+                  player: cat.leaders?.[0]?.athlete?.displayName || "Unknown",
+                  value: cat.leaders?.[0]?.displayValue || "0",
+                  headshot: cat.leaders?.[0]?.athlete?.headshot?.href || "",
+                }));
+              };
+              const extractStats = (team: any) => {
+                if (!team?.statistics) return [];
+                return team.statistics.filter((s: any) => !s.name?.startsWith("avg")).slice(0, 6).map((s: any) => ({
+                  name: s.abbreviation || s.name || "",
+                  value: s.displayValue || "0",
+                }));
+              };
+              g.homeTeam = home?.team?.displayName || "Home";
+              g.awayTeam = away?.team?.displayName || "Away";
+              g.homeLeaders = extractLeaders(home);
+              g.awayLeaders = extractLeaders(away);
+              g.homeStats = extractStats(home);
+              g.awayStats = extractStats(away);
               results.push(g);
             }
             continue;

@@ -37,6 +37,18 @@ import {
   type UserPick,
 } from "@/lib/bet-tally";
 
+interface PlayerLeader {
+  category: string;
+  player: string;
+  value: string;
+  headshot?: string;
+}
+
+interface TeamStat {
+  name: string;
+  value: string;
+}
+
 interface Game {
   id: number;
   league: string;
@@ -49,6 +61,12 @@ interface Game {
   homeScore?: number;
   awayScore?: number;
   final?: boolean;
+  homeTeam?: string;
+  awayTeam?: string;
+  homeLeaders?: PlayerLeader[];
+  awayLeaders?: PlayerLeader[];
+  homeStats?: TeamStat[];
+  awayStats?: TeamStat[];
 }
 
 interface PersonaPick {
@@ -397,6 +415,7 @@ export default function SportsScreen() {
   const [tallies, setTallies] = useState<Record<string, PersonaTally>>({});
   const [trashTalkLine, setTrashTalkLine] = useState("");
   const [trashTalkLoading, setTrashTalkLoading] = useState(false);
+  const [expandedResult, setExpandedResult] = useState<number | null>(null);
   const { playClick, playTransition } = useSoundEffects();
 
   const activePersona = PERSONAS.find((p) => p.id === selectedPersona) || PERSONAS[0];
@@ -750,8 +769,14 @@ export default function SportsScreen() {
           <MaterialCommunityIcons name="football" size={20} color={Colors.gold} />
           <Text style={styles.headerTitle}>TRUMP'S SPORTS BOOK</Text>
         </View>
-        <Pressable onPress={toggleMusic} style={[styles.backBtn, musicPlaying && { backgroundColor: "rgba(212,164,32,0.15)", borderRadius: 20 }]}>
-          <Ionicons name={musicPlaying ? "musical-notes" : "musical-notes-outline"} size={20} color={musicPlaying ? Colors.gold : "rgba(255,255,255,0.5)"} />
+        <Pressable
+          onPress={() => { playClick(); toggleMusic(); }}
+          style={[styles.musicToggle, musicPlaying && styles.musicToggleActive]}
+        >
+          <Ionicons name={musicPlaying ? "musical-notes" : "musical-notes-outline"} size={18} color={musicPlaying ? Colors.gold : "rgba(255,255,255,0.5)"} />
+          <Text style={[styles.musicToggleText, musicPlaying && { color: Colors.gold }]}>
+            {musicPlaying ? "ON" : "OFF"}
+          </Text>
         </Pressable>
       </View>
 
@@ -929,13 +954,28 @@ export default function SportsScreen() {
             </View>
             {completedGames.map((game) => {
               const leagueColor = LEAGUE_COLORS[game.league] || "#D4A420";
+              const isExpanded = expandedResult === game.id;
+              const hasStats = (game.homeLeaders && game.homeLeaders.length > 0) || (game.awayLeaders && game.awayLeaders.length > 0);
               return (
-                <View key={`result-${game.id}`} style={styles.resultCard}>
+                <Pressable
+                  key={`result-${game.id}`}
+                  onPress={() => {
+                    playClick();
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setExpandedResult(isExpanded ? null : game.id);
+                  }}
+                  style={({ pressed }) => [styles.resultCard, pressed && { opacity: 0.9 }]}
+                >
                   <View style={styles.gameHeader}>
                     <View style={[styles.leagueBadge, { backgroundColor: leagueColor }]}>
                       <Text style={styles.leagueText}>{game.league}</Text>
                     </View>
-                    <Text style={{ color: "#4CAF50", fontSize: 10, fontWeight: "700" as const }}>FINAL</Text>
+                    <View style={{ flexDirection: "row" as const, alignItems: "center" as const, gap: 6 }}>
+                      <Text style={{ color: "#4CAF50", fontSize: 10, fontWeight: "700" as const }}>FINAL</Text>
+                      {hasStats && (
+                        <Ionicons name={isExpanded ? "chevron-up" : "chevron-down"} size={14} color="rgba(255,255,255,0.4)" />
+                      )}
+                    </View>
                   </View>
                   <Text style={styles.gameTitle}>{game.game}</Text>
                   <Text style={styles.resultScore}>{game.score}</Text>
@@ -945,7 +985,59 @@ export default function SportsScreen() {
                       <Text style={styles.winnerText}>{game.winner} WINS</Text>
                     </View>
                   )}
-                </View>
+                  {isExpanded && hasStats && (
+                    <View style={styles.statsContainer}>
+                      {game.awayLeaders && game.awayLeaders.length > 0 && (
+                        <View style={styles.teamStatsBlock}>
+                          <Text style={styles.teamStatsTitle}>{game.awayTeam}</Text>
+                          {game.awayLeaders.map((leader, i) => (
+                            <View key={`away-${i}`} style={styles.leaderRow}>
+                              <View style={styles.leaderInfo}>
+                                <Text style={styles.leaderCategory}>{leader.category}</Text>
+                                <Text style={styles.leaderPlayer}>{leader.player}</Text>
+                              </View>
+                              <Text style={styles.leaderValue}>{leader.value}</Text>
+                            </View>
+                          ))}
+                          {game.awayStats && game.awayStats.length > 0 && (
+                            <View style={styles.teamStatRow}>
+                              {game.awayStats.map((s, i) => (
+                                <View key={`as-${i}`} style={styles.statPill}>
+                                  <Text style={styles.statPillLabel}>{s.name}</Text>
+                                  <Text style={styles.statPillValue}>{s.value}</Text>
+                                </View>
+                              ))}
+                            </View>
+                          )}
+                        </View>
+                      )}
+                      {game.homeLeaders && game.homeLeaders.length > 0 && (
+                        <View style={styles.teamStatsBlock}>
+                          <Text style={styles.teamStatsTitle}>{game.homeTeam}</Text>
+                          {game.homeLeaders.map((leader, i) => (
+                            <View key={`home-${i}`} style={styles.leaderRow}>
+                              <View style={styles.leaderInfo}>
+                                <Text style={styles.leaderCategory}>{leader.category}</Text>
+                                <Text style={styles.leaderPlayer}>{leader.player}</Text>
+                              </View>
+                              <Text style={styles.leaderValue}>{leader.value}</Text>
+                            </View>
+                          ))}
+                          {game.homeStats && game.homeStats.length > 0 && (
+                            <View style={styles.teamStatRow}>
+                              {game.homeStats.map((s, i) => (
+                                <View key={`hs-${i}`} style={styles.statPill}>
+                                  <Text style={styles.statPillLabel}>{s.name}</Text>
+                                  <Text style={styles.statPillValue}>{s.value}</Text>
+                                </View>
+                              ))}
+                            </View>
+                          )}
+                        </View>
+                      )}
+                    </View>
+                  )}
+                </Pressable>
               );
             })}
           </Animated.View>
@@ -1185,6 +1277,27 @@ const styles = StyleSheet.create({
     height: 40,
     alignItems: "center",
     justifyContent: "center",
+  },
+  musicToggle: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    backgroundColor: "rgba(255,255,255,0.04)",
+  },
+  musicToggleActive: {
+    backgroundColor: "rgba(212,164,32,0.15)",
+    borderColor: "rgba(212,164,32,0.3)",
+  },
+  musicToggleText: {
+    fontSize: 9,
+    fontWeight: "800" as const,
+    color: "rgba(255,255,255,0.4)",
+    letterSpacing: 0.5,
   },
   headerCenter: {
     flexDirection: "row",
@@ -1848,5 +1961,80 @@ const styles = StyleSheet.create({
     fontWeight: "800" as const,
     color: "#FFD700",
     letterSpacing: 0.5,
+  },
+  statsContainer: {
+    marginTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.08)",
+    paddingTop: 12,
+    gap: 12,
+  },
+  teamStatsBlock: {
+    backgroundColor: "rgba(255,255,255,0.03)",
+    borderRadius: 10,
+    padding: 10,
+  },
+  teamStatsTitle: {
+    fontSize: 11,
+    fontWeight: "800" as const,
+    color: Colors.gold,
+    letterSpacing: 1,
+    marginBottom: 8,
+    textTransform: "uppercase" as const,
+  },
+  leaderRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "space-between" as const,
+    paddingVertical: 5,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.04)",
+  },
+  leaderInfo: {
+    flex: 1,
+    gap: 1,
+  },
+  leaderCategory: {
+    fontSize: 9,
+    fontWeight: "600" as const,
+    color: "rgba(255,255,255,0.4)",
+    letterSpacing: 0.5,
+    textTransform: "uppercase" as const,
+  },
+  leaderPlayer: {
+    fontSize: 13,
+    fontWeight: "700" as const,
+    color: "#fff",
+  },
+  leaderValue: {
+    fontSize: 16,
+    fontWeight: "900" as const,
+    color: Colors.gold,
+    minWidth: 36,
+    textAlign: "right" as const,
+  },
+  teamStatRow: {
+    flexDirection: "row" as const,
+    flexWrap: "wrap" as const,
+    gap: 6,
+    marginTop: 8,
+  },
+  statPill: {
+    backgroundColor: "rgba(212,164,32,0.08)",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    alignItems: "center" as const,
+  },
+  statPillLabel: {
+    fontSize: 8,
+    fontWeight: "600" as const,
+    color: "rgba(255,255,255,0.35)",
+    letterSpacing: 0.5,
+  },
+  statPillValue: {
+    fontSize: 12,
+    fontWeight: "800" as const,
+    color: "#fff",
   },
 });
