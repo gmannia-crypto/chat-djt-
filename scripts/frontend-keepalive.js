@@ -47,8 +47,38 @@ function generateFallbackManifest() {
   }
 }
 
+const BACKEND_PORT = 5000;
+
+function proxyTo(port, req, res) {
+  const options = {
+    hostname: "localhost",
+    port: port,
+    path: req.url,
+    method: req.method,
+    headers: { ...req.headers, host: `localhost:${port}` },
+  };
+  const proxyReq = http.request(options, (proxyRes) => {
+    res.writeHead(proxyRes.statusCode || 502, proxyRes.headers);
+    proxyRes.pipe(res, { end: true });
+  });
+  proxyReq.on("error", () => {
+    if (port === BACKEND_PORT) {
+      res.writeHead(502, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: "Backend unavailable" }));
+    } else {
+      res.writeHead(200, { "content-type": "text/html" });
+      res.end('<!DOCTYPE html><html><head><meta http-equiv="refresh" content="3"></head><body style="background:#0A0A0A;color:#D4A420;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif"><h2>Starting up...</h2></body></html>');
+    }
+  });
+  req.pipe(proxyReq, { end: true });
+}
+
 const server = http.createServer((req, res) => {
   const urlPath = (req.url || "").split("?")[0];
+
+  if (urlPath.startsWith("/api/") || urlPath === "/api") {
+    return proxyTo(BACKEND_PORT, req, res);
+  }
 
   if (urlPath === "/manifest") {
     res.writeHead(200, {
@@ -66,22 +96,7 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  const options = {
-    hostname: "localhost",
-    port: METRO_PORT,
-    path: req.url,
-    method: req.method,
-    headers: { ...req.headers, host: `localhost:${METRO_PORT}` },
-  };
-  const proxyReq = http.request(options, (proxyRes) => {
-    res.writeHead(proxyRes.statusCode || 502, proxyRes.headers);
-    proxyRes.pipe(res, { end: true });
-  });
-  proxyReq.on("error", () => {
-    res.writeHead(200, { "content-type": "text/html" });
-    res.end('<!DOCTYPE html><html><head><meta http-equiv="refresh" content="3"></head><body style="background:#0A0A0A;color:#D4A420;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif"><h2>Starting up...</h2></body></html>');
-  });
-  req.pipe(proxyReq, { end: true });
+  proxyTo(METRO_PORT, req, res);
 });
 
 server.on("upgrade", (req, socket, head) => {
