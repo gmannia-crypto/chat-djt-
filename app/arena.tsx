@@ -568,8 +568,8 @@ export default function ArenaScreen() {
     if (mountedRef.current) setIsPlayingAudio(false);
   }, []);
 
-  const queueTTS = useCallback((text: string, personaId: string) => {
-    if (!voiceEnabledRef.current) return;
+  const queueTTS = useCallback((text: string, personaId: string, force?: boolean) => {
+    if (!force && !voiceEnabledRef.current) return;
     const shortText = text.length > 200 ? text.substring(0, 200) + "..." : text;
     ttsQueueRef.current.push({ text: shortText, personaId });
     processTTSQueue();
@@ -934,6 +934,13 @@ export default function ArenaScreen() {
             <View style={[s.factionBadge, { backgroundColor: FACTION_COLORS[persona.faction] + "30", borderColor: FACTION_COLORS[persona.faction] + "60" }]}>
               <Text style={[s.factionText, { color: FACTION_COLORS[persona.faction] }]}>{persona.faction}</Text>
             </View>
+            <Pressable
+              onPress={() => queueTTS(item.text, item.speakerId, true)}
+              style={s.msgListenBtn}
+              hitSlop={8}
+            >
+              <Ionicons name="volume-medium" size={14} color="rgba(255,255,255,0.4)" />
+            </Pressable>
             <Text style={s.msgTime}>
               {new Date(item.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
             </Text>
@@ -942,7 +949,7 @@ export default function ArenaScreen() {
         </View>
       );
     },
-    []
+    [queueTTS]
   );
 
   return (
@@ -962,37 +969,51 @@ export default function ArenaScreen() {
             <View style={s.liveDot} />
             <Text style={s.liveText}>LIVE</Text>
           </View>
-          {hasSession && sessionTimer > 0 && (
-            <View style={s.sessionTimerBadge}>
-              <Ionicons name="time" size={10} color="#4ADE80" />
-              <Text style={s.sessionTimerText}>
-                {Math.floor(sessionTimer / 60)}:{(sessionTimer % 60).toString().padStart(2, "0")}
-              </Text>
-            </View>
-          )}
-          {!hasSession && freeRemaining > 0 && freeRemaining < 4 && (
-            <Text style={s.freeCountText}>{freeRemaining} free</Text>
-          )}
         </View>
+        <Pressable onPress={toggleRunning} style={s.pauseBtn}>
+          <Ionicons name={isRunning ? "pause" : "play"} size={20} color="#fff" />
+        </Pressable>
+      </View>
+
+      <View style={s.voiceRow}>
         <Pressable
           onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
             setVoiceEnabled((p) => {
               if (p) stopAllTTS();
               return !p;
             });
           }}
-          style={[s.voiceBtn, voiceEnabled && s.voiceBtnActive]}
+          style={[s.voiceToggle, voiceEnabled && s.voiceToggleActive]}
         >
           <Ionicons
             name={voiceEnabled ? (isPlayingAudio ? "volume-high" : "volume-medium") : "volume-mute"}
-            size={18}
-            color={voiceEnabled ? "#FFD700" : "#666"}
+            size={16}
+            color={voiceEnabled ? "#FFD700" : "#aaa"}
           />
+          <Text style={[s.voiceToggleText, voiceEnabled && s.voiceToggleTextActive]}>
+            {voiceEnabled ? (isPlayingAudio ? "PLAYING" : "VOICE ON") : "VOICE OFF"}
+          </Text>
         </Pressable>
-        <Pressable onPress={toggleRunning} style={s.pauseBtn}>
-          <Ionicons name={isRunning ? "pause" : "play"} size={20} color="#fff" />
-        </Pressable>
+        {currentTopic && topicTimer > 0 && (
+          <View style={s.topicTimerPill}>
+            <Ionicons name="timer" size={12} color={topicTimer < 60 ? "#F87171" : "#FBBF24"} />
+            <Text style={[s.topicTimerPillText, topicTimer < 60 && { color: "#F87171" }]}>
+              {Math.floor(topicTimer / 60)}:{(topicTimer % 60).toString().padStart(2, "0")}
+            </Text>
+          </View>
+        )}
+        {hasSession && sessionTimer > 0 && (
+          <View style={s.sessionPill}>
+            <Ionicons name="time" size={12} color="#4ADE80" />
+            <Text style={s.sessionPillText}>
+              {Math.floor(sessionTimer / 60)}:{(sessionTimer % 60).toString().padStart(2, "0")}
+            </Text>
+          </View>
+        )}
+        {!hasSession && freeRemaining > 0 && freeRemaining < 4 && (
+          <Text style={s.freeCountLabel}>{freeRemaining} free left</Text>
+        )}
       </View>
 
       <Animated.View entering={FadeInDown.delay(200).duration(400)} style={s.personaRow}>
@@ -1084,17 +1105,7 @@ export default function ArenaScreen() {
                 : currentTopic ? currentTopic : "Real-time AI conversation"}
             </Text>
           </View>
-          <View style={s.streamHeaderRight}>
-            {currentTopic && topicTimer > 0 && (
-              <View style={s.topicTimerBadge}>
-                <Ionicons name="timer" size={10} color={topicTimer < 60 ? "#F87171" : "#FBBF24"} />
-                <Text style={[s.topicTimerText, topicTimer < 60 && { color: "#F87171" }]}>
-                  {Math.floor(topicTimer / 60)}:{(topicTimer % 60).toString().padStart(2, "0")}
-                </Text>
-              </View>
-            )}
-            {currentSpeaker && <ActivityIndicator size="small" color={ARENA_PERSONAS[currentSpeaker]?.color || "#fff"} />}
-          </View>
+          {currentSpeaker && <ActivityIndicator size="small" color={ARENA_PERSONAS[currentSpeaker]?.color || "#fff"} />}
         </View>
         <FlatList
           ref={flatListRef}
@@ -1442,10 +1453,13 @@ const s = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800" as const,
   },
+  msgListenBtn: {
+    marginLeft: "auto",
+    padding: 2,
+  },
   msgTime: {
     fontSize: 9,
     color: "rgba(255,255,255,0.25)",
-    marginLeft: "auto",
   },
   msgText: {
     fontSize: 13,
@@ -1477,58 +1491,74 @@ const s = StyleSheet.create({
     color: "#888",
     maxWidth: 120,
   },
-  voiceBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  voiceBtnActive: {
-    backgroundColor: "rgba(255,215,0,0.15)",
-    borderWidth: 1,
-    borderColor: "rgba(255,215,0,0.3)",
-  },
-  sessionTimerBadge: {
+  voiceRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 3,
-    backgroundColor: "rgba(74,222,128,0.15)",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "rgba(74,222,128,0.3)",
-  },
-  sessionTimerText: {
-    fontSize: 9,
-    fontWeight: "800" as const,
-    color: "#4ADE80",
-  },
-  freeCountText: {
-    fontSize: 9,
-    fontWeight: "700" as const,
-    color: "rgba(255,255,255,0.4)",
-  },
-  streamHeaderRight: {
-    flexDirection: "row",
-    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 6,
     gap: 8,
   },
-  topicTimerBadge: {
+  voiceToggle: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 3,
-    backgroundColor: "rgba(251,191,36,0.12)",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.15)",
+    backgroundColor: "rgba(255,255,255,0.05)",
   },
-  topicTimerText: {
-    fontSize: 9,
+  voiceToggleActive: {
+    backgroundColor: "rgba(255,215,0,0.12)",
+    borderColor: "rgba(255,215,0,0.4)",
+  },
+  voiceToggleText: {
+    fontSize: 11,
+    fontWeight: "800" as const,
+    color: "#aaa",
+    letterSpacing: 0.5,
+  },
+  voiceToggleTextActive: {
+    color: "#FFD700",
+  },
+  topicTimerPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+    backgroundColor: "rgba(251,191,36,0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(251,191,36,0.2)",
+  },
+  topicTimerPillText: {
+    fontSize: 11,
     fontWeight: "700" as const,
     color: "#FBBF24",
+  },
+  sessionPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+    backgroundColor: "rgba(74,222,128,0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(74,222,128,0.25)",
+  },
+  sessionPillText: {
+    fontSize: 11,
+    fontWeight: "700" as const,
+    color: "#4ADE80",
+  },
+  freeCountLabel: {
+    fontSize: 10,
+    fontWeight: "700" as const,
+    color: "rgba(255,255,255,0.4)",
+    marginLeft: "auto",
   },
   paywallOverlay: {
     flex: 1,
