@@ -23,6 +23,13 @@ import Animated, { FadeInDown, FadeInUp, FadeIn } from "react-native-reanimated"
 import { getApiUrl } from "@/lib/query-client";
 import { playTTS } from "@/lib/audio-helper";
 import { useTokens } from "@/lib/token-context";
+import {
+  saveRecording,
+  RecordedMessage,
+  pickHighlightQuote,
+  generateShareText,
+  ArenaRecording,
+} from "@/lib/arena-recordings";
 
 const Colors = {
   background: "#0a0a0a",
@@ -536,6 +543,17 @@ export default function ArenaScreen() {
   const currentSoundRef = useRef<any>(null);
   const forcePlayRef = useRef(false);
 
+  const sessionStartTimeRef = useRef<number>(Date.now());
+  const recordingMessagesRef = useRef<RecordedMessage[]>([]);
+  const lastInterruptionRef = useRef<{ text: string; interrupterId: string } | null>(null);
+
+  const [interruptionOverlay, setInterruptionOverlay] = useState<{
+    speakerId: string;
+    speakerName: string;
+    text: string;
+  } | null>(null);
+  const interruptionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const stopAllTTS = useCallback(() => {
     ttsQueueRef.current = [];
     isProcessingTTSRef.current = false;
@@ -680,14 +698,63 @@ export default function ArenaScreen() {
     return () => clearInterval(tick);
   }, [hasSession, sessionExpiresAt]);
 
+  const saveCurrentSession = useCallback(async (topicName?: string) => {
+    const msgs = recordingMessagesRef.current;
+    if (msgs.length < 3) return;
+    const topic = topicName || currentTopicRef.current || "Arena Debate";
+    const duration = msgs.length > 0
+      ? (msgs[msgs.length - 1].relativeTime) / 1000
+      : TOPIC_DURATION;
+    const rec: ArenaRecording = {
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 6),
+      topic,
+      startTime: sessionStartTimeRef.current,
+      duration: Math.max(duration, 1),
+      personas: selectedPersonasRef.current,
+      messages: [...msgs],
+      messageCount: msgs.filter((m) => !m.isSystem).length,
+      highlightQuote: pickHighlightQuote(msgs),
+    };
+    await saveRecording(rec);
+  }, []);
+
+  const shareCurrentSession = useCallback(async () => {
+    const msgs = recordingMessagesRef.current;
+    if (msgs.length < 2) return;
+    const topic = currentTopicRef.current || "Arena Debate";
+    const duration = msgs.length > 0 ? (msgs[msgs.length - 1].relativeTime) / 1000 : 0;
+    const rec: ArenaRecording = {
+      id: "live",
+      topic,
+      startTime: sessionStartTimeRef.current,
+      duration,
+      personas: selectedPersonasRef.current,
+      messages: [...msgs],
+      messageCount: msgs.filter((m) => !m.isSystem).length,
+    };
+    const text = generateShareText(rec);
+    try { await Share.share({ message: text }); } catch {}
+  }, []);
+
+  const showInterruptionBanner = useCallback((speakerId: string, speakerName: string, text: string) => {
+    if (interruptionTimerRef.current) clearTimeout(interruptionTimerRef.current);
+    setInterruptionOverlay({ speakerId, speakerName, text });
+    interruptionTimerRef.current = setTimeout(() => {
+      setInterruptionOverlay(null);
+    }, 4000);
+  }, []);
+
   useEffect(() => {
     if (!currentTopic) { setTopicTimer(0); return; }
     setTopicTimer(TOPIC_DURATION);
+    sessionStartTimeRef.current = Date.now();
+    recordingMessagesRef.current = [];
     if (topicTimerRef.current) clearInterval(topicTimerRef.current);
     topicTimerRef.current = setInterval(() => {
       setTopicTimer((prev) => {
         if (prev <= 1) {
           if (topicTimerRef.current) clearInterval(topicTimerRef.current);
+          saveCurrentSession(currentTopicRef.current || undefined);
           if (dynamicTopics.length === 0) return 0;
           const currentIdx = dynamicTopics.findIndex((t) => t.id === currentTopicRef.current || t.title === currentTopicRef.current);
           const nextIdx = (currentIdx + 1) % dynamicTopics.length;
@@ -716,7 +783,7 @@ export default function ArenaScreen() {
       });
     }, 1000);
     return () => { if (topicTimerRef.current) clearInterval(topicTimerRef.current); };
-  }, [currentTopic, dynamicTopics]);
+  }, [currentTopic, dynamicTopics, saveCurrentSession]);
 
   const addMessage = useCallback((msg: ConversationMessage) => {
     setMessages((prev) => {
@@ -724,6 +791,18 @@ export default function ArenaScreen() {
       messagesRef.current = next;
       return next;
     });
+    if (!msg.isSystem) {
+      const isInt = msg.speakerName.includes("\u26A1") || msg.speakerName.includes("⚡") || msg.id.startsWith("interrupt-") || msg.id.startsWith("trump-interrupt-") || msg.id.startsWith("clapback-");
+      recordingMessagesRef.current.push({
+        id: msg.id,
+        speakerId: msg.speakerId,
+        speakerName: msg.speakerName,
+        text: msg.text,
+        timestamp: msg.timestamp,
+        relativeTime: msg.timestamp - sessionStartTimeRef.current,
+        isInterruption: isInt,
+      });
+    }
     setTimeout(() => {
       flatListRef.current?.scrollToEnd({ animated: true });
     }, 100);
@@ -774,15 +853,24 @@ export default function ArenaScreen() {
         const headers: Record<string, string> = { "Content-Type": "application/json" };
         if (deviceId) headers["x-device-id"] = deviceId;
 
+        const bodyPayload: Record<string, any> = {
+          responderId,
+          toSpeakerId,
+          conversationHistory: history,
+          topic: currentTopicRef.current,
+        };
+        const lastInt = lastInterruptionRef.current;
+        if (lastInt) {
+          bodyPayload.wasInterrupted = true;
+          bodyPayload.interruptionText = lastInt.text;
+          bodyPayload.interrupterId = lastInt.interrupterId;
+          lastInterruptionRef.current = null;
+        }
+
         const res = await fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
           method: "POST",
           headers,
-          body: JSON.stringify({
-            responderId,
-            toSpeakerId,
-            conversationHistory: history,
-            topic: currentTopicRef.current,
-          }),
+          body: JSON.stringify(bodyPayload),
         });
 
         if (res.status === 403) {
@@ -865,6 +953,8 @@ export default function ArenaScreen() {
           timestamp: Date.now(),
         };
         addMessage(interruptMsg);
+        showInterruptionBanner(interrupter, persona.name, data.response);
+        lastInterruptionRef.current = { text: data.response, interrupterId: interrupter };
         queueTTS(data.response, interrupter);
 
         await new Promise((r) => setTimeout(r, 1500 + Math.random() * 1000));
@@ -898,7 +988,7 @@ export default function ArenaScreen() {
         }
       }
     } catch {}
-  }, [deviceId, addMessage, queueTTS]);
+  }, [deviceId, addMessage, queueTTS, showInterruptionBanner]);
 
   const triggerTrumpInterruption = useCallback(async (opponentText: string, opponentId: string) => {
     if (!mountedRef.current) return;
@@ -935,10 +1025,12 @@ export default function ArenaScreen() {
           text: data.response,
           timestamp: Date.now(),
         });
+        showInterruptionBanner("trump", "Donald Trump", data.response);
+        lastInterruptionRef.current = { text: data.response, interrupterId: "trump" };
         queueTTS(data.response, "trump");
       }
     } catch {}
-  }, [deviceId, addMessage, queueTTS]);
+  }, [deviceId, addMessage, queueTTS, showInterruptionBanner]);
 
   const decideNextSpeaker = useCallback(async () => {
     if (!isRunningRef.current || currentSpeakerRef.current) return;
@@ -1041,6 +1133,7 @@ export default function ArenaScreen() {
       mountedRef.current = false;
       clearTimeout(startTimer);
       if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
+      saveCurrentSession();
     };
   }, []);
 
@@ -1302,6 +1395,12 @@ export default function ArenaScreen() {
         {!hasSession && freeRemaining > 0 && freeRemaining < 30 && (
           <Text style={s.freeCountLabel}>{freeRemaining} free left</Text>
         )}
+        <Pressable onPress={shareCurrentSession} style={s.arenaActionBtn} hitSlop={8}>
+          <Ionicons name="share-outline" size={14} color="#D4A420" />
+        </Pressable>
+        <Pressable onPress={() => router.push("/arena-replay")} style={s.arenaActionBtn} hitSlop={8}>
+          <Ionicons name="recording-outline" size={14} color="#D4A420" />
+        </Pressable>
       </View>
 
       <Animated.View entering={FadeInDown.delay(200).duration(400)} style={s.personaRow}>
@@ -1622,6 +1721,44 @@ export default function ArenaScreen() {
           </View>
         </View>
       </Modal>
+
+      {interruptionOverlay && (
+        <Animated.View
+          entering={FadeInDown.duration(300).springify()}
+          style={[s.interruptOverlay, { bottom: insets.bottom + webBottomInset + 20 }]}
+        >
+          <LinearGradient
+            colors={[
+              interruptionOverlay.speakerId === "trump"
+                ? "rgba(255,77,77,0.95)"
+                : `${ARENA_PERSONAS[interruptionOverlay.speakerId]?.color || "#666"}ee`,
+              "rgba(20,20,20,0.98)",
+            ]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={s.interruptGrad}
+          >
+            <View style={s.interruptHeader}>
+              <Ionicons name="flash" size={16} color="#fff" />
+              <Text style={s.interruptLabel}>INTERRUPTION</Text>
+              <Pressable onPress={() => setInterruptionOverlay(null)} hitSlop={12}>
+                <Ionicons name="close" size={18} color="rgba(255,255,255,0.6)" />
+              </Pressable>
+            </View>
+            <View style={s.interruptBody}>
+              <View style={[s.interruptAvatar, { backgroundColor: ARENA_PERSONAS[interruptionOverlay.speakerId]?.color || "#666" }]}>
+                <Text style={s.interruptAvatarText}>
+                  {interruptionOverlay.speakerName.split(" ").map((w) => w[0]).join("").substring(0, 2)}
+                </Text>
+              </View>
+              <View style={s.interruptContent}>
+                <Text style={s.interruptName}>{interruptionOverlay.speakerName}</Text>
+                <Text style={s.interruptText} numberOfLines={3}>{interruptionOverlay.text}</Text>
+              </View>
+            </View>
+          </LinearGradient>
+        </Animated.View>
+      )}
     </View>
   );
 }
@@ -2363,5 +2500,76 @@ const s = StyleSheet.create({
   paywallDismissText: {
     fontSize: 12,
     color: "rgba(255,255,255,0.3)",
+  },
+  arenaActionBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(212,164,32,0.12)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  interruptOverlay: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    zIndex: 100,
+    borderRadius: 16,
+    overflow: "hidden",
+    shadowColor: "#ff4d4d",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  interruptGrad: {
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,77,77,0.3)",
+  },
+  interruptHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 8,
+  },
+  interruptLabel: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "800" as const,
+    letterSpacing: 1.5,
+    flex: 1,
+  },
+  interruptBody: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  interruptAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  interruptAvatarText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "bold" as const,
+  },
+  interruptContent: {
+    flex: 1,
+  },
+  interruptName: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700" as const,
+    marginBottom: 2,
+  },
+  interruptText: {
+    color: "rgba(255,255,255,0.85)",
+    fontSize: 13,
+    lineHeight: 18,
   },
 });

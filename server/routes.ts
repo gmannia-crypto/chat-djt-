@@ -1621,7 +1621,7 @@ CRITICAL: You are the FORMER president. Trump beat you and is now running the co
 
   app.post("/api/arena/respond", async (req, res) => {
     try {
-      const { responderId, toSpeakerId, conversationHistory, topic } = req.body;
+      const { responderId, toSpeakerId, conversationHistory, topic, wasInterrupted, interruptionText, interrupterId } = req.body;
       const deviceId = req.headers["x-device-id"] as string;
 
       if (!responderId || !ARENA_PERSONA_PROMPTS[responderId]) {
@@ -1673,6 +1673,10 @@ CRITICAL: You are the FORMER president. Trump beat you and is now running the co
         userPrompt += ` Someone just interrupted you mid-sentence. You are FURIOUS. Insult them viciously and keep rambling on your original point. Be nasty and dismissive — 1-2 sentences.`;
       } else if (isInterruption && responderId !== "trump") {
         userPrompt += ` You are INTERRUPTING Trump mid-sentence because what he just said is outrageous. Be brief, angry, and cutting — 1 sentence max. You're talking over him with fury and intensity.`;
+      }
+      if (wasInterrupted && interruptionText) {
+        const interrupterName = interrupterId && ARENA_NAME_MAP[interrupterId] ? ARENA_NAME_MAP[interrupterId] : "someone";
+        userPrompt += ` You were just interrupted by ${interrupterName} who said: '${interruptionText}'. React to this interruption — acknowledge it, fight back, or dismiss it before continuing your point.`;
       }
       userPrompt += ` Give your in-character response. Do NOT use quotation marks around your response.`;
 

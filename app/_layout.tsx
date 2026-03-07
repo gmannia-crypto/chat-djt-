@@ -289,6 +289,10 @@ function RootLayoutNav() {
         name="arena"
         options={{ headerShown: false }}
       />
+      <Stack.Screen
+        name="arena-replay"
+        options={{ headerShown: false }}
+      />
     </Stack>
   );
 }
