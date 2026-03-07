@@ -1367,7 +1367,7 @@
         this.el.innerHTML = h;
       };
 
-      function ConversationModule(id) {
+      function RealTimeConversationEngine(id) {
         this.el = document.getElementById(id);
         this.personas = {
           trump:{name:"Trump",color:"#ff4d4d",img:"/api/persona-image/trump",faction:"SELF"},
@@ -1385,7 +1385,7 @@
         this.bindEvents();
         this.render();
       }
-      ConversationModule.prototype.bindEvents = function() {
+      RealTimeConversationEngine.prototype.bindEvents = function() {
         var self = this;
         this.el.addEventListener('click', function(e) {
           var t = e.target;
@@ -1398,7 +1398,7 @@
           if (speak) { e.stopPropagation(); self.speak(speak.getAttribute('data-cspeak'), speak.getAttribute('data-ctext') || ''); return; }
         });
       };
-      ConversationModule.prototype.start = function() {
+      RealTimeConversationEngine.prototype.start = function() {
         if (this.running) return;
         this.running = true;
         this.render();
@@ -1406,12 +1406,12 @@
         var self = this;
         this.interval = setInterval(function() { self.generate(); }, 4000);
       };
-      ConversationModule.prototype.stop = function() {
+      RealTimeConversationEngine.prototype.stop = function() {
         this.running = false;
         if (this.interval) { clearInterval(this.interval); this.interval = null; }
         this.render();
       };
-      ConversationModule.prototype.generate = function() {
+      RealTimeConversationEngine.prototype.generate = function() {
         if (this.loading) return;
         this.loading = true;
         var self = this;
@@ -1434,14 +1434,14 @@
         })
         .catch(function() { self.loading = false; });
       };
-      ConversationModule.prototype.speak = function(pid, text) {
+      RealTimeConversationEngine.prototype.speak = function(pid, text) {
         var btn = this.el.querySelector('[data-cspeak="'+pid+'"]');
         if (btn) btn.textContent = '...';
         fetch('/api/persona-speak', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({text:(text||'No comment.').slice(0,300), personaId:pid==='netanyahu'?'trump':pid}) })
         .then(function(r){return r.blob();}).then(function(b){ var u=URL.createObjectURL(b); var a=new Audio(u); a.play(); a.onended=function(){URL.revokeObjectURL(u);}; if(btn)btn.textContent='\u{1F50A}'; })
         .catch(function(){if(btn)btn.textContent='\u{1F50A}';});
       };
-      ConversationModule.prototype.render = function() {
+      RealTimeConversationEngine.prototype.render = function() {
         var h = '<div class="feat-title">REAL TALK</div><div class="feat-sub">5 political heavyweights. One room. No filter.</div>';
         h += '<div class="s-persona-row">';
         var ids = Object.keys(this.personas);
@@ -1565,7 +1565,7 @@
           if (!window.billionaires) { window.billionaires = new BillionairesModule('billionairesTab'); }
         } else if (feature === 'conversation') {
           document.getElementById('conversationArena').style.display = 'block';
-          if (!window.conversation) { window.conversation = new ConversationModule('conversationArena'); }
+          if (!window.conversation) { window.conversation = new RealTimeConversationEngine('conversationArena'); }
         } else if (feature === 'dashboard') {
           document.getElementById('dashboardTab').style.display = 'block';
           if (!window.dashboard) { window.dashboard = new DashboardModule('dashboardTab'); }
