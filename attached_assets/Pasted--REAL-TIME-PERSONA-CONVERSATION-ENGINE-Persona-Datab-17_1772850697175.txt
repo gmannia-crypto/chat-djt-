@@ -1,0 +1,929 @@
+// ==================== REAL-TIME PERSONA CONVERSATION ENGINE ====================
+
+// Persona Database with Emotional Intelligence
+const PERSONAS = {
+    trump: {
+        id: 'trump',
+        name: 'Donald Trump',
+        avatar: '🗣️',
+        color: '#ff4d4d',
+        voiceId: 'trump_v1',
+        faction: 'self',
+        personality: {
+            energy: 95,
+            aggression: 85,
+            humor: 70,
+            sincerity: 30,
+            catchphrases: ["Believe me", "Tremendous", "Sad!", "The best", "Loser", "Witch hunt"]
+        },
+        relationships: {
+            netanyahu: { sentiment: 95, trust: 90, respect: 95 },
+            galloway: { sentiment: 20, trust: 30, respect: 25 },
+            mcconnell: { sentiment: 40, trust: 35, respect: 45 },
+            ruckus: { sentiment: 90, trust: 85, respect: 80 }
+        },
+        triggerWords: {
+            positive: ['great', 'win', 'success', 'money', 'deal', 'beautiful'],
+            negative: ['fail', 'lose', 'weak', 'stupid', 'disaster', 'fake']
+        }
+    },
+    
+    netanyahu: {
+        id: 'netanyahu',
+        name: 'Benjamin Netanyahu',
+        avatar: '🇮🇱',
+        color: '#0038b8',
+        voiceId: 'netanyahu_v1',
+        faction: 'supporter',
+        personality: {
+            energy: 75,
+            aggression: 60,
+            humor: 30,
+            sincerity: 85,
+            catchphrases: ["My friend", "Israel knows", "Strength", "Peace through strength", "Never again"]
+        },
+        relationships: {
+            trump: { sentiment: 95, trust: 90, respect: 95 },
+            galloway: { sentiment: 30, trust: 25, respect: 40 },
+            mcconnell: { sentiment: 50, trust: 45, respect: 60 },
+            ruckus: { sentiment: 70, trust: 65, respect: 60 }
+        },
+        triggerWords: {
+            positive: ['israel', 'jerusalem', 'security', 'alliance', 'strength', 'peace'],
+            negative: ['palestine', 'iran', 'nuclear', 'condemn', 'apartheid', 'occupation']
+        }
+    },
+    
+    ruckus: {
+        id: 'ruckus',
+        name: 'Uncle Ruckus',
+        avatar: '🎙️',
+        color: '#8b0000',
+        voiceId: 'ruckus_v1',
+        faction: 'supporter',
+        personality: {
+            energy: 100,
+            aggression: 80,
+            humor: 90,
+            sincerity: 95, // He actually believes everything he says
+            catchphrases: ["I love Trump!", "MAGA!", "Tell 'em!", "Preach!", "That's right!"]
+        },
+        relationships: {
+            trump: { sentiment: 100, trust: 100, respect: 100 },
+            netanyahu: { sentiment: 80, trust: 75, respect: 85 },
+            galloway: { sentiment: 30, trust: 25, respect: 35 },
+            mcconnell: { sentiment: 50, trust: 45, respect: 55 }
+        },
+        triggerWords: {
+            positive: ['trump', 'maga', 'america', 'winning', 'great', 'truth'],
+            negative: ['democrat', 'liberal', 'fake news', 'biden', 'obama', 'critical']
+        }
+    },
+    
+    galloway: {
+        id: 'galloway',
+        name: 'George Galloway',
+        avatar: '🇬🇧',
+        color: '#c41e3a',
+        voiceId: 'galloway_v1',
+        faction: 'opponent',
+        personality: {
+            energy: 85,
+            aggression: 75,
+            humor: 60,
+            sincerity: 80,
+            catchphrases: ["Rubbish!", "Absolute nonsense", "I told you so", "The British people know", "Propaganda"]
+        },
+        relationships: {
+            trump: { sentiment: 25, trust: 20, respect: 30 },
+            netanyahu: { sentiment: 40, trust: 35, respect: 45 },
+            mcconnell: { sentiment: 30, trust: 25, respect: 35 },
+            ruckus: { sentiment: 20, trust: 15, respect: 20 }
+        },
+        triggerWords: {
+            positive: ['britain', 'labour', 'palestine', 'iraq', 'socialism', 'workers'],
+            negative: ['imperialism', 'zionism', 'neocon', 'establishment', 'propaganda', 'war']
+        }
+    },
+    
+    mcconnell: {
+        id: 'mcconnell',
+        name: 'Mitch McConnell',
+        avatar: '🐢',
+        color: '#708090',
+        voiceId: 'mcconnell_v1',
+        faction: 'opponent',
+        personality: {
+            energy: 20,
+            aggression: 40,
+            humor: 5,
+            sincerity: 60,
+            catchphrases: ["...", "The Senate will...", "In due time", "We'll see", "*blinks slowly*"]
+        },
+        relationships: {
+            trump: { sentiment: 35, trust: 30, respect: 45 },
+            netanyahu: { sentiment: 50, trust: 45, respect: 60 },
+            galloway: { sentiment: 20, trust: 15, respect: 20 },
+            ruckus: { sentiment: 25, trust: 20, respect: 25 }
+        },
+        triggerWords: {
+            positive: ['senate', 'republican', 'conservative', 'judiciary', 'majority', 'elect'],
+            negative: ['obstruction', 'turtle', 'slow', 'block', 'delay', 'inaction']
+        }
+    }
+};
+
+class RealTimeConversationEngine {
+    constructor(containerId) {
+        this.container = document.getElementById(containerId);
+        this.activePersonas = ['trump', 'netanyahu', 'ruckus', 'galloway', 'mcconnell'];
+        this.conversationHistory = [];
+        this.currentSpeaker = null;
+        this.speakingQueue = [];
+        this.emotionalState = this.initializeEmotionalState();
+        this.voiceEnabled = true;
+        this.listening = true;
+        this.init();
+    }
+
+    initializeEmotionalState() {
+        const state = {};
+        this.activePersonas.forEach(id => {
+            state[id] = {
+                anger: 20,
+                happiness: 50,
+                engagement: 50,
+                lastSpoke: null,
+                topics: []
+            };
+        });
+        return state;
+    }
+
+    init() {
+        this.renderArena();
+        this.startConversation();
+    }
+
+    renderArena() {
+        this.container.innerHTML = `
+            <div class="conversation-arena">
+                <div class="arena-header">
+                    <h2>🎭 REAL-TIME PERSONA CONVERSATIONS</h2>
+                    <div class="conversation-controls">
+                        <button class="control-btn" onclick="conversation.addPersona()">➕ Add Persona</button>
+                        <button class="control-btn" onclick="conversation.toggleListening()" id="listenBtn">
+                            👂 Listening: ON
+                        </button>
+                        <button class="control-btn voice" onclick="conversation.toggleVoice()" id="voiceBtn">
+                            🔊 Voice: ON
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Persona Circles (Visual Representation) -->
+                <div class="persona-universe">
+                    ${this.activePersonas.map(id => this.renderPersonaCircle(id)).join('')}
+                </div>
+                
+                <!-- Conversation Stream (Real-time) -->
+                <div class="conversation-stream" id="conversationStream">
+                    <div class="stream-header">
+                        <span class="live-badge">🔴 LIVE</span>
+                        <span>Real-time AI conversation in progress</span>
+                    </div>
+                    <div class="stream-messages" id="streamMessages">
+                        <div class="system-message">Conversation started...</div>
+                    </div>
+                </div>
+                
+                <!-- Persona Thought Bubbles (Emotional State) -->
+                <div class="emotional-dashboard" id="emotionalDashboard">
+                    <h4>🧠 PERSONA EMOTIONAL STATE</h4>
+                    <div class="emotional-grid" id="emotionalGrid">
+                        ${this.renderEmotionalState()}
+                    </div>
+                </div>
+                
+                <!-- Quick Action Buttons -->
+                <div class="quick-actions">
+                    <button class="action-btn" onclick="conversation.suggestTopic('israel')">🇮🇱 Discuss Israel</button>
+                    <button class="action-btn" onclick="conversation.suggestTopic('economy')">💰 Discuss Economy</button>
+                    <button class="action-btn" onclick="conversation.suggestTopic('biden')">😴 Mention Biden</button>
+                    <button class="action-btn" onclick="conversation.suggestTopic('media')">📺 Mention Media</button>
+                </div>
+            </div>
+        `;
+        
+        this.addStyles();
+    }
+
+    renderPersonaCircle(id) {
+        const p = PERSONAS[id];
+        return `
+            <div class="persona-circle" id="circle-${id}" style="border-color: ${p.color};" 
+                 onclick="conversation.focusOn('${id}')">
+                <div class="persona-avatar">${p.avatar}</div>
+                <div class="persona-name" style="color: ${p.color};">${p.name}</div>
+                <div class="persona-faction ${p.faction}">${p.faction}</div>
+                <div class="emotion-indicator" id="emotion-${id}">
+                    <div class="emotion-bar anger" style="width: ${this.emotionalState[id].anger}%"></div>
+                    <div class="emotion-bar happy" style="width: ${this.emotionalState[id].happiness}%"></div>
+                </div>
+                <div class="speaking-indicator" id="speaking-${id}" style="display: none;">🔊</div>
+            </div>
+        `;
+    }
+
+    renderEmotionalState() {
+        return this.activePersonas.map(id => {
+            const p = PERSONAS[id];
+            return `
+                <div class="emotional-card" style="border-left: 4px solid ${p.color};">
+                    <div class="emotional-persona">${p.avatar} ${p.name}</div>
+                    <div class="emotional-meters">
+                        <div>😠 Anger: ${this.emotionalState[id].anger}%</div>
+                        <div>😊 Happy: ${this.emotionalState[id].happiness}%</div>
+                        <div>👀 Engagement: ${this.emotionalState[id].engagement}%</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    startConversation() {
+        // Trump starts
+        setTimeout(() => {
+            this.speak('trump', "You know, Netanyahu is my friend. A great friend. The best prime minister Israel ever had, believe me!");
+        }, 1000);
+        
+        // Start the conversation loop
+        this.conversationLoop();
+    }
+
+    conversationLoop() {
+        setInterval(() => {
+            if (!this.listening) return;
+            
+            // Analyze last few messages and decide who should speak next
+            this.decideNextSpeaker();
+        }, 3000);
+    }
+
+    decideNextSpeaker() {
+        const lastMessages = this.conversationHistory.slice(-3);
+        if (lastMessages.length === 0) return;
+        
+        const lastSpeaker = lastMessages[lastMessages.length - 1].speaker;
+        const lastText = lastMessages[lastMessages.length - 1].text;
+        
+        // Check if anyone should respond
+        this.activePersonas.forEach(personaId => {
+            if (personaId === lastSpeaker) return; // Don't respond to self
+            
+            // Calculate probability of response based on relationship and content
+            const probability = this.calculateResponseProbability(personaId, lastSpeaker, lastText);
+            
+            if (Math.random() * 100 < probability) {
+                // Persona wants to respond
+                this.queueResponse(personaId, lastSpeaker, lastText);
+            }
+        });
+    }
+
+    calculateResponseProbability(listenerId, speakerId, text) {
+        const listener = PERSONAS[listenerId];
+        const relationship = listener.relationships[speakerId] || { sentiment: 50 };
+        const emotionalState = this.emotionalState[listenerId];
+        
+        // Base probability
+        let probability = 30;
+        
+        // Adjust based on relationship
+        probability += (relationship.sentiment - 50) * 0.3;
+        
+        // Adjust based on engagement
+        probability += (emotionalState.engagement - 50) * 0.2;
+        
+        // Check for trigger words
+        const words = text.toLowerCase().split(' ');
+        words.forEach(word => {
+            if (listener.triggerWords.positive.includes(word)) {
+                probability += 10;
+            }
+            if (listener.triggerWords.negative.includes(word)) {
+                probability += 15; // More likely to respond to negative triggers
+            }
+        });
+        
+        // Cap probability
+        return Math.min(80, Math.max(10, probability));
+    }
+
+    queueResponse(responderId, toSpeakerId, text) {
+        // Don't queue if already in queue
+        if (this.speakingQueue.some(item => item.responderId === responderId)) return;
+        
+        this.speakingQueue.push({
+            responderId,
+            toSpeakerId,
+            text,
+            timestamp: Date.now()
+        });
+        
+        // Process queue
+        this.processQueue();
+    }
+
+    async processQueue() {
+        if (this.speakingQueue.length === 0 || this.currentSpeaker) return;
+        
+        // Sort queue by priority (based on engagement)
+        this.speakingQueue.sort((a, b) => {
+            return this.emotionalState[b.responderId].engagement - this.emotionalState[a.responderId].engagement;
+        });
+        
+        const next = this.speakingQueue.shift();
+        await this.generateResponse(next.responderId, next.toSpeakerId, next.text);
+    }
+
+    async generateResponse(responderId, toSpeakerId, lastText) {
+        this.currentSpeaker = responderId;
+        
+        // Show speaking indicator
+        document.querySelectorAll('.speaking-indicator').forEach(el => el.style.display = 'none');
+        document.getElementById(`speaking-${responderId}`).style.display = 'block';
+        
+        // Generate contextual response based on persona
+        const response = this.createContextualResponse(responderId, toSpeakerId, lastText);
+        
+        // Add to conversation
+        this.addToConversation(responderId, response);
+        
+        // Update emotional states
+        this.updateEmotionalStates(responderId, toSpeakerId, response);
+        
+        // Speak if voice enabled
+        if (this.voiceEnabled) {
+            this.speak(responderId, response);
+        }
+        
+        // Clear speaking indicator after delay
+        setTimeout(() => {
+            document.getElementById(`speaking-${responderId}`).style.display = 'none';
+            this.currentSpeaker = null;
+            
+            // Check if others should respond to this response
+            setTimeout(() => {
+                this.decideNextSpeaker();
+            }, 1000);
+        }, 3000 + (response.length * 50)); // Time based on response length
+    }
+
+    createContextualResponse(responderId, toSpeakerId, lastText) {
+        const responder = PERSONAS[responderId];
+        const toSpeaker = PERSONAS[toSpeakerId];
+        const relationship = responder.relationships[toSpeakerId] || { sentiment: 50 };
+        
+        // Extract key topics from last text
+        const topics = this.extractTopics(lastText);
+        
+        // Base responses by persona
+        if (responderId === 'netanyahu') {
+            if (toSpeakerId === 'trump') {
+                return `My friend Donald! You understand Israel's security needs better than any American president. When you moved the embassy to Jerusalem, that was historic!`;
+            }
+            if (topics.includes('iran')) {
+                return `Iran is the greatest threat to peace in the Middle East. We must stand together against this danger.`;
+            }
+            return `The truth is, Israel faces challenges that no other country faces. But with friends like Trump, we will prevail!`;
+        }
+        
+        if (responderId === 'ruckus') {
+            if (toSpeakerId === 'trump') {
+                return `THAT'S RIGHT! TELL 'EM, TRUMP! These folks don't know nothin'! You're the greatest president ever!`;
+            }
+            if (topics.includes('democrat')) {
+                return `Democrats? They hate America! They hate success! They hate Trump 'cause he's successful!`;
+            }
+            return `PREACH! I've been sayin' this for years! Nobody tells it like Trump! Nobody!`;
+        }
+        
+        if (responderId === 'galloway') {
+            if (toSpeakerId === 'netanyahu') {
+                return `Mr. Netanyahu, your policies in Gaza are a disgrace! The British people see what's happening!`;
+            }
+            if (toSpeakerId === 'trump') {
+                return `Trump, you're a charlatan! A showman! The British people aren't fooled by your act!`;
+            }
+            if (topics.includes('britain')) {
+                return `I've been saying this for years! The British establishment is corrupt! Absolute rubbish!`;
+            }
+            return `This is pure propaganda! The British people deserve better than this nonsense!`;
+        }
+        
+        if (responderId === 'mcconnell') {
+            if (toSpeakerId === 'trump') {
+                return `The president... has made... some valid points... about the judiciary...`;
+            }
+            if (toSpeakerId === 'galloway') {
+                return `The gentleman from Britain... doesn't understand... our constitutional process...`;
+            }
+            return `*slowly blinks* The Senate will... consider these matters... in due time...`;
+        }
+        
+        if (responderId === 'trump') {
+            if (toSpeakerId === 'netanyahu') {
+                return `Bibi! Nobody fights harder than you! Iran? We'll take care of them too, believe me!`;
+            }
+            if (toSpeakerId === 'galloway') {
+                return `George Galloway? He's a total lightweight! Never accomplished anything! Sad!`;
+            }
+            if (toSpeakerId === 'mcconnell') {
+                return `Mitch, we need to move faster! The Democrats are destroying our country! We need action!`;
+            }
+            return `Look, everybody knows I'm right about this. Even my enemies know it, they just won't admit it!`;
+        }
+        
+        return `${responder.name} considers the situation carefully...`;
+    }
+
+    extractTopics(text) {
+        const topics = [];
+        const topicKeywords = {
+            'israel': ['israel', 'jerusalem', 'gaza', 'west bank', 'palestine'],
+            'iran': ['iran', 'nuclear', 'tehran', 'ayatollah'],
+            'biden': ['biden', 'sleepy joe', 'joe', 'president biden'],
+            'economy': ['economy', 'inflation', 'jobs', 'stock market', 'recession'],
+            'media': ['media', 'fake news', 'press', 'cnn', 'msnbc', 'fox'],
+            'britain': ['britain', 'uk', 'london', 'british', 'england']
+        };
+        
+        const lowerText = text.toLowerCase();
+        Object.entries(topicKeywords).forEach(([topic, keywords]) => {
+            if (keywords.some(keyword => lowerText.includes(keyword))) {
+                topics.push(topic);
+            }
+        });
+        
+        return topics;
+    }
+
+    updateEmotionalStates(responderId, toSpeakerId, response) {
+        // Update responder's engagement
+        this.emotionalState[responderId].engagement = Math.min(100, this.emotionalState[responderId].engagement + 10);
+        this.emotionalState[responderId].lastSpoke = Date.now();
+        
+        // Update based on relationship
+        const relationship = PERSONAS[responderId].relationships[toSpeakerId] || { sentiment: 50 };
+        
+        if (relationship.sentiment > 70) {
+            this.emotionalState[responderId].happiness = Math.min(100, this.emotionalState[responderId].happiness + 5);
+            this.emotionalState[responderId].anger = Math.max(0, this.emotionalState[responderId].anger - 3);
+        } else if (relationship.sentiment < 30) {
+            this.emotionalState[responderId].happiness = Math.max(0, this.emotionalState[responderId].happiness - 3);
+            this.emotionalState[responderId].anger = Math.min(100, this.emotionalState[responderId].anger + 8);
+        }
+        
+        // Update other personas' engagement (they're listening)
+        this.activePersonas.forEach(id => {
+            if (id !== responderId) {
+                this.emotionalState[id].engagement = Math.min(100, this.emotionalState[id].engagement + 2);
+            }
+        });
+        
+        // Update UI
+        this.updateEmotionalUI();
+    }
+
+    updateEmotionalUI() {
+        const grid = document.getElementById('emotionalGrid');
+        if (grid) {
+            grid.innerHTML = this.renderEmotionalState();
+        }
+        
+        this.activePersonas.forEach(id => {
+            const emotionEl = document.getElementById(`emotion-${id}`);
+            if (emotionEl) {
+                emotionEl.innerHTML = `
+                    <div class="emotion-bar anger" style="width: ${this.emotionalState[id].anger}%"></div>
+                    <div class="emotion-bar happy" style="width: ${this.emotionalState[id].happiness}%"></div>
+                `;
+            }
+        });
+    }
+
+    addToConversation(speakerId, text) {
+        const speaker = PERSONAS[speakerId];
+        const timestamp = new Date().toLocaleTimeString();
+        
+        this.conversationHistory.push({
+            speaker: speakerId,
+            text: text,
+            timestamp: timestamp
+        });
+        
+        const stream = document.getElementById('streamMessages');
+        const message = document.createElement('div');
+        message.className = 'stream-message';
+        message.style.borderLeftColor = speaker.color;
+        message.innerHTML = `
+            <div class="message-header">
+                <span class="message-avatar">${speaker.avatar}</span>
+                <span class="message-speaker" style="color: ${speaker.color};">${speaker.name}</span>
+                <span class="message-time">${timestamp}</span>
+            </div>
+            <div class="message-text">"${text}"</div>
+        `;
+        
+        stream.appendChild(message);
+        stream.scrollTop = stream.scrollHeight;
+        
+        // Keep only last 50 messages
+        while (stream.children.length > 50) {
+            stream.removeChild(stream.children[1]);
+        }
+    }
+
+    suggestTopic(topic) {
+        // Force a persona to bring up a topic
+        const randomPersona = this.activePersonas[Math.floor(Math.random() * this.activePersonas.length)];
+        
+        let response = "";
+        switch(topic) {
+            case 'israel':
+                response = "Let's talk about Israel. Very important ally. Tremendous country!";
+                break;
+            case 'economy':
+                response = "The economy under me was the BEST ever. Now it's a disaster!";
+                break;
+            case 'biden':
+                response = "Sleepy Joe Biden. Worst president in history. And I'm being nice!";
+                break;
+            case 'media':
+                response = "The fake news media. They're the enemy of the people. Total scum!";
+                break;
+        }
+        
+        this.addToConversation(randomPersona, response);
+        this.updateEmotionalStates(randomPersona, 'trump', response);
+    }
+
+    focusOn(personaId) {
+        // Highlight the selected persona
+        document.querySelectorAll('.persona-circle').forEach(el => {
+            el.style.transform = 'scale(1)';
+            el.style.zIndex = '1';
+        });
+        
+        const circle = document.getElementById(`circle-${personaId}`);
+        circle.style.transform = 'scale(1.2)';
+        circle.style.zIndex = '10';
+        circle.style.boxShadow = `0 0 30px ${PERSONAS[personaId].color}`;
+        
+        // Add a thought bubble
+        this.showThoughtBubble(personaId);
+    }
+
+    showThoughtBubble(personaId) {
+        const thoughts = {
+            trump: "I'm the best at conversations. The best!",
+            netanyahu: "Must emphasize Israel's security needs...",
+            ruckus: "Trump is the greatest! Greatest ever!",
+            galloway: "Absolute rubbish what they're saying!",
+            mcconnell: "..."
+        };
+        
+        alert(`${PERSONAS[personaId].name} is thinking: "${thoughts[personaId]}"`);
+    }
+
+    addPersona() {
+        // Cycle through available personas not currently active
+        const allPersonas = ['trump', 'netanyahu', 'ruckus', 'galloway', 'mcconnell'];
+        const available = allPersonas.filter(p => !this.activePersonas.includes(p));
+        
+        if (available.length === 0) {
+            alert("All personas are already in the conversation!");
+            return;
+        }
+        
+        const newPersona = available[0];
+        this.activePersonas.push(newPersona);
+        this.emotionalState[newPersona] = {
+            anger: 30,
+            happiness: 50,
+            engagement: 50,
+            lastSpoke: null,
+            topics: []
+        };
+        
+        // Re-render
+        this.renderArena();
+        
+        // New persona joins conversation
+        setTimeout(() => {
+            this.addToConversation(newPersona, `Hello everyone. Important to join this conversation.`);
+        }, 1000);
+    }
+
+    toggleListening() {
+        this.listening = !this.listening;
+        const btn = document.getElementById('listenBtn');
+        btn.innerHTML = this.listening ? '👂 Listening: ON' : '👂 Listening: OFF';
+        btn.style.background = this.listening ? '#4CAF50' : '#888';
+        
+        if (this.listening) {
+            this.addToConversation('system', 'Conversation resumed...');
+        } else {
+            this.addToConversation('system', 'Conversation paused...');
+        }
+    }
+
+    toggleVoice() {
+        this.voiceEnabled = !this.voiceEnabled;
+        const btn = document.getElementById('voiceBtn');
+        btn.innerHTML = this.voiceEnabled ? '🔊 Voice: ON' : '🔇 Voice: OFF';
+    }
+
+    speak(personaId, text) {
+        if (!this.voiceEnabled) return;
+        console.log(`🔊 ${PERSONAS[personaId].name} says: ${text}`);
+        // Integrate with your TTS here
+    }
+
+    addStyles() {
+        const style = document.createElement('style');
+        style.textContent = `
+            .conversation-arena {
+                max-width: 1200px;
+                margin: 0 auto;
+                padding: 20px;
+                background: #0a0a0a;
+                border: 3px solid #ff4d4d;
+                border-radius: 20px;
+                color: white;
+            }
+            
+            .arena-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 30px;
+            }
+            
+            .arena-header h2 {
+                color: #ff4d4d;
+                font-size: 24px;
+            }
+            
+            .conversation-controls {
+                display: flex;
+                gap: 10px;
+            }
+            
+            .control-btn {
+                padding: 8px 16px;
+                border: none;
+                border-radius: 20px;
+                cursor: pointer;
+                font-weight: bold;
+                background: #333;
+                color: white;
+            }
+            
+            .control-btn.voice {
+                background: #4a4a4a;
+            }
+            
+            .persona-universe {
+                display: flex;
+                justify-content: center;
+                flex-wrap: wrap;
+                gap: 30px;
+                margin: 40px 0;
+                min-height: 200px;
+            }
+            
+            .persona-circle {
+                width: 120px;
+                height: 120px;
+                border-radius: 50%;
+                border-width: 3px;
+                border-style: solid;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                position: relative;
+                cursor: pointer;
+                transition: all 0.3s;
+                background: #1a1a1a;
+            }
+            
+            .persona-circle:hover {
+                transform: scale(1.1);
+            }
+            
+            .persona-avatar {
+                font-size: 40px;
+            }
+            
+            .persona-name {
+                font-size: 12px;
+                font-weight: bold;
+                margin-top: 5px;
+            }
+            
+            .persona-faction {
+                font-size: 8px;
+                padding: 2px 6px;
+                border-radius: 10px;
+                margin-top: 3px;
+            }
+            
+            .persona-faction.supporter {
+                background: #8b0000;
+                color: white;
+            }
+            
+            .persona-faction.opponent {
+                background: #4169e1;
+                color: white;
+            }
+            
+            .emotion-indicator {
+                position: absolute;
+                bottom: -10px;
+                left: 10px;
+                right: 10px;
+                height: 4px;
+                display: flex;
+                gap: 2px;
+            }
+            
+            .emotion-bar {
+                height: 100%;
+                border-radius: 2px;
+            }
+            
+            .emotion-bar.anger {
+                background: #ff4d4d;
+            }
+            
+            .emotion-bar.happy {
+                background: #4CAF50;
+            }
+            
+            .speaking-indicator {
+                position: absolute;
+                top: -20px;
+                font-size: 20px;
+                animation: pulse 0.5s infinite;
+            }
+            
+            .conversation-stream {
+                background: #1a1a1a;
+                border: 1px solid #333;
+                border-radius: 10px;
+                margin: 30px 0;
+                max-height: 400px;
+                overflow-y: auto;
+            }
+            
+            .stream-header {
+                padding: 15px;
+                border-bottom: 1px solid #333;
+                position: sticky;
+                top: 0;
+                background: #1a1a1a;
+            }
+            
+            .live-badge {
+                background: #ff4d4d;
+                color: white;
+                padding: 3px 8px;
+                border-radius: 4px;
+                font-size: 12px;
+                font-weight: bold;
+                animation: pulse 1s infinite;
+                margin-right: 10px;
+            }
+            
+            .stream-messages {
+                padding: 15px;
+            }
+            
+            .stream-message {
+                border-left-width: 3px;
+                border-left-style: solid;
+                padding: 10px 15px;
+                margin: 10px 0;
+                background: #2a2a2a;
+                border-radius: 0 8px 8px 0;
+            }
+            
+            .message-header {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                margin-bottom: 5px;
+            }
+            
+            .message-avatar {
+                font-size: 16px;
+            }
+            
+            .message-speaker {
+                font-weight: bold;
+            }
+            
+            .message-time {
+                font-size: 10px;
+                color: #888;
+                margin-left: auto;
+            }
+            
+            .message-text {
+                font-style: italic;
+                color: #ccc;
+            }
+            
+            .emotional-dashboard {
+                background: #1a1a1a;
+                border: 1px solid #333;
+                border-radius: 10px;
+                padding: 20px;
+                margin: 30px 0;
+            }
+            
+            .emotional-dashboard h4 {
+                color: #ff4d4d;
+                margin-bottom: 15px;
+            }
+            
+            .emotional-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 15px;
+            }
+            
+            .emotional-card {
+                background: #2a2a2a;
+                padding: 10px;
+                border-radius: 5px;
+            }
+            
+            .emotional-persona {
+                font-weight: bold;
+                margin-bottom: 8px;
+            }
+            
+            .emotional-meters {
+                font-size: 12px;
+                color: #ccc;
+            }
+            
+            .quick-actions {
+                display: flex;
+                gap: 10px;
+                justify-content: center;
+                margin-top: 20px;
+            }
+            
+            .action-btn {
+                padding: 10px 20px;
+                background: #333;
+                border: 1px solid #ff4d4d;
+                color: white;
+                border-radius: 25px;
+                cursor: pointer;
+                transition: all 0.2s;
+            }
+            
+            .action-btn:hover {
+                background: #ff4d4d;
+            }
+            
+            .system-message {
+                color: #888;
+                font-style: italic;
+                padding: 10px;
+                text-align: center;
+            }
+            
+            @keyframes pulse {
+                0% { opacity: 1; }
+                50% { opacity: 0.5; }
+                100% { opacity: 1; }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', () => {
+    if (document.getElementById('conversationArena')) {
+        window.conversation = new RealTimeConversationEngine('conversationArena');
+    }
+});
