@@ -8,6 +8,7 @@ import {
   Platform,
   ActivityIndicator,
   Image,
+  Modal,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -16,6 +17,8 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown, FadeInUp, FadeIn } from "react-native-reanimated";
 import { getApiUrl } from "@/lib/query-client";
+import { playTTS } from "@/lib/audio-helper";
+import { useTokens } from "@/lib/token-context";
 
 const Colors = {
   background: "#0a0a0a",
@@ -391,14 +394,48 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
 
 const PERSONA_IDS = ["trump", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc"];
 
-const TOPIC_BUTTONS = [
-  { id: "israel", label: "Israel", icon: "earth" as const, color: "#0038b8" },
-  { id: "economy", label: "Economy", icon: "cash" as const, color: "#4ADE80" },
-  { id: "biden", label: "Biden", icon: "person" as const, color: "#60A5FA" },
-  { id: "media", label: "Media", icon: "tv" as const, color: "#FBBF24" },
-  { id: "immigration", label: "Immigration", icon: "airplane" as const, color: "#F87171" },
-  { id: "military", label: "Military", icon: "shield-checkmark" as const, color: "#A78BFA" },
+const TOPIC_ICON_MAP: Record<string, string> = {
+  economy: "cash", immigration: "airplane", foreign_policy: "earth", media: "tv",
+  middle_east: "earth", tech: "hardware-chip", defense: "shield-checkmark",
+  health: "medkit", education: "school", climate: "leaf", trade: "swap-horizontal",
+  israel: "earth", biden: "person", military: "shield-checkmark",
+};
+const TOPIC_COLOR_MAP: Record<string, string> = {
+  economy: "#4ADE80", immigration: "#F87171", foreign_policy: "#60A5FA", media: "#FBBF24",
+  middle_east: "#0038b8", tech: "#A78BFA", defense: "#708090", health: "#ec4899",
+  education: "#06b6d4", climate: "#22c55e", trade: "#f59e0b", israel: "#0038b8",
+  biden: "#60A5FA", military: "#708090",
+};
+
+interface DynamicTopic {
+  id: string;
+  title: string;
+  description: string;
+  headlines?: string[];
+}
+
+const FALLBACK_TOPICS: DynamicTopic[] = [
+  { id: "economy", title: "Economy", description: "Trade wars, tariffs, and the state of the economy" },
+  { id: "immigration", title: "Immigration", description: "Border security, deportations, and refugee policy" },
+  { id: "foreign_policy", title: "Foreign Policy", description: "Global alliances, NATO, and military intervention" },
+  { id: "media", title: "Media", description: "Fake news, social media censorship, and press freedom" },
+  { id: "middle_east", title: "Middle East", description: "Israel-Palestine, Iran tensions, and regional conflicts" },
+  { id: "tech", title: "Big Tech", description: "AI regulation, social media, and tech monopolies" },
 ];
+
+const ARENA_VOICE_IDS: Record<string, string> = {
+  trump: "54a5170264694bfc8ca9e8b82e8a24a6",
+  netanyahu: "3c5fe93c3f5348bbaeb5cee4f27bb359",
+  ruckus: "ruckus",
+  galloway: "galloway",
+  mcconnell: "f338ac02d7df4e6e959e131d6126aeff",
+  carville: "ce3ba02102a34819abd74838d220d68e",
+  maddow: "7a8e38ef826c4352915c230a37fca0d9",
+  omar: "478ccf652e0049898fbf11d0fb9f9d2a",
+  biden: "39c0a6dc47054f9bbcd2e064a41fea9f",
+  rosie: "0b2a697d1ed141c7965cd65d197f54ba",
+  berniemc: "5cbb7b199c5a4b538bf1018e6341ebc4",
+};
 
 const FACTION_COLORS = {
   self: "#FFD700",
@@ -434,6 +471,7 @@ export default function ArenaScreen() {
   const insets = useSafeAreaInsets();
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
+  const { deviceId, balance, refreshBalance } = useTokens();
 
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [emotionalStates, setEmotionalStates] = useState<Record<string, EmotionalState>>(() => {
@@ -448,6 +486,23 @@ export default function ArenaScreen() {
   const [currentTopic, setCurrentTopic] = useState<string | null>(null);
   const [focusedPersona, setFocusedPersona] = useState<string | null>(null);
 
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const ttsQueueRef = useRef<{ text: string; personaId: string }[]>([]);
+  const isProcessingTTSRef = useRef(false);
+
+  const [dynamicTopics, setDynamicTopics] = useState<DynamicTopic[]>(FALLBACK_TOPICS);
+  const [topicTimer, setTopicTimer] = useState<number>(0);
+  const topicTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const TOPIC_DURATION = 5 * 60;
+
+  const [freeRemaining, setFreeRemaining] = useState(4);
+  const [hasSession, setHasSession] = useState(false);
+  const [sessionExpiresAt, setSessionExpiresAt] = useState<number | null>(null);
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [sessionTimer, setSessionTimer] = useState<number>(0);
+  const [isUnlocking, setIsUnlocking] = useState(false);
+
   const flatListRef = useRef<FlatList>(null);
   const isRunningRef = useRef(true);
   const messagesRef = useRef<ConversationMessage[]>([]);
@@ -456,6 +511,7 @@ export default function ArenaScreen() {
   const emotionalStatesRef = useRef(emotionalStates);
   const conversationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
+  const voiceEnabledRef = useRef(false);
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -472,6 +528,167 @@ export default function ArenaScreen() {
   useEffect(() => {
     isRunningRef.current = isRunning;
   }, [isRunning]);
+  useEffect(() => {
+    voiceEnabledRef.current = voiceEnabled;
+  }, [voiceEnabled]);
+
+  const currentSoundRef = useRef<any>(null);
+
+  const stopAllTTS = useCallback(() => {
+    ttsQueueRef.current = [];
+    isProcessingTTSRef.current = false;
+    if (currentSoundRef.current) {
+      try { currentSoundRef.current.stopAsync(); currentSoundRef.current.unloadAsync(); } catch {}
+      currentSoundRef.current = null;
+    }
+    setIsPlayingAudio(false);
+  }, []);
+
+  const processTTSQueue = useCallback(async () => {
+    if (isProcessingTTSRef.current || ttsQueueRef.current.length === 0) return;
+    isProcessingTTSRef.current = true;
+    setIsPlayingAudio(true);
+    while (ttsQueueRef.current.length > 0 && voiceEnabledRef.current) {
+      const item = ttsQueueRef.current.shift();
+      if (!item || !mountedRef.current) break;
+      try {
+        const sound = await playTTS("/api/persona-speak", { text: item.text, personaId: item.personaId }, { volume: 0.9 });
+        currentSoundRef.current = sound;
+        await new Promise<void>((resolve) => {
+          const cleanup = () => { try { sound.setOnPlaybackStatusUpdate(null); sound.unloadAsync(); } catch {} currentSoundRef.current = null; resolve(); };
+          sound.setOnPlaybackStatusUpdate((status: any) => {
+            if (status.didJustFinish || status.error) cleanup();
+          });
+          setTimeout(cleanup, 15000);
+        });
+      } catch {}
+    }
+    isProcessingTTSRef.current = false;
+    currentSoundRef.current = null;
+    if (mountedRef.current) setIsPlayingAudio(false);
+  }, []);
+
+  const queueTTS = useCallback((text: string, personaId: string) => {
+    if (!voiceEnabledRef.current) return;
+    const shortText = text.length > 200 ? text.substring(0, 200) + "..." : text;
+    ttsQueueRef.current.push({ text: shortText, personaId });
+    processTTSQueue();
+  }, [processTTSQueue]);
+
+  const fetchTopics = useCallback(async () => {
+    try {
+      const res = await fetch(new URL("/api/arena/topics", getApiUrl()).toString());
+      if (res.ok) {
+        const data = await res.json();
+        if (data.topics?.length > 0) setDynamicTopics(data.topics);
+      }
+    } catch {}
+  }, []);
+
+  const checkArenaStatus = useCallback(async () => {
+    if (!deviceId) return;
+    try {
+      const res = await fetch(new URL("/api/arena/status", getApiUrl()).toString(), {
+        headers: { "x-device-id": deviceId },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setFreeRemaining(data.freeRemaining ?? 4);
+        setHasSession(data.hasSession ?? false);
+        if (data.sessionExpiresAt) setSessionExpiresAt(data.sessionExpiresAt);
+      }
+    } catch {}
+  }, [deviceId]);
+
+  const unlockSession = useCallback(async () => {
+    if (!deviceId) return;
+    setIsUnlocking(true);
+    try {
+      const res = await fetch(new URL("/api/arena/access", getApiUrl()).toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+      });
+      const data = await res.json();
+      if (data.granted) {
+        setHasSession(true);
+        setSessionExpiresAt(data.expiresAt);
+        setShowPaywall(false);
+        refreshBalance();
+        addSystemMessage("Session unlocked! 5 minutes of unlimited access.");
+      } else if (data.error === "insufficient_tokens") {
+        addSystemMessage("Not enough tokens. Visit the store to get more!");
+      }
+    } catch {}
+    setIsUnlocking(false);
+  }, [deviceId, refreshBalance]);
+
+  const addSystemMessage = useCallback((text: string) => {
+    const msg: ConversationMessage = {
+      id: "sys-" + Date.now() + Math.random().toString(36).substr(2, 5),
+      speakerId: "system",
+      speakerName: "System",
+      text,
+      timestamp: Date.now(),
+      isSystem: true,
+    };
+    setMessages((prev) => {
+      const next = [...prev, msg].slice(-50);
+      messagesRef.current = next;
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    fetchTopics();
+    checkArenaStatus();
+    const topicRefresh = setInterval(fetchTopics, 30 * 60 * 1000);
+    return () => clearInterval(topicRefresh);
+  }, [fetchTopics, checkArenaStatus]);
+
+  useEffect(() => {
+    if (!hasSession || !sessionExpiresAt) { setSessionTimer(0); return; }
+    const tick = setInterval(() => {
+      const remaining = Math.max(0, Math.floor((sessionExpiresAt - Date.now()) / 1000));
+      setSessionTimer(remaining);
+      if (remaining <= 0) {
+        setHasSession(false);
+        setSessionExpiresAt(null);
+        clearInterval(tick);
+      }
+    }, 1000);
+    return () => clearInterval(tick);
+  }, [hasSession, sessionExpiresAt]);
+
+  useEffect(() => {
+    if (!currentTopic) { setTopicTimer(0); return; }
+    setTopicTimer(TOPIC_DURATION);
+    if (topicTimerRef.current) clearInterval(topicTimerRef.current);
+    topicTimerRef.current = setInterval(() => {
+      setTopicTimer((prev) => {
+        if (prev <= 1) {
+          if (topicTimerRef.current) clearInterval(topicTimerRef.current);
+          if (dynamicTopics.length === 0) return 0;
+          const currentIdx = dynamicTopics.findIndex((t) => t.id === currentTopicRef.current || t.title === currentTopicRef.current);
+          const nextIdx = (currentIdx + 1) % dynamicTopics.length;
+          const nextTopic = dynamicTopics[nextIdx];
+          if (nextTopic && mountedRef.current) {
+            setCurrentTopic(nextTopic.title);
+            currentTopicRef.current = nextTopic.title;
+            setMessages((p) => [...p, {
+              id: "topic-auto-" + Date.now(),
+              speakerId: "system", speakerName: "System",
+              text: `Topic auto-rotated to: ${nextTopic.title}`,
+              timestamp: Date.now(), isSystem: true,
+            }].slice(-50));
+            setTopicTimer(TOPIC_DURATION);
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => { if (topicTimerRef.current) clearInterval(topicTimerRef.current); };
+  }, [currentTopic, dynamicTopics]);
 
   const addMessage = useCallback((msg: ConversationMessage) => {
     setMessages((prev) => {
@@ -526,9 +743,12 @@ export default function ArenaScreen() {
           .slice(-6)
           .map((m) => ({ speakerName: m.speakerName, text: m.text }));
 
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (deviceId) headers["x-device-id"] = deviceId;
+
         const res = await fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify({
             responderId,
             toSpeakerId,
@@ -537,9 +757,25 @@ export default function ArenaScreen() {
           }),
         });
 
+        if (res.status === 403) {
+          const errData = await res.json();
+          if (errData.error === "arena_locked") {
+            setFreeRemaining(0);
+            setShowPaywall(true);
+            setIsRunning(false);
+            isRunningRef.current = false;
+            if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
+            return;
+          }
+        }
+
         if (!res.ok || !mountedRef.current) return;
         const data = await res.json();
         const persona = ARENA_PERSONAS[responderId];
+
+        if (data.freeRemaining !== undefined) setFreeRemaining(data.freeRemaining);
+        if (data.hasSession !== undefined) setHasSession(data.hasSession);
+        if (data.sessionExpiresAt) setSessionExpiresAt(data.sessionExpiresAt);
 
         addMessage({
           id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
@@ -550,6 +786,7 @@ export default function ArenaScreen() {
         });
 
         updateEmotions(responderId, toSpeakerId);
+        queueTTS(data.response, responderId);
       } catch (err) {
         console.error("Arena AI error:", err);
       } finally {
@@ -559,7 +796,7 @@ export default function ArenaScreen() {
         }
       }
     },
-    [addMessage, updateEmotions]
+    [addMessage, updateEmotions, deviceId, queueTTS]
   );
 
   const decideNextSpeaker = useCallback(async () => {
@@ -725,7 +962,34 @@ export default function ArenaScreen() {
             <View style={s.liveDot} />
             <Text style={s.liveText}>LIVE</Text>
           </View>
+          {hasSession && sessionTimer > 0 && (
+            <View style={s.sessionTimerBadge}>
+              <Ionicons name="time" size={10} color="#4ADE80" />
+              <Text style={s.sessionTimerText}>
+                {Math.floor(sessionTimer / 60)}:{(sessionTimer % 60).toString().padStart(2, "0")}
+              </Text>
+            </View>
+          )}
+          {!hasSession && freeRemaining > 0 && freeRemaining < 4 && (
+            <Text style={s.freeCountText}>{freeRemaining} free</Text>
+          )}
         </View>
+        <Pressable
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setVoiceEnabled((p) => {
+              if (p) stopAllTTS();
+              return !p;
+            });
+          }}
+          style={[s.voiceBtn, voiceEnabled && s.voiceBtnActive]}
+        >
+          <Ionicons
+            name={voiceEnabled ? (isPlayingAudio ? "volume-high" : "volume-medium") : "volume-mute"}
+            size={18}
+            color={voiceEnabled ? "#FFD700" : "#666"}
+          />
+        </Pressable>
         <Pressable onPress={toggleRunning} style={s.pauseBtn}>
           <Ionicons name={isRunning ? "pause" : "play"} size={20} color="#fff" />
         </Pressable>
@@ -817,10 +1081,20 @@ export default function ArenaScreen() {
             <Text style={s.streamHeaderText}>
               {currentSpeaker
                 ? `${ARENA_PERSONAS[currentSpeaker]?.shortName} is speaking...`
-                : "Real-time AI conversation"}
+                : currentTopic ? currentTopic : "Real-time AI conversation"}
             </Text>
           </View>
-          {currentSpeaker && <ActivityIndicator size="small" color={ARENA_PERSONAS[currentSpeaker]?.color || "#fff"} />}
+          <View style={s.streamHeaderRight}>
+            {currentTopic && topicTimer > 0 && (
+              <View style={s.topicTimerBadge}>
+                <Ionicons name="timer" size={10} color={topicTimer < 60 ? "#F87171" : "#FBBF24"} />
+                <Text style={[s.topicTimerText, topicTimer < 60 && { color: "#F87171" }]}>
+                  {Math.floor(topicTimer / 60)}:{(topicTimer % 60).toString().padStart(2, "0")}
+                </Text>
+              </View>
+            )}
+            {currentSpeaker && <ActivityIndicator size="small" color={ARENA_PERSONAS[currentSpeaker]?.color || "#fff"} />}
+          </View>
         </View>
         <FlatList
           ref={flatListRef}
@@ -836,28 +1110,66 @@ export default function ArenaScreen() {
 
       <Animated.View entering={FadeInUp.delay(400).duration(400)} style={[s.topicRow, { paddingBottom: insets.bottom + webBottomInset + 8 }]}>
         <FlatList
-          data={TOPIC_BUTTONS}
+          data={dynamicTopics}
           horizontal
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item) => item.id || item.title}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={s.topicList}
-          renderItem={({ item }) => (
-            <Pressable
-              onPress={() => handleTopicPress(item.id)}
-              style={[
-                s.topicBtn,
-                { borderColor: item.color + "60" },
-                currentTopic === item.id && { backgroundColor: item.color + "25", borderColor: item.color },
-              ]}
-            >
-              <Ionicons name={item.icon as any} size={14} color={currentTopic === item.id ? item.color : "#888"} />
-              <Text style={[s.topicBtnText, currentTopic === item.id && { color: item.color }]}>
-                {item.label}
-              </Text>
-            </Pressable>
-          )}
+          renderItem={({ item }) => {
+            const color = TOPIC_COLOR_MAP[item.id] || "#FBBF24";
+            const icon = TOPIC_ICON_MAP[item.id] || "chatbubbles";
+            const isActive = currentTopic === item.title || currentTopic === item.id;
+            return (
+              <Pressable
+                onPress={() => handleTopicPress(item.title || item.id)}
+                style={[
+                  s.topicBtn,
+                  { borderColor: color + "60" },
+                  isActive && { backgroundColor: color + "25", borderColor: color },
+                ]}
+              >
+                <Ionicons name={icon as any} size={14} color={isActive ? color : "#888"} />
+                <Text style={[s.topicBtnText, isActive && { color }]} numberOfLines={1}>
+                  {item.title}
+                </Text>
+              </Pressable>
+            );
+          }}
         />
       </Animated.View>
+
+      <Modal visible={showPaywall} transparent animationType="fade">
+        <View style={s.paywallOverlay}>
+          <View style={s.paywallCard}>
+            <Ionicons name="lock-closed" size={36} color="#FFD700" />
+            <Text style={s.paywallTitle}>Arena Access Required</Text>
+            <Text style={s.paywallSubtitle}>
+              You've used your {4 - freeRemaining} free interactions. Unlock 5 minutes of unlimited access for 5 tokens.
+            </Text>
+            <View style={s.paywallBalanceRow}>
+              <Ionicons name="diamond" size={16} color="#FFD700" />
+              <Text style={s.paywallBalance}>{balance?.totalAvailable ?? 0} tokens available</Text>
+            </View>
+            <Pressable
+              onPress={unlockSession}
+              disabled={isUnlocking}
+              style={[s.paywallBtn, isUnlocking && { opacity: 0.6 }]}
+            >
+              {isUnlocking ? (
+                <ActivityIndicator size="small" color="#000" />
+              ) : (
+                <Text style={s.paywallBtnText}>Unlock for 5 Tokens</Text>
+              )}
+            </Pressable>
+            <Pressable onPress={() => { setShowPaywall(false); router.push("/subscribe"); }} style={s.paywallSecondaryBtn}>
+              <Text style={s.paywallSecondaryText}>Get More Tokens</Text>
+            </Pressable>
+            <Pressable onPress={() => setShowPaywall(false)} style={s.paywallDismiss}>
+              <Text style={s.paywallDismissText}>Close</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1163,5 +1475,136 @@ const s = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600" as const,
     color: "#888",
+    maxWidth: 120,
+  },
+  voiceBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  voiceBtnActive: {
+    backgroundColor: "rgba(255,215,0,0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(255,215,0,0.3)",
+  },
+  sessionTimerBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "rgba(74,222,128,0.15)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(74,222,128,0.3)",
+  },
+  sessionTimerText: {
+    fontSize: 9,
+    fontWeight: "800" as const,
+    color: "#4ADE80",
+  },
+  freeCountText: {
+    fontSize: 9,
+    fontWeight: "700" as const,
+    color: "rgba(255,255,255,0.4)",
+  },
+  streamHeaderRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  topicTimerBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "rgba(251,191,36,0.12)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  topicTimerText: {
+    fontSize: 9,
+    fontWeight: "700" as const,
+    color: "#FBBF24",
+  },
+  paywallOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.8)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  paywallCard: {
+    backgroundColor: "#1a1a1a",
+    borderRadius: 20,
+    padding: 28,
+    alignItems: "center",
+    width: "100%",
+    maxWidth: 340,
+    borderWidth: 1,
+    borderColor: "rgba(255,215,0,0.2)",
+  },
+  paywallTitle: {
+    fontSize: 20,
+    fontWeight: "900" as const,
+    color: "#fff",
+    marginTop: 12,
+    textAlign: "center",
+  },
+  paywallSubtitle: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.6)",
+    textAlign: "center",
+    marginTop: 8,
+    lineHeight: 18,
+  },
+  paywallBalanceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 16,
+    backgroundColor: "rgba(255,215,0,0.1)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  paywallBalance: {
+    fontSize: 13,
+    fontWeight: "700" as const,
+    color: "#FFD700",
+  },
+  paywallBtn: {
+    backgroundColor: "#FFD700",
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 14,
+    marginTop: 16,
+    width: "100%",
+    alignItems: "center",
+  },
+  paywallBtnText: {
+    fontSize: 15,
+    fontWeight: "900" as const,
+    color: "#000",
+  },
+  paywallSecondaryBtn: {
+    marginTop: 10,
+    paddingVertical: 10,
+  },
+  paywallSecondaryText: {
+    fontSize: 13,
+    fontWeight: "600" as const,
+    color: "rgba(255,255,255,0.5)",
+  },
+  paywallDismiss: {
+    marginTop: 4,
+    paddingVertical: 8,
+  },
+  paywallDismissText: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.3)",
   },
 });

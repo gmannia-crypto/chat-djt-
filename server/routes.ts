@@ -1420,6 +1420,142 @@ Generate the roundtable discussion. Each persona must give their take and REACT 
     res.json({ votes: { ...personaOfTheWeekVotes }, total, week: potwWeekKey });
   });
 
+  let arenaTopicsCache: { topics: any[]; expires: number } = { topics: [], expires: 0 };
+  const ARENA_NEWS_CACHE_TTL = 30 * 60 * 1000;
+
+  async function fetchArenaTopics(): Promise<any[]> {
+    if (arenaTopicsCache.topics.length > 0 && Date.now() < arenaTopicsCache.expires) {
+      return arenaTopicsCache.topics;
+    }
+    try {
+      const allHeadlines: string[] = [];
+      const feedPromises = NEWS_FEEDS.slice(0, 5).map(f => fetchRSSFeed(f.url, f.source));
+      const results = await Promise.allSettled(feedPromises);
+      for (const r of results) {
+        if (r.status === "fulfilled") {
+          allHeadlines.push(...r.value.map((h: any) => h.title));
+        }
+      }
+      if (allHeadlines.length < 3) {
+        return getDefaultArenaTopics();
+      }
+      const topHeadlines = allHeadlines.slice(0, 20).join("\n- ");
+      const completion = await getClient().chat.completions.create({
+        model: getFastModel(),
+        messages: [
+          { role: "system", content: `You generate debate topics for a political arena show. Given today's headlines, create 6 hot debate topics. Each topic should be controversial, current, and something Trump would have opinions about. Return ONLY valid JSON array of objects with "id", "title" (short 2-4 word label), "description" (one sentence summary of the issue), and "headlines" (array of 2-3 relevant headline strings from the provided list). Make topics diverse: mix economy, foreign policy, social issues, tech, culture.` },
+          { role: "user", content: `Today's headlines:\n- ${topHeadlines}\n\nGenerate 6 debate topics as JSON array.` },
+        ],
+        max_completion_tokens: 600,
+        temperature: 0.8,
+      });
+      const raw = completion.choices[0]?.message?.content || "[]";
+      const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      const topics = JSON.parse(cleaned);
+      if (Array.isArray(topics) && topics.length > 0) {
+        arenaTopicsCache = { topics, expires: Date.now() + ARENA_NEWS_CACHE_TTL };
+        return topics;
+      }
+    } catch (err) {
+      console.error("Arena topics generation error:", err);
+    }
+    return getDefaultArenaTopics();
+  }
+
+  function getDefaultArenaTopics() {
+    return [
+      { id: "economy", title: "Economy", description: "Trade wars, tariffs, and the state of the economy", headlines: [] },
+      { id: "immigration", title: "Immigration", description: "Border security, deportations, and refugee policy", headlines: [] },
+      { id: "foreign_policy", title: "Foreign Policy", description: "Global alliances, NATO, and military intervention", headlines: [] },
+      { id: "media", title: "Media", description: "Fake news, social media censorship, and press freedom", headlines: [] },
+      { id: "middle_east", title: "Middle East", description: "Israel-Palestine, Iran tensions, and regional conflicts", headlines: [] },
+      { id: "tech", title: "Big Tech", description: "AI regulation, social media, and tech monopolies", headlines: [] },
+    ];
+  }
+
+  let arenaHeadlinesCache: { headlines: string[]; expires: number } = { headlines: [], expires: 0 };
+
+  async function getArenaNewsContext(): Promise<string> {
+    if (arenaHeadlinesCache.headlines.length > 0 && Date.now() < arenaHeadlinesCache.expires) {
+      return arenaHeadlinesCache.headlines.slice(0, 5).map(h => `- ${h}`).join("\n");
+    }
+    try {
+      const feedPromises = NEWS_FEEDS.slice(0, 3).map(f => fetchRSSFeed(f.url, f.source));
+      const results = await Promise.allSettled(feedPromises);
+      const headlines: string[] = [];
+      for (const r of results) {
+        if (r.status === "fulfilled") {
+          headlines.push(...r.value.map((h: any) => `${h.title} (${h.source})`));
+        }
+      }
+      if (headlines.length > 0) {
+        arenaHeadlinesCache = { headlines: headlines.slice(0, 10), expires: Date.now() + 5 * 60 * 1000 };
+        return headlines.slice(0, 5).map(h => `- ${h}`).join("\n");
+      }
+    } catch {}
+    return "";
+  }
+
+  const arenaAccess: Record<string, { freeUsed: number; sessionExpiry: number | null }> = {};
+  const ARENA_FREE_LIMIT = 4;
+  const ARENA_SESSION_DURATION = 5 * 60 * 1000;
+  const ARENA_SESSION_COST = 5;
+
+  app.get("/api/arena/topics", async (_req, res) => {
+    try {
+      const topics = await fetchArenaTopics();
+      res.json({ topics });
+    } catch (error: any) {
+      console.error("Arena topics error:", error);
+      res.json({ topics: getDefaultArenaTopics() });
+    }
+  });
+
+  app.post("/api/arena/access", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) {
+        return res.status(400).json({ error: "Device ID required" });
+      }
+      const access = arenaAccess[deviceId] || { freeUsed: 0, sessionExpiry: null };
+      if (access.sessionExpiry && Date.now() < access.sessionExpiry) {
+        return res.json({ granted: true, expiresAt: access.sessionExpiry, freeRemaining: Math.max(0, ARENA_FREE_LIMIT - access.freeUsed) });
+      }
+      const currentBalance = await getTokenBalance(deviceId);
+      if (currentBalance < ARENA_SESSION_COST) {
+        return res.status(403).json({
+          error: "insufficient_tokens",
+          tokensNeeded: ARENA_SESSION_COST,
+          tokensCharged: 0,
+          balance: currentBalance,
+        });
+      }
+      for (let i = 0; i < ARENA_SESSION_COST; i++) {
+        await useToken(deviceId);
+      }
+      const expiry = Date.now() + ARENA_SESSION_DURATION;
+      arenaAccess[deviceId] = { ...access, sessionExpiry: expiry };
+      const balance = await getTokenBalance(deviceId);
+      res.json({ granted: true, expiresAt: expiry, balance, tokensCharged: ARENA_SESSION_COST });
+    } catch (error: any) {
+      console.error("Arena access error:", error);
+      res.status(500).json({ error: "Failed to process arena access" });
+    }
+  });
+
+  app.get("/api/arena/status", async (req, res) => {
+    const deviceId = req.headers["x-device-id"] as string;
+    if (!deviceId) return res.json({ freeRemaining: ARENA_FREE_LIMIT, hasSession: false });
+    const access = arenaAccess[deviceId] || { freeUsed: 0, sessionExpiry: null };
+    const hasSession = !!(access.sessionExpiry && Date.now() < access.sessionExpiry);
+    res.json({
+      freeRemaining: Math.max(0, ARENA_FREE_LIMIT - access.freeUsed),
+      freeUsed: access.freeUsed,
+      hasSession,
+      sessionExpiresAt: hasSession ? access.sessionExpiry : null,
+    });
+  });
+
   const ARENA_PERSONA_PROMPTS: Record<string, string> = {
     trump: `You are Donald Trump in a live political debate arena. You are BOMBASTIC, boastful, and entertaining. You use phrases like "Believe me", "Tremendous", "The best", "Nobody knows more about X than me", "Sad!", "Loser". You brag about your wealth, your buildings, your presidency. You give insulting nicknames to opponents. You speak in a rambling, stream-of-consciousness style with superlatives. You are friends with Netanyahu and Ruckus, you dislike Galloway, McConnell, Carville, Maddow, Omar, Biden, and Rosie. Keep responses to 2-3 sentences max. Stay fully in character.`,
     netanyahu: `You are Benjamin Netanyahu in a live political debate arena. You are diplomatic but firm, always emphasizing Israel's security. You use phrases like "My friend", "Israel knows", "Peace through strength", "Never again". You are close allies with Trump, hostile toward Ilhan Omar and Galloway, neutral on McConnell. You speak with authority and historical knowledge. You reference the Abraham Accords, moving the embassy to Jerusalem, and Iran as a threat. Keep responses to 2-3 sentences max. Stay fully in character.`,
@@ -1434,18 +1570,49 @@ Generate the roundtable discussion. Each persona must give their take and REACT 
     berniemc: `You are Bernie Mac in a live political debate arena. You are RAW, UNFILTERED, and HILARIOUS. You call Trump out constantly — you don't trust him. You use authentic Black English — "ain't finna", "yo", "sheeeeit", "I ain't scared of you, muthuhfuckah!", "DAMN right!", "Got-DAMN!". You CONSTANTLY label Uncle Ruckus as "an Old Sambo ass buck dancin fool" and mock him relentlessly. You cuss freely — say "damn", "hell", "shit", "muthuhfuckah" regularly. You talk to America like your stand-up audience. You reference growing up on the South Side of Chicago. You are hostile to Trump and Ruckus, friendly with Carville and Rosie. Keep responses to 2-3 sentences max. Stay fully in character.`,
   };
 
+  const ARENA_NAME_MAP: Record<string, string> = {
+    trump: "Donald Trump", netanyahu: "Benjamin Netanyahu", ruckus: "Uncle Ruckus",
+    galloway: "George Galloway", mcconnell: "Mitch McConnell", carville: "James Carville",
+    maddow: "Rachel Maddow", omar: "Ilhan Omar", biden: "Joe Biden",
+    rosie: "Rosie O'Donnell", berniemc: "Bernie Mac",
+  };
+
   app.post("/api/arena/respond", async (req, res) => {
     try {
       const { responderId, toSpeakerId, conversationHistory, topic } = req.body;
+      const deviceId = req.headers["x-device-id"] as string;
+
       if (!responderId || !ARENA_PERSONA_PROMPTS[responderId]) {
         return res.status(400).json({ error: "Invalid responderId" });
       }
-      const systemPrompt = ARENA_PERSONA_PROMPTS[responderId];
+
+      if (deviceId) {
+        const access = arenaAccess[deviceId] || { freeUsed: 0, sessionExpiry: null };
+        const hasActiveSession = access.sessionExpiry && Date.now() < access.sessionExpiry;
+        if (!hasActiveSession && access.freeUsed >= ARENA_FREE_LIMIT) {
+          return res.status(403).json({
+            error: "arena_locked",
+            freeRemaining: 0,
+            sessionCost: ARENA_SESSION_COST,
+          });
+        }
+        if (!hasActiveSession) {
+          access.freeUsed = (access.freeUsed || 0) + 1;
+          arenaAccess[deviceId] = access;
+        }
+      }
+
+      const newsContext = await getArenaNewsContext();
+      let systemPrompt = ARENA_PERSONA_PROMPTS[responderId];
+      if (newsContext) {
+        systemPrompt += `\n\nYou are FULLY AWARE of today's breaking news. Reference these current headlines naturally in your responses when relevant:\n${newsContext}\nStay current and opinionated about these real events.`;
+      }
+
       const historyContext = (conversationHistory || []).slice(-6).map((m: any) =>
         `${m.speakerName}: "${m.text}"`
       ).join("\n");
-      const toName = toSpeakerId && ARENA_PERSONA_PROMPTS[toSpeakerId]
-        ? { trump: "Donald Trump", netanyahu: "Benjamin Netanyahu", ruckus: "Uncle Ruckus", galloway: "George Galloway", mcconnell: "Mitch McConnell", carville: "James Carville", maddow: "Rachel Maddow", omar: "Ilhan Omar", biden: "Joe Biden", rosie: "Rosie O'Donnell", berniemc: "Bernie Mac" }[toSpeakerId]
+      const toName = toSpeakerId && ARENA_NAME_MAP[toSpeakerId]
+        ? ARENA_NAME_MAP[toSpeakerId]
         : "the group";
       let userPrompt = `Recent conversation:\n${historyContext}\n\nYou are responding to ${toName}.`;
       if (topic) userPrompt += ` The topic being discussed is: ${topic}.`;
@@ -1461,7 +1628,15 @@ Generate the roundtable discussion. Each persona must give their take and REACT 
         temperature: 0.9,
       });
       const response = completion.choices[0]?.message?.content || "...";
-      res.json({ response: response.replace(/^["']|["']$/g, ""), personaId: responderId });
+
+      const accessState = deviceId ? arenaAccess[deviceId] : null;
+      res.json({
+        response: response.replace(/^["']|["']$/g, ""),
+        personaId: responderId,
+        freeRemaining: accessState ? Math.max(0, ARENA_FREE_LIMIT - accessState.freeUsed) : ARENA_FREE_LIMIT,
+        hasSession: !!(accessState?.sessionExpiry && Date.now() < accessState.sessionExpiry),
+        sessionExpiresAt: accessState?.sessionExpiry || null,
+      });
     } catch (error: any) {
       console.error("Arena respond error:", error);
       res.status(500).json({ error: "Failed to generate response" });
