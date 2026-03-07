@@ -669,6 +669,10 @@
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
               Billions
             </button>
+            <button class="feature-tab" data-feature="conversation" onclick="showFeature('conversation')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              Real Talk
+            </button>
             <button class="feature-tab" data-feature="dashboard" onclick="showFeature('dashboard')">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
               Dashboard
@@ -682,6 +686,7 @@
           <div id="fortuneTab" class="feature-container" style="display:none;"></div>
           <div id="realtyTab" class="feature-container" style="display:none;"></div>
           <div id="billionairesTab" class="feature-container" style="display:none;"></div>
+          <div id="conversationTab" class="feature-container" style="display:none;"></div>
           <div id="dashboardTab" class="feature-container" style="display:none;"></div>
         </div>
 
@@ -1362,6 +1367,124 @@
         this.el.innerHTML = h;
       };
 
+      function ConversationModule(id) {
+        this.el = document.getElementById(id);
+        this.personas = {
+          trump:{name:"Trump",color:"#ff4d4d",img:"/api/persona-image/trump",faction:"SELF"},
+          netanyahu:{name:"Netanyahu",color:"#0038b8",img:"",initials:"BN",faction:"SUPPORTER"},
+          ruckus:{name:"Ruckus",color:"#8B4513",img:"/api/persona-image/ruckus",faction:"SUPPORTER"},
+          galloway:{name:"Galloway",color:"#4ADE80",img:"",initials:"GG",faction:"OPPONENT"},
+          mcconnell:{name:"McConnell",color:"#9CA3AF",img:"",initials:"MM",faction:"OPPONENT"}
+        };
+        this.topic = 'Economy';
+        this.topics = ['Israel','Economy','Biden','Media','Immigration','Military'];
+        this.messages = [];
+        this.running = false;
+        this.loading = false;
+        this.interval = null;
+        this.bindEvents();
+        this.render();
+      }
+      ConversationModule.prototype.bindEvents = function() {
+        var self = this;
+        this.el.addEventListener('click', function(e) {
+          var t = e.target;
+          var topicBtn = t.closest('[data-ctopic]');
+          if (topicBtn) { self.topic = topicBtn.getAttribute('data-ctopic'); self.render(); return; }
+          if (t.closest('[data-cstart]')) { self.start(); return; }
+          if (t.closest('[data-cstop]')) { self.stop(); return; }
+          if (t.closest('[data-cclear]')) { self.messages = []; self.render(); return; }
+          var speak = t.closest('[data-cspeak]');
+          if (speak) { e.stopPropagation(); self.speak(speak.getAttribute('data-cspeak'), speak.getAttribute('data-ctext') || ''); return; }
+        });
+      };
+      ConversationModule.prototype.start = function() {
+        if (this.running) return;
+        this.running = true;
+        this.render();
+        this.generate();
+        var self = this;
+        this.interval = setInterval(function() { self.generate(); }, 4000);
+      };
+      ConversationModule.prototype.stop = function() {
+        this.running = false;
+        if (this.interval) { clearInterval(this.interval); this.interval = null; }
+        this.render();
+      };
+      ConversationModule.prototype.generate = function() {
+        if (this.loading) return;
+        this.loading = true;
+        var self = this;
+        var history = this.messages.slice(-6).map(function(m) { return m.persona + ': ' + m.text; });
+        fetch('/api/arena/respond', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ topic: this.topic, conversationHistory: history })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          if (d.persona && d.response) {
+            self.messages.push({ persona: d.persona, text: d.response, time: new Date() });
+            if (self.messages.length > 50) self.messages = self.messages.slice(-30);
+          }
+          self.loading = false;
+          self.render();
+          var stream = self.el.querySelector('.conv-stream');
+          if (stream) stream.scrollTop = stream.scrollHeight;
+        })
+        .catch(function() { self.loading = false; });
+      };
+      ConversationModule.prototype.speak = function(pid, text) {
+        var btn = this.el.querySelector('[data-cspeak="'+pid+'"]');
+        if (btn) btn.textContent = '...';
+        fetch('/api/persona-speak', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({text:(text||'No comment.').slice(0,300), personaId:pid==='netanyahu'?'trump':pid}) })
+        .then(function(r){return r.blob();}).then(function(b){ var u=URL.createObjectURL(b); var a=new Audio(u); a.play(); a.onended=function(){URL.revokeObjectURL(u);}; if(btn)btn.textContent='\u{1F50A}'; })
+        .catch(function(){if(btn)btn.textContent='\u{1F50A}';});
+      };
+      ConversationModule.prototype.render = function() {
+        var h = '<div class="feat-title">REAL TALK</div><div class="feat-sub">5 political heavyweights. One room. No filter.</div>';
+        h += '<div class="s-persona-row">';
+        var ids = Object.keys(this.personas);
+        for (var i=0;i<ids.length;i++) {
+          var id=ids[i], p=this.personas[id];
+          var imgHtml = p.img ? '<img src="'+p.img+'" style="width:36px;height:36px;border-radius:50%;border:2px solid '+p.color+';object-fit:cover;" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">' : '';
+          var initialsHtml = '<div style="'+(p.img?'display:none;':'display:flex;')+'width:36px;height:36px;border-radius:50%;border:2px solid '+p.color+';background:rgba(255,255,255,0.08);align-items:center;justify-content:center;font-size:11px;font-weight:bold;color:'+p.color+';">'+(p.initials||p.name.slice(0,2).toUpperCase())+'</div>';
+          h += '<div class="s-chip" style="border-color:'+p.color+';">'+imgHtml+initialsHtml+'<div class="s-chip-name" style="color:'+p.color+';">'+p.name+'</div><div style="font-size:8px;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:1px;">'+p.faction+'</div></div>';
+        }
+        h += '</div>';
+        h += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;justify-content:center;">';
+        for (var t=0;t<this.topics.length;t++) {
+          var tp=this.topics[t], active=this.topic===tp;
+          h += '<button data-ctopic="'+tp+'" style="padding:5px 12px;background:'+(active?'rgba(212,164,32,0.15)':'#1a1a1a')+';border:1px solid '+(active?'#D4A420':'#333')+';border-radius:20px;color:'+(active?'#D4A420':'#aaa')+';font-size:11px;font-weight:bold;cursor:pointer;">'+tp+'</button>';
+        }
+        h += '</div>';
+        if (!this.running) {
+          h += '<button class="feat-btn" data-cstart>START CONVERSATION</button>';
+        } else {
+          h += '<button class="feat-btn" style="background:rgba(255,77,77,0.15);border-color:#ff4d4d;color:#ff4d4d;" data-cstop>PAUSE</button>';
+        }
+        if (this.messages.length > 0) {
+          h += '<div class="conv-stream" style="margin-top:12px;max-height:320px;overflow-y:auto;border:1px solid #222;border-radius:12px;padding:10px;background:#0a0a0a;">';
+          for (var m=0;m<this.messages.length;m++) {
+            var msg=this.messages[m], mp=this.personas[msg.persona];
+            if (!mp) continue;
+            var factionColor = mp.faction==='SELF'?'#ff4d4d':(mp.faction==='SUPPORTER'?'#4ADE80':'#60A5FA');
+            h += '<div style="margin-bottom:10px;padding:8px 10px;border-left:3px solid '+mp.color+';background:rgba(255,255,255,0.02);border-radius:0 8px 8px 0;">';
+            h += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">';
+            h += '<span style="font-size:11px;font-weight:bold;color:'+mp.color+';">'+mp.name+'</span>';
+            h += '<span style="font-size:8px;padding:1px 5px;border-radius:4px;background:rgba(255,255,255,0.06);color:'+factionColor+';text-transform:uppercase;letter-spacing:1px;">'+mp.faction+'</span>';
+            h += '<button data-cspeak="'+msg.persona+'" data-ctext="'+msg.text.replace(/"/g,'&quot;').replace(/'/g,'&#39;')+'" style="margin-left:auto;background:none;border:none;color:#888;cursor:pointer;font-size:12px;">\u{1F50A}</button>';
+            h += '</div>';
+            h += '<div style="font-size:12px;color:#ccc;line-height:1.5;">'+msg.text+'</div>';
+            h += '</div>';
+          }
+          h += '</div>';
+          if (!this.running) { h += '<div style="text-align:center;margin-top:8px;"><button data-cclear style="background:none;border:1px solid #333;border-radius:8px;padding:4px 14px;color:#888;cursor:pointer;font-size:11px;">Clear</button></div>'; }
+        }
+        if (this.loading) { h += '<div class="feat-loading">Generating response...</div>'; }
+        this.el.innerHTML = h;
+      };
+
       function DashboardModule(id) {
         this.el = document.getElementById(id);
         this.news = [];
@@ -1440,6 +1563,9 @@
         } else if (feature === 'billionaires') {
           document.getElementById('billionairesTab').style.display = 'block';
           if (!window.billionaires) { window.billionaires = new BillionairesModule('billionairesTab'); }
+        } else if (feature === 'conversation') {
+          document.getElementById('conversationTab').style.display = 'block';
+          if (!window.conversation) { window.conversation = new ConversationModule('conversationTab'); }
         } else if (feature === 'dashboard') {
           document.getElementById('dashboardTab').style.display = 'block';
           if (!window.dashboard) { window.dashboard = new DashboardModule('dashboardTab'); }
