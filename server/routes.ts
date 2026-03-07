@@ -1204,7 +1204,7 @@ Generate the roundtable discussion. Each persona must give their take and REACT 
     rogan: "f712cd4671cb4807b21e8a1dc905dc4a",
     shannon: "f8e7603e5ede4782813d05dd8eb45132",
     mansa: "00a50bc21a9e43d0bb252aa3d44e5f9f",
-    galloway: "f712cd4671cb4807b21e8a1dc905dc4a",
+    galloway: "12206c42bd74465f987178e33c277d87",
     carville: "ce3ba02102a34819abd74838d220d68e",
     maddow: "7a8e38ef826c4352915c230a37fca0d9",
     omar: "478ccf652e0049898fbf11d0fb9f9d2a",
@@ -1423,7 +1423,7 @@ Generate the roundtable discussion. Each persona must give their take and REACT 
   });
 
   let arenaTopicsCache: { topics: any[]; expires: number } = { topics: [], expires: 0 };
-  const ARENA_NEWS_CACHE_TTL = 30 * 60 * 1000;
+  const ARENA_NEWS_CACHE_TTL = 10 * 60 * 1000;
 
   async function fetchArenaTopics(): Promise<any[]> {
     if (arenaTopicsCache.topics.length > 0 && Date.now() < arenaTopicsCache.expires) {
@@ -1445,8 +1445,8 @@ Generate the roundtable discussion. Each persona must give their take and REACT 
       const completion = await getClient().chat.completions.create({
         model: getFastModel(),
         messages: [
-          { role: "system", content: `You generate debate topics for a political arena show. Given today's headlines, create 6 hot debate topics. Each topic should be controversial, current, and something Trump would have opinions about. Return ONLY valid JSON array of objects with "id", "title" (short 2-4 word label), "description" (one sentence summary of the issue), and "headlines" (array of 2-3 relevant headline strings from the provided list). Make topics diverse: mix economy, foreign policy, social issues, tech, culture.` },
-          { role: "user", content: `Today's headlines:\n- ${topHeadlines}\n\nGenerate 6 debate topics as JSON array.` },
+          { role: "system", content: `You generate DAILY debate topics for a live political arena show. Today is ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}. Given today's BREAKING headlines, create 6 HOT debate topics that are happening RIGHT NOW — not generic evergreen topics. Each topic MUST reference a specific current event, controversy, or breaking story from the headlines. Make them provocative and designed for maximum engagement. Trump would have strong opinions on all of these. Return ONLY valid JSON array of objects with "id" (lowercase_snake_case), "title" (short 2-4 word label referencing the SPECIFIC story), "description" (one punchy sentence about what just happened), and "headlines" (array of 2-3 relevant headline strings from the provided list). Make topics diverse: mix breaking news, political drama, global conflicts, economy, culture wars, tech scandals.` },
+          { role: "user", content: `TODAY'S BREAKING HEADLINES (${new Date().toLocaleDateString()}):\n- ${topHeadlines}\n\nGenerate 6 FRESH daily debate topics as JSON array. These must be about TODAY's news, not generic topics.` },
         ],
         max_completion_tokens: 600,
         temperature: 0.8,

@@ -12,6 +12,7 @@ import {
   Share,
   Linking,
   ScrollView,
+  TextInput,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -495,6 +496,10 @@ export default function ArenaScreen() {
   const [pollVotes, setPollVotes] = useState<Record<string, number>>({});
   const [userVoted, setUserVoted] = useState(false);
   const [showPollResults, setShowPollResults] = useState(false);
+  const [pollWinner, setPollWinner] = useState<string | null>(null);
+  const [fanName, setFanName] = useState("");
+  const [showNameInput, setShowNameInput] = useState(false);
+  const [thankYouPlayed, setThankYouPlayed] = useState(false);
 
   const [dynamicTopics, setDynamicTopics] = useState<DynamicTopic[]>(FALLBACK_TOPICS);
   const [topicTimer, setTopicTimer] = useState<number>(0);
@@ -639,7 +644,7 @@ export default function ArenaScreen() {
   useEffect(() => {
     fetchTopics();
     checkArenaStatus();
-    const topicRefresh = setInterval(fetchTopics, 30 * 60 * 1000);
+    const topicRefresh = setInterval(fetchTopics, 10 * 60 * 1000);
     return () => clearInterval(topicRefresh);
   }, [fetchTopics, checkArenaStatus]);
 
@@ -682,6 +687,10 @@ export default function ArenaScreen() {
             setPollVotes({});
             setUserVoted(false);
             setShowPollResults(false);
+            setPollWinner(null);
+            setShowNameInput(false);
+            setThankYouPlayed(false);
+            setFanName("");
           }
           return 0;
         }
@@ -897,6 +906,10 @@ export default function ArenaScreen() {
       setPollVotes({});
       setUserVoted(false);
       setShowPollResults(false);
+      setPollWinner(null);
+      setShowNameInput(false);
+      setThankYouPlayed(false);
+      setFanName("");
 
       if (!currentSpeakerRef.current && mountedRef.current) {
         const active = selectedPersonasRef.current;
@@ -937,7 +950,45 @@ export default function ArenaScreen() {
     setPollVotes((prev) => ({ ...prev, [personaId]: (prev[personaId] || 0) + 1 }));
     setUserVoted(true);
     setShowPollResults(true);
+    setPollWinner(personaId);
+    setShowNameInput(true);
+    setThankYouPlayed(false);
+    setFanName("");
   }, [userVoted]);
+
+  const playThankYou = useCallback(async (name: string, personaId: string) => {
+    if (!name.trim() || !personaId) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    setThankYouPlayed(true);
+    const persona = ARENA_PERSONAS[personaId];
+    if (!persona) return;
+
+    try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (deviceId) headers["x-device-id"] = deviceId;
+      const res = await fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          responderId: personaId,
+          toSpeakerId: "system",
+          conversationHistory: [{ speakerName: "Fan", text: `A fan named ${name.trim()} just voted for you as the winner of this debate! Thank them personally and make it memorable.` }],
+          topic: currentTopic || "debate",
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        addMessage({
+          id: "thankyou-" + Date.now() + Math.random().toString(36).substr(2, 5),
+          speakerId: personaId,
+          speakerName: persona.name,
+          text: data.response,
+          timestamp: Date.now(),
+        });
+        queueTTS(data.response, personaId, true);
+      }
+    } catch {}
+  }, [deviceId, currentTopic, addMessage, queueTTS]);
 
   const shareDebate = useCallback(async () => {
     const topicName = currentTopic || "Political Arena";
@@ -1226,10 +1277,40 @@ export default function ArenaScreen() {
               );
             })}
           </ScrollView>
+          {userVoted && showNameInput && pollWinner && (
+            <View style={s.nameInputSection}>
+              <Text style={s.nameInputLabel}>
+                Enter your name — {ARENA_PERSONAS[pollWinner]?.shortName} wants to thank you!
+              </Text>
+              <View style={s.nameInputRow}>
+                <TextInput
+                  style={s.nameInput}
+                  placeholder="Your name..."
+                  placeholderTextColor="rgba(255,255,255,0.3)"
+                  value={fanName}
+                  onChangeText={setFanName}
+                  maxLength={30}
+                  autoCapitalize="words"
+                />
+                <Pressable
+                  onPress={() => playThankYou(fanName, pollWinner)}
+                  disabled={!fanName.trim() || thankYouPlayed}
+                  style={[s.thankYouBtn, (!fanName.trim() || thankYouPlayed) && { opacity: 0.4 }]}
+                >
+                  {thankYouPlayed ? (
+                    <Ionicons name="checkmark-circle" size={16} color="#4ADE80" />
+                  ) : (
+                    <Ionicons name="mic" size={16} color="#000" />
+                  )}
+                  <Text style={s.thankYouBtnText}>{thankYouPlayed ? "Sent!" : "Hear Thanks"}</Text>
+                </Pressable>
+              </View>
+            </View>
+          )}
           {userVoted && (
             <View style={s.pollActionsRow}>
               <Pressable
-                onPress={() => { setPollVotes({}); setUserVoted(false); setShowPollResults(false); }}
+                onPress={() => { setPollVotes({}); setUserVoted(false); setShowPollResults(false); setPollWinner(null); setShowNameInput(false); setThankYouPlayed(false); setFanName(""); }}
                 style={s.pollResetBtn}
               >
                 <Text style={s.pollResetText}>Vote Again</Text>
@@ -1840,6 +1921,50 @@ const s = StyleSheet.create({
     fontSize: 10,
     fontWeight: "700" as const,
     color: "#FFD700",
+  },
+  nameInputSection: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,215,0,0.1)",
+  },
+  nameInputLabel: {
+    fontSize: 11,
+    fontWeight: "700" as const,
+    color: "rgba(255,255,255,0.5)",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  nameInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  nameInput: {
+    flex: 1,
+    height: 38,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,215,0,0.25)",
+    backgroundColor: "rgba(255,255,255,0.05)",
+    paddingHorizontal: 12,
+    fontSize: 14,
+    color: "#fff",
+    fontWeight: "600" as const,
+  },
+  thankYouBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 10,
+    backgroundColor: "#FFD700",
+  },
+  thankYouBtnText: {
+    fontSize: 12,
+    fontWeight: "800" as const,
+    color: "#000",
   },
   affiliateRow: {
     maxHeight: 36,
