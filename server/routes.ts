@@ -1187,6 +1187,7 @@ Generate the roundtable discussion. Each persona must give their take and REACT 
   const NAV_VOICE_ID = "121b31844d2f451a9838b15e6a329002";
 
   const PERSONA_VOICE_IDS: Record<string, string> = {
+    trump: "54a5170264694bfc8ca9e8b82e8a24a6",
     jordan: "6908d35f23754047acde93acf29fc749",
     bernie: "5cbb7b199c5a4b538bf1018e6341ebc4",
     musk: "759c82adcd8f4c129ae29dec9f772b7b",
@@ -1203,6 +1204,7 @@ Generate the roundtable discussion. Each persona must give their take and REACT 
     rogan: "f712cd4671cb4807b21e8a1dc905dc4a",
     shannon: "f8e7603e5ede4782813d05dd8eb45132",
     mansa: "00a50bc21a9e43d0bb252aa3d44e5f9f",
+    galloway: "f712cd4671cb4807b21e8a1dc905dc4a",
     carville: "ce3ba02102a34819abd74838d220d68e",
     maddow: "7a8e38ef826c4352915c230a37fca0d9",
     omar: "478ccf652e0049898fbf11d0fb9f9d2a",

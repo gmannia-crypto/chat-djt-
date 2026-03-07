@@ -9,6 +9,9 @@ import {
   ActivityIndicator,
   Image,
   Modal,
+  Share,
+  Linking,
+  ScrollView,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -423,19 +426,12 @@ const FALLBACK_TOPICS: DynamicTopic[] = [
   { id: "tech", title: "Big Tech", description: "AI regulation, social media, and tech monopolies" },
 ];
 
-const ARENA_VOICE_IDS: Record<string, string> = {
-  trump: "54a5170264694bfc8ca9e8b82e8a24a6",
-  netanyahu: "3c5fe93c3f5348bbaeb5cee4f27bb359",
-  ruckus: "ruckus",
-  galloway: "galloway",
-  mcconnell: "f338ac02d7df4e6e959e131d6126aeff",
-  carville: "ce3ba02102a34819abd74838d220d68e",
-  maddow: "7a8e38ef826c4352915c230a37fca0d9",
-  omar: "478ccf652e0049898fbf11d0fb9f9d2a",
-  biden: "39c0a6dc47054f9bbcd2e064a41fea9f",
-  rosie: "0b2a697d1ed141c7965cd65d197f54ba",
-  berniemc: "5cbb7b199c5a4b538bf1018e6341ebc4",
-};
+const AFFILIATE_LINKS = [
+  { title: "Trump 2024 Hat", url: "https://www.amazon.com/s?k=trump+2024+hat&tag=trumpbot-20", icon: "hat" },
+  { title: "MAGA Merch", url: "https://www.amazon.com/s?k=maga+merchandise&tag=trumpbot-20", icon: "shirt" },
+  { title: "Political Books", url: "https://www.amazon.com/s?k=political+books+bestseller&tag=trumpbot-20", icon: "book" },
+  { title: "Trump Bobblehead", url: "https://www.amazon.com/s?k=trump+bobblehead&tag=trumpbot-20", icon: "gift" },
+];
 
 const FACTION_COLORS = {
   self: "#FFD700",
@@ -522,24 +518,12 @@ export default function ArenaScreen() {
   const mountedRef = useRef(true);
   const voiceEnabledRef = useRef(false);
 
-  useEffect(() => {
-    messagesRef.current = messages;
-  }, [messages]);
-  useEffect(() => {
-    currentSpeakerRef.current = currentSpeaker;
-  }, [currentSpeaker]);
-  useEffect(() => {
-    currentTopicRef.current = currentTopic;
-  }, [currentTopic]);
-  useEffect(() => {
-    emotionalStatesRef.current = emotionalStates;
-  }, [emotionalStates]);
-  useEffect(() => {
-    isRunningRef.current = isRunning;
-  }, [isRunning]);
-  useEffect(() => {
-    voiceEnabledRef.current = voiceEnabled;
-  }, [voiceEnabled]);
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
+  useEffect(() => { currentSpeakerRef.current = currentSpeaker; }, [currentSpeaker]);
+  useEffect(() => { currentTopicRef.current = currentTopic; }, [currentTopic]);
+  useEffect(() => { emotionalStatesRef.current = emotionalStates; }, [emotionalStates]);
+  useEffect(() => { isRunningRef.current = isRunning; }, [isRunning]);
+  useEffect(() => { voiceEnabledRef.current = voiceEnabled; }, [voiceEnabled]);
 
   const currentSoundRef = useRef<any>(null);
   const forcePlayRef = useRef(false);
@@ -695,6 +679,9 @@ export default function ArenaScreen() {
               timestamp: Date.now(), isSystem: true,
             }].slice(-50));
             setTopicTimer(TOPIC_DURATION);
+            setPollVotes({});
+            setUserVoted(false);
+            setShowPollResults(false);
           }
           return 0;
         }
@@ -952,10 +939,41 @@ export default function ArenaScreen() {
     setShowPollResults(true);
   }, [userVoted]);
 
-  const activeSpeakers = selectedPersonas.filter((pid) => {
+  const shareDebate = useCallback(async () => {
+    const topicName = currentTopic || "Political Arena";
+    const recentMessages = messages.filter((m) => !m.isSystem).slice(-5);
+    let shareText = `🔥 POLITICAL ARENA: ${topicName}\n\n`;
+    recentMessages.forEach((m) => {
+      const persona = ARENA_PERSONAS[m.speakerId];
+      if (persona) shareText += `${persona.shortName}: "${m.text.substring(0, 80)}..."\n`;
+    });
+    shareText += `\nWatch the AI debate LIVE on Chat DJT! 🏛️`;
+
+    try {
+      if (Platform.OS === "web") {
+        if (navigator.share) {
+          await navigator.share({ title: `Political Arena: ${topicName}`, text: shareText });
+        } else {
+          const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`;
+          Linking.openURL(twitterUrl);
+        }
+      } else {
+        await Share.share({ message: shareText, title: `Political Arena: ${topicName}` });
+      }
+    } catch {}
+  }, [currentTopic, messages]);
+
+  const replayLastMessage = useCallback(() => {
+    const lastNonSystem = [...messages].reverse().find((m) => !m.isSystem);
+    if (lastNonSystem) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      queueTTS(lastNonSystem.text, lastNonSystem.speakerId, true);
+    }
+  }, [messages, queueTTS]);
+
+  const pollCandidates = selectedPersonas.filter((pid) => {
     return messages.some((m) => m.speakerId === pid && !m.isSystem);
   });
-  const pollCandidates = activeSpeakers.length >= 2 ? activeSpeakers : selectedPersonas;
 
   const renderMessage = useCallback(
     ({ item }: { item: ConversationMessage }) => {
@@ -1018,8 +1036,14 @@ export default function ArenaScreen() {
             <Text style={s.liveText}>LIVE</Text>
           </View>
         </View>
-        <Pressable onPress={toggleRunning} style={s.pauseBtn}>
-          <Ionicons name={isRunning ? "pause" : "play"} size={20} color="#fff" />
+        <Pressable onPress={() => setShowPersonaSelector(true)} style={s.headerIconBtn}>
+          <Ionicons name="people" size={18} color="#FFD700" />
+        </Pressable>
+        <Pressable onPress={shareDebate} style={s.headerIconBtn}>
+          <Ionicons name="share-social" size={18} color="#fff" />
+        </Pressable>
+        <Pressable onPress={toggleRunning} style={s.headerIconBtn}>
+          <Ionicons name={isRunning ? "pause" : "play"} size={18} color="#fff" />
         </Pressable>
       </View>
 
@@ -1043,6 +1067,10 @@ export default function ArenaScreen() {
             {voiceEnabled ? (isPlayingAudio ? "PLAYING" : "VOICE ON") : "VOICE OFF"}
           </Text>
         </Pressable>
+        <Pressable onPress={replayLastMessage} style={s.replayBtn}>
+          <Ionicons name="play-back" size={14} color="#FFD700" />
+          <Text style={s.replayText}>REPLAY</Text>
+        </Pressable>
         {currentTopic && topicTimer > 0 && (
           <View style={s.topicTimerPill}>
             <Ionicons name="timer" size={12} color={topicTimer < 60 ? "#F87171" : "#FBBF24"} />
@@ -1064,61 +1092,49 @@ export default function ArenaScreen() {
         )}
       </View>
 
-      <View style={s.selectorRow}>
-        <Pressable
-          onPress={() => setShowPersonaSelector(true)}
-          style={s.selectorBtn}
-        >
-          <Ionicons name="people" size={14} color="#FFD700" />
-          <Text style={s.selectorBtnText}>{selectedPersonas.length}/{PERSONA_IDS.length}</Text>
-        </Pressable>
-        <FlatList
-          data={selectedPersonas}
-          horizontal
-          keyExtractor={(pid) => pid}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={s.personaRow}
-          renderItem={({ item: pid }) => {
-            const p = ARENA_PERSONAS[pid];
-            const emo = emotionalStates[pid];
-            const isSpeaking = currentSpeaker === pid;
-            return (
-              <Pressable
-                key={pid}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setFocusedPersona(focusedPersona === pid ? null : pid);
-                }}
-                style={[
-                  s.personaCircle,
-                  { borderColor: p.color },
-                  isSpeaking && { borderColor: "#FFD700", borderWidth: 3 },
-                ]}
-              >
-                {p.image ? (
-                  <Image source={p.image} style={s.personaImg} />
-                ) : (
-                  <View style={[s.personaImgFallback, { backgroundColor: p.color + "40" }]}>
-                    <Text style={s.personaInitials}>{getInitials(p.name)}</Text>
-                  </View>
-                )}
-                {isSpeaking && (
-                  <View style={s.speakingIndicator}>
-                    <MaterialCommunityIcons name="volume-high" size={10} color="#FFD700" />
-                  </View>
-                )}
-                <Text style={[s.personaLabel, { color: p.color }]} numberOfLines={1}>
-                  {p.shortName}
-                </Text>
-                <View style={s.emotionBars}>
-                  <View style={[s.emotionBar, s.angerBar, { width: `${emo.anger}%` }]} />
-                  <View style={[s.emotionBar, s.happyBar, { width: `${emo.happiness}%` }]} />
+      <Animated.View entering={FadeInDown.delay(200).duration(400)} style={s.personaRow}>
+        {selectedPersonas.map((pid) => {
+          const p = ARENA_PERSONAS[pid];
+          const emo = emotionalStates[pid];
+          const isSpeaking = currentSpeaker === pid;
+          const isFocused = focusedPersona === pid;
+          return (
+            <Pressable
+              key={pid}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setFocusedPersona(focusedPersona === pid ? null : pid);
+              }}
+              style={[
+                s.personaCircle,
+                { borderColor: p.color },
+                isSpeaking && { borderColor: "#FFD700", borderWidth: 3 },
+                isFocused && { transform: [{ scale: 1.1 }] },
+              ]}
+            >
+              {p.image ? (
+                <Image source={p.image} style={s.personaImg} />
+              ) : (
+                <View style={[s.personaImgFallback, { backgroundColor: p.color + "40" }]}>
+                  <Text style={s.personaInitials}>{getInitials(p.name)}</Text>
                 </View>
-              </Pressable>
-            );
-          }}
-        />
-      </View>
+              )}
+              {isSpeaking && (
+                <View style={s.speakingIndicator}>
+                  <MaterialCommunityIcons name="volume-high" size={10} color="#FFD700" />
+                </View>
+              )}
+              <Text style={[s.personaLabel, { color: p.color }]} numberOfLines={1}>
+                {p.shortName}
+              </Text>
+              <View style={s.emotionBars}>
+                <View style={[s.emotionBar, s.angerBar, { width: `${emo.anger}%` }]} />
+                <View style={[s.emotionBar, s.happyBar, { width: `${emo.happiness}%` }]} />
+              </View>
+            </Pressable>
+          );
+        })}
+      </Animated.View>
 
       {focusedPersona && (
         <Animated.View entering={FadeIn.duration(200)} style={s.focusCard}>
@@ -1179,6 +1195,71 @@ export default function ArenaScreen() {
         />
       </View>
 
+      {currentTopic && pollCandidates.length >= 2 && (
+        <View style={s.pollSection}>
+          <Text style={s.pollTitle}>
+            {userVoted ? "POLL RESULTS" : "WHO'S WINNING THIS DEBATE?"}
+          </Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.pollOptions}>
+            {pollCandidates.map((pid) => {
+              const p = ARENA_PERSONAS[pid];
+              const votes = pollVotes[pid] || 0;
+              const totalVotes = Object.values(pollVotes).reduce((a, b) => a + b, 0);
+              const pct = totalVotes > 0 ? Math.round((votes / totalVotes) * 100) : 0;
+              return (
+                <Pressable
+                  key={pid}
+                  onPress={() => castVote(pid)}
+                  disabled={userVoted}
+                  style={[s.pollOptionBtn, userVoted && pollVotes[pid] && { borderColor: p.color, backgroundColor: p.color + "15" }]}
+                >
+                  {p.image ? (
+                    <Image source={p.image} style={s.pollAvatar} />
+                  ) : (
+                    <View style={[s.pollAvatarFallback, { backgroundColor: p.color + "40" }]}>
+                      <Text style={s.pollAvatarText}>{getInitials(p.name)}</Text>
+                    </View>
+                  )}
+                  <Text style={[s.pollName, { color: p.color }]} numberOfLines={1}>{p.shortName}</Text>
+                  {showPollResults && <Text style={s.pollPct}>{pct}%</Text>}
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+          {userVoted && (
+            <View style={s.pollActionsRow}>
+              <Pressable
+                onPress={() => { setPollVotes({}); setUserVoted(false); setShowPollResults(false); }}
+                style={s.pollResetBtn}
+              >
+                <Text style={s.pollResetText}>Vote Again</Text>
+              </Pressable>
+              <Pressable onPress={shareDebate} style={s.pollShareBtn}>
+                <Ionicons name="share-social" size={12} color="#FFD700" />
+                <Text style={s.pollShareText}>Share Results</Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
+      )}
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.affiliateRow} contentContainerStyle={s.affiliateContent}>
+        {AFFILIATE_LINKS.map((link, i) => (
+          <Pressable
+            key={i}
+            onPress={() => Linking.openURL(link.url)}
+            style={s.affiliateBtn}
+          >
+            <Ionicons
+              name={link.icon === "hat" ? "ribbon" : link.icon === "shirt" ? "shirt" : link.icon === "book" ? "book" : "gift"}
+              size={12}
+              color="#FFD700"
+            />
+            <Text style={s.affiliateText} numberOfLines={1}>{link.title}</Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+
       <Animated.View entering={FadeInUp.delay(400).duration(400)} style={[s.topicRow, { paddingBottom: insets.bottom + webBottomInset + 8 }]}>
         <FlatList
           data={dynamicTopics}
@@ -1209,54 +1290,12 @@ export default function ArenaScreen() {
         />
       </Animated.View>
 
-      {currentTopic && selectedPersonas.length >= 2 && (
-        <View style={s.pollSection}>
-          <Text style={s.pollTitle}>
-            {userVoted ? "POLL RESULTS" : "WHO'S WINNING THIS DEBATE?"}
-          </Text>
-          <View style={s.pollOptions}>
-            {pollCandidates.slice(0, 8).map((pid) => {
-              const p = ARENA_PERSONAS[pid];
-              const votes = pollVotes[pid] || 0;
-              const totalVotes = Object.values(pollVotes).reduce((a, b) => a + b, 0);
-              const pct = totalVotes > 0 ? Math.round((votes / totalVotes) * 100) : 0;
-              return (
-                <Pressable
-                  key={pid}
-                  onPress={() => castVote(pid)}
-                  disabled={userVoted}
-                  style={[s.pollOptionBtn, userVoted && pollVotes[pid] && { borderColor: p.color, backgroundColor: p.color + "15" }]}
-                >
-                  {p.image ? (
-                    <Image source={p.image} style={s.pollAvatar} />
-                  ) : (
-                    <View style={[s.pollAvatarFallback, { backgroundColor: p.color + "40" }]}>
-                      <Text style={s.pollAvatarText}>{getInitials(p.name)}</Text>
-                    </View>
-                  )}
-                  <Text style={[s.pollName, { color: p.color }]} numberOfLines={1}>{p.shortName}</Text>
-                  {showPollResults && <Text style={s.pollPct}>{pct}%</Text>}
-                </Pressable>
-              );
-            })}
-          </View>
-          {userVoted && (
-            <Pressable
-              onPress={() => { setPollVotes({}); setUserVoted(false); setShowPollResults(false); }}
-              style={s.pollResetBtn}
-            >
-              <Text style={s.pollResetText}>Vote Again</Text>
-            </Pressable>
-          )}
-        </View>
-      )}
-
       <Modal visible={showPersonaSelector} transparent animationType="slide">
         <View style={s.selectorOverlay}>
           <View style={s.selectorCard}>
             <View style={s.selectorHeader}>
               <Text style={s.selectorTitle}>Choose Debaters</Text>
-              <Text style={s.selectorSubtitle}>Pick 2 or more personas</Text>
+              <Text style={s.selectorSubtitle}>Pick 2 or more personas ({selectedPersonas.length} selected)</Text>
             </View>
             <FlatList
               data={PERSONA_IDS}
@@ -1299,8 +1338,8 @@ export default function ArenaScreen() {
                 <Text style={s.selectorSelectAllText}>Select All</Text>
               </Pressable>
               <Pressable
-                onPress={() => setShowPersonaSelector(false)}
-                style={s.selectorDoneBtn}
+                onPress={() => { if (selectedPersonas.length >= 2) setShowPersonaSelector(false); }}
+                style={[s.selectorDoneBtn, selectedPersonas.length < 2 && { opacity: 0.4 }]}
               >
                 <Text style={s.selectorDoneText}>Done</Text>
               </Pressable>
@@ -1355,7 +1394,7 @@ const s = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 10,
-    gap: 12,
+    gap: 8,
   },
   backBtn: {
     width: 36,
@@ -1376,6 +1415,14 @@ const s = StyleSheet.create({
     fontWeight: "900" as const,
     color: "#ff4d4d",
     letterSpacing: 1.5,
+  },
+  headerIconBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   liveBadge: {
     flexDirection: "row",
@@ -1400,56 +1447,49 @@ const s = StyleSheet.create({
     color: "#ff4d4d",
     letterSpacing: 0.5,
   },
-  pauseBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
   personaRow: {
     flexDirection: "row",
     justifyContent: "center",
     paddingHorizontal: 8,
     gap: 6,
     marginBottom: 8,
+    flexWrap: "wrap",
   },
   personaCircle: {
     alignItems: "center",
-    width: 64,
+    width: 58,
     paddingVertical: 6,
     borderRadius: 14,
     borderWidth: 1.5,
     backgroundColor: "rgba(255,255,255,0.03)",
   },
   personaImg: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
   },
   personaImgFallback: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
   },
   personaInitials: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "800" as const,
     color: "#fff",
   },
   speakingIndicator: {
     position: "absolute",
     top: 2,
-    right: 6,
+    right: 4,
     backgroundColor: "rgba(255,215,0,0.3)",
     borderRadius: 8,
     padding: 2,
   },
   personaLabel: {
-    fontSize: 8,
+    fontSize: 7,
     fontWeight: "700" as const,
     marginTop: 3,
     letterSpacing: 0.3,
@@ -1497,10 +1537,6 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-  },
-  focusStatIcon: {
-    width: 18,
-    alignItems: "center",
   },
   focusStatLabel: {
     fontSize: 10,
@@ -1626,31 +1662,6 @@ const s = StyleSheet.create({
     color: "rgba(255,255,255,0.8)",
     lineHeight: 19,
   },
-  topicRow: {
-    paddingTop: 8,
-    backgroundColor: Colors.background,
-  },
-  topicList: {
-    paddingHorizontal: 12,
-    gap: 8,
-  },
-  topicBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-    backgroundColor: "rgba(255,255,255,0.03)",
-  },
-  topicBtnText: {
-    fontSize: 12,
-    fontWeight: "600" as const,
-    color: "#888",
-    maxWidth: 120,
-  },
   voiceRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1681,6 +1692,23 @@ const s = StyleSheet.create({
   },
   voiceToggleTextActive: {
     color: "#FFD700",
+  },
+  replayBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: "rgba(255,215,0,0.25)",
+    backgroundColor: "rgba(255,215,0,0.08)",
+  },
+  replayText: {
+    fontSize: 10,
+    fontWeight: "800" as const,
+    color: "#FFD700",
+    letterSpacing: 0.5,
   },
   topicTimerPill: {
     flexDirection: "row",
@@ -1720,105 +1748,149 @@ const s = StyleSheet.create({
     color: "rgba(255,255,255,0.4)",
     marginLeft: "auto",
   },
-  paywallOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.8)",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 24,
-  },
-  paywallCard: {
-    backgroundColor: "#1a1a1a",
-    borderRadius: 20,
-    padding: 28,
-    alignItems: "center",
-    width: "100%",
-    maxWidth: 340,
+  pollSection: {
+    marginHorizontal: 12,
+    marginVertical: 6,
+    backgroundColor: "rgba(255,255,255,0.03)",
+    borderRadius: 12,
+    padding: 10,
     borderWidth: 1,
-    borderColor: "rgba(255,215,0,0.2)",
+    borderColor: "rgba(255,215,0,0.15)",
   },
-  paywallTitle: {
-    fontSize: 20,
-    fontWeight: "900" as const,
-    color: "#fff",
-    marginTop: 12,
+  pollTitle: {
+    fontSize: 10,
+    fontWeight: "800" as const,
+    color: "#FFD700",
     textAlign: "center",
+    letterSpacing: 1,
+    marginBottom: 8,
   },
-  paywallSubtitle: {
-    fontSize: 13,
-    color: "rgba(255,255,255,0.6)",
-    textAlign: "center",
-    marginTop: 8,
-    lineHeight: 18,
-  },
-  paywallBalanceRow: {
-    flexDirection: "row",
-    alignItems: "center",
+  pollOptions: {
     gap: 6,
-    marginTop: 16,
-    backgroundColor: "rgba(255,215,0,0.1)",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 2,
+  },
+  pollOptionBtn: {
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+    backgroundColor: "rgba(255,255,255,0.03)",
+    minWidth: 56,
+  },
+  pollAvatar: {
+    width: 24,
+    height: 24,
     borderRadius: 12,
   },
-  paywallBalance: {
-    fontSize: 13,
+  pollAvatarFallback: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pollAvatarText: {
+    fontSize: 8,
+    fontWeight: "800" as const,
+    color: "#fff",
+  },
+  pollName: {
+    fontSize: 9,
+    fontWeight: "700" as const,
+    marginTop: 3,
+  },
+  pollPct: {
+    fontSize: 11,
+    fontWeight: "900" as const,
+    color: "#FFD700",
+    marginTop: 2,
+  },
+  pollActionsRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 12,
+    marginTop: 8,
+  },
+  pollResetBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)",
+  },
+  pollResetText: {
+    fontSize: 10,
+    fontWeight: "600" as const,
+    color: "rgba(255,255,255,0.4)",
+  },
+  pollShareBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: "rgba(255,215,0,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(255,215,0,0.3)",
+  },
+  pollShareText: {
+    fontSize: 10,
     fontWeight: "700" as const,
     color: "#FFD700",
   },
-  paywallBtn: {
-    backgroundColor: "#FFD700",
-    paddingHorizontal: 28,
-    paddingVertical: 14,
-    borderRadius: 14,
-    marginTop: 16,
-    width: "100%",
+  affiliateRow: {
+    maxHeight: 36,
+    marginHorizontal: 12,
+  },
+  affiliateContent: {
+    gap: 8,
     alignItems: "center",
+    paddingHorizontal: 2,
   },
-  paywallBtnText: {
-    fontSize: 15,
-    fontWeight: "900" as const,
-    color: "#000",
-  },
-  paywallSecondaryBtn: {
-    marginTop: 10,
-    paddingVertical: 10,
-  },
-  paywallSecondaryText: {
-    fontSize: 13,
-    fontWeight: "600" as const,
-    color: "rgba(255,255,255,0.5)",
-  },
-  paywallDismiss: {
-    marginTop: 4,
-    paddingVertical: 8,
-  },
-  paywallDismissText: {
-    fontSize: 12,
-    color: "rgba(255,255,255,0.3)",
-  },
-  selectorRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingLeft: 10,
-    marginBottom: 8,
-  },
-  selectorBtn: {
+  affiliateBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
     paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingVertical: 6,
     borderRadius: 14,
-    backgroundColor: "rgba(255,215,0,0.1)",
+    backgroundColor: "rgba(255,215,0,0.06)",
     borderWidth: 1,
-    borderColor: "rgba(255,215,0,0.25)",
-    marginRight: 6,
+    borderColor: "rgba(255,215,0,0.15)",
   },
-  selectorBtnText: {
+  affiliateText: {
     fontSize: 10,
-    fontWeight: "800" as const,
-    color: "#FFD700",
+    fontWeight: "600" as const,
+    color: "rgba(255,215,0,0.7)",
+    maxWidth: 100,
+  },
+  topicRow: {
+    paddingTop: 8,
+    backgroundColor: Colors.background,
+  },
+  topicList: {
+    paddingHorizontal: 12,
+    gap: 8,
+  },
+  topicBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+    backgroundColor: "rgba(255,255,255,0.03)",
+  },
+  topicBtnText: {
+    fontSize: 12,
+    fontWeight: "600" as const,
+    color: "#888",
+    maxWidth: 120,
   },
   selectorOverlay: {
     flex: 1,
@@ -1929,79 +2001,81 @@ const s = StyleSheet.create({
     fontWeight: "900" as const,
     color: "#000",
   },
-  pollSection: {
-    marginHorizontal: 12,
-    marginBottom: 6,
-    backgroundColor: "rgba(255,255,255,0.03)",
-    borderRadius: 12,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: "rgba(255,215,0,0.15)",
-  },
-  pollTitle: {
-    fontSize: 10,
-    fontWeight: "800" as const,
-    color: "#FFD700",
-    textAlign: "center",
-    letterSpacing: 1,
-    marginBottom: 8,
-  },
-  pollOptions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    gap: 6,
-  },
-  pollOptionBtn: {
-    alignItems: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-    backgroundColor: "rgba(255,255,255,0.03)",
-    minWidth: 56,
-  },
-  pollAvatar: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-  },
-  pollAvatarFallback: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+  paywallOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.8)",
     alignItems: "center",
     justifyContent: "center",
+    padding: 24,
   },
-  pollAvatarText: {
-    fontSize: 8,
-    fontWeight: "800" as const,
-    color: "#fff",
+  paywallCard: {
+    backgroundColor: "#1a1a1a",
+    borderRadius: 20,
+    padding: 28,
+    alignItems: "center",
+    width: "100%",
+    maxWidth: 340,
+    borderWidth: 1,
+    borderColor: "rgba(255,215,0,0.2)",
   },
-  pollName: {
-    fontSize: 9,
-    fontWeight: "700" as const,
-    marginTop: 3,
-  },
-  pollPct: {
-    fontSize: 11,
+  paywallTitle: {
+    fontSize: 20,
     fontWeight: "900" as const,
-    color: "#FFD700",
-    marginTop: 2,
+    color: "#fff",
+    marginTop: 12,
+    textAlign: "center",
   },
-  pollResetBtn: {
-    alignSelf: "center",
-    marginTop: 6,
+  paywallSubtitle: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.6)",
+    textAlign: "center",
+    marginTop: 8,
+    lineHeight: 18,
+  },
+  paywallBalanceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 16,
+    backgroundColor: "rgba(255,215,0,0.1)",
     paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
+    paddingVertical: 6,
+    borderRadius: 12,
   },
-  pollResetText: {
-    fontSize: 10,
+  paywallBalance: {
+    fontSize: 13,
+    fontWeight: "700" as const,
+    color: "#FFD700",
+  },
+  paywallBtn: {
+    backgroundColor: "#FFD700",
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 14,
+    marginTop: 16,
+    width: "100%",
+    alignItems: "center",
+  },
+  paywallBtnText: {
+    fontSize: 15,
+    fontWeight: "900" as const,
+    color: "#000",
+  },
+  paywallSecondaryBtn: {
+    marginTop: 10,
+    paddingVertical: 10,
+  },
+  paywallSecondaryText: {
+    fontSize: 13,
     fontWeight: "600" as const,
-    color: "rgba(255,255,255,0.4)",
+    color: "rgba(255,255,255,0.5)",
+  },
+  paywallDismiss: {
+    marginTop: 4,
+    paddingVertical: 8,
+  },
+  paywallDismissText: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.3)",
   },
 });
