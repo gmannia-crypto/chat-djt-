@@ -444,6 +444,8 @@ function getInitials(name: string) {
   return name.split(" ").map(w => w[0]).join("").substring(0, 2);
 }
 
+const INTERRUPTERS = ["biden", "rosie", "galloway", "berniemc", "omar"];
+
 function calculateResponseProbability(
   listenerId: string,
   speakerId: string,
@@ -522,6 +524,7 @@ export default function ArenaScreen() {
   const conversationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
   const voiceEnabledRef = useRef(false);
+  const recentSpeakersRef = useRef<string[]>([]);
 
   useEffect(() => { messagesRef.current = messages; }, [messages]);
   useEffect(() => { currentSpeakerRef.current = currentSpeaker; }, [currentSpeaker]);
@@ -809,6 +812,79 @@ export default function ArenaScreen() {
     [addMessage, updateEmotions, deviceId, queueTTS]
   );
 
+  const triggerInterruption = useCallback(async (trumpMessageText: string) => {
+    if (!mountedRef.current) return;
+    const active = selectedPersonasRef.current;
+    const availableInterrupters = INTERRUPTERS.filter((id) => active.includes(id));
+    if (availableInterrupters.length === 0) return;
+
+    const interrupter = availableInterrupters[Math.floor(Math.random() * availableInterrupters.length)];
+
+    await new Promise((r) => setTimeout(r, 800 + Math.random() * 1200));
+    if (!mountedRef.current || !isRunningRef.current) return;
+
+    try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (deviceId) headers["x-device-id"] = deviceId;
+
+      const res = await fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          responderId: interrupter,
+          toSpeakerId: "trump",
+          conversationHistory: [{ speakerName: "Donald Trump", text: trumpMessageText }],
+          topic: currentTopicRef.current || "debate",
+          isInterruption: true,
+        }),
+      });
+
+      if (res.ok && mountedRef.current) {
+        const data = await res.json();
+        const persona = ARENA_PERSONAS[interrupter];
+        const interruptMsg: ConversationMessage = {
+          id: "interrupt-" + Date.now() + Math.random().toString(36).substr(2, 5),
+          speakerId: interrupter,
+          speakerName: `⚡ ${persona.name}`,
+          text: data.response,
+          timestamp: Date.now(),
+        };
+        addMessage(interruptMsg);
+        queueTTS(data.response, interrupter);
+
+        await new Promise((r) => setTimeout(r, 1500 + Math.random() * 1000));
+        if (!mountedRef.current || !isRunningRef.current) return;
+
+        const clap = await fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            responderId: "trump",
+            toSpeakerId: interrupter,
+            conversationHistory: [
+              { speakerName: "Donald Trump", text: trumpMessageText },
+              { speakerName: persona.name, text: data.response },
+            ],
+            topic: currentTopicRef.current || "debate",
+            isInterruption: true,
+          }),
+        });
+
+        if (clap.ok && mountedRef.current) {
+          const clapData = await clap.json();
+          addMessage({
+            id: "clapback-" + Date.now() + Math.random().toString(36).substr(2, 5),
+            speakerId: "trump",
+            speakerName: "Donald Trump",
+            text: clapData.response,
+            timestamp: Date.now(),
+          });
+          queueTTS(clapData.response, "trump");
+        }
+      }
+    } catch {}
+  }, [deviceId, addMessage, queueTTS]);
+
   const decideNextSpeaker = useCallback(async () => {
     if (!isRunningRef.current || currentSpeakerRef.current) return;
     const msgs = messagesRef.current.filter((m) => !m.isSystem);
@@ -817,35 +893,51 @@ export default function ArenaScreen() {
     if (active.length < 2) return;
 
     const lastMsg = msgs[msgs.length - 1];
-    const candidates: { id: string; prob: number }[] = [];
+    const recent = recentSpeakersRef.current;
 
-    active.forEach((pid) => {
-      if (pid === lastMsg.speakerId) return;
+    const pool = active.filter((pid) => pid !== lastMsg.speakerId);
+    if (pool.length === 0) return;
+
+    const weights: { id: string; weight: number }[] = pool.map((pid) => {
+      let weight = 50;
       const prob = calculateResponseProbability(pid, lastMsg.speakerId, lastMsg.text);
-      if (Math.random() * 100 < prob) {
-        candidates.push({ id: pid, prob });
+      weight += (prob - 50) * 0.4;
+
+      const recentIdx = recent.indexOf(pid);
+      if (recentIdx === recent.length - 1) weight -= 30;
+      else if (recentIdx === recent.length - 2) weight -= 15;
+      else if (recentIdx === -1) weight += 20;
+
+      const emo = emotionalStatesRef.current[pid];
+      if (emo) {
+        if (emo.anger > 60) weight += 10;
+        if (!emo.lastSpoke || Date.now() - emo.lastSpoke > 20000) weight += 15;
       }
+
+      return { id: pid, weight: Math.max(5, weight) };
     });
 
-    if (candidates.length === 0) {
-      const pool = active.filter((p) => p !== lastMsg.speakerId);
-      if (pool.length > 0) {
-        const randomId = pool[Math.floor(Math.random() * pool.length)];
-        candidates.push({ id: randomId, prob: 50 });
-      }
+    const totalWeight = weights.reduce((sum, w) => sum + w.weight, 0);
+    let rand = Math.random() * totalWeight;
+    let chosen = weights[0];
+    for (const w of weights) {
+      rand -= w.weight;
+      if (rand <= 0) { chosen = w; break; }
     }
 
-    candidates.sort((a, b) => {
-      const eA = emotionalStatesRef.current[a.id]?.engagement || 0;
-      const eB = emotionalStatesRef.current[b.id]?.engagement || 0;
-      return eB - eA;
-    });
-
-    const chosen = candidates[0];
     if (chosen && mountedRef.current) {
       await generateAIResponse(chosen.id, lastMsg.speakerId);
+
+      recentSpeakersRef.current = [...recentSpeakersRef.current, chosen.id].slice(-4);
+
+      if (chosen.id === "trump" && Math.random() < 0.35) {
+        const trumpMsg = messagesRef.current.filter((m) => !m.isSystem).slice(-1)[0];
+        if (trumpMsg && trumpMsg.speakerId === "trump") {
+          triggerInterruption(trumpMsg.text);
+        }
+      }
     }
-  }, [generateAIResponse]);
+  }, [generateAIResponse, triggerInterruption]);
 
   const scheduleNext = useCallback(() => {
     if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
