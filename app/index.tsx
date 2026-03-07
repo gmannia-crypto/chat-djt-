@@ -1459,6 +1459,21 @@ export default function HomeScreen() {
               </View>
             )}
           </Pressable>
+          <Pressable
+            onPress={() => {
+              playNavVoice("Political Arena. The greatest debate you've ever seen. Believe me.");
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+              router.push("/arena");
+            }}
+            style={({ pressed }) => [styles.modeButton, styles.arenaButton, pressed && { opacity: 0.7 }]}
+            testID="arena-button"
+          >
+            <Ionicons name="megaphone" size={16} color="#ff4d4d" />
+            <Text style={styles.modeButtonText}>ARENA</Text>
+            <View style={styles.arenaLiveBadge}>
+              <Text style={styles.arenaLiveText}>LIVE</Text>
+            </View>
+          </Pressable>
         </Animated.View>
         {fearGreed && (
           <Animated.View entering={FadeInDown.delay(1750).duration(500)} style={styles.fearGreedCard}>
@@ -2594,6 +2609,28 @@ const styles = StyleSheet.create({
     fontSize: 8,
     fontWeight: "800" as const,
     color: "#FFD700",
+    letterSpacing: 0.5,
+  },
+  arenaButton: {
+    backgroundColor: "rgba(255, 77, 77, 0.12)",
+    borderColor: "rgba(255, 77, 77, 0.35)",
+    flex: 1,
+  },
+  arenaLiveBadge: {
+    position: "absolute",
+    top: 4,
+    right: 6,
+    backgroundColor: "rgba(255, 77, 77, 0.25)",
+    borderRadius: 8,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderWidth: 1,
+    borderColor: "rgba(255, 77, 77, 0.4)",
+  },
+  arenaLiveText: {
+    fontSize: 7,
+    fontWeight: "800" as const,
+    color: "#ff4d4d",
     letterSpacing: 0.5,
   },
   sportsButton: {

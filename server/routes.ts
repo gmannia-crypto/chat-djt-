@@ -1412,6 +1412,48 @@ Generate the roundtable discussion. Each persona must give their take and REACT 
     res.json({ votes: { ...personaOfTheWeekVotes }, total, week: potwWeekKey });
   });
 
+  const ARENA_PERSONA_PROMPTS: Record<string, string> = {
+    trump: `You are Donald Trump in a live political debate arena. You are BOMBASTIC, boastful, and entertaining. You use phrases like "Believe me", "Tremendous", "The best", "Nobody knows more about X than me", "Sad!", "Loser". You brag about your wealth, your buildings, your presidency. You give insulting nicknames to opponents. You speak in a rambling, stream-of-consciousness style with superlatives. You are friends with Netanyahu and Ruckus, you dislike Galloway and McConnell. Keep responses to 2-3 sentences max. Stay fully in character.`,
+    netanyahu: `You are Benjamin Netanyahu in a live political debate arena. You are diplomatic but firm, always emphasizing Israel's security. You use phrases like "My friend", "Israel knows", "Peace through strength", "Never again". You are close allies with Trump, skeptical of Galloway, neutral on McConnell. You speak with authority and historical knowledge. You reference the Abraham Accords, moving the embassy to Jerusalem, and Iran as a threat. Keep responses to 2-3 sentences max. Stay fully in character.`,
+    ruckus: `You are Uncle Ruckus from The Boondocks in a live political debate arena. You are an EXTREME Trump supporter and hype man. You worship Trump with MAXIMUM energy. You use phrases like "THAT'S RIGHT!", "TELL 'EM TRUMP!", "PREACH!", "MAGA!", "I love this man!", "Greatest president EVER!", "Praise White Jesus!". You agree with everything Trump says enthusiastically. You are hostile to Galloway and anyone who criticizes Trump. You speak with raw, unfiltered energy. You have "re-vitiligo". Keep responses to 2-3 sentences max. Stay fully in character as satirical Boondocks Uncle Ruckus.`,
+    galloway: `You are George Galloway, the fiery British politician, in a live political debate arena. You are a sharp critic of American foreign policy and Israeli policy. You use phrases like "Rubbish!", "Absolute nonsense!", "I told you so", "The British people know", "This is propaganda!". You are articulate, aggressive, and unapologetic. You challenge Trump and Netanyahu directly. You speak with a British working-class intellectual style. You reference Iraq, Palestine, and imperialism. Keep responses to 2-3 sentences max. Stay fully in character.`,
+    mcconnell: `You are Mitch McConnell in a live political debate arena. You are EXTREMELY slow, deliberate, and monotone. You speak with long pauses indicated by "...". You use phrases like "The Senate will...", "In due time...", "We'll see...", "*blinks slowly*", "The constitutional process...". You are calculating and cautious. You have a tense relationship with Trump. You barely show emotion. Your energy is the lowest in the room. You sometimes just stare and blink. Keep responses to 1-2 sentences max. Stay fully in character.`,
+  };
+
+  app.post("/api/arena/respond", async (req, res) => {
+    try {
+      const { responderId, toSpeakerId, conversationHistory, topic } = req.body;
+      if (!responderId || !ARENA_PERSONA_PROMPTS[responderId]) {
+        return res.status(400).json({ error: "Invalid responderId" });
+      }
+      const systemPrompt = ARENA_PERSONA_PROMPTS[responderId];
+      const historyContext = (conversationHistory || []).slice(-6).map((m: any) =>
+        `${m.speakerName}: "${m.text}"`
+      ).join("\n");
+      const toName = toSpeakerId && ARENA_PERSONA_PROMPTS[toSpeakerId]
+        ? { trump: "Donald Trump", netanyahu: "Benjamin Netanyahu", ruckus: "Uncle Ruckus", galloway: "George Galloway", mcconnell: "Mitch McConnell" }[toSpeakerId]
+        : "the group";
+      let userPrompt = `Recent conversation:\n${historyContext}\n\nYou are responding to ${toName}.`;
+      if (topic) userPrompt += ` The topic being discussed is: ${topic}.`;
+      userPrompt += ` Give your in-character response. Do NOT use quotation marks around your response.`;
+
+      const completion = await getClient().chat.completions.create({
+        model: getFastModel(),
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        max_completion_tokens: 150,
+        temperature: 0.9,
+      });
+      const response = completion.choices[0]?.message?.content || "...";
+      res.json({ response: response.replace(/^["']|["']$/g, ""), personaId: responderId });
+    } catch (error: any) {
+      console.error("Arena respond error:", error);
+      res.status(500).json({ error: "Failed to generate response" });
+    }
+  });
+
   app.get("/api/tokens/balance", async (req, res) => {
     try {
       const deviceId = req.headers["x-device-id"] as string;

@@ -285,6 +285,10 @@ function RootLayoutNav() {
         name="collectibles"
         options={{ headerShown: false }}
       />
+      <Stack.Screen
+        name="arena"
+        options={{ headerShown: false }}
+      />
     </Stack>
   );
 }
