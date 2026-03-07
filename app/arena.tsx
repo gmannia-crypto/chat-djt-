@@ -601,6 +601,19 @@ export default function ArenaScreen() {
     processTTSQueue();
   }, [processTTSQueue]);
 
+  const playInterruptionAudio = useCallback(async (text: string, personaId: string) => {
+    if (!voiceEnabledRef.current) return;
+    try {
+      const sound = await playTTS("/api/persona-speak", { text, personaId }, { volume: 1.0 });
+      sound.setOnPlaybackStatusUpdate((status: any) => {
+        if (status.didJustFinish || status.error) {
+          try { sound.unloadAsync(); } catch {}
+        }
+      });
+      setTimeout(() => { try { sound.unloadAsync(); } catch {} }, 60000);
+    } catch {}
+  }, []);
+
   const fetchTopics = useCallback(async () => {
     try {
       const res = await fetch(new URL("/api/arena/topics", getApiUrl()).toString());
@@ -955,7 +968,7 @@ export default function ArenaScreen() {
         addMessage(interruptMsg);
         showInterruptionBanner(interrupter, persona.name, data.response);
         lastInterruptionRef.current = { text: data.response, interrupterId: interrupter };
-        queueTTS(data.response, interrupter);
+        playInterruptionAudio(data.response, interrupter);
 
         await new Promise((r) => setTimeout(r, 1500 + Math.random() * 1000));
         if (!mountedRef.current || !isRunningRef.current) return;
@@ -988,7 +1001,7 @@ export default function ArenaScreen() {
         }
       }
     } catch {}
-  }, [deviceId, addMessage, queueTTS, showInterruptionBanner]);
+  }, [deviceId, addMessage, showInterruptionBanner, playInterruptionAudio, queueTTS]);
 
   const triggerTrumpInterruption = useCallback(async (opponentText: string, opponentId: string) => {
     if (!mountedRef.current) return;
@@ -1027,10 +1040,10 @@ export default function ArenaScreen() {
         });
         showInterruptionBanner("trump", "Donald Trump", data.response);
         lastInterruptionRef.current = { text: data.response, interrupterId: "trump" };
-        queueTTS(data.response, "trump");
+        playInterruptionAudio(data.response, "trump");
       }
     } catch {}
-  }, [deviceId, addMessage, queueTTS, showInterruptionBanner]);
+  }, [deviceId, addMessage, showInterruptionBanner, playInterruptionAudio]);
 
   const decideNextSpeaker = useCallback(async () => {
     if (!isRunningRef.current || currentSpeakerRef.current) return;
@@ -1075,23 +1088,33 @@ export default function ArenaScreen() {
     }
 
     if (chosen && mountedRef.current) {
-      await generateAIResponse(chosen.id, lastMsg.speakerId);
+      const willInterrupt = chosen.id === "trump"
+        ? Math.random() < 0.35
+        : Math.random() < 0.3;
 
+      const responsePromise = generateAIResponse(chosen.id, lastMsg.speakerId);
+
+      if (willInterrupt) {
+        if (chosen.id === "trump") {
+          responsePromise.then(() => {
+            const trumpMsg = messagesRef.current.filter((m) => !m.isSystem).slice(-1)[0];
+            if (trumpMsg && trumpMsg.speakerId === "trump" && mountedRef.current) {
+              triggerInterruption(trumpMsg.text);
+            }
+          });
+        } else {
+          setTimeout(() => {
+            if (!mountedRef.current || !isRunningRef.current) return;
+            const latestMsg = messagesRef.current.filter((m) => !m.isSystem).slice(-1)[0];
+            if (latestMsg && latestMsg.speakerId !== "trump") {
+              triggerTrumpInterruption(latestMsg.text, latestMsg.speakerId);
+            }
+          }, 800 + Math.random() * 1200);
+        }
+      }
+
+      await responsePromise;
       recentSpeakersRef.current = [...recentSpeakersRef.current, chosen.id].slice(-4);
-
-      if (chosen.id === "trump" && Math.random() < 0.35) {
-        const trumpMsg = messagesRef.current.filter((m) => !m.isSystem).slice(-1)[0];
-        if (trumpMsg && trumpMsg.speakerId === "trump") {
-          triggerInterruption(trumpMsg.text);
-        }
-      }
-
-      if (chosen.id !== "trump" && Math.random() < 0.3) {
-        const latestMsg = messagesRef.current.filter((m) => !m.isSystem).slice(-1)[0];
-        if (latestMsg && latestMsg.speakerId !== "trump") {
-          triggerTrumpInterruption(latestMsg.text, latestMsg.speakerId);
-        }
-      }
     }
   }, [generateAIResponse, triggerInterruption, triggerTrumpInterruption]);
 
@@ -1399,7 +1422,7 @@ export default function ArenaScreen() {
           <Ionicons name="share-outline" size={14} color="#D4A420" />
         </Pressable>
         <Pressable onPress={() => router.push("/arena-replay")} style={s.arenaActionBtn} hitSlop={8}>
-          <Ionicons name="recording-outline" size={14} color="#D4A420" />
+          <Ionicons name="albums-outline" size={14} color="#D4A420" />
         </Pressable>
       </View>
 

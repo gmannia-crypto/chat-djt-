@@ -311,7 +311,7 @@ export default function ArenaReplayScreen() {
 
       {recordings.length === 0 ? (
         <View style={s.emptyState}>
-          <Ionicons name="recording-outline" size={64} color="rgba(255,255,255,0.2)" />
+          <Ionicons name="albums-outline" size={64} color="rgba(255,255,255,0.2)" />
           <Text style={s.emptyStateTitle}>No Recordings Yet</Text>
           <Text style={s.emptyStateText}>
             Arena sessions are automatically saved when a topic ends or the session expires.
