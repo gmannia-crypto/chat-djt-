@@ -15,16 +15,32 @@ export async function playAudioFromUrl(
 
   if (Platform.OS === "web") {
     if (!options?.method || options.method === "GET") {
-      const audio = new window.Audio(url);
-      audio.volume = vol;
-      await audio.play();
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: url },
-        { shouldPlay: true, volume: vol }
-      );
-      audio.pause();
-      audio.src = "";
-      return sound;
+      try {
+        const res = await globalThis.fetch(url);
+        if (!res.ok) throw new Error(`Audio fetch failed: ${res.status}`);
+        const blob = await res.blob();
+        const reader = new FileReader();
+        const dataUri = await new Promise<string>((resolve, reject) => {
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: dataUri },
+          { shouldPlay: true, volume: vol }
+        );
+        return sound;
+      } catch (e) {
+        console.warn("Audio.Sound fallback failed, trying window.Audio:", e);
+        const audio = new window.Audio(url);
+        audio.volume = vol;
+        await audio.play();
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: url },
+          { shouldPlay: false, volume: vol }
+        );
+        return sound;
+      }
     }
     const res = await globalThis.fetch(url, {
       method: options.method,

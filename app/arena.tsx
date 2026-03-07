@@ -485,7 +485,7 @@ export default function ArenaScreen() {
   const [currentTopic, setCurrentTopic] = useState<string | null>(null);
   const [focusedPersona, setFocusedPersona] = useState<string | null>(null);
 
-  const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const ttsQueueRef = useRef<{ text: string; personaId: string }[]>([]);
   const isProcessingTTSRef = useRef(false);
@@ -523,7 +523,7 @@ export default function ArenaScreen() {
   const emotionalStatesRef = useRef(emotionalStates);
   const conversationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
-  const voiceEnabledRef = useRef(false);
+  const voiceEnabledRef = useRef(true);
   const recentSpeakersRef = useRef<string[]>([]);
 
   useEffect(() => { messagesRef.current = messages; }, [messages]);
@@ -566,7 +566,9 @@ export default function ArenaScreen() {
           });
           setTimeout(cleanup, 60000);
         });
-      } catch {}
+      } catch (e) {
+        console.warn("Arena TTS playback error for", item.personaId, ":", e);
+      }
     }
     isProcessingTTSRef.current = false;
     forcePlayRef.current = false;
@@ -586,7 +588,14 @@ export default function ArenaScreen() {
       const res = await fetch(new URL("/api/arena/topics", getApiUrl()).toString());
       if (res.ok) {
         const data = await res.json();
-        if (data.topics?.length > 0) setDynamicTopics(data.topics);
+        if (data.topics?.length > 0) {
+          setDynamicTopics(data.topics);
+          if (!currentTopicRef.current && data.topics[0]) {
+            const firstTopic = data.topics[0].title;
+            setCurrentTopic(firstTopic);
+            currentTopicRef.current = firstTopic;
+          }
+        }
       }
     } catch {}
   }, []);
@@ -645,9 +654,15 @@ export default function ArenaScreen() {
   }, []);
 
   useEffect(() => {
-    fetchTopics();
+    fetchTopics().then(() => {
+      if (!currentTopicRef.current && FALLBACK_TOPICS.length > 0) {
+        const fallbackTitle = FALLBACK_TOPICS[0].title;
+        setCurrentTopic(fallbackTitle);
+        currentTopicRef.current = fallbackTitle;
+      }
+    });
     checkArenaStatus();
-    const topicRefresh = setInterval(fetchTopics, 10 * 60 * 1000);
+    const topicRefresh = setInterval(fetchTopics, 3 * 60 * 1000);
     return () => clearInterval(topicRefresh);
   }, [fetchTopics, checkArenaStatus]);
 
