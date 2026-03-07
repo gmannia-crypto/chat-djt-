@@ -1372,9 +1372,15 @@
         this.personas = {
           trump:{name:"Trump",color:"#ff4d4d",img:"/api/persona-image/trump",faction:"SELF"},
           netanyahu:{name:"Netanyahu",color:"#0038b8",img:"",initials:"BN",faction:"SUPPORTER"},
-          ruckus:{name:"Ruckus",color:"#8B4513",img:"/api/persona-image/ruckus",faction:"SUPPORTER"},
-          galloway:{name:"Galloway",color:"#4ADE80",img:"",initials:"GG",faction:"OPPONENT"},
-          mcconnell:{name:"McConnell",color:"#9CA3AF",img:"",initials:"MM",faction:"OPPONENT"}
+          ruckus:{name:"Ruckus",color:"#8b0000",img:"/api/persona-image/ruckus",faction:"SUPPORTER"},
+          galloway:{name:"Galloway",color:"#c41e3a",img:"",initials:"GG",faction:"OPPONENT"},
+          mcconnell:{name:"McConnell",color:"#708090",img:"",initials:"MM",faction:"OPPONENT"},
+          carville:{name:"Carville",color:"#e63946",img:"",initials:"JC",faction:"OPPONENT"},
+          maddow:{name:"Maddow",color:"#7c3aed",img:"",initials:"RM",faction:"OPPONENT"},
+          omar:{name:"Omar",color:"#06b6d4",img:"",initials:"IO",faction:"OPPONENT"},
+          biden:{name:"Biden",color:"#3b82f6",img:"",initials:"JB",faction:"OPPONENT"},
+          rosie:{name:"Rosie",color:"#ec4899",img:"",initials:"RO",faction:"OPPONENT"},
+          berniemc:{name:"Bernie Mac",color:"#f59e0b",img:"/api/persona-image/bernie",faction:"OPPONENT"}
         };
         this.topic = 'Economy';
         this.topics = ['Israel','Economy','Biden','Media','Immigration','Military'];
@@ -1415,16 +1421,21 @@
         if (this.loading) return;
         this.loading = true;
         var self = this;
-        var history = this.messages.slice(-6).map(function(m) { return m.persona + ': ' + m.text; });
+        var ids = Object.keys(this.personas);
+        var lastSpeaker = this.messages.length > 0 ? this.messages[this.messages.length - 1].persona : null;
+        var candidates = lastSpeaker ? ids.filter(function(id) { return id !== lastSpeaker; }) : ids;
+        var responderId = candidates[Math.floor(Math.random() * candidates.length)];
+        var toSpeakerId = lastSpeaker || ids[Math.floor(Math.random() * ids.length)];
+        var history = this.messages.slice(-6).map(function(m) { return { speakerName: self.personas[m.persona] ? self.personas[m.persona].name : m.persona, text: m.text }; });
         fetch('/api/arena/respond', {
           method: 'POST',
           headers: {'Content-Type':'application/json'},
-          body: JSON.stringify({ topic: this.topic, conversationHistory: history })
+          body: JSON.stringify({ responderId: responderId, toSpeakerId: toSpeakerId, topic: this.topic, conversationHistory: history })
         })
         .then(function(r) { return r.json(); })
         .then(function(d) {
-          if (d.persona && d.response) {
-            self.messages.push({ persona: d.persona, text: d.response, time: new Date() });
+          if (d.response) {
+            self.messages.push({ persona: d.personaId || responderId, text: d.response, time: new Date() });
             if (self.messages.length > 50) self.messages = self.messages.slice(-30);
           }
           self.loading = false;
@@ -1437,7 +1448,7 @@
       RealTimeConversationEngine.prototype.speak = function(pid, text) {
         var btn = this.el.querySelector('[data-cspeak="'+pid+'"]');
         if (btn) btn.textContent = '...';
-        fetch('/api/persona-speak', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({text:(text||'No comment.').slice(0,300), personaId:pid==='netanyahu'?'trump':pid}) })
+        fetch('/api/persona-speak', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({text:(text||'No comment.').slice(0,300), personaId:pid}) })
         .then(function(r){return r.blob();}).then(function(b){ var u=URL.createObjectURL(b); var a=new Audio(u); a.play(); a.onended=function(){URL.revokeObjectURL(u);}; if(btn)btn.textContent='\u{1F50A}'; })
         .catch(function(){if(btn)btn.textContent='\u{1F50A}';});
       };
