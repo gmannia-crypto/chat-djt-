@@ -491,6 +491,15 @@ export default function ArenaScreen() {
   const ttsQueueRef = useRef<{ text: string; personaId: string }[]>([]);
   const isProcessingTTSRef = useRef(false);
 
+  const [selectedPersonas, setSelectedPersonas] = useState<string[]>(PERSONA_IDS);
+  const [showPersonaSelector, setShowPersonaSelector] = useState(false);
+  const selectedPersonasRef = useRef<string[]>(PERSONA_IDS);
+  useEffect(() => { selectedPersonasRef.current = selectedPersonas; }, [selectedPersonas]);
+
+  const [pollVotes, setPollVotes] = useState<Record<string, number>>({});
+  const [userVoted, setUserVoted] = useState(false);
+  const [showPollResults, setShowPollResults] = useState(false);
+
   const [dynamicTopics, setDynamicTopics] = useState<DynamicTopic[]>(FALLBACK_TOPICS);
   const [topicTimer, setTopicTimer] = useState<number>(0);
   const topicTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -533,10 +542,12 @@ export default function ArenaScreen() {
   }, [voiceEnabled]);
 
   const currentSoundRef = useRef<any>(null);
+  const forcePlayRef = useRef(false);
 
   const stopAllTTS = useCallback(() => {
     ttsQueueRef.current = [];
     isProcessingTTSRef.current = false;
+    forcePlayRef.current = false;
     if (currentSoundRef.current) {
       try { currentSoundRef.current.stopAsync(); currentSoundRef.current.unloadAsync(); } catch {}
       currentSoundRef.current = null;
@@ -547,31 +558,34 @@ export default function ArenaScreen() {
   const processTTSQueue = useCallback(async () => {
     if (isProcessingTTSRef.current || ttsQueueRef.current.length === 0) return;
     isProcessingTTSRef.current = true;
-    setIsPlayingAudio(true);
-    while (ttsQueueRef.current.length > 0 && voiceEnabledRef.current) {
+    if (mountedRef.current) setIsPlayingAudio(true);
+    while (ttsQueueRef.current.length > 0) {
+      if (!forcePlayRef.current && !voiceEnabledRef.current) break;
       const item = ttsQueueRef.current.shift();
       if (!item || !mountedRef.current) break;
       try {
-        const sound = await playTTS("/api/persona-speak", { text: item.text, personaId: item.personaId }, { volume: 0.9 });
+        const sound = await playTTS("/api/persona-speak", { text: item.text, personaId: item.personaId }, { volume: 1.0 });
         currentSoundRef.current = sound;
         await new Promise<void>((resolve) => {
-          const cleanup = () => { try { sound.setOnPlaybackStatusUpdate(null); sound.unloadAsync(); } catch {} currentSoundRef.current = null; resolve(); };
+          let resolved = false;
+          const cleanup = () => { if (resolved) return; resolved = true; try { sound.setOnPlaybackStatusUpdate(null); sound.unloadAsync(); } catch {} currentSoundRef.current = null; resolve(); };
           sound.setOnPlaybackStatusUpdate((status: any) => {
             if (status.didJustFinish || status.error) cleanup();
           });
-          setTimeout(cleanup, 15000);
+          setTimeout(cleanup, 60000);
         });
       } catch {}
     }
     isProcessingTTSRef.current = false;
+    forcePlayRef.current = false;
     currentSoundRef.current = null;
     if (mountedRef.current) setIsPlayingAudio(false);
   }, []);
 
   const queueTTS = useCallback((text: string, personaId: string, force?: boolean) => {
     if (!force && !voiceEnabledRef.current) return;
-    const shortText = text.length > 200 ? text.substring(0, 200) + "..." : text;
-    ttsQueueRef.current.push({ text: shortText, personaId });
+    if (force) forcePlayRef.current = true;
+    ttsQueueRef.current.push({ text, personaId });
     processTTSQueue();
   }, [processTTSQueue]);
 
@@ -719,7 +733,7 @@ export default function ArenaScreen() {
         }
         next[responderId] = responder;
 
-        PERSONA_IDS.forEach((id) => {
+        selectedPersonasRef.current.forEach((id) => {
           if (id !== responderId) {
             next[id] = { ...next[id], engagement: Math.min(100, next[id].engagement + 2) };
           }
@@ -803,11 +817,13 @@ export default function ArenaScreen() {
     if (!isRunningRef.current || currentSpeakerRef.current) return;
     const msgs = messagesRef.current.filter((m) => !m.isSystem);
     if (msgs.length === 0) return;
+    const active = selectedPersonasRef.current;
+    if (active.length < 2) return;
 
     const lastMsg = msgs[msgs.length - 1];
     const candidates: { id: string; prob: number }[] = [];
 
-    PERSONA_IDS.forEach((pid) => {
+    active.forEach((pid) => {
       if (pid === lastMsg.speakerId) return;
       const prob = calculateResponseProbability(pid, lastMsg.speakerId, lastMsg.text);
       if (Math.random() * 100 < prob) {
@@ -816,10 +832,11 @@ export default function ArenaScreen() {
     });
 
     if (candidates.length === 0) {
-      const randomId = PERSONA_IDS.filter((p) => p !== lastMsg.speakerId)[
-        Math.floor(Math.random() * (PERSONA_IDS.length - 1))
-      ];
-      candidates.push({ id: randomId, prob: 50 });
+      const pool = active.filter((p) => p !== lastMsg.speakerId);
+      if (pool.length > 0) {
+        const randomId = pool[Math.floor(Math.random() * pool.length)];
+        candidates.push({ id: randomId, prob: 50 });
+      }
     }
 
     candidates.sort((a, b) => {
@@ -860,7 +877,11 @@ export default function ArenaScreen() {
 
     const startTimer = setTimeout(async () => {
       if (!mountedRef.current) return;
-      await generateAIResponse("trump", "galloway");
+      const active = selectedPersonasRef.current;
+      const starter = active.includes("trump") ? "trump" : active[0];
+      const pool = active.filter((p) => p !== starter);
+      const target = pool.length > 0 ? pool[Math.floor(Math.random() * pool.length)] : starter;
+      await generateAIResponse(starter, target);
       if (mountedRef.current) scheduleNext();
     }, 1500);
 
@@ -886,11 +907,15 @@ export default function ArenaScreen() {
         isSystem: true,
       });
 
+      setPollVotes({});
+      setUserVoted(false);
+      setShowPollResults(false);
+
       if (!currentSpeakerRef.current && mountedRef.current) {
-        const starter = PERSONA_IDS[Math.floor(Math.random() * PERSONA_IDS.length)];
-        const target = PERSONA_IDS.filter((p) => p !== starter)[
-          Math.floor(Math.random() * (PERSONA_IDS.length - 1))
-        ];
+        const active = selectedPersonasRef.current;
+        const starter = active[Math.floor(Math.random() * active.length)];
+        const pool = active.filter((p) => p !== starter);
+        const target = pool.length > 0 ? pool[Math.floor(Math.random() * pool.length)] : starter;
         await generateAIResponse(starter, target);
         if (mountedRef.current) scheduleNext();
       }
@@ -908,6 +933,29 @@ export default function ArenaScreen() {
       return next;
     });
   }, [scheduleNext]);
+
+  const togglePersona = useCallback((pid: string) => {
+    setSelectedPersonas((prev) => {
+      if (prev.includes(pid)) {
+        if (prev.length <= 2) return prev;
+        return prev.filter((p) => p !== pid);
+      }
+      return [...prev, pid];
+    });
+  }, []);
+
+  const castVote = useCallback((personaId: string) => {
+    if (userVoted) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setPollVotes((prev) => ({ ...prev, [personaId]: (prev[personaId] || 0) + 1 }));
+    setUserVoted(true);
+    setShowPollResults(true);
+  }, [userVoted]);
+
+  const activeSpeakers = selectedPersonas.filter((pid) => {
+    return messages.some((m) => m.speakerId === pid && !m.isSystem);
+  });
+  const pollCandidates = activeSpeakers.length >= 2 ? activeSpeakers : selectedPersonas;
 
   const renderMessage = useCallback(
     ({ item }: { item: ConversationMessage }) => {
@@ -1016,49 +1064,61 @@ export default function ArenaScreen() {
         )}
       </View>
 
-      <Animated.View entering={FadeInDown.delay(200).duration(400)} style={s.personaRow}>
-        {PERSONA_IDS.map((pid) => {
-          const p = ARENA_PERSONAS[pid];
-          const emo = emotionalStates[pid];
-          const isSpeaking = currentSpeaker === pid;
-          const isFocused = focusedPersona === pid;
-          return (
-            <Pressable
-              key={pid}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setFocusedPersona(focusedPersona === pid ? null : pid);
-              }}
-              style={[
-                s.personaCircle,
-                { borderColor: p.color },
-                isSpeaking && { borderColor: "#FFD700", borderWidth: 3 },
-                isFocused && { transform: [{ scale: 1.1 }] },
-              ]}
-            >
-              {p.image ? (
-                <Image source={p.image} style={s.personaImg} />
-              ) : (
-                <View style={[s.personaImgFallback, { backgroundColor: p.color + "40" }]}>
-                  <Text style={s.personaInitials}>{getInitials(p.name)}</Text>
+      <View style={s.selectorRow}>
+        <Pressable
+          onPress={() => setShowPersonaSelector(true)}
+          style={s.selectorBtn}
+        >
+          <Ionicons name="people" size={14} color="#FFD700" />
+          <Text style={s.selectorBtnText}>{selectedPersonas.length}/{PERSONA_IDS.length}</Text>
+        </Pressable>
+        <FlatList
+          data={selectedPersonas}
+          horizontal
+          keyExtractor={(pid) => pid}
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={s.personaRow}
+          renderItem={({ item: pid }) => {
+            const p = ARENA_PERSONAS[pid];
+            const emo = emotionalStates[pid];
+            const isSpeaking = currentSpeaker === pid;
+            return (
+              <Pressable
+                key={pid}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setFocusedPersona(focusedPersona === pid ? null : pid);
+                }}
+                style={[
+                  s.personaCircle,
+                  { borderColor: p.color },
+                  isSpeaking && { borderColor: "#FFD700", borderWidth: 3 },
+                ]}
+              >
+                {p.image ? (
+                  <Image source={p.image} style={s.personaImg} />
+                ) : (
+                  <View style={[s.personaImgFallback, { backgroundColor: p.color + "40" }]}>
+                    <Text style={s.personaInitials}>{getInitials(p.name)}</Text>
+                  </View>
+                )}
+                {isSpeaking && (
+                  <View style={s.speakingIndicator}>
+                    <MaterialCommunityIcons name="volume-high" size={10} color="#FFD700" />
+                  </View>
+                )}
+                <Text style={[s.personaLabel, { color: p.color }]} numberOfLines={1}>
+                  {p.shortName}
+                </Text>
+                <View style={s.emotionBars}>
+                  <View style={[s.emotionBar, s.angerBar, { width: `${emo.anger}%` }]} />
+                  <View style={[s.emotionBar, s.happyBar, { width: `${emo.happiness}%` }]} />
                 </View>
-              )}
-              {isSpeaking && (
-                <View style={s.speakingIndicator}>
-                  <MaterialCommunityIcons name="volume-high" size={10} color="#FFD700" />
-                </View>
-              )}
-              <Text style={[s.personaLabel, { color: p.color }]} numberOfLines={1}>
-                {p.shortName}
-              </Text>
-              <View style={s.emotionBars}>
-                <View style={[s.emotionBar, s.angerBar, { width: `${emo.anger}%` }]} />
-                <View style={[s.emotionBar, s.happyBar, { width: `${emo.happiness}%` }]} />
-              </View>
-            </Pressable>
-          );
-        })}
-      </Animated.View>
+              </Pressable>
+            );
+          }}
+        />
+      </View>
 
       {focusedPersona && (
         <Animated.View entering={FadeIn.duration(200)} style={s.focusCard}>
@@ -1148,6 +1208,106 @@ export default function ArenaScreen() {
           }}
         />
       </Animated.View>
+
+      {currentTopic && selectedPersonas.length >= 2 && (
+        <View style={s.pollSection}>
+          <Text style={s.pollTitle}>
+            {userVoted ? "POLL RESULTS" : "WHO'S WINNING THIS DEBATE?"}
+          </Text>
+          <View style={s.pollOptions}>
+            {pollCandidates.slice(0, 8).map((pid) => {
+              const p = ARENA_PERSONAS[pid];
+              const votes = pollVotes[pid] || 0;
+              const totalVotes = Object.values(pollVotes).reduce((a, b) => a + b, 0);
+              const pct = totalVotes > 0 ? Math.round((votes / totalVotes) * 100) : 0;
+              return (
+                <Pressable
+                  key={pid}
+                  onPress={() => castVote(pid)}
+                  disabled={userVoted}
+                  style={[s.pollOptionBtn, userVoted && pollVotes[pid] && { borderColor: p.color, backgroundColor: p.color + "15" }]}
+                >
+                  {p.image ? (
+                    <Image source={p.image} style={s.pollAvatar} />
+                  ) : (
+                    <View style={[s.pollAvatarFallback, { backgroundColor: p.color + "40" }]}>
+                      <Text style={s.pollAvatarText}>{getInitials(p.name)}</Text>
+                    </View>
+                  )}
+                  <Text style={[s.pollName, { color: p.color }]} numberOfLines={1}>{p.shortName}</Text>
+                  {showPollResults && <Text style={s.pollPct}>{pct}%</Text>}
+                </Pressable>
+              );
+            })}
+          </View>
+          {userVoted && (
+            <Pressable
+              onPress={() => { setPollVotes({}); setUserVoted(false); setShowPollResults(false); }}
+              style={s.pollResetBtn}
+            >
+              <Text style={s.pollResetText}>Vote Again</Text>
+            </Pressable>
+          )}
+        </View>
+      )}
+
+      <Modal visible={showPersonaSelector} transparent animationType="slide">
+        <View style={s.selectorOverlay}>
+          <View style={s.selectorCard}>
+            <View style={s.selectorHeader}>
+              <Text style={s.selectorTitle}>Choose Debaters</Text>
+              <Text style={s.selectorSubtitle}>Pick 2 or more personas</Text>
+            </View>
+            <FlatList
+              data={PERSONA_IDS}
+              keyExtractor={(id) => id}
+              numColumns={2}
+              contentContainerStyle={s.selectorGrid}
+              renderItem={({ item: pid }) => {
+                const p = ARENA_PERSONAS[pid];
+                const isSelected = selectedPersonas.includes(pid);
+                return (
+                  <Pressable
+                    onPress={() => togglePersona(pid)}
+                    style={[
+                      s.selectorItem,
+                      { borderColor: isSelected ? p.color : "rgba(255,255,255,0.1)" },
+                      isSelected && { backgroundColor: p.color + "15" },
+                    ]}
+                  >
+                    {p.image ? (
+                      <Image source={p.image} style={s.selectorAvatar} />
+                    ) : (
+                      <View style={[s.selectorAvatarFallback, { backgroundColor: p.color + "40" }]}>
+                        <Text style={s.selectorAvatarInitials}>{getInitials(p.name)}</Text>
+                      </View>
+                    )}
+                    <View style={s.selectorInfo}>
+                      <Text style={[s.selectorName, { color: isSelected ? p.color : "#aaa" }]}>{p.shortName}</Text>
+                      <Text style={s.selectorFaction}>{p.faction}</Text>
+                    </View>
+                    {isSelected && <Ionicons name="checkmark-circle" size={18} color={p.color} />}
+                  </Pressable>
+                );
+              }}
+            />
+            <View style={s.selectorActions}>
+              <Pressable
+                onPress={() => setSelectedPersonas(PERSONA_IDS)}
+                style={s.selectorSelectAll}
+              >
+                <Text style={s.selectorSelectAllText}>Select All</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setShowPersonaSelector(false)}
+                style={s.selectorDoneBtn}
+              >
+                <Text style={s.selectorDoneText}>Done</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Modal visible={showPaywall} transparent animationType="fade">
         <View style={s.paywallOverlay}>
@@ -1636,5 +1796,212 @@ const s = StyleSheet.create({
   paywallDismissText: {
     fontSize: 12,
     color: "rgba(255,255,255,0.3)",
+  },
+  selectorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingLeft: 10,
+    marginBottom: 8,
+  },
+  selectorBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,215,0,0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(255,215,0,0.25)",
+    marginRight: 6,
+  },
+  selectorBtnText: {
+    fontSize: 10,
+    fontWeight: "800" as const,
+    color: "#FFD700",
+  },
+  selectorOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.85)",
+    justifyContent: "center",
+    padding: 20,
+  },
+  selectorCard: {
+    backgroundColor: "#1a1a1a",
+    borderRadius: 20,
+    maxHeight: "80%",
+    borderWidth: 1,
+    borderColor: "rgba(255,215,0,0.2)",
+    overflow: "hidden",
+  },
+  selectorHeader: {
+    padding: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.08)",
+    alignItems: "center",
+  },
+  selectorTitle: {
+    fontSize: 18,
+    fontWeight: "900" as const,
+    color: "#FFD700",
+    letterSpacing: 1,
+  },
+  selectorSubtitle: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.4)",
+    marginTop: 4,
+  },
+  selectorGrid: {
+    padding: 10,
+    gap: 8,
+  },
+  selectorItem: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    backgroundColor: "rgba(255,255,255,0.03)",
+    margin: 4,
+    minWidth: "40%",
+  },
+  selectorAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+  },
+  selectorAvatarFallback: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  selectorAvatarInitials: {
+    fontSize: 11,
+    fontWeight: "800" as const,
+    color: "#fff",
+  },
+  selectorInfo: {
+    flex: 1,
+  },
+  selectorName: {
+    fontSize: 12,
+    fontWeight: "800" as const,
+  },
+  selectorFaction: {
+    fontSize: 9,
+    color: "rgba(255,255,255,0.3)",
+    textTransform: "uppercase" as const,
+    letterSpacing: 0.5,
+  },
+  selectorActions: {
+    flexDirection: "row",
+    padding: 14,
+    gap: 10,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.08)",
+  },
+  selectorSelectAll: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)",
+  },
+  selectorSelectAllText: {
+    fontSize: 13,
+    fontWeight: "700" as const,
+    color: "rgba(255,255,255,0.5)",
+  },
+  selectorDoneBtn: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: "#FFD700",
+  },
+  selectorDoneText: {
+    fontSize: 13,
+    fontWeight: "900" as const,
+    color: "#000",
+  },
+  pollSection: {
+    marginHorizontal: 12,
+    marginBottom: 6,
+    backgroundColor: "rgba(255,255,255,0.03)",
+    borderRadius: 12,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,215,0,0.15)",
+  },
+  pollTitle: {
+    fontSize: 10,
+    fontWeight: "800" as const,
+    color: "#FFD700",
+    textAlign: "center",
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
+  pollOptions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 6,
+  },
+  pollOptionBtn: {
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+    backgroundColor: "rgba(255,255,255,0.03)",
+    minWidth: 56,
+  },
+  pollAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+  },
+  pollAvatarFallback: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pollAvatarText: {
+    fontSize: 8,
+    fontWeight: "800" as const,
+    color: "#fff",
+  },
+  pollName: {
+    fontSize: 9,
+    fontWeight: "700" as const,
+    marginTop: 3,
+  },
+  pollPct: {
+    fontSize: 11,
+    fontWeight: "900" as const,
+    color: "#FFD700",
+    marginTop: 2,
+  },
+  pollResetBtn: {
+    alignSelf: "center",
+    marginTop: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)",
+  },
+  pollResetText: {
+    fontSize: 10,
+    fontWeight: "600" as const,
+    color: "rgba(255,255,255,0.4)",
   },
 });

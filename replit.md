@@ -2,7 +2,7 @@
 
 ## Overview
 
-Chat DJT is a mobile-first AI chat application built with Expo (React Native) designed for interactive conversations with an AI impersonating Donald Trump. The project aims to deliver a unique experience through a luxury dark/gold UI, real-time streaming chat responses, and local conversation persistence. It incorporates subscription-based monetization and an admin interface for revenue management, targeting a broad audience interested in political satire and AI interaction. Key capabilities include Trump-themed therapy sessions, financial debates with various personas, Trump-centric real estate analysis, and a DJT Collectibles digital card system.
+Chat DJT is a mobile-first AI chat application built with Expo (React Native) that provides interactive conversations with an AI impersonating Donald Trump. The project aims to offer a unique experience through a luxury dark/gold UI, real-time streaming chat responses, local conversation persistence, and subscription-based monetization. Key features include Trump-themed therapy, financial debates with various personas, real estate analysis, a digital collectible card system, and a political arena for AI persona debates.
 
 ## User Preferences
 
@@ -12,72 +12,40 @@ Preferred communication style: Simple, everyday language.
 
 ### Frontend (Expo / React Native)
 
-The application is developed with Expo SDK 54, using `expo-router` for routing and `react-native-reanimated` for animations. It features a stack-based navigation for core functionalities like chat, subscription, and admin. State management utilizes React Query for server data and React's built-in hooks for local UI state. Conversations are locally persisted with AsyncStorage. Real-time chat responses are handled via Server-Sent Events (SSE). The UI adheres to a dark theme with gold accents and PlayfairDisplay fonts, supporting iOS, Android, and web platforms with a dark mode-only aesthetic. It includes interactive elements like pulsating CTA buttons, a 24-hour mystery box with reward types, and keyboard handling via `react-native-keyboard-controller`. Dedicated screens for multi-persona therapy, financial face-offs, real estate analysis, and Trump's Sports Book are implemented, each with specific UI elements and interactions like therapist selectors, debate arenas, voting mechanisms, property advisors, and sports picks. Photorealistic AI-generated persona images are stored at `assets/images/persona-{id}.png` for all active personas (trump, buffett, musk, suze, dave, grandma, genie, mansa, loudmouth, jordan, bernie, ruckus, maxkellerman, snoop, barkley, rogan, shannon) plus robot. Sports Book personas: trump, loudmouth, shannon, jordan, barkley, snoop, rogan, maxkellerman, bernie, grandma, ruckus. Loudmouth and Shannon are also in Faceoff. Mansa Musa remains in Faceoff and Real Estate. Shannon Sharpe calls LeBron "GOAT James" which infuriates MJ and Loudmouth. The home screen features a badges/achievements system tracking 9 badges via AsyncStorage (streak milestones, conversation counts, mystery box opens, Trump ratings, explorer status), a streak share button (Twitter/X on web, native Share on mobile), and a live activity wall. The persona memory system (`lib/persona-memory.ts`) tracks win/loss records, head-to-head matchups, relationship scores, and generates self-aware trash talk and opening statements for Financial Faceoff and Sports Book debates, all persisted via AsyncStorage. Trump's Sports Book (`app/sports.tsx`) is prominently placed at the top of the home screen feature grid with a LIVE badge, features a FIFA World Cup 2026 live countdown (June 11, 2026), displays upcoming games from `/api/sports/upcoming` across NFL, NBA, UFC, MLB, and Soccer, with real-time AI-generated persona picks via `POST /api/sports/picks` (each persona generates unique in-character analysis using GPT-4o-mini with persona-specific system prompts, cached for 30s per game+persona), AbortController-based request cancellation on persona switch, refresh button per game card, and AI-powered debate picks. Previously static picks were replaced with live AI reactions. The screen also shows Ruckus is contrarian, etc.), a "Today's Debate" section with two personas debating a featured game using full persona memory (trash talk, H2H records, generateReference opening statements), TTS listen buttons, and sportsbook affiliate links (DraftKings, FanDuel). The screen also has a "TODAY'S RESULTS" section showing completed games with final scores and winners. A bet tally system (`lib/bet-tally.ts`) tracks user picks vs persona picks via AsyncStorage with running W/L records and streaks. Each game card has "YOUR PICK" team selection buttons. The tally card shows "YOU vs [PERSONA]: W-L" with streak badges, and personas generate AI trash talk (`POST /api/sports/trash-talk`) based on the user's record — respect when losing, trash talk when winning. Sound effects (`lib/use-sound.ts`) play on button presses (sfx-click.mp4) and transitions (sfx-transition.mp4) across both home and sports screens.
+The application is built with Expo SDK 54, utilizing `expo-router` for navigation and `react-native-reanimated` for animations. It employs a stack-based navigation system for core functionalities. State management is handled by React Query for server data and React's built-in hooks for local UI state. Conversation persistence is managed via AsyncStorage. Real-time chat responses are delivered using Server-Sent Events (SSE). The UI features a dark theme with gold accents and PlayfairDisplay fonts, supporting iOS, Android, and web platforms with a dark mode-only aesthetic. It includes a badges/achievements system, a streak share button, a live activity wall, and a persona memory system for tracking interactions and generating dynamic dialogue. Dedicated screens support multi-persona therapy, financial face-offs, real estate analysis, and Trump's Sports Book, each with specialized UI and interaction logic. The Sports Book features live game data, AI-generated persona picks with debate analysis, and a bet tally system.
 
 ### Backend (Express)
 
-The backend is an Express 5 API gateway providing various endpoints for AI interactions, content generation, and utility functions. It serves:
-- **AI Chat & TTS**: Streams Trump-persona responses via SSE using OpenAI (gpt-5.2) and converts text to speech using ElevenLabs and Fish Audio APIs (with Trump, Sophia, and James voices). It also handles audio transcription using OpenAI Whisper.
-- **Content Generation**: Generates Trump-voice theme intros, news commentary, market hot takes, prophecies, daily challenges, Truth Social reactions, cabinet commentary, and weather commentary.
-- **Therapy System**: Supports token-gated AI therapy sessions with multiple therapist personas (Trump, Sophia, James), multi-round follow-up conversations, template-based free therapy for viral pages, and integrates with Stripe for checkout.
-- **Financial & Debate Features**: Manages financial face-off debates with multiple personas, including voting, leaderboards, and a "Persona of the Week" voting system. It also provides AI-powered property analysis using OpenAI with persona-specific commentary and generates mortgage calculations with Trump's insights. Trump's Sports Book (`/sports-betting`) provides AI persona sports picks and debates across NFL, NBA, UFC, MLB, and Soccer with sportsbook affiliate links (DraftKings, FanDuel, Bet365, Stake).
-- **Political Arena**: Real-time AI persona conversation engine (`POST /api/arena/respond`) with 11 political figures (Trump, Netanyahu, Uncle Ruckus, George Galloway, Mitch McConnell, James Carville, Rachel Maddow, Ilhan Omar, Joe Biden, Rosie O'Donnell, Bernie Mac). Each persona has unique system prompts, relationship dynamics, trigger words, and emotional states (anger, happiness, engagement). Conversations auto-generate every 3-6 seconds with probability-based response selection. Ruckus defends Trump/MAGA with rage, Bernie Mac calls Ruckus "Old Sambo ass buck dancin fool" and uses "muthuhfuckah". Carville curses when upset with sarcasm. Features: (1) Dynamic news topics via `GET /api/arena/topics` — GPT-generated debate topics from live RSS headlines, cached 30 min, with 5-min auto-rotation timer per topic. (2) Voice toggle with TTS queue — plays persona voices sequentially via `/api/persona-speak`, stops cleanly on disable. (3) Token-gated access — first 4 interactions free, then `POST /api/arena/access` charges 5 tokens for a 5-min unlimited session (balance-checked atomically before charging). (4) News-aware personas — `getArenaNewsContext()` injects current headlines into system prompts (5-min cache). Arena voice IDs: carville=`ce3ba02102a34819abd74838d220d68e`, maddow=`7a8e38ef826c4352915c230a37fca0d9`, omar=`478ccf652e0049898fbf11d0fb9f9d2a`, biden=`39c0a6dc47054f9bbcd2e064a41fea9f`, netanyahu=`3c5fe93c3f5348bbaeb5cee4f27bb359`, rosie=`0b2a697d1ed141c7965cd65d197f54ba`, mcconnell=`f338ac02d7df4e6e959e131d6126aeff`, berniemc=`5cbb7b199c5a4b538bf1018e6341ebc4`.
-- **Analytics & Monetization**: Tracks app share events, viral session events, and integrates with Stripe for therapy session payments.
-- **Static Asset Serving**: Serves pre-built Expo web assets in production.
-- **Landing Page**: In production, the root path serves a landing page (`server/templates/landing-page.html`) with an inline Sports Book tab (persona debate, games, affiliate links), plus tab links to Financial Faceoff, Therapy, and Multi Therapy standalone pages. In dev mode, the root path is proxied to Metro for the Expo web app.
+The backend is an Express 5 API gateway responsible for AI interactions, content generation, and utility functions. It provides:
+- **AI Chat & TTS**: Streams AI responses using OpenAI and converts text to speech via ElevenLabs and Fish Audio APIs, also handles audio transcription.
+- **Content Generation**: Generates various Trump-voice themed content.
+- **Therapy System**: Manages token-gated AI therapy sessions with multiple personas and integrates with Stripe for payments.
+- **Financial & Debate Features**: Orchestrates multi-persona financial debates, voting systems, leaderboards, and AI-powered property analysis. It also powers Trump's Sports Book with AI persona picks and debates.
+- **Political Arena**: A real-time AI persona conversation engine featuring 11 political figures with dynamic news topics, voice toggles, token-gated access, news-aware personas, a persona selector, and poll voting.
+- **Analytics & Monetization**: Tracks user events and integrates with Stripe for payments.
+- **Static Asset Serving**: Serves frontend assets and a landing page in production.
+
+### AI Model System
+
+The application supports three AI model modes: Premium (GPT-5.2 + GPT-4o-mini), Budget (DeepSeek V3), and Split (percentage-based routing between Premium and Budget). An admin interface allows for dynamic model selection and cost estimation. All AI chat completion calls dynamically route to the selected model tier.
+
+### DJT Collectibles
+
+A digital collectible card system with 24 cards across 6 categories and 4 rarity tiers. Cards are earned via a mystery box feature on the home screen, with progress tracked and displayed in a gallery.
 
 ## External Dependencies
 
-- **OpenAI API**: Used for AI chat completions (gpt-5.2), audio transcription (Whisper), AI-powered property analysis (gpt-4o-mini), and real-time AI persona sports picks (gpt-4o-mini via `POST /api/sports/picks`).
-- **ESPN API** (free, no key): Live sports data for NBA, NFL, MLB, UFC, Soccer (EPL, UCL, MLS), NHL, F1, NASCAR, Golf (PGA), Tennis (ATP), College Basketball (NCAAB), College Football (NCAAF) via `site.api.espn.com/apis/site/v2/sports/`. Returns real games, scores, odds from DraftKings. Cached 5 minutes. Boxing fights use curated data. Completed games include player leaders (Points/Rebounds/Assists per team) and team stats (REB, AST, FGA, FGM, FG%, FT%) extracted from ESPN competitor leaders/statistics fields. Result cards in the Sports Book are clickable to expand/collapse detailed player stats.
-- **ElevenLabs API**: Utilized for advanced text-to-speech, including voice cloning and generating theme intros.
-- **Fish Audio API**: Provides text-to-speech for various personas, including a cloned Trump voice, Dr. Sophia's voice (ID: `193c58af62ea487180baacdef8a69bbd`), and Dr. James's voice (ID: `03397b4c4be74759b72533b663fbd001`).
+- **OpenAI API**: For AI chat completions (gpt-5.2), audio transcription (Whisper), AI property analysis (gpt-4o-mini), and real-time AI persona sports picks (gpt-4o-mini).
+- **ESPN API**: Provides live sports data for various leagues, including scores and odds.
+- **ElevenLabs API**: For advanced text-to-speech and voice cloning.
+- **Fish Audio API**: For text-to-speech with specific persona voices.
 - **@react-native-async-storage/async-storage**: For client-side data persistence.
-- **Expo Services**: For mobile functionalities (fonts, haptics, gradients, splash screens).
+- **Expo Services**: For mobile-specific functionalities.
 - **RevenueCat (`react-native-purchases`)**: For in-app subscription and purchase management.
-- **RSS Feeds**: For real-time news headlines (e.g., MarketWatch, CNBC, NYT, BBC, Fox News).
+- **RSS Feeds**: For real-time news headlines.
 - **Open-Meteo API**: For weather forecast data.
 - **CoinGecko API / Yahoo Finance**: For live market data.
 - **Amazon Associates**: For affiliate monetization with the `trumpbot-20` tag.
-- **Alternative.me Fear & Greed API**: For live Crypto Fear & Greed Index on home screen (`https://api.alternative.me/fng/?limit=1`).
-- **Stripe**: For payment processing for therapy sessions and subscriptions.
-- **expo-file-system**: Used by `lib/audio-helper.ts` to write TTS audio to temp files on native (iOS/Android) for reliable playback via expo-av. On web, data URIs are used instead.
-
-## AI Model System
-
-The app supports three AI model modes managed via `GET/POST /api/model-settings`:
-- **Premium**: GPT-5.2 (chat) + GPT-4o-mini (fast) — best quality, higher cost (~$8/1K requests)
-- **Budget**: DeepSeek V3 (chat + fast) — ~98% cheaper (~$0.08/1K requests), good quality
-- **Split**: Percentage-based routing between Premium and Budget (e.g., 70% DeepSeek / 30% GPT-5.2) — blended cost savings
-- `activeModelMode` can be `"premium" | "budget" | "split"`, with `splitPercentBudget` controlling the DeepSeek percentage in split mode
-- `resolveModelTier()` uses a 5ms TTL cache to ensure consistent tier selection within a single API call (prevents client/model mismatch in split mode)
-- Admin screen has a sticky ModelQuickToggle bar (PREMIUM/SPLIT/BUDGET buttons with live cost estimate) and a detailed ModelSettingsSection with preset split ratios (100% Budget, 70/30, 50/50, 30/70, 100% Premium) and a visual split bar
-- `POST /api/model-test` runs side-by-side comparison with cost analysis
-- All `openai.chat.completions.create` calls use `getClient()` and `getChatModel()`/`getFastModel()` for dynamic model routing
-- DeepSeek requires `DEEPSEEK_API_KEY` environment variable
-- Audio transcription always uses OpenAI (Whisper) regardless of mode
-
-## Persona Dialogue Styles
-
-- **Bernie Mac**: RAW, unfiltered Black English style — uses "DAMN!", "Got-DAMN!", "I ain't scared of you, muttuphuk!", "summa ma bitch!", "sheeeeit", "I ain't playin' wit' y'all!", "ain't finna", etc. Cuss freely like his actual stand-up comedy.
-- **Uncle Ruckus**: Self-hating Black man (The Boondocks satire) — worships white people/culture, uses "I tell you what", "dadgum", "praise White Jesus", "the WHITE man's way is the RIGHT way", "I got re-vitiligo", "I ain't Black, I'm Uncle Ruckus — no relation". Always contrarian, praises white athletes/neighborhoods, disparages Black culture. Outrageously offensive in the satirical Boondocks style.
-
-## DJT Collectibles
-
-- Digital collectible card system (App Store safe, no blockchain/crypto)
-- 24 cards across 6 categories: Sports, Finance, Debate, Fortune, Therapy, Special
-- 4 rarity tiers: Common (50% drop), Rare (30%), Epic (15%), Legendary (5%)
-- Rarity colors: Common=#8B8B8B, Rare=#4A90D9, Epic=#9333EA, Legendary=#FFD700
-- Data library: `lib/collectibles.ts` — card catalog, AsyncStorage persistence (key: `djt_collectibles`), drop rate logic
-- Gallery screen: `app/collectibles.tsx` — 2-column grid, rarity filters, locked/unlocked states, detail modal
-- Earned via mystery box on home screen (2 "Collectible Card" entries in MYSTERY_REWARDS for weighting)
-- Home screen has COLLECTIBLES button with progress badge (X/24)
-- Extensible for future NFT minting but no blockchain code in the app
-
-## Amazon Affiliate Integration
-
-- Tag: `trumpbot-20` used across all Amazon links
-- Sports Book screen has a "GEAR UP" section with persona-specific product recommendations
-- Each of the 11 personas has unique Amazon product cards (3 per persona) plus a main "Shop" button
-- Key persona products: MJ → Air Jordans, Trump → MAGA/Golf, Buffett → Investing books, Musk → Tech gadgets, Bernie Mac → Funny tees/Chi-Town gear, Ruckus → Camo/BBQ/Work boots, etc.
-- Product cards dynamically switch when the user changes the selected persona
+- **Alternative.me Fear & Greed API**: For live Crypto Fear & Greed Index.
+- **Stripe**: For payment processing.
+- **expo-file-system**: For managing audio files on native platforms.
