@@ -686,7 +686,7 @@
           <div id="fortuneTab" class="feature-container" style="display:none;"></div>
           <div id="realtyTab" class="feature-container" style="display:none;"></div>
           <div id="billionairesTab" class="feature-container" style="display:none;"></div>
-          <div id="conversationTab" class="feature-container" style="display:none;"></div>
+          <div id="conversationArena" class="feature-container" style="display:none;"></div>
           <div id="dashboardTab" class="feature-container" style="display:none;"></div>
         </div>
 
@@ -1564,8 +1564,8 @@
           document.getElementById('billionairesTab').style.display = 'block';
           if (!window.billionaires) { window.billionaires = new BillionairesModule('billionairesTab'); }
         } else if (feature === 'conversation') {
-          document.getElementById('conversationTab').style.display = 'block';
-          if (!window.conversation) { window.conversation = new ConversationModule('conversationTab'); }
+          document.getElementById('conversationArena').style.display = 'block';
+          if (!window.conversation) { window.conversation = new ConversationModule('conversationArena'); }
         } else if (feature === 'dashboard') {
           document.getElementById('dashboardTab').style.display = 'block';
           if (!window.dashboard) { window.dashboard = new DashboardModule('dashboardTab'); }
