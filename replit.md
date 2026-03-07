@@ -44,14 +44,17 @@ The backend is an Express 5 API gateway providing various endpoints for AI inter
 
 ## AI Model System
 
-The app supports dual AI model tiers managed via `GET/POST /api/model-settings`:
+The app supports three AI model modes managed via `GET/POST /api/model-settings`:
 - **Premium**: GPT-5.2 (chat) + GPT-4o-mini (fast) — best quality, higher cost (~$8/1K requests)
 - **Budget**: DeepSeek V3 (chat + fast) — ~98% cheaper (~$0.08/1K requests), good quality
-- Model tier is switchable in real-time from the Admin (Back Office) screen
+- **Split**: Percentage-based routing between Premium and Budget (e.g., 70% DeepSeek / 30% GPT-5.2) — blended cost savings
+- `activeModelMode` can be `"premium" | "budget" | "split"`, with `splitPercentBudget` controlling the DeepSeek percentage in split mode
+- `resolveModelTier()` uses a 5ms TTL cache to ensure consistent tier selection within a single API call (prevents client/model mismatch in split mode)
+- Admin screen has a sticky ModelQuickToggle bar (PREMIUM/SPLIT/BUDGET buttons with live cost estimate) and a detailed ModelSettingsSection with preset split ratios (100% Budget, 70/30, 50/50, 30/70, 100% Premium) and a visual split bar
 - `POST /api/model-test` runs side-by-side comparison with cost analysis
 - All `openai.chat.completions.create` calls use `getClient()` and `getChatModel()`/`getFastModel()` for dynamic model routing
 - DeepSeek requires `DEEPSEEK_API_KEY` environment variable
-- Audio transcription always uses OpenAI (Whisper) regardless of tier
+- Audio transcription always uses OpenAI (Whisper) regardless of mode
 
 ## Persona Dialogue Styles
 

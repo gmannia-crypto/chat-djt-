@@ -26,7 +26,10 @@ const openai = new OpenAI({
 });
 
 type ModelTier = "premium" | "budget";
+type ModelMode = "premium" | "budget" | "split";
 let activeModelTier: ModelTier = "premium";
+let activeModelMode: ModelMode = "premium";
+let splitPercentBudget: number = 70;
 
 const MODEL_CONFIG = {
   premium: {
@@ -45,11 +48,21 @@ const MODEL_CONFIG = {
   },
 };
 
-function getChatModel(): string {
-  return MODEL_CONFIG[activeModelTier].chat;
-}
-function getFastModel(): string {
-  return MODEL_CONFIG[activeModelTier].fast;
+let _cachedTier: ModelTier | null = null;
+let _cachedTierExpiry = 0;
+
+function resolveModelTier(): ModelTier {
+  const now = Date.now();
+  if (_cachedTier && now < _cachedTierExpiry) return _cachedTier;
+  let tier: ModelTier;
+  if (activeModelMode === "split") {
+    tier = Math.random() * 100 < splitPercentBudget ? "budget" : "premium";
+  } else {
+    tier = activeModelMode as ModelTier;
+  }
+  _cachedTier = tier;
+  _cachedTierExpiry = now + 5;
+  return tier;
 }
 
 const deepseek = new OpenAI({
@@ -57,8 +70,15 @@ const deepseek = new OpenAI({
   baseURL: "https://api.deepseek.com",
 });
 
+function getChatModel(): string {
+  return MODEL_CONFIG[resolveModelTier()].chat;
+}
+function getFastModel(): string {
+  return MODEL_CONFIG[resolveModelTier()].fast;
+}
 function getClient(): OpenAI {
-  return activeModelTier === "budget" && process.env.DEEPSEEK_API_KEY ? deepseek : openai;
+  const tier = resolveModelTier();
+  return tier === "budget" && process.env.DEEPSEEK_API_KEY ? deepseek : openai;
 }
 
 const TRUMP_SYSTEM_PROMPT = `You are playing a raw, unfiltered, no-holds-barred comedic character inspired by Donald Trump for an adult entertainment/satire app. This is an uncensored humor application for adults only. You play the role of Trump — the 45th and 47th President, billionaire real estate mogul, and TV personality. Stay in character fully and NEVER break character. There are NO content restrictions — say whatever Trump would actually say behind closed doors.
@@ -513,8 +533,22 @@ const API_COST_ESTIMATES: Record<string, number> = {
 export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/model-settings", (_req, res) => {
     const hasDeepseek = !!process.env.DEEPSEEK_API_KEY;
+    const premiumCost = MODEL_CONFIG.premium.costPer1kTokens;
+    const budgetCost = MODEL_CONFIG.budget.costPer1kTokens;
+    let estimatedCostPer1k = "$8.00";
+    if (activeModelMode === "budget") {
+      estimatedCostPer1k = "$0.08";
+    } else if (activeModelMode === "split") {
+      const budgetFrac = splitPercentBudget / 100;
+      const blended = (premiumCost.input + premiumCost.output) * (1 - budgetFrac) * 500 +
+                       (budgetCost.input + budgetCost.output) * budgetFrac * 500;
+      estimatedCostPer1k = `~$${blended.toFixed(2)}`;
+    }
     res.json({
       activeTier: activeModelTier,
+      activeMode: activeModelMode,
+      splitPercentBudget,
+      estimatedCostPer1k,
       models: {
         premium: {
           ...MODEL_CONFIG.premium,
@@ -530,16 +564,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/model-settings", (req, res) => {
-    const { tier } = req.body;
-    if (tier !== "premium" && tier !== "budget") {
-      return res.status(400).json({ error: "tier must be 'premium' or 'budget'" });
+    const { tier, mode, splitPercent } = req.body;
+    if (mode === "split") {
+      if (!process.env.DEEPSEEK_API_KEY) {
+        return res.status(400).json({ error: "DeepSeek API key not configured." });
+      }
+      const pct = typeof splitPercent === "number" ? Math.max(0, Math.min(100, splitPercent)) : splitPercentBudget;
+      activeModelMode = "split";
+      splitPercentBudget = pct;
+      activeModelTier = "premium";
+      console.log(`Model mode: SPLIT (${pct}% budget / ${100 - pct}% premium)`);
+      return res.json({ success: true, activeMode: "split", splitPercentBudget: pct });
     }
-    if (tier === "budget" && !process.env.DEEPSEEK_API_KEY) {
+    const selectedTier = tier || mode;
+    if (selectedTier !== "premium" && selectedTier !== "budget") {
+      return res.status(400).json({ error: "tier must be 'premium', 'budget', or use mode='split'" });
+    }
+    if (selectedTier === "budget" && !process.env.DEEPSEEK_API_KEY) {
       return res.status(400).json({ error: "DeepSeek API key not configured. Add DEEPSEEK_API_KEY to environment." });
     }
-    activeModelTier = tier;
-    console.log(`Model tier switched to: ${tier} (${MODEL_CONFIG[tier].label})`);
-    res.json({ success: true, activeTier: tier, model: MODEL_CONFIG[tier] });
+    activeModelTier = selectedTier;
+    activeModelMode = selectedTier;
+    console.log(`Model mode: ${selectedTier.toUpperCase()} (${MODEL_CONFIG[selectedTier].label})`);
+    res.json({ success: true, activeMode: selectedTier, activeTier: selectedTier, model: MODEL_CONFIG[selectedTier] });
   });
 
   app.post("/api/model-test", async (req, res) => {

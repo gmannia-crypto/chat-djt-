@@ -134,11 +134,166 @@ const FEATURE_LABELS: Record<string, { label: string; icon: string; color: strin
   stock_pick: { label: "Stock Picks", icon: "trending-up", color: "#F59E0B" },
 };
 
-function ModelSettingsSection() {
+const SPLIT_PRESETS = [
+  { label: "100% Budget", budgetPct: 100, icon: "leaf" as const, color: "#4ADE80" },
+  { label: "70/30", budgetPct: 70, icon: "scale-balance" as const, color: "#60A5FA" },
+  { label: "50/50", budgetPct: 50, icon: "equal" as const, color: "#FBBF24" },
+  { label: "30/70", budgetPct: 30, icon: "diamond-stone" as const, color: "#C084FC" },
+  { label: "100% Premium", budgetPct: 0, icon: "star" as const, color: "#FFD700" },
+];
+
+function ModelQuickToggle({ modelData, onSwitch }: { modelData: any; onSwitch: () => void }) {
+  const [switching, setSwitching] = useState(false);
+
+  async function quickSwitch(mode: string, splitPct?: number) {
+    setSwitching(true);
+    try {
+      const body: any = mode === "split" ? { mode: "split", splitPercent: splitPct } : { mode };
+      const res = await fetch(new URL("/api/model-settings", getApiUrl()).toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        onSwitch();
+      }
+    } catch (e) {
+      console.error("Quick switch error:", e);
+    } finally {
+      setSwitching(false);
+    }
+  }
+
+  const currentMode = modelData?.activeMode || "premium";
+  const splitPct = modelData?.splitPercentBudget || 70;
+  const costEst = modelData?.estimatedCostPer1k || "$8.00";
+
+  let modeLabel = "GPT-5.2";
+  let modeColor = "#FFD700";
+  if (currentMode === "budget") {
+    modeLabel = "DeepSeek";
+    modeColor = "#4ADE80";
+  } else if (currentMode === "split") {
+    modeLabel = `Split ${splitPct}/${100 - splitPct}`;
+    modeColor = "#60A5FA";
+  }
+
+  return (
+    <View style={toggleStyles.container}>
+      <View style={toggleStyles.statusRow}>
+        <View style={toggleStyles.statusLeft}>
+          <View style={[toggleStyles.statusDot, { backgroundColor: modeColor }]} />
+          <Text style={[toggleStyles.statusLabel, { color: modeColor }]}>{modeLabel}</Text>
+        </View>
+        <View style={toggleStyles.costBadge}>
+          <Text style={toggleStyles.costText}>{costEst}/1K</Text>
+        </View>
+      </View>
+      <View style={toggleStyles.buttonRow}>
+        <Pressable
+          onPress={() => quickSwitch("premium")}
+          disabled={switching}
+          style={[toggleStyles.modeBtn, currentMode === "premium" && { borderColor: "#FFD700", backgroundColor: "rgba(255,215,0,0.12)" }]}
+        >
+          <MaterialCommunityIcons name="star" size={14} color={currentMode === "premium" ? "#FFD700" : "#666"} />
+          <Text style={[toggleStyles.modeBtnText, currentMode === "premium" && { color: "#FFD700" }]}>PREMIUM</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => quickSwitch("split", splitPct)}
+          disabled={switching || !modelData?.models?.budget?.available}
+          style={[toggleStyles.modeBtn, currentMode === "split" && { borderColor: "#60A5FA", backgroundColor: "rgba(96,165,250,0.12)" }]}
+        >
+          <MaterialCommunityIcons name="scale-balance" size={14} color={currentMode === "split" ? "#60A5FA" : "#666"} />
+          <Text style={[toggleStyles.modeBtnText, currentMode === "split" && { color: "#60A5FA" }]}>SPLIT</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => quickSwitch("budget")}
+          disabled={switching || !modelData?.models?.budget?.available}
+          style={[toggleStyles.modeBtn, currentMode === "budget" && { borderColor: "#4ADE80", backgroundColor: "rgba(74,222,128,0.12)" }]}
+        >
+          <MaterialCommunityIcons name="leaf" size={14} color={currentMode === "budget" ? "#4ADE80" : "#666"} />
+          <Text style={[toggleStyles.modeBtnText, currentMode === "budget" && { color: "#4ADE80" }]}>BUDGET</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+const toggleStyles = StyleSheet.create({
+  container: {
+    marginHorizontal: 16,
+    marginBottom: 12,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(212,164,32,0.15)",
+    padding: 12,
+  },
+  statusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  statusLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  statusLabel: {
+    fontSize: 13,
+    fontWeight: "800" as const,
+    letterSpacing: 0.5,
+  },
+  costBadge: {
+    backgroundColor: "rgba(255,255,255,0.06)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  costText: {
+    fontSize: 10,
+    fontWeight: "700" as const,
+    color: "rgba(255,255,255,0.5)",
+  },
+  buttonRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  modeBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    backgroundColor: "rgba(255,255,255,0.02)",
+  },
+  modeBtnText: {
+    fontSize: 9,
+    fontWeight: "800" as const,
+    color: "#666",
+    letterSpacing: 0.5,
+  },
+});
+
+function ModelSettingsSection({ onModelChange }: { onModelChange?: () => void }) {
   const [modelData, setModelData] = useState<any>(null);
   const [testResults, setTestResults] = useState<any>(null);
   const [switching, setSwitching] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [splitValue, setSplitValue] = useState(70);
 
   useEffect(() => {
     fetchModelSettings();
@@ -147,26 +302,32 @@ function ModelSettingsSection() {
   async function fetchModelSettings() {
     try {
       const res = await fetch(new URL("/api/model-settings", getApiUrl()).toString());
-      if (res.ok) setModelData(await res.json());
+      if (res.ok) {
+        const data = await res.json();
+        setModelData(data);
+        if (data.splitPercentBudget !== undefined) setSplitValue(data.splitPercentBudget);
+      }
     } catch (e) {
       console.error("Model settings error:", e);
     }
   }
 
-  async function switchTier(tier: string) {
+  async function switchMode(mode: string, splitPercent?: number) {
     setSwitching(true);
     try {
+      const body: any = mode === "split" ? { mode: "split", splitPercent } : { mode };
       const res = await fetch(new URL("/api/model-settings", getApiUrl()).toString(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tier }),
+        body: JSON.stringify(body),
       });
       if (res.ok) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         await fetchModelSettings();
+        onModelChange?.();
       }
     } catch (e) {
-      console.error("Switch tier error:", e);
+      console.error("Switch mode error:", e);
     } finally {
       setSwitching(false);
     }
@@ -193,54 +354,111 @@ function ModelSettingsSection() {
 
   const premium = modelData.models.premium;
   const budget = modelData.models.budget;
+  const currentMode = modelData.activeMode || "premium";
 
   return (
     <Animated.View entering={FadeInDown.delay(1200).duration(400)}>
       <View style={modelStyles.container}>
         <View style={modelStyles.header}>
           <MaterialCommunityIcons name="brain" size={20} color={Colors.gold} />
-          <Text style={modelStyles.title}>AI Model Settings</Text>
+          <Text style={modelStyles.title}>AI Model Control</Text>
         </View>
 
         <View style={modelStyles.tierRow}>
           <Pressable
-            onPress={() => switchTier("premium")}
+            onPress={() => switchMode("premium")}
             disabled={switching}
             style={({ pressed }) => [
               modelStyles.tierCard,
-              modelData.activeTier === "premium" && modelStyles.tierCardActive,
+              currentMode === "premium" && modelStyles.tierCardActive,
               pressed && { opacity: 0.8 },
             ]}
           >
-            <MaterialCommunityIcons name="star" size={22} color={modelData.activeTier === "premium" ? "#FFD700" : "#666"} />
-            <Text style={[modelStyles.tierName, modelData.activeTier === "premium" && { color: "#FFD700" }]}>Premium</Text>
+            <MaterialCommunityIcons name="star" size={22} color={currentMode === "premium" ? "#FFD700" : "#666"} />
+            <Text style={[modelStyles.tierName, currentMode === "premium" && { color: "#FFD700" }]}>Premium</Text>
             <Text style={modelStyles.tierModel}>{premium.chat}</Text>
-            <Text style={modelStyles.tierDesc}>{premium.description}</Text>
-            {modelData.activeTier === "premium" && <Text style={modelStyles.activeLabel}>ACTIVE</Text>}
+            <Text style={modelStyles.tierCost}>~$8.00/1K requests</Text>
+            {currentMode === "premium" && <Text style={modelStyles.activeLabel}>ACTIVE</Text>}
           </Pressable>
           <Pressable
-            onPress={() => switchTier("budget")}
+            onPress={() => switchMode("budget")}
             disabled={switching || !budget.available}
             style={({ pressed }) => [
               modelStyles.tierCard,
-              modelData.activeTier === "budget" && modelStyles.tierCardActive,
+              currentMode === "budget" && modelStyles.tierCardActive,
               !budget.available && { opacity: 0.4 },
               pressed && { opacity: 0.8 },
             ]}
           >
-            <MaterialCommunityIcons name="cash-multiple" size={22} color={modelData.activeTier === "budget" ? "#4ADE80" : "#666"} />
-            <Text style={[modelStyles.tierName, modelData.activeTier === "budget" && { color: "#4ADE80" }]}>Budget</Text>
+            <MaterialCommunityIcons name="leaf" size={22} color={currentMode === "budget" ? "#4ADE80" : "#666"} />
+            <Text style={[modelStyles.tierName, currentMode === "budget" && { color: "#4ADE80" }]}>Budget</Text>
             <Text style={modelStyles.tierModel}>{budget.chat}</Text>
-            <Text style={modelStyles.tierDesc}>{budget.description}</Text>
-            {modelData.activeTier === "budget" && <Text style={[modelStyles.activeLabel, { color: "#4ADE80" }]}>ACTIVE</Text>}
+            <Text style={modelStyles.tierCost}>~$0.08/1K requests</Text>
+            {currentMode === "budget" && <Text style={[modelStyles.activeLabel, { color: "#4ADE80" }]}>ACTIVE</Text>}
             {!budget.available && <Text style={modelStyles.unavailableLabel}>Add DEEPSEEK_API_KEY</Text>}
           </Pressable>
         </View>
 
-        {modelData.savings && (
+        {budget.available && (
+          <View style={modelStyles.splitSection}>
+            <View style={modelStyles.splitHeader}>
+              <MaterialCommunityIcons name="scale-balance" size={16} color="#60A5FA" />
+              <Text style={modelStyles.splitTitle}>Cost Split Mode</Text>
+              {currentMode === "split" && (
+                <View style={modelStyles.splitActiveBadge}>
+                  <Text style={modelStyles.splitActiveText}>ACTIVE</Text>
+                </View>
+              )}
+            </View>
+            <Text style={modelStyles.splitDesc}>Route a % of requests to DeepSeek to reduce costs while keeping premium quality for the rest.</Text>
+            <View style={modelStyles.splitPresets}>
+              {SPLIT_PRESETS.map((preset) => {
+                const isActive = currentMode === "split" && splitValue === preset.budgetPct;
+                const isFullMode = (preset.budgetPct === 100 && currentMode === "budget") || (preset.budgetPct === 0 && currentMode === "premium");
+                return (
+                  <Pressable
+                    key={preset.label}
+                    onPress={() => {
+                      if (preset.budgetPct === 0) {
+                        switchMode("premium");
+                      } else if (preset.budgetPct === 100) {
+                        switchMode("budget");
+                      } else {
+                        setSplitValue(preset.budgetPct);
+                        switchMode("split", preset.budgetPct);
+                      }
+                    }}
+                    disabled={switching}
+                    style={[
+                      modelStyles.splitPresetBtn,
+                      (isActive || isFullMode) && { borderColor: preset.color, backgroundColor: `${preset.color}15` },
+                    ]}
+                  >
+                    <MaterialCommunityIcons name={preset.icon} size={14} color={(isActive || isFullMode) ? preset.color : "#555"} />
+                    <Text style={[modelStyles.splitPresetLabel, (isActive || isFullMode) && { color: preset.color }]}>
+                      {preset.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            {currentMode === "split" && (
+              <View style={modelStyles.splitBar}>
+                <View style={[modelStyles.splitBarBudget, { width: `${splitValue}%` }]}>
+                  <Text style={modelStyles.splitBarText}>{splitValue}% DeepSeek</Text>
+                </View>
+                <View style={[modelStyles.splitBarPremium, { width: `${100 - splitValue}%` }]}>
+                  <Text style={modelStyles.splitBarText}>{100 - splitValue}% GPT-5.2</Text>
+                </View>
+              </View>
+            )}
+          </View>
+        )}
+
+        {modelData.estimatedCostPer1k && (
           <View style={modelStyles.savingsBox}>
-            <MaterialCommunityIcons name="information" size={16} color="#4ADE80" />
-            <Text style={modelStyles.savingsText}>{modelData.savings}</Text>
+            <MaterialCommunityIcons name="cash-fast" size={16} color="#4ADE80" />
+            <Text style={modelStyles.savingsText}>Est. cost: {modelData.estimatedCostPer1k} per 1K requests</Text>
           </View>
         )}
 
@@ -342,11 +560,10 @@ const modelStyles = StyleSheet.create({
     color: "rgba(255,255,255,0.4)",
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
   },
-  tierDesc: {
-    fontSize: 10,
-    color: "rgba(255,255,255,0.5)",
-    textAlign: "center",
-    lineHeight: 14,
+  tierCost: {
+    fontSize: 9,
+    color: "rgba(255,255,255,0.35)",
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
   },
   activeLabel: {
     fontSize: 9,
@@ -454,6 +671,87 @@ const modelStyles = StyleSheet.create({
     fontStyle: "italic",
     lineHeight: 16,
   },
+  splitSection: {
+    backgroundColor: "rgba(96,165,250,0.04)",
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "rgba(96,165,250,0.12)",
+    marginBottom: 12,
+  },
+  splitHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 6,
+  },
+  splitTitle: {
+    fontSize: 12,
+    fontWeight: "700" as const,
+    color: "#60A5FA",
+  },
+  splitActiveBadge: {
+    backgroundColor: "rgba(96,165,250,0.15)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginLeft: "auto",
+  },
+  splitActiveText: {
+    fontSize: 8,
+    fontWeight: "800" as const,
+    color: "#60A5FA",
+    letterSpacing: 0.5,
+  },
+  splitDesc: {
+    fontSize: 10,
+    color: "rgba(255,255,255,0.4)",
+    lineHeight: 14,
+    marginBottom: 10,
+  },
+  splitPresets: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginBottom: 8,
+  },
+  splitPresetBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    backgroundColor: "rgba(255,255,255,0.02)",
+  },
+  splitPresetLabel: {
+    fontSize: 10,
+    fontWeight: "600" as const,
+    color: "#555",
+  },
+  splitBar: {
+    flexDirection: "row",
+    borderRadius: 6,
+    overflow: "hidden",
+    height: 22,
+  },
+  splitBarBudget: {
+    backgroundColor: "rgba(74,222,128,0.25)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  splitBarPremium: {
+    backgroundColor: "rgba(255,215,0,0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  splitBarText: {
+    fontSize: 8,
+    fontWeight: "700" as const,
+    color: "rgba(255,255,255,0.6)",
+  },
 });
 
 export default function AdminScreen() {
@@ -462,12 +760,21 @@ export default function AdminScreen() {
   const [shareStats, setShareStats] = useState<ShareStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [quickModelData, setQuickModelData] = useState<any>(null);
 
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
 
+  async function fetchQuickModelData() {
+    try {
+      const res = await fetch(new URL("/api/model-settings", getApiUrl()).toString());
+      if (res.ok) setQuickModelData(await res.json());
+    } catch (e) {}
+  }
+
   useEffect(() => {
     fetchStats();
+    fetchQuickModelData();
   }, []);
 
   async function fetchStats() {
@@ -524,6 +831,10 @@ export default function AdminScreen() {
           </Pressable>
         </View>
       </View>
+
+      {quickModelData && (
+        <ModelQuickToggle modelData={quickModelData} onSwitch={fetchQuickModelData} />
+      )}
 
       <ScrollView
         contentContainerStyle={[
@@ -798,7 +1109,7 @@ export default function AdminScreen() {
               ))}
             </View>
 
-            <ModelSettingsSection />
+            <ModelSettingsSection onModelChange={fetchQuickModelData} />
           </>
         ) : null}
       </ScrollView>
