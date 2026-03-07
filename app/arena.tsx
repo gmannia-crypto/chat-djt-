@@ -508,7 +508,7 @@ export default function ArenaScreen() {
   const topicTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const TOPIC_DURATION = 5 * 60;
 
-  const [freeRemaining, setFreeRemaining] = useState(4);
+  const [freeRemaining, setFreeRemaining] = useState(30);
   const [hasSession, setHasSession] = useState(false);
   const [sessionExpiresAt, setSessionExpiresAt] = useState<number | null>(null);
   const [showPaywall, setShowPaywall] = useState(false);
@@ -608,7 +608,7 @@ export default function ArenaScreen() {
       });
       if (res.ok) {
         const data = await res.json();
-        setFreeRemaining(data.freeRemaining ?? 4);
+        setFreeRemaining(data.freeRemaining ?? 30);
         setHasSession(data.hasSession ?? false);
         if (data.sessionExpiresAt) setSessionExpiresAt(data.sessionExpiresAt);
       }
@@ -1081,6 +1081,7 @@ export default function ArenaScreen() {
           toSpeakerId: "system",
           conversationHistory: [{ speakerName: "Fan", text: `A fan named ${name.trim()} just voted for you as the winner of this debate! Thank them personally and make it memorable.` }],
           topic: currentTopic || "debate",
+          isPollThankYou: true,
         }),
       });
       if (res.ok) {
@@ -1093,8 +1094,12 @@ export default function ArenaScreen() {
           timestamp: Date.now(),
         });
         queueTTS(data.response, personaId, true);
+      } else {
+        console.warn("Thank you TTS failed:", res.status);
       }
-    } catch {}
+    } catch (e) {
+      console.warn("Thank you error:", e);
+    }
   }, [deviceId, currentTopic, addMessage, queueTTS]);
 
   const shareDebate = useCallback(async () => {
@@ -1245,7 +1250,7 @@ export default function ArenaScreen() {
             </Text>
           </View>
         )}
-        {!hasSession && freeRemaining > 0 && freeRemaining < 4 && (
+        {!hasSession && freeRemaining > 0 && freeRemaining < 30 && (
           <Text style={s.freeCountLabel}>{freeRemaining} free left</Text>
         )}
       </View>
@@ -1542,7 +1547,7 @@ export default function ArenaScreen() {
             <Ionicons name="lock-closed" size={36} color="#FFD700" />
             <Text style={s.paywallTitle}>Arena Access Required</Text>
             <Text style={s.paywallSubtitle}>
-              You've used your {4 - freeRemaining} free interactions. Unlock 5 minutes of unlimited access for 5 tokens.
+              You've used your free trial. Unlock 10 minutes of unlimited access for 3 tokens.
             </Text>
             <View style={s.paywallBalanceRow}>
               <Ionicons name="diamond" size={16} color="#FFD700" />

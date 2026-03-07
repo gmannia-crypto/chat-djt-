@@ -302,6 +302,9 @@ export default function HomeScreen() {
 
   const pulseScale = useSharedValue(1);
   const pulseGlow = useSharedValue(0.4);
+  const arenaPulseScale = useSharedValue(1);
+  const arenaPulseGlow = useSharedValue(0.3);
+  const arenaBorderGlow = useSharedValue(0.4);
 
   React.useEffect(() => {
     pulseScale.value = withRepeat(
@@ -320,6 +323,30 @@ export default function HomeScreen() {
       -1,
       true
     );
+    arenaPulseScale.value = withRepeat(
+      withSequence(
+        withTiming(1.02, { duration: 1200 }),
+        withTiming(0.98, { duration: 1200 })
+      ),
+      -1,
+      true
+    );
+    arenaPulseGlow.value = withRepeat(
+      withSequence(
+        withTiming(0.9, { duration: 1000 }),
+        withTiming(0.3, { duration: 1000 })
+      ),
+      -1,
+      true
+    );
+    arenaBorderGlow.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 1500 }),
+        withTiming(0.4, { duration: 1500 })
+      ),
+      -1,
+      true
+    );
   }, []);
 
   const pulseTherapyStyle = useAnimatedStyle(() => ({
@@ -330,6 +357,15 @@ export default function HomeScreen() {
   const pulseFortuneStyle = useAnimatedStyle(() => ({
     transform: [{ scale: pulseScale.value }],
     shadowOpacity: pulseGlow.value,
+  }));
+
+  const arenaFeaturedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: arenaPulseScale.value }],
+    shadowColor: "#ff4d4d",
+    shadowOffset: { width: 0, height: 0 },
+    shadowRadius: 20,
+    shadowOpacity: arenaPulseGlow.value,
+    elevation: 10,
   }));
 
   function handleSecretTap() {
@@ -1167,6 +1203,49 @@ export default function HomeScreen() {
           </Animated.View>
         )}
 
+        <Animated.View entering={FadeInDown.delay(945).duration(600)} style={arenaFeaturedStyle}>
+          <Pressable
+            onPress={() => {
+              playNavVoice("Political Arena. The greatest debate you've ever seen. Believe me.");
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+              router.push("/arena");
+            }}
+            style={({ pressed }) => [pressed && { opacity: 0.9 }]}
+            testID="arena-featured-button"
+          >
+            <LinearGradient
+              colors={["#2a0a0a", "#1a0505", "#2a0a0a"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.arenaFeaturedCard}
+            >
+              <View style={styles.arenaFeaturedBorderGlow} />
+              <View style={styles.arenaFeaturedHeader}>
+                <View style={styles.arenaFeaturedLive}>
+                  <View style={styles.arenaFeaturedLiveDot} />
+                  <Text style={styles.arenaFeaturedLiveText}>LIVE</Text>
+                </View>
+                <Text style={styles.arenaFeaturedTitle}>POLITICAL ARENA</Text>
+                <Text style={styles.arenaFeaturedSubtitle}>11 AI Personas. Real News. Live Debate.</Text>
+              </View>
+              <View style={styles.arenaFeaturedPersonas}>
+                <Text style={styles.arenaFeaturedEmojis}>Trump  Biden  Maddow  Ruckus  Omar  Galloway</Text>
+              </View>
+              <View style={styles.arenaFeaturedCta}>
+                <LinearGradient
+                  colors={["#ff4d4d", "#cc0000"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.arenaFeaturedCtaGradient}
+                >
+                  <Ionicons name="megaphone" size={14} color="#fff" />
+                  <Text style={styles.arenaFeaturedCtaText}>TRY IT NOW FOR FREE</Text>
+                </LinearGradient>
+              </View>
+            </LinearGradient>
+          </Pressable>
+        </Animated.View>
+
         <Animated.View entering={FadeInDown.delay(950).duration(500)}>
           <Pressable
             onPress={mysteryReady ? openMysteryBox : undefined}
@@ -1448,7 +1527,7 @@ export default function HomeScreen() {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
               router.push("/collectibles");
             }}
-            style={({ pressed }) => [styles.modeButton, styles.collectiblesButton, pressed && { opacity: 0.7 }]}
+            style={({ pressed }) => [styles.modeButton, styles.collectiblesButton, { flex: 1 }, pressed && { opacity: 0.7 }]}
             testID="collectibles-button"
           >
             <MaterialCommunityIcons name="cards" size={16} color="#FFD700" />
@@ -1458,21 +1537,6 @@ export default function HomeScreen() {
                 <Text style={styles.collectiblesBadgeText}>{collectionCount.owned}/{collectionCount.total}</Text>
               </View>
             )}
-          </Pressable>
-          <Pressable
-            onPress={() => {
-              playNavVoice("Political Arena. The greatest debate you've ever seen. Believe me.");
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-              router.push("/arena");
-            }}
-            style={({ pressed }) => [styles.modeButton, styles.arenaButton, pressed && { opacity: 0.7 }]}
-            testID="arena-button"
-          >
-            <Ionicons name="megaphone" size={16} color="#ff4d4d" />
-            <Text style={styles.modeButtonText}>ARENA</Text>
-            <View style={styles.arenaLiveBadge}>
-              <Text style={styles.arenaLiveText}>LIVE</Text>
-            </View>
           </Pressable>
         </Animated.View>
         {fearGreed && (
@@ -2611,27 +2675,93 @@ const styles = StyleSheet.create({
     color: "#FFD700",
     letterSpacing: 0.5,
   },
-  arenaButton: {
-    backgroundColor: "rgba(255, 77, 77, 0.12)",
-    borderColor: "rgba(255, 77, 77, 0.35)",
-    flex: 1,
+  arenaFeaturedCard: {
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 2,
+    borderColor: "rgba(255, 77, 77, 0.5)",
+    overflow: "hidden" as const,
+    position: "relative" as const,
   },
-  arenaLiveBadge: {
-    position: "absolute",
-    top: 4,
-    right: 6,
-    backgroundColor: "rgba(255, 77, 77, 0.25)",
-    borderRadius: 8,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
+  arenaFeaturedBorderGlow: {
+    position: "absolute" as const,
+    top: -2,
+    left: -2,
+    right: -2,
+    bottom: -2,
+    borderRadius: 18,
+    borderWidth: 2,
+    borderColor: "rgba(255, 77, 77, 0.3)",
+  },
+  arenaFeaturedHeader: {
+    alignItems: "center" as const,
+    gap: 6,
+  },
+  arenaFeaturedLive: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 5,
+    backgroundColor: "rgba(255, 77, 77, 0.2)",
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "rgba(255, 77, 77, 0.4)",
   },
-  arenaLiveText: {
-    fontSize: 7,
-    fontWeight: "800" as const,
+  arenaFeaturedLiveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#ff4d4d",
+  },
+  arenaFeaturedLiveText: {
+    fontSize: 10,
+    fontWeight: "900" as const,
     color: "#ff4d4d",
+    letterSpacing: 1.5,
+  },
+  arenaFeaturedTitle: {
+    fontSize: 22,
+    fontWeight: "900" as const,
+    color: "#fff",
+    letterSpacing: 3,
+    textAlign: "center" as const,
+  },
+  arenaFeaturedSubtitle: {
+    fontSize: 12,
+    fontWeight: "500" as const,
+    color: "rgba(255, 255, 255, 0.6)",
+    textAlign: "center" as const,
     letterSpacing: 0.5,
+  },
+  arenaFeaturedPersonas: {
+    alignItems: "center" as const,
+    marginTop: 10,
+  },
+  arenaFeaturedEmojis: {
+    fontSize: 10,
+    color: "rgba(255, 255, 255, 0.45)",
+    letterSpacing: 1,
+    textAlign: "center" as const,
+    fontWeight: "600" as const,
+  },
+  arenaFeaturedCta: {
+    alignItems: "center" as const,
+    marginTop: 14,
+  },
+  arenaFeaturedCtaGradient: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 25,
+  },
+  arenaFeaturedCtaText: {
+    fontSize: 13,
+    fontWeight: "900" as const,
+    color: "#fff",
+    letterSpacing: 1.5,
   },
   sportsButton: {
     backgroundColor: "rgba(76, 175, 80, 0.15)",

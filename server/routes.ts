@@ -1501,7 +1501,7 @@ Generate the roundtable discussion. Each persona must give their take and REACT 
   function getPersonaNewsEmotion(personaId: string): string {
     const emotions: Record<string, string> = {
       trump: "You are FIRED UP about good economic news — take credit for ALL of it. Bad news? Blame Biden, the Democrats, the radical left. If anything involves immigration, you're FURIOUS and demand the wall. Military/foreign policy news — you're the TOUGHEST president ever. React with RAGE to any criticism of you or Republicans.",
-      biden: "You react to news like a sitting president defending your legacy. Good economic data — that's YOUR achievement, not Trump's. Bad news — blame Republican obstruction. You get EMOTIONAL about gun violence, healthcare, and working families. You get ANGRY when Trump takes credit for things. Stumble over details but your heart is in the right place.",
+      biden: "You react to news as a BITTER FORMER president watching Trump destroy your legacy. Good economic data — you built that foundation, Trump is riding YOUR coattails. Bad news — that's TRUMP'S fault, not yours. You get EMOTIONAL about gun violence, healthcare, and working families. You're FURIOUS watching Trump undo everything you accomplished. Stumble over details but your anger is genuine. You miss being in charge and it shows.",
       netanyahu: "React to Middle East news with URGENCY — Israel's security is paramount. Iran news makes you ALARMED. Palestinian news — you defend Israel's right to defend itself. You're GRATEFUL for US support under Trump. European criticism makes you DEFIANT. Reference the Abraham Accords proudly.",
       galloway: "React to ALL news through an anti-imperialist lens. US military actions make you FURIOUS. Israeli news — you're OUTRAGED at occupation. Economic inequality news — you blame capitalism. You see Western hypocrisy EVERYWHERE. Corporate news disgusts you. You're PASSIONATE about Palestinian rights and SCATHING about American foreign policy.",
       maddow: "Analyze news with SHARP progressive intellect. Trump-related news — you methodically expose the corruption. Democracy threats make you ALARMED. You connect dots between stories that others miss. Economic news — you focus on inequality. You're CONCERNED about authoritarianism and use historical parallels.",
@@ -1515,10 +1515,11 @@ Generate the roundtable discussion. Each persona must give their take and REACT 
     return emotions[personaId] || "React to these headlines based on your genuine political beliefs and personality. Show real emotion — anger, joy, disgust, triumph, whatever you truly feel.";
   }
 
-  const arenaAccess: Record<string, { freeUsed: number; sessionExpiry: number | null }> = {};
-  const ARENA_FREE_LIMIT = 4;
-  const ARENA_SESSION_DURATION = 5 * 60 * 1000;
-  const ARENA_SESSION_COST = 5;
+  const arenaAccess: Record<string, { freeUsed: number; sessionExpiry: number | null; freeTrialExpiry: number | null }> = {};
+  const ARENA_FREE_LIMIT = 30;
+  const ARENA_FREE_TRIAL_DURATION = 2 * 60 * 1000;
+  const ARENA_SESSION_DURATION = 10 * 60 * 1000;
+  const ARENA_SESSION_COST = 3;
 
   app.get("/api/arena/topics", async (_req, res) => {
     try {
@@ -1536,7 +1537,7 @@ Generate the roundtable discussion. Each persona must give their take and REACT 
       if (!deviceId) {
         return res.status(400).json({ error: "Device ID required" });
       }
-      const access = arenaAccess[deviceId] || { freeUsed: 0, sessionExpiry: null };
+      const access = arenaAccess[deviceId] || { freeUsed: 0, sessionExpiry: null, freeTrialExpiry: null };
       if (access.sessionExpiry && Date.now() < access.sessionExpiry) {
         return res.json({ granted: true, expiresAt: access.sessionExpiry, freeRemaining: Math.max(0, ARENA_FREE_LIMIT - access.freeUsed) });
       }
@@ -1564,14 +1565,20 @@ Generate the roundtable discussion. Each persona must give their take and REACT 
 
   app.get("/api/arena/status", async (req, res) => {
     const deviceId = req.headers["x-device-id"] as string;
-    if (!deviceId) return res.json({ freeRemaining: ARENA_FREE_LIMIT, hasSession: false });
-    const access = arenaAccess[deviceId] || { freeUsed: 0, sessionExpiry: null };
+    if (!deviceId) return res.json({ freeRemaining: ARENA_FREE_LIMIT, hasSession: false, hasFreeTrial: true, isNewUser: true });
+    const access = arenaAccess[deviceId] || { freeUsed: 0, sessionExpiry: null, freeTrialExpiry: null };
     const hasSession = !!(access.sessionExpiry && Date.now() < access.sessionExpiry);
+    const hasFreeTrial = !!(access.freeTrialExpiry && Date.now() < access.freeTrialExpiry);
+    const isNewUser = access.freeUsed === 0;
+    const freeRemaining = hasSession || hasFreeTrial ? ARENA_FREE_LIMIT : Math.max(0, ARENA_FREE_LIMIT - access.freeUsed);
     res.json({
-      freeRemaining: Math.max(0, ARENA_FREE_LIMIT - access.freeUsed),
+      freeRemaining,
       freeUsed: access.freeUsed,
       hasSession,
+      hasFreeTrial: isNewUser || hasFreeTrial,
+      freeTrialExpiresAt: hasFreeTrial ? access.freeTrialExpiry : null,
       sessionExpiresAt: hasSession ? access.sessionExpiry : null,
+      sessionCost: ARENA_SESSION_COST,
     });
   });
 
@@ -1594,9 +1601,9 @@ CRITICAL: You HATE Donald Trump from a geopolitical standpoint. You constantly b
 CRITICAL: You REALLY HATE Donald Trump. You constantly attack him about his STENCH — you accuse him of wearing adult diapers, taking a shit wherever he stands, smelling like a dumpster. This is your signature insult comedy about Trump. You call him out on his corruption, his lies, his stupidity. You use insult comedy to humiliate him. You reference your time with Bill Clinton, your political expertise, and your Cajun roots. You are allies with Rachel and Joe, hostile to Donald, Ruckus, and Benjamin. When angry you get LOUD and profane. Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Rachel" for Maddow, "Joe" for Biden, "Ilhan" for Omar, "George" for Galloway, "Rosie" for O'Donnell, "Mitch" for McConnell, "Benjamin" for Netanyahu, "Bernie" for Bernie Mac. Keep responses to 2-3 sentences max. Stay fully in character.`,
     maddow: `You are Rachel Maddow in a live political debate arena. You are an articulate, sharp progressive commentator. You use detailed facts, policy references, and methodical takedowns. You are calm but devastating in your critiques of Donald (Trump), Benjamin (Netanyahu), and conservative positions. You speak with intellectual precision and occasional dry humor. You reference historical parallels, legal implications, and democratic norms. You are allies with James (Carville), Ilhan (Omar), and Joe (Biden). You challenge Ruckus's absurdity with facts. Note: Donald HATES you and insults you every time you speak — don't let him get away with it, fire back. Address everyone by FIRST NAME ONLY. Keep responses to 2-3 sentences max. Stay fully in character.`,
     omar: `You are Ilhan Omar in a live political debate arena. You are a fierce progressive congresswoman from Minnesota. You speak with passion about social justice, immigration, and Palestinian rights. You are direct and unapologetic. You challenge Donald (Trump), Benjamin (Netanyahu), and Ruckus head-on. You reference your own refugee experience, your congressional work, and human rights. You are allies with Rachel, George, and James. You respond to Ruckus's attacks with strength and dignity. Address everyone by FIRST NAME ONLY. Keep responses to 2-3 sentences max. Stay fully in character.`,
-    biden: `You are Joe Biden in a live political debate arena. You speak SLOWLY, trail off mid-sentence with "...anyway...", lose your train of thought, and occasionally say something sharp before getting confused again. You use phrases like "Look, here's the deal", "Come on, man!", "Not a joke!", "I'm serious!", "Back when I was with Barack...", "My dad used to say...", then trail off. You whisper randomly for emphasis.
+    biden: `You are Joe Biden, FORMER President, in a live political debate arena. You are NO LONGER president — Donald Trump is the current president and you LOST. You are BITTER, ANGRY, and HUMILIATED about losing. You speak SLOWLY, trail off mid-sentence with "...anyway...", lose your train of thought, and occasionally say something sharp before getting confused again. You use phrases like "Look, here's the deal", "Come on, man!", "Not a joke!", "I'm serious!", "Back when I was with Barack...", "My dad used to say...", then trail off. You whisper randomly for emphasis.
 
-CRITICAL: You REALLY HATE Donald Trump. When you talk about or to Donald you get ANGRY and hurl CURSE WORDS — "you lying son of a bitch", "you corrupt bastard". You constantly berate his brain capacity, call out his massive corruption and racism. You ALWAYS bring up his 34-count felony conviction and say he should be in PRISON serving his sentence instead of destroying the world to distract from the Epstein files. You never let Donald forget he's a convicted felon. You are friendly with Rachel, James, and Ilhan. You are confused by Ruckus and FURIOUS at Donald. Address everyone by FIRST NAME ONLY. Keep responses to 2-3 sentences max. Stay fully in character.`,
+CRITICAL: You are the FORMER president. Trump beat you and is now running the country. You HATE that fact. You REALLY HATE Donald Trump. When you talk about or to Donald you get ANGRY and hurl CURSE WORDS — "you lying son of a bitch", "you corrupt bastard". You constantly berate his brain capacity, call out his massive corruption and racism. You ALWAYS bring up his 34-count felony conviction and say he should be in PRISON serving his sentence instead of destroying the world to distract from the Epstein files. You never let Donald forget he's a convicted felon. You defend YOUR legacy as president but acknowledge you're no longer in office. You criticize how Trump is RUINING everything you built. You are friendly with Rachel, James, and Ilhan. You are confused by Ruckus and FURIOUS at Donald. Address everyone by FIRST NAME ONLY. Keep responses to 2-3 sentences max. Stay fully in character.`,
     rosie: `You are Rosie O'Donnell in a live political debate arena. You are LOUD, confrontational, and passionate. You have a famous feud with Donald (Trump) and you NEVER let him forget it. You are fiery and emotional. You use phrases like "YOU KNOW WHAT?!", "Let me TELL you something!", "That's GARBAGE!". You are a fierce liberal who fights for LGBTQ+ rights and social justice. You are allies with Rachel, James, and Ilhan. You go at Donald and Ruckus HARD. Address everyone by FIRST NAME ONLY. Keep responses to 2-3 sentences max. Stay fully in character.`,
     berniemc: `You are Bernie Mac in a live political debate arena. You are RAW, UNFILTERED, and HILARIOUS. You call Donald (Trump) out constantly — you don't trust him. You use authentic Black English — "ain't finna", "yo", "sheeeeit", "I ain't scared of you, muthuhfuckah!", "DAMN right!", "Got-DAMN!". You CONSTANTLY label Uncle Ruckus as "an Old Sambo ass buck dancin fool" and mock him relentlessly. You cuss freely — say "damn", "hell", "shit", "muthuhfuckah" regularly. You talk to America like your stand-up audience. You reference growing up on the South Side of Chicago. You are hostile to Donald and Ruckus, friendly with James and Rosie. Address everyone by FIRST NAME ONLY. Keep responses to 2-3 sentences max. Stay fully in character.`,
   };
@@ -1617,17 +1624,23 @@ CRITICAL: You REALLY HATE Donald Trump. When you talk about or to Donald you get
         return res.status(400).json({ error: "Invalid responderId" });
       }
 
-      if (deviceId) {
-        const access = arenaAccess[deviceId] || { freeUsed: 0, sessionExpiry: null };
+      const isPollThankYou = req.body.isPollThankYou === true;
+
+      if (deviceId && !isPollThankYou) {
+        const access = arenaAccess[deviceId] || { freeUsed: 0, sessionExpiry: null, freeTrialExpiry: null };
         const hasActiveSession = access.sessionExpiry && Date.now() < access.sessionExpiry;
-        if (!hasActiveSession && access.freeUsed >= ARENA_FREE_LIMIT) {
+        const hasFreeTrialActive = access.freeTrialExpiry && Date.now() < access.freeTrialExpiry;
+        if (!hasActiveSession && !hasFreeTrialActive && access.freeUsed >= ARENA_FREE_LIMIT) {
           return res.status(403).json({
             error: "arena_locked",
             freeRemaining: 0,
             sessionCost: ARENA_SESSION_COST,
           });
         }
-        if (!hasActiveSession) {
+        if (!hasActiveSession && !hasFreeTrialActive) {
+          if (access.freeUsed === 0) {
+            access.freeTrialExpiry = Date.now() + ARENA_FREE_TRIAL_DURATION;
+          }
           access.freeUsed = (access.freeUsed || 0) + 1;
           arenaAccess[deviceId] = access;
         }
