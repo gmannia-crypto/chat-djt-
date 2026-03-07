@@ -900,6 +900,46 @@ export default function ArenaScreen() {
     } catch {}
   }, [deviceId, addMessage, queueTTS]);
 
+  const triggerTrumpInterruption = useCallback(async (opponentText: string, opponentId: string) => {
+    if (!mountedRef.current) return;
+    const active = selectedPersonasRef.current;
+    if (!active.includes("trump")) return;
+
+    await new Promise((r) => setTimeout(r, 600 + Math.random() * 800));
+    if (!mountedRef.current || !isRunningRef.current) return;
+
+    try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (deviceId) headers["x-device-id"] = deviceId;
+      const opponentName = ARENA_PERSONAS[opponentId]?.name || "someone";
+
+      const res = await fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          responderId: "trump",
+          toSpeakerId: opponentId,
+          conversationHistory: [{ speakerName: opponentName, text: opponentText }],
+          topic: currentTopicRef.current || "debate",
+          isInterruption: true,
+          isTrumpInitiated: true,
+        }),
+      });
+
+      if (res.ok && mountedRef.current) {
+        const data = await res.json();
+        addMessage({
+          id: "trump-interrupt-" + Date.now() + Math.random().toString(36).substr(2, 5),
+          speakerId: "trump",
+          speakerName: "\u26A1 Donald Trump",
+          text: data.response,
+          timestamp: Date.now(),
+        });
+        queueTTS(data.response, "trump");
+      }
+    } catch {}
+  }, [deviceId, addMessage, queueTTS]);
+
   const decideNextSpeaker = useCallback(async () => {
     if (!isRunningRef.current || currentSpeakerRef.current) return;
     const msgs = messagesRef.current.filter((m) => !m.isSystem);
@@ -918,9 +958,11 @@ export default function ArenaScreen() {
       const prob = calculateResponseProbability(pid, lastMsg.speakerId, lastMsg.text);
       weight += (prob - 50) * 0.4;
 
+      if (pid === "trump") weight += 25;
+
       const recentIdx = recent.indexOf(pid);
-      if (recentIdx === recent.length - 1) weight -= 30;
-      else if (recentIdx === recent.length - 2) weight -= 15;
+      if (recentIdx === recent.length - 1) weight -= (pid === "trump" ? 15 : 30);
+      else if (recentIdx === recent.length - 2) weight -= (pid === "trump" ? 5 : 15);
       else if (recentIdx === -1) weight += 20;
 
       const emo = emotionalStatesRef.current[pid];
@@ -951,8 +993,15 @@ export default function ArenaScreen() {
           triggerInterruption(trumpMsg.text);
         }
       }
+
+      if (chosen.id !== "trump" && Math.random() < 0.3) {
+        const latestMsg = messagesRef.current.filter((m) => !m.isSystem).slice(-1)[0];
+        if (latestMsg && latestMsg.speakerId !== "trump") {
+          triggerTrumpInterruption(latestMsg.text, latestMsg.speakerId);
+        }
+      }
     }
-  }, [generateAIResponse, triggerInterruption]);
+  }, [generateAIResponse, triggerInterruption, triggerTrumpInterruption]);
 
   const scheduleNext = useCallback(() => {
     if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
