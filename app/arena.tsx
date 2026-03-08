@@ -559,8 +559,9 @@ export default function ArenaScreen() {
     isProcessingTTSRef.current = false;
     forcePlayRef.current = false;
     if (currentSoundRef.current) {
-      try { currentSoundRef.current.stopAsync(); currentSoundRef.current.unloadAsync(); } catch {}
+      const s = currentSoundRef.current;
       currentSoundRef.current = null;
+      s.getStatusAsync().then((st: any) => { if (st.isLoaded) { s.stopAsync().then(() => s.unloadAsync()).catch(() => {}); } }).catch(() => {});
     }
     setIsPlayingAudio(false);
   }, []);
@@ -578,7 +579,7 @@ export default function ArenaScreen() {
         currentSoundRef.current = sound;
         await new Promise<void>((resolve) => {
           let resolved = false;
-          const cleanup = () => { if (resolved) return; resolved = true; try { sound.setOnPlaybackStatusUpdate(null); sound.unloadAsync(); } catch {} currentSoundRef.current = null; resolve(); };
+          const cleanup = () => { if (resolved) return; resolved = true; sound.setOnPlaybackStatusUpdate(null); sound.getStatusAsync().then((st: any) => { if (st.isLoaded) sound.unloadAsync().catch(() => {}); }).catch(() => {}); currentSoundRef.current = null; resolve(); };
           sound.setOnPlaybackStatusUpdate((status: any) => {
             if (status.didJustFinish || status.error) cleanup();
           });
@@ -605,12 +606,19 @@ export default function ArenaScreen() {
     if (!voiceEnabledRef.current) return;
     try {
       const sound = await playTTS("/api/persona-speak", { text, personaId }, { volume: 1.0 });
+      let cleaned = false;
+      const cleanup = () => {
+        if (cleaned) return;
+        cleaned = true;
+        sound.setOnPlaybackStatusUpdate(null);
+        sound.getStatusAsync().then((st: any) => {
+          if (st.isLoaded) sound.stopAsync().then(() => sound.unloadAsync()).catch(() => {});
+        }).catch(() => {});
+      };
       sound.setOnPlaybackStatusUpdate((status: any) => {
-        if (status.didJustFinish || status.error) {
-          try { sound.unloadAsync(); } catch {}
-        }
+        if (status.didJustFinish || status.error) cleanup();
       });
-      setTimeout(() => { try { sound.stopAsync(); sound.unloadAsync(); } catch {} }, 8000);
+      setTimeout(cleanup, 8000);
     } catch {}
   }, []);
 
