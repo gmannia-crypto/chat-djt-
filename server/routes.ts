@@ -1698,7 +1698,7 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyah
 
   app.post("/api/arena/respond", async (req, res) => {
     try {
-      const { responderId, toSpeakerId, conversationHistory, topic, wasInterrupted, interruptionText, interrupterId } = req.body;
+      const { responderId, toSpeakerId, conversationHistory, topic, wasInterrupted, interruptionText, interrupterId, activePersonas } = req.body;
       const deviceId = req.headers["x-device-id"] as string;
 
       if (!responderId || !ARENA_PERSONA_PROMPTS[responderId]) {
@@ -1762,6 +1762,22 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyah
       if (wasInterrupted && interruptionText) {
         const interrupterName = interrupterId && ARENA_NAME_MAP[interrupterId] ? ARENA_NAME_MAP[interrupterId] : "someone";
         userPrompt += ` You were just interrupted by ${interrupterName} who said: '${interruptionText}'. React to this interruption — acknowledge it, fight back, or dismiss it before continuing your point.`;
+      }
+      const otherPersonas = (Array.isArray(activePersonas) ? activePersonas : [])
+        .filter((id: string) => id !== responderId && ARENA_NAME_MAP[id])
+        .map((id: string) => ARENA_NAME_MAP[id]);
+      if (otherPersonas.length > 0 && !isInterruption) {
+        const questionStyles = [
+          "ask a sarcastic question dripping with contempt",
+          "ask a pointed, angry question demanding an answer",
+          "ask a lighthearted or humorous question",
+          "ask a rude, confrontational question",
+          "ask a cordial but loaded question",
+          "make a statement challenging someone to respond",
+          "call someone out directly and demand they explain themselves",
+        ];
+        const style = questionStyles[Math.floor(Math.random() * questionStyles.length)];
+        userPrompt += ` IMPORTANT: In your response, ${style} directed at one of the other people in the room (${otherPersonas.join(", ")}). Address them by name. This creates real back-and-forth debate.`;
       }
       userPrompt += ` Give your in-character response. Do NOT use quotation marks around your response.`;
 

@@ -921,6 +921,7 @@ export default function ArenaScreen() {
           toSpeakerId,
           conversationHistory: history,
           topic: currentTopicRef.current,
+          activePersonas: selectedPersonasRef.current,
         };
         const lastInt = lastInterruptionRef.current;
         if (lastInt) {
