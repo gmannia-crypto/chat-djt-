@@ -2131,66 +2131,60 @@ export default function ArenaScreen() {
       <Modal visible={showJoinPrompt || showJoinForm} transparent animationType="fade">
         <View style={s.joinPromptOverlay}>
           <Animated.View entering={FadeInUp.duration(400).springify()} style={s.joinFormCard}>
-            <View style={{ flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 8, marginBottom: 8 }}>
-              <Ionicons name="mic" size={20} color="#4ADE80" />
+            <View style={{ flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 8, marginBottom: 6 }}>
+              <Ionicons name="mic" size={18} color="#4ADE80" />
               <Text style={s.joinFormTitle}>Jump In</Text>
             </View>
-            <View style={{ flexDirection: "row" as const, gap: 8 }}>
-              <TextInput
-                style={[s.joinInput, { flex: 1 }]}
-                placeholder="Name *"
-                placeholderTextColor="rgba(255,255,255,0.3)"
-                value={userName}
-                onChangeText={(t) => {
-                  setUserName(t);
-                  if (joinTimerRef.current) { clearInterval(joinTimerRef.current); joinTimerRef.current = null; setJoinCountdown(0); }
-                }}
-                maxLength={30}
-                autoCapitalize="words"
-                autoFocus
-              />
-              <TextInput
-                style={[s.joinInput, { flex: 1 }]}
-                placeholder="City"
-                placeholderTextColor="rgba(255,255,255,0.3)"
-                value={userCity}
-                onChangeText={setUserCity}
-                maxLength={40}
-                autoCapitalize="words"
-              />
-            </View>
-            <Text style={s.joinPickerLabel}>State</Text>
-            <FlatList
-              data={US_STATES}
-              horizontal
-              showsHorizontalScrollIndicator
-              keyExtractor={(item) => item}
-              style={s.joinPickerList}
-              renderItem={({ item }) => (
-                <Pressable
-                  onPress={() => setUserState(item)}
-                  style={[s.joinPickerChip, userState === item && s.joinPickerChipActive]}
-                >
-                  <Text style={[s.joinPickerChipText, userState === item && s.joinPickerChipTextActive]}>{item}</Text>
-                </Pressable>
-              )}
+            <TextInput
+              style={s.joinInput}
+              placeholder="Your name *"
+              placeholderTextColor="rgba(255,255,255,0.3)"
+              value={userName}
+              onChangeText={(t) => {
+                setUserName(t);
+                if (joinTimerRef.current) { clearInterval(joinTimerRef.current); joinTimerRef.current = null; setJoinCountdown(0); }
+              }}
+              maxLength={30}
+              autoCapitalize="words"
+              autoFocus
             />
-            <Text style={s.joinPickerLabel}>Country</Text>
-            <FlatList
-              data={COUNTRIES}
-              horizontal
-              showsHorizontalScrollIndicator
-              keyExtractor={(item) => item}
-              style={s.joinPickerList}
-              renderItem={({ item }) => (
-                <Pressable
-                  onPress={() => setUserCountry(item)}
-                  style={[s.joinPickerChip, userCountry === item && s.joinPickerChipActive]}
-                >
-                  <Text style={[s.joinPickerChipText, userCountry === item && s.joinPickerChipTextActive]}>{item}</Text>
-                </Pressable>
-              )}
+            <TextInput
+              style={s.joinInput}
+              placeholder="City (optional)"
+              placeholderTextColor="rgba(255,255,255,0.3)"
+              value={userCity}
+              onChangeText={setUserCity}
+              maxLength={40}
+              autoCapitalize="words"
             />
+            <Text style={s.joinPickerLabel}>State {userState ? `· ${userState}` : ""}</Text>
+            <ScrollView style={s.joinPickerGrid} nestedScrollEnabled>
+              <View style={s.joinPickerWrap}>
+                {US_STATES.map((st) => (
+                  <Pressable
+                    key={st}
+                    onPress={() => setUserState(st)}
+                    style={[s.joinPickerChip, userState === st && s.joinPickerChipActive]}
+                  >
+                    <Text style={[s.joinPickerChipText, userState === st && s.joinPickerChipTextActive]}>{st}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </ScrollView>
+            <Text style={s.joinPickerLabel}>Country {userCountry ? `· ${userCountry}` : ""}</Text>
+            <ScrollView style={s.joinPickerGrid} nestedScrollEnabled>
+              <View style={s.joinPickerWrap}>
+                {COUNTRIES.map((c) => (
+                  <Pressable
+                    key={c}
+                    onPress={() => setUserCountry(c)}
+                    style={[s.joinPickerChip, userCountry === c && s.joinPickerChipActive]}
+                  >
+                    <Text style={[s.joinPickerChipText, userCountry === c && s.joinPickerChipTextActive]}>{c}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </ScrollView>
             <View style={s.joinFormActions}>
               <Pressable
                 onPress={() => {
@@ -3255,16 +3249,23 @@ const s = StyleSheet.create({
     marginTop: 2,
     marginBottom: 4,
   },
-  joinPickerList: {
-    maxHeight: 30,
+  joinPickerGrid: {
+    maxHeight: 90,
     marginBottom: 6,
+    borderRadius: 8,
+    backgroundColor: "rgba(255,255,255,0.03)",
+  },
+  joinPickerWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 4,
+    padding: 4,
   },
   joinPickerChip: {
     paddingHorizontal: 8,
     paddingVertical: 5,
     borderRadius: 6,
     backgroundColor: "rgba(255,255,255,0.06)",
-    marginRight: 4,
     borderWidth: 1,
     borderColor: "transparent",
   },
