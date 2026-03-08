@@ -95,6 +95,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       biden: { sentiment: 10 },
       rosie: { sentiment: 5 },
       berniemc: { sentiment: 20 },
+      elon: { sentiment: 65 },
     },
     triggerWords: {
       positive: ["great", "win", "success", "money", "deal", "beautiful", "trump"],
@@ -125,6 +126,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       biden: { sentiment: 55 },
       rosie: { sentiment: 25 },
       berniemc: { sentiment: 35 },
+      elon: { sentiment: 50 },
     },
     triggerWords: {
       positive: ["israel", "jerusalem", "security", "alliance", "strength", "peace"],
@@ -155,6 +157,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       biden: { sentiment: 10 },
       rosie: { sentiment: 10 },
       berniemc: { sentiment: 5 },
+      elon: { sentiment: 70 },
     },
     triggerWords: {
       positive: ["trump", "maga", "america", "winning", "great", "white", "reagan"],
@@ -185,6 +188,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       biden: { sentiment: 40 },
       rosie: { sentiment: 50 },
       berniemc: { sentiment: 55 },
+      elon: { sentiment: 15 },
     },
     triggerWords: {
       positive: ["britain", "labour", "palestine", "iraq", "socialism", "workers"],
@@ -215,6 +219,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       biden: { sentiment: 30 },
       rosie: { sentiment: 15 },
       berniemc: { sentiment: 20 },
+      elon: { sentiment: 25 },
     },
     triggerWords: {
       positive: ["senate", "republican", "conservative", "judiciary", "majority"],
@@ -245,6 +250,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       rosie: { sentiment: 75 },
       berniemc: { sentiment: 80 },
       mcconnell: { sentiment: 20 },
+      elon: { sentiment: 15 },
     },
     triggerWords: {
       positive: ["democrat", "strategy", "cajun", "clinton", "campaign", "winning"],
@@ -275,6 +281,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       rosie: { sentiment: 80 },
       berniemc: { sentiment: 70 },
       mcconnell: { sentiment: 15 },
+      elon: { sentiment: 10 },
     },
     triggerWords: {
       positive: ["facts", "evidence", "democracy", "constitution", "progressive", "rights"],
@@ -305,6 +312,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       rosie: { sentiment: 75 },
       berniemc: { sentiment: 65 },
       mcconnell: { sentiment: 10 },
+      elon: { sentiment: 10 },
     },
     triggerWords: {
       positive: ["justice", "refugee", "rights", "palestine", "progressive", "squad"],
@@ -335,6 +343,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       rosie: { sentiment: 65 },
       berniemc: { sentiment: 60 },
       mcconnell: { sentiment: 35 },
+      elon: { sentiment: 20 },
     },
     triggerWords: {
       positive: ["unity", "soul", "america", "barack", "bipartisan", "scranton"],
@@ -365,6 +374,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       galloway: { sentiment: 50 },
       berniemc: { sentiment: 80 },
       mcconnell: { sentiment: 15 },
+      elon: { sentiment: 10 },
     },
     triggerWords: {
       positive: ["lgbtq", "rights", "justice", "rosie", "equality", "truth"],
@@ -395,15 +405,47 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       galloway: { sentiment: 50 },
       rosie: { sentiment: 80 },
       mcconnell: { sentiment: 25 },
+      elon: { sentiment: 15 },
     },
     triggerWords: {
       positive: ["comedy", "chicago", "funny", "bernie", "real", "truth"],
       negative: ["trump", "maga", "ruckus", "sambo", "fool", "lies"],
     },
   },
+  elon: {
+    id: "elon",
+    name: "Elon Musk",
+    shortName: "Elon",
+    color: "#1DA1F2",
+    faction: "supporter",
+    image: null,
+    personality: {
+      energy: 70,
+      aggression: 40,
+      humor: 50,
+      catchphrases: ["First principles", "We're going to Mars", "X is the everything app", "This is the way", "Delete bureaucracy"],
+    },
+    relationships: {
+      trump: { sentiment: 60 },
+      netanyahu: { sentiment: 45 },
+      ruckus: { sentiment: 35 },
+      galloway: { sentiment: 15 },
+      mcconnell: { sentiment: 30 },
+      carville: { sentiment: 15 },
+      maddow: { sentiment: 10 },
+      omar: { sentiment: 10 },
+      biden: { sentiment: 15 },
+      rosie: { sentiment: 10 },
+      berniemc: { sentiment: 20 },
+    },
+    triggerWords: {
+      positive: ["mars", "tesla", "spacex", "innovation", "x", "doge", "efficiency", "rockets"],
+      negative: ["apartheid", "racism", "salute", "privilege", "billionaire", "exploit", "workers"],
+    },
+  },
 };
 
-const PERSONA_IDS = ["trump", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc"];
+const PERSONA_IDS = ["trump", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "elon"];
 
 const TOPIC_ICON_MAP: Record<string, string> = {
   economy: "cash", immigration: "airplane", foreign_policy: "earth", media: "tv",
@@ -451,7 +493,7 @@ function getInitials(name: string) {
   return name.split(" ").map(w => w[0]).join("").substring(0, 2);
 }
 
-const INTERRUPTERS = ["biden", "rosie", "galloway", "berniemc", "omar"];
+const INTERRUPTERS = ["biden", "rosie", "galloway", "berniemc", "omar", "elon"];
 
 function calculateResponseProbability(
   listenerId: string,
@@ -618,7 +660,7 @@ export default function ArenaScreen() {
       sound.setOnPlaybackStatusUpdate((status: any) => {
         if (status.didJustFinish || status.error) cleanup();
       });
-      setTimeout(cleanup, 8000);
+      setTimeout(cleanup, 3000);
     } catch {}
   }, []);
 

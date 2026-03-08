@@ -37,6 +37,7 @@ const PERSONA_COLORS: Record<string, string> = {
   biden: "#3b82f6",
   rosie: "#ec4899",
   berniemc: "#f59e0b",
+  elon: "#1DA1F2",
 };
 
 const SPEED_OPTIONS = [1, 1.5, 2];
@@ -328,13 +329,26 @@ export default function ArenaReplayScreen() {
                 .filter((m) => m.isInterruption)
                 .map((m, i) => (
                   <View
-                    key={i}
+                    key={`int-${i}`}
                     style={[
                       s.interruptionTick,
                       { left: `${(m.relativeTime / (selected.duration * 1000)) * 100}%` },
                     ]}
                   />
                 ))}
+              {selected.messages
+                .filter((m) => m.isSystem && /topic (changed|auto-rotated) to/i.test(m.text))
+                .map((m, i) => {
+                  const pct = (m.relativeTime / (selected.duration * 1000)) * 100;
+                  const label = m.text.replace(/.*?:\s*/, "").slice(0, 18);
+                  return (
+                    <View key={`topic-${i}`} style={[s.topicMarker, { left: `${pct}%` }]}>
+                      <View style={s.topicMarkerLine} />
+                      <View style={s.topicMarkerDot} />
+                      <Text style={s.topicMarkerLabel} numberOfLines={1}>{label}</Text>
+                    </View>
+                  );
+                })}
             </View>
           </Pressable>
 
@@ -539,7 +553,7 @@ const s = StyleSheet.create({
     marginBottom: 4,
   },
   timeText: { color: "rgba(255,255,255,0.5)", fontSize: 11 },
-  sliderContainer: { height: 24, justifyContent: "center", marginBottom: 8 },
+  sliderContainer: { height: 40, justifyContent: "center", marginBottom: 8, paddingTop: 16 },
   sliderTrack: {
     height: 4,
     backgroundColor: "rgba(255,255,255,0.15)",
@@ -571,6 +585,7 @@ const s = StyleSheet.create({
     left: 0,
     right: 0,
     height: 4,
+    overflow: "visible",
   },
   interruptionTick: {
     position: "absolute",
@@ -579,6 +594,36 @@ const s = StyleSheet.create({
     height: 8,
     backgroundColor: "#ff4d4d",
     borderRadius: 1,
+  },
+  topicMarker: {
+    position: "absolute",
+    top: -14,
+    alignItems: "center",
+    marginLeft: -1,
+  },
+  topicMarkerLine: {
+    width: 2,
+    height: 20,
+    backgroundColor: "rgba(212,164,32,0.6)",
+    borderRadius: 1,
+  },
+  topicMarkerDot: {
+    position: "absolute",
+    top: -3,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#D4A420",
+  },
+  topicMarkerLabel: {
+    position: "absolute",
+    top: -16,
+    color: "rgba(212,164,32,0.8)",
+    fontSize: 8,
+    fontWeight: "600" as const,
+    width: 60,
+    textAlign: "center",
+    marginLeft: -29,
   },
   controls: {
     flexDirection: "row",
