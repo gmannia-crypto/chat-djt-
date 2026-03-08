@@ -1698,7 +1698,7 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyah
 
   app.post("/api/arena/respond", async (req, res) => {
     try {
-      const { responderId, toSpeakerId, conversationHistory, topic, wasInterrupted, interruptionText, interrupterId, activePersonas } = req.body;
+      const { responderId, toSpeakerId, conversationHistory, topic, wasInterrupted, interruptionText, interrupterId, activePersonas, isWelcome, askUser, userContext } = req.body;
       const deviceId = req.headers["x-device-id"] as string;
 
       if (!responderId || !ARENA_PERSONA_PROMPTS[responderId]) {
@@ -1758,6 +1758,15 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyah
         userPrompt += ` Someone just interrupted you. You are FURIOUS. One quick vicious insult back. MAXIMUM 2 sentences, under 25 words. Fast and nasty.`;
       } else if (isInterruption && responderId !== "trump") {
         userPrompt += ` You are INTERRUPTING Trump. Shout one angry line at him. MAXIMUM 1 sentence, under 15 words. Quick and cutting.`;
+      }
+      if (isWelcome && userContext) {
+        userPrompt = `A viewer named ${userContext.name || "someone"} from ${userContext.location || "somewhere"} just joined the conversation. Welcome them warmly by name and location. Be in character. Keep it to 1-2 sentences, maximum 30 words. Make them feel like they're part of the debate.`;
+      }
+      if (askUser && userContext) {
+        userPrompt = `Recent conversation:\n${historyContext}\n\nYou are now directly addressing a viewer named ${userContext.name || "someone"} from ${userContext.location || "somewhere"} who joined the debate. Ask them a direct, pointed question about the current topic: ${topic || "the debate"}. Be in character, address them by name. Keep it to 1 question, maximum 25 words. Make it engaging and provocative.`;
+      }
+      if (toSpeakerId === "user" && !isWelcome && !askUser && userContext) {
+        userPrompt += ` You are responding to a viewer named ${userContext.name || "someone"} from ${userContext.location || "somewhere"}. Address them by name. React to what they said in character.`;
       }
       if (wasInterrupted && interruptionText) {
         const interrupterName = interrupterId && ARENA_NAME_MAP[interrupterId] ? ARENA_NAME_MAP[interrupterId] : "someone";

@@ -495,6 +495,23 @@ function getInitials(name: string) {
 
 const INTERRUPTERS = ["biden", "rosie", "galloway", "berniemc", "omar", "elon"];
 
+const US_STATES = [
+  "Alabama","Alaska","Arizona","Arkansas","California","Colorado","Connecticut","Delaware","Florida","Georgia",
+  "Hawaii","Idaho","Illinois","Indiana","Iowa","Kansas","Kentucky","Louisiana","Maine","Maryland",
+  "Massachusetts","Michigan","Minnesota","Mississippi","Missouri","Montana","Nebraska","Nevada","New Hampshire","New Jersey",
+  "New Mexico","New York","North Carolina","North Dakota","Ohio","Oklahoma","Oregon","Pennsylvania","Rhode Island","South Carolina",
+  "South Dakota","Tennessee","Texas","Utah","Vermont","Virginia","Washington","West Virginia","Wisconsin","Wyoming",
+  "District of Columbia","Puerto Rico","Guam","Virgin Islands",
+];
+
+const COUNTRIES = [
+  "United States","United Kingdom","Canada","Australia","Germany","France","Japan","South Korea","Brazil","Mexico",
+  "India","China","Russia","Italy","Spain","Netherlands","Sweden","Norway","Denmark","Finland",
+  "Ireland","Scotland","Wales","Nigeria","South Africa","Kenya","Ghana","Egypt","Israel","Palestine",
+  "Saudi Arabia","UAE","Turkey","Pakistan","Philippines","Indonesia","Thailand","Vietnam","Colombia","Argentina",
+  "Chile","Peru","Poland","Ukraine","Czech Republic","Portugal","Belgium","Austria","Switzerland","New Zealand",
+];
+
 function calculateResponseProbability(
   listenerId: string,
   speakerId: string,
@@ -539,7 +556,7 @@ export default function ArenaScreen() {
   const ttsQueueRef = useRef<{ text: string; personaId: string }[]>([]);
   const isProcessingTTSRef = useRef(false);
 
-  const [selectedPersonas, setSelectedPersonas] = useState<string[]>(PERSONA_IDS);
+  const [selectedPersonas, setSelectedPersonas] = useState<string[]>(PERSONA_IDS.slice(0, 11));
   const [showPersonaSelector, setShowPersonaSelector] = useState(false);
   const selectedPersonasRef = useRef<string[]>(PERSONA_IDS);
   useEffect(() => { selectedPersonasRef.current = selectedPersonas; }, [selectedPersonas]);
@@ -595,6 +612,32 @@ export default function ArenaScreen() {
     text: string;
   } | null>(null);
   const interruptionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isInterruptingRef = useRef(false);
+  const isAskingUserRef = useRef(false);
+
+  const [userJoined, setUserJoined] = useState(false);
+  const [showJoinPrompt, setShowJoinPrompt] = useState(false);
+  const [joinCountdown, setJoinCountdown] = useState(30);
+  const joinTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const joinPromptShownRef = useRef(false);
+  const personaMessageCountRef = useRef(0);
+
+  const [userName, setUserName] = useState("");
+  const [userCity, setUserCity] = useState("");
+  const [userState, setUserState] = useState("New York");
+  const [userCountry, setUserCountry] = useState("United States");
+  const [showJoinForm, setShowJoinForm] = useState(false);
+  const userJoinedRef = useRef(false);
+  const userNameRef = useRef("");
+  const userCityRef = useRef("");
+  const userStateRef = useRef("");
+  const userCountryRef = useRef("");
+
+  const [showUserInput, setShowUserInput] = useState(false);
+  const [userInputText, setUserInputText] = useState("");
+  const [askingPersona, setAskingPersona] = useState<string | null>(null);
+  const [askQuestion, setAskQuestion] = useState("");
+  const userResponseCountRef = useRef(0);
 
   const stopAllTTS = useCallback(() => {
     ttsQueueRef.current = [];
@@ -854,7 +897,26 @@ export default function ArenaScreen() {
       messagesRef.current = next;
       return next;
     });
-    if (!msg.isSystem) {
+    if (!msg.isSystem && msg.speakerId !== "user") {
+      personaMessageCountRef.current += 1;
+      if (personaMessageCountRef.current === 2 && !joinPromptShownRef.current && !userJoinedRef.current) {
+        joinPromptShownRef.current = true;
+        setTimeout(() => {
+          setShowJoinPrompt(true);
+          setJoinCountdown(30);
+          if (joinTimerRef.current) clearInterval(joinTimerRef.current);
+          joinTimerRef.current = setInterval(() => {
+            setJoinCountdown((prev) => {
+              if (prev <= 1) {
+                if (joinTimerRef.current) clearInterval(joinTimerRef.current);
+                setShowJoinPrompt(false);
+                return 0;
+              }
+              return prev - 1;
+            });
+          }, 1000);
+        }, 1500);
+      }
       const isInt = msg.speakerName.includes("\u26A1") || msg.speakerName.includes("⚡") || msg.id.startsWith("interrupt-") || msg.id.startsWith("trump-interrupt-") || msg.id.startsWith("clapback-");
       recordingMessagesRef.current.push({
         id: msg.id,
@@ -864,6 +926,17 @@ export default function ArenaScreen() {
         timestamp: msg.timestamp,
         relativeTime: msg.timestamp - sessionStartTimeRef.current,
         isInterruption: isInt,
+      });
+    }
+    if (msg.isSystem || msg.speakerId === "user") {
+      recordingMessagesRef.current.push({
+        id: msg.id,
+        speakerId: msg.speakerId,
+        speakerName: msg.speakerName,
+        text: msg.text,
+        timestamp: msg.timestamp,
+        relativeTime: msg.timestamp - sessionStartTimeRef.current,
+        isInterruption: false,
       });
     }
     setTimeout(() => {
@@ -1096,12 +1169,177 @@ export default function ArenaScreen() {
     } catch {}
   }, [deviceId, addMessage, showInterruptionBanner, playInterruptionAudio]);
 
+  const handleJoinConversation = useCallback(() => {
+    if (joinTimerRef.current) clearInterval(joinTimerRef.current);
+    setShowJoinPrompt(false);
+    setShowJoinForm(true);
+  }, []);
+
+  const submitJoinForm = useCallback(async () => {
+    if (!userName.trim()) return;
+    setShowJoinForm(false);
+    setUserJoined(true);
+    userJoinedRef.current = true;
+    userNameRef.current = userName.trim();
+    userCityRef.current = userCity.trim();
+    userStateRef.current = userState;
+    userCountryRef.current = userCountry;
+
+    const locationParts = [userCity.trim(), userState, userCountry].filter(Boolean);
+    const locationStr = locationParts.join(", ");
+
+    addMessage({
+      id: "user-join-" + Date.now(),
+      speakerId: "user",
+      speakerName: userName.trim(),
+      text: `${userName.trim()} from ${locationStr} has entered the arena!`,
+      timestamp: Date.now(),
+      isSystem: true,
+    });
+
+    const active = selectedPersonasRef.current;
+    const welcomer = active[Math.floor(Math.random() * active.length)];
+    try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (deviceId) headers["x-device-id"] = deviceId;
+      const res = await fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          responderId: welcomer,
+          toSpeakerId: "user",
+          conversationHistory: [{ speakerName: "System", text: `A viewer named ${userName.trim()} from ${locationStr} just joined the conversation. Welcome them warmly by name and location. Be in character.` }],
+          topic: currentTopicRef.current || "debate",
+          activePersonas: active,
+          isWelcome: true,
+          userContext: { name: userName.trim(), location: locationStr },
+        }),
+      });
+      if (res.ok && mountedRef.current) {
+        const data = await res.json();
+        const persona = ARENA_PERSONAS[welcomer];
+        addMessage({
+          id: "welcome-" + Date.now(),
+          speakerId: welcomer,
+          speakerName: persona.name,
+          text: data.response,
+          timestamp: Date.now(),
+        });
+        queueTTS(data.response, welcomer);
+      }
+    } catch {}
+  }, [userName, userCity, userState, userCountry, deviceId, addMessage, queueTTS]);
+
+  const submitUserResponse = useCallback(async () => {
+    if (!userInputText.trim() || !askingPersona) return;
+    const responseText = userInputText.trim();
+    setShowUserInput(false);
+    setUserInputText("");
+    const askerPersona = askingPersona;
+    setAskingPersona(null);
+    setAskQuestion("");
+    userResponseCountRef.current += 1;
+
+    addMessage({
+      id: "user-msg-" + Date.now(),
+      speakerId: "user",
+      speakerName: userNameRef.current || "Viewer",
+      text: responseText,
+      timestamp: Date.now(),
+    });
+
+    const active = selectedPersonasRef.current;
+    const reactors = active.filter((pid) => pid !== "user").slice(0, 3);
+    const reactor = reactors[Math.floor(Math.random() * reactors.length)] || askerPersona;
+    try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (deviceId) headers["x-device-id"] = deviceId;
+      const locationParts = [userCityRef.current, userStateRef.current, userCountryRef.current].filter(Boolean);
+      const res = await fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          responderId: reactor,
+          toSpeakerId: "user",
+          conversationHistory: [
+            { speakerName: ARENA_PERSONAS[askerPersona]?.name || "Someone", text: askQuestion || "What do you think?" },
+            { speakerName: userNameRef.current || "Viewer", text: responseText },
+          ],
+          topic: currentTopicRef.current || "debate",
+          activePersonas: active,
+          userContext: { name: userNameRef.current, location: locationParts.join(", ") },
+        }),
+      });
+      if (res.ok && mountedRef.current) {
+        const data = await res.json();
+        const persona = ARENA_PERSONAS[reactor];
+        addMessage({
+          id: "react-" + Date.now(),
+          speakerId: reactor,
+          speakerName: persona.name,
+          text: data.response,
+          timestamp: Date.now(),
+        });
+        queueTTS(data.response, reactor);
+      }
+    } catch {}
+  }, [userInputText, askingPersona, askQuestion, deviceId, addMessage, queueTTS]);
+
+  const askUserQuestion = useCallback(async (personaId: string) => {
+    if (!userJoinedRef.current || !mountedRef.current || showUserInput || isAskingUserRef.current) return;
+    isAskingUserRef.current = true;
+    try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (deviceId) headers["x-device-id"] = deviceId;
+      const locationParts = [userCityRef.current, userStateRef.current, userCountryRef.current].filter(Boolean);
+      const res = await fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          responderId: personaId,
+          toSpeakerId: "user",
+          conversationHistory: messagesRef.current.filter((m) => !m.isSystem).slice(-4).map((m) => ({ speakerName: m.speakerName, text: m.text })),
+          topic: currentTopicRef.current || "debate",
+          activePersonas: selectedPersonasRef.current,
+          askUser: true,
+          userContext: { name: userNameRef.current, location: locationParts.join(", ") },
+        }),
+      });
+      if (res.ok && mountedRef.current) {
+        const data = await res.json();
+        const persona = ARENA_PERSONAS[personaId];
+        addMessage({
+          id: "ask-user-" + Date.now(),
+          speakerId: personaId,
+          speakerName: persona.name,
+          text: data.response,
+          timestamp: Date.now(),
+        });
+        queueTTS(data.response, personaId);
+        setAskingPersona(personaId);
+        setAskQuestion(data.response);
+        setTimeout(() => {
+          if (mountedRef.current) setShowUserInput(true);
+        }, 2000);
+      }
+    } catch {} finally {
+      isAskingUserRef.current = false;
+    }
+  }, [deviceId, addMessage, queueTTS, showUserInput]);
+
   const decideNextSpeaker = useCallback(async () => {
     if (!isRunningRef.current || currentSpeakerRef.current) return;
-    const msgs = messagesRef.current.filter((m) => !m.isSystem);
+    if (isInterruptingRef.current) return;
+    const msgs = messagesRef.current.filter((m) => !m.isSystem && m.speakerId !== "user");
     if (msgs.length === 0) return;
     const active = selectedPersonasRef.current;
     if (active.length < 2) return;
+
+    if (userJoinedRef.current && !showUserInput && msgs.length > 0 && msgs.length % 5 === 0 && Math.random() < 0.4) {
+      const asker = active[Math.floor(Math.random() * active.length)];
+      await askUserQuestion(asker);
+      return;
+    }
 
     const lastMsg = msgs[msgs.length - 1];
     const recent = recentSpeakersRef.current;
@@ -1139,31 +1377,39 @@ export default function ArenaScreen() {
     }
 
     if (chosen && mountedRef.current) {
-      const willInterrupt = chosen.id === "trump"
+      const willInterrupt = !isInterruptingRef.current && (chosen.id === "trump"
         ? Math.random() < 0.35
-        : Math.random() < 0.3;
+        : Math.random() < 0.3);
 
       await generateAIResponse(chosen.id, lastMsg.speakerId);
       recentSpeakersRef.current = [...recentSpeakersRef.current, chosen.id].slice(-4);
 
-      if (willInterrupt && mountedRef.current && isRunningRef.current) {
+      if (willInterrupt && mountedRef.current && isRunningRef.current && !isInterruptingRef.current) {
+        isInterruptingRef.current = true;
         await new Promise((r) => setTimeout(r, 1500 + Math.random() * 1500));
-        if (!mountedRef.current || !isRunningRef.current) return;
+        if (!mountedRef.current || !isRunningRef.current) {
+          isInterruptingRef.current = false;
+          return;
+        }
 
-        if (chosen.id === "trump") {
-          const trumpMsg = messagesRef.current.filter((m) => !m.isSystem).slice(-1)[0];
-          if (trumpMsg && trumpMsg.speakerId === "trump") {
-            triggerInterruption(trumpMsg.text);
+        try {
+          if (chosen.id === "trump") {
+            const trumpMsg = messagesRef.current.filter((m) => !m.isSystem && m.speakerId !== "user").slice(-1)[0];
+            if (trumpMsg && trumpMsg.speakerId === "trump") {
+              await triggerInterruption(trumpMsg.text);
+            }
+          } else {
+            const latestMsg = messagesRef.current.filter((m) => !m.isSystem && m.speakerId !== "user").slice(-1)[0];
+            if (latestMsg && latestMsg.speakerId !== "trump") {
+              await triggerTrumpInterruption(latestMsg.text, latestMsg.speakerId);
+            }
           }
-        } else {
-          const latestMsg = messagesRef.current.filter((m) => !m.isSystem).slice(-1)[0];
-          if (latestMsg && latestMsg.speakerId !== "trump") {
-            triggerTrumpInterruption(latestMsg.text, latestMsg.speakerId);
-          }
+        } finally {
+          isInterruptingRef.current = false;
         }
       }
     }
-  }, [generateAIResponse, triggerInterruption, triggerTrumpInterruption]);
+  }, [generateAIResponse, triggerInterruption, triggerTrumpInterruption, askUserQuestion, showUserInput]);
 
   const scheduleNext = useCallback(() => {
     if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
@@ -1203,6 +1449,7 @@ export default function ArenaScreen() {
       mountedRef.current = false;
       clearTimeout(startTimer);
       if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
+      if (joinTimerRef.current) clearInterval(joinTimerRef.current);
       saveCurrentSession();
     };
   }, []);
@@ -1259,6 +1506,7 @@ export default function ArenaScreen() {
         if (prev.length <= 2) return prev;
         return prev.filter((p) => p !== pid);
       }
+      if (prev.length >= 11) return prev;
       return [...prev, pid];
     });
   }, []);
@@ -1355,7 +1603,26 @@ export default function ArenaScreen() {
       if (item.isSystem) {
         return (
           <View style={s.systemMsg}>
-            <Text style={s.systemMsgText}>{item.text}</Text>
+            <Text style={[s.systemMsgText, item.speakerId === "user" && { color: "#4ADE80", fontStyle: "normal" as const, fontWeight: "700" as const }]}>{item.text}</Text>
+          </View>
+        );
+      }
+      if (item.speakerId === "user") {
+        return (
+          <View style={[s.msgRow, { borderLeftColor: "#4ADE80", backgroundColor: "rgba(74,222,128,0.08)" }]}>
+            <View style={s.msgHeader}>
+              <View style={[s.msgAvatarFallback, { backgroundColor: "#4ADE80" }]}>
+                <Ionicons name="person" size={12} color="#000" />
+              </View>
+              <Text style={[s.msgName, { color: "#4ADE80" }]}>{item.speakerName}</Text>
+              <View style={[s.factionBadge, { backgroundColor: "rgba(74,222,128,0.2)", borderColor: "rgba(74,222,128,0.4)" }]}>
+                <Text style={[s.factionText, { color: "#4ADE80" }]}>YOU</Text>
+              </View>
+              <Text style={s.msgTime}>
+                {new Date(item.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              </Text>
+            </View>
+            <Text style={s.msgText}>{item.text}</Text>
           </View>
         );
       }
@@ -1742,7 +2009,7 @@ export default function ArenaScreen() {
             />
             <View style={s.selectorActions}>
               <Pressable
-                onPress={() => setSelectedPersonas(PERSONA_IDS)}
+                onPress={() => setSelectedPersonas(PERSONA_IDS.slice(0, 11))}
                 style={s.selectorSelectAll}
               >
                 <Text style={s.selectorSelectAllText}>Select All</Text>
@@ -1827,6 +2094,161 @@ export default function ArenaScreen() {
             </View>
           </LinearGradient>
         </Animated.View>
+      )}
+
+      <Modal visible={showJoinPrompt} transparent animationType="fade">
+        <View style={s.joinPromptOverlay}>
+          <Animated.View entering={FadeInUp.duration(400).springify()} style={s.joinPromptCard}>
+            <LinearGradient colors={["rgba(74,222,128,0.15)", "rgba(20,20,20,0.98)"]} style={s.joinPromptGrad}>
+              <Ionicons name="hand-left" size={32} color="#4ADE80" />
+              <Text style={s.joinPromptTitle}>Join the Debate!</Text>
+              <Text style={s.joinPromptSub}>
+                The personas are going at it. Want to jump in and share your take?
+              </Text>
+              <Text style={s.joinCountdownText}>{joinCountdown}s</Text>
+              <Pressable onPress={handleJoinConversation} style={s.joinPromptBtn}>
+                <Ionicons name="enter" size={18} color="#000" />
+                <Text style={s.joinPromptBtnText}>Join Debate</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  if (joinTimerRef.current) clearInterval(joinTimerRef.current);
+                  setShowJoinPrompt(false);
+                }}
+                style={s.joinPromptDismiss}
+              >
+                <Text style={s.joinPromptDismissText}>Just Watch</Text>
+              </Pressable>
+            </LinearGradient>
+          </Animated.View>
+        </View>
+      </Modal>
+
+      <Modal visible={showJoinForm} transparent animationType="slide">
+        <View style={s.joinFormOverlay}>
+          <View style={s.joinFormCard}>
+            <Text style={s.joinFormTitle}>Enter the Arena</Text>
+            <Text style={s.joinFormSub}>Tell us who you are so the personas can address you</Text>
+            <TextInput
+              style={s.joinInput}
+              placeholder="Your name *"
+              placeholderTextColor="rgba(255,255,255,0.3)"
+              value={userName}
+              onChangeText={setUserName}
+              maxLength={30}
+              autoCapitalize="words"
+            />
+            <TextInput
+              style={s.joinInput}
+              placeholder="City (optional)"
+              placeholderTextColor="rgba(255,255,255,0.3)"
+              value={userCity}
+              onChangeText={setUserCity}
+              maxLength={40}
+              autoCapitalize="words"
+            />
+            <Text style={s.joinPickerLabel}>State</Text>
+            <FlatList
+              data={US_STATES}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(item) => item}
+              style={s.joinPickerList}
+              renderItem={({ item }) => (
+                <Pressable
+                  onPress={() => setUserState(item)}
+                  style={[s.joinPickerItem, userState === item && s.joinPickerItemActive]}
+                >
+                  <Text style={[s.joinPickerItemText, userState === item && s.joinPickerItemTextActive]}>{item}</Text>
+                </Pressable>
+              )}
+            />
+            <Text style={s.joinPickerLabel}>Country</Text>
+            <FlatList
+              data={COUNTRIES}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(item) => item}
+              style={s.joinPickerList}
+              renderItem={({ item }) => (
+                <Pressable
+                  onPress={() => setUserCountry(item)}
+                  style={[s.joinPickerItem, userCountry === item && s.joinPickerItemActive]}
+                >
+                  <Text style={[s.joinPickerItemText, userCountry === item && s.joinPickerItemTextActive]}>{item}</Text>
+                </Pressable>
+              )}
+            />
+            <View style={s.joinFormActions}>
+              <Pressable onPress={() => setShowJoinForm(false)} style={s.joinFormCancel}>
+                <Text style={s.joinFormCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={submitJoinForm}
+                disabled={!userName.trim()}
+                style={[s.joinFormSubmit, !userName.trim() && { opacity: 0.4 }]}
+              >
+                <Ionicons name="enter" size={16} color="#000" />
+                <Text style={s.joinFormSubmitText}>Enter Arena</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {showUserInput && askingPersona && (
+        <Animated.View
+          entering={FadeInUp.duration(300)}
+          style={[s.userInputOverlay, { bottom: insets.bottom + webBottomInset + 8 }]}
+        >
+          <View style={s.userInputCard}>
+            <View style={s.userInputHeader}>
+              <View style={[s.userInputDot, { backgroundColor: ARENA_PERSONAS[askingPersona]?.color || "#4ADE80" }]} />
+              <Text style={s.userInputLabel} numberOfLines={1}>
+                {ARENA_PERSONAS[askingPersona]?.shortName || "Someone"} asked you a question
+              </Text>
+              <Pressable
+                onPress={() => { setShowUserInput(false); setAskingPersona(null); setAskQuestion(""); }}
+                hitSlop={8}
+              >
+                <Ionicons name="close" size={16} color="rgba(255,255,255,0.4)" />
+              </Pressable>
+            </View>
+            <View style={s.userInputRow}>
+              <TextInput
+                style={s.userInputField}
+                placeholder="Type your response..."
+                placeholderTextColor="rgba(255,255,255,0.3)"
+                value={userInputText}
+                onChangeText={setUserInputText}
+                maxLength={280}
+                multiline
+                autoFocus
+              />
+              <Pressable
+                onPress={submitUserResponse}
+                disabled={!userInputText.trim()}
+                style={[s.userInputSend, !userInputText.trim() && { opacity: 0.4 }]}
+              >
+                <Ionicons name="send" size={18} color="#000" />
+              </Pressable>
+            </View>
+          </View>
+        </Animated.View>
+      )}
+
+      {userJoined && !showUserInput && isRunning && (
+        <Pressable
+          onPress={() => {
+            const active = selectedPersonasRef.current;
+            const asker = active[Math.floor(Math.random() * active.length)];
+            askUserQuestion(asker);
+          }}
+          style={[s.speakUpBtn, { bottom: insets.bottom + webBottomInset + 80 }]}
+        >
+          <Ionicons name="mic" size={16} color="#4ADE80" />
+          <Text style={s.speakUpText}>Speak Up</Text>
+        </Pressable>
       )}
     </View>
   );
@@ -2640,5 +3062,248 @@ const s = StyleSheet.create({
     color: "rgba(255,255,255,0.85)",
     fontSize: 13,
     lineHeight: 18,
+  },
+  joinPromptOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  joinPromptCard: {
+    width: "100%",
+    maxWidth: 340,
+    borderRadius: 20,
+    overflow: "hidden",
+  },
+  joinPromptGrad: {
+    padding: 28,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(74,222,128,0.3)",
+    borderRadius: 20,
+  },
+  joinPromptTitle: {
+    fontSize: 22,
+    fontWeight: "900" as const,
+    color: "#fff",
+    marginTop: 12,
+  },
+  joinPromptSub: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.6)",
+    textAlign: "center",
+    marginTop: 8,
+    lineHeight: 18,
+  },
+  joinCountdownText: {
+    fontSize: 28,
+    fontWeight: "900" as const,
+    color: "#4ADE80",
+    marginTop: 12,
+  },
+  joinPromptBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#4ADE80",
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 14,
+    marginTop: 16,
+  },
+  joinPromptBtnText: {
+    fontSize: 15,
+    fontWeight: "900" as const,
+    color: "#000",
+  },
+  joinPromptDismiss: {
+    marginTop: 12,
+    paddingVertical: 8,
+  },
+  joinPromptDismissText: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.4)",
+  },
+  joinFormOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.85)",
+    justifyContent: "center",
+    padding: 20,
+  },
+  joinFormCard: {
+    backgroundColor: "#1a1a1a",
+    borderRadius: 20,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: "rgba(74,222,128,0.2)",
+  },
+  joinFormTitle: {
+    fontSize: 20,
+    fontWeight: "900" as const,
+    color: "#fff",
+    textAlign: "center",
+  },
+  joinFormSub: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.5)",
+    textAlign: "center",
+    marginTop: 6,
+    marginBottom: 16,
+  },
+  joinInput: {
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: "#fff",
+    fontSize: 14,
+    marginBottom: 10,
+  },
+  joinPickerLabel: {
+    fontSize: 11,
+    fontWeight: "700" as const,
+    color: "rgba(255,255,255,0.4)",
+    textTransform: "uppercase" as const,
+    letterSpacing: 1,
+    marginTop: 4,
+    marginBottom: 6,
+  },
+  joinPickerList: {
+    maxHeight: 36,
+    marginBottom: 10,
+  },
+  joinPickerItem: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    marginRight: 6,
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  joinPickerItemActive: {
+    backgroundColor: "rgba(74,222,128,0.15)",
+    borderColor: "#4ADE80",
+  },
+  joinPickerItemText: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.5)",
+  },
+  joinPickerItemTextActive: {
+    color: "#4ADE80",
+    fontWeight: "700" as const,
+  },
+  joinFormActions: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 16,
+  },
+  joinFormCancel: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)",
+  },
+  joinFormCancelText: {
+    fontSize: 13,
+    fontWeight: "700" as const,
+    color: "rgba(255,255,255,0.5)",
+  },
+  joinFormSubmit: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: "#4ADE80",
+  },
+  joinFormSubmitText: {
+    fontSize: 13,
+    fontWeight: "900" as const,
+    color: "#000",
+  },
+  userInputOverlay: {
+    position: "absolute",
+    left: 12,
+    right: 12,
+    zIndex: 90,
+  },
+  userInputCard: {
+    backgroundColor: "rgba(26,26,26,0.98)",
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "rgba(74,222,128,0.3)",
+    shadowColor: "#4ADE80",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  userInputHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 8,
+  },
+  userInputDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  userInputLabel: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: "600" as const,
+    color: "rgba(255,255,255,0.6)",
+  },
+  userInputRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 8,
+  },
+  userInputField: {
+    flex: 1,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: "#fff",
+    fontSize: 14,
+    maxHeight: 80,
+  },
+  userInputSend: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#4ADE80",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  speakUpBtn: {
+    position: "absolute",
+    right: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(74,222,128,0.15)",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(74,222,128,0.3)",
+    zIndex: 80,
+  },
+  speakUpText: {
+    fontSize: 12,
+    fontWeight: "700" as const,
+    color: "#4ADE80",
   },
 });
