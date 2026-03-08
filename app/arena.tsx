@@ -468,12 +468,12 @@ interface DynamicTopic {
 }
 
 const FALLBACK_TOPICS: DynamicTopic[] = [
-  { id: "economy", title: "Economy", description: "Trade wars, tariffs, and the state of the economy" },
-  { id: "immigration", title: "Immigration", description: "Border security, deportations, and refugee policy" },
-  { id: "foreign_policy", title: "Foreign Policy", description: "Global alliances, NATO, and military intervention" },
-  { id: "media", title: "Media", description: "Fake news, social media censorship, and press freedom" },
-  { id: "middle_east", title: "Middle East", description: "Israel-Palestine, Iran tensions, and regional conflicts" },
-  { id: "tech", title: "Big Tech", description: "AI regulation, social media, and tech monopolies" },
+  { id: "epstein_war", title: "The Epstein War on Iran", description: "Trump launched military strikes on Iran just as the Epstein files were set to be unsealed. Critics call it 'The Epstein War' — a war of maximum distraction." },
+  { id: "palestine_genocide", title: "Gaza Genocide & Zionist Lobby", description: "The siege of Gaza continues with hospitals bombed, refugee camps destroyed, and civilians starved. The Zionist lobby's stranglehold on American and EU foreign policy." },
+  { id: "economy", title: "Trump's Trade War Fallout", description: "Tariffs are crushing American consumers while Trump claims the economy has never been better. Inflation rising, supply chains breaking." },
+  { id: "immigration", title: "Mass Deportation Campaign", description: "Trump's ICE raids are tearing families apart across America. Children separated from parents, communities living in fear." },
+  { id: "doge_destruction", title: "DOGE Dismantles Government", description: "Elon Musk's DOGE has gutted veterans' services, scientific research, consumer protections, and refugee programs." },
+  { id: "epstein_files", title: "Epstein Files Cover-Up", description: "The Epstein client list remains partially sealed. Trump was a known associate. Every distraction is designed to keep these files buried." },
 ];
 
 const AFFILIATE_LINKS = [
@@ -557,7 +557,7 @@ export default function ArenaScreen() {
   const topicTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const TOPIC_DURATION = 5 * 60;
 
-  const [freeRemaining, setFreeRemaining] = useState(30);
+  const [freeRemaining, setFreeRemaining] = useState(5);
   const [hasSession, setHasSession] = useState(false);
   const [sessionExpiresAt, setSessionExpiresAt] = useState<number | null>(null);
   const [showPaywall, setShowPaywall] = useState(false);
@@ -689,7 +689,7 @@ export default function ArenaScreen() {
       });
       if (res.ok) {
         const data = await res.json();
-        setFreeRemaining(data.freeRemaining ?? 30);
+        setFreeRemaining(data.freeRemaining ?? 5);
         setHasSession(data.hasSession ?? false);
         if (data.sessionExpiresAt) setSessionExpiresAt(data.sessionExpiresAt);
       }
@@ -1142,29 +1142,25 @@ export default function ArenaScreen() {
         ? Math.random() < 0.35
         : Math.random() < 0.3;
 
-      const responsePromise = generateAIResponse(chosen.id, lastMsg.speakerId);
+      await generateAIResponse(chosen.id, lastMsg.speakerId);
+      recentSpeakersRef.current = [...recentSpeakersRef.current, chosen.id].slice(-4);
 
-      if (willInterrupt) {
+      if (willInterrupt && mountedRef.current && isRunningRef.current) {
+        await new Promise((r) => setTimeout(r, 1500 + Math.random() * 1500));
+        if (!mountedRef.current || !isRunningRef.current) return;
+
         if (chosen.id === "trump") {
-          responsePromise.then(() => {
-            const trumpMsg = messagesRef.current.filter((m) => !m.isSystem).slice(-1)[0];
-            if (trumpMsg && trumpMsg.speakerId === "trump" && mountedRef.current) {
-              triggerInterruption(trumpMsg.text);
-            }
-          });
+          const trumpMsg = messagesRef.current.filter((m) => !m.isSystem).slice(-1)[0];
+          if (trumpMsg && trumpMsg.speakerId === "trump") {
+            triggerInterruption(trumpMsg.text);
+          }
         } else {
-          setTimeout(() => {
-            if (!mountedRef.current || !isRunningRef.current) return;
-            const latestMsg = messagesRef.current.filter((m) => !m.isSystem).slice(-1)[0];
-            if (latestMsg && latestMsg.speakerId !== "trump") {
-              triggerTrumpInterruption(latestMsg.text, latestMsg.speakerId);
-            }
-          }, 800 + Math.random() * 1200);
+          const latestMsg = messagesRef.current.filter((m) => !m.isSystem).slice(-1)[0];
+          if (latestMsg && latestMsg.speakerId !== "trump") {
+            triggerTrumpInterruption(latestMsg.text, latestMsg.speakerId);
+          }
         }
       }
-
-      await responsePromise;
-      recentSpeakersRef.current = [...recentSpeakersRef.current, chosen.id].slice(-4);
     }
   }, [generateAIResponse, triggerInterruption, triggerTrumpInterruption]);
 
@@ -1465,7 +1461,7 @@ export default function ArenaScreen() {
             </Text>
           </View>
         )}
-        {!hasSession && freeRemaining > 0 && freeRemaining < 30 && (
+        {!hasSession && freeRemaining > 0 && freeRemaining < 5 && (
           <Text style={s.freeCountLabel}>{freeRemaining} free left</Text>
         )}
         <Pressable onPress={shareCurrentSession} style={s.arenaActionBtn} hitSlop={8}>
@@ -1767,7 +1763,7 @@ export default function ArenaScreen() {
             <Ionicons name="lock-closed" size={36} color="#FFD700" />
             <Text style={s.paywallTitle}>Arena Access Required</Text>
             <Text style={s.paywallSubtitle}>
-              You've used your free trial. Unlock 10 minutes of unlimited access for 3 tokens.
+              You've used your free interactions. Unlock 5 minutes of unlimited access for 5 tokens.
             </Text>
             <View style={s.paywallBalanceRow}>
               <Ionicons name="diamond" size={16} color="#FFD700" />
