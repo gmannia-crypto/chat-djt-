@@ -1053,15 +1053,16 @@ export default function ArenaScreen() {
   );
 
   const triggerInterruption = useCallback(async (trumpMessageText: string) => {
-    if (!mountedRef.current) return;
+    if (!mountedRef.current || isInterruptingRef.current) return;
+    isInterruptingRef.current = true;
     const active = selectedPersonasRef.current;
     const availableInterrupters = INTERRUPTERS.filter((id) => active.includes(id));
-    if (availableInterrupters.length === 0) return;
+    if (availableInterrupters.length === 0) { isInterruptingRef.current = false; return; }
 
     const interrupter = availableInterrupters[Math.floor(Math.random() * availableInterrupters.length)];
 
     await new Promise((r) => setTimeout(r, 800 + Math.random() * 1200));
-    if (!mountedRef.current || !isRunningRef.current) return;
+    if (!mountedRef.current || !isRunningRef.current) { isInterruptingRef.current = false; return; }
 
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -1094,7 +1095,7 @@ export default function ArenaScreen() {
         lastInterruptionRef.current = { text: data.response, interrupterId: interrupter };
         playInterruptionAudio(data.response, interrupter);
 
-        await new Promise((r) => setTimeout(r, 1500 + Math.random() * 1000));
+        await new Promise((r) => setTimeout(r, 2500 + Math.random() * 1500));
         if (!mountedRef.current || !isRunningRef.current) return;
 
         const clap = await fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
@@ -1122,18 +1123,22 @@ export default function ArenaScreen() {
             timestamp: Date.now(),
           });
           queueTTS(clapData.response, "trump");
+          await new Promise((r) => setTimeout(r, 2000));
         }
       }
-    } catch {}
+    } catch {} finally {
+      isInterruptingRef.current = false;
+    }
   }, [deviceId, addMessage, showInterruptionBanner, playInterruptionAudio, queueTTS]);
 
   const triggerTrumpInterruption = useCallback(async (opponentText: string, opponentId: string) => {
-    if (!mountedRef.current) return;
+    if (!mountedRef.current || isInterruptingRef.current) return;
+    isInterruptingRef.current = true;
     const active = selectedPersonasRef.current;
-    if (!active.includes("trump")) return;
+    if (!active.includes("trump")) { isInterruptingRef.current = false; return; }
 
     await new Promise((r) => setTimeout(r, 600 + Math.random() * 800));
-    if (!mountedRef.current || !isRunningRef.current) return;
+    if (!mountedRef.current || !isRunningRef.current) { isInterruptingRef.current = false; return; }
 
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -1165,8 +1170,11 @@ export default function ArenaScreen() {
         showInterruptionBanner("trump", "Donald Trump", data.response);
         lastInterruptionRef.current = { text: data.response, interrupterId: "trump" };
         playInterruptionAudio(data.response, "trump");
+        await new Promise((r) => setTimeout(r, 2000));
       }
-    } catch {}
+    } catch {} finally {
+      isInterruptingRef.current = false;
+    }
   }, [deviceId, addMessage, showInterruptionBanner, playInterruptionAudio]);
 
   const handleJoinConversation = useCallback(() => {
@@ -1318,9 +1326,21 @@ export default function ArenaScreen() {
         queueTTS(data.response, personaId);
         setAskingPersona(personaId);
         setAskQuestion(data.response);
-        setTimeout(() => {
-          if (mountedRef.current) setShowUserInput(true);
-        }, 2000);
+        const waitForTTS = () => {
+          let checks = 0;
+          const check = () => {
+            checks++;
+            if (!mountedRef.current) return;
+            if (checks > 30) { setShowUserInput(true); return; }
+            if (isProcessingTTSRef.current || ttsQueueRef.current.length > 0) {
+              setTimeout(check, 500);
+            } else {
+              setTimeout(() => { if (mountedRef.current) setShowUserInput(true); }, 800);
+            }
+          };
+          setTimeout(check, 1000);
+        };
+        waitForTTS();
       }
     } catch {} finally {
       isAskingUserRef.current = false;
@@ -1385,27 +1405,19 @@ export default function ArenaScreen() {
       recentSpeakersRef.current = [...recentSpeakersRef.current, chosen.id].slice(-4);
 
       if (willInterrupt && mountedRef.current && isRunningRef.current && !isInterruptingRef.current) {
-        isInterruptingRef.current = true;
-        await new Promise((r) => setTimeout(r, 1500 + Math.random() * 1500));
-        if (!mountedRef.current || !isRunningRef.current) {
-          isInterruptingRef.current = false;
-          return;
-        }
+        await new Promise((r) => setTimeout(r, 2000 + Math.random() * 2000));
+        if (!mountedRef.current || !isRunningRef.current) return;
 
-        try {
-          if (chosen.id === "trump") {
-            const trumpMsg = messagesRef.current.filter((m) => !m.isSystem && m.speakerId !== "user").slice(-1)[0];
-            if (trumpMsg && trumpMsg.speakerId === "trump") {
-              await triggerInterruption(trumpMsg.text);
-            }
-          } else {
-            const latestMsg = messagesRef.current.filter((m) => !m.isSystem && m.speakerId !== "user").slice(-1)[0];
-            if (latestMsg && latestMsg.speakerId !== "trump") {
-              await triggerTrumpInterruption(latestMsg.text, latestMsg.speakerId);
-            }
+        if (chosen.id === "trump") {
+          const trumpMsg = messagesRef.current.filter((m) => !m.isSystem && m.speakerId !== "user").slice(-1)[0];
+          if (trumpMsg && trumpMsg.speakerId === "trump") {
+            await triggerInterruption(trumpMsg.text);
           }
-        } finally {
-          isInterruptingRef.current = false;
+        } else {
+          const latestMsg = messagesRef.current.filter((m) => !m.isSystem && m.speakerId !== "user").slice(-1)[0];
+          if (latestMsg && latestMsg.speakerId !== "trump") {
+            await triggerTrumpInterruption(latestMsg.text, latestMsg.speakerId);
+          }
         }
       }
     }
@@ -1413,14 +1425,21 @@ export default function ArenaScreen() {
 
   const scheduleNext = useCallback(() => {
     if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
-    const delay = 3000 + Math.random() * 3000;
-    conversationTimerRef.current = setTimeout(async () => {
-      if (!mountedRef.current) return;
-      await decideNextSpeaker();
-      if (mountedRef.current && isRunningRef.current) {
-        scheduleNext();
+    const waitForClear = () => {
+      if (isInterruptingRef.current || isProcessingTTSRef.current || currentSpeakerRef.current) {
+        conversationTimerRef.current = setTimeout(waitForClear, 1000);
+        return;
       }
-    }, delay);
+      const delay = 4000 + Math.random() * 4000;
+      conversationTimerRef.current = setTimeout(async () => {
+        if (!mountedRef.current) return;
+        await decideNextSpeaker();
+        if (mountedRef.current && isRunningRef.current) {
+          scheduleNext();
+        }
+      }, delay);
+    };
+    waitForClear();
   }, [decideNextSpeaker]);
 
   useEffect(() => {
