@@ -1337,21 +1337,21 @@ export default function ArenaScreen() {
         queueTTS(data.response, personaId);
         setAskingPersona(personaId);
         setAskQuestion(data.response);
-        const waitForTTS = () => {
+        const waitForTTSComplete = () => {
           let checks = 0;
           const check = () => {
             checks++;
             if (!mountedRef.current) return;
-            if (checks > 30) { setShowUserInput(true); return; }
-            if (isProcessingTTSRef.current || ttsQueueRef.current.length > 0) {
+            if (checks > 60) { setShowUserInput(true); return; }
+            if (isProcessingTTSRef.current || ttsQueueRef.current.length > 0 || currentSpeakerRef.current) {
               setTimeout(check, 500);
             } else {
-              setTimeout(() => { if (mountedRef.current) setShowUserInput(true); }, 800);
+              setTimeout(() => { if (mountedRef.current) setShowUserInput(true); }, 1200);
             }
           };
-          setTimeout(check, 1000);
+          setTimeout(check, 2000);
         };
-        waitForTTS();
+        waitForTTSComplete();
       }
     } catch {} finally {
       isAskingUserRef.current = false;
@@ -2131,44 +2131,47 @@ export default function ArenaScreen() {
       <Modal visible={showJoinPrompt || showJoinForm} transparent animationType="fade">
         <View style={s.joinPromptOverlay}>
           <Animated.View entering={FadeInUp.duration(400).springify()} style={s.joinFormCard}>
-            <Ionicons name="mic" size={28} color="#4ADE80" style={{ alignSelf: "center" as const }} />
-            <Text style={s.joinFormTitle}>Jump Into the Debate</Text>
-            <Text style={s.joinFormSub}>Enter your name and the personas will talk to you directly</Text>
-            <TextInput
-              style={s.joinInput}
-              placeholder="Your name"
-              placeholderTextColor="rgba(255,255,255,0.3)"
-              value={userName}
-              onChangeText={(t) => {
-                setUserName(t);
-                if (joinTimerRef.current) { clearInterval(joinTimerRef.current); joinTimerRef.current = null; setJoinCountdown(0); }
-              }}
-              maxLength={30}
-              autoCapitalize="words"
-              autoFocus
-            />
-            <TextInput
-              style={s.joinInput}
-              placeholder="City (optional)"
-              placeholderTextColor="rgba(255,255,255,0.3)"
-              value={userCity}
-              onChangeText={setUserCity}
-              maxLength={40}
-              autoCapitalize="words"
-            />
+            <View style={{ flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 8, marginBottom: 8 }}>
+              <Ionicons name="mic" size={20} color="#4ADE80" />
+              <Text style={s.joinFormTitle}>Jump In</Text>
+            </View>
+            <View style={{ flexDirection: "row" as const, gap: 8 }}>
+              <TextInput
+                style={[s.joinInput, { flex: 1 }]}
+                placeholder="Name *"
+                placeholderTextColor="rgba(255,255,255,0.3)"
+                value={userName}
+                onChangeText={(t) => {
+                  setUserName(t);
+                  if (joinTimerRef.current) { clearInterval(joinTimerRef.current); joinTimerRef.current = null; setJoinCountdown(0); }
+                }}
+                maxLength={30}
+                autoCapitalize="words"
+                autoFocus
+              />
+              <TextInput
+                style={[s.joinInput, { flex: 1 }]}
+                placeholder="City"
+                placeholderTextColor="rgba(255,255,255,0.3)"
+                value={userCity}
+                onChangeText={setUserCity}
+                maxLength={40}
+                autoCapitalize="words"
+              />
+            </View>
             <Text style={s.joinPickerLabel}>State</Text>
             <FlatList
               data={US_STATES}
               horizontal
-              showsHorizontalScrollIndicator={false}
+              showsHorizontalScrollIndicator
               keyExtractor={(item) => item}
               style={s.joinPickerList}
               renderItem={({ item }) => (
                 <Pressable
                   onPress={() => setUserState(item)}
-                  style={[s.joinPickerItem, userState === item && s.joinPickerItemActive]}
+                  style={[s.joinPickerChip, userState === item && s.joinPickerChipActive]}
                 >
-                  <Text style={[s.joinPickerItemText, userState === item && s.joinPickerItemTextActive]}>{item}</Text>
+                  <Text style={[s.joinPickerChipText, userState === item && s.joinPickerChipTextActive]}>{item}</Text>
                 </Pressable>
               )}
             />
@@ -2176,15 +2179,15 @@ export default function ArenaScreen() {
             <FlatList
               data={COUNTRIES}
               horizontal
-              showsHorizontalScrollIndicator={false}
+              showsHorizontalScrollIndicator
               keyExtractor={(item) => item}
               style={s.joinPickerList}
               renderItem={({ item }) => (
                 <Pressable
                   onPress={() => setUserCountry(item)}
-                  style={[s.joinPickerItem, userCountry === item && s.joinPickerItemActive]}
+                  style={[s.joinPickerChip, userCountry === item && s.joinPickerChipActive]}
                 >
-                  <Text style={[s.joinPickerItemText, userCountry === item && s.joinPickerItemTextActive]}>{item}</Text>
+                  <Text style={[s.joinPickerChipText, userCountry === item && s.joinPickerChipTextActive]}>{item}</Text>
                 </Pressable>
               )}
             />
@@ -2197,14 +2200,14 @@ export default function ArenaScreen() {
                 }}
                 style={s.joinFormCancel}
               >
-                <Text style={s.joinFormCancelText}>Just Watch</Text>
+                <Text style={s.joinFormCancelText}>Watch</Text>
               </Pressable>
               <Pressable
                 onPress={submitJoinForm}
                 disabled={!userName.trim()}
                 style={[s.joinFormSubmit, !userName.trim() && { opacity: 0.4 }]}
               >
-                <Ionicons name="enter" size={16} color="#000" />
+                <Ionicons name="enter" size={14} color="#000" />
                 <Text style={s.joinFormSubmitText}>Join</Text>
               </Pressable>
             </View>
@@ -3214,84 +3217,84 @@ const s = StyleSheet.create({
   },
   joinFormCard: {
     backgroundColor: "#1a1a1a",
-    borderRadius: 20,
-    padding: 24,
+    borderRadius: 16,
+    padding: 14,
     borderWidth: 1,
     borderColor: "rgba(74,222,128,0.2)",
+    marginHorizontal: 16,
   },
   joinFormTitle: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: "900" as const,
     color: "#fff",
-    textAlign: "center",
   },
   joinFormSub: {
-    fontSize: 12,
+    fontSize: 11,
     color: "rgba(255,255,255,0.5)",
     textAlign: "center",
-    marginTop: 6,
-    marginBottom: 16,
+    marginTop: 4,
+    marginBottom: 10,
   },
   joinInput: {
     backgroundColor: "rgba(255,255,255,0.06)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.1)",
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     color: "#fff",
-    fontSize: 14,
-    marginBottom: 10,
-  },
-  joinPickerLabel: {
-    fontSize: 11,
-    fontWeight: "700" as const,
-    color: "rgba(255,255,255,0.4)",
-    textTransform: "uppercase" as const,
-    letterSpacing: 1,
-    marginTop: 4,
+    fontSize: 13,
     marginBottom: 6,
   },
-  joinPickerList: {
-    maxHeight: 36,
-    marginBottom: 10,
+  joinPickerLabel: {
+    fontSize: 10,
+    fontWeight: "700" as const,
+    color: "rgba(255,255,255,0.5)",
+    textTransform: "uppercase" as const,
+    letterSpacing: 1,
+    marginTop: 2,
+    marginBottom: 4,
   },
-  joinPickerItem: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
+  joinPickerList: {
+    maxHeight: 30,
+    marginBottom: 6,
+  },
+  joinPickerChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 6,
     backgroundColor: "rgba(255,255,255,0.06)",
-    marginRight: 6,
+    marginRight: 4,
     borderWidth: 1,
     borderColor: "transparent",
   },
-  joinPickerItemActive: {
+  joinPickerChipActive: {
     backgroundColor: "rgba(74,222,128,0.15)",
     borderColor: "#4ADE80",
   },
-  joinPickerItemText: {
-    fontSize: 12,
+  joinPickerChipText: {
+    fontSize: 11,
     color: "rgba(255,255,255,0.5)",
   },
-  joinPickerItemTextActive: {
+  joinPickerChipTextActive: {
     color: "#4ADE80",
     fontWeight: "700" as const,
   },
   joinFormActions: {
     flexDirection: "row",
-    gap: 10,
-    marginTop: 16,
+    gap: 8,
+    marginTop: 10,
   },
   joinFormCancel: {
     flex: 1,
     alignItems: "center",
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.15)",
   },
   joinFormCancelText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "700" as const,
     color: "rgba(255,255,255,0.5)",
   },
@@ -3300,13 +3303,13 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
-    paddingVertical: 12,
-    borderRadius: 12,
+    gap: 4,
+    paddingVertical: 10,
+    borderRadius: 10,
     backgroundColor: "#4ADE80",
   },
   joinFormSubmitText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "900" as const,
     color: "#000",
   },
