@@ -610,7 +610,7 @@ export default function ArenaScreen() {
           try { sound.unloadAsync(); } catch {}
         }
       });
-      setTimeout(() => { try { sound.unloadAsync(); } catch {} }, 60000);
+      setTimeout(() => { try { sound.stopAsync(); sound.unloadAsync(); } catch {} }, 8000);
     } catch {}
   }, []);
 

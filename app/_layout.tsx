@@ -24,6 +24,7 @@ import {
   PlayfairDisplay_700Bold,
   PlayfairDisplay_900Black,
 } from "@expo-google-fonts/playfair-display";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
 
 const DISCLAIMER_KEY = "chatdjt_disclaimer_accepted";
@@ -302,6 +303,8 @@ export default function RootLayout() {
     PlayfairDisplay_400Regular,
     PlayfairDisplay_700Bold,
     PlayfairDisplay_900Black,
+    ...Ionicons.font,
+    ...MaterialCommunityIcons.font,
   });
   const [disclaimerVisible, setDisclaimerVisible] = useState(false);
   const [disclaimerChecked, setDisclaimerChecked] = useState(false);

@@ -1668,11 +1668,11 @@ CRITICAL: You are the FORMER president. Trump beat you and is now running the co
       if (topic) userPrompt += ` The topic being discussed is: ${topic}.`;
       const isTrumpInitiated = req.body.isTrumpInitiated === true;
       if (isInterruption && responderId === "trump" && isTrumpInitiated) {
-        userPrompt += ` You are INTERRUPTING ${toName} because what they just said is FAKE NEWS. Start with "FAKE NEWS, folks! FAKE NEWS!" then viciously attack them. You're the PRESIDENT and you won't stand for this garbage. Be aggressive, insulting, and dismissive — 1-2 sentences. Shout them down.`;
+        userPrompt += ` You are INTERRUPTING ${toName}. Start with "FAKE NEWS, folks!" then one short vicious insult. MAXIMUM 2 sentences total, keep it under 25 words. Quick and brutal.`;
       } else if (isInterruption && responderId === "trump" && !isTrumpInitiated) {
-        userPrompt += ` Someone just interrupted you mid-sentence. You are FURIOUS. Insult them viciously and keep rambling on your original point. Be nasty and dismissive — 1-2 sentences.`;
+        userPrompt += ` Someone just interrupted you. You are FURIOUS. One quick vicious insult back. MAXIMUM 2 sentences, under 25 words. Fast and nasty.`;
       } else if (isInterruption && responderId !== "trump") {
-        userPrompt += ` You are INTERRUPTING Trump mid-sentence because what he just said is outrageous. Be brief, angry, and cutting — 1 sentence max. You're talking over him with fury and intensity.`;
+        userPrompt += ` You are INTERRUPTING Trump. Shout one angry line at him. MAXIMUM 1 sentence, under 15 words. Quick and cutting.`;
       }
       if (wasInterrupted && interruptionText) {
         const interrupterName = interrupterId && ARENA_NAME_MAP[interrupterId] ? ARENA_NAME_MAP[interrupterId] : "someone";
@@ -1680,13 +1680,14 @@ CRITICAL: You are the FORMER president. Trump beat you and is now running the co
       }
       userPrompt += ` Give your in-character response. Do NOT use quotation marks around your response.`;
 
+      const tokenLimit = isInterruption ? 60 : 150;
       const completion = await getClient().chat.completions.create({
         model: getFastModel(),
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
-        max_completion_tokens: 150,
+        max_completion_tokens: tokenLimit,
         temperature: 0.9,
       });
       const response = completion.choices[0]?.message?.content || "...";
