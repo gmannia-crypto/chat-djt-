@@ -14,6 +14,8 @@ import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown, FadeIn, SlideInRight } from "react-native-reanimated";
+import { Audio } from "expo-av";
+import { playTTS } from "@/lib/audio-helper";
 import {
   ArenaRecording,
   RecordedMessage,
@@ -51,6 +53,49 @@ export default function ArenaReplayScreen() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const flatListRef = useRef<FlatList>(null);
   const [sliderWidth, setSliderWidth] = useState(300);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const currentSoundRef = useRef<Audio.Sound | null>(null);
+  const lastSpokenIdRef = useRef<string | null>(null);
+  const voiceEnabledRef = useRef(true);
+
+  useEffect(() => { voiceEnabledRef.current = voiceEnabled; }, [voiceEnabled]);
+
+  const stopReplayAudio = useCallback(() => {
+    if (currentSoundRef.current) {
+      const s = currentSoundRef.current;
+      currentSoundRef.current = null;
+      s.getStatusAsync().then((st: any) => {
+        if (st.isLoaded) s.stopAsync().then(() => s.unloadAsync()).catch(() => {});
+      }).catch(() => {});
+    }
+  }, []);
+
+  const playReplayTTS = useCallback(async (text: string, personaId: string) => {
+    if (!voiceEnabledRef.current) return;
+    stopReplayAudio();
+    try {
+      const sound = await playTTS("/api/persona-speak", { text, personaId }, { volume: 1.0 });
+      currentSoundRef.current = sound;
+      let cleaned = false;
+      const cleanup = () => {
+        if (cleaned) return;
+        cleaned = true;
+        sound.setOnPlaybackStatusUpdate(null);
+        if (currentSoundRef.current === sound) currentSoundRef.current = null;
+        sound.getStatusAsync().then((st: any) => {
+          if (st.isLoaded) sound.unloadAsync().catch(() => {});
+        }).catch(() => {});
+      };
+      sound.setOnPlaybackStatusUpdate((status: any) => {
+        if (status.didJustFinish || status.error) cleanup();
+      });
+      setTimeout(cleanup, 30000);
+    } catch {}
+  }, [stopReplayAudio]);
+
+  useEffect(() => {
+    return () => { stopReplayAudio(); };
+  }, [stopReplayAudio]);
 
   useEffect(() => {
     loadRecordings();
@@ -70,8 +115,16 @@ export default function ArenaReplayScreen() {
     const msgs = selected.messages.filter(
       (m) => m.relativeTime <= playbackTime * 1000
     );
+    const prevCount = visibleMessages.length;
     setVisibleMessages(msgs);
-  }, [playbackTime, selected]);
+    if (playing && msgs.length > prevCount) {
+      const firstNew = msgs[prevCount];
+      if (firstNew && firstNew.id !== lastSpokenIdRef.current) {
+        lastSpokenIdRef.current = firstNew.id;
+        playReplayTTS(firstNew.text, firstNew.speakerId);
+      }
+    }
+  }, [playbackTime, selected, playing, playReplayTTS]);
 
   useEffect(() => {
     if (playing && selected) {
@@ -80,6 +133,7 @@ export default function ArenaReplayScreen() {
           const next = prev + 0.1 * speed;
           if (next >= selected.duration) {
             setPlaying(false);
+            stopReplayAudio();
             if (timerRef.current) clearInterval(timerRef.current);
             return selected.duration;
           }
@@ -107,8 +161,12 @@ export default function ArenaReplayScreen() {
     if (playbackTime >= selected.duration) {
       setPlaybackTime(0);
       setVisibleMessages([]);
+      lastSpokenIdRef.current = null;
     }
-    setPlaying((p) => !p);
+    setPlaying((p) => {
+      if (p) stopReplayAudio();
+      return !p;
+    });
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
@@ -118,6 +176,8 @@ export default function ArenaReplayScreen() {
     const ratio = Math.max(0, Math.min(1, x / sliderWidth));
     const newTime = ratio * selected.duration;
     setPlaybackTime(newTime);
+    lastSpokenIdRef.current = null;
+    stopReplayAudio();
     Haptics.selectionAsync();
   };
 
@@ -147,6 +207,8 @@ export default function ArenaReplayScreen() {
   };
 
   const selectRecording = (rec: ArenaRecording) => {
+    stopReplayAudio();
+    lastSpokenIdRef.current = null;
     setSelected(rec);
     setPlaying(false);
     setPlaybackTime(0);
@@ -180,6 +242,13 @@ export default function ArenaReplayScreen() {
             </Text>
           </View>
           <Text style={[s.msgName, { color }]}>{item.speakerName}</Text>
+          <Pressable
+            onPress={() => playReplayTTS(item.text, item.speakerId)}
+            style={s.listenBtn}
+            hitSlop={8}
+          >
+            <Ionicons name="volume-medium" size={12} color="rgba(255,255,255,0.4)" />
+          </Pressable>
           <Text style={s.msgTime}>
             {formatDuration(item.relativeTime / 1000)}
           </Text>
@@ -206,6 +275,18 @@ export default function ArenaReplayScreen() {
             <Text style={s.headerTitle} numberOfLines={1}>{selected.topic}</Text>
             <Text style={s.headerSub}>{selected.messageCount} exchanges</Text>
           </View>
+          <Pressable
+            onPress={() => {
+              setVoiceEnabled((v) => {
+                if (v) stopReplayAudio();
+                return !v;
+              });
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            }}
+            style={s.shareBtn}
+          >
+            <Ionicons name={voiceEnabled ? "volume-high" : "volume-mute"} size={20} color={voiceEnabled ? "#FFD700" : "#666"} />
+          </Pressable>
           <Pressable onPress={handleShare} style={s.shareBtn}>
             <Ionicons name="share-outline" size={22} color="#D4A420" />
           </Pressable>
@@ -438,7 +519,11 @@ const s = StyleSheet.create({
     marginRight: 8,
   },
   msgAvatarText: { color: "#fff", fontSize: 10, fontWeight: "bold" },
-  msgName: { fontSize: 13, fontWeight: "700", flex: 1 },
+  msgName: { fontSize: 13, fontWeight: "700" as const, flex: 1 },
+  listenBtn: {
+    padding: 4,
+    marginRight: 4,
+  },
   msgTime: { color: "rgba(255,255,255,0.3)", fontSize: 11 },
   msgText: { color: "rgba(255,255,255,0.85)", fontSize: 14, lineHeight: 20 },
   playerBar: {

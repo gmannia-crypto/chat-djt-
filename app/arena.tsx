@@ -1534,86 +1534,85 @@ export default function ArenaScreen() {
           contentContainerStyle={s.streamContent}
           showsVerticalScrollIndicator={false}
           onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+          ListFooterComponent={currentTopic && pollCandidates.length >= 2 ? (
+            <View style={s.pollSection}>
+              <Text style={s.pollTitle}>
+                {userVoted ? "POLL RESULTS" : "WHO'S WINNING THIS DEBATE?"}
+              </Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.pollOptions}>
+                {pollCandidates.map((pid) => {
+                  const p = ARENA_PERSONAS[pid];
+                  const votes = pollVotes[pid] || 0;
+                  const totalVotes = Object.values(pollVotes).reduce((a, b) => a + b, 0);
+                  const pct = totalVotes > 0 ? Math.round((votes / totalVotes) * 100) : 0;
+                  return (
+                    <Pressable
+                      key={pid}
+                      onPress={() => castVote(pid)}
+                      disabled={userVoted}
+                      style={[s.pollOptionBtn, userVoted && pollVotes[pid] && { borderColor: p.color, backgroundColor: p.color + "15" }]}
+                    >
+                      {p.image ? (
+                        <Image source={p.image} style={s.pollAvatar} />
+                      ) : (
+                        <View style={[s.pollAvatarFallback, { backgroundColor: p.color + "40" }]}>
+                          <Text style={s.pollAvatarText}>{getInitials(p.name)}</Text>
+                        </View>
+                      )}
+                      <Text style={[s.pollName, { color: p.color }]} numberOfLines={1}>{p.shortName}</Text>
+                      {showPollResults && <Text style={s.pollPct}>{pct}%</Text>}
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+              {userVoted && showNameInput && pollWinner && (
+                <View style={s.nameInputSection}>
+                  <Text style={s.nameInputLabel}>
+                    Enter your name — {ARENA_PERSONAS[pollWinner]?.shortName} wants to thank you!
+                  </Text>
+                  <View style={s.nameInputRow}>
+                    <TextInput
+                      style={s.nameInput}
+                      placeholder="Your name..."
+                      placeholderTextColor="rgba(255,255,255,0.3)"
+                      value={fanName}
+                      onChangeText={setFanName}
+                      maxLength={30}
+                      autoCapitalize="words"
+                    />
+                    <Pressable
+                      onPress={() => playThankYou(fanName, pollWinner)}
+                      disabled={!fanName.trim() || thankYouPlayed}
+                      style={[s.thankYouBtn, (!fanName.trim() || thankYouPlayed) && { opacity: 0.4 }]}
+                    >
+                      {thankYouPlayed ? (
+                        <Ionicons name="checkmark-circle" size={16} color="#4ADE80" />
+                      ) : (
+                        <Ionicons name="mic" size={16} color="#000" />
+                      )}
+                      <Text style={s.thankYouBtnText}>{thankYouPlayed ? "Sent!" : "Hear Thanks"}</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              )}
+              {userVoted && (
+                <View style={s.pollActionsRow}>
+                  <Pressable
+                    onPress={() => { setPollVotes({}); setUserVoted(false); setShowPollResults(false); setPollWinner(null); setShowNameInput(false); setThankYouPlayed(false); setFanName(""); }}
+                    style={s.pollResetBtn}
+                  >
+                    <Text style={s.pollResetText}>Vote Again</Text>
+                  </Pressable>
+                  <Pressable onPress={shareDebate} style={s.pollShareBtn}>
+                    <Ionicons name="share-social" size={12} color="#FFD700" />
+                    <Text style={s.pollShareText}>Share Results</Text>
+                  </Pressable>
+                </View>
+              )}
+            </View>
+          ) : null}
         />
       </View>
-
-      {currentTopic && pollCandidates.length >= 2 && (
-        <View style={s.pollSection}>
-          <Text style={s.pollTitle}>
-            {userVoted ? "POLL RESULTS" : "WHO'S WINNING THIS DEBATE?"}
-          </Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.pollOptions}>
-            {pollCandidates.map((pid) => {
-              const p = ARENA_PERSONAS[pid];
-              const votes = pollVotes[pid] || 0;
-              const totalVotes = Object.values(pollVotes).reduce((a, b) => a + b, 0);
-              const pct = totalVotes > 0 ? Math.round((votes / totalVotes) * 100) : 0;
-              return (
-                <Pressable
-                  key={pid}
-                  onPress={() => castVote(pid)}
-                  disabled={userVoted}
-                  style={[s.pollOptionBtn, userVoted && pollVotes[pid] && { borderColor: p.color, backgroundColor: p.color + "15" }]}
-                >
-                  {p.image ? (
-                    <Image source={p.image} style={s.pollAvatar} />
-                  ) : (
-                    <View style={[s.pollAvatarFallback, { backgroundColor: p.color + "40" }]}>
-                      <Text style={s.pollAvatarText}>{getInitials(p.name)}</Text>
-                    </View>
-                  )}
-                  <Text style={[s.pollName, { color: p.color }]} numberOfLines={1}>{p.shortName}</Text>
-                  {showPollResults && <Text style={s.pollPct}>{pct}%</Text>}
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-          {userVoted && showNameInput && pollWinner && (
-            <View style={s.nameInputSection}>
-              <Text style={s.nameInputLabel}>
-                Enter your name — {ARENA_PERSONAS[pollWinner]?.shortName} wants to thank you!
-              </Text>
-              <View style={s.nameInputRow}>
-                <TextInput
-                  style={s.nameInput}
-                  placeholder="Your name..."
-                  placeholderTextColor="rgba(255,255,255,0.3)"
-                  value={fanName}
-                  onChangeText={setFanName}
-                  maxLength={30}
-                  autoCapitalize="words"
-                />
-                <Pressable
-                  onPress={() => playThankYou(fanName, pollWinner)}
-                  disabled={!fanName.trim() || thankYouPlayed}
-                  style={[s.thankYouBtn, (!fanName.trim() || thankYouPlayed) && { opacity: 0.4 }]}
-                >
-                  {thankYouPlayed ? (
-                    <Ionicons name="checkmark-circle" size={16} color="#4ADE80" />
-                  ) : (
-                    <Ionicons name="mic" size={16} color="#000" />
-                  )}
-                  <Text style={s.thankYouBtnText}>{thankYouPlayed ? "Sent!" : "Hear Thanks"}</Text>
-                </Pressable>
-              </View>
-            </View>
-          )}
-          {userVoted && (
-            <View style={s.pollActionsRow}>
-              <Pressable
-                onPress={() => { setPollVotes({}); setUserVoted(false); setShowPollResults(false); setPollWinner(null); setShowNameInput(false); setThankYouPlayed(false); setFanName(""); }}
-                style={s.pollResetBtn}
-              >
-                <Text style={s.pollResetText}>Vote Again</Text>
-              </Pressable>
-              <Pressable onPress={shareDebate} style={s.pollShareBtn}>
-                <Ionicons name="share-social" size={12} color="#FFD700" />
-                <Text style={s.pollShareText}>Share Results</Text>
-              </Pressable>
-            </View>
-          )}
-        </View>
-      )}
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.affiliateRow} contentContainerStyle={s.affiliateContent}>
         {AFFILIATE_LINKS.map((link, i) => (
