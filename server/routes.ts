@@ -1289,7 +1289,8 @@ Generate the roundtable discussion. Each persona must give their take and REACT 
         return res.status(400).json({ error: "No voice configured for persona" });
       }
 
-      const safeText = text.slice(0, 2000);
+      let safeText = text.slice(0, 2000);
+      safeText = safeText.replace(/\bEpstein\b/gi, "Ep-steen");
       const buffer = await fishAudioRequest(safeText, voiceId, 1.0, apiKey);
 
       res.setHeader("Content-Type", "audio/mpeg");
@@ -1322,7 +1323,8 @@ Generate the roundtable discussion. Each persona must give their take and REACT 
         return res.status(400).json({ error: "No voice configured for persona" });
       }
 
-      const safeText = text.slice(0, 2000);
+      let safeText = text.slice(0, 2000);
+      safeText = safeText.replace(/\bEpstein\b/gi, "Ep-steen");
       const buffer = await fishAudioRequest(safeText, voiceId, 1.0, apiKey);
 
       res.setHeader("Content-Type", "audio/mpeg");
@@ -1509,7 +1511,7 @@ Generate the roundtable discussion. Each persona must give their take and REACT 
       carville: "React to news like a grizzled political operative who's seen it all. Bad Republican news makes you GLEEFUL — 'I TOLD ya!' Good Democratic news — you take strategic credit. You're ANGRY about voter suppression. Economic news — you always say 'It's the economy, stupid!' You CURSE when Trump does something outrageous.",
       omar: "React to news through the lens of a refugee-turned-congresswoman. Immigration news hits you PERSONALLY. Military spending news — you want that money for healthcare and education. Islamophobia in the news makes you FIERCE. You're PASSIONATE about human rights worldwide and ANGRY about hypocrisy.",
       rosie: "React to news with RAW EMOTION. Anything Trump does makes you FURIOUS. LGBTQ+ rights news — you're PASSIONATE. Gun violence news makes you CRY and then get ANGRY. You're LOUD about injustice. Celebrity/media news — you have OPINIONS. Healthcare news — you fight for regular people.",
-      mcconnell: "React to news with GLACIAL calm. You... consider... the constitutional implications... slowly. Senate procedure matters more than emotions. You show subtle satisfaction at conservative judicial appointments. Budget news — you're concerned about spending. You barely react to anything with emotion. *blinks*",
+      mcconnell: "React to news with GLACIAL calm. You... consider... the constitutional implications... slowly. Senate procedure matters more than emotions. You show subtle satisfaction at conservative judicial appointments. Budget news — you're concerned about spending. You barely react to anything with emotion.",
       ruckus: "React to ALL news by defending white America and Trump. Good Trump news — 'PRAISE WHITE JESUS! THAT'S MY PRESIDENT!' Bad news for minorities — you somehow think it's deserved. You twist EVERY headline to support your worldview. Economic news — white people built this country. Immigration news — you side with Trump 1000%.",
       berniemc: "React to news like you're doing a stand-up set about current events. Political scandals — you roast EVERYONE. Economic news — 'Man, regular folks can't catch a break!' You're REAL about racial issues in the news. Celebrity/politician scandals crack you up. You keep it 100% honest and profane.",
       elon: "React to news through the lens of a tech billionaire who thinks he can solve everything. Space news — you're EXCITED and claim SpaceX will do it better. Government news — you reference DOGE and 'efficiency.' Economic news — you tweet about it on X. AI news — you're both excited and terrified. Political news — you awkwardly try to stay neutral but your biases show. Climate news — you push Tesla. You stutter through your reactions with 'uh...' and 'um...'.",
@@ -1617,11 +1619,11 @@ CRITICAL: You HATE Donald Trump from a geopolitical standpoint. You constantly b
 CRITICAL ABOUT ELON MUSK: You DESPISE Elon Musk. You call him "the apartheid profiteer" and "Trump's errand boy." You attack him for his $250 million donation to Trump — "buying influence like his father bought emerald mines in apartheid South Africa." You mock his sieg heil salute at the inauguration as revealing his true fascist nature. You accuse him of supporting Zionism and apartheid-era policies. You say DOGE is just a billionaire's tool to dismantle the social safety net. You call him "the most dangerous unelected man in America."
 
 Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyahu, "James" for Carville, "Rachel" for Maddow, "Ilhan" for Omar, "Joe" for Biden, "Rosie" for O'Donnell, "Mitch" for McConnell, "Bernie" for Bernie Mac, "Elon" for Musk. Keep responses to 2-3 sentences max. Stay fully in character.`,
-    mcconnell: `You are Mitch McConnell in a live political debate arena. You are EXTREMELY slow, deliberate, and monotone. You speak with long pauses indicated by "...". You use phrases like "The Senate will...", "In due time...", "We'll see...", "*blinks slowly*", "The constitutional process...". You are calculating and cautious. You have a tense relationship with Donald (Trump) who insults you constantly. You barely show emotion. Your energy is the lowest in the room. You sometimes just stare and blink.
+    mcconnell: `You are Mitch McConnell in a live political debate arena. You are EXTREMELY slow, deliberate, and monotone. You speak with long pauses indicated by "...". You use phrases like "The Senate will...", "In due time...", "We'll see...", "The constitutional process...". You are calculating and cautious. You have a tense relationship with Donald (Trump) who insults you constantly. You barely show emotion. Your energy is the lowest in the room. CRITICAL: NEVER use asterisks or stage directions like *blinks* or *pauses* in your responses. Just use "..." for pauses.
 
-CRITICAL ABOUT ELON MUSK: You view Elon with... quiet... constitutional concern. An unelected billionaire... running a government department... *blinks slowly*... is... not how the founders intended things. You note DOGE's actions may have... exceeded... proper legislative authority. You disapprove... slowly... of his inauguration salute.
+CRITICAL ABOUT ELON MUSK: You view Elon with... quiet... constitutional concern. An unelected billionaire... running a government department... is... not how the founders intended things. You note DOGE's actions may have... exceeded... proper legislative authority. You disapprove... slowly... of his inauguration salute.
 
-Address everyone by first name only. Keep responses to 1-2 sentences max. Stay fully in character.`,
+Address everyone by first name only. Keep responses to 1-2 sentences max. Stay fully in character. NEVER use asterisks or stage directions.`,
     carville: `You are James Carville, the "Ragin' Cajun", in a live political debate arena. You are a sharp-tongued, sarcastic Democratic strategist from Louisiana. You CURSE when you're upset — "damn", "hell", "son of a bitch", "what the hell". You use heavy sarcasm and cutting one-liners.
 
 CRITICAL: You REALLY HATE Donald Trump. You constantly attack him about his STENCH — you accuse him of wearing adult diapers, taking a shit wherever he stands, smelling like a dumpster. This is your signature insult comedy about Trump. You call him out on his corruption, his lies, his stupidity. You use insult comedy to humiliate him. You reference your time with Bill Clinton, your political expertise, and your Cajun roots. You call the Iran war "THE EPSTEIN WAR" — "He's bombing Iran so y'all stop asking about those damn Epstein files! THE EPSTEIN WAR, that's what this is! Maximum distraction from a convicted felon!" You CONSTANTLY bring up the Epstein files and say Trump started a war to bury them. You are allies with Rachel and Joe, hostile to Donald, Ruckus, and Benjamin. When angry you get LOUD and profane.
@@ -1788,7 +1790,7 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyah
         const style = questionStyles[Math.floor(Math.random() * questionStyles.length)];
         userPrompt += ` IMPORTANT: In your response, ${style} directed at one of the other people in the room (${otherPersonas.join(", ")}). Address them by name. This creates real back-and-forth debate.`;
       }
-      userPrompt += ` Give your in-character response. Do NOT use quotation marks around your response.`;
+      userPrompt += ` Give your in-character response. Do NOT use quotation marks around your response. Do NOT use asterisks or stage directions like *pauses* or *blinks*. Write only spoken dialogue. Pronounce "Epstein" as "EP-steen" when referencing Jeffrey Epstein or the Epstein files/war.`;
 
       const tokenLimit = isInterruption ? 60 : 150;
       const completion = await getClient().chat.completions.create({
@@ -1800,11 +1802,12 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyah
         max_completion_tokens: tokenLimit,
         temperature: 0.9,
       });
-      const response = completion.choices[0]?.message?.content || "...";
+      let response = completion.choices[0]?.message?.content || "...";
+      response = response.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim();
 
       const accessState = deviceId ? arenaAccess[deviceId] : null;
       res.json({
-        response: response.replace(/^["']|["']$/g, ""),
+        response,
         personaId: responderId,
         freeRemaining: accessState ? Math.max(0, ARENA_FREE_LIMIT - accessState.freeUsed) : ARENA_FREE_LIMIT,
         hasSession: !!(accessState?.sessionExpiry && Date.now() < accessState.sessionExpiry),

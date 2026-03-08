@@ -588,6 +588,7 @@ export default function ArenaScreen() {
   const currentTopicRef = useRef<string | null>(null);
   const emotionalStatesRef = useRef(emotionalStates);
   const conversationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleNextRef = useRef<(() => void) | null>(null);
   const mountedRef = useRef(true);
   const voiceEnabledRef = useRef(true);
   const recentSpeakersRef = useRef<string[]>([]);
@@ -614,6 +615,7 @@ export default function ArenaScreen() {
   const interruptionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isInterruptingRef = useRef(false);
   const isAskingUserRef = useRef(false);
+  const isUserSendingRef = useRef(false);
 
   const [userJoined, setUserJoined] = useState(false);
   const [showJoinPrompt, setShowJoinPrompt] = useState(false);
@@ -752,8 +754,11 @@ export default function ArenaScreen() {
         setHasSession(true);
         setSessionExpiresAt(data.expiresAt);
         setShowPaywall(false);
+        setIsRunning(true);
+        isRunningRef.current = true;
         refreshBalance();
         addSystemMessage("Session unlocked! 5 minutes of unlimited access.");
+        setTimeout(() => { if (mountedRef.current && scheduleNextRef.current) scheduleNextRef.current(); }, 1000);
       } else if (data.error === "insufficient_tokens") {
         addSystemMessage("Not enough tokens. Visit the store to get more!");
       }
@@ -799,6 +804,11 @@ export default function ArenaScreen() {
         setHasSession(false);
         setSessionExpiresAt(null);
         clearInterval(tick);
+        setShowPaywall(true);
+        setIsRunning(false);
+        isRunningRef.current = false;
+        if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
+        addSystemMessage("Session expired! Get 5 more minutes for 5 tokens.");
       }
     }, 1000);
     return () => clearInterval(tick);
@@ -1179,13 +1189,14 @@ export default function ArenaScreen() {
 
   const handleJoinConversation = useCallback(() => {
     if (joinTimerRef.current) clearInterval(joinTimerRef.current);
-    setShowJoinPrompt(false);
-    setShowJoinForm(true);
+    setShowJoinPrompt(true);
   }, []);
 
   const submitJoinForm = useCallback(async () => {
     if (!userName.trim()) return;
     setShowJoinForm(false);
+    setShowJoinPrompt(false);
+    if (joinTimerRef.current) clearInterval(joinTimerRef.current);
     setUserJoined(true);
     userJoinedRef.current = true;
     userNameRef.current = userName.trim();
@@ -1372,7 +1383,7 @@ export default function ArenaScreen() {
       const prob = calculateResponseProbability(pid, lastMsg.speakerId, lastMsg.text);
       weight += (prob - 50) * 0.4;
 
-      if (pid === "trump") weight += 25;
+      if (pid === "trump") weight += 40;
 
       const recentIdx = recent.indexOf(pid);
       if (recentIdx === recent.length - 1) weight -= (pid === "trump" ? 15 : 30);
@@ -1426,11 +1437,11 @@ export default function ArenaScreen() {
   const scheduleNext = useCallback(() => {
     if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
     const waitForClear = () => {
-      if (isInterruptingRef.current || isProcessingTTSRef.current || currentSpeakerRef.current) {
-        conversationTimerRef.current = setTimeout(waitForClear, 1000);
+      if (isInterruptingRef.current || currentSpeakerRef.current) {
+        conversationTimerRef.current = setTimeout(waitForClear, 500);
         return;
       }
-      const delay = 4000 + Math.random() * 4000;
+      const delay = 1500 + Math.random() * 2000;
       conversationTimerRef.current = setTimeout(async () => {
         if (!mountedRef.current) return;
         await decideNextSpeaker();
@@ -1441,6 +1452,8 @@ export default function ArenaScreen() {
     };
     waitForClear();
   }, [decideNextSpeaker]);
+
+  useEffect(() => { scheduleNextRef.current = scheduleNext; }, [scheduleNext]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -2115,47 +2128,24 @@ export default function ArenaScreen() {
         </Animated.View>
       )}
 
-      <Modal visible={showJoinPrompt} transparent animationType="fade">
+      <Modal visible={showJoinPrompt || showJoinForm} transparent animationType="fade">
         <View style={s.joinPromptOverlay}>
-          <Animated.View entering={FadeInUp.duration(400).springify()} style={s.joinPromptCard}>
-            <LinearGradient colors={["rgba(74,222,128,0.15)", "rgba(20,20,20,0.98)"]} style={s.joinPromptGrad}>
-              <Ionicons name="hand-left" size={32} color="#4ADE80" />
-              <Text style={s.joinPromptTitle}>Join the Debate!</Text>
-              <Text style={s.joinPromptSub}>
-                The personas are going at it. Want to jump in and share your take?
-              </Text>
-              <Text style={s.joinCountdownText}>{joinCountdown}s</Text>
-              <Pressable onPress={handleJoinConversation} style={s.joinPromptBtn}>
-                <Ionicons name="enter" size={18} color="#000" />
-                <Text style={s.joinPromptBtnText}>Join Debate</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => {
-                  if (joinTimerRef.current) clearInterval(joinTimerRef.current);
-                  setShowJoinPrompt(false);
-                }}
-                style={s.joinPromptDismiss}
-              >
-                <Text style={s.joinPromptDismissText}>Just Watch</Text>
-              </Pressable>
-            </LinearGradient>
-          </Animated.View>
-        </View>
-      </Modal>
-
-      <Modal visible={showJoinForm} transparent animationType="slide">
-        <View style={s.joinFormOverlay}>
-          <View style={s.joinFormCard}>
-            <Text style={s.joinFormTitle}>Enter the Arena</Text>
-            <Text style={s.joinFormSub}>Tell us who you are so the personas can address you</Text>
+          <Animated.View entering={FadeInUp.duration(400).springify()} style={s.joinFormCard}>
+            <Ionicons name="mic" size={28} color="#4ADE80" style={{ alignSelf: "center" as const }} />
+            <Text style={s.joinFormTitle}>Jump Into the Debate</Text>
+            <Text style={s.joinFormSub}>Enter your name and the personas will talk to you directly</Text>
             <TextInput
               style={s.joinInput}
-              placeholder="Your name *"
+              placeholder="Your name"
               placeholderTextColor="rgba(255,255,255,0.3)"
               value={userName}
-              onChangeText={setUserName}
+              onChangeText={(t) => {
+                setUserName(t);
+                if (joinTimerRef.current) { clearInterval(joinTimerRef.current); joinTimerRef.current = null; setJoinCountdown(0); }
+              }}
               maxLength={30}
               autoCapitalize="words"
+              autoFocus
             />
             <TextInput
               style={s.joinInput}
@@ -2199,8 +2189,15 @@ export default function ArenaScreen() {
               )}
             />
             <View style={s.joinFormActions}>
-              <Pressable onPress={() => setShowJoinForm(false)} style={s.joinFormCancel}>
-                <Text style={s.joinFormCancelText}>Cancel</Text>
+              <Pressable
+                onPress={() => {
+                  if (joinTimerRef.current) clearInterval(joinTimerRef.current);
+                  setShowJoinPrompt(false);
+                  setShowJoinForm(false);
+                }}
+                style={s.joinFormCancel}
+              >
+                <Text style={s.joinFormCancelText}>Just Watch</Text>
               </Pressable>
               <Pressable
                 onPress={submitJoinForm}
@@ -2208,10 +2205,13 @@ export default function ArenaScreen() {
                 style={[s.joinFormSubmit, !userName.trim() && { opacity: 0.4 }]}
               >
                 <Ionicons name="enter" size={16} color="#000" />
-                <Text style={s.joinFormSubmitText}>Enter Arena</Text>
+                <Text style={s.joinFormSubmitText}>Join</Text>
               </Pressable>
             </View>
-          </View>
+            {showJoinPrompt && joinCountdown > 0 && (
+              <Text style={s.joinCountdownText}>Auto-dismiss in {joinCountdown}s</Text>
+            )}
+          </Animated.View>
         </View>
       </Modal>
 
@@ -2257,17 +2257,79 @@ export default function ArenaScreen() {
       )}
 
       {userJoined && !showUserInput && isRunning && (
-        <Pressable
-          onPress={() => {
-            const active = selectedPersonasRef.current;
-            const asker = active[Math.floor(Math.random() * active.length)];
-            askUserQuestion(asker);
-          }}
-          style={[s.speakUpBtn, { bottom: insets.bottom + webBottomInset + 80 }]}
-        >
-          <Ionicons name="mic" size={16} color="#4ADE80" />
-          <Text style={s.speakUpText}>Speak Up</Text>
-        </Pressable>
+        <View style={[s.userChatBar, { bottom: insets.bottom + webBottomInset + 8 }]}>
+          <View style={s.userChatBarInner}>
+            <TextInput
+              style={s.userChatInput}
+              placeholder="Say something or change the topic..."
+              placeholderTextColor="rgba(255,255,255,0.3)"
+              value={userInputText}
+              onChangeText={setUserInputText}
+              maxLength={280}
+              multiline
+            />
+            <Pressable
+              onPress={async () => {
+                if (!userInputText.trim() || isUserSendingRef.current) return;
+                isUserSendingRef.current = true;
+                const text = userInputText.trim();
+                setUserInputText("");
+                userResponseCountRef.current += 1;
+                addMessage({
+                  id: "user-msg-" + Date.now(),
+                  speakerId: "user",
+                  speakerName: userNameRef.current || "Viewer",
+                  text,
+                  timestamp: Date.now(),
+                });
+                try {
+                  const active = selectedPersonasRef.current;
+                  const reactor = active[Math.floor(Math.random() * active.length)];
+                  const headers: Record<string, string> = { "Content-Type": "application/json" };
+                  if (deviceId) headers["x-device-id"] = deviceId;
+                  const locationParts = [userCityRef.current, userStateRef.current, userCountryRef.current].filter(Boolean);
+                  const res = await fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
+                    method: "POST",
+                    headers,
+                    body: JSON.stringify({
+                      responderId: reactor,
+                      toSpeakerId: "user",
+                      conversationHistory: messagesRef.current.filter((m: any) => !m.isSystem).slice(-4).map((m: any) => ({ speakerName: m.speakerName, text: m.text })),
+                      topic: text,
+                      activePersonas: active,
+                      userContext: { name: userNameRef.current, location: locationParts.join(", ") },
+                    }),
+                  });
+                  if (res.status === 403 && mountedRef.current) {
+                    setFreeRemaining(0);
+                    setShowPaywall(true);
+                    setIsRunning(false);
+                    return;
+                  }
+                  if (res.ok && mountedRef.current) {
+                    const data = await res.json();
+                    const persona = ARENA_PERSONAS[reactor];
+                    addMessage({
+                      id: "react-user-" + Date.now(),
+                      speakerId: reactor,
+                      speakerName: persona.name,
+                      text: data.response,
+                      timestamp: Date.now(),
+                    });
+                    queueTTS(data.response, reactor);
+                    if (data.freeRemaining !== undefined) setFreeRemaining(data.freeRemaining);
+                  }
+                } catch (_e) {} finally {
+                  isUserSendingRef.current = false;
+                }
+              }}
+              disabled={!userInputText.trim() || !!isUserSendingRef.current}
+              style={[s.userInputSend, !userInputText.trim() && { opacity: 0.4 }]}
+            >
+              <Ionicons name="send" size={18} color="#000" />
+            </Pressable>
+          </View>
+        </View>
       )}
     </View>
   );
@@ -3324,5 +3386,29 @@ const s = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700" as const,
     color: "#4ADE80",
+  },
+  userChatBar: {
+    position: "absolute",
+    left: 12,
+    right: 12,
+    zIndex: 85,
+  },
+  userChatBarInner: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 8,
+    backgroundColor: "rgba(26,26,26,0.95)",
+    borderRadius: 24,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: "rgba(74,222,128,0.25)",
+  },
+  userChatInput: {
+    flex: 1,
+    color: "#fff",
+    fontSize: 14,
+    maxHeight: 60,
+    paddingVertical: 4,
   },
 });
