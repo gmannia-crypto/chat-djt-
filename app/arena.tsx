@@ -1408,9 +1408,7 @@ export default function ArenaScreen() {
     }
 
     if (chosen && mountedRef.current) {
-      const willInterrupt = !isInterruptingRef.current && (chosen.id === "trump"
-        ? Math.random() < 0.35
-        : Math.random() < 0.3);
+      const willInterrupt = !isInterruptingRef.current && chosen.id === "trump" && Math.random() < 0.35;
 
       await generateAIResponse(chosen.id, lastMsg.speakerId);
       recentSpeakersRef.current = [...recentSpeakersRef.current, chosen.id].slice(-4);
@@ -1419,20 +1417,13 @@ export default function ArenaScreen() {
         await new Promise((r) => setTimeout(r, 2000 + Math.random() * 2000));
         if (!mountedRef.current || !isRunningRef.current) return;
 
-        if (chosen.id === "trump") {
-          const trumpMsg = messagesRef.current.filter((m) => !m.isSystem && m.speakerId !== "user").slice(-1)[0];
-          if (trumpMsg && trumpMsg.speakerId === "trump") {
-            await triggerInterruption(trumpMsg.text);
-          }
-        } else {
-          const latestMsg = messagesRef.current.filter((m) => !m.isSystem && m.speakerId !== "user").slice(-1)[0];
-          if (latestMsg && latestMsg.speakerId !== "trump") {
-            await triggerTrumpInterruption(latestMsg.text, latestMsg.speakerId);
-          }
+        const trumpMsg = messagesRef.current.filter((m) => !m.isSystem && m.speakerId !== "user").slice(-1)[0];
+        if (trumpMsg && trumpMsg.speakerId === "trump") {
+          await triggerInterruption(trumpMsg.text);
         }
       }
     }
-  }, [generateAIResponse, triggerInterruption, triggerTrumpInterruption, askUserQuestion, showUserInput]);
+  }, [generateAIResponse, triggerInterruption, askUserQuestion, showUserInput]);
 
   const scheduleNext = useCallback(() => {
     if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
@@ -2221,7 +2212,7 @@ export default function ArenaScreen() {
             <View style={s.userInputHeader}>
               <View style={[s.userInputDot, { backgroundColor: ARENA_PERSONAS[askingPersona]?.color || "#4ADE80" }]} />
               <Text style={s.userInputLabel} numberOfLines={1}>
-                {ARENA_PERSONAS[askingPersona]?.shortName || "Someone"} asked you a question
+                {ARENA_PERSONAS[askingPersona]?.shortName || "Someone"} asks:
               </Text>
               <Pressable
                 onPress={() => { setShowUserInput(false); setAskingPersona(null); setAskQuestion(""); }}
@@ -2230,6 +2221,9 @@ export default function ArenaScreen() {
                 <Ionicons name="close" size={16} color="rgba(255,255,255,0.4)" />
               </Pressable>
             </View>
+            {askQuestion ? (
+              <Text style={s.userInputQuestion}>{askQuestion}</Text>
+            ) : null}
             <View style={s.userInputRow}>
               <TextInput
                 style={s.userInputField}
@@ -3348,6 +3342,13 @@ const s = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600" as const,
     color: "rgba(255,255,255,0.6)",
+  },
+  userInputQuestion: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.85)",
+    lineHeight: 18,
+    marginBottom: 8,
+    paddingHorizontal: 2,
   },
   userInputRow: {
     flexDirection: "row",
