@@ -19,7 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Animated, { FadeInDown, FadeInUp, FadeIn } from "react-native-reanimated";
+import Animated, { FadeInDown, FadeInUp, FadeIn, FadeOut, SlideInLeft, SlideInRight, ZoomIn, ZoomOut, BounceIn } from "react-native-reanimated";
 import { getApiUrl } from "@/lib/query-client";
 import { playTTS } from "@/lib/audio-helper";
 import { useTokens } from "@/lib/token-context";
@@ -532,11 +532,229 @@ function calculateResponseProbability(
   return Math.min(85, Math.max(10, probability));
 }
 
+function ArenaIntro({ personas, onComplete }: { personas: string[]; onComplete: () => void }) {
+  const insets = useSafeAreaInsets();
+  const webTopInset = Platform.OS === "web" ? 67 : 0;
+  const [phase, setPhase] = useState(0);
+  const [countdown, setCountdown] = useState(3);
+  const [visiblePersonas, setVisiblePersonas] = useState<string[]>([]);
+
+  useEffect(() => {
+    const t1 = setTimeout(() => setPhase(1), 400);
+    const t2 = setTimeout(() => setPhase(2), 1600);
+
+    let idx = 0;
+    const personaInterval = setInterval(() => {
+      if (idx < personas.length) {
+        setVisiblePersonas((prev) => [...prev, personas[idx]]);
+        if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        idx++;
+      } else {
+        clearInterval(personaInterval);
+      }
+    }, 150);
+
+    const t3 = setTimeout(() => setPhase(3), 2200 + personas.length * 150);
+
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearInterval(personaInterval); };
+  }, [personas]);
+
+  useEffect(() => {
+    if (phase !== 3) return;
+    if (countdown <= 0) {
+      onComplete();
+      return;
+    }
+    const t = setTimeout(() => {
+      if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      setCountdown((c) => c - 1);
+    }, 700);
+    return () => clearTimeout(t);
+  }, [phase, countdown, onComplete]);
+
+  return (
+    <View style={introStyles.container}>
+      <LinearGradient colors={["#0a0a0a", "#111", "#0a0a0a"]} style={StyleSheet.absoluteFill} />
+      <View style={[introStyles.content, { paddingTop: insets.top + webTopInset + 20 }]}>
+        {phase >= 0 && (
+          <Animated.View entering={FadeIn.duration(600)} style={introStyles.liveRow}>
+            <View style={introStyles.liveDot} />
+            <Text style={introStyles.liveText}>LIVE</Text>
+          </Animated.View>
+        )}
+        {phase >= 1 && (
+          <Animated.View entering={ZoomIn.duration(500).springify()}>
+            <Text style={introStyles.title}>THE</Text>
+            <Text style={introStyles.titleBig}>POLITICAL</Text>
+            <Text style={introStyles.titleBig}>ARENA</Text>
+          </Animated.View>
+        )}
+        {phase >= 2 && (
+          <Animated.View entering={FadeInUp.duration(400)} style={introStyles.taglineRow}>
+            <View style={introStyles.taglineLine} />
+            <Text style={introStyles.tagline}>12 PERSONAS. NO FILTER. LIVE DEBATE.</Text>
+            <View style={introStyles.taglineLine} />
+          </Animated.View>
+        )}
+        {phase >= 2 && (
+          <Animated.View entering={FadeIn.duration(300).delay(200)} style={introStyles.personaGrid}>
+            {visiblePersonas.map((pid, i) => {
+              const p = ARENA_PERSONAS[pid];
+              if (!p) return null;
+              return (
+                <Animated.View
+                  key={pid}
+                  entering={i % 2 === 0 ? SlideInLeft.duration(300).springify() : SlideInRight.duration(300).springify()}
+                  style={introStyles.personaChip}
+                >
+                  <View style={[introStyles.personaDot, { backgroundColor: p.color }]} />
+                  <Text style={[introStyles.personaName, { color: p.color }]}>{p.shortName}</Text>
+                </Animated.View>
+              );
+            })}
+          </Animated.View>
+        )}
+        {phase >= 3 && (
+          <Animated.View entering={BounceIn.duration(500)} style={introStyles.countdownWrap}>
+            {countdown > 0 ? (
+              <Animated.Text key={countdown} entering={ZoomIn.duration(300)} exiting={ZoomOut.duration(200)} style={introStyles.countdownNum}>
+                {countdown}
+              </Animated.Text>
+            ) : (
+              <Animated.Text entering={ZoomIn.duration(300)} style={introStyles.goText}>GO!</Animated.Text>
+            )}
+          </Animated.View>
+        )}
+      </View>
+    </View>
+  );
+}
+
+const introStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#0a0a0a",
+  },
+  content: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  liveRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 24,
+    backgroundColor: "rgba(239,68,68,0.12)",
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(239,68,68,0.3)",
+  },
+  liveDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#EF4444",
+  },
+  liveText: {
+    fontSize: 12,
+    fontWeight: "900" as const,
+    color: "#EF4444",
+    letterSpacing: 2,
+  },
+  title: {
+    fontSize: 16,
+    fontWeight: "600" as const,
+    color: "rgba(255,255,255,0.5)",
+    textAlign: "center",
+    letterSpacing: 6,
+  },
+  titleBig: {
+    fontSize: 40,
+    fontWeight: "900" as const,
+    color: "#fff",
+    textAlign: "center",
+    letterSpacing: 4,
+  },
+  taglineRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 16,
+    marginBottom: 20,
+  },
+  taglineLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "rgba(212,175,55,0.3)",
+  },
+  tagline: {
+    fontSize: 10,
+    fontWeight: "700" as const,
+    color: "#D4AF37",
+    letterSpacing: 2,
+  },
+  personaGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 6,
+    maxWidth: 340,
+    marginBottom: 30,
+  },
+  personaChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  personaDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  personaName: {
+    fontSize: 11,
+    fontWeight: "700" as const,
+  },
+  countdownWrap: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "rgba(212,175,55,0.12)",
+    borderWidth: 2,
+    borderColor: "#D4AF37",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  countdownNum: {
+    fontSize: 42,
+    fontWeight: "900" as const,
+    color: "#D4AF37",
+  },
+  goText: {
+    fontSize: 28,
+    fontWeight: "900" as const,
+    color: "#4ADE80",
+    letterSpacing: 2,
+  },
+});
+
 export default function ArenaScreen() {
   const insets = useSafeAreaInsets();
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
   const { deviceId, balance, refreshBalance } = useTokens();
+
+  const [showIntro, setShowIntro] = useState(true);
 
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [emotionalStates, setEmotionalStates] = useState<Record<string, EmotionalState>>(() => {
@@ -547,7 +765,7 @@ export default function ArenaScreen() {
     return s;
   });
   const [currentSpeaker, setCurrentSpeaker] = useState<string | null>(null);
-  const [isRunning, setIsRunning] = useState(true);
+  const [isRunning, setIsRunning] = useState(false);
   const [currentTopic, setCurrentTopic] = useState<string | null>(null);
   const [focusedPersona, setFocusedPersona] = useState<string | null>(null);
 
@@ -1446,9 +1664,10 @@ export default function ArenaScreen() {
 
   useEffect(() => { scheduleNextRef.current = scheduleNext; }, [scheduleNext]);
 
-  useEffect(() => {
-    mountedRef.current = true;
-
+  const startDebate = useCallback(async () => {
+    if (!mountedRef.current) return;
+    setIsRunning(true);
+    isRunningRef.current = true;
     addMessage({
       id: "system-start",
       speakerId: "system",
@@ -1457,20 +1676,18 @@ export default function ArenaScreen() {
       timestamp: Date.now(),
       isSystem: true,
     });
+    const active = selectedPersonasRef.current;
+    const starter = active.includes("trump") ? "trump" : active[0];
+    const pool = active.filter((p) => p !== starter);
+    const target = pool.length > 0 ? pool[Math.floor(Math.random() * pool.length)] : starter;
+    await generateAIResponse(starter, target);
+    if (mountedRef.current) scheduleNext();
+  }, [addMessage, generateAIResponse, scheduleNext]);
 
-    const startTimer = setTimeout(async () => {
-      if (!mountedRef.current) return;
-      const active = selectedPersonasRef.current;
-      const starter = active.includes("trump") ? "trump" : active[0];
-      const pool = active.filter((p) => p !== starter);
-      const target = pool.length > 0 ? pool[Math.floor(Math.random() * pool.length)] : starter;
-      await generateAIResponse(starter, target);
-      if (mountedRef.current) scheduleNext();
-    }, 1500);
-
+  useEffect(() => {
+    mountedRef.current = true;
     return () => {
       mountedRef.current = false;
-      clearTimeout(startTimer);
       if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
       if (joinTimerRef.current) clearInterval(joinTimerRef.current);
       saveCurrentSession();
@@ -1682,6 +1899,18 @@ export default function ArenaScreen() {
     },
     [queueTTS]
   );
+
+  if (showIntro) {
+    return (
+      <ArenaIntro
+        personas={selectedPersonas}
+        onComplete={() => {
+          setShowIntro(false);
+          startDebate();
+        }}
+      />
+    );
+  }
 
   return (
     <View style={[s.container, { paddingTop: insets.top + webTopInset }]}>
