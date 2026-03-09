@@ -573,61 +573,35 @@ function ArenaIntro({ personas, onComplete }: { personas: string[]; onComplete: 
   const engageSoundRef = useRef<any>(null);
 
   const titleSoundRef = useRef<any>(null);
-  const mountedIntroRef = useRef(true);
 
   useEffect(() => {
-    mountedIntroRef.current = true;
-    let personaInterval: ReturnType<typeof setInterval> | null = null;
-    let countdownTimeout: ReturnType<typeof setTimeout> | null = null;
-
-    const t1 = setTimeout(async () => {
-      if (!mountedIntroRef.current) return;
+    const t1 = setTimeout(() => {
       setPhase(1);
-
-      try {
-        const sound = await playTTS("/api/nav-speak", { text: "Political Arena." });
-        if (!mountedIntroRef.current) { try { sound.unloadAsync(); } catch {} return; }
-        titleSoundRef.current = sound;
-
-        await new Promise<void>((resolve) => {
-          sound.setOnPlaybackStatusUpdate((status: any) => {
-            if (status.didJustFinish) resolve();
-          });
-          setTimeout(resolve, 3000);
-        });
-      } catch {}
-
-      if (!mountedIntroRef.current) return;
-      setPhase(2);
-
-      let idx = 0;
-      personaInterval = setInterval(() => {
-        if (idx < personas.length) {
-          setVisiblePersonas((prev) => [...prev, personas[idx]]);
-          if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          idx++;
-        } else {
-          if (personaInterval) clearInterval(personaInterval);
-        }
-      }, 120);
-
-      const personasDuration = personas.length * 120 + 600;
-      countdownTimeout = setTimeout(() => {
-        if (!mountedIntroRef.current) return;
-        setPhase(3);
-        playTTS("/api/nav-speak", { text: "Five. Four. Three. Two. One." })
-          .then((sound) => {
-            if (!mountedIntroRef.current) { try { sound.unloadAsync(); } catch {} return; }
-            countdownSoundRef.current = sound;
-          }).catch(() => {});
-      }, personasDuration);
+      playTTS("/api/nav-speak", { text: "Political Arena." })
+        .then((sound) => { titleSoundRef.current = sound; }).catch(() => {});
     }, 400);
+    const t2 = setTimeout(() => setPhase(2), 1600);
+
+    let idx = 0;
+    const personaInterval = setInterval(() => {
+      if (idx < personas.length) {
+        setVisiblePersonas((prev) => [...prev, personas[idx]]);
+        if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        idx++;
+      } else {
+        clearInterval(personaInterval);
+      }
+    }, 120);
+
+    const countdownStart = 2200 + personas.length * 120;
+    const t3 = setTimeout(() => {
+      setPhase(3);
+      playTTS("/api/nav-speak", { text: "Five. Four. Three. Two. One." })
+        .then((sound) => { countdownSoundRef.current = sound; }).catch(() => {});
+    }, countdownStart);
 
     return () => {
-      mountedIntroRef.current = false;
-      clearTimeout(t1);
-      if (personaInterval) clearInterval(personaInterval);
-      if (countdownTimeout) clearTimeout(countdownTimeout);
+      clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearInterval(personaInterval);
       if (countdownSoundRef.current) { try { countdownSoundRef.current.unloadAsync(); } catch {} }
       if (engageSoundRef.current) { try { engageSoundRef.current.unloadAsync(); } catch {} }
       if (titleSoundRef.current) { try { titleSoundRef.current.unloadAsync(); } catch {} }
