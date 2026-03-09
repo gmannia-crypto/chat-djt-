@@ -571,6 +571,8 @@ function ArenaIntro({ personas, onComplete }: { personas: string[]; onComplete: 
   const [pulseRing, setPulseRing] = useState(false);
   const countdownSoundRef = useRef<any>(null);
   const engageSoundRef = useRef<any>(null);
+  const onCompleteRef = useRef(onComplete);
+  useEffect(() => { onCompleteRef.current = onComplete; }, [onComplete]);
 
   const titleSoundRef = useRef<any>(null);
 
@@ -617,7 +619,7 @@ function ArenaIntro({ personas, onComplete }: { personas: string[]; onComplete: 
         text: "Engage!",
       }).then((sound) => { engageSoundRef.current = sound; }).catch(() => {});
       const engageTimer = setTimeout(() => {
-        onComplete();
+        onCompleteRef.current();
       }, 1800);
       return () => clearTimeout(engageTimer);
     }
@@ -634,7 +636,7 @@ function ArenaIntro({ personas, onComplete }: { personas: string[]; onComplete: 
       setCountdown((c) => c - 1);
     }, 1000);
     return () => { clearTimeout(t); clearTimeout(pulseOff); };
-  }, [phase, countdown, onComplete]);
+  }, [phase, countdown]);
 
   const countdownColor = countdown <= 2 ? "#EF4444" : countdown <= 3 ? "#FBBF24" : "#D4AF37";
   const progress = (5 - countdown) / 5;
