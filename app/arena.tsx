@@ -587,13 +587,18 @@ function TypewriterText({ text, style, voiceEnabled, isLatest }: { text: string;
     }
     setVisibleWords(0);
     let count = 0;
+    const wordCount = words.length;
+    const avgWordLen = text.length / Math.max(wordCount, 1);
+    let msPerWord = 160;
+    if (avgWordLen > 6) msPerWord = 190;
+    if (wordCount < 10) msPerWord = 220;
     intervalRef.current = setInterval(() => {
       count++;
       setVisibleWords(count);
-      if (count >= words.length) {
+      if (count >= wordCount) {
         if (intervalRef.current) clearInterval(intervalRef.current);
       }
-    }, 280);
+    }, msPerWord);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
@@ -1078,8 +1083,8 @@ export default function ArenaScreen() {
             reader.onerror = reject;
             reader.readAsDataURL(blob);
           });
-          const blobUrl = URL.createObjectURL(blob);
-          lastRecordedAudioRef.current = blobUrl;
+          const dataUrl = `data:audio/webm;base64,${base64}`;
+          lastRecordedAudioRef.current = dataUrl;
           await transcribeBase64(base64, "webm");
         };
         mediaRecorderRef.current = mediaRecorder;
@@ -1596,7 +1601,7 @@ export default function ArenaScreen() {
 
     const interrupter = availableInterrupters[Math.floor(Math.random() * availableInterrupters.length)];
 
-    await new Promise((r) => setTimeout(r, 800 + Math.random() * 1200));
+    await new Promise((r) => setTimeout(r, 7000 + Math.random() * 2000));
     if (!mountedRef.current || !isRunningRef.current) { isInterruptingRef.current = false; return; }
 
     try {

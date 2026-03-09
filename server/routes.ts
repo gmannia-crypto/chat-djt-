@@ -1296,8 +1296,7 @@ Generate the roundtable discussion. Each persona must give their take and REACT 
         return res.status(400).json({ error: "No voice configured for persona" });
       }
 
-      let safeText = text.slice(0, 2000);
-      safeText = safeText.replace(/\bEpstein\b/gi, "Ep-steen");
+      const safeText = text.slice(0, 2000);
       const buffer = await fishAudioRequest(safeText, voiceId, 1.0, apiKey);
 
       res.setHeader("Content-Type", "audio/mpeg");
@@ -1330,8 +1329,7 @@ Generate the roundtable discussion. Each persona must give their take and REACT 
         return res.status(400).json({ error: "No voice configured for persona" });
       }
 
-      let safeText = text.slice(0, 2000);
-      safeText = safeText.replace(/\bEpstein\b/gi, "Ep-steen");
+      const safeText = text.slice(0, 2000);
       const buffer = await fishAudioRequest(safeText, voiceId, 1.0, apiKey);
 
       res.setHeader("Content-Type", "audio/mpeg");
