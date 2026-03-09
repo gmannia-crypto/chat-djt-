@@ -1775,11 +1775,11 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyah
       }
       const isTrumpInitiated = req.body.isTrumpInitiated === true;
       if (isInterruption && responderId === "trump" && isTrumpInitiated) {
-        userPrompt += ` You are INTERRUPTING ${toName}. Start with "FAKE NEWS, folks!" then one short vicious insult. MAXIMUM 2 sentences total, keep it under 25 words. Quick and brutal.`;
+        userPrompt += ` You are INTERRUPTING ${toName}. One explosive quick jab. MAXIMUM 1 sentence, under 12 words. Like a heckle from the crowd — fast, punchy, devastating.`;
       } else if (isInterruption && responderId === "trump" && !isTrumpInitiated) {
-        userPrompt += ` Someone just interrupted you. You are FURIOUS. One quick vicious insult back. MAXIMUM 2 sentences, under 25 words. Fast and nasty.`;
+        userPrompt += ` Someone just interrupted you. Fire back ONE short angry line. MAXIMUM 1 sentence, under 12 words. Quick snap-back, no speeches.`;
       } else if (isInterruption && responderId !== "trump") {
-        userPrompt += ` You are INTERRUPTING Trump. Shout one angry line at him. MAXIMUM 1 sentence, under 15 words. Quick and cutting.`;
+        userPrompt += ` You are INTERRUPTING Trump. One quick sharp jab. MAXIMUM 1 sentence, under 10 words. A fast heckle, not a speech.`;
       }
       if (isWelcome && userContext) {
         userPrompt = `A viewer named ${userContext.name || "someone"} from ${userContext.location || "somewhere"} just joined the conversation. Welcome them warmly by name and location. Be in character. Keep it to 1-2 sentences, maximum 30 words. Make them feel like they're part of the debate.`;
@@ -1812,7 +1812,7 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyah
       }
       userPrompt += ` Give your in-character response. Do NOT use quotation marks around your response. Do NOT use asterisks or stage directions like *pauses* or *blinks*. Write only spoken dialogue. Pronounce "Epstein" as "EP-steen" when referencing Jeffrey Epstein or the Epstein files/war.`;
 
-      const tokenLimit = isInterruption ? 60 : 150;
+      const tokenLimit = isInterruption ? 35 : 150;
       const completion = await getClient().chat.completions.create({
         model: getFastModel(),
         messages: [

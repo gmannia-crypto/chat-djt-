@@ -589,9 +589,10 @@ function TypewriterText({ text, style, voiceEnabled, isLatest }: { text: string;
     let count = 0;
     const wordCount = words.length;
     const avgWordLen = text.length / Math.max(wordCount, 1);
-    let msPerWord = 160;
-    if (avgWordLen > 6) msPerWord = 190;
-    if (wordCount < 10) msPerWord = 220;
+    let msPerWord = 380;
+    if (avgWordLen > 7) msPerWord = 420;
+    if (avgWordLen > 10) msPerWord = 460;
+    if (wordCount < 8) msPerWord = 440;
     intervalRef.current = setInterval(() => {
       count++;
       setVisibleWords(count);
