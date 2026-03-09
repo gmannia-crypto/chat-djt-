@@ -428,7 +428,14 @@ function setCachedTTS(key: string, buffer: Buffer): void {
   ttsCache.set(key, { buffer, timestamp: Date.now() });
 }
 
+function fixTTSPronunciation(text: string): string {
+  return text
+    .replace(/\bEpstein\b/gi, "Eppsteen")
+    .replace(/\bEpstein's\b/gi, "Eppsteen's");
+}
+
 async function fishAudioRequest(text: string, voiceId: string, speed: number, apiKey: string, retries: number = 3): Promise<Buffer> {
+  const ttsText = fixTTSPronunciation(text);
   const cacheKey = getTTSCacheKey(text, voiceId, speed);
   const cached = getCachedTTS(cacheKey);
   if (cached) {
@@ -452,7 +459,7 @@ async function fishAudioRequest(text: string, voiceId: string, speed: number, ap
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          text,
+          text: ttsText,
           reference_id: voiceId,
           format: "mp3",
           latency: "balanced",

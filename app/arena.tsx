@@ -2367,7 +2367,7 @@ export default function ArenaScreen() {
           style={[s.scoreboardToggle, showScoreboard && { backgroundColor: "rgba(255,215,0,0.2)" }]}
         >
           <Ionicons name="trophy" size={14} color="#FFD700" />
-          <Text style={s.scoreboardToggleText}>{Object.values(personaPoints).reduce((a, b) => a + b, 0)}</Text>
+          <Text style={s.scoreboardToggleText}>SCORE {Object.values(personaPoints).reduce((a, b) => a + b, 0)}</Text>
         </Pressable>
         {hasSession && sessionTimer > 0 && (
           <View style={s.sessionPill}>
@@ -2382,9 +2382,11 @@ export default function ArenaScreen() {
         )}
         <Pressable onPress={shareCurrentSession} style={s.arenaActionBtn} hitSlop={8}>
           <Ionicons name="share-outline" size={14} color="#D4A420" />
+          <Text style={s.arenaActionBtnText}>SHARE</Text>
         </Pressable>
         <Pressable onPress={() => router.push("/arena-replay")} style={s.arenaActionBtn} hitSlop={8}>
           <Ionicons name="albums-outline" size={14} color="#D4A420" />
+          <Text style={s.arenaActionBtnText}>REPLAYS</Text>
         </Pressable>
       </Animated.View>
 
@@ -3826,12 +3828,20 @@ const s = StyleSheet.create({
     color: "rgba(255,255,255,0.3)",
   },
   arenaActionBtn: {
-    width: 28,
+    flexDirection: "row",
+    paddingHorizontal: 8,
     height: 28,
     borderRadius: 14,
     backgroundColor: "rgba(212,164,32,0.12)",
     justifyContent: "center",
     alignItems: "center",
+    gap: 3,
+  },
+  arenaActionBtnText: {
+    color: "#D4A420",
+    fontSize: 9,
+    fontWeight: "700" as const,
+    letterSpacing: 0.5,
   },
   interruptOverlay: {
     position: "absolute",
