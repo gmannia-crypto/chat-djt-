@@ -18,7 +18,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { Audio } from "expo-av";
 import { playTTS } from "@/lib/audio-helper";
-import Animated, { FadeInDown } from "react-native-reanimated";
+import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 import Colors from "@/constants/colors";
 import { getApiUrl } from "@/lib/query-client";
 import {
@@ -295,7 +295,7 @@ function GameCard({
   const teams = game.game.split(" vs ").map((t) => t.trim());
 
   return (
-    <View style={styles.gameCard}>
+    <Animated.View entering={FadeInUp.duration(400).springify()} style={styles.gameCard}>
       <View style={styles.gameHeader}>
         <View style={[styles.leagueBadge, { backgroundColor: leagueColor }]}>
           <Text style={styles.leagueText}>{game.league}</Text>
@@ -371,7 +371,7 @@ function GameCard({
           </Pressable>
         </>
       ) : null}
-    </View>
+    </Animated.View>
   );
 }
 

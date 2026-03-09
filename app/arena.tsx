@@ -536,8 +536,12 @@ function ArenaIntro({ personas, onComplete }: { personas: string[]; onComplete: 
   const insets = useSafeAreaInsets();
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const [phase, setPhase] = useState(0);
-  const [countdown, setCountdown] = useState(3);
+  const [countdown, setCountdown] = useState(10);
   const [visiblePersonas, setVisiblePersonas] = useState<string[]>([]);
+  const [showEngage, setShowEngage] = useState(false);
+  const [pulseRing, setPulseRing] = useState(false);
+  const countdownSoundRef = useRef<any>(null);
+  const engageSoundRef = useRef<any>(null);
 
   useEffect(() => {
     const t1 = setTimeout(() => setPhase(1), 400);
@@ -552,25 +556,58 @@ function ArenaIntro({ personas, onComplete }: { personas: string[]; onComplete: 
       } else {
         clearInterval(personaInterval);
       }
-    }, 150);
+    }, 120);
 
-    const t3 = setTimeout(() => setPhase(3), 2200 + personas.length * 150);
+    const t3 = setTimeout(() => {
+      setPhase(3);
+      playTTS("/api/nav-speak", {
+        text: "Ten. Nine. Eight. Seven. Six. Five. Four. Three. Two. One.",
+      }).then((sound) => {
+        countdownSoundRef.current = sound;
+      }).catch(() => {});
+    }, 2000 + personas.length * 120);
 
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearInterval(personaInterval); };
+    return () => {
+      clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearInterval(personaInterval);
+      if (countdownSoundRef.current) {
+        try { countdownSoundRef.current.unloadAsync(); } catch {}
+      }
+      if (engageSoundRef.current) {
+        try { engageSoundRef.current.unloadAsync(); } catch {}
+      }
+    };
   }, [personas]);
 
   useEffect(() => {
     if (phase !== 3) return;
     if (countdown <= 0) {
-      onComplete();
-      return;
+      setShowEngage(true);
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      playTTS("/api/nav-speak", {
+        text: "Engage!",
+      }).then((sound) => { engageSoundRef.current = sound; }).catch(() => {});
+      const engageTimer = setTimeout(() => {
+        onComplete();
+      }, 1800);
+      return () => clearTimeout(engageTimer);
     }
+    setPulseRing(true);
+    const pulseOff = setTimeout(() => setPulseRing(false), 400);
     const t = setTimeout(() => {
-      if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      if (Platform.OS !== "web") {
+        if (countdown <= 3) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        } else {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+        }
+      }
       setCountdown((c) => c - 1);
-    }, 700);
-    return () => clearTimeout(t);
+    }, 1000);
+    return () => { clearTimeout(t); clearTimeout(pulseOff); };
   }, [phase, countdown, onComplete]);
+
+  const countdownColor = countdown <= 3 ? "#EF4444" : countdown <= 6 ? "#FBBF24" : "#D4AF37";
+  const progress = (10 - countdown) / 10;
 
   return (
     <View style={introStyles.container}>
@@ -614,15 +651,26 @@ function ArenaIntro({ personas, onComplete }: { personas: string[]; onComplete: 
             })}
           </Animated.View>
         )}
-        {phase >= 3 && (
-          <Animated.View entering={BounceIn.duration(500)} style={introStyles.countdownWrap}>
-            {countdown > 0 ? (
-              <Animated.Text key={countdown} entering={ZoomIn.duration(300)} exiting={ZoomOut.duration(200)} style={introStyles.countdownNum}>
-                {countdown}
-              </Animated.Text>
-            ) : (
-              <Animated.Text entering={ZoomIn.duration(300)} style={introStyles.goText}>GO!</Animated.Text>
-            )}
+        {phase >= 3 && !showEngage && (
+          <Animated.View entering={BounceIn.duration(500)} style={introStyles.countdownArea}>
+            <View style={introStyles.progressRing}>
+              <View style={[introStyles.progressFill, { height: `${progress * 100}%`, backgroundColor: countdownColor + "30" }]} />
+              {pulseRing && <View style={[introStyles.pulseOverlay, { borderColor: countdownColor }]} />}
+              {Platform.OS === "web" ? (
+                <Text style={[introStyles.countdownNum, { color: countdownColor }]}>{countdown}</Text>
+              ) : (
+                <Animated.Text key={countdown} entering={ZoomIn.duration(250)} exiting={ZoomOut.duration(150)} style={[introStyles.countdownNum, { color: countdownColor }]}>
+                  {countdown}
+                </Animated.Text>
+              )}
+            </View>
+            <Text style={introStyles.countdownLabel}>SECONDS TO DEBATE</Text>
+          </Animated.View>
+        )}
+        {showEngage && (
+          <Animated.View entering={ZoomIn.duration(400).springify()} style={introStyles.engageWrap}>
+            <Text style={introStyles.engageText}>ENGAGE</Text>
+            <View style={introStyles.engageGlow} />
           </Animated.View>
         )}
       </View>
@@ -725,26 +773,69 @@ const introStyles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700" as const,
   },
-  countdownWrap: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "rgba(212,175,55,0.12)",
-    borderWidth: 2,
-    borderColor: "#D4AF37",
+  countdownArea: {
+    alignItems: "center",
+    gap: 12,
+  },
+  progressRing: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: "rgba(212,175,55,0.08)",
+    borderWidth: 3,
+    borderColor: "rgba(212,175,55,0.3)",
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
+  },
+  progressFill: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    borderRadius: 50,
+  },
+  pulseOverlay: {
+    position: "absolute",
+    top: -4,
+    left: -4,
+    right: -4,
+    bottom: -4,
+    borderRadius: 54,
+    borderWidth: 2,
+    opacity: 0.5,
   },
   countdownNum: {
     fontSize: 42,
     fontWeight: "900" as const,
-    color: "#D4AF37",
+    zIndex: 1,
   },
-  goText: {
-    fontSize: 28,
+  countdownLabel: {
+    fontSize: 10,
+    fontWeight: "700" as const,
+    color: "rgba(255,255,255,0.4)",
+    letterSpacing: 3,
+  },
+  engageWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 20,
+  },
+  engageText: {
+    fontSize: 48,
     fontWeight: "900" as const,
     color: "#4ADE80",
-    letterSpacing: 2,
+    letterSpacing: 8,
+    textShadowColor: "rgba(74,222,128,0.5)",
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 20,
+  },
+  engageGlow: {
+    position: "absolute",
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: "rgba(74,222,128,0.08)",
   },
 });
 
@@ -1650,7 +1741,7 @@ export default function ArenaScreen() {
         conversationTimerRef.current = setTimeout(waitForClear, 250);
         return;
       }
-      const delay = 300 + Math.random() * 700;
+      const delay = 1500 + Math.random() * 2000;
       conversationTimerRef.current = setTimeout(async () => {
         if (!mountedRef.current) return;
         await decideNextSpeaker();
@@ -1690,6 +1781,7 @@ export default function ArenaScreen() {
       mountedRef.current = false;
       if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
       if (joinTimerRef.current) clearInterval(joinTimerRef.current);
+      stopAllTTS();
       saveCurrentSession();
     };
   }, []);
@@ -1839,17 +1931,17 @@ export default function ArenaScreen() {
   });
 
   const renderMessage = useCallback(
-    ({ item }: { item: ConversationMessage }) => {
+    ({ item, index }: { item: ConversationMessage; index: number }) => {
       if (item.isSystem) {
         return (
-          <View style={s.systemMsg}>
+          <Animated.View entering={FadeIn.duration(400)} style={s.systemMsg}>
             <Text style={[s.systemMsgText, item.speakerId === "user" && { color: "#4ADE80", fontStyle: "normal" as const, fontWeight: "700" as const }]}>{item.text}</Text>
-          </View>
+          </Animated.View>
         );
       }
       if (item.speakerId === "user") {
         return (
-          <View style={[s.msgRow, { borderLeftColor: "#4ADE80", backgroundColor: "rgba(74,222,128,0.08)" }]}>
+          <Animated.View entering={SlideInRight.duration(350).springify()} style={[s.msgRow, { borderLeftColor: "#4ADE80", backgroundColor: "rgba(74,222,128,0.08)" }]}>
             <View style={s.msgHeader}>
               <View style={[s.msgAvatarFallback, { backgroundColor: "#4ADE80" }]}>
                 <Ionicons name="person" size={12} color="#000" />
@@ -1863,13 +1955,13 @@ export default function ArenaScreen() {
               </Text>
             </View>
             <Text style={s.msgText}>{item.text}</Text>
-          </View>
+          </Animated.View>
         );
       }
       const persona = ARENA_PERSONAS[item.speakerId];
       if (!persona) return null;
       return (
-        <View style={[s.msgRow, { borderLeftColor: persona.color }]}>
+        <Animated.View entering={SlideInLeft.duration(350).springify()} style={[s.msgRow, { borderLeftColor: persona.color }]}>
           <View style={s.msgHeader}>
             {persona.image ? (
               <Image source={persona.image} style={s.msgAvatar} />
@@ -1894,7 +1986,7 @@ export default function ArenaScreen() {
             </Text>
           </View>
           <Text style={s.msgText}>{item.text}</Text>
-        </View>
+        </Animated.View>
       );
     },
     [queueTTS]
@@ -1919,16 +2011,16 @@ export default function ArenaScreen() {
         style={StyleSheet.absoluteFill}
       />
 
-      <View style={s.header}>
+      <Animated.View entering={FadeInDown.duration(400)} style={s.header}>
         <Pressable onPress={() => router.back()} style={s.backBtn}>
           <Ionicons name="arrow-back" size={22} color="#fff" />
         </Pressable>
         <View style={s.headerCenter}>
           <Text style={s.headerTitle}>POLITICAL ARENA</Text>
-          <View style={s.liveBadge}>
+          <Animated.View entering={ZoomIn.duration(500).delay(300)} style={s.liveBadge}>
             <View style={s.liveDot} />
             <Text style={s.liveText}>LIVE</Text>
-          </View>
+          </Animated.View>
         </View>
         <Pressable onPress={() => setShowPersonaSelector(true)} style={s.headerIconBtn}>
           <Ionicons name="people" size={18} color="#FFD700" />
@@ -1939,9 +2031,9 @@ export default function ArenaScreen() {
         <Pressable onPress={toggleRunning} style={s.headerIconBtn}>
           <Ionicons name={isRunning ? "pause" : "play"} size={18} color="#fff" />
         </Pressable>
-      </View>
+      </Animated.View>
 
-      <View style={s.voiceRow}>
+      <Animated.View entering={FadeIn.duration(300).delay(200)} style={s.voiceRow}>
         <Pressable
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -1990,7 +2082,7 @@ export default function ArenaScreen() {
         <Pressable onPress={() => router.push("/arena-replay")} style={s.arenaActionBtn} hitSlop={8}>
           <Ionicons name="albums-outline" size={14} color="#D4A420" />
         </Pressable>
-      </View>
+      </Animated.View>
 
       <Animated.View entering={FadeInDown.delay(200).duration(400)} style={s.personaRow}>
         {selectedPersonas.map((pid) => {
@@ -2071,7 +2163,7 @@ export default function ArenaScreen() {
         </Animated.View>
       )}
 
-      <View style={s.streamContainer}>
+      <Animated.View entering={FadeInUp.duration(500).delay(400)} style={s.streamContainer}>
         <View style={s.streamHeader}>
           <View style={s.streamLive}>
             <View style={[s.liveDot, { width: 6, height: 6, borderRadius: 3 }]} />
@@ -2170,24 +2262,26 @@ export default function ArenaScreen() {
             </View>
           ) : null}
         />
-      </View>
+      </Animated.View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.affiliateRow} contentContainerStyle={s.affiliateContent}>
-        {AFFILIATE_LINKS.map((link, i) => (
-          <Pressable
-            key={i}
-            onPress={() => Linking.openURL(link.url)}
-            style={s.affiliateBtn}
-          >
-            <Ionicons
-              name={link.icon === "hat" ? "ribbon" : link.icon === "shirt" ? "shirt" : link.icon === "book" ? "book" : "gift"}
-              size={12}
-              color="#FFD700"
-            />
-            <Text style={s.affiliateText} numberOfLines={1}>{link.title}</Text>
-          </Pressable>
-        ))}
-      </ScrollView>
+      <Animated.View entering={FadeInUp.duration(400).delay(500)}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.affiliateRow} contentContainerStyle={s.affiliateContent}>
+          {AFFILIATE_LINKS.map((link, i) => (
+            <Pressable
+              key={i}
+              onPress={() => Linking.openURL(link.url)}
+              style={s.affiliateBtn}
+            >
+              <Ionicons
+                name={link.icon === "hat" ? "ribbon" : link.icon === "shirt" ? "shirt" : link.icon === "book" ? "book" : "gift"}
+                size={12}
+                color="#FFD700"
+              />
+              <Text style={s.affiliateText} numberOfLines={1}>{link.title}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      </Animated.View>
 
       <Animated.View entering={FadeInUp.delay(400).duration(400)} style={[s.topicRow, { paddingBottom: insets.bottom + webBottomInset + 8 }]}>
         <FlatList
