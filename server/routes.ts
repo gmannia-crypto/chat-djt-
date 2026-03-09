@@ -1851,6 +1851,40 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyah
     }
   });
 
+  const roastRateLimit: Record<string, number> = {};
+  app.post("/api/arena/roast", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const lastRoast = roastRateLimit[deviceId] || 0;
+      if (Date.now() - lastRoast < 30000) return res.status(429).json({ roast: "Hold on, hold on — even I need a second to think of something this good!" });
+      roastRateLimit[deviceId] = Date.now();
+      const { winnerName, winnerPoints, trumpPoints, customerName, leaderboard } = req.body;
+      const leaderboardText = (leaderboard || []).map((e: any, i: number) => `#${i + 1} ${e.name}: ${e.points} pts`).join(", ");
+      const trumpLost = trumpPoints < winnerPoints;
+
+      const systemPrompt = ARENA_PERSONA_PROMPTS["trump"] || "";
+      const userPrompt = `The Political Arena debate just ended. The audience voted on who made the best points. Here are the final results:\n${leaderboardText}\n\nThe WINNER is ${winnerName} with ${winnerPoints} points.${trumpLost ? ` You only got ${trumpPoints} points — you LOST to ${winnerName}. You are FURIOUS and HUMILIATED.` : ` You got ${trumpPoints} points.`}\n\nThe viewer who judged this is named "${customerName}". They gave ${winnerName} the most points${trumpLost ? " and barely voted for you" : ""}.\n\nNow ROAST both the winner AND the viewer "${customerName}" by name. Be SAVAGE, FUNNY, and totally in character. Attack ${winnerName} for thinking they won anything — "you didn't win, this was RIGGED!" Attack ${customerName} for their terrible judgment — "you have the worst taste in debate I've ever seen, ${customerName}!" Be absolutely brutal but entertaining. 3-4 sentences max.`;
+
+      const completion = await getClient().chat.completions.create({
+        model: getFastModel(),
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        max_completion_tokens: 200,
+        temperature: 1.0,
+      });
+      let roast = completion.choices[0]?.message?.content || "Believe me, nobody won here. RIGGED!";
+      roast = roast.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim();
+      roast = roast.replace(/(?:the\s+)?epstein\s+war/gi, "the Iran war");
+      res.json({ roast });
+    } catch (error: any) {
+      console.error("Arena roast error:", error);
+      res.json({ roast: "Believe me, this whole thing was RIGGED. I actually won by a LANDSLIDE. Everybody knows it!" });
+    }
+  });
+
   app.post("/api/tokens/use", async (req, res) => {
     try {
       const deviceId = req.headers["x-device-id"] as string;

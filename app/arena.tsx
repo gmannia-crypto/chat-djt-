@@ -24,6 +24,7 @@ import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system";
 import { getApiUrl } from "@/lib/query-client";
 import { playTTS, playAudioFromUrl } from "@/lib/audio-helper";
+import { playPointAwardSound, playBellSound, playCrowdCheer, playDrumroll } from "@/lib/arena-sfx";
 import { useTokens } from "@/lib/token-context";
 import {
   saveRecording,
@@ -950,6 +951,15 @@ export default function ArenaScreen() {
   const [pollWinner, setPollWinner] = useState<string | null>(null);
   const [fanName, setFanName] = useState("");
   const [showNameInput, setShowNameInput] = useState(false);
+
+  const [personaPoints, setPersonaPoints] = useState<Record<string, number>>({});
+  const [awardedMessages, setAwardedMessages] = useState<Set<string>>(new Set());
+  const [showScoreboard, setShowScoreboard] = useState(false);
+  const [showEndSummary, setShowEndSummary] = useState(false);
+  const [trumpRoastText, setTrumpRoastText] = useState("");
+  const [isLoadingRoast, setIsLoadingRoast] = useState(false);
+  const personaPointsRef = useRef<Record<string, number>>({});
+  useEffect(() => { personaPointsRef.current = personaPoints; }, [personaPoints]);
   const [thankYouPlayed, setThankYouPlayed] = useState(false);
 
   const [dynamicTopics, setDynamicTopics] = useState<DynamicTopic[]>(FALLBACK_TOPICS);
@@ -1031,8 +1041,25 @@ export default function ArenaScreen() {
   const audioChunksRef = useRef<Blob[]>([]);
   const lastRecordedAudioRef = useRef<string | null>(null);
 
+  const wasRunningBeforeRecordRef = useRef(false);
+
+  const resumeAfterRecording = useCallback(() => {
+    if (wasRunningBeforeRecordRef.current && mountedRef.current) {
+      isRunningRef.current = true;
+      setIsRunning(true);
+      if (scheduleNextRef.current) scheduleNextRef.current();
+    }
+  }, []);
+
   const startVoiceRecording = useCallback(async () => {
     try {
+      stopAllTTS();
+      wasRunningBeforeRecordRef.current = isRunningRef.current;
+      if (isRunningRef.current) {
+        isRunningRef.current = false;
+        setIsRunning(false);
+        if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
+      }
       lastRecordedAudioRef.current = null;
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       if (Platform.OS === "web") {
@@ -1060,7 +1087,10 @@ export default function ArenaScreen() {
         setIsRecording(true);
       } else {
         const permission = await Audio.requestPermissionsAsync();
-        if (!permission.granted) return;
+        if (!permission.granted) {
+          resumeAfterRecording();
+          return;
+        }
         await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
         const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
         recordingObjRef.current = recording;
@@ -1069,8 +1099,9 @@ export default function ArenaScreen() {
     } catch (error) {
       console.error("Recording start error:", error);
       setIsRecording(false);
+      resumeAfterRecording();
     }
-  }, []);
+  }, [resumeAfterRecording]);
 
   const transcribeBase64 = useCallback(async (base64: string, format: string) => {
     setIsTranscribing(true);
@@ -1112,11 +1143,13 @@ export default function ArenaScreen() {
         const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
         await transcribeBase64(base64, "m4a");
       }
+      setTimeout(resumeAfterRecording, 500);
     } catch (error) {
       console.error("Recording stop error:", error);
       setIsRecording(false);
+      resumeAfterRecording();
     }
-  }, [transcribeBase64]);
+  }, [transcribeBase64, resumeAfterRecording]);
 
   const stopAllTTS = useCallback(() => {
     ttsQueueRef.current = [];
@@ -1231,6 +1264,12 @@ export default function ArenaScreen() {
         setHasSession(true);
         setSessionExpiresAt(data.expiresAt);
         setShowPaywall(false);
+        setShowEndSummary(false);
+        setPersonaPoints({});
+        setAwardedMessages(new Set());
+        setTrumpRoastText("");
+        setIsLoadingRoast(false);
+        setShowScoreboard(false);
         setIsRunning(true);
         isRunningRef.current = true;
         refreshBalance();
@@ -1281,11 +1320,19 @@ export default function ArenaScreen() {
         setHasSession(false);
         setSessionExpiresAt(null);
         clearInterval(tick);
-        setShowPaywall(true);
         setIsRunning(false);
         isRunningRef.current = false;
+        stopAllTTS();
         if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
-        addSystemMessage("Session expired! Get 5 more minutes for 5 tokens.");
+        playBellSound();
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        addSystemMessage("TIME'S UP! The bell has rung!");
+        const totalPts = Object.values(personaPointsRef.current).reduce((a, b) => a + b, 0);
+        if (totalPts > 0) {
+          setTimeout(() => { setShowEndSummary(true); }, 1500);
+        } else {
+          setTimeout(() => { setShowPaywall(true); }, 2000);
+        }
       }
     }, 1000);
     return () => clearInterval(tick);
@@ -2125,6 +2172,41 @@ export default function ArenaScreen() {
     return null;
   }, [messages]);
 
+  const fetchTrumpRoast = useCallback(async () => {
+    const pts = personaPointsRef.current;
+    const sorted = Object.entries(pts).sort(([, a], [, b]) => b - a);
+    if (sorted.length === 0) return;
+    const winnerId = sorted[0][0];
+    const winnerName = ARENA_PERSONAS[winnerId]?.name || "someone";
+    const winnerPts = sorted[0][1];
+    const trumpPts = pts["trump"] || 0;
+    const customerName = userNameRef.current || "this person";
+
+    setIsLoadingRoast(true);
+    try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (deviceId) headers["x-device-id"] = deviceId;
+      const res = await fetch(new URL("/api/arena/roast", getApiUrl()).toString(), {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          winnerName,
+          winnerPoints: winnerPts,
+          trumpPoints: trumpPts,
+          customerName,
+          leaderboard: sorted.slice(0, 5).map(([id, p]) => ({ name: ARENA_PERSONAS[id]?.name || id, points: p })),
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTrumpRoastText(data.roast);
+        queueTTS(data.roast, "trump", true);
+      }
+    } catch {} finally {
+      setIsLoadingRoast(false);
+    }
+  }, [deviceId, queueTTS]);
+
   const renderMessage = useCallback(
     ({ item, index }: { item: ConversationMessage; index: number }) => {
       if (item.isSystem) {
@@ -2177,6 +2259,25 @@ export default function ArenaScreen() {
             >
               <Ionicons name="volume-medium" size={14} color="rgba(255,255,255,0.4)" />
             </Pressable>
+            {!awardedMessages.has(item.id) ? (
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  playPointAwardSound();
+                  setPersonaPoints((prev) => ({ ...prev, [item.speakerId]: (prev[item.speakerId] || 0) + 1 }));
+                  setAwardedMessages((prev) => new Set(prev).add(item.id));
+                }}
+                style={s.pointBtn}
+                hitSlop={6}
+              >
+                <Ionicons name="thumbs-up-outline" size={12} color="rgba(255,215,0,0.6)" />
+                <Text style={s.pointBtnText}>+1</Text>
+              </Pressable>
+            ) : (
+              <View style={s.pointBtnAwarded}>
+                <Ionicons name="thumbs-up" size={12} color="#FFD700" />
+              </View>
+            )}
             <Text style={s.msgTime}>
               {new Date(item.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
             </Text>
@@ -2185,7 +2286,7 @@ export default function ArenaScreen() {
         </Animated.View>
       );
     },
-    [queueTTS, voiceEnabled, latestPersonaMsgId]
+    [queueTTS, voiceEnabled, latestPersonaMsgId, awardedMessages]
   );
 
   if (showIntro) {
@@ -2261,6 +2362,13 @@ export default function ArenaScreen() {
             </Text>
           </View>
         )}
+        <Pressable
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowScoreboard((p) => !p); }}
+          style={[s.scoreboardToggle, showScoreboard && { backgroundColor: "rgba(255,215,0,0.2)" }]}
+        >
+          <Ionicons name="trophy" size={14} color="#FFD700" />
+          <Text style={s.scoreboardToggleText}>{Object.values(personaPoints).reduce((a, b) => a + b, 0)}</Text>
+        </Pressable>
         {hasSession && sessionTimer > 0 && (
           <View style={s.sessionPill}>
             <Ionicons name="time" size={12} color="#4ADE80" />
@@ -2279,6 +2387,36 @@ export default function ArenaScreen() {
           <Ionicons name="albums-outline" size={14} color="#D4A420" />
         </Pressable>
       </Animated.View>
+
+      {showScoreboard && (
+        <Animated.View entering={FadeInDown.duration(300)} style={s.scoreboardPanel}>
+          <Text style={s.scoreboardTitle}>POINT LEADERS</Text>
+          {Object.entries(personaPoints)
+            .sort(([, a], [, b]) => b - a)
+            .slice(0, 5)
+            .map(([pid, pts], idx) => {
+              const p = ARENA_PERSONAS[pid];
+              if (!p) return null;
+              return (
+                <View key={pid} style={s.scoreRow}>
+                  <Text style={[s.scoreRank, idx === 0 && { color: "#FFD700" }]}>#{idx + 1}</Text>
+                  {p.image ? (
+                    <Image source={p.image} style={s.scoreAvatar} />
+                  ) : (
+                    <View style={[s.scoreAvatarFallback, { backgroundColor: p.color }]}>
+                      <Text style={{ fontSize: 8, color: "#fff", fontWeight: "800" as const }}>{getInitials(p.name)}</Text>
+                    </View>
+                  )}
+                  <Text style={[s.scoreName, { color: p.color }]}>{p.shortName}</Text>
+                  <Text style={s.scorePoints}>{pts} pt{pts !== 1 ? "s" : ""}</Text>
+                </View>
+              );
+            })}
+          {Object.keys(personaPoints).length === 0 && (
+            <Text style={s.scoreEmpty}>Tap the thumbs-up on messages to award points</Text>
+          )}
+        </Animated.View>
+      )}
 
       <Animated.View entering={FadeInDown.delay(200).duration(400)} style={s.personaRow}>
         {selectedPersonas.map((pid) => {
@@ -2564,6 +2702,92 @@ export default function ArenaScreen() {
               </Pressable>
             </View>
           </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showEndSummary} transparent animationType="fade">
+        <View style={s.paywallOverlay}>
+          <Animated.View entering={ZoomIn.duration(500)} style={s.summaryCard}>
+            <Ionicons name="trophy" size={40} color="#FFD700" />
+            <Text style={s.summaryTitle}>SESSION RESULTS</Text>
+            <View style={s.summaryLeaderboard}>
+              {Object.entries(personaPoints)
+                .sort(([, a], [, b]) => b - a)
+                .map(([pid, pts], idx) => {
+                  const p = ARENA_PERSONAS[pid];
+                  if (!p) return null;
+                  return (
+                    <Animated.View key={pid} entering={FadeInDown.delay(idx * 150).duration(300)} style={[s.summaryRow, idx === 0 && s.summaryRowWinner]}>
+                      <Text style={[s.summaryRank, idx === 0 && { color: "#FFD700", fontSize: 18 }]}>
+                        {idx === 0 ? "👑" : `#${idx + 1}`}
+                      </Text>
+                      {p.image ? (
+                        <Image source={p.image} style={s.summaryAvatar} />
+                      ) : (
+                        <View style={[s.summaryAvatarFallback, { backgroundColor: p.color }]}>
+                          <Text style={{ fontSize: 10, color: "#fff", fontWeight: "800" as const }}>{getInitials(p.name)}</Text>
+                        </View>
+                      )}
+                      <Text style={[s.summaryName, { color: p.color }]}>{p.name}</Text>
+                      <Text style={s.summaryPoints}>{pts}</Text>
+                    </Animated.View>
+                  );
+                })}
+            </View>
+            {trumpRoastText ? (
+              <Animated.View entering={FadeIn.delay(800).duration(500)} style={s.roastContainer}>
+                <View style={s.roastHeader}>
+                  <Ionicons name="flame" size={16} color="#FF6B35" />
+                  <Text style={s.roastTitle}>TRUMP'S RESPONSE</Text>
+                  <Ionicons name="flame" size={16} color="#FF6B35" />
+                </View>
+                <Text style={s.roastText}>{trumpRoastText}</Text>
+              </Animated.View>
+            ) : isLoadingRoast ? (
+              <View style={s.roastLoading}>
+                <ActivityIndicator size="small" color="#FFD700" />
+                <Text style={s.roastLoadingText}>Trump is fuming...</Text>
+              </View>
+            ) : (
+              <Pressable
+                onPress={() => {
+                  playCrowdCheer();
+                  playDrumroll();
+                  fetchTrumpRoast();
+                }}
+                style={s.roastTriggerBtn}
+              >
+                <Ionicons name="flame" size={18} color="#000" />
+                <Text style={s.roastTriggerText}>Let Trump React!</Text>
+              </Pressable>
+            )}
+            <View style={s.summaryActions}>
+              <Pressable
+                onPress={() => {
+                  setShowEndSummary(false);
+                  setShowPaywall(true);
+                }}
+                style={s.summaryActionBtn}
+              >
+                <Ionicons name="refresh" size={16} color="#000" />
+                <Text style={s.summaryActionText}>Play Again</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  setShowEndSummary(false);
+                  saveCurrentSession();
+                  router.push("/arena-replay");
+                }}
+                style={[s.summaryActionBtn, { backgroundColor: "transparent", borderWidth: 1, borderColor: "#FFD700" }]}
+              >
+                <Ionicons name="albums" size={16} color="#FFD700" />
+                <Text style={[s.summaryActionText, { color: "#FFD700" }]}>View Replays</Text>
+              </Pressable>
+            </View>
+            <Pressable onPress={() => { setShowEndSummary(false); setShowPaywall(true); }} style={s.paywallDismiss}>
+              <Text style={s.paywallDismissText}>Close</Text>
+            </Pressable>
+          </Animated.View>
         </View>
       </Modal>
 
@@ -3966,5 +4190,240 @@ const s = StyleSheet.create({
     fontSize: 14,
     maxHeight: 60,
     paddingVertical: 4,
+  },
+  pointBtn: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 2,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    backgroundColor: "rgba(255,215,0,0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(255,215,0,0.2)",
+  },
+  pointBtnText: {
+    fontSize: 10,
+    color: "rgba(255,215,0,0.7)",
+    fontWeight: "700" as const,
+  },
+  pointBtnAwarded: {
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  scoreboardToggle: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,215,0,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,215,0,0.2)",
+  },
+  scoreboardToggleText: {
+    fontSize: 11,
+    fontWeight: "800" as const,
+    color: "#FFD700",
+  },
+  scoreboardPanel: {
+    marginHorizontal: 12,
+    marginBottom: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: "rgba(255,215,0,0.06)",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,215,0,0.15)",
+  },
+  scoreboardTitle: {
+    fontSize: 11,
+    fontWeight: "800" as const,
+    color: "#FFD700",
+    letterSpacing: 1.5,
+    marginBottom: 6,
+    textAlign: "center" as const,
+  },
+  scoreRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 6,
+    paddingVertical: 3,
+  },
+  scoreRank: {
+    fontSize: 11,
+    fontWeight: "700" as const,
+    color: "rgba(255,255,255,0.5)",
+    width: 20,
+  },
+  scoreAvatar: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+  },
+  scoreAvatarFallback: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+  },
+  scoreName: {
+    fontSize: 12,
+    fontWeight: "700" as const,
+    flex: 1,
+  },
+  scorePoints: {
+    fontSize: 12,
+    fontWeight: "800" as const,
+    color: "#FFD700",
+  },
+  scoreEmpty: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.3)",
+    textAlign: "center" as const,
+    fontStyle: "italic" as const,
+  },
+  summaryCard: {
+    backgroundColor: "#1a1a2e",
+    borderRadius: 20,
+    padding: 24,
+    alignItems: "center" as const,
+    width: "90%" as const,
+    maxWidth: 380,
+    borderWidth: 2,
+    borderColor: "#FFD700",
+  },
+  summaryTitle: {
+    fontSize: 22,
+    fontWeight: "900" as const,
+    color: "#FFD700",
+    letterSpacing: 2,
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  summaryLeaderboard: {
+    width: "100%" as const,
+    gap: 4,
+    marginBottom: 16,
+  },
+  summaryRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    backgroundColor: "rgba(255,255,255,0.04)",
+  },
+  summaryRowWinner: {
+    backgroundColor: "rgba(255,215,0,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(255,215,0,0.3)",
+  },
+  summaryRank: {
+    fontSize: 14,
+    fontWeight: "800" as const,
+    color: "rgba(255,255,255,0.5)",
+    width: 28,
+    textAlign: "center" as const,
+  },
+  summaryAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+  },
+  summaryAvatarFallback: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+  },
+  summaryName: {
+    fontSize: 14,
+    fontWeight: "700" as const,
+    flex: 1,
+  },
+  summaryPoints: {
+    fontSize: 16,
+    fontWeight: "900" as const,
+    color: "#FFD700",
+  },
+  roastContainer: {
+    width: "100%" as const,
+    backgroundColor: "rgba(255,107,53,0.08)",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,107,53,0.2)",
+  },
+  roastHeader: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    gap: 6,
+    marginBottom: 8,
+  },
+  roastTitle: {
+    fontSize: 12,
+    fontWeight: "800" as const,
+    color: "#FF6B35",
+    letterSpacing: 1.5,
+  },
+  roastText: {
+    fontSize: 14,
+    color: "#fff",
+    lineHeight: 20,
+    textAlign: "center" as const,
+    fontStyle: "italic" as const,
+  },
+  roastLoading: {
+    alignItems: "center" as const,
+    gap: 8,
+    paddingVertical: 16,
+    marginBottom: 16,
+  },
+  roastLoadingText: {
+    fontSize: 13,
+    color: "rgba(255,215,0,0.6)",
+    fontStyle: "italic" as const,
+  },
+  roastTriggerBtn: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 8,
+    backgroundColor: "#FF6B35",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 25,
+    marginBottom: 16,
+  },
+  roastTriggerText: {
+    fontSize: 15,
+    fontWeight: "800" as const,
+    color: "#000",
+  },
+  summaryActions: {
+    flexDirection: "row" as const,
+    gap: 12,
+    width: "100%" as const,
+  },
+  summaryActionBtn: {
+    flex: 1,
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    gap: 6,
+    backgroundColor: "#FFD700",
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  summaryActionText: {
+    fontSize: 14,
+    fontWeight: "800" as const,
+    color: "#000",
   },
 });
