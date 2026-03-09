@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -532,6 +532,35 @@ function calculateResponseProbability(
   return Math.min(85, Math.max(10, probability));
 }
 
+function TypewriterText({ text, style, voiceEnabled, isLatest }: { text: string; style: any; voiceEnabled: boolean; isLatest: boolean }) {
+  const [visibleWords, setVisibleWords] = useState(voiceEnabled && isLatest ? 0 : text.split(/\s+/).length);
+  const words = text.split(/\s+/);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (!voiceEnabled || !isLatest) {
+      setVisibleWords(words.length);
+      return;
+    }
+    setVisibleWords(0);
+    let count = 0;
+    intervalRef.current = setInterval(() => {
+      count++;
+      setVisibleWords(count);
+      if (count >= words.length) {
+        if (intervalRef.current) clearInterval(intervalRef.current);
+      }
+    }, 280);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [text, voiceEnabled, isLatest]);
+
+  const displayText = visibleWords >= words.length ? text : words.slice(0, visibleWords).join(" ");
+
+  return <Text style={style}>{displayText}{visibleWords < words.length ? "..." : ""}</Text>;
+}
+
 function ArenaIntro({ personas, onComplete }: { personas: string[]; onComplete: () => void }) {
   const insets = useSafeAreaInsets();
   const webTopInset = Platform.OS === "web" ? 67 : 0;
@@ -543,38 +572,65 @@ function ArenaIntro({ personas, onComplete }: { personas: string[]; onComplete: 
   const countdownSoundRef = useRef<any>(null);
   const engageSoundRef = useRef<any>(null);
 
+  const titleSoundRef = useRef<any>(null);
+  const mountedIntroRef = useRef(true);
+
   useEffect(() => {
-    const t1 = setTimeout(() => setPhase(1), 400);
-    const t2 = setTimeout(() => setPhase(2), 1600);
+    mountedIntroRef.current = true;
+    let personaInterval: ReturnType<typeof setInterval> | null = null;
+    let countdownTimeout: ReturnType<typeof setTimeout> | null = null;
 
-    let idx = 0;
-    const personaInterval = setInterval(() => {
-      if (idx < personas.length) {
-        setVisiblePersonas((prev) => [...prev, personas[idx]]);
-        if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        idx++;
-      } else {
-        clearInterval(personaInterval);
-      }
-    }, 120);
+    const t1 = setTimeout(async () => {
+      if (!mountedIntroRef.current) return;
+      setPhase(1);
 
-    const t3 = setTimeout(() => {
-      setPhase(3);
-      playTTS("/api/nav-speak", {
-        text: "Five. Four. Three. Two. One.",
-      }).then((sound) => {
-        countdownSoundRef.current = sound;
-      }).catch(() => {});
-    }, 2000 + personas.length * 120);
+      try {
+        const sound = await playTTS("/api/nav-speak", { text: "Political Arena." });
+        if (!mountedIntroRef.current) { try { sound.unloadAsync(); } catch {} return; }
+        titleSoundRef.current = sound;
+
+        await new Promise<void>((resolve) => {
+          sound.setOnPlaybackStatusUpdate((status: any) => {
+            if (status.didJustFinish) resolve();
+          });
+          setTimeout(resolve, 3000);
+        });
+      } catch {}
+
+      if (!mountedIntroRef.current) return;
+      setPhase(2);
+
+      let idx = 0;
+      personaInterval = setInterval(() => {
+        if (idx < personas.length) {
+          setVisiblePersonas((prev) => [...prev, personas[idx]]);
+          if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          idx++;
+        } else {
+          if (personaInterval) clearInterval(personaInterval);
+        }
+      }, 120);
+
+      const personasDuration = personas.length * 120 + 600;
+      countdownTimeout = setTimeout(() => {
+        if (!mountedIntroRef.current) return;
+        setPhase(3);
+        playTTS("/api/nav-speak", { text: "Five. Four. Three. Two. One." })
+          .then((sound) => {
+            if (!mountedIntroRef.current) { try { sound.unloadAsync(); } catch {} return; }
+            countdownSoundRef.current = sound;
+          }).catch(() => {});
+      }, personasDuration);
+    }, 400);
 
     return () => {
-      clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearInterval(personaInterval);
-      if (countdownSoundRef.current) {
-        try { countdownSoundRef.current.unloadAsync(); } catch {}
-      }
-      if (engageSoundRef.current) {
-        try { engageSoundRef.current.unloadAsync(); } catch {}
-      }
+      mountedIntroRef.current = false;
+      clearTimeout(t1);
+      if (personaInterval) clearInterval(personaInterval);
+      if (countdownTimeout) clearTimeout(countdownTimeout);
+      if (countdownSoundRef.current) { try { countdownSoundRef.current.unloadAsync(); } catch {} }
+      if (engageSoundRef.current) { try { engageSoundRef.current.unloadAsync(); } catch {} }
+      if (titleSoundRef.current) { try { titleSoundRef.current.unloadAsync(); } catch {} }
     };
   }, [personas]);
 
@@ -1930,6 +1986,13 @@ export default function ArenaScreen() {
     return messages.some((m) => m.speakerId === pid && !m.isSystem);
   });
 
+  const latestPersonaMsgId = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (!messages[i].isSystem && messages[i].speakerId !== "user") return messages[i].id;
+    }
+    return null;
+  }, [messages]);
+
   const renderMessage = useCallback(
     ({ item, index }: { item: ConversationMessage; index: number }) => {
       if (item.isSystem) {
@@ -1960,6 +2023,7 @@ export default function ArenaScreen() {
       }
       const persona = ARENA_PERSONAS[item.speakerId];
       if (!persona) return null;
+      const isLatest = item.id === latestPersonaMsgId;
       return (
         <Animated.View entering={SlideInLeft.duration(350).springify()} style={[s.msgRow, { borderLeftColor: persona.color }]}>
           <View style={s.msgHeader}>
@@ -1985,11 +2049,11 @@ export default function ArenaScreen() {
               {new Date(item.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
             </Text>
           </View>
-          <Text style={s.msgText}>{item.text}</Text>
+          <TypewriterText text={item.text} style={s.msgText} voiceEnabled={voiceEnabled} isLatest={isLatest} />
         </Animated.View>
       );
     },
-    [queueTTS]
+    [queueTTS, voiceEnabled, latestPersonaMsgId]
   );
 
   if (showIntro) {
