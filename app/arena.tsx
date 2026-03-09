@@ -445,7 +445,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
   },
 };
 
-const PERSONA_IDS = ["trump", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "elon"];
+const PERSONA_IDS = ["trump", "elon", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc"];
 
 const TOPIC_ICON_MAP: Record<string, string> = {
   economy: "cash", immigration: "airplane", foreign_policy: "earth", media: "tv",
