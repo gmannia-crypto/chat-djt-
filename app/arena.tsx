@@ -1429,10 +1429,10 @@ export default function ArenaScreen() {
     if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
     const waitForClear = () => {
       if (isInterruptingRef.current || currentSpeakerRef.current) {
-        conversationTimerRef.current = setTimeout(waitForClear, 500);
+        conversationTimerRef.current = setTimeout(waitForClear, 250);
         return;
       }
-      const delay = 1500 + Math.random() * 2000;
+      const delay = 300 + Math.random() * 700;
       conversationTimerRef.current = setTimeout(async () => {
         if (!mountedRef.current) return;
         await decideNextSpeaker();

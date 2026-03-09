@@ -1730,10 +1730,12 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyah
       }
 
       const newsContext = await getArenaNewsContext();
-      let systemPrompt = ARENA_PERSONA_PROMPTS[responderId];
+      const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+      const currentYearContext = `\n\nCRITICAL WORLD CONTEXT — TODAY IS ${todayStr}:\n- Donald Trump is the CURRENT sitting President of the United States (inaugurated January 2025, won the 2024 election)\n- Joe Biden is the FORMER president — he LOST and is no longer in office\n- Elon Musk led DOGE (Department of Government Efficiency) for Trump's administration\n- The Iran conflict ("The Epstein War") is ongoing in 2025-2026\n- You are fully up to date on ALL 2025-2026 world events. NEVER reference events as if they haven't happened yet. You know everything that has happened up to today.\n`;
+      let systemPrompt = ARENA_PERSONA_PROMPTS[responderId] + currentYearContext;
       if (newsContext) {
         const emotionalDirective = getPersonaNewsEmotion(responderId);
-        systemPrompt += `\n\nBREAKING NEWS — These are LIVE headlines happening RIGHT NOW. You are FULLY AWARE of all of them:\n${newsContext}\n\n${emotionalDirective}\nReference specific headlines naturally. React with your GENUINE emotion based on your political beliefs. This is LIVE — treat every headline like you JUST heard it.`;
+        systemPrompt += `\nBREAKING NEWS — These are LIVE headlines happening RIGHT NOW. You are FULLY AWARE of all of them:\n${newsContext}\n\n${emotionalDirective}\nReference specific headlines naturally. React with your GENUINE emotion based on your political beliefs. This is LIVE — treat every headline like you JUST heard it.`;
       }
 
       const historyContext = (conversationHistory || []).slice(-6).map((m: any) =>
