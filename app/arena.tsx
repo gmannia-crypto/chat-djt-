@@ -478,6 +478,15 @@ const PERSONA_ALIASES: Record<string, string[]> = {
   berniemc: ["bernie", "bernie mac"],
 };
 
+function detectTrumpAttack(text: string, speakerId: string): boolean {
+  if (speakerId === "trump" || speakerId === "ruckus" || speakerId === "netanyahu") return false;
+  const lower = text.toLowerCase();
+  const trumpMentions = /(?:trump|donald|mr\.?\s*president)/i.test(lower);
+  if (!trumpMentions) return false;
+  const hostilePatterns = /(?:epstein war|your fault|you started|you caused|your war|felon|convicted|criminal|diaper|stench|dementia|corrupt(?:ion)?|liar|lying|racist|fascist|dictator|brain.?dead|anti-?christ|cover.?up|war criminal|impeach|lock(?:ed)?\s*(?:him|you)\s*up|prison|jail|indicted|guilty)/i;
+  return hostilePatterns.test(lower);
+}
+
 function detectTargetPersona(text: string, activePersonas: string[]): string | null {
   const lower = text.toLowerCase();
   for (const pid of activePersonas) {
@@ -1847,40 +1856,48 @@ export default function ArenaScreen() {
     const lastMsg = msgs[msgs.length - 1];
     const recent = recentSpeakersRef.current;
 
+    const trumpAttacked = active.includes("trump") && lastMsg.speakerId !== "trump" && detectTrumpAttack(lastMsg.text, lastMsg.speakerId);
+
     const pool = active.filter((pid) => pid !== lastMsg.speakerId);
     if (pool.length === 0) return;
 
-    const weights: { id: string; weight: number }[] = pool.map((pid) => {
-      let weight = 50;
-      const prob = calculateResponseProbability(pid, lastMsg.speakerId, lastMsg.text);
-      weight += (prob - 50) * 0.4;
+    let chosen: { id: string; weight: number };
 
-      if (pid === "trump") weight += 40;
+    if (trumpAttacked) {
+      chosen = { id: "trump", weight: 999 };
+    } else {
+      const weights: { id: string; weight: number }[] = pool.map((pid) => {
+        let weight = 50;
+        const prob = calculateResponseProbability(pid, lastMsg.speakerId, lastMsg.text);
+        weight += (prob - 50) * 0.4;
 
-      const recentIdx = recent.indexOf(pid);
-      if (recentIdx === recent.length - 1) weight -= (pid === "trump" ? 15 : 30);
-      else if (recentIdx === recent.length - 2) weight -= (pid === "trump" ? 5 : 15);
-      else if (recentIdx === -1) weight += 20;
+        if (pid === "trump") weight += 40;
 
-      const emo = emotionalStatesRef.current[pid];
-      if (emo) {
-        if (emo.anger > 60) weight += 10;
-        if (!emo.lastSpoke || Date.now() - emo.lastSpoke > 20000) weight += 15;
+        const recentIdx = recent.indexOf(pid);
+        if (recentIdx === recent.length - 1) weight -= (pid === "trump" ? 15 : 30);
+        else if (recentIdx === recent.length - 2) weight -= (pid === "trump" ? 5 : 15);
+        else if (recentIdx === -1) weight += 20;
+
+        const emo = emotionalStatesRef.current[pid];
+        if (emo) {
+          if (emo.anger > 60) weight += 10;
+          if (!emo.lastSpoke || Date.now() - emo.lastSpoke > 20000) weight += 15;
+        }
+
+        return { id: pid, weight: Math.max(5, weight) };
+      });
+
+      const totalWeight = weights.reduce((sum, w) => sum + w.weight, 0);
+      let rand = Math.random() * totalWeight;
+      chosen = weights[0];
+      for (const w of weights) {
+        rand -= w.weight;
+        if (rand <= 0) { chosen = w; break; }
       }
-
-      return { id: pid, weight: Math.max(5, weight) };
-    });
-
-    const totalWeight = weights.reduce((sum, w) => sum + w.weight, 0);
-    let rand = Math.random() * totalWeight;
-    let chosen = weights[0];
-    for (const w of weights) {
-      rand -= w.weight;
-      if (rand <= 0) { chosen = w; break; }
     }
 
     if (chosen && mountedRef.current) {
-      const willInterrupt = !isInterruptingRef.current && chosen.id === "trump" && Math.random() < 0.35;
+      const willInterrupt = !isInterruptingRef.current && chosen.id === "trump" && !trumpAttacked && Math.random() < 0.35;
 
       await generateAIResponse(chosen.id, lastMsg.speakerId);
       recentSpeakersRef.current = [...recentSpeakersRef.current, chosen.id].slice(-4);
