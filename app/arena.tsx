@@ -20,8 +20,10 @@ import { router } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown, FadeInUp, FadeIn, FadeOut, SlideInLeft, SlideInRight, ZoomIn, ZoomOut, BounceIn } from "react-native-reanimated";
+import { Audio } from "expo-av";
+import * as FileSystem from "expo-file-system";
 import { getApiUrl } from "@/lib/query-client";
-import { playTTS } from "@/lib/audio-helper";
+import { playTTS, playAudioFromUrl } from "@/lib/audio-helper";
 import { useTokens } from "@/lib/token-context";
 import {
   saveRecording,
@@ -68,6 +70,7 @@ interface ConversationMessage {
   text: string;
   timestamp: number;
   isSystem?: boolean;
+  audioUri?: string;
 }
 
 const ARENA_PERSONAS: Record<string, ArenaPersona> = {
@@ -459,6 +462,36 @@ const TOPIC_COLOR_MAP: Record<string, string> = {
   education: "#06b6d4", climate: "#22c55e", trade: "#f59e0b", israel: "#0038b8",
   biden: "#60A5FA", military: "#708090",
 };
+
+const PERSONA_ALIASES: Record<string, string[]> = {
+  trump: ["trump", "donald", "mr president", "the president"],
+  elon: ["elon", "musk"],
+  netanyahu: ["netanyahu", "bibi", "benjamin"],
+  ruckus: ["ruckus", "uncle ruckus"],
+  galloway: ["galloway", "george galloway"],
+  mcconnell: ["mcconnell", "mitch"],
+  carville: ["carville", "james carville", "cajun"],
+  maddow: ["maddow", "rachel"],
+  omar: ["omar", "ilhan"],
+  biden: ["biden", "joe"],
+  rosie: ["rosie", "o'donnell"],
+  berniemc: ["bernie", "bernie mac"],
+};
+
+function detectTargetPersona(text: string, activePersonas: string[]): string | null {
+  const lower = text.toLowerCase();
+  for (const pid of activePersonas) {
+    const aliases = PERSONA_ALIASES[pid];
+    if (!aliases) continue;
+    for (const alias of aliases) {
+      const pattern = new RegExp(`(?:^|[\\s,@])${alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:[\\s,!?.]|$)`, "i");
+      if (pattern.test(lower) || lower.startsWith(alias)) {
+        return pid;
+      }
+    }
+  }
+  return null;
+}
 
 interface DynamicTopic {
   id: string;
@@ -982,6 +1015,100 @@ export default function ArenaScreen() {
   const [askQuestion, setAskQuestion] = useState("");
   const userResponseCountRef = useRef(0);
 
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const recordingObjRef = useRef<Audio.Recording | null>(null);
+  const mediaRecorderRef = useRef<any>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const lastRecordedAudioRef = useRef<string | null>(null);
+
+  const startVoiceRecording = useCallback(async () => {
+    try {
+      lastRecordedAudioRef.current = null;
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      if (Platform.OS === "web") {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+        audioChunksRef.current = [];
+        mediaRecorder.ondataavailable = (e: any) => {
+          if (e.data.size > 0) audioChunksRef.current.push(e.data);
+        };
+        mediaRecorder.onstop = async () => {
+          stream.getTracks().forEach((t: any) => t.stop());
+          const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+          const reader = new FileReader();
+          const base64 = await new Promise<string>((resolve, reject) => {
+            reader.onloadend = () => resolve((reader.result as string).split(",")[1]);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+          const blobUrl = URL.createObjectURL(blob);
+          lastRecordedAudioRef.current = blobUrl;
+          await transcribeBase64(base64, "webm");
+        };
+        mediaRecorderRef.current = mediaRecorder;
+        mediaRecorder.start();
+        setIsRecording(true);
+      } else {
+        const permission = await Audio.requestPermissionsAsync();
+        if (!permission.granted) return;
+        await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+        const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+        recordingObjRef.current = recording;
+        setIsRecording(true);
+      }
+    } catch (error) {
+      console.error("Recording start error:", error);
+      setIsRecording(false);
+    }
+  }, []);
+
+  const transcribeBase64 = useCallback(async (base64: string, format: string) => {
+    setIsTranscribing(true);
+    try {
+      const res = await globalThis.fetch(`${getApiUrl().replace(/\/$/, "")}/api/stt`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ audio: base64, format }),
+      });
+      if (!res.ok) throw new Error("STT failed");
+      const data = await res.json();
+      if (data.text?.trim()) {
+        setUserInputText((prev) => prev ? prev + " " + data.text.trim() : data.text.trim());
+      }
+    } catch (err) {
+      console.error("Transcription error:", err);
+    } finally {
+      setIsTranscribing(false);
+    }
+  }, []);
+
+  const stopVoiceRecording = useCallback(async () => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      if (Platform.OS === "web") {
+        if (mediaRecorderRef.current?.state !== "inactive") {
+          mediaRecorderRef.current?.stop();
+        }
+        setIsRecording(false);
+      } else {
+        if (!recordingObjRef.current) return;
+        setIsRecording(false);
+        await recordingObjRef.current.stopAndUnloadAsync();
+        await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+        const uri = recordingObjRef.current.getURI();
+        recordingObjRef.current = null;
+        if (!uri) return;
+        lastRecordedAudioRef.current = uri;
+        const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+        await transcribeBase64(base64, "m4a");
+      }
+    } catch (error) {
+      console.error("Recording stop error:", error);
+      setIsRecording(false);
+    }
+  }, [transcribeBase64]);
+
   const stopAllTTS = useCallback(() => {
     ttsQueueRef.current = [];
     isProcessingTTSRef.current = false;
@@ -1288,6 +1415,7 @@ export default function ArenaScreen() {
         timestamp: msg.timestamp,
         relativeTime: msg.timestamp - sessionStartTimeRef.current,
         isInterruption: false,
+        audioUri: msg.audioUri,
       });
     }
     setTimeout(() => {
@@ -1593,6 +1721,8 @@ export default function ArenaScreen() {
   const submitUserResponse = useCallback(async () => {
     if (!userInputText.trim() || !askingPersona) return;
     const responseText = userInputText.trim();
+    const audioUri = lastRecordedAudioRef.current;
+    lastRecordedAudioRef.current = null;
     setShowUserInput(false);
     setUserInputText("");
     const askerPersona = askingPersona;
@@ -1606,11 +1736,12 @@ export default function ArenaScreen() {
       speakerName: userNameRef.current || "Viewer",
       text: responseText,
       timestamp: Date.now(),
+      audioUri: audioUri || undefined,
     });
 
     const active = selectedPersonasRef.current;
-    const reactors = active.filter((pid) => pid !== "user").slice(0, 3);
-    const reactor = reactors[Math.floor(Math.random() * reactors.length)] || askerPersona;
+    const targeted = detectTargetPersona(responseText, active);
+    const reactor = targeted || askerPersona;
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (deviceId) headers["x-device-id"] = deviceId;
@@ -1813,6 +1944,14 @@ export default function ArenaScreen() {
       mountedRef.current = false;
       if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
       if (joinTimerRef.current) clearInterval(joinTimerRef.current);
+      if (recordingObjRef.current) {
+        try { recordingObjRef.current.stopAndUnloadAsync(); } catch {}
+        recordingObjRef.current = null;
+      }
+      if (mediaRecorderRef.current?.state !== "inactive") {
+        try { mediaRecorderRef.current?.stop(); } catch {}
+      }
+      lastRecordedAudioRef.current = null;
       stopAllTTS();
       saveCurrentSession();
     };
@@ -1983,11 +2122,11 @@ export default function ArenaScreen() {
           <Animated.View entering={SlideInRight.duration(350).springify()} style={[s.msgRow, { borderLeftColor: "#4ADE80", backgroundColor: "rgba(74,222,128,0.08)" }]}>
             <View style={s.msgHeader}>
               <View style={[s.msgAvatarFallback, { backgroundColor: "#4ADE80" }]}>
-                <Ionicons name="person" size={12} color="#000" />
+                <Ionicons name={item.audioUri ? "mic" : "person"} size={12} color="#000" />
               </View>
               <Text style={[s.msgName, { color: "#4ADE80" }]}>{item.speakerName}</Text>
               <View style={[s.factionBadge, { backgroundColor: "rgba(74,222,128,0.2)", borderColor: "rgba(74,222,128,0.4)" }]}>
-                <Text style={[s.factionText, { color: "#4ADE80" }]}>YOU</Text>
+                <Text style={[s.factionText, { color: "#4ADE80" }]}>{item.audioUri ? "VOICE" : "YOU"}</Text>
               </View>
               <Text style={s.msgTime}>
                 {new Date(item.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
@@ -2588,9 +2727,16 @@ export default function ArenaScreen() {
               <Text style={s.userInputQuestion}>{askQuestion}</Text>
             ) : null}
             <View style={s.userInputRow}>
+              <Pressable
+                onPress={isRecording ? stopVoiceRecording : startVoiceRecording}
+                style={[s.micBtn, isRecording && s.micBtnActive]}
+                hitSlop={4}
+              >
+                <Ionicons name={isRecording ? "stop" : "mic"} size={18} color={isRecording ? "#fff" : "#4ADE80"} />
+              </Pressable>
               <TextInput
                 style={s.userInputField}
-                placeholder="Type your response..."
+                placeholder={isTranscribing ? "Transcribing..." : "Type or speak your response..."}
                 placeholderTextColor="rgba(255,255,255,0.3)"
                 value={userInputText}
                 onChangeText={setUserInputText}
@@ -2613,9 +2759,16 @@ export default function ArenaScreen() {
       {userJoined && !showUserInput && isRunning && (
         <View style={[s.userChatBar, { bottom: insets.bottom + webBottomInset + 8 }]}>
           <View style={s.userChatBarInner}>
+            <Pressable
+              onPress={isRecording ? stopVoiceRecording : startVoiceRecording}
+              style={[s.micBtn, isRecording && s.micBtnActive]}
+              hitSlop={4}
+            >
+              <Ionicons name={isRecording ? "stop" : "mic"} size={18} color={isRecording ? "#fff" : "#4ADE80"} />
+            </Pressable>
             <TextInput
               style={s.userChatInput}
-              placeholder="Say something or change the topic..."
+              placeholder={isTranscribing ? "Transcribing..." : "Say something or change the topic..."}
               placeholderTextColor="rgba(255,255,255,0.3)"
               value={userInputText}
               onChangeText={setUserInputText}
@@ -2627,6 +2780,8 @@ export default function ArenaScreen() {
                 if (!userInputText.trim() || isUserSendingRef.current) return;
                 isUserSendingRef.current = true;
                 const text = userInputText.trim();
+                const audioUri = lastRecordedAudioRef.current;
+                lastRecordedAudioRef.current = null;
                 setUserInputText("");
                 userResponseCountRef.current += 1;
                 addMessage({
@@ -2635,10 +2790,12 @@ export default function ArenaScreen() {
                   speakerName: userNameRef.current || "Viewer",
                   text,
                   timestamp: Date.now(),
+                  audioUri: audioUri || undefined,
                 });
                 try {
                   const active = selectedPersonasRef.current;
-                  const reactor = active[Math.floor(Math.random() * active.length)];
+                  const targeted = detectTargetPersona(text, active);
+                  const reactor = targeted || active[Math.floor(Math.random() * active.length)];
                   const headers: Record<string, string> = { "Content-Type": "application/json" };
                   if (deviceId) headers["x-device-id"] = deviceId;
                   const locationParts = [userCityRef.current, userStateRef.current, userCountryRef.current].filter(Boolean);
@@ -3735,6 +3892,20 @@ const s = StyleSheet.create({
     backgroundColor: "#4ADE80",
     justifyContent: "center",
     alignItems: "center",
+  },
+  micBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(74,222,128,0.12)",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(74,222,128,0.3)",
+  },
+  micBtnActive: {
+    backgroundColor: "rgba(239,68,68,0.3)",
+    borderColor: "#EF4444",
   },
   speakUpBtn: {
     position: "absolute",

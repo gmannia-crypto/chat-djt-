@@ -15,7 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown, FadeIn, SlideInRight } from "react-native-reanimated";
 import { Audio } from "expo-av";
-import { playTTS } from "@/lib/audio-helper";
+import { playTTS, playAudioFromUrl } from "@/lib/audio-helper";
 import {
   ArenaRecording,
   RecordedMessage,
@@ -94,6 +94,29 @@ export default function ArenaReplayScreen() {
     } catch {}
   }, [stopReplayAudio]);
 
+  const playUserAudio = useCallback(async (audioUri: string) => {
+    if (!voiceEnabledRef.current) return;
+    stopReplayAudio();
+    try {
+      const sound = await playAudioFromUrl(audioUri, { volume: 1.0 });
+      currentSoundRef.current = sound;
+      let cleaned = false;
+      const cleanup = () => {
+        if (cleaned) return;
+        cleaned = true;
+        sound.setOnPlaybackStatusUpdate(null);
+        if (currentSoundRef.current === sound) currentSoundRef.current = null;
+        sound.getStatusAsync().then((st: any) => {
+          if (st.isLoaded) sound.unloadAsync().catch(() => {});
+        }).catch(() => {});
+      };
+      sound.setOnPlaybackStatusUpdate((status: any) => {
+        if (status.didJustFinish || status.error) cleanup();
+      });
+      setTimeout(cleanup, 30000);
+    } catch {}
+  }, [stopReplayAudio]);
+
   useEffect(() => {
     return () => { stopReplayAudio(); };
   }, [stopReplayAudio]);
@@ -122,10 +145,14 @@ export default function ArenaReplayScreen() {
       const firstNew = msgs[prevCount];
       if (firstNew && firstNew.id !== lastSpokenIdRef.current) {
         lastSpokenIdRef.current = firstNew.id;
-        playReplayTTS(firstNew.text, firstNew.speakerId);
+        if (firstNew.speakerId === "user" && firstNew.audioUri) {
+          playUserAudio(firstNew.audioUri);
+        } else if (!firstNew.isSystem) {
+          playReplayTTS(firstNew.text, firstNew.speakerId);
+        }
       }
     }
-  }, [playbackTime, selected, playing, playReplayTTS]);
+  }, [playbackTime, selected, playing, playReplayTTS, playUserAudio]);
 
   useEffect(() => {
     if (playing && selected) {
@@ -244,11 +271,11 @@ export default function ArenaReplayScreen() {
           </View>
           <Text style={[s.msgName, { color }]}>{item.speakerName}</Text>
           <Pressable
-            onPress={() => playReplayTTS(item.text, item.speakerId)}
+            onPress={() => item.speakerId === "user" && item.audioUri ? playUserAudio(item.audioUri) : playReplayTTS(item.text, item.speakerId)}
             style={s.listenBtn}
             hitSlop={8}
           >
-            <Ionicons name="volume-medium" size={12} color="rgba(255,255,255,0.4)" />
+            <Ionicons name={item.speakerId === "user" && item.audioUri ? "mic" : "volume-medium"} size={12} color="rgba(255,255,255,0.4)" />
           </Pressable>
           <Text style={s.msgTime}>
             {formatDuration(item.relativeTime / 1000)}

@@ -12,6 +12,7 @@ export interface RecordedMessage {
   relativeTime: number;
   isSystem?: boolean;
   isInterruption?: boolean;
+  audioUri?: string;
 }
 
 export interface ArenaRecording {
