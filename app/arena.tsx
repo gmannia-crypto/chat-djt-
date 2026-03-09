@@ -536,7 +536,7 @@ function ArenaIntro({ personas, onComplete }: { personas: string[]; onComplete: 
   const insets = useSafeAreaInsets();
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const [phase, setPhase] = useState(0);
-  const [countdown, setCountdown] = useState(10);
+  const [countdown, setCountdown] = useState(5);
   const [visiblePersonas, setVisiblePersonas] = useState<string[]>([]);
   const [showEngage, setShowEngage] = useState(false);
   const [pulseRing, setPulseRing] = useState(false);
@@ -561,7 +561,7 @@ function ArenaIntro({ personas, onComplete }: { personas: string[]; onComplete: 
     const t3 = setTimeout(() => {
       setPhase(3);
       playTTS("/api/nav-speak", {
-        text: "Ten. Nine. Eight. Seven. Six. Five. Four. Three. Two. One.",
+        text: "Five. Four. Three. Two. One.",
       }).then((sound) => {
         countdownSoundRef.current = sound;
       }).catch(() => {});
@@ -595,7 +595,7 @@ function ArenaIntro({ personas, onComplete }: { personas: string[]; onComplete: 
     const pulseOff = setTimeout(() => setPulseRing(false), 400);
     const t = setTimeout(() => {
       if (Platform.OS !== "web") {
-        if (countdown <= 3) {
+        if (countdown <= 2) {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         } else {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
@@ -606,8 +606,8 @@ function ArenaIntro({ personas, onComplete }: { personas: string[]; onComplete: 
     return () => { clearTimeout(t); clearTimeout(pulseOff); };
   }, [phase, countdown, onComplete]);
 
-  const countdownColor = countdown <= 3 ? "#EF4444" : countdown <= 6 ? "#FBBF24" : "#D4AF37";
-  const progress = (10 - countdown) / 10;
+  const countdownColor = countdown <= 2 ? "#EF4444" : countdown <= 3 ? "#FBBF24" : "#D4AF37";
+  const progress = (5 - countdown) / 5;
 
   return (
     <View style={introStyles.container}>
