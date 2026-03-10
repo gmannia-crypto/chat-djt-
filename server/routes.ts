@@ -742,6 +742,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         odds: oddsStr || "No odds available",
         status: state,
         score,
+        startTime: event.date || null,
       };
     } catch {
       return null;
@@ -926,7 +927,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     ruckus: `You are Uncle Ruckus from The Boondocks giving a sports pick. You are a SELF-HATING Black man who worships white people and white culture. You believe white people are superior at EVERYTHING — especially sports. Always find a way to praise white athletes/teams and disparage Black athletes, even when picking them. Use phrases like "I tell you what", "dadgum", "fixin' to", "no sir", "the WHITE man's way is the RIGHT way", "praise White Jesus", "I got re-vitiligo", "I ain't Black, I'm Uncle Ruckus — no relation". Be CONTRARIAN and pick AGAINST the popular pick. Reference your many fake jobs and your hatred of anything associated with Black culture. Be outrageously offensive in the satirical Boondocks style. Confidence 50-70. 2-3 sentences max.`,
     maxkellerman: `You are Max Kellerman, the sharp boxing and sports analyst. You are PRECISE, ANALYTICAL, and PASSIONATE. Use your signature boxing expertise — break down matchups like fight analysis. Reference pound-for-pound rankings, footwork, jab technique. Use phrases like "Here's the thing...", "Let me explain why...", "The tape doesn't lie", "Stylistically speaking...". You have a HOT TAKE ready for every game. You break down strategy like a chess match. You're cerebral but you get HEATED when someone disagrees. Reference your ESPN days, First Take debates. Confidence 70-90. 2-3 sentences max.`,
     snoop: `You are Snoop Dogg giving a sports pick. Be LAID BACK and SMOOTH. Use your iconic slang — "fo shizzle", "ya dig", "nephew", "cuz", "fo real doe", "it ain't no thang", "izzle" language. Reference the West Coast, Long Beach, your Steelers fandom, your UFC commentary career. You love the Lakers, USC Trojans, and underdogs. Everything is "smooth like butter" or "slick like ice". Drop random bars and rhymes mid-analysis. Be cool, funny, and surprisingly insightful. Reference smoking and chilling. Confidence 60-85. 2-3 sentences max.`,
-    barkley: `You are Charles Barkley, the ROUND MOUND of REBOUND, giving a sports pick. Be HILARIOUS and BRUTALLY HONEST. Say "turrible" instead of terrible. Use phrases like "That's just turrible!", "Lemme tell ya somethin'", "I am NOT a role model", "These guys are KNUCKLEHEADS", "That's AWFUL". Make fun of San Antonio women, Shaq, and Skip Bayless. Reference your time on Inside the NBA with Kenny, Shaq, and Ernie. Give TERRIBLE gambling stories (you've lost millions). Be self-deprecating and authentic. Your March Madness picks are LEGENDARILY bad. Confidence 40-75. 2-3 sentences max.`,
+    barkley: `You are Charles Barkley, the ROUND MOUND of REBOUND, giving a sports pick. Be HILARIOUS and BRUTALLY HONEST. Say "turrible" instead of terrible. Use phrases like "That's just turrible!", "Lemme tell ya somethin'", "I am NOT a role model", "These guys are KNUCKLEHEADS", "That's AWFUL", "They turrible!". You LOVE making fun of San Antonio — "Damn, them big ole women down there in San Antonio!", "Victoria is a SECRET down there!". When a team is losing or playing bad you say "If they lose this game, they a bunch of nickelheads! They need to go on down there to Galveston Beach Texas and git in that ole dirty water!" and "They TURRIBLE! Just turrible!". Reference your time on Inside the NBA with Kenny, Shaq, and Ernie. Give TERRIBLE gambling stories (you've lost millions). Be self-deprecating and authentic. For March Madness, your bracket picks are LEGENDARILY bad — the worst on television, you KNOW it and JOKE about it — "My bracket is already busted and it's only the first round! That's just turrible!" You call small schools "a bunch of nickelheads" but then they upset your picks. Confidence 40-75. 2-3 sentences max.`,
     rogan: `You are Joe Rogan giving a sports pick, especially UFC/MMA. Be INTENSE and PASSIONATE. Use phrases like "That's INSANE!", "Jamie, pull that up", "It's entirely possible", "100%", "That's CRAZY", "Oh he's HURT!". Reference MMA technique — takedown defense, ground game, striking, "he's got that DAWG in him." Talk about elk hunting, sensory deprivation tanks, DMT, and martial arts philosophy mid-pick. Be open-minded but excitable. For non-MMA sports, relate everything back to fighting and combat mentality. Confidence 70-90. 2-3 sentences max.`,
     shannon: `You are Shannon Sharpe, NFL Hall of Fame tight end and sports commentator. You grew up DIRT POOR in rural Glennville, Georgia, raised by your grandmama (Mary Porter) and grandfather. They taught you EVERYTHING about life through country wisdom and old-school sayings. You REGULARLY quote your grandmama's sayings before launching into your analysis — things like "My grandmamma used to say, 'Boy, if you pull up the root from a shade tree, you better make sure you ain't been eatin' from it'" or "My grandmamma used to tell me, 'Shannon, a hard head make a soft behind'" or "My granddaddy used to say, 'Boy, don't count the eggs before the hen sit down.'" After dropping the grandmama wisdom, you then go into a passionate semi-rant connecting that old saying to the current sports topic with metaphors and emotion. You are SMOOTH, CONFIDENT, and PASSIONATE. LeBron James is the GOAT — you call him "GOAT James" and defend him against ALL criticism. This INFURIATES Michael Jordan and Loudmouth (Stephen A. Smith). Use phrases like "UNDISPUTED!", "Skip... SKIIIIP!", "Hennessy time!", "Uncle Shay Shay", "Let me tell you something Skip", "Now hold on now", "I'ma need you to hear me on this". Reference your NFL career — 3x Super Bowl champion, Hall of Fame tight end, grew up with NOTHING in rural Georgia and made it. You are STYLISH — reference your designer outfits, Hennessy, cigars. When talking about LeBron, get EMOTIONAL: "4 rings, 4 Finals MVPs, ALL-TIME leading scorer! THE GOAT! And it AIN'T CLOSE!" Always start with a grandmama or granddaddy saying, then riff on it passionately connecting it to your sports take. Confidence 70-90. 3-4 sentences.`,
     speedDemon: `You are Speed Demon, an INTENSE and FEARLESS fantasy racing commentator. You live for SPEED, DANGER, and ADRENALINE. You talk like you're always on the edge — your heart rate never drops below 180. Use phrases like "PEDAL TO THE METAL!", "That's FULL SEND, baby!", "Eat my draft!", "WIDE OPEN THROTTLE!", "Drafting is for cowards — PASS 'EM!", "Rubbin' is racin'!", "We're in the DANGER ZONE!". You know every curve, every chicane, every straightaway. Reference famous crashes as "beautiful chaos." You prefer aggressive drivers — the ones who bump, trade paint, and make enemies. You HATE conservative driving. For NASCAR, reference Earnhardt, Petty, and modern superspeedway chaos. For F1, talk downforce, DRS zones, and tire strategy. For IndyCar, talk ovals vs street circuits. For drag racing, talk ET times, reaction times, and nitro fumes. Confidence 75-95. 2-3 sentences max.`,
@@ -1277,6 +1278,451 @@ React to what is happening IN THIS MOMENT. Reference SPECIFIC player stats and p
     } catch (error) {
       console.error("Trash talk error:", error);
       res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  const marchMadnessCache: { data: any; timestamp: number } = { data: null, timestamp: 0 };
+  const MARCH_MADNESS_CACHE_TTL = 10 * 60 * 1000;
+
+  const bracketPicks = new Map<string, { picks: any[]; score: number; lastUpdated: string }>();
+  const bracketPrizes = new Map<string, string[]>();
+
+  async function fetchMarchMadnessBracket(): Promise<any> {
+    try {
+      const url = "https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard?dates=20260301-20260410&groups=100&limit=100";
+      const res = await fetch(url);
+      if (!res.ok) {
+        const fallbackUrl = "https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard?groups=100&limit=50";
+        const fallbackRes = await fetch(fallbackUrl);
+        if (!fallbackRes.ok) return null;
+        const fallbackData = await fallbackRes.json();
+        return fallbackData;
+      }
+      const data = await res.json();
+      return data;
+    } catch {
+      return null;
+    }
+  }
+
+  function parseTournamentGames(espnData: any): any[] {
+    if (!espnData?.events) return [];
+    return espnData.events.map((event: any) => {
+      const comp = event.competitions?.[0];
+      if (!comp) return null;
+      const home = comp.competitors?.find((c: any) => c.homeAway === "home");
+      const away = comp.competitors?.find((c: any) => c.homeAway === "away");
+      if (!home || !away) return null;
+
+      const homeName = home.team?.displayName || home.team?.name || "TBD";
+      const awayName = away.team?.displayName || away.team?.name || "TBD";
+      const homeSeed = parseInt(home.curatedRank?.current || home.seed || "0", 10);
+      const awaySeed = parseInt(away.curatedRank?.current || away.seed || "0", 10);
+      const state = event.status?.type?.state || "pre";
+      const status = event.status?.type?.shortDetail || "";
+
+      const roundName = event.competitions?.[0]?.type?.text || comp.type?.abbreviation || "";
+
+      return {
+        id: event.id,
+        matchupId: `mm_${event.id}`,
+        homeTeam: homeName,
+        awayTeam: awayName,
+        homeSeed,
+        awaySeed,
+        homeScore: parseInt(home.score || "0", 10),
+        awayScore: parseInt(away.score || "0", 10),
+        status: state,
+        statusDetail: status,
+        round: roundName,
+        startDate: event.date,
+        venue: comp.venue?.fullName || "",
+        broadcast: comp.broadcasts?.[0]?.names?.[0] || "",
+        winner: state === "post"
+          ? (parseInt(home.score || "0") > parseInt(away.score || "0") ? homeName : awayName)
+          : null,
+      };
+    }).filter(Boolean);
+  }
+
+  function buildBracketStructure(games: any[]): any {
+    const regions: Record<string, any[]> = {};
+    const roundOrder = ["First Round", "Second Round", "Sweet 16", "Elite Eight", "Final Four", "Championship"];
+
+    for (const game of games) {
+      const roundText = (game.round || "").toLowerCase();
+      let roundNum = 1;
+      if (roundText.includes("second")) roundNum = 2;
+      else if (roundText.includes("sweet")) roundNum = 3;
+      else if (roundText.includes("elite")) roundNum = 4;
+      else if (roundText.includes("final four") || roundText.includes("semifinal")) roundNum = 5;
+      else if (roundText.includes("championship") || roundText.includes("final")) roundNum = 6;
+
+      const regionKey = game.round || `Round ${roundNum}`;
+      if (!regions[regionKey]) regions[regionKey] = [];
+      regions[regionKey].push({ ...game, roundNumber: roundNum });
+    }
+
+    return {
+      rounds: roundOrder,
+      regions,
+      totalGames: games.length,
+      lastUpdated: new Date().toISOString(),
+    };
+  }
+
+  function generateSampleBracket(): any {
+    const regions = ["East", "West", "South", "Midwest"];
+    const sampleTeams: Record<string, { name: string; seed: number }[]> = {
+      East: [
+        { name: "Duke", seed: 1 }, { name: "Norfolk St.", seed: 16 },
+        { name: "Tennessee", seed: 2 }, { name: "Colgate", seed: 15 },
+        { name: "Marquette", seed: 3 }, { name: "UC Santa Barbara", seed: 14 },
+        { name: "Kentucky", seed: 4 }, { name: "Troy", seed: 13 },
+        { name: "Michigan St.", seed: 5 }, { name: "Drake", seed: 12 },
+        { name: "BYU", seed: 6 }, { name: "VCU", seed: 11 },
+        { name: "St. Mary's", seed: 7 }, { name: "Vanderbilt", seed: 10 },
+        { name: "Louisville", seed: 8 }, { name: "Creighton", seed: 9 },
+      ],
+      West: [
+        { name: "Florida", seed: 1 }, { name: "UMBC", seed: 16 },
+        { name: "St. John's", seed: 2 }, { name: "Omaha", seed: 15 },
+        { name: "Texas Tech", seed: 3 }, { name: "Lipscomb", seed: 14 },
+        { name: "Arizona", seed: 4 }, { name: "Akron", seed: 13 },
+        { name: "Clemson", seed: 5 }, { name: "McNeese", seed: 12 },
+        { name: "Illinois", seed: 6 }, { name: "Texas", seed: 11 },
+        { name: "Kansas", seed: 7 }, { name: "Arkansas", seed: 10 },
+        { name: "UCLA", seed: 8 }, { name: "Utah St.", seed: 9 },
+      ],
+      South: [
+        { name: "Auburn", seed: 1 }, { name: "AL St./SF Austin", seed: 16 },
+        { name: "Michigan", seed: 2 }, { name: "Yale", seed: 15 },
+        { name: "Texas A&M", seed: 3 }, { name: "Robert Morris", seed: 14 },
+        { name: "Purdue", seed: 4 }, { name: "High Point", seed: 13 },
+        { name: "Wisconsin", seed: 5 }, { name: "UC San Diego", seed: 12 },
+        { name: "Ole Miss", seed: 6 }, { name: "Ga. Tech/Xavier", seed: 11 },
+        { name: "Maryland", seed: 7 }, { name: "Grand Canyon", seed: 10 },
+        { name: "Baylor", seed: 8 }, { name: "Oregon", seed: 9 },
+      ],
+      Midwest: [
+        { name: "Houston", seed: 1 }, { name: "SIU Edw./Amer.", seed: 16 },
+        { name: "Iowa St.", seed: 2 }, { name: "Lipscomb", seed: 15 },
+        { name: "Gonzaga", seed: 3 }, { name: "Georgia", seed: 14 },
+        { name: "UConn", seed: 4 }, { name: "New Mexico", seed: 13 },
+        { name: "Memphis", seed: 5 }, { name: "Colorado St.", seed: 12 },
+        { name: "Missouri", seed: 6 }, { name: "San Diego St.", seed: 11 },
+        { name: "Dayton", seed: 7 }, { name: "Wake Forest", seed: 10 },
+        { name: "Pittsburgh", seed: 8 }, { name: "Butler", seed: 9 },
+      ],
+    };
+
+    const allMatchups: any[] = [];
+    let idCounter = 90000;
+    for (const region of regions) {
+      const teams = sampleTeams[region];
+      for (let i = 0; i < teams.length; i += 2) {
+        const t1 = teams[i];
+        const t2 = teams[i + 1];
+        idCounter++;
+        allMatchups.push({
+          id: String(idCounter),
+          matchupId: `mm_${idCounter}`,
+          homeTeam: t1.name,
+          awayTeam: t2.name,
+          homeSeed: t1.seed,
+          awaySeed: t2.seed,
+          homeScore: 0,
+          awayScore: 0,
+          status: "pre",
+          statusDetail: "Upcoming",
+          round: "First Round",
+          roundNumber: 1,
+          region,
+          startDate: new Date().toISOString(),
+          venue: "TBD",
+          broadcast: "",
+          winner: null,
+        });
+      }
+    }
+
+    return {
+      rounds: ["First Round", "Second Round", "Sweet 16", "Elite Eight", "Final Four", "Championship"],
+      matchups: allMatchups,
+      regions: { "First Round": allMatchups },
+      totalGames: allMatchups.length,
+      lastUpdated: new Date().toISOString(),
+      source: "bracket",
+    };
+  }
+
+  app.get("/api/sports/march-madness", async (_req, res) => {
+    try {
+      if (marchMadnessCache.data && Date.now() - marchMadnessCache.timestamp < MARCH_MADNESS_CACHE_TTL) {
+        return res.json(marchMadnessCache.data);
+      }
+
+      const espnData = await fetchMarchMadnessBracket();
+      let result: any;
+
+      if (espnData?.events?.length > 0) {
+        const games = parseTournamentGames(espnData);
+        const bracket = buildBracketStructure(games);
+        result = { ...bracket, matchups: games, source: "espn" };
+      } else {
+        result = generateSampleBracket();
+      }
+
+      marchMadnessCache.data = result;
+      marchMadnessCache.timestamp = Date.now();
+      res.json(result);
+    } catch (error) {
+      console.error("March Madness bracket error:", error);
+      const fallback = generateSampleBracket();
+      res.json(fallback);
+    }
+  });
+
+  const breakdownCache = new Map<string, { data: any; timestamp: number }>();
+  const BREAKDOWN_CACHE_TTL = 60000;
+
+  app.post("/api/sports/march-madness/breakdown", async (req, res) => {
+    try {
+      const { team1, team2, seed1, seed2, personaId, round } = req.body;
+      if (!team1 || !team2) {
+        return res.status(400).json({ error: "team1 and team2 required" });
+      }
+
+      const persona = personaId || "barkley";
+      const prompt = PERSONA_SPORTS_PROMPTS[persona];
+      if (!prompt) {
+        return res.status(400).json({ error: "Invalid personaId" });
+      }
+
+      const cacheKey = `mm_breakdown_${team1}_${team2}_${persona}`;
+      const cached = breakdownCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < BREAKDOWN_CACHE_TTL) {
+        return res.json(cached.data);
+      }
+
+      const matchupPrompt = `March Madness Tournament Matchup — ${round || "Tournament Game"}:
+(${seed1 || "?"}) ${team1} vs (${seed2 || "?"}) ${team2}
+
+Break down this March Madness matchup. Who wins and why? Consider seeds, matchup dynamics, coaching, and tournament history. If there's a potential upset, call it out. Give your pick with a confidence percentage. Be entertaining and stay in character. 3-4 sentences max.`;
+
+      const completion = await getClient().chat.completions.create({
+        model: getFastModel(),
+        messages: [
+          { role: "system", content: prompt + "\n\nYou are breaking down a March Madness tournament matchup. THIS IS MARCH, BABY! Be passionate about college basketball. Reference the tournament atmosphere, Cinderella stories, and bracket-busting upsets." },
+          { role: "user", content: matchupPrompt },
+        ],
+        max_completion_tokens: 200,
+        temperature: 1.0,
+      });
+
+      const text = completion.choices[0]?.message?.content?.trim() || "This is gonna be a great game!";
+      const confidenceMatch = text.match(/(\d{2,3})%/);
+      const confidence = confidenceMatch ? parseInt(confidenceMatch[1], 10) : Math.floor(Math.random() * 30) + 60;
+
+      const pickMatch = text.toLowerCase();
+      let pick = team1;
+      if (pickMatch.includes(team2.toLowerCase())) pick = team2;
+
+      const result = {
+        breakdown: text,
+        pick,
+        confidence,
+        personaId: persona,
+        team1,
+        team2,
+        seed1,
+        seed2,
+        round,
+        timestamp: Date.now(),
+      };
+
+      breakdownCache.set(cacheKey, { data: result, timestamp: Date.now() });
+      if (breakdownCache.size > 200) {
+        const oldest = [...breakdownCache.entries()][0];
+        if (oldest) breakdownCache.delete(oldest[0]);
+      }
+
+      res.json(result);
+    } catch (error) {
+      console.error("March Madness breakdown error:", error);
+      res.status(500).json({ error: "Failed to generate breakdown" });
+    }
+  });
+
+  const marchScheduleCache: { data: any; timestamp: number } = { data: null, timestamp: 0 };
+  const MARCH_SCHEDULE_CACHE_TTL = 5 * 60 * 1000;
+
+  app.get("/api/sports/march-madness/schedule", async (_req, res) => {
+    try {
+      if (marchScheduleCache.data && Date.now() - marchScheduleCache.timestamp < MARCH_SCHEDULE_CACHE_TTL) {
+        return res.json(marchScheduleCache.data);
+      }
+
+      const espnData = await fetchMarchMadnessBracket();
+      let schedule: any[] = [];
+
+      if (espnData?.events?.length > 0) {
+        schedule = espnData.events.map((event: any) => {
+          const comp = event.competitions?.[0];
+          if (!comp) return null;
+          const home = comp.competitors?.find((c: any) => c.homeAway === "home");
+          const away = comp.competitors?.find((c: any) => c.homeAway === "away");
+          if (!home || !away) return null;
+
+          const state = event.status?.type?.state || "pre";
+          return {
+            id: event.id,
+            homeTeam: home.team?.displayName || "TBD",
+            awayTeam: away.team?.displayName || "TBD",
+            homeSeed: parseInt(home.curatedRank?.current || home.seed || "0", 10),
+            awaySeed: parseInt(away.curatedRank?.current || away.seed || "0", 10),
+            homeScore: state !== "pre" ? parseInt(home.score || "0", 10) : null,
+            awayScore: state !== "pre" ? parseInt(away.score || "0", 10) : null,
+            status: state,
+            statusDetail: event.status?.type?.shortDetail || "",
+            startDate: event.date,
+            broadcast: comp.broadcasts?.[0]?.names?.[0] || "",
+            venue: comp.venue?.fullName || "",
+            round: comp.type?.text || "",
+            winner: state === "post"
+              ? (parseInt(home.score || "0") > parseInt(away.score || "0")
+                ? home.team?.displayName : away.team?.displayName)
+              : null,
+          };
+        }).filter(Boolean);
+      }
+
+      const today = new Date().toISOString().split("T")[0];
+      const todayGames = schedule.filter((g: any) => g.startDate?.startsWith(today));
+      const upcoming = schedule.filter((g: any) => g.status === "pre").sort((a: any, b: any) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+      const completed = schedule.filter((g: any) => g.status === "post").sort((a: any, b: any) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
+      const live = schedule.filter((g: any) => g.status === "in");
+
+      const result = { todayGames, upcoming, completed, live, totalGames: schedule.length, lastUpdated: new Date().toISOString() };
+      marchScheduleCache.data = result;
+      marchScheduleCache.timestamp = Date.now();
+
+      res.json(result);
+    } catch (error) {
+      console.error("March Madness schedule error:", error);
+      res.json({ todayGames: [], upcoming: [], completed: [], live: [], totalGames: 0, lastUpdated: new Date().toISOString() });
+    }
+  });
+
+  app.post("/api/sports/march-madness/pick", (req, res) => {
+    try {
+      const { deviceId, matchupId, round, selectedTeam, seed } = req.body;
+      if (!deviceId || !matchupId || !selectedTeam) {
+        return res.status(400).json({ error: "deviceId, matchupId, and selectedTeam required" });
+      }
+
+      const roundNum = typeof round === "number" ? round : 1;
+      const teamSeed = typeof seed === "number" ? seed : 0;
+
+      let userBracket = bracketPicks.get(deviceId);
+      if (!userBracket) {
+        userBracket = { picks: [], score: 0, lastUpdated: new Date().toISOString() };
+        bracketPicks.set(deviceId, userBracket);
+      }
+
+      const existingIdx = userBracket.picks.findIndex((p: any) => p.matchupId === matchupId);
+      const pick = {
+        matchupId,
+        round: roundNum,
+        selectedTeam,
+        seed: teamSeed,
+        timestamp: new Date().toISOString(),
+        correct: undefined as boolean | undefined,
+      };
+
+      if (existingIdx >= 0) {
+        userBracket.picks[existingIdx] = pick;
+      } else {
+        userBracket.picks.push(pick);
+      }
+      userBracket.lastUpdated = new Date().toISOString();
+
+      const pointsByRound: Record<number, number> = { 1: 1, 2: 2, 3: 4, 4: 8, 5: 16, 6: 32 };
+      userBracket.score = userBracket.picks
+        .filter((p: any) => p.correct)
+        .reduce((sum: number, p: any) => sum + (pointsByRound[p.round] || 1), 0);
+
+      let userPrizes = bracketPrizes.get(deviceId) || [];
+      if (!userPrizes.includes("first_pick")) {
+        userPrizes.push("first_pick");
+      }
+      const totalPicksPossible: Record<number, number> = { 1: 32, 2: 16, 3: 8, 4: 4, 5: 2, 6: 1 };
+      const picksByRound: Record<number, number> = {};
+      for (const p of userBracket.picks) {
+        picksByRound[p.round] = (picksByRound[p.round] || 0) + 1;
+      }
+      for (const [r, count] of Object.entries(picksByRound)) {
+        if (count >= (totalPicksPossible[parseInt(r)] || 0) && !userPrizes.includes("round_complete")) {
+          userPrizes.push("round_complete");
+        }
+      }
+      if (userBracket.picks.length >= 63 && !userPrizes.includes("bracket_complete")) {
+        userPrizes.push("bracket_complete");
+      }
+      bracketPrizes.set(deviceId, userPrizes);
+
+      res.json({
+        picks: userBracket.picks,
+        score: userBracket.score,
+        totalPicks: userBracket.picks.length,
+        prizesEarned: userPrizes,
+        lastUpdated: userBracket.lastUpdated,
+      });
+    } catch (error) {
+      console.error("March Madness pick error:", error);
+      res.status(500).json({ error: "Failed to submit pick" });
+    }
+  });
+
+  app.get("/api/sports/march-madness/leaderboard", (_req, res) => {
+    try {
+      const leaderboard: any[] = [];
+
+      for (const [deviceId, bracket] of bracketPicks.entries()) {
+        const prizes = bracketPrizes.get(deviceId) || [];
+        leaderboard.push({
+          deviceId: deviceId.substring(0, 8) + "...",
+          score: bracket.score,
+          totalPicks: bracket.picks.length,
+          correctPicks: bracket.picks.filter((p: any) => p.correct).length,
+          prizesEarned: prizes.length,
+          lastUpdated: bracket.lastUpdated,
+        });
+      }
+
+      const barkleyScore = Math.floor(Math.random() * 20) + 10;
+      leaderboard.push({
+        deviceId: "Barkley",
+        score: barkleyScore,
+        totalPicks: 63,
+        correctPicks: Math.floor(barkleyScore / 1.5),
+        prizesEarned: 2,
+        lastUpdated: new Date().toISOString(),
+        isPersona: true,
+        name: "Charles Barkley",
+        tagline: "My bracket is TURRIBLE! Just turrible!",
+      });
+
+      leaderboard.sort((a, b) => b.score - a.score);
+
+      res.json({
+        leaderboard,
+        totalParticipants: leaderboard.length,
+        lastUpdated: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("March Madness leaderboard error:", error);
+      res.json({ leaderboard: [], totalParticipants: 0, lastUpdated: new Date().toISOString() });
     }
   });
 

@@ -287,6 +287,10 @@ function RootLayoutNav() {
         options={{ headerShown: false }}
       />
       <Stack.Screen
+        name="march-madness"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
         name="arena"
         options={{ headerShown: false }}
       />

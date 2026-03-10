@@ -67,6 +67,7 @@ interface Game {
   awayLeaders?: PlayerLeader[];
   homeStats?: TeamStat[];
   awayStats?: TeamStat[];
+  startTime?: string;
 }
 
 interface PersonaPick {
@@ -403,6 +404,241 @@ function PersonaSelectorItem({
   );
 }
 
+function useGameCountdown(startTime?: string) {
+  const [timeLeft, setTimeLeft] = useState(() => {
+    if (!startTime) return null;
+    const diff = new Date(startTime).getTime() - Date.now();
+    return diff > 0 ? diff : null;
+  });
+
+  useEffect(() => {
+    if (!startTime) return;
+    const update = () => {
+      const diff = new Date(startTime).getTime() - Date.now();
+      setTimeLeft(diff > 0 ? diff : null);
+    };
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [startTime]);
+
+  if (timeLeft === null) return null;
+
+  const hours = Math.floor(timeLeft / (1000 * 60 * 60));
+  const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+  const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
+
+  if (hours > 24) {
+    const days = Math.floor(hours / 24);
+    return `${days}d ${hours % 24}h`;
+  }
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function PreGamePickBanner({
+  game,
+  persona,
+  onPickTeam,
+  userPick,
+  pendingPick,
+}: {
+  game: Game;
+  persona: PersonaInfo;
+  onPickTeam: (game: Game, team: string) => void;
+  userPick?: string;
+  pendingPick?: UserPick;
+}) {
+  const countdown = useGameCountdown(game.startTime);
+  const teams = game.game.split(" vs ").map((t) => t.trim());
+  if (teams.length !== 2) return null;
+
+  return (
+    <Animated.View entering={FadeInDown.duration(350)} style={preGameStyles.container}>
+      {!userPick ? (
+        <>
+          <View style={preGameStyles.headerRow}>
+            <MaterialCommunityIcons name="flag-checkered" size={16} color="#FFD700" />
+            <Text style={preGameStyles.headerText}>MAKE YOUR PICK</Text>
+          </View>
+          {countdown && (
+            <View style={preGameStyles.countdownRow}>
+              <Ionicons name="time-outline" size={12} color="rgba(255,255,255,0.5)" />
+              <Text style={preGameStyles.countdownText}>Starts in {countdown}</Text>
+            </View>
+          )}
+          <View style={preGameStyles.pickButtonsRow}>
+            {teams.map((team) => (
+              <Pressable
+                key={team}
+                onPress={() => onPickTeam(game, team)}
+                style={({ pressed }) => [
+                  preGameStyles.pickButton,
+                  { borderColor: persona.color },
+                  pressed && { opacity: 0.7, backgroundColor: `${persona.color}30` },
+                ]}
+              >
+                <Text style={[preGameStyles.pickButtonText, { color: persona.color }]}>{team}</Text>
+                <Ionicons name="arrow-forward" size={12} color={persona.color} />
+              </Pressable>
+            ))}
+          </View>
+        </>
+      ) : (
+        <>
+          <View style={preGameStyles.headerRow}>
+            <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
+            <Text style={[preGameStyles.headerText, { color: "#4CAF50" }]}>PICK LOCKED IN</Text>
+          </View>
+          {countdown && (
+            <View style={preGameStyles.countdownRow}>
+              <Ionicons name="time-outline" size={12} color="rgba(255,255,255,0.5)" />
+              <Text style={preGameStyles.countdownText}>Starts in {countdown}</Text>
+            </View>
+          )}
+          <View style={preGameStyles.pendingRow}>
+            <View style={[preGameStyles.pendingBadge, { backgroundColor: `${persona.color}20`, borderColor: persona.color }]}>
+              <Text style={[preGameStyles.pendingTeamText, { color: persona.color }]}>{userPick}</Text>
+              <Ionicons name="checkmark" size={14} color={persona.color} />
+            </View>
+            <View style={preGameStyles.pendingStatusBadge}>
+              <View style={preGameStyles.pendingDot} />
+              <Text style={preGameStyles.pendingStatusText}>PENDING</Text>
+            </View>
+          </View>
+          <View style={preGameStyles.changeRow}>
+            {teams.filter((t) => t !== userPick).map((team) => (
+              <Pressable
+                key={team}
+                onPress={() => onPickTeam(game, team)}
+                style={({ pressed }) => [preGameStyles.changeBtn, pressed && { opacity: 0.6 }]}
+              >
+                <Ionicons name="swap-horizontal" size={12} color="rgba(255,255,255,0.4)" />
+                <Text style={preGameStyles.changeBtnText}>Switch to {team}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </>
+      )}
+    </Animated.View>
+  );
+}
+
+const preGameStyles = StyleSheet.create({
+  container: {
+    backgroundColor: "rgba(255,215,0,0.05)",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,215,0,0.15)",
+    padding: 12,
+    marginTop: 10,
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 8,
+  },
+  headerText: {
+    fontSize: 12,
+    fontWeight: "900" as const,
+    color: "#FFD700",
+    letterSpacing: 1.5,
+  },
+  countdownRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginBottom: 10,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    alignSelf: "flex-start",
+  },
+  countdownText: {
+    fontSize: 11,
+    fontWeight: "700" as const,
+    color: "rgba(255,255,255,0.6)",
+    fontVariant: ["tabular-nums"],
+  },
+  pickButtonsRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  pickButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    backgroundColor: "rgba(0,0,0,0.3)",
+  },
+  pickButtonText: {
+    fontSize: 13,
+    fontWeight: "800" as const,
+    letterSpacing: 0.5,
+  },
+  pendingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 8,
+  },
+  pendingBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  pendingTeamText: {
+    fontSize: 14,
+    fontWeight: "800" as const,
+  },
+  pendingStatusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(255,165,0,0.15)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  pendingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#FFA500",
+  },
+  pendingStatusText: {
+    fontSize: 9,
+    fontWeight: "800" as const,
+    color: "#FFA500",
+    letterSpacing: 1,
+  },
+  changeRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+  },
+  changeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  changeBtnText: {
+    fontSize: 10,
+    fontWeight: "600" as const,
+    color: "rgba(255,255,255,0.35)",
+  },
+});
+
 function GameStatsPanel({ game }: { game: Game }) {
   const hasLeaders = (game.homeLeaders && game.homeLeaders.length > 0) || (game.awayLeaders && game.awayLeaders.length > 0);
   const hasStats = (game.homeStats && game.homeStats.length > 0) || (game.awayStats && game.awayStats.length > 0);
@@ -478,6 +714,7 @@ function GameCard({
   onRefresh,
   onPickTeam,
   userPick,
+  pendingUserPick,
 }: {
   game: Game;
   persona: PersonaInfo;
@@ -488,11 +725,13 @@ function GameCard({
   onRefresh: (gameId: number) => void;
   onPickTeam?: (game: Game, team: string) => void;
   userPick?: string;
+  pendingUserPick?: UserPick;
 }) {
   const leagueColor = LEAGUE_COLORS[game.league] || "#D4A420";
   const isSpeaking = speakingGameId === game.id;
   const teams = game.game.split(" vs ").map((t) => t.trim());
   const isLive = game.status === "in";
+  const isPreGame = game.status === "pre" || (!game.status && !game.score && !game.final);
   const [expanded, setExpanded] = useState(false);
   const hasDetails = (game.homeLeaders && game.homeLeaders.length > 0) || (game.awayLeaders && game.awayLeaders.length > 0) || (game.homeStats && game.homeStats.length > 0) || (game.awayStats && game.awayStats.length > 0);
 
@@ -547,6 +786,12 @@ function GameCard({
               <View style={styles.liveBadge}>
                 <View style={styles.liveDot} />
                 <Text style={styles.liveText}>LIVE</Text>
+              </View>
+            )}
+            {isPreGame && (
+              <View style={styles.upcomingBadge}>
+                <Ionicons name="time-outline" size={10} color="#FFA500" />
+                <Text style={styles.upcomingText}>UPCOMING</Text>
               </View>
             )}
           </View>
@@ -610,7 +855,17 @@ function GameCard({
         </View>
       )}
 
-      {onPickTeam && teams.length === 2 && (
+      {onPickTeam && teams.length === 2 && isPreGame && (
+        <PreGamePickBanner
+          game={game}
+          persona={persona}
+          onPickTeam={onPickTeam}
+          userPick={userPick}
+          pendingPick={pendingUserPick}
+        />
+      )}
+
+      {onPickTeam && teams.length === 2 && !isPreGame && (
         <View style={styles.pickTeamRow}>
           <Text style={styles.pickTeamLabel}>YOUR PICK:</Text>
           {teams.map((team) => (
@@ -1138,6 +1393,36 @@ export default function SportsScreen() {
           </Text>
         </Animated.View>
 
+        <Pressable
+          onPress={() => {
+            playTransition();
+            if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            router.push("/march-madness");
+          }}
+        >
+          <Animated.View entering={FadeInDown.delay(100).duration(500).springify()} style={styles.marchMadnessCard}>
+            <LinearGradient
+              colors={["#1a0a00", "#331100", "#1a0a00"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={StyleSheet.absoluteFillObject}
+            />
+            <View style={styles.mmCardHeader}>
+              <MaterialCommunityIcons name="basketball" size={22} color="#FF6B00" />
+              <Text style={styles.mmCardTitle}>MARCH MADNESS</Text>
+              <MaterialCommunityIcons name="basketball" size={22} color="#FF6B00" />
+            </View>
+            <Text style={styles.mmCardSub}>BRACKETOLOGY • PICKS • PRIZES</Text>
+            <Text style={styles.mmCardDesc}>
+              Fill out your bracket, compete against AI personas, and earn digital prizes
+            </Text>
+            <View style={styles.mmCardBtn}>
+              <Text style={styles.mmCardBtnText}>ENTER THE BRACKET</Text>
+              <Ionicons name="arrow-forward" size={14} color="#000" />
+            </View>
+          </Animated.View>
+        </Pressable>
+
         <Animated.View entering={FadeInDown.delay(150).duration(400)} style={styles.personaSelector}>
           <Text style={styles.sectionLabel}>CHOOSE YOUR ANALYST</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.personaRow}>
@@ -1264,6 +1549,7 @@ export default function SportsScreen() {
                   onRefresh={refreshPick}
                   onPickTeam={handleUserPick}
                   userPick={pickForGame?.team}
+                  pendingUserPick={pickForGame && !pickForGame.resolved ? pickForGame : undefined}
                 />
               );
             })
@@ -1901,6 +2187,23 @@ const styles = StyleSheet.create({
     color: "#FF4444",
     letterSpacing: 1,
   },
+  upcomingBadge: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 3,
+    backgroundColor: "rgba(255,165,0,0.15)",
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,165,0,0.3)",
+  },
+  upcomingText: {
+    fontSize: 9,
+    fontWeight: "800" as const,
+    color: "#FFA500",
+    letterSpacing: 0.5,
+  },
   commentarySection: {
     marginTop: 10,
     gap: 8,
@@ -2415,5 +2718,56 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800" as const,
     color: "#fff",
+  },
+  marchMadnessCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,107,0,0.3)",
+    padding: 18,
+    marginBottom: 12,
+    overflow: "hidden" as const,
+    alignItems: "center" as const,
+  },
+  mmCardHeader: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 10,
+    marginBottom: 6,
+  },
+  mmCardTitle: {
+    fontSize: 20,
+    fontWeight: "900" as const,
+    color: "#FF6B00",
+    letterSpacing: 3,
+  },
+  mmCardSub: {
+    fontSize: 10,
+    fontWeight: "800" as const,
+    color: "rgba(255,107,0,0.7)",
+    letterSpacing: 2,
+    marginBottom: 8,
+  },
+  mmCardDesc: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.5)",
+    textAlign: "center" as const,
+    lineHeight: 18,
+    marginBottom: 12,
+    paddingHorizontal: 10,
+  },
+  mmCardBtn: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    backgroundColor: "#FF6B00",
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 22,
+    gap: 8,
+  },
+  mmCardBtnText: {
+    fontSize: 12,
+    fontWeight: "900" as const,
+    color: "#000",
+    letterSpacing: 1.5,
   },
 });
