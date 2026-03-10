@@ -448,10 +448,10 @@ export default function RealEstateScreen() {
                   returnKeyType="search"
                 />
                 <Pressable onPress={updateMapLocation} style={({ pressed }) => [s.mapUpdateBtn, pressed && { opacity: 0.7 }]}>
-                  <LinearGradient colors={[Colors.gold, "#B8860B"]} style={s.mapUpdateGrad}>
-                    <Ionicons name="location" size={16} color="#000" />
+                  <View style={s.mapUpdateGrad}>
+                    <Ionicons name="location" size={16} color="#fff" />
                     <Text style={s.mapUpdateText}>UPDATE</Text>
-                  </LinearGradient>
+                  </View>
                 </Pressable>
               </View>
             </View>
@@ -546,9 +546,9 @@ export default function RealEstateScreen() {
                 </Pressable>
               ))}
               <Pressable onPress={applyFilters} style={({ pressed }) => [s.applyBtn, pressed && { opacity: 0.7 }]}>
-                <LinearGradient colors={[Colors.gold, "#B8860B"]} style={s.applyGrad}>
+                <View style={s.applyGrad}>
                   <Text style={s.applyText}>APPLY FILTERS</Text>
-                </LinearGradient>
+                </View>
               </Pressable>
             </View>
 
@@ -572,10 +572,10 @@ export default function RealEstateScreen() {
                     }}
                     style={({ pressed }) => [s.lenderBtn, pressed && { opacity: 0.7 }]}
                   >
-                    <LinearGradient colors={["#4ADE80", "#22C55E"]} style={s.lenderBtnGrad}>
-                      <Ionicons name={lender.icon} size={14} color="#000" />
+                    <View style={s.lenderBtnGrad}>
+                      <Ionicons name={lender.icon} size={14} color="#fff" />
                       <Text style={s.lenderBtnText}>{lender.btnText}</Text>
-                    </LinearGradient>
+                    </View>
                   </Pressable>
                 </View>
               ))}
@@ -631,10 +631,10 @@ export default function RealEstateScreen() {
                   </View>
                 </View>
                 <Pressable onPress={calculateMortgage} style={({ pressed }) => [s.calcButton, pressed && { opacity: 0.7 }]}>
-                  <LinearGradient colors={[Colors.gold, "#B8860B"]} style={s.calcBtnGrad}>
-                    <MaterialCommunityIcons name="cash-multiple" size={18} color="#000" />
+                  <View style={s.calcBtnGrad}>
+                    <MaterialCommunityIcons name="cash-multiple" size={18} color="#fff" />
                     <Text style={s.calcBtnText}>CALCULATE</Text>
-                  </LinearGradient>
+                  </View>
                 </Pressable>
                 {calcResult && (
                   <Animated.View entering={FadeIn.duration(300)} style={s.calcResults}>
@@ -672,9 +672,9 @@ export default function RealEstateScreen() {
                   returnKeyType="search"
                 />
                 <Pressable onPress={handleSearch} disabled={loading || !location.trim()} style={({ pressed }) => [s.searchBtn, pressed && { opacity: 0.7 }, (!location.trim() || loading) && { opacity: 0.4 }]}>
-                  <LinearGradient colors={[Colors.gold, "#B8860B"]} style={s.searchBtnGrad}>
-                    {loading ? <ActivityIndicator size="small" color="#000" /> : <Ionicons name="search" size={20} color="#000" />}
-                  </LinearGradient>
+                  <View style={s.searchBtnGrad}>
+                    {loading ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="search" size={20} color="#fff" />}
+                  </View>
                 </Pressable>
               </View>
               <Text style={s.searchHint}>Search by zip code (e.g. 90210) or city name</Text>
@@ -810,10 +810,10 @@ export default function RealEstateScreen() {
                   placeholderTextColor="rgba(255,255,255,0.3)"
                 />
                 <Pressable onPress={startTour} style={({ pressed }) => [s.tourStartBtn, pressed && { opacity: 0.7 }]}>
-                  <LinearGradient colors={[Colors.gold, "#B8860B"]} style={s.tourStartGrad}>
-                    <Ionicons name="mic" size={16} color="#000" />
+                  <View style={s.tourStartGrad}>
+                    <Ionicons name="mic" size={16} color="#fff" />
                     <Text style={s.tourStartText}>START TOUR</Text>
-                  </LinearGradient>
+                  </View>
                 </Pressable>
               </View>
 
@@ -862,162 +862,166 @@ export default function RealEstateScreen() {
   );
 }
 
+const RE_RED = "#ff4d4d";
+const RE_BG = "#1a1a1a";
+const RE_INPUT_BG = "#333333";
+
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingBottom: 10 },
   backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   headerCenter: { flex: 1, alignItems: "center" },
-  headerTitle: { fontSize: 20, fontWeight: "900" as const, color: Colors.gold, letterSpacing: 2 },
-  headerSub: { fontSize: 10, color: "rgba(255,255,255,0.4)", letterSpacing: 1, marginTop: 2 },
-  liveBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10, backgroundColor: "rgba(255,77,77,0.15)", borderWidth: 1, borderColor: "rgba(255,77,77,0.3)" },
-  liveBadgeActive: { backgroundColor: "rgba(74,222,128,0.15)", borderColor: "rgba(74,222,128,0.3)" },
+  headerTitle: { fontSize: 24, fontWeight: "900" as const, color: RE_RED, letterSpacing: 2 },
+  headerSub: { fontSize: 10, color: "#888", letterSpacing: 1, marginTop: 2 },
+  liveBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4, backgroundColor: RE_RED },
+  liveBadgeActive: { backgroundColor: "#4ADE80" },
   liveDot: { width: 6, height: 6, borderRadius: 3 },
-  liveBadgeText: { fontSize: 9, fontWeight: "800" as const, color: "rgba(255,255,255,0.7)", letterSpacing: 1 },
+  liveBadgeText: { fontSize: 10, fontWeight: "800" as const, color: "#fff", letterSpacing: 1 },
   tabRow: { flexDirection: "row", paddingHorizontal: 12, gap: 6, marginBottom: 10 },
-  tab: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.05)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" },
-  tabActive: { backgroundColor: "rgba(212,164,32,0.12)", borderColor: "rgba(212,164,32,0.3)" },
+  tab: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: RE_BG, borderWidth: 2, borderColor: "rgba(255,255,255,0.08)" },
+  tabActive: { backgroundColor: "rgba(255,77,77,0.12)", borderColor: RE_RED },
   tabText: { fontSize: 11, fontWeight: "700" as const, color: "rgba(255,255,255,0.4)", letterSpacing: 0.5 },
-  tabTextActive: { color: Colors.gold },
+  tabTextActive: { color: RE_RED },
   scrollBody: { flex: 1 },
-  mapSection: { paddingHorizontal: 16, gap: 10, marginBottom: 16 },
-  legendBox: { backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 10, padding: 10, gap: 4, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" },
-  legendRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  legendDot: { width: 14, height: 14, borderRadius: 3 },
-  legendText: { fontSize: 11, fontWeight: "600" as const, color: "rgba(255,255,255,0.6)" },
-  mapFrame: { borderRadius: 12, overflow: "hidden", borderWidth: 1, borderColor: "rgba(212,164,32,0.2)" },
-  mapPlaceholder: { height: 140, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.05)", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" },
-  mapPlaceholderText: { fontSize: 12, color: "rgba(255,255,255,0.3)" },
+  mapSection: { marginHorizontal: 16, gap: 10, marginBottom: 16, backgroundColor: RE_BG, borderWidth: 2, borderColor: RE_RED, borderRadius: 15, padding: 16 },
+  legendBox: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginBottom: 8 },
+  legendRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  legendDot: { width: 18, height: 18, borderRadius: 4 },
+  legendText: { fontSize: 12, fontWeight: "600" as const, color: "rgba(255,255,255,0.7)" },
+  mapFrame: { borderRadius: 10, overflow: "hidden", marginBottom: 10 },
+  mapPlaceholder: { height: 180, borderRadius: 10, backgroundColor: "#2a2a2a", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 10 },
+  mapPlaceholderText: { fontSize: 12, color: "#888" },
   mapControls: { flexDirection: "row", gap: 10 },
-  mapInput: { flex: 1, height: 44, backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 10, paddingHorizontal: 14, fontSize: 14, color: Colors.white, borderWidth: 1, borderColor: "rgba(212,164,32,0.2)" },
-  mapUpdateBtn: { borderRadius: 10, overflow: "hidden" },
-  mapUpdateGrad: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, height: 44, justifyContent: "center" },
-  mapUpdateText: { fontSize: 12, fontWeight: "800" as const, color: "#000", letterSpacing: 0.5 },
+  mapInput: { flex: 3, height: 44, backgroundColor: RE_INPUT_BG, borderRadius: 8, paddingHorizontal: 14, fontSize: 14, color: Colors.white, borderWidth: 2, borderColor: RE_RED },
+  mapUpdateBtn: { flex: 1, borderRadius: 8, overflow: "hidden" },
+  mapUpdateGrad: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, height: 44, justifyContent: "center", backgroundColor: RE_RED },
+  mapUpdateText: { fontSize: 12, fontWeight: "800" as const, color: "#fff", letterSpacing: 0.5 },
   dashSection: { paddingHorizontal: 16, marginBottom: 16 },
-  dashHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
-  dashTitle: { fontSize: 14, fontWeight: "800" as const, color: Colors.gold, letterSpacing: 1 },
-  dashNote: { fontSize: 10, color: "rgba(255,255,255,0.3)" },
-  noZonesText: { fontSize: 13, color: "rgba(255,255,255,0.4)", textAlign: "center", paddingVertical: 20 },
-  zoneCard: { backgroundColor: "rgba(20,15,5,0.85)", borderRadius: 14, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: "rgba(212,164,32,0.15)" },
+  dashHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
+  dashTitle: { fontSize: 16, fontWeight: "800" as const, color: RE_RED, letterSpacing: 1 },
+  dashNote: { fontSize: 10, color: "#888" },
+  noZonesText: { fontSize: 13, color: "#888", textAlign: "center", paddingVertical: 20 },
+  zoneCard: { backgroundColor: RE_BG, borderRadius: 15, padding: 14, marginBottom: 8, borderWidth: 2, borderColor: "rgba(255,77,77,0.25)" },
   zoneHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
-  zoneScoreBadge: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
-  zoneScoreText: { fontSize: 14, fontWeight: "900" as const, color: "#000" },
+  zoneScoreBadge: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center" },
+  zoneScoreText: { fontSize: 15, fontWeight: "900" as const, color: "#000" },
   zoneNameCol: { flex: 1 },
   zoneName: { fontSize: 15, fontWeight: "700" as const, color: Colors.white },
   zoneCat: { fontSize: 10, fontWeight: "700" as const, letterSpacing: 1, marginTop: 1 },
-  zoneStats: { flexDirection: "row", justifyContent: "space-between", marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.06)" },
+  zoneStats: { flexDirection: "row", justifyContent: "space-between", marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: "#333" },
   zoneStat: { alignItems: "center", gap: 2 },
-  zoneStatLabel: { fontSize: 8, fontWeight: "700" as const, color: "rgba(255,255,255,0.35)", letterSpacing: 0.8 },
+  zoneStatLabel: { fontSize: 8, fontWeight: "700" as const, color: "#ccc", letterSpacing: 0.8 },
   zoneStatVal: { fontSize: 14, fontWeight: "700" as const, color: Colors.white },
-  zoneDetail: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.06)", gap: 8 },
+  zoneDetail: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: "#333", gap: 8 },
   zoneDetailRow: { flexDirection: "row", justifyContent: "space-between" },
-  zoneDetailLabel: { fontSize: 12, color: "rgba(255,255,255,0.5)" },
+  zoneDetailLabel: { fontSize: 12, color: "#ccc" },
   zoneDetailVal: { fontSize: 12, fontWeight: "700" as const, color: Colors.white },
-  filterSection: { paddingHorizontal: 16, marginBottom: 16, backgroundColor: "rgba(255,255,255,0.03)", marginHorizontal: 16, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" },
-  filterTitle: { fontSize: 12, fontWeight: "800" as const, color: Colors.gold, letterSpacing: 1, marginBottom: 10 },
+  filterSection: { marginBottom: 16, backgroundColor: RE_BG, marginHorizontal: 16, borderRadius: 15, padding: 16, borderWidth: 2, borderColor: RE_RED },
+  filterTitle: { fontSize: 14, fontWeight: "800" as const, color: RE_RED, letterSpacing: 1, marginBottom: 10 },
   filterRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8 },
   checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
-  checkboxActive: { backgroundColor: Colors.gold, borderColor: Colors.gold },
-  filterLabel: { fontSize: 13, color: "rgba(255,255,255,0.7)" },
-  applyBtn: { borderRadius: 10, overflow: "hidden", marginTop: 10 },
-  applyGrad: { paddingVertical: 12, alignItems: "center", justifyContent: "center" },
-  applyText: { fontSize: 13, fontWeight: "800" as const, color: "#000", letterSpacing: 1 },
+  checkboxActive: { backgroundColor: RE_RED, borderColor: RE_RED },
+  filterLabel: { fontSize: 13, color: "rgba(255,255,255,0.8)" },
+  applyBtn: { borderRadius: 8, overflow: "hidden", marginTop: 12 },
+  applyGrad: { paddingVertical: 12, alignItems: "center", justifyContent: "center", backgroundColor: RE_RED },
+  applyText: { fontSize: 13, fontWeight: "800" as const, color: "#fff", letterSpacing: 1 },
   lenderSection: { paddingHorizontal: 16, marginBottom: 16 },
   sectionHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
-  sectionTitle: { fontSize: 14, fontWeight: "800" as const, color: Colors.gold, letterSpacing: 1 },
-  sectionNote: { fontSize: 10, color: "rgba(255,255,255,0.3)" },
-  lenderCard: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "rgba(20,15,5,0.85)", borderRadius: 12, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
+  sectionTitle: { fontSize: 14, fontWeight: "800" as const, color: RE_RED, letterSpacing: 1 },
+  sectionNote: { fontSize: 10, color: "#888" },
+  lenderCard: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: RE_BG, borderRadius: 10, padding: 15, marginBottom: 10, borderWidth: 2, borderColor: RE_RED },
   lenderInfo: { flex: 1, gap: 3 },
   lenderName: { fontSize: 15, fontWeight: "700" as const, color: Colors.white },
-  lenderRate: { fontSize: 12, color: "rgba(255,255,255,0.5)" },
-  lenderBtn: { borderRadius: 10, overflow: "hidden" },
-  lenderBtnGrad: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 10 },
-  lenderBtnText: { fontSize: 11, fontWeight: "800" as const, color: "#000", letterSpacing: 0.5 },
-  calcToggleBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 12, marginHorizontal: 16, borderRadius: 10, backgroundColor: "rgba(212,164,32,0.08)", borderWidth: 1, borderColor: "rgba(212,164,32,0.2)", marginBottom: 10 },
-  calcToggleText: { fontSize: 12, fontWeight: "800" as const, color: Colors.gold, letterSpacing: 1.5 },
+  lenderRate: { fontSize: 12, color: "#ccc" },
+  lenderBtn: { borderRadius: 5, overflow: "hidden" },
+  lenderBtnGrad: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: RE_RED },
+  lenderBtnText: { fontSize: 11, fontWeight: "800" as const, color: "#fff", letterSpacing: 0.5 },
+  calcToggleBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 12, marginHorizontal: 16, borderRadius: 10, backgroundColor: RE_BG, borderWidth: 2, borderColor: RE_RED, marginBottom: 10 },
+  calcToggleText: { fontSize: 12, fontWeight: "800" as const, color: RE_RED, letterSpacing: 1.5 },
   calcSection: { paddingHorizontal: 16, marginBottom: 16, gap: 10 },
   calcRow: { flexDirection: "row", gap: 10 },
   calcInputGroup: { flex: 1, gap: 4 },
-  calcLabel: { fontSize: 10, fontWeight: "700" as const, color: "rgba(255,255,255,0.5)", letterSpacing: 1 },
-  calcInputWrap: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 10, borderWidth: 1, borderColor: "rgba(212,164,32,0.15)", paddingHorizontal: 10, height: 42 },
-  calcDollar: { fontSize: 15, color: Colors.gold, fontWeight: "700" as const, marginRight: 4 },
-  calcPercent: { fontSize: 15, color: Colors.gold, fontWeight: "700" as const, marginLeft: 4 },
+  calcLabel: { fontSize: 10, fontWeight: "700" as const, color: "#ccc", letterSpacing: 1 },
+  calcInputWrap: { flexDirection: "row", alignItems: "center", backgroundColor: RE_INPUT_BG, borderRadius: 8, borderWidth: 2, borderColor: RE_RED, paddingHorizontal: 10, height: 42 },
+  calcDollar: { fontSize: 15, color: RE_RED, fontWeight: "700" as const, marginRight: 4 },
+  calcPercent: { fontSize: 15, color: RE_RED, fontWeight: "700" as const, marginLeft: 4 },
   calcInput: { flex: 1, fontSize: 15, color: Colors.white, fontWeight: "600" as const },
   calcTermRow: { flexDirection: "row", gap: 8 },
-  calcTermBtn: { flex: 1, alignItems: "center", justifyContent: "center", height: 42, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.08)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
-  calcTermBtnActive: { backgroundColor: "rgba(212,164,32,0.2)", borderColor: Colors.gold },
+  calcTermBtn: { flex: 1, alignItems: "center", justifyContent: "center", height: 42, borderRadius: 8, backgroundColor: RE_INPUT_BG, borderWidth: 2, borderColor: "rgba(255,77,77,0.3)" },
+  calcTermBtnActive: { backgroundColor: "rgba(255,77,77,0.2)", borderColor: RE_RED },
   calcTermText: { fontSize: 14, fontWeight: "700" as const, color: "rgba(255,255,255,0.4)" },
-  calcTermTextActive: { color: Colors.gold },
-  calcButton: { borderRadius: 12, overflow: "hidden" },
-  calcBtnGrad: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 13 },
-  calcBtnText: { fontSize: 14, fontWeight: "900" as const, color: "#000", letterSpacing: 1 },
-  calcResults: { backgroundColor: "rgba(212,164,32,0.06)", borderRadius: 14, padding: 16, borderWidth: 1, borderColor: "rgba(212,164,32,0.25)", gap: 12 },
+  calcTermTextActive: { color: RE_RED },
+  calcButton: { borderRadius: 8, overflow: "hidden" },
+  calcBtnGrad: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 13, backgroundColor: RE_RED },
+  calcBtnText: { fontSize: 14, fontWeight: "900" as const, color: "#fff", letterSpacing: 1 },
+  calcResults: { backgroundColor: RE_BG, borderRadius: 15, padding: 16, borderWidth: 2, borderColor: RE_RED, gap: 12 },
   calcResultRow: { flexDirection: "row", justifyContent: "space-between" },
   calcResultItem: { alignItems: "center", gap: 3 },
-  calcResultLabel: { fontSize: 9, fontWeight: "700" as const, color: "rgba(255,255,255,0.4)", letterSpacing: 1 },
-  calcResultVal: { fontSize: 22, fontWeight: "900" as const, color: Colors.gold },
+  calcResultLabel: { fontSize: 9, fontWeight: "700" as const, color: "#ccc", letterSpacing: 1 },
+  calcResultVal: { fontSize: 22, fontWeight: "900" as const, color: RE_RED },
   calcResultValSm: { fontSize: 16, fontWeight: "800" as const, color: Colors.white },
-  calcQuote: { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: "rgba(212,164,32,0.08)", borderRadius: 10, padding: 12, borderLeftWidth: 3, borderLeftColor: Colors.gold },
+  calcQuote: { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: "#2a2a2a", borderRadius: 10, padding: 12, borderLeftWidth: 3, borderLeftColor: RE_RED },
   calcQuoteText: { flex: 1, fontSize: 13, color: Colors.white, lineHeight: 20, fontStyle: "italic" },
-  disclaimer: { paddingHorizontal: 16, paddingVertical: 12 },
-  disclaimerText: { fontSize: 10, color: "rgba(255,255,255,0.25)", textAlign: "center", lineHeight: 16 },
+  disclaimer: { marginTop: 20, marginHorizontal: 16, paddingVertical: 15, paddingHorizontal: 15, backgroundColor: RE_BG, borderWidth: 1, borderColor: "#888", borderRadius: 5 },
+  disclaimerText: { fontSize: 12, color: "#888", textAlign: "center", lineHeight: 18 },
   searchSection: { paddingHorizontal: 16, paddingBottom: 12 },
   searchRow: { flexDirection: "row", gap: 10, alignItems: "center" },
-  searchInput: { flex: 1, height: 48, backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 12, paddingHorizontal: 16, fontSize: 16, color: Colors.white, borderWidth: 1, borderColor: "rgba(212,164,32,0.2)" },
-  searchBtn: { borderRadius: 12, overflow: "hidden" },
-  searchBtnGrad: { width: 48, height: 48, alignItems: "center", justifyContent: "center" },
-  searchHint: { fontSize: 11, color: "rgba(255,255,255,0.3)", marginTop: 6, marginLeft: 4 },
+  searchInput: { flex: 3, height: 48, backgroundColor: RE_INPUT_BG, borderRadius: 8, paddingHorizontal: 16, fontSize: 16, color: Colors.white, borderWidth: 2, borderColor: RE_RED },
+  searchBtn: { flex: 1, borderRadius: 8, overflow: "hidden" },
+  searchBtnGrad: { width: 48, height: 48, alignItems: "center", justifyContent: "center", backgroundColor: RE_RED },
+  searchHint: { fontSize: 11, color: "#888", marginTop: 6, marginLeft: 4 },
   advisorSection: { paddingHorizontal: 16, paddingBottom: 10 },
-  advisorLabel: { fontSize: 10, fontWeight: "700" as const, color: "rgba(255,255,255,0.4)", letterSpacing: 1.5, marginBottom: 8 },
+  advisorLabel: { fontSize: 10, fontWeight: "700" as const, color: "#888", letterSpacing: 1.5, marginBottom: 8 },
   advisorScroll: { gap: 8, paddingRight: 16 },
-  advisorPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5 },
+  advisorPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 2 },
   advisorImg: { width: 28, height: 28, borderRadius: 14, borderWidth: 1.5 },
   advisorName: { fontSize: 12, fontWeight: "700" as const, color: "rgba(255,255,255,0.6)" },
   loadingBox: { alignItems: "center", justifyContent: "center", gap: 16, paddingVertical: 40 },
-  loadingText: { fontSize: 14, color: Colors.gold, fontWeight: "600" as const, fontStyle: "italic" },
+  loadingText: { fontSize: 14, color: "#888", fontWeight: "600" as const, fontStyle: "italic" },
   emptyState: { alignItems: "center", justifyContent: "center", gap: 12, paddingHorizontal: 40, paddingVertical: 40 },
   emptyTitle: { fontSize: 18, fontWeight: "800" as const, color: Colors.white },
-  emptyText: { fontSize: 14, color: "rgba(255,255,255,0.5)", textAlign: "center", lineHeight: 20 },
-  propCard: { backgroundColor: "rgba(20,15,5,0.85)", borderRadius: 16, overflow: "hidden", borderWidth: 1, borderColor: "rgba(212,164,32,0.2)", marginHorizontal: 16, marginBottom: 14 },
+  emptyText: { fontSize: 14, color: "#888", textAlign: "center", lineHeight: 20 },
+  propCard: { backgroundColor: RE_BG, borderRadius: 15, overflow: "hidden", borderWidth: 2, borderColor: RE_RED, marginHorizontal: 16, marginBottom: 14 },
   propImgBox: { position: "relative" },
-  propImg: { width: "100%", height: 180, backgroundColor: "rgba(20,15,5,0.8)" },
+  propImg: { width: "100%", height: 180, backgroundColor: "#2a2a2a" },
   propNoImg: { alignItems: "center", justifyContent: "center" },
-  propRating: { position: "absolute", bottom: 10, right: 10, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, borderWidth: 1, borderColor: "rgba(255,255,255,0.2)" },
+  propRating: { position: "absolute", bottom: 10, right: 10, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: "rgba(0,0,0,0.7)" },
   propRatingText: { fontSize: 14, fontWeight: "800" as const, color: "#fff" },
   propDetails: { padding: 14, gap: 6 },
-  propAddr: { fontSize: 16, fontWeight: "800" as const, color: Colors.gold, lineHeight: 22 },
-  propCity: { fontSize: 12, color: "rgba(255,255,255,0.5)" },
+  propAddr: { fontSize: 16, fontWeight: "800" as const, color: Colors.white, lineHeight: 22 },
+  propCity: { fontSize: 12, color: "#ccc" },
   propStats: { flexDirection: "row", gap: 12, marginTop: 4 },
-  propStatText: { fontSize: 13, color: Colors.white, fontWeight: "600" as const },
-  propQuote: { marginTop: 8, backgroundColor: "rgba(212,164,32,0.06)", borderRadius: 10, padding: 12, borderWidth: 1, borderColor: "rgba(212,164,32,0.15)", borderLeftWidth: 3, borderLeftColor: Colors.gold },
+  propStatText: { fontSize: 13, color: "#ccc", fontWeight: "600" as const },
+  propQuote: { marginTop: 8, backgroundColor: "#2a2a2a", borderRadius: 10, padding: 12, borderLeftWidth: 3, borderLeftColor: RE_RED },
   propCommentText: { fontSize: 14, color: Colors.white, lineHeight: 22, fontStyle: "italic" },
-  aiBadge: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 6, alignSelf: "flex-start", backgroundColor: "rgba(255,215,0,0.12)", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  aiBadgeText: { fontSize: 9, fontWeight: "800" as const, color: "#FFD700", letterSpacing: 1 },
-  aiBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 10, paddingVertical: 10, borderRadius: 10, borderWidth: 1 },
+  aiBadge: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 6, alignSelf: "flex-start", backgroundColor: "rgba(255,77,77,0.15)", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  aiBadgeText: { fontSize: 9, fontWeight: "800" as const, color: RE_RED, letterSpacing: 1 },
+  aiBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 10, paddingVertical: 10, borderRadius: 8, borderWidth: 2 },
   aiBtnText: { fontSize: 12, fontWeight: "800" as const, letterSpacing: 0.8 },
   propActions: { flexDirection: "row", gap: 10, marginTop: 8 },
-  propActionBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: "rgba(212,164,32,0.15)", borderWidth: 1, borderColor: "rgba(212,164,32,0.25)" },
-  propViewBtn: { backgroundColor: "rgba(255,255,255,0.05)", borderColor: "rgba(212,164,32,0.2)" },
+  propActionBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 8, backgroundColor: "rgba(255,77,77,0.15)", borderWidth: 1, borderColor: "rgba(255,77,77,0.3)" },
+  propViewBtn: { backgroundColor: "rgba(255,255,255,0.05)", borderColor: "rgba(255,77,77,0.25)" },
   propActionText: { fontSize: 12, fontWeight: "800" as const, color: "#fff", letterSpacing: 0.5 },
-  tourSection: { paddingHorizontal: 16, gap: 12 },
+  tourSection: { marginHorizontal: 16, backgroundColor: RE_BG, borderWidth: 2, borderColor: RE_RED, borderRadius: 15, padding: 16, gap: 12 },
   guideScroll: { gap: 8, paddingRight: 16 },
-  guidePill: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, borderWidth: 1.5 },
+  guidePill: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 8, borderWidth: 2 },
   guideEmoji: { fontSize: 22 },
   guideName: { fontSize: 13, fontWeight: "700" as const, color: "rgba(255,255,255,0.6)" },
-  guideTitle: { fontSize: 10, color: "rgba(255,255,255,0.3)", marginTop: 1 },
+  guideTitle: { fontSize: 10, color: "#888", marginTop: 1 },
   tourStartRow: { flexDirection: "row", gap: 10 },
-  tourNameInput: { flex: 1, height: 44, backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 10, paddingHorizontal: 14, fontSize: 14, color: Colors.white, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
-  tourStartBtn: { borderRadius: 10, overflow: "hidden" },
-  tourStartGrad: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, height: 44, justifyContent: "center" },
-  tourStartText: { fontSize: 12, fontWeight: "800" as const, color: "#000", letterSpacing: 0.5 },
-  tourConvo: { gap: 8, marginTop: 8 },
-  tourMsg: { borderRadius: 14, padding: 14, maxWidth: "85%" },
-  tourMsgUser: { alignSelf: "flex-end", backgroundColor: "rgba(74,222,128,0.15)", borderWidth: 1, borderColor: "rgba(74,222,128,0.25)" },
-  tourMsgGuide: { alignSelf: "flex-start", backgroundColor: "rgba(212,164,32,0.08)", borderWidth: 1, borderColor: "rgba(212,164,32,0.2)" },
-  tourMsgName: { fontSize: 10, fontWeight: "700" as const, color: Colors.gold, letterSpacing: 1, marginBottom: 4 },
+  tourNameInput: { flex: 1, height: 44, backgroundColor: RE_INPUT_BG, borderRadius: 8, paddingHorizontal: 14, fontSize: 14, color: Colors.white, borderWidth: 2, borderColor: RE_RED, minWidth: 120 },
+  tourStartBtn: { borderRadius: 8, overflow: "hidden" },
+  tourStartGrad: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, height: 44, justifyContent: "center", backgroundColor: RE_RED },
+  tourStartText: { fontSize: 12, fontWeight: "800" as const, color: "#fff", letterSpacing: 0.5 },
+  tourConvo: { backgroundColor: "#2a2a2a", borderRadius: 10, padding: 15, minHeight: 100, maxHeight: 300, gap: 8 },
+  tourMsg: { borderRadius: 4, padding: 10, maxWidth: "85%", borderLeftWidth: 3 },
+  tourMsgUser: { alignSelf: "flex-end", backgroundColor: RE_INPUT_BG, borderLeftColor: "#4CAF50" },
+  tourMsgGuide: { alignSelf: "flex-start", backgroundColor: RE_INPUT_BG, borderLeftColor: RE_RED },
+  tourMsgName: { fontSize: 10, fontWeight: "700" as const, color: RE_RED, letterSpacing: 1, marginBottom: 4 },
   tourMsgText: { fontSize: 14, color: Colors.white, lineHeight: 22 },
   tourTyping: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8 },
-  tourTypingText: { fontSize: 12, color: "rgba(255,255,255,0.4)", fontStyle: "italic" },
+  tourTypingText: { fontSize: 12, color: "#888", fontStyle: "italic" },
   tourInputRow: { flexDirection: "row", gap: 8, marginTop: 8 },
-  tourInput: { flex: 1, height: 44, backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 10, paddingHorizontal: 14, fontSize: 14, color: Colors.white, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
-  tourSendBtn: { width: 44, height: 44, borderRadius: 10, backgroundColor: "rgba(212,164,32,0.12)", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "rgba(212,164,32,0.2)" },
+  tourInput: { flex: 1, height: 44, backgroundColor: RE_INPUT_BG, borderRadius: 8, paddingHorizontal: 14, fontSize: 14, color: Colors.white, borderWidth: 2, borderColor: RE_RED },
+  tourSendBtn: { width: 44, height: 44, borderRadius: 8, backgroundColor: RE_RED, alignItems: "center", justifyContent: "center" },
 });
