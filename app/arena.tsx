@@ -447,9 +447,41 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       negative: ["apartheid", "racism", "salute", "privilege", "billionaire", "exploit", "workers"],
     },
   },
+  graham: {
+    id: "graham",
+    name: "Lindsey Graham",
+    shortName: "Graham",
+    color: "#cc0000",
+    faction: "supporter",
+    image: require("@/assets/images/persona-graham.png"),
+    personality: {
+      energy: 80,
+      aggression: 75,
+      humor: 30,
+      catchphrases: ["I'll tell you what!", "Let me be CLEAR!", "That is OUTRAGEOUS!", "Mark my words!", "There will be HELL to pay!"],
+    },
+    relationships: {
+      trump: { sentiment: 98 },
+      netanyahu: { sentiment: 95 },
+      ruckus: { sentiment: 70 },
+      galloway: { sentiment: 10 },
+      mcconnell: { sentiment: 50 },
+      carville: { sentiment: 5 },
+      maddow: { sentiment: 10 },
+      omar: { sentiment: 5 },
+      biden: { sentiment: 15 },
+      rosie: { sentiment: 10 },
+      berniemc: { sentiment: 15 },
+      elon: { sentiment: 70 },
+    },
+    triggerWords: {
+      positive: ["trump", "israel", "military", "strength", "freedom", "security", "senate"],
+      negative: ["flip-flop", "hypocrite", "closet", "gay", "lady lindsey", "bigot", "warmonger"],
+    },
+  },
 };
 
-const PERSONA_IDS = ["trump", "elon", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc"];
+const PERSONA_IDS = ["trump", "elon", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "graham"];
 
 const TOPIC_ICON_MAP: Record<string, string> = {
   economy: "cash", immigration: "airplane", foreign_policy: "earth", media: "tv",
@@ -477,10 +509,11 @@ const PERSONA_ALIASES: Record<string, string[]> = {
   biden: ["biden", "joe"],
   rosie: ["rosie", "o'donnell"],
   berniemc: ["bernie", "bernie mac"],
+  graham: ["graham", "lindsey", "lindsey graham", "lady lindsey"],
 };
 
 function detectTrumpAttack(text: string, speakerId: string): boolean {
-  if (speakerId === "trump" || speakerId === "ruckus" || speakerId === "netanyahu") return false;
+  if (speakerId === "trump" || speakerId === "ruckus" || speakerId === "netanyahu" || speakerId === "graham") return false;
   const lower = text.toLowerCase();
   const trumpMentions = /(?:trump|donald|mr\.?\s*president)/i.test(lower);
   if (!trumpMentions) return false;
@@ -710,7 +743,7 @@ function ArenaIntro({ personas, onComplete }: { personas: string[]; onComplete: 
         {phase >= 2 && (
           <Animated.View entering={FadeInUp.duration(400)} style={introStyles.taglineRow}>
             <View style={introStyles.taglineLine} />
-            <Text style={introStyles.tagline}>12 PERSONAS. NO FILTER. LIVE DEBATE.</Text>
+            <Text style={introStyles.tagline}>13 PERSONAS. NO FILTER. LIVE DEBATE.</Text>
             <View style={introStyles.taglineLine} />
           </Animated.View>
         )}
