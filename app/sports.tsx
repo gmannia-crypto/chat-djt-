@@ -87,6 +87,16 @@ const PERSONA_IMAGES: Record<string, ImageSourcePropType> = {
   barkley: require("@/assets/images/persona-barkley.png"),
   rogan: require("@/assets/images/persona-rogan.png"),
   shannon: require("@/assets/images/persona-shannon.png"),
+  speedDemon: require("@/assets/images/persona-speedDemon.png"),
+  pitBoss: require("@/assets/images/persona-pitBoss.png"),
+  driftQueen: require("@/assets/images/persona-driftQueen.png"),
+  throttle: require("@/assets/images/persona-throttle.png"),
+  revTech: require("@/assets/images/persona-revTech.png"),
+  elCapitan: require("@/assets/images/persona-elCapitan.png"),
+  sirGodfrey: require("@/assets/images/persona-sirGodfrey.png"),
+  mamaFutbol: require("@/assets/images/persona-mamaFutbol.png"),
+  phantomZZ: require("@/assets/images/persona-phantomZZ.png"),
+  theUltra: require("@/assets/images/persona-theUltra.png"),
 };
 
 interface PersonaInfo {
@@ -111,6 +121,25 @@ const PERSONAS: PersonaInfo[] = [
   { id: "ruckus", name: "Ruckus", fullName: "Uncle Ruckus", color: "#8B4513", image: PERSONA_IMAGES.ruckus },
 ];
 
+const RACING_PERSONAS: PersonaInfo[] = [
+  { id: "trump", name: "Trump", fullName: "Donald J. Trump", color: "#ff4d4d", image: PERSONA_IMAGES.trump },
+  { id: "speedDemon", name: "Speed Demon", fullName: "Speed Demon", color: "#FF3D00", image: PERSONA_IMAGES.speedDemon },
+  { id: "pitBoss", name: "Pit Boss", fullName: "Pit Boss", color: "#78909C", image: PERSONA_IMAGES.pitBoss },
+  { id: "driftQueen", name: "Drift Queen", fullName: "Drift Queen", color: "#E040FB", image: PERSONA_IMAGES.driftQueen },
+  { id: "throttle", name: "Throttle", fullName: "Throttle", color: "#FF6F00", image: PERSONA_IMAGES.throttle },
+  { id: "revTech", name: "Rev", fullName: "Rev Tech", color: "#00BCD4", image: PERSONA_IMAGES.revTech },
+  { id: "rogan", name: "Rogan", fullName: "Joe Rogan", color: "#B71C1C", image: PERSONA_IMAGES.rogan },
+];
+
+const SOCCER_PERSONAS: PersonaInfo[] = [
+  { id: "trump", name: "Trump", fullName: "Donald J. Trump", color: "#ff4d4d", image: PERSONA_IMAGES.trump },
+  { id: "elCapitan", name: "El Capitán", fullName: "El Capitán", color: "#F44336", image: PERSONA_IMAGES.elCapitan },
+  { id: "sirGodfrey", name: "Sir Godfrey", fullName: "Sir Godfrey", color: "#5D4037", image: PERSONA_IMAGES.sirGodfrey },
+  { id: "mamaFutbol", name: "Mama Fútbol", fullName: "Mama Fútbol", color: "#E91E63", image: PERSONA_IMAGES.mamaFutbol },
+  { id: "phantomZZ", name: "Phantom ZZ", fullName: "Phantom ZZ", color: "#7E57C2", image: PERSONA_IMAGES.phantomZZ },
+  { id: "theUltra", name: "The Ultra", fullName: "The Ultra", color: "#FF9800", image: PERSONA_IMAGES.theUltra },
+];
+
 const LEAGUE_COLORS: Record<string, string> = {
   NFL: "#ff4d4d",
   NBA: "#FF6B00",
@@ -121,13 +150,17 @@ const LEAGUE_COLORS: Record<string, string> = {
   NHL: "#00529B",
   F1: "#E10600",
   NASCAR: "#FFCC00",
+  INDYCAR: "#0057B8",
   GOLF: "#006747",
   TENNIS: "#C1E72B",
   NCAAB: "#FF8C00",
   NCAAF: "#8B0000",
 };
 
-const ALL_LEAGUES = ["ALL", "NBA", "NFL", "MLB", "NCAAB", "NCAAF", "UFC", "BOXING", "NHL", "F1", "NASCAR", "GOLF", "TENNIS", "SOCCER"];
+const RACING_LEAGUES = ["F1", "NASCAR", "INDYCAR"];
+const SOCCER_LEAGUES = ["SOCCER"];
+
+const ALL_LEAGUES = ["ALL", "NBA", "NFL", "MLB", "NCAAB", "NCAAF", "UFC", "BOXING", "NHL", "RACING", "SOCCER", "GOLF", "TENNIS"];
 
 const TAG = "trumpbot-20";
 const amzUrl = (keywords: string) =>
@@ -231,6 +264,96 @@ const AMAZON_PICKS: Record<string, { quote: string; mainUrl: string; items: { la
       { label: "Work Boots", sub: "Real man gear", icon: "shoe-formal", url: amzUrl("men work boots comfortable sports") },
       { label: "Camo Gear", sub: "Stay hidden", icon: "pine-tree", url: amzUrl("camo sports gear hunting outdoor") },
       { label: "BBQ Set", sub: "Tailgate right", icon: "grill", url: amzUrl("BBQ grill set tailgate sports") },
+    ],
+  },
+  speedDemon: {
+    quote: '"PEDAL TO THE METAL! Only the FASTEST gear for the fastest fans!" — Speed Demon',
+    mainUrl: amzUrl("racing gear helmet gloves"),
+    items: [
+      { label: "Racing Helmets", sub: "Safety first, speed always", icon: "racing-helmet", url: amzUrl("racing helmet motorsport karting") },
+      { label: "Racing Gloves", sub: "Grip the wheel", icon: "hand-back-left", url: amzUrl("racing gloves karting driving") },
+      { label: "Sim Racing", sub: "Race at home", icon: "steering", url: amzUrl("sim racing wheel pedals setup") },
+    ],
+  },
+  pitBoss: {
+    quote: '"Son, in 40 years I\'ve learned — the right tools win races." — Pit Boss',
+    mainUrl: amzUrl("mechanic tools automotive"),
+    items: [
+      { label: "Tool Sets", sub: "Pit ready", icon: "wrench", url: amzUrl("mechanic tool set automotive professional") },
+      { label: "Pit Crew Gear", sub: "Team uniform", icon: "tshirt-crew", url: amzUrl("racing pit crew shirt NASCAR F1") },
+      { label: "Stopwatches", sub: "Every second counts", icon: "timer", url: amzUrl("professional stopwatch racing timing") },
+    ],
+  },
+  driftQueen: {
+    quote: '"Looking fast IS going fast. Style is non-negotiable." — Drift Queen',
+    mainUrl: amzUrl("racing fashion streetwear JDM"),
+    items: [
+      { label: "JDM Merch", sub: "Import life", icon: "car-sports", url: amzUrl("JDM sticker decal Japanese car culture") },
+      { label: "Racing Jackets", sub: "Track style", icon: "jacket", url: amzUrl("racing bomber jacket motorsport") },
+      { label: "LED Underglow", sub: "Light it up", icon: "led-strip-variant", url: amzUrl("LED underglow car neon lights") },
+    ],
+  },
+  throttle: {
+    quote: '"8,000 HORSEPOWER! Nothing else even comes close!" — Throttle',
+    mainUrl: amzUrl("drag racing NHRA muscle car"),
+    items: [
+      { label: "Muscle Car Parts", sub: "More power", icon: "engine", url: amzUrl("performance car parts muscle car engine") },
+      { label: "NHRA Gear", sub: "Drag strip legend", icon: "flag-checkered", url: amzUrl("NHRA drag racing shirt hat gear") },
+      { label: "Nitro Tees", sub: "Smell the fuel", icon: "tshirt-crew", url: amzUrl("drag racing t shirt funny nitro") },
+    ],
+  },
+  revTech: {
+    quote: '"The data clearly shows — this gear performs at optimal levels." — Rev',
+    mainUrl: amzUrl("F1 merchandise Formula 1"),
+    items: [
+      { label: "F1 Merch", sub: "Official gear", icon: "flag-checkered", url: amzUrl("Formula 1 F1 team merchandise official") },
+      { label: "Racing Models", sub: "Desk trophy", icon: "car-sports", url: amzUrl("F1 model car diecast scale racing") },
+      { label: "Tech Books", sub: "Engineering reads", icon: "book-open-variant", url: amzUrl("Formula 1 engineering design book racing") },
+    ],
+  },
+  elCapitan: {
+    quote: '"GOOOOOOOL! You need the scarf, the jersey, the PASSION!" — El Capitán',
+    mainUrl: amzUrl("soccer jersey football scarf"),
+    items: [
+      { label: "Team Jerseys", sub: "Wear your colors", icon: "tshirt-crew", url: amzUrl("soccer jersey football club official replica") },
+      { label: "Scarves", sub: "Wave it proud", icon: "scarf", url: amzUrl("football scarf soccer supporter ultras") },
+      { label: "Soccer Balls", sub: "Touch of gold", icon: "soccer", url: amzUrl("official match soccer ball FIFA quality") },
+    ],
+  },
+  sirGodfrey: {
+    quote: '"One must look dignified, even whilst watching football." — Sir Godfrey',
+    mainUrl: amzUrl("english football memorabilia classic"),
+    items: [
+      { label: "Retro Kits", sub: "Classic style", icon: "tshirt-crew", url: amzUrl("retro football shirt classic vintage") },
+      { label: "Football Books", sub: "Proper reading", icon: "book-open-variant", url: amzUrl("english football history book premier league") },
+      { label: "Tea Sets", sub: "For matchday", icon: "coffee", url: amzUrl("english tea set bone china cup saucer") },
+    ],
+  },
+  mamaFutbol: {
+    quote: '"MY BOYS need proper gear! And snacks! Always snacks!" — Mama Fútbol',
+    mainUrl: amzUrl("soccer mom fan gear snacks"),
+    items: [
+      { label: "Fan Flags", sub: "Cheer them on", icon: "flag", url: amzUrl("soccer fan flag country team supporter") },
+      { label: "Vuvuzelas", sub: "Make some noise", icon: "bugle", url: amzUrl("vuvuzela horn soccer fan noisemaker") },
+      { label: "Snack Packs", sub: "Fuel the fans", icon: "food", url: amzUrl("game day snack box soccer football party") },
+    ],
+  },
+  phantomZZ: {
+    quote: '"The ball speaks... and it says you need these." — Phantom ZZ',
+    mainUrl: amzUrl("football art philosophy soccer"),
+    items: [
+      { label: "Soccer Art", sub: "The beautiful game", icon: "palette", url: amzUrl("soccer football art print poster wall") },
+      { label: "Tactics Boards", sub: "See the patterns", icon: "strategy", url: amzUrl("football tactics board coach strategy") },
+      { label: "Zidane Book", sub: "Study the master", icon: "book-open-variant", url: amzUrl("Zidane biography football book") },
+    ],
+  },
+  theUltra: {
+    quote: '"WHO\'S THE GREATEST?! WE ARE! Rep the crew!" — The Ultra',
+    mainUrl: amzUrl("ultras football supporter gear"),
+    items: [
+      { label: "Ultras Gear", sub: "Stand culture", icon: "account-group", url: amzUrl("ultras football casual hoodie supporter") },
+      { label: "Drum & Flares", sub: "Atmosphere", icon: "drum", url: amzUrl("sports fan drum percussion cheering") },
+      { label: "Bandanas", sub: "Rep your crew", icon: "bandage", url: amzUrl("sports bandana face cover football fan") },
     ],
   },
 };
@@ -581,9 +704,16 @@ export default function SportsScreen() {
   const [expandedResult, setExpandedResult] = useState<number | null>(null);
   const { playClick, playTransition } = useSoundEffects();
 
-  const activePersona = PERSONAS.find((p) => p.id === selectedPersona) || PERSONAS[0];
+  const isRacingMode = selectedLeague === "RACING" || RACING_LEAGUES.includes(selectedLeague);
+  const isSoccerMode = selectedLeague === "SOCCER";
+  const activePersonaList = isRacingMode ? RACING_PERSONAS : isSoccerMode ? SOCCER_PERSONAS : PERSONAS;
+  const activePersona = activePersonaList.find((p) => p.id === selectedPersona) || activePersonaList[0];
   const featuredGame = games.length > 0 ? games[0] : null;
-  const filteredGames = selectedLeague === "ALL" ? games : games.filter((g) => g.league === selectedLeague);
+  const filteredGames = selectedLeague === "ALL"
+    ? games
+    : selectedLeague === "RACING"
+    ? games.filter((g) => RACING_LEAGUES.includes(g.league))
+    : games.filter((g) => g.league === selectedLeague);
   const currentTally = tallies[selectedPersona];
 
   const hasLiveGames = games.some((g) => g.status === "in");
@@ -905,7 +1035,7 @@ export default function SportsScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     try {
       const baseUrl = getApiUrl().replace(/\/$/, "");
-      const allPersonaIds = PERSONAS.map((p) => p.id);
+      const allPersonaIds = activePersonaList.map((p) => p.id);
       const res = await fetch(`${baseUrl}/api/sports/roundtable`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1000,7 +1130,7 @@ export default function SportsScreen() {
         <Animated.View entering={FadeInDown.delay(150).duration(400)} style={styles.personaSelector}>
           <Text style={styles.sectionLabel}>CHOOSE YOUR ANALYST</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.personaRow}>
-            {PERSONAS.map((p) => (
+            {activePersonaList.map((p) => (
               <PersonaSelectorItem
                 key={p.id}
                 persona={p}
@@ -1063,11 +1193,24 @@ export default function SportsScreen() {
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingRight: 16 }}>
             {ALL_LEAGUES.map((league) => {
               const isActive = selectedLeague === league;
-              const color = league === "ALL" ? Colors.gold : (LEAGUE_COLORS[league] || "#D4A420");
+              const color = league === "ALL" ? Colors.gold : league === "RACING" ? "#E10600" : (LEAGUE_COLORS[league] || "#D4A420");
               return (
                 <Pressable
                   key={league}
-                  onPress={() => { playClick(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedLeague(league); }}
+                  onPress={() => {
+                    playClick();
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setSelectedLeague(league);
+                    const willBeRacing = league === "RACING" || RACING_LEAGUES.includes(league);
+                    const willBeSoccer = league === "SOCCER";
+                    if (willBeRacing && !isRacingMode) {
+                      setSelectedPersona(RACING_PERSONAS[0].id);
+                    } else if (willBeSoccer && !isSoccerMode) {
+                      setSelectedPersona(SOCCER_PERSONAS[0].id);
+                    } else if (!willBeRacing && !willBeSoccer && (isRacingMode || isSoccerMode)) {
+                      setSelectedPersona("trump");
+                    }
+                  }}
                   style={[styles.leagueTab, isActive && { backgroundColor: `${color}30`, borderColor: color }]}
                 >
                   <Text style={[styles.leagueTabText, isActive && { color }]}>{league}</Text>
@@ -1292,7 +1435,8 @@ export default function SportsScreen() {
                 {roundtableGame?.game}
               </Text>
               {roundtableDialogue.map((line, idx) => {
-                const persona = PERSONAS.find((p) => p.id === line.personaId);
+                const allPersonas = [...PERSONAS, ...RACING_PERSONAS, ...SOCCER_PERSONAS];
+                const persona = allPersonas.find((p) => p.id === line.personaId);
                 const color = persona?.color || "#D4A420";
                 return (
                   <View key={idx} style={styles.roundtableLine}>
@@ -1344,6 +1488,22 @@ export default function SportsScreen() {
             >
               <MaterialCommunityIcons name="star-four-points" size={20} color="#fff" />
               <Text style={[styles.affiliateBtnText, { color: "#fff" }]}>FanDuel</Text>
+            </Pressable>
+          </View>
+          <View style={[styles.affiliateRow, { marginTop: 8 }]}>
+            <Pressable
+              onPress={() => handleAffiliate("https://www.betmgm.com")}
+              style={({ pressed }) => [styles.affiliateBtn, { backgroundColor: "#C5A44E" }, pressed && { opacity: 0.8 }]}
+            >
+              <MaterialCommunityIcons name="trophy" size={20} color="#1a1a1a" />
+              <Text style={[styles.affiliateBtnText, { color: "#1a1a1a" }]}>BetMGM</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => handleAffiliate("https://www.caesars.com/sportsbook-and-casino")}
+              style={({ pressed }) => [styles.affiliateBtn, { backgroundColor: "#1C3A1C" }, pressed && { opacity: 0.8 }]}
+            >
+              <MaterialCommunityIcons name="poker-chip" size={20} color="#C5A44E" />
+              <Text style={[styles.affiliateBtnText, { color: "#C5A44E" }]}>Caesars</Text>
             </Pressable>
           </View>
         </Animated.View>
