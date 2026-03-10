@@ -979,7 +979,7 @@ export default function ArenaScreen() {
   const ttsQueueRef = useRef<{ text: string; personaId: string }[]>([]);
   const isProcessingTTSRef = useRef(false);
 
-  const [selectedPersonas, setSelectedPersonas] = useState<string[]>(PERSONA_IDS.slice(0, 11));
+  const [selectedPersonas, setSelectedPersonas] = useState<string[]>(PERSONA_IDS);
   const [showPersonaSelector, setShowPersonaSelector] = useState(false);
   const selectedPersonasRef = useRef<string[]>(PERSONA_IDS);
   useEffect(() => { selectedPersonasRef.current = selectedPersonas; }, [selectedPersonas]);
@@ -2730,7 +2730,7 @@ export default function ArenaScreen() {
             />
             <View style={s.selectorActions}>
               <Pressable
-                onPress={() => setSelectedPersonas(PERSONA_IDS.slice(0, 11))}
+                onPress={() => setSelectedPersonas(PERSONA_IDS)}
                 style={s.selectorSelectAll}
               >
                 <Text style={s.selectorSelectAllText}>Select All</Text>
