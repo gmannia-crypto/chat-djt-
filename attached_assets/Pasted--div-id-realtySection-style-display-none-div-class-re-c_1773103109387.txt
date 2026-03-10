@@ -1,0 +1,101 @@
+<div id="realtySection" style="display: none;">
+  <div class="re-container">
+    <!-- Header -->
+    <div class="re-header">
+      <h2>🏠 TRUMP REALITY</h2>
+      <p>AI-powered property intelligence with live Airbnb data</p>
+      <div class="live-badge" id="dataSource">🔴 SAMPLE DATA</div>
+    </div>
+
+    <!-- Map & Score Legend -->
+    <div class="re-map-section">
+      <div class="re-legend" id="legend">
+        <div><span style="background: #ff4d4d;"></span> HOT ZONE (90-100%)</div>
+        <div><span style="background: #ffaa00;"></span> WARM ZONE (75-89%)</div>
+        <div><span style="background: #ffff00;"></span> STABLE ZONE (60-74%)</div>
+        <div><span style="background: #4d4dff;"></span> DEVELOPING (40-59%)</div>
+        <div><span style="background: #888888;"></span> AVOID (0-39%)</div>
+      </div>
+      <div id="re-map" class="re-map">
+        <iframe
+          width="100%"
+          height="400"
+          frameborder="0"
+          style="border:0"
+          src="https://www.google.com/maps/embed/v1/place?key=YOUR_GOOGLE_MAPS_API_KEY&q=miami+florida"
+          allowfullscreen>
+        </iframe>
+      </div>
+      <div class="map-controls">
+        <input type="text" id="locationInput" placeholder="Enter city, state or zip" value="Miami, FL">
+        <button id="updateLocationBtn">📍 UPDATE MAP</button>
+      </div>
+    </div>
+
+    <!-- Live Airbnb Scores Dashboard -->
+    <div class="re-dashboard">
+      <div class="re-scores">
+        <h3>📊 AIRBNB HOT ZONES <span class="refresh-note">(sample data)</span></h3>
+        <div id="re-zone-list" class="zone-list">
+          <div class="loading">Loading zones...</div>
+        </div>
+      </div>
+      <div class="re-filters">
+        <h3>🔍 FILTER ZONES BY</h3>
+        <label><input type="checkbox" value="airbnb" checked> Airbnb Occupancy (>70%)</label>
+        <label><input type="checkbox" value="nightly"> High Nightly Rate (>$200)</label>
+        <label><input type="checkbox" value="seasonal"> Strong Seasonality</label>
+        <label><input type="checkbox" value="growth"> Revenue Growth (+10% YoY)</label>
+        <button id="applyFilters">APPLY FILTERS</button>
+      </div>
+    </div>
+
+    <!-- Zone Detail Panel (appears on click) -->
+    <div id="zoneDetailPanel" class="zone-detail" style="display: none;"></div>
+
+    <!-- Tour Guide Section -->
+    <div class="re-tour">
+      <h3>👥 YOUR PERSONAL TOUR GUIDE</h3>
+      <div class="re-guide-selector">
+        <select id="re-guide-select">
+          <option value="victor">Victor Sterling – The Dealmaker</option>
+          <option value="maya">Dr. Maya Chen – The Analyst</option>
+          <option value="tommy">Tommy O'Brien – The Local</option>
+          <option value="sofia" selected>Sofia Rivera – Airbnb Guru</option>
+          <option value="patricia">Patricia Williams – Family Advisor</option>
+        </select>
+        <input type="text" id="re-user-name" placeholder="Your name">
+        <button id="re-start-tour">🎤 START TOUR</button>
+      </div>
+      <div id="re-conversation" class="re-conversation"></div>
+    </div>
+
+    <!-- Lender Affiliates -->
+    <div class="re-lenders">
+      <h3>🏦 LOCAL LENDERS (Affiliate Partners)</h3>
+      <div class="re-lender-list">
+        <div class="re-lender-card" data-affiliate="quicken">
+          <h4>Quicken Loans</h4>
+          <p>3.2% APR • $0 closing costs</p>
+          <button class="re-lender-btn">💰 GET PRE-APPROVED</button>
+        </div>
+        <div class="re-lender-card" data-affiliate="better">
+          <h4>Better Mortgage</h4>
+          <p>3.4% APR • $500 closing credit</p>
+          <button class="re-lender-btn">💰 CHECK RATES</button>
+        </div>
+        <div class="re-lender-card" data-affiliate="rocket">
+          <h4>Rocket Mortgage</h4>
+          <p>3.5% APR • 5 min pre-approval</p>
+          <button class="re-lender-btn">🚀 GET STARTED</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Data Attribution -->
+    <div class="re-disclaimer">
+      <p>Sample data for demonstration – replace with your Mashvisor API key for live data.</p>
+      <p>We may earn commissions from affiliate links. For entertainment purposes.</p>
+    </div>
+  </div>
+</div>

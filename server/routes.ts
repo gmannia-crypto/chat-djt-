@@ -4717,6 +4717,131 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
     };
   }
 
+  const ZONE_COLORS: Record<string, string> = {
+    hot: "#ff4d4d",
+    warm: "#ffaa00",
+    stable: "#ffff00",
+    developing: "#4d4dff",
+    avoid: "#888888",
+  };
+
+  function getZoneCategory(score: number): string {
+    if (score >= 90) return "hot";
+    if (score >= 75) return "warm";
+    if (score >= 60) return "stable";
+    if (score >= 40) return "developing";
+    return "avoid";
+  }
+
+  function generateZonesForLocation(location: string) {
+    const seed = location.toLowerCase().split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+    const rng = (i: number) => {
+      const x = Math.sin(seed * 9301 + i * 49297) * 49297;
+      return x - Math.floor(x);
+    };
+
+    const neighborhoods = [
+      "Downtown Core", "Midtown", "Uptown", "Waterfront District", "Arts District",
+      "University Quarter", "Historic District", "Tech Corridor", "Beachside", "Harbor View",
+      "Old Town", "Financial District", "Garden Quarter", "Lakeside", "Sunset Strip",
+    ];
+
+    const count = 6 + Math.floor(rng(0) * 5);
+    const zones = [];
+    for (let i = 0; i < count; i++) {
+      const score = Math.round(20 + rng(i * 7 + 1) * 80);
+      const occupancy = Math.round(40 + rng(i * 7 + 2) * 55);
+      const nightlyRate = Math.round(80 + rng(i * 7 + 3) * 350);
+      const revenueGrowth = Math.round(-5 + rng(i * 7 + 4) * 30);
+      const seasonality = Math.round(30 + rng(i * 7 + 5) * 70);
+      const category = getZoneCategory(score);
+      zones.push({
+        id: `zone-${i}`,
+        name: neighborhoods[i % neighborhoods.length],
+        score,
+        category,
+        color: ZONE_COLORS[category],
+        occupancy,
+        nightlyRate,
+        revenueGrowth,
+        seasonality,
+        listings: Math.round(10 + rng(i * 7 + 6) * 200),
+        avgRating: +(3.5 + rng(i * 7 + 7) * 1.5).toFixed(1),
+      });
+    }
+    return zones.sort((a, b) => b.score - a.score);
+  }
+
+  app.get("/api/realty/zones", async (req, res) => {
+    try {
+      const location = (req.query.location as string) || "Miami, FL";
+      const zones = generateZonesForLocation(location);
+      const filters = req.query.filters ? (req.query.filters as string).split(",") : [];
+      let filtered = zones;
+      if (filters.includes("airbnb")) filtered = filtered.filter(z => z.occupancy > 70);
+      if (filters.includes("nightly")) filtered = filtered.filter(z => z.nightlyRate > 200);
+      if (filters.includes("seasonal")) filtered = filtered.filter(z => z.seasonality > 60);
+      if (filters.includes("growth")) filtered = filtered.filter(z => z.revenueGrowth > 10);
+      res.json({ zones: filtered, total: zones.length, location });
+    } catch (error) {
+      console.error("Zones error:", error);
+      res.status(500).json({ error: "Failed to load zones" });
+    }
+  });
+
+  const TOUR_GUIDES: Record<string, { name: string; title: string; prompt: string }> = {
+    victor: {
+      name: "Victor Sterling",
+      title: "The Dealmaker",
+      prompt: "You are Victor Sterling, a slick, confident real estate dealmaker. You speak in smooth, persuasive tones about property deals, negotiations, and making money in real estate. You love closing deals and talk about ROI, cap rates, and investment strategy. Keep responses to 2-3 sentences, punchy and confident."
+    },
+    maya: {
+      name: "Dr. Maya Chen",
+      title: "The Analyst",
+      prompt: "You are Dr. Maya Chen, a data-driven real estate analyst with a PhD in urban economics. You cite statistics, market trends, and data points. You're precise, analytical, and always back up claims with numbers. Keep responses to 2-3 sentences, data-focused."
+    },
+    tommy: {
+      name: "Tommy O'Brien",
+      title: "The Local",
+      prompt: "You are Tommy O'Brien, a born-and-raised local who knows every neighborhood like the back of his hand. You talk about the best restaurants, schools, parks, and hidden gems. You're warm, friendly, and full of insider tips. Keep responses to 2-3 sentences, conversational and neighborly."
+    },
+    sofia: {
+      name: "Sofia Rivera",
+      title: "Airbnb Guru",
+      prompt: "You are Sofia Rivera, an Airbnb superhost who turned her first rental into a 15-property empire. You know short-term rental strategy, occupancy optimization, pricing algorithms, and guest experience. You're energetic and entrepreneurial. Keep responses to 2-3 sentences, practical and exciting."
+    },
+    patricia: {
+      name: "Patricia Williams",
+      title: "Family Advisor",
+      prompt: "You are Patricia Williams, a warm and experienced family real estate advisor. You focus on school districts, family-friendly neighborhoods, safety, and long-term value. You're caring, thorough, and always thinking about what's best for families. Keep responses to 2-3 sentences, warm and reassuring."
+    },
+  };
+
+  app.post("/api/realty/tour", async (req, res) => {
+    try {
+      const { guideId, message, location, userName } = req.body;
+      const guide = TOUR_GUIDES[guideId || "sofia"];
+      if (!guide) return res.status(400).json({ error: "Unknown guide" });
+
+      const systemPrompt = `${guide.prompt}\n\nYou are giving a tour/consultation about real estate in ${location || "this area"}. The customer's name is ${userName || "friend"}. Address them by name occasionally. Be helpful, specific, and engaging. Do NOT use asterisks, stage directions, or quotation marks around your response.`;
+
+      const completion = await getClient().chat.completions.create({
+        model: getFastModel(),
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: message || "Tell me about investing in this area" },
+        ],
+        max_completion_tokens: 120,
+        temperature: 0.85,
+      });
+      const response = completion.choices[0]?.message?.content || "Let me look into that for you...";
+      res.json({ response, guideName: guide.name, guideTitle: guide.title });
+    } catch (error) {
+      console.error("Tour guide error:", error);
+      res.status(500).json({ error: "Tour guide unavailable" });
+    }
+  });
+
   app.get("/api/properties", async (req, res) => {
     try {
       const location = (req.query.location as string) || "";

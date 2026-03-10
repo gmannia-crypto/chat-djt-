@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   StyleSheet,
@@ -11,7 +11,6 @@ import {
   Share,
   TextInput,
   Image,
-  FlatList,
   Dimensions,
 } from "react-native";
 import { router } from "expo-router";
@@ -25,14 +24,31 @@ import Animated, {
   FadeIn,
   FadeInDown,
   FadeInUp,
-  useSharedValue,
-  useAnimatedStyle,
-  withRepeat,
-  withTiming,
-  withSequence,
+  SlideInRight,
 } from "react-native-reanimated";
 import Colors from "@/constants/colors";
 import { getApiUrl } from "@/lib/query-client";
+
+interface Zone {
+  id: string;
+  name: string;
+  score: number;
+  category: string;
+  color: string;
+  occupancy: number;
+  nightlyRate: number;
+  revenueGrowth: number;
+  seasonality: number;
+  listings: number;
+  avgRating: number;
+}
+
+interface TourMessage {
+  id: string;
+  role: "guide" | "user";
+  text: string;
+  guideName?: string;
+}
 
 interface PersonaComment {
   comment: string;
@@ -64,16 +80,6 @@ interface Property {
   personaComments?: Record<string, PersonaComment>;
 }
 
-interface AdvisorPersona {
-  id: string;
-  name: string;
-  emoji: string;
-  color: string;
-  title: string;
-  stampLabel: string;
-  image: any;
-}
-
 const ADVISOR_IMAGES: Record<string, any> = {
   trump: require("@/assets/images/persona-trump.png"),
   buffett: require("@/assets/images/persona-buffett.png"),
@@ -88,18 +94,36 @@ const ADVISOR_IMAGES: Record<string, any> = {
   ruckus: require("@/assets/images/persona-ruckus.png"),
 };
 
-const REAL_ESTATE_ADVISORS: AdvisorPersona[] = [
+const REAL_ESTATE_ADVISORS = [
   { id: "trump", name: "Trump", emoji: "\uD83D\uDDE3\uFE0F", color: "#ff4d4d", title: "45th & 47th President", stampLabel: "TRUMP APPROVED", image: ADVISOR_IMAGES.trump },
   { id: "buffett", name: "Buffett", emoji: "\uD83D\uDC74", color: "#4d4dff", title: "Oracle of Omaha", stampLabel: "BUFFETT ANALYZED", image: ADVISOR_IMAGES.buffett },
   { id: "suze", name: "Suze", emoji: "\uD83D\uDC69", color: "#ff99cc", title: "Personal Finance Expert", stampLabel: "SUZE REVIEWED", image: ADVISOR_IMAGES.suze },
   { id: "grandma", name: "Grandma", emoji: "\uD83D\uDC75", color: "#ffffff", title: "Voice of Experience", stampLabel: "GRANDMA APPROVED", image: ADVISOR_IMAGES.grandma },
   { id: "musk", name: "Elon", emoji: "\uD83D\uDE80", color: "#00ccff", title: "CEO of Tesla & SpaceX", stampLabel: "ELON RATED", image: ADVISOR_IMAGES.musk },
   { id: "dave", name: "Dave", emoji: "\uD83D\uDCFB", color: "#ffaa00", title: "Financial Peace", stampLabel: "DAVE GRADED", image: ADVISOR_IMAGES.dave },
-  { id: "mansa", name: "Mansa Musa", emoji: "\uD83D\uDC51", color: "#D4AF37", title: "Richest Man in History", stampLabel: "MANSA BLESSED", image: ADVISOR_IMAGES.mansa },
-  { id: "jordan", name: "MJ", emoji: "\uD83C\uDFC0", color: "#CE1141", title: "6x NBA Champion", stampLabel: "MJ CERTIFIED", image: ADVISOR_IMAGES.jordan },
-  { id: "bernie", name: "Bernie Mac", emoji: "\uD83C\uDFA4", color: "#9B59B6", title: "King of Comedy", stampLabel: "BERNIE APPROVED", image: ADVISOR_IMAGES.bernie },
-  { id: "genie", name: "Genie", emoji: "\uD83E\uDDDE", color: "#9B59B6", title: "10,000 Years of Wisdom", stampLabel: "GENIE GRANTED", image: ADVISOR_IMAGES.genie },
   { id: "ruckus", name: "Ruckus", emoji: "\uD83D\uDE24", color: "#8B4513", title: "Contrarian Expert", stampLabel: "RUCKUS REJECTED", image: ADVISOR_IMAGES.ruckus },
+];
+
+const TOUR_GUIDES = [
+  { id: "victor", name: "Victor Sterling", title: "The Dealmaker", emoji: "\uD83D\uDCBC", color: "#FFD700" },
+  { id: "maya", name: "Dr. Maya Chen", title: "The Analyst", emoji: "\uD83D\uDCCA", color: "#00ccff" },
+  { id: "tommy", name: "Tommy O'Brien", title: "The Local", emoji: "\uD83C\uDFD8\uFE0F", color: "#4ADE80" },
+  { id: "sofia", name: "Sofia Rivera", title: "Airbnb Guru", emoji: "\uD83C\uDFE0", color: "#ff6b9d" },
+  { id: "patricia", name: "Patricia Williams", title: "Family Advisor", emoji: "\uD83D\uDC6A", color: "#C084FC" },
+];
+
+const ZONE_LEGEND = [
+  { label: "HOT ZONE (90-100%)", color: "#ff4d4d" },
+  { label: "WARM ZONE (75-89%)", color: "#ffaa00" },
+  { label: "STABLE ZONE (60-74%)", color: "#ffff00" },
+  { label: "DEVELOPING (40-59%)", color: "#4d4dff" },
+  { label: "AVOID (0-39%)", color: "#888888" },
+];
+
+const LENDERS = [
+  { id: "quicken", name: "Quicken Loans", rate: "3.2% APR", perk: "$0 closing costs", btnText: "GET PRE-APPROVED", icon: "cash" as const, url: "https://www.quickenloans.com/" },
+  { id: "better", name: "Better Mortgage", rate: "3.4% APR", perk: "$500 closing credit", btnText: "CHECK RATES", icon: "trending-up" as const, url: "https://better.com/" },
+  { id: "rocket", name: "Rocket Mortgage", rate: "3.5% APR", perk: "5 min pre-approval", btnText: "GET STARTED", icon: "rocket" as const, url: "https://www.rocketmortgage.com/" },
 ];
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -108,6 +132,22 @@ export default function RealEstateScreen() {
   const insets = useSafeAreaInsets();
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
+
+  const [activeTab, setActiveTab] = useState<"zones" | "properties" | "tour">("zones");
+  const [mapLocation, setMapLocation] = useState("Miami, FL");
+  const [zones, setZones] = useState<Zone[]>([]);
+  const [zonesLoading, setZonesLoading] = useState(false);
+  const [selectedZone, setSelectedZone] = useState<Zone | null>(null);
+  const [filters, setFilters] = useState<Record<string, boolean>>({ airbnb: true, nightly: false, seasonal: false, growth: false });
+  const [dataLive, setDataLive] = useState(false);
+
+  const [selectedGuide, setSelectedGuide] = useState("sofia");
+  const [tourUserName, setTourUserName] = useState("");
+  const [tourMessages, setTourMessages] = useState<TourMessage[]>([]);
+  const [tourInput, setTourInput] = useState("");
+  const [tourLoading, setTourLoading] = useState(false);
+  const [tourSpeaking, setTourSpeaking] = useState(false);
+  const tourSoundRef = useRef<Audio.Sound | null>(null);
 
   const [location, setLocation] = useState("");
   const [properties, setProperties] = useState<Property[]>([]);
@@ -119,7 +159,7 @@ export default function RealEstateScreen() {
   const [selectedAdvisor, setSelectedAdvisor] = useState("trump");
   const [aiComments, setAiComments] = useState<Record<string, { comment: string; rating: number }>>({});
   const [aiLoading, setAiLoading] = useState<Record<string, boolean>>({});
-  const soundRef = React.useRef<Audio.Sound | null>(null);
+  const soundRef = useRef<Audio.Sound | null>(null);
 
   const [calcOpen, setCalcOpen] = useState(false);
   const [homePrice, setHomePrice] = useState("300000");
@@ -128,21 +168,82 @@ export default function RealEstateScreen() {
   const [loanTerm, setLoanTerm] = useState("30");
   const [calcResult, setCalcResult] = useState<{ monthly: number; total: number; interest: number; trumpComment: string } | null>(null);
 
+  const activeAdvisor = REAL_ESTATE_ADVISORS.find((a) => a.id === selectedAdvisor) || REAL_ESTATE_ADVISORS[0];
+  const activeGuide = TOUR_GUIDES.find((g) => g.id === selectedGuide) || TOUR_GUIDES[3];
+
+  useEffect(() => {
+    fetchZones();
+  }, []);
+
+  const fetchZones = useCallback(async (loc?: string) => {
+    setZonesLoading(true);
+    try {
+      const activeFilters = Object.entries(filters).filter(([, v]) => v).map(([k]) => k).join(",");
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      const res = await fetch(`${baseUrl}/api/realty/zones?location=${encodeURIComponent(loc || mapLocation)}&filters=${activeFilters}`);
+      if (res.ok) {
+        const data = await res.json();
+        setZones(data.zones || []);
+      }
+    } catch (err) {
+      console.error("Zones fetch error:", err);
+    } finally {
+      setZonesLoading(false);
+    }
+  }, [mapLocation, filters]);
+
+  const applyFilters = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    fetchZones();
+  }, [fetchZones]);
+
+  const updateMapLocation = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    fetchZones(mapLocation);
+  }, [mapLocation, fetchZones]);
+
+  const sendTourMessage = useCallback(async (msg?: string) => {
+    const text = msg || tourInput.trim();
+    if (!text) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setTourInput("");
+    const userMsg: TourMessage = { id: `user-${Date.now()}`, role: "user", text };
+    setTourMessages((prev) => [...prev, userMsg]);
+    setTourLoading(true);
+    try {
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      const res = await fetch(`${baseUrl}/api/realty/tour`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guideId: selectedGuide, message: text, location: mapLocation, userName: tourUserName || "friend" }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTourMessages((prev) => [...prev, { id: `guide-${Date.now()}`, role: "guide", text: data.response, guideName: data.guideName }]);
+      }
+    } catch {}
+    setTourLoading(false);
+  }, [tourInput, selectedGuide, mapLocation, tourUserName]);
+
+  const startTour = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    setTourMessages([]);
+    sendTourMessage(`Hi! I'm interested in real estate in ${mapLocation}. What should I know about investing here?`);
+  }, [mapLocation, sendTourMessage]);
+
   const calculateMortgage = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const price = Math.max(0, parseFloat(homePrice) || 0);
     const down = Math.max(0, Math.min(price, parseFloat(downPayment) || 0));
     const rate = Math.max(0, Math.min(30, parseFloat(interestRate) || 6.5));
     const years = loanTerm === "15" ? 15 : 30;
-
     if (price <= 0) {
-      setCalcResult({ monthly: 0, total: 0, interest: 0, trumpComment: "You gotta enter a home price! Even a tiny house costs SOMETHING. Unless you're building one yourself. Which I don't recommend. Trust me." });
+      setCalcResult({ monthly: 0, total: 0, interest: 0, trumpComment: "You gotta enter a home price! Even a tiny house costs SOMETHING." });
       return;
     }
-
     const loan = price - down;
     if (loan <= 0) {
-      setCalcResult({ monthly: 0, total: 0, interest: 0, trumpComment: "You're paying CASH? Now THAT'S the art of the deal! No banks, no interest, no problem. Very smart. Like me." });
+      setCalcResult({ monthly: 0, total: 0, interest: 0, trumpComment: "You're paying CASH? Now THAT'S the art of the deal!" });
       return;
     }
     const monthlyRate = rate / 100 / 12;
@@ -152,35 +253,20 @@ export default function RealEstateScreen() {
       : loan / numPayments;
     const total = monthly * numPayments;
     const interest = total - loan;
-
     if (!Number.isFinite(monthly) || !Number.isFinite(total)) {
-      setCalcResult({ monthly: 0, total: 0, interest: 0, trumpComment: "Those numbers don't add up! Even MY accountants can't work with that. Try something more realistic. Believe me." });
+      setCalcResult({ monthly: 0, total: 0, interest: 0, trumpComment: "Those numbers don't add up! Try something more realistic." });
       return;
     }
-
     let trumpComment = "";
     const downPercent = price > 0 ? (down / price) * 100 : 0;
-
-    if (monthly > 5000) {
-      trumpComment = "FIVE THOUSAND a month?! That's a LOT. But winners pay big. I pay more than that for my HAIR. Believe me, if you can afford it, DO IT. Nobody ever got rich being cheap.";
-    } else if (monthly > 2000) {
-      trumpComment = "Two grand a month? HIGH! Very high! But you know what? You can afford it. I believe in you. Not as much as I believe in ME, but close. Great investment!";
-    } else if (monthly > 1000) {
-      trumpComment = "Around a thousand? That's REASONABLE. Very smart. You're thinking like a winner. Some people waste that on avocado toast. You're building an EMPIRE.";
-    } else {
-      trumpComment = "LOW payment! The BEST payment! That's practically free money! Banks are giving it away! Lock that rate in and NEVER look back. Tremendous deal!";
-    }
-
-    if (downPercent < 10) {
-      trumpComment += " But that down payment? WEAK. I'd put 20% down minimum. PMI is for LOSERS.";
-    } else if (downPercent >= 20) {
-      trumpComment += " And that down payment? STRONG. No PMI. You negotiate like a TRUMP.";
-    }
-
+    if (monthly > 5000) trumpComment = "FIVE THOUSAND a month?! But winners pay big. I pay more for my HAIR.";
+    else if (monthly > 2000) trumpComment = "Two grand a month? HIGH! But you can afford it. Great investment!";
+    else if (monthly > 1000) trumpComment = "Around a thousand? REASONABLE. You're thinking like a winner.";
+    else trumpComment = "LOW payment! The BEST payment! Lock that rate in and NEVER look back!";
+    if (downPercent < 10) trumpComment += " But that down payment? WEAK. PMI is for LOSERS.";
+    else if (downPercent >= 20) trumpComment += " And that down payment? STRONG. You negotiate like a TRUMP.";
     setCalcResult({ monthly: Math.round(monthly), total: Math.round(total), interest: Math.round(interest), trumpComment });
   }, [homePrice, downPayment, interestRate, loanTerm]);
-
-  const activeAdvisor = REAL_ESTATE_ADVISORS.find((a) => a.id === selectedAdvisor) || REAL_ESTATE_ADVISORS[0];
 
   const getAiKey = useCallback((property: Property) => {
     const propId = property.id || `${property.price}_${property.city}_${property.street}`;
@@ -190,28 +276,16 @@ export default function RealEstateScreen() {
   const getPropertyComment = useCallback((property: Property): string => {
     const aiKey = getAiKey(property);
     if (aiComments[aiKey]) return aiComments[aiKey].comment;
-    if (property.personaComments && property.personaComments[selectedAdvisor]) {
-      return property.personaComments[selectedAdvisor].comment;
-    }
+    if (property.personaComments && property.personaComments[selectedAdvisor]) return property.personaComments[selectedAdvisor].comment;
     return property.trumpComment;
   }, [selectedAdvisor, aiComments, getAiKey]);
 
   const getPropertyRating = useCallback((property: Property): number => {
     const aiKey = getAiKey(property);
     if (aiComments[aiKey]) return aiComments[aiKey].rating;
-    if (property.personaComments && property.personaComments[selectedAdvisor]) {
-      return property.personaComments[selectedAdvisor].rating;
-    }
+    if (property.personaComments && property.personaComments[selectedAdvisor]) return property.personaComments[selectedAdvisor].rating;
     return property.trumpRating;
   }, [selectedAdvisor, aiComments, getAiKey]);
-
-  const isAiLoaded = useCallback((property: Property): boolean => {
-    return !!aiComments[getAiKey(property)];
-  }, [aiComments, getAiKey]);
-
-  const isAiFetching = useCallback((property: Property): boolean => {
-    return !!aiLoading[getAiKey(property)];
-  }, [aiLoading, getAiKey]);
 
   const fetchAiAnalysis = useCallback(async (property: Property) => {
     const aiKey = getAiKey(property);
@@ -224,20 +298,7 @@ export default function RealEstateScreen() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          property: {
-            price: property.price,
-            beds: property.beds,
-            baths: property.baths,
-            sqft: property.sqft,
-            city: property.city,
-            state: property.state,
-            street: property.street,
-            propertyType: property.propertyType,
-            yearBuilt: property.yearBuilt,
-            pricePerSqFt: property.pricePerSqFt,
-            lotSize: property.lotSize,
-            dom: property.dom,
-          },
+          property: { price: property.price, beds: property.beds, baths: property.baths, sqft: property.sqft, city: property.city, state: property.state, street: property.street, propertyType: property.propertyType, yearBuilt: property.yearBuilt, pricePerSqFt: property.pricePerSqFt, lotSize: property.lotSize, dom: property.dom },
           personaId: selectedAdvisor,
         }),
       });
@@ -246,16 +307,9 @@ export default function RealEstateScreen() {
         if (data.comment) {
           setAiComments((prev) => ({ ...prev, [aiKey]: { comment: data.comment, rating: data.rating } }));
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          try {
-            const prev = await AsyncStorage.getItem("chatdjt_property_analyses");
-            const count = (parseInt(prev || "0") || 0) + 1;
-            await AsyncStorage.setItem("chatdjt_property_analyses", String(count));
-          } catch {}
         }
       }
-    } catch (err) {
-      console.error("AI analysis error:", err);
-    } finally {
+    } catch {} finally {
       setAiLoading((prev) => ({ ...prev, [aiKey]: false }));
     }
   }, [selectedAdvisor, aiComments, aiLoading, getAiKey]);
@@ -272,11 +326,8 @@ export default function RealEstateScreen() {
       const data = await res.json();
       setProperties(data.properties || []);
       setTotalResults(data.totalResults || 0);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (err) {
-      console.error("Property search error:", err);
+    } catch {
       setProperties([]);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setLoading(false);
     }
@@ -284,50 +335,22 @@ export default function RealEstateScreen() {
 
   const handleSpeak = async (text: string, propId: string) => {
     if (speaking) {
-      if (soundRef.current) {
-        await soundRef.current.stopAsync();
-        await soundRef.current.unloadAsync();
-        soundRef.current = null;
-      }
+      if (soundRef.current) { await soundRef.current.stopAsync(); await soundRef.current.unloadAsync(); soundRef.current = null; }
       setSpeaking(false);
       setSpeakingId(null);
       return;
     }
-
     setSpeaking(true);
     setSpeakingId(propId);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
     try {
       await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
       const sound = await playTTS("/api/persona-speak", { text, personaId: selectedAdvisor });
       soundRef.current = sound;
       sound.setOnPlaybackStatusUpdate((status: any) => {
-        if (status.didJustFinish) {
-          setSpeaking(false);
-          setSpeakingId(null);
-          sound.unloadAsync();
-          soundRef.current = null;
-        }
+        if (status.didJustFinish) { setSpeaking(false); setSpeakingId(null); sound.unloadAsync(); soundRef.current = null; }
       });
-    } catch (err) {
-      setSpeaking(false);
-      setSpeakingId(null);
-    }
-  };
-
-  const handleShare = async (property: Property) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const priceStr = formatPrice(property.price);
-    const addr = property.street || `${property.city}, ${property.state}`;
-    const listing = property.url ? `\n\n${property.url}` : "";
-    const comment = getPropertyComment(property);
-    const rating = getPropertyRating(property);
-    try {
-      await Share.share({
-        message: `${activeAdvisor.emoji} ${activeAdvisor.stampLabel} ${activeAdvisor.emoji}\n\n${addr} — ${priceStr}\n${property.beds}bd / ${property.baths}ba${property.sqft ? ` / ${property.sqft.toLocaleString()} sqft` : ""}\n\n${activeAdvisor.name} says: "${comment}"\n\nRating: ${rating}%${listing}\n\n- via Chat DJT`,
-      });
-    } catch {}
+    } catch { setSpeaking(false); setSpeakingId(null); }
   };
 
   const formatPrice = (price: number) => {
@@ -338,1036 +361,663 @@ export default function RealEstateScreen() {
 
   const handleViewListing = (url: string | null) => {
     if (!url) return;
-    if (Platform.OS === "web") {
-      window.open(url, "_blank");
-    } else {
-      import("expo-linking").then((Linking) => Linking.openURL(url));
-    }
-  };
-
-  const renderProperty = ({ item, index }: { item: Property; index: number }) => {
-    const propId = item.id || `prop-${index}`;
-    const isSpeakingThis = speakingId === propId;
-    const addressLine = item.street
-      ? `${item.street} — ${formatPrice(item.price)}`
-      : `${item.city}, ${item.state} — ${formatPrice(item.price)}`;
-    const comment = getPropertyComment(item);
-    const rating = getPropertyRating(item);
-    return (
-      <Animated.View entering={FadeInDown.delay(index * 100).duration(400)} key={propId}>
-        <View style={styles.propertyCard}>
-          <View style={styles.imageContainer}>
-            {item.img ? (
-              <Image source={{ uri: item.img }} style={styles.propertyImage} resizeMode="cover" />
-            ) : (
-              <View style={[styles.propertyImage, styles.noImage]}>
-                <FontAwesome5 name="home" size={40} color="rgba(212,164,32,0.3)" />
-              </View>
-            )}
-            <View style={styles.stampContainer}>
-              <LinearGradient
-                colors={[`${activeAdvisor.color}E6`, `${activeAdvisor.color}F0`]}
-                style={styles.stampGradient}
-              >
-                <Text style={styles.stampText}>{activeAdvisor.emoji} {activeAdvisor.stampLabel} {activeAdvisor.emoji}</Text>
-              </LinearGradient>
-            </View>
-            <View style={[styles.ratingBadge, { backgroundColor: `${activeAdvisor.color}CC` }]}>
-              <Text style={styles.ratingText}>{rating}%</Text>
-              <MaterialCommunityIcons name="trophy" size={12} color="#fff" />
-            </View>
-            {item.propertyType && (
-              <View style={styles.typeBadge}>
-                <Text style={styles.typeText}>{item.propertyType}</Text>
-              </View>
-            )}
-          </View>
-
-          <View style={styles.propertyDetails}>
-            <Text style={styles.addressHeadline} numberOfLines={2}>
-              {addressLine}
-            </Text>
-            <Text style={styles.cityText}>
-              {item.city}, {item.state} {item.zip}
-            </Text>
-
-            <View style={styles.statsRow}>
-              <View style={styles.stat}>
-                <Ionicons name="bed" size={14} color={Colors.gold} />
-                <Text style={styles.statText}>{item.beds} bd</Text>
-              </View>
-              <View style={styles.stat}>
-                <MaterialCommunityIcons name="bathtub" size={14} color={Colors.gold} />
-                <Text style={styles.statText}>{item.baths} ba</Text>
-              </View>
-              {item.sqft > 0 && (
-                <View style={styles.stat}>
-                  <MaterialCommunityIcons name="ruler-square" size={14} color={Colors.gold} />
-                  <Text style={styles.statText}>{item.sqft.toLocaleString()} sqft</Text>
-                </View>
-              )}
-              {item.yearBuilt && (
-                <View style={styles.stat}>
-                  <Ionicons name="calendar" size={13} color={Colors.gold} />
-                  <Text style={styles.statText}>{item.yearBuilt}</Text>
-                </View>
-              )}
-            </View>
-
-            {item.pricePerSqFt && item.pricePerSqFt > 0 && (
-              <Text style={styles.pricePerSqFt}>${item.pricePerSqFt}/sqft{item.dom ? ` · ${item.dom} days on market` : ""}</Text>
-            )}
-
-            <View style={styles.trumpSection}>
-              {isAiLoaded(item) && (
-                <View style={styles.aiBadge}>
-                  <Ionicons name="sparkles" size={10} color="#FFD700" />
-                  <Text style={styles.aiBadgeText}>AI LIVE ANALYSIS</Text>
-                </View>
-              )}
-              <Text style={[styles.trumpComment, { borderLeftColor: activeAdvisor.color }]}>"{comment}"</Text>
-              {!isAiLoaded(item) && (
-                <Pressable
-                  onPress={() => fetchAiAnalysis(item)}
-                  disabled={isAiFetching(item)}
-                  style={({ pressed }) => [
-                    styles.aiAnalysisBtn,
-                    { borderColor: activeAdvisor.color, backgroundColor: `${activeAdvisor.color}15` },
-                    pressed && { opacity: 0.7 },
-                  ]}
-                >
-                  {isAiFetching(item) ? (
-                    <ActivityIndicator size="small" color={activeAdvisor.color} />
-                  ) : (
-                    <Ionicons name="sparkles" size={14} color={activeAdvisor.color} />
-                  )}
-                  <Text style={[styles.aiAnalysisBtnText, { color: activeAdvisor.color }]}>
-                    {isAiFetching(item) ? "ANALYZING..." : `GET ${activeAdvisor.name.toUpperCase()}'S AI TAKE`}
-                  </Text>
-                </Pressable>
-              )}
-            </View>
-
-            <View style={styles.cardActions}>
-              <Pressable
-                onPress={() => handleSpeak(comment, propId)}
-                style={({ pressed }) => [styles.actionBtn, styles.speakBtn, pressed && { opacity: 0.7 }]}
-              >
-                <Ionicons name={isSpeakingThis ? "stop" : "volume-high"} size={16} color="#fff" />
-                <Text style={styles.actionBtnText}>{isSpeakingThis ? "STOP" : "LISTEN"}</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => handleShare(item)}
-                style={({ pressed }) => [styles.actionBtn, styles.shareBtn, pressed && { opacity: 0.7 }]}
-              >
-                <Ionicons name="share-social" size={16} color="#fff" />
-                <Text style={styles.actionBtnText}>{"\uD83D\uDD01"} SHARE THIS DEAL</Text>
-              </Pressable>
-            </View>
-
-            {item.url && (
-              <Pressable
-                onPress={() => handleViewListing(item.url)}
-                style={({ pressed }) => [styles.viewListingBtn, pressed && { opacity: 0.7 }]}
-              >
-                <Ionicons name="open-outline" size={14} color={Colors.gold} />
-                <Text style={styles.viewListingText}>View Full Listing</Text>
-              </Pressable>
-            )}
-
-            <Text style={styles.affiliateDisclaimer}>
-              As an Amazon Associate I earn from qualifying purchases
-            </Text>
-          </View>
-        </View>
-      </Animated.View>
-    );
+    if (Platform.OS === "web") window.open(url, "_blank");
+    else import("expo-linking").then((Linking) => Linking.openURL(url));
   };
 
   return (
-    <View style={[styles.container, Platform.OS === "web" && { maxHeight: "100vh" as any, overflow: "auto" as any }]}>
-      <LinearGradient
-        colors={["#0a0a0a", "#1a0f00", "#0a0a0a"]}
-        style={StyleSheet.absoluteFillObject}
-      />
+    <View style={[s.container, Platform.OS === "web" && { maxHeight: "100vh" as any, overflow: "hidden" as any }]}>
+      <LinearGradient colors={["#0a0a0a", "#1a0f00", "#0a0a0a"]} style={StyleSheet.absoluteFillObject} />
 
-      <Animated.View
-        entering={FadeInUp.duration(400)}
-        style={[styles.header, { paddingTop: insets.top + webTopInset + 8 }]}
-      >
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+      <Animated.View entering={FadeInUp.duration(400)} style={[s.header, { paddingTop: insets.top + webTopInset + 8 }]}>
+        <Pressable onPress={() => router.back()} style={s.backBtn} testID="back-button">
           <Ionicons name="arrow-back" size={22} color={Colors.gold} />
         </Pressable>
-        <View style={styles.headerCenter}>
-          <MaterialCommunityIcons name="office-building" size={20} color={Colors.gold} />
-          <Text style={styles.headerTitle}>TRUMP REALTY</Text>
+        <View style={s.headerCenter}>
+          <Text style={s.headerTitle}>TRUMP REALITY</Text>
+          <Text style={s.headerSub}>AI-powered property intelligence</Text>
         </View>
-        <View style={styles.backButton} />
-      </Animated.View>
-
-      <Animated.View entering={FadeInDown.delay(200).duration(400)} style={styles.searchSection}>
-        <View style={styles.searchRow}>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Enter zip code or city..."
-            placeholderTextColor="rgba(255,255,255,0.3)"
-            value={location}
-            onChangeText={setLocation}
-            onSubmitEditing={handleSearch}
-            returnKeyType="search"
-            autoCapitalize="none"
-          />
-          <Pressable
-            onPress={handleSearch}
-            disabled={loading || !location.trim()}
-            style={({ pressed }) => [
-              styles.searchButton,
-              pressed && { opacity: 0.7 },
-              (!location.trim() || loading) && { opacity: 0.4 },
-            ]}
-          >
-            <LinearGradient
-              colors={[Colors.gold, "#B8860B"]}
-              style={styles.searchButtonGradient}
-            >
-              {loading ? (
-                <ActivityIndicator size="small" color="#000" />
-              ) : (
-                <Ionicons name="search" size={20} color="#000" />
-              )}
-            </LinearGradient>
-          </Pressable>
+        <View style={[s.liveBadge, dataLive && s.liveBadgeActive]}>
+          <View style={[s.liveDot, { backgroundColor: dataLive ? "#4ADE80" : "#ff4d4d" }]} />
+          <Text style={s.liveBadgeText}>{dataLive ? "LIVE" : "SAMPLE"}</Text>
         </View>
-        <Text style={styles.searchHint}>
-          Search by zip code (e.g. 90210) or city name
-        </Text>
       </Animated.View>
 
-      <Animated.View entering={FadeInDown.delay(300).duration(400)} style={styles.calcToggle}>
-        <Pressable
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            setCalcOpen(!calcOpen);
-          }}
-          style={({ pressed }) => [styles.calcToggleBtn, pressed && { opacity: 0.7 }]}
-          testID="mortgage-calc-toggle"
-        >
-          <MaterialCommunityIcons name="calculator-variant" size={18} color={Colors.gold} />
-          <Text style={styles.calcToggleText}>MORTGAGE CALCULATOR</Text>
-          <Ionicons name={calcOpen ? "chevron-up" : "chevron-down"} size={16} color={Colors.gold} />
-        </Pressable>
-      </Animated.View>
-
-      {calcOpen && (
-        <Animated.View entering={FadeInDown.duration(300)} style={styles.calcSection}>
-          <View style={styles.calcRow}>
-            <View style={styles.calcInputGroup}>
-              <Text style={styles.calcLabel}>HOME PRICE</Text>
-              <View style={styles.calcInputWrap}>
-                <Text style={styles.calcDollar}>$</Text>
-                <TextInput
-                  style={styles.calcInput}
-                  value={homePrice}
-                  onChangeText={setHomePrice}
-                  keyboardType="numeric"
-                  placeholder="300000"
-                  placeholderTextColor="rgba(255,255,255,0.2)"
-                  testID="home-price-input"
-                />
-              </View>
-            </View>
-            <View style={styles.calcInputGroup}>
-              <Text style={styles.calcLabel}>DOWN PAYMENT</Text>
-              <View style={styles.calcInputWrap}>
-                <Text style={styles.calcDollar}>$</Text>
-                <TextInput
-                  style={styles.calcInput}
-                  value={downPayment}
-                  onChangeText={setDownPayment}
-                  keyboardType="numeric"
-                  placeholder="60000"
-                  placeholderTextColor="rgba(255,255,255,0.2)"
-                  testID="down-payment-input"
-                />
-              </View>
-            </View>
-          </View>
-          <View style={styles.calcRow}>
-            <View style={styles.calcInputGroup}>
-              <Text style={styles.calcLabel}>RATE %</Text>
-              <View style={styles.calcInputWrap}>
-                <TextInput
-                  style={styles.calcInput}
-                  value={interestRate}
-                  onChangeText={setInterestRate}
-                  keyboardType="decimal-pad"
-                  placeholder="6.5"
-                  placeholderTextColor="rgba(255,255,255,0.2)"
-                  testID="interest-rate-input"
-                />
-                <Text style={styles.calcPercent}>%</Text>
-              </View>
-            </View>
-            <View style={styles.calcInputGroup}>
-              <Text style={styles.calcLabel}>TERM</Text>
-              <View style={styles.calcTermRow}>
-                {["15", "30"].map((t) => (
-                  <Pressable
-                    key={t}
-                    onPress={() => setLoanTerm(t)}
-                    style={[styles.calcTermBtn, loanTerm === t && styles.calcTermBtnActive]}
-                  >
-                    <Text style={[styles.calcTermText, loanTerm === t && styles.calcTermTextActive]}>{t}yr</Text>
-                  </Pressable>
-                ))}
-              </View>
-            </View>
-          </View>
+      <View style={s.tabRow}>
+        {(["zones", "properties", "tour"] as const).map((tab) => (
           <Pressable
-            onPress={calculateMortgage}
-            style={({ pressed }) => [styles.calcButton, pressed && { opacity: 0.7 }]}
-            testID="calculate-btn"
+            key={tab}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setActiveTab(tab); }}
+            style={[s.tab, activeTab === tab && s.tabActive]}
           >
-            <LinearGradient colors={[Colors.gold, "#B8860B"]} style={styles.calcButtonGradient}>
-              <MaterialCommunityIcons name="cash-multiple" size={18} color="#000" />
-              <Text style={styles.calcButtonText}>CALCULATE</Text>
-            </LinearGradient>
+            <Ionicons
+              name={tab === "zones" ? "analytics" : tab === "properties" ? "home" : "people"}
+              size={16}
+              color={activeTab === tab ? Colors.gold : "rgba(255,255,255,0.4)"}
+            />
+            <Text style={[s.tabText, activeTab === tab && s.tabTextActive]}>
+              {tab === "zones" ? "HOT ZONES" : tab === "properties" ? "LISTINGS" : "TOUR GUIDE"}
+            </Text>
           </Pressable>
-
-          {calcResult && (
-            <Animated.View entering={FadeIn.duration(300)} style={styles.calcResults}>
-              <View style={styles.calcResultRow}>
-                <View style={styles.calcResultItem}>
-                  <Text style={styles.calcResultLabel}>MONTHLY</Text>
-                  <Text style={styles.calcResultValue}>${calcResult.monthly.toLocaleString()}</Text>
-                </View>
-                <View style={styles.calcResultItem}>
-                  <Text style={styles.calcResultLabel}>TOTAL PAID</Text>
-                  <Text style={styles.calcResultValueSmall}>${calcResult.total.toLocaleString()}</Text>
-                </View>
-                <View style={styles.calcResultItem}>
-                  <Text style={styles.calcResultLabel}>INTEREST</Text>
-                  <Text style={[styles.calcResultValueSmall, { color: "#ff6b6b" }]}>${calcResult.interest.toLocaleString()}</Text>
-                </View>
-              </View>
-              <View style={styles.calcTrumpQuote}>
-                <MaterialCommunityIcons name="format-quote-open" size={16} color={Colors.gold} />
-                <Text style={styles.calcTrumpText}>{calcResult.trumpComment}</Text>
-              </View>
-              <Pressable
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  const price = Math.max(0, parseFloat(homePrice) || 0);
-                  const down = Math.max(0, parseFloat(downPayment) || 0);
-                  const msg = `Trump Mortgage Calculator:\n$${price.toLocaleString()} home, $${down.toLocaleString()} down\nMonthly: $${calcResult.monthly.toLocaleString()}/mo\nTotal: $${calcResult.total.toLocaleString()} over ${loanTerm} years\nTrump says: "${calcResult.trumpComment.slice(0, 80)}..."`;
-
-                  Share.share({ message: msg });
-                }}
-                style={({ pressed }) => [styles.calcShareBtn, pressed && { opacity: 0.7 }]}
-              >
-                <Ionicons name="share-outline" size={14} color={Colors.gold} />
-                <Text style={styles.calcShareText}>SHARE THIS DEAL</Text>
-              </Pressable>
-            </Animated.View>
-          )}
-        </Animated.View>
-      )}
-
-      <View style={styles.advisorSection}>
-        <Text style={styles.advisorLabel}>YOUR ADVISOR</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.advisorScroll}>
-          {REAL_ESTATE_ADVISORS.map((advisor) => (
-            <Pressable
-              key={advisor.id}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setSelectedAdvisor(advisor.id);
-              }}
-              style={[
-                styles.advisorPill,
-                {
-                  borderColor: selectedAdvisor === advisor.id ? advisor.color : "rgba(255,255,255,0.1)",
-                  backgroundColor: selectedAdvisor === advisor.id ? `${advisor.color}20` : "rgba(255,255,255,0.05)",
-                },
-              ]}
-            >
-              <Image source={advisor.image} style={[styles.advisorImage, { borderColor: selectedAdvisor === advisor.id ? advisor.color : "rgba(255,255,255,0.2)" }]} />
-              <Text style={[styles.advisorName, selectedAdvisor === advisor.id && { color: advisor.color }]}>{advisor.name}</Text>
-            </Pressable>
-          ))}
-        </ScrollView>
+        ))}
       </View>
 
-      {loading && (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.gold} />
-          <Text style={styles.loadingText}>Scouting properties... The best properties.</Text>
-        </View>
-      )}
+      <ScrollView
+        style={s.scrollBody}
+        contentContainerStyle={{ paddingBottom: insets.bottom + webBottomInset + 30 }}
+        showsVerticalScrollIndicator={false}
+      >
+        {activeTab === "zones" && (
+          <>
+            <View style={s.mapSection}>
+              <View style={s.legendBox}>
+                {ZONE_LEGEND.map((z) => (
+                  <View key={z.label} style={s.legendRow}>
+                    <View style={[s.legendDot, { backgroundColor: z.color }]} />
+                    <Text style={s.legendText}>{z.label}</Text>
+                  </View>
+                ))}
+              </View>
 
-      {!loading && searched && properties.length === 0 && (
-        <Animated.View entering={FadeIn.duration(400)} style={styles.emptyState}>
-          <FontAwesome5 name="hard-hat" size={40} color="rgba(212,164,32,0.4)" />
-          <Text style={styles.emptyTitle}>No Properties Found</Text>
-          <Text style={styles.emptyText}>
-            Even Trump can't find deals there. Try another location!
-          </Text>
-        </Animated.View>
-      )}
-
-      {!loading && properties.length > 0 && (
-        <FlatList
-          data={properties}
-          renderItem={renderProperty}
-          keyExtractor={(item, index) => item.id || `prop-${index}`}
-          contentContainerStyle={[
-            styles.listContent,
-            { paddingBottom: insets.bottom + webBottomInset + 20 },
-          ]}
-          showsVerticalScrollIndicator={false}
-          ListHeaderComponent={
-            <>
-              {Platform.OS === "web" && properties.some(p => p.lat && p.lng) && (
-                <View style={styles.mapContainer}>
+              {Platform.OS === "web" && (
+                <View style={s.mapFrame}>
                   <iframe
-                    style={{ width: "100%", height: 220, border: "none", borderRadius: 12 } as any}
-                    srcDoc={`<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><style>body{margin:0}#map{width:100%;height:220px}</style></head><body><div id="map"></div><script>var props=${JSON.stringify(properties.filter(p=>p.lat&&p.lng).map(p=>({lat:p.lat,lng:p.lng,price:p.price,beds:p.beds,street:p.street})))};var map=L.map('map',{zoomControl:false});L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'OSM'}).addTo(map);var bounds=[];props.forEach(function(p){var m=L.marker([p.lat,p.lng]).addTo(map);m.bindPopup('<b>$'+(p.price>=1e6?(p.price/1e6).toFixed(1)+'M':(p.price/1e3).toFixed(0)+'K')+'</b><br>'+p.beds+' bed - '+p.street);bounds.push([p.lat,p.lng])});if(bounds.length)map.fitBounds(bounds,{padding:[20,20]});</script></body></html>`}
+                    width="100%"
+                    height="250"
+                    frameBorder="0"
+                    style={{ border: 0, borderRadius: 12 } as any}
+                    srcDoc={`<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script><style>body{margin:0}#map{width:100%;height:250px}</style></head><body><div id="map"></div><script>var map=L.map('map').setView([25.76,-80.19],12);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'OSM'}).addTo(map);fetch('https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(mapLocation)}').then(r=>r.json()).then(d=>{if(d[0]){map.setView([d[0].lat,d[0].lon],12);L.marker([d[0].lat,d[0].lon]).addTo(map).bindPopup('${mapLocation.replace(/'/g, "\\'")}');}});<\/script></body></html>`}
                   />
                 </View>
               )}
-              <Animated.View entering={FadeIn.duration(300)} style={styles.resultsHeader}>
-                <Text style={styles.resultsCount}>
-                  {totalResults} properties in {location}
-                </Text>
-                <Text style={styles.resultsSubtext}>{activeAdvisor.name}-Rated for your pleasure</Text>
-              </Animated.View>
-            </>
-          }
-          ListFooterComponent={
+              {Platform.OS !== "web" && (
+                <View style={s.mapPlaceholder}>
+                  <Ionicons name="map" size={40} color="rgba(212,164,32,0.3)" />
+                  <Text style={s.mapPlaceholderText}>Map view available on web</Text>
+                </View>
+              )}
+
+              <View style={s.mapControls}>
+                <TextInput
+                  style={s.mapInput}
+                  value={mapLocation}
+                  onChangeText={setMapLocation}
+                  placeholder="Enter city, state or zip"
+                  placeholderTextColor="rgba(255,255,255,0.3)"
+                  onSubmitEditing={updateMapLocation}
+                  returnKeyType="search"
+                />
+                <Pressable onPress={updateMapLocation} style={({ pressed }) => [s.mapUpdateBtn, pressed && { opacity: 0.7 }]}>
+                  <LinearGradient colors={[Colors.gold, "#B8860B"]} style={s.mapUpdateGrad}>
+                    <Ionicons name="location" size={16} color="#000" />
+                    <Text style={s.mapUpdateText}>UPDATE</Text>
+                  </LinearGradient>
+                </Pressable>
+              </View>
+            </View>
+
+            <View style={s.dashSection}>
+              <View style={s.dashHeader}>
+                <Ionicons name="analytics" size={18} color={Colors.gold} />
+                <Text style={s.dashTitle}>AIRBNB HOT ZONES</Text>
+                <Text style={s.dashNote}>(sample data)</Text>
+              </View>
+
+              {zonesLoading ? (
+                <ActivityIndicator size="large" color={Colors.gold} style={{ marginVertical: 20 }} />
+              ) : zones.length === 0 ? (
+                <Text style={s.noZonesText}>No zones match your filters. Try adjusting.</Text>
+              ) : (
+                zones.map((zone, idx) => (
+                  <Pressable
+                    key={zone.id}
+                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedZone(selectedZone?.id === zone.id ? null : zone); }}
+                  >
+                    <Animated.View entering={FadeInDown.delay(idx * 60).duration(300)} style={s.zoneCard}>
+                      <View style={s.zoneHeader}>
+                        <View style={[s.zoneScoreBadge, { backgroundColor: zone.color }]}>
+                          <Text style={s.zoneScoreText}>{zone.score}</Text>
+                        </View>
+                        <View style={s.zoneNameCol}>
+                          <Text style={s.zoneName}>{zone.name}</Text>
+                          <Text style={[s.zoneCat, { color: zone.color }]}>{zone.category.toUpperCase()} ZONE</Text>
+                        </View>
+                        <Ionicons name={selectedZone?.id === zone.id ? "chevron-up" : "chevron-down"} size={16} color="rgba(255,255,255,0.4)" />
+                      </View>
+                      <View style={s.zoneStats}>
+                        <View style={s.zoneStat}>
+                          <Text style={s.zoneStatLabel}>OCCUPANCY</Text>
+                          <Text style={[s.zoneStatVal, zone.occupancy > 70 && { color: "#4ADE80" }]}>{zone.occupancy}%</Text>
+                        </View>
+                        <View style={s.zoneStat}>
+                          <Text style={s.zoneStatLabel}>AVG/NIGHT</Text>
+                          <Text style={s.zoneStatVal}>${zone.nightlyRate}</Text>
+                        </View>
+                        <View style={s.zoneStat}>
+                          <Text style={s.zoneStatLabel}>GROWTH</Text>
+                          <Text style={[s.zoneStatVal, zone.revenueGrowth > 0 ? { color: "#4ADE80" } : { color: "#F87171" }]}>
+                            {zone.revenueGrowth > 0 ? "+" : ""}{zone.revenueGrowth}%
+                          </Text>
+                        </View>
+                        <View style={s.zoneStat}>
+                          <Text style={s.zoneStatLabel}>LISTINGS</Text>
+                          <Text style={s.zoneStatVal}>{zone.listings}</Text>
+                        </View>
+                      </View>
+                      {selectedZone?.id === zone.id && (
+                        <Animated.View entering={FadeIn.duration(200)} style={s.zoneDetail}>
+                          <View style={s.zoneDetailRow}>
+                            <Text style={s.zoneDetailLabel}>Seasonality Score</Text>
+                            <Text style={s.zoneDetailVal}>{zone.seasonality}%</Text>
+                          </View>
+                          <View style={s.zoneDetailRow}>
+                            <Text style={s.zoneDetailLabel}>Average Guest Rating</Text>
+                            <Text style={s.zoneDetailVal}>{zone.avgRating} / 5.0</Text>
+                          </View>
+                          <View style={s.zoneDetailRow}>
+                            <Text style={s.zoneDetailLabel}>Investment Score</Text>
+                            <Text style={[s.zoneDetailVal, { color: zone.color, fontWeight: "900" as const }]}>{zone.score}/100</Text>
+                          </View>
+                        </Animated.View>
+                      )}
+                    </Animated.View>
+                  </Pressable>
+                ))
+              )}
+            </View>
+
+            <View style={s.filterSection}>
+              <Text style={s.filterTitle}>FILTER ZONES BY</Text>
+              {([
+                ["airbnb", "Airbnb Occupancy (>70%)"],
+                ["nightly", "High Nightly Rate (>$200)"],
+                ["seasonal", "Strong Seasonality"],
+                ["growth", "Revenue Growth (+10% YoY)"],
+              ] as const).map(([key, label]) => (
+                <Pressable
+                  key={key}
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setFilters((p) => ({ ...p, [key]: !p[key] })); }}
+                  style={s.filterRow}
+                >
+                  <View style={[s.checkbox, filters[key] && s.checkboxActive]}>
+                    {filters[key] && <Ionicons name="checkmark" size={12} color="#000" />}
+                  </View>
+                  <Text style={s.filterLabel}>{label}</Text>
+                </Pressable>
+              ))}
+              <Pressable onPress={applyFilters} style={({ pressed }) => [s.applyBtn, pressed && { opacity: 0.7 }]}>
+                <LinearGradient colors={[Colors.gold, "#B8860B"]} style={s.applyGrad}>
+                  <Text style={s.applyText}>APPLY FILTERS</Text>
+                </LinearGradient>
+              </Pressable>
+            </View>
+
+            <View style={s.lenderSection}>
+              <View style={s.sectionHeader}>
+                <Ionicons name="business" size={18} color={Colors.gold} />
+                <Text style={s.sectionTitle}>LOCAL LENDERS</Text>
+                <Text style={s.sectionNote}>(Affiliate Partners)</Text>
+              </View>
+              {LENDERS.map((lender) => (
+                <View key={lender.id} style={s.lenderCard}>
+                  <View style={s.lenderInfo}>
+                    <Text style={s.lenderName}>{lender.name}</Text>
+                    <Text style={s.lenderRate}>{lender.rate} {"\u2022"} {lender.perk}</Text>
+                  </View>
+                  <Pressable
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      if (Platform.OS === "web") window.open(lender.url, "_blank");
+                      else import("expo-linking").then((Linking) => Linking.openURL(lender.url));
+                    }}
+                    style={({ pressed }) => [s.lenderBtn, pressed && { opacity: 0.7 }]}
+                  >
+                    <LinearGradient colors={["#4ADE80", "#22C55E"]} style={s.lenderBtnGrad}>
+                      <Ionicons name={lender.icon} size={14} color="#000" />
+                      <Text style={s.lenderBtnText}>{lender.btnText}</Text>
+                    </LinearGradient>
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+
             <Pressable
               onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                router.push("/game");
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setCalcOpen(!calcOpen);
               }}
-              style={({ pressed }) => [styles.gamePromo, pressed && { opacity: 0.7 }]}
+              style={({ pressed }) => [s.calcToggleBtn, pressed && { opacity: 0.7 }]}
             >
-              <MaterialCommunityIcons name="gamepad-variant" size={22} color="#FBBF24" />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.gamePromoTitle}>PLAY TRUMP BILLIONAIRES</Text>
-                <Text style={styles.gamePromoSub}>Build your own real estate empire!</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color="#FBBF24" />
+              <MaterialCommunityIcons name="calculator-variant" size={18} color={Colors.gold} />
+              <Text style={s.calcToggleText}>MORTGAGE CALCULATOR</Text>
+              <Ionicons name={calcOpen ? "chevron-up" : "chevron-down"} size={16} color={Colors.gold} />
             </Pressable>
-          }
-        />
-      )}
 
-      {!searched && !loading && (
-        <Animated.View entering={FadeIn.delay(400).duration(600)} style={styles.heroSection}>
-          <MaterialCommunityIcons name="city-variant" size={60} color="rgba(212,164,32,0.2)" />
-          <Text style={styles.heroTitle}>Find Your Dream Deal</Text>
-          <Text style={styles.heroText}>
-            Search any neighborhood and get Trump's expert real estate commentary on every listing. Nobody knows real estate like Trump!
-          </Text>
-        </Animated.View>
-      )}
+            {calcOpen && (
+              <Animated.View entering={FadeInDown.duration(300)} style={s.calcSection}>
+                <View style={s.calcRow}>
+                  <View style={s.calcInputGroup}>
+                    <Text style={s.calcLabel}>HOME PRICE</Text>
+                    <View style={s.calcInputWrap}>
+                      <Text style={s.calcDollar}>$</Text>
+                      <TextInput style={s.calcInput} value={homePrice} onChangeText={setHomePrice} keyboardType="numeric" placeholder="300000" placeholderTextColor="rgba(255,255,255,0.2)" />
+                    </View>
+                  </View>
+                  <View style={s.calcInputGroup}>
+                    <Text style={s.calcLabel}>DOWN PAYMENT</Text>
+                    <View style={s.calcInputWrap}>
+                      <Text style={s.calcDollar}>$</Text>
+                      <TextInput style={s.calcInput} value={downPayment} onChangeText={setDownPayment} keyboardType="numeric" placeholder="60000" placeholderTextColor="rgba(255,255,255,0.2)" />
+                    </View>
+                  </View>
+                </View>
+                <View style={s.calcRow}>
+                  <View style={s.calcInputGroup}>
+                    <Text style={s.calcLabel}>RATE %</Text>
+                    <View style={s.calcInputWrap}>
+                      <TextInput style={s.calcInput} value={interestRate} onChangeText={setInterestRate} keyboardType="decimal-pad" placeholder="6.5" placeholderTextColor="rgba(255,255,255,0.2)" />
+                      <Text style={s.calcPercent}>%</Text>
+                    </View>
+                  </View>
+                  <View style={s.calcInputGroup}>
+                    <Text style={s.calcLabel}>TERM</Text>
+                    <View style={s.calcTermRow}>
+                      {["15", "30"].map((t) => (
+                        <Pressable key={t} onPress={() => setLoanTerm(t)} style={[s.calcTermBtn, loanTerm === t && s.calcTermBtnActive]}>
+                          <Text style={[s.calcTermText, loanTerm === t && s.calcTermTextActive]}>{t}yr</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </View>
+                </View>
+                <Pressable onPress={calculateMortgage} style={({ pressed }) => [s.calcButton, pressed && { opacity: 0.7 }]}>
+                  <LinearGradient colors={[Colors.gold, "#B8860B"]} style={s.calcBtnGrad}>
+                    <MaterialCommunityIcons name="cash-multiple" size={18} color="#000" />
+                    <Text style={s.calcBtnText}>CALCULATE</Text>
+                  </LinearGradient>
+                </Pressable>
+                {calcResult && (
+                  <Animated.View entering={FadeIn.duration(300)} style={s.calcResults}>
+                    <View style={s.calcResultRow}>
+                      <View style={s.calcResultItem}><Text style={s.calcResultLabel}>MONTHLY</Text><Text style={s.calcResultVal}>${calcResult.monthly.toLocaleString()}</Text></View>
+                      <View style={s.calcResultItem}><Text style={s.calcResultLabel}>TOTAL</Text><Text style={s.calcResultValSm}>${calcResult.total.toLocaleString()}</Text></View>
+                      <View style={s.calcResultItem}><Text style={s.calcResultLabel}>INTEREST</Text><Text style={[s.calcResultValSm, { color: "#F87171" }]}>${calcResult.interest.toLocaleString()}</Text></View>
+                    </View>
+                    <View style={s.calcQuote}>
+                      <MaterialCommunityIcons name="format-quote-open" size={14} color={Colors.gold} />
+                      <Text style={s.calcQuoteText}>{calcResult.trumpComment}</Text>
+                    </View>
+                  </Animated.View>
+                )}
+              </Animated.View>
+            )}
+
+            <View style={s.disclaimer}>
+              <Text style={s.disclaimerText}>Sample data for demonstration. We may earn commissions from affiliate links. For entertainment purposes.</Text>
+            </View>
+          </>
+        )}
+
+        {activeTab === "properties" && (
+          <>
+            <Animated.View entering={FadeInDown.duration(400)} style={s.searchSection}>
+              <View style={s.searchRow}>
+                <TextInput
+                  style={s.searchInput}
+                  placeholder="Enter zip code or city..."
+                  placeholderTextColor="rgba(255,255,255,0.3)"
+                  value={location}
+                  onChangeText={setLocation}
+                  onSubmitEditing={handleSearch}
+                  returnKeyType="search"
+                />
+                <Pressable onPress={handleSearch} disabled={loading || !location.trim()} style={({ pressed }) => [s.searchBtn, pressed && { opacity: 0.7 }, (!location.trim() || loading) && { opacity: 0.4 }]}>
+                  <LinearGradient colors={[Colors.gold, "#B8860B"]} style={s.searchBtnGrad}>
+                    {loading ? <ActivityIndicator size="small" color="#000" /> : <Ionicons name="search" size={20} color="#000" />}
+                  </LinearGradient>
+                </Pressable>
+              </View>
+              <Text style={s.searchHint}>Search by zip code (e.g. 90210) or city name</Text>
+            </Animated.View>
+
+            <View style={s.advisorSection}>
+              <Text style={s.advisorLabel}>YOUR ADVISOR</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.advisorScroll}>
+                {REAL_ESTATE_ADVISORS.map((advisor) => (
+                  <Pressable
+                    key={advisor.id}
+                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedAdvisor(advisor.id); }}
+                    style={[s.advisorPill, { borderColor: selectedAdvisor === advisor.id ? advisor.color : "rgba(255,255,255,0.1)", backgroundColor: selectedAdvisor === advisor.id ? `${advisor.color}20` : "rgba(255,255,255,0.05)" }]}
+                  >
+                    <Image source={advisor.image} style={[s.advisorImg, { borderColor: selectedAdvisor === advisor.id ? advisor.color : "rgba(255,255,255,0.2)" }]} />
+                    <Text style={[s.advisorName, selectedAdvisor === advisor.id && { color: advisor.color }]}>{advisor.name}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+
+            {loading && (
+              <View style={s.loadingBox}>
+                <ActivityIndicator size="large" color={Colors.gold} />
+                <Text style={s.loadingText}>Scouting properties... The best properties.</Text>
+              </View>
+            )}
+
+            {!loading && searched && properties.length === 0 && (
+              <Animated.View entering={FadeIn.duration(400)} style={s.emptyState}>
+                <FontAwesome5 name="hard-hat" size={40} color="rgba(212,164,32,0.4)" />
+                <Text style={s.emptyTitle}>No Properties Found</Text>
+                <Text style={s.emptyText}>Even Trump can't find deals there. Try another location!</Text>
+              </Animated.View>
+            )}
+
+            {!loading && properties.map((item, index) => {
+              const propId = item.id || `prop-${index}`;
+              const isSpeakingThis = speakingId === propId;
+              const comment = getPropertyComment(item);
+              const rating = getPropertyRating(item);
+              const isLoaded = !!aiComments[getAiKey(item)];
+              const isFetching = !!aiLoading[getAiKey(item)];
+              return (
+                <Animated.View entering={FadeInDown.delay(index * 100).duration(400)} key={propId} style={s.propCard}>
+                  <View style={s.propImgBox}>
+                    {item.img ? (
+                      <Image source={{ uri: item.img }} style={s.propImg} resizeMode="cover" />
+                    ) : (
+                      <View style={[s.propImg, s.propNoImg]}><FontAwesome5 name="home" size={40} color="rgba(212,164,32,0.3)" /></View>
+                    )}
+                    <View style={[s.propRating, { backgroundColor: `${activeAdvisor.color}CC` }]}>
+                      <Text style={s.propRatingText}>{rating}%</Text>
+                    </View>
+                  </View>
+                  <View style={s.propDetails}>
+                    <Text style={s.propAddr} numberOfLines={2}>
+                      {item.street ? `${item.street} — ${formatPrice(item.price)}` : `${item.city}, ${item.state} — ${formatPrice(item.price)}`}
+                    </Text>
+                    <Text style={s.propCity}>{item.city}, {item.state} {item.zip}</Text>
+                    <View style={s.propStats}>
+                      <Text style={s.propStatText}>{item.beds} bd</Text>
+                      <Text style={s.propStatText}>{item.baths} ba</Text>
+                      {item.sqft > 0 && <Text style={s.propStatText}>{item.sqft.toLocaleString()} sqft</Text>}
+                    </View>
+                    <View style={s.propQuote}>
+                      {isLoaded && <View style={s.aiBadge}><Ionicons name="sparkles" size={10} color="#FFD700" /><Text style={s.aiBadgeText}>AI LIVE</Text></View>}
+                      <Text style={[s.propCommentText, { borderLeftColor: activeAdvisor.color }]}>"{comment}"</Text>
+                      {!isLoaded && (
+                        <Pressable onPress={() => fetchAiAnalysis(item)} disabled={isFetching} style={[s.aiBtn, { borderColor: activeAdvisor.color }]}>
+                          {isFetching ? <ActivityIndicator size="small" color={activeAdvisor.color} /> : <Ionicons name="sparkles" size={14} color={activeAdvisor.color} />}
+                          <Text style={[s.aiBtnText, { color: activeAdvisor.color }]}>{isFetching ? "ANALYZING..." : `GET ${activeAdvisor.name.toUpperCase()}'S TAKE`}</Text>
+                        </Pressable>
+                      )}
+                    </View>
+                    <View style={s.propActions}>
+                      <Pressable onPress={() => handleSpeak(comment, propId)} style={({ pressed }) => [s.propActionBtn, pressed && { opacity: 0.7 }]}>
+                        <Ionicons name={isSpeakingThis ? "stop" : "volume-high"} size={14} color="#fff" />
+                        <Text style={s.propActionText}>{isSpeakingThis ? "STOP" : "LISTEN"}</Text>
+                      </Pressable>
+                      {item.url && (
+                        <Pressable onPress={() => handleViewListing(item.url)} style={({ pressed }) => [s.propActionBtn, s.propViewBtn, pressed && { opacity: 0.7 }]}>
+                          <Ionicons name="open-outline" size={14} color={Colors.gold} />
+                          <Text style={[s.propActionText, { color: Colors.gold }]}>VIEW</Text>
+                        </Pressable>
+                      )}
+                    </View>
+                  </View>
+                </Animated.View>
+              );
+            })}
+
+            {!searched && !loading && (
+              <Animated.View entering={FadeIn.delay(200).duration(600)} style={s.emptyState}>
+                <MaterialCommunityIcons name="city-variant" size={50} color="rgba(212,164,32,0.2)" />
+                <Text style={s.emptyTitle}>Find Your Dream Deal</Text>
+                <Text style={s.emptyText}>Search any neighborhood for Trump-rated property listings</Text>
+              </Animated.View>
+            )}
+          </>
+        )}
+
+        {activeTab === "tour" && (
+          <>
+            <View style={s.tourSection}>
+              <View style={s.sectionHeader}>
+                <Ionicons name="people" size={18} color={Colors.gold} />
+                <Text style={s.sectionTitle}>YOUR PERSONAL TOUR GUIDE</Text>
+              </View>
+
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.guideScroll}>
+                {TOUR_GUIDES.map((guide) => (
+                  <Pressable
+                    key={guide.id}
+                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedGuide(guide.id); }}
+                    style={[s.guidePill, { borderColor: selectedGuide === guide.id ? guide.color : "rgba(255,255,255,0.1)", backgroundColor: selectedGuide === guide.id ? `${guide.color}20` : "rgba(255,255,255,0.05)" }]}
+                  >
+                    <Text style={s.guideEmoji}>{guide.emoji}</Text>
+                    <View>
+                      <Text style={[s.guideName, selectedGuide === guide.id && { color: guide.color }]}>{guide.name}</Text>
+                      <Text style={s.guideTitle}>{guide.title}</Text>
+                    </View>
+                  </Pressable>
+                ))}
+              </ScrollView>
+
+              <View style={s.tourStartRow}>
+                <TextInput
+                  style={s.tourNameInput}
+                  value={tourUserName}
+                  onChangeText={setTourUserName}
+                  placeholder="Your name"
+                  placeholderTextColor="rgba(255,255,255,0.3)"
+                />
+                <Pressable onPress={startTour} style={({ pressed }) => [s.tourStartBtn, pressed && { opacity: 0.7 }]}>
+                  <LinearGradient colors={[Colors.gold, "#B8860B"]} style={s.tourStartGrad}>
+                    <Ionicons name="mic" size={16} color="#000" />
+                    <Text style={s.tourStartText}>START TOUR</Text>
+                  </LinearGradient>
+                </Pressable>
+              </View>
+
+              {tourMessages.length > 0 && (
+                <View style={s.tourConvo}>
+                  {tourMessages.map((msg) => (
+                    <Animated.View
+                      key={msg.id}
+                      entering={SlideInRight.duration(300)}
+                      style={[s.tourMsg, msg.role === "user" ? s.tourMsgUser : s.tourMsgGuide]}
+                    >
+                      {msg.role === "guide" && <Text style={s.tourMsgName}>{msg.guideName || activeGuide.name}</Text>}
+                      <Text style={[s.tourMsgText, msg.role === "user" && { color: "#4ADE80" }]}>{msg.text}</Text>
+                    </Animated.View>
+                  ))}
+                  {tourLoading && (
+                    <View style={s.tourTyping}>
+                      <ActivityIndicator size="small" color={Colors.gold} />
+                      <Text style={s.tourTypingText}>{activeGuide.name} is thinking...</Text>
+                    </View>
+                  )}
+                </View>
+              )}
+
+              {tourMessages.length > 0 && (
+                <View style={s.tourInputRow}>
+                  <TextInput
+                    style={s.tourInput}
+                    value={tourInput}
+                    onChangeText={setTourInput}
+                    placeholder="Ask a question..."
+                    placeholderTextColor="rgba(255,255,255,0.3)"
+                    onSubmitEditing={() => sendTourMessage()}
+                    returnKeyType="send"
+                  />
+                  <Pressable onPress={() => sendTourMessage()} disabled={!tourInput.trim() || tourLoading} style={({ pressed }) => [s.tourSendBtn, pressed && { opacity: 0.7 }]}>
+                    <Ionicons name="send" size={18} color={!tourInput.trim() ? "rgba(255,255,255,0.3)" : Colors.gold} />
+                  </Pressable>
+                </View>
+              )}
+            </View>
+          </>
+        )}
+      </ScrollView>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingBottom: 10,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerCenter: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "900" as const,
-    color: Colors.gold,
-    letterSpacing: 2,
-  },
-  searchSection: {
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-  },
-  searchRow: {
-    flexDirection: "row",
-    gap: 10,
-    alignItems: "center",
-  },
-  searchInput: {
-    flex: 1,
-    height: 48,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    fontSize: 16,
-    color: Colors.white,
-    borderWidth: 1,
-    borderColor: "rgba(212,164,32,0.2)",
-  },
-  searchButton: {
-    borderRadius: 12,
-    overflow: "hidden",
-  },
-  searchButtonGradient: {
-    width: 48,
-    height: 48,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  searchHint: {
-    fontSize: 11,
-    color: "rgba(255,255,255,0.3)",
-    marginTop: 6,
-    marginLeft: 4,
-  },
-  advisorSection: {
-    paddingHorizontal: 16,
-    paddingBottom: 10,
-  },
-  advisorLabel: {
-    fontSize: 10,
-    fontWeight: "700" as const,
-    color: "rgba(255,255,255,0.4)",
-    letterSpacing: 1.5,
-    marginBottom: 8,
-  },
-  advisorScroll: {
-    gap: 8,
-    paddingRight: 16,
-  },
-  advisorPill: {
-    flexDirection: "row" as const,
-    alignItems: "center" as const,
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1.5,
-  },
-  advisorImage: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: 1.5,
-  },
-  advisorName: {
-    fontSize: 12,
-    fontWeight: "700" as const,
-    color: "rgba(255,255,255,0.6)",
-  },
-  loadingContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 16,
-  },
-  loadingText: {
-    fontSize: 14,
-    color: Colors.gold,
-    fontWeight: "600" as const,
-    fontStyle: "italic",
-  },
-  emptyState: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 12,
-    paddingHorizontal: 40,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: "800" as const,
-    color: Colors.white,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.5)",
-    textAlign: "center",
-    lineHeight: 20,
-  },
-  heroSection: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 16,
-    paddingHorizontal: 40,
-  },
-  heroTitle: {
-    fontSize: 22,
-    fontWeight: "900" as const,
-    color: Colors.gold,
-    textAlign: "center",
-  },
-  heroText: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.5)",
-    textAlign: "center",
-    lineHeight: 22,
-  },
-  mapContainer: {
-    marginHorizontal: 16,
-    marginBottom: 8,
-    borderRadius: 12,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "rgba(255,215,0,0.2)",
-  },
-  resultsHeader: {
-    alignItems: "center",
-    paddingVertical: 8,
-    gap: 2,
-  },
-  resultsCount: {
-    fontSize: 14,
-    fontWeight: "700" as const,
-    color: Colors.gold,
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
-  resultsSubtext: {
-    fontSize: 11,
-    color: "rgba(255,255,255,0.4)",
-    fontStyle: "italic",
-  },
-  listContent: {
-    paddingHorizontal: 16,
-    gap: 18,
-    paddingTop: 4,
-  },
-  propertyCard: {
-    backgroundColor: "rgba(20,15,5,0.85)",
-    borderRadius: 18,
-    overflow: "hidden",
-    borderWidth: 1.5,
-    borderColor: "rgba(212,164,32,0.25)",
-    ...Platform.select({
-      web: { boxShadow: "0 6px 30px rgba(0,0,0,0.6)" },
-      default: { elevation: 8 },
-    }),
-  },
-  imageContainer: {
-    position: "relative",
-  },
-  propertyImage: {
-    width: "100%",
-    height: 200,
-    backgroundColor: "rgba(20,15,5,0.8)",
-  },
-  noImage: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  stampContainer: {
-    position: "absolute",
-    top: 12,
-    left: 0,
-    right: 0,
-    alignItems: "center",
-    zIndex: 2,
-  },
-  stampGradient: {
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 6,
-    ...Platform.select({
-      web: { boxShadow: "0 2px 10px rgba(0,0,0,0.5)" },
-      default: { elevation: 4 },
-    }),
-  },
-  stampText: {
-    fontSize: 13,
-    fontWeight: "900" as const,
-    color: "#fff",
-    letterSpacing: 1.5,
-    textAlign: "center" as const,
-  },
-  ratingBadge: {
-    position: "absolute",
-    bottom: 10,
-    right: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: "rgba(0,0,0,0.7)",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(212,164,32,0.4)",
-  },
-  ratingText: {
-    fontSize: 14,
-    fontWeight: "800" as const,
-    color: Colors.gold,
-  },
-  typeBadge: {
-    position: "absolute",
-    bottom: 10,
-    left: 10,
-    backgroundColor: "rgba(0,0,0,0.7)",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
-  },
-  typeText: {
-    fontSize: 11,
-    fontWeight: "700" as const,
-    color: "rgba(255,255,255,0.8)",
-    letterSpacing: 0.5,
-    textTransform: "uppercase" as const,
-  },
-  propertyDetails: {
-    padding: 16,
-    gap: 8,
-  },
-  addressHeadline: {
-    fontSize: 17,
-    fontWeight: "800" as const,
-    color: Colors.gold,
-    lineHeight: 22,
-  },
-  cityText: {
-    fontSize: 13,
-    color: "rgba(255,255,255,0.5)",
-  },
-  statsRow: {
-    flexDirection: "row",
-    gap: 14,
-    marginTop: 4,
-    flexWrap: "wrap",
-  },
-  stat: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  statText: {
-    fontSize: 13,
-    color: Colors.white,
-    fontWeight: "600" as const,
-  },
-  pricePerSqFt: {
-    fontSize: 12,
-    color: "rgba(255,255,255,0.4)",
-    marginTop: 2,
-  },
-  trumpSection: {
-    marginTop: 8,
-    backgroundColor: "rgba(212,164,32,0.06)",
-    borderRadius: 12,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "rgba(212,164,32,0.2)",
-    borderLeftWidth: 3,
-    borderLeftColor: Colors.gold,
-  },
-  trumpComment: {
-    fontSize: 15,
-    color: Colors.white,
-    lineHeight: 23,
-    fontStyle: "italic",
-  },
-  aiBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginBottom: 6,
-    alignSelf: "flex-start",
-    backgroundColor: "rgba(255,215,0,0.12)",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  aiBadgeText: {
-    fontSize: 9,
-    fontWeight: "800" as const,
-    color: "#FFD700",
-    letterSpacing: 1,
-  },
-  aiAnalysisBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    marginTop: 10,
-    paddingVertical: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-  },
-  aiAnalysisBtnText: {
-    fontSize: 12,
-    fontWeight: "800" as const,
-    letterSpacing: 0.8,
-  },
-  cardActions: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 10,
-  },
-  actionBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: 11,
-    borderRadius: 10,
-  },
-  speakBtn: {
-    backgroundColor: "rgba(212,164,32,0.2)",
-    borderWidth: 1,
-    borderColor: "rgba(212,164,32,0.3)",
-  },
-  shareBtn: {
-    backgroundColor: "rgba(59,130,246,0.2)",
-    borderWidth: 1,
-    borderColor: "rgba(59,130,246,0.35)",
-  },
-  actionBtnText: {
-    fontSize: 12,
-    fontWeight: "800" as const,
-    color: "#fff",
-    letterSpacing: 0.5,
-  },
-  viewListingBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: 8,
-    marginTop: 4,
-  },
-  viewListingText: {
-    fontSize: 12,
-    fontWeight: "600" as const,
-    color: Colors.gold,
-    textDecorationLine: "underline",
-  },
-  affiliateDisclaimer: {
-    fontSize: 9,
-    color: "rgba(255,255,255,0.2)",
-    textAlign: "center" as const,
-    marginTop: 8,
-  },
-  calcToggle: {
-    paddingHorizontal: 16,
-    marginBottom: 6,
-  },
-  calcToggleBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: "rgba(212,164,32,0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(212,164,32,0.2)",
-  },
-  calcToggleText: {
-    fontSize: 12,
-    fontWeight: "800" as const,
-    color: Colors.gold,
-    letterSpacing: 1.5,
-  },
-  calcSection: {
-    paddingHorizontal: 16,
-    marginBottom: 10,
-    gap: 10,
-  },
-  calcRow: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  calcInputGroup: {
-    flex: 1,
-    gap: 4,
-  },
-  calcLabel: {
-    fontSize: 10,
-    fontWeight: "700" as const,
-    color: "rgba(255,255,255,0.5)",
-    letterSpacing: 1,
-  },
-  calcInputWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.08)",
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "rgba(212,164,32,0.15)",
-    paddingHorizontal: 10,
-    height: 42,
-  },
-  calcDollar: {
-    fontSize: 15,
-    color: Colors.gold,
-    fontWeight: "700" as const,
-    marginRight: 4,
-  },
-  calcPercent: {
-    fontSize: 15,
-    color: Colors.gold,
-    fontWeight: "700" as const,
-    marginLeft: 4,
-  },
-  calcInput: {
-    flex: 1,
-    fontSize: 15,
-    color: Colors.white,
-    fontWeight: "600" as const,
-  },
-  calcTermRow: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  calcTermBtn: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    height: 42,
-    borderRadius: 10,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-  },
-  calcTermBtnActive: {
-    backgroundColor: "rgba(212,164,32,0.2)",
-    borderColor: Colors.gold,
-  },
-  calcTermText: {
-    fontSize: 14,
-    fontWeight: "700" as const,
-    color: "rgba(255,255,255,0.4)",
-  },
-  calcTermTextActive: {
-    color: Colors.gold,
-  },
-  calcButton: {
-    borderRadius: 12,
-    overflow: "hidden",
-  },
-  calcButtonGradient: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingVertical: 13,
-  },
-  calcButtonText: {
-    fontSize: 14,
-    fontWeight: "900" as const,
-    color: "#000",
-    letterSpacing: 1,
-  },
-  calcResults: {
-    backgroundColor: "rgba(212,164,32,0.06)",
-    borderRadius: 14,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "rgba(212,164,32,0.25)",
-    gap: 12,
-  },
-  calcResultRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  calcResultItem: {
-    alignItems: "center",
-    gap: 3,
-  },
-  calcResultLabel: {
-    fontSize: 9,
-    fontWeight: "700" as const,
-    color: "rgba(255,255,255,0.4)",
-    letterSpacing: 1,
-  },
-  calcResultValue: {
-    fontSize: 24,
-    fontWeight: "900" as const,
-    color: Colors.gold,
-  },
-  calcResultValueSmall: {
-    fontSize: 16,
-    fontWeight: "800" as const,
-    color: Colors.white,
-  },
-  calcTrumpQuote: {
-    flexDirection: "row",
-    gap: 6,
-    alignItems: "flex-start",
-    backgroundColor: "rgba(212,164,32,0.08)",
-    borderRadius: 10,
-    padding: 12,
-    borderLeftWidth: 3,
-    borderLeftColor: Colors.gold,
-  },
-  calcTrumpText: {
-    flex: 1,
-    fontSize: 13,
-    color: Colors.white,
-    lineHeight: 20,
-    fontStyle: "italic",
-  },
-  calcShareBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: "rgba(212,164,32,0.12)",
-    borderWidth: 1,
-    borderColor: "rgba(212,164,32,0.25)",
-  },
-  calcShareText: {
-    fontSize: 11,
-    fontWeight: "800" as const,
-    color: Colors.gold,
-    letterSpacing: 0.5,
-  },
-  gamePromo: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    padding: 16,
-    marginTop: 16,
-    borderRadius: 14,
-    backgroundColor: "rgba(251,191,36,0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(251,191,36,0.25)",
-  },
-  gamePromoTitle: {
-    fontSize: 14,
-    fontWeight: "800" as const,
-    color: "#FBBF24",
-    letterSpacing: 0.5,
-  },
-  gamePromoSub: {
-    fontSize: 11,
-    color: "rgba(255,255,255,0.4)",
-    marginTop: 2,
-  },
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.background },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingBottom: 10 },
+  backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+  headerCenter: { flex: 1, alignItems: "center" },
+  headerTitle: { fontSize: 20, fontWeight: "900" as const, color: Colors.gold, letterSpacing: 2 },
+  headerSub: { fontSize: 10, color: "rgba(255,255,255,0.4)", letterSpacing: 1, marginTop: 2 },
+  liveBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10, backgroundColor: "rgba(255,77,77,0.15)", borderWidth: 1, borderColor: "rgba(255,77,77,0.3)" },
+  liveBadgeActive: { backgroundColor: "rgba(74,222,128,0.15)", borderColor: "rgba(74,222,128,0.3)" },
+  liveDot: { width: 6, height: 6, borderRadius: 3 },
+  liveBadgeText: { fontSize: 9, fontWeight: "800" as const, color: "rgba(255,255,255,0.7)", letterSpacing: 1 },
+  tabRow: { flexDirection: "row", paddingHorizontal: 12, gap: 6, marginBottom: 10 },
+  tab: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.05)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" },
+  tabActive: { backgroundColor: "rgba(212,164,32,0.12)", borderColor: "rgba(212,164,32,0.3)" },
+  tabText: { fontSize: 11, fontWeight: "700" as const, color: "rgba(255,255,255,0.4)", letterSpacing: 0.5 },
+  tabTextActive: { color: Colors.gold },
+  scrollBody: { flex: 1 },
+  mapSection: { paddingHorizontal: 16, gap: 10, marginBottom: 16 },
+  legendBox: { backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 10, padding: 10, gap: 4, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" },
+  legendRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  legendDot: { width: 14, height: 14, borderRadius: 3 },
+  legendText: { fontSize: 11, fontWeight: "600" as const, color: "rgba(255,255,255,0.6)" },
+  mapFrame: { borderRadius: 12, overflow: "hidden", borderWidth: 1, borderColor: "rgba(212,164,32,0.2)" },
+  mapPlaceholder: { height: 140, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.05)", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" },
+  mapPlaceholderText: { fontSize: 12, color: "rgba(255,255,255,0.3)" },
+  mapControls: { flexDirection: "row", gap: 10 },
+  mapInput: { flex: 1, height: 44, backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 10, paddingHorizontal: 14, fontSize: 14, color: Colors.white, borderWidth: 1, borderColor: "rgba(212,164,32,0.2)" },
+  mapUpdateBtn: { borderRadius: 10, overflow: "hidden" },
+  mapUpdateGrad: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, height: 44, justifyContent: "center" },
+  mapUpdateText: { fontSize: 12, fontWeight: "800" as const, color: "#000", letterSpacing: 0.5 },
+  dashSection: { paddingHorizontal: 16, marginBottom: 16 },
+  dashHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
+  dashTitle: { fontSize: 14, fontWeight: "800" as const, color: Colors.gold, letterSpacing: 1 },
+  dashNote: { fontSize: 10, color: "rgba(255,255,255,0.3)" },
+  noZonesText: { fontSize: 13, color: "rgba(255,255,255,0.4)", textAlign: "center", paddingVertical: 20 },
+  zoneCard: { backgroundColor: "rgba(20,15,5,0.85)", borderRadius: 14, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: "rgba(212,164,32,0.15)" },
+  zoneHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
+  zoneScoreBadge: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+  zoneScoreText: { fontSize: 14, fontWeight: "900" as const, color: "#000" },
+  zoneNameCol: { flex: 1 },
+  zoneName: { fontSize: 15, fontWeight: "700" as const, color: Colors.white },
+  zoneCat: { fontSize: 10, fontWeight: "700" as const, letterSpacing: 1, marginTop: 1 },
+  zoneStats: { flexDirection: "row", justifyContent: "space-between", marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.06)" },
+  zoneStat: { alignItems: "center", gap: 2 },
+  zoneStatLabel: { fontSize: 8, fontWeight: "700" as const, color: "rgba(255,255,255,0.35)", letterSpacing: 0.8 },
+  zoneStatVal: { fontSize: 14, fontWeight: "700" as const, color: Colors.white },
+  zoneDetail: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.06)", gap: 8 },
+  zoneDetailRow: { flexDirection: "row", justifyContent: "space-between" },
+  zoneDetailLabel: { fontSize: 12, color: "rgba(255,255,255,0.5)" },
+  zoneDetailVal: { fontSize: 12, fontWeight: "700" as const, color: Colors.white },
+  filterSection: { paddingHorizontal: 16, marginBottom: 16, backgroundColor: "rgba(255,255,255,0.03)", marginHorizontal: 16, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" },
+  filterTitle: { fontSize: 12, fontWeight: "800" as const, color: Colors.gold, letterSpacing: 1, marginBottom: 10 },
+  filterRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8 },
+  checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
+  checkboxActive: { backgroundColor: Colors.gold, borderColor: Colors.gold },
+  filterLabel: { fontSize: 13, color: "rgba(255,255,255,0.7)" },
+  applyBtn: { borderRadius: 10, overflow: "hidden", marginTop: 10 },
+  applyGrad: { paddingVertical: 12, alignItems: "center", justifyContent: "center" },
+  applyText: { fontSize: 13, fontWeight: "800" as const, color: "#000", letterSpacing: 1 },
+  lenderSection: { paddingHorizontal: 16, marginBottom: 16 },
+  sectionHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
+  sectionTitle: { fontSize: 14, fontWeight: "800" as const, color: Colors.gold, letterSpacing: 1 },
+  sectionNote: { fontSize: 10, color: "rgba(255,255,255,0.3)" },
+  lenderCard: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "rgba(20,15,5,0.85)", borderRadius: 12, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
+  lenderInfo: { flex: 1, gap: 3 },
+  lenderName: { fontSize: 15, fontWeight: "700" as const, color: Colors.white },
+  lenderRate: { fontSize: 12, color: "rgba(255,255,255,0.5)" },
+  lenderBtn: { borderRadius: 10, overflow: "hidden" },
+  lenderBtnGrad: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 10 },
+  lenderBtnText: { fontSize: 11, fontWeight: "800" as const, color: "#000", letterSpacing: 0.5 },
+  calcToggleBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 12, marginHorizontal: 16, borderRadius: 10, backgroundColor: "rgba(212,164,32,0.08)", borderWidth: 1, borderColor: "rgba(212,164,32,0.2)", marginBottom: 10 },
+  calcToggleText: { fontSize: 12, fontWeight: "800" as const, color: Colors.gold, letterSpacing: 1.5 },
+  calcSection: { paddingHorizontal: 16, marginBottom: 16, gap: 10 },
+  calcRow: { flexDirection: "row", gap: 10 },
+  calcInputGroup: { flex: 1, gap: 4 },
+  calcLabel: { fontSize: 10, fontWeight: "700" as const, color: "rgba(255,255,255,0.5)", letterSpacing: 1 },
+  calcInputWrap: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 10, borderWidth: 1, borderColor: "rgba(212,164,32,0.15)", paddingHorizontal: 10, height: 42 },
+  calcDollar: { fontSize: 15, color: Colors.gold, fontWeight: "700" as const, marginRight: 4 },
+  calcPercent: { fontSize: 15, color: Colors.gold, fontWeight: "700" as const, marginLeft: 4 },
+  calcInput: { flex: 1, fontSize: 15, color: Colors.white, fontWeight: "600" as const },
+  calcTermRow: { flexDirection: "row", gap: 8 },
+  calcTermBtn: { flex: 1, alignItems: "center", justifyContent: "center", height: 42, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.08)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
+  calcTermBtnActive: { backgroundColor: "rgba(212,164,32,0.2)", borderColor: Colors.gold },
+  calcTermText: { fontSize: 14, fontWeight: "700" as const, color: "rgba(255,255,255,0.4)" },
+  calcTermTextActive: { color: Colors.gold },
+  calcButton: { borderRadius: 12, overflow: "hidden" },
+  calcBtnGrad: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 13 },
+  calcBtnText: { fontSize: 14, fontWeight: "900" as const, color: "#000", letterSpacing: 1 },
+  calcResults: { backgroundColor: "rgba(212,164,32,0.06)", borderRadius: 14, padding: 16, borderWidth: 1, borderColor: "rgba(212,164,32,0.25)", gap: 12 },
+  calcResultRow: { flexDirection: "row", justifyContent: "space-between" },
+  calcResultItem: { alignItems: "center", gap: 3 },
+  calcResultLabel: { fontSize: 9, fontWeight: "700" as const, color: "rgba(255,255,255,0.4)", letterSpacing: 1 },
+  calcResultVal: { fontSize: 22, fontWeight: "900" as const, color: Colors.gold },
+  calcResultValSm: { fontSize: 16, fontWeight: "800" as const, color: Colors.white },
+  calcQuote: { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: "rgba(212,164,32,0.08)", borderRadius: 10, padding: 12, borderLeftWidth: 3, borderLeftColor: Colors.gold },
+  calcQuoteText: { flex: 1, fontSize: 13, color: Colors.white, lineHeight: 20, fontStyle: "italic" },
+  disclaimer: { paddingHorizontal: 16, paddingVertical: 12 },
+  disclaimerText: { fontSize: 10, color: "rgba(255,255,255,0.25)", textAlign: "center", lineHeight: 16 },
+  searchSection: { paddingHorizontal: 16, paddingBottom: 12 },
+  searchRow: { flexDirection: "row", gap: 10, alignItems: "center" },
+  searchInput: { flex: 1, height: 48, backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 12, paddingHorizontal: 16, fontSize: 16, color: Colors.white, borderWidth: 1, borderColor: "rgba(212,164,32,0.2)" },
+  searchBtn: { borderRadius: 12, overflow: "hidden" },
+  searchBtnGrad: { width: 48, height: 48, alignItems: "center", justifyContent: "center" },
+  searchHint: { fontSize: 11, color: "rgba(255,255,255,0.3)", marginTop: 6, marginLeft: 4 },
+  advisorSection: { paddingHorizontal: 16, paddingBottom: 10 },
+  advisorLabel: { fontSize: 10, fontWeight: "700" as const, color: "rgba(255,255,255,0.4)", letterSpacing: 1.5, marginBottom: 8 },
+  advisorScroll: { gap: 8, paddingRight: 16 },
+  advisorPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5 },
+  advisorImg: { width: 28, height: 28, borderRadius: 14, borderWidth: 1.5 },
+  advisorName: { fontSize: 12, fontWeight: "700" as const, color: "rgba(255,255,255,0.6)" },
+  loadingBox: { alignItems: "center", justifyContent: "center", gap: 16, paddingVertical: 40 },
+  loadingText: { fontSize: 14, color: Colors.gold, fontWeight: "600" as const, fontStyle: "italic" },
+  emptyState: { alignItems: "center", justifyContent: "center", gap: 12, paddingHorizontal: 40, paddingVertical: 40 },
+  emptyTitle: { fontSize: 18, fontWeight: "800" as const, color: Colors.white },
+  emptyText: { fontSize: 14, color: "rgba(255,255,255,0.5)", textAlign: "center", lineHeight: 20 },
+  propCard: { backgroundColor: "rgba(20,15,5,0.85)", borderRadius: 16, overflow: "hidden", borderWidth: 1, borderColor: "rgba(212,164,32,0.2)", marginHorizontal: 16, marginBottom: 14 },
+  propImgBox: { position: "relative" },
+  propImg: { width: "100%", height: 180, backgroundColor: "rgba(20,15,5,0.8)" },
+  propNoImg: { alignItems: "center", justifyContent: "center" },
+  propRating: { position: "absolute", bottom: 10, right: 10, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, borderWidth: 1, borderColor: "rgba(255,255,255,0.2)" },
+  propRatingText: { fontSize: 14, fontWeight: "800" as const, color: "#fff" },
+  propDetails: { padding: 14, gap: 6 },
+  propAddr: { fontSize: 16, fontWeight: "800" as const, color: Colors.gold, lineHeight: 22 },
+  propCity: { fontSize: 12, color: "rgba(255,255,255,0.5)" },
+  propStats: { flexDirection: "row", gap: 12, marginTop: 4 },
+  propStatText: { fontSize: 13, color: Colors.white, fontWeight: "600" as const },
+  propQuote: { marginTop: 8, backgroundColor: "rgba(212,164,32,0.06)", borderRadius: 10, padding: 12, borderWidth: 1, borderColor: "rgba(212,164,32,0.15)", borderLeftWidth: 3, borderLeftColor: Colors.gold },
+  propCommentText: { fontSize: 14, color: Colors.white, lineHeight: 22, fontStyle: "italic" },
+  aiBadge: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 6, alignSelf: "flex-start", backgroundColor: "rgba(255,215,0,0.12)", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  aiBadgeText: { fontSize: 9, fontWeight: "800" as const, color: "#FFD700", letterSpacing: 1 },
+  aiBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 10, paddingVertical: 10, borderRadius: 10, borderWidth: 1 },
+  aiBtnText: { fontSize: 12, fontWeight: "800" as const, letterSpacing: 0.8 },
+  propActions: { flexDirection: "row", gap: 10, marginTop: 8 },
+  propActionBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: "rgba(212,164,32,0.15)", borderWidth: 1, borderColor: "rgba(212,164,32,0.25)" },
+  propViewBtn: { backgroundColor: "rgba(255,255,255,0.05)", borderColor: "rgba(212,164,32,0.2)" },
+  propActionText: { fontSize: 12, fontWeight: "800" as const, color: "#fff", letterSpacing: 0.5 },
+  tourSection: { paddingHorizontal: 16, gap: 12 },
+  guideScroll: { gap: 8, paddingRight: 16 },
+  guidePill: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, borderWidth: 1.5 },
+  guideEmoji: { fontSize: 22 },
+  guideName: { fontSize: 13, fontWeight: "700" as const, color: "rgba(255,255,255,0.6)" },
+  guideTitle: { fontSize: 10, color: "rgba(255,255,255,0.3)", marginTop: 1 },
+  tourStartRow: { flexDirection: "row", gap: 10 },
+  tourNameInput: { flex: 1, height: 44, backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 10, paddingHorizontal: 14, fontSize: 14, color: Colors.white, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
+  tourStartBtn: { borderRadius: 10, overflow: "hidden" },
+  tourStartGrad: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, height: 44, justifyContent: "center" },
+  tourStartText: { fontSize: 12, fontWeight: "800" as const, color: "#000", letterSpacing: 0.5 },
+  tourConvo: { gap: 8, marginTop: 8 },
+  tourMsg: { borderRadius: 14, padding: 14, maxWidth: "85%" },
+  tourMsgUser: { alignSelf: "flex-end", backgroundColor: "rgba(74,222,128,0.15)", borderWidth: 1, borderColor: "rgba(74,222,128,0.25)" },
+  tourMsgGuide: { alignSelf: "flex-start", backgroundColor: "rgba(212,164,32,0.08)", borderWidth: 1, borderColor: "rgba(212,164,32,0.2)" },
+  tourMsgName: { fontSize: 10, fontWeight: "700" as const, color: Colors.gold, letterSpacing: 1, marginBottom: 4 },
+  tourMsgText: { fontSize: 14, color: Colors.white, lineHeight: 22 },
+  tourTyping: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8 },
+  tourTypingText: { fontSize: 12, color: "rgba(255,255,255,0.4)", fontStyle: "italic" },
+  tourInputRow: { flexDirection: "row", gap: 8, marginTop: 8 },
+  tourInput: { flex: 1, height: 44, backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 10, paddingHorizontal: 14, fontSize: 14, color: Colors.white, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
+  tourSendBtn: { width: 44, height: 44, borderRadius: 10, backgroundColor: "rgba(212,164,32,0.12)", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "rgba(212,164,32,0.2)" },
 });
