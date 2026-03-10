@@ -293,12 +293,55 @@ function GameCard({
   const leagueColor = LEAGUE_COLORS[game.league] || "#D4A420";
   const isSpeaking = speakingGameId === game.id;
   const teams = game.game.split(" vs ").map((t) => t.trim());
+  const isLive = game.status === "in";
+
+  const [commentary, setCommentary] = useState<string | null>(null);
+  const [commentaryLoading, setCommentaryLoading] = useState(false);
+  const lastScoreRef = useRef(game.score);
+
+  const commentaryEnabledRef = useRef(false);
+
+  const fetchCommentary = useCallback(async () => {
+    setCommentaryLoading(true);
+    commentaryEnabledRef.current = true;
+    try {
+      const resp = await fetch(new URL("/api/sports/commentary", getApiUrl()).toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ game, personaId: persona.id }),
+      });
+      if (!resp.ok) throw new Error(`Commentary request failed: ${resp.status}`);
+      const data = await resp.json();
+      if (data.commentary) {
+        setCommentary(data.commentary);
+      }
+    } catch (e) {
+      console.error("Commentary fetch error:", e);
+    } finally {
+      setCommentaryLoading(false);
+    }
+  }, [game.id, game.score, persona.id]);
+
+  useEffect(() => {
+    if (isLive && lastScoreRef.current !== game.score && commentaryEnabledRef.current) {
+      lastScoreRef.current = game.score;
+      fetchCommentary();
+    }
+  }, [game.score]);
 
   return (
     <Animated.View entering={FadeInUp.duration(400).springify()} style={styles.gameCard}>
       <View style={styles.gameHeader}>
-        <View style={[styles.leagueBadge, { backgroundColor: leagueColor }]}>
-          <Text style={styles.leagueText}>{game.league}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <View style={[styles.leagueBadge, { backgroundColor: leagueColor }]}>
+            <Text style={styles.leagueText}>{game.league}</Text>
+          </View>
+          {isLive && (
+            <View style={styles.liveBadge}>
+              <View style={styles.liveDot} />
+              <Text style={styles.liveText}>LIVE</Text>
+            </View>
+          )}
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <Text style={styles.gameTime}>{game.time}</Text>
@@ -309,9 +352,50 @@ function GameCard({
       </View>
       <Text style={styles.gameTitle}>{game.game}</Text>
       {game.score ? (
-        <Text style={styles.gameScore}>{game.score}</Text>
+        <Text style={[styles.gameScore, isLive && { color: "#FF4444" }]}>{game.score}</Text>
       ) : null}
       <Text style={styles.gameOdds}>{game.odds}</Text>
+
+      {isLive && (
+        <View style={styles.commentarySection}>
+          <Pressable
+            onPress={fetchCommentary}
+            disabled={commentaryLoading}
+            style={({ pressed }) => [
+              styles.commentaryBtn,
+              { borderColor: persona.color, backgroundColor: `${persona.color}15` },
+              pressed && { opacity: 0.7 },
+            ]}
+          >
+            {commentaryLoading ? (
+              <ActivityIndicator size="small" color={persona.color} />
+            ) : (
+              <Ionicons name="mic" size={16} color={persona.color} />
+            )}
+            <Text style={[styles.commentaryBtnText, { color: persona.color }]}>
+              {commentaryLoading ? `${persona.name} is watching...` : commentary ? "REFRESH COMMENTARY" : "LIVE COMMENTARY"}
+            </Text>
+          </Pressable>
+
+          {commentary && (
+            <Animated.View entering={FadeInDown.duration(300)} style={[styles.commentaryBox, { borderLeftColor: persona.color }]}>
+              <View style={styles.commentaryHeader}>
+                <Image source={persona.image} style={[styles.commentaryAvatar, { borderColor: persona.color }]} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.commentaryLabel, { color: persona.color }]}>{persona.name}'s Live Take</Text>
+                </View>
+                <Pressable
+                  onPress={() => onSpeak(commentary, persona.id, game.id)}
+                  style={({ pressed }) => [styles.commentarySpeakBtn, { borderColor: persona.color }, pressed && { opacity: 0.7 }]}
+                >
+                  <Ionicons name={isSpeaking ? "stop" : "volume-high"} size={14} color={persona.color} />
+                </Pressable>
+              </View>
+              <Text style={styles.commentaryText}>"{commentary}"</Text>
+            </Animated.View>
+          )}
+        </View>
+      )}
 
       {onPickTeam && teams.length === 2 && (
         <View style={styles.pickTeamRow}>
@@ -423,6 +507,8 @@ export default function SportsScreen() {
   const filteredGames = selectedLeague === "ALL" ? games : games.filter((g) => g.league === selectedLeague);
   const currentTally = tallies[selectedPersona];
 
+  const hasLiveGames = games.some((g) => g.status === "in");
+
   useEffect(() => {
     mountedRef.current = true;
     fetchGames();
@@ -445,6 +531,14 @@ export default function SportsScreen() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!hasLiveGames) return;
+    const pollInterval = setInterval(() => {
+      if (mountedRef.current) fetchGames();
+    }, 30000);
+    return () => clearInterval(pollInterval);
+  }, [hasLiveGames]);
 
   useEffect(() => {
     if (games.length > 0) {
@@ -1583,6 +1677,84 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700" as const,
     letterSpacing: 1,
+  },
+  liveBadge: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 4,
+    backgroundColor: "rgba(255,68,68,0.2)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,68,68,0.4)",
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#FF4444",
+  },
+  liveText: {
+    fontSize: 10,
+    fontWeight: "800" as const,
+    color: "#FF4444",
+    letterSpacing: 1,
+  },
+  commentarySection: {
+    marginTop: 10,
+    gap: 8,
+  },
+  commentaryBtn: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    gap: 8,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  commentaryBtnText: {
+    fontSize: 12,
+    fontWeight: "700" as const,
+    letterSpacing: 1,
+  },
+  commentaryBox: {
+    backgroundColor: "rgba(0,0,0,0.4)",
+    borderRadius: 10,
+    padding: 12,
+    borderLeftWidth: 3,
+  },
+  commentaryHeader: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 8,
+    marginBottom: 8,
+  },
+  commentaryAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+  },
+  commentaryLabel: {
+    fontSize: 11,
+    fontWeight: "700" as const,
+    letterSpacing: 0.5,
+  },
+  commentarySpeakBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+  },
+  commentaryText: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.85)",
+    lineHeight: 19,
+    fontStyle: "italic" as const,
   },
   debateCard: {
     borderRadius: 16,

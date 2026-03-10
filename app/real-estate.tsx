@@ -422,11 +422,12 @@ export default function RealEstateScreen() {
               {Platform.OS === "web" && (
                 <View style={s.mapFrame}>
                   <iframe
+                    key={`map-${mapLocation}`}
                     width="100%"
                     height="250"
                     frameBorder="0"
                     style={{ border: 0, borderRadius: 12 } as any}
-                    srcDoc={`<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script><style>body{margin:0}#map{width:100%;height:250px}</style></head><body><div id="map"></div><script>var map=L.map('map').setView([25.76,-80.19],12);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'OSM'}).addTo(map);fetch('https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(mapLocation)}').then(r=>r.json()).then(d=>{if(d[0]){map.setView([d[0].lat,d[0].lon],12);L.marker([d[0].lat,d[0].lon]).addTo(map).bindPopup('${mapLocation.replace(/'/g, "\\'")}');}});<\/script></body></html>`}
+                    srcDoc={`<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script><style>body{margin:0}#map{width:100%;height:250px}</style></head><body><div id="map"></div><script>var map=L.map('map').setView([39.83,-98.58],4);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'OSM'}).addTo(map);fetch('https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(mapLocation)}').then(function(r){return r.json()}).then(function(d){if(d&&d[0]){map.setView([parseFloat(d[0].lat),parseFloat(d[0].lon)],12);L.marker([parseFloat(d[0].lat),parseFloat(d[0].lon)]).addTo(map).bindPopup('${mapLocation.replace(/'/g, "\\'")}');}});<\/script></body></html>`}
                   />
                 </View>
               )}

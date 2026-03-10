@@ -1109,6 +1109,59 @@ Generate the roundtable discussion. Each persona must give their take and REACT 
     }
   });
 
+  const commentaryCache = new Map<string, { data: any; timestamp: number }>();
+  const COMMENTARY_CACHE_TTL = 45000;
+
+  app.post("/api/sports/commentary", async (req, res) => {
+    try {
+      const { game, personaId } = req.body;
+      if (!game || !personaId) {
+        return res.status(400).json({ error: "game and personaId required" });
+      }
+
+      const prompt = PERSONA_SPORTS_PROMPTS[personaId];
+      if (!prompt) {
+        return res.status(400).json({ error: "Invalid personaId" });
+      }
+
+      const cacheKey = `commentary_${game.id}_${personaId}_${game.score || ""}`;
+      const cached = commentaryCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < COMMENTARY_CACHE_TTL) {
+        return res.json(cached.data);
+      }
+
+      const userPrompt = `This ${game.league} game is LIVE RIGHT NOW:
+${game.game}
+Current Score: ${game.score || "In progress"}
+Status: ${game.time}
+Odds: ${game.odds}
+
+React to what is happening IN THIS MOMENT. Comment on the current score, momentum, who's winning, who's choking, and what might happen next. Be reactive and emotional — this is LIVE commentary. If one team is dominating, roast the losing team. If it's close, hype the tension. 2-3 punchy sentences max. Stay fully in character.`;
+
+      const completion = await getClient().chat.completions.create({
+        model: getFastModel(),
+        messages: [
+          { role: "system", content: prompt },
+          { role: "user", content: userPrompt },
+        ],
+        max_completion_tokens: 150,
+        temperature: 1.0,
+      });
+
+      const text = completion.choices[0]?.message?.content?.trim() || "Game's getting interesting...";
+      const result = { commentary: text, personaId, gameId: game.id, timestamp: Date.now() };
+      commentaryCache.set(cacheKey, { data: result, timestamp: Date.now() });
+      if (commentaryCache.size > 100) {
+        const oldest = [...commentaryCache.entries()][0];
+        if (oldest) commentaryCache.delete(oldest[0]);
+      }
+      res.json(result);
+    } catch (error) {
+      console.error("Commentary error:", error);
+      res.status(500).json({ error: "Failed to generate commentary" });
+    }
+  });
+
   app.post("/api/sports/trash-talk", async (req, res) => {
     try {
       const { personaId, wins, losses, streak } = req.body;
