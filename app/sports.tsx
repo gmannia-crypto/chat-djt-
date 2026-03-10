@@ -1329,6 +1329,11 @@ export default function SportsScreen() {
   return (
     <View style={[styles.container, Platform.OS === "web" && { maxHeight: "100vh" as any, overflow: "auto" as any }]}>
       <LinearGradient colors={["#0a0a0a", "#1a0f00", "#0a0a0a"]} style={StyleSheet.absoluteFillObject} />
+      <Image
+        source={require("@/assets/images/dynamic-creations.jpg")}
+        style={styles.bgLogo}
+        resizeMode="contain"
+      />
 
       <View style={[styles.header, { paddingTop: insets.top + webTopInset + 8 }]}>
         <Pressable onPress={() => { playTransition(); router.back(); }} style={styles.backBtn}>
@@ -1336,7 +1341,7 @@ export default function SportsScreen() {
         </Pressable>
         <View style={styles.headerCenter}>
           <MaterialCommunityIcons name="football" size={20} color={Colors.gold} />
-          <Text style={styles.headerTitle}>TRUMP'S SPORTS BOOK</Text>
+          <Text style={styles.headerTitle}>DYNAMIC SPORTS BOOK</Text>
         </View>
         <Pressable
           onPress={() => { playClick(); toggleMusic(); }}
@@ -2769,5 +2774,13 @@ const styles = StyleSheet.create({
     fontWeight: "900" as const,
     color: "#000",
     letterSpacing: 1.5,
+  },
+  bgLogo: {
+    position: "absolute" as const,
+    width: "80%" as any,
+    height: "80%" as any,
+    top: "10%" as any,
+    left: "10%" as any,
+    opacity: 0.04,
   },
 });
