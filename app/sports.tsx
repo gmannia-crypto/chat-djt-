@@ -269,6 +269,71 @@ function PersonaSelectorItem({
   );
 }
 
+function GameStatsPanel({ game }: { game: Game }) {
+  const hasLeaders = (game.homeLeaders && game.homeLeaders.length > 0) || (game.awayLeaders && game.awayLeaders.length > 0);
+  const hasStats = (game.homeStats && game.homeStats.length > 0) || (game.awayStats && game.awayStats.length > 0);
+  if (!hasLeaders && !hasStats) return null;
+
+  return (
+    <Animated.View entering={FadeInDown.duration(300)} style={styles.statsContainer}>
+      {game.awayLeaders && game.awayLeaders.length > 0 && (
+        <View style={styles.teamStatsBlock}>
+          <Text style={styles.teamStatsTitle}>{game.awayTeam || "Away"}</Text>
+          {game.awayLeaders.map((leader, i) => (
+            <View key={`away-${i}`} style={styles.leaderRow}>
+              {leader.headshot ? (
+                <Image source={{ uri: leader.headshot }} style={styles.leaderHeadshot} />
+              ) : null}
+              <View style={styles.leaderInfo}>
+                <Text style={styles.leaderCategory}>{leader.category}</Text>
+                <Text style={styles.leaderPlayer}>{leader.player}</Text>
+              </View>
+              <Text style={styles.leaderValue}>{leader.value}</Text>
+            </View>
+          ))}
+          {game.awayStats && game.awayStats.length > 0 && (
+            <View style={styles.teamStatRow}>
+              {game.awayStats.map((s, i) => (
+                <View key={`as-${i}`} style={styles.statPill}>
+                  <Text style={styles.statPillLabel}>{s.name}</Text>
+                  <Text style={styles.statPillValue}>{s.value}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+      )}
+      {game.homeLeaders && game.homeLeaders.length > 0 && (
+        <View style={styles.teamStatsBlock}>
+          <Text style={styles.teamStatsTitle}>{game.homeTeam || "Home"}</Text>
+          {game.homeLeaders.map((leader, i) => (
+            <View key={`home-${i}`} style={styles.leaderRow}>
+              {leader.headshot ? (
+                <Image source={{ uri: leader.headshot }} style={styles.leaderHeadshot} />
+              ) : null}
+              <View style={styles.leaderInfo}>
+                <Text style={styles.leaderCategory}>{leader.category}</Text>
+                <Text style={styles.leaderPlayer}>{leader.player}</Text>
+              </View>
+              <Text style={styles.leaderValue}>{leader.value}</Text>
+            </View>
+          ))}
+          {game.homeStats && game.homeStats.length > 0 && (
+            <View style={styles.teamStatRow}>
+              {game.homeStats.map((s, i) => (
+                <View key={`hs-${i}`} style={styles.statPill}>
+                  <Text style={styles.statPillLabel}>{s.name}</Text>
+                  <Text style={styles.statPillValue}>{s.value}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+      )}
+    </Animated.View>
+  );
+}
+
 function GameCard({
   game,
   persona,
@@ -294,6 +359,8 @@ function GameCard({
   const isSpeaking = speakingGameId === game.id;
   const teams = game.game.split(" vs ").map((t) => t.trim());
   const isLive = game.status === "in";
+  const [expanded, setExpanded] = useState(false);
+  const hasDetails = (game.homeLeaders && game.homeLeaders.length > 0) || (game.awayLeaders && game.awayLeaders.length > 0) || (game.homeStats && game.homeStats.length > 0) || (game.awayStats && game.awayStats.length > 0);
 
   const [commentary, setCommentary] = useState<string | null>(null);
   const [commentaryLoading, setCommentaryLoading] = useState(false);
@@ -331,30 +398,42 @@ function GameCard({
 
   return (
     <Animated.View entering={FadeInUp.duration(400).springify()} style={styles.gameCard}>
-      <View style={styles.gameHeader}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-          <View style={[styles.leagueBadge, { backgroundColor: leagueColor }]}>
-            <Text style={styles.leagueText}>{game.league}</Text>
-          </View>
-          {isLive && (
-            <View style={styles.liveBadge}>
-              <View style={styles.liveDot} />
-              <Text style={styles.liveText}>LIVE</Text>
+      <Pressable
+        onPress={() => {
+          if (hasDetails) setExpanded(!expanded);
+        }}
+        style={{ opacity: 1 }}
+      >
+        <View style={styles.gameHeader}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <View style={[styles.leagueBadge, { backgroundColor: leagueColor }]}>
+              <Text style={styles.leagueText}>{game.league}</Text>
             </View>
-          )}
+            {isLive && (
+              <View style={styles.liveBadge}>
+                <View style={styles.liveDot} />
+                <Text style={styles.liveText}>LIVE</Text>
+              </View>
+            )}
+          </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Text style={styles.gameTime}>{game.time}</Text>
+            {hasDetails && (
+              <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={14} color="rgba(255,255,255,0.4)" />
+            )}
+            <Pressable onPress={() => onRefresh(game.id)} style={({ pressed }) => [pressed && { opacity: 0.5 }]}>
+              <Ionicons name="refresh" size={14} color="rgba(255,255,255,0.4)" />
+            </Pressable>
+          </View>
         </View>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <Text style={styles.gameTime}>{game.time}</Text>
-          <Pressable onPress={() => onRefresh(game.id)} style={({ pressed }) => [pressed && { opacity: 0.5 }]}>
-            <Ionicons name="refresh" size={14} color="rgba(255,255,255,0.4)" />
-          </Pressable>
-        </View>
-      </View>
-      <Text style={styles.gameTitle}>{game.game}</Text>
-      {game.score ? (
-        <Text style={[styles.gameScore, isLive && { color: "#FF4444" }]}>{game.score}</Text>
-      ) : null}
-      <Text style={styles.gameOdds}>{game.odds}</Text>
+        <Text style={styles.gameTitle}>{game.game}</Text>
+        {game.score ? (
+          <Text style={[styles.gameScore, isLive && { color: "#FF4444" }]}>{game.score}</Text>
+        ) : null}
+        <Text style={styles.gameOdds}>{game.odds}</Text>
+      </Pressable>
+
+      {expanded && hasDetails && <GameStatsPanel game={game} />}
 
       {isLive && (
         <View style={styles.commentarySection}>
@@ -1049,11 +1128,12 @@ export default function SportsScreen() {
             {completedGames.map((game) => {
               const leagueColor = LEAGUE_COLORS[game.league] || "#D4A420";
               const isExpanded = expandedResult === game.id;
-              const hasStats = (game.homeLeaders && game.homeLeaders.length > 0) || (game.awayLeaders && game.awayLeaders.length > 0);
+              const hasDetails = (game.homeLeaders && game.homeLeaders.length > 0) || (game.awayLeaders && game.awayLeaders.length > 0) || (game.homeStats && game.homeStats.length > 0) || (game.awayStats && game.awayStats.length > 0);
               return (
                 <Pressable
                   key={`result-${game.id}`}
                   onPress={() => {
+                    if (!hasDetails) return;
                     playClick();
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     setExpandedResult(isExpanded ? null : game.id);
@@ -1066,7 +1146,7 @@ export default function SportsScreen() {
                     </View>
                     <View style={{ flexDirection: "row" as const, alignItems: "center" as const, gap: 6 }}>
                       <Text style={{ color: "#4CAF50", fontSize: 10, fontWeight: "700" as const }}>FINAL</Text>
-                      {hasStats && (
+                      {hasDetails && (
                         <Ionicons name={isExpanded ? "chevron-up" : "chevron-down"} size={14} color="rgba(255,255,255,0.4)" />
                       )}
                     </View>
@@ -1079,58 +1159,7 @@ export default function SportsScreen() {
                       <Text style={styles.winnerText}>{game.winner} WINS</Text>
                     </View>
                   )}
-                  {isExpanded && hasStats && (
-                    <View style={styles.statsContainer}>
-                      {game.awayLeaders && game.awayLeaders.length > 0 && (
-                        <View style={styles.teamStatsBlock}>
-                          <Text style={styles.teamStatsTitle}>{game.awayTeam}</Text>
-                          {game.awayLeaders.map((leader, i) => (
-                            <View key={`away-${i}`} style={styles.leaderRow}>
-                              <View style={styles.leaderInfo}>
-                                <Text style={styles.leaderCategory}>{leader.category}</Text>
-                                <Text style={styles.leaderPlayer}>{leader.player}</Text>
-                              </View>
-                              <Text style={styles.leaderValue}>{leader.value}</Text>
-                            </View>
-                          ))}
-                          {game.awayStats && game.awayStats.length > 0 && (
-                            <View style={styles.teamStatRow}>
-                              {game.awayStats.map((s, i) => (
-                                <View key={`as-${i}`} style={styles.statPill}>
-                                  <Text style={styles.statPillLabel}>{s.name}</Text>
-                                  <Text style={styles.statPillValue}>{s.value}</Text>
-                                </View>
-                              ))}
-                            </View>
-                          )}
-                        </View>
-                      )}
-                      {game.homeLeaders && game.homeLeaders.length > 0 && (
-                        <View style={styles.teamStatsBlock}>
-                          <Text style={styles.teamStatsTitle}>{game.homeTeam}</Text>
-                          {game.homeLeaders.map((leader, i) => (
-                            <View key={`home-${i}`} style={styles.leaderRow}>
-                              <View style={styles.leaderInfo}>
-                                <Text style={styles.leaderCategory}>{leader.category}</Text>
-                                <Text style={styles.leaderPlayer}>{leader.player}</Text>
-                              </View>
-                              <Text style={styles.leaderValue}>{leader.value}</Text>
-                            </View>
-                          ))}
-                          {game.homeStats && game.homeStats.length > 0 && (
-                            <View style={styles.teamStatRow}>
-                              {game.homeStats.map((s, i) => (
-                                <View key={`hs-${i}`} style={styles.statPill}>
-                                  <Text style={styles.statPillLabel}>{s.name}</Text>
-                                  <Text style={styles.statPillValue}>{s.value}</Text>
-                                </View>
-                              ))}
-                            </View>
-                          )}
-                        </View>
-                      )}
-                    </View>
-                  )}
+                  {isExpanded && hasDetails && <GameStatsPanel game={game} />}
                 </Pressable>
               );
             })}
@@ -2161,6 +2190,13 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255,255,255,0.04)",
+    gap: 8,
+  },
+  leaderHeadshot: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.1)",
   },
   leaderInfo: {
     flex: 1,

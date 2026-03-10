@@ -817,7 +817,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
             continue;
           }
           const g = parseESPNEvent(ev, label, offset);
-          if (g) { games.push(g); count++; }
+          if (g) {
+            const comp = ev.competitions?.[0];
+            const home = comp?.competitors?.find((c: any) => c.homeAway === "home");
+            const away = comp?.competitors?.find((c: any) => c.homeAway === "away");
+            if (home && away) {
+              const extractLeaders = (team: any) => {
+                if (!team?.leaders) return [];
+                return team.leaders.slice(0, 3).map((cat: any) => ({
+                  category: cat.displayName || cat.name || "",
+                  player: cat.leaders?.[0]?.athlete?.displayName || "Unknown",
+                  value: cat.leaders?.[0]?.displayValue || "0",
+                  headshot: cat.leaders?.[0]?.athlete?.headshot?.href || "",
+                }));
+              };
+              const extractStats = (team: any) => {
+                if (!team?.statistics) return [];
+                return team.statistics.filter((s: any) => !s.name?.startsWith("avg")).slice(0, 6).map((s: any) => ({
+                  name: s.abbreviation || s.name || "",
+                  value: s.displayValue || "0",
+                }));
+              };
+              g.homeTeam = home?.team?.displayName || "Home";
+              g.awayTeam = away?.team?.displayName || "Away";
+              g.homeScore = parseInt(home?.score || "0", 10);
+              g.awayScore = parseInt(away?.score || "0", 10);
+              g.homeLeaders = extractLeaders(home);
+              g.awayLeaders = extractLeaders(away);
+              g.homeStats = extractStats(home);
+              g.awayStats = extractStats(away);
+            }
+            games.push(g); count++;
+          }
         }
       };
 
@@ -1130,13 +1161,37 @@ Generate the roundtable discussion. Each persona must give their take and REACT 
         return res.json(cached.data);
       }
 
+      let statsSection = "";
+      if (game.homeLeaders?.length || game.awayLeaders?.length) {
+        statsSection += "\n\nPLAYER LEADERS:";
+        if (game.awayLeaders?.length) {
+          const awayTeam = game.awayTeam || game.game.split(" vs ")[0]?.trim() || "Away";
+          statsSection += `\n${awayTeam}: ${game.awayLeaders.map((l: any) => `${l.player} (${l.category}: ${l.value})`).join(", ")}`;
+        }
+        if (game.homeLeaders?.length) {
+          const homeTeam = game.homeTeam || game.game.split(" vs ")[1]?.trim() || "Home";
+          statsSection += `\n${homeTeam}: ${game.homeLeaders.map((l: any) => `${l.player} (${l.category}: ${l.value})`).join(", ")}`;
+        }
+      }
+      if (game.homeStats?.length || game.awayStats?.length) {
+        statsSection += "\n\nTEAM STATS:";
+        if (game.awayStats?.length) {
+          const awayTeam = game.awayTeam || game.game.split(" vs ")[0]?.trim() || "Away";
+          statsSection += `\n${awayTeam}: ${game.awayStats.map((s: any) => `${s.name}: ${s.value}`).join(", ")}`;
+        }
+        if (game.homeStats?.length) {
+          const homeTeam = game.homeTeam || game.game.split(" vs ")[1]?.trim() || "Home";
+          statsSection += `\n${homeTeam}: ${game.homeStats.map((s: any) => `${s.name}: ${s.value}`).join(", ")}`;
+        }
+      }
+
       const userPrompt = `This ${game.league} game is LIVE RIGHT NOW:
 ${game.game}
 Current Score: ${game.score || "In progress"}
 Status: ${game.time}
-Odds: ${game.odds}
+Odds: ${game.odds}${statsSection}
 
-React to what is happening IN THIS MOMENT. Comment on the current score, momentum, who's winning, who's choking, and what might happen next. Be reactive and emotional — this is LIVE commentary. If one team is dominating, roast the losing team. If it's close, hype the tension. 2-3 punchy sentences max. Stay fully in character.`;
+React to what is happening IN THIS MOMENT. Reference SPECIFIC player stats and performances — call out who is balling, who is struggling, who needs to step up. Comment on the current score, momentum, who's winning, who's choking, and what might happen next. Be reactive and emotional — this is LIVE commentary. If one team is dominating, roast the losing team. If it's close, hype the tension. 2-3 punchy sentences max. Stay fully in character.`;
 
       const completion = await getClient().chat.completions.create({
         model: getFastModel(),
