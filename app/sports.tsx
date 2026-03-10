@@ -97,6 +97,7 @@ const PERSONA_IMAGES: Record<string, ImageSourcePropType> = {
   mamaFutbol: require("@/assets/images/persona-mamaFutbol.png"),
   phantomZZ: require("@/assets/images/persona-phantomZZ.png"),
   theUltra: require("@/assets/images/persona-theUltra.png"),
+  dickyV: require("@/assets/images/persona-dickyV.png"),
 };
 
 interface PersonaInfo {
@@ -119,6 +120,7 @@ const PERSONAS: PersonaInfo[] = [
   { id: "bernie", name: "Bernie Mac", fullName: "Bernie Mac", color: "#9B59B6", image: PERSONA_IMAGES.bernie },
   { id: "grandma", name: "Grandma", fullName: "Your Grandma", color: "#ffffff", image: PERSONA_IMAGES.grandma },
   { id: "ruckus", name: "Ruckus", fullName: "Uncle Ruckus", color: "#8B4513", image: PERSONA_IMAGES.ruckus },
+  { id: "dickyV", name: "Dicky V", fullName: "Dicky V", color: "#FF6F00", image: PERSONA_IMAGES.dickyV },
 ];
 
 const RACING_PERSONAS: PersonaInfo[] = [
@@ -354,6 +356,15 @@ const AMAZON_PICKS: Record<string, { quote: string; mainUrl: string; items: { la
       { label: "Ultras Gear", sub: "Stand culture", icon: "account-group", url: amzUrl("ultras football casual hoodie supporter") },
       { label: "Drum & Flares", sub: "Atmosphere", icon: "drum", url: amzUrl("sports fan drum percussion cheering") },
       { label: "Bandanas", sub: "Rep your crew", icon: "bandage", url: amzUrl("sports bandana face cover football fan") },
+    ],
+  },
+  dickyV: {
+    quote: '"IT\'S AWESOME BABY!! Get yourself some DIPSY-DOO DUNKAROO gear, are you SERIOUS?!" — Dicky V',
+    mainUrl: amzUrl("college basketball NCAA gear"),
+    items: [
+      { label: "NCAA Jerseys", sub: "AWESOME BABY!", icon: "basketball", url: amzUrl("college basketball jersey NCAA men") },
+      { label: "March Madness", sub: "Tournament time", icon: "trophy", url: amzUrl("March Madness NCAA tournament gear hat") },
+      { label: "Hoops Books", sub: "Study the game", icon: "book-open-variant", url: amzUrl("college basketball coaching strategy book") },
     ],
   },
 };

@@ -293,6 +293,15 @@ export default function HomeScreen() {
   const [collectionCount, setCollectionCount] = useState({ owned: 0, total: 24 });
   const { deviceId, hasTokens } = useTokens();
   const { playClick, playTransition } = useSoundEffects();
+  const mainScrollRef = useRef<ScrollView>(null);
+  const autoScrollYRef = useRef(0);
+  const autoScrollDirRef = useRef(1);
+  const autoScrollActiveRef = useRef(true);
+  const autoScrollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const userTouchingRef = useRef(false);
+  const autoScrollResumeRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mainContentHeightRef = useRef(0);
+  const mainScrollHeightRef = useRef(0);
 
   const refreshCollectionCount = useCallback(async () => {
     const col = await getCollection();
@@ -305,6 +314,8 @@ export default function HomeScreen() {
   const arenaPulseScale = useSharedValue(1);
   const arenaPulseGlow = useSharedValue(0.3);
   const arenaBorderGlow = useSharedValue(0.4);
+  const sportsPulseScale = useSharedValue(1);
+  const sportsPulseGlow = useSharedValue(0.5);
 
   React.useEffect(() => {
     pulseScale.value = withRepeat(
@@ -347,6 +358,22 @@ export default function HomeScreen() {
       -1,
       true
     );
+    sportsPulseScale.value = withRepeat(
+      withSequence(
+        withTiming(1.03, { duration: 1000 }),
+        withTiming(1, { duration: 1000 })
+      ),
+      -1,
+      true
+    );
+    sportsPulseGlow.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 1000 }),
+        withTiming(0.5, { duration: 1000 })
+      ),
+      -1,
+      true
+    );
   }, []);
 
   const pulseTherapyStyle = useAnimatedStyle(() => ({
@@ -357,6 +384,14 @@ export default function HomeScreen() {
   const pulseFortuneStyle = useAnimatedStyle(() => ({
     transform: [{ scale: pulseScale.value }],
     shadowOpacity: pulseGlow.value,
+  }));
+
+  const sportsPulseStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: sportsPulseScale.value }],
+    shadowColor: "#4CAF50",
+    shadowOpacity: sportsPulseGlow.value,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 0 },
   }));
 
   const arenaFeaturedStyle = useAnimatedStyle(() => ({
@@ -595,6 +630,28 @@ export default function HomeScreen() {
       setLiveUsers(1247 + Math.floor(Math.random() * 200) - 100);
     }, 10000);
     return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const SCROLL_SPEED = 0.4;
+    autoScrollTimerRef.current = setInterval(() => {
+      if (userTouchingRef.current || !autoScrollActiveRef.current) return;
+      const maxY = Math.max(0, mainContentHeightRef.current - mainScrollHeightRef.current);
+      if (maxY <= 0) return;
+      autoScrollYRef.current += SCROLL_SPEED * autoScrollDirRef.current;
+      if (autoScrollYRef.current >= maxY) {
+        autoScrollYRef.current = maxY;
+        autoScrollDirRef.current = -1;
+      } else if (autoScrollYRef.current <= 0) {
+        autoScrollYRef.current = 0;
+        autoScrollDirRef.current = 1;
+      }
+      mainScrollRef.current?.scrollTo({ y: autoScrollYRef.current, animated: false });
+    }, 16);
+    return () => {
+      if (autoScrollTimerRef.current) clearInterval(autoScrollTimerRef.current);
+      if (autoScrollResumeRef.current) clearTimeout(autoScrollResumeRef.current);
+    };
   }, []);
 
   const ACTIVITY_TEMPLATES = useMemo(() => [
@@ -1052,10 +1109,30 @@ export default function HomeScreen() {
       </Animated.View>
 
       <ScrollView
+        ref={mainScrollRef}
         style={styles.centerScroll}
         contentContainerStyle={styles.centerContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        onTouchStart={() => {
+          userTouchingRef.current = true;
+          autoScrollActiveRef.current = false;
+          if (autoScrollResumeRef.current) clearTimeout(autoScrollResumeRef.current);
+        }}
+        onTouchEnd={() => {
+          userTouchingRef.current = false;
+          autoScrollResumeRef.current = setTimeout(() => {
+            autoScrollActiveRef.current = true;
+          }, 6000);
+        }}
+        onScroll={(e) => {
+          if (userTouchingRef.current || !autoScrollActiveRef.current) {
+            autoScrollYRef.current = e.nativeEvent.contentOffset.y;
+          }
+        }}
+        onContentSizeChange={(w, h) => { mainContentHeightRef.current = h; }}
+        onLayout={(e) => { mainScrollHeightRef.current = e.nativeEvent.layout.height; }}
+        scrollEventThrottle={16}
       >
         {streak > 0 && (
           <Animated.View entering={FadeIn.delay(400).duration(500)} style={styles.streakRow}>
@@ -1328,7 +1405,7 @@ export default function HomeScreen() {
           </Animated.View>
         </Animated.View>
 
-        <Animated.View entering={FadeInDown.delay(950).duration(500)} style={styles.modeButtons}>
+        <Animated.View entering={FadeInDown.delay(950).duration(500)} style={[styles.modeButtons, sportsPulseStyle]}>
           <Pressable
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
@@ -1344,7 +1421,7 @@ export default function HomeScreen() {
               end={{ x: 1, y: 1 }}
               style={StyleSheet.absoluteFillObject}
             />
-            <MaterialCommunityIcons name="trophy" size={20} color="#4CAF50" />
+            <MaterialCommunityIcons name="trophy" size={24} color="#4CAF50" />
             <Text style={styles.sportsTopButtonText}>SPORTS BOOK</Text>
             <View style={styles.sportsLiveBadge}>
               <View style={styles.sportsLiveDot} />
@@ -2772,39 +2849,39 @@ const styles = StyleSheet.create({
     flexDirection: "row" as const,
     alignItems: "center",
     justifyContent: "center",
-    gap: 10,
-    paddingVertical: 14,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: "rgba(76,175,80,0.5)",
+    gap: 12,
+    paddingVertical: 20,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: "rgba(76,175,80,0.6)",
     overflow: "hidden" as const,
   },
   sportsTopButtonText: {
-    fontSize: 15,
-    fontWeight: "800" as const,
+    fontSize: 18,
+    fontWeight: "900" as const,
     color: "#4CAF50",
-    letterSpacing: 2,
+    letterSpacing: 3,
   },
   sportsLiveBadge: {
     flexDirection: "row" as const,
     alignItems: "center",
-    gap: 4,
-    backgroundColor: "rgba(76,175,80,0.25)",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    gap: 5,
+    backgroundColor: "rgba(76,175,80,0.3)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
   },
   sportsLiveDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
     backgroundColor: "#4CAF50",
   },
   sportsLiveBadgeText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: "800" as const,
     color: "#4CAF50",
-    letterSpacing: 1,
+    letterSpacing: 1.5,
   },
   fearGreedCard: {
     marginHorizontal: 20,
