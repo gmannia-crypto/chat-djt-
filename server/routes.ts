@@ -1252,21 +1252,22 @@ React to what is happening IN THIS MOMENT. Reference SPECIFIC player stats and p
 
   app.post("/api/sports/trash-talk", async (req, res) => {
     try {
-      const { personaId, wins, losses, streak } = req.body;
+      const { personaId, wins, losses, streak, userName } = req.body;
       if (!personaId) return res.status(400).json({ error: "personaId required" });
 
-      const record = `User record vs ${personaId}: ${wins || 0}W-${losses || 0}L, streak: ${streak || 0}`;
+      const nameRef = userName ? `The user's name is "${userName}". Address them by name.` : "The user has no name set.";
+      const record = `${userName ? userName + "'s" : "User"} record vs ${personaId}: ${wins || 0}W-${losses || 0}L, streak: ${streak || 0}`;
       let attitude = "neutral";
-      if ((wins || 0) > (losses || 0)) attitude = "respectful — user is winning";
-      else if ((losses || 0) > (wins || 0)) attitude = "trash-talking — user is losing";
-      else attitude = "competitive banter — tied";
+      if ((wins || 0) > (losses || 0)) attitude = "grudging respect with excuses — user is winning, make excuses for your losses or promise a comeback";
+      else if ((losses || 0) > (wins || 0)) attitude = "maximum trash-talking — user is losing, mock them mercilessly and rub it in";
+      else attitude = "competitive banter — tied, keep it spicy";
 
       const personaPrompt = PERSONA_SPORTS_PROMPTS[personaId] || "You are a sports commentator.";
 
       const completion = await getClient().chat.completions.create({
         model: getFastModel(),
         messages: [
-          { role: "system", content: `${personaPrompt}\n\nYou are reacting to a user's betting record against you. Be ${attitude}. If user is winning: show grudging respect but promise a comeback. If user is losing: talk maximum trash and mock them. If tied: be competitive. STAY IN CHARACTER. One punchy sentence, 15-25 words max.` },
+          { role: "system", content: `${personaPrompt}\n\n${nameRef}\n\nYou are reacting to a user's betting record against you. Be ${attitude}. If user is winning: concede grudgingly, make excuses ("refs were blind", "bad luck"), but promise a comeback. If user is losing: talk maximum trash, mock them by name if available, celebrate your dominance. If tied: be competitive and cocky. STAY IN CHARACTER. PARODY ONLY. One punchy sentence, 15-25 words max.` },
           { role: "user", content: record },
         ],
         max_completion_tokens: 80,

@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const TALLY_KEY = "sports_bet_tally";
 const PICKS_KEY = "sports_user_picks";
+const USERNAME_KEY = "sports_username";
 
 export interface UserPick {
   gameId: number;
@@ -46,6 +47,32 @@ export async function getUserPicks(): Promise<UserPick[]> {
 
 export async function saveUserPicks(picks: UserPick[]) {
   await AsyncStorage.setItem(PICKS_KEY, JSON.stringify(picks));
+}
+
+export async function makeUniversalPick(gameId: number, team: string, allPersonaIds: string[], personaPicks: Record<string, string>): Promise<UserPick[]> {
+  const picks = await getUserPicks();
+  const newPicks: UserPick[] = [];
+
+  for (const personaId of allPersonaIds) {
+    const existing = picks.findIndex((p) => p.gameId === gameId && p.personaId === personaId);
+    const pick: UserPick = {
+      gameId,
+      team,
+      personaId,
+      personaPick: personaPicks[personaId] || undefined,
+      date: new Date().toISOString(),
+      resolved: false,
+    };
+    if (existing >= 0) {
+      picks[existing] = pick;
+    } else {
+      picks.push(pick);
+    }
+    newPicks.push(pick);
+  }
+
+  await saveUserPicks(picks);
+  return newPicks;
 }
 
 export async function makeUserPick(gameId: number, team: string, personaId: string, personaPick?: string): Promise<UserPick> {
@@ -105,4 +132,17 @@ export function getStreakText(tally: PersonaTally): string {
   if (tally.streak === 0) return "";
   if (tally.streak > 0) return `${tally.streak}W STREAK`;
   return `${Math.abs(tally.streak)}L STREAK`;
+}
+
+export async function getUserName(): Promise<string> {
+  try {
+    const name = await AsyncStorage.getItem(USERNAME_KEY);
+    return name || "";
+  } catch {
+    return "";
+  }
+}
+
+export async function saveUserName(name: string): Promise<void> {
+  await AsyncStorage.setItem(USERNAME_KEY, name);
 }

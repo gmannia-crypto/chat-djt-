@@ -30,12 +30,15 @@ import {
 import { useSoundEffects } from "@/lib/use-sound";
 import {
   getTallies,
-  makeUserPick,
+  makeUniversalPick,
   getUserPicks,
   resolvePick,
+  getUserName,
+  saveUserName,
   type PersonaTally,
   type UserPick,
 } from "@/lib/bet-tally";
+import { TextInput } from "react-native";
 
 interface PlayerLeader {
   category: string;
@@ -639,6 +642,30 @@ const preGameStyles = StyleSheet.create({
   },
 });
 
+function TeamLeaderCard({ leader, index }: { leader: PlayerLeader; index: number }) {
+  return (
+    <View style={styles.leaderRow}>
+      <View style={styles.leaderRank}>
+        <Text style={styles.leaderRankText}>{index + 1}</Text>
+      </View>
+      {leader.headshot ? (
+        <Image source={{ uri: leader.headshot }} style={styles.leaderHeadshot} />
+      ) : (
+        <View style={[styles.leaderHeadshot, styles.leaderHeadshotPlaceholder]}>
+          <Ionicons name="person" size={18} color="rgba(255,255,255,0.3)" />
+        </View>
+      )}
+      <View style={styles.leaderInfo}>
+        <Text style={styles.leaderPlayer}>{leader.player}</Text>
+        <Text style={styles.leaderCategory}>{leader.category}</Text>
+      </View>
+      <View style={styles.leaderValueBox}>
+        <Text style={styles.leaderValue}>{leader.value}</Text>
+      </View>
+    </View>
+  );
+}
+
 function GameStatsPanel({ game }: { game: Game }) {
   const hasLeaders = (game.homeLeaders && game.homeLeaders.length > 0) || (game.awayLeaders && game.awayLeaders.length > 0);
   const hasStats = (game.homeStats && game.homeStats.length > 0) || (game.awayStats && game.awayStats.length > 0);
@@ -646,56 +673,57 @@ function GameStatsPanel({ game }: { game: Game }) {
 
   return (
     <Animated.View entering={FadeInDown.duration(300)} style={styles.statsContainer}>
+      <View style={styles.statsHeaderRow}>
+        <Ionicons name="stats-chart" size={14} color={Colors.gold} />
+        <Text style={styles.statsHeaderText}>PLAYER & TEAM STATS</Text>
+      </View>
+
       {game.awayLeaders && game.awayLeaders.length > 0 && (
         <View style={styles.teamStatsBlock}>
-          <Text style={styles.teamStatsTitle}>{game.awayTeam || "Away"}</Text>
+          <View style={styles.teamStatsHeader}>
+            <View style={styles.teamDot} />
+            <Text style={styles.teamStatsTitle}>{game.awayTeam || "Away"}</Text>
+            <Text style={styles.teamStatsSubtitle}>LEADERS</Text>
+          </View>
           {game.awayLeaders.map((leader, i) => (
-            <View key={`away-${i}`} style={styles.leaderRow}>
-              {leader.headshot ? (
-                <Image source={{ uri: leader.headshot }} style={styles.leaderHeadshot} />
-              ) : null}
-              <View style={styles.leaderInfo}>
-                <Text style={styles.leaderCategory}>{leader.category}</Text>
-                <Text style={styles.leaderPlayer}>{leader.player}</Text>
-              </View>
-              <Text style={styles.leaderValue}>{leader.value}</Text>
-            </View>
+            <TeamLeaderCard key={`away-${i}`} leader={leader} index={i} />
           ))}
           {game.awayStats && game.awayStats.length > 0 && (
-            <View style={styles.teamStatRow}>
-              {game.awayStats.map((s, i) => (
-                <View key={`as-${i}`} style={styles.statPill}>
-                  <Text style={styles.statPillLabel}>{s.name}</Text>
-                  <Text style={styles.statPillValue}>{s.value}</Text>
-                </View>
-              ))}
+            <View style={styles.teamStatSection}>
+              <Text style={styles.teamStatSectionLabel}>TEAM STATS</Text>
+              <View style={styles.teamStatRow}>
+                {game.awayStats.map((s, i) => (
+                  <View key={`as-${i}`} style={styles.statPill}>
+                    <Text style={styles.statPillLabel}>{s.name}</Text>
+                    <Text style={styles.statPillValue}>{s.value}</Text>
+                  </View>
+                ))}
+              </View>
             </View>
           )}
         </View>
       )}
       {game.homeLeaders && game.homeLeaders.length > 0 && (
         <View style={styles.teamStatsBlock}>
-          <Text style={styles.teamStatsTitle}>{game.homeTeam || "Home"}</Text>
+          <View style={styles.teamStatsHeader}>
+            <View style={styles.teamDot} />
+            <Text style={styles.teamStatsTitle}>{game.homeTeam || "Home"}</Text>
+            <Text style={styles.teamStatsSubtitle}>LEADERS</Text>
+          </View>
           {game.homeLeaders.map((leader, i) => (
-            <View key={`home-${i}`} style={styles.leaderRow}>
-              {leader.headshot ? (
-                <Image source={{ uri: leader.headshot }} style={styles.leaderHeadshot} />
-              ) : null}
-              <View style={styles.leaderInfo}>
-                <Text style={styles.leaderCategory}>{leader.category}</Text>
-                <Text style={styles.leaderPlayer}>{leader.player}</Text>
-              </View>
-              <Text style={styles.leaderValue}>{leader.value}</Text>
-            </View>
+            <TeamLeaderCard key={`home-${i}`} leader={leader} index={i} />
           ))}
           {game.homeStats && game.homeStats.length > 0 && (
-            <View style={styles.teamStatRow}>
-              {game.homeStats.map((s, i) => (
-                <View key={`hs-${i}`} style={styles.statPill}>
-                  <Text style={styles.statPillLabel}>{s.name}</Text>
-                  <Text style={styles.statPillValue}>{s.value}</Text>
-                </View>
-              ))}
+            <View style={styles.teamStatSection}>
+              <Text style={styles.teamStatSectionLabel}>TEAM STATS</Text>
+              <View style={styles.teamStatRow}>
+                {game.homeStats.map((s, i) => (
+                  <View key={`hs-${i}`} style={styles.statPill}>
+                    <Text style={styles.statPillLabel}>{s.name}</Text>
+                    <Text style={styles.statPillValue}>{s.value}</Text>
+                  </View>
+                ))}
+              </View>
             </View>
           )}
         </View>
@@ -732,7 +760,7 @@ function GameCard({
   const teams = game.game.split(" vs ").map((t) => t.trim());
   const isLive = game.status === "in";
   const isPreGame = game.status === "pre" || (!game.status && !game.score && !game.final);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(isLive);
   const hasDetails = (game.homeLeaders && game.homeLeaders.length > 0) || (game.awayLeaders && game.awayLeaders.length > 0) || (game.homeStats && game.homeStats.length > 0) || (game.awayStats && game.awayStats.length > 0);
 
   const [commentary, setCommentary] = useState<string | null>(null);
@@ -910,6 +938,7 @@ function GameCard({
               )}
             </View>
             <Text style={styles.pickReasoning}>"{pick.reasoning}"</Text>
+            <Text style={styles.parodyPickDisclaimer}>PARODY — For entertainment only</Text>
           </View>
 
           <Pressable
@@ -968,6 +997,8 @@ export default function SportsScreen() {
   const [trashTalkLine, setTrashTalkLine] = useState("");
   const [trashTalkLoading, setTrashTalkLoading] = useState(false);
   const [expandedResult, setExpandedResult] = useState<number | null>(null);
+  const [userName, setUserName] = useState("");
+  const [nameEditing, setNameEditing] = useState(false);
   const { playClick, playTransition } = useSoundEffects();
 
   const isRacingMode = selectedLeague === "RACING" || RACING_LEAGUES.includes(selectedLeague);
@@ -988,6 +1019,7 @@ export default function SportsScreen() {
     mountedRef.current = true;
     fetchGames();
     loadTallyData();
+    getUserName().then((n) => { if (mountedRef.current) setUserName(n); });
     const timer = setInterval(() => {
       if (mountedRef.current) setCountdown(getCountdown());
     }, 1000);
@@ -1168,9 +1200,14 @@ export default function SportsScreen() {
   const handleUserPick = async (game: Game, team: string) => {
     playClick();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const pickKey = `${game.id}_${selectedPersona}`;
-    const personaPick = picks[pickKey]?.pick;
-    await makeUserPick(game.id, team, selectedPersona, personaPick);
+    const allPersonaSets = [...PERSONAS, ...RACING_PERSONAS, ...SOCCER_PERSONAS];
+    const uniqueIds = Array.from(new Set(allPersonaSets.map((p) => p.id)));
+    const personaPicks: Record<string, string> = {};
+    for (const pid of uniqueIds) {
+      const pk = `${game.id}_${pid}`;
+      if (picks[pk]?.pick) personaPicks[pid] = picks[pk].pick;
+    }
+    await makeUniversalPick(game.id, team, uniqueIds, personaPicks);
     await loadTallyData();
   };
 
@@ -1181,7 +1218,7 @@ export default function SportsScreen() {
       const res = await fetch(`${baseUrl}/api/sports/trash-talk`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ personaId, wins: tally.wins, losses: tally.losses, streak: tally.streak }),
+        body: JSON.stringify({ personaId, wins: tally.wins, losses: tally.losses, streak: tally.streak, userName: userName || undefined }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -1359,6 +1396,11 @@ export default function SportsScreen() {
         contentContainerStyle={{ paddingBottom: insets.bottom + webBottomInset + 24 }}
         showsVerticalScrollIndicator={false}
       >
+        <View style={styles.parodyBanner}>
+          <Ionicons name="information-circle" size={14} color="rgba(255,255,255,0.5)" />
+          <Text style={styles.parodyText}>PARODY &amp; ENTERTAINMENT ONLY — All personas are fictional parodies. Not real advice.</Text>
+        </View>
+
         <Animated.View entering={FadeInDown.delay(50).duration(400)} style={styles.worldCupCard}>
           <LinearGradient
             colors={["#0d3b0d", "#1a0f00", "#0d3b0d"]}
@@ -1446,6 +1488,41 @@ export default function SportsScreen() {
           </ScrollView>
         </Animated.View>
 
+        <Animated.View entering={FadeInDown.delay(200).duration(400)} style={styles.nameInputSection}>
+          <View style={styles.nameInputCard}>
+            <View style={styles.nameInputRow}>
+              <Ionicons name="person" size={16} color={Colors.gold} />
+              <TextInput
+                style={styles.nameInput}
+                placeholder="Enter your name for trash talk..."
+                placeholderTextColor="rgba(255,255,255,0.3)"
+                value={userName}
+                onChangeText={(t) => setUserName(t)}
+                onBlur={() => {
+                  saveUserName(userName);
+                  const t = tallies[selectedPersona];
+                  if (t && (t.wins + t.losses) > 0) fetchTrashTalk(selectedPersona, t);
+                }}
+                onSubmitEditing={() => {
+                  saveUserName(userName);
+                  const t = tallies[selectedPersona];
+                  if (t && (t.wins + t.losses) > 0) fetchTrashTalk(selectedPersona, t);
+                }}
+                returnKeyType="done"
+                maxLength={30}
+              />
+              {userName.length > 0 && (
+                <Pressable onPress={() => { setUserName(""); saveUserName(""); }} style={{ padding: 4 }}>
+                  <Ionicons name="close-circle" size={16} color="rgba(255,255,255,0.3)" />
+                </Pressable>
+              )}
+            </View>
+            {userName.length > 0 && (
+              <Text style={styles.nameConfirmText}>Personas will trash talk you as "{userName}"</Text>
+            )}
+          </View>
+        </Animated.View>
+
         {currentTally && (currentTally.wins + currentTally.losses) > 0 && (
           <Animated.View entering={FadeInDown.delay(220).duration(400)} style={styles.tallySection}>
             <View style={styles.tallyCard}>
@@ -1458,7 +1535,7 @@ export default function SportsScreen() {
               <View style={styles.tallyHeader}>
                 <Image source={activePersona.image} style={[styles.tallyAvatar, { borderColor: activePersona.color }]} />
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.tallyTitle}>YOU vs {activePersona.name.toUpperCase()}</Text>
+                  <Text style={styles.tallyTitle}>{userName ? userName.toUpperCase() : "YOU"} vs {activePersona.name.toUpperCase()}</Text>
                   <View style={styles.tallyScoreRow}>
                     <Text style={[styles.tallyScore, { color: currentTally.wins >= currentTally.losses ? "#4CAF50" : "#FF5252" }]}>
                       {currentTally.wins}W - {currentTally.losses}L
@@ -1541,7 +1618,7 @@ export default function SportsScreen() {
             </View>
           ) : (
             filteredGames.map((game) => {
-              const pickForGame = userPicks.find((p) => p.gameId === game.id && p.personaId === selectedPersona);
+              const pickForGame = userPicks.find((p) => p.gameId === game.id && p.personaId === selectedPersona) || userPicks.find((p) => p.gameId === game.id);
               return (
                 <GameCard
                   key={game.id}
@@ -2645,84 +2722,216 @@ const styles = StyleSheet.create({
   statsContainer: {
     marginTop: 12,
     borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.08)",
+    borderTopColor: "rgba(212,164,32,0.2)",
     paddingTop: 12,
     gap: 12,
   },
+  statsHeaderRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 6,
+    marginBottom: 4,
+  },
+  statsHeaderText: {
+    fontSize: 11,
+    fontWeight: "900" as const,
+    color: Colors.gold,
+    letterSpacing: 1.5,
+  },
   teamStatsBlock: {
-    backgroundColor: "rgba(255,255,255,0.03)",
-    borderRadius: 10,
-    padding: 10,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+  },
+  teamStatsHeader: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 8,
+    marginBottom: 10,
+  },
+  teamDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.gold,
   },
   teamStatsTitle: {
-    fontSize: 11,
-    fontWeight: "800" as const,
-    color: Colors.gold,
+    fontSize: 13,
+    fontWeight: "900" as const,
+    color: "#fff",
     letterSpacing: 1,
-    marginBottom: 8,
     textTransform: "uppercase" as const,
+    flex: 1,
+  },
+  teamStatsSubtitle: {
+    fontSize: 9,
+    fontWeight: "700" as const,
+    color: "rgba(212,164,32,0.6)",
+    letterSpacing: 1,
   },
   leaderRow: {
     flexDirection: "row" as const,
     alignItems: "center" as const,
-    justifyContent: "space-between" as const,
-    paddingVertical: 5,
+    paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.04)",
-    gap: 8,
+    borderBottomColor: "rgba(255,255,255,0.06)",
+    gap: 10,
+  },
+  leaderRank: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "rgba(212,164,32,0.15)",
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+  },
+  leaderRankText: {
+    fontSize: 10,
+    fontWeight: "800" as const,
+    color: Colors.gold,
   },
   leaderHeadshot: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: "rgba(255,255,255,0.1)",
+    borderWidth: 2,
+    borderColor: "rgba(212,164,32,0.2)",
+  },
+  leaderHeadshotPlaceholder: {
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
   },
   leaderInfo: {
     flex: 1,
-    gap: 1,
+    gap: 2,
   },
   leaderCategory: {
-    fontSize: 9,
-    fontWeight: "600" as const,
-    color: "rgba(255,255,255,0.4)",
+    fontSize: 10,
+    fontWeight: "700" as const,
+    color: "rgba(212,164,32,0.7)",
     letterSpacing: 0.5,
     textTransform: "uppercase" as const,
   },
   leaderPlayer: {
-    fontSize: 13,
-    fontWeight: "700" as const,
+    fontSize: 14,
+    fontWeight: "800" as const,
     color: "#fff",
+  },
+  leaderValueBox: {
+    backgroundColor: "rgba(212,164,32,0.12)",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    minWidth: 44,
+    alignItems: "center" as const,
   },
   leaderValue: {
     fontSize: 16,
     fontWeight: "900" as const,
     color: Colors.gold,
-    minWidth: 36,
-    textAlign: "right" as const,
+    textAlign: "center" as const,
+  },
+  teamStatSection: {
+    marginTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.06)",
+    paddingTop: 8,
+  },
+  teamStatSectionLabel: {
+    fontSize: 9,
+    fontWeight: "800" as const,
+    color: "rgba(255,255,255,0.4)",
+    letterSpacing: 1,
+    marginBottom: 6,
   },
   teamStatRow: {
     flexDirection: "row" as const,
     flexWrap: "wrap" as const,
     gap: 6,
-    marginTop: 8,
   },
   statPill: {
-    backgroundColor: "rgba(212,164,32,0.08)",
+    backgroundColor: "rgba(212,164,32,0.1)",
     borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     alignItems: "center" as const,
+    borderWidth: 1,
+    borderColor: "rgba(212,164,32,0.12)",
+    minWidth: 52,
   },
   statPillLabel: {
-    fontSize: 8,
-    fontWeight: "600" as const,
-    color: "rgba(255,255,255,0.35)",
+    fontSize: 9,
+    fontWeight: "700" as const,
+    color: "rgba(255,255,255,0.45)",
     letterSpacing: 0.5,
+    textTransform: "uppercase" as const,
   },
   statPillValue: {
-    fontSize: 12,
-    fontWeight: "800" as const,
+    fontSize: 13,
+    fontWeight: "900" as const,
     color: "#fff",
+    marginTop: 2,
+  },
+  parodyBanner: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 8,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  parodyText: {
+    fontSize: 10,
+    fontWeight: "600" as const,
+    color: "rgba(255,255,255,0.5)",
+    flex: 1,
+    letterSpacing: 0.3,
+  },
+  parodyPickDisclaimer: {
+    fontSize: 9,
+    fontWeight: "700" as const,
+    color: "rgba(255,255,255,0.3)",
+    letterSpacing: 0.5,
+    marginTop: 6,
+    textAlign: "center" as const,
+    fontStyle: "italic" as const,
+  },
+  nameInputSection: {
+    paddingHorizontal: 16,
+    marginBottom: 4,
+  },
+  nameInputCard: {
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(212,164,32,0.15)",
+    padding: 10,
+  },
+  nameInputRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 8,
+  },
+  nameInput: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "600" as const,
+    color: "#fff",
+    paddingVertical: 4,
+  },
+  nameConfirmText: {
+    fontSize: 10,
+    fontWeight: "600" as const,
+    color: "rgba(212,164,32,0.6)",
+    marginTop: 4,
+    fontStyle: "italic" as const,
   },
   marchMadnessCard: {
     borderRadius: 16,

@@ -713,6 +713,11 @@ export default function MarchMadnessScreen() {
         ))}
       </ScrollView>
 
+      <View style={mmStyles.parodyBanner}>
+        <Ionicons name="information-circle" size={14} color="rgba(255,255,255,0.5)" />
+        <Text style={mmStyles.parodyText}>PARODY &amp; ENTERTAINMENT ONLY — All personas are fictional parodies. Not real advice.</Text>
+      </View>
+
       <ScrollView
         style={mmStyles.content}
         contentContainerStyle={{ paddingBottom: 100 + (insets.bottom || webBottomInset) }}
@@ -1299,5 +1304,25 @@ const mmStyles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "900",
     color: "#FF6B00",
+  },
+  parodyBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginHorizontal: 16,
+    marginBottom: 4,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  parodyText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "rgba(255,255,255,0.5)",
+    flex: 1,
+    letterSpacing: 0.3,
   },
 });
