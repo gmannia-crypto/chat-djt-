@@ -471,11 +471,9 @@ SportsMediaModule.prototype.fetchCommentary = function(cb) {
 SportsMediaModule.prototype.prefetchCommentary = function() {
   var self = this;
   var g = this.selectedGame;
-  if (!g || !this.isActive || this.fetchingCommentary) return;
+  if (!g || !this.isActive) return;
   var cacheKey = g.id + '_' + this.currentPersona;
   if (this.prefetchKey === cacheKey && this.prefetchPromise) return;
-  var remaining = (this.commentaryCache[cacheKey] || []).length - this.commentaryIndex;
-  if (remaining > 2) return;
   this.prefetchKey = cacheKey;
   this.prefetchPromise = new Promise(function(resolve) {
     var ctrl = new AbortController();
@@ -532,15 +530,47 @@ SportsMediaModule.prototype.playCommentary = function() {
   }
 };
 
+SportsMediaModule.prototype.advanceQueue = function() {
+  var self = this;
+  if (!this.isActive || !this.isPlaying) return;
+  this.commentaryIndex++;
+  if (this.commentaryIndex < this.commentaryQueue.length) {
+    this.speakCurrent();
+  } else if (this.autoPlay) {
+    if (this.prefetchPromise) {
+      this.updateCommentaryBox();
+      this.prefetchPromise.then(function(ok) {
+        if (!self.isActive || !self.isPlaying) return;
+        if (ok && self.commentaryIndex < self.commentaryQueue.length) {
+          self.speakCurrent();
+        } else {
+          self.fetchCommentary(function() { self.speakCurrent(); });
+        }
+      });
+    } else {
+      this.fetchCommentary(function() { self.speakCurrent(); });
+    }
+  } else {
+    this.isPlaying = false;
+    this.updatePlayButton();
+    this.updateCommentaryBox();
+  }
+};
+
 SportsMediaModule.prototype.speakCurrent = function() {
   var self = this;
   if (!this.isActive) return;
   if (this.commentaryIndex >= this.commentaryQueue.length) {
     if (this.autoPlay) {
       if (this.prefetchPromise) {
+        this.updateCommentaryBox();
         this.prefetchPromise.then(function(ok) {
-          if (ok && self.isActive && self.isPlaying) self.speakCurrent();
-          else if (self.isActive) { self.fetchCommentary(function() { self.speakCurrent(); }); }
+          if (!self.isActive || !self.isPlaying) return;
+          if (ok && self.commentaryIndex < self.commentaryQueue.length) {
+            self.speakCurrent();
+          } else {
+            self.fetchCommentary(function() { self.speakCurrent(); });
+          }
         });
       } else {
         this.fetchCommentary(function() { self.speakCurrent(); });
@@ -563,27 +593,7 @@ SportsMediaModule.prototype.speakCurrent = function() {
 
   this.stopAudio();
   this.audioEl = new Audio(url);
-  this.audioEl.addEventListener('ended', function() {
-    self.commentaryIndex++;
-    if (self.isPlaying) {
-      if (self.commentaryIndex < self.commentaryQueue.length) {
-        self.speakCurrent();
-      } else if (self.autoPlay) {
-        if (self.prefetchPromise) {
-          self.prefetchPromise.then(function(ok) {
-            if (ok && self.isActive && self.isPlaying) self.speakCurrent();
-            else if (self.isActive) { self.fetchCommentary(function() { self.speakCurrent(); }); }
-          });
-        } else {
-          self.fetchCommentary(function() { self.speakCurrent(); });
-        }
-      } else {
-        self.isPlaying = false;
-        self.updatePlayButton();
-        self.updateCommentaryBox();
-      }
-    }
-  });
+  this.audioEl.addEventListener('ended', function() { self.advanceQueue(); });
   this.audioEl.addEventListener('error', function() {
     self.commentaryIndex++;
     if (self.isPlaying && self.commentaryIndex < self.commentaryQueue.length) {
