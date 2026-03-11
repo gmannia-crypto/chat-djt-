@@ -24,6 +24,7 @@ The backend is an Express 5 API gateway handling AI interactions, content genera
 - **Speech Pause System**: Pauses persona TTS and conversation loop during user mic recording.
 - **Arena Intro Animation**: Cinematic intro with voiceovers, animated persona chips, and countdown. Messages animate in with typewriter effect synced with TTS.
 - **Analytics & Monetization**: Tracks user events and integrates with Stripe for payments.
+- **Live Sports Audio**: A radio-style module (`sports-media.js`) that lets users pick a live/upcoming/final game, choose a persona commentator, and hear AI-generated play-by-play audio via TTS. Features auto-play mode, prev/next controls, commentary caching, and AbortController-guarded fetch lifecycle.
 - **Static Asset Serving**: Serves frontend assets, a landing page, and lazy-loaded feature module JS files from `/js/`.
 - **Shared UI Widgets**: Reusable widget classes (e.g., `RatingWidget` in `server/templates/js/rating-widget.js`) loaded eagerly, used by feature modules via delegation-compatible `handleClick`/`handleInput` methods that return booleans.
 

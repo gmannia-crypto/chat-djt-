@@ -543,6 +543,104 @@
       .feat-deal .deal-price { color: #D4A420; font-weight: bold; font-size: 14px; }
       .feat-deal .deal-roi { font-size: 11px; margin-top: 4px; }
 
+      .sm-inner { text-align: center; }
+      .sm-persona-strip { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 14px; -webkit-overflow-scrolling: touch; }
+      .sm-persona-strip::-webkit-scrollbar { height: 3px; }
+      .sm-persona-strip::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+      .sm-persona {
+        min-width: 54px; text-align: center; cursor: pointer; padding: 6px 4px;
+        border: 2px solid #333; border-radius: 10px; background: #1a1a1a;
+        transition: all 0.2s; flex-shrink: 0;
+      }
+      .sm-persona:hover { transform: translateY(-1px); }
+      .sm-persona img { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; display: block; margin: 0 auto 3px; }
+      .sm-p-name { font-size: 9px; font-weight: bold; display: block; }
+
+      .sm-section-label {
+        font-size: 10px; font-weight: 700; letter-spacing: 1.5px; color: #888;
+        text-align: left; margin: 14px 0 8px; padding-left: 2px;
+      }
+
+      .sm-game-card {
+        background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px;
+        padding: 12px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s;
+        text-align: left;
+      }
+      .sm-game-card:hover { border-color: #D4A420; transform: translateY(-1px); }
+      .sm-live-card { border-color: rgba(255,77,77,0.3); }
+      .sm-game-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+      .sm-final-badge { font-size: 9px; font-weight: bold; letter-spacing: 1px; color: #4CAF50; }
+      .sm-game-matchup { font-size: 14px; font-weight: bold; color: #fff; margin-bottom: 4px; }
+      .sm-game-score { font-size: 18px; font-weight: 900; color: #D4A420; margin-bottom: 4px; font-family: 'Playfair Display', serif; }
+      .sm-game-action { text-align: right; }
+      .sm-listen-cta, .sm-preview-cta {
+        font-size: 11px; font-weight: 600; padding: 4px 12px;
+        border-radius: 14px; display: inline-block;
+      }
+      .sm-listen-cta { background: rgba(255,77,77,0.12); color: #ff4d4d; }
+      .sm-preview-cta { background: rgba(212,164,32,0.1); color: #D4A420; }
+
+      .sm-player { text-align: center; }
+      .sm-back {
+        background: none; border: 1px solid #333; border-radius: 8px;
+        color: #aaa; font-size: 12px; padding: 6px 14px; cursor: pointer;
+        display: inline-block; margin-bottom: 14px; transition: all 0.2s;
+      }
+      .sm-back:hover { border-color: #D4A420; color: #fff; }
+
+      .sm-now-playing {
+        background: linear-gradient(135deg, rgba(212,164,32,0.08), rgba(255,77,77,0.06));
+        border: 1px solid rgba(212,164,32,0.15); border-radius: 14px;
+        padding: 14px; margin-bottom: 14px;
+      }
+      .sm-station { font-size: 11px; color: #aaa; margin-bottom: 6px; }
+      .sm-score-big { font-size: 28px; font-weight: 900; color: #D4A420; font-family: 'Playfair Display', serif; margin: 4px 0; }
+      .sm-time-info { font-size: 11px; color: #888; }
+
+      .sm-booth { margin-bottom: 14px; }
+      .sm-booth-avatar {
+        width: 64px; height: 64px; border-radius: 50%; border: 3px solid #333;
+        margin: 0 auto 8px; overflow: hidden;
+      }
+      .sm-booth-avatar img { width: 100%; height: 100%; object-fit: cover; }
+      .sm-booth-name { font-size: 16px; font-weight: 900; }
+      .sm-booth-role { font-size: 10px; color: #888; margin-top: 2px; }
+
+      .sm-commentary-box {
+        background: #111; border: 1px solid #2a2a2a; border-radius: 12px;
+        padding: 18px 14px; margin-bottom: 14px; min-height: 60px;
+        display: flex; align-items: center; justify-content: center;
+      }
+      .sm-commentary-text { font-size: 14px; color: #eee; line-height: 1.6; font-style: italic; }
+      .sm-loading-text { color: #888; font-style: normal; font-size: 12px; }
+
+      .sm-controls { display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 12px; }
+      .sm-ctrl-btn {
+        background: #1a1a1a; border: 1px solid #333; border-radius: 50%;
+        width: 40px; height: 40px; font-size: 16px; cursor: pointer;
+        display: flex; align-items: center; justify-content: center; color: #aaa;
+        transition: all 0.2s;
+      }
+      .sm-ctrl-btn:hover { border-color: #D4A420; color: #fff; }
+      .sm-play-btn {
+        width: 56px; height: 56px; border-radius: 50%; border: none;
+        font-size: 22px; cursor: pointer; color: #0a0a0a; font-weight: bold;
+        display: flex; align-items: center; justify-content: center;
+        transition: all 0.2s; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+      }
+      .sm-play-btn:hover { transform: scale(1.05); }
+      .sm-playing { animation: smPulse 1.5s ease infinite; }
+      @keyframes smPulse { 0%,100%{box-shadow:0 4px 15px rgba(0,0,0,0.3)} 50%{box-shadow:0 4px 25px rgba(212,164,32,0.4)} }
+
+      .sm-controls-row { display: flex; justify-content: center; gap: 10px; }
+      .sm-auto-btn, .sm-refresh-btn {
+        background: #1a1a1a; border: 1px solid #333; border-radius: 20px;
+        color: #aaa; font-size: 11px; padding: 6px 14px; cursor: pointer;
+        transition: all 0.2s;
+      }
+      .sm-auto-btn:hover, .sm-refresh-btn:hover { border-color: #555; color: #fff; }
+      .sm-auto-on { border-color: #D4A420; color: #D4A420; background: rgba(212,164,32,0.08); }
+
       .footer {
         margin-top: auto;
         padding-top: 24px;
@@ -636,6 +734,17 @@
 
         .feat-net-worth { font-size: 22px; }
         .feat-deal { padding: 10px; }
+
+        .sm-persona { min-width: 46px; padding: 5px 3px; }
+        .sm-persona img { width: 24px; height: 24px; }
+        .sm-game-matchup { font-size: 13px; }
+        .sm-game-score { font-size: 16px; }
+        .sm-score-big { font-size: 22px; }
+        .sm-booth-avatar { width: 52px; height: 52px; }
+        .sm-booth-name { font-size: 14px; }
+        .sm-commentary-text { font-size: 13px; overflow-wrap: anywhere; word-break: break-word; }
+        .sm-play-btn { width: 48px; height: 48px; font-size: 18px; }
+        .sm-ctrl-btn { width: 34px; height: 34px; font-size: 14px; }
 
         .re-construction { padding: 24px 12px; }
         .re-construction-title { font-size: 20px; }
@@ -758,6 +867,10 @@
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
               Real Talk
             </button>
+            <button class="feature-tab" data-feature="sportsmedia" onclick="showFeature('sportsmedia')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+              Live Audio
+            </button>
             <button class="feature-tab" data-feature="dashboard" onclick="showFeature('dashboard')">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
               Dashboard
@@ -772,6 +885,7 @@
           <div id="realtyTab" class="feature-container" style="display:none;"></div>
           <div id="billionairesTab" class="feature-container" style="display:none;"></div>
           <div id="conversationArena" class="feature-container" style="display:none;"></div>
+          <div id="sportsmediaTab" class="feature-container" style="display:none;"></div>
           <div id="dashboardTab" class="feature-container" style="display:none;"></div>
         </div>
 
@@ -826,6 +940,7 @@
         realty: { src: '/js/real-estate.js', containerId: 'realtyTab', ctor: 'RealtyModule' },
         billionaires: { src: '/js/billionaires.js', containerId: 'billionairesTab', ctor: 'BillionairesModule' },
         conversation: { src: '/js/political-arena.js', containerId: 'conversationArena', ctor: 'RealTimeConversationEngine' },
+        sportsmedia: { src: '/js/sports-media.js', containerId: 'sportsmediaTab', ctor: 'SportsMediaModule' },
         dashboard: { src: '/js/dashboard.js', containerId: 'dashboardTab', ctor: 'DashboardModule' }
       };
 
