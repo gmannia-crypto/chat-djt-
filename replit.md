@@ -25,6 +25,10 @@ The backend is an Express 5 API gateway handling AI interactions, content genera
 - **Arena Intro Animation**: Cinematic intro with voiceovers, animated persona chips, and countdown. Messages animate in with typewriter effect synced with TTS.
 - **Analytics & Monetization**: Tracks user events and integrates with Stripe for payments.
 - **Static Asset Serving**: Serves frontend assets, a landing page, and lazy-loaded feature module JS files from `/js/`.
+- **Shared UI Widgets**: Reusable widget classes (e.g., `RatingWidget` in `server/templates/js/rating-widget.js`) loaded eagerly, used by feature modules via delegation-compatible `handleClick`/`handleInput` methods that return booleans.
+
+### Landing Page Event Architecture
+The landing page uses document-level event delegation. Three listeners (click, input, keydown) on `.explore-section` route events to the active module's `handleClick`/`handleInput`/`handleKeydown` prototype methods via `getActiveModule()`. Modules must not attach their own `addEventListener` calls — they expose handler methods instead. Shared widgets (like `RatingWidget`) follow the same pattern, returning `true`/`false` to indicate whether they handled the event.
 
 ### AI Model System
 Supports three AI model modes: Premium (GPT-5.2 + GPT-4o-mini), Budget (DeepSeek V3), and Split (percentage-based routing). An admin interface allows dynamic model selection and cost estimation.
