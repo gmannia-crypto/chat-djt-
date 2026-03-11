@@ -725,6 +725,18 @@
       };
       window.TimerManager = TimerManager;
 
+      window.addEventListener('error', function(e) {
+        console.error('Global error:', e.error || e.message);
+      });
+
+      window.addEventListener('unhandledrejection', function(e) {
+        console.error('Unhandled promise rejection:', e.reason);
+      });
+
+      window.addEventListener('pagehide', function() {
+        TimerManager.clearAll();
+      });
+
       var featureModules = {
         sports: { src: '/js/sports-betting.js', containerId: 'sportsTab', ctor: 'SportsBettingModule' },
         faceoff: { src: '/js/financial-faceoff.js', containerId: 'faceoffTab', ctor: 'FaceoffModule' },
