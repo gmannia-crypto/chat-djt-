@@ -39,6 +39,7 @@ import {
   type UserPick,
 } from "@/lib/bet-tally";
 import { TextInput } from "react-native";
+import { checkGameEndEvents, cleanupBuzzer } from "@/lib/game-buzzer";
 
 interface PlayerLeader {
   category: string;
@@ -71,6 +72,8 @@ interface Game {
   homeStats?: TeamStat[];
   awayStats?: TeamStat[];
   startTime?: string;
+  displayClock?: string;
+  period?: number;
 }
 
 interface PersonaPick {
@@ -994,6 +997,7 @@ export default function SportsScreen() {
   const [completedGames, setCompletedGames] = useState<Game[]>([]);
   const [userPicks, setUserPicks] = useState<UserPick[]>([]);
   const [tallies, setTallies] = useState<Record<string, PersonaTally>>({});
+  const previousGamesRef = useRef<Game[]>([]);
   const [trashTalkLine, setTrashTalkLine] = useState("");
   const [trashTalkLoading, setTrashTalkLoading] = useState(false);
   const [expandedResult, setExpandedResult] = useState<number | null>(null);
@@ -1026,6 +1030,7 @@ export default function SportsScreen() {
     return () => {
       mountedRef.current = false;
       clearInterval(timer);
+      cleanupBuzzer();
       if (soundRef.current) {
         soundRef.current.stopAsync().catch(() => {});
         soundRef.current.unloadAsync().catch(() => {});
@@ -1152,9 +1157,23 @@ export default function SportsScreen() {
       if (!res.ok) throw new Error("Failed to fetch games");
       const data = await res.json();
       if (mountedRef.current) {
-        setGames(data.games || []);
-        setCompletedGames(data.results || []);
-        resolveCompletedPicks(data.results || []);
+        const newGames: Game[] = data.games || [];
+        const newResults: Game[] = data.results || [];
+        const allCurrent = [...newGames, ...newResults];
+        if (previousGamesRef.current.length > 0) {
+          try {
+            await checkGameEndEvents(
+              allCurrent.map((g) => ({ id: g.id, league: g.league, status: g.status || "", displayClock: g.displayClock || "", period: g.period || 0, game: g.game, score: g.score })),
+              previousGamesRef.current.map((g) => ({ id: g.id, league: g.league, status: g.status || "", displayClock: g.displayClock || "", period: g.period || 0, game: g.game, score: g.score }))
+            );
+          } catch (e) {
+            console.error("Game buzzer check error:", e);
+          }
+        }
+        previousGamesRef.current = allCurrent;
+        setGames(newGames);
+        setCompletedGames(newResults);
+        resolveCompletedPicks(newResults);
       }
     } catch (err) {
       console.error("Sports fetch error:", err);

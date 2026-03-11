@@ -734,6 +734,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ? `${awayName} ${away.score || 0} - ${home.score || 0} ${homeName}`
         : "";
 
+      const displayClock = event.status?.displayClock || "";
+      const period = event.status?.period || 0;
+
       return {
         id: idOffset + parseInt(event.id || "0", 10) % 100000,
         league: leagueLabel,
@@ -743,6 +746,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: state,
         score,
         startTime: event.date || null,
+        displayClock,
+        period,
       };
     } catch {
       return null;
@@ -1910,7 +1915,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
         return res.status(500).json({ error: "TTS not configured" });
       }
 
-      let voiceId = PERSONA_VOICE_IDS[personaId];
+      let voiceId = (req.query.voiceId as string) || PERSONA_VOICE_IDS[personaId];
       if (!voiceId) {
         voiceId = process.env.FISH_AUDIO_VOICE_ID || "";
       }
