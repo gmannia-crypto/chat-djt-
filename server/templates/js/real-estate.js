@@ -82,7 +82,7 @@ RealtyModule.prototype.renderConstruction = function() {
 
   var h = '<div class="re-construction">';
   h += '<div style="font-size:64px;margin-bottom:16px;">&#x1F3D7;&#xFE0F;</div>';
-  h += '<h2 style="color:#ff4d4d;font-size:24px;font-weight:900;margin-bottom:10px;font-family:Playfair Display,serif;">Trump Reality \u2013 Under Construction</h2>';
+  h += '<h2 class="re-construction-title" style="color:#ff4d4d;font-weight:900;margin-bottom:10px;font-family:Playfair Display,serif;">Trump Reality \u2013 Under Construction</h2>';
   h += '<p style="color:#aaa;margin-bottom:20px;">We\'re integrating live Airbnb data and AI\u2011powered property analysis. Stay tuned!</p>';
 
   if (dist > 0) {
