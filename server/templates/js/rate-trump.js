@@ -4,18 +4,14 @@ function RateModule(id) {
   this.result = null;
   this.loading = false;
   this.leaderboard = [];
-  this.bindEvents();
   this.fetchLeaderboard();
   this.render();
 }
-RateModule.prototype.bindEvents = function() {
-  var self = this;
-  this.el.addEventListener('input', function(e) {
-    if (e.target.classList.contains('feat-slider')) { self.rating = parseInt(e.target.value); self.render(); }
-  });
-  this.el.addEventListener('click', function(e) {
-    if (e.target.closest('[data-rsubmit]')) self.submit();
-  });
+RateModule.prototype.handleClick = function(e) {
+  if (e.target.closest('[data-rsubmit]')) this.submit();
+};
+RateModule.prototype.handleInput = function(e) {
+  if (e.target.classList.contains('feat-slider')) { this.rating = parseInt(e.target.value); this.render(); }
 };
 RateModule.prototype.fetchLeaderboard = function() {
   var self = this;

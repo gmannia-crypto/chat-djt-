@@ -16,23 +16,19 @@ function FaceoffModule(id) {
   this.assets = ['AAPL','TSLA','BTC','GOLD','SPY','AMC','NVDA','META'];
   this.p1 = 'trump'; this.p2 = 'buffett'; this.asset = 'BTC';
   this.voted = false; this.debating = false; this.pick1 = ''; this.pick2 = '';
-  this.bindEvents();
   this.render();
 }
-FaceoffModule.prototype.bindEvents = function() {
-  var self = this;
-  this.el.addEventListener('click', function(e) {
-    var t = e.target;
-    var chip = t.closest('[data-fp]');
-    if (chip) { self.selectPersona(chip.getAttribute('data-fp')); return; }
-    var asset = t.closest('[data-fasset]');
-    if (asset) { self.asset = asset.getAttribute('data-fasset'); self.voted = false; self.pick1 = ''; self.pick2 = ''; self.render(); return; }
-    if (t.closest('[data-fdebate]')) { self.startDebate(); return; }
-    var vote = t.closest('[data-fvote]');
-    if (vote) { self.castVote(vote.getAttribute('data-fvote')); return; }
-    var speak = t.closest('[data-fspeak]');
-    if (speak) { e.stopPropagation(); self.speak(speak.getAttribute('data-fspeak'), speak.getAttribute('data-ftext') || ''); return; }
-  });
+FaceoffModule.prototype.handleClick = function(e) {
+  var t = e.target;
+  var chip = t.closest('[data-fp]');
+  if (chip) { this.selectPersona(chip.getAttribute('data-fp')); return; }
+  var asset = t.closest('[data-fasset]');
+  if (asset) { this.asset = asset.getAttribute('data-fasset'); this.voted = false; this.pick1 = ''; this.pick2 = ''; this.render(); return; }
+  if (t.closest('[data-fdebate]')) { this.startDebate(); return; }
+  var vote = t.closest('[data-fvote]');
+  if (vote) { this.castVote(vote.getAttribute('data-fvote')); return; }
+  var speak = t.closest('[data-fspeak]');
+  if (speak) { e.stopPropagation(); this.speak(speak.getAttribute('data-fspeak'), speak.getAttribute('data-ftext') || ''); return; }
 };
 FaceoffModule.prototype.selectPersona = function(id) {
   if (id === this.p1) return;

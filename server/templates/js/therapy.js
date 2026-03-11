@@ -8,20 +8,16 @@ function TherapyModule(id) {
   };
   this.messages = [];
   this.loading = false;
-  this.bindEvents();
   this.render();
 }
-TherapyModule.prototype.bindEvents = function() {
-  var self = this;
-  this.el.addEventListener('click', function(e) {
-    var t = e.target;
-    var th = t.closest('[data-therapist]');
-    if (th) { self.therapist = th.getAttribute('data-therapist'); self.messages = []; self.render(); return; }
-    if (t.closest('[data-tsend]')) { self.send(); return; }
-  });
-  this.el.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter' && e.target.classList.contains('feat-input')) { self.send(); }
-  });
+TherapyModule.prototype.handleClick = function(e) {
+  var t = e.target;
+  var th = t.closest('[data-therapist]');
+  if (th) { this.therapist = th.getAttribute('data-therapist'); this.messages = []; this.render(); return; }
+  if (t.closest('[data-tsend]')) { this.send(); return; }
+};
+TherapyModule.prototype.handleKeydown = function(e) {
+  if (e.key === 'Enter' && e.target.classList.contains('feat-input')) { this.send(); }
 };
 TherapyModule.prototype.send = function() {
   var input = this.el.querySelector('.feat-input');

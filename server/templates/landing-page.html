@@ -777,6 +777,36 @@
         }
       }
 
+      var exploreSection = document.querySelector('.explore-section');
+
+      function getActiveModule(target) {
+        if (!target || !target.closest) return null;
+        var container = target.closest('.feature-container');
+        if (!container) return null;
+        var keys = Object.keys(featureModules);
+        for (var i = 0; i < keys.length; i++) {
+          if (featureModules[keys[i]].containerId === container.id && window[keys[i]]) {
+            return window[keys[i]];
+          }
+        }
+        return null;
+      }
+
+      exploreSection.addEventListener('click', function(e) {
+        var mod = getActiveModule(e.target);
+        if (mod && mod.handleClick) mod.handleClick(e);
+      });
+
+      exploreSection.addEventListener('input', function(e) {
+        var mod = getActiveModule(e.target);
+        if (mod && mod.handleInput) mod.handleInput(e);
+      });
+
+      exploreSection.addEventListener('keydown', function(e) {
+        var mod = getActiveModule(e.target);
+        if (mod && mod.handleKeydown) mod.handleKeydown(e);
+      });
+
       showFeature("sports");
     </script>
     <script src="https://unpkg.com/qr-code-styling@1.6.0/lib/qr-code-styling.js"></script>

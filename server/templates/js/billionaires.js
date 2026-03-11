@@ -5,17 +5,13 @@ function BillionairesModule(id) {
   this.deals = [];
   this.history = [];
   this.gameOver = false;
-  this.bindEvents();
   this.generateDeals();
   this.render();
 }
-BillionairesModule.prototype.bindEvents = function() {
-  var self = this;
-  this.el.addEventListener('click', function(e) {
-    var deal = e.target.closest('[data-bdeal]');
-    if (deal) { self.makeDeal(parseInt(deal.getAttribute('data-bdeal'))); return; }
-    if (e.target.closest('[data-breset]')) { self.netWorth=1000000; self.round=0; self.history=[]; self.gameOver=false; self.generateDeals(); self.render(); }
-  });
+BillionairesModule.prototype.handleClick = function(e) {
+  var deal = e.target.closest('[data-bdeal]');
+  if (deal) { this.makeDeal(parseInt(deal.getAttribute('data-bdeal'))); return; }
+  if (e.target.closest('[data-breset]')) { this.netWorth=1000000; this.round=0; this.history=[]; this.gameOver=false; this.generateDeals(); this.render(); }
 };
 BillionairesModule.prototype.generateDeals = function() {
   var allDeals = [

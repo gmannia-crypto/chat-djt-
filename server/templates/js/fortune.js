@@ -7,21 +7,17 @@ function FortuneModule(id) {
   this.loading = false;
   this.zodiacs = ['Aries','Taurus','Gemini','Cancer','Leo','Virgo','Libra','Scorpio','Sagittarius','Capricorn','Aquarius','Pisces'];
   this.topics = ['money','love','career','health','power'];
-  this.bindEvents();
   this.render();
 }
-FortuneModule.prototype.bindEvents = function() {
-  var self = this;
-  this.el.addEventListener('click', function(e) {
-    var z = e.target.closest('[data-zodiac]');
-    if (z) { self.zodiac = z.getAttribute('data-zodiac'); self.render(); return; }
-    var tp = e.target.closest('[data-ftopic]');
-    if (tp) { self.topic = tp.getAttribute('data-ftopic'); self.render(); return; }
-    if (e.target.closest('[data-fortune]')) self.getFortune();
-  });
-  this.el.addEventListener('input', function(e) {
-    if (e.target.getAttribute('data-fname') !== null) self.name = e.target.value;
-  });
+FortuneModule.prototype.handleClick = function(e) {
+  var z = e.target.closest('[data-zodiac]');
+  if (z) { this.zodiac = z.getAttribute('data-zodiac'); this.render(); return; }
+  var tp = e.target.closest('[data-ftopic]');
+  if (tp) { this.topic = tp.getAttribute('data-ftopic'); this.render(); return; }
+  if (e.target.closest('[data-fortune]')) this.getFortune();
+};
+FortuneModule.prototype.handleInput = function(e) {
+  if (e.target.getAttribute('data-fname') !== null) this.name = e.target.value;
 };
 FortuneModule.prototype.getFortune = function() {
   if (this.loading || !this.zodiac) return;

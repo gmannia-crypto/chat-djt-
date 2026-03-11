@@ -22,7 +22,6 @@ function RealTimeConversationEngine(id) {
   this.freeUsed = 0;
   this.freeLimit = 4;
   this.locked = false;
-  this.bindEvents();
   this.fetchTopics();
 }
 RealTimeConversationEngine.prototype.fetchTopics = function() {
@@ -42,19 +41,16 @@ RealTimeConversationEngine.prototype.fetchTopics = function() {
     self.render();
   });
 };
-RealTimeConversationEngine.prototype.bindEvents = function() {
-  var self = this;
-  this.el.addEventListener('click', function(e) {
-    var t = e.target;
-    var topicBtn = t.closest('[data-ctopic]');
-    if (topicBtn) { self.topic = topicBtn.getAttribute('data-ctopic'); self.render(); return; }
-    if (t.closest('[data-cstart]')) { self.start(); return; }
-    if (t.closest('[data-cstop]')) { self.stop(); return; }
-    if (t.closest('[data-cclear]')) { self.messages = []; self.locked = false; self.freeUsed = 0; self.render(); return; }
-    if (t.closest('[data-cvoice]')) { self.voiceEnabled = !self.voiceEnabled; self.render(); return; }
-    var speak = t.closest('[data-cspeak]');
-    if (speak) { e.stopPropagation(); self.speak(speak.getAttribute('data-cspeak'), speak.getAttribute('data-ctext') || ''); return; }
-  });
+RealTimeConversationEngine.prototype.handleClick = function(e) {
+  var t = e.target;
+  var topicBtn = t.closest('[data-ctopic]');
+  if (topicBtn) { this.topic = topicBtn.getAttribute('data-ctopic'); this.render(); return; }
+  if (t.closest('[data-cstart]')) { this.start(); return; }
+  if (t.closest('[data-cstop]')) { this.stop(); return; }
+  if (t.closest('[data-cclear]')) { this.messages = []; this.locked = false; this.freeUsed = 0; this.render(); return; }
+  if (t.closest('[data-cvoice]')) { this.voiceEnabled = !this.voiceEnabled; this.render(); return; }
+  var speak = t.closest('[data-cspeak]');
+  if (speak) { e.stopPropagation(); this.speak(speak.getAttribute('data-cspeak'), speak.getAttribute('data-ctext') || ''); return; }
 };
 RealTimeConversationEngine.prototype.start = function() {
   if (this.running || this.locked) return;

@@ -49,7 +49,6 @@ function SportsBettingModule(containerId) {
     fanduel:{name:'FanDuel',url:'https://www.fanduel.com',logo:'\u{1F535}'}
   };
   this.loadH2H();
-  this.bindEvents();
   this.fetchGames();
 }
 
@@ -253,27 +252,24 @@ SportsBettingModule.prototype.render = function() {
   this.el.innerHTML = h;
 };
 
-SportsBettingModule.prototype.bindEvents = function() {
-  var self = this;
-  this.el.addEventListener('click', function(e) {
-    var t = e.target;
-    var persona = t.closest('[data-persona]');
-    if (persona) { self.selectPersona(persona.getAttribute('data-persona')); return; }
-    var speak = t.closest('[data-speak]');
-    if (speak) {
-      e.stopPropagation();
-      var pid = speak.getAttribute('data-speak');
-      var pickId = speak.getAttribute('data-pickid');
-      var fg = self.games[0] || { game: 'TBD', league: 'TBD', time: 'Soon' };
-      var text = self.getPick(pickId === '1' ? self.p1 : self.p2, fg);
-      self.speak(pid, text);
-      return;
-    }
-    var vote = t.closest('[data-vote]');
-    if (vote) { self.castVote(vote.getAttribute('data-vote'), vote.getAttribute('data-loser')); return; }
-    var aff = t.closest('[data-aff]');
-    if (aff) { self.trackClick(aff.getAttribute('data-aff')); return; }
-  });
+SportsBettingModule.prototype.handleClick = function(e) {
+  var t = e.target;
+  var persona = t.closest('[data-persona]');
+  if (persona) { this.selectPersona(persona.getAttribute('data-persona')); return; }
+  var speak = t.closest('[data-speak]');
+  if (speak) {
+    e.stopPropagation();
+    var pid = speak.getAttribute('data-speak');
+    var pickId = speak.getAttribute('data-pickid');
+    var fg = this.games[0] || { game: 'TBD', league: 'TBD', time: 'Soon' };
+    var text = this.getPick(pickId === '1' ? this.p1 : this.p2, fg);
+    this.speak(pid, text);
+    return;
+  }
+  var vote = t.closest('[data-vote]');
+  if (vote) { this.castVote(vote.getAttribute('data-vote'), vote.getAttribute('data-loser')); return; }
+  var aff = t.closest('[data-aff]');
+  if (aff) { this.trackClick(aff.getAttribute('data-aff')); return; }
 };
 
 window.SportsBettingModule = SportsBettingModule;

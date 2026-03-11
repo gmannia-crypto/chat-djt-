@@ -12,24 +12,20 @@ function RealtyModule(id) {
   this.properties = [];
   this.analysis = null;
   this.loading = false;
-  this.bindEvents();
   this.render();
 }
-RealtyModule.prototype.bindEvents = function() {
-  var self = this;
-  this.el.addEventListener('click', function(e) {
-    var adv = e.target.closest('[data-radvisor]');
-    if (adv) { self.advisor = adv.getAttribute('data-radvisor'); self.render(); return; }
-    if (e.target.closest('[data-rsearch]')) self.search();
-    var prop = e.target.closest('[data-rprop]');
-    if (prop) self.analyze(parseInt(prop.getAttribute('data-rprop')));
-  });
-  this.el.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter' && e.target.getAttribute('data-rquery') !== null) self.search();
-  });
-  this.el.addEventListener('input', function(e) {
-    if (e.target.getAttribute('data-rquery') !== null) self.query = e.target.value;
-  });
+RealtyModule.prototype.handleClick = function(e) {
+  var adv = e.target.closest('[data-radvisor]');
+  if (adv) { this.advisor = adv.getAttribute('data-radvisor'); this.render(); return; }
+  if (e.target.closest('[data-rsearch]')) this.search();
+  var prop = e.target.closest('[data-rprop]');
+  if (prop) this.analyze(parseInt(prop.getAttribute('data-rprop')));
+};
+RealtyModule.prototype.handleKeydown = function(e) {
+  if (e.key === 'Enter' && e.target.getAttribute('data-rquery') !== null) this.search();
+};
+RealtyModule.prototype.handleInput = function(e) {
+  if (e.target.getAttribute('data-rquery') !== null) this.query = e.target.value;
 };
 RealtyModule.prototype.search = function() {
   if (!this.query.trim() || this.loading) return;

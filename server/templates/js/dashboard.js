@@ -3,14 +3,10 @@ function DashboardModule(id) {
   this.news = [];
   this.hotTakes = [];
   this.loading = true;
-  this.bindEvents();
   this.fetchData();
 }
-DashboardModule.prototype.bindEvents = function() {
-  var self = this;
-  this.el.addEventListener('click', function(e) {
-    if (e.target.closest('[data-drefresh]')) { self.loading = true; self.render(); self.fetchData(); }
-  });
+DashboardModule.prototype.handleClick = function(e) {
+  if (e.target.closest('[data-drefresh]')) { this.loading = true; this.render(); this.fetchData(); }
 };
 DashboardModule.prototype.fetchData = function() {
   var self = this;
