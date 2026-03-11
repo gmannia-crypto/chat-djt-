@@ -14,6 +14,8 @@ function SportsMediaModule(containerId) {
   this.fetchingCommentary = false;
   this.isActive = true;
   this.abortCtrl = null;
+  this.prefetchPromise = null;
+  this.prefetchKey = null;
   this.affiliateLinks = {
     barstool: { base: 'https://store.barstoolsports.com/?ref=chatdjt', commission: '6%' },
     westwood: { base: 'https://www.westwoodone.com/AFFILIATE/', commission: 'Contact for rates' },
@@ -466,6 +468,47 @@ SportsMediaModule.prototype.fetchCommentary = function(cb) {
     });
 };
 
+SportsMediaModule.prototype.prefetchCommentary = function() {
+  var self = this;
+  var g = this.selectedGame;
+  if (!g || !this.isActive || this.fetchingCommentary) return;
+  var cacheKey = g.id + '_' + this.currentPersona;
+  if (this.prefetchKey === cacheKey && this.prefetchPromise) return;
+  var remaining = (this.commentaryCache[cacheKey] || []).length - this.commentaryIndex;
+  if (remaining > 2) return;
+  this.prefetchKey = cacheKey;
+  this.prefetchPromise = new Promise(function(resolve) {
+    var ctrl = new AbortController();
+    fetch('/api/sports/commentary', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ game: g, personaId: self.currentPersona }),
+      signal: ctrl.signal
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (!self.isActive) { resolve(false); return; }
+        if (data.commentary) {
+          var sentences = data.commentary.split(/(?<=[.!?])\s+/).filter(function(s) { return s.trim().length > 0; });
+          if (sentences.length === 0) sentences = [data.commentary];
+          if (!self.commentaryCache[cacheKey]) self.commentaryCache[cacheKey] = [];
+          for (var i = 0; i < sentences.length; i++) {
+            self.commentaryCache[cacheKey].push(sentences[i]);
+          }
+          self.commentaryQueue = self.commentaryCache[cacheKey];
+        }
+        self.prefetchPromise = null;
+        self.prefetchKey = null;
+        resolve(true);
+      })
+      .catch(function() {
+        self.prefetchPromise = null;
+        self.prefetchKey = null;
+        resolve(false);
+      });
+  });
+};
+
 SportsMediaModule.prototype.updateCommentaryBox = function() {
   var box = document.getElementById('smCommentaryBox');
   if (!box) return;
@@ -494,7 +537,14 @@ SportsMediaModule.prototype.speakCurrent = function() {
   if (!this.isActive) return;
   if (this.commentaryIndex >= this.commentaryQueue.length) {
     if (this.autoPlay) {
-      this.fetchCommentary(function() { self.speakCurrent(); });
+      if (this.prefetchPromise) {
+        this.prefetchPromise.then(function(ok) {
+          if (ok && self.isActive && self.isPlaying) self.speakCurrent();
+          else if (self.isActive) { self.fetchCommentary(function() { self.speakCurrent(); }); }
+        });
+      } else {
+        this.fetchCommentary(function() { self.speakCurrent(); });
+      }
     } else {
       this.isPlaying = false;
       this.render();
@@ -505,6 +555,8 @@ SportsMediaModule.prototype.speakCurrent = function() {
   this.isPlaying = true;
   this.updateCommentaryBox();
   this.updatePlayButton();
+
+  this.prefetchCommentary();
 
   var text = this.commentaryQueue[this.commentaryIndex];
   var url = '/api/tts?text=' + encodeURIComponent(text) + '&mood=EXCITED&speechCategory=SPORTS_COMMENTARY';
@@ -517,7 +569,14 @@ SportsMediaModule.prototype.speakCurrent = function() {
       if (self.commentaryIndex < self.commentaryQueue.length) {
         self.speakCurrent();
       } else if (self.autoPlay) {
-        self.fetchCommentary(function() { self.speakCurrent(); });
+        if (self.prefetchPromise) {
+          self.prefetchPromise.then(function(ok) {
+            if (ok && self.isActive && self.isPlaying) self.speakCurrent();
+            else if (self.isActive) { self.fetchCommentary(function() { self.speakCurrent(); }); }
+          });
+        } else {
+          self.fetchCommentary(function() { self.speakCurrent(); });
+        }
       } else {
         self.isPlaying = false;
         self.updatePlayButton();
@@ -588,6 +647,8 @@ SportsMediaModule.prototype.newTake = function() {
   delete this.commentaryCache[cacheKey];
   this.commentaryQueue = [];
   this.commentaryIndex = 0;
+  this.prefetchPromise = null;
+  this.prefetchKey = null;
   this.stopAudio();
   this.isPlaying = false;
   this.render();
@@ -669,6 +730,8 @@ SportsMediaModule.prototype.stop = function() {
   this.isPlaying = false;
   this.fetchingCommentary = false;
   if (this.abortCtrl) { try { this.abortCtrl.abort(); } catch(e) {} this.abortCtrl = null; }
+  this.prefetchPromise = null;
+  this.prefetchKey = null;
   this.stopAudio();
   this.commentaryQueue = [];
   this.commentaryIndex = 0;
