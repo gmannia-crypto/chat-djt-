@@ -18,7 +18,6 @@ function RealTimeConversationEngine(id) {
   this.messages = [];
   this.running = false;
   this.loading = false;
-  this.interval = null;
   this.voiceEnabled = false;
   this.freeUsed = 0;
   this.freeLimit = 4;
@@ -63,11 +62,11 @@ RealTimeConversationEngine.prototype.start = function() {
   this.render();
   this.generate();
   var self = this;
-  this.interval = setInterval(function() { self.generate(); }, 4000);
+  window.TimerManager.set('conversation', function() { self.generate(); }, 4000);
 };
 RealTimeConversationEngine.prototype.stop = function() {
   this.running = false;
-  if (this.interval) { clearInterval(this.interval); this.interval = null; }
+  window.TimerManager.clear('conversation');
   this.render();
 };
 RealTimeConversationEngine.prototype.generate = function() {

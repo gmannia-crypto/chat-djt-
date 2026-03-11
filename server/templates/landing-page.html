@@ -699,6 +699,25 @@
     </div>
 
     <script>
+      var TimerManager = {
+        timers: {},
+        set: function(id, fn, interval) {
+          this.clear(id);
+          this.timers[id] = setInterval(fn, interval);
+        },
+        clear: function(id) {
+          if (this.timers[id]) {
+            clearInterval(this.timers[id]);
+            delete this.timers[id];
+          }
+        },
+        clearAll: function() {
+          var self = this;
+          Object.keys(this.timers).forEach(function(id) { self.clear(id); });
+        }
+      };
+      window.TimerManager = TimerManager;
+
       var featureModules = {
         sports: { src: '/js/sports-betting.js', containerId: 'sportsTab', ctor: 'SportsBettingModule' },
         faceoff: { src: '/js/financial-faceoff.js', containerId: 'faceoffTab', ctor: 'FaceoffModule' },
@@ -721,7 +740,14 @@
         });
       }
 
+      var currentFeature = null;
+
       function showFeature(feature) {
+        if (currentFeature && window[currentFeature] && typeof window[currentFeature].stop === 'function') {
+          window[currentFeature].stop();
+        }
+        TimerManager.clearAll();
+        currentFeature = feature;
         document.querySelectorAll('.feature-container').forEach(function(el) { el.style.display = 'none'; });
         document.querySelectorAll('.feature-tab').forEach(function(t) { t.classList.remove('active'); });
         var activeTab = document.querySelector('[data-feature="' + feature + '"]');
