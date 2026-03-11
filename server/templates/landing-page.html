@@ -543,81 +543,105 @@
       .feat-deal .deal-price { color: #D4A420; font-weight: bold; font-size: 14px; }
       .feat-deal .deal-roi { font-size: 11px; margin-top: 4px; }
 
-      .sm-hub { text-align: center; }
-      .sm-header { margin-bottom: 14px; }
-      .sm-aff-disc { font-size: 10px; color: #888; margin-top: 6px; }
+      .sm-hub { text-align: center; max-width: 100%; }
+      .sm-header { text-align: center; margin-bottom: 20px; }
+      .sm-header .feat-title { color: #ff4d4d; font-size: 24px; }
+      .sm-aff-disc {
+        background: #333; color: #ffaa00; padding: 6px 14px;
+        border-radius: 20px; font-size: 11px; margin-top: 8px; display: inline-block;
+      }
 
-      .sm-tabs { display: flex; gap: 4px; overflow-x: auto; margin-bottom: 14px; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
-      .sm-tabs::-webkit-scrollbar { height: 3px; }
-      .sm-tabs::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+      .sm-tabs {
+        display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap;
+        -webkit-overflow-scrolling: touch;
+      }
       .sm-tab-btn {
-        padding: 8px 12px; background: #141414; border: 2px solid #2a2a2a;
-        border-radius: 20px; color: #aaa; font-size: 11px; font-weight: 600;
-        cursor: pointer; white-space: nowrap; flex-shrink: 0; transition: all 0.2s;
+        flex: 1; min-width: 100px; padding: 10px 8px; background: #333;
+        color: #fff; border: 2px solid transparent; border-radius: 8px;
+        font-size: 11px; font-weight: bold; cursor: pointer; transition: all 0.2s;
+        white-space: nowrap;
       }
-      .sm-tab-btn:hover { border-color: #555; color: #fff; }
-      .sm-tab-active { border-color: #D4A420; color: #D4A420; background: rgba(212,164,32,0.08); }
-      .sm-tab-content { min-height: 200px; }
+      .sm-tab-btn:hover { background: #444; }
+      .sm-tab-active { background: #ff4d4d; border-color: #fff; }
+      .sm-tab-content {
+        background: #1a1a1a; border: 2px solid #ff4d4d; border-radius: 15px;
+        padding: 18px; margin-bottom: 16px; min-height: 200px;
+      }
       .sm-tab-title { font-family: 'Playfair Display', serif; font-size: 18px; font-weight: 900; color: #D4A420; margin-bottom: 4px; }
+      .sm-tab-intro { color: #ccc; font-size: 12px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid #333; }
 
-      .sm-show-list { margin: 12px 0; }
+      .sm-show-list { display: flex; flex-direction: column; gap: 10px; margin: 14px 0; }
       .sm-show-card {
-        background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px;
-        padding: 14px; margin-bottom: 8px; text-align: left; transition: border-color 0.2s;
+        background: #2a2a2a; border-left: 4px solid #ff4d4d;
+        padding: 14px; border-radius: 0 10px 10px 0; text-align: left;
+        transition: all 0.2s;
       }
-      .sm-show-card:hover { border-color: #D4A420; }
-      .sm-show-featured { border-color: rgba(212,164,32,0.3); background: linear-gradient(135deg, rgba(212,164,32,0.06), rgba(255,77,77,0.04)); }
+      .sm-show-card:hover { background: #333; }
+      .sm-show-featured { border-left-width: 8px; background: linear-gradient(90deg, #2a2a2a, #333); }
       .sm-show-card h4 { font-size: 14px; color: #fff; margin-bottom: 4px; }
       .sm-show-card p { font-size: 12px; color: #aaa; line-height: 1.5; margin-bottom: 8px; }
-      .sm-show-time { font-size: 10px; font-weight: 700; color: #D4A420; letter-spacing: 1px; margin-bottom: 4px; }
+      .sm-show-time { font-size: 11px; font-weight: 700; color: #ffaa00; margin-bottom: 4px; }
       .sm-listen-link, .sm-betting-btn {
-        display: inline-block; padding: 6px 16px; border-radius: 18px;
-        font-size: 11px; font-weight: bold; text-decoration: none; transition: all 0.2s;
+        display: inline-block; width: 100%; padding: 10px; border-radius: 5px;
+        font-size: 12px; font-weight: bold; text-decoration: none; text-align: center;
+        transition: all 0.2s; box-sizing: border-box;
       }
-      .sm-listen-link { background: rgba(255,77,77,0.12); color: #ff4d4d; }
-      .sm-listen-link:hover { background: rgba(255,77,77,0.2); }
-      .sm-betting-btn { background: rgba(212,164,32,0.12); color: #D4A420; }
-      .sm-betting-btn:hover { background: rgba(212,164,32,0.2); }
+      .sm-listen-link { background: #ff4d4d; color: #fff; }
+      .sm-listen-link:hover { background: #cc0000; transform: scale(1.02); }
+      .sm-betting-btn { background: #ff4d4d; color: #fff; }
+      .sm-betting-btn:hover { background: #cc0000; transform: scale(1.02); }
 
       .sm-audacy-promo {
-        background: #141414; border: 1px solid #2a2a2a; border-radius: 12px;
-        padding: 14px; margin-top: 12px; text-align: center;
+        background: #333; border-radius: 10px; padding: 16px; margin-top: 16px; text-align: center;
       }
       .sm-audacy-promo h4 { font-size: 13px; color: #fff; margin-bottom: 6px; }
       .sm-audacy-promo p { font-size: 12px; color: #aaa; margin-bottom: 10px; }
 
-      .sm-gear-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin: 12px 0; }
-      .sm-gear-card {
-        background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px;
-        padding: 14px; text-align: center; transition: border-color 0.2s;
+      .sm-gear-grid {
+        display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+        gap: 10px; margin: 14px 0;
       }
-      .sm-gear-card:hover { border-color: #D4A420; }
+      .sm-gear-card {
+        background: #2a2a2a; border-radius: 10px; padding: 14px;
+        text-align: center; transition: all 0.2s;
+      }
+      .sm-gear-card:hover { background: #333; transform: translateY(-2px); }
       .sm-gear-icon { font-size: 32px; margin-bottom: 8px; }
       .sm-gear-card h4 { font-size: 12px; color: #fff; margin-bottom: 4px; }
       .sm-gear-card p { font-size: 10px; color: #aaa; margin-bottom: 8px; }
       .sm-shop-btn {
-        display: inline-block; padding: 6px 14px; border-radius: 18px;
-        background: linear-gradient(135deg, #FFD700, #ff8c00); color: #0a0a0a;
-        font-size: 10px; font-weight: bold; text-decoration: none; transition: all 0.2s;
+        display: inline-block; width: 100%; padding: 10px; border-radius: 5px;
+        background: #ff4d4d; color: #fff; font-size: 11px; font-weight: bold;
+        text-decoration: none; text-align: center; transition: all 0.2s; box-sizing: border-box;
       }
-      .sm-shop-btn:hover { transform: scale(1.03); }
+      .sm-shop-btn:hover { background: #cc0000; transform: scale(1.02); }
       .sm-gear-note, .sm-betting-disc, .sm-stream-note {
-        font-size: 11px; color: #888; text-align: center; margin-top: 12px;
-        padding: 10px; background: rgba(255,255,255,0.03); border-radius: 8px;
+        background: #333; border-radius: 8px; padding: 12px;
+        font-size: 11px; color: #ccc; text-align: center; margin-top: 14px; font-style: italic;
       }
 
       .sm-quick-links {
-        margin-top: 14px; padding-top: 14px; border-top: 1px solid #1a1a1a;
+        background: #1a1a1a; border: 1px solid #ff4d4d; border-radius: 10px;
+        padding: 14px; margin-top: 16px;
       }
       .sm-quick-links h4 { font-size: 11px; color: #888; letter-spacing: 1.5px; margin-bottom: 10px; }
-      .sm-link-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
-      .sm-quick-link {
-        display: block; background: #141414; border: 1px solid #2a2a2a; border-radius: 10px;
-        padding: 10px 8px; text-decoration: none; text-align: center; transition: all 0.2s;
+      .sm-link-grid {
+        display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px;
       }
-      .sm-quick-link:hover { border-color: #D4A420; transform: translateY(-1px); }
+      .sm-quick-link {
+        display: block; background: #333; border-radius: 5px;
+        padding: 10px 8px; text-decoration: none; text-align: center; transition: all 0.2s; color: #fff;
+      }
+      .sm-quick-link:hover { background: #ff4d4d; transform: translateY(-2px); }
       .sm-quick-link span { display: block; font-size: 12px; font-weight: 600; color: #fff; margin-bottom: 2px; }
-      .sm-quick-link small { font-size: 9px; color: #888; }
+      .sm-quick-link small { font-size: 9px; color: #888; display: block; margin-top: 3px; }
+      .sm-quick-link:hover small { color: #fff; }
+
+      .sm-live-badge {
+        background: #00ff00; color: #000; padding: 3px 8px; border-radius: 4px;
+        font-size: 10px; font-weight: bold; animation: smPulse2 1s infinite;
+      }
+      @keyframes smPulse2 { 0%,100%{opacity:1} 50%{opacity:0.5} }
 
       .sm-persona-strip { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 14px; -webkit-overflow-scrolling: touch; }
       .sm-persona-strip::-webkit-scrollbar { height: 3px; }
@@ -810,10 +834,15 @@
         .feat-net-worth { font-size: 22px; }
         .feat-deal { padding: 10px; }
 
-        .sm-tab-btn { padding: 6px 10px; font-size: 10px; }
+        .sm-header .feat-title { font-size: 18px; }
+        .sm-tabs { gap: 4px; }
+        .sm-tab-btn { min-width: 0; padding: 8px 6px; font-size: 10px; }
+        .sm-tab-content { padding: 12px; }
         .sm-gear-grid { grid-template-columns: 1fr; }
         .sm-link-grid { grid-template-columns: 1fr; gap: 6px; }
         .sm-gear-icon { font-size: 24px; }
+        .sm-show-card { padding: 10px; }
+        .sm-quick-links { padding: 10px; }
         .sm-persona { min-width: 46px; padding: 5px 3px; }
         .sm-persona img { width: 24px; height: 24px; }
         .sm-game-matchup { font-size: 13px; }
