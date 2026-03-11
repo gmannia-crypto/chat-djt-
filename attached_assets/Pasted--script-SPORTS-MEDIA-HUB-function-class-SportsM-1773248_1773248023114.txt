@@ -1,0 +1,360 @@
+<script>
+// ==================== SPORTS MEDIA HUB ====================
+(function() {
+  class SportsMediaHub {
+    constructor(containerId) {
+      this.container = document.getElementById(containerId);
+      this.activeTab = 'live';
+      this.affiliateLinks = {
+        // Barstool Sports - 6% commission [citation:2]
+        barstool: {
+          base: 'https://store.barstoolsports.com/?ref=chatdjt',
+          commission: '6%'
+        },
+        // Westwood One - contact for affiliate program [citation:9]
+        westwood: {
+          base: 'https://www.westwoodone.com/AFFILIATE/',
+          commission: 'Contact for rates'
+        },
+        // Audacy - 160+ streaming channels [citation:5]
+        audacy: {
+          base: 'https://www.audacy.com/stations/sports',
+          commission: 'Varies by partnership'
+        },
+        // BetMGM Network - sports betting commentary [citation:6]
+        betmgm: {
+          base: 'https://play.betmgm.com/en/sports',
+          commission: 'Varies'
+        }
+      };
+      
+      this.init();
+    }
+    
+    init() {
+      this.render();
+      this.attachEvents();
+    }
+    
+    render() {
+      this.container.innerHTML = `
+        <div class="sports-media-container">
+          <!-- Header -->
+          <div class="media-header">
+            <h2>📻 LIVE SPORTS AUDIO HUB</h2>
+            <p>Listen to games, expert commentary, and get fan gear – all in one place</p>
+            <div class="affiliate-disclaimer">⚡ Affiliate links • We earn commissions on purchases</div>
+          </div>
+          
+          <!-- Tab Navigation -->
+          <div class="media-tabs">
+            <button class="tab-btn active" data-tab="live">🔴 LIVE GAMES</button>
+            <button class="tab-btn" data-tab="commentary">🎙️ SPORTS TALK</button>
+            <button class="tab-btn" data-tab="gear">🧢 FAN GEAR</button>
+            <button class="tab-btn" data-tab="betting">📊 BETTING ANALYSIS</button>
+          </div>
+          
+          <!-- Tab Content Container -->
+          <div id="mediaTabContent" class="tab-content">
+            ${this.renderLiveTab()}
+          </div>
+          
+          <!-- Quick Links Bar -->
+          <div class="quick-links">
+            <h4>⚡ QUICK ACCESS</h4>
+            <div class="link-grid">
+              <a href="${this.affiliateLinks.audacy.base}" target="_blank" class="quick-link" data-affiliate="audacy">
+                <span>📱 Audacy App</span>
+                <small>160+ sports channels [citation:5]</small>
+              </a>
+              <a href="${this.affiliateLinks.westwood.base}" target="_blank" class="quick-link" data-affiliate="westwood">
+                <span>🎧 Westwood One</span>
+                <small>NFL, NCAA live coverage [citation:8]</small>
+              </a>
+              <a href="${this.affiliateLinks.barstool.base}" target="_blank" class="quick-link" data-affiliate="barstool">
+                <span>🧢 Barstool Store</span>
+                <small>6% commission [citation:2]</small>
+              </a>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+    
+    renderLiveTab() {
+      // Live games from Westwood One Sports [citation:1][citation:4]
+      return `
+        <div class="live-games-tab">
+          <h3>🔴 LIVE GAME COVERAGE</h3>
+          <p class="tab-intro">Listen to live play-by-play from Westwood One Sports – the exclusive network radio partner of the NFL since 1987 [citation:8]</p>
+          
+          <div class="games-grid">
+            <div class="game-card">
+              <div class="game-header">
+                <span class="league">NFL</span>
+                <span class="live-badge">LIVE</span>
+              </div>
+              <h4>Chiefs vs Bills</h4>
+              <p class="game-time">Kickoff: 8:15 PM ET</p>
+              <a href="${this.affiliateLinks.westwood.base}" target="_blank" class="listen-btn" data-affiliate="westwood-live">
+                🎧 LISTEN LIVE on Westwood One
+              </a>
+            </div>
+            
+            <div class="game-card">
+              <div class="game-header">
+                <span class="league">NCAA</span>
+                <span class="live-badge">LIVE</span>
+              </div>
+              <h4>Michigan vs Ohio State</h4>
+              <p class="game-time">Kickoff: 7:30 PM ET</p>
+              <a href="${this.affiliateLinks.westwood.base}" target="_blank" class="listen-btn" data-affiliate="westwood-live">
+                🎧 LISTEN LIVE on Westwood One
+              </a>
+            </div>
+            
+            <div class="game-card">
+              <div class="game-header">
+                <span class="league">MLB</span>
+                <span class="upcoming-badge">UPCOMING</span>
+              </div>
+              <h4>Yankees vs Dodgers</h4>
+              <p class="game-time">First pitch: 7:05 PM ET</p>
+              <a href="${this.affiliateLinks.audacy.base}" target="_blank" class="listen-btn" data-affiliate="audacy-live">
+                🎧 LISTEN on Audacy
+              </a>
+            </div>
+          </div>
+          
+          <div class="streaming-note">
+            <p>💡 <strong>Westwood One Sports 24/7</strong> launches December 29, 2025 – featuring "The Jim Rome Show" (3-6pm ET) and BetMGM Network programming [citation:4][citation:6]</p>
+          </div>
+        </div>
+      `;
+    }
+    
+    renderCommentaryTab() {
+      // Sports talk shows from the new Westwood One lineup [citation:6][citation:8]
+      return `
+        <div class="commentary-tab">
+          <h3>🎙️ 24/7 SPORTS TALK</h3>
+          <p class="tab-intro">Westwood One Sports 24/7 programming – expert commentary and analysis [citation:7]</p>
+          
+          <div class="shows-list">
+            <div class="show-card">
+              <div class="show-time">9am – 12pm ET</div>
+              <h4>You Better You Bet with Nick Kostos</h4>
+              <p>Betting analysis and sports commentary from the BetMGM Network [citation:6]</p>
+              <a href="${this.affiliateLinks.westwood.base}" target="_blank" class="listen-btn" data-affiliate="westwood-betting">
+                🎧 LISTEN LIVE
+              </a>
+            </div>
+            
+            <div class="show-card featured">
+              <div class="show-time">3pm – 6pm ET</div>
+              <h4>The Jim Rome Show</h4>
+              <p>The legendary Jim Rome joins Westwood One Sports in the prime afternoon timeslot [citation:4][citation:8]</p>
+              <a href="${this.affiliateLinks.westwood.base}" target="_blank" class="listen-btn" data-affiliate="westwood-rome">
+                🎧 LISTEN LIVE
+              </a>
+            </div>
+            
+            <div class="show-card">
+              <div class="show-time">6pm – 11pm ET</div>
+              <h4>BetMGM Tonight</h4>
+              <p>Evening betting analysis and sports discussion [citation:6]</p>
+              <a href="${this.affiliateLinks.westwood.base}" target="_blank" class="listen-btn" data-affiliate="westwood-betmgm">
+                🎧 LISTEN LIVE
+              </a>
+            </div>
+          </div>
+          
+          <div class="audacy-promo">
+            <h4>📱 Also available on the Audacy App</h4>
+            <p>Access 40 owned-and-operated sports stations and 160 streaming channels [citation:5]</p>
+            <a href="${this.affiliateLinks.audacy.base}" target="_blank" class="app-btn" data-affiliate="audacy-app">
+              📲 GET THE APP
+            </a>
+          </div>
+        </div>
+      `;
+    }
+    
+    renderGearTab() {
+      // Barstool Sports merchandise - 6% commission [citation:2]
+      return `
+        <div class="gear-tab">
+          <h3>🧢 OFFICIAL FAN GEAR</h3>
+          <p class="tab-intro">Show your team pride with authentic merchandise</p>
+          
+          <div class="gear-grid">
+            <div class="gear-card">
+              <img src="https://via.placeholder.com/200x200?text=Jersey" alt="Jersey" class="gear-img">
+              <h4>Authentic Jerseys</h4>
+              <p>All NFL, NBA, MLB teams available</p>
+              <a href="${this.affiliateLinks.barstool.base}" target="_blank" class="shop-btn" data-affiliate="barstool-jerseys">
+                🛒 SHOP NOW • 6% commission [citation:2]
+              </a>
+            </div>
+            
+            <div class="gear-card">
+              <img src="https://via.placeholder.com/200x200?text=Hats" alt="Hats" class="gear-img">
+              <h4>Team Hats & Apparel</h4>
+              <p>Official merchandise from Barstool Sports</p>
+              <a href="${this.affiliateLinks.barstool.base}" target="_blank" class="shop-btn" data-affiliate="barstool-hats">
+                🛒 SHOP NOW
+              </a>
+            </div>
+            
+            <div class="gear-card">
+              <img src="https://via.placeholder.com/200x200?text=Collectibles" alt="Collectibles" class="gear-img">
+              <h4>Limited Edition Gear</h4>
+              <p>Exclusive drops and fan favorites</p>
+              <a href="${this.affiliateLinks.barstool.base}" target="_blank" class="shop-btn" data-affiliate="barstool-collectibles">
+                🛒 SHOP NOW
+              </a>
+            </div>
+          </div>
+          
+          <div class="gear-note">
+            <p>🔥 Barstool Sports offers edgy, fan-focused merchandise perfect for our community [citation:2]</p>
+          </div>
+        </div>
+      `;
+    }
+    
+    renderBettingTab() {
+      // Betting analysis from BetMGM Network [citation:4][citation:6]
+      return `
+        <div class="betting-tab">
+          <h3>📊 BETTING ANALYSIS</h3>
+          <p class="tab-intro">Expert picks and analysis from the BetMGM Network</p>
+          
+          <div class="betting-shows">
+            <div class="betting-card">
+              <h4>You Better You Bet</h4>
+              <p>Daily betting insights with Nick Kostos – weekdays 9am-12pm ET [citation:6]</p>
+              <a href="${this.affiliateLinks.betmgm.base}" target="_blank" class="betting-btn" data-affiliate="betmgm-morning">
+                📊 GET EXPERT PICKS
+              </a>
+            </div>
+            
+            <div class="betting-card">
+              <h4>BetMGM Tonight</h4>
+              <p>Evening betting analysis – weeknights 6-11pm ET [citation:6]</p>
+              <a href="${this.affiliateLinks.betmgm.base}" target="_blank" class="betting-btn" data-affiliate="betmgm-night">
+                📊 GET EXPERT PICKS
+              </a>
+            </div>
+            
+            <div class="betting-card">
+              <h4>Weekend Betting Specials</h4>
+              <p>Exclusive weekend programming from BetMGM [citation:8]</p>
+              <a href="${this.affiliateLinks.betmgm.base}" target="_blank" class="betting-btn" data-affiliate="betmgm-weekend">
+                📊 GET EXPERT PICKS
+              </a>
+            </div>
+          </div>
+          
+          <div class="betting-disclaimer">
+            <p>⚡ Bet responsibly • Must be 21+</p>
+          </div>
+        </div>
+      `;
+    }
+    
+    attachEvents() {
+      // Tab switching
+      const tabs = this.container.querySelectorAll('.tab-btn');
+      tabs.forEach(tab => {
+        tab.addEventListener('click', (e) => {
+          const tabName = e.target.dataset.tab;
+          this.switchTab(tabName);
+        });
+      });
+      
+      // Track affiliate clicks
+      const links = this.container.querySelectorAll('a[data-affiliate]');
+      links.forEach(link => {
+        link.addEventListener('click', (e) => {
+          const affiliate = link.dataset.affiliate;
+          this.trackAffiliateClick(affiliate);
+        });
+      });
+    }
+    
+    switchTab(tabName) {
+      this.activeTab = tabName;
+      
+      // Update tab buttons
+      const tabs = this.container.querySelectorAll('.tab-btn');
+      tabs.forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.tab === tabName);
+      });
+      
+      // Update content
+      const contentMap = {
+        live: this.renderLiveTab(),
+        commentary: this.renderCommentaryTab(),
+        gear: this.renderGearTab(),
+        betting: this.renderBettingTab()
+      };
+      
+      const contentDiv = this.container.querySelector('#mediaTabContent');
+      contentDiv.innerHTML = contentMap[tabName];
+      
+      // Re-attach click handlers for new links
+      const newLinks = contentDiv.querySelectorAll('a[data-affiliate]');
+      newLinks.forEach(link => {
+        link.addEventListener('click', (e) => {
+          const affiliate = link.dataset.affiliate;
+          this.trackAffiliateClick(affiliate);
+        });
+      });
+    }
+    
+    trackAffiliateClick(affiliateId) {
+      console.log(`💰 Affiliate click: ${affiliateId}`);
+      
+      // Send to your analytics
+      fetch('/api/track-affiliate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          affiliate: affiliateId,
+          timestamp: Date.now(),
+          page: 'sports-media-hub'
+        })
+      }).catch(() => {});
+      
+      // Optional: show notification
+      if (window.SoundManager) {
+        SoundManager.play('click');
+      }
+    }
+  }
+  
+  // Initialize when feature is shown
+  window.initSportsMediaHub = function(containerId) {
+    if (!window.sportsMediaHub) {
+      window.sportsMediaHub = new SportsMediaHub(containerId);
+    }
+  };
+  
+  // Update showFeature function to handle this new feature
+  const originalShowFeature = window.showFeature;
+  window.showFeature = function(feature) {
+    if (originalShowFeature) {
+      originalShowFeature(feature);
+    }
+    
+    if (feature === 'sports-media') {
+      const container = document.getElementById('sportsMediaHub');
+      if (container) {
+        container.style.display = 'block';
+        initSportsMediaHub('sportsMediaHub');
+      }
+    }
+  };
+})();
+</script>

@@ -5548,6 +5548,14 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
     res.json({ active: !!(key && key !== "YOUR_MASHVISOR_API_KEY_HERE") });
   });
 
+  app.post("/api/track-affiliate", (req, res) => {
+    const { affiliate, timestamp, page } = req.body || {};
+    if (affiliate) {
+      console.log(`Affiliate click: ${affiliate} from ${page || "unknown"} at ${timestamp || Date.now()}`);
+    }
+    res.json({ tracked: true });
+  });
+
   const realtySignups: string[] = [];
   app.post("/api/realty-signup", (req, res) => {
     const email = (req.body?.email || "").trim().toLowerCase();
