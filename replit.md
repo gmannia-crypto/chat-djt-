@@ -24,7 +24,7 @@ The backend is an Express 5 API gateway handling AI interactions, content genera
 - **Speech Pause System**: Pauses persona TTS and conversation loop during user mic recording.
 - **Arena Intro Animation**: Cinematic intro with voiceovers, animated persona chips, and countdown. Messages animate in with typewriter effect synced with TTS.
 - **Analytics & Monetization**: Tracks user events and integrates with Stripe for payments.
-- **Static Asset Serving**: Serves frontend assets and a landing page.
+- **Static Asset Serving**: Serves frontend assets, a landing page, and lazy-loaded feature module JS files from `/js/`.
 
 ### AI Model System
 Supports three AI model modes: Premium (GPT-5.2 + GPT-4o-mini), Budget (DeepSeek V3), and Split (percentage-based routing). An admin interface allows dynamic model selection and cost estimation.
