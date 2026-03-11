@@ -16,6 +16,7 @@ function SportsMediaModule(containerId) {
   this.abortCtrl = null;
   this.prefetchPromise = null;
   this.prefetchKey = null;
+  this.turboMode = false;
   this.affiliateLinks = {
     barstool: { base: 'https://store.barstoolsports.com/?ref=chatdjt', commission: '6%' },
     westwood: { base: 'https://www.westwoodone.com/AFFILIATE/', commission: 'Contact for rates' },
@@ -242,6 +243,9 @@ SportsMediaModule.prototype.renderPlayer = function() {
   h += '\uD83D\uDD01 Auto-play ' + (this.autoPlay ? 'ON' : 'OFF');
   h += '</button>';
   h += '<button class="sm-refresh-btn" data-sm-refresh>\uD83D\uDD04 New Take</button>';
+  h += '<button class="sm-turbo-btn' + (this.turboMode ? ' sm-turbo-on' : '') + '" data-sm-turbo>';
+  h += '\u26A1 Turbo ' + (this.turboMode ? 'ON' : 'OFF');
+  h += '</button>';
   h += '</div>';
 
   return h;
@@ -593,7 +597,7 @@ SportsMediaModule.prototype.speakCurrent = function() {
 
   this.stopAudio();
   this.audioEl = new Audio(url);
-  this.audioEl.addEventListener('ended', function() { setTimeout(function() { self.advanceQueue(); }, 200); });
+  this.audioEl.addEventListener('ended', function() { setTimeout(function() { self.advanceQueue(); }, self.turboMode ? 50 : 300); });
   this.audioEl.addEventListener('error', function() {
     self.commentaryIndex++;
     if (self.isPlaying && self.commentaryIndex < self.commentaryQueue.length) {
@@ -726,6 +730,15 @@ SportsMediaModule.prototype.handleClick = function(e) {
     btn.textContent = '\uD83D\uDD01 Auto-play ' + (this.autoPlay ? 'ON' : 'OFF');
     if (this.autoPlay) btn.classList.add('sm-auto-on');
     else btn.classList.remove('sm-auto-on');
+    return;
+  }
+
+  if (t.closest('[data-sm-turbo]')) {
+    this.turboMode = !this.turboMode;
+    var tbtn = t.closest('[data-sm-turbo]');
+    tbtn.textContent = '\u26A1 Turbo ' + (this.turboMode ? 'ON' : 'OFF');
+    if (this.turboMode) tbtn.classList.add('sm-turbo-on');
+    else tbtn.classList.remove('sm-turbo-on');
     return;
   }
 
