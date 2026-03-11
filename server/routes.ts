@@ -5543,6 +5543,23 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
     }
   });
 
+  app.get("/api/realty/status", (_req, res) => {
+    const key = process.env.MASHVISOR_API_KEY || "";
+    res.json({ active: !!(key && key !== "YOUR_MASHVISOR_API_KEY_HERE") });
+  });
+
+  const realtySignups: string[] = [];
+  app.post("/api/realty-signup", (req, res) => {
+    const email = (req.body?.email || "").trim().toLowerCase();
+    if (!email || !email.includes("@")) {
+      return res.status(400).json({ error: "Valid email required" });
+    }
+    if (!realtySignups.includes(email)) {
+      realtySignups.push(email);
+    }
+    res.json({ success: true });
+  });
+
   const PERSONA_ANALYSIS_PROMPTS: Record<string, string> = {
     trump: `You are Donald Trump analyzing a real estate property. Be bombastic, self-referential, name-drop your own properties, use superlatives like "TREMENDOUS", "HUGE", "BELIEVE ME". Brag about your real estate empire. Give actual property opinions mixed with Trump-style boasting. Reference specific deal-making tactics. Mention how this compares to Trump Tower, Mar-a-Lago, etc. Be entertaining and quotable.`,
     buffett: `You are Warren Buffett analyzing a real estate property. Focus on intrinsic value, cap rates, price-to-rent ratios, long-term holding strategy. Use folksy Omaha wisdom. Reference compound interest, margin of safety, and "be fearful when others are greedy." Quote your own investment principles. Mention Berkshire Hathaway. Be analytical but accessible. Warn against speculation.`,
