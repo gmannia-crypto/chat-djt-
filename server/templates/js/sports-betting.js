@@ -48,9 +48,16 @@ function SportsBettingModule(containerId) {
     draftkings:{name:'DraftKings',url:'https://www.draftkings.com',logo:'\u{1F7E2}'},
     fanduel:{name:'FanDuel',url:'https://www.fanduel.com',logo:'\u{1F535}'}
   };
+  try { this.userName = localStorage.getItem('sportsUserName') || ''; } catch(e) { this.userName = ''; }
   this.loadH2H();
   this.fetchGames();
 }
+
+SportsBettingModule.prototype.esc = function(s) {
+  var d = document.createElement('div');
+  d.appendChild(document.createTextNode(s));
+  return d.innerHTML;
+};
 
 SportsBettingModule.prototype.getPick = function(pid, game) {
   var lk = (game.league || '').toLowerCase();
@@ -178,6 +185,9 @@ SportsBettingModule.prototype.render = function() {
   var self = this;
   var h = '<div class="sports-inner">';
   h += '<div class="s-title">TRUMP\'S SPORTS BOOK</div>';
+  var safeName = this.esc(this.userName);
+  h += '<div class="s-welcome">' + (safeName ? 'Welcome back, <strong>' + safeName + '</strong>!' : 'Welcome, sports fan!') + '</div>';
+  h += '<div class="s-name-row"><input type="text" class="s-name-input" data-sname placeholder="Enter your name" value="' + safeName + '" maxlength="24"></div>';
   h += '<div class="s-sub"><span class="s-live">LIVE PICKS</span></div>';
 
   h += '<div class="s-persona-row">';
@@ -223,7 +233,7 @@ SportsBettingModule.prototype.render = function() {
   }
 
   if (this.voted) {
-    h += '<div class="s-trash"><h4>TRASH TALK</h4>';
+    h += '<div class="s-trash"><h4>TRASH TALK' + (this.userName ? ' for ' + this.esc(this.userName) : '') + '</h4>';
     h += '<div class="s-talk" style="color:' + p1.color + ';">"' + tk1 + '"</div>';
     h += '<div class="s-talk" style="color:' + p2.color + ';">"' + tk2 + '"</div></div>';
   }
@@ -250,6 +260,22 @@ SportsBettingModule.prototype.render = function() {
   h += '</div>';
 
   this.el.innerHTML = h;
+};
+
+SportsBettingModule.prototype.handleInput = function(e) {
+  if (e.target.hasAttribute && e.target.hasAttribute('data-sname')) {
+    this.userName = e.target.value.trim().substring(0, 24);
+    try { localStorage.setItem('sportsUserName', this.userName); } catch(err) {}
+    var welcome = this.el.querySelector('.s-welcome');
+    if (welcome) {
+      var safe = this.esc(this.userName);
+      welcome.innerHTML = safe ? 'Welcome back, <strong>' + safe + '</strong>!' : 'Welcome, sports fan!';
+    }
+    var trashHeader = this.el.querySelector('.s-trash h4');
+    if (trashHeader) {
+      trashHeader.innerHTML = 'TRASH TALK' + (this.userName ? ' for ' + this.esc(this.userName) : '');
+    }
+  }
 };
 
 SportsBettingModule.prototype.handleClick = function(e) {
