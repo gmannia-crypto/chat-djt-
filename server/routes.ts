@@ -2438,7 +2438,7 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyah
         const style = questionStyles[Math.floor(Math.random() * questionStyles.length)];
         userPrompt += ` IMPORTANT: In your response, ${style} directed at one of the other people in the room (${otherPersonas.join(", ")}). Address them by name. This creates real back-and-forth debate.`;
       }
-      userPrompt += ` Give your in-character response. Do NOT use quotation marks around your response. Do NOT use asterisks or stage directions like *pauses* or *blinks*. Write only spoken dialogue. Pronounce "Epstein" as "EP-steen" when referencing Jeffrey Epstein or the Epstein files/war.`;
+      userPrompt += ` Give your in-character response. Do NOT use quotation marks around your response. Do NOT use asterisks or stage directions like *pauses* or *blinks*. Write only spoken dialogue.`;
 
       const tokenLimit = isInterruption ? 35 : 150;
       const completion = await getClient().chat.completions.create({
