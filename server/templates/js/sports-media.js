@@ -593,7 +593,7 @@ SportsMediaModule.prototype.speakCurrent = function() {
 
   this.stopAudio();
   this.audioEl = new Audio(url);
-  this.audioEl.addEventListener('ended', function() { self.advanceQueue(); });
+  this.audioEl.addEventListener('ended', function() { setTimeout(function() { self.advanceQueue(); }, 300); });
   this.audioEl.addEventListener('error', function() {
     self.commentaryIndex++;
     if (self.isPlaying && self.commentaryIndex < self.commentaryQueue.length) {
