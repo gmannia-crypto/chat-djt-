@@ -19,6 +19,9 @@ function RealTimeConversationEngine(id) {
   this.running = false;
   this.loading = false;
   this.voiceEnabled = false;
+  this.turboMode = false;
+  this.audioEl = null;
+  this.prefetchPromise = null;
   this.freeUsed = 0;
   this.freeLimit = 4;
   this.locked = false;
@@ -49,6 +52,7 @@ RealTimeConversationEngine.prototype.handleClick = function(e) {
   if (t.closest('[data-cstop]')) { this.stop(); return; }
   if (t.closest('[data-cclear]')) { this.messages = []; this.locked = false; this.freeUsed = 0; this.render(); return; }
   if (t.closest('[data-cvoice]')) { this.voiceEnabled = !this.voiceEnabled; this.render(); return; }
+  if (t.closest('[data-cturbo]')) { this.turboMode = !this.turboMode; this.render(); return; }
   var speak = t.closest('[data-cspeak]');
   if (speak) { e.stopPropagation(); this.speak(speak.getAttribute('data-cspeak'), speak.getAttribute('data-ctext') || ''); return; }
 };
@@ -56,18 +60,77 @@ RealTimeConversationEngine.prototype.start = function() {
   if (this.running || this.locked) return;
   this.running = true;
   this.render();
-  this.generate();
-  var self = this;
-  window.TimerManager.set('conversation', function() { self.generate(); }, 4000);
+  this.conversationLoop();
 };
 RealTimeConversationEngine.prototype.stop = function() {
   this.running = false;
+  this.prefetchPromise = null;
+  if (this.audioEl) { this.audioEl.pause(); this.audioEl = null; }
   window.TimerManager.clear('conversation');
   this.render();
 };
-RealTimeConversationEngine.prototype.generate = function() {
-  if (this.loading || this.locked) return;
+RealTimeConversationEngine.prototype.conversationLoop = function() {
+  if (!this.running || this.locked) return;
+  var self = this;
+  this.generate(function() {
+    if (!self.running) return;
+    self.prefetchNext();
+    var delay = self.turboMode ? 1500 : 4000;
+    window.TimerManager.set('conversation', function() { self.conversationLoop(); }, delay);
+  });
+};
+RealTimeConversationEngine.prototype.prefetchNext = function() {
+  if (this.prefetchPromise || this.locked || !this.running) return;
+  var self = this;
+  var ids = Object.keys(this.personas);
+  var lastSpeaker = this.messages.length > 0 ? this.messages[this.messages.length - 1].persona : null;
+  var candidates = lastSpeaker ? ids.filter(function(id) { return id !== lastSpeaker; }) : ids;
+  var responderId = candidates[Math.floor(Math.random() * candidates.length)];
+  var toSpeakerId = lastSpeaker || ids[Math.floor(Math.random() * ids.length)];
+  var history = this.messages.slice(-6).map(function(m) { return { speakerName: self.personas[m.persona] ? self.personas[m.persona].name : m.persona, text: m.text }; });
+  this.prefetchPromise = fetch('/api/arena/respond', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ responderId: responderId, toSpeakerId: toSpeakerId, topic: this.topic, conversationHistory: history })
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    self.prefetchPromise = null;
+    if (d && d.response) return d;
+    return null;
+  }).catch(function() { self.prefetchPromise = null; return null; });
+};
+RealTimeConversationEngine.prototype.generate = function(cb) {
+  if (this.loading || this.locked) { if (cb) cb(); return; }
   this.loading = true;
+  var self = this;
+  var doProcess = function(d, fallbackId) {
+    if (!d || !d.response) { self.loading = false; if (cb) cb(); return; }
+    var pid = d.personaId || fallbackId;
+    self.messages.push({ persona: pid, text: d.response, time: new Date() });
+    if (self.messages.length > 50) self.messages = self.messages.slice(-30);
+    self.freeUsed++;
+    if (d.freeRemaining !== undefined) self.freeUsed = self.freeLimit - d.freeRemaining;
+    self.loading = false;
+    self.render();
+    var stream = self.el.querySelector('.conv-stream');
+    if (stream) stream.scrollTop = stream.scrollHeight;
+    if (self.voiceEnabled && d.response) {
+      self.speak(pid, d.response, cb);
+    } else {
+      if (cb) cb();
+    }
+  };
+  if (this.prefetchPromise) {
+    var p = this.prefetchPromise;
+    this.prefetchPromise = null;
+    p.then(function(d) {
+      if (d) { doProcess(d, d.personaId); }
+      else { self.loading = false; self.doFreshGenerate(doProcess, cb); }
+    });
+    return;
+  }
+  this.doFreshGenerate(doProcess, cb);
+};
+RealTimeConversationEngine.prototype.doFreshGenerate = function(doProcess, cb) {
   var self = this;
   var ids = Object.keys(this.personas);
   var lastSpeaker = this.messages.length > 0 ? this.messages[this.messages.length - 1].persona : null;
@@ -81,36 +144,37 @@ RealTimeConversationEngine.prototype.generate = function() {
     body: JSON.stringify({ responderId: responderId, toSpeakerId: toSpeakerId, topic: this.topic, conversationHistory: history })
   })
   .then(function(r) {
-    if (r.status === 403) { return r.json().then(function(d){ self.locked = true; self.stop(); self.render(); return null; }); }
+    if (r.status === 403) { return r.json().then(function(){ self.locked = true; self.stop(); self.render(); return null; }); }
     return r.json();
   })
-  .then(function(d) {
-    if (!d || !d.response) { self.loading = false; return; }
-    self.messages.push({ persona: d.personaId || responderId, text: d.response, time: new Date() });
-    if (self.messages.length > 50) self.messages = self.messages.slice(-30);
-    self.freeUsed++;
-    if (d.freeRemaining !== undefined) self.freeUsed = self.freeLimit - d.freeRemaining;
-    self.loading = false;
-    self.render();
-    var stream = self.el.querySelector('.conv-stream');
-    if (stream) stream.scrollTop = stream.scrollHeight;
-    if (self.voiceEnabled && d.response) {
-      self.speak(d.personaId || responderId, d.response);
-    }
-  })
-  .catch(function() { self.loading = false; });
+  .then(function(d) { doProcess(d, responderId); })
+  .catch(function() { self.loading = false; if (cb) cb(); });
 };
-RealTimeConversationEngine.prototype.speak = function(pid, text) {
+RealTimeConversationEngine.prototype.speak = function(pid, text, cb) {
+  var self = this;
   var btn = this.el.querySelector('[data-cspeak="'+pid+'"]');
   if (btn) btn.textContent = '...';
   var params = new URLSearchParams({text:(text||'No comment.').slice(0,300), personaId:pid});
   fetch('/api/persona-speak?'+params.toString())
-  .then(function(r){return r.blob();}).then(function(b){ var u=URL.createObjectURL(b); var a=new Audio(u); a.play(); a.onended=function(){URL.revokeObjectURL(u);}; if(btn)btn.innerHTML='&#x1F50A;'; })
-  .catch(function(){if(btn)btn.innerHTML='&#x1F50A;';});
+  .then(function(r){return r.blob();}).then(function(b){
+    var u=URL.createObjectURL(b);
+    if (self.audioEl) { self.audioEl.pause(); self.audioEl = null; }
+    self.audioEl=new Audio(u);
+    self.audioEl.onended=function(){
+      URL.revokeObjectURL(u);
+      self.audioEl = null;
+      if(btn)btn.innerHTML='&#x1F50A;';
+      var pause = self.turboMode ? 50 : 300;
+      if (cb) setTimeout(cb, pause);
+    };
+    self.audioEl.play();
+  })
+  .catch(function(){if(btn)btn.innerHTML='&#x1F50A;'; if(cb) cb();});
 };
 RealTimeConversationEngine.prototype.render = function() {
   var h = '<div class="feat-title" style="display:flex;align-items:center;gap:10px;">REAL TALK';
   h += '<button data-cvoice style="background:'+(this.voiceEnabled?'rgba(255,215,0,0.15)':'rgba(255,255,255,0.06)')+';border:1px solid '+(this.voiceEnabled?'rgba(255,215,0,0.3)':'#333')+';border-radius:16px;padding:4px 10px;cursor:pointer;color:'+(this.voiceEnabled?'#FFD700':'#666')+';font-size:11px;">'+(this.voiceEnabled?'&#x1F50A; ON':'&#x1F507; OFF')+'</button>';
+  h += '<button data-cturbo style="background:'+(this.turboMode?'rgba(255,77,77,0.15)':'rgba(255,255,255,0.06)')+';border:1px solid '+(this.turboMode?'rgba(255,77,77,0.3)':'#333')+';border-radius:16px;padding:4px 10px;cursor:pointer;color:'+(this.turboMode?'#ff4d4d':'#666')+';font-size:11px;">&#x26A1; '+(this.turboMode?'TURBO':'NORMAL')+'</button>';
   if (this.freeUsed > 0 && this.freeUsed < this.freeLimit && !this.locked) {
     h += '<span style="font-size:9px;color:rgba(255,255,255,0.4);">'+(this.freeLimit - this.freeUsed)+' free left</span>';
   }
