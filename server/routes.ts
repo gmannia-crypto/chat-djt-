@@ -511,17 +511,19 @@ async function trumpTextToSpeech(text: string, speed: number = 1.0, mood: string
   }
 
   let voiceId: string;
+  let effectiveSpeed = speed;
   if (mood === "FIRED_UP" && (speechCategory === "RALLY_RANT" || speechCategory === "INTERVIEW")) {
     voiceId = TRUMP_FIRED_UP_VOICE_ID;
+    effectiveSpeed = Math.max(speed, 1.25);
   } else if (speechCategory === "CASUAL_TALK" && casualVoiceId) {
     voiceId = casualVoiceId;
   } else {
     voiceId = defaultVoiceId;
   }
   const emotion = mood === "FIRED_UP" ? "angry" : "calm";
-  console.log(`TTS: Fish Audio voice=${voiceId}, category=${speechCategory}, mood=${mood}, emotion=${emotion}, speed=${speed}`);
+  console.log(`TTS: Fish Audio voice=${voiceId}, category=${speechCategory}, mood=${mood}, emotion=${emotion}, speed=${effectiveSpeed}`);
 
-  return fishAudioRequest(text, voiceId, speed, apiKey);
+  return fishAudioRequest(text, voiceId, effectiveSpeed, apiKey);
 }
 
 const apiUsageCounters = {
@@ -1903,8 +1905,9 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
         return res.status(400).json({ error: "No voice configured for persona" });
       }
 
+      const personaSpeed = (personaId === "trump") ? 1.25 : 1.0;
       const safeText = text.slice(0, 2000);
-      const buffer = await fishAudioRequest(safeText, voiceId, 1.0, apiKey);
+      const buffer = await fishAudioRequest(safeText, voiceId, personaSpeed, apiKey);
 
       res.setHeader("Content-Type", "audio/mpeg");
       res.setHeader("Content-Length", buffer.length.toString());
@@ -1936,8 +1939,9 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
         return res.status(400).json({ error: "No voice configured for persona" });
       }
 
+      const getPersonaSpeed = (personaId === "trump") ? 1.25 : 1.0;
       const safeText = text.slice(0, 2000);
-      const buffer = await fishAudioRequest(safeText, voiceId, 1.0, apiKey);
+      const buffer = await fishAudioRequest(safeText, voiceId, getPersonaSpeed, apiKey);
 
       res.setHeader("Content-Type", "audio/mpeg");
       res.setHeader("Content-Length", buffer.length.toString());
