@@ -145,7 +145,7 @@ RealTimeConversationEngine.prototype.conversationLoop = function() {
   this.generate(function() {
     if (!self.running) return;
     self.prefetchNext();
-    var delay = self.turboMode ? 1500 : 4000;
+    var delay = self.turboMode ? 200 : 1000;
     window.TimerManager.set('conversation', function() { self.conversationLoop(); }, delay);
   });
 };
@@ -230,7 +230,7 @@ RealTimeConversationEngine.prototype.speak = function(pid, text, cb) {
     var u=URL.createObjectURL(b);
     if (self.audioEl) { self.audioEl.pause(); self.audioEl = null; }
     self.audioEl=new Audio(u);
-    self.audioEl.playbackRate = 1.25;
+    self.audioEl.playbackRate = 1.0;
     self.audioEl.onended=function(){
       URL.revokeObjectURL(u);
       self.audioEl = null;

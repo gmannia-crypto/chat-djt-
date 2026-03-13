@@ -7,7 +7,7 @@ export async function playAudioFromUrl(
   options?: { method?: string; body?: any; headers?: Record<string, string>; volume?: number; rate?: number }
 ): Promise<Audio.Sound> {
   const vol = options?.volume ?? 1.0;
-  const rate = options?.rate ?? 1.25;
+  const rate = options?.rate ?? 1.0;
 
   await Audio.setAudioModeAsync({
     playsInSilentModeIOS: true,

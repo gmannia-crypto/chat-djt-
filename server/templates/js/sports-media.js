@@ -597,7 +597,7 @@ SportsMediaModule.prototype.speakCurrent = function() {
 
   this.stopAudio();
   this.audioEl = new Audio(url);
-  this.audioEl.playbackRate = 1.25;
+  this.audioEl.playbackRate = 1.0;
   this.audioEl.addEventListener('ended', function() { setTimeout(function() { self.advanceQueue(); }, self.turboMode ? 50 : 300); });
   this.audioEl.addEventListener('error', function() {
     self.commentaryIndex++;
