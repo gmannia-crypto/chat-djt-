@@ -479,9 +479,114 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       negative: ["flip-flop", "hypocrite", "closet", "gay", "lady lindsey", "bigot", "warmonger"],
     },
   },
+  megynkelly: {
+    id: "megynkelly",
+    name: "Megyn Kelly",
+    shortName: "Megyn",
+    color: "#d4af37",
+    faction: "supporter",
+    image: null,
+    personality: {
+      energy: 85,
+      aggression: 75,
+      humor: 35,
+      catchphrases: ["Let me be very clear", "The facts don't care about your feelings", "That's just not accurate", "I've done the research"],
+    },
+    relationships: {
+      trump: { sentiment: 65 },
+      netanyahu: { sentiment: 70 },
+      ruckus: { sentiment: 50 },
+      galloway: { sentiment: 10 },
+      mcconnell: { sentiment: 55 },
+      carville: { sentiment: 15 },
+      maddow: { sentiment: 10 },
+      omar: { sentiment: 5 },
+      biden: { sentiment: 20 },
+      rosie: { sentiment: 10 },
+      berniemc: { sentiment: 15 },
+      elon: { sentiment: 55 },
+      graham: { sentiment: 60 },
+      pambondi: { sentiment: 70 },
+      candace: { sentiment: 60 },
+    },
+    triggerWords: {
+      positive: ["fox", "journalism", "facts", "debate", "conservative", "anchor"],
+      negative: ["dei", "woke", "liberal media", "cancel culture", "mainstream"],
+    },
+  },
+  pambondi: {
+    id: "pambondi",
+    name: "Pam Bondi",
+    shortName: "Bondi",
+    color: "#b22222",
+    faction: "supporter",
+    image: null,
+    personality: {
+      energy: 90,
+      aggression: 85,
+      humor: 20,
+      catchphrases: ["As Attorney General", "The law is clear", "We will prosecute", "Federal agents are on the way"],
+    },
+    relationships: {
+      trump: { sentiment: 98 },
+      netanyahu: { sentiment: 80 },
+      ruckus: { sentiment: 60 },
+      galloway: { sentiment: 5 },
+      mcconnell: { sentiment: 55 },
+      carville: { sentiment: 5 },
+      maddow: { sentiment: 5 },
+      omar: { sentiment: 5 },
+      biden: { sentiment: 10 },
+      rosie: { sentiment: 5 },
+      berniemc: { sentiment: 10 },
+      elon: { sentiment: 75 },
+      graham: { sentiment: 70 },
+      megynkelly: { sentiment: 70 },
+      candace: { sentiment: 55 },
+    },
+    triggerWords: {
+      positive: ["law", "order", "justice", "prosecute", "attorney general", "federal"],
+      negative: ["corruption", "florida", "fraud", "cover-up", "trump university"],
+    },
+  },
+  candace: {
+    id: "candace",
+    name: "Candace Owens",
+    shortName: "Candace",
+    color: "#ff8c00",
+    faction: "wildcard",
+    image: null,
+    personality: {
+      energy: 90,
+      aggression: 80,
+      humor: 40,
+      catchphrases: ["Facts over feelings", "The left doesn't want you to know", "I did my own research", "Follow the money"],
+    },
+    relationships: {
+      trump: { sentiment: 50 },
+      netanyahu: { sentiment: 5 },
+      ruckus: { sentiment: 30 },
+      galloway: { sentiment: 60 },
+      mcconnell: { sentiment: 25 },
+      carville: { sentiment: 15 },
+      maddow: { sentiment: 10 },
+      omar: { sentiment: 45 },
+      biden: { sentiment: 15 },
+      rosie: { sentiment: 15 },
+      berniemc: { sentiment: 20 },
+      elon: { sentiment: 60 },
+      graham: { sentiment: 30 },
+      megynkelly: { sentiment: 55 },
+      pambondi: { sentiment: 50 },
+    },
+    triggerWords: {
+      positive: ["truth", "free speech", "conservative", "blexit", "independent"],
+      negative: ["netanyahu", "aipac", "epstein", "israel lobby", "zionist"],
+    },
+  },
 };
 
-const PERSONA_IDS = ["trump", "elon", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "graham"];
+const PERSONA_IDS = ["trump", "elon", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "graham", "megynkelly", "pambondi", "candace"];
 
 const TOPIC_ICON_MAP: Record<string, string> = {
   economy: "cash", immigration: "airplane", foreign_policy: "earth", media: "tv",
@@ -510,10 +615,13 @@ const PERSONA_ALIASES: Record<string, string[]> = {
   rosie: ["rosie", "o'donnell"],
   berniemc: ["bernie", "bernie mac"],
   graham: ["graham", "lindsey", "lindsey graham", "lady lindsey"],
+  megynkelly: ["megyn", "megyn kelly", "kelly"],
+  pambondi: ["bondi", "pam bondi", "pam"],
+  candace: ["candace", "candace owens", "owens"],
 };
 
 function detectTrumpAttack(text: string, speakerId: string): boolean {
-  if (speakerId === "trump" || speakerId === "ruckus" || speakerId === "netanyahu" || speakerId === "graham") return false;
+  if (speakerId === "trump" || speakerId === "ruckus" || speakerId === "netanyahu" || speakerId === "graham" || speakerId === "megynkelly" || speakerId === "pambondi") return false;
   const lower = text.toLowerCase();
   const trumpMentions = /(?:trump|donald|mr\.?\s*president)/i.test(lower);
   if (!trumpMentions) return false;
@@ -569,7 +677,7 @@ function getInitials(name: string) {
   return name.split(" ").map(w => w[0]).join("").substring(0, 2);
 }
 
-const INTERRUPTERS = ["biden", "rosie", "galloway", "berniemc", "omar", "elon"];
+const INTERRUPTERS = ["biden", "rosie", "galloway", "berniemc", "omar", "elon", "candace", "megynkelly", "pambondi"];
 
 const US_STATES = [
   "Alabama","Alaska","Arizona","Arkansas","California","Colorado","Connecticut","Delaware","Florida","Georgia",
