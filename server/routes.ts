@@ -514,7 +514,7 @@ async function trumpTextToSpeech(text: string, speed: number = 1.0, mood: string
   let effectiveSpeed = speed;
   if (mood === "FIRED_UP" && (speechCategory === "RALLY_RANT" || speechCategory === "INTERVIEW")) {
     voiceId = TRUMP_FIRED_UP_VOICE_ID;
-    effectiveSpeed = Math.max(speed, 1.25);
+    effectiveSpeed = Math.max(speed, 1.10);
   } else if (speechCategory === "CASUAL_TALK" && casualVoiceId) {
     voiceId = casualVoiceId;
   } else {
@@ -1905,7 +1905,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
         return res.status(400).json({ error: "No voice configured for persona" });
       }
 
-      const personaSpeed = (personaId === "trump") ? 1.25 : 1.0;
+      const personaSpeed = (personaId === "trump") ? 1.10 : 1.0;
       const safeText = text.slice(0, 2000);
       const buffer = await fishAudioRequest(safeText, voiceId, personaSpeed, apiKey);
 
@@ -1939,7 +1939,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
         return res.status(400).json({ error: "No voice configured for persona" });
       }
 
-      const getPersonaSpeed = (personaId === "trump") ? 1.25 : 1.0;
+      const getPersonaSpeed = (personaId === "trump") ? 1.10 : 1.0;
       const safeText = text.slice(0, 2000);
       const buffer = await fishAudioRequest(safeText, voiceId, getPersonaSpeed, apiKey);
 
