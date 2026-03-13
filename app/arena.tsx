@@ -1287,7 +1287,8 @@ export default function ArenaScreen() {
         recordingObjRef.current = null;
         if (!uri) return;
         lastRecordedAudioRef.current = uri;
-        const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+        const encodingBase64 = FileSystem.EncodingType?.Base64 ?? "base64";
+        const base64 = await FileSystem.readAsStringAsync(uri, { encoding: encodingBase64 as any });
         await transcribeBase64(base64, "m4a");
       }
       setTimeout(resumeAfterRecording, 500);
