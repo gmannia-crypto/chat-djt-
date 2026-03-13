@@ -100,6 +100,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       rosie: { sentiment: 5 },
       berniemc: { sentiment: 20 },
       elon: { sentiment: 65 },
+      joyreid: { sentiment: 5 },
     },
     triggerWords: {
       positive: ["great", "win", "success", "money", "deal", "beautiful", "trump"],
@@ -131,6 +132,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       rosie: { sentiment: 25 },
       berniemc: { sentiment: 35 },
       elon: { sentiment: 50 },
+      joyreid: { sentiment: 15 },
     },
     triggerWords: {
       positive: ["israel", "jerusalem", "security", "alliance", "strength", "peace"],
@@ -162,6 +164,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       rosie: { sentiment: 10 },
       berniemc: { sentiment: 5 },
       elon: { sentiment: 70 },
+      joyreid: { sentiment: 5 },
     },
     triggerWords: {
       positive: ["trump", "maga", "america", "winning", "great", "white", "reagan"],
@@ -193,6 +196,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       rosie: { sentiment: 50 },
       berniemc: { sentiment: 55 },
       elon: { sentiment: 15 },
+      joyreid: { sentiment: 55 },
     },
     triggerWords: {
       positive: ["britain", "labour", "palestine", "iraq", "socialism", "workers"],
@@ -224,6 +228,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       rosie: { sentiment: 15 },
       berniemc: { sentiment: 20 },
       elon: { sentiment: 25 },
+      joyreid: { sentiment: 10 },
     },
     triggerWords: {
       positive: ["senate", "republican", "conservative", "judiciary", "majority"],
@@ -255,6 +260,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       berniemc: { sentiment: 80 },
       mcconnell: { sentiment: 20 },
       elon: { sentiment: 15 },
+      joyreid: { sentiment: 75 },
     },
     triggerWords: {
       positive: ["democrat", "strategy", "cajun", "clinton", "campaign", "winning"],
@@ -286,6 +292,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       berniemc: { sentiment: 70 },
       mcconnell: { sentiment: 15 },
       elon: { sentiment: 10 },
+      joyreid: { sentiment: 85 },
     },
     triggerWords: {
       positive: ["facts", "evidence", "democracy", "constitution", "progressive", "rights"],
@@ -317,6 +324,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       berniemc: { sentiment: 65 },
       mcconnell: { sentiment: 10 },
       elon: { sentiment: 10 },
+      joyreid: { sentiment: 75 },
     },
     triggerWords: {
       positive: ["justice", "refugee", "rights", "palestine", "progressive", "squad"],
@@ -348,6 +356,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       berniemc: { sentiment: 60 },
       mcconnell: { sentiment: 35 },
       elon: { sentiment: 20 },
+      joyreid: { sentiment: 60 },
     },
     triggerWords: {
       positive: ["unity", "soul", "america", "barack", "bipartisan", "scranton"],
@@ -379,6 +388,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       berniemc: { sentiment: 80 },
       mcconnell: { sentiment: 15 },
       elon: { sentiment: 10 },
+      joyreid: { sentiment: 70 },
     },
     triggerWords: {
       positive: ["lgbtq", "rights", "justice", "rosie", "equality", "truth"],
@@ -410,6 +420,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       rosie: { sentiment: 80 },
       mcconnell: { sentiment: 25 },
       elon: { sentiment: 15 },
+      joyreid: { sentiment: 55 },
     },
     triggerWords: {
       positive: ["comedy", "chicago", "funny", "bernie", "real", "truth"],
@@ -441,6 +452,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       biden: { sentiment: 15 },
       rosie: { sentiment: 10 },
       berniemc: { sentiment: 20 },
+      joyreid: { sentiment: 5 },
     },
     triggerWords: {
       positive: ["mars", "tesla", "spacex", "innovation", "x", "doge", "efficiency", "rockets"],
@@ -473,6 +485,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       rosie: { sentiment: 10 },
       berniemc: { sentiment: 15 },
       elon: { sentiment: 70 },
+      joyreid: { sentiment: 5 },
     },
     triggerWords: {
       positive: ["trump", "israel", "military", "strength", "freedom", "security", "senate"],
@@ -508,6 +521,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       graham: { sentiment: 60 },
       pambondi: { sentiment: 70 },
       candace: { sentiment: 60 },
+      joyreid: { sentiment: 10 },
     },
     triggerWords: {
       positive: ["fox", "journalism", "facts", "debate", "conservative", "anchor"],
@@ -543,6 +557,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       graham: { sentiment: 70 },
       megynkelly: { sentiment: 70 },
       candace: { sentiment: 55 },
+      joyreid: { sentiment: 5 },
     },
     triggerWords: {
       positive: ["law", "order", "justice", "prosecute", "attorney general", "federal"],
@@ -578,15 +593,52 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       graham: { sentiment: 30 },
       megynkelly: { sentiment: 55 },
       pambondi: { sentiment: 50 },
+      joyreid: { sentiment: 10 },
     },
     triggerWords: {
       positive: ["truth", "free speech", "conservative", "blexit", "independent"],
       negative: ["netanyahu", "aipac", "epstein", "israel lobby", "zionist"],
     },
   },
+  joyreid: {
+    id: "joyreid",
+    name: "Joy Reid",
+    shortName: "Joy",
+    color: "#9333ea",
+    faction: "opponent",
+    image: null,
+    personality: {
+      energy: 90,
+      aggression: 80,
+      humor: 45,
+      catchphrases: ["Let me be absolutely clear", "The receipts don't lie", "This is what fascism looks like", "Say it with your chest", "Don't come for me"],
+    },
+    relationships: {
+      trump: { sentiment: 5 },
+      netanyahu: { sentiment: 15 },
+      ruckus: { sentiment: 5 },
+      galloway: { sentiment: 55 },
+      mcconnell: { sentiment: 10 },
+      carville: { sentiment: 60 },
+      maddow: { sentiment: 90 },
+      omar: { sentiment: 80 },
+      biden: { sentiment: 65 },
+      rosie: { sentiment: 70 },
+      berniemc: { sentiment: 55 },
+      elon: { sentiment: 5 },
+      graham: { sentiment: 5 },
+      megynkelly: { sentiment: 10 },
+      pambondi: { sentiment: 5 },
+      candace: { sentiment: 5 },
+    },
+    triggerWords: {
+      positive: ["justice", "democracy", "voting rights", "equality", "civil rights", "accountability"],
+      negative: ["trump", "maga", "fascist", "racist", "authoritarian", "insurrection", "proud boys"],
+    },
+  },
 };
 
-const PERSONA_IDS = ["trump", "elon", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "graham", "megynkelly", "pambondi", "candace"];
+const PERSONA_IDS = ["trump", "elon", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "graham", "megynkelly", "pambondi", "candace", "joyreid"];
 
 const TOPIC_ICON_MAP: Record<string, string> = {
   economy: "cash", immigration: "airplane", foreign_policy: "earth", media: "tv",
@@ -618,6 +670,7 @@ const PERSONA_ALIASES: Record<string, string[]> = {
   megynkelly: ["megyn", "megyn kelly", "kelly"],
   pambondi: ["bondi", "pam bondi", "pam"],
   candace: ["candace", "candace owens", "owens"],
+  joyreid: ["joy", "joy reid", "reid"],
 };
 
 function detectTrumpAttack(text: string, speakerId: string): boolean {
@@ -677,7 +730,7 @@ function getInitials(name: string) {
   return name.split(" ").map(w => w[0]).join("").substring(0, 2);
 }
 
-const INTERRUPTERS = ["biden", "rosie", "galloway", "berniemc", "omar", "elon", "candace", "megynkelly", "pambondi"];
+const INTERRUPTERS = ["biden", "rosie", "galloway", "berniemc", "omar", "elon", "candace", "megynkelly", "pambondi", "joyreid"];
 
 const US_STATES = [
   "Alabama","Alaska","Arizona","Arkansas","California","Colorado","Connecticut","Delaware","Florida","Georgia",

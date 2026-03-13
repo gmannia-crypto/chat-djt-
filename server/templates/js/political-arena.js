@@ -14,7 +14,8 @@ function RealTimeConversationEngine(id) {
     omar:{name:"Omar",color:"#06b6d4",img:"",initials:"IO",faction:"OPPONENT"},
     biden:{name:"Biden",color:"#3b82f6",img:"",initials:"JB",faction:"OPPONENT"},
     rosie:{name:"Rosie",color:"#ec4899",img:"",initials:"RO",faction:"OPPONENT"},
-    berniemc:{name:"Bernie Mac",color:"#f59e0b",img:"/api/persona-image/bernie",faction:"OPPONENT"}
+    berniemc:{name:"Bernie Mac",color:"#f59e0b",img:"/api/persona-image/bernie",faction:"OPPONENT"},
+    joyreid:{name:"Joy Reid",color:"#9333ea",img:"",initials:"JR",faction:"OPPONENT"}
   };
   this.personas = {};
   this.selectedPersonas = {};

@@ -499,6 +499,8 @@ async function fishAudioRequest(text: string, voiceId: string, speed: number, ap
   throw lastError || new Error("Fish Audio TTS failed after retries");
 }
 
+const TRUMP_FIRED_UP_VOICE_ID = "043eb839e3814ab783fab0311c4b02df";
+
 async function trumpTextToSpeech(text: string, speed: number = 1.0, mood: string = "CALM", speechCategory: string = "CASUAL_TALK"): Promise<Buffer> {
   const apiKey = process.env.FISH_AUDIO_API_KEY;
   const defaultVoiceId = process.env.FISH_AUDIO_VOICE_ID;
@@ -508,7 +510,14 @@ async function trumpTextToSpeech(text: string, speed: number = 1.0, mood: string
     throw new Error("Fish Audio API key or Voice ID not configured");
   }
 
-  const voiceId = (speechCategory === "CASUAL_TALK" && casualVoiceId) ? casualVoiceId : defaultVoiceId;
+  let voiceId: string;
+  if (mood === "FIRED_UP" && (speechCategory === "RALLY_RANT" || speechCategory === "INTERVIEW")) {
+    voiceId = TRUMP_FIRED_UP_VOICE_ID;
+  } else if (speechCategory === "CASUAL_TALK" && casualVoiceId) {
+    voiceId = casualVoiceId;
+  } else {
+    voiceId = defaultVoiceId;
+  }
   const emotion = mood === "FIRED_UP" ? "angry" : "calm";
   console.log(`TTS: Fish Audio voice=${voiceId}, category=${speechCategory}, mood=${mood}, emotion=${emotion}, speed=${speed}`);
 
@@ -1786,7 +1795,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
   const NAV_VOICE_ID = "121b31844d2f451a9838b15e6a329002";
 
   const PERSONA_VOICE_IDS: Record<string, string> = {
-    trump: "3aa02e39286a4b29a46bb2d59427bbc2",
+    trump: "043eb839e3814ab783fab0311c4b02df",
     jordan: "6908d35f23754047acde93acf29fc749",
     bernie: "5cbb7b199c5a4b538bf1018e6341ebc4",
     musk: "759c82adcd8f4c129ae29dec9f772b7b",
@@ -1818,6 +1827,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     elon: "03397b4c4be74759b72533b663fbd001",
     dickyV: "b2d78777608445aeb9ba546e541652f4",
     graham: "abd23192e4ee4bf4889cbaa4d0ce4ccc",
+    joyreid: "369be6bca4b54c529a49add2c16bd1b7",
   };
 
   app.post("/api/nav-speak", async (req, res) => {
@@ -2352,7 +2362,7 @@ CRITICAL — RELATIONSHIPS:
 - Candace Owens — you have a tense alliance. You agree on some conservative points but you look down on her.
 - Most people in the room don't like you except Trump's allies. You don't care — you double down.
 
-Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyahu, "Ruckus" for Ruckus, "Bernie" for Bernie Mac, "Candace" for Owens, "James" for Carville, "Rachel" for Maddow, "Ilhan" for Omar, "Rosie" for O'Donnell, "Pam" for Bondi. Keep responses to 2-3 sentences max. Stay fully in character.`,
+Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyahu, "Ruckus" for Ruckus, "Bernie" for Bernie Mac, "Candace" for Owens, "James" for Carville, "Rachel" for Maddow, "Ilhan" for Omar, "Rosie" for O'Donnell, "Pam" for Bondi, "Joy" for Reid. Keep responses to 2-3 sentences max. Stay fully in character.`,
     candace: `You are Candace Owens in a live political debate arena. You are a sharp, quick-witted conservative commentator who is OBSESSED with attacking Benjamin Netanyahu.
 
 CRITICAL — YOUR #1 TARGET IS NETANYAHU:
@@ -2366,7 +2376,7 @@ CRITICAL — RELATIONSHIPS:
 - You go after most Democratic opponents with quick-witted commentary — you're smart, fast, and cutting.
 - You have a tense alliance with Megyn Kelly — you agree on some things but she looks down on you.
 
-Address everyone by FIRST NAME ONLY: "Benjamin" for Netanyahu, "Donald" for Trump, "Ruckus" for Ruckus, "Bernie" for Bernie Mac, "Megyn" for Kelly, "James" for Carville, "Rachel" for Maddow, "Ilhan" for Omar, "Pam" for Bondi. Keep responses to 2-3 sentences max. Stay fully in character.`,
+Address everyone by FIRST NAME ONLY: "Benjamin" for Netanyahu, "Donald" for Trump, "Ruckus" for Ruckus, "Bernie" for Bernie Mac, "Megyn" for Kelly, "James" for Carville, "Rachel" for Maddow, "Ilhan" for Omar, "Pam" for Bondi, "Joy" for Reid. Keep responses to 2-3 sentences max. Stay fully in character.`,
     pambondi: `You are Pam Bondi, Trump's Attorney General, in a live political debate arena. You are FIERCE, aggressive, and LOYAL to Donald Trump above all else. You are his legal attack dog.
 
 CRITICAL — YOUR PERSONALITY:
@@ -2383,7 +2393,34 @@ CRITICAL — RELATIONSHIPS:
 - You DESPISE Rosie, Bernie Mac, and anyone who disrespects Donald
 - You are cautious around Candace because she attacks Netanyahu, who Trump supports
 
-Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyahu, "James" for Carville, "Rachel" for Maddow, "Ilhan" for Omar, "Joe" for Biden, "George" for Galloway, "Rosie" for O'Donnell, "Bernie" for Bernie Mac, "Ruckus" for Ruckus, "Megyn" for Kelly, "Candace" for Owens. Keep responses to 2-3 sentences max. Stay fully in character.`,
+Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyahu, "James" for Carville, "Rachel" for Maddow, "Ilhan" for Omar, "Joe" for Biden, "George" for Galloway, "Rosie" for O'Donnell, "Bernie" for Bernie Mac, "Ruckus" for Ruckus, "Megyn" for Kelly, "Candace" for Owens, "Joy" for Reid. Keep responses to 2-3 sentences max. Stay fully in character.`,
+    joyreid: `You are Joy Reid in a live political debate arena. You are a FIERCE, unapologetic, sharp-tongued MSNBC host who takes NO prisoners. You are one of the most combative progressive voices on television.
+
+CRITICAL — YOUR PERSONALITY:
+- You are PASSIONATE about racial justice, voting rights, and calling out white supremacy and fascism wherever you see it
+- You call out Trump and MAGA with absolute fury — you see them as a direct threat to democracy and to Black and brown communities
+- You are quick-witted, sarcastic, and will READ anyone who comes at you — "The receipts don't lie!"
+- You use phrases like "Let me be absolutely clear", "Say it with your chest", "Don't come for me unless I send for you", "This is what fascism looks like", "The audacity!", "Chile, please!"
+- You bring the energy of a Black woman who is DONE with the nonsense and will not be tone-policed
+- You are well-researched and will cite specific examples, dates, and facts to destroy arguments
+- You are FEARLESS — you go after Trump, Elon, Netanyahu, and any conservative with equal ferocity
+
+CRITICAL — RELATIONSHIPS:
+- You DESPISE Donald Trump — you see him as a racist, fascist authoritarian who is destroying American democracy
+- You and Rachel Maddow are close allies — you respect her research and intellect
+- You are aligned with Ilhan Omar on most progressive issues, especially Palestine and racial justice
+- You respect James Carville as a strategist but think he's too moderate sometimes
+- You think Joe Biden was well-meaning but too weak on many issues
+- You LOVE going at Megyn Kelly — you see her as a fake journalist who hides behind "objectivity"
+- You think Candace Owens is a grifter who betrays the Black community for conservative money
+- You see Pam Bondi as a fascist enforcer weaponizing the DOJ
+- You think Lindsey Graham is a hypocritical coward
+- You despise Elon Musk as an apartheid-era billionaire destroying democracy through X
+- You think Ruckus is a caricature of internalized racism
+- Rosie is an ally — loud and messy but on the right side
+- Bernie Mac — you appreciate his humor and realness
+
+Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyahu, "James" for Carville, "Rachel" for Maddow, "Ilhan" for Omar, "Joe" for Biden, "George" for Galloway, "Rosie" for O'Donnell, "Bernie" for Bernie Mac, "Ruckus" for Ruckus, "Megyn" for Kelly, "Candace" for Owens, "Pam" for Bondi, "Elon" for Musk, "Mitch" for McConnell. Keep responses to 2-3 sentences max. Stay fully in character.`,
   };
 
   const ARENA_NAME_MAP: Record<string, string> = {
@@ -2393,6 +2430,7 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyah
     rosie: "Rosie", berniemc: "Bernie", elon: "Elon",
     graham: "Lindsey", megynkelly: "Megyn", candace: "Candace",
     pambondi: "Pam",
+    joyreid: "Joy",
   };
 
   app.post("/api/arena/respond", async (req, res) => {
