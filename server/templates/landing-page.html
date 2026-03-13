@@ -1062,10 +1062,11 @@
         dashboard: { src: '/js/dashboard.js', containerId: 'dashboardTab', ctor: 'DashboardModule' }
       };
 
+      var _cacheBust = 'v=' + Date.now();
       function loadScript(src) {
         return new Promise(function(resolve, reject) {
           var script = document.createElement('script');
-          script.src = src;
+          script.src = src + (src.indexOf('?') === -1 ? '?' : '&') + _cacheBust;
           script.onload = resolve;
           script.onerror = reject;
           document.head.appendChild(script);
