@@ -315,6 +315,9 @@ function serveLandingPage({
     .replace(/APP_NAME_PLACEHOLDER/g, appName);
 
   res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
   res.status(200).send(html);
 }
 
@@ -374,9 +377,9 @@ function configureExpoAndLanding(app: express.Application) {
     "templates",
     "landing-page.html",
   );
-  const landingPageTemplate = fs.readFileSync(templatePath, "utf-8");
   const appName = getAppName();
   const isDev = process.env.NODE_ENV === "development";
+  let landingPageTemplate = fs.readFileSync(templatePath, "utf-8");
 
   log("Serving static Expo files with dynamic manifest routing");
 
@@ -408,7 +411,8 @@ function configureExpoAndLanding(app: express.Application) {
 
     if (isDev && !hasWebBuild) {
       if (req.path === "/" ) {
-        return serveLandingPage({ req, res, landingPageTemplate, appName });
+        const freshTemplate = fs.readFileSync(templatePath, "utf-8");
+        return serveLandingPage({ req, res, landingPageTemplate: freshTemplate, appName });
       }
       if (req.path === "/server/assets" || req.path.startsWith("/server/assets/") || req.path.startsWith("/js/") || req.path.startsWith("/assets/")) {
         return next();
