@@ -4,9 +4,10 @@ import { getApiUrl } from "@/lib/query-client";
 
 export async function playAudioFromUrl(
   url: string,
-  options?: { method?: string; body?: any; headers?: Record<string, string>; volume?: number }
+  options?: { method?: string; body?: any; headers?: Record<string, string>; volume?: number; rate?: number }
 ): Promise<Audio.Sound> {
   const vol = options?.volume ?? 1.0;
+  const rate = options?.rate ?? 1.25;
 
   await Audio.setAudioModeAsync({
     playsInSilentModeIOS: true,
@@ -27,13 +28,16 @@ export async function playAudioFromUrl(
         });
         const { sound } = await Audio.Sound.createAsync(
           { uri: dataUri },
-          { shouldPlay: true, volume: vol }
+          { shouldPlay: false, volume: vol }
         );
+        await sound.setRateAsync(rate, true).catch(() => {});
+        await sound.playAsync();
         return sound;
       } catch (e) {
         console.warn("Audio.Sound fallback failed, trying window.Audio:", e);
         const audio = new window.Audio(url);
         audio.volume = vol;
+        audio.playbackRate = rate;
         await audio.play();
         const { sound } = await Audio.Sound.createAsync(
           { uri: url },
@@ -57,15 +61,19 @@ export async function playAudioFromUrl(
     });
     const { sound } = await Audio.Sound.createAsync(
       { uri: dataUri },
-      { shouldPlay: true, volume: vol }
+      { shouldPlay: false, volume: vol }
     );
+    await sound.setRateAsync(rate, true).catch(() => {});
+    await sound.playAsync();
     return sound;
   }
 
   const { sound } = await Audio.Sound.createAsync(
     { uri: url },
-    { shouldPlay: true, volume: vol }
+    { shouldPlay: false, volume: vol, rate, shouldCorrectPitch: true }
   );
+  await sound.setRateAsync(rate, true).catch(() => {});
+  await sound.playAsync();
 
   return sound;
 }
