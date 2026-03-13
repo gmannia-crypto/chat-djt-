@@ -145,7 +145,7 @@ RealTimeConversationEngine.prototype.conversationLoop = function() {
   this.generate(function() {
     if (!self.running) return;
     self.prefetchNext();
-    var delay = self.turboMode ? 1500 : 4000;
+    var delay = self.turboMode ? 300 : 1000;
     window.TimerManager.set('conversation', function() { self.conversationLoop(); }, delay);
   });
 };

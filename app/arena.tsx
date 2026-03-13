@@ -777,7 +777,7 @@ function ArenaIntro({ personas, onComplete }: { personas: string[]; onComplete: 
     let idx = 0;
     const personaInterval = setInterval(() => {
       if (idx < personas.length) {
-        setVisiblePersonas((prev) => [...prev, personas[idx]]);
+        setVisiblePersonas((prev) => prev.includes(personas[idx]) ? prev : [...prev, personas[idx]]);
         if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         idx++;
       } else {
@@ -1743,7 +1743,7 @@ export default function ArenaScreen() {
 
     const interrupter = availableInterrupters[Math.floor(Math.random() * availableInterrupters.length)];
 
-    await new Promise((r) => setTimeout(r, 7000 + Math.random() * 2000));
+    await new Promise((r) => setTimeout(r, 3000 + Math.random() * 1000));
     if (!mountedRef.current || !isRunningRef.current) { isInterruptingRef.current = false; return; }
 
     try {
@@ -1777,7 +1777,7 @@ export default function ArenaScreen() {
         lastInterruptionRef.current = { text: data.response, interrupterId: interrupter };
         playInterruptionAudio(data.response, interrupter);
 
-        await new Promise((r) => setTimeout(r, 2500 + Math.random() * 1500));
+        await new Promise((r) => setTimeout(r, 500 + Math.random() * 500));
         if (!mountedRef.current || !isRunningRef.current) return;
 
         const clap = await fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
@@ -1805,7 +1805,7 @@ export default function ArenaScreen() {
             timestamp: Date.now(),
           });
           queueTTS(clapData.response, "trump");
-          await new Promise((r) => setTimeout(r, 2000));
+          await new Promise((r) => setTimeout(r, 700));
         }
       }
     } catch {} finally {
@@ -1852,7 +1852,7 @@ export default function ArenaScreen() {
         showInterruptionBanner("trump", "Donald Trump", data.response);
         lastInterruptionRef.current = { text: data.response, interrupterId: "trump" };
         playInterruptionAudio(data.response, "trump");
-        await new Promise((r) => setTimeout(r, 2000));
+        await new Promise((r) => setTimeout(r, 700));
       }
     } catch {} finally {
       isInterruptingRef.current = false;
@@ -2097,7 +2097,7 @@ export default function ArenaScreen() {
       recentSpeakersRef.current = [...recentSpeakersRef.current, chosen.id].slice(-4);
 
       if (willInterrupt && mountedRef.current && isRunningRef.current && !isInterruptingRef.current) {
-        await new Promise((r) => setTimeout(r, 2000 + Math.random() * 2000));
+        await new Promise((r) => setTimeout(r, 500 + Math.random() * 500));
         if (!mountedRef.current || !isRunningRef.current) return;
 
         const trumpMsg = messagesRef.current.filter((m) => !m.isSystem && m.speakerId !== "user").slice(-1)[0];
@@ -2115,7 +2115,7 @@ export default function ArenaScreen() {
         conversationTimerRef.current = setTimeout(waitForClear, 250);
         return;
       }
-      const delay = 1500 + Math.random() * 2000;
+      const delay = 400 + Math.random() * 600;
       conversationTimerRef.current = setTimeout(async () => {
         if (!mountedRef.current) return;
         await decideNextSpeaker();
