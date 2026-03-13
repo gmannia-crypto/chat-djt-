@@ -407,6 +407,9 @@ function configureExpoAndLanding(app: express.Application) {
     }
 
     if (isDev && !hasWebBuild) {
+      if (req.path === "/" ) {
+        return serveLandingPage({ req, res, landingPageTemplate, appName });
+      }
       if (req.path === "/server/assets" || req.path.startsWith("/server/assets/") || req.path.startsWith("/js/") || req.path.startsWith("/assets/")) {
         return next();
       }
