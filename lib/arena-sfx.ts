@@ -163,6 +163,35 @@ export async function playPointAwardSound() {
   return playVoteClickSound();
 }
 
+let cachedWinnerSound: Audio.Sound | null = null;
+let cachedWinnerAfterSound: Audio.Sound | null = null;
+
+export async function playWinnerChosenSound() {
+  if (Platform.OS === "web") {
+    try {
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      const audio = new window.Audio(`${baseUrl}/public/winner-chosen.mp4`);
+      audio.volume = 0.8;
+      audio.play().catch(() => {});
+    } catch {}
+  } else {
+    cachedWinnerSound = await playSoundFile("/public/winner-chosen.mp4", cachedWinnerSound, 0.8);
+  }
+}
+
+export async function playWinnerAfterSound() {
+  if (Platform.OS === "web") {
+    try {
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      const audio = new window.Audio(`${baseUrl}/public/winner-after.mp4`);
+      audio.volume = 0.8;
+      audio.play().catch(() => {});
+    } catch {}
+  } else {
+    cachedWinnerAfterSound = await playSoundFile("/public/winner-after.mp4", cachedWinnerAfterSound, 0.8);
+  }
+}
+
 export async function playDrumroll() {
   if (Platform.OS === "web") {
     try {

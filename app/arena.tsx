@@ -24,7 +24,7 @@ import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system";
 import { getApiUrl } from "@/lib/query-client";
 import { playTTS, playAudioFromUrl } from "@/lib/audio-helper";
-import { playPointAwardSound, playVoteClickSound, playVoteSound2, playBellSound, playCrowdCheer, playDrumroll } from "@/lib/arena-sfx";
+import { playPointAwardSound, playVoteClickSound, playVoteSound2, playBellSound, playCrowdCheer, playDrumroll, playWinnerChosenSound, playWinnerAfterSound } from "@/lib/arena-sfx";
 import { useTokens } from "@/lib/token-context";
 import {
   saveRecording,
@@ -1592,7 +1592,11 @@ export default function ArenaScreen() {
         addSystemMessage("TIME'S UP! The bell has rung!");
         const totalPts = Object.values(personaPointsRef.current).reduce((a, b) => a + b, 0);
         if (totalPts > 0) {
-          setTimeout(() => { setShowEndSummary(true); }, 1500);
+          setTimeout(() => {
+            playWinnerChosenSound();
+            setShowEndSummary(true);
+            setTimeout(() => { playWinnerAfterSound(); }, 4000);
+          }, 1500);
         } else {
           setTimeout(() => { setShowPaywall(true); }, 2000);
         }
