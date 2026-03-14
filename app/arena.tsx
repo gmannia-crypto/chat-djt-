@@ -2728,20 +2728,17 @@ export default function ArenaScreen() {
             <Pressable
               key={pid}
               onPress={() => {
-                if (currentSpeaker === pid) {
-                  const count = speakerVoteCounts[pid] || 0;
-                  if (count >= 5) {
-                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-                    return;
-                  }
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  if (count === 4) {
-                    playVoteSound2();
-                  }
-                  voteForPersona(pid);
-                } else {
-                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                if (!currentSpeaker || currentSpeaker !== pid) return;
+                const count = speakerVoteCounts[pid] || 0;
+                if (count >= 5) {
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                  return;
                 }
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                if (count === 4) {
+                  playVoteSound2();
+                }
+                voteForPersona(pid);
               }}
               onLongPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -2752,6 +2749,7 @@ export default function ArenaScreen() {
                 { borderColor: p.color },
                 isSpeaking && { borderColor: "#FFD700", borderWidth: 3 },
                 isFocused && { transform: [{ scale: 1.1 }] },
+                currentSpeaker && !isSpeaking && { opacity: 0.35 },
               ]}
             >
               {p.image ? (
