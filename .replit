@@ -79,7 +79,7 @@ outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "npm run expo:dev"
+args = "node scripts/frontend-keepalive.js"
 waitForPort = 8081
 
 [userenv]

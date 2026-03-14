@@ -69,7 +69,7 @@ const metroEnv = {
   ...process.env,
   EXPO_PACKAGER_PROXY_URL: `https://${process.env.REPLIT_DEV_DOMAIN}`,
   REACT_NATIVE_PACKAGER_HOSTNAME: process.env.REPLIT_DEV_DOMAIN,
-  EXPO_PUBLIC_DOMAIN: `${process.env.REPLIT_DEV_DOMAIN}:5000`,
+  EXPO_PUBLIC_DOMAIN: `${process.env.REPLIT_DEV_DOMAIN}`,
 };
 
 const metro = spawn("npx", ["expo", "start", "--localhost", "--port", String(METRO_PORT)], {
