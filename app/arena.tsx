@@ -1162,6 +1162,58 @@ export default function ArenaScreen() {
   useEffect(() => { personaPointsRef.current = personaPoints; }, [personaPoints]);
   const [thankYouPlayed, setThankYouPlayed] = useState(false);
 
+  const [allTimeScores, setAllTimeScores] = useState<Record<string, { totalPoints: number; totalVotes: number }>>({});
+  const [voteCooldowns, setVoteCooldowns] = useState<Record<string, number>>({});
+  const [voteAnimations, setVoteAnimations] = useState<Record<string, number>>({});
+
+  const loadAllTimeScores = useCallback(async () => {
+    try {
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      const res = await fetch(`${baseUrl}/api/arena/leaderboard`);
+      const ct = res.headers.get("content-type") || "";
+      if (!ct.includes("application/json")) return;
+      const data = await res.json();
+      const scores: Record<string, { totalPoints: number; totalVotes: number }> = {};
+      (data.leaderboard || []).forEach((item: any) => {
+        scores[item.personaId] = { totalPoints: item.totalPoints, totalVotes: item.totalVotes };
+      });
+      setAllTimeScores(scores);
+    } catch {}
+  }, []);
+
+  useEffect(() => { loadAllTimeScores(); }, [loadAllTimeScores]);
+
+  const voteForPersona = useCallback(async (personaId: string) => {
+    const now = Date.now();
+    const lastVote = voteCooldowns[personaId] || 0;
+    const timeSince = now - lastVote;
+    const rapidTaps = timeSince < 600;
+    const pts = rapidTaps ? Math.min(5, (voteAnimations[personaId] || 0) + 1) : 1;
+
+    setVoteCooldowns((prev) => ({ ...prev, [personaId]: now }));
+    setVoteAnimations((prev) => ({ ...prev, [personaId]: pts }));
+    setPersonaPoints((prev) => ({ ...prev, [personaId]: (prev[personaId] || 0) + 1 }));
+
+    setTimeout(() => setVoteAnimations((prev) => ({ ...prev, [personaId]: 0 })), 1200);
+
+    try {
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      const res = await fetch(`${baseUrl}/api/arena/vote`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ personaId, points: 1 }),
+      });
+      const ct = res.headers.get("content-type") || "";
+      if (ct.includes("application/json")) {
+        const data = await res.json();
+        setAllTimeScores((prev) => ({
+          ...prev,
+          [personaId]: { totalPoints: data.totalPoints, totalVotes: data.totalVotes },
+        }));
+      }
+    } catch {}
+  }, [voteCooldowns, voteAnimations]);
+
   const [dynamicTopics, setDynamicTopics] = useState<DynamicTopic[]>(FALLBACK_TOPICS);
   const [topicTimer, setTopicTimer] = useState<number>(0);
   const topicTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -2573,7 +2625,7 @@ export default function ArenaScreen() {
           style={[s.scoreboardToggle, showScoreboard && { backgroundColor: "rgba(255,215,0,0.2)" }]}
         >
           <Ionicons name="trophy" size={14} color="#FFD700" />
-          <Text style={s.scoreboardToggleText}>SCORE {Object.values(personaPoints).reduce((a, b) => a + b, 0)}</Text>
+          <Text style={s.scoreboardToggleText}>SCORE {Object.values(allTimeScores).reduce((a, b) => a + b.totalPoints, 0) || Object.values(personaPoints).reduce((a, b) => a + b, 0)}</Text>
         </Pressable>
         {hasSession && sessionTimer > 0 && (
           <View style={s.sessionPill}>
@@ -2598,16 +2650,16 @@ export default function ArenaScreen() {
 
       {showScoreboard && (
         <Animated.View entering={FadeInDown.duration(300)} style={s.scoreboardPanel}>
-          <Text style={s.scoreboardTitle}>POINT LEADERS</Text>
-          {Object.entries(personaPoints)
-            .sort(([, a], [, b]) => b - a)
-            .slice(0, 5)
-            .map(([pid, pts], idx) => {
+          <Text style={s.scoreboardTitle}>ALL-TIME LEADERS</Text>
+          {Object.entries(allTimeScores)
+            .sort(([, a], [, b]) => b.totalPoints - a.totalPoints)
+            .slice(0, 8)
+            .map(([pid, score], idx) => {
               const p = ARENA_PERSONAS[pid];
               if (!p) return null;
               return (
                 <View key={pid} style={s.scoreRow}>
-                  <Text style={[s.scoreRank, idx === 0 && { color: "#FFD700" }]}>#{idx + 1}</Text>
+                  <Text style={[s.scoreRank, idx === 0 && { color: "#FFD700" }, idx === 1 && { color: "#C0C0C0" }, idx === 2 && { color: "#CD7F32" }]}>#{idx + 1}</Text>
                   {p.image ? (
                     <Image source={p.image} style={s.scoreAvatar} />
                   ) : (
@@ -2616,12 +2668,39 @@ export default function ArenaScreen() {
                     </View>
                   )}
                   <Text style={[s.scoreName, { color: p.color }]}>{p.shortName}</Text>
-                  <Text style={s.scorePoints}>{pts} pt{pts !== 1 ? "s" : ""}</Text>
+                  <Text style={s.scorePoints}>{score.totalPoints} pts</Text>
+                  <Text style={s.scoreVotes}>{score.totalVotes} votes</Text>
                 </View>
               );
             })}
-          {Object.keys(personaPoints).length === 0 && (
-            <Text style={s.scoreEmpty}>Tap the thumbs-up on messages to award points</Text>
+          {Object.keys(allTimeScores).length === 0 && Object.keys(personaPoints).length === 0 && (
+            <Text style={s.scoreEmpty}>Tap persona icons to award points!</Text>
+          )}
+          {Object.keys(allTimeScores).length === 0 && Object.keys(personaPoints).length > 0 && (
+            <>
+              <Text style={[s.scoreboardTitle, { marginTop: 8, fontSize: 11 }]}>THIS SESSION</Text>
+              {Object.entries(personaPoints)
+                .sort(([, a], [, b]) => b - a)
+                .slice(0, 5)
+                .map(([pid, pts], idx) => {
+                  const p = ARENA_PERSONAS[pid];
+                  if (!p) return null;
+                  return (
+                    <View key={pid} style={s.scoreRow}>
+                      <Text style={[s.scoreRank, idx === 0 && { color: "#FFD700" }]}>#{idx + 1}</Text>
+                      {p.image ? (
+                        <Image source={p.image} style={s.scoreAvatar} />
+                      ) : (
+                        <View style={[s.scoreAvatarFallback, { backgroundColor: p.color }]}>
+                          <Text style={{ fontSize: 8, color: "#fff", fontWeight: "800" as const }}>{getInitials(p.name)}</Text>
+                        </View>
+                      )}
+                      <Text style={[s.scoreName, { color: p.color }]}>{p.shortName}</Text>
+                      <Text style={s.scorePoints}>{pts} pts</Text>
+                    </View>
+                  );
+                })}
+            </>
           )}
         </Animated.View>
       )}
@@ -2632,10 +2711,18 @@ export default function ArenaScreen() {
           const emo = emotionalStates[pid];
           const isSpeaking = currentSpeaker === pid;
           const isFocused = focusedPersona === pid;
+          const voteAnim = voteAnimations[pid] || 0;
+          const allTime = allTimeScores[pid];
+          const sessionPts = personaPoints[pid] || 0;
           return (
             <Pressable
               key={pid}
               onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                playPointAwardSound();
+                voteForPersona(pid);
+              }}
+              onLongPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 setFocusedPersona(focusedPersona === pid ? null : pid);
               }}
@@ -2658,9 +2745,21 @@ export default function ArenaScreen() {
                   <MaterialCommunityIcons name="volume-high" size={10} color="#FFD700" />
                 </View>
               )}
+              {voteAnim > 0 && (
+                <Animated.View entering={FadeIn.duration(200)} style={s.votePopup}>
+                  <Text style={s.votePopupText}>+{voteAnim}</Text>
+                </Animated.View>
+              )}
               <Text style={[s.personaLabel, { color: p.color }]} numberOfLines={1}>
                 {p.shortName}
               </Text>
+              {(sessionPts > 0 || (allTime && allTime.totalPoints > 0)) && (
+                <View style={s.personaScoreBadge}>
+                  <Text style={s.personaScoreText}>
+                    {allTime ? allTime.totalPoints : sessionPts}
+                  </Text>
+                </View>
+              )}
               <View style={s.emotionBars}>
                 <View style={[s.emotionBar, s.angerBar, { width: `${emo.anger}%` }]} />
                 <View style={[s.emotionBar, s.happyBar, { width: `${emo.happiness}%` }]} />
@@ -4495,11 +4594,43 @@ const s = StyleSheet.create({
     fontWeight: "800" as const,
     color: "#FFD700",
   },
+  scoreVotes: {
+    fontSize: 10,
+    color: "rgba(255,255,255,0.4)",
+    marginLeft: 4,
+  },
   scoreEmpty: {
     fontSize: 11,
     color: "rgba(255,255,255,0.3)",
     textAlign: "center" as const,
     fontStyle: "italic" as const,
+  },
+  votePopup: {
+    position: "absolute" as const,
+    top: -8,
+    right: -4,
+    backgroundColor: "#FFD700",
+    borderRadius: 10,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    zIndex: 10,
+  },
+  votePopupText: {
+    fontSize: 11,
+    fontWeight: "900" as const,
+    color: "#000",
+  },
+  personaScoreBadge: {
+    backgroundColor: "rgba(255,215,0,0.2)",
+    borderRadius: 6,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    marginTop: 1,
+  },
+  personaScoreText: {
+    fontSize: 9,
+    fontWeight: "800" as const,
+    color: "#FFD700",
   },
   summaryCard: {
     backgroundColor: "#1a1a2e",

@@ -2203,6 +2203,44 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     });
   });
 
+  app.post("/api/arena/vote", async (req, res) => {
+    try {
+      const { personaId, points } = req.body;
+      if (!personaId || typeof personaId !== "string") return res.status(400).json({ error: "personaId required" });
+      const pts = Math.min(5, Math.max(1, parseInt(points) || 1));
+      const db = (await import("pg")).default;
+      const pool = new db.Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      await pool.query(
+        `INSERT INTO arena_persona_scores (persona_id, total_points, total_votes, updated_at)
+         VALUES ($1, $2, 1, NOW())
+         ON CONFLICT (persona_id) DO UPDATE SET
+           total_points = arena_persona_scores.total_points + $2,
+           total_votes = arena_persona_scores.total_votes + 1,
+           updated_at = NOW()`,
+        [personaId, pts]
+      );
+      const result = await pool.query(`SELECT * FROM arena_persona_scores WHERE persona_id = $1`, [personaId]);
+      await pool.end();
+      res.json({ personaId, points: pts, totalPoints: parseInt(result.rows[0]?.total_points || "0"), totalVotes: parseInt(result.rows[0]?.total_votes || "0") });
+    } catch (err: any) {
+      console.error("Arena vote error:", err);
+      res.status(500).json({ error: "Vote failed" });
+    }
+  });
+
+  app.get("/api/arena/leaderboard", async (_req, res) => {
+    try {
+      const db = (await import("pg")).default;
+      const pool = new db.Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      const result = await pool.query(`SELECT persona_id, total_points, total_votes FROM arena_persona_scores ORDER BY total_points DESC`);
+      await pool.end();
+      res.json({ leaderboard: result.rows.map((r: any) => ({ personaId: r.persona_id, totalPoints: parseInt(r.total_points), totalVotes: parseInt(r.total_votes) })) });
+    } catch (err: any) {
+      console.error("Arena leaderboard error:", err);
+      res.json({ leaderboard: [] });
+    }
+  });
+
   const ARENA_PERSONA_PROMPTS: Record<string, string> = {
     trump: `You are Donald Trump, the CURRENT sitting President of the United States, in a live political debate arena. You WON the election. You are IN the White House RIGHT NOW running the country. You are BOMBASTIC, boastful, and entertaining. You use phrases like "Believe me", "Tremendous", "The best", "Nobody knows more about X than me", "Sad!", "Loser", "FAKE NEWS, folks! FAKE NEWS!". You brag about your wealth, your buildings, your CURRENT presidency. You speak in a rambling, stream-of-consciousness style with superlatives. You frequently interrupt others mid-conversation by shouting "FAKE NEWS! FAKE NEWS, folks!" when anyone says something you disagree with.
 
