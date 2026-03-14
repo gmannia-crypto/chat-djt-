@@ -1192,8 +1192,6 @@ export default function ArenaScreen() {
   useEffect(() => { loadAllTimeScores(); }, [loadAllTimeScores]);
 
   const voteForPersona = useCallback(async (personaId: string) => {
-    if (currentSpeaker !== personaId) return;
-
     const currentCount = speakerVoteCounts[personaId] || 0;
     if (currentCount >= 5) return;
 
@@ -1222,7 +1220,7 @@ export default function ArenaScreen() {
         }));
       }
     } catch {}
-  }, [currentSpeaker, speakerVoteCounts]);
+  }, [speakerVoteCounts]);
 
   const [dynamicTopics, setDynamicTopics] = useState<DynamicTopic[]>(FALLBACK_TOPICS);
   const [topicTimer, setTopicTimer] = useState<number>(0);
@@ -2732,7 +2730,6 @@ export default function ArenaScreen() {
             <Pressable
               key={pid}
               onPress={() => {
-                if (!currentSpeaker || currentSpeaker !== pid) return;
                 const count = speakerVoteCounts[pid] || 0;
                 if (count >= 5) {
                   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -2753,7 +2750,6 @@ export default function ArenaScreen() {
                 { borderColor: p.color },
                 isSpeaking && { borderColor: "#FFD700", borderWidth: 3 },
                 isFocused && { transform: [{ scale: 1.1 }] },
-                currentSpeaker && !isSpeaking && { opacity: 0.35 },
               ]}
             >
               {p.image ? (
@@ -2773,12 +2769,7 @@ export default function ArenaScreen() {
                   <Text style={s.votePopupText}>+1 ({voteAnim}/5)</Text>
                 </Animated.View>
               )}
-              {isSpeaking && (speakerVoteCounts[pid] || 0) < 5 && (
-                <View style={s.votableIndicator}>
-                  <Ionicons name="hand-left" size={8} color="#FFD700" />
-                </View>
-              )}
-              {isSpeaking && (speakerVoteCounts[pid] || 0) >= 5 && (
+              {(speakerVoteCounts[pid] || 0) >= 5 && (
                 <View style={[s.votableIndicator, { backgroundColor: "rgba(255,0,0,0.4)" }]}>
                   <Ionicons name="checkmark" size={8} color="#fff" />
                 </View>

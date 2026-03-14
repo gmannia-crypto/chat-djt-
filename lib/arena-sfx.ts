@@ -30,26 +30,18 @@ function playWebTone(frequency: number, duration: number, type: OscillatorType =
   } catch {}
 }
 
-let cachedVoteClickSound: Audio.Sound | null = null;
-let cachedVoteSound2: Audio.Sound | null = null;
-
-async function playSoundFile(urlPath: string, cached: Audio.Sound | null, volume = 0.7): Promise<Audio.Sound | null> {
+async function playSoundFile(urlPath: string, volume = 0.7): Promise<Audio.Sound | null> {
   try {
-    if (cached) {
-      try {
-        const status = await cached.getStatusAsync();
-        if (status.isLoaded) {
-          await cached.setPositionAsync(0);
-          await cached.playAsync();
-          return cached;
-        }
-      } catch {}
-    }
     const baseUrl = getApiUrl().replace(/\/$/, "");
     const { sound } = await Audio.Sound.createAsync(
       { uri: `${baseUrl}${urlPath}` },
       { shouldPlay: true, volume }
     );
+    sound.setOnPlaybackStatusUpdate((status) => {
+      if (status.isLoaded && status.didJustFinish) {
+        sound.unloadAsync().catch(() => {});
+      }
+    });
     return sound;
   } catch {
     return null;
@@ -60,7 +52,7 @@ export async function playVoteClickSound() {
   if (Platform.OS === "web") {
     try {
       const baseUrl = getApiUrl().replace(/\/$/, "");
-      const audio = new window.Audio(`${baseUrl}/public/vote-click.mp4`);
+      const audio = new window.Audio(`${baseUrl}/public/vote-click.m4a`);
       audio.volume = 0.7;
       audio.play().catch(() => {
         playWebTone(880, 0.08, "sine", 0.35);
@@ -71,7 +63,7 @@ export async function playVoteClickSound() {
       setTimeout(() => playWebTone(1320, 0.12, "sine", 0.3), 60);
     }
   } else {
-    cachedVoteClickSound = await playSoundFile("/public/vote-click.mp4", cachedVoteClickSound);
+    await playSoundFile("/public/vote-click.m4a");
   }
 }
 
@@ -79,7 +71,7 @@ export async function playVoteSound2() {
   if (Platform.OS === "web") {
     try {
       const baseUrl = getApiUrl().replace(/\/$/, "");
-      const audio = new window.Audio(`${baseUrl}/public/vote-sound2.mp4`);
+      const audio = new window.Audio(`${baseUrl}/public/vote-sound2.m4a`);
       audio.volume = 0.7;
       audio.play().catch(() => {
         playWebTone(523, 0.3, "sine", 0.3);
@@ -88,7 +80,7 @@ export async function playVoteSound2() {
       playWebTone(523, 0.3, "sine", 0.3);
     }
   } else {
-    cachedVoteSound2 = await playSoundFile("/public/vote-sound2.mp4", cachedVoteSound2);
+    await playSoundFile("/public/vote-sound2.m4a");
   }
 }
 
@@ -163,19 +155,16 @@ export async function playPointAwardSound() {
   return playVoteClickSound();
 }
 
-let cachedWinnerSound: Audio.Sound | null = null;
-let cachedWinnerAfterSound: Audio.Sound | null = null;
-
 export async function playWinnerChosenSound() {
   if (Platform.OS === "web") {
     try {
       const baseUrl = getApiUrl().replace(/\/$/, "");
-      const audio = new window.Audio(`${baseUrl}/public/winner-chosen.mp4`);
+      const audio = new window.Audio(`${baseUrl}/public/winner-chosen.m4a`);
       audio.volume = 0.8;
       audio.play().catch(() => {});
     } catch {}
   } else {
-    cachedWinnerSound = await playSoundFile("/public/winner-chosen.mp4", cachedWinnerSound, 0.8);
+    await playSoundFile("/public/winner-chosen.m4a", 0.8);
   }
 }
 
@@ -183,12 +172,12 @@ export async function playWinnerAfterSound() {
   if (Platform.OS === "web") {
     try {
       const baseUrl = getApiUrl().replace(/\/$/, "");
-      const audio = new window.Audio(`${baseUrl}/public/winner-after.mp4`);
+      const audio = new window.Audio(`${baseUrl}/public/winner-after.m4a`);
       audio.volume = 0.8;
       audio.play().catch(() => {});
     } catch {}
   } else {
-    cachedWinnerAfterSound = await playSoundFile("/public/winner-after.mp4", cachedWinnerAfterSound, 0.8);
+    await playSoundFile("/public/winner-after.m4a", 0.8);
   }
 }
 
