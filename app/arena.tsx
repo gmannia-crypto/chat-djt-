@@ -2735,6 +2735,9 @@ export default function ArenaScreen() {
                     return;
                   }
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  if (count === 4) {
+                    playVoteSound2();
+                  }
                   voteForPersona(pid);
                 } else {
                   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
