@@ -425,6 +425,7 @@ function configureExpoAndLanding(app: express.Application) {
 
   app.use("/assets", express.static(path.resolve(process.cwd(), "assets")));
   app.use("/server/assets", express.static(path.resolve(process.cwd(), "server", "assets")));
+  app.use("/public", express.static(path.resolve(process.cwd(), "server", "public")));
   app.use("/js", express.static(path.resolve(process.cwd(), "server", "templates", "js")));
   app.use(express.static(path.resolve(process.cwd(), "static-build")));
 

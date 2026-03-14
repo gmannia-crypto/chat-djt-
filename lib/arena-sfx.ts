@@ -1,5 +1,6 @@
 import { Platform } from "react-native";
 import { Audio } from "expo-av";
+import { getApiUrl } from "@/lib/query-client";
 
 let audioContextWeb: AudioContext | null = null;
 
@@ -29,6 +30,68 @@ function playWebTone(frequency: number, duration: number, type: OscillatorType =
   } catch {}
 }
 
+let cachedVoteClickSound: Audio.Sound | null = null;
+let cachedVoteSound2: Audio.Sound | null = null;
+
+async function playSoundFile(urlPath: string, cached: Audio.Sound | null, volume = 0.7): Promise<Audio.Sound | null> {
+  try {
+    if (cached) {
+      try {
+        const status = await cached.getStatusAsync();
+        if (status.isLoaded) {
+          await cached.setPositionAsync(0);
+          await cached.playAsync();
+          return cached;
+        }
+      } catch {}
+    }
+    const baseUrl = getApiUrl().replace(/\/$/, "");
+    const { sound } = await Audio.Sound.createAsync(
+      { uri: `${baseUrl}${urlPath}` },
+      { shouldPlay: true, volume }
+    );
+    return sound;
+  } catch {
+    return null;
+  }
+}
+
+export async function playVoteClickSound() {
+  if (Platform.OS === "web") {
+    try {
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      const audio = new window.Audio(`${baseUrl}/public/vote-click.mp4`);
+      audio.volume = 0.7;
+      audio.play().catch(() => {
+        playWebTone(880, 0.08, "sine", 0.35);
+        setTimeout(() => playWebTone(1320, 0.12, "sine", 0.3), 60);
+      });
+    } catch {
+      playWebTone(880, 0.08, "sine", 0.35);
+      setTimeout(() => playWebTone(1320, 0.12, "sine", 0.3), 60);
+    }
+  } else {
+    cachedVoteClickSound = await playSoundFile("/public/vote-click.mp4", cachedVoteClickSound);
+  }
+}
+
+export async function playVoteSound2() {
+  if (Platform.OS === "web") {
+    try {
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      const audio = new window.Audio(`${baseUrl}/public/vote-sound2.mp4`);
+      audio.volume = 0.7;
+      audio.play().catch(() => {
+        playWebTone(523, 0.3, "sine", 0.3);
+      });
+    } catch {
+      playWebTone(523, 0.3, "sine", 0.3);
+    }
+  } else {
+    cachedVoteSound2 = await playSoundFile("/public/vote-sound2.mp4", cachedVoteSound2);
+  }
+}
+
 export async function playDingSound() {
   if (Platform.OS === "web") {
     playWebTone(1200, 0.15, "sine", 0.4);
@@ -48,7 +111,6 @@ export async function playDingSound() {
 
 export async function playBellSound() {
   if (Platform.OS === "web") {
-    const ctx = getWebAudioContext();
     try {
       const bellFreqs = [800, 1000, 1200, 1500];
       for (let i = 0; i < 3; i++) {
@@ -73,7 +135,6 @@ export async function playBellSound() {
 export async function playCrowdCheer() {
   if (Platform.OS === "web") {
     try {
-      const ctx = getWebAudioContext();
       for (let i = 0; i < 8; i++) {
         setTimeout(() => {
           const freq = 300 + Math.random() * 400;
@@ -99,15 +160,7 @@ export async function playCrowdCheer() {
 }
 
 export async function playPointAwardSound() {
-  if (Platform.OS === "web") {
-    playWebTone(880, 0.08, "sine", 0.35);
-    setTimeout(() => playWebTone(1320, 0.12, "sine", 0.3), 60);
-    setTimeout(() => playWebTone(1760, 0.15, "sine", 0.25), 120);
-  } else {
-    try {
-      await playDingSound();
-    } catch {}
-  }
+  return playVoteClickSound();
 }
 
 export async function playDrumroll() {

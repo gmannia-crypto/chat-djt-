@@ -24,7 +24,7 @@ import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system";
 import { getApiUrl } from "@/lib/query-client";
 import { playTTS, playAudioFromUrl } from "@/lib/audio-helper";
-import { playPointAwardSound, playBellSound, playCrowdCheer, playDrumroll } from "@/lib/arena-sfx";
+import { playPointAwardSound, playVoteClickSound, playVoteSound2, playBellSound, playCrowdCheer, playDrumroll } from "@/lib/arena-sfx";
 import { useTokens } from "@/lib/token-context";
 import {
   saveRecording,
@@ -1163,8 +1163,16 @@ export default function ArenaScreen() {
   const [thankYouPlayed, setThankYouPlayed] = useState(false);
 
   const [allTimeScores, setAllTimeScores] = useState<Record<string, { totalPoints: number; totalVotes: number }>>({});
-  const [voteCooldowns, setVoteCooldowns] = useState<Record<string, number>>({});
+  const [speakerVoteCounts, setSpeakerVoteCounts] = useState<Record<string, number>>({});
   const [voteAnimations, setVoteAnimations] = useState<Record<string, number>>({});
+  const [lastSpeakerId, setLastSpeakerId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (currentSpeaker && currentSpeaker !== lastSpeakerId) {
+      setSpeakerVoteCounts((prev) => ({ ...prev, [currentSpeaker]: 0 }));
+      setLastSpeakerId(currentSpeaker);
+    }
+  }, [currentSpeaker, lastSpeakerId]);
 
   const loadAllTimeScores = useCallback(async () => {
     try {
@@ -1184,15 +1192,17 @@ export default function ArenaScreen() {
   useEffect(() => { loadAllTimeScores(); }, [loadAllTimeScores]);
 
   const voteForPersona = useCallback(async (personaId: string) => {
-    const now = Date.now();
-    const lastVote = voteCooldowns[personaId] || 0;
-    const timeSince = now - lastVote;
-    const rapidTaps = timeSince < 600;
-    const pts = rapidTaps ? Math.min(5, (voteAnimations[personaId] || 0) + 1) : 1;
+    if (currentSpeaker !== personaId) return;
 
-    setVoteCooldowns((prev) => ({ ...prev, [personaId]: now }));
-    setVoteAnimations((prev) => ({ ...prev, [personaId]: pts }));
+    const currentCount = speakerVoteCounts[personaId] || 0;
+    if (currentCount >= 5) return;
+
+    const newCount = currentCount + 1;
+    setSpeakerVoteCounts((prev) => ({ ...prev, [personaId]: newCount }));
+    setVoteAnimations((prev) => ({ ...prev, [personaId]: newCount }));
     setPersonaPoints((prev) => ({ ...prev, [personaId]: (prev[personaId] || 0) + 1 }));
+
+    playVoteClickSound();
 
     setTimeout(() => setVoteAnimations((prev) => ({ ...prev, [personaId]: 0 })), 1200);
 
@@ -1212,7 +1222,7 @@ export default function ArenaScreen() {
         }));
       }
     } catch {}
-  }, [voteCooldowns, voteAnimations]);
+  }, [currentSpeaker, speakerVoteCounts]);
 
   const [dynamicTopics, setDynamicTopics] = useState<DynamicTopic[]>(FALLBACK_TOPICS);
   const [topicTimer, setTopicTimer] = useState<number>(0);
@@ -2718,9 +2728,17 @@ export default function ArenaScreen() {
             <Pressable
               key={pid}
               onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                playPointAwardSound();
-                voteForPersona(pid);
+                if (currentSpeaker === pid) {
+                  const count = speakerVoteCounts[pid] || 0;
+                  if (count >= 5) {
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                    return;
+                  }
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  voteForPersona(pid);
+                } else {
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                }
               }}
               onLongPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -2747,8 +2765,18 @@ export default function ArenaScreen() {
               )}
               {voteAnim > 0 && (
                 <Animated.View entering={FadeIn.duration(200)} style={s.votePopup}>
-                  <Text style={s.votePopupText}>+{voteAnim}</Text>
+                  <Text style={s.votePopupText}>+1 ({voteAnim}/5)</Text>
                 </Animated.View>
+              )}
+              {isSpeaking && (speakerVoteCounts[pid] || 0) < 5 && (
+                <View style={s.votableIndicator}>
+                  <Ionicons name="hand-left" size={8} color="#FFD700" />
+                </View>
+              )}
+              {isSpeaking && (speakerVoteCounts[pid] || 0) >= 5 && (
+                <View style={[s.votableIndicator, { backgroundColor: "rgba(255,0,0,0.4)" }]}>
+                  <Ionicons name="checkmark" size={8} color="#fff" />
+                </View>
               )}
               <Text style={[s.personaLabel, { color: p.color }]} numberOfLines={1}>
                 {p.shortName}
@@ -4631,6 +4659,17 @@ const s = StyleSheet.create({
     fontSize: 9,
     fontWeight: "800" as const,
     color: "#FFD700",
+  },
+  votableIndicator: {
+    position: "absolute" as const,
+    bottom: 18,
+    right: -2,
+    backgroundColor: "rgba(255,215,0,0.3)",
+    borderRadius: 8,
+    width: 16,
+    height: 16,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
   },
   summaryCard: {
     backgroundColor: "#1a1a2e",
