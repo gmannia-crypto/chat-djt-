@@ -1747,18 +1747,23 @@ export default function ArenaScreen() {
         });
 
         if (res.status === 403) {
-          const errData = await res.json();
-          if (errData.error === "arena_locked") {
-            setFreeRemaining(0);
-            setShowPaywall(true);
-            setIsRunning(false);
-            isRunningRef.current = false;
-            if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
-            return;
+          const errCt = res.headers.get("content-type") || "";
+          if (errCt.includes("application/json")) {
+            const errData = await res.json();
+            if (errData.error === "arena_locked") {
+              setFreeRemaining(0);
+              setShowPaywall(true);
+              setIsRunning(false);
+              isRunningRef.current = false;
+              if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
+              return;
+            }
           }
         }
 
         if (!res.ok || !mountedRef.current) return;
+        const ct = res.headers.get("content-type") || "";
+        if (!ct.includes("application/json")) return;
         const data = await res.json();
         const persona = ARENA_PERSONAS[responderId];
 
@@ -1777,7 +1782,7 @@ export default function ArenaScreen() {
         updateEmotions(responderId, toSpeakerId);
         queueTTS(data.response, responderId);
       } catch (err) {
-        console.error("Arena AI error:", err);
+        console.warn("Arena AI error:", err);
       } finally {
         if (mountedRef.current) {
           setCurrentSpeaker(null);

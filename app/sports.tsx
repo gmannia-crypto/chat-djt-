@@ -1176,7 +1176,7 @@ export default function SportsScreen() {
         resolveCompletedPicks(newResults);
       }
     } catch (err) {
-      console.error("Sports fetch error:", err);
+      console.warn("Sports fetch error:", err);
       if (mountedRef.current) setGames([]);
     } finally {
       if (mountedRef.current) setLoading(false);

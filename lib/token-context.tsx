@@ -53,11 +53,15 @@ export function TokenProvider({ children }: { children: ReactNode }) {
         headers: { "x-device-id": deviceId },
       });
       if (res.ok) {
+        const contentType = res.headers.get("content-type") || "";
+        if (!contentType.includes("application/json")) {
+          return;
+        }
         const data = await res.json();
         setBalance(data);
       }
     } catch (err) {
-      console.error("Failed to refresh token balance:", err);
+      console.warn("Token balance fetch skipped:", err?.toString?.()?.substring(0, 80));
     } finally {
       setIsLoading(false);
     }
