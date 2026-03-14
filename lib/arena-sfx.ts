@@ -3,6 +3,22 @@ import { Audio } from "expo-av";
 import { getApiUrl } from "@/lib/query-client";
 
 let audioContextWeb: AudioContext | null = null;
+let audioModeConfigured = false;
+
+async function ensureAudioMode() {
+  if (audioModeConfigured || Platform.OS === "web") return;
+  try {
+    await Audio.setAudioModeAsync({
+      allowsRecordingIOS: false,
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: false,
+      shouldDuckAndroid: true,
+    });
+    audioModeConfigured = true;
+  } catch (e) {
+    console.warn("Failed to set audio mode:", e);
+  }
+}
 
 function getWebAudioContext(): AudioContext {
   if (!audioContextWeb || audioContextWeb.state === "closed") {
@@ -30,58 +46,83 @@ function playWebTone(frequency: number, duration: number, type: OscillatorType =
   } catch {}
 }
 
-async function playSoundFile(urlPath: string, volume = 0.7): Promise<Audio.Sound | null> {
+function playWebAudio(urlPath: string, volume = 0.7) {
   try {
     const baseUrl = getApiUrl().replace(/\/$/, "");
-    const { sound } = await Audio.Sound.createAsync(
-      { uri: `${baseUrl}${urlPath}` },
-      { shouldPlay: true, volume }
-    );
-    sound.setOnPlaybackStatusUpdate((status) => {
-      if (status.isLoaded && status.didJustFinish) {
-        sound.unloadAsync().catch(() => {});
-      }
-    });
-    return sound;
-  } catch {
-    return null;
+    const audio = new window.Audio(`${baseUrl}${urlPath}`);
+    audio.volume = volume;
+    audio.play().catch((e) => console.warn("Web audio play failed:", e));
+  } catch (e) {
+    console.warn("Web audio error:", e);
   }
+}
+
+async function playNativeSound(urlPath: string, volume = 0.7): Promise<void> {
+  await ensureAudioMode();
+  const baseUrl = getApiUrl().replace(/\/$/, "");
+  const uri = `${baseUrl}${urlPath}`;
+  console.log("SFX: loading", uri);
+  const { sound } = await Audio.Sound.createAsync(
+    { uri },
+    { shouldPlay: true, volume }
+  );
+  sound.setOnPlaybackStatusUpdate((status) => {
+    if (status.isLoaded && status.didJustFinish) {
+      sound.unloadAsync().catch(() => {});
+    }
+  });
 }
 
 export async function playVoteClickSound() {
   if (Platform.OS === "web") {
-    try {
-      const baseUrl = getApiUrl().replace(/\/$/, "");
-      const audio = new window.Audio(`${baseUrl}/public/vote-click.m4a`);
-      audio.volume = 0.7;
-      audio.play().catch(() => {
-        playWebTone(880, 0.08, "sine", 0.35);
-        setTimeout(() => playWebTone(1320, 0.12, "sine", 0.3), 60);
-      });
-    } catch {
-      playWebTone(880, 0.08, "sine", 0.35);
-      setTimeout(() => playWebTone(1320, 0.12, "sine", 0.3), 60);
-    }
+    playWebAudio("/public/vote-click.m4a", 0.7);
   } else {
-    await playSoundFile("/public/vote-click.m4a");
+    try {
+      await playNativeSound("/public/vote-click.m4a", 0.7);
+    } catch (e) {
+      console.warn("SFX vote-click failed:", e);
+    }
   }
 }
 
 export async function playVoteSound2() {
   if (Platform.OS === "web") {
-    try {
-      const baseUrl = getApiUrl().replace(/\/$/, "");
-      const audio = new window.Audio(`${baseUrl}/public/vote-sound2.m4a`);
-      audio.volume = 0.7;
-      audio.play().catch(() => {
-        playWebTone(523, 0.3, "sine", 0.3);
-      });
-    } catch {
-      playWebTone(523, 0.3, "sine", 0.3);
-    }
+    playWebAudio("/public/vote-sound2.m4a", 0.7);
   } else {
-    await playSoundFile("/public/vote-sound2.m4a");
+    try {
+      await playNativeSound("/public/vote-sound2.m4a", 0.7);
+    } catch (e) {
+      console.warn("SFX vote-sound2 failed:", e);
+    }
   }
+}
+
+export async function playWinnerChosenSound() {
+  if (Platform.OS === "web") {
+    playWebAudio("/public/winner-chosen.m4a", 0.8);
+  } else {
+    try {
+      await playNativeSound("/public/winner-chosen.m4a", 0.8);
+    } catch (e) {
+      console.warn("SFX winner-chosen failed:", e);
+    }
+  }
+}
+
+export async function playWinnerAfterSound() {
+  if (Platform.OS === "web") {
+    playWebAudio("/public/winner-after.m4a", 0.8);
+  } else {
+    try {
+      await playNativeSound("/public/winner-after.m4a", 0.8);
+    } catch (e) {
+      console.warn("SFX winner-after failed:", e);
+    }
+  }
+}
+
+export async function playPointAwardSound() {
+  return playVoteClickSound();
 }
 
 export async function playDingSound() {
@@ -90,13 +131,9 @@ export async function playDingSound() {
     setTimeout(() => playWebTone(1600, 0.2, "sine", 0.3), 80);
   } else {
     try {
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQ==" },
-        { shouldPlay: true, volume: 0.5 }
-      );
-      setTimeout(() => sound.unloadAsync().catch(() => {}), 500);
-    } catch {
-      playWebTone(1200, 0.15, "sine", 0.4);
+      await playNativeSound("/public/vote-click.m4a", 0.5);
+    } catch (e) {
+      console.warn("SFX ding failed:", e);
     }
   }
 }
@@ -115,12 +152,15 @@ export async function playBellSound() {
     } catch {}
   } else {
     try {
+      await ensureAudioMode();
       const { sound } = await Audio.Sound.createAsync(
         { uri: "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQ==" },
         { shouldPlay: true, volume: 0.6 }
       );
       setTimeout(() => sound.unloadAsync().catch(() => {}), 2000);
-    } catch {}
+    } catch (e) {
+      console.warn("SFX bell failed:", e);
+    }
   }
 }
 
@@ -142,42 +182,10 @@ export async function playCrowdCheer() {
     } catch {}
   } else {
     try {
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQ==" },
-        { shouldPlay: true, volume: 0.5 }
-      );
-      setTimeout(() => sound.unloadAsync().catch(() => {}), 2000);
-    } catch {}
-  }
-}
-
-export async function playPointAwardSound() {
-  return playVoteClickSound();
-}
-
-export async function playWinnerChosenSound() {
-  if (Platform.OS === "web") {
-    try {
-      const baseUrl = getApiUrl().replace(/\/$/, "");
-      const audio = new window.Audio(`${baseUrl}/public/winner-chosen.m4a`);
-      audio.volume = 0.8;
-      audio.play().catch(() => {});
-    } catch {}
-  } else {
-    await playSoundFile("/public/winner-chosen.m4a", 0.8);
-  }
-}
-
-export async function playWinnerAfterSound() {
-  if (Platform.OS === "web") {
-    try {
-      const baseUrl = getApiUrl().replace(/\/$/, "");
-      const audio = new window.Audio(`${baseUrl}/public/winner-after.m4a`);
-      audio.volume = 0.8;
-      audio.play().catch(() => {});
-    } catch {}
-  } else {
-    await playSoundFile("/public/winner-after.m4a", 0.8);
+      await playNativeSound("/public/winner-chosen.m4a", 0.5);
+    } catch (e) {
+      console.warn("SFX crowd failed:", e);
+    }
   }
 }
 

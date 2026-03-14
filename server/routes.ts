@@ -499,7 +499,7 @@ async function fishAudioRequest(text: string, voiceId: string, speed: number, ap
   throw lastError || new Error("Fish Audio TTS failed after retries");
 }
 
-const TRUMP_FIRED_UP_VOICE_ID = "043eb839e3814ab783fab0311c4b02df";
+const TRUMP_FIRED_UP_VOICE_ID = "3aa02e39286a4b29a46bb2d59427bbc2";
 
 async function trumpTextToSpeech(text: string, speed: number = 1.0, mood: string = "CALM", speechCategory: string = "CASUAL_TALK"): Promise<Buffer> {
   const apiKey = process.env.FISH_AUDIO_API_KEY;
@@ -1797,7 +1797,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
   const NAV_VOICE_ID = "121b31844d2f451a9838b15e6a329002";
 
   const PERSONA_VOICE_IDS: Record<string, string> = {
-    trump: "043eb839e3814ab783fab0311c4b02df",
+    trump: "3aa02e39286a4b29a46bb2d59427bbc2",
     jordan: "6908d35f23754047acde93acf29fc749",
     bernie: "5cbb7b199c5a4b538bf1018e6341ebc4",
     musk: "759c82adcd8f4c129ae29dec9f772b7b",

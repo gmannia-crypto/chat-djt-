@@ -414,7 +414,7 @@ function configureExpoAndLanding(app: express.Application) {
         const freshTemplate = fs.readFileSync(templatePath, "utf-8");
         return serveLandingPage({ req, res, landingPageTemplate: freshTemplate, appName });
       }
-      if (req.path === "/server/assets" || req.path.startsWith("/server/assets/") || req.path.startsWith("/js/") || req.path.startsWith("/assets/")) {
+      if (req.path === "/server/assets" || req.path.startsWith("/server/assets/") || req.path.startsWith("/js/") || req.path.startsWith("/assets/") || req.path.startsWith("/public/")) {
         return next();
       }
       return proxyToMetro(req, res);
@@ -425,7 +425,19 @@ function configureExpoAndLanding(app: express.Application) {
 
   app.use("/assets", express.static(path.resolve(process.cwd(), "assets")));
   app.use("/server/assets", express.static(path.resolve(process.cwd(), "server", "assets")));
-  app.use("/public", express.static(path.resolve(process.cwd(), "server", "public")));
+  app.use("/public", express.static(path.resolve(process.cwd(), "server", "public"), {
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith(".m4a")) {
+        res.setHeader("Content-Type", "audio/mp4");
+      } else if (filePath.endsWith(".mp3")) {
+        res.setHeader("Content-Type", "audio/mpeg");
+      } else if (filePath.endsWith(".wav")) {
+        res.setHeader("Content-Type", "audio/wav");
+      } else if (filePath.endsWith(".mp4")) {
+        res.setHeader("Content-Type", "video/mp4");
+      }
+    },
+  }));
   app.use("/js", express.static(path.resolve(process.cwd(), "server", "templates", "js")));
   app.use(express.static(path.resolve(process.cwd(), "static-build")));
 
