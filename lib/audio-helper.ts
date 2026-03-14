@@ -1,5 +1,6 @@
-import { Platform } from "react-native";
+import { Platform, Alert } from "react-native";
 import { Audio } from "expo-av";
+import * as FileSystem from "expo-file-system";
 import { getApiUrl } from "@/lib/query-client";
 
 export async function playAudioFromUrl(
@@ -19,6 +20,8 @@ export async function playAudioFromUrl(
       try {
         const res = await globalThis.fetch(url);
         if (!res.ok) throw new Error(`Audio fetch failed: ${res.status}`);
+        const ct = res.headers.get("content-type") || "";
+        if (ct.includes("text/html")) throw new Error("Server returned HTML instead of audio");
         const blob = await res.blob();
         const reader = new FileReader();
         const dataUri = await new Promise<string>((resolve, reject) => {
@@ -52,6 +55,8 @@ export async function playAudioFromUrl(
       body: options.body ? JSON.stringify(options.body) : undefined,
     });
     if (!res.ok) throw new Error(`Audio fetch failed: ${res.status}`);
+    const ct = res.headers.get("content-type") || "";
+    if (ct.includes("text/html")) throw new Error("Server returned HTML instead of audio");
     const blob = await res.blob();
     const reader = new FileReader();
     const dataUri = await new Promise<string>((resolve, reject) => {
@@ -68,12 +73,31 @@ export async function playAudioFromUrl(
     return sound;
   }
 
+  const tempFile = `${FileSystem.cacheDirectory}tts_${Date.now()}.mp3`;
+  const download = await FileSystem.downloadAsync(url, tempFile);
+  if (download.status !== 200) {
+    await FileSystem.deleteAsync(tempFile, { idempotent: true });
+    throw new Error(`Audio fetch failed: ${download.status}`);
+  }
+  const dlHeaders = download.headers || {};
+  const dlCt = dlHeaders["content-type"] || dlHeaders["Content-Type"] || "";
+  if (dlCt.includes("text/html")) {
+    await FileSystem.deleteAsync(tempFile, { idempotent: true });
+    throw new Error("Server returned HTML instead of audio");
+  }
+
   const { sound } = await Audio.Sound.createAsync(
-    { uri: url },
+    { uri: tempFile },
     { shouldPlay: false, volume: vol, rate, shouldCorrectPitch: true }
   );
   await sound.setRateAsync(rate, true).catch(() => {});
   await sound.playAsync();
+
+  sound.setOnPlaybackStatusUpdate((status) => {
+    if ("didJustFinish" in status && status.didJustFinish) {
+      FileSystem.deleteAsync(tempFile, { idempotent: true }).catch(() => {});
+    }
+  });
 
   return sound;
 }

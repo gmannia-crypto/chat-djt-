@@ -513,7 +513,7 @@ export default function HomeScreen() {
       }
     } catch (e: any) {
       welcomePlayedRef.current = false;
-      Alert.alert("Audio issue", e?.message || String(e));
+      console.warn("Audio playback skipped:", e?.message || String(e));
     }
   }, []);
 
