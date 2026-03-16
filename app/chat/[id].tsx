@@ -1697,7 +1697,7 @@ export default function ChatScreen() {
           ListHeaderComponent={!isWeb && showTyping ? <TypingIndicator /> : null}
           ListFooterComponent={isWeb && showTyping ? <TypingIndicator /> : null}
           ListEmptyComponent={
-            <View style={[styles.welcomeContainer, !isWeb && styles.welcomeFlipped]}>
+            <View style={styles.welcomeContainer}>
               <Animated.View
                 entering={FadeInDown.duration(600)}
                 style={styles.welcomeInner}
