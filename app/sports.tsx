@@ -9,6 +9,7 @@ import {
   Image,
   Linking,
   ActivityIndicator,
+  Modal,
   type ImageSourcePropType,
 } from "react-native";
 import { router } from "expo-router";
@@ -40,6 +41,7 @@ import {
 } from "@/lib/bet-tally";
 import { TextInput } from "react-native";
 import { checkGameEndEvents, cleanupBuzzer } from "@/lib/game-buzzer";
+import { useTokens } from "@/lib/token-context";
 
 interface PlayerLeader {
   category: string;
@@ -1004,6 +1006,32 @@ export default function SportsScreen() {
   const [userName, setUserName] = useState("");
   const [nameEditing, setNameEditing] = useState(false);
   const { playClick, playTransition } = useSoundEffects();
+  const { deviceId } = useTokens();
+  const [allTimeStats, setAllTimeStats] = useState<{ persona_id: string; total_wins: number; total_losses: number; best_streak: number; players: number }[]>([]);
+  const [showAllTimeBoard, setShowAllTimeBoard] = useState(false);
+
+  const syncRecordsToDb = useCallback(async (t: Record<string, PersonaTally>) => {
+    if (!deviceId) return;
+    const records = Object.values(t).filter(r => (r.wins + r.losses) > 0);
+    if (records.length === 0) return;
+    try {
+      await fetch(new URL("/api/sports/record/save", getApiUrl()).toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+        body: JSON.stringify({ records }),
+      });
+    } catch {}
+  }, [deviceId]);
+
+  const fetchAllTimeLeaderboard = useCallback(async () => {
+    try {
+      const res = await fetch(new URL("/api/sports/record/leaderboard", getApiUrl()).toString());
+      if (res.ok) {
+        const data = await res.json();
+        setAllTimeStats(data.leaderboard || []);
+      }
+    } catch {}
+  }, []);
 
   const isRacingMode = selectedLeague === "RACING" || RACING_LEAGUES.includes(selectedLeague);
   const isSoccerMode = selectedLeague === "SOCCER";
@@ -1023,6 +1051,7 @@ export default function SportsScreen() {
     mountedRef.current = true;
     fetchGames();
     loadTallyData();
+    fetchAllTimeLeaderboard();
     getUserName().then((n) => { if (mountedRef.current) setUserName(n); });
     const timer = setInterval(() => {
       if (mountedRef.current) setCountdown(getCountdown());
@@ -1208,6 +1237,7 @@ export default function SportsScreen() {
       setTallies(t);
       setUserPicks(p);
       if (triggerTrashTalk) {
+        syncRecordsToDb(t);
         const tally = t[selectedPersona];
         if (tally && (tally.wins + tally.losses) > 0) {
           fetchTrashTalk(selectedPersona, tally);
@@ -1324,6 +1354,32 @@ export default function SportsScreen() {
     Linking.openURL(url).catch(() => {});
   };
 
+  const musicTracks = [
+    require("@/assets/prowling-dragon.mp3"),
+    require("@/assets/zdragon.mp3"),
+  ];
+  const musicTrackIndexRef = useRef(0);
+
+  const playNextTrack = async () => {
+    try {
+      const idx = musicTrackIndexRef.current;
+      const { sound } = await Audio.Sound.createAsync(
+        musicTracks[idx],
+        { shouldPlay: true, isLooping: false, volume: 0.4 }
+      );
+      musicRef.current = sound;
+      sound.setOnPlaybackStatusUpdate((status: any) => {
+        if (status.isLoaded && status.didJustFinish) {
+          sound.unloadAsync().catch(() => {});
+          musicTrackIndexRef.current = (musicTrackIndexRef.current + 1) % musicTracks.length;
+          if (mountedRef.current) playNextTrack();
+        }
+      });
+    } catch {
+      setMusicPlaying(false);
+    }
+  };
+
   const toggleMusic = async () => {
     if (musicPlaying && musicRef.current) {
       await musicRef.current.stopAsync();
@@ -1332,18 +1388,10 @@ export default function SportsScreen() {
       setMusicPlaying(false);
     } else {
       try {
-        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-        const { sound } = await Audio.Sound.createAsync(
-          require("@/assets/prowling-dragon.mp3"),
-          { shouldPlay: true, isLooping: true, volume: 0.4 }
-        );
-        musicRef.current = sound;
+        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: false, shouldDuckAndroid: true });
+        musicTrackIndexRef.current = 0;
         setMusicPlaying(true);
-        sound.setOnPlaybackStatusUpdate((status: any) => {
-          if (status.didJustFinish && !status.isLooping) {
-            setMusicPlaying(false);
-          }
-        });
+        await playNextTrack();
       } catch {
         setMusicPlaying(false);
       }
@@ -1585,6 +1633,16 @@ export default function SportsScreen() {
             </View>
           </Animated.View>
         )}
+
+        <Animated.View entering={FadeInDown.delay(230).duration(400)} style={{ paddingHorizontal: 16, paddingTop: 4 }}>
+          <Pressable
+            onPress={() => { fetchAllTimeLeaderboard(); setShowAllTimeBoard(true); playClick(); }}
+            style={({ pressed }) => [{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 10, borderWidth: 1, borderColor: "#FFD700", backgroundColor: pressed ? "rgba(255,215,0,0.15)" : "rgba(255,215,0,0.05)" }]}
+          >
+            <Ionicons name="trophy" size={16} color="#FFD700" />
+            <Text style={{ color: "#FFD700", fontSize: 12, fontWeight: "800" as const, letterSpacing: 1 }}>ALL-TIME LEADERBOARD</Text>
+          </Pressable>
+        </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(250).duration(400)} style={{ paddingHorizontal: 16, paddingTop: 8 }}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingRight: 16 }}>
@@ -1935,6 +1993,51 @@ export default function SportsScreen() {
           </Pressable>
         </Animated.View>
       </ScrollView>
+
+      <Modal visible={showAllTimeBoard} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.85)", justifyContent: "center", alignItems: "center", padding: 20 }}>
+          <View style={{ backgroundColor: "#1a1a2e", borderRadius: 16, padding: 20, width: "100%", maxWidth: 400, maxHeight: "70%", borderWidth: 1, borderColor: "#FFD700" }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 16 }}>
+              <Ionicons name="trophy" size={24} color="#FFD700" />
+              <Text style={{ color: "#FFD700", fontSize: 18, fontWeight: "900" as const, letterSpacing: 1 }}>ALL-TIME RECORDS</Text>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {allTimeStats.length === 0 ? (
+                <Text style={{ color: "#888", textAlign: "center", fontSize: 14, marginVertical: 20 }}>No records yet. Start picking winners!</Text>
+              ) : (
+                allTimeStats.map((stat, idx) => {
+                  const persona = [...PERSONAS, ...RACING_PERSONAS, ...SOCCER_PERSONAS].find(p => p.id === stat.persona_id);
+                  const medal = idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : "";
+                  return (
+                    <View key={stat.persona_id} style={{ flexDirection: "row", alignItems: "center", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.08)", gap: 10 }}>
+                      <Text style={{ color: "#FFD700", fontSize: 14, fontWeight: "800" as const, width: 28 }}>{medal || `#${idx + 1}`}</Text>
+                      {persona?.image && <Image source={persona.image} style={{ width: 32, height: 32, borderRadius: 16 }} />}
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700" as const }}>{persona?.name || stat.persona_id}</Text>
+                        <Text style={{ color: "#aaa", fontSize: 11 }}>{stat.players || 0} player{Number(stat.players) !== 1 ? "s" : ""}</Text>
+                      </View>
+                      <View style={{ alignItems: "flex-end" }}>
+                        <Text style={{ color: Number(stat.total_wins) >= Number(stat.total_losses) ? "#4CAF50" : "#FF5252", fontSize: 14, fontWeight: "800" as const }}>
+                          {stat.total_wins}W - {stat.total_losses}L
+                        </Text>
+                        {Number(stat.best_streak) > 0 && (
+                          <Text style={{ color: "#FFD700", fontSize: 10, fontWeight: "700" as const }}>Best: {stat.best_streak}W streak</Text>
+                        )}
+                      </View>
+                    </View>
+                  );
+                })
+              )}
+            </ScrollView>
+            <Pressable
+              onPress={() => setShowAllTimeBoard(false)}
+              style={({ pressed }) => [{ marginTop: 16, paddingVertical: 10, borderRadius: 8, backgroundColor: pressed ? "rgba(255,215,0,0.2)" : "transparent", borderWidth: 1, borderColor: "#FFD700", alignItems: "center" }]}
+            >
+              <Text style={{ color: "#FFD700", fontWeight: "700" as const, fontSize: 14 }}>Close</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }

@@ -20,10 +20,13 @@ The backend is an Express 5 API gateway handling AI interactions, content genera
 - **Trump Reality (Real Estate)**: Offers a 3-tab layout for Airbnb zone scoring (Hot Zones), property search with AI advisor personas (Listings), and interactive AI guide conversations (Tour Guide).
 - **Political Arena**: A real-time AI persona conversation engine with 13 political figures, dynamic news topics, token-gated access, news-aware personas with emotional reactions, a persona selector, poll voting, and a single interruption system. It features enhanced attacks on specific personas, a user join system with personalized greetings and floating input bar, voice mic input for user contributions, and directed persona responses when mentioned by name. Sessions are recorded and shareable.
 - **Trump Counterattack System**: Detects attacks on Trump and forces him as the immediate next speaker.
-- **Persona Point Tally System**: Users can award points to personas, with a live mini-scoreboard and an end-of-session summary including an AI-generated roast.
-- **Speech Pause System**: Pauses persona TTS and conversation loop during user mic recording.
+- **Persona Point Tally System**: Users can award points to personas, with a live mini-scoreboard and an end-of-session summary including an AI-generated roast. Winner clap-back feature: after Trump's roast, the winning persona fires back with a savage response via `/api/arena/clap-back`.
+- **Pre-Debate Setup**: Users pick debaters and topics before the debate starts via a dedicated setup screen.
+- **Speech Pause System**: Pauses persona TTS and conversation loop during user mic recording. `sessionEndedRef` blocks all TTS/conversation after time expires.
 - **Arena Intro Animation**: Cinematic intro with voiceovers, animated persona chips, and countdown. Messages animate in with typewriter effect synced with TTS.
 - **Analytics & Monetization**: Tracks user events and integrates with Stripe for payments.
+- **Sports All-Time Records**: DB-backed (`sports_records` table) persistent win/loss/streak tracking. Auto-syncs local tallies to server. All-time leaderboard modal accessible from sports screen via `/api/sports/record/leaderboard`, `/api/sports/record/save`, and `/api/sports/record/my-stats`.
+- **Sports Music Loop**: Toggle plays `prowling-dragon.mp3` and `zdragon.mp3` in a continuous loop via `playNextTrack()`.
 - **Live Sports Audio**: A radio-style module (`sports-media.js`) that lets users pick a live/upcoming/final game, choose a persona commentator, and hear AI-generated play-by-play audio via TTS. Features auto-play mode, prev/next controls, commentary caching, and AbortController-guarded fetch lifecycle.
 - **Static Asset Serving**: Serves frontend assets, a landing page, and lazy-loaded feature module JS files from `/js/`.
 - **Shared UI Widgets**: Reusable widget classes (e.g., `RatingWidget` in `server/templates/js/rating-widget.js`) loaded eagerly, used by feature modules via delegation-compatible `handleClick`/`handleInput` methods that return booleans.

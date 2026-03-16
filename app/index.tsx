@@ -633,7 +633,7 @@ export default function HomeScreen() {
   }, []);
 
   useEffect(() => {
-    const SCROLL_SPEED = 0.4;
+    const SCROLL_SPEED = 0.25;
     autoScrollTimerRef.current = setInterval(() => {
       if (userTouchingRef.current || !autoScrollActiveRef.current) return;
       const maxY = Math.max(0, mainContentHeightRef.current - mainScrollHeightRef.current);
@@ -1121,9 +1121,20 @@ export default function HomeScreen() {
         }}
         onTouchEnd={() => {
           userTouchingRef.current = false;
+        }}
+        onMomentumScrollEnd={(e) => {
+          autoScrollYRef.current = e.nativeEvent.contentOffset.y;
+          if (autoScrollResumeRef.current) clearTimeout(autoScrollResumeRef.current);
           autoScrollResumeRef.current = setTimeout(() => {
             autoScrollActiveRef.current = true;
-          }, 6000);
+          }, 10000);
+        }}
+        onScrollEndDrag={(e) => {
+          autoScrollYRef.current = e.nativeEvent.contentOffset.y;
+          if (autoScrollResumeRef.current) clearTimeout(autoScrollResumeRef.current);
+          autoScrollResumeRef.current = setTimeout(() => {
+            autoScrollActiveRef.current = true;
+          }, 10000);
         }}
         onScroll={(e) => {
           if (userTouchingRef.current || !autoScrollActiveRef.current) {
@@ -1132,7 +1143,7 @@ export default function HomeScreen() {
         }}
         onContentSizeChange={(w, h) => { mainContentHeightRef.current = h; }}
         onLayout={(e) => { mainScrollHeightRef.current = e.nativeEvent.layout.height; }}
-        scrollEventThrottle={16}
+        scrollEventThrottle={32}
       >
         {streak > 0 && (
           <Animated.View entering={FadeIn.delay(400).duration(500)} style={styles.streakRow}>

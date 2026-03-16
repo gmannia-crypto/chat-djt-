@@ -1266,6 +1266,92 @@ React to what is happening IN THIS MOMENT. Reference SPECIFIC player stats and p
     }
   });
 
+  const SPORTS_RECORDS_DDL = `
+    CREATE TABLE IF NOT EXISTS sports_records (
+      id SERIAL PRIMARY KEY,
+      device_id TEXT NOT NULL,
+      persona_id TEXT NOT NULL,
+      wins INTEGER DEFAULT 0,
+      losses INTEGER DEFAULT 0,
+      ties INTEGER DEFAULT 0,
+      streak INTEGER DEFAULT 0,
+      best_streak INTEGER DEFAULT 0,
+      updated_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(device_id, persona_id)
+    )
+  `;
+
+  app.post("/api/sports/record/save", async (req, res) => {
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const { records } = req.body;
+      if (!records || !Array.isArray(records)) return res.status(400).json({ error: "records array required" });
+
+      await pool.query(SPORTS_RECORDS_DDL);
+      for (const r of records) {
+        await pool.query(`
+          INSERT INTO sports_records (device_id, persona_id, wins, losses, ties, streak, best_streak, updated_at)
+          VALUES ($1, $2, $3, $4, $5, $6, GREATEST($6, 0), NOW())
+          ON CONFLICT (device_id, persona_id) DO UPDATE SET
+            wins = $3, losses = $4, ties = $5, streak = $6,
+            best_streak = GREATEST(sports_records.best_streak, GREATEST($6, 0)),
+            updated_at = NOW()
+        `, [deviceId, r.personaId, r.wins || 0, r.losses || 0, r.ties || 0, r.streak || 0]);
+      }
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Sports record save error:", error);
+      res.status(500).json({ error: "Failed to save records" });
+    } finally {
+      await pool.end().catch(() => {});
+    }
+  });
+
+  app.get("/api/sports/record/leaderboard", async (_req, res) => {
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+    try {
+      await pool.query(SPORTS_RECORDS_DDL);
+      const result = await pool.query(`
+        SELECT persona_id,
+          SUM(wins) as total_wins,
+          SUM(losses) as total_losses,
+          MAX(best_streak) as best_streak,
+          COUNT(DISTINCT device_id) as players
+        FROM sports_records
+        GROUP BY persona_id
+        ORDER BY SUM(wins) DESC
+      `);
+      res.json({ leaderboard: result.rows });
+    } catch (error: any) {
+      console.error("Sports leaderboard error:", error);
+      res.json({ leaderboard: [] });
+    } finally {
+      await pool.end().catch(() => {});
+    }
+  });
+
+  app.get("/api/sports/record/my-stats", async (req, res) => {
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      await pool.query(SPORTS_RECORDS_DDL);
+      const result = await pool.query(`
+        SELECT persona_id, wins, losses, ties, streak, best_streak
+        FROM sports_records WHERE device_id = $1
+        ORDER BY wins DESC
+      `, [deviceId]);
+      res.json({ stats: result.rows });
+    } catch (error: any) {
+      console.error("Sports my-stats error:", error);
+      res.json({ stats: [] });
+    } finally {
+      await pool.end().catch(() => {});
+    }
+  });
+
   app.post("/api/sports/trash-talk", async (req, res) => {
     try {
       const { personaId, wins, losses, streak, userName } = req.body;
@@ -2655,6 +2741,36 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyah
     } catch (error: any) {
       console.error("Arena roast error:", error);
       res.json({ roast: "Believe me, this whole thing was RIGGED. I actually won by a LANDSLIDE. Everybody knows it!" });
+    }
+  });
+
+  app.post("/api/arena/clap-back", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const { winnerId, winnerName, trumpRoast, customerName, leaderboard } = req.body;
+      if (!winnerId || !winnerName) return res.status(400).json({ error: "winnerId and winnerName required" });
+
+      const personaPrompt = ARENA_PERSONA_PROMPTS[winnerId] || "";
+      const leaderboardText = (leaderboard || []).map((e: any, i: number) => `#${i + 1} ${e.name}: ${e.points} pts`).join(", ");
+
+      const userPrompt = `You just WON the Political Arena debate! Final results: ${leaderboardText}\n\nTrump just attacked you with this roast: "${trumpRoast}"\n\nThe viewer "${customerName}" gave you the most points and crowned you the winner!\n\nNow DESTROY Trump with your response! Be ABSOLUTELY SAVAGE. Attack his ego, his failures, his lies. Reference specific things he's known for. Be ruthless, funny, and devastating. This is your victory lap — make it count! Mention ${customerName} by name and thank them for their taste. 3-5 sentences, go ALL OUT.`;
+
+      const completion = await getClient().chat.completions.create({
+        model: getFastModel(),
+        messages: [
+          { role: "system", content: personaPrompt || `You are ${winnerName}. You just won a debate against Trump and other political figures. You are celebrating and roasting Trump mercilessly.` },
+          { role: "user", content: userPrompt },
+        ],
+        max_completion_tokens: 250,
+        temperature: 1.0,
+      });
+      let clapBack = completion.choices[0]?.message?.content || "That's right — I WON. Deal with it, Donald!";
+      clapBack = clapBack.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim();
+      res.json({ clapBack, winnerId, winnerName });
+    } catch (error: any) {
+      console.error("Arena clap-back error:", error);
+      res.json({ clapBack: "That's right — I WON this debate fair and square. Better luck next time, Donald!", winnerId: req.body.winnerId, winnerName: req.body.winnerName });
     }
   });
 

@@ -1120,7 +1120,9 @@ export default function ArenaScreen() {
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
   const { deviceId, balance, refreshBalance } = useTokens();
 
-  const [showIntro, setShowIntro] = useState(true);
+  const [showIntro, setShowIntro] = useState(false);
+  const [showPreDebateSetup, setShowPreDebateSetup] = useState(true);
+  const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
 
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [emotionalStates, setEmotionalStates] = useState<Record<string, EmotionalState>>(() => {
@@ -1158,6 +1160,8 @@ export default function ArenaScreen() {
   const [showEndSummary, setShowEndSummary] = useState(false);
   const [trumpRoastText, setTrumpRoastText] = useState("");
   const [isLoadingRoast, setIsLoadingRoast] = useState(false);
+  const [winnerClapBack, setWinnerClapBack] = useState("");
+  const [isLoadingClapBack, setIsLoadingClapBack] = useState(false);
   const personaPointsRef = useRef<Record<string, number>>({});
   useEffect(() => { personaPointsRef.current = personaPoints; }, [personaPoints]);
   const [thankYouPlayed, setThankYouPlayed] = useState(false);
@@ -1236,6 +1240,8 @@ export default function ArenaScreen() {
 
   const flatListRef = useRef<FlatList>(null);
   const isRunningRef = useRef(true);
+  const sessionEndedRef = useRef(false);
+  const clapBackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const messagesRef = useRef<ConversationMessage[]>([]);
   const currentSpeakerRef = useRef<string | null>(null);
   const currentTopicRef = useRef<string | null>(null);
@@ -1454,6 +1460,7 @@ export default function ArenaScreen() {
   }, []);
 
   const queueTTS = useCallback((text: string, personaId: string, force?: boolean) => {
+    if (!force && sessionEndedRef.current) return;
     if (!force && !voiceEnabledRef.current) return;
     if (force) forcePlayRef.current = true;
     ttsQueueRef.current.push({ text, personaId });
@@ -1583,8 +1590,12 @@ export default function ArenaScreen() {
         clearInterval(tick);
         setIsRunning(false);
         isRunningRef.current = false;
+        sessionEndedRef.current = true;
         stopAllTTS();
+        setCurrentSpeaker(null);
+        currentSpeakerRef.current = null;
         if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
+        conversationTimerRef.current = null;
         playBellSound();
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         addSystemMessage("TIME'S UP! The bell has rung!");
@@ -1776,7 +1787,7 @@ export default function ArenaScreen() {
 
   const generateAIResponse = useCallback(
     async (responderId: string, toSpeakerId: string) => {
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || sessionEndedRef.current) return;
       setCurrentSpeaker(responderId);
       currentSpeakerRef.current = responderId;
 
@@ -2232,17 +2243,19 @@ export default function ArenaScreen() {
   }, [generateAIResponse, triggerInterruption, askUserQuestion, showUserInput]);
 
   const scheduleNext = useCallback(() => {
+    if (sessionEndedRef.current) return;
     if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
     const waitForClear = () => {
+      if (sessionEndedRef.current) return;
       if (isInterruptingRef.current || currentSpeakerRef.current) {
         conversationTimerRef.current = setTimeout(waitForClear, 250);
         return;
       }
       const delay = 500 + Math.random() * 500;
       conversationTimerRef.current = setTimeout(async () => {
-        if (!mountedRef.current) return;
+        if (!mountedRef.current || sessionEndedRef.current) return;
         await decideNextSpeaker();
-        if (mountedRef.current && isRunningRef.current) {
+        if (mountedRef.current && isRunningRef.current && !sessionEndedRef.current) {
           scheduleNext();
         }
       }, delay);
@@ -2254,6 +2267,7 @@ export default function ArenaScreen() {
 
   const startDebate = useCallback(async () => {
     if (!mountedRef.current) return;
+    sessionEndedRef.current = false;
     setIsRunning(true);
     isRunningRef.current = true;
     addMessage({
@@ -2278,6 +2292,7 @@ export default function ArenaScreen() {
       mountedRef.current = false;
       if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
       if (joinTimerRef.current) clearInterval(joinTimerRef.current);
+      if (clapBackTimeoutRef.current) clearTimeout(clapBackTimeoutRef.current);
       if (recordingObjRef.current) {
         try { recordingObjRef.current.stopAndUnloadAsync(); } catch {}
         recordingObjRef.current = null;
@@ -2442,6 +2457,27 @@ export default function ArenaScreen() {
     return null;
   }, [messages]);
 
+  const fetchWinnerClapBack = useCallback(async (winnerId: string, winnerName: string, trumpRoast: string, leaderboard: any[]) => {
+    setIsLoadingClapBack(true);
+    try {
+      const customerName = userNameRef.current || "this person";
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (deviceId) headers["x-device-id"] = deviceId;
+      const res = await fetch(new URL("/api/arena/clap-back", getApiUrl()).toString(), {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ winnerId, winnerName, trumpRoast, customerName, leaderboard }),
+      });
+      if (res.ok && mountedRef.current) {
+        const data = await res.json();
+        setWinnerClapBack(data.clapBack);
+        queueTTS(data.clapBack, winnerId, true);
+      }
+    } catch {} finally {
+      if (mountedRef.current) setIsLoadingClapBack(false);
+    }
+  }, [deviceId, queueTTS]);
+
   const fetchTrumpRoast = useCallback(async () => {
     const pts = personaPointsRef.current;
     const sorted = Object.entries(pts).sort(([, a], [, b]) => b - a);
@@ -2451,6 +2487,7 @@ export default function ArenaScreen() {
     const winnerPts = sorted[0][1];
     const trumpPts = pts["trump"] || 0;
     const customerName = userNameRef.current || "this person";
+    const leaderboard = sorted.slice(0, 5).map(([id, p]) => ({ name: ARENA_PERSONAS[id]?.name || id, points: p }));
 
     setIsLoadingRoast(true);
     try {
@@ -2464,18 +2501,22 @@ export default function ArenaScreen() {
           winnerPoints: winnerPts,
           trumpPoints: trumpPts,
           customerName,
-          leaderboard: sorted.slice(0, 5).map(([id, p]) => ({ name: ARENA_PERSONAS[id]?.name || id, points: p })),
+          leaderboard,
         }),
       });
       if (res.ok) {
         const data = await res.json();
         setTrumpRoastText(data.roast);
         queueTTS(data.roast, "trump", true);
+        if (winnerId !== "trump") {
+          if (clapBackTimeoutRef.current) clearTimeout(clapBackTimeoutRef.current);
+          clapBackTimeoutRef.current = setTimeout(() => fetchWinnerClapBack(winnerId, winnerName, data.roast, leaderboard), 3000);
+        }
       }
     } catch {} finally {
       setIsLoadingRoast(false);
     }
-  }, [deviceId, queueTTS]);
+  }, [deviceId, queueTTS, fetchWinnerClapBack]);
 
   const renderMessage = useCallback(
     ({ item, index }: { item: ConversationMessage; index: number }) => {
@@ -2558,6 +2599,107 @@ export default function ArenaScreen() {
     },
     [queueTTS, voiceEnabled, latestPersonaMsgId, awardedMessages]
   );
+
+  if (showPreDebateSetup) {
+    return (
+      <View style={[s.container, { paddingTop: insets.top + webTopInset }]}>
+        <LinearGradient colors={["rgba(255,77,77,0.15)", "rgba(0,0,0,0)", Colors.background]} style={StyleSheet.absoluteFill} />
+        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+          <View style={{ alignItems: "center", marginBottom: 20 }}>
+            <Ionicons name="flame" size={40} color="#FF4D4D" />
+            <Text style={{ color: "#fff", fontSize: 24, fontWeight: "900", marginTop: 8 }}>POLITICAL ARENA</Text>
+            <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, marginTop: 4 }}>Pick your debaters and topic</Text>
+          </View>
+
+          <Text style={{ color: "#FFD700", fontSize: 14, fontWeight: "800", marginBottom: 10 }}>CHOOSE DEBATERS ({selectedPersonas.length} selected)</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
+            {PERSONA_IDS.map((pid) => {
+              const p = ARENA_PERSONAS[pid];
+              const isSelected = selectedPersonas.includes(pid);
+              return (
+                <Pressable
+                  key={pid}
+                  onPress={() => togglePersona(pid)}
+                  style={{
+                    flexDirection: "row", alignItems: "center", paddingHorizontal: 10, paddingVertical: 6,
+                    borderRadius: 20, borderWidth: 1.5,
+                    borderColor: isSelected ? p.color : "rgba(255,255,255,0.15)",
+                    backgroundColor: isSelected ? p.color + "20" : "rgba(255,255,255,0.05)",
+                  }}
+                >
+                  {p.image ? (
+                    <Image source={p.image} style={{ width: 24, height: 24, borderRadius: 12, marginRight: 6 }} />
+                  ) : (
+                    <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: p.color + "40", justifyContent: "center", alignItems: "center", marginRight: 6 }}>
+                      <Text style={{ fontSize: 9, color: "#fff", fontWeight: "800" }}>{getInitials(p.name)}</Text>
+                    </View>
+                  )}
+                  <Text style={{ color: isSelected ? p.color : "#888", fontSize: 12, fontWeight: "700" }}>{p.shortName}</Text>
+                  {isSelected && <Ionicons name="checkmark-circle" size={14} color={p.color} style={{ marginLeft: 4 }} />}
+                </Pressable>
+              );
+            })}
+          </View>
+          <Pressable
+            onPress={() => setSelectedPersonas(PERSONA_IDS)}
+            style={{ alignSelf: "flex-start", marginBottom: 16 }}
+          >
+            <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 12 }}>Select All</Text>
+          </Pressable>
+
+          <Text style={{ color: "#FFD700", fontSize: 14, fontWeight: "800", marginBottom: 10 }}>CHOOSE TOPIC</Text>
+          {FALLBACK_TOPICS.map((topic) => {
+            const isSelected = selectedTopicId === topic.id;
+            return (
+              <Pressable
+                key={topic.id}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setSelectedTopicId(isSelected ? null : topic.id);
+                }}
+                style={{
+                  padding: 12, borderRadius: 12, marginBottom: 8, borderWidth: 1.5,
+                  borderColor: isSelected ? "#FF4D4D" : "rgba(255,255,255,0.1)",
+                  backgroundColor: isSelected ? "rgba(255,77,77,0.15)" : "rgba(255,255,255,0.04)",
+                }}
+              >
+                <Text style={{ color: isSelected ? "#FF4D4D" : "#ccc", fontSize: 14, fontWeight: "800" }}>{topic.title}</Text>
+                <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginTop: 3 }} numberOfLines={2}>{topic.description}</Text>
+              </Pressable>
+            );
+          })}
+
+          <Pressable
+            onPress={() => {
+              if (selectedPersonas.length < 2) return;
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+              if (selectedTopicId) {
+                const topic = FALLBACK_TOPICS.find((t) => t.id === selectedTopicId);
+                if (topic) {
+                  setCurrentTopic(topic.title);
+                  currentTopicRef.current = topic.title;
+                }
+              }
+              setShowPreDebateSetup(false);
+              setShowIntro(true);
+            }}
+            style={{
+              marginTop: 20, paddingVertical: 16, borderRadius: 16, alignItems: "center",
+              backgroundColor: selectedPersonas.length >= 2 ? "#FF4D4D" : "rgba(255,255,255,0.1)",
+              opacity: selectedPersonas.length >= 2 ? 1 : 0.4,
+            }}
+          >
+            <Text style={{ color: "#fff", fontSize: 18, fontWeight: "900", letterSpacing: 1 }}>
+              START DEBATE
+            </Text>
+            <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 11, marginTop: 2 }}>
+              {selectedPersonas.length} debaters{selectedTopicId ? " • Topic selected" : " • Random topic"}
+            </Text>
+          </Pressable>
+        </ScrollView>
+      </View>
+    );
+  }
 
   if (showIntro) {
     return (
@@ -3038,7 +3180,9 @@ export default function ArenaScreen() {
 
       <Modal visible={showEndSummary} transparent animationType="fade">
         <View style={s.paywallOverlay}>
-          <Animated.View entering={ZoomIn.duration(500)} style={s.summaryCard}>
+          <Animated.View entering={ZoomIn.duration(500)} style={[s.summaryCard, { maxHeight: "85%" }]}>
+          <ScrollView showsVerticalScrollIndicator={false}>
+            <View style={{ alignItems: "center" }}>
             <Ionicons name="trophy" size={40} color="#FFD700" />
             <Text style={s.summaryTitle}>SESSION RESULTS</Text>
             <View style={s.summaryLeaderboard}>
@@ -3092,6 +3236,21 @@ export default function ArenaScreen() {
                 <Text style={s.roastTriggerText}>Let Trump React!</Text>
               </Pressable>
             )}
+            {winnerClapBack ? (
+              <Animated.View entering={FadeIn.delay(500).duration(500)} style={[s.roastContainer, { borderColor: "#3b82f6", marginTop: 10 }]}>
+                <View style={s.roastHeader}>
+                  <Ionicons name="megaphone" size={16} color="#3b82f6" />
+                  <Text style={[s.roastTitle, { color: "#3b82f6" }]}>WINNER FIRES BACK!</Text>
+                  <Ionicons name="megaphone" size={16} color="#3b82f6" />
+                </View>
+                <Text style={[s.roastText, { color: "#93c5fd" }]}>{winnerClapBack}</Text>
+              </Animated.View>
+            ) : isLoadingClapBack ? (
+              <View style={[s.roastLoading, { marginTop: 8 }]}>
+                <ActivityIndicator size="small" color="#3b82f6" />
+                <Text style={[s.roastLoadingText, { color: "#3b82f6" }]}>Winner is preparing a response...</Text>
+              </View>
+            ) : null}
             <View style={s.summaryActions}>
               <Pressable
                 onPress={() => {
@@ -3118,6 +3277,8 @@ export default function ArenaScreen() {
             <Pressable onPress={() => { setShowEndSummary(false); setShowPaywall(true); }} style={s.paywallDismiss}>
               <Text style={s.paywallDismissText}>Close</Text>
             </Pressable>
+            </View>
+          </ScrollView>
           </Animated.View>
         </View>
       </Modal>
