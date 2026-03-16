@@ -1065,6 +1065,7 @@ export default function SportsScreen() {
         soundRef.current.unloadAsync().catch(() => {});
         soundRef.current = null;
       }
+      musicPlayingRef.current = false;
       if (musicRef.current) {
         musicRef.current.stopAsync().catch(() => {});
         musicRef.current.unloadAsync().catch(() => {});
@@ -1354,45 +1355,50 @@ export default function SportsScreen() {
     Linking.openURL(url).catch(() => {});
   };
 
-  const musicTracks = [
-    require("@/assets/prowling-dragon.mp3"),
-    require("@/assets/zdragon.mp3"),
-  ];
+  const musicTrackNames = ["prowling-dragon.mp3", "zdragon.mp3"];
   const musicTrackIndexRef = useRef(0);
+  const musicPlayingRef = useRef(false);
 
   const playNextTrack = async () => {
+    if (!musicPlayingRef.current || !mountedRef.current) return;
     try {
       const idx = musicTrackIndexRef.current;
+      const trackUrl = new URL(`/public/${musicTrackNames[idx]}`, getApiUrl()).toString();
       const { sound } = await Audio.Sound.createAsync(
-        musicTracks[idx],
+        { uri: trackUrl },
         { shouldPlay: true, isLooping: false, volume: 0.4 }
       );
       musicRef.current = sound;
       sound.setOnPlaybackStatusUpdate((status: any) => {
         if (status.isLoaded && status.didJustFinish) {
           sound.unloadAsync().catch(() => {});
-          musicTrackIndexRef.current = (musicTrackIndexRef.current + 1) % musicTracks.length;
-          if (mountedRef.current) playNextTrack();
+          musicTrackIndexRef.current = (musicTrackIndexRef.current + 1) % musicTrackNames.length;
+          if (mountedRef.current && musicPlayingRef.current) playNextTrack();
         }
       });
-    } catch {
-      setMusicPlaying(false);
+    } catch (e) {
+      console.error("Music playback error:", e);
+      if (mountedRef.current) setMusicPlaying(false);
+      musicPlayingRef.current = false;
     }
   };
 
   const toggleMusic = async () => {
     if (musicPlaying && musicRef.current) {
-      await musicRef.current.stopAsync();
-      await musicRef.current.unloadAsync();
+      musicPlayingRef.current = false;
+      await musicRef.current.stopAsync().catch(() => {});
+      await musicRef.current.unloadAsync().catch(() => {});
       musicRef.current = null;
       setMusicPlaying(false);
     } else {
       try {
         await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: false, shouldDuckAndroid: true });
         musicTrackIndexRef.current = 0;
+        musicPlayingRef.current = true;
         setMusicPlaying(true);
         await playNextTrack();
       } catch {
+        musicPlayingRef.current = false;
         setMusicPlaying(false);
       }
     }
