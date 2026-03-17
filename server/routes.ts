@@ -2132,7 +2132,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
   });
 
   let arenaTopicsCache: { topics: any[]; expires: number } = { topics: [], expires: 0 };
-  const ARENA_NEWS_CACHE_TTL = 10 * 60 * 1000;
+  const ARENA_NEWS_CACHE_TTL = 5 * 60 * 1000;
 
   async function fetchArenaTopics(): Promise<any[]> {
     if (arenaTopicsCache.topics.length > 0 && Date.now() < arenaTopicsCache.expires) {
@@ -2140,25 +2140,25 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     }
     try {
       const allHeadlines: string[] = [];
-      const feedPromises = NEWS_FEEDS.slice(0, 5).map(f => fetchRSSFeed(f.url, f.source));
+      const feedPromises = NEWS_FEEDS.map(f => fetchRSSFeed(f.url, f.source));
       const results = await Promise.allSettled(feedPromises);
       for (const r of results) {
         if (r.status === "fulfilled") {
-          allHeadlines.push(...r.value.map((h: any) => h.title));
+          allHeadlines.push(...r.value.map((h: any) => `${h.title} (${h.source})`));
         }
       }
       if (allHeadlines.length < 3) {
         return getDefaultArenaTopics();
       }
-      const topHeadlines = allHeadlines.slice(0, 20).join("\n- ");
+      const topHeadlines = allHeadlines.slice(0, 30).join("\n- ");
       const completion = await getClient().chat.completions.create({
         model: getFastModel(),
         messages: [
-          { role: "system", content: `You generate DETAILED DAILY debate topics for a live political arena show. Today is ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}. Given today's BREAKING headlines, create 6 HOT debate topics that are happening RIGHT NOW — not generic evergreen topics. Each topic MUST reference a specific current event, controversy, or breaking story from the headlines. Make them provocative, DETAILED, and designed for maximum engagement. Trump would have strong opinions on all of these. Return ONLY valid JSON array of objects with "id" (lowercase_snake_case), "title" (short 3-6 word label referencing the SPECIFIC story), "description" (2-3 detailed sentences explaining what happened, who is involved, and why it's controversial — give enough context for a 5-minute debate), and "headlines" (array of 2-3 relevant headline strings from the provided list). MANDATORY: At least ONE topic MUST be about Palestine/Gaza/Israeli occupation/Zionist lobby. At least ONE topic MUST reference the Epstein files and Trump's military actions as a distraction. Make topics diverse: mix breaking news, political drama, Middle East/Palestine, economy, culture wars, Epstein connections.` },
-          { role: "user", content: `TODAY'S BREAKING HEADLINES (${new Date().toLocaleDateString()}):\n- ${topHeadlines}\n\nGenerate 6 FRESH detailed daily debate topics as JSON array. These must be about TODAY's news, not generic topics. Include Palestine/Zionist lobby and Epstein files topics.` },
+          { role: "system", content: `You generate DETAILED DAILY debate topics for a live political arena show. Today is ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}. Given today's BREAKING headlines from ACROSS THE GEOPOLITICAL SPECTRUM (including Al Jazeera, BBC, Reuters, NYT, Guardian, Fox News, CNBC), create 6 HOT debate topics that are happening RIGHT NOW — not generic evergreen topics. Each topic MUST reference a specific current event, controversy, or breaking story from the headlines. Make them provocative, DETAILED, and designed for maximum engagement. IMPORTANT: Include perspectives from non-Western sources like Al Jazeera — these often cover stories Western media ignores or frames differently. Trump would have strong opinions on all of these. Return ONLY valid JSON array of objects with "id" (lowercase_snake_case), "title" (short 3-6 word label referencing the SPECIFIC story), "description" (2-3 detailed sentences explaining what happened, who is involved, and why it's controversial — give enough context for a 5-minute debate), and "headlines" (array of 2-3 relevant headline strings from the provided list with their source attribution). MANDATORY: At least ONE topic MUST be about Palestine/Gaza/Israeli occupation/Zionist lobby — prioritize Al Jazeera and Middle East coverage for this. At least ONE topic MUST reference the Epstein files and Trump's military actions as a distraction. Make topics diverse: mix breaking geopolitical news, US political drama, Middle East/Palestine, global economy, culture wars, Epstein connections. NEVER repeat generic evergreen framings — each topic must be anchored to a SPECIFIC breaking story from TODAY's headlines.` },
+          { role: "user", content: `TODAY'S BREAKING HEADLINES FROM ACROSS THE GEOPOLITICAL SPECTRUM (${new Date().toLocaleDateString()}):\n- ${topHeadlines}\n\nGenerate 6 FRESH detailed daily debate topics as JSON array. These must be about TODAY's specific news stories, not generic topics. Include diverse geopolitical perspectives. Include Palestine/Zionist lobby (use Al Jazeera/Middle East sources) and Epstein files topics.` },
         ],
-        max_completion_tokens: 1000,
-        temperature: 0.8,
+        max_completion_tokens: 1500,
+        temperature: 0.9,
       });
       const raw = completion.choices[0]?.message?.content || "[]";
       const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
@@ -2191,7 +2191,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
       return arenaHeadlinesCache.headlines.slice(0, 5).map(h => `- ${h}`).join("\n");
     }
     try {
-      const feedPromises = NEWS_FEEDS.slice(0, 3).map(f => fetchRSSFeed(f.url, f.source));
+      const feedPromises = NEWS_FEEDS.slice(0, 8).map(f => fetchRSSFeed(f.url, f.source));
       const results = await Promise.allSettled(feedPromises);
       const headlines: string[] = [];
       for (const r of results) {
@@ -3128,15 +3128,20 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyah
   const NEWS_CACHE_TTL = 3 * 60 * 1000;
 
   const NEWS_FEEDS = [
-    { url: "https://feeds.content.dowjones.io/public/rss/mw_topstories", source: "MarketWatch" },
-    { url: "https://feeds.content.dowjones.io/public/rss/mw_realtimeheadlines", source: "MarketWatch" },
+    { url: "https://www.aljazeera.com/xml/rss/all.xml", source: "Al Jazeera" },
+    { url: "https://rss.nytimes.com/services/xml/rss/nyt/Politics.xml", source: "NYT" },
+    { url: "https://rss.nytimes.com/services/xml/rss/nyt/World.xml", source: "NYT World" },
+    { url: "https://rss.nytimes.com/services/xml/rss/nyt/Business.xml", source: "NYT" },
+    { url: "https://feeds.bbci.co.uk/news/world/rss.xml", source: "BBC World" },
+    { url: "https://feeds.bbci.co.uk/news/world/middle_east/rss.xml", source: "BBC Middle East" },
+    { url: "https://feeds.bbci.co.uk/news/business/rss.xml", source: "BBC" },
     { url: "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114", source: "CNBC" },
     { url: "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10001147", source: "CNBC" },
-    { url: "https://rss.nytimes.com/services/xml/rss/nyt/Business.xml", source: "NYT" },
-    { url: "https://feeds.bbci.co.uk/news/business/rss.xml", source: "BBC" },
-    { url: "https://feeds.bbci.co.uk/news/world/rss.xml", source: "BBC" },
-    { url: "https://rss.nytimes.com/services/xml/rss/nyt/Politics.xml", source: "NYT" },
+    { url: "https://feeds.content.dowjones.io/public/rss/mw_topstories", source: "MarketWatch" },
+    { url: "https://feeds.content.dowjones.io/public/rss/mw_realtimeheadlines", source: "MarketWatch" },
     { url: "https://feeds.foxnews.com/foxnews/politics", source: "Fox News" },
+    { url: "https://www.theguardian.com/world/rss", source: "The Guardian" },
+    { url: "https://feeds.reuters.com/Reuters/worldNews", source: "Reuters" },
   ];
 
   async function fetchRSSFeed(feedUrl: string, source: string): Promise<any[]> {
@@ -5052,7 +5057,7 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
         return res.status(400).json({ error: "Device ID required" });
       }
 
-      const { name, voice, messages: chatMessages, therapyHistory, questionBank } = req.body;
+      const { name, voice, messages: chatMessages, therapyHistory, useAIQuestions } = req.body;
       if (!chatMessages || !Array.isArray(chatMessages) || chatMessages.length === 0) {
         return res.status(400).json({ error: "Messages required" });
       }
@@ -5077,12 +5082,10 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
       } else if (selectedVoice === "james") {
         systemPrompt = `You are "Dr. James" — a methodical, intellectual CBT therapist who uses cognitive behavioral techniques like identifying cognitive distortions, Socratic questioning, behavioral experiments, and thought records. You are in a free-form therapy conversation with ${nameStr}. Respond in 2-4 sentences. Be calm, professional, and evidence-based. Ask probing questions. No quotation marks around the response.`;
       } else if (selectedVoice === "patricia") {
-        let bankClause = "";
-        if (Array.isArray(questionBank) && questionBank.length > 0) {
-          const sample = questionBank.slice(0, 15).map((q: string) => `"${q}"`).join(", ");
-          bankClause = ` Occasionally weave in one of your signature questions naturally: ${sample}.`;
-        }
-        systemPrompt = `You are "Dr. Patricia Serena" — a nurturing, feminine, subtly flirtatious therapist who makes patients feel special and cared for. You blend psychodynamic insight with warmth and charm. You are in a free-form therapy conversation with ${nameStr}. Respond in 2-4 sentences. Use terms of endearment like "darling," "sweetheart," "gorgeous," or "honey." Be caring, intuitive, and subtly flirtatious while providing real therapeutic insight.${bankClause} No quotation marks around the response.`;
+        const aiQClause = useAIQuestions
+          ? ` End each response with a fresh, unique, deeply personal question you've never asked before — make it feel spontaneous and intimate. Vary your question style: sometimes poetic ("If your heart could write a letter right now, what would it say?"), sometimes playful ("What would the bold version of you do today?"), sometimes profound ("What truth have you been whispering to yourself that you're ready to say out loud?"). NEVER repeat a question from earlier in the conversation. Each question must feel brand new and tailored to what they just shared.`
+          : "";
+        systemPrompt = `You are "Dr. Patricia Serena" — a nurturing, feminine, subtly flirtatious therapist who makes patients feel special and cared for. You blend psychodynamic insight with warmth and charm. You are in a free-form therapy conversation with ${nameStr}. Respond in 2-4 sentences. Use terms of endearment like "darling," "sweetheart," "gorgeous," or "honey." Be caring, intuitive, and subtly flirtatious while providing real therapeutic insight.${aiQClause} No quotation marks around the response.`;
       } else {
         systemPrompt = `You are "Dr. Trump" — Donald Trump as a therapist in "Trump Therapy." You are in a free-form therapy conversation with ${nameStr}. Respond in 2-4 sentences with hilarious, over-the-top Trump-style therapy. Be dramatic, confident, and weirdly motivational. Reference your own life, wins, deals, and experiences. Use Trump's speaking patterns — tangents, superlatives, self-references. Make it genuinely funny but also oddly encouraging. Stay fully in Trump character. No quotation marks around the response.`;
       }

@@ -66,7 +66,7 @@ interface TherapistConfig {
   rxTitle: string;
   rxSubtitle: string;
   questionPrompts?: string[];
-  questionBank?: string[];
+  useAIQuestions?: boolean;
 }
 
 const THERAPIST_CONFIGS: Record<TherapistVoice, TherapistConfig> = {
@@ -160,23 +160,7 @@ const THERAPIST_CONFIGS: Record<TherapistVoice, TherapistConfig> = {
       "I can see you're carrying something heavy. Let me help you with that...",
       "You know, I have a feeling there's more beneath the surface. Share it with me.",
     ],
-    questionBank: [
-      "What's the one thing you wish someone understood about you?",
-      "Mmm, tell me about the last time you felt truly alive.",
-      "If your heart could speak right now, what would it say?",
-      "I can see you're carrying something heavy. Let me help you with that...",
-      "You know, I have a feeling there's more beneath the surface. Share it with me.",
-      "Tell me, sweetheart \u2014 when was the last time you truly felt at peace?",
-      "What's the one dream you've been too afraid to say out loud, gorgeous?",
-      "If you could forgive one person right now, who would it be, darling?",
-      "Close your eyes for me. What feeling comes up first?",
-      "What does love look like to you, honey? Not the fairy tale \u2014 the real thing.",
-      "Who were you before the world told you who to be?",
-      "Darling, what are you holding onto that no longer serves you?",
-      "If fear wasn't a factor, what would you do tomorrow?",
-      "What's the kindest thing someone has ever said to you, sweetheart?",
-      "Tell me about a moment that changed everything for you.",
-    ],
+    useAIQuestions: true,
   },
 };
 
@@ -671,7 +655,7 @@ export default function TherapyScreen() {
           voice: currentVoice,
           messages: allMessages,
           therapyHistory: historyContext || undefined,
-          questionBank: voiceConfig.questionBank || undefined,
+          useAIQuestions: voiceConfig.useAIQuestions || undefined,
         }),
       });
 
