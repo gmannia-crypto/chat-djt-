@@ -22,6 +22,7 @@ The backend is an Express 5 API gateway handling AI interactions, content genera
 - **Trump Counterattack System**: Detects attacks on Trump and forces him as the immediate next speaker.
 - **Persona Point Tally System**: Users can award points to personas, with a live mini-scoreboard and an end-of-session summary including an AI-generated roast. Winner clap-back feature: after Trump's roast, the winning persona fires back with a savage response via `/api/arena/clap-back`.
 - **Pre-Debate Setup**: Users pick debaters and topics before the debate starts via a dedicated setup screen.
+- **Therapy Session Memory**: Client-side therapy history stored in AsyncStorage (`chatdjt_therapy_memory`). Tracks last 20 sessions per user (therapist, problem, severity, snippet). History context is sent to the AI therapy endpoint so therapists can reference past sessions, notice patterns, and acknowledge progress. Managed by `recordTherapySession`, `getTherapyHistory`, and `getTherapyContext` in `lib/persona-memory.ts`.
 - **Speech Pause System**: Pauses persona TTS and conversation loop during user mic recording. `sessionEndedRef` blocks all TTS/conversation after time expires.
 - **Arena Intro Animation**: Cinematic intro with voiceovers, animated persona chips, and countdown. Messages animate in with typewriter effect synced with TTS.
 - **Analytics & Monetization**: Tracks user events and integrates with Stripe for payments.

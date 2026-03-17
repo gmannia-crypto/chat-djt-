@@ -267,3 +267,91 @@ export async function getPersonaRecord(personaId: string): Promise<{ wins: numbe
   if (!memory[personaId]) return { wins: 0, losses: 0 };
   return { wins: memory[personaId].wins, losses: memory[personaId].losses };
 }
+
+const THERAPY_MEMORY_KEY = "chatdjt_therapy_memory";
+
+interface TherapySession {
+  date: string;
+  therapist: string;
+  problem: string;
+  seriousness: number;
+  therapySnippet: string;
+  followUpCount: number;
+}
+
+interface UserTherapyMemory {
+  sessions: TherapySession[];
+}
+
+type TherapyMemoryStore = Record<string, UserTherapyMemory>;
+
+let cachedTherapyMemory: TherapyMemoryStore | null = null;
+
+async function loadTherapyMemory(): Promise<TherapyMemoryStore> {
+  if (cachedTherapyMemory) return cachedTherapyMemory;
+  try {
+    const saved = await AsyncStorage.getItem(THERAPY_MEMORY_KEY);
+    if (saved) {
+      cachedTherapyMemory = JSON.parse(saved);
+      return cachedTherapyMemory!;
+    }
+  } catch {}
+  cachedTherapyMemory = {};
+  return cachedTherapyMemory;
+}
+
+async function saveTherapyMemory(): Promise<void> {
+  if (cachedTherapyMemory) {
+    await AsyncStorage.setItem(THERAPY_MEMORY_KEY, JSON.stringify(cachedTherapyMemory)).catch(() => {});
+  }
+}
+
+export async function recordTherapySession(
+  userId: string,
+  sessionData: {
+    therapist: string;
+    problem: string;
+    seriousness: number;
+    therapySnippet: string;
+    followUpCount?: number;
+  }
+): Promise<void> {
+  const memory = await loadTherapyMemory();
+  if (!memory[userId] || !Array.isArray(memory[userId]?.sessions)) {
+    memory[userId] = { sessions: [] };
+  }
+  memory[userId].sessions.push({
+    date: new Date().toISOString(),
+    therapist: sessionData.therapist,
+    problem: sessionData.problem,
+    seriousness: sessionData.seriousness,
+    therapySnippet: sessionData.therapySnippet.slice(0, 200),
+    followUpCount: sessionData.followUpCount || 0,
+  });
+  if (memory[userId].sessions.length > 20) {
+    memory[userId].sessions = memory[userId].sessions.slice(-20);
+  }
+  await saveTherapyMemory();
+}
+
+export async function getTherapyHistory(
+  userId: string
+): Promise<TherapySession[]> {
+  const memory = await loadTherapyMemory();
+  const user = memory[userId];
+  if (!user || !Array.isArray(user.sessions)) return [];
+  return user.sessions;
+}
+
+export async function getTherapyContext(userId: string): Promise<string> {
+  const sessions = await getTherapyHistory(userId);
+  if (sessions.length === 0) return "";
+  const recent = sessions.slice(-3);
+  const lines = recent.map((s, i) => {
+    const date = new Date(s.date);
+    const ago = Math.floor((Date.now() - date.getTime()) / (1000 * 60 * 60 * 24));
+    const timeLabel = ago === 0 ? "today" : ago === 1 ? "yesterday" : `${ago} days ago`;
+    return `Session ${i + 1} (${timeLabel}, with Dr. ${s.therapist}): Problem was "${s.problem}" (severity ${s.seriousness}/10). They said: "${s.therapySnippet}"`;
+  });
+  return `\n\nPATIENT HISTORY (previous sessions):\n${lines.join("\n")}\nUse this context naturally — reference past sessions when relevant, notice patterns, acknowledge progress or recurring themes. Do not list the history back to them verbatim.`;
+}

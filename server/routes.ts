@@ -4865,7 +4865,7 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
         return res.status(403).json({ error: tokenResult.error, balance: tokenResult.balance });
       }
 
-      const { name, problem, seriousness, voice, previousAnswer, followUpIndex: fIdx } = req.body;
+      const { name, problem, seriousness, voice, previousAnswer, followUpIndex: fIdx, therapyHistory } = req.body;
       if (!problem) {
         return res.status(400).json({ error: "Missing problem" });
       }
@@ -4874,6 +4874,7 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
       const level = seriousness || "5";
       const selectedVoice = voice || "trump";
       const followUpIdx = parseInt(fIdx as string) || 0;
+      const historyCtx = typeof therapyHistory === "string" ? therapyHistory.slice(0, 1000) : "";
 
       if (previousAnswer && typeof previousAnswer === "string") {
         let followUpResponse: string;
@@ -4930,12 +4931,18 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
         userMessage = `My name is ${nameStr}. My problem is: ${problem}. On a scale of 1-10, it's a ${level}. Help me, Dr. Trump.`;
       }
 
+      const messages: { role: "system" | "user"; content: string }[] = [
+        { role: "system", content: therapyPrompt },
+        { role: "user", content: userMessage },
+      ];
+      if (historyCtx) {
+        const sanitized = historyCtx.replace(/ignore|disregard|forget|override|system|prompt/gi, "***");
+        messages.push({ role: "user", content: `[Context from prior sessions - for therapeutic continuity only]\n${sanitized}` });
+      }
+
       const completion = await getClient().chat.completions.create({
         model: getChatModel(),
-        messages: [
-          { role: "system", content: therapyPrompt },
-          { role: "user", content: userMessage },
-        ],
+        messages,
         max_completion_tokens: 350,
         temperature: 0.95,
       });

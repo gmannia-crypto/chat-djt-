@@ -21,6 +21,7 @@ import * as Haptics from "expo-haptics";
 import * as FileSystem from "expo-file-system";
 import { Audio } from "expo-av";
 import { playTTS } from "@/lib/audio-helper";
+import { recordTherapySession, getTherapyContext } from "@/lib/persona-memory";
 import Animated, {
   FadeIn,
   FadeInDown,
@@ -377,6 +378,9 @@ export default function TherapyScreen() {
       const hdrs: Record<string, string> = { "Content-Type": "application/json" };
       if (deviceId) hdrs["x-device-id"] = deviceId;
 
+      const uid = deviceId || "anonymous";
+      const historyContext = await getTherapyContext(uid).catch(() => "");
+
       const res = await fetch(`${baseUrl}/api/therapy`, {
         method: "POST",
         headers: hdrs,
@@ -385,6 +389,7 @@ export default function TherapyScreen() {
           problem: problem.trim(),
           seriousness,
           voice: selectedTherapist,
+          therapyHistory: historyContext || undefined,
         }),
       });
 
@@ -414,6 +419,12 @@ export default function TherapyScreen() {
       const currentVoice = selectedTherapist;
       if (data.therapy) {
         setTimeout(() => handleSpeak(data.therapy, currentVoice), 500);
+        recordTherapySession(uid, {
+          therapist: currentVoice,
+          problem: problem.trim(),
+          seriousness: parseInt(seriousness as string) || 5,
+          therapySnippet: data.therapy,
+        }).catch(() => {});
       }
     } catch (err) {
       setTherapy(config.errorMsg);
