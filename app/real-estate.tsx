@@ -133,7 +133,7 @@ export default function RealEstateScreen() {
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
 
-  const [activeTab, setActiveTab] = useState<"zones" | "properties" | "tour">("zones");
+  const [activeTab, setActiveTab] = useState<"zones" | "properties" | "tour" | "prospect">("zones");
   const [mapLocation, setMapLocation] = useState("Miami, FL");
   const [zones, setZones] = useState<Zone[]>([]);
   const [zonesLoading, setZonesLoading] = useState(false);
@@ -160,6 +160,15 @@ export default function RealEstateScreen() {
   const [aiComments, setAiComments] = useState<Record<string, { comment: string; rating: number }>>({});
   const [aiLoading, setAiLoading] = useState<Record<string, boolean>>({});
   const soundRef = useRef<Audio.Sound | null>(null);
+
+  const [prospectLocation, setProspectLocation] = useState("Miami, FL");
+  const [prospectCounty, setProspectCounty] = useState("Miami-Dade County");
+  const [prospectAreas, setProspectAreas] = useState<any[]>([]);
+  const [prospectLoading, setProspectLoading] = useState(false);
+  const [prospectCategory, setProspectCategory] = useState("");
+  const [prospectCategories, setProspectCategories] = useState<any[]>([]);
+  const [prospectTiers, setProspectTiers] = useState<any[]>([]);
+  const [expandedProspect, setExpandedProspect] = useState<string | null>(null);
 
   const [calcOpen, setCalcOpen] = useState(false);
   const [homePrice, setHomePrice] = useState("300000");
@@ -201,6 +210,42 @@ export default function RealEstateScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     fetchZones(mapLocation);
   }, [mapLocation, fetchZones]);
+
+  const prospectInitRef = useRef(false);
+
+  const fetchProspectData = useCallback(async (catOverride?: string) => {
+    setProspectLoading(true);
+    try {
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      const cat = catOverride !== undefined ? catOverride : prospectCategory;
+      const res = await fetch(
+        `${baseUrl}/api/realty/prospect-map?location=${encodeURIComponent(prospectLocation)}&county=${encodeURIComponent(prospectCounty)}&category=${encodeURIComponent(cat)}`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setProspectAreas(data.areas || []);
+        setProspectCategories(data.categories || []);
+        setProspectTiers(data.tiers || []);
+      }
+    } catch (err) {
+      console.error("Prospect fetch error:", err);
+    } finally {
+      setProspectLoading(false);
+    }
+  }, [prospectLocation, prospectCounty, prospectCategory]);
+
+  useEffect(() => {
+    if (activeTab === "prospect" && !prospectInitRef.current) {
+      prospectInitRef.current = true;
+      fetchProspectData();
+    }
+  }, [activeTab, fetchProspectData]);
+
+  useEffect(() => {
+    if (prospectInitRef.current) {
+      fetchProspectData(prospectCategory);
+    }
+  }, [prospectCategory]);
 
   const sendTourMessage = useCallback(async (msg?: string) => {
     const text = msg || tourInput.trim();
@@ -384,19 +429,19 @@ export default function RealEstateScreen() {
       </Animated.View>
 
       <View style={s.tabRow}>
-        {(["zones", "properties", "tour"] as const).map((tab) => (
+        {(["zones", "prospect", "properties", "tour"] as const).map((tab) => (
           <Pressable
             key={tab}
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setActiveTab(tab); }}
             style={[s.tab, activeTab === tab && s.tabActive]}
           >
             <Ionicons
-              name={tab === "zones" ? "analytics" : tab === "properties" ? "home" : "people"}
-              size={16}
+              name={tab === "zones" ? "analytics" : tab === "prospect" ? "map" : tab === "properties" ? "home" : "people"}
+              size={14}
               color={activeTab === tab ? Colors.gold : "rgba(255,255,255,0.4)"}
             />
-            <Text style={[s.tabText, activeTab === tab && s.tabTextActive]}>
-              {tab === "zones" ? "HOT ZONES" : tab === "properties" ? "LISTINGS" : "TOUR GUIDE"}
+            <Text style={[s.tabText, activeTab === tab && s.tabTextActive, { fontSize: 9 }]}>
+              {tab === "zones" ? "HOT ZONES" : tab === "prospect" ? "PROSPECT" : tab === "properties" ? "LISTINGS" : "GUIDE"}
             </Text>
           </Pressable>
         ))}
@@ -778,6 +823,202 @@ export default function RealEstateScreen() {
           </>
         )}
 
+        {activeTab === "prospect" && (
+          <>
+            <View style={s.prospectSection}>
+              <View style={s.sectionHeader}>
+                <Ionicons name="map" size={18} color={Colors.gold} />
+                <Text style={s.sectionTitle}>PROSPECTING MAP</Text>
+              </View>
+
+              <View style={s.prospectInputRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.prospectInputLabel}>City / Area</Text>
+                  <TextInput
+                    style={s.prospectInput}
+                    value={prospectLocation}
+                    onChangeText={setProspectLocation}
+                    placeholder="Miami, FL"
+                    placeholderTextColor="rgba(255,255,255,0.3)"
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.prospectInputLabel}>County</Text>
+                  <TextInput
+                    style={s.prospectInput}
+                    value={prospectCounty}
+                    onChangeText={setProspectCounty}
+                    placeholder="Miami-Dade County"
+                    placeholderTextColor="rgba(255,255,255,0.3)"
+                  />
+                </View>
+              </View>
+
+              <Pressable
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); fetchProspectData(); }}
+                style={s.prospectSearchBtn}
+              >
+                <Ionicons name="search" size={16} color="#000" />
+                <Text style={s.prospectSearchBtnText}>SEARCH AREA</Text>
+              </Pressable>
+
+              <Text style={s.prospectFilterLabel}>FILTER BY CATEGORY</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 8 }}>
+                <Pressable
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setProspectCategory(""); }}
+                  style={[s.prospectCatPill, !prospectCategory && s.prospectCatPillActive]}
+                >
+                  <Ionicons name="layers" size={14} color={!prospectCategory ? "#000" : "rgba(255,255,255,0.6)"} />
+                  <Text style={[s.prospectCatPillText, !prospectCategory && s.prospectCatPillTextActive]}>All</Text>
+                </Pressable>
+                {prospectCategories.map((cat: any) => (
+                  <Pressable
+                    key={cat.id}
+                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setProspectCategory(prospectCategory === cat.id ? "" : cat.id); }}
+                    style={[s.prospectCatPill, prospectCategory === cat.id && { backgroundColor: cat.color, borderColor: cat.color }]}
+                  >
+                    <Ionicons name={cat.icon as any} size={14} color={prospectCategory === cat.id ? "#000" : cat.color} />
+                    <Text style={[s.prospectCatPillText, prospectCategory === cat.id && { color: "#000" }]}>{cat.label}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+
+              <View style={s.prospectLegend}>
+                {prospectTiers.map((t: any) => (
+                  <View key={t.tier} style={s.prospectLegendItem}>
+                    <View style={[s.prospectLegendDot, { backgroundColor: t.color }]} />
+                    <Text style={s.prospectLegendText}>{t.label}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+
+            {prospectLoading ? (
+              <View style={s.loadingBox}>
+                <ActivityIndicator size="large" color={Colors.gold} />
+                <Text style={s.loadingText}>Scanning prospect zones...</Text>
+              </View>
+            ) : prospectAreas.length === 0 ? (
+              <View style={s.emptyBox}>
+                <Ionicons name="map-outline" size={48} color="rgba(255,255,255,0.2)" />
+                <Text style={s.emptyText}>Enter a location and tap SEARCH to see prospect zones</Text>
+              </View>
+            ) : (
+              <>
+                <View style={s.prospectSummary}>
+                  <Text style={s.prospectSummaryTitle}>{prospectAreas.length} ZONES FOUND</Text>
+                  <Text style={s.prospectSummarySubtext}>{prospectLocation} — {prospectCounty}</Text>
+                </View>
+
+                {prospectAreas.map((area: any) => (
+                  <Pressable
+                    key={area.id}
+                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setExpandedProspect(expandedProspect === area.id ? null : area.id); }}
+                    style={[s.prospectCard, { borderLeftColor: area.tierColor, borderLeftWidth: 4 }]}
+                  >
+                    <View style={s.prospectCardHeader}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.prospectCardTitle}>{area.name}</Text>
+                        <View style={s.prospectTierBadge}>
+                          <View style={[s.prospectTierDot, { backgroundColor: area.tierColor }]} />
+                          <Text style={[s.prospectTierText, { color: area.tierColor }]}>{area.tierLabel}</Text>
+                        </View>
+                      </View>
+                      <View style={s.prospectScoreCircle}>
+                        <Text style={s.prospectScoreValue}>{area.overallScore}</Text>
+                        <Text style={s.prospectScoreLabel}>SCORE</Text>
+                      </View>
+                    </View>
+
+                    <View style={s.prospectMetricsRow}>
+                      <View style={s.prospectMetric}>
+                        <Text style={s.prospectMetricValue}>${(area.metrics.medianHomePrice / 1000).toFixed(0)}K</Text>
+                        <Text style={s.prospectMetricLabel}>Median Price</Text>
+                      </View>
+                      <View style={s.prospectMetric}>
+                        <Text style={[s.prospectMetricValue, { color: area.metrics.popGrowth > 0 ? "#4ADE80" : "#ef4444" }]}>
+                          {area.metrics.popGrowth > 0 ? "+" : ""}{area.metrics.popGrowth}%
+                        </Text>
+                        <Text style={s.prospectMetricLabel}>Pop Growth</Text>
+                      </View>
+                      <View style={s.prospectMetric}>
+                        <Text style={s.prospectMetricValue}>${area.metrics.avgRent}</Text>
+                        <Text style={s.prospectMetricLabel}>Avg Rent</Text>
+                      </View>
+                      <View style={s.prospectMetric}>
+                        <Text style={s.prospectMetricValue}>{area.metrics.vacancyRate}%</Text>
+                        <Text style={s.prospectMetricLabel}>Vacancy</Text>
+                      </View>
+                    </View>
+
+                    {expandedProspect === area.id && (
+                      <View style={s.prospectExpanded}>
+                        <View style={s.prospectExtraMetrics}>
+                          <View style={s.prospectMetric}>
+                            <Text style={s.prospectMetricValue}>{area.metrics.walkScore}</Text>
+                            <Text style={s.prospectMetricLabel}>Walk Score</Text>
+                          </View>
+                          <View style={s.prospectMetric}>
+                            <Text style={s.prospectMetricValue}>{area.metrics.crimeIndex}</Text>
+                            <Text style={s.prospectMetricLabel}>Crime Index</Text>
+                          </View>
+                          <View style={s.prospectMetric}>
+                            <Text style={s.prospectMetricValue}>{area.metrics.schoolRating}/10</Text>
+                            <Text style={s.prospectMetricLabel}>Schools</Text>
+                          </View>
+                          <View style={s.prospectMetric}>
+                            <Text style={s.prospectMetricValue}>{area.metrics.zoning}</Text>
+                            <Text style={s.prospectMetricLabel}>Zoning</Text>
+                          </View>
+                        </View>
+
+                        <Text style={s.prospectCatHeader}>CATEGORY BREAKDOWN</Text>
+                        {area.categories.map((cat: any) => (
+                          <View key={cat.id} style={s.prospectCatRow}>
+                            <View style={[s.prospectCatIcon, { backgroundColor: `${cat.color}20` }]}>
+                              <Ionicons name={cat.icon as any} size={16} color={cat.color} />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={s.prospectCatName}>{cat.label}</Text>
+                              <View style={s.prospectCatBar}>
+                                <View style={[s.prospectCatBarFill, { width: `${cat.score}%`, backgroundColor: cat.color }]} />
+                              </View>
+                            </View>
+                            <View style={s.prospectCatStats}>
+                              <Text style={[s.prospectCatScore, { color: cat.color }]}>{cat.score}</Text>
+                              <Text style={s.prospectCatCount}>{cat.count} props</Text>
+                              <View style={s.prospectTrendBadge}>
+                                <Ionicons
+                                  name={cat.trend === "rising" ? "trending-up" : cat.trend === "stable" ? "remove" : "trending-down"}
+                                  size={12}
+                                  color={cat.trend === "rising" ? "#4ADE80" : cat.trend === "stable" ? "#FFD700" : "#ef4444"}
+                                />
+                              </View>
+                            </View>
+                          </View>
+                        ))}
+
+                        <View style={s.prospectPriceRow}>
+                          {area.categories.map((cat: any) => (
+                            <View key={cat.id} style={s.prospectPriceItem}>
+                              <Text style={[s.prospectPriceValue, { color: cat.color }]}>${(cat.avgPrice / 1000).toFixed(0)}K</Text>
+                              <Text style={s.prospectPriceLabel}>{cat.label.split(" ").slice(0, 2).join(" ")}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                    )}
+
+                    <View style={s.prospectExpandHint}>
+                      <Ionicons name={expandedProspect === area.id ? "chevron-up" : "chevron-down"} size={16} color="rgba(255,255,255,0.3)" />
+                    </View>
+                  </Pressable>
+                ))}
+              </>
+            )}
+          </>
+        )}
+
         {activeTab === "tour" && (
           <>
             <View style={s.tourSection}>
@@ -1025,4 +1266,56 @@ const s = StyleSheet.create({
   tourInputRow: { flexDirection: "row", gap: 8, marginTop: 8 },
   tourInput: { flex: 1, height: 44, backgroundColor: RE_INPUT_BG, borderRadius: 8, paddingHorizontal: 14, fontSize: 14, color: Colors.white, borderWidth: 2, borderColor: RE_RED },
   tourSendBtn: { width: 44, height: 44, borderRadius: 8, backgroundColor: RE_RED, alignItems: "center", justifyContent: "center" },
+  prospectSection: { marginHorizontal: 16, backgroundColor: RE_BG, borderWidth: 2, borderColor: RE_RED, borderRadius: 15, padding: 16, gap: 10, marginBottom: 16 },
+  prospectInputRow: { flexDirection: "row" as const, gap: 10 },
+  prospectInputLabel: { fontSize: 10, fontWeight: "700" as const, color: "#aaa", letterSpacing: 1, marginBottom: 4 },
+  prospectInput: { height: 42, backgroundColor: RE_INPUT_BG, borderRadius: 8, paddingHorizontal: 12, fontSize: 14, color: "#fff", borderWidth: 1, borderColor: "rgba(255,77,77,0.3)" },
+  prospectSearchBtn: { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 8, height: 44, borderRadius: 8, backgroundColor: Colors.gold },
+  prospectSearchBtnText: { fontSize: 13, fontWeight: "800" as const, color: "#000", letterSpacing: 1 },
+  prospectFilterLabel: { fontSize: 10, fontWeight: "700" as const, color: "#aaa", letterSpacing: 1, marginTop: 4 },
+  prospectCatPill: { flexDirection: "row" as const, alignItems: "center" as const, gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: "rgba(255,255,255,0.15)", backgroundColor: "rgba(255,255,255,0.05)" },
+  prospectCatPillActive: { backgroundColor: Colors.gold, borderColor: Colors.gold },
+  prospectCatPillText: { fontSize: 11, fontWeight: "600" as const, color: "rgba(255,255,255,0.7)" },
+  prospectCatPillTextActive: { color: "#000" },
+  prospectLegend: { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 12 },
+  prospectLegendItem: { flexDirection: "row" as const, alignItems: "center" as const, gap: 5 },
+  prospectLegendDot: { width: 10, height: 10, borderRadius: 5 },
+  prospectLegendText: { fontSize: 10, color: "rgba(255,255,255,0.5)", fontWeight: "600" as const },
+  loadingBox: { alignItems: "center" as const, justifyContent: "center" as const, paddingVertical: 40, gap: 12 },
+  loadingText: { fontSize: 13, color: "#888" },
+  emptyBox: { alignItems: "center" as const, justifyContent: "center" as const, paddingVertical: 40, gap: 12 },
+  emptyText: { fontSize: 13, color: "#888", textAlign: "center" as const, paddingHorizontal: 30 },
+  prospectSummary: { paddingHorizontal: 16, marginBottom: 10 },
+  prospectSummaryTitle: { fontSize: 16, fontWeight: "800" as const, color: Colors.gold, letterSpacing: 1 },
+  prospectSummarySubtext: { fontSize: 12, color: "#888", marginTop: 2 },
+  prospectCard: { marginHorizontal: 16, backgroundColor: RE_BG, borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" },
+  prospectCardHeader: { flexDirection: "row" as const, alignItems: "center" as const, gap: 12 },
+  prospectCardTitle: { fontSize: 16, fontWeight: "700" as const, color: "#fff" },
+  prospectTierBadge: { flexDirection: "row" as const, alignItems: "center" as const, gap: 5, marginTop: 3 },
+  prospectTierDot: { width: 8, height: 8, borderRadius: 4 },
+  prospectTierText: { fontSize: 11, fontWeight: "700" as const, letterSpacing: 0.5 },
+  prospectScoreCircle: { width: 52, height: 52, borderRadius: 26, backgroundColor: "rgba(255,255,255,0.08)", alignItems: "center" as const, justifyContent: "center" as const, borderWidth: 2, borderColor: Colors.gold },
+  prospectScoreValue: { fontSize: 18, fontWeight: "900" as const, color: Colors.gold },
+  prospectScoreLabel: { fontSize: 7, fontWeight: "700" as const, color: "#888", letterSpacing: 1 },
+  prospectMetricsRow: { flexDirection: "row" as const, justifyContent: "space-between" as const, marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.08)" },
+  prospectMetric: { alignItems: "center" as const, gap: 2, minWidth: 60 },
+  prospectMetricValue: { fontSize: 14, fontWeight: "700" as const, color: "#fff" },
+  prospectMetricLabel: { fontSize: 9, color: "#888", fontWeight: "600" as const, letterSpacing: 0.3 },
+  prospectExpanded: { marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.08)" },
+  prospectExtraMetrics: { flexDirection: "row" as const, justifyContent: "space-between" as const, marginBottom: 14 },
+  prospectCatHeader: { fontSize: 11, fontWeight: "800" as const, color: Colors.gold, letterSpacing: 1, marginBottom: 8 },
+  prospectCatRow: { flexDirection: "row" as const, alignItems: "center" as const, gap: 10, marginBottom: 10 },
+  prospectCatIcon: { width: 32, height: 32, borderRadius: 8, alignItems: "center" as const, justifyContent: "center" as const },
+  prospectCatName: { fontSize: 12, fontWeight: "600" as const, color: "#ccc", marginBottom: 4 },
+  prospectCatBar: { height: 6, borderRadius: 3, backgroundColor: "rgba(255,255,255,0.08)", overflow: "hidden" as const },
+  prospectCatBarFill: { height: 6, borderRadius: 3 },
+  prospectCatStats: { alignItems: "flex-end" as const, gap: 2 },
+  prospectCatScore: { fontSize: 16, fontWeight: "800" as const },
+  prospectCatCount: { fontSize: 9, color: "#888" },
+  prospectTrendBadge: { paddingHorizontal: 4, paddingVertical: 2 },
+  prospectPriceRow: { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 8, marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.08)" },
+  prospectPriceItem: { alignItems: "center" as const, flex: 1, minWidth: 70 },
+  prospectPriceValue: { fontSize: 13, fontWeight: "700" as const },
+  prospectPriceLabel: { fontSize: 8, color: "#888", fontWeight: "600" as const, textAlign: "center" as const },
+  prospectExpandHint: { alignItems: "center" as const, paddingTop: 6 },
 });

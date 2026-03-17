@@ -6108,6 +6108,137 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
     }
   });
 
+  const PROSPECT_CATEGORIES = [
+    { id: "rentals", label: "Rentals", color: "#4d8bff", icon: "key" },
+    { id: "existing_sfh", label: "Existing Single Family Homes", color: "#FFD700", icon: "home" },
+    { id: "prospect_sfh", label: "Prospect Family Homes", color: "#ff8c00", icon: "construct" },
+    { id: "existing_airbnb", label: "Existing Airbnb Potentials", color: "#22c55e", icon: "bed" },
+    { id: "airbnb_build", label: "Airbnb Build Potential", color: "#86efac", icon: "hammer" },
+    { id: "land", label: "Land", color: "#ef4444", icon: "earth" },
+  ];
+
+  const PROSPECT_TIERS = [
+    { tier: "prime", label: "Prime / Commercial", color: "#22c55e", minScore: 85 },
+    { tier: "growth", label: "Growth Potential", color: "#FFD700", minScore: 65 },
+    { tier: "developing", label: "Developing", color: "#ff8c00", minScore: 45 },
+    { tier: "caution", label: "High Risk / Undeveloped", color: "#ef4444", minScore: 0 },
+  ];
+
+  function getProspectTier(score: number) {
+    for (const t of PROSPECT_TIERS) {
+      if (score >= t.minScore) return t;
+    }
+    return PROSPECT_TIERS[PROSPECT_TIERS.length - 1];
+  }
+
+  function generateProspectData(location: string, county: string) {
+    const seed = (location + county).toLowerCase().split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+    const rng = (i: number) => {
+      const x = Math.sin(seed * 9301 + i * 49297) * 49297;
+      return x - Math.floor(x);
+    };
+
+    const subAreas = [
+      "Downtown Core", "North Side", "South Side", "East End", "West End",
+      "Midtown", "Waterfront", "Industrial Park", "Suburban Heights", "Old Town",
+      "Tech District", "University Area", "Airport Corridor", "Lakefront",
+      "Commercial Strip", "Historic Quarter", "New Development Zone", "Rural Edge",
+    ];
+
+    const areaCount = 8 + Math.floor(rng(0) * 6);
+    const areas: any[] = [];
+
+    for (let i = 0; i < areaCount; i++) {
+      const areaName = subAreas[i % subAreas.length];
+      const overallScore = Math.round(25 + rng(i * 13 + 1) * 75);
+      const tier = getProspectTier(overallScore);
+
+      const categories: any[] = [];
+      for (let c = 0; c < PROSPECT_CATEGORIES.length; c++) {
+        const cat = PROSPECT_CATEGORIES[c];
+        const catScore = Math.round(15 + rng(i * 13 + c * 7 + 2) * 85);
+        const count = Math.round(rng(i * 13 + c * 7 + 3) * 50);
+        const avgPrice = Math.round(80000 + rng(i * 13 + c * 7 + 4) * 420000);
+        const potential = catScore >= 70 ? "High" : catScore >= 45 ? "Medium" : "Low";
+        const trend = rng(i * 13 + c * 7 + 5) > 0.4 ? "rising" : rng(i * 13 + c * 7 + 5) > 0.2 ? "stable" : "declining";
+
+        categories.push({
+          ...cat,
+          score: catScore,
+          count,
+          avgPrice,
+          potential,
+          trend,
+        });
+      }
+
+      const medianHomePrice = Math.round(150000 + rng(i * 13 + 80) * 500000);
+      const popGrowth = +((-2 + rng(i * 13 + 81) * 10).toFixed(1));
+      const vacancyRate = +(2 + rng(i * 13 + 82) * 12).toFixed(1);
+      const avgRent = Math.round(800 + rng(i * 13 + 83) * 2200);
+      const walkScore = Math.round(20 + rng(i * 13 + 84) * 80);
+      const crimeIndex = +(1 + rng(i * 13 + 85) * 9).toFixed(1);
+      const schoolRating = +(3 + rng(i * 13 + 86) * 7).toFixed(1);
+      const zoning = rng(i * 13 + 87) > 0.6 ? "Mixed-Use" : rng(i * 13 + 87) > 0.3 ? "Residential" : "Commercial";
+      const futureDevProjects = Math.round(rng(i * 13 + 88) * 8);
+
+      areas.push({
+        id: `prospect-${i}`,
+        name: areaName,
+        overallScore,
+        tier: tier.tier,
+        tierLabel: tier.label,
+        tierColor: tier.color,
+        categories,
+        metrics: {
+          medianHomePrice,
+          popGrowth,
+          vacancyRate,
+          avgRent,
+          walkScore,
+          crimeIndex,
+          schoolRating,
+          zoning,
+          futureDevProjects,
+        },
+        lat: 25.7617 + (rng(i * 13 + 90) - 0.5) * 0.15,
+        lng: -80.1918 + (rng(i * 13 + 91) - 0.5) * 0.15,
+      });
+    }
+
+    return areas.sort((a, b) => b.overallScore - a.overallScore);
+  }
+
+  app.get("/api/realty/prospect-map", async (req, res) => {
+    try {
+      const location = (req.query.location as string) || "Miami, FL";
+      const county = (req.query.county as string) || "Miami-Dade County";
+      const category = (req.query.category as string) || "";
+
+      const areas = generateProspectData(location, county);
+
+      let filtered = areas;
+      if (category) {
+        filtered = areas.map(a => ({
+          ...a,
+          categories: a.categories.filter((c: any) => c.id === category),
+        })).filter(a => a.categories.length > 0);
+      }
+
+      res.json({
+        areas: filtered,
+        location,
+        county,
+        categories: PROSPECT_CATEGORIES,
+        tiers: PROSPECT_TIERS,
+        total: areas.length,
+      });
+    } catch (error) {
+      console.error("Prospect map error:", error);
+      res.status(500).json({ error: "Failed to generate prospect data" });
+    }
+  });
+
   const TOUR_GUIDES: Record<string, { name: string; title: string; prompt: string }> = {
     victor: {
       name: "Victor Sterling",
