@@ -65,6 +65,7 @@ interface TherapistConfig {
   errorMsg: string;
   rxTitle: string;
   rxSubtitle: string;
+  questionPrompts?: string[];
 }
 
 const THERAPIST_CONFIGS: Record<TherapistVoice, TherapistConfig> = {
@@ -151,6 +152,13 @@ const THERAPIST_CONFIGS: Record<TherapistVoice, TherapistConfig> = {
     errorMsg: "Dr. Patricia is freshening up. She'll be right back, sweetheart.",
     rxTitle: "DR. PATRICIA'S RX",
     rxSubtitle: "\"Taking care of yourself is the sexiest thing you can do.\"",
+    questionPrompts: [
+      "What's the one thing you wish someone understood about you?",
+      "Mmm, tell me about the last time you felt truly alive.",
+      "If your heart could speak right now, what would it say?",
+      "I can see you're carrying something heavy. Let me help you with that...",
+      "You know, I have a feeling there's more beneath the surface. Share it with me.",
+    ],
   },
 };
 
@@ -174,6 +182,7 @@ export default function TherapyScreen() {
   const { hasTokens, deviceId, refreshBalance } = useTokens();
 
   const [selectedTherapist, setSelectedTherapist] = useState<TherapistVoice>("trump");
+  const [questionPrompt, setQuestionPrompt] = useState<string | null>(null);
   const [showIntro, setShowIntro] = useState(true);
   const [firstName, setFirstName] = useState("");
   const [problem, setProblem] = useState("");
@@ -890,6 +899,8 @@ export default function TherapyScreen() {
                 onPress={() => {
                   if (!loading && !therapy && !chatStarted) {
                     setSelectedTherapist(voice);
+                    const prompts = THERAPIST_CONFIGS[voice].questionPrompts;
+                    setQuestionPrompt(prompts ? prompts[Math.floor(Math.random() * prompts.length)] : null);
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   }
                 }}
@@ -950,7 +961,7 @@ export default function TherapyScreen() {
           {sessionMode !== "chat" && (
             <>
               <View style={styles.labelRow}>
-                <Text style={[styles.inputLabel, { marginTop: 0, marginBottom: 0, color: config.accent }]}>{"\uD83D\uDE1F"} What's bothering you?</Text>
+                <Text style={[styles.inputLabel, { marginTop: 0, marginBottom: 0, color: config.accent }]}>{"\uD83D\uDE1F"} {questionPrompt || "What's bothering you?"}</Text>
                 <Pressable
                   onPress={isRecording ? stopRecording : startRecording}
                   disabled={isTranscribing}
