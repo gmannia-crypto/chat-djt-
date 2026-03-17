@@ -1017,7 +1017,7 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + webTopInset }]}>
-      <View style={styles.woodFrameOuter}>
+      <View style={styles.woodFrameOuter} pointerEvents="none">
         <View style={styles.woodFrameInner}>
           <Image
             source={require("@/assets/images/djt-logo.png")}
@@ -1031,6 +1031,7 @@ export default function HomeScreen() {
         style={styles.backgroundOverlay}
         start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 1 }}
+        pointerEvents="none"
       />
 
       <Animated.View
@@ -2269,10 +2270,8 @@ const styles = StyleSheet.create({
   },
   centerContent: {
     alignItems: "center",
-    justifyContent: "center",
-    flexGrow: 1,
     paddingVertical: 10,
-    ...(Platform.OS === "web" ? { minHeight: "100%" as any } : {}),
+    paddingHorizontal: 2,
   },
   brandTitle: {
     fontSize: 42,
