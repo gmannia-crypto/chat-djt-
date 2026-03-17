@@ -343,6 +343,15 @@ export async function getTherapyHistory(
   return user.sessions;
 }
 
+export async function getLastTherapySessionForTherapist(
+  userId: string,
+  therapistId: string
+): Promise<TherapySession | null> {
+  const sessions = await getTherapyHistory(userId);
+  const filtered = sessions.filter((s) => s.therapist === therapistId);
+  return filtered.length > 0 ? filtered[filtered.length - 1] : null;
+}
+
 export async function getTherapyContext(userId: string): Promise<string> {
   const sessions = await getTherapyHistory(userId);
   if (sessions.length === 0) return "";

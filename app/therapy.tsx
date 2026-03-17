@@ -21,7 +21,7 @@ import * as Haptics from "expo-haptics";
 import * as FileSystem from "expo-file-system";
 import { Audio } from "expo-av";
 import { playTTS } from "@/lib/audio-helper";
-import { recordTherapySession, getTherapyContext } from "@/lib/persona-memory";
+import { recordTherapySession, getTherapyContext, getLastTherapySessionForTherapist } from "@/lib/persona-memory";
 import Animated, {
   FadeIn,
   FadeInDown,
@@ -581,6 +581,19 @@ export default function TherapyScreen() {
     } catch {}
   };
 
+  const generateWelcomeBack = (therapist: TherapistVoice, topic: string, name: string): string => {
+    switch (therapist) {
+      case "patricia":
+        return `Welcome back, love. Last time we discussed ${topic}. How has that been for you, gorgeous?`;
+      case "sophia":
+        return `Welcome back, ${name}. Last time we explored ${topic} together. I've been thinking about you. How are you feeling about that now?`;
+      case "james":
+        return `Good to see you again, ${name}. Our last session covered ${topic}. Let's check in on your progress with that.`;
+      default:
+        return `You're back! Last time we talked about ${topic}. Tremendous topic, by the way. So tell me — how's that going?`;
+    }
+  };
+
   const handleStartChat = async () => {
     if (!firstName.trim()) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -592,7 +605,17 @@ export default function TherapyScreen() {
       return;
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    const greeting = config.greeting.replace(/"/g, "");
+
+    const uid = deviceId || "anonymous";
+    const lastSession = await getLastTherapySessionForTherapist(uid, selectedTherapist).catch(() => null);
+
+    let greeting: string;
+    if (lastSession) {
+      greeting = generateWelcomeBack(selectedTherapist, lastSession.problem, firstName.trim());
+    } else {
+      greeting = config.greeting.replace(/"/g, "");
+    }
+
     setChatMessages([{ role: "assistant", content: greeting }]);
     setChatStarted(true);
     setSessionSeconds(120);
