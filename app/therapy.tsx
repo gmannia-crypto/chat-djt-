@@ -191,7 +191,12 @@ export default function TherapyScreen() {
   const [sessionActive, setSessionActive] = useState(false);
   const [sessionEnded, setSessionEnded] = useState(false);
 
-  const [sessionMode, setSessionMode] = useState<"quick" | "deep">("quick");
+  const [sessionMode, setSessionMode] = useState<"quick" | "deep" | "chat">("quick");
+  const [chatMessages, setChatMessages] = useState<Array<{ role: string; content: string }>>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatStarted, setChatStarted] = useState(false);
+
   const [intakeStep, setIntakeStep] = useState<string | null>(null);
   const [intakeQuestion, setIntakeQuestion] = useState<string | null>(null);
   const [intakeOptions, setIntakeOptions] = useState<Array<{ label: string; value: number }> | null>(null);
@@ -567,6 +572,86 @@ export default function TherapyScreen() {
     } catch {}
   };
 
+  const handleStartChat = async () => {
+    if (!firstName.trim()) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      return;
+    }
+    if (!hasTokens) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      router.push("/subscribe");
+      return;
+    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    const greeting = config.greeting.replace(/"/g, "");
+    setChatMessages([{ role: "assistant", content: greeting }]);
+    setChatStarted(true);
+    setSessionSeconds(120);
+    setSessionActive(true);
+    setSessionEnded(false);
+    setTimeout(() => handleSpeak(greeting, selectedTherapist), 500);
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 300);
+  };
+
+  const handleChatSend = async () => {
+    if (!chatInput.trim() || chatLoading || sessionEnded) return;
+    const userMsg = chatInput.trim();
+    const currentVoice = selectedTherapist;
+    setChatInput("");
+    setChatMessages(prev => [...prev, { role: "user", content: userMsg }]);
+    setChatLoading(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    try {
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      const hdrs: Record<string, string> = { "Content-Type": "application/json" };
+      if (deviceId) hdrs["x-device-id"] = deviceId;
+
+      const uid = deviceId || "anonymous";
+      const historyContext = await getTherapyContext(uid).catch(() => "");
+
+      const allMessages = [...chatMessages, { role: "user", content: userMsg }];
+
+      const res = await fetch(`${baseUrl}/api/therapy/chat`, {
+        method: "POST",
+        headers: hdrs,
+        body: JSON.stringify({
+          name: firstName.trim(),
+          voice: currentVoice,
+          messages: allMessages,
+          therapyHistory: historyContext || undefined,
+        }),
+      });
+
+      if (res.status === 403) {
+        refreshBalance();
+        router.push("/subscribe");
+        return;
+      }
+      if (!res.ok) throw new Error("Chat failed");
+      const data = await res.json();
+      setChatMessages(prev => [...prev, { role: "assistant", content: data.reply }]);
+      refreshBalance();
+
+      if (data.reply) {
+        setTimeout(() => handleSpeak(data.reply, currentVoice), 500);
+      }
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 300);
+
+      recordTherapySession(uid, {
+        therapist: currentVoice,
+        problem: userMsg,
+        seriousness: 5,
+        therapySnippet: data.reply,
+      }).catch(() => {});
+    } catch {
+      setChatMessages(prev => [...prev, { role: "assistant", content: config.errorMsg }]);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
   const handleStartIntake = async () => {
     if (!firstName.trim() || !problem.trim()) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -697,6 +782,10 @@ export default function TherapyScreen() {
     setPhq9Interpretation(null);
     setIntakeScaleValue("5");
     setSessionMode("quick");
+    setChatMessages([]);
+    setChatInput("");
+    setChatLoading(false);
+    setChatStarted(false);
     if (sessionTimerRef.current) clearInterval(sessionTimerRef.current);
     if (soundRef.current) {
       soundRef.current.unloadAsync();
@@ -799,7 +888,7 @@ export default function TherapyScreen() {
               <Pressable
                 key={voice}
                 onPress={() => {
-                  if (!loading && !therapy) {
+                  if (!loading && !therapy && !chatStarted) {
                     setSelectedTherapist(voice);
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   }
@@ -845,7 +934,7 @@ export default function TherapyScreen() {
           )}
         </Animated.View>
 
-        <Animated.View entering={FadeInDown.delay(300).duration(500)} style={[styles.therapyCard, { borderColor: `${config.accent}66` }]}>
+        {!chatStarted && <Animated.View entering={FadeInDown.delay(300).duration(500)} style={[styles.therapyCard, { borderColor: `${config.accent}66` }]}>
           <Text style={[styles.greeting, { color: config.accent }]}>{config.greeting}</Text>
 
           <Text style={[styles.inputLabel, { color: config.accent }]}>{"\uD83D\uDC64"} Your name (first only):</Text>
@@ -858,126 +947,144 @@ export default function TherapyScreen() {
             maxLength={30}
           />
 
-          <View style={styles.labelRow}>
-            <Text style={[styles.inputLabel, { marginTop: 0, marginBottom: 0, color: config.accent }]}>{"\uD83D\uDE1F"} What's bothering you?</Text>
-            <Pressable
-              onPress={isRecording ? stopRecording : startRecording}
-              disabled={isTranscribing}
-              testID="mic-button"
-              accessibilityLabel={isRecording ? "Stop recording" : "Start voice input"}
-              style={({ pressed }) => [
-                styles.micButton,
-                { backgroundColor: config.accentLight, borderColor: `${config.accent}66` },
-                isRecording && { backgroundColor: config.accent, borderColor: config.accent },
-                pressed && { opacity: 0.7 },
-                isTranscribing && { opacity: 0.5 },
-              ]}
-            >
-              {isTranscribing ? (
-                <ActivityIndicator color={config.accent} size="small" />
-              ) : (
-                <Ionicons
-                  name={isRecording ? "stop" : "mic"}
-                  size={18}
-                  color={isRecording ? "#fff" : config.accent}
-                />
-              )}
-            </Pressable>
-          </View>
-          {isRecording && (
-            <Animated.View entering={FadeIn.duration(200)} style={styles.recordingIndicator}>
-              <View style={styles.recordingDot} />
-              <Text style={styles.recordingText}>Listening... tap mic to stop</Text>
-            </Animated.View>
-          )}
-          <TextInput
-            value={problem}
-            onChangeText={setProblem}
-            placeholder={isRecording ? "Speak now..." : config.placeholder}
-            placeholderTextColor="rgba(255,255,255,0.3)"
-            style={[styles.textInput, styles.textArea, isRecording && { borderColor: `${config.accent}99` }]}
-            multiline
-            maxLength={500}
-            textAlignVertical="top"
-            editable={!isRecording}
-          />
-
-          <Text style={[styles.inputLabel, { color: config.accent }]}>{"\uD83D\uDCCA"} How serious is it? (1-10)</Text>
-          <Pressable
-            onPress={() => setShowLevelPicker(!showLevelPicker)}
-            style={styles.levelSelector}
-          >
-            <Text style={styles.levelSelectorText}>
-              {selectedLevel?.label || "Select level"}
-            </Text>
-            <Ionicons name="chevron-down" size={16} color="rgba(255,255,255,0.5)" />
-          </Pressable>
-
-          {showLevelPicker && (
-            <Animated.View entering={FadeIn.duration(200)} style={styles.levelPicker}>
-              {SERIOUSNESS_LEVELS.map((level) => (
+          {sessionMode !== "chat" && (
+            <>
+              <View style={styles.labelRow}>
+                <Text style={[styles.inputLabel, { marginTop: 0, marginBottom: 0, color: config.accent }]}>{"\uD83D\uDE1F"} What's bothering you?</Text>
                 <Pressable
-                  key={level.value}
-                  onPress={() => {
-                    setSeriousness(level.value);
-                    setShowLevelPicker(false);
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  }}
-                  style={[styles.levelOption, seriousness === level.value && styles.levelOptionSelected]}
+                  onPress={isRecording ? stopRecording : startRecording}
+                  disabled={isTranscribing}
+                  testID="mic-button"
+                  accessibilityLabel={isRecording ? "Stop recording" : "Start voice input"}
+                  style={({ pressed }) => [
+                    styles.micButton,
+                    { backgroundColor: config.accentLight, borderColor: `${config.accent}66` },
+                    isRecording && { backgroundColor: config.accent, borderColor: config.accent },
+                    pressed && { opacity: 0.7 },
+                    isTranscribing && { opacity: 0.5 },
+                  ]}
                 >
-                  <Text style={[styles.levelOptionText, seriousness === level.value && { color: "#ff4d4d" }]}>
-                    {level.label}
-                  </Text>
+                  {isTranscribing ? (
+                    <ActivityIndicator color={config.accent} size="small" />
+                  ) : (
+                    <Ionicons
+                      name={isRecording ? "stop" : "mic"}
+                      size={18}
+                      color={isRecording ? "#fff" : config.accent}
+                    />
+                  )}
                 </Pressable>
-              ))}
-            </Animated.View>
-          )}
-        </Animated.View>
+              </View>
+              {isRecording && (
+                <Animated.View entering={FadeIn.duration(200)} style={styles.recordingIndicator}>
+                  <View style={styles.recordingDot} />
+                  <Text style={styles.recordingText}>Listening... tap mic to stop</Text>
+                </Animated.View>
+              )}
+              <TextInput
+                value={problem}
+                onChangeText={setProblem}
+                placeholder={isRecording ? "Speak now..." : config.placeholder}
+                placeholderTextColor="rgba(255,255,255,0.3)"
+                style={[styles.textInput, styles.textArea, isRecording && { borderColor: `${config.accent}99` }]}
+                multiline
+                maxLength={500}
+                textAlignVertical="top"
+                editable={!isRecording}
+              />
 
-        <Animated.View entering={FadeInDown.delay(350).duration(500)} style={styles.modeToggleContainer}>
+              <Text style={[styles.inputLabel, { color: config.accent }]}>{"\uD83D\uDCCA"} How serious is it? (1-10)</Text>
+              <Pressable
+                onPress={() => setShowLevelPicker(!showLevelPicker)}
+                style={styles.levelSelector}
+              >
+                <Text style={styles.levelSelectorText}>
+                  {selectedLevel?.label || "Select level"}
+                </Text>
+                <Ionicons name="chevron-down" size={16} color="rgba(255,255,255,0.5)" />
+              </Pressable>
+
+              {showLevelPicker && (
+                <Animated.View entering={FadeIn.duration(200)} style={styles.levelPicker}>
+                  {SERIOUSNESS_LEVELS.map((level) => (
+                    <Pressable
+                      key={level.value}
+                      onPress={() => {
+                        setSeriousness(level.value);
+                        setShowLevelPicker(false);
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      }}
+                      style={[styles.levelOption, seriousness === level.value && styles.levelOptionSelected]}
+                    >
+                      <Text style={[styles.levelOptionText, seriousness === level.value && { color: "#ff4d4d" }]}>
+                        {level.label}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </Animated.View>
+              )}
+            </>
+          )}
+          {sessionMode === "chat" && (
+            <Text style={[styles.chatModeHint, { color: config.accent }]}>
+              Just enter your name above and start chatting freely with {config.name}
+            </Text>
+          )}
+        </Animated.View>}
+
+        {!chatStarted && <Animated.View entering={FadeInDown.delay(350).duration(500)} style={styles.modeToggleContainer}>
           <Pressable
-            onPress={() => { if (!therapy && !intakeStep) { setSessionMode("quick"); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } }}
+            onPress={() => { if (!therapy && !intakeStep && !chatStarted) { setSessionMode("quick"); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } }}
             style={[styles.modeToggleBtn, sessionMode === "quick" && { backgroundColor: `${config.accent}25`, borderColor: config.accent }]}
           >
             <Ionicons name="flash" size={14} color={sessionMode === "quick" ? config.accent : "rgba(255,255,255,0.4)"} />
-            <Text style={[styles.modeToggleText, sessionMode === "quick" && { color: config.accent }]}>Quick Session</Text>
+            <Text style={[styles.modeToggleText, sessionMode === "quick" && { color: config.accent }]}>Quick</Text>
           </Pressable>
           <Pressable
-            onPress={() => { if (!therapy && !intakeStep) { setSessionMode("deep"); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } }}
+            onPress={() => { if (!therapy && !intakeStep && !chatStarted) { setSessionMode("deep"); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } }}
             style={[styles.modeToggleBtn, sessionMode === "deep" && { backgroundColor: `${config.accent}25`, borderColor: config.accent }]}
           >
             <Ionicons name="analytics" size={14} color={sessionMode === "deep" ? config.accent : "rgba(255,255,255,0.4)"} />
-            <Text style={[styles.modeToggleText, sessionMode === "deep" && { color: config.accent }]}>Deep Session + PHQ-9</Text>
+            <Text style={[styles.modeToggleText, sessionMode === "deep" && { color: config.accent }]}>Deep + PHQ-9</Text>
           </Pressable>
-        </Animated.View>
-
-        <Animated.View entering={FadeInDown.delay(400).duration(500)} style={styles.buttonContainer}>
           <Pressable
-            onPress={sessionMode === "deep" ? handleStartIntake : handleGetTherapy}
-            disabled={(sessionMode === "deep" ? intakeLoading : loading) || !canSubmit}
-            style={({ pressed }) => [
-              styles.therapyButton,
-              { shadowColor: config.accent },
-              !canSubmit && styles.therapyButtonDisabled,
-              pressed && { opacity: 0.8 },
-            ]}
+            onPress={() => { if (!therapy && !intakeStep && !chatStarted) { setSessionMode("chat"); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } }}
+            style={[styles.modeToggleBtn, sessionMode === "chat" && { backgroundColor: `${config.accent}25`, borderColor: config.accent }]}
           >
-            <LinearGradient
-              colors={canSubmit ? config.gradient : ["#333", "#222"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.therapyButtonGradient}
-            >
-              {(sessionMode === "deep" ? intakeLoading : loading) ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <Text style={styles.therapyButtonText}>
-                  {sessionMode === "deep" ? "BEGIN DEEP SESSION" : config.buttonText}
-                </Text>
-              )}
-            </LinearGradient>
+            <Ionicons name="chatbubbles" size={14} color={sessionMode === "chat" ? config.accent : "rgba(255,255,255,0.4)"} />
+            <Text style={[styles.modeToggleText, sessionMode === "chat" && { color: config.accent }]}>Free Chat</Text>
           </Pressable>
-        </Animated.View>
+        </Animated.View>}
+
+        {!chatStarted && (
+          <Animated.View entering={FadeInDown.delay(400).duration(500)} style={styles.buttonContainer}>
+            <Pressable
+              onPress={sessionMode === "chat" ? handleStartChat : sessionMode === "deep" ? handleStartIntake : handleGetTherapy}
+              disabled={sessionMode === "chat" ? !firstName.trim() : (sessionMode === "deep" ? intakeLoading : loading) || !canSubmit}
+              style={({ pressed }) => [
+                styles.therapyButton,
+                { shadowColor: config.accent },
+                (sessionMode === "chat" ? !firstName.trim() : !canSubmit) && styles.therapyButtonDisabled,
+                pressed && { opacity: 0.8 },
+              ]}
+            >
+              <LinearGradient
+                colors={(sessionMode === "chat" ? firstName.trim() : canSubmit) ? config.gradient : ["#333", "#222"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.therapyButtonGradient}
+              >
+                {(sessionMode === "deep" ? intakeLoading : loading) ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.therapyButtonText}>
+                    {sessionMode === "chat" ? "START FREE CHAT" : sessionMode === "deep" ? "BEGIN DEEP SESSION" : config.buttonText}
+                  </Text>
+                )}
+              </LinearGradient>
+            </Pressable>
+          </Animated.View>
+        )}
 
         {intakeStep && intakeMessages.length > 0 && !therapy && (
           <Animated.View entering={FadeInUp.duration(600)} style={[styles.intakeConversation, { borderColor: `${config.accent}40` }]}>
@@ -1047,6 +1154,92 @@ export default function TherapyScreen() {
                   <Text style={styles.intakeSubmitScaleBtnText}>CONFIRM</Text>
                 </Pressable>
               </Animated.View>
+            )}
+          </Animated.View>
+        )}
+
+        {chatStarted && sessionMode === "chat" && (
+          <Animated.View entering={FadeInUp.duration(600)} style={[styles.chatContainer, { borderColor: `${config.accent}40` }]}>
+            <View style={styles.chatHeader}>
+              <Ionicons name="chatbubbles" size={16} color={config.accent} />
+              <Text style={[styles.chatHeaderText, { color: config.accent }]}>FREE CHAT SESSION</Text>
+              <Pressable
+                onPress={handleNewSession}
+                style={[styles.chatEndBtn, { backgroundColor: `${config.accent}20`, borderColor: `${config.accent}60` }]}
+              >
+                <Text style={[styles.chatEndBtnText, { color: config.accent }]}>END</Text>
+              </Pressable>
+            </View>
+
+            {chatMessages.map((msg, i) => (
+              <Animated.View
+                key={i}
+                entering={FadeInDown.delay(i > chatMessages.length - 3 ? 100 : 0).duration(300)}
+                style={[styles.chatMsg, msg.role === "user" ? styles.chatMsgUser : styles.chatMsgTherapist]}
+              >
+                {msg.role === "assistant" && (
+                  <Image source={config.image} style={styles.chatMsgAvatar} resizeMode="cover" />
+                )}
+                <View style={[styles.chatMsgBubble, msg.role === "user" ? { backgroundColor: `${config.accent}20` } : { backgroundColor: "rgba(255,255,255,0.06)" }]}>
+                  <Text style={[styles.chatMsgText, msg.role === "assistant" && { color: "rgba(255,255,255,0.9)" }]}>{msg.content}</Text>
+                </View>
+              </Animated.View>
+            ))}
+
+            {chatLoading && (
+              <View style={styles.chatLoadingRow}>
+                <Image source={config.image} style={styles.chatMsgAvatar} resizeMode="cover" />
+                <View style={[styles.chatMsgBubble, { backgroundColor: "rgba(255,255,255,0.06)", paddingVertical: 12 }]}>
+                  <ActivityIndicator color={config.accent} size="small" />
+                </View>
+              </View>
+            )}
+
+            {sessionEnded && (
+              <Animated.View entering={FadeIn.duration(400)} style={[styles.chatSessionEnd, { borderColor: `${config.accent}40` }]}>
+                <Text style={[styles.sessionEndTitle, { color: config.accent }]}>Session Complete</Text>
+                <Text style={styles.sessionEndText}>Your 2-minute session has ended.</Text>
+                <Pressable
+                  onPress={handleNewSession}
+                  style={({ pressed }) => [styles.chatNewSessionBtn, { backgroundColor: config.accent }, pressed && { opacity: 0.8 }]}
+                >
+                  <Ionicons name="refresh" size={16} color="#fff" />
+                  <Text style={styles.chatNewSessionBtnText}>NEW SESSION</Text>
+                </Pressable>
+              </Animated.View>
+            )}
+
+            {!sessionEnded && (
+              <View style={[styles.chatInputRow, { borderColor: `${config.accent}40` }]}>
+                <TextInput
+                  value={chatInput}
+                  onChangeText={setChatInput}
+                  placeholder={`Talk to ${config.name}...`}
+                  placeholderTextColor="rgba(255,255,255,0.3)"
+                  style={[styles.chatInput, { borderColor: `${config.accent}30` }]}
+                  multiline
+                  maxLength={500}
+                  editable={!chatLoading}
+                  onSubmitEditing={handleChatSend}
+                  testID="chat-input"
+                />
+                <Pressable
+                  onPress={handleChatSend}
+                  disabled={chatLoading || !chatInput.trim()}
+                  style={({ pressed }) => [
+                    styles.chatSendBtn,
+                    { backgroundColor: chatInput.trim() ? config.accent : "rgba(51,51,51,0.8)" },
+                    pressed && { opacity: 0.8 },
+                  ]}
+                  testID="chat-send-btn"
+                >
+                  {chatLoading ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Ionicons name="send" size={18} color="#fff" />
+                  )}
+                </Pressable>
+              </View>
             )}
           </Animated.View>
         )}
@@ -2070,5 +2263,124 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.3)",
     textAlign: "center" as const,
     lineHeight: 14,
+  },
+  chatModeHint: {
+    fontSize: 14,
+    fontStyle: "italic" as const,
+    textAlign: "center" as const,
+    marginTop: 16,
+    opacity: 0.7,
+  },
+  chatContainer: {
+    marginTop: 16,
+    backgroundColor: "rgba(20,20,20,0.8)",
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    gap: 12,
+  },
+  chatHeader: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 8,
+    marginBottom: 4,
+  },
+  chatHeaderText: {
+    fontSize: 12,
+    fontWeight: "800" as const,
+    letterSpacing: 1,
+    flex: 1,
+  },
+  chatEndBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  chatEndBtnText: {
+    fontSize: 11,
+    fontWeight: "700" as const,
+    letterSpacing: 0.5,
+  },
+  chatMsg: {
+    flexDirection: "row" as const,
+    gap: 8,
+    maxWidth: "90%" as any,
+  },
+  chatMsgUser: {
+    alignSelf: "flex-end" as const,
+  },
+  chatMsgTherapist: {
+    alignSelf: "flex-start" as const,
+  },
+  chatMsgAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    marginTop: 4,
+  },
+  chatMsgBubble: {
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    maxWidth: "85%" as any,
+  },
+  chatMsgText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: "rgba(255,255,255,0.7)",
+  },
+  chatLoadingRow: {
+    flexDirection: "row" as const,
+    gap: 8,
+    alignSelf: "flex-start" as const,
+  },
+  chatSessionEnd: {
+    backgroundColor: "rgba(20,20,20,0.9)",
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 16,
+    alignItems: "center" as const,
+    gap: 10,
+  },
+  chatNewSessionBtn: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+  },
+  chatNewSessionBtnText: {
+    fontSize: 13,
+    fontWeight: "800" as const,
+    color: "#fff",
+    letterSpacing: 1,
+  },
+  chatInputRow: {
+    flexDirection: "row" as const,
+    gap: 8,
+    alignItems: "flex-end" as const,
+    paddingTop: 8,
+    borderTopWidth: 1,
+  },
+  chatInput: {
+    flex: 1,
+    backgroundColor: "rgba(51,51,51,0.8)",
+    borderWidth: 1.5,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: "#fff",
+    maxHeight: 100,
+  },
+  chatSendBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
   },
 });

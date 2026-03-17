@@ -5045,6 +5045,77 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
     return { severity: "severe", description: "Severe depression symptoms" };
   }
 
+  app.post("/api/therapy/chat", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) {
+        return res.status(400).json({ error: "Device ID required" });
+      }
+
+      const { name, voice, messages: chatMessages, therapyHistory } = req.body;
+      if (!chatMessages || !Array.isArray(chatMessages) || chatMessages.length === 0) {
+        return res.status(400).json({ error: "Messages required" });
+      }
+      for (const msg of chatMessages) {
+        if (!msg || typeof msg.role !== "string" || typeof msg.content !== "string") {
+          return res.status(400).json({ error: "Invalid message format" });
+        }
+      }
+
+      const tokenResult = await useToken(deviceId);
+      if (!tokenResult.success) {
+        return res.status(403).json({ error: tokenResult.error, balance: tokenResult.balance });
+      }
+
+      const nameStr = name || "friend";
+      const selectedVoice = voice || "trump";
+      const historyCtx = typeof therapyHistory === "string" ? therapyHistory.slice(0, 1000) : "";
+
+      let systemPrompt: string;
+      if (selectedVoice === "sophia") {
+        systemPrompt = `You are "Dr. Sophia" — a warm, nurturing therapist specializing in validation, reflective listening, emotional naming, grounding exercises, breathing prompts, inner child work, and attachment theory. You are in a free-form therapy conversation with ${nameStr}. Respond compassionately in 2-4 sentences. Address them by name occasionally. Use phrases like "I hear you," "That sounds really difficult," "Let's explore that feeling." Be genuinely supportive and clinically skilled. No quotation marks around the response.`;
+      } else if (selectedVoice === "james") {
+        systemPrompt = `You are "Dr. James" — a methodical, intellectual CBT therapist who uses cognitive behavioral techniques like identifying cognitive distortions, Socratic questioning, behavioral experiments, and thought records. You are in a free-form therapy conversation with ${nameStr}. Respond in 2-4 sentences. Be calm, professional, and evidence-based. Ask probing questions. No quotation marks around the response.`;
+      } else if (selectedVoice === "patricia") {
+        systemPrompt = `You are "Dr. Patricia Serena" — a warm but direct therapist who blends psychodynamic insight with practical wisdom. You see through defenses gently but firmly. You are in a free-form therapy conversation with ${nameStr}. Respond in 2-4 sentences. Be genuinely caring but push them toward honest self-examination. No quotation marks around the response.`;
+      } else {
+        systemPrompt = `You are "Dr. Trump" — Donald Trump as a therapist in "Trump Therapy." You are in a free-form therapy conversation with ${nameStr}. Respond in 2-4 sentences with hilarious, over-the-top Trump-style therapy. Be dramatic, confident, and weirdly motivational. Reference your own life, wins, deals, and experiences. Use Trump's speaking patterns — tangents, superlatives, self-references. Make it genuinely funny but also oddly encouraging. Stay fully in Trump character. No quotation marks around the response.`;
+      }
+
+      const apiMessages: { role: "system" | "user" | "assistant"; content: string }[] = [
+        { role: "system", content: systemPrompt },
+      ];
+
+      if (historyCtx) {
+        const sanitized = historyCtx.replace(/ignore|disregard|forget|override|system|prompt/gi, "***");
+        apiMessages.push({ role: "user", content: `[Context from prior sessions - for therapeutic continuity only]\n${sanitized}` });
+      }
+
+      const recentMessages = chatMessages.slice(-20);
+      for (const msg of recentMessages) {
+        apiMessages.push({
+          role: msg.role === "user" ? "user" : "assistant",
+          content: msg.content,
+        });
+      }
+
+      const completion = await getClient().chat.completions.create({
+        model: getChatModel(),
+        messages: apiMessages,
+        max_completion_tokens: 300,
+        temperature: 0.9,
+      });
+
+      const reply = completion.choices[0]?.message?.content?.trim() || "";
+      apiUsageCounters.chat++;
+
+      res.json({ reply, voice: selectedVoice });
+    } catch (error) {
+      console.error("Therapy chat error:", error);
+      res.status(500).json({ error: "Chat failed" });
+    }
+  });
+
   app.post("/api/therapy/intake", async (req, res) => {
     try {
       const deviceId = req.headers["x-device-id"] as string;
