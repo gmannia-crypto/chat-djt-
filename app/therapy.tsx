@@ -191,6 +191,19 @@ export default function TherapyScreen() {
   const [sessionActive, setSessionActive] = useState(false);
   const [sessionEnded, setSessionEnded] = useState(false);
 
+  const [sessionMode, setSessionMode] = useState<"quick" | "deep">("quick");
+  const [intakeStep, setIntakeStep] = useState<string | null>(null);
+  const [intakeQuestion, setIntakeQuestion] = useState<string | null>(null);
+  const [intakeOptions, setIntakeOptions] = useState<Array<{ label: string; value: number }> | null>(null);
+  const [intakeInputType, setIntakeInputType] = useState<string | null>(null);
+  const [intakeData, setIntakeData] = useState<any>({});
+  const [intakeQuestionIndex, setIntakeQuestionIndex] = useState(0);
+  const [intakeLoading, setIntakeLoading] = useState(false);
+  const [intakeMessages, setIntakeMessages] = useState<Array<{ role: string; text: string }>>([]);
+  const [phq9Score, setPhq9Score] = useState<number | null>(null);
+  const [phq9Interpretation, setPhq9Interpretation] = useState<{ severity: string; description: string } | null>(null);
+  const [intakeScaleValue, setIntakeScaleValue] = useState("5");
+
   const config = THERAPIST_CONFIGS[selectedTherapist];
 
   const [isRecording, setIsRecording] = useState(false);
@@ -554,6 +567,112 @@ export default function TherapyScreen() {
     } catch {}
   };
 
+  const handleStartIntake = async () => {
+    if (!firstName.trim() || !problem.trim()) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      return;
+    }
+    if (!hasTokens) {
+      router.push("/subscribe");
+      return;
+    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    setIntakeLoading(true);
+    setIntakeMessages([{ role: "user", text: problem.trim() }]);
+    try {
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      const hdrs: Record<string, string> = { "Content-Type": "application/json" };
+      if (deviceId) hdrs["x-device-id"] = deviceId;
+      const res = await fetch(`${baseUrl}/api/therapy/intake`, {
+        method: "POST",
+        headers: hdrs,
+        body: JSON.stringify({
+          name: firstName.trim(),
+          voice: selectedTherapist,
+          step: "start",
+          response: problem.trim(),
+          intakeData: {},
+        }),
+      });
+      if (res.status === 403) { refreshBalance(); router.push("/subscribe"); return; }
+      if (!res.ok) throw new Error("Intake failed");
+      const data = await res.json();
+      setIntakeStep(data.step);
+      setIntakeQuestion(data.question);
+      setIntakeOptions(data.options || null);
+      setIntakeInputType(data.inputType || null);
+      setIntakeData(data.intakeData || {});
+      setIntakeMessages(prev => [...prev, { role: "therapist", text: data.question }]);
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 300);
+    } catch {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setIntakeLoading(false);
+    }
+  };
+
+  const handleIntakeResponse = async (responseValue: string | number) => {
+    setIntakeLoading(true);
+    const displayText = intakeOptions?.find(o => o.value === responseValue)?.label || String(responseValue);
+    setIntakeMessages(prev => [...prev, { role: "user", text: displayText }]);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      const hdrs: Record<string, string> = { "Content-Type": "application/json" };
+      if (deviceId) hdrs["x-device-id"] = deviceId;
+      const res = await fetch(`${baseUrl}/api/therapy/intake`, {
+        method: "POST",
+        headers: hdrs,
+        body: JSON.stringify({
+          name: firstName.trim(),
+          voice: selectedTherapist,
+          step: intakeStep,
+          response: String(responseValue),
+          intakeData,
+          questionIndex: intakeQuestionIndex,
+        }),
+      });
+      if (res.status === 403) { refreshBalance(); router.push("/subscribe"); return; }
+      if (!res.ok) throw new Error("Intake step failed");
+      const data = await res.json();
+
+      if (data.step === "complete") {
+        setTherapy(data.assessment);
+        setPhq9Score(data.phq9Score);
+        setPhq9Interpretation(data.phq9Interpretation);
+        setIntakeStep(null);
+        setIntakeQuestion(null);
+        setIntakeOptions(null);
+        setIntakeMessages(prev => [...prev, { role: "therapist", text: data.assessment }]);
+        setConversationHistory([{ role: "therapist", text: data.assessment }]);
+        const uid = deviceId || "anonymous";
+        recordTherapySession(uid, {
+          therapist: selectedTherapist,
+          problem: problem.trim(),
+          seriousness: data.phq9Score || 0,
+          therapySnippet: data.assessment,
+        }).catch(() => {});
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        if (data.assessment) {
+          setTimeout(() => handleSpeak(data.assessment, selectedTherapist), 500);
+        }
+      } else {
+        setIntakeStep(data.step);
+        setIntakeQuestion(data.question);
+        setIntakeOptions(data.options || null);
+        setIntakeInputType(data.inputType || null);
+        setIntakeData(data.intakeData || intakeData);
+        if (data.questionIndex !== undefined) setIntakeQuestionIndex(data.questionIndex);
+        setIntakeMessages(prev => [...prev, { role: "therapist", text: data.question }]);
+      }
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 300);
+    } catch {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setIntakeLoading(false);
+    }
+  };
+
   const handleNewSession = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setTherapy(null);
@@ -567,6 +686,17 @@ export default function TherapyScreen() {
     setSessionActive(false);
     setSessionEnded(false);
     setSessionSeconds(120);
+    setIntakeStep(null);
+    setIntakeQuestion(null);
+    setIntakeOptions(null);
+    setIntakeInputType(null);
+    setIntakeData({});
+    setIntakeQuestionIndex(0);
+    setIntakeMessages([]);
+    setPhq9Score(null);
+    setPhq9Interpretation(null);
+    setIntakeScaleValue("5");
+    setSessionMode("quick");
     if (sessionTimerRef.current) clearInterval(sessionTimerRef.current);
     if (soundRef.current) {
       soundRef.current.unloadAsync();
@@ -804,10 +934,27 @@ export default function TherapyScreen() {
           )}
         </Animated.View>
 
+        <Animated.View entering={FadeInDown.delay(350).duration(500)} style={styles.modeToggleContainer}>
+          <Pressable
+            onPress={() => { if (!therapy && !intakeStep) { setSessionMode("quick"); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } }}
+            style={[styles.modeToggleBtn, sessionMode === "quick" && { backgroundColor: `${config.accent}25`, borderColor: config.accent }]}
+          >
+            <Ionicons name="flash" size={14} color={sessionMode === "quick" ? config.accent : "rgba(255,255,255,0.4)"} />
+            <Text style={[styles.modeToggleText, sessionMode === "quick" && { color: config.accent }]}>Quick Session</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => { if (!therapy && !intakeStep) { setSessionMode("deep"); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } }}
+            style={[styles.modeToggleBtn, sessionMode === "deep" && { backgroundColor: `${config.accent}25`, borderColor: config.accent }]}
+          >
+            <Ionicons name="analytics" size={14} color={sessionMode === "deep" ? config.accent : "rgba(255,255,255,0.4)"} />
+            <Text style={[styles.modeToggleText, sessionMode === "deep" && { color: config.accent }]}>Deep Session + PHQ-9</Text>
+          </Pressable>
+        </Animated.View>
+
         <Animated.View entering={FadeInDown.delay(400).duration(500)} style={styles.buttonContainer}>
           <Pressable
-            onPress={handleGetTherapy}
-            disabled={loading || !canSubmit}
+            onPress={sessionMode === "deep" ? handleStartIntake : handleGetTherapy}
+            disabled={(sessionMode === "deep" ? intakeLoading : loading) || !canSubmit}
             style={({ pressed }) => [
               styles.therapyButton,
               { shadowColor: config.accent },
@@ -821,16 +968,108 @@ export default function TherapyScreen() {
               end={{ x: 1, y: 1 }}
               style={styles.therapyButtonGradient}
             >
-              {loading ? (
+              {(sessionMode === "deep" ? intakeLoading : loading) ? (
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
                 <Text style={styles.therapyButtonText}>
-                  {config.buttonText}
+                  {sessionMode === "deep" ? "BEGIN DEEP SESSION" : config.buttonText}
                 </Text>
               )}
             </LinearGradient>
           </Pressable>
         </Animated.View>
+
+        {intakeStep && intakeMessages.length > 0 && !therapy && (
+          <Animated.View entering={FadeInUp.duration(600)} style={[styles.intakeConversation, { borderColor: `${config.accent}40` }]}>
+            <View style={styles.intakeHeader}>
+              <Ionicons name="analytics" size={16} color={config.accent} />
+              <Text style={[styles.intakeHeaderText, { color: config.accent }]}>DEEP SESSION IN PROGRESS</Text>
+              {intakeStep === "screening" && (
+                <Text style={styles.intakeProgress}>{intakeQuestionIndex + 1}/9</Text>
+              )}
+            </View>
+
+            {intakeMessages.map((msg, i) => (
+              <Animated.View
+                key={i}
+                entering={FadeInDown.delay(i > intakeMessages.length - 3 ? 100 : 0).duration(300)}
+                style={[styles.intakeMsg, msg.role === "user" ? styles.intakeMsgUser : styles.intakeMsgTherapist]}
+              >
+                {msg.role === "therapist" && (
+                  <Image source={config.image} style={styles.intakeMsgAvatar} resizeMode="cover" />
+                )}
+                <View style={[styles.intakeMsgBubble, msg.role === "user" ? { backgroundColor: `${config.accent}20` } : { backgroundColor: "rgba(255,255,255,0.06)" }]}>
+                  <Text style={[styles.intakeMsgText, msg.role === "therapist" && { color: "rgba(255,255,255,0.9)" }]}>{msg.text}</Text>
+                </View>
+              </Animated.View>
+            ))}
+
+            {intakeLoading && (
+              <View style={styles.intakeLoadingRow}>
+                <Image source={config.image} style={styles.intakeMsgAvatar} resizeMode="cover" />
+                <View style={[styles.intakeMsgBubble, { backgroundColor: "rgba(255,255,255,0.06)", paddingVertical: 12 }]}>
+                  <ActivityIndicator color={config.accent} size="small" />
+                </View>
+              </View>
+            )}
+
+            {!intakeLoading && intakeOptions && (
+              <Animated.View entering={FadeIn.duration(300)} style={styles.intakeOptionsContainer}>
+                {intakeOptions.map((opt) => (
+                  <Pressable
+                    key={opt.value}
+                    onPress={() => handleIntakeResponse(opt.value)}
+                    style={({ pressed }) => [styles.intakeOptionBtn, { borderColor: `${config.accent}40` }, pressed && { backgroundColor: `${config.accent}30` }]}
+                  >
+                    <Text style={[styles.intakeOptionText, { color: config.accent }]}>{opt.label}</Text>
+                  </Pressable>
+                ))}
+              </Animated.View>
+            )}
+
+            {!intakeLoading && intakeInputType === "scale" && (
+              <Animated.View entering={FadeIn.duration(300)} style={styles.intakeScaleContainer}>
+                <View style={styles.intakeScaleRow}>
+                  {[1,2,3,4,5,6,7,8,9,10].map(n => (
+                    <Pressable
+                      key={n}
+                      onPress={() => { setIntakeScaleValue(String(n)); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+                      style={[styles.intakeScaleBtn, intakeScaleValue === String(n) && { backgroundColor: config.accent, borderColor: config.accent }]}
+                    >
+                      <Text style={[styles.intakeScaleBtnText, intakeScaleValue === String(n) && { color: "#fff" }]}>{n}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <Pressable
+                  onPress={() => handleIntakeResponse(intakeScaleValue)}
+                  style={({ pressed }) => [styles.intakeSubmitScaleBtn, { backgroundColor: config.accent }, pressed && { opacity: 0.8 }]}
+                >
+                  <Text style={styles.intakeSubmitScaleBtnText}>CONFIRM</Text>
+                </Pressable>
+              </Animated.View>
+            )}
+          </Animated.View>
+        )}
+
+        {therapy && phq9Score !== null && (
+          <Animated.View entering={FadeInUp.delay(200).duration(500)} style={[styles.phq9Card, { borderColor: `${config.accent}60` }]}>
+            <View style={styles.phq9Header}>
+              <Ionicons name="clipboard" size={18} color={config.accent} />
+              <Text style={[styles.phq9Title, { color: config.accent }]}>PHQ-9 RESULTS</Text>
+            </View>
+            <View style={styles.phq9ScoreRow}>
+              <Text style={[styles.phq9ScoreNum, { color: config.accent }]}>{phq9Score}</Text>
+              <Text style={styles.phq9ScoreMax}>/27</Text>
+            </View>
+            <View style={[styles.phq9Badge, { backgroundColor: phq9Score <= 4 ? "#2ecc71" : phq9Score <= 9 ? "#f39c12" : phq9Score <= 14 ? "#e67e22" : phq9Score <= 19 ? "#e74c3c" : "#c0392b" }]}>
+              <Text style={styles.phq9BadgeText}>{phq9Interpretation?.description || ""}</Text>
+            </View>
+            <View style={styles.phq9Bar}>
+              <View style={[styles.phq9BarFill, { width: `${Math.min((phq9Score / 27) * 100, 100)}%`, backgroundColor: phq9Score <= 4 ? "#2ecc71" : phq9Score <= 9 ? "#f39c12" : phq9Score <= 14 ? "#e67e22" : phq9Score <= 19 ? "#e74c3c" : "#c0392b" }]} />
+            </View>
+            <Text style={styles.phq9Disclaimer}>This screening is for informational purposes only and is not a clinical diagnosis. If you are in crisis, please contact a mental health professional or call 988.</Text>
+          </Animated.View>
+        )}
 
         {therapy && (
           <Animated.View entering={FadeInUp.duration(600)} style={[styles.resultCard, { borderColor: `${config.accent}80` }]}>
@@ -1635,5 +1874,201 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.25)",
     textAlign: "center",
     marginTop: 14,
+  },
+  modeToggleContainer: {
+    flexDirection: "row" as const,
+    gap: 10,
+    marginBottom: 16,
+    marginTop: 4,
+  },
+  modeToggleBtn: {
+    flex: 1,
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.15)",
+    backgroundColor: "rgba(26,26,26,0.5)",
+  },
+  modeToggleText: {
+    fontSize: 12,
+    fontWeight: "700" as const,
+    color: "rgba(255,255,255,0.4)",
+  },
+  intakeConversation: {
+    marginTop: 16,
+    backgroundColor: "rgba(20,20,20,0.8)",
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    gap: 12,
+  },
+  intakeHeader: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 8,
+    marginBottom: 4,
+  },
+  intakeHeaderText: {
+    fontSize: 12,
+    fontWeight: "800" as const,
+    letterSpacing: 1,
+  },
+  intakeProgress: {
+    fontSize: 12,
+    fontWeight: "700" as const,
+    color: "rgba(255,255,255,0.5)",
+    marginLeft: "auto" as any,
+  },
+  intakeMsg: {
+    flexDirection: "row" as const,
+    gap: 8,
+    maxWidth: "90%" as any,
+  },
+  intakeMsgUser: {
+    alignSelf: "flex-end" as const,
+  },
+  intakeMsgTherapist: {
+    alignSelf: "flex-start" as const,
+  },
+  intakeMsgAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    marginTop: 4,
+  },
+  intakeMsgBubble: {
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    maxWidth: "85%" as any,
+  },
+  intakeMsgText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: "rgba(255,255,255,0.7)",
+  },
+  intakeLoadingRow: {
+    flexDirection: "row" as const,
+    gap: 8,
+    alignSelf: "flex-start" as const,
+  },
+  intakeOptionsContainer: {
+    gap: 8,
+    marginTop: 4,
+  },
+  intakeOptionBtn: {
+    borderWidth: 1.5,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: "rgba(255,255,255,0.04)",
+  },
+  intakeOptionText: {
+    fontSize: 14,
+    fontWeight: "600" as const,
+    textAlign: "center" as const,
+  },
+  intakeScaleContainer: {
+    gap: 12,
+    marginTop: 4,
+  },
+  intakeScaleRow: {
+    flexDirection: "row" as const,
+    flexWrap: "wrap" as const,
+    gap: 6,
+    justifyContent: "center" as const,
+  },
+  intakeScaleBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.2)",
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    backgroundColor: "rgba(255,255,255,0.04)",
+  },
+  intakeScaleBtnText: {
+    fontSize: 14,
+    fontWeight: "700" as const,
+    color: "rgba(255,255,255,0.5)",
+  },
+  intakeSubmitScaleBtn: {
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: "center" as const,
+  },
+  intakeSubmitScaleBtnText: {
+    fontSize: 14,
+    fontWeight: "800" as const,
+    color: "#fff",
+    letterSpacing: 1,
+  },
+  phq9Card: {
+    marginTop: 16,
+    backgroundColor: "rgba(20,20,20,0.9)",
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 20,
+    alignItems: "center" as const,
+  },
+  phq9Header: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 8,
+    marginBottom: 12,
+  },
+  phq9Title: {
+    fontSize: 14,
+    fontWeight: "800" as const,
+    letterSpacing: 1.5,
+  },
+  phq9ScoreRow: {
+    flexDirection: "row" as const,
+    alignItems: "baseline" as const,
+    marginBottom: 10,
+  },
+  phq9ScoreNum: {
+    fontSize: 48,
+    fontWeight: "900" as const,
+  },
+  phq9ScoreMax: {
+    fontSize: 20,
+    fontWeight: "600" as const,
+    color: "rgba(255,255,255,0.3)",
+  },
+  phq9Badge: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginBottom: 12,
+  },
+  phq9BadgeText: {
+    fontSize: 12,
+    fontWeight: "700" as const,
+    color: "#fff",
+    letterSpacing: 0.5,
+  },
+  phq9Bar: {
+    width: "100%" as any,
+    height: 8,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    borderRadius: 4,
+    overflow: "hidden" as const,
+    marginBottom: 14,
+  },
+  phq9BarFill: {
+    height: "100%" as any,
+    borderRadius: 4,
+  },
+  phq9Disclaimer: {
+    fontSize: 10,
+    color: "rgba(255,255,255,0.3)",
+    textAlign: "center" as const,
+    lineHeight: 14,
   },
 });

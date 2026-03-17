@@ -633,7 +633,7 @@ export default function HomeScreen() {
   }, []);
 
   useEffect(() => {
-    const SCROLL_SPEED = 0.25;
+    const SCROLL_SPEED = 0.15;
     autoScrollTimerRef.current = setInterval(() => {
       if (userTouchingRef.current || !autoScrollActiveRef.current) return;
       const maxY = Math.max(0, mainContentHeightRef.current - mainScrollHeightRef.current);
@@ -647,7 +647,7 @@ export default function HomeScreen() {
         autoScrollDirRef.current = 1;
       }
       mainScrollRef.current?.scrollTo({ y: autoScrollYRef.current, animated: false });
-    }, 16);
+    }, 33);
     return () => {
       if (autoScrollTimerRef.current) clearInterval(autoScrollTimerRef.current);
       if (autoScrollResumeRef.current) clearTimeout(autoScrollResumeRef.current);
@@ -1114,27 +1114,26 @@ export default function HomeScreen() {
         contentContainerStyle={styles.centerContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        onTouchStart={() => {
+        onScrollBeginDrag={() => {
           userTouchingRef.current = true;
           autoScrollActiveRef.current = false;
           if (autoScrollResumeRef.current) clearTimeout(autoScrollResumeRef.current);
         }}
-        onTouchEnd={() => {
-          userTouchingRef.current = false;
-        }}
         onMomentumScrollEnd={(e) => {
+          userTouchingRef.current = false;
           autoScrollYRef.current = e.nativeEvent.contentOffset.y;
           if (autoScrollResumeRef.current) clearTimeout(autoScrollResumeRef.current);
           autoScrollResumeRef.current = setTimeout(() => {
             autoScrollActiveRef.current = true;
-          }, 10000);
+          }, 15000);
         }}
         onScrollEndDrag={(e) => {
+          userTouchingRef.current = false;
           autoScrollYRef.current = e.nativeEvent.contentOffset.y;
           if (autoScrollResumeRef.current) clearTimeout(autoScrollResumeRef.current);
           autoScrollResumeRef.current = setTimeout(() => {
             autoScrollActiveRef.current = true;
-          }, 10000);
+          }, 15000);
         }}
         onScroll={(e) => {
           if (userTouchingRef.current || !autoScrollActiveRef.current) {
@@ -1143,7 +1142,7 @@ export default function HomeScreen() {
         }}
         onContentSizeChange={(w, h) => { mainContentHeightRef.current = h; }}
         onLayout={(e) => { mainScrollHeightRef.current = e.nativeEvent.layout.height; }}
-        scrollEventThrottle={32}
+        scrollEventThrottle={64}
       >
         {streak > 0 && (
           <Animated.View entering={FadeIn.delay(400).duration(500)} style={styles.streakRow}>

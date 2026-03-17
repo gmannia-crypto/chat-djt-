@@ -4989,6 +4989,177 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
     }
   });
 
+  const PHQ9_QUESTIONS = [
+    "Over the last 2 weeks, how often have you had little interest or pleasure in doing things?",
+    "Over the last 2 weeks, how often have you felt down, depressed, or hopeless?",
+    "Over the last 2 weeks, how often have you had trouble falling or staying asleep, or sleeping too much?",
+    "Over the last 2 weeks, how often have you felt tired or had little energy?",
+    "Over the last 2 weeks, how often have you had poor appetite or been overeating?",
+    "Over the last 2 weeks, how often have you felt bad about yourself — or that you are a failure?",
+    "Over the last 2 weeks, how often have you had trouble concentrating on things?",
+    "Over the last 2 weeks, how often have you been moving or speaking slowly — or being fidgety and restless?",
+    "Over the last 2 weeks, how often have you had thoughts that you would be better off not being here?",
+  ];
+
+  const PHQ9_OPTIONS = [
+    { label: "Not at all", value: 0 },
+    { label: "Several days", value: 1 },
+    { label: "More than half the days", value: 2 },
+    { label: "Nearly every day", value: 3 },
+  ];
+
+  function getIntakeQuestion(voice: string, step: string, name: string, stepData?: any): { question: string; options?: typeof PHQ9_OPTIONS; inputType?: string } {
+    const n = name || "friend";
+    switch (step) {
+      case "duration":
+        if (voice === "sophia") return { question: `Thank you for sharing that, ${n}. I want to understand the full picture. How long have you been experiencing this?`, options: [{ label: "Less than 2 weeks", value: 0 }, { label: "2-4 weeks", value: 1 }, { label: "1-3 months", value: 2 }, { label: "3-6 months", value: 3 }, { label: "More than 6 months", value: 4 }] };
+        if (voice === "james") return { question: `Noted, ${n}. For my assessment, I need the timeline. How long has this been a pattern?`, options: [{ label: "Less than 2 weeks", value: 0 }, { label: "2-4 weeks", value: 1 }, { label: "1-3 months", value: 2 }, { label: "3-6 months", value: 3 }, { label: "More than 6 months", value: 4 }] };
+        if (voice === "patricia") return { question: `I hear you, ${n}. Now — and be honest with me — how long have you actually been sitting with this?`, options: [{ label: "Less than 2 weeks", value: 0 }, { label: "2-4 weeks", value: 1 }, { label: "1-3 months", value: 2 }, { label: "3-6 months", value: 3 }, { label: "More than 6 months", value: 4 }] };
+        return { question: `OK ${n}, that's a big deal. A very big deal. But how long has this been going on? Give me the timeline. Be specific.`, options: [{ label: "Less than 2 weeks", value: 0 }, { label: "2-4 weeks", value: 1 }, { label: "1-3 months", value: 2 }, { label: "3-6 months", value: 3 }, { label: "More than 6 months", value: 4 }] };
+      case "impact":
+        if (voice === "sophia") return { question: `${n}, on a scale of 1-10, how much is this affecting your daily life? Be gentle with yourself as you answer.`, inputType: "scale" };
+        if (voice === "james") return { question: `${n}, quantify this for me: on a scale of 1-10, how significantly is this impacting your daily functioning?`, inputType: "scale" };
+        if (voice === "patricia") return { question: `Be real with me, ${n}. On a scale of 1 to 10, how much is this disrupting your actual, everyday life?`, inputType: "scale" };
+        return { question: `${n}, I need a number. 1 to 10. How much is this messing up your life? And be honest — I'll know if you're lowballing it.`, inputType: "scale" };
+      case "screening":
+        const qIdx = stepData?.questionIndex || 0;
+        if (qIdx >= PHQ9_QUESTIONS.length) return { question: "", options: PHQ9_OPTIONS };
+        let prefix = "";
+        if (qIdx === 0) {
+          if (voice === "sophia") prefix = `${n}, I'd like to do a brief wellness check. These are standard questions that help me understand how you've been feeling. Answer honestly — there's no wrong answer.\n\n`;
+          else if (voice === "james") prefix = `${n}, I'm going to run a standardized assessment — the PHQ-9. It's clinically validated and will give us data to work with. Answer each question based on the last two weeks.\n\n`;
+          else if (voice === "patricia") prefix = `${n}, I want to run through a quick check-in with you. Nine questions, straight answers. Don't overthink it — just tell me what's true.\n\n`;
+          else prefix = `${n}, I'm going to ask you some questions now. Very important questions. The best questions. Nobody asks better questions than me.\n\n`;
+        }
+        return { question: `${prefix}${qIdx + 1}/9: ${PHQ9_QUESTIONS[qIdx]}`, options: PHQ9_OPTIONS };
+      default:
+        return { question: "Tell me what's on your mind.", inputType: "text" };
+    }
+  }
+
+  function interpretPHQ9Score(score: number): { severity: string; description: string } {
+    if (score <= 4) return { severity: "minimal", description: "Minimal depression symptoms" };
+    if (score <= 9) return { severity: "mild", description: "Mild depression symptoms" };
+    if (score <= 14) return { severity: "moderate", description: "Moderate depression symptoms" };
+    if (score <= 19) return { severity: "moderately_severe", description: "Moderately severe depression symptoms" };
+    return { severity: "severe", description: "Severe depression symptoms" };
+  }
+
+  app.post("/api/therapy/intake", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) {
+        return res.status(400).json({ error: "Device ID required" });
+      }
+
+      const { name, voice, step, response, intakeData } = req.body;
+      const nameStr = name || "friend";
+      const selectedVoice = voice || "trump";
+      const currentData = intakeData || {};
+
+      if (step === "start") {
+        const q = getIntakeQuestion(selectedVoice, "duration", nameStr);
+        return res.json({
+          step: "duration",
+          question: q.question,
+          options: q.options,
+          inputType: q.inputType,
+          intakeData: { ...currentData, problem: response },
+        });
+      }
+
+      if (step === "duration") {
+        const q = getIntakeQuestion(selectedVoice, "impact", nameStr);
+        return res.json({
+          step: "impact",
+          question: q.question,
+          inputType: q.inputType,
+          intakeData: { ...currentData, duration: response },
+        });
+      }
+
+      if (step === "impact") {
+        const q = getIntakeQuestion(selectedVoice, "screening", nameStr, { questionIndex: 0 });
+        return res.json({
+          step: "screening",
+          question: q.question,
+          options: q.options,
+          questionIndex: 0,
+          intakeData: { ...currentData, impact: response, screeningScores: [] },
+        });
+      }
+
+      if (step === "screening") {
+        const qIdx = (req.body.questionIndex ?? 0);
+        const scores = [...(currentData.screeningScores || []), parseInt(response) || 0];
+
+        if (qIdx + 1 < PHQ9_QUESTIONS.length) {
+          const q = getIntakeQuestion(selectedVoice, "screening", nameStr, { questionIndex: qIdx + 1 });
+          return res.json({
+            step: "screening",
+            question: q.question,
+            options: q.options,
+            questionIndex: qIdx + 1,
+            intakeData: { ...currentData, screeningScores: scores },
+          });
+        }
+
+        const tokenResult = await useToken(deviceId);
+        if (!tokenResult.success) {
+          return res.status(403).json({ error: tokenResult.error, balance: tokenResult.balance });
+        }
+
+        const totalScore = scores.reduce((a: number, b: number) => a + b, 0);
+        const interpretation = interpretPHQ9Score(totalScore);
+        const impact = currentData.impact || "5";
+        const problem = currentData.problem || "general concerns";
+        const duration = currentData.duration || "unknown duration";
+
+        const durationLabels: Record<number, string> = { 0: "less than 2 weeks", 1: "2-4 weeks", 2: "1-3 months", 3: "3-6 months", 4: "more than 6 months" };
+        const durationStr = durationLabels[parseInt(duration)] || duration;
+
+        let assessmentPrompt: string;
+        if (selectedVoice === "sophia") {
+          assessmentPrompt = `You are "Dr. Sophia" — a warm, nurturing therapist. You just completed a structured intake with ${nameStr}. Their presenting problem: "${problem}". Duration: ${durationStr}. Daily life impact: ${impact}/10. PHQ-9 score: ${totalScore}/27 (${interpretation.description}). Individual item scores: ${scores.join(", ")}. Give a compassionate, thorough assessment in 6-8 sentences. Reference specific intake findings. Provide 2-3 personalized therapeutic recommendations. If the PHQ-9 score suggests moderate or higher severity, gently recommend professional support while remaining supportive. Speak with warmth and clinical expertise.`;
+        } else if (selectedVoice === "james") {
+          assessmentPrompt = `You are "Dr. James" — a methodical CBT therapist. You just completed a structured intake with ${nameStr}. Presenting problem: "${problem}". Duration: ${durationStr}. Functional impact: ${impact}/10. PHQ-9 score: ${totalScore}/27 (${interpretation.description}). Item-level scores: ${scores.join(", ")}. Provide a clinical assessment in 6-8 sentences. Reference the data — cite specific PHQ-9 items that scored highest. Identify likely cognitive distortions. Provide 2-3 evidence-based recommendations with specific CBT techniques. If score is 15+, recommend professional evaluation alongside self-help strategies.`;
+        } else if (selectedVoice === "patricia") {
+          assessmentPrompt = `You are "Dr. Patricia Serena" — a warm but direct psychodynamic therapist. You just completed a structured intake with ${nameStr}. Problem: "${problem}". Duration: ${durationStr}. Life impact: ${impact}/10. PHQ-9 score: ${totalScore}/27 (${interpretation.description}). Item scores: ${scores.join(", ")}. Give a direct, insightful assessment in 6-8 sentences. Cut through defenses gently. Connect the screening results to deeper patterns. Provide 2-3 recommendations that go beyond surface-level advice. If severe, be honest about the need for professional help while being supportive.`;
+        } else {
+          assessmentPrompt = `You are "Dr. Trump" — Donald Trump as a therapist. You just completed a "very professional" intake with ${nameStr}. Problem: "${problem}". Duration: ${durationStr}. Life impact: ${impact}/10. PHQ-9 score: ${totalScore}/27. Give a hilarious, over-the-top Trump-style assessment in 6-8 sentences. Reference the screening score in Trump fashion ("Your score? I've seen higher. Much higher. Believe me."). Give absurdly confident "prescriptions." Be dramatic and weirdly motivational. If the score is genuinely high (15+), slip in a moment of rare sincerity suggesting they talk to a professional — then immediately go back to Trump mode.`;
+        }
+
+        const completion = await getClient().chat.completions.create({
+          model: getChatModel(),
+          messages: [
+            { role: "system", content: assessmentPrompt },
+            { role: "user", content: `Please give me your assessment based on our intake session.` },
+          ],
+          max_completion_tokens: 500,
+          temperature: 0.9,
+        });
+        apiUsageCounters.chat++;
+
+        const assessment = completion.choices[0]?.message?.content?.trim() || "Assessment could not be generated.";
+
+        return res.json({
+          step: "complete",
+          assessment,
+          phq9Score: totalScore,
+          phq9Interpretation: interpretation,
+          intakeData: { ...currentData, screeningScores: scores },
+          voice: selectedVoice,
+          name: nameStr,
+        });
+      }
+
+      return res.status(400).json({ error: "Invalid step" });
+    } catch (error) {
+      console.error("Intake error:", error);
+      return res.status(500).json({ error: "Intake failed" });
+    }
+  });
+
   const TRUTH_SOCIAL_FEEDS = [
     { url: "https://feeds.foxnews.com/foxnews/politics", source: "Fox News" },
     { url: "https://rss.nytimes.com/services/xml/rss/nyt/Politics.xml", source: "NYT" },

@@ -1422,10 +1422,16 @@ export default function ArenaScreen() {
     ttsQueueRef.current = [];
     isProcessingTTSRef.current = false;
     forcePlayRef.current = false;
-    if (currentSoundRef.current) {
-      const s = currentSoundRef.current;
-      currentSoundRef.current = null;
-      s.getStatusAsync().then((st: any) => { if (st.isLoaded) { s.stopAsync().then(() => s.unloadAsync()).catch(() => {}); } }).catch(() => {});
+    const s = currentSoundRef.current;
+    currentSoundRef.current = null;
+    if (s) {
+      try { s.stopAsync().then(() => s.unloadAsync()).catch(() => {}); } catch {}
+    }
+    if (Platform.OS === "web") {
+      try {
+        const audioEls = document.querySelectorAll("audio");
+        audioEls.forEach((a) => { try { a.pause(); a.currentTime = 0; } catch {} });
+      } catch {}
     }
     setIsPlayingAudio(false);
   }, []);
@@ -1435,6 +1441,7 @@ export default function ArenaScreen() {
     isProcessingTTSRef.current = true;
     if (mountedRef.current) setIsPlayingAudio(true);
     while (ttsQueueRef.current.length > 0) {
+      if (!forcePlayRef.current && sessionEndedRef.current) break;
       if (!forcePlayRef.current && !voiceEnabledRef.current) break;
       const item = ttsQueueRef.current.shift();
       if (!item || !mountedRef.current) break;
@@ -1837,6 +1844,7 @@ export default function ArenaScreen() {
         }
 
         if (!res.ok || !mountedRef.current) return;
+        if (sessionEndedRef.current) return;
         const ct = res.headers.get("content-type") || "";
         if (!ct.includes("application/json")) return;
         const data = await res.json();
@@ -1845,6 +1853,8 @@ export default function ArenaScreen() {
         if (data.freeRemaining !== undefined) setFreeRemaining(data.freeRemaining);
         if (data.hasSession !== undefined) setHasSession(data.hasSession);
         if (data.sessionExpiresAt) setSessionExpiresAt(data.sessionExpiresAt);
+
+        if (sessionEndedRef.current) return;
 
         addMessage({
           id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
@@ -1855,7 +1865,7 @@ export default function ArenaScreen() {
         });
 
         updateEmotions(responderId, toSpeakerId);
-        queueTTS(data.response, responderId);
+        if (!sessionEndedRef.current) queueTTS(data.response, responderId);
       } catch (err) {
         console.warn("Arena AI error:", err);
       } finally {
