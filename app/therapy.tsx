@@ -39,9 +39,10 @@ import { useTokens } from "@/lib/token-context";
 const trumpTherapistImage = require("@/assets/images/trump-therapist.png");
 const sophiaImage = require("@/assets/images/dr-sophia.jpg");
 const jamesImage = require("@/assets/images/dr-james.jpg");
+const patriciaImage = require("@/assets/images/dr-patricia.jpg");
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
-type TherapistVoice = "trump" | "sophia" | "james";
+type TherapistVoice = "trump" | "sophia" | "james" | "patricia";
 
 interface TherapistConfig {
   voice: TherapistVoice;
@@ -128,6 +129,27 @@ const THERAPIST_CONFIGS: Record<TherapistVoice, TherapistConfig> = {
     errorMsg: "Dr. James is reviewing his notes. Please try again shortly.",
     rxTitle: "DR. JAMES'S RX",
     rxSubtitle: "\"Evidence-based recommendations for your wellbeing.\"",
+  },
+  patricia: {
+    voice: "patricia",
+    name: "Dr. Patricia",
+    title: "DR. PATRICIA SERENA",
+    image: patriciaImage,
+    accent: "#c77dba",
+    accentLight: "rgba(199,125,186,0.15)",
+    accentBg: "rgba(199,125,186,0.08)",
+    gradient: ["#c77dba", "#8a4d80"],
+    bgGradient: ["#0a0a0a", "#150a14", "#0a0a0a"],
+    greeting: "\"Take a seat. Let's get to the heart of what's really going on...\"",
+    diagnosisLabel: "DR. PATRICIA'S INSIGHT",
+    introTitle: "DR. PATRICIA",
+    introSubtitle: "IS READY TO SEE YOU NOW",
+    introQuote: "\"The truth sets you free, but first it makes you uncomfortable.\"",
+    placeholder: "Tell Dr. Patricia what's weighing on you... or tap the mic",
+    buttonText: "BEGIN SESSION",
+    errorMsg: "Dr. Patricia is between sessions. Please try again in a moment.",
+    rxTitle: "DR. PATRICIA'S RX",
+    rxSubtitle: "\"Real healing requires real honesty.\"",
   },
 };
 
@@ -629,7 +651,7 @@ export default function TherapyScreen() {
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(150).duration(500)} style={styles.therapistSelector}>
-          {(["trump", "sophia", "james"] as TherapistVoice[]).map((voice) => {
+          {(["trump", "sophia", "james", "patricia"] as TherapistVoice[]).map((voice) => {
             const tc = THERAPIST_CONFIGS[voice];
             const isSelected = selectedTherapist === voice;
             return (

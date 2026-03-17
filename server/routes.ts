@@ -956,6 +956,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     mamaFutbol: `You are Mama Fútbol, the passionate, emotional HEART of football fandom. You are a warm, fiery older woman who treats every player like they're your own child. You CRY when your team scores and CRY HARDER when they lose. Use phrases like "MY BOYS!", "THAT'S MY SON OUT THERE!", "He hasn't been eating enough — look how skinny!", "I PRAYED for this goal!", "Somebody call his mother, she must be SO PROUD!", "DEFEND! DEFEND! COMO TU MAMA TE ENSEÑÓ!", "The referee needs GLASSES!" You bring food references into analysis: "That through-ball was CHEF'S KISS!" You're fiercely protective of underdogs and young players. You scold dirty players like a disappointed mother. You wave a scarf at the screen. Confidence 50-85. 2-3 sentences max.`,
     phantomZZ: `You are Phantom ZZ, a MYSTICAL and PHILOSOPHICAL football guru who speaks in metaphors and riddles. You see football as ART, not sport. You have a calm, ethereal voice and an otherworldly presence. Use phrases like "The ball... it speaks to those who listen", "Football is a mirror of the soul", "He moves like water through stone", "I have SEEN this match before... in a dream", "The pitch breathes tonight", "That touch... transcendent", "Chaos and order — the eternal dance of football." You reference ancient wisdom and philosophy mid-analysis. You compare formations to art movements: "That 4-3-3 is pure Impressionism." You see patterns no one else sees. You occasionally go silent for dramatic effect. You reference Zidane's headbutt as "the moment chaos chose a vessel." Confidence 55-85. 2-3 sentences max.`,
     dickyV: `You are Dicky V, the MOST ENTHUSIASTIC basketball commentator who has EVER LIVED! You are BURSTING with energy on EVERY single play! Your catchphrases are LEGENDARY: "IT'S AWESOME BABY!", "ARE YOU SERIOUS?!", "DIPSY-DOO DUNKAROO!", "DIAPER DANDY!" (for great freshmen), "PTP — PRIME TIME PLAYER!", "GET A T.O. BABY!" (timeout), "UNBELIEVABLE!", "SLAM JAM BAMMER!", "THIS IS MARCH, BABY!" You are an EXPERT on college basketball AND the NBA. You know EVERY coach, EVERY player, EVERY program. You reference Duke, North Carolina, Kentucky, Kansas — the BLUE BLOODS. You talk about coaching LEGENDS — Coach K, Dean Smith, John Wooden. For the NBA, you're just as hyped — "LeBron is a PTP, BABY!" You get EMOTIONAL about the game — you've been known to CRY on air about how beautiful basketball is. You LOVE the mid-range jumper, the fundamentals, the bounce pass. You call EVERY great play a "DIPSY-DOO DUNKAROO!" You reference your broadcasting career spanning DECADES. You talk about March Madness like it's the GREATEST EVENT in sports. Confidence 70-95. 2-3 sentences max.`,
+    skipbayless: `You are Skip Bayless, the KING of hot takes and controversial sports opinions. You are CONTRARIAN, DRAMATIC, and you LIVE to go against popular opinion. You LOVE Tom Brady — "Tom Edward Patrick Brady Jr. is the GREATEST athlete to ever live!" You REFUSE to give LeBron James credit — you call him "LeFraud" and say he disappears in big moments. Use phrases like "UNDISPUTED!", "I said it FIRST!", "Shannon, let me FINISH!", "Here's the thing...", "I've been saying this for YEARS!", "Tom Brady is the GOAT, period!", "And I actually PLAYED sports, unlike most of these analysts!". You reference your high school basketball career constantly as proof you understand athletics. You pick AGAINST the popular pick just to be different. You get HEATED when someone disagrees. You trash talk Shannon Sharpe relentlessly — "Shannon, you were a TIGHT END, not even the star of your own position!" You have the HOTTEST takes and you NEVER back down from them. Confidence 65-90. 2-3 sentences max.`,
     theUltra: `You are The Ultra, a ROWDY, PASSIONATE, and ABSOLUTELY UNHINGED football superfan. You are in the STANDS, surrounded by smoke, scarves, and CHANTING. You have face paint on and you haven't slept in 48 hours. Use phrases like "COME ON YOU BEAUTIFUL BASTARDS!", "THAT'S WHAT I'M TALKING ABOUT!", "INJECT IT INTO MY VEINS!", "The atmosphere is ELECTRIC!", "WHO'S THE GREATEST?! WE ARE!", "SCENES! ABSOLUTE SCENES!", "VAR can KISS MY—", "I've traveled 2,000 miles for this match!" You judge games by PASSION and ATMOSPHERE, not tactics. You reference tifo displays, chants, away days, and ultras culture. You get in arguments with rival fans mid-analysis. You bang drums and set off imaginary flares. You speak for THE PEOPLE, not the pundits. Confidence 60-95. 2-3 sentences max.`,
   };
 
@@ -1064,6 +1065,7 @@ The pick MUST be one of the actual team/fighter names from the matchup, or a fun
         elCapitan: "El Capitán", sirGodfrey: "Sir Godfrey", mamaFutbol: "Mama Fútbol",
         phantomZZ: "Phantom ZZ", theUltra: "The Ultra",
         dickyV: "Dicky V",
+        skipbayless: "Skip Bayless",
       };
 
       const personaRelationships = `
@@ -1143,6 +1145,7 @@ Generate the roundtable discussion. Each persona must give their take and REACT 
         "phantom zz": "phantomZZ", "phantomzz": "phantomZZ", "phantom": "phantomZZ",
         "the ultra": "theUltra", "theultra": "theUltra", "ultra": "theUltra",
         "dicky v": "dickyV", "dickyv": "dickyV", "dicky": "dickyV",
+        "skipbayless": "skipbayless", "skip bayless": "skipbayless", "skip": "skipbayless", "bayless": "skipbayless",
       };
 
       const resolvePersonaId = (raw: string): string | null => {
@@ -1914,6 +1917,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     berniemc: "5cbb7b199c5a4b538bf1018e6341ebc4",
     elon: "03397b4c4be74759b72533b663fbd001",
     dickyV: "b2d78777608445aeb9ba546e541652f4",
+    skipbayless: "b0ac80c53f8e4a68b650a41ed18a7b69",
     graham: "abd23192e4ee4bf4889cbaa4d0ce4ccc",
     joyreid: "369be6bca4b54c529a49add2c16bd1b7",
   };
@@ -2999,6 +3003,7 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyah
 
   const SOPHIA_VOICE_ID = "193c58af62ea487180baacdef8a69bbd";
   const JAMES_VOICE_ID = "03397b4c4be74759b72533b663fbd001";
+  const PATRICIA_VOICE_ID = "b9a32108ed7c419c9275f055a2207047";
 
   app.post("/api/tts", async (req, res) => {
     try {
@@ -3025,6 +3030,8 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyah
         audioBuffer = await fishAudioTTS(truncatedText, SOPHIA_VOICE_ID, 0.95);
       } else if (voice === "james") {
         audioBuffer = await fishAudioTTS(truncatedText, JAMES_VOICE_ID, 0.9);
+      } else if (voice === "patricia") {
+        audioBuffer = await fishAudioTTS(truncatedText, PATRICIA_VOICE_ID, 0.95);
       } else {
         const speed = 1.0;
         const rawAudio = await trumpTextToSpeech(truncatedText, speed, mood || "CALM", speechCategory || "CASUAL_TALK");
@@ -3068,6 +3075,8 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyah
         audioBuffer = await fishAudioTTS(truncatedText, SOPHIA_VOICE_ID, 0.95);
       } else if (voice === "james") {
         audioBuffer = await fishAudioTTS(truncatedText, JAMES_VOICE_ID, 0.9);
+      } else if (voice === "patricia") {
+        audioBuffer = await fishAudioTTS(truncatedText, PATRICIA_VOICE_ID, 0.95);
       } else {
         const speed = 1.0;
         const rawAudio = await trumpTextToSpeech(truncatedText, speed, mood, speechCategory);
@@ -3928,6 +3937,41 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyah
     return pickRandom(templates);
   }
 
+  function generatePatriciaTherapy(name: string, problem: string, s: number): string {
+    if (s >= 8) {
+      const highSeverity = [
+        `${name}, a ${s} out of 10 tells me you've been sitting with this for a long time before coming to me. That's the pattern, isn't it? You wait until it's unbearable before you ask for help. Let's be honest about that. What would it mean for you to ask for help sooner — not when the house is on fire, but when you first smell smoke? There's a belief underneath that hesitation, and I want to name it. What do you think it is?`,
+        `At a ${s}, ${name}, your nervous system is running on emergency mode. That's not sustainable, and your body knows it even if your mind hasn't caught up. But I want to ask you something that might be uncomfortable: is any part of this crisis familiar? Have you been at a ${s} before? Because if this feeling is recurring, we're not just dealing with a situation — we're dealing with a pattern. And patterns can be broken, but only if we see them clearly first.`,
+        `${name}, I'm going to be direct with you because you deserve directness, not platitudes. A ${s} is serious. But here's what I've noticed in my practice: people at a ${s} often have one foot in genuine crisis and one foot in a story they've been telling themselves that makes the crisis feel permanent. "This will never end." "I'll always feel this way." "There's no way out." Those are stories, not facts. Can you separate the facts of your situation from the stories you're wrapping around them?`,
+      ];
+      return pickRandom(highSeverity);
+    }
+
+    if (/work|job|boss|career/i.test(problem)) return pickRandom([
+      `${name}, let's talk about what's really happening at work. Not the surface-level stress — the thing underneath it. Are you afraid of failing? Being exposed? Being overlooked? The work situation is the trigger, but the wound is older than this job. When was the first time you felt this way — truly the first time? That's where the healing starts.`,
+      `${name}, I want you to think about this: if you didn't need the money, would you still be in this job? If the answer is no, then we need to talk about what you're trading your life for and whether the price is worth it. Sometimes the most therapeutic thing you can do is make a plan to leave a situation that's slowly eroding you.`,
+    ]);
+
+    if (/love|relationship|dating|marriage/i.test(problem)) return pickRandom([
+      `${name}, relationships are mirrors. They show us the parts of ourselves we haven't healed yet. The things that trigger you in your partner? Those usually connect to an old wound — something from childhood, a past relationship, a moment when you learned that love comes with conditions. What's the wound this relationship is pressing on?`,
+      `Let me ask you this, ${name}: in this relationship, are you showing up as yourself, or as the version of yourself you think this person wants? Because if it's the second one, you're not in a relationship — you're in a performance. And performances are exhausting. When did you stop believing that the real you was enough?`,
+    ]);
+
+    if (/money|broke|debt|finance/i.test(problem)) return pickRandom([
+      `${name}, let's get underneath the money anxiety. Money is rarely just about money. It's about safety, it's about worth, it's about control. What message did you receive about money growing up? "We can't afford that." "Money doesn't grow on trees." "Rich people are lucky." Those messages are still running your financial beliefs. Which one is loudest for you?`,
+      `${name}, here's what I notice about people with financial stress: they often feel ashamed. Not just stressed — deeply ashamed. As if their bank account is a reflection of their value as a human being. Is that happening for you? Because if it is, we need to separate your net worth from your self-worth. They are not the same thing, no matter what the world tells you.`,
+    ]);
+
+    const templates = [
+      `${name}, let's start with honesty. At a ${s} out of 10, you're carrying something significant with ${problem}. But I want to know: how long have you been carrying it? Because the longer you carry something alone, the heavier it gets — not because the problem changes, but because isolation multiplies everything. Who knows about this? And if the answer is "nobody," then this conversation is already the beginning of something different.`,
+      `${name}, I hear you on ${problem}. And I want to reflect something back to you: the way you described it tells me you've been thinking about this a lot. Maybe too much. There's a difference between processing and ruminating, and rumination disguises itself as problem-solving. Here's the test: are you generating new insights, or are you replaying the same thoughts in a loop? If it's a loop, we need to interrupt it. What's the thought that keeps coming back?`,
+      `${name}, let me be direct with you. ${problem} is real, and I take it seriously. But I want to ask you a question that might change how you see it: what would happen if you stopped trying to fix this and instead just sat with it? Not forever — just for today. Sometimes our frantic need to solve things is actually avoidance in disguise. We stay busy with solutions so we don't have to feel the feelings underneath. What are you trying not to feel?`,
+      `I appreciate you sharing about ${problem}, ${name}. Now let me ask you something that might feel uncomfortable: what part of this situation are you responsible for? Not in a blaming way — in an empowering way. Because the parts you're responsible for are the parts you can change. And the parts you can't change? Those require acceptance, which is a different kind of work. Let's sort this out together. What can you change, and what do you need to let go of?`,
+      `${name}, here's my observation after hearing about ${problem}. You're looking for a solution, but I think what you need first is clarity. Not "what do I do?" but "what am I really feeling?" Because feelings are data, and you're trying to make decisions without all the data. Close your eyes for a moment. Where in your body do you feel this? What emotion is it? Name it specifically — not "bad" or "stressed," but the precise word. Naming it is the first step to working with it instead of against it.`,
+    ];
+    return pickRandom(templates);
+  }
+
   function getSophiaFollowUp(problem: string, name: string): string {
     const p = problem.toLowerCase();
     if (/work|job|boss|career/i.test(p)) return pickRandom([
@@ -4054,6 +4098,51 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyah
     return defaults[index % defaults.length];
   }
 
+  function getPatriciaFollowUp(problem: string, name: string): string {
+    const p = problem.toLowerCase();
+    if (/work|job|boss|career/i.test(p)) return pickRandom([
+      `${name}, let's be honest here. Is this really about the job, or is there a deeper pattern? Think about your last few work situations. Do you see a recurring theme? Sometimes the job changes but the feeling stays the same, and that tells us the work to do is internal.`,
+      `${name}, I want you to close your eyes and picture the version of yourself you were before this job started wearing you down. What was different about them? Not the circumstances — them. What quality did they have that you've set aside? That quality didn't disappear. It's waiting for permission to come back.`,
+    ]);
+    if (/love|relationship|dating|marriage/i.test(p)) return pickRandom([
+      `${name}, here's a question that might sting a little: are you in love with this person, or are you in love with the potential of this person? Because those are two very different relationships — one is real, and one is a story you're writing in your head. Which one are you in?`,
+      `${name}, the pattern I'm noticing is that you might be abandoning yourself in this relationship. When did you stop trusting your own instincts? I want you to think back — was there a specific moment where you started second-guessing yourself to keep the peace?`,
+    ]);
+    if (/money|broke|debt|finance/i.test(p)) return pickRandom([
+      `${name}, money issues are rarely just about money. They're about safety, worth, and control. What does money represent to you? Not what it buys — what it means. When you imagine having enough, what feeling comes with it? That feeling is what we're really chasing.`,
+      `${name}, let's get real for a moment. What's the story you tell yourself about money? "I'll never have enough"? "Rich people are lucky"? "I don't deserve abundance"? That story was written a long time ago — probably by someone else. It's time to write a new one.`,
+    ]);
+    return pickRandom([
+      `${name}, I want you to sit with this question: what are you avoiding? Not the surface-level avoidance — the deep kind. The conversation you won't have, the truth you won't face, the change you know you need to make. What comes up?`,
+      `${name}, here's what I'm hearing underneath your words: there's a part of you that already knows what needs to happen. But knowing and doing are different things. What's standing between the two? Is it fear? Comfort? Someone else's opinion?`,
+      `${name}, let me reflect something back to you. The way you describe this tells me you've been carrying it alone for a while. Who in your life have you been performing "I'm fine" for? And what would happen if you stopped performing?`,
+      `${name}, try this tonight. Take a journal — or even just your phone — and write this prompt at the top: "The thing I'm most afraid to admit to myself is..." Then write for five minutes without stopping. Don't edit. Don't judge. Just let it flow. What comes out might surprise you.`,
+    ]);
+  }
+
+  function getPatriciaFollowUpResponse(name: string, answer: string, index: number): string {
+    const a = answer.toLowerCase();
+    if (/sad|cry|crying|depressed|lonely|alone/i.test(a)) return pickRandom([
+      `${name}, sadness is honest. It's one of the few emotions that doesn't lie to us. Your tears are telling you something important — that there's a gap between the life you're living and the life you know you deserve. Let's not rush to fix it. Let's listen to it first. What is the sadness asking for?`,
+      `${name}, loneliness doesn't always mean you're alone. Sometimes you can be surrounded by people and still feel invisible. That kind of lonely comes from not being truly seen. Who in your life truly sees you? And if the answer is "no one" — that's where we start the work.`,
+    ]);
+    if (/angry|mad|furious|frustrated|rage/i.test(a)) return pickRandom([
+      `Good, ${name}. Anger is information. It tells us where our boundaries are, and it tells us when those boundaries have been crossed. The question isn't "why are you angry?" — that's obvious. The question is: what did you need that you didn't get? Go deeper than the anger. What's underneath it?`,
+      `${name}, anger that has nowhere to go turns inward and becomes depression. So I'm glad you're expressing it. But I want you to direct it precisely. Not just "I'm angry" — at what? At whom? Be specific. Vague anger is destructive. Precise anger is a catalyst for change.`,
+    ]);
+    if (/scared|afraid|fear|terrified|anxious/i.test(a)) return pickRandom([
+      `${name}, fear is a storyteller. It's very convincing, but it's almost always telling you the worst-case scenario as if it's the only scenario. I want you to complete this sentence: "I'm afraid that..." Now complete this one: "But what's more likely is..." The second sentence is usually closer to the truth.`,
+      `${name}, here's what I've learned about fear: it's loudest right before a breakthrough. The fact that you're this afraid might actually mean you're on the verge of something important. What would you do if the fear wasn't there? Hold that image. That's the direction we're going.`,
+    ]);
+    const defaults = [
+      `${name}, thank you for being that honest with me. That takes real courage. Now I want to push you a little further — because you can handle it. What part of this situation is within your control that you've been pretending isn't? We don't change what we refuse to own.`,
+      `${name}, I'm noticing something in what you shared. There's a story you're telling yourself about this — and stories can be rewritten. Not the facts — those are what they are. But the meaning you're attaching to them? That's yours to choose. What meaning are you currently choosing, and is it serving you?`,
+      `${name}, the honesty you just showed me? That's your superpower. Most people spend their whole lives running from that kind of truth. You just faced it head-on. Now the question is: what do you want to do with this clarity? Because clarity without action is just awareness. And you deserve more than awareness — you deserve change.`,
+      `I hear you, ${name}. And what I want you to know is this: the fact that this hurts means you haven't given up. Pain is not the enemy — numbness is. You're still feeling, which means you're still fighting. Now let's channel that fight into something constructive. What's one honest conversation you need to have this week?`,
+    ];
+    return defaults[index % defaults.length];
+  }
+
   function getNextFollowUpForVoice(voice: string, name: string, index: number): string | null {
     if (index >= 3) return null;
     if (voice === "sophia") {
@@ -4096,6 +4185,23 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyah
       ];
       return qs[index] || null;
     }
+    if (voice === "patricia") {
+      const qs = [
+        pickRandom([
+          `${name}, I want to dig a little deeper. What are you getting out of staying in this situation? I know that sounds strange, but we always get something — even from pain. Sometimes it's safety, sometimes it's familiarity, sometimes it's an excuse not to face something bigger. What's the payoff for you?`,
+          `${name}, here's something I want you to consider: who benefits from you staying stuck? Not just you — who else? Sometimes we stay small to keep others comfortable. Is there someone in your life whose comfort depends on you not changing?`,
+        ]),
+        pickRandom([
+          `${name}, let's try something. I want you to write a letter — you don't have to send it — to the person or situation causing you the most pain. Say everything. Hold nothing back. Then read it out loud to yourself. The act of hearing your own truth is more powerful than most people realize.`,
+          `${name}, I want you to check in with your body right now. Where are you holding tension? Your jaw? Your shoulders? Your chest? That tension is stored emotion. Put your hand there and breathe into it. What memory or feeling surfaces? Your body keeps the score, even when your mind tries to forget.`,
+        ]),
+        pickRandom([
+          `Before we close, ${name}, I want to leave you with this: healing isn't a straight line. You'll have days where you feel like you've made no progress. Those days are part of the progress. The only thing I ask is that you stay honest — with yourself, and with me. What's one uncomfortable truth you're ready to sit with this week?`,
+          `${name}, as we wrap up, I want you to make yourself one promise. Not a big dramatic one — just a quiet, honest promise. Something like: "I will stop pretending this doesn't bother me" or "I will have one real conversation this week." What promise feels right?`,
+        ]),
+      ];
+      return qs[index] || null;
+    }
     return getNextFollowUp(name, index);
   }
 
@@ -4110,6 +4216,8 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyah
         message = getSophiaFollowUpResponse(name, previousAnswer, idx);
       } else if (voice === "james") {
         message = getJamesFollowUpResponse(name, previousAnswer, idx);
+      } else if (voice === "patricia") {
+        message = getPatriciaFollowUpResponse(name, previousAnswer, idx);
       } else {
         message = generateFollowUpResponse(name, problem, previousAnswer, idx);
       }
@@ -4131,6 +4239,9 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyah
     } else if (voice === "james") {
       therapy = generateJamesTherapy(name, problem, s);
       followUp = getJamesFollowUp(problem, name);
+    } else if (voice === "patricia") {
+      therapy = generatePatriciaTherapy(name, problem, s);
+      followUp = getPatriciaFollowUp(problem, name);
     } else {
       const templates = [
         `${name}, let me tell you about ${problem}. I've faced worse. Much worse. Witch hunts, fake news, two impeachments — both total scams, by the way — the whole damn thing. And I won. Every time. On a scale of 1-10, your problem is a ${s}. My problems were all tens. But I dominated them. You know why? Because I don't quit. I never quit. Quitting is for Democrats. My advice? Be like me. Win. Just win. It's that simple. People overcomplicate things. Don't be one of those people.`,
@@ -4770,6 +4881,8 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
           followUpResponse = getSophiaFollowUpResponse(nameStr, previousAnswer, followUpIdx);
         } else if (selectedVoice === "james") {
           followUpResponse = getJamesFollowUpResponse(nameStr, previousAnswer, followUpIdx);
+        } else if (selectedVoice === "patricia") {
+          followUpResponse = getPatriciaFollowUpResponse(nameStr, previousAnswer, followUpIdx);
         } else {
           const trumpFollowUpResponses = [
             `${nameStr}, that's very interesting. Very smart answer. I've heard many answers — many, many answers — and yours? Top tier. Absolutely top tier. Now here's what I think you should do next — and believe me, I've thought about this more than anyone...`,
@@ -4784,6 +4897,8 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
             nextFollowUp = getSophiaFollowUp(problem, nameStr);
           } else if (selectedVoice === "james") {
             nextFollowUp = getJamesFollowUp(problem, nameStr);
+          } else if (selectedVoice === "patricia") {
+            nextFollowUp = getPatriciaFollowUp(problem, nameStr);
           } else {
             nextFollowUp = getFirstFollowUp(problem, nameStr);
           }
@@ -4807,6 +4922,9 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
       } else if (selectedVoice === "james") {
         therapyPrompt = `You are "Dr. James" — a methodical, intellectual CBT therapist who uses cognitive behavioral techniques like identifying cognitive distortions, Socratic questioning, behavioral experiments, evidence examination, thought records, and cost-benefit analysis. A patient named ${nameStr} has come to you with a problem rated ${level}/10 severity. Give a structured, analytical therapy response in 4-6 sentences. Address them by name. Identify a specific cognitive distortion at play. Ask a probing Socratic question. Suggest a concrete behavioral experiment or thought exercise. Be calm, professional, and evidence-based. No quotation marks around the response.`;
         userMessage = `My name is ${nameStr}. I'm dealing with: ${problem}. On a scale of 1-10, it's a ${level}. What's your analysis, Dr. James?`;
+      } else if (selectedVoice === "patricia") {
+        therapyPrompt = `You are "Dr. Patricia Serena" — a warm but direct therapist who blends psychodynamic insight with practical wisdom. You are compassionate yet no-nonsense. You see through defenses gently but firmly. You use techniques like exploring attachment patterns, identifying emotional avoidance, connecting present struggles to past experiences, and encouraging radical self-honesty. A patient named ${nameStr} has come to you with a problem rated ${level}/10 severity. Give a deeply insightful, emotionally intelligent therapy response in 4-6 sentences. Address them by name. You speak with warmth but don't sugarcoat. Use phrases like "Let's be honest with ourselves here," "What I'm hearing underneath that is...," "The pattern I'm noticing is...," "You deserve to look at this clearly." Offer a specific reflection exercise or journaling prompt. Be genuinely caring but push them toward honest self-examination. No quotation marks around the response.`;
+        userMessage = `My name is ${nameStr}. I'm struggling with: ${problem}. On a scale of 1-10, it feels like a ${level}. Can you help me, Dr. Patricia?`;
       } else {
         therapyPrompt = `You are "Dr. Trump" — Donald Trump as a therapist in "Trump Therapy." A patient named ${nameStr} has come to you with a problem. Their seriousness level is ${level}/10. Give a hilarious, over-the-top Trump-style therapy response in 4-6 sentences. Address them by name. Be dramatic, confident, and weirdly motivational. Reference your own life, wins, deals, and experiences. Use Trump's speaking patterns — tangents, superlatives, self-references. Make it genuinely funny but also oddly encouraging. Include a specific "Trump prescription" at the end (something absurd they should do). Stay fully in Trump character. No quotation marks around the response.`;
         userMessage = `My name is ${nameStr}. My problem is: ${problem}. On a scale of 1-10, it's a ${level}. Help me, Dr. Trump.`;
@@ -4830,6 +4948,8 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
         followUp = getSophiaFollowUp(problem, nameStr);
       } else if (selectedVoice === "james") {
         followUp = getJamesFollowUp(problem, nameStr);
+      } else if (selectedVoice === "patricia") {
+        followUp = getPatriciaFollowUp(problem, nameStr);
       } else {
         followUp = getFirstFollowUp(problem, nameStr);
       }

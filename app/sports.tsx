@@ -107,6 +107,7 @@ const PERSONA_IMAGES: Record<string, ImageSourcePropType> = {
   phantomZZ: require("@/assets/images/persona-phantomZZ.png"),
   theUltra: require("@/assets/images/persona-theUltra.png"),
   dickyV: require("@/assets/images/persona-dickyV.png"),
+  skipbayless: require("@/assets/images/persona-skipbayless.png"),
 };
 
 interface PersonaInfo {
@@ -130,6 +131,7 @@ const PERSONAS: PersonaInfo[] = [
   { id: "grandma", name: "Grandma", fullName: "Your Grandma", color: "#ffffff", image: PERSONA_IMAGES.grandma },
   { id: "ruckus", name: "Ruckus", fullName: "Uncle Ruckus", color: "#8B4513", image: PERSONA_IMAGES.ruckus },
   { id: "dickyV", name: "Dicky V", fullName: "Dicky V", color: "#FF6F00", image: PERSONA_IMAGES.dickyV },
+  { id: "skipbayless", name: "Skip", fullName: "Skip Bayless", color: "#0077C0", image: PERSONA_IMAGES.skipbayless },
 ];
 
 const RACING_PERSONAS: PersonaInfo[] = [
