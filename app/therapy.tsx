@@ -37,6 +37,86 @@ import Colors from "@/constants/colors";
 import { getApiUrl } from "@/lib/query-client";
 import { useTokens } from "@/lib/token-context";
 
+function SessionTimer({ active, ended, initialSeconds, mode, deepDuration, accent, deviceId, onSessionEnd, refreshBalance }: {
+  active: boolean; ended: boolean; initialSeconds: number; mode: string; deepDuration: number;
+  accent: string; deviceId: string | null; onSessionEnd: () => void; refreshBalance: () => void;
+}) {
+  const [seconds, setSeconds] = React.useState(initialSeconds);
+  const tokenChargeRef = useRef(0);
+  const lastChargeMinuteRef = useRef(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  React.useEffect(() => {
+    setSeconds(initialSeconds);
+    tokenChargeRef.current = 0;
+    lastChargeMinuteRef.current = 0;
+  }, [initialSeconds]);
+
+  React.useEffect(() => {
+    if (active && seconds > 0) {
+      timerRef.current = setInterval(() => {
+        setSeconds((prev) => {
+          if (prev <= 1) {
+            if (timerRef.current) clearInterval(timerRef.current);
+            onSessionEnd();
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            return 0;
+          }
+          if (mode === "deep") {
+            const totalDuration = deepDuration * 60;
+            const elapsed = totalDuration - (prev - 1);
+            const minutesPassed = Math.floor(elapsed / 60);
+            if (minutesPassed > lastChargeMinuteRef.current && minutesPassed > 0) {
+              lastChargeMinuteRef.current = minutesPassed;
+              tokenChargeRef.current += 1;
+              if (deviceId) {
+                const baseUrl = getApiUrl().replace(/\/$/, "");
+                fetch(`${baseUrl}/api/therapy/charge-minute`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+                  body: JSON.stringify({ minute: minutesPassed }),
+                }).then(() => refreshBalance()).catch(() => {});
+              }
+            }
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      return () => { if (timerRef.current) clearInterval(timerRef.current); };
+    }
+  }, [active, mode, deepDuration, deviceId]);
+
+  const formatTime = (s: number) => {
+    const mins = Math.floor(s / 60);
+    const secs = s % 60;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  return (
+    <View style={timerStyles.container}>
+      <Text style={timerStyles.label}>{mode === "deep" ? `DEEP SESSION (${deepDuration} MIN)` : "YOUR SESSION"}</Text>
+      <Text style={[timerStyles.display, { color: accent }, seconds <= 30 && timerStyles.warning]}>
+        {formatTime(seconds)}
+      </Text>
+      {mode === "deep" && active && (
+        <Text style={[timerStyles.tokens, { color: accent }]}>
+          {tokenChargeRef.current}/{deepDuration} tokens used
+        </Text>
+      )}
+      {ended && <Text style={timerStyles.expired}>SESSION ENDED</Text>}
+    </View>
+  );
+}
+
+const timerStyles = StyleSheet.create({
+  container: { alignItems: "center" as const, paddingVertical: 12 },
+  label: { color: "rgba(255,255,255,0.5)", fontSize: 12, fontWeight: "700" as const, letterSpacing: 2, marginBottom: 4 },
+  display: { fontSize: 36, fontWeight: "800" as const, fontVariant: ["tabular-nums" as const], letterSpacing: 2 },
+  warning: { color: "#e74c3c" },
+  tokens: { fontSize: 13, fontWeight: "600" as const, marginTop: 4 },
+  expired: { color: "#e74c3c", fontSize: 14, fontWeight: "700" as const, letterSpacing: 1, marginTop: 4 },
+});
+
 const trumpTherapistImage = require("@/assets/images/trump-therapist.png");
 const sophiaImage = require("@/assets/images/dr-sophia.jpg");
 const jamesImage = require("@/assets/images/dr-james.jpg");
@@ -198,12 +278,11 @@ export default function TherapyScreen() {
   const [followUpAnswer, setFollowUpAnswer] = useState("");
   const [followUpLoading, setFollowUpLoading] = useState(false);
   const [conversationHistory, setConversationHistory] = useState<Array<{ role: string; text: string }>>([]);
-  const [sessionSeconds, setSessionSeconds] = useState(300);
+  const [sessionTimerKey, setSessionTimerKey] = useState(0);
+  const [sessionInitialSeconds, setSessionInitialSeconds] = useState(300);
   const [sessionActive, setSessionActive] = useState(false);
   const [sessionEnded, setSessionEnded] = useState(false);
   const [deepDuration, setDeepDuration] = useState<5 | 10 | 15 | 20>(5);
-  const tokenChargeRef = useRef(0);
-  const lastChargeMinuteRef = useRef(0);
 
   const [sessionMode, setSessionMode] = useState<"quick" | "deep" | "chat">("quick");
   const [chatMessages, setChatMessages] = useState<Array<{ role: string; content: string }>>([]);
@@ -231,7 +310,6 @@ export default function TherapyScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
   const introTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const sessionTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const recordingRef = useRef<Audio.Recording | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -454,9 +532,8 @@ export default function TherapyScreen() {
         setFollowUpIndex(data.followUpIndex !== undefined ? data.followUpIndex + 1 : 1);
       }
       const duration = sessionMode === "deep" ? deepDuration * 60 : 300;
-      setSessionSeconds(duration);
-      tokenChargeRef.current = 0;
-      lastChargeMinuteRef.current = 0;
+      setSessionInitialSeconds(duration);
+      setSessionTimerKey((k) => k + 1);
       setSessionActive(true);
       setSessionEnded(false);
       refreshBalance();
@@ -511,52 +588,13 @@ export default function TherapyScreen() {
         soundRef.current.unloadAsync();
         soundRef.current = null;
       }
-      if (sessionTimerRef.current) clearInterval(sessionTimerRef.current);
     };
   }, []);
 
-  React.useEffect(() => {
-    if (sessionActive && sessionSeconds > 0) {
-      sessionTimerRef.current = setInterval(() => {
-        setSessionSeconds((prev) => {
-          if (prev <= 1) {
-            if (sessionTimerRef.current) clearInterval(sessionTimerRef.current);
-            setSessionActive(false);
-            setSessionEnded(true);
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-            return 0;
-          }
-          if (sessionMode === "deep") {
-            const totalDuration = deepDuration * 60;
-            const elapsed = totalDuration - (prev - 1);
-            const minutesPassed = Math.floor(elapsed / 60);
-            if (minutesPassed > lastChargeMinuteRef.current && minutesPassed > 0) {
-              lastChargeMinuteRef.current = minutesPassed;
-              tokenChargeRef.current += 1;
-              if (deviceId) {
-                const baseUrl = getApiUrl().replace(/\/$/, "");
-                fetch(`${baseUrl}/api/therapy/charge-minute`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json", "x-device-id": deviceId },
-                  body: JSON.stringify({ minute: minutesPassed }),
-                }).then(() => refreshBalance()).catch(() => {});
-              }
-            }
-          }
-          return prev - 1;
-        });
-      }, 1000);
-      return () => {
-        if (sessionTimerRef.current) clearInterval(sessionTimerRef.current);
-      };
-    }
-  }, [sessionActive, sessionMode, deepDuration, deviceId]);
-
-  const formatTime = (s: number) => {
-    const mins = Math.floor(s / 60);
-    const secs = s % 60;
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
-  };
+  const handleSessionEnd = React.useCallback(() => {
+    setSessionActive(false);
+    setSessionEnded(true);
+  }, []);
 
   const handleFollowUp = async () => {
     if (!followUpAnswer.trim() || followUpLoading || sessionEnded) return;
@@ -664,9 +702,8 @@ export default function TherapyScreen() {
     setChatMessages([{ role: "assistant", content: greeting }]);
     setChatStarted(true);
     const duration = sessionMode === "deep" ? deepDuration * 60 : 300;
-    setSessionSeconds(duration);
-    tokenChargeRef.current = 0;
-    lastChargeMinuteRef.current = 0;
+    setSessionInitialSeconds(duration);
+    setSessionTimerKey((k) => k + 1);
     setSessionActive(true);
     setSessionEnded(false);
     setTimeout(() => handleSpeak(greeting, selectedTherapist), 500);
@@ -858,9 +895,8 @@ export default function TherapyScreen() {
     setConversationHistory([]);
     setSessionActive(false);
     setSessionEnded(false);
-    setSessionSeconds(deepDuration * 60);
-    tokenChargeRef.current = 0;
-    lastChargeMinuteRef.current = 0;
+    setSessionInitialSeconds(deepDuration * 60);
+    setSessionTimerKey((k) => k + 1);
     setIntakeStep(null);
     setIntakeQuestion(null);
     setIntakeOptions(null);
@@ -876,7 +912,6 @@ export default function TherapyScreen() {
     setChatInput("");
     setChatLoading(false);
     setChatStarted(false);
-    if (sessionTimerRef.current) clearInterval(sessionTimerRef.current);
     if (soundRef.current) {
       soundRef.current.unloadAsync();
       soundRef.current = null;
@@ -1022,18 +1057,18 @@ export default function TherapyScreen() {
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(250).duration(500)} style={styles.timerContainer}>
-          <Text style={styles.timerLabel}>{sessionMode === "deep" ? `DEEP SESSION (${deepDuration} MIN)` : "YOUR SESSION"}</Text>
-          <Text style={[styles.timerDisplay, { color: config.accent }, sessionSeconds <= 30 && styles.timerWarning]}>
-            {formatTime(sessionSeconds)}
-          </Text>
-          {sessionMode === "deep" && sessionActive && (
-            <Text style={[styles.timerTokens, { color: config.accent }]}>
-              {tokenChargeRef.current}/{deepDuration} tokens used
-            </Text>
-          )}
-          {sessionEnded && (
-            <Text style={styles.timerExpired}>SESSION ENDED</Text>
-          )}
+          <SessionTimer
+            key={sessionTimerKey}
+            active={sessionActive}
+            ended={sessionEnded}
+            initialSeconds={sessionInitialSeconds}
+            mode={sessionMode}
+            deepDuration={deepDuration}
+            accent={config.accent}
+            deviceId={deviceId}
+            onSessionEnd={handleSessionEnd}
+            refreshBalance={refreshBalance}
+          />
         </Animated.View>
 
         {!chatStarted && <Animated.View entering={FadeInDown.delay(300).duration(500)} style={[styles.therapyCard, { borderColor: `${config.accent}66` }]}>
@@ -1165,7 +1200,7 @@ export default function TherapyScreen() {
               {([5, 10, 15, 20] as const).map((mins) => (
                 <Pressable
                   key={mins}
-                  onPress={() => { if (!therapy && !intakeStep) { setDeepDuration(mins); setSessionSeconds(mins * 60); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } }}
+                  onPress={() => { if (!therapy && !intakeStep) { setDeepDuration(mins); setSessionInitialSeconds(mins * 60); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } }}
                   style={[styles.durationBtn, deepDuration === mins && { backgroundColor: `${config.accent}30`, borderColor: config.accent }]}
                 >
                   <Text style={[styles.durationBtnTime, deepDuration === mins && { color: config.accent }]}>{mins}</Text>
