@@ -235,6 +235,7 @@ export default function TherapyScreen() {
   const recordingRef = useRef<Audio.Recording | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const micTargetRef = useRef<"problem" | "followUp" | "chat">("problem");
 
   const pulseValue = useSharedValue(1);
 
@@ -275,6 +276,15 @@ export default function TherapyScreen() {
       }
     };
   }, []);
+
+  function startMicFor(target: "problem" | "followUp" | "chat") {
+    if (isRecording) {
+      stopRecording();
+      return;
+    }
+    micTargetRef.current = target;
+    startRecording();
+  }
 
   async function startRecording() {
     try {
@@ -372,10 +382,15 @@ export default function TherapyScreen() {
       if (!response.ok) throw new Error("STT request failed");
       const data = await response.json();
       if (data.text && data.text.trim()) {
-        setProblem((prev) => {
-          const trimmed = data.text.trim();
-          return prev ? prev + " " + trimmed : trimmed;
-        });
+        const trimmed = data.text.trim();
+        const target = micTargetRef.current;
+        if (target === "followUp") {
+          setFollowUpAnswer((prev) => prev ? prev + " " + trimmed : trimmed);
+        } else if (target === "chat") {
+          setChatInput((prev) => prev ? prev + " " + trimmed : trimmed);
+        } else {
+          setProblem((prev) => prev ? prev + " " + trimmed : trimmed);
+        }
       }
     } catch (error) {
       console.error("Transcription error:", error);
@@ -452,8 +467,9 @@ export default function TherapyScreen() {
       }, 300);
 
       const currentVoice = selectedTherapist;
-      if (data.therapy) {
-        setTimeout(() => handleSpeak(data.therapy, currentVoice), 500);
+      const speakText = data.therapy + (data.followUp ? " " + data.followUp : "");
+      if (speakText) {
+        setTimeout(() => handleSpeak(speakText, currentVoice), 500);
         recordTherapySession(uid, {
           therapist: currentVoice,
           problem: problem.trim(),
@@ -583,7 +599,8 @@ export default function TherapyScreen() {
         setFollowUpQuestion(null);
       }
       if (data.therapy) {
-        setTimeout(() => handleSpeak(data.therapy, currentVoice), 500);
+        const speakFollowUp = data.therapy + (data.followUp ? " " + data.followUp : "");
+        setTimeout(() => handleSpeak(speakFollowUp, currentVoice), 500);
       }
       setTimeout(() => {
         scrollRef.current?.scrollToEnd({ animated: true });
@@ -753,6 +770,9 @@ export default function TherapyScreen() {
       setIntakeInputType(data.inputType || null);
       setIntakeData(data.intakeData || {});
       setIntakeMessages(prev => [...prev, { role: "therapist", text: data.question }]);
+      if (data.question) {
+        setTimeout(() => handleSpeak(data.question, selectedTherapist), 500);
+      }
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 300);
     } catch {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -814,6 +834,9 @@ export default function TherapyScreen() {
         setIntakeData(data.intakeData || intakeData);
         if (data.questionIndex !== undefined) setIntakeQuestionIndex(data.questionIndex);
         setIntakeMessages(prev => [...prev, { role: "therapist", text: data.question }]);
+        if (data.question) {
+          setTimeout(() => handleSpeak(data.question, selectedTherapist), 500);
+        }
       }
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 300);
     } catch {
@@ -1031,30 +1054,30 @@ export default function TherapyScreen() {
               <View style={styles.labelRow}>
                 <Text style={[styles.inputLabel, { marginTop: 0, marginBottom: 0, color: config.accent }]}>{"\uD83D\uDE1F"} {questionPrompt || "What's bothering you?"}</Text>
                 <Pressable
-                  onPress={isRecording ? stopRecording : startRecording}
+                  onPress={() => startMicFor("problem")}
                   disabled={isTranscribing}
                   testID="mic-button"
-                  accessibilityLabel={isRecording ? "Stop recording" : "Start voice input"}
+                  accessibilityLabel={isRecording && micTargetRef.current === "problem" ? "Stop recording" : "Start voice input"}
                   style={({ pressed }) => [
                     styles.micButton,
                     { backgroundColor: config.accentLight, borderColor: `${config.accent}66` },
-                    isRecording && { backgroundColor: config.accent, borderColor: config.accent },
+                    isRecording && micTargetRef.current === "problem" && { backgroundColor: config.accent, borderColor: config.accent },
                     pressed && { opacity: 0.7 },
                     isTranscribing && { opacity: 0.5 },
                   ]}
                 >
-                  {isTranscribing ? (
+                  {isTranscribing && micTargetRef.current === "problem" ? (
                     <ActivityIndicator color={config.accent} size="small" />
                   ) : (
                     <Ionicons
-                      name={isRecording ? "stop" : "mic"}
+                      name={isRecording && micTargetRef.current === "problem" ? "stop" : "mic"}
                       size={18}
-                      color={isRecording ? "#fff" : config.accent}
+                      color={isRecording && micTargetRef.current === "problem" ? "#fff" : config.accent}
                     />
                   )}
                 </Pressable>
               </View>
-              {isRecording && (
+              {isRecording && micTargetRef.current === "problem" && (
                 <Animated.View entering={FadeIn.duration(200)} style={styles.recordingIndicator}>
                   <View style={styles.recordingDot} />
                   <Text style={styles.recordingText}>Listening... tap mic to stop</Text>
@@ -1063,13 +1086,13 @@ export default function TherapyScreen() {
               <TextInput
                 value={problem}
                 onChangeText={setProblem}
-                placeholder={isRecording ? "Speak now..." : config.placeholder}
+                placeholder={isRecording && micTargetRef.current === "problem" ? "Speak now..." : config.placeholder}
                 placeholderTextColor="rgba(255,255,255,0.3)"
-                style={[styles.textInput, styles.textArea, isRecording && { borderColor: `${config.accent}99` }]}
+                style={[styles.textInput, styles.textArea, isRecording && micTargetRef.current === "problem" && { borderColor: `${config.accent}99` }]}
                 multiline
                 maxLength={500}
                 textAlignVertical="top"
-                editable={!isRecording}
+                editable={!(isRecording && micTargetRef.current === "problem")}
               />
 
               <Text style={[styles.inputLabel, { color: config.accent }]}>{"\uD83D\uDCCA"} How serious is it? (1-10)</Text>
@@ -1312,15 +1335,36 @@ export default function TherapyScreen() {
 
             {!sessionEnded && (
               <View style={[styles.chatInputRow, { borderColor: `${config.accent}40` }]}>
+                <Pressable
+                  onPress={() => startMicFor("chat")}
+                  disabled={isTranscribing || chatLoading}
+                  testID="chat-mic-btn"
+                  style={({ pressed }) => [
+                    styles.chatMicBtn,
+                    { borderColor: `${config.accent}40` },
+                    isRecording && micTargetRef.current === "chat" && { backgroundColor: config.accent, borderColor: config.accent },
+                    pressed && { opacity: 0.7 },
+                  ]}
+                >
+                  {isTranscribing && micTargetRef.current === "chat" ? (
+                    <ActivityIndicator color={config.accent} size="small" />
+                  ) : (
+                    <Ionicons
+                      name={isRecording && micTargetRef.current === "chat" ? "stop" : "mic"}
+                      size={18}
+                      color={isRecording && micTargetRef.current === "chat" ? "#fff" : config.accent}
+                    />
+                  )}
+                </Pressable>
                 <TextInput
                   value={chatInput}
                   onChangeText={setChatInput}
-                  placeholder={`Talk to ${config.name}...`}
+                  placeholder={isRecording && micTargetRef.current === "chat" ? "Speak now..." : `Talk to ${config.name}...`}
                   placeholderTextColor="rgba(255,255,255,0.3)"
                   style={[styles.chatInput, { borderColor: `${config.accent}30` }]}
                   multiline
                   maxLength={500}
-                  editable={!chatLoading}
+                  editable={!chatLoading && !(isRecording && micTargetRef.current === "chat")}
                   onSubmitEditing={handleChatSend}
                   testID="chat-input"
                 />
@@ -1396,17 +1440,40 @@ export default function TherapyScreen() {
                   {config.name} asks:
                 </Text>
                 <Text style={styles.followUpQuestion}>"{followUpQuestion}"</Text>
-                <TextInput
-                  value={followUpAnswer}
-                  onChangeText={setFollowUpAnswer}
-                  placeholder="Type your answer..."
-                  placeholderTextColor="rgba(255,255,255,0.3)"
-                  style={[styles.textInput, styles.followUpInput, { borderColor: `${config.accent}40` }]}
-                  multiline
-                  maxLength={300}
-                  textAlignVertical="top"
-                  editable={!followUpLoading}
-                />
+                <View style={styles.followUpInputRow}>
+                  <TextInput
+                    value={followUpAnswer}
+                    onChangeText={setFollowUpAnswer}
+                    placeholder={isRecording && micTargetRef.current === "followUp" ? "Speak now..." : "Type or speak your answer..."}
+                    placeholderTextColor="rgba(255,255,255,0.3)"
+                    style={[styles.textInput, styles.followUpInput, { borderColor: `${config.accent}40`, flex: 1 }]}
+                    multiline
+                    maxLength={300}
+                    textAlignVertical="top"
+                    editable={!followUpLoading && !(isRecording && micTargetRef.current === "followUp")}
+                  />
+                  <Pressable
+                    onPress={() => startMicFor("followUp")}
+                    disabled={isTranscribing || followUpLoading}
+                    testID="followup-mic-btn"
+                    style={({ pressed }) => [
+                      styles.followUpMicBtn,
+                      { borderColor: `${config.accent}40` },
+                      isRecording && micTargetRef.current === "followUp" && { backgroundColor: config.accent, borderColor: config.accent },
+                      pressed && { opacity: 0.7 },
+                    ]}
+                  >
+                    {isTranscribing && micTargetRef.current === "followUp" ? (
+                      <ActivityIndicator color={config.accent} size="small" />
+                    ) : (
+                      <Ionicons
+                        name={isRecording && micTargetRef.current === "followUp" ? "stop" : "mic"}
+                        size={18}
+                        color={isRecording && micTargetRef.current === "followUp" ? "#fff" : config.accent}
+                      />
+                    )}
+                  </Pressable>
+                </View>
                 <Pressable
                   onPress={handleFollowUp}
                   disabled={followUpLoading || !followUpAnswer.trim()}
@@ -2535,5 +2602,29 @@ const styles = StyleSheet.create({
     borderRadius: 21,
     alignItems: "center" as const,
     justifyContent: "center" as const,
+  },
+  chatMicBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    borderWidth: 1.5,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    backgroundColor: "rgba(51,51,51,0.8)",
+  },
+  followUpInputRow: {
+    flexDirection: "row" as const,
+    gap: 8,
+    alignItems: "flex-end" as const,
+  },
+  followUpMicBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    backgroundColor: "rgba(51,51,51,0.8)",
+    marginBottom: 2,
   },
 });
