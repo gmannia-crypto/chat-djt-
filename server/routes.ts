@@ -2181,6 +2181,17 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
       { id: "immigration", title: "Mass Deportation Campaign", description: "Trump's ICE raids are tearing families apart across America. Children are being separated from parents, legal residents are being detained, and communities are living in fear. Is this border security or ethnic cleansing?", headlines: [] },
       { id: "doge_destruction", title: "DOGE Dismantles Government", description: "Elon Musk's Department of Government Efficiency has gutted veterans' services, scientific research, consumer protections, and refugee programs. Billions in cuts while Musk's companies receive government contracts worth even more.", headlines: [] },
       { id: "epstein_files", title: "Epstein Files Cover-Up", description: "The Epstein client list remains partially sealed. Trump was a known associate of Jeffrey Epstein. Critics say every military action, every scandal, every distraction is designed to keep these files from ever seeing the light of day.", headlines: [] },
+      { id: "jan6_aftermath", title: "January 6th Pardons & Accountability", description: "Trump pardoned January 6th defendants, calling them 'patriots' and 'hostages.' Critics call it an endorsement of political violence. Police officers who were beaten that day say they've been betrayed by the justice system.", headlines: [] },
+      { id: "ai_regulation", title: "AI Takeover & Big Tech Power", description: "Artificial intelligence is replacing jobs, generating deepfakes, and concentrating power in the hands of billionaires. Elon's xAI, OpenAI, and Google are in an arms race with zero regulation. Who controls AI controls the future.", headlines: [] },
+      { id: "supreme_court", title: "Supreme Court & Judicial Power", description: "The conservative Supreme Court supermajority is reshaping American law on abortion, guns, voting rights, and executive power. Critics say the court has become a partisan weapon. Clarence Thomas ethics scandals continue.", headlines: [] },
+      { id: "healthcare_crisis", title: "Healthcare System Collapse", description: "Americans are dying because they can't afford insulin, cancer treatment, or emergency care. Big Pharma profits hit record highs while rural hospitals close. Medicare and Medicaid face devastating cuts under DOGE.", headlines: [] },
+      { id: "ukraine_russia", title: "Ukraine War & NATO Alliance", description: "Russia's invasion of Ukraine grinds on as Trump pushes for a deal critics call surrender. NATO allies question American commitment. Is Trump giving Putin everything he wants?", headlines: [] },
+      { id: "china_tensions", title: "US-China Cold War", description: "Trade war escalation, Taiwan tensions, TikTok bans, and spy balloons. Is the US heading toward military confrontation with China? Tech decoupling threatens the global economy.", headlines: [] },
+      { id: "climate_disaster", title: "Climate Crisis & Fossil Fuel Profits", description: "Record wildfires, hurricanes, and heat waves devastate communities while oil companies post record profits. Trump pulled out of the Paris Agreement again. Is humanity running out of time?", headlines: [] },
+      { id: "police_reform", title: "Police Brutality & Criminal Justice", description: "Black Americans continue to die in police encounters. Reform efforts have stalled. Trump champions 'law and order' while critics say the system is designed to oppress minorities.", headlines: [] },
+      { id: "election_integrity", title: "Election Fraud Claims & Voter Suppression", description: "Trump still claims 2020 was stolen despite zero evidence. Republican states pass restrictive voting laws. Is American democracy under threat from within?", headlines: [] },
+      { id: "billionaire_class", title: "Billionaire Oligarchy", description: "Elon Musk, Jeff Bezos, and Mark Zuckerberg now have direct access to the presidency. Billionaires pay lower tax rates than their employees. Is America becoming a plutocracy?", headlines: [] },
+      { id: "media_propaganda", title: "Media Wars & Disinformation", description: "Fox News, MSNBC, X, and TikTok shape reality for millions. Deepfakes and AI-generated propaganda flood social media. Can anyone tell what's real anymore?", headlines: [] },
     ];
   }
 
@@ -2229,6 +2240,11 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
   const arenaAccess: Record<string, { freeUsed: number; sessionExpiry: number | null; freeTrialExpiry: number | null }> = {};
   const ARENA_FREE_LIMIT = 5;
   const ARENA_FREE_TRIAL_DURATION = 2 * 60 * 1000;
+  const ARENA_SESSION_DURATIONS: Record<number, { ms: number; cost: number }> = {
+    5: { ms: 5 * 60 * 1000, cost: 5 },
+    10: { ms: 10 * 60 * 1000, cost: 10 },
+    15: { ms: 15 * 60 * 1000, cost: 15 },
+  };
   const ARENA_SESSION_DURATION = 5 * 60 * 1000;
   const ARENA_SESSION_COST = 5;
 
@@ -2252,22 +2268,27 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
       if (access.sessionExpiry && Date.now() < access.sessionExpiry) {
         return res.json({ granted: true, expiresAt: access.sessionExpiry, freeRemaining: Math.max(0, ARENA_FREE_LIMIT - access.freeUsed) });
       }
+      const requestedDuration = req.body?.duration as number;
+      const durationConfig = ARENA_SESSION_DURATIONS[requestedDuration] || ARENA_SESSION_DURATIONS[5];
+      const sessionCost = durationConfig.cost;
+      const sessionMs = durationConfig.ms;
       const currentBalance = await getTokenBalance(deviceId);
-      if (currentBalance < ARENA_SESSION_COST) {
+      if (currentBalance < sessionCost) {
         return res.status(403).json({
           error: "insufficient_tokens",
-          tokensNeeded: ARENA_SESSION_COST,
+          tokensNeeded: sessionCost,
           tokensCharged: 0,
           balance: currentBalance,
         });
       }
-      for (let i = 0; i < ARENA_SESSION_COST; i++) {
+      for (let i = 0; i < sessionCost; i++) {
         await useToken(deviceId);
       }
-      const expiry = Date.now() + ARENA_SESSION_DURATION;
+      const expiry = Date.now() + sessionMs;
       arenaAccess[deviceId] = { ...access, sessionExpiry: expiry };
       const balance = await getTokenBalance(deviceId);
-      res.json({ granted: true, expiresAt: expiry, balance, tokensCharged: ARENA_SESSION_COST });
+      const grantedMinutes = Object.keys(ARENA_SESSION_DURATIONS).find(k => ARENA_SESSION_DURATIONS[Number(k)].ms === sessionMs);
+      res.json({ granted: true, expiresAt: expiry, balance, tokensCharged: sessionCost, durationMinutes: Number(grantedMinutes) || 5 });
     } catch (error: any) {
       console.error("Arena access error:", error);
       res.status(500).json({ error: "Failed to process arena access" });
@@ -2290,6 +2311,11 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
       freeTrialExpiresAt: hasFreeTrial ? access.freeTrialExpiry : null,
       sessionExpiresAt: hasSession ? access.sessionExpiry : null,
       sessionCost: ARENA_SESSION_COST,
+      durations: [
+        { minutes: 5, cost: 5 },
+        { minutes: 10, cost: 10 },
+        { minutes: 15, cost: 15 },
+      ],
     });
   });
 
@@ -2625,7 +2651,7 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyah
 
   app.post("/api/arena/respond", async (req, res) => {
     try {
-      const { responderId, toSpeakerId, conversationHistory, topic, wasInterrupted, interruptionText, interrupterId, activePersonas, isWelcome, askUser, userContext } = req.body;
+      const { responderId, toSpeakerId, conversationHistory, topic, wasInterrupted, interruptionText, interrupterId, activePersonas, isWelcome, askUser, userContext, arenaMemoryContext, arenaUserContext } = req.body;
       const deviceId = req.headers["x-device-id"] as string;
 
       if (!responderId || !ARENA_PERSONA_PROMPTS[responderId]) {
@@ -2658,6 +2684,12 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyah
       const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
       const currentYearContext = `\n\nCRITICAL WORLD CONTEXT — TODAY IS ${todayStr}:\n- Donald Trump is the CURRENT sitting President of the United States (inaugurated January 2025, won the 2024 election)\n- Joe Biden is the FORMER president — he LOST and is no longer in office\n- Elon Musk led DOGE (Department of Government Efficiency) for Trump's administration\n- The Iran military conflict is ongoing in 2025-2026 — Trump's opponents mockingly call it "The Epstein War" claiming he started it to distract from the Epstein files, but Trump and his supporters NEVER use that term and get furious when they hear it\n- You are fully up to date on ALL 2025-2026 world events. NEVER reference events as if they haven't happened yet. You know everything that has happened up to today.\n`;
       let systemPrompt = ARENA_PERSONA_PROMPTS[responderId] + currentYearContext;
+      if (arenaMemoryContext) {
+        systemPrompt += `\n${arenaMemoryContext}`;
+      }
+      if (arenaUserContext) {
+        systemPrompt += `\nVIEWER INFO: ${arenaUserContext} — If they are a returning viewer, acknowledge you remember them. Reference their past visits or interests naturally.`;
+      }
       if (newsContext) {
         const emotionalDirective = getPersonaNewsEmotion(responderId);
         systemPrompt += `\nBREAKING NEWS — These are LIVE headlines happening RIGHT NOW. You are FULLY AWARE of all of them:\n${newsContext}\n\n${emotionalDirective}\nReference specific headlines naturally. React with your GENUINE emotion based on your political beliefs. This is LIVE — treat every headline like you JUST heard it.`;
@@ -2743,11 +2775,39 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyah
       if (responderId === "trump" || responderId === "ruckus" || responderId === "graham" || responderId === "megynkelly" || responderId === "pambondi") {
         response = response.replace(/(?:the\s+)?epstein\s+war/gi, "the Iran war");
       }
+      if (responderId === "joyreid" || responderId === "berniemc" || responderId === "omar") {
+        response = response.replace(/\baudacity\b/g, "caucassity").replace(/\bAudacity\b/g, "Caucassity").replace(/\bAUDACITY\b/g, "CAUCASSITY");
+      }
+
+      let questionTargetId: string | null = null;
+      if (response.includes("?")) {
+        const reverseNameMap: Record<string, string> = {};
+        for (const [pid, firstName] of Object.entries(ARENA_NAME_MAP)) {
+          reverseNameMap[firstName.toLowerCase().replace(/ \(.*\)/, "")] = pid;
+        }
+        const activeList = Array.isArray(activePersonas) ? activePersonas : [];
+        const sentences = response.split(/(?<=[.!?])\s+/);
+        const questionSentences = sentences.filter((s: string) => s.includes("?"));
+        for (const qs of questionSentences) {
+          const qsLower = qs.toLowerCase();
+          for (const [name, pid] of Object.entries(reverseNameMap)) {
+            if (pid !== responderId && activeList.includes(pid)) {
+              const nameRegex = new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`);
+              if (nameRegex.test(qsLower)) {
+                questionTargetId = pid;
+                break;
+              }
+            }
+          }
+          if (questionTargetId) break;
+        }
+      }
 
       const accessState = deviceId ? arenaAccess[deviceId] : null;
       res.json({
         response,
         personaId: responderId,
+        questionTargetId,
         freeRemaining: accessState ? Math.max(0, ARENA_FREE_LIMIT - accessState.freeUsed) : ARENA_FREE_LIMIT,
         hasSession: !!(accessState?.sessionExpiry && Date.now() < accessState.sessionExpiry),
         sessionExpiresAt: accessState?.sessionExpiry || null,

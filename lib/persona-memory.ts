@@ -343,6 +343,147 @@ export async function getTherapyHistory(
   return user.sessions;
 }
 
+const ARENA_MEMORY_KEY = "chatdjt_arena_memory";
+const ARENA_USER_KEY = "chatdjt_arena_user";
+
+interface ArenaDebateMoment {
+  personaId: string;
+  targetId: string;
+  quote: string;
+  topic: string;
+  timestamp: string;
+}
+
+interface ArenaMemoryStore {
+  moments: ArenaDebateMoment[];
+}
+
+interface ArenaUserInfo {
+  name: string;
+  city: string;
+  state: string;
+  country: string;
+  sessionCount: number;
+  lastVisit: string;
+  favoriteTopics: string[];
+}
+
+let cachedArenaMemory: ArenaMemoryStore | null = null;
+let cachedArenaUser: ArenaUserInfo | null = null;
+
+async function loadArenaMemory(): Promise<ArenaMemoryStore> {
+  if (cachedArenaMemory) return cachedArenaMemory;
+  try {
+    const saved = await AsyncStorage.getItem(ARENA_MEMORY_KEY);
+    if (saved) {
+      cachedArenaMemory = JSON.parse(saved);
+      return cachedArenaMemory!;
+    }
+  } catch {}
+  cachedArenaMemory = { moments: [] };
+  return cachedArenaMemory;
+}
+
+async function saveArenaMemory(): Promise<void> {
+  if (cachedArenaMemory) {
+    await AsyncStorage.setItem(ARENA_MEMORY_KEY, JSON.stringify(cachedArenaMemory)).catch(() => {});
+  }
+}
+
+export async function recordArenaMoment(
+  personaId: string,
+  targetId: string,
+  quote: string,
+  topic: string
+): Promise<void> {
+  const memory = await loadArenaMemory();
+  memory.moments.push({
+    personaId,
+    targetId,
+    quote: quote.slice(0, 150),
+    topic,
+    timestamp: new Date().toISOString(),
+  });
+  if (memory.moments.length > 30) {
+    memory.moments = memory.moments.slice(-30);
+  }
+  await saveArenaMemory();
+}
+
+export async function getArenaMemoryContext(personaId: string, activePersonas: string[]): Promise<string> {
+  const memory = await loadArenaMemory();
+  if (memory.moments.length === 0) return "";
+  const relevant = memory.moments.filter(
+    (m) =>
+      (m.personaId === personaId || m.targetId === personaId || activePersonas.includes(m.personaId)) &&
+      m.personaId !== m.targetId
+  ).slice(-6);
+  if (relevant.length === 0) return "";
+  const lines = relevant.map((m) => {
+    const ago = Math.floor((Date.now() - new Date(m.timestamp).getTime()) / (1000 * 60));
+    const timeLabel = ago < 60 ? `${ago}m ago` : ago < 1440 ? `${Math.floor(ago / 60)}h ago` : `${Math.floor(ago / 1440)}d ago`;
+    return `- ${m.personaId} said to ${m.targetId} (${timeLabel}, topic: ${m.topic}): "${m.quote}"`;
+  });
+  return `\nPAST DEBATE MOMENTS (reference these to create callbacks and feuds):\n${lines.join("\n")}`;
+}
+
+export async function loadArenaUserInfo(): Promise<ArenaUserInfo | null> {
+  if (cachedArenaUser) return cachedArenaUser;
+  try {
+    const saved = await AsyncStorage.getItem(ARENA_USER_KEY);
+    if (saved) {
+      cachedArenaUser = JSON.parse(saved);
+      return cachedArenaUser;
+    }
+  } catch {}
+  return null;
+}
+
+export async function saveArenaUserInfo(info: {
+  name: string;
+  city: string;
+  state: string;
+  country: string;
+  topic?: string;
+}): Promise<void> {
+  const existing = await loadArenaUserInfo();
+  const updated: ArenaUserInfo = {
+    name: info.name,
+    city: info.city,
+    state: info.state,
+    country: info.country,
+    sessionCount: (existing?.sessionCount || 0) + 1,
+    lastVisit: new Date().toISOString(),
+    favoriteTopics: existing?.favoriteTopics || [],
+  };
+  if (info.topic && !updated.favoriteTopics.includes(info.topic)) {
+    updated.favoriteTopics.push(info.topic);
+    if (updated.favoriteTopics.length > 10) updated.favoriteTopics = updated.favoriteTopics.slice(-10);
+  }
+  cachedArenaUser = updated;
+  await AsyncStorage.setItem(ARENA_USER_KEY, JSON.stringify(updated)).catch(() => {});
+}
+
+export async function getArenaUserContext(): Promise<{ isReturning: boolean; summary: string } | null> {
+  const user = await loadArenaUserInfo();
+  if (!user || !user.name) return null;
+  const isReturning = user.sessionCount > 1;
+  const location = [user.city, user.state, user.country].filter(Boolean).join(", ");
+  let summary: string;
+  if (isReturning) {
+    const lastDate = new Date(user.lastVisit);
+    const daysAgo = Math.floor((Date.now() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
+    const timeLabel = daysAgo === 0 ? "earlier today" : daysAgo === 1 ? "yesterday" : `${daysAgo} days ago`;
+    summary = `Returning viewer: ${user.name} from ${location}. They've been here ${user.sessionCount} times. Last visit: ${timeLabel}.`;
+    if (user.favoriteTopics.length > 0) {
+      summary += ` They're interested in: ${user.favoriteTopics.slice(-3).join(", ")}.`;
+    }
+  } else {
+    summary = `New viewer: ${user.name} from ${location}. This is their first time in the arena.`;
+  }
+  return { isReturning, summary };
+}
+
 export async function getLastTherapySessionForTherapist(
   userId: string,
   therapistId: string

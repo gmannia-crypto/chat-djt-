@@ -33,6 +33,13 @@ import {
   generateShareText,
   ArenaRecording,
 } from "@/lib/arena-recordings";
+import {
+  recordArenaMoment,
+  getArenaMemoryContext,
+  saveArenaUserInfo,
+  getArenaUserContext,
+  loadArenaUserInfo,
+} from "@/lib/persona-memory";
 
 const Colors = {
   background: "#0a0a0a",
@@ -711,6 +718,17 @@ const FALLBACK_TOPICS: DynamicTopic[] = [
   { id: "immigration", title: "Mass Deportation Campaign", description: "Trump's ICE raids are tearing families apart across America. Children separated from parents, communities living in fear." },
   { id: "doge_destruction", title: "DOGE Dismantles Government", description: "Elon Musk's DOGE has gutted veterans' services, scientific research, consumer protections, and refugee programs." },
   { id: "epstein_files", title: "Epstein Files Cover-Up", description: "The Epstein client list remains partially sealed. Trump was a known associate. Every distraction is designed to keep these files buried." },
+  { id: "jan6_aftermath", title: "January 6th Pardons & Accountability", description: "Trump pardoned January 6th defendants, calling them 'patriots.' Critics call it an endorsement of political violence." },
+  { id: "ai_regulation", title: "AI Takeover & Big Tech Power", description: "AI is replacing jobs, generating deepfakes, and concentrating power. Elon's xAI, OpenAI, and Google are in an arms race with zero regulation." },
+  { id: "supreme_court", title: "Supreme Court & Judicial Power", description: "The conservative Supreme Court supermajority is reshaping American law on abortion, guns, voting rights, and executive power." },
+  { id: "healthcare_crisis", title: "Healthcare System Collapse", description: "Americans are dying because they can't afford insulin or cancer treatment. Big Pharma profits hit record highs while rural hospitals close." },
+  { id: "ukraine_russia", title: "Ukraine War & NATO Alliance", description: "Russia's invasion of Ukraine grinds on as Trump pushes for a deal critics call surrender. NATO allies question American commitment." },
+  { id: "china_tensions", title: "US-China Cold War", description: "Trade war escalation, Taiwan tensions, TikTok bans. Is the US heading toward military confrontation with China?" },
+  { id: "climate_disaster", title: "Climate Crisis & Fossil Fuel Profits", description: "Record wildfires, hurricanes, and heat waves. Oil companies post record profits. Trump pulled out of the Paris Agreement again." },
+  { id: "police_reform", title: "Police Brutality & Criminal Justice", description: "Black Americans continue to die in police encounters. Reform efforts stalled. Trump champions 'law and order.'" },
+  { id: "election_integrity", title: "Election Fraud Claims & Voter Suppression", description: "Trump still claims 2020 was stolen despite zero evidence. Republican states pass restrictive voting laws." },
+  { id: "billionaire_class", title: "Billionaire Oligarchy", description: "Elon, Bezos, and Zuckerberg now have direct access to the presidency. Billionaires pay lower tax rates than their employees." },
+  { id: "media_propaganda", title: "Media Wars & Disinformation", description: "Fox News, MSNBC, X, and TikTok shape reality for millions. Deepfakes and AI-generated propaganda flood social media." },
 ];
 
 const AFFILIATE_LINKS = [
@@ -1251,6 +1269,10 @@ export default function ArenaScreen() {
   const mountedRef = useRef(true);
   const voiceEnabledRef = useRef(true);
   const recentSpeakersRef = useRef<string[]>([]);
+  const pendingResponseRef = useRef<string | null>(null);
+  const [selectedDuration, setSelectedDuration] = useState<number>(5);
+  const arenaMemoryContextRef = useRef<string>("");
+  const arenaUserContextRef = useRef<string>("");
 
   useEffect(() => { messagesRef.current = messages; }, [messages]);
   useEffect(() => { currentSpeakerRef.current = currentSpeaker; }, [currentSpeaker]);
@@ -1533,6 +1555,7 @@ export default function ArenaScreen() {
       const res = await fetch(new URL("/api/arena/access", getApiUrl()).toString(), {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+        body: JSON.stringify({ duration: selectedDuration }),
       });
       const data = await res.json();
       if (data.granted) {
@@ -1548,14 +1571,15 @@ export default function ArenaScreen() {
         setIsRunning(true);
         isRunningRef.current = true;
         refreshBalance();
-        addSystemMessage("Session unlocked! 5 minutes of unlimited access.");
+        const mins = data.durationMinutes || selectedDuration;
+        addSystemMessage(`Session unlocked! ${mins} minutes of unlimited access.`);
         setTimeout(() => { if (mountedRef.current && scheduleNextRef.current) scheduleNextRef.current(); }, 1000);
       } else if (data.error === "insufficient_tokens") {
         addSystemMessage("Not enough tokens. Visit the store to get more!");
       }
     } catch {}
     setIsUnlocking(false);
-  }, [deviceId, refreshBalance]);
+  }, [deviceId, refreshBalance, selectedDuration]);
 
   const addSystemMessage = useCallback((text: string) => {
     const msg: ConversationMessage = {
@@ -1582,6 +1606,20 @@ export default function ArenaScreen() {
       }
     });
     checkArenaStatus();
+    getArenaMemoryContext("", []).then((ctx) => {
+      arenaMemoryContextRef.current = ctx;
+    }).catch(() => {});
+    loadArenaUserInfo().then((info) => {
+      if (info && info.name) {
+        setUserName(info.name);
+        setUserCity(info.city || "");
+        setUserState(info.state || "New York");
+        setUserCountry(info.country || "United States");
+        getArenaUserContext().then((ctx) => {
+          if (ctx) arenaUserContextRef.current = ctx.summary;
+        }).catch(() => {});
+      }
+    }).catch(() => {});
     const topicRefresh = setInterval(fetchTopics, 3 * 60 * 1000);
     return () => clearInterval(topicRefresh);
   }, [fetchTopics, checkArenaStatus]);
@@ -1814,6 +1852,12 @@ export default function ArenaScreen() {
           topic: currentTopicRef.current,
           activePersonas: selectedPersonasRef.current,
         };
+        if (arenaMemoryContextRef.current) {
+          bodyPayload.arenaMemoryContext = arenaMemoryContextRef.current;
+        }
+        if (arenaUserContextRef.current) {
+          bodyPayload.arenaUserContext = arenaUserContextRef.current;
+        }
         const lastInt = lastInterruptionRef.current;
         if (lastInt) {
           bodyPayload.wasInterrupted = true;
@@ -1854,6 +1898,10 @@ export default function ArenaScreen() {
         if (data.hasSession !== undefined) setHasSession(data.hasSession);
         if (data.sessionExpiresAt) setSessionExpiresAt(data.sessionExpiresAt);
 
+        if (data.questionTargetId && selectedPersonasRef.current.includes(data.questionTargetId)) {
+          pendingResponseRef.current = data.questionTargetId;
+        }
+
         if (sessionEndedRef.current) return;
 
         addMessage({
@@ -1866,6 +1914,10 @@ export default function ArenaScreen() {
 
         updateEmotions(responderId, toSpeakerId);
         if (!sessionEndedRef.current) queueTTS(data.response, responderId);
+
+        if (data.response && data.response.length > 30) {
+          recordArenaMoment(responderId, toSpeakerId, data.response, currentTopicRef.current || "debate").catch(() => {});
+        }
       } catch (err) {
         console.warn("Arena AI error:", err);
       } finally {
@@ -2019,6 +2071,18 @@ export default function ArenaScreen() {
     userCityRef.current = userCity.trim();
     userStateRef.current = userState;
     userCountryRef.current = userCountry;
+
+    getArenaUserContext().then((ctx) => {
+      if (ctx) arenaUserContextRef.current = ctx.summary;
+    }).catch(() => {}).finally(() => {
+      saveArenaUserInfo({
+        name: userName.trim(),
+        city: userCity.trim(),
+        state: userState,
+        country: userCountry,
+        topic: currentTopicRef.current || undefined,
+      }).catch(() => {});
+    });
 
     const locationParts = [userCity.trim(), userState, userCountry].filter(Boolean);
     const locationStr = locationParts.join(", ");
@@ -2194,6 +2258,17 @@ export default function ArenaScreen() {
     const lastMsg = msgs[msgs.length - 1];
     const recent = recentSpeakersRef.current;
 
+    const pendingTarget = pendingResponseRef.current;
+    if (pendingTarget && active.includes(pendingTarget) && pendingTarget !== lastMsg.speakerId) {
+      pendingResponseRef.current = null;
+      if (mountedRef.current) {
+        await generateAIResponse(pendingTarget, lastMsg.speakerId);
+        recentSpeakersRef.current = [...recentSpeakersRef.current, pendingTarget].slice(-4);
+      }
+      return;
+    }
+    pendingResponseRef.current = null;
+
     const trumpAttacked = active.includes("trump") && lastMsg.speakerId !== "trump" && detectTrumpAttack(lastMsg.text, lastMsg.speakerId);
 
     const pool = active.filter((pid) => pid !== lastMsg.speakerId);
@@ -2280,6 +2355,10 @@ export default function ArenaScreen() {
     sessionEndedRef.current = false;
     setIsRunning(true);
     isRunningRef.current = true;
+    try {
+      const ctx = await getArenaMemoryContext("", selectedPersonasRef.current);
+      arenaMemoryContextRef.current = ctx;
+    } catch {}
     addMessage({
       id: "system-start",
       speakerId: "system",
@@ -3299,8 +3378,24 @@ export default function ArenaScreen() {
             <Ionicons name="lock-closed" size={36} color="#FFD700" />
             <Text style={s.paywallTitle}>Arena Access Required</Text>
             <Text style={s.paywallSubtitle}>
-              You've used your free interactions. Unlock 5 minutes of unlimited access for 5 tokens.
+              Choose your debate duration. 1 token per minute.
             </Text>
+            <View style={s.durationRow}>
+              {([5, 10, 15] as const).map((dur) => (
+                <Pressable
+                  key={dur}
+                  onPress={() => setSelectedDuration(dur)}
+                  style={[s.durationChip, selectedDuration === dur && s.durationChipActive]}
+                >
+                  <Text style={[s.durationChipText, selectedDuration === dur && s.durationChipTextActive]}>
+                    {dur} min
+                  </Text>
+                  <Text style={[s.durationChipCost, selectedDuration === dur && s.durationChipCostActive]}>
+                    {dur} tokens
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
             <View style={s.paywallBalanceRow}>
               <Ionicons name="diamond" size={16} color="#FFD700" />
               <Text style={s.paywallBalance}>{balance?.totalAvailable ?? 0} tokens available</Text>
@@ -3313,7 +3408,7 @@ export default function ArenaScreen() {
               {isUnlocking ? (
                 <ActivityIndicator size="small" color="#000" />
               ) : (
-                <Text style={s.paywallBtnText}>Unlock for 5 Tokens</Text>
+                <Text style={s.paywallBtnText}>Unlock {selectedDuration} Min for {selectedDuration} Tokens</Text>
               )}
             </Pressable>
             <Pressable onPress={() => { setShowPaywall(false); router.push("/subscribe"); }} style={s.paywallSecondaryBtn}>
@@ -4309,6 +4404,41 @@ const s = StyleSheet.create({
     fontSize: 15,
     fontWeight: "900" as const,
     color: "#000",
+  },
+  durationRow: {
+    flexDirection: "row" as const,
+    gap: 10,
+    marginTop: 14,
+    marginBottom: 4,
+  },
+  durationChip: {
+    flex: 1,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: "center" as const,
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  durationChipActive: {
+    borderColor: "#FFD700",
+    backgroundColor: "rgba(255,215,0,0.12)",
+  },
+  durationChipText: {
+    fontSize: 15,
+    fontWeight: "700" as const,
+    color: "rgba(255,255,255,0.6)",
+  },
+  durationChipTextActive: {
+    color: "#FFD700",
+  },
+  durationChipCost: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.35)",
+    marginTop: 2,
+  },
+  durationChipCostActive: {
+    color: "rgba(255,215,0,0.7)",
   },
   paywallSecondaryBtn: {
     marginTop: 10,
