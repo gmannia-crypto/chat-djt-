@@ -294,14 +294,6 @@ export default function HomeScreen() {
   const { deviceId, hasTokens } = useTokens();
   const { playClick, playTransition } = useSoundEffects();
   const mainScrollRef = useRef<ScrollView>(null);
-  const autoScrollYRef = useRef(0);
-  const autoScrollDirRef = useRef(1);
-  const autoScrollActiveRef = useRef(true);
-  const autoScrollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const userTouchingRef = useRef(false);
-  const autoScrollResumeRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const mainContentHeightRef = useRef(0);
-  const mainScrollHeightRef = useRef(0);
 
   const refreshCollectionCount = useCallback(async () => {
     const col = await getCollection();
@@ -632,27 +624,6 @@ export default function HomeScreen() {
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    const SCROLL_SPEED = 0.15;
-    autoScrollTimerRef.current = setInterval(() => {
-      if (userTouchingRef.current || !autoScrollActiveRef.current) return;
-      const maxY = Math.max(0, mainContentHeightRef.current - mainScrollHeightRef.current);
-      if (maxY <= 0) return;
-      autoScrollYRef.current += SCROLL_SPEED * autoScrollDirRef.current;
-      if (autoScrollYRef.current >= maxY) {
-        autoScrollYRef.current = maxY;
-        autoScrollDirRef.current = -1;
-      } else if (autoScrollYRef.current <= 0) {
-        autoScrollYRef.current = 0;
-        autoScrollDirRef.current = 1;
-      }
-      mainScrollRef.current?.scrollTo({ y: autoScrollYRef.current, animated: false });
-    }, 33);
-    return () => {
-      if (autoScrollTimerRef.current) clearInterval(autoScrollTimerRef.current);
-      if (autoScrollResumeRef.current) clearTimeout(autoScrollResumeRef.current);
-    };
-  }, []);
 
   const ACTIVITY_TEMPLATES = useMemo(() => [
     "@MAGAMike just got roasted by Trump",
@@ -694,16 +665,16 @@ export default function HomeScreen() {
     if (mysteryReady || mysteryTimeLeft <= 0) return;
     const interval = setInterval(() => {
       setMysteryTimeLeft((prev) => {
-        if (prev <= 1) {
+        if (prev <= 60) {
           setMysteryReady(true);
           clearInterval(interval);
           return 0;
         }
-        return prev - 1;
+        return prev - 60;
       });
-    }, 1000);
+    }, 60000);
     return () => clearInterval(interval);
-  }, [mysteryReady, mysteryTimeLeft]);
+  }, [mysteryReady]);
 
   async function openMysteryBox() {
     if (!mysteryReady || mysteryRevealing) return;
@@ -1112,37 +1083,11 @@ export default function HomeScreen() {
         ref={mainScrollRef}
         style={styles.centerScroll}
         contentContainerStyle={styles.centerContent}
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={true}
         keyboardShouldPersistTaps="handled"
-        onScrollBeginDrag={() => {
-          userTouchingRef.current = true;
-          autoScrollActiveRef.current = false;
-          if (autoScrollResumeRef.current) clearTimeout(autoScrollResumeRef.current);
-        }}
-        onMomentumScrollEnd={(e) => {
-          userTouchingRef.current = false;
-          autoScrollYRef.current = e.nativeEvent.contentOffset.y;
-          if (autoScrollResumeRef.current) clearTimeout(autoScrollResumeRef.current);
-          autoScrollResumeRef.current = setTimeout(() => {
-            autoScrollActiveRef.current = true;
-          }, 15000);
-        }}
-        onScrollEndDrag={(e) => {
-          userTouchingRef.current = false;
-          autoScrollYRef.current = e.nativeEvent.contentOffset.y;
-          if (autoScrollResumeRef.current) clearTimeout(autoScrollResumeRef.current);
-          autoScrollResumeRef.current = setTimeout(() => {
-            autoScrollActiveRef.current = true;
-          }, 15000);
-        }}
-        onScroll={(e) => {
-          if (userTouchingRef.current || !autoScrollActiveRef.current) {
-            autoScrollYRef.current = e.nativeEvent.contentOffset.y;
-          }
-        }}
-        onContentSizeChange={(w, h) => { mainContentHeightRef.current = h; }}
-        onLayout={(e) => { mainScrollHeightRef.current = e.nativeEvent.layout.height; }}
-        scrollEventThrottle={64}
+        scrollEventThrottle={16}
+        bounces={true}
+        decelerationRate="normal"
       >
         {streak > 0 && (
           <Animated.View entering={FadeIn.delay(400).duration(500)} style={styles.streakRow}>
@@ -1350,7 +1295,7 @@ export default function HomeScreen() {
                 <View>
                   <Text style={[styles.mysteryBoxTitle, mysteryReady && { color: "#0a0a0a" }]}>MYSTERY BOX</Text>
                   <Text style={[styles.mysteryBoxSub, mysteryReady && { color: "#0a0a0a" }]}>
-                    {mysteryRevealing ? "REVEALING..." : mysteryReady ? "TAP TO OPEN!" : `Opens in: ${Math.floor(mysteryTimeLeft / 3600)}h ${Math.floor((mysteryTimeLeft % 3600) / 60)}m ${mysteryTimeLeft % 60}s`}
+                    {mysteryRevealing ? "REVEALING..." : mysteryReady ? "TAP TO OPEN!" : `Opens in: ${Math.floor(mysteryTimeLeft / 3600)}h ${Math.floor((mysteryTimeLeft % 3600) / 60)}m`}
                   </Text>
                 </View>
                 {mysteryRevealing && <ActivityIndicator size="small" color={mysteryReady ? "#0a0a0a" : "#FFD700"} style={{ marginLeft: "auto" }} />}
