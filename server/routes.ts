@@ -5124,6 +5124,22 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
     }
   });
 
+  app.post("/api/therapy/charge-minute", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const { minute } = req.body;
+      const tokenResult = await useToken(deviceId);
+      if (!tokenResult.success) {
+        return res.status(403).json({ error: "no_tokens", message: tokenResult.error, balance: tokenResult.balance, minute });
+      }
+      res.json({ success: true, minute, balance: tokenResult.balance });
+    } catch (error) {
+      console.error("Therapy charge-minute error:", error);
+      res.status(500).json({ error: "Failed to charge minute" });
+    }
+  });
+
   app.post("/api/therapy/intake", async (req, res) => {
     try {
       const deviceId = req.headers["x-device-id"] as string;
