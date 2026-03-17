@@ -1,4 +1,5 @@
 import { getStripeSync, getUncachableStripeClient } from './stripeClient';
+import { grantTokenPack, grantSubscriptionTokens } from './tokens';
 
 export class WebhookHandlers {
   static async processWebhook(payload: Buffer, signature: string): Promise<void> {
@@ -39,16 +40,32 @@ export class WebhookHandlers {
 
 async function handleSuccessfulPayment(session: any) {
   const meta = session.metadata || {};
-  const isTherapy = meta.type === 'therapy';
 
-  console.log(`[webhook] Payment successful: ${session.id} | amount: ${session.amount_total} | plan: ${meta.plan || 'unknown'}`);
+  console.log(`[webhook] Payment successful: ${session.id} | amount: ${session.amount_total} | mode: ${session.mode}`);
 
-  if (isTherapy) {
-    console.log(`[webhook] Therapy purchase: plan=${meta.plan} | name=${meta.name || 'unknown'} | source=${meta.source || 'app'} | problem=${meta.problem || 'N/A'}`);
+  if (meta.deviceId && meta.packId) {
+    try {
+      const balance = await grantTokenPack(meta.deviceId, meta.packId, session.id);
+      console.log(`[webhook] Token pack granted via webhook: device=${meta.deviceId} pack=${meta.packId} balance=${JSON.stringify(balance)}`);
+    } catch (err: any) {
+      console.error(`[webhook] Failed to grant token pack: ${err.message}`);
+    }
   }
 
-  if (meta.deviceId) {
-    console.log(`[webhook] Device: ${meta.deviceId} | tier: ${meta.tier || 'N/A'} | pack: ${meta.packId || 'N/A'}`);
+  if (meta.deviceId && session.mode === 'subscription' && session.subscription) {
+    try {
+      const subId = typeof session.subscription === 'string' ? session.subscription : session.subscription.id;
+      const customerId = typeof session.customer === 'string' ? session.customer : session.customer?.id || '';
+      const tier = (meta.tier === 'vip' ? 'vip' : 'standard') as 'standard' | 'vip';
+      const balance = await grantSubscriptionTokens(meta.deviceId, customerId, subId, tier, session.id);
+      console.log(`[webhook] Subscription granted via webhook: device=${meta.deviceId} tier=${tier} balance=${JSON.stringify(balance)}`);
+    } catch (err: any) {
+      console.error(`[webhook] Failed to grant subscription: ${err.message}`);
+    }
+  }
+
+  if (meta.type === 'therapy') {
+    console.log(`[webhook] Therapy purchase: plan=${meta.plan} | name=${meta.name || 'unknown'} | source=${meta.source || 'app'}`);
   }
 }
 

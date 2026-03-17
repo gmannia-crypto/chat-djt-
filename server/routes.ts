@@ -3580,6 +3580,83 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyah
     }
   });
 
+  app.get("/subscribe", async (req, res) => {
+    const { success, session_id, canceled } = req.query;
+
+    if (success === "true" && session_id) {
+      try {
+        const stripe = await getUncachableStripeClient();
+        const session = await stripe.checkout.sessions.retrieve(session_id as string);
+
+        if (session.payment_status === "paid") {
+          const meta = session.metadata || {};
+          const deviceId = meta.deviceId;
+          const packId = meta.packId;
+
+          if (deviceId && packId) {
+            try {
+              await grantTokenPack(deviceId, packId, session_id as string);
+            } catch (e: any) {
+              console.error("[subscribe-redirect] Grant error:", e.message);
+            }
+          }
+          if (deviceId && session.mode === "subscription" && session.subscription) {
+            try {
+              const subId = typeof session.subscription === "string" ? session.subscription : (session.subscription as any).id;
+              const custId = typeof session.customer === "string" ? session.customer : (session.customer as any)?.id || "";
+              const tier = (meta.tier === "vip" ? "vip" : "standard") as "standard" | "vip";
+              await grantSubscriptionTokens(deviceId, custId, subId, tier, session_id as string);
+            } catch (e: any) {
+              console.error("[subscribe-redirect] Subscription grant error:", e.message);
+            }
+          }
+        }
+
+        res.send(`<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Payment Successful - Chat DJT</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0a;color:#fff;font-family:-apple-system,BlinkMacSystemFont,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center;padding:20px}
+.card{background:linear-gradient(135deg,rgba(212,164,32,0.15),rgba(0,0,0,0.8));border:1px solid rgba(212,164,32,0.3);border-radius:16px;padding:40px 30px;max-width:400px}
+h1{font-size:28px;color:#D4A420;margin-bottom:12px}
+p{color:#ccc;font-size:16px;line-height:1.5;margin-bottom:24px}
+.btn{display:inline-block;background:linear-gradient(135deg,#D4A420,#B8860B);color:#0a0a0a;font-weight:700;font-size:16px;padding:14px 32px;border-radius:12px;text-decoration:none;letter-spacing:0.5px}
+.btn:hover{opacity:0.9}
+.check{font-size:48px;margin-bottom:16px}
+</style></head><body>
+<div class="card">
+<div class="check">\u2705</div>
+<h1>Payment Successful!</h1>
+<p>Your Trump Tokens have been added to your account. Go back to the app and start chatting!</p>
+<a href="/" class="btn">Back to Chat DJT</a>
+</div></body></html>`);
+      } catch (err: any) {
+        console.error("[subscribe-redirect] Error:", err.message);
+        res.redirect("/");
+      }
+    } else if (canceled === "true") {
+      res.send(`<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Payment Canceled - Chat DJT</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0a;color:#fff;font-family:-apple-system,BlinkMacSystemFont,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center;padding:20px}
+.card{background:rgba(30,30,30,0.9);border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:40px 30px;max-width:400px}
+h1{font-size:24px;margin-bottom:12px}
+p{color:#999;font-size:16px;margin-bottom:24px}
+.btn{display:inline-block;background:linear-gradient(135deg,#D4A420,#B8860B);color:#0a0a0a;font-weight:700;font-size:16px;padding:14px 32px;border-radius:12px;text-decoration:none}
+</style></head><body>
+<div class="card">
+<h1>No Problem!</h1>
+<p>You can get tokens anytime. We'll be here!</p>
+<a href="/" class="btn">Back to Chat DJT</a>
+</div></body></html>`);
+    } else {
+      res.redirect("/");
+    }
+  });
+
   app.get("/api/therapy/card", (_req, res) => {
     const cardPath = require("path").resolve(process.cwd(), "server", "templates", "therapy-card.html");
     res.sendFile(cardPath);
@@ -4401,7 +4478,7 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyah
         const subId = typeof session.subscription === "string" ? session.subscription : session.subscription.id;
         const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id || "";
         const tier = (session.metadata?.tier === "vip" ? "vip" : "standard") as "standard" | "vip";
-        const balance = await grantSubscriptionTokens(deviceId, customerId, subId, tier);
+        const balance = await grantSubscriptionTokens(deviceId, customerId, subId, tier, sessionId);
         return res.json({ success: true, type: "subscription", tier, balance });
       }
 

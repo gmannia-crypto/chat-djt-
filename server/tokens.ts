@@ -98,7 +98,7 @@ export async function useToken(deviceId: string): Promise<{ success: boolean; er
   };
 }
 
-export async function grantSubscriptionTokens(deviceId: string, stripeCustomerId: string, stripeSubscriptionId: string, tier: "standard" | "vip" = "standard") {
+export async function grantSubscriptionTokens(deviceId: string, stripeCustomerId: string, stripeSubscriptionId: string, tier: "standard" | "vip" = "standard", stripeSessionId?: string) {
   const db = getPool();
   const account = await getOrCreateAccount(deviceId);
   const tokenAmount = tier === "vip" ? VIP_SUBSCRIPTION_TOKENS : STANDARD_SUBSCRIPTION_TOKENS;
@@ -114,47 +114,105 @@ export async function grantSubscriptionTokens(deviceId: string, stripeCustomerId
      END $$`
   );
 
-  await db.query(
-    `UPDATE token_accounts
-     SET tokens = tokens + $1,
-         subscription_active = true,
-         subscription_expires_at = $2,
-         subscription_tokens_granted = true,
-         last_monthly_reset = NOW(),
-         stripe_customer_id = $3,
-         stripe_subscription_id = $4,
-         subscription_tier = $5,
-         updated_at = NOW()
-     WHERE device_id = $6`,
-    [tokenAmount, expiresAt, stripeCustomerId, stripeSubscriptionId, tier, deviceId]
-  );
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
 
-  await db.query(
-    `INSERT INTO token_transactions (account_id, type, amount, description, created_at)
-     VALUES ($1, 'subscription', $2, $3, NOW())`,
-    [account.id, tokenAmount, `${tier === "vip" ? "VIP" : "Standard"} subscription - ${tokenAmount} Trump Tokens`]
-  );
+    if (stripeSessionId) {
+      const existing = await client.query(
+        `SELECT id FROM token_transactions WHERE stripe_session_id = $1 FOR UPDATE`,
+        [stripeSessionId]
+      );
+      if (existing.rows.length > 0) {
+        await client.query("COMMIT");
+        console.log(`[tokens] Subscription already fulfilled for session ${stripeSessionId}, skipping duplicate`);
+        return await getTokenBalance(deviceId);
+      }
+    }
+
+    await client.query(
+      `UPDATE token_accounts
+       SET tokens = tokens + $1,
+           subscription_active = true,
+           subscription_expires_at = $2,
+           subscription_tokens_granted = true,
+           last_monthly_reset = NOW(),
+           stripe_customer_id = $3,
+           stripe_subscription_id = $4,
+           subscription_tier = $5,
+           updated_at = NOW()
+       WHERE device_id = $6`,
+      [tokenAmount, expiresAt, stripeCustomerId, stripeSubscriptionId, tier, deviceId]
+    );
+
+    await client.query(
+      `INSERT INTO token_transactions (account_id, type, amount, description, stripe_session_id, created_at)
+       VALUES ($1, 'subscription', $2, $3, $4, NOW())`,
+      [account.id, tokenAmount, `${tier === "vip" ? "VIP" : "Standard"} subscription - ${tokenAmount} Trump Tokens`, stripeSessionId || null]
+    );
+
+    await client.query("COMMIT");
+    console.log(`[tokens] Subscription granted: ${tokenAmount} tokens to ${deviceId} (${tier})`);
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
 
   return await getTokenBalance(deviceId);
 }
 
 export async function grantTokenPack(deviceId: string, packId: string, stripeSessionId: string) {
   const db = getPool();
+
+  const existing = await db.query(
+    `SELECT id FROM token_transactions WHERE stripe_session_id = $1`,
+    [stripeSessionId]
+  );
+  if (existing.rows.length > 0) {
+    console.log(`[tokens] Already fulfilled session ${stripeSessionId}, skipping duplicate`);
+    return await getTokenBalance(deviceId);
+  }
+
   const pack = TOKEN_PACKS.find(p => p.id === packId);
   if (!pack) throw new Error("Invalid token pack");
 
   const account = await getOrCreateAccount(deviceId);
 
-  await db.query(
-    `UPDATE token_accounts SET tokens = tokens + $1, updated_at = NOW() WHERE device_id = $2`,
-    [pack.tokens, deviceId]
-  );
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
 
-  await db.query(
-    `INSERT INTO token_transactions (account_id, type, amount, description, stripe_session_id, created_at)
-     VALUES ($1, 'purchase', $2, $3, $4, NOW())`,
-    [account.id, pack.tokens, `Purchased ${pack.name}`, stripeSessionId]
-  );
+    const existsInTx = await client.query(
+      `SELECT id FROM token_transactions WHERE stripe_session_id = $1 FOR UPDATE`,
+      [stripeSessionId]
+    );
+    if (existsInTx.rows.length > 0) {
+      await client.query("COMMIT");
+      console.log(`[tokens] Already fulfilled session ${stripeSessionId}, skipping duplicate (race)`);
+      return await getTokenBalance(deviceId);
+    }
+
+    await client.query(
+      `UPDATE token_accounts SET tokens = tokens + $1, updated_at = NOW() WHERE device_id = $2`,
+      [pack.tokens, deviceId]
+    );
+
+    await client.query(
+      `INSERT INTO token_transactions (account_id, type, amount, description, stripe_session_id, created_at)
+       VALUES ($1, 'purchase', $2, $3, $4, NOW())`,
+      [account.id, pack.tokens, `Purchased ${pack.name}`, stripeSessionId]
+    );
+
+    await client.query("COMMIT");
+    console.log(`[tokens] Granted ${pack.tokens} tokens to ${deviceId} for pack ${packId} (session: ${stripeSessionId})`);
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
 
   return await getTokenBalance(deviceId);
 }
