@@ -647,6 +647,85 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
 
 const PERSONA_IDS = ["trump", "elon", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "graham", "megynkelly", "pambondi", "candace", "joyreid"];
 
+const BREAKING_NEWS_REACTIONS: Record<string, string[]> = {
+  trump: [
+    "HOLD ON — what the HELL is this now?! Turn that up, turn that up!",
+    "WAIT WAIT WAIT — you see this?! BREAKING NEWS, folks! This is HUGE!",
+    "OH LOOK AT THIS! They just can't help themselves! UNBELIEVABLE!",
+    "STOP EVERYTHING — did you see what just dropped?! This is TREMENDOUS!",
+  ],
+  carville: [
+    "Now what the FUCK they done done now?! HOLD ON — I gotta see this! Trump, this is YOUR mess ain't it?!",
+    "WAIT A GODDAMN MINUTE — breaking news y'all! Somebody tell Trump and Netanyahu to sit their asses down, this is THEIR doing!",
+    "SON OF A BITCH! You see this?! This has Trump's greasy little fingerprints ALL over it! Netanyahu too!",
+    "OH LORD HAVE MERCY — what fresh HELL did Trump and his buddy Bibi cook up NOW?!",
+  ],
+  netanyahu: [
+    "Excuse me — EXCUSE ME — this breaking development is very important. Let me address this.",
+    "Hold on, my friends — there is breaking news. I must speak to this directly.",
+    "WAIT — this is significant. Israel has always said this would happen. We warned you.",
+  ],
+  ruckus: [
+    "HOLD ON NOW! What in the name of White Jesus is happenin' NOW?!",
+    "LAWD HAVE MERCY — BREAKING NEWS?! President Trump better be okay! MAGA!!",
+    "WAIT WAIT WAIT — I KNOW this ain't more liberal fake news! Let me see this!",
+  ],
+  galloway: [
+    "STOP THE DEBATE! This is EXACTLY what I've been warning about! LOOK at this!",
+    "Well well WELL — breaking news! The chickens are coming home to roost, aren't they?!",
+    "HOLD EVERYTHING — this is PRECISELY the imperial rot I've been talking about!",
+  ],
+  mcconnell: [
+    "...I see... *adjusts glasses* ...This is... noteworthy...",
+    "If I may... there appears to be... a development... *blinks slowly*",
+  ],
+  maddow: [
+    "OKAY — we need to stop here because we have BREAKING NEWS and I want to walk everyone through this!",
+    "Hold on — this is important — breaking news just in and this connects to EVERYTHING we've been discussing!",
+  ],
+  omar: [
+    "WAIT — everyone stop! This breaking news — THIS is what I've been trying to tell you all!",
+    "Hold on — breaking news! And I GUARANTEE this traces back to the same corrupt systems we've been talking about!",
+  ],
+  biden: [
+    "Whoa whoa whoa — hold on a second, folks. We got some... some breaking news here. Not a joke!",
+    "Look — LOOK — here's the deal. Something just happened. Let me... let me tell you about this.",
+  ],
+  rosie: [
+    "OH MY GOD — STOP! EVERYBODY SHUT UP! Breaking news!! You SEE this?! You SEE what's happening?!",
+    "WAIT — HOLD THE PHONE! Oh this is BAD! This is SO bad! I KNEW this was coming!",
+  ],
+  berniemc: [
+    "Whoa whoa WHOA — hold the fuck up! What the HELL is this shit now?! Got-DAMN!",
+    "AYO SHUT UP EVERYBODY — breaking news! I TOLD y'all this shit was gonna happen! Sheeeeit!",
+    "NAH NAH NAH — time out! What in the muthuhfuckin' WORLD is going on NOW?!",
+  ],
+  elon: [
+    "Interesting... breaking news. This is actually very relevant to what I was about to say about efficiency.",
+    "Hold on — let me check X... yeah, this is trending. Breaking news, everyone.",
+  ],
+  graham: [
+    "WAIT just a MINUTE! Breaking news! I'll tell you what — this is OUTRAGEOUS!",
+    "Let me be CLEAR — this breaking development is a DISGRACE! Mark my words!",
+  ],
+  megynkelly: [
+    "We need to STOP — breaking news coming in. I've done the research on this and let me tell you the FACTS!",
+    "Hold on everyone — breaking development. The facts don't care about your feelings on this one!",
+  ],
+  pambondi: [
+    "EXCUSE ME — breaking news! As Attorney General I can tell you this has LEGAL implications!",
+    "STOP — this is breaking right now and I need everyone to understand the LEGAL significance!",
+  ],
+  candace: [
+    "WAIT — breaking news! And I BET the mainstream media is going to spin this against conservatives!",
+    "Hold ON — you see this?! This is EXACTLY what the establishment doesn't want you to know!",
+  ],
+  joyreid: [
+    "HOLD UP — we got breaking news! And I KNOW this connects to the bigger pattern of what's happening in this country!",
+    "WAIT — STOP everything! Breaking news and the CAUCASSITY of this timing is NOT lost on me!",
+  ],
+};
+
 const TOPIC_ICON_MAP: Record<string, string> = {
   economy: "cash", immigration: "airplane", foreign_policy: "earth", media: "tv",
   middle_east: "earth", tech: "hardware-chip", defense: "shield-checkmark",
@@ -2398,6 +2477,24 @@ export default function ArenaScreen() {
             timestamp: Date.now(),
             isSystem: true,
           });
+
+          const activeP = selectedPersonasRef.current;
+          const reactorId = activeP[Math.floor(Math.random() * activeP.length)];
+          const reactorPersona = ARENA_PERSONAS[reactorId];
+          const reactions = BREAKING_NEWS_REACTIONS[reactorId] || ["What the hell?! Breaking news, everybody!"];
+          const reactionText = reactions[Math.floor(Math.random() * reactions.length)];
+          if (reactorPersona) {
+            setTimeout(() => {
+              addMessage({
+                id: "bn-react-" + Date.now(),
+                speakerId: reactorId,
+                speakerName: `⚡ ${reactorPersona.name}`,
+                text: reactionText,
+                timestamp: Date.now(),
+              });
+            }, 1200);
+          }
+
           setCurrentTopic(data.breakingNews.headline);
           currentTopicRef.current = data.breakingNews.headline;
           setTimeout(() => {
