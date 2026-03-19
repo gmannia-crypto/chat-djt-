@@ -62,21 +62,19 @@ function SessionTimer({ active, ended, initialSeconds, mode, deepDuration, accen
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
             return 0;
           }
-          if (mode === "deep") {
-            const totalDuration = deepDuration * 60;
-            const elapsed = totalDuration - (prev - 1);
-            const minutesPassed = Math.floor(elapsed / 60);
-            if (minutesPassed > lastChargeMinuteRef.current && minutesPassed > 0) {
-              lastChargeMinuteRef.current = minutesPassed;
-              tokenChargeRef.current += 1;
-              if (deviceId) {
-                const baseUrl = getApiUrl().replace(/\/$/, "");
-                fetch(`${baseUrl}/api/therapy/charge-minute`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json", "x-device-id": deviceId },
-                  body: JSON.stringify({ minute: minutesPassed }),
-                }).then(() => refreshBalance()).catch(() => {});
-              }
+          const totalDuration = deepDuration * 60;
+          const elapsed = totalDuration - (prev - 1);
+          const minutesPassed = Math.floor(elapsed / 60);
+          if (minutesPassed > lastChargeMinuteRef.current && minutesPassed > 0) {
+            lastChargeMinuteRef.current = minutesPassed;
+            tokenChargeRef.current += 1;
+            if (deviceId) {
+              const baseUrl = getApiUrl().replace(/\/$/, "");
+              fetch(`${baseUrl}/api/therapy/charge-minute`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+                body: JSON.stringify({ minute: minutesPassed }),
+              }).then(() => refreshBalance()).catch(() => {});
             }
           }
           return prev - 1;
@@ -94,11 +92,11 @@ function SessionTimer({ active, ended, initialSeconds, mode, deepDuration, accen
 
   return (
     <View style={timerStyles.container}>
-      <Text style={timerStyles.label}>{mode === "deep" ? `DEEP SESSION (${deepDuration} MIN)` : "YOUR SESSION"}</Text>
+      <Text style={timerStyles.label}>{mode === "deep" ? `DEEP SESSION (${deepDuration} MIN)` : `SESSION (${deepDuration} MIN)`}</Text>
       <Text style={[timerStyles.display, { color: accent }, seconds <= 30 && timerStyles.warning]}>
         {formatTime(seconds)}
       </Text>
-      {mode === "deep" && active && (
+      {active && (
         <Text style={[timerStyles.tokens, { color: accent }]}>
           {tokenChargeRef.current}/{deepDuration} tokens used
         </Text>
@@ -531,7 +529,7 @@ export default function TherapyScreen() {
         setFollowUpQuestion(data.followUp);
         setFollowUpIndex(data.followUpIndex !== undefined ? data.followUpIndex + 1 : 1);
       }
-      const duration = sessionMode === "deep" ? deepDuration * 60 : 300;
+      const duration = deepDuration * 60;
       setSessionInitialSeconds(duration);
       setSessionTimerKey((k) => k + 1);
       setSessionActive(true);
@@ -594,10 +592,18 @@ export default function TherapyScreen() {
   const handleSessionEnd = React.useCallback(() => {
     setSessionActive(false);
     setSessionEnded(true);
+    if (soundRef.current) {
+      soundRef.current.stopAsync().catch(() => {});
+    }
+    setSpeaking(false);
   }, []);
 
   const handleFollowUp = async () => {
-    if (!followUpAnswer.trim() || followUpLoading || sessionEnded) return;
+    if (!followUpAnswer.trim() || followUpLoading) return;
+    if (sessionEnded) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      return;
+    }
     const currentVoice = selectedTherapist;
     setFollowUpLoading(true);
     try {
@@ -701,7 +707,7 @@ export default function TherapyScreen() {
 
     setChatMessages([{ role: "assistant", content: greeting }]);
     setChatStarted(true);
-    const duration = sessionMode === "deep" ? deepDuration * 60 : 300;
+    const duration = deepDuration * 60;
     setSessionInitialSeconds(duration);
     setSessionTimerKey((k) => k + 1);
     setSessionActive(true);
@@ -711,7 +717,11 @@ export default function TherapyScreen() {
   };
 
   const handleChatSend = async () => {
-    if (!chatInput.trim() || chatLoading || sessionEnded) return;
+    if (!chatInput.trim() || chatLoading) return;
+    if (sessionEnded) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      return;
+    }
     const userMsg = chatInput.trim();
     const currentVoice = selectedTherapist;
     setChatInput("");
@@ -1193,14 +1203,14 @@ export default function TherapyScreen() {
           </Pressable>
         </Animated.View>}
 
-        {!chatStarted && sessionMode === "deep" && (
+        {!chatStarted && (
           <Animated.View entering={FadeInDown.delay(380).duration(400)} style={styles.durationContainer}>
             <Text style={[styles.durationLabel, { color: config.accent }]}>SESSION LENGTH</Text>
             <View style={styles.durationRow}>
               {([5, 10, 15, 20] as const).map((mins) => (
                 <Pressable
                   key={mins}
-                  onPress={() => { if (!therapy && !intakeStep) { setDeepDuration(mins); setSessionInitialSeconds(mins * 60); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } }}
+                  onPress={() => { if (!therapy && !intakeStep && !chatStarted) { setDeepDuration(mins); setSessionInitialSeconds(mins * 60); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } }}
                   style={[styles.durationBtn, deepDuration === mins && { backgroundColor: `${config.accent}30`, borderColor: config.accent }]}
                 >
                   <Text style={[styles.durationBtnTime, deepDuration === mins && { color: config.accent }]}>{mins}</Text>
@@ -1237,7 +1247,7 @@ export default function TherapyScreen() {
                   <ActivityIndicator color="#fff" size="small" />
                 ) : (
                   <Text style={styles.therapyButtonText}>
-                    {sessionMode === "chat" ? "START FREE CHAT" : sessionMode === "deep" ? `BEGIN ${deepDuration} MIN SESSION` : config.buttonText}
+                    {sessionMode === "chat" ? `START ${deepDuration} MIN CHAT` : sessionMode === "deep" ? `BEGIN ${deepDuration} MIN SESSION` : `${config.buttonText} (${deepDuration} MIN)`}
                   </Text>
                 )}
               </LinearGradient>
@@ -1357,7 +1367,7 @@ export default function TherapyScreen() {
             {sessionEnded && (
               <Animated.View entering={FadeIn.duration(400)} style={[styles.chatSessionEnd, { borderColor: `${config.accent}40` }]}>
                 <Text style={[styles.sessionEndTitle, { color: config.accent }]}>Session Complete</Text>
-                <Text style={styles.sessionEndText}>Your 2-minute session has ended.</Text>
+                <Text style={styles.sessionEndText}>Your session has ended.</Text>
                 <Pressable
                   onPress={handleNewSession}
                   style={({ pressed }) => [styles.chatNewSessionBtn, { backgroundColor: config.accent }, pressed && { opacity: 0.8 }]}
@@ -1530,7 +1540,7 @@ export default function TherapyScreen() {
             {sessionEnded && (
               <Animated.View entering={FadeIn.duration(400)} style={[styles.sessionEndCard, { borderColor: `${config.accent}40` }]}>
                 <Text style={[styles.sessionEndTitle, { color: config.accent }]}>Session Complete</Text>
-                <Text style={styles.sessionEndText}>Your 2-minute session has ended. Start a new session to continue.</Text>
+                <Text style={styles.sessionEndText}>Your session has ended. Start a new session to continue.</Text>
               </Animated.View>
             )}
 
