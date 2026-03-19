@@ -189,6 +189,31 @@ export async function playCrowdCheer() {
   }
 }
 
+export async function playBreakingNewsAlert() {
+  if (Platform.OS === "web") {
+    try {
+      playWebTone(880, 0.12, "sine", 0.12);
+      setTimeout(() => playWebTone(1100, 0.12, "sine", 0.12), 120);
+      setTimeout(() => playWebTone(880, 0.12, "sine", 0.12), 240);
+      setTimeout(() => {
+        playWebTone(1320, 0.25, "sine", 0.15);
+        playWebTone(660, 0.25, "triangle", 0.08);
+      }, 400);
+    } catch {}
+  } else {
+    try {
+      await ensureAudioMode();
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQ==" },
+        { shouldPlay: true, volume: 0.25 }
+      );
+      setTimeout(() => sound.unloadAsync().catch(() => {}), 1000);
+    } catch (e) {
+      console.warn("SFX breaking-news alert failed:", e);
+    }
+  }
+}
+
 export async function playDrumroll() {
   if (Platform.OS === "web") {
     try {

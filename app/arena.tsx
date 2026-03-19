@@ -24,7 +24,7 @@ import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system";
 import { getApiUrl } from "@/lib/query-client";
 import { playTTS, playAudioFromUrl } from "@/lib/audio-helper";
-import { playPointAwardSound, playVoteClickSound, playVoteSound2, playBellSound, playCrowdCheer, playDrumroll, playWinnerChosenSound, playWinnerAfterSound } from "@/lib/arena-sfx";
+import { playPointAwardSound, playVoteClickSound, playVoteSound2, playBellSound, playCrowdCheer, playDrumroll, playWinnerChosenSound, playWinnerAfterSound, playBreakingNewsAlert } from "@/lib/arena-sfx";
 import { useTokens } from "@/lib/token-context";
 import {
   saveRecording,
@@ -1147,6 +1147,7 @@ export default function ArenaScreen() {
   const breakingNewsBannerRef = useRef<{ headline: string; source: string } | null>(null);
   const lastBreakingNewsIdRef = useRef<string>("");
   const breakingNewsTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [bannerFlash, setBannerFlash] = useState(false);
 
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [emotionalStates, setEmotionalStates] = useState<Record<string, EmotionalState>>(() => {
@@ -1170,6 +1171,12 @@ export default function ArenaScreen() {
   const [showPersonaSelector, setShowPersonaSelector] = useState(false);
   const selectedPersonasRef = useRef<string[]>(PERSONA_IDS);
   useEffect(() => { selectedPersonasRef.current = selectedPersonas; }, [selectedPersonas]);
+
+  useEffect(() => {
+    if (!breakingNewsBanner) { setBannerFlash(false); return; }
+    const flashInterval = setInterval(() => setBannerFlash((p) => !p), 500);
+    return () => clearInterval(flashInterval);
+  }, [breakingNewsBanner]);
 
   const [pollVotes, setPollVotes] = useState<Record<string, number>>({});
   const [userVoted, setUserVoted] = useState(false);
@@ -2382,6 +2389,7 @@ export default function ArenaScreen() {
           setBreakingNewsBanner(bn);
           breakingNewsBannerRef.current = bn;
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+          playBreakingNewsAlert();
           addMessage({
             id: "breaking-news-" + Date.now(),
             speakerId: "system",
@@ -2971,16 +2979,16 @@ export default function ArenaScreen() {
 
       {breakingNewsBanner && (
         <Animated.View entering={SlideInUp.duration(400)} exiting={SlideOutUp.duration(400)} style={{
-          backgroundColor: "#CC0000", paddingVertical: 10, paddingHorizontal: 16,
+          backgroundColor: bannerFlash ? "#EE0000" : "#990000", paddingVertical: 10, paddingHorizontal: 16,
           marginHorizontal: 12, marginBottom: 6, borderRadius: 10,
           flexDirection: "column", alignItems: "center",
-          borderWidth: 1.5, borderColor: "#FF3333",
-          shadowColor: "#FF0000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.5, shadowRadius: 8,
+          borderWidth: 2, borderColor: bannerFlash ? "#FF4444" : "#CC0000",
+          shadowColor: "#FF0000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: bannerFlash ? 0.8 : 0.3, shadowRadius: bannerFlash ? 12 : 6,
         }}>
           <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
-            <Text style={{ fontSize: 10, color: "#fff" }}>🔴</Text>
-            <Text style={{ color: "#fff", fontSize: 13, fontWeight: "900", letterSpacing: 2, marginLeft: 4 }}>BREAKING NEWS</Text>
-            <Text style={{ fontSize: 10, color: "#fff", marginLeft: 4 }}>🔴</Text>
+            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: bannerFlash ? "#FF0000" : "#880000", marginRight: 6 }} />
+            <Text style={{ color: "#fff", fontSize: 13, fontWeight: "900", letterSpacing: 2 }}>BREAKING NEWS</Text>
+            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: bannerFlash ? "#FF0000" : "#880000", marginLeft: 6 }} />
           </View>
           <Text style={{ color: "#fff", fontSize: 13, fontWeight: "700", textAlign: "center" }} numberOfLines={2}>
             {breakingNewsBanner.headline}
