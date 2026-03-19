@@ -19,7 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Animated, { FadeInDown, FadeInUp, FadeIn, FadeOut, SlideInLeft, SlideInRight, ZoomIn, ZoomOut, BounceIn } from "react-native-reanimated";
+import Animated, { FadeInDown, FadeInUp, FadeIn, FadeOut, SlideInLeft, SlideInRight, SlideInUp, SlideOutUp, ZoomIn, ZoomOut, BounceIn } from "react-native-reanimated";
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system";
 import { getApiUrl } from "@/lib/query-client";
@@ -1141,6 +1141,12 @@ export default function ArenaScreen() {
   const [showIntro, setShowIntro] = useState(false);
   const [showPreDebateSetup, setShowPreDebateSetup] = useState(true);
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
+  const [customTopicText, setCustomTopicText] = useState("");
+  const [useCustomTopic, setUseCustomTopic] = useState(false);
+  const [breakingNewsBanner, setBreakingNewsBanner] = useState<{ headline: string; source: string } | null>(null);
+  const breakingNewsBannerRef = useRef<{ headline: string; source: string } | null>(null);
+  const lastBreakingNewsIdRef = useRef<string>("");
+  const breakingNewsTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [emotionalStates, setEmotionalStates] = useState<Record<string, EmotionalState>>(() => {
@@ -1636,6 +1642,9 @@ export default function ArenaScreen() {
         setIsRunning(false);
         isRunningRef.current = false;
         sessionEndedRef.current = true;
+        if (breakingNewsTimerRef.current) { clearInterval(breakingNewsTimerRef.current); breakingNewsTimerRef.current = null; }
+        setBreakingNewsBanner(null);
+        breakingNewsBannerRef.current = null;
         stopAllTTS();
         setCurrentSpeaker(null);
         currentSpeakerRef.current = null;
@@ -2359,6 +2368,38 @@ export default function ArenaScreen() {
       const ctx = await getArenaMemoryContext("", selectedPersonasRef.current);
       arenaMemoryContextRef.current = ctx;
     } catch {}
+
+    if (breakingNewsTimerRef.current) clearInterval(breakingNewsTimerRef.current);
+    breakingNewsTimerRef.current = setInterval(async () => {
+      if (!isRunningRef.current || sessionEndedRef.current) return;
+      try {
+        const res = await fetch(new URL("/api/arena/breaking-news", getApiUrl()).toString());
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.breakingNews && data.breakingNews.headline !== lastBreakingNewsIdRef.current) {
+          lastBreakingNewsIdRef.current = data.breakingNews.headline;
+          const bn = { headline: data.breakingNews.headline, source: data.breakingNews.source };
+          setBreakingNewsBanner(bn);
+          breakingNewsBannerRef.current = bn;
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+          addMessage({
+            id: "breaking-news-" + Date.now(),
+            speakerId: "system",
+            speakerName: "BREAKING NEWS",
+            text: `🔴 BREAKING: ${data.breakingNews.headline} (${data.breakingNews.source})`,
+            timestamp: Date.now(),
+            isSystem: true,
+          });
+          setCurrentTopic(data.breakingNews.headline);
+          currentTopicRef.current = data.breakingNews.headline;
+          setTimeout(() => {
+            setBreakingNewsBanner(null);
+            breakingNewsBannerRef.current = null;
+          }, 15000);
+        }
+      } catch {}
+    }, 2 * 60 * 1000);
+
     addMessage({
       id: "system-start",
       speakerId: "system",
@@ -2382,6 +2423,7 @@ export default function ArenaScreen() {
       if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
       if (joinTimerRef.current) clearInterval(joinTimerRef.current);
       if (clapBackTimeoutRef.current) clearTimeout(clapBackTimeoutRef.current);
+      if (breakingNewsTimerRef.current) clearInterval(breakingNewsTimerRef.current);
       if (recordingObjRef.current) {
         try { recordingObjRef.current.stopAndUnloadAsync(); } catch {}
         recordingObjRef.current = null;
@@ -2737,7 +2779,39 @@ export default function ArenaScreen() {
           </Pressable>
 
           <Text style={{ color: "#FFD700", fontSize: 14, fontWeight: "800", marginBottom: 10 }}>CHOOSE TOPIC</Text>
-          {FALLBACK_TOPICS.map((topic) => {
+
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setUseCustomTopic(!useCustomTopic);
+              if (!useCustomTopic) setSelectedTopicId(null);
+            }}
+            style={{
+              padding: 12, borderRadius: 12, marginBottom: 10, borderWidth: 1.5,
+              borderColor: useCustomTopic ? "#FFD700" : "rgba(255,255,255,0.1)",
+              backgroundColor: useCustomTopic ? "rgba(255,215,0,0.12)" : "rgba(255,255,255,0.04)",
+              flexDirection: "row", alignItems: "center",
+            }}
+          >
+            <Ionicons name="create-outline" size={18} color={useCustomTopic ? "#FFD700" : "#888"} style={{ marginRight: 8 }} />
+            <Text style={{ color: useCustomTopic ? "#FFD700" : "#ccc", fontSize: 14, fontWeight: "800" }}>CREATE YOUR OWN TOPIC</Text>
+          </Pressable>
+          {useCustomTopic && (
+            <TextInput
+              value={customTopicText}
+              onChangeText={setCustomTopicText}
+              placeholder="Type your debate topic..."
+              placeholderTextColor="rgba(255,255,255,0.3)"
+              style={{
+                borderWidth: 1.5, borderColor: "#FFD700", borderRadius: 12, padding: 12, marginBottom: 12,
+                color: "#fff", fontSize: 14, backgroundColor: "rgba(255,215,0,0.08)", minHeight: 50,
+              }}
+              multiline
+              maxLength={200}
+            />
+          )}
+
+          {!useCustomTopic && dynamicTopics.map((topic) => {
             const isSelected = selectedTopicId === topic.id;
             return (
               <Pressable
@@ -2760,10 +2834,14 @@ export default function ArenaScreen() {
 
           <Pressable
             onPress={() => {
-              if (selectedPersonas.length < 2) return;
+              const canStart = selectedPersonas.length >= 2 && !(useCustomTopic && !customTopicText.trim());
+              if (!canStart) return;
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-              if (selectedTopicId) {
-                const topic = FALLBACK_TOPICS.find((t) => t.id === selectedTopicId);
+              if (useCustomTopic && customTopicText.trim()) {
+                setCurrentTopic(customTopicText.trim());
+                currentTopicRef.current = customTopicText.trim();
+              } else if (selectedTopicId) {
+                const topic = dynamicTopics.find((t) => t.id === selectedTopicId);
                 if (topic) {
                   setCurrentTopic(topic.title);
                   currentTopicRef.current = topic.title;
@@ -2774,15 +2852,15 @@ export default function ArenaScreen() {
             }}
             style={{
               marginTop: 20, paddingVertical: 16, borderRadius: 16, alignItems: "center",
-              backgroundColor: selectedPersonas.length >= 2 ? "#FF4D4D" : "rgba(255,255,255,0.1)",
-              opacity: selectedPersonas.length >= 2 ? 1 : 0.4,
+              backgroundColor: (selectedPersonas.length >= 2 && !(useCustomTopic && !customTopicText.trim())) ? "#FF4D4D" : "rgba(255,255,255,0.1)",
+              opacity: (selectedPersonas.length >= 2 && !(useCustomTopic && !customTopicText.trim())) ? 1 : 0.4,
             }}
           >
             <Text style={{ color: "#fff", fontSize: 18, fontWeight: "900", letterSpacing: 1 }}>
               START DEBATE
             </Text>
             <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 11, marginTop: 2 }}>
-              {selectedPersonas.length} debaters{selectedTopicId ? " • Topic selected" : " • Random topic"}
+              {selectedPersonas.length} debaters{useCustomTopic && customTopicText.trim() ? " • Custom topic" : selectedTopicId ? " • Topic selected" : " • Random topic"}
             </Text>
           </Pressable>
         </ScrollView>
@@ -2890,6 +2968,28 @@ export default function ArenaScreen() {
           <Text style={s.arenaActionBtnText}>REPLAYS</Text>
         </Pressable>
       </Animated.View>
+
+      {breakingNewsBanner && (
+        <Animated.View entering={SlideInUp.duration(400)} exiting={SlideOutUp.duration(400)} style={{
+          backgroundColor: "#CC0000", paddingVertical: 10, paddingHorizontal: 16,
+          marginHorizontal: 12, marginBottom: 6, borderRadius: 10,
+          flexDirection: "column", alignItems: "center",
+          borderWidth: 1.5, borderColor: "#FF3333",
+          shadowColor: "#FF0000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.5, shadowRadius: 8,
+        }}>
+          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
+            <Text style={{ fontSize: 10, color: "#fff" }}>🔴</Text>
+            <Text style={{ color: "#fff", fontSize: 13, fontWeight: "900", letterSpacing: 2, marginLeft: 4 }}>BREAKING NEWS</Text>
+            <Text style={{ fontSize: 10, color: "#fff", marginLeft: 4 }}>🔴</Text>
+          </View>
+          <Text style={{ color: "#fff", fontSize: 13, fontWeight: "700", textAlign: "center" }} numberOfLines={2}>
+            {breakingNewsBanner.headline}
+          </Text>
+          <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 10, marginTop: 2 }}>
+            {breakingNewsBanner.source}
+          </Text>
+        </Animated.View>
+      )}
 
       {showScoreboard && (
         <Animated.View entering={FadeInDown.duration(300)} style={s.scoreboardPanel}>
