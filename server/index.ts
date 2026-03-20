@@ -436,6 +436,91 @@ function proxyToMetro(req: Request, res: Response) {
   attempt(0);
 }
 
+function serveDevManifestDirect(req: Request, res: Response) {
+  const devDomain = process.env.REPLIT_DEV_DOMAIN || req.get("host") || "localhost:5000";
+  const baseUrl = `https://${devDomain}`;
+  const sdkVersion = getExpoSdkVersion();
+
+  let appConfig: any = {};
+  try {
+    const appJsonPath = path.resolve(process.cwd(), "app.json");
+    appConfig = JSON.parse(fs.readFileSync(appJsonPath, "utf-8")).expo || {};
+  } catch {}
+
+  const manifest = {
+    id: `${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 8)}`,
+    createdAt: new Date().toISOString(),
+    runtimeVersion: `exposdk:${sdkVersion}`,
+    launchAsset: {
+      key: "bundle",
+      contentType: "application/javascript",
+      url: `${baseUrl}/_expo_bundle?platform=android&dev=true&hot=false&lazy=true`
+    },
+    assets: [],
+    metadata: {},
+    extra: {
+      eas: {},
+      expoClient: {
+        name: appConfig.name || "Chat DJT",
+        slug: appConfig.slug || "chat-djt",
+        version: appConfig.version || "1.0.0",
+        orientation: appConfig.orientation || "portrait",
+        icon: appConfig.icon || "./assets/images/icon.png",
+        scheme: appConfig.scheme || "chatdjt",
+        userInterfaceStyle: appConfig.userInterfaceStyle || "dark",
+        newArchEnabled: true,
+        splash: {
+          image: "./assets/images/splash-icon.png",
+          resizeMode: "contain",
+          backgroundColor: "#000000",
+          imageUrl: `${baseUrl}/assets/images/splash-icon.png`
+        },
+        ios: { supportsTablet: false, bundleIdentifier: "com.chatdjt" },
+        android: {
+          package: "com.chatdjt",
+          adaptiveIcon: {
+            backgroundColor: "#000000",
+            foregroundImage: "./assets/images/icon.png",
+            foregroundImageUrl: `${baseUrl}/assets/images/icon.png`
+          }
+        },
+        web: { favicon: "./assets/images/favicon.png" },
+        plugins: [["expo-router", { origin: "https://replit.com/" }], "expo-font", "expo-web-browser"],
+        experiments: { typedRoutes: true, reactCompiler: true },
+        _internal: {
+          isDebug: false,
+          projectRoot: "/home/runner/workspace",
+          dynamicConfigPath: {},
+          staticConfigPath: "/home/runner/workspace/app.json",
+          packageJsonPath: "/home/runner/workspace/package.json"
+        },
+        sdkVersion,
+        platforms: ["ios", "android", "web"],
+        extra: { router: { origin: "https://replit.com/" } },
+        iconUrl: `${baseUrl}/assets/images/icon.png`,
+        hostUri: devDomain
+      },
+      expoGo: {
+        debuggerHost: devDomain,
+        developer: { tool: "expo-cli", projectRoot: "/home/runner/workspace" },
+        packagerOpts: { dev: true },
+        mainModuleName: "node_modules/expo-router/entry"
+      },
+      scopeKey: `@anonymous/${appConfig.slug || "chat-djt"}-e13bad32-85de-46ed-b4b4-a0235ba6ee6c`
+    }
+  };
+
+  const manifestJson = JSON.stringify(manifest);
+  const boundary = `boundary-${Date.now().toString(36)}`;
+  const body = `--${boundary}\r\nContent-Disposition: form-data; name="manifest"\r\nContent-Type: application/json\r\n\r\n${manifestJson}\r\n--${boundary}--\r\n`;
+
+  res.setHeader("expo-protocol-version", "0");
+  res.setHeader("expo-sfv-version", "0");
+  res.setHeader("cache-control", "private, max-age=0");
+  res.setHeader("content-type", `multipart/mixed; boundary=${boundary}`);
+  res.send(body);
+}
+
 function configureExpoAndLanding(app: express.Application) {
   const templatePath = path.resolve(
     process.cwd(),
@@ -456,19 +541,44 @@ function configureExpoAndLanding(app: express.Application) {
     log("Production web build found in dist/, serving static files");
   }
 
+  app.get("/_expo_bundle", (req: Request, res: Response) => {
+    log(`[BUNDLE] Direct bundle request from ${(req.header("user-agent") || "").substring(0, 60)}`);
+    const cacheDir = path.resolve(process.cwd(), ".bundle-cache");
+    const acceptsGzip = (req.headers["accept-encoding"] || "").toString().includes("gzip");
+    const gzPath = path.join(cacheDir, "android.bundle.gz");
+    const rawPath = path.join(cacheDir, "android.bundle");
+
+    if (acceptsGzip && fs.existsSync(gzPath)) {
+      log(`[BUNDLE] Serving gzip bundle (${(fs.statSync(gzPath).size / 1024 / 1024).toFixed(1)}MB)`);
+      res.setHeader("Content-Type", "application/javascript");
+      res.setHeader("Content-Encoding", "gzip");
+      res.setHeader("Content-Length", fs.statSync(gzPath).size);
+      return fs.createReadStream(gzPath).pipe(res);
+    }
+    if (fs.existsSync(rawPath)) {
+      log(`[BUNDLE] Serving raw bundle (${(fs.statSync(rawPath).size / 1024 / 1024).toFixed(1)}MB)`);
+      res.setHeader("Content-Type", "application/javascript");
+      res.setHeader("Content-Length", fs.statSync(rawPath).size);
+      return fs.createReadStream(rawPath).pipe(res);
+    }
+    log(`[BUNDLE] No cached bundle, proxying to Metro`);
+    return proxyToMetro(req, res);
+  });
+
   app.use((req: Request, res: Response, next: NextFunction) => {
-    if (req.path === "/" || req.path.includes(".bundle") || req.path === "/manifest") {
+    if (req.path === "/" || req.path.includes(".bundle") || req.path === "/manifest" || req.path === "/_expo_bundle") {
       log(`[REQ] ${req.method} ${req.path} expo-platform=${req.header("expo-platform") || "none"} accept-encoding=${req.header("accept-encoding") || "none"} user-agent=${(req.header("user-agent") || "").substring(0, 60)}`);
     }
 
-    if (req.path.startsWith("/api") || req.path === "/status" || req.path === "/therapy-viral" || req.path === "/therapy-multi" || req.path === "/financial-faceoff" || req.path === "/sports-betting" || (req.path === "/subscribe" && (req.query.success || req.query.canceled))) {
+    if (req.path.startsWith("/api") || req.path === "/status" || req.path === "/_expo_bundle" || req.path === "/therapy-viral" || req.path === "/therapy-multi" || req.path === "/financial-faceoff" || req.path === "/sports-betting" || (req.path === "/subscribe" && (req.query.success || req.query.canceled))) {
       return next();
     }
 
     const platform = req.header("expo-platform");
     if (platform && (platform === "ios" || platform === "android")) {
       if (isDev) {
-        return proxyToMetro(req, res);
+        log(`[MANIFEST] Serving direct dev manifest for ${platform}`);
+        return serveDevManifestDirect(req, res);
       }
       if (req.path === "/" || req.path === "/manifest") {
         return serveExpoManifest(platform, req, res);
@@ -477,7 +587,7 @@ function configureExpoAndLanding(app: express.Application) {
 
     if (req.path === "/manifest" && !platform) {
       if (isDev) {
-        return proxyToMetro(req, res);
+        return serveDevManifestDirect(req, res);
       }
       return serveExpoManifest("ios", req, res);
     }
