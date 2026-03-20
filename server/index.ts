@@ -63,7 +63,7 @@ async function spawnMetro() {
     env: {
       ...process.env,
       CI: "0",
-      EXPO_PACKAGER_PROXY_URL: devDomain ? `https://${devDomain}:5000` : "",
+      EXPO_PACKAGER_PROXY_URL: devDomain ? `https://${devDomain}` : "",
       REACT_NATIVE_PACKAGER_HOSTNAME: devDomain || "localhost",
       EXPO_PUBLIC_DOMAIN: devDomain ? `${devDomain}:5000` : "localhost:5000",
     },
@@ -599,6 +599,14 @@ async function initStripe() {
       },
       () => {
         log(`express server serving on port ${port}`);
+        if (port !== 80) {
+          const { spawn: spawnChild } = require("child_process");
+          const fwd = spawnChild(process.execPath, [path.resolve(process.cwd(), "scripts", "port80-forward.js")], {
+            stdio: "inherit",
+            detached: false,
+          });
+          fwd.on("error", () => {});
+        }
         spawnMetro();
         initStripe().catch((err) => console.error("Stripe init error:", err));
       },
