@@ -13,6 +13,16 @@ function isPortBusy(port) {
 }
 
 async function main() {
+  try {
+    execSync(`pkill -9 -f "expo.*start.*--port" 2>/dev/null || true`, { encoding: "utf-8" });
+  } catch {}
+  try {
+    execSync(`pkill -9 -f "jest-worker" 2>/dev/null || true`, { encoding: "utf-8" });
+  } catch {}
+  try {
+    execSync(`pkill -9 -f "esbuild.*--service" 2>/dev/null || true`, { encoding: "utf-8" });
+  } catch {}
+
   const allPids = execSync(
     `ps aux | grep "nodejs-22" | grep -v grep | grep -v cleanup-ports | awk '{print $2}'`,
     { encoding: "utf-8" }
@@ -26,8 +36,9 @@ async function main() {
         try { process.kill(pid, 9); } catch {}
       }
     }
-    await new Promise(r => setTimeout(r, 3000));
   }
+
+  await new Promise(r => setTimeout(r, 3000));
 
   for (const port of PORTS) {
     const busy = await isPortBusy(port);
