@@ -60,3 +60,8 @@ A digital collectible card system with 24 cards across 6 categories and 4 rarity
 - **Alternative.me Fear & Greed API**: For live Crypto Fear & Greed Index.
 - **Stripe**: For payment processing.
 - **expo-file-system**: For managing audio files on native platforms.
+
+## Development Setup Notes
+- **Phone Testing**: The app uses Expo's `--tunnel` mode (via `@expo/ngrok`) to make the dev server accessible from external devices. The Replit dev domain is not externally accessible, so tunnel mode is required for testing on physical devices.
+- **Tunnel URL**: When Metro starts with `--tunnel`, it prints a tunnel URL like `exp://xxxx-anonymous-8081.exp.direct` — enter this in Expo Go on your phone to connect.
+- **Workflows**: "Start Backend" runs Express on port 5000. "Start Frontend" runs Metro on port 8081 with tunnel mode. Both must be running for full functionality.
