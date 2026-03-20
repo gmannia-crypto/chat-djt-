@@ -78,6 +78,33 @@ async function spawnMetro() {
       setTimeout(spawnMetro, 10000);
     }
   });
+
+  function preWarmBundle() {
+    const bundleUrl = `http://localhost:${METRO_PORT}/node_modules/expo-router/entry.bundle?platform=android&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.bytecode=1&transform.routerRoot=app&transform.reactCompiler=true&unstable_transformProfile=hermes-stable`;
+    const checkReady = () => {
+      http.get(`http://localhost:${METRO_PORT}/status`, (statusRes) => {
+        if (statusRes.statusCode === 200) {
+          log("[pre-warm] Metro ready, compiling Android bundle...");
+          http.get(bundleUrl, (bundleRes) => {
+            let size = 0;
+            bundleRes.on("data", (chunk: Buffer) => { size += chunk.length; });
+            bundleRes.on("end", () => {
+              log(`[pre-warm] Bundle ready: ${(size / 1024 / 1024).toFixed(1)}MB`);
+            });
+          }).on("error", (err) => {
+            log(`[pre-warm] Bundle fetch failed: ${err.message}`);
+          });
+        } else {
+          setTimeout(checkReady, 3000);
+        }
+      }).on("error", () => {
+        setTimeout(checkReady, 3000);
+      });
+    };
+    setTimeout(checkReady, 5000);
+  }
+
+  preWarmBundle();
 }
 
 process.on("SIGTERM", () => { shuttingDown = true; metroProcess?.kill("SIGTERM"); });
