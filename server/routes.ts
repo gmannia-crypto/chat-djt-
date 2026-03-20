@@ -2044,6 +2044,170 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     }
   });
 
+  const TRUMP_GAME_VOICE_ID = "546bf63af23347308b6cb21edcd76835";
+
+  app.post("/api/game/generate-scenario", async (req, res) => {
+    try {
+      const { tier, netWorth, karma, previousTitles, playerName } = req.body;
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4.1-mini",
+        messages: [
+          {
+            role: "system",
+            content: `You generate dark, morally complex business scenarios for a billionaire simulation game. Each scenario must be deep, thought-provoking, and feel realistic. Include real-world parallels without using real company names. Scenarios should test the player's ethics across industries: pharma, prisons, politics, healthcare, military, lobbying, welfare, tech, media, energy. Make each scenario unique and never repeat themes. The player "${playerName || 'Player'}" currently has ${formatMoney(netWorth || 1000000)} net worth and ${karma || 0} karma. Tier ${tier || 1} (1=early game, 5=endgame with massive stakes).
+
+Return ONLY valid JSON with this exact structure:
+{
+  "title": "SHORT DRAMATIC TITLE IN CAPS",
+  "description": "2-3 sentence vivid scenario description that puts the player in a morally gray situation",
+  "icon": "single emoji",
+  "industry": "one of: pharma, prisons, politics, healthcare, military, lobbying, welfare, tech, media, energy",
+  "choices": [
+    {"text": "The ruthless option description", "profit": number, "karma": negative_number, "karmaLabel": "LABEL", "consequence": "What happens - vivid 2 sentence consequence", "industry": "same_industry"},
+    {"text": "The ethical option description", "profit": small_or_negative_number, "karma": positive_number, "karmaLabel": "LABEL", "consequence": "What happens", "industry": "same_industry"},
+    {"text": "The gray area middle option", "profit": medium_number, "karma": small_negative, "karmaLabel": "LABEL", "consequence": "What happens", "industry": "same_industry"}
+  ]
+}
+
+Profit ranges by tier: T1=$3M-$20M, T2=$15M-$55M, T3=$30M-$80M, T4=$50M-$120M, T5=$80M-$200M. Karma: ruthless=-20 to -45, ethical=+10 to +30, gray=-5 to -15.`
+          },
+          {
+            role: "user",
+            content: `Generate a tier ${tier || 1} scenario. Avoid these previous scenarios: ${(previousTitles || []).join(", ") || "none yet"}. Make it deep, surprising, and morally complex. The stakes should feel real.`
+          }
+        ],
+        temperature: 1.0,
+        max_completion_tokens: 800,
+      });
+
+      const raw = completion.choices[0]?.message?.content || "";
+      const jsonMatch = raw.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        return res.status(500).json({ error: "Failed to parse scenario" });
+      }
+      const scenario = JSON.parse(jsonMatch[0]);
+      scenario.id = "ai_" + Date.now();
+      scenario.tier = tier || 1;
+      res.json(scenario);
+    } catch (error: any) {
+      console.error("Generate scenario error:", error);
+      res.status(500).json({ error: "Failed to generate scenario" });
+    }
+  });
+
+  app.post("/api/game/trump-reaction", async (req, res) => {
+    try {
+      const { playerName, choiceText, choiceKarma, consequence, netWorth, totalKarma, turn } = req.body;
+
+      const reactionType = choiceKarma <= -15 ? "ruthless" : choiceKarma >= 10 ? "ethical" : "calculated";
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4.1-mini",
+        messages: [
+          {
+            role: "system",
+            content: `You are Donald Trump commentating on a billionaire game player's choices. You are boisterous, dramatic, and hilarious. You call the player by their name "${playerName}". 
+
+Your personality quirks:
+- If they made a RUTHLESS choice: praise them in a backhanded way, call them "a real killer", compare to yourself
+- If they made an ETHICAL choice: mock them lovingly, call them "a lightweight", question their IQ, say things like "You're eating the cats and dogs!" or "Very low energy!" 
+- If they made a CALCULATED choice: respect the hustle but say you'd do it better
+- Always address ${playerName} by name
+- Keep it under 3 sentences max
+- Be unpredictable - sometimes praise what you'd normally mock, sometimes roast what you'd normally praise
+- Use your catchphrases naturally: "Nobody does it better than Trump!", "Tremendous!", "Very low IQ!", "You're a lightweight!", "Sad!", "HUGE!", "Believe me!", "You're eating the cats and dogs!"
+- Never repeat the same reaction pattern`
+          },
+          {
+            role: "user",
+            content: `${playerName} just chose: "${choiceText}" (karma: ${choiceKarma}, ${reactionType}). Consequence: "${consequence}". Their net worth is now ${formatMoney(netWorth)}, total karma: ${totalKarma}, turn ${turn}. Give Trump's reaction.`
+          }
+        ],
+        temperature: 1.1,
+        max_completion_tokens: 150,
+      });
+
+      const reaction = completion.choices[0]?.message?.content?.trim() || "Tremendous choice! Nobody makes deals like you!";
+
+      const apiKey = process.env.FISH_AUDIO_API_KEY;
+      if (apiKey) {
+        try {
+          const audioBuffer = await fishAudioRequest(reaction, TRUMP_GAME_VOICE_ID, 1.10, apiKey);
+          const audioBase64 = audioBuffer.toString("base64");
+          res.json({ reaction, audio: audioBase64 });
+        } catch (ttsErr) {
+          console.error("TTS failed for game reaction:", ttsErr);
+          res.json({ reaction, audio: null });
+        }
+      } else {
+        res.json({ reaction, audio: null });
+      }
+    } catch (error: any) {
+      console.error("Trump reaction error:", error);
+      res.status(500).json({ error: "Failed to generate reaction" });
+    }
+  });
+
+  app.post("/api/game/trump-hellfire", async (req, res) => {
+    try {
+      const { playerName } = req.body;
+      const text = `Sorry to have to tell you ${playerName}... Nobody does it like Trump and gets away with it! And not burn in hell! Nobody! You thought you were smart, ${playerName}? You're going DOWN! Way down! To a place so hot, even I wouldn't build a hotel there! Believe me!`;
+
+      const apiKey = process.env.FISH_AUDIO_API_KEY;
+      if (!apiKey) {
+        return res.json({ text, audio: null });
+      }
+      const audioBuffer = await fishAudioRequest(text, TRUMP_GAME_VOICE_ID, 1.05, apiKey);
+      res.json({ text, audio: audioBuffer.toString("base64") });
+    } catch (error: any) {
+      console.error("Hellfire speech error:", error);
+      res.status(500).json({ error: "Failed to generate hellfire speech" });
+    }
+  });
+
+  app.post("/api/game/trump-welcome", async (req, res) => {
+    try {
+      const { playerName } = req.body;
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4.1-mini",
+        messages: [
+          {
+            role: "system",
+            content: `You are Donald Trump welcoming a new player to your billionaire game. Be boisterous and hilarious. Address them by name. Keep it 2-3 sentences. Use Trump mannerisms. Challenge them. Question if they have what it takes.`
+          },
+          {
+            role: "user",
+            content: `A new player named "${playerName}" just entered Trump Billionaires. Welcome them in classic Trump fashion.`
+          }
+        ],
+        temperature: 1.0,
+        max_completion_tokens: 100,
+      });
+      const welcomeText = completion.choices[0]?.message?.content?.trim() || `${playerName}! You think you can make it to a BILLION? We'll see about that! Nobody does it like Trump, but let's see what you've got!`;
+
+      const apiKey = process.env.FISH_AUDIO_API_KEY;
+      if (apiKey) {
+        try {
+          const audioBuffer = await fishAudioRequest(welcomeText, TRUMP_GAME_VOICE_ID, 1.10, apiKey);
+          res.json({ text: welcomeText, audio: audioBuffer.toString("base64") });
+        } catch {
+          res.json({ text: welcomeText, audio: null });
+        }
+      } else {
+        res.json({ text: welcomeText, audio: null });
+      }
+    } catch (error: any) {
+      console.error("Trump welcome error:", error);
+      res.status(500).json({ error: "Failed to generate welcome" });
+    }
+  });
+
+  function formatMoney(n: number): string {
+    if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(2)}B`;
+    if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+    if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
+    return `$${n.toLocaleString()}`;
+  }
+
   app.post("/api/faceoff/battle-vote", (req, res) => {
     try {
       const { battleId, votedFor, question } = req.body;

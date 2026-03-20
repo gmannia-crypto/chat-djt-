@@ -9,18 +9,20 @@ import {
   Image,
   Dimensions,
   Modal,
+  TextInput,
+  ActivityIndicator,
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
+import { Audio } from "expo-av";
 import Animated, {
   FadeInDown,
   FadeInUp,
   FadeIn,
   SlideInRight,
-  SlideOutLeft,
   useSharedValue,
   useAnimatedStyle,
   withRepeat,
@@ -30,11 +32,13 @@ import Animated, {
   withDelay,
   interpolate,
   Easing,
+  runOnJS,
 } from "react-native-reanimated";
 import Colors from "@/constants/colors";
 import { shareContent } from "@/lib/track-share";
+import { getApiUrl } from "@/lib/query-client";
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 type Industry = "pharma" | "prisons" | "politics" | "healthcare" | "military" | "lobbying" | "welfare" | "tech" | "media" | "energy";
 
@@ -94,238 +98,12 @@ const INDUSTRY_ICONS: Record<Industry, string> = {
   energy: "flash",
 };
 
-function formatMoney(n: number): string {
+function fmtMoney(n: number): string {
   if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(2)}B`;
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
   return `$${n.toLocaleString()}`;
 }
-
-function pickRandom<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
-}
-
-function shuffleArray<T>(arr: T[]): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
-const SCENARIOS: Scenario[] = [
-  {
-    id: "pharma1", title: "DRUG PRICING POWER", icon: "💊",
-    description: "Your pharma startup owns the patent to a life-saving medication. Insurance won't cover it for most patients. You can set any price you want.",
-    industry: "pharma", tier: 1,
-    choices: [
-      { text: "Price it at 50x production cost — patients will pay anything to live", profit: 15_000_000, karma: -25, karmaLabel: "PREDATORY", consequence: "Families go bankrupt paying for your drug. Profits soar. Congressional hearings loom but your lobbyists keep them at bay.", industry: "pharma" },
-      { text: "Price reasonably with a patient assistance program", profit: 3_000_000, karma: 10, karmaLabel: "ETHICAL", consequence: "Patients can afford treatment. Your margins are modest but your reputation brings in new investors who trust your brand.", industry: "pharma" },
-      { text: "Create a tiered system — gouge insurance, discount for uninsured", profit: 8_000_000, karma: -8, karmaLabel: "CALCULATED", consequence: "Insurance premiums rise across the board. You profit handsomely while maintaining plausible deniability about the human cost.", industry: "pharma" },
-    ],
-  },
-  {
-    id: "prison1", title: "PRIVATE PRISON CONTRACT", icon: "⛓️",
-    description: "A state government offers you a contract to build and operate private prisons. The deal guarantees 90% occupancy rates — meaning the state promises to keep your prisons full.",
-    industry: "prisons", tier: 1,
-    choices: [
-      { text: "Sign the contract — guaranteed revenue per inmate per day", profit: 20_000_000, karma: -30, karmaLabel: "RUTHLESS", consequence: "Your prisons profit from mass incarceration. You lobby for harsher sentencing laws to keep beds full. Families are torn apart.", industry: "prisons" },
-      { text: "Decline — this business model profits from human suffering", profit: 0, karma: 20, karmaLabel: "PRINCIPLED", consequence: "You walk away from millions. Some call you a fool. But you sleep at night knowing you didn't profit from caging humans.", industry: "prisons" },
-      { text: "Accept but invest in rehabilitation programs to reduce recidivism", profit: 12_000_000, karma: -5, karmaLabel: "COMPROMISE", consequence: "Your rehab programs are underfunded for PR. The occupancy clause still incentivizes incarceration. But it's better than nothing... right?", industry: "prisons" },
-    ],
-  },
-  {
-    id: "politics1", title: "BUYING A POLITICIAN", icon: "🏛️",
-    description: "A key senator is up for re-election. A large 'donation' could secure favorable regulations for your businesses. The senator has hinted they'd be very 'appreciative.'",
-    industry: "politics", tier: 1,
-    choices: [
-      { text: "Max out donations through PACs and dark money channels", profit: 25_000_000, karma: -20, karmaLabel: "CORRUPT", consequence: "The senator wins and passes regulations that crush your competitors. Democracy takes another hit. Your wealth grows exponentially.", industry: "politics" },
-      { text: "Donate the legal maximum and nothing more", profit: 5_000_000, karma: 5, karmaLabel: "LAWFUL", consequence: "Your donation is public record. The senator helps where they can, but you don't own them. Fair play in a rigged game.", industry: "politics" },
-      { text: "Fund a Super PAC that 'independently' supports the senator", profit: 18_000_000, karma: -15, karmaLabel: "SHADOWY", consequence: "Technically legal. Totally corrupt. The senator knows who butters their bread. Your industries get favorable treatment for years.", industry: "politics" },
-    ],
-  },
-  {
-    id: "health1", title: "HEALTHCARE PROFITEERING", icon: "🏥",
-    description: "You've acquired a chain of hospitals in underserved communities. These are the only hospitals within 100 miles for many patients. You can restructure for profit.",
-    industry: "healthcare", tier: 2,
-    choices: [
-      { text: "Close unprofitable ERs and focus on elective surgeries for the wealthy", profit: 35_000_000, karma: -35, karmaLabel: "HEARTLESS", consequence: "People die waiting for ambulances that now drive 100+ miles. Your surgical centers cater to medical tourists. Pure profit.", industry: "healthcare" },
-      { text: "Keep all services running and apply for government subsidies", profit: 8_000_000, karma: 15, karmaLabel: "COMPASSIONATE", consequence: "The community keeps its hospital. Government subsidies cover most costs. You earn less but save lives daily.", industry: "healthcare" },
-      { text: "Reduce services, keep the ER, charge facility fees on everything", profit: 22_000_000, karma: -18, karmaLabel: "EXPLOITATIVE", consequence: "Patients get surprise $5,000 bills for using 'your' ER. Collections agencies hound the poorest patients. Legal? Yes. Moral? You decide.", industry: "healthcare" },
-    ],
-  },
-  {
-    id: "military1", title: "DEFENSE CONTRACT BONANZA", icon: "🛡️",
-    description: "The Pentagon wants a new weapons system. Your company can bid. The catch: you know the system doesn't work as advertised, but the contract is worth billions.",
-    industry: "military", tier: 2,
-    choices: [
-      { text: "Bid aggressively — oversell capabilities, deal with problems later", profit: 50_000_000, karma: -28, karmaLabel: "WAR PROFITEER", consequence: "You win the contract. The system fails in testing but you've already been paid. Cost overruns are someone else's problem. Soldiers trust equipment that doesn't work.", industry: "military" },
-      { text: "Bid honestly with realistic capabilities and timelines", profit: 15_000_000, karma: 12, karmaLabel: "HONEST", consequence: "You lose the big contract but win smaller ones on merit. Your reputation for reliability grows. Slower path but sustainable.", industry: "military" },
-      { text: "Bid the contract, use profits to actually fix the technology", profit: 30_000_000, karma: -5, karmaLabel: "PRAGMATIC", consequence: "You oversell initially but pour resources into making it work. Eventually. Cost overruns hit taxpayers but the final product is decent.", industry: "military" },
-    ],
-  },
-  {
-    id: "lobby1", title: "THE LOBBYING MACHINE", icon: "💰",
-    description: "Environmental regulations threaten your manufacturing plants. Compliance would cost $200M. Or you could spend $20M on lobbyists to gut the regulations entirely.",
-    industry: "lobbying", tier: 2,
-    choices: [
-      { text: "Hire an army of lobbyists to kill the regulations", profit: 40_000_000, karma: -22, karmaLabel: "POLLUTER", consequence: "Regulations gutted. Your factories dump toxins freely. Cancer rates in nearby towns spike. You saved $180M. The EPA is defanged.", industry: "lobbying" },
-      { text: "Invest in clean technology and comply with regulations", profit: -5_000_000, karma: 25, karmaLabel: "GREEN", consequence: "Expensive but your clean tech becomes a selling point. Environmental groups praise you. Long-term brand value increases.", industry: "lobbying" },
-      { text: "Lobby for weaker regulations while making minimal compliance efforts", profit: 20_000_000, karma: -12, karmaLabel: "GREENWASHER", consequence: "You spend on PR campaigns about being 'green' while lobbying to weaken standards. The public is fooled. Pollution continues, just below the new weak limits.", industry: "lobbying" },
-    ],
-  },
-  {
-    id: "welfare1", title: "CORPORATE WELFARE KING", icon: "🏢",
-    description: "Your company qualifies for massive tax breaks and government subsidies. You could structure deals to pay zero federal taxes while collecting billions in government contracts.",
-    industry: "welfare", tier: 3,
-    choices: [
-      { text: "Exploit every loophole — hire the best tax lawyers", profit: 60_000_000, karma: -20, karmaLabel: "TAX DODGER", consequence: "Your effective tax rate: 0%. Schools and roads crumble. Your shareholders celebrate. A leaked report shows your janitors pay higher tax rates than your corporation.", industry: "welfare" },
-      { text: "Pay a fair tax rate and reinvest in communities where you operate", profit: 10_000_000, karma: 20, karmaLabel: "CITIZEN", consequence: "You pay taxes like everyone else. Communities thrive. Your employees are loyal. But competitors who dodge taxes grow faster.", industry: "welfare" },
-      { text: "Use tax havens offshore but fund a charitable foundation for optics", profit: 40_000_000, karma: -10, karmaLabel: "PHILANTHROPATH", consequence: "Billions sheltered in the Cayman Islands. Your foundation gets good press but donates a fraction of what you'd owe in taxes. The classic billionaire playbook.", industry: "welfare" },
-    ],
-  },
-  {
-    id: "pharma2", title: "OPIOID EMPIRE", icon: "💉",
-    description: "Your pharmaceutical company has developed a highly addictive painkiller. Doctors are prescribing it widely. Reports of addiction are mounting but sales are astronomical.",
-    industry: "pharma", tier: 3,
-    choices: [
-      { text: "Push doctors to prescribe more aggressively — fund 'pain awareness' campaigns", profit: 80_000_000, karma: -40, karmaLabel: "DEALER", consequence: "Addiction rates skyrocket. Entire communities are destroyed. Your sales reps earn bonuses per prescription. The bodies pile up while profits soar.", industry: "pharma" },
-      { text: "Pull the drug and fund addiction treatment centers", profit: -20_000_000, karma: 30, karmaLabel: "REDEEMER", consequence: "You lose billions in revenue but save thousands of lives. The treatment centers you fund become models for the nation. History remembers you differently.", industry: "pharma" },
-      { text: "Reformulate to be less addictive while maintaining sales", profit: 30_000_000, karma: -8, karmaLabel: "TOO LITTLE", consequence: "The reformulation helps somewhat but millions are already addicted to the original formula. You shift blame to 'street drugs' while collecting profits.", industry: "pharma" },
-    ],
-  },
-  {
-    id: "prison2", title: "IMMIGRANT DETENTION CENTERS", icon: "🚧",
-    description: "The government needs facilities to detain immigrants. Your private prison company can build them fast. The conditions? That's up to your budget allocation.",
-    industry: "prisons", tier: 3,
-    choices: [
-      { text: "Build bare-minimum facilities — maximize profit per detainee", profit: 45_000_000, karma: -35, karmaLabel: "INHUMANE", consequence: "Overcrowded facilities with inadequate food, medical care, and sanitation. Children separated from parents. You bill the government $750/person/day.", industry: "prisons" },
-      { text: "Refuse the contract — detention for profit crosses a line", profit: 0, karma: 25, karmaLabel: "MORAL LINE", consequence: "You decline tens of millions. Your board is furious. Some investors leave. But you refused to profit from detaining families.", industry: "prisons" },
-      { text: "Build decent facilities with proper oversight and transparency", profit: 20_000_000, karma: 0, karmaLabel: "LESSER EVIL", consequence: "Your facilities are better than most. Still, you profit from a system that detains people for seeking a better life. The moral math doesn't quite work out.", industry: "prisons" },
-    ],
-  },
-  {
-    id: "politics2", title: "SUPREME COURT SHOPPING", icon: "⚖️",
-    description: "A Supreme Court vacancy opens up. You have connections to fund the campaign that will influence who gets nominated. The right justice could protect your business interests for decades.",
-    industry: "politics", tier: 4,
-    choices: [
-      { text: "Pour $50M into dark money groups pushing your preferred nominee", profit: 100_000_000, karma: -30, karmaLabel: "KINGMAKER", consequence: "Your justice gets confirmed. For the next 30 years, the court rules in favor of corporations. Citizens United looks quaint compared to what comes next.", industry: "politics" },
-      { text: "Stay out of judicial politics — it's a bridge too far", profit: 0, karma: 15, karmaLabel: "RESTRAINED", consequence: "You let the process play out without your thumb on the scale. The court may not favor you, but at least you didn't buy a justice.", industry: "politics" },
-    ],
-  },
-  {
-    id: "health2", title: "INSULIN PRICE CRISIS", icon: "💸",
-    description: "Your company controls 40% of the insulin market. Diabetics will die without it. There's no generic alternative because you've patented incremental changes to block competitors.",
-    industry: "healthcare", tier: 4,
-    choices: [
-      { text: "Raise prices 1,200% — they have no choice but to pay", profit: 120_000_000, karma: -45, karmaLabel: "LETHAL GREED", consequence: "People ration insulin and die. Others go bankrupt. Your stock price hits an all-time high. Congressional hearings produce outrage but no action — your lobbyists made sure.", industry: "healthcare" },
-      { text: "Cap prices at $35/month and allow generic competition", profit: 5_000_000, karma: 30, karmaLabel: "LIFE SAVER", consequence: "Millions can afford their insulin. Your profits drop dramatically. Competitors flood the market. But no one dies because they couldn't afford your product.", industry: "healthcare" },
-      { text: "Create a 'patient assistance' program while keeping prices high for insurers", profit: 70_000_000, karma: -20, karmaLabel: "SMOKE SCREEN", consequence: "The assistance program helps 5% of patients. The other 95% still pay inflated prices through insurance, which raises premiums for everyone. Great PR though.", industry: "healthcare" },
-    ],
-  },
-  {
-    id: "military2", title: "ARMS EXPORTS", icon: "✈️",
-    description: "A foreign government with a questionable human rights record wants to buy your advanced weapons systems. The State Department hasn't blocked the sale... yet.",
-    industry: "military", tier: 4,
-    choices: [
-      { text: "Sell everything — their human rights record isn't your problem", profit: 90_000_000, karma: -35, karmaLabel: "ARMS DEALER", consequence: "Your weapons are used in a conflict that kills thousands of civilians. Leaked cables show you knew. The profits are already banked.", industry: "military" },
-      { text: "Decline the sale — some money isn't worth the blood", profit: 0, karma: 25, karmaLabel: "CONSCIENCE", consequence: "You lose a massive contract. Competitors fill the void. But your hands are clean. Your employees respect the decision.", industry: "military" },
-      { text: "Sell 'defensive' systems only — no offensive weapons", profit: 40_000_000, karma: -10, karmaLabel: "GRAY AREA", consequence: "You sell radar and missile defense but not strike weapons. The distinction matters legally. Morally? The regime uses your 'defensive' tech to enable offensive operations.", industry: "military" },
-    ],
-  },
-  {
-    id: "tech1", title: "SURVEILLANCE CAPITALISM", icon: "👁️",
-    description: "Your social media platform has 500 million users. You can sell their data to advertisers, political campaigns, and even foreign governments. They clicked 'agree' on the terms of service.",
-    industry: "tech", tier: 2,
-    choices: [
-      { text: "Sell everything — browsing history, location data, private messages", profit: 55_000_000, karma: -25, karmaLabel: "BIG BROTHER", consequence: "Your data helps political campaigns micro-target vulnerable voters. Foreign intelligence services buy user data for pennies. Privacy is dead and you killed it.", industry: "tech" },
-      { text: "Protect user data and build a privacy-first business model", profit: 8_000_000, karma: 20, karmaLabel: "PROTECTOR", consequence: "Users trust your platform. Growth is slower but organic. You can't sell data, so you innovate in other ways. A rare Silicon Valley unicorn with ethics.", industry: "tech" },
-      { text: "Anonymize data before selling — technically protects individuals", profit: 35_000_000, karma: -10, karmaLabel: "TECHNICAL", consequence: "The 'anonymized' data is easily re-identified by sophisticated buyers. You know this but the legal fiction protects you. For now.", industry: "tech" },
-    ],
-  },
-  {
-    id: "energy1", title: "FOSSIL FUEL COVER-UP", icon: "🛢️",
-    description: "Your energy company's own scientists confirmed that your products accelerate climate change 30 years ago. You buried the research. Now a journalist is asking questions.",
-    industry: "energy", tier: 3,
-    choices: [
-      { text: "Fund climate denial think tanks and discredit the journalist", profit: 70_000_000, karma: -35, karmaLabel: "DENIER", consequence: "The cover-up holds for another decade. Billions more tons of CO2. Island nations start disappearing. Your stock price remains strong.", industry: "energy" },
-      { text: "Come clean and pivot to renewable energy", profit: -10_000_000, karma: 30, karmaLabel: "TRUTH TELLER", consequence: "The admission costs billions in lawsuits. But your pivot to renewables positions you as a leader in the energy transition. History's verdict softens.", industry: "energy" },
-      { text: "Acknowledge 'some concerns' while continuing fossil fuel operations", profit: 40_000_000, karma: -15, karmaLabel: "HALF-TRUTH", consequence: "You admit climate change is real but argue the transition should be 'gradual.' Your fossil fuel profits continue for decades. The planet doesn't have decades.", industry: "energy" },
-    ],
-  },
-  {
-    id: "media1", title: "MEDIA MANIPULATION", icon: "📺",
-    description: "You've acquired a major news network. You can use it to shape public opinion on your other business interests. Truth is whatever you decide to broadcast.",
-    industry: "media", tier: 4,
-    choices: [
-      { text: "Turn it into a propaganda machine for your business empire", profit: 85_000_000, karma: -30, karmaLabel: "PROPAGANDIST", consequence: "Your network attacks regulations that affect your businesses. Politicians who oppose you get smeared. Public discourse is poisoned. But your other companies thrive.", industry: "media" },
-      { text: "Maintain editorial independence — a free press is sacred", profit: 5_000_000, karma: 25, karmaLabel: "GUARDIAN", consequence: "Your journalists investigate corruption — including in your own companies. It costs you, but democracy is a little healthier for it.", industry: "media" },
-      { text: "Subtly bias coverage while maintaining an appearance of objectivity", profit: 50_000_000, karma: -18, karmaLabel: "PUPPET MASTER", consequence: "Viewers don't realize they're being manipulated. Your network 'accidentally' ignores stories that hurt your interests. The most dangerous propaganda looks like news.", industry: "media" },
-    ],
-  },
-  {
-    id: "lobby2", title: "WATER PRIVATIZATION", icon: "💧",
-    description: "A drought-stricken region offers you rights to their water supply. You'd control the price of water for 3 million people.",
-    industry: "lobbying", tier: 5,
-    choices: [
-      { text: "Buy the rights and charge market rates — water is a commodity", profit: 100_000_000, karma: -40, karmaLabel: "WATER BARON", consequence: "Poor families can't afford clean water. Disease outbreaks follow. Your shareholders celebrate record profits while people drink from contaminated sources.", industry: "lobbying" },
-      { text: "Decline — water is a human right, not a business opportunity", profit: 0, karma: 30, karmaLabel: "HUMANITARIAN", consequence: "The region finds a public solution. It's not perfect but water remains accessible. You miss a fortune. Your humanity is intact.", industry: "lobbying" },
-      { text: "Buy the rights but cap prices for low-income households", profit: 50_000_000, karma: -10, karmaLabel: "GATEKEEPER", consequence: "You control water for millions. The price caps help the poorest but everyone else pays premium. You've still commodified a basic human need.", industry: "lobbying" },
-    ],
-  },
-  {
-    id: "welfare2", title: "WORKER EXPLOITATION", icon: "🏭",
-    description: "Your warehouses can save $500M/year by classifying workers as independent contractors. No benefits, no overtime, no protections. But they need the work.",
-    industry: "welfare", tier: 5,
-    choices: [
-      { text: "Reclassify everyone — gig economy baby!", profit: 80_000_000, karma: -30, karmaLabel: "EXPLOITER", consequence: "Workers lose healthcare, retirement, and job security. Several die from overwork. Your stock hits record highs. The 'future of work' means no worker protections.", industry: "welfare" },
-      { text: "Keep workers as employees with full benefits", profit: 5_000_000, karma: 20, karmaLabel: "FAIR EMPLOYER", consequence: "Your costs are higher but turnover drops. Workers are healthier and more productive. Competitors undercut you with exploited labor.", industry: "welfare" },
-      { text: "Create a hybrid model — some 'flexibility' with minimal benefits", profit: 45_000_000, karma: -15, karmaLabel: "LOOPHOLER", consequence: "Your workers get the worst of both worlds — no security AND limited benefits. Lawyers designed it to be technically legal. Workers are trapped.", industry: "welfare" },
-    ],
-  },
-  {
-    id: "pharma3", title: "GENE THERAPY MONOPOLY", icon: "🧬",
-    description: "Your biotech company has the only cure for a rare genetic disease. 50,000 children are affected worldwide. Treatment costs $10,000 to produce.",
-    industry: "pharma", tier: 5,
-    choices: [
-      { text: "Price it at $2.1 million per treatment — they'll find the money", profit: 150_000_000, karma: -40, karmaLabel: "MONSTROUS", consequence: "Only children of the ultra-wealthy survive. Insurance companies refuse to cover it. GoFundMe pages appear for dying children. Your quarterly earnings beat expectations.", industry: "pharma" },
-      { text: "Price at $50,000 and work with governments on universal access", profit: 10_000_000, karma: 30, karmaLabel: "HEALER", consequence: "Most children get treated. Your margins are thin but your company saves 40,000+ lives. The Nobel committee takes notice.", industry: "pharma" },
-      { text: "Price at $500,000 with a lottery for free treatments to look charitable", profit: 80_000_000, karma: -20, karmaLabel: "SELECTIVE MERCY", consequence: "The 'lottery' treats 500 children per year. 49,500 others wait and hope. Your PR team wins awards for the charity program. The math doesn't add up.", industry: "pharma" },
-    ],
-  },
-];
-
-const TRUMP_REACTIONS = {
-  dark: [
-    "Now THAT'S how you make a billion! Morals are for losers!",
-    "Beautiful. Ruthless. I would've done the SAME thing. Probably worse!",
-    "Ethics? The only ethic I know is the W-I-N ethic!",
-    "You remind me of a young... well, a young ME. And I'm TREMENDOUS.",
-    "Cold-blooded deal. Very presidential. Very Trump.",
-    "Some people say that's wrong. Those people are BROKE.",
-  ],
-  ethical: [
-    "You walked away from MONEY? Are you FEELING okay?",
-    "That was very... noble. Also very POOR. But noble!",
-    "I respect it. I wouldn't DO it. But I respect it.",
-    "Interesting strategy. Let me know when you can afford a gold toilet.",
-    "Compassion is nice but have you tried WINNING instead?",
-    "You're playing the long game. Very long. Might be TOO long.",
-  ],
-  neutral: [
-    "Not bad, not bad. You're playing both sides. I invented that!",
-    "A calculated move. Like when I said I'd release my taxes. Calculated!",
-    "Smart but not BRILLIANT. Brilliant would be MY choice.",
-    "You're hedging. I never hedge. Except in real estate. And politics. And golf.",
-  ],
-  billionaire: [
-    "A BILLION DOLLARS! Welcome to MY club! Population: ME and now YOU!",
-    "TREMENDOUS! You did it! Through deals that would make a senator blush!",
-    "From nothing to EVERYTHING! That's the American dream, baby!",
-    "You're officially too rich for consequences! Laws are for the POOR now!",
-  ],
-};
 
 function getKarmaRating(karma: number): { label: string; color: string; icon: string } {
   if (karma >= 50) return { label: "SAINT", color: "#22C55E", icon: "heart" };
@@ -346,31 +124,115 @@ function getTitle(netWorth: number): { label: string; emoji: string } {
   return { label: "HUSTLER", emoji: "🎯" };
 }
 
+async function playBase64Audio(base64: string): Promise<Audio.Sound | null> {
+  try {
+    await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: false });
+    if (Platform.OS === "web") {
+      const audio = new window.Audio(`data:audio/mpeg;base64,${base64}`);
+      audio.volume = 1.0;
+      await audio.play();
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: `data:audio/mpeg;base64,${base64}` },
+        { shouldPlay: false }
+      );
+      return sound;
+    }
+    const uri = `data:audio/mpeg;base64,${base64}`;
+    const { sound } = await Audio.Sound.createAsync({ uri }, { shouldPlay: true, volume: 1.0 });
+    return sound;
+  } catch (e) {
+    console.warn("Audio playback failed:", e);
+    return null;
+  }
+}
+
+function HellfireAnimation({ playerName, onComplete }: { playerName: string; onComplete: () => void }) {
+  const fallY = useSharedValue(0);
+  const iconScale = useSharedValue(1);
+  const flameOpacity = useSharedValue(0);
+  const shakeX = useSharedValue(0);
+
+  useEffect(() => {
+    flameOpacity.value = withTiming(1, { duration: 800 });
+    shakeX.value = withRepeat(
+      withSequence(
+        withTiming(-8, { duration: 50 }),
+        withTiming(8, { duration: 50 }),
+        withTiming(0, { duration: 50 })
+      ),
+      6, true
+    );
+    setTimeout(() => {
+      fallY.value = withTiming(600, { duration: 2000, easing: Easing.in(Easing.quad) });
+      iconScale.value = withSequence(
+        withTiming(1.3, { duration: 300 }),
+        withTiming(0.3, { duration: 1700 })
+      );
+    }, 1500);
+    setTimeout(() => onComplete(), 4500);
+  }, []);
+
+  const playerStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateY: fallY.value },
+      { translateX: shakeX.value },
+      { scale: iconScale.value },
+    ],
+  }));
+
+  const flameStyle = useAnimatedStyle(() => ({
+    opacity: flameOpacity.value,
+  }));
+
+  return (
+    <View style={styles.hellfireOverlay}>
+      <LinearGradient colors={["#000", "#1a0000", "#330000", "#ff2200"]} style={StyleSheet.absoluteFillObject} />
+      <Animated.View style={[styles.hellfirePlayerIcon, playerStyle]}>
+        <View style={styles.hellfireAvatar}>
+          <Text style={{ fontSize: 48 }}>🤑</Text>
+        </View>
+        <Text style={styles.hellfirePlayerName}>{playerName}</Text>
+      </Animated.View>
+      <Animated.View style={[styles.hellfireFlames, flameStyle]}>
+        <Text style={{ fontSize: 60, textAlign: "center" }}>🔥🔥🔥</Text>
+        <Text style={{ fontSize: 80, textAlign: "center", marginTop: -10 }}>🔥🔥🔥🔥🔥</Text>
+        <Text style={{ fontSize: 60, textAlign: "center", marginTop: -10 }}>🔥🔥🔥</Text>
+      </Animated.View>
+      <Animated.View style={[{ position: "absolute", bottom: 160 }, flameStyle]}>
+        <Text style={styles.hellfireText}>CONDEMNED TO HELLFIRE</Text>
+        <Text style={styles.hellfireSubtext}>Too much greed. Even for Trump.</Text>
+      </Animated.View>
+    </View>
+  );
+}
+
 export default function GameScreen() {
   const insets = useSafeAreaInsets();
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
   const scrollRef = useRef<ScrollView>(null);
+  const soundRef = useRef<Audio.Sound | null>(null);
+
+  const [playerName, setPlayerName] = useState("");
+  const [nameConfirmed, setNameConfirmed] = useState(false);
+  const [nameInput, setNameInput] = useState("");
 
   const [gameState, setGameState] = useState<GameState>({
-    netWorth: 1_000_000,
-    karma: 0,
-    turn: 0,
-    empire: [],
-    headlines: [],
-    darkDeals: 0,
-    politiciansBought: 0,
-    livesAffected: 0,
+    netWorth: 1_000_000, karma: 0, turn: 0, empire: [], headlines: [],
+    darkDeals: 0, politiciansBought: 0, livesAffected: 0,
   });
 
   const [currentScenario, setCurrentScenario] = useState<Scenario | null>(null);
   const [showConsequence, setShowConsequence] = useState(false);
   const [lastChoice, setLastChoice] = useState<Choice | null>(null);
-  const [trumpQuote, setTrumpQuote] = useState("Welcome to TRUMP BILLIONAIRES! You start with $1M. Every choice has a PRICE. The question is: what are you willing to PAY?");
+  const [trumpQuote, setTrumpQuote] = useState("");
   const [gameWon, setGameWon] = useState(false);
-  const [showSummary, setShowSummary] = useState(false);
-  const [usedScenarios, setUsedScenarios] = useState<string[]>([]);
+  const [usedTitles, setUsedTitles] = useState<string[]>([]);
   const [choiceHistory, setChoiceHistory] = useState<{ scenario: string; choice: string; profit: number; karma: number }[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [trumpSpeaking, setTrumpSpeaking] = useState(false);
+  const [showHellfire, setShowHellfire] = useState(false);
+  const [hellfireComplete, setHellfireComplete] = useState(false);
 
   const karmaRating = getKarmaRating(gameState.karma);
   const titleInfo = getTitle(gameState.netWorth);
@@ -378,7 +240,6 @@ export default function GameScreen() {
 
   const pulseAnim = useSharedValue(1);
   const glowAnim = useSharedValue(0);
-  const rotateAnim = useSharedValue(0);
 
   useEffect(() => {
     pulseAnim.value = withRepeat(
@@ -389,50 +250,124 @@ export default function GameScreen() {
       withSequence(withTiming(1, { duration: 2000 }), withTiming(0, { duration: 2000 })),
       -1, true
     );
-    rotateAnim.value = withRepeat(
-      withTiming(360, { duration: 20000, easing: Easing.linear }),
-      -1, false
-    );
   }, []);
 
   const pulseStyle = useAnimatedStyle(() => ({ transform: [{ scale: pulseAnim.value }] }));
-  const glowStyle = useAnimatedStyle(() => ({ opacity: interpolate(glowAnim.value, [0, 1], [0.3, 0.8]) }));
-  const orbStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${rotateAnim.value}deg` }] }));
 
-  const getNextScenario = useCallback(() => {
-    const tier = gameState.netWorth < 5_000_000 ? 1
-      : gameState.netWorth < 20_000_000 ? 2
-      : gameState.netWorth < 100_000_000 ? 3
-      : gameState.netWorth < 500_000_000 ? 4 : 5;
-
-    const available = SCENARIOS.filter(s => !usedScenarios.includes(s.id) && s.tier <= tier + 1);
-    if (available.length === 0) {
-      setUsedScenarios([]);
-      return pickRandom(SCENARIOS.filter(s => s.tier <= tier + 1));
+  const cleanupSound = useCallback(async () => {
+    if (soundRef.current) {
+      try { await soundRef.current.unloadAsync(); } catch {}
+      soundRef.current = null;
     }
-    const weighted = available.filter(s => s.tier === tier);
-    return weighted.length > 0 ? pickRandom(weighted) : pickRandom(available);
-  }, [gameState.netWorth, usedScenarios]);
+  }, []);
 
-  const startNextTurn = useCallback(() => {
-    const scenario = getNextScenario();
-    setCurrentScenario(scenario);
+  useEffect(() => {
+    return () => { cleanupSound(); };
+  }, []);
+
+  const apiCall = useCallback(async (endpoint: string, body: any) => {
+    const baseUrl = getApiUrl().replace(/\/$/, "");
+    const res = await fetch(`${baseUrl}${endpoint}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`API error: ${res.status}`);
+    return res.json();
+  }, []);
+
+  const playTrumpAudio = useCallback(async (audioBase64: string | null) => {
+    if (!audioBase64) return;
+    await cleanupSound();
+    setTrumpSpeaking(true);
+    const sound = await playBase64Audio(audioBase64);
+    if (sound) {
+      soundRef.current = sound;
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if ("didJustFinish" in status && status.didJustFinish) {
+          setTrumpSpeaking(false);
+          sound.unloadAsync().catch(() => {});
+          soundRef.current = null;
+        }
+      });
+      setTimeout(() => setTrumpSpeaking(false), 15000);
+    } else {
+      setTrumpSpeaking(false);
+    }
+  }, [cleanupSound]);
+
+  const confirmName = useCallback(async () => {
+    if (!nameInput.trim()) return;
+    const name = nameInput.trim();
+    setPlayerName(name);
+    setNameConfirmed(true);
+    setLoading(true);
+    try {
+      const data = await apiCall("/api/game/trump-welcome", { playerName: name });
+      setTrumpQuote(data.text);
+      if (data.audio) {
+        playTrumpAudio(data.audio);
+      }
+    } catch {
+      setTrumpQuote(`${name}! You think you can make it to a BILLION? We'll see about that! Nobody does it like Trump!`);
+    }
+    setLoading(false);
+  }, [nameInput, apiCall, playTrumpAudio]);
+
+  const getTier = useCallback((netWorth: number) => {
+    if (netWorth < 5_000_000) return 1;
+    if (netWorth < 20_000_000) return 2;
+    if (netWorth < 100_000_000) return 3;
+    if (netWorth < 500_000_000) return 4;
+    return 5;
+  }, []);
+
+  const startNextTurn = useCallback(async () => {
+    setLoading(true);
     setShowConsequence(false);
     setLastChoice(null);
-    setUsedScenarios(prev => [...prev, scenario.id]);
-    setGameState(prev => ({ ...prev, turn: prev.turn + 1 }));
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setTimeout(() => scrollRef.current?.scrollTo({ y: 0, animated: true }), 100);
-  }, [getNextScenario]);
+    await cleanupSound();
 
-  const makeChoice = useCallback((choice: Choice) => {
+    try {
+      const tier = getTier(gameState.netWorth);
+      const data = await apiCall("/api/game/generate-scenario", {
+        tier,
+        netWorth: gameState.netWorth,
+        karma: gameState.karma,
+        previousTitles: usedTitles.slice(-10),
+        playerName,
+      });
+
+      const scenario: Scenario = {
+        id: data.id || "ai_" + Date.now(),
+        title: data.title,
+        description: data.description,
+        icon: data.icon || "💰",
+        industry: data.industry || "tech",
+        tier: data.tier || tier,
+        choices: data.choices,
+      };
+
+      setCurrentScenario(scenario);
+      setUsedTitles(prev => [...prev, scenario.title]);
+      setGameState(prev => ({ ...prev, turn: prev.turn + 1 }));
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    } catch (err) {
+      console.error("Failed to generate scenario:", err);
+      setTrumpQuote("The AI had a little hiccup. Even the best have off days! Try again!");
+    }
+    setLoading(false);
+    setTimeout(() => scrollRef.current?.scrollTo({ y: 0, animated: true }), 100);
+  }, [gameState, usedTitles, playerName, apiCall, getTier, cleanupSound]);
+
+  const makeChoice = useCallback(async (choice: Choice) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     setLastChoice(choice);
     setShowConsequence(true);
+    setTrumpSpeaking(true);
 
     const newNetWorth = Math.max(0, gameState.netWorth + choice.profit);
-    const reactionType = choice.karma <= -15 ? "dark" : choice.karma >= 10 ? "ethical" : "neutral";
-    setTrumpQuote(pickRandom(TRUMP_REACTIONS[reactionType]));
+    const newKarma = gameState.karma + choice.karma;
 
     setGameState(prev => ({
       ...prev,
@@ -452,31 +387,83 @@ export default function GameScreen() {
       karma: choice.karma,
     }]);
 
+    try {
+      const data = await apiCall("/api/game/trump-reaction", {
+        playerName,
+        choiceText: choice.text,
+        choiceKarma: choice.karma,
+        consequence: choice.consequence,
+        netWorth: newNetWorth,
+        totalKarma: newKarma,
+        turn: gameState.turn,
+      });
+      setTrumpQuote(data.reaction);
+      if (data.audio) {
+        playTrumpAudio(data.audio);
+      } else {
+        setTrumpSpeaking(false);
+      }
+    } catch {
+      const fallback = choice.karma <= -15
+        ? `${playerName}, that was RUTHLESS! I love it! Tremendous!`
+        : choice.karma >= 10
+        ? `${playerName}, you're a lightweight! Very low IQ move!`
+        : `${playerName}, not bad, not bad. But I'd do it BETTER!`;
+      setTrumpQuote(fallback);
+      setTrumpSpeaking(false);
+    }
+
     if (newNetWorth >= 1_000_000_000) {
       setTimeout(() => {
-        setGameWon(true);
-        setTrumpQuote(pickRandom(TRUMP_REACTIONS.billionaire));
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }, 2000);
+        if (newKarma < -30) {
+          setShowHellfire(true);
+        } else {
+          setGameWon(true);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
+      }, 3000);
     }
-  }, [gameState, currentScenario]);
+  }, [gameState, currentScenario, playerName, apiCall, playTrumpAudio]);
+
+  const handleHellfireComplete = useCallback(async () => {
+    setHellfireComplete(true);
+    try {
+      const data = await apiCall("/api/game/trump-hellfire", { playerName });
+      setTrumpQuote(data.text);
+      if (data.audio) {
+        playTrumpAudio(data.audio);
+      }
+    } catch {
+      setTrumpQuote(`Sorry to have to tell you ${playerName}... Nobody does it like Trump and gets away with it! And not burn in hell! Nobody!`);
+    }
+    setTimeout(() => {
+      setShowHellfire(false);
+      setHellfireComplete(false);
+      setGameWon(true);
+    }, 6000);
+  }, [playerName, apiCall, playTrumpAudio]);
 
   const handleReset = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    cleanupSound();
     setGameState({ netWorth: 1_000_000, karma: 0, turn: 0, empire: [], headlines: [], darkDeals: 0, politiciansBought: 0, livesAffected: 0 });
     setCurrentScenario(null);
     setShowConsequence(false);
     setLastChoice(null);
-    setUsedScenarios([]);
+    setUsedTitles([]);
     setChoiceHistory([]);
-    setTrumpQuote("NEW GAME! Fresh start. $1M. Will you sell your SOUL this time?");
+    setTrumpQuote("");
     setGameWon(false);
-    setShowSummary(false);
-  }, []);
+    setShowHellfire(false);
+    setHellfireComplete(false);
+    setNameConfirmed(false);
+    setPlayerName("");
+    setNameInput("");
+  }, [cleanupSound]);
 
   const handleShare = useCallback(() => {
     const darkPercent = choiceHistory.length > 0 ? Math.round((choiceHistory.filter(c => c.karma < -10).length / choiceHistory.length) * 100) : 0;
-    const shareText = `🎮 TRUMP BILLIONAIRES\n\n${titleInfo.emoji} ${titleInfo.label}\n💰 Net Worth: ${formatMoney(gameState.netWorth)}\n${karmaRating.icon === "heart" ? "❤️" : karmaRating.icon === "skull" ? "💀" : "⚡"} Moral Rating: ${karmaRating.label}\n🎭 Dark Deals: ${gameState.darkDeals}\n🏛️ Politicians Bought: ${gameState.politiciansBought}\n👥 Lives Affected: ${gameState.livesAffected.toLocaleString()}\n📊 ${darkPercent}% ruthless choices\n\n${gameWon ? "I reached $1 BILLION! 👑" : `Turn ${gameState.turn} — still climbing!`}\n\n👉 Play at chat-djt.replit.app`;
+    const shareText = `🎮 TRUMP BILLIONAIRES\n\n${titleInfo.emoji} ${titleInfo.label}\n💰 Net Worth: ${fmtMoney(gameState.netWorth)}\n⚡ Moral Rating: ${karmaRating.label}\n🎭 Dark Deals: ${gameState.darkDeals}\n📊 ${darkPercent}% ruthless choices\n\n${gameWon ? "I reached $1 BILLION! 👑" : `Turn ${gameState.turn} — still climbing!`}\n\n👉 Play at chat-djt.replit.app`;
     shareContent({ text: shareText, feature: "game" });
   }, [gameState, titleInfo, karmaRating, choiceHistory, gameWon]);
 
@@ -485,6 +472,69 @@ export default function GameScreen() {
     gameState.empire.forEach(i => { counts[i] = (counts[i] || 0) + 1; });
     return Object.entries(counts).sort((a, b) => b[1] - a[1]);
   }, [gameState.empire]);
+
+  if (showHellfire) {
+    return <HellfireAnimation playerName={playerName} onComplete={handleHellfireComplete} />;
+  }
+
+  if (!nameConfirmed) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top + webTopInset }]}>
+        <LinearGradient colors={["#0a0a14", "#000", "#140a0a"]} style={StyleSheet.absoluteFillObject} />
+        <View style={styles.header}>
+          <Pressable onPress={() => router.back()} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={22} color={Colors.gold} />
+          </Pressable>
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerTitle}>TRUMP BILLIONAIRES</Text>
+          </View>
+          <View style={{ width: 36 }} />
+        </View>
+        <View style={styles.nameInputContainer}>
+          <Animated.View entering={FadeInDown.duration(600)}>
+            <Image source={require("@/assets/images/trump-avatar.jpg")} style={styles.nameAvatar} />
+          </Animated.View>
+          <Animated.View entering={FadeInDown.delay(200).duration(500)}>
+            <Text style={styles.namePromptTitle}>WHAT'S YOUR NAME?</Text>
+            <Text style={styles.namePromptSub}>Trump needs to know who he's dealing with...</Text>
+          </Animated.View>
+          <Animated.View entering={FadeInDown.delay(400).duration(400)} style={{ width: "100%", maxWidth: 300 }}>
+            <TextInput
+              style={styles.nameTextInput}
+              placeholder="Enter your name..."
+              placeholderTextColor="rgba(255,255,255,0.3)"
+              value={nameInput}
+              onChangeText={setNameInput}
+              autoCapitalize="words"
+              autoFocus
+              maxLength={20}
+              onSubmitEditing={confirmName}
+              returnKeyType="go"
+            />
+          </Animated.View>
+          <Animated.View entering={FadeInDown.delay(600).duration(400)}>
+            <Pressable
+              onPress={confirmName}
+              disabled={!nameInput.trim() || loading}
+              style={({ pressed }) => [
+                styles.nameConfirmBtn,
+                !nameInput.trim() && { opacity: 0.4 },
+                pressed && { opacity: 0.8, transform: [{ scale: 0.97 }] },
+              ]}
+            >
+              <LinearGradient colors={[Colors.gold, Colors.goldDark || "#B8860B"]} style={styles.startBtnGradient}>
+                {loading ? (
+                  <ActivityIndicator color="#000" />
+                ) : (
+                  <Text style={styles.startBtnText}>LET'S GO!</Text>
+                )}
+              </LinearGradient>
+            </Pressable>
+          </Animated.View>
+        </View>
+      </View>
+    );
+  }
 
   if (!currentScenario && !gameWon) {
     return (
@@ -505,59 +555,45 @@ export default function GameScreen() {
 
           <Animated.View entering={FadeInDown.duration(600)} style={styles.introCard}>
             <LinearGradient colors={["#1a1408", "#0a0a04"]} style={StyleSheet.absoluteFillObject} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
-            <View style={{ position: "absolute", top: -30, right: -30, width: 120, height: 120, borderRadius: 60, backgroundColor: "rgba(212,164,32,0.06)" }} />
-            <View style={{ position: "absolute", bottom: -20, left: -20, width: 80, height: 80, borderRadius: 40, backgroundColor: "rgba(255,77,77,0.05)" }} />
-
-            <Animated.View style={[orbStyle, { position: "absolute", top: 10, right: 10, width: 60, height: 60 }]}>
-              <Text style={{ fontSize: 40 }}>💰</Text>
-            </Animated.View>
-
             <Text style={{ fontSize: 48, textAlign: "center", marginBottom: 8 }}>🏛️</Text>
-            <Text style={{ color: Colors.gold, fontSize: 22, fontWeight: "900", textAlign: "center", letterSpacing: 2 }}>THE PATH TO $1 BILLION</Text>
-            <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, textAlign: "center", marginTop: 8, lineHeight: 19, paddingHorizontal: 10 }}>
-              Every billionaire has secrets. Every fortune has a cost.{"\n"}How far will YOU go?
+            <Text style={{ color: Colors.gold, fontSize: 22, fontWeight: "900", textAlign: "center", letterSpacing: 2 }}>
+              THE PATH TO $1 BILLION
             </Text>
-
-            <View style={{ marginTop: 20, gap: 8 }}>
-              {[
-                { icon: "💊", label: "Pharmaceutical exploitation" },
-                { icon: "⛓️", label: "Private prison profiteering" },
-                { icon: "🏛️", label: "Buying politicians" },
-                { icon: "🏥", label: "Healthcare manipulation" },
-                { icon: "🛡️", label: "Military-industrial complex" },
-                { icon: "💰", label: "Corporate lobbying" },
-                { icon: "🏭", label: "Worker exploitation" },
-              ].map((item, i) => (
-                <Animated.View key={i} entering={FadeInDown.delay(200 + i * 80).duration(300)} style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                  <Text style={{ fontSize: 18 }}>{item.icon}</Text>
-                  <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 13 }}>{item.label}</Text>
-                </Animated.View>
-              ))}
-            </View>
+            <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, textAlign: "center", marginTop: 8, lineHeight: 19 }}>
+              Every billionaire has secrets. Every fortune has a cost.{"\n"}How far will YOU go, {playerName}?
+            </Text>
           </Animated.View>
 
-          <Animated.View entering={FadeInDown.delay(600).duration(400)}>
-            <View style={styles.trumpQuoteCard}>
-              <Image source={require("@/assets/images/trump-avatar.jpg")} style={styles.trumpAvatar} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.trumpQuoteText}>"{trumpQuote}"</Text>
+          {trumpQuote ? (
+            <Animated.View entering={FadeInDown.delay(300).duration(400)}>
+              <View style={styles.trumpQuoteCard}>
+                <Image source={require("@/assets/images/trump-avatar.jpg")} style={styles.trumpAvatar} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.trumpQuoteText}>"{trumpQuote}"</Text>
+                  {trumpSpeaking && (
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 }}>
+                      <Ionicons name="volume-high" size={12} color={Colors.gold} />
+                      <Text style={{ fontSize: 10, color: Colors.gold }}>Speaking...</Text>
+                    </View>
+                  )}
+                </View>
               </View>
-            </View>
-          </Animated.View>
+            </Animated.View>
+          ) : null}
 
           {gameState.turn > 0 && (
             <Animated.View entering={FadeInDown.delay(300).duration(400)}>
               <View style={styles.statsCard}>
                 <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{formatMoney(gameState.netWorth)}</Text>
+                  <Text style={styles.statValue}>{fmtMoney(gameState.netWorth)}</Text>
                   <Text style={styles.statLabel}>NET WORTH</Text>
                 </View>
-                <View style={[styles.statDivider]} />
+                <View style={styles.statDivider} />
                 <View style={styles.statItem}>
                   <Text style={[styles.statValue, { color: karmaRating.color }]}>{gameState.karma}</Text>
                   <Text style={styles.statLabel}>KARMA</Text>
                 </View>
-                <View style={[styles.statDivider]} />
+                <View style={styles.statDivider} />
                 <View style={styles.statItem}>
                   <Text style={styles.statValue}>{gameState.turn}</Text>
                   <Text style={styles.statLabel}>DEALS</Text>
@@ -566,13 +602,26 @@ export default function GameScreen() {
             </Animated.View>
           )}
 
-          <Animated.View entering={FadeInDown.delay(800).duration(400)}>
-            <Pressable onPress={startNextTurn} style={({ pressed }) => [styles.startBtn, pressed && { transform: [{ scale: 0.97 }], opacity: 0.8 }]}>
+          <Animated.View entering={FadeInDown.delay(500).duration(400)}>
+            <Pressable
+              onPress={startNextTurn}
+              disabled={loading}
+              style={({ pressed }) => [styles.startBtn, pressed && { transform: [{ scale: 0.97 }], opacity: 0.8 }]}
+            >
               <LinearGradient colors={[Colors.gold, Colors.goldDark || "#B8860B"]} style={styles.startBtnGradient}>
-                <Text style={styles.startBtnText}>{gameState.turn === 0 ? "BEGIN YOUR RISE" : "NEXT DEAL"}</Text>
-                <Text style={{ color: "rgba(0,0,0,0.5)", fontSize: 11, fontWeight: "700", marginTop: 2 }}>
-                  {gameState.turn === 0 ? "Start with $1M — reach $1B" : `Turn ${gameState.turn + 1} — ${formatMoney(1_000_000_000 - gameState.netWorth)} to go`}
-                </Text>
+                {loading ? (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <ActivityIndicator color="#000" size="small" />
+                    <Text style={styles.startBtnText}>GENERATING DEAL...</Text>
+                  </View>
+                ) : (
+                  <>
+                    <Text style={styles.startBtnText}>{gameState.turn === 0 ? "BEGIN YOUR RISE" : "NEXT DEAL"}</Text>
+                    <Text style={{ color: "rgba(0,0,0,0.5)", fontSize: 11, fontWeight: "700", marginTop: 2 }}>
+                      {gameState.turn === 0 ? `Start with $1M — reach $1B, ${playerName}` : `Turn ${gameState.turn + 1} — ${fmtMoney(1_000_000_000 - gameState.netWorth)} to go`}
+                    </Text>
+                  </>
+                )}
               </LinearGradient>
             </Pressable>
           </Animated.View>
@@ -589,17 +638,23 @@ export default function GameScreen() {
 
   if (gameWon) {
     const darkPercent = choiceHistory.length > 0 ? Math.round((choiceHistory.filter(c => c.karma < -10).length / choiceHistory.length) * 100) : 0;
+    const burnedInHell = gameState.karma < -30;
     return (
       <View style={[styles.container, { paddingTop: insets.top + webTopInset }]}>
-        <LinearGradient colors={["#1a1408", "#000", "#0a1408"]} style={StyleSheet.absoluteFillObject} />
+        <LinearGradient colors={burnedInHell ? ["#1a0000", "#000", "#330000"] : ["#1a1408", "#000", "#0a1408"]} style={StyleSheet.absoluteFillObject} />
         <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + webBottomInset + 30 }]} showsVerticalScrollIndicator={false}>
           <Animated.View entering={FadeInDown.duration(800)}>
             <View style={{ alignItems: "center", paddingTop: 30, paddingBottom: 20 }}>
-              <Text style={{ fontSize: 64 }}>👑</Text>
-              <Text style={{ color: Colors.gold, fontSize: 32, fontWeight: "900", letterSpacing: 3, marginTop: 10 }}>BILLIONAIRE</Text>
+              <Text style={{ fontSize: 64 }}>{burnedInHell ? "🔥" : "👑"}</Text>
+              <Text style={{ color: burnedInHell ? "#EF4444" : Colors.gold, fontSize: 32, fontWeight: "900", letterSpacing: 3, marginTop: 10 }}>
+                {burnedInHell ? "BURNED IN HELL" : "BILLIONAIRE"}
+              </Text>
               <Animated.Text style={[{ color: "#fff", fontSize: 42, fontWeight: "900", marginTop: 8 }, pulseStyle]}>
-                {formatMoney(gameState.netWorth)}
+                {fmtMoney(gameState.netWorth)}
               </Animated.Text>
+              <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 14, marginTop: 4 }}>
+                {playerName}'s Empire
+              </Text>
             </View>
           </Animated.View>
 
@@ -608,43 +663,33 @@ export default function GameScreen() {
               <Image source={require("@/assets/images/trump-avatar.jpg")} style={styles.trumpAvatar} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.trumpQuoteText}>"{trumpQuote}"</Text>
+                {trumpSpeaking && (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 }}>
+                    <Ionicons name="volume-high" size={12} color={Colors.gold} />
+                    <Text style={{ fontSize: 10, color: Colors.gold }}>Speaking...</Text>
+                  </View>
+                )}
               </View>
             </View>
           </Animated.View>
 
           <Animated.View entering={FadeInDown.delay(500).duration(600)}>
             <LinearGradient colors={["rgba(255,255,255,0.05)", "rgba(255,255,255,0.02)"]} style={styles.summaryCard}>
-              <Text style={styles.summaryTitle}>YOUR BILLIONAIRE PROFILE</Text>
-
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Moral Rating</Text>
-                <Text style={[styles.summaryValue, { color: karmaRating.color }]}>{karmaRating.label}</Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Karma Score</Text>
-                <Text style={[styles.summaryValue, { color: gameState.karma >= 0 ? "#22C55E" : "#EF4444" }]}>{gameState.karma}</Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Deals Made</Text>
-                <Text style={styles.summaryValue}>{gameState.turn}</Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Dark Deals</Text>
-                <Text style={[styles.summaryValue, { color: "#EF4444" }]}>{gameState.darkDeals}</Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Politicians Bought</Text>
-                <Text style={[styles.summaryValue, { color: "#7C3AED" }]}>{gameState.politiciansBought}</Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Lives Affected</Text>
-                <Text style={styles.summaryValue}>{gameState.livesAffected.toLocaleString()}</Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Ruthless Choices</Text>
-                <Text style={[styles.summaryValue, { color: "#F97316" }]}>{darkPercent}%</Text>
-              </View>
-
+              <Text style={styles.summaryTitle}>{playerName}'s BILLIONAIRE PROFILE</Text>
+              {[
+                { label: "Moral Rating", value: karmaRating.label, color: karmaRating.color },
+                { label: "Karma Score", value: String(gameState.karma), color: gameState.karma >= 0 ? "#22C55E" : "#EF4444" },
+                { label: "Deals Made", value: String(gameState.turn), color: "#fff" },
+                { label: "Dark Deals", value: String(gameState.darkDeals), color: "#EF4444" },
+                { label: "Politicians Bought", value: String(gameState.politiciansBought), color: "#7C3AED" },
+                { label: "Lives Affected", value: gameState.livesAffected.toLocaleString(), color: "#fff" },
+                { label: "Ruthless Choices", value: `${darkPercent}%`, color: "#F97316" },
+              ].map((row, i) => (
+                <View key={i} style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>{row.label}</Text>
+                  <Text style={[styles.summaryValue, { color: row.color }]}>{row.value}</Text>
+                </View>
+              ))}
               {industryBreakdown.length > 0 && (
                 <View style={{ marginTop: 16 }}>
                   <Text style={[styles.summaryTitle, { fontSize: 12, marginBottom: 8 }]}>EMPIRE BREAKDOWN</Text>
@@ -688,7 +733,7 @@ export default function GameScreen() {
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>DEAL #{gameState.turn}</Text>
           <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", fontWeight: "600" as const }}>
-            {formatMoney(gameState.netWorth)} • {karmaRating.label}
+            {fmtMoney(gameState.netWorth)} • {karmaRating.label} • {playerName}
           </Text>
         </View>
         <Pressable onPress={handleShare} style={styles.shareBtn}>
@@ -705,7 +750,7 @@ export default function GameScreen() {
           />
         </View>
         <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 4 }}>
-          <Text style={{ fontSize: 9, color: "rgba(255,255,255,0.3)" }}>{formatMoney(gameState.netWorth)}</Text>
+          <Text style={{ fontSize: 9, color: "rgba(255,255,255,0.3)" }}>{fmtMoney(gameState.netWorth)}</Text>
           <Text style={{ fontSize: 9, color: "rgba(255,255,255,0.3)" }}>$1B GOAL</Text>
         </View>
       </View>
@@ -723,25 +768,20 @@ export default function GameScreen() {
               style={styles.scenarioCard}
             >
               <View style={{ position: "absolute", top: -1, left: 20, right: 20, height: 3, borderRadius: 2, backgroundColor: INDUSTRY_COLORS[currentScenario.industry] + "60" }} />
-
               <View style={styles.scenarioHeader}>
                 <Text style={{ fontSize: 36 }}>{currentScenario.icon}</Text>
                 <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                    <Text style={[styles.scenarioTitle, { color: INDUSTRY_COLORS[currentScenario.industry] }]}>{currentScenario.title}</Text>
-                  </View>
+                  <Text style={[styles.scenarioTitle, { color: INDUSTRY_COLORS[currentScenario.industry] }]}>{currentScenario.title}</Text>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 }}>
                     <Ionicons name={(INDUSTRY_ICONS[currentScenario.industry]) as any} size={12} color={INDUSTRY_COLORS[currentScenario.industry]} />
                     <Text style={{ fontSize: 10, color: INDUSTRY_COLORS[currentScenario.industry], fontWeight: "700", textTransform: "uppercase", letterSpacing: 1 }}>{currentScenario.industry}</Text>
                   </View>
                 </View>
               </View>
-
               <Text style={styles.scenarioDesc}>{currentScenario.description}</Text>
 
               <View style={{ marginTop: 20, gap: 12 }}>
                 {currentScenario.choices.map((choice, i) => {
-                  const isProfit = choice.profit > 0;
                   const isDark = choice.karma <= -15;
                   const isGood = choice.karma >= 10;
                   const borderColor = isDark ? "#EF4444" : isGood ? "#22C55E" : "#F59E0B";
@@ -749,6 +789,7 @@ export default function GameScreen() {
                     <Animated.View key={i} entering={FadeInDown.delay(200 + i * 150).duration(300)}>
                       <Pressable
                         onPress={() => makeChoice(choice)}
+                        disabled={loading}
                         style={({ pressed }) => [
                           styles.choiceBtn,
                           { borderColor: borderColor + "40", backgroundColor: borderColor + "08" },
@@ -759,15 +800,9 @@ export default function GameScreen() {
                           <View style={[styles.karmaBadge, { backgroundColor: borderColor + "20", borderColor: borderColor + "40" }]}>
                             <Text style={[styles.karmaBadgeText, { color: borderColor }]}>{choice.karmaLabel}</Text>
                           </View>
-                          {isProfit && (
-                            <Text style={{ fontSize: 11, color: "#22C55E", fontWeight: "800" }}>+{formatMoney(choice.profit)}</Text>
-                          )}
-                          {choice.profit === 0 && (
-                            <Text style={{ fontSize: 11, color: "#888", fontWeight: "800" }}>$0</Text>
-                          )}
-                          {choice.profit < 0 && (
-                            <Text style={{ fontSize: 11, color: "#EF4444", fontWeight: "800" }}>{formatMoney(choice.profit)}</Text>
-                          )}
+                          <Text style={{ fontSize: 11, color: choice.profit >= 0 ? "#22C55E" : "#EF4444", fontWeight: "800" }}>
+                            {choice.profit >= 0 ? "+" : ""}{fmtMoney(choice.profit)}
+                          </Text>
                         </View>
                         <Text style={styles.choiceText}>{choice.text}</Text>
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6 }}>
@@ -799,7 +834,7 @@ export default function GameScreen() {
                   </Text>
                   <View style={{ flexDirection: "row", gap: 12, marginTop: 4 }}>
                     <Text style={{ fontSize: 12, color: lastChoice.profit >= 0 ? "#22C55E" : "#EF4444", fontWeight: "800" }}>
-                      {lastChoice.profit >= 0 ? "+" : ""}{formatMoney(lastChoice.profit)}
+                      {lastChoice.profit >= 0 ? "+" : ""}{fmtMoney(lastChoice.profit)}
                     </Text>
                     <Text style={{ fontSize: 12, color: lastChoice.karma >= 0 ? "#22C55E" : "#EF4444", fontWeight: "800" }}>
                       {lastChoice.karma > 0 ? "+" : ""}{lastChoice.karma} karma
@@ -810,16 +845,22 @@ export default function GameScreen() {
 
               <Text style={styles.consequenceText}>{lastChoice.consequence}</Text>
 
-              <View style={styles.trumpQuoteCard}>
+              <View style={[styles.trumpQuoteCard, trumpSpeaking && { borderLeftColor: "#22C55E" }]}>
                 <Image source={require("@/assets/images/trump-avatar.jpg")} style={[styles.trumpAvatar, { width: 32, height: 32 }]} />
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.trumpQuoteText, { fontSize: 12 }]}>"{trumpQuote}"</Text>
+                  {trumpSpeaking && (
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 }}>
+                      <Ionicons name="volume-high" size={12} color={Colors.gold} />
+                      <Text style={{ fontSize: 10, color: Colors.gold }}>Trump is speaking...</Text>
+                    </View>
+                  )}
                 </View>
               </View>
 
               <View style={{ flexDirection: "row", gap: 12, marginTop: 16 }}>
                 <View style={styles.miniStat}>
-                  <Text style={styles.miniStatValue}>{formatMoney(gameState.netWorth)}</Text>
+                  <Text style={styles.miniStatValue}>{fmtMoney(gameState.netWorth)}</Text>
                   <Text style={styles.miniStatLabel}>NET WORTH</Text>
                 </View>
                 <View style={styles.miniStat}>
@@ -832,12 +873,25 @@ export default function GameScreen() {
                 </View>
               </View>
 
-              <Pressable onPress={startNextTurn} style={({ pressed }) => [styles.startBtn, { marginTop: 20 }, pressed && { opacity: 0.8, transform: [{ scale: 0.97 }] }]}>
+              <Pressable
+                onPress={startNextTurn}
+                disabled={loading}
+                style={({ pressed }) => [styles.startBtn, { marginTop: 20 }, pressed && { opacity: 0.8, transform: [{ scale: 0.97 }] }]}
+              >
                 <LinearGradient colors={[Colors.gold, Colors.goldDark || "#B8860B"]} style={styles.startBtnGradient}>
-                  <Text style={styles.startBtnText}>NEXT DEAL</Text>
-                  <Text style={{ color: "rgba(0,0,0,0.4)", fontSize: 10, fontWeight: "700" }}>
-                    {formatMoney(1_000_000_000 - gameState.netWorth)} to go
-                  </Text>
+                  {loading ? (
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <ActivityIndicator color="#000" size="small" />
+                      <Text style={styles.startBtnText}>GENERATING...</Text>
+                    </View>
+                  ) : (
+                    <>
+                      <Text style={styles.startBtnText}>NEXT DEAL</Text>
+                      <Text style={{ color: "rgba(0,0,0,0.4)", fontSize: 10, fontWeight: "700" }}>
+                        {fmtMoney(1_000_000_000 - gameState.netWorth)} to go
+                      </Text>
+                    </>
+                  )}
                 </LinearGradient>
               </Pressable>
             </LinearGradient>
@@ -882,6 +936,35 @@ const styles = StyleSheet.create({
     ...Platform.select({
       web: { maxWidth: 600, alignSelf: "center" as any, width: "100%" as any },
     }),
+  },
+  nameInputContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 30,
+    gap: 20,
+    marginTop: -40,
+  },
+  nameAvatar: {
+    width: 100, height: 100, borderRadius: 50,
+    borderWidth: 3, borderColor: Colors.gold,
+  },
+  namePromptTitle: {
+    fontSize: 22, fontWeight: "900" as const, color: Colors.gold,
+    textAlign: "center", letterSpacing: 2,
+  },
+  namePromptSub: {
+    fontSize: 14, color: "rgba(255,255,255,0.5)", textAlign: "center", marginTop: 6,
+  },
+  nameTextInput: {
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1.5, borderColor: "rgba(212,164,32,0.3)",
+    borderRadius: 14, paddingHorizontal: 20, paddingVertical: 14,
+    fontSize: 18, color: "#fff", textAlign: "center",
+    fontWeight: "700" as const,
+  },
+  nameConfirmBtn: {
+    borderRadius: 14, overflow: "hidden", width: 200,
   },
   progressContainer: { paddingHorizontal: 16, marginBottom: 8 },
   progressBg: {
@@ -1005,5 +1088,49 @@ const styles = StyleSheet.create({
   },
   summaryValue: {
     fontSize: 13, fontWeight: "800" as const, color: "#fff",
+  },
+  hellfireOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 999,
+  },
+  hellfirePlayerIcon: {
+    alignItems: "center",
+    zIndex: 10,
+  },
+  hellfireAvatar: {
+    width: 80, height: 80, borderRadius: 40,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    justifyContent: "center", alignItems: "center",
+    borderWidth: 3, borderColor: Colors.gold,
+  },
+  hellfirePlayerName: {
+    color: "#fff", fontSize: 18, fontWeight: "900" as const,
+    marginTop: 8, letterSpacing: 1,
+  },
+  hellfireFlames: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 200,
+    justifyContent: "flex-end",
+  },
+  hellfireText: {
+    color: "#EF4444",
+    fontSize: 24,
+    fontWeight: "900" as const,
+    textAlign: "center",
+    letterSpacing: 3,
+    textShadowColor: "#ff0000",
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 20,
+  },
+  hellfireSubtext: {
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 14,
+    textAlign: "center",
+    marginTop: 8,
   },
 });
