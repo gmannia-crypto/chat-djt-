@@ -456,6 +456,10 @@ function configureExpoAndLanding(app: express.Application) {
   }
 
   app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.path === "/" || req.path.includes(".bundle") || req.path === "/manifest") {
+      log(`[REQ] ${req.method} ${req.path} expo-platform=${req.header("expo-platform") || "none"} accept-encoding=${req.header("accept-encoding") || "none"} user-agent=${(req.header("user-agent") || "").substring(0, 60)}`);
+    }
+
     if (req.path.startsWith("/api") || req.path === "/status" || req.path === "/therapy-viral" || req.path === "/therapy-multi" || req.path === "/financial-faceoff" || req.path === "/sports-betting" || (req.path === "/subscribe" && (req.query.success || req.query.canceled))) {
       return next();
     }
