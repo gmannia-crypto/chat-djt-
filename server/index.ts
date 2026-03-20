@@ -597,18 +597,14 @@ async function initStripe() {
         port,
         host: "0.0.0.0",
       },
-      () => {
+      async () => {
         log(`express server serving on port ${port}`);
-        if (port !== 80) {
-          const { spawn: spawnChild } = require("child_process");
-          const fwd = spawnChild(process.execPath, [path.resolve(process.cwd(), "scripts", "port80-forward.js")], {
-            stdio: "inherit",
-            detached: false,
-          });
-          fwd.on("error", () => {});
+        try {
+          await initStripe();
+        } catch (err) {
+          console.error("Stripe init error:", err);
         }
-        spawnMetro();
-        initStripe().catch((err) => console.error("Stripe init error:", err));
+        setTimeout(() => spawnMetro(), 2000);
       },
     );
     server.on("error", (err: any) => {
@@ -649,10 +645,10 @@ async function initStripe() {
               socket.on("error", () => proxySocket.destroy());
             });
           }
-          newServer.listen({ port, host: "0.0.0.0" }, () => {
+          newServer.listen({ port, host: "0.0.0.0" }, async () => {
             log(`express server serving on port ${port} (retry ${attempt})`);
-            spawnMetro();
-            initStripe().catch((err) => console.error("Stripe init error:", err));
+            try { await initStripe(); } catch (err) { console.error("Stripe init error:", err); }
+            setTimeout(() => spawnMetro(), 2000);
           });
           newServer.on("error", (retryErr: any) => {
             if (retryErr.code === "EADDRINUSE" && attempt < 5) {
