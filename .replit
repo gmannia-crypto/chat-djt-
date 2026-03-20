@@ -72,7 +72,7 @@ outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "node scripts/cleanup-ports.js && NODE_OPTIONS='--max-old-space-size=256' npm run server:dev"
+args = "node scripts/cleanup-ports.js && npm run server:dev"
 waitForPort = 5000
 
 [userenv]

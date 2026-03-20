@@ -82,15 +82,24 @@ async function spawnMetro() {
 
   function preWarmBundle() {
     const bundleUrl = `http://localhost:${METRO_PORT}/node_modules/expo-router/entry.bundle?platform=android&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.bytecode=1&transform.routerRoot=app&transform.reactCompiler=true&unstable_transformProfile=hermes-stable`;
+    const cacheDir = path.resolve(process.cwd(), ".bundle-cache");
+    if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
+
     const checkReady = () => {
       http.get(`http://localhost:${METRO_PORT}/status`, (statusRes) => {
         if (statusRes.statusCode === 200) {
           log("[pre-warm] Metro ready, compiling Android bundle...");
           http.get(bundleUrl, (bundleRes) => {
-            let size = 0;
-            bundleRes.on("data", (chunk: Buffer) => { size += chunk.length; });
+            const chunks: Buffer[] = [];
+            bundleRes.on("data", (chunk: Buffer) => { chunks.push(chunk); });
             bundleRes.on("end", () => {
-              log(`[pre-warm] Bundle ready: ${(size / 1024 / 1024).toFixed(1)}MB`);
+              const bundle = Buffer.concat(chunks);
+              const bundlePath = path.join(cacheDir, "android.bundle");
+              const gzPath = path.join(cacheDir, "android.bundle.gz");
+              fs.writeFileSync(bundlePath, bundle);
+              const compressed = zlib.gzipSync(bundle, { level: 1 });
+              fs.writeFileSync(gzPath, compressed);
+              log(`[pre-warm] Bundle saved: ${(bundle.length / 1024 / 1024).toFixed(1)}MB raw, ${(compressed.length / 1024 / 1024).toFixed(1)}MB gzip`);
             });
           }).on("error", (err) => {
             log(`[pre-warm] Bundle fetch failed: ${err.message}`);
@@ -352,10 +361,32 @@ function serveLandingPage({
 
 function proxyToMetro(req: Request, res: Response) {
   const proxyPath = req.originalUrl;
+  const isBundle = req.path.endsWith(".bundle") && req.path.includes("entry.bundle");
+
+  if (isBundle) {
+    const cacheDir = path.resolve(process.cwd(), ".bundle-cache");
+    const acceptsGzip = (req.headers["accept-encoding"] || "").toString().includes("gzip");
+    const gzPath = path.join(cacheDir, "android.bundle.gz");
+    const rawPath = path.join(cacheDir, "android.bundle");
+
+    if (acceptsGzip && fs.existsSync(gzPath)) {
+      log(`[bundle] Serving cached gzip bundle`);
+      res.setHeader("Content-Type", "application/javascript");
+      res.setHeader("Content-Encoding", "gzip");
+      res.setHeader("Content-Length", fs.statSync(gzPath).size);
+      return fs.createReadStream(gzPath).pipe(res);
+    }
+    if (fs.existsSync(rawPath)) {
+      log(`[bundle] Serving cached raw bundle`);
+      res.setHeader("Content-Type", "application/javascript");
+      res.setHeader("Content-Length", fs.statSync(rawPath).size);
+      return fs.createReadStream(rawPath).pipe(res);
+    }
+    log(`[bundle] No cache, proxying to Metro`);
+  }
+
   const maxRetries = 30;
   const retryDelay = 2000;
-  const isBundle = req.path.endsWith(".bundle");
-  const acceptsGzip = (req.headers["accept-encoding"] || "").toString().includes("gzip");
 
   function attempt(retryCount: number) {
     if (res.headersSent || res.destroyed) return;
@@ -363,7 +394,6 @@ function proxyToMetro(req: Request, res: Response) {
     const proxyHeaders = { ...req.headers, host: `localhost:${METRO_PORT}` };
     delete proxyHeaders.origin;
     delete proxyHeaders.referer;
-    delete proxyHeaders["accept-encoding"];
 
     const options: http.RequestOptions = {
       hostname: "localhost",
@@ -379,18 +409,8 @@ function proxyToMetro(req: Request, res: Response) {
       if (status >= 400) {
         log(`[proxy] ${status} ${req.method} ${req.path}`);
       }
-
-      if (isBundle && acceptsGzip && status === 200) {
-        const headers = { ...proxyRes.headers };
-        delete headers["content-length"];
-        headers["content-encoding"] = "gzip";
-        res.writeHead(status, headers);
-        const gz = zlib.createGzip({ level: 1 });
-        proxyRes.pipe(gz).pipe(res, { end: true });
-      } else {
-        res.writeHead(status, proxyRes.headers);
-        proxyRes.pipe(res, { end: true });
-      }
+      res.writeHead(status, proxyRes.headers);
+      proxyRes.pipe(res, { end: true });
     });
 
     proxyReq.on("error", () => {
