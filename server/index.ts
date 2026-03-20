@@ -324,7 +324,7 @@ function serveLandingPage({
 function proxyToMetro(req: Request, res: Response) {
   const isRootPage = req.path === "/" && req.method === "GET";
 
-  const proxyPath = isRootPage ? req.originalUrl : req.originalUrl.replace(/lazy=true/g, "lazy=false");
+  const proxyPath = req.originalUrl;
 
   const proxyHeaders = { ...req.headers, host: `localhost:${METRO_PORT}` };
   delete proxyHeaders.origin;
@@ -344,22 +344,8 @@ function proxyToMetro(req: Request, res: Response) {
       log(`[proxy] ${status} ${req.method} ${req.path}`);
     }
 
-    if (isRootPage && proxyRes.headers["content-type"]?.includes("text/html")) {
-      let body = "";
-      proxyRes.on("data", (chunk: Buffer) => { body += chunk.toString(); });
-      proxyRes.on("end", () => {
-        body = body.replace(/lazy=true/g, "lazy=false");
-        const headers = { ...proxyRes.headers };
-        delete headers["content-length"];
-        delete headers["transfer-encoding"];
-        headers["content-length"] = String(Buffer.byteLength(body));
-        res.writeHead(status, headers);
-        res.end(body);
-      });
-    } else {
-      res.writeHead(status, proxyRes.headers);
-      proxyRes.pipe(res, { end: true });
-    }
+    res.writeHead(status, proxyRes.headers);
+    proxyRes.pipe(res, { end: true });
   });
 
   proxyReq.on("error", () => {
