@@ -14,6 +14,7 @@ import {
   useToken,
   grantSubscriptionTokens,
   grantTokenPack,
+  grantRewardTokens,
   refreshSubscriptionTokens,
   cancelSubscription,
   TOKEN_PACKS,
@@ -2396,6 +2397,155 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     } catch (err: any) {
       console.error("Arena leaderboard error:", err);
       res.json({ leaderboard: [] });
+    }
+  });
+
+  app.post("/api/arena/track-usage", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const { minutesSpent, userName } = req.body;
+      const mins = Math.max(1, Math.min(60, parseInt(minutesSpent) || 1));
+      const db = (await import("pg")).default;
+      const pool = new db.Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      await pool.query(
+        `CREATE TABLE IF NOT EXISTS arena_user_usage (
+          device_id TEXT PRIMARY KEY,
+          user_name TEXT DEFAULT 'Anonymous',
+          total_minutes INTEGER DEFAULT 0,
+          total_sessions INTEGER DEFAULT 0,
+          total_votes_cast INTEGER DEFAULT 0,
+          tokens_rewarded INTEGER DEFAULT 0,
+          last_reward_at TIMESTAMPTZ,
+          created_at TIMESTAMPTZ DEFAULT NOW(),
+          updated_at TIMESTAMPTZ DEFAULT NOW()
+        )`
+      );
+      await pool.query(
+        `INSERT INTO arena_user_usage (device_id, user_name, total_minutes, total_sessions, updated_at)
+         VALUES ($1, $2, $3, 1, NOW())
+         ON CONFLICT (device_id) DO UPDATE SET
+           user_name = COALESCE(NULLIF($2, ''), arena_user_usage.user_name),
+           total_minutes = arena_user_usage.total_minutes + $3,
+           total_sessions = arena_user_usage.total_sessions + 1,
+           updated_at = NOW()`,
+        [deviceId, userName || "Anonymous", mins]
+      );
+      const usage = await pool.query(`SELECT * FROM arena_user_usage WHERE device_id = $1`, [deviceId]);
+      const row = usage.rows[0];
+      const totalMins = parseInt(row?.total_minutes || "0");
+      const tokensRewarded = parseInt(row?.tokens_rewarded || "0");
+      const lastRewardAt = row?.last_reward_at ? new Date(row.last_reward_at).getTime() : 0;
+      const now = Date.now();
+      const REWARD_TIERS = [
+        { minutes: 15, tokens: 2, label: "Arena Rookie" },
+        { minutes: 30, tokens: 3, label: "Arena Regular" },
+        { minutes: 60, tokens: 5, label: "Arena Veteran" },
+        { minutes: 120, tokens: 8, label: "Arena Champion" },
+        { minutes: 300, tokens: 15, label: "Arena Legend" },
+      ];
+      let newReward = null;
+      for (const tier of REWARD_TIERS) {
+        if (totalMins >= tier.minutes && tokensRewarded < tier.tokens * Math.floor(totalMins / tier.minutes)) {
+          if (now - lastRewardAt > 30 * 60 * 1000) {
+            const rewardTokens = tier.tokens;
+            await grantRewardTokens(deviceId, rewardTokens, `Arena ${tier.label} reward - ${totalMins} minutes played`);
+            await pool.query(
+              `UPDATE arena_user_usage SET tokens_rewarded = tokens_rewarded + $2, last_reward_at = NOW() WHERE device_id = $1`,
+              [deviceId, rewardTokens]
+            );
+            newReward = { tokens: rewardTokens, badge: tier.label, totalMinutes: totalMins };
+            break;
+          }
+        }
+      }
+      await pool.end();
+      const balance = await getTokenBalance(deviceId);
+      res.json({ totalMinutes: totalMins, totalSessions: parseInt(row?.total_sessions || "0") + 1, tokensRewarded: tokensRewarded + (newReward?.tokens || 0), reward: newReward, balance });
+    } catch (err: any) {
+      console.error("Arena track-usage error:", err);
+      res.status(500).json({ error: "Failed to track usage" });
+    }
+  });
+
+  app.get("/api/arena/global-leaderboard", async (_req, res) => {
+    try {
+      const db = (await import("pg")).default;
+      const pool = new db.Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      await pool.query(
+        `CREATE TABLE IF NOT EXISTS arena_user_usage (
+          device_id TEXT PRIMARY KEY,
+          user_name TEXT DEFAULT 'Anonymous',
+          total_minutes INTEGER DEFAULT 0,
+          total_sessions INTEGER DEFAULT 0,
+          total_votes_cast INTEGER DEFAULT 0,
+          tokens_rewarded INTEGER DEFAULT 0,
+          last_reward_at TIMESTAMPTZ,
+          created_at TIMESTAMPTZ DEFAULT NOW(),
+          updated_at TIMESTAMPTZ DEFAULT NOW()
+        )`
+      );
+      const users = await pool.query(
+        `SELECT user_name, total_minutes, total_sessions, total_votes_cast, tokens_rewarded
+         FROM arena_user_usage ORDER BY total_minutes DESC LIMIT 50`
+      );
+      const personas = await pool.query(
+        `SELECT persona_id, total_points, total_votes FROM arena_persona_scores ORDER BY total_points DESC`
+      );
+      await pool.end();
+      res.json({
+        topUsers: users.rows.map((r: any, i: number) => ({
+          rank: i + 1,
+          name: r.user_name || "Anonymous",
+          totalMinutes: parseInt(r.total_minutes),
+          totalSessions: parseInt(r.total_sessions),
+          totalVotes: parseInt(r.total_votes_cast),
+          tokensEarned: parseInt(r.tokens_rewarded),
+        })),
+        topPersonas: personas.rows.map((r: any) => ({
+          personaId: r.persona_id,
+          totalPoints: parseInt(r.total_points),
+          totalVotes: parseInt(r.total_votes),
+        })),
+      });
+    } catch (err: any) {
+      console.error("Global leaderboard error:", err);
+      res.json({ topUsers: [], topPersonas: [] });
+    }
+  });
+
+  app.post("/api/arena/track-vote", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const db = (await import("pg")).default;
+      const pool = new db.Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      await pool.query(
+        `CREATE TABLE IF NOT EXISTS arena_user_usage (
+          device_id TEXT PRIMARY KEY,
+          user_name TEXT DEFAULT 'Anonymous',
+          total_minutes INTEGER DEFAULT 0,
+          total_sessions INTEGER DEFAULT 0,
+          total_votes_cast INTEGER DEFAULT 0,
+          tokens_rewarded INTEGER DEFAULT 0,
+          last_reward_at TIMESTAMPTZ,
+          created_at TIMESTAMPTZ DEFAULT NOW(),
+          updated_at TIMESTAMPTZ DEFAULT NOW()
+        )`
+      );
+      await pool.query(
+        `INSERT INTO arena_user_usage (device_id, total_votes_cast, updated_at)
+         VALUES ($1, 1, NOW())
+         ON CONFLICT (device_id) DO UPDATE SET
+           total_votes_cast = arena_user_usage.total_votes_cast + 1,
+           updated_at = NOW()`,
+        [deviceId]
+      );
+      await pool.end();
+      res.json({ ok: true });
+    } catch (err: any) {
+      console.error("Track vote error:", err);
+      res.status(500).json({ error: "Failed" });
     }
   });
 

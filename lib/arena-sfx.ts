@@ -192,22 +192,30 @@ export async function playCrowdCheer() {
 export async function playBreakingNewsAlert() {
   if (Platform.OS === "web") {
     try {
-      playWebTone(880, 0.12, "sine", 0.12);
-      setTimeout(() => playWebTone(1100, 0.12, "sine", 0.12), 120);
-      setTimeout(() => playWebTone(880, 0.12, "sine", 0.12), 240);
+      playWebTone(880, 0.15, "square", 0.2);
+      playWebTone(440, 0.15, "sine", 0.1);
       setTimeout(() => {
-        playWebTone(1320, 0.25, "sine", 0.15);
-        playWebTone(660, 0.25, "triangle", 0.08);
-      }, 400);
+        playWebTone(1100, 0.15, "square", 0.2);
+        playWebTone(550, 0.15, "sine", 0.1);
+      }, 150);
+      setTimeout(() => {
+        playWebTone(880, 0.15, "square", 0.2);
+        playWebTone(440, 0.15, "sine", 0.1);
+      }, 300);
+      setTimeout(() => {
+        playWebTone(1320, 0.4, "square", 0.25);
+        playWebTone(660, 0.4, "sine", 0.15);
+        playWebTone(990, 0.4, "triangle", 0.1);
+      }, 500);
     } catch {}
   } else {
     try {
       await ensureAudioMode();
       const { sound } = await Audio.Sound.createAsync(
         { uri: "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQ==" },
-        { shouldPlay: true, volume: 0.25 }
+        { shouldPlay: true, volume: 0.5 }
       );
-      setTimeout(() => sound.unloadAsync().catch(() => {}), 1000);
+      setTimeout(() => sound.unloadAsync().catch(() => {}), 1500);
     } catch (e) {
       console.warn("SFX breaking-news alert failed:", e);
     }

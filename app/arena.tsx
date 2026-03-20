@@ -1222,6 +1222,8 @@ export default function ArenaScreen() {
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
   const [customTopicText, setCustomTopicText] = useState("");
   const [useCustomTopic, setUseCustomTopic] = useState(false);
+  const [showGlobalLeaderboard, setShowGlobalLeaderboard] = useState(false);
+  const [globalLeaderboardData, setGlobalLeaderboardData] = useState<{ topUsers: any[]; topPersonas: any[] }>({ topUsers: [], topPersonas: [] });
   const [breakingNewsBanner, setBreakingNewsBanner] = useState<{ headline: string; source: string } | null>(null);
   const breakingNewsBannerRef = useRef<{ headline: string; source: string } | null>(null);
   const lastBreakingNewsIdRef = useRef<string>("");
@@ -1320,11 +1322,17 @@ export default function ArenaScreen() {
 
     try {
       const baseUrl = getApiUrl().replace(/\/$/, "");
+      const voteHeaders: Record<string, string> = { "Content-Type": "application/json" };
+      if (deviceId) voteHeaders["x-device-id"] = deviceId;
       const res = await fetch(`${baseUrl}/api/arena/vote`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: voteHeaders,
         body: JSON.stringify({ personaId, points: 1 }),
       });
+      fetch(`${baseUrl}/api/arena/track-vote`, {
+        method: "POST",
+        headers: voteHeaders,
+      }).catch(() => {});
       const ct = res.headers.get("content-type") || "";
       if (ct.includes("application/json")) {
         const data = await res.json();
@@ -1739,6 +1747,29 @@ export default function ArenaScreen() {
         playBellSound();
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         addSystemMessage("TIME'S UP! The bell has rung!");
+        (async () => {
+          try {
+            const sessionMins = Math.max(1, Math.round((Date.now() - (sessionExpiresAt - (hasSession ? sessionTimer * 1000 : 0))) / 60000));
+            const headers: Record<string, string> = { "Content-Type": "application/json" };
+            if (deviceId) headers["x-device-id"] = deviceId;
+            const trackRes = await fetch(new URL("/api/arena/track-usage", getApiUrl()).toString(), {
+              method: "POST",
+              headers,
+              body: JSON.stringify({ minutesSpent: sessionMins, userName: userNameRef.current || "Anonymous" }),
+            });
+            if (trackRes.ok) {
+              const trackData = await trackRes.json();
+              if (trackData.reward) {
+                setTimeout(() => {
+                  addSystemMessage(`🏆 REWARD UNLOCKED: "${trackData.reward.badge}" — You earned ${trackData.reward.tokens} FREE tokens for ${trackData.reward.totalMinutes} minutes in the Arena!`);
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                  playCrowdCheer();
+                  refreshBalance();
+                }, 3000);
+              }
+            }
+          } catch {}
+        })();
         const totalPts = Object.values(personaPointsRef.current).reduce((a, b) => a + b, 0);
         if (totalPts > 0) {
           setTimeout(() => {
@@ -2428,10 +2459,10 @@ export default function ArenaScreen() {
     const waitForClear = () => {
       if (sessionEndedRef.current) return;
       if (isInterruptingRef.current || currentSpeakerRef.current) {
-        conversationTimerRef.current = setTimeout(waitForClear, 250);
+        conversationTimerRef.current = setTimeout(waitForClear, 100);
         return;
       }
-      const delay = 500 + Math.random() * 500;
+      const delay = 50 + Math.random() * 100;
       conversationTimerRef.current = setTimeout(async () => {
         if (!mountedRef.current || sessionEndedRef.current) return;
         await decideNextSpeaker();
@@ -3072,6 +3103,17 @@ export default function ArenaScreen() {
           <Ionicons name="albums-outline" size={14} color="#D4A420" />
           <Text style={s.arenaActionBtnText}>REPLAYS</Text>
         </Pressable>
+        <Pressable onPress={async () => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          try {
+            const res = await fetch(new URL("/api/arena/global-leaderboard", getApiUrl()).toString());
+            if (res.ok) setGlobalLeaderboardData(await res.json());
+          } catch {}
+          setShowGlobalLeaderboard(true);
+        }} style={s.arenaActionBtn} hitSlop={8}>
+          <Ionicons name="trophy-outline" size={14} color="#D4A420" />
+          <Text style={s.arenaActionBtnText}>GLOBAL</Text>
+        </Pressable>
       </Animated.View>
 
       {breakingNewsBanner && (
@@ -3413,6 +3455,69 @@ export default function ArenaScreen() {
           }}
         />
       </Animated.View>
+
+      <Modal visible={showGlobalLeaderboard} transparent animationType="slide">
+        <View style={s.selectorOverlay}>
+          <View style={[s.selectorCard, { maxHeight: "85%" }]}>
+            <View style={s.selectorHeader}>
+              <Text style={s.selectorTitle}>🏆 GLOBAL ARENA LEADERBOARD</Text>
+              <Pressable onPress={() => setShowGlobalLeaderboard(false)}>
+                <Ionicons name="close" size={24} color="#fff" />
+              </Pressable>
+            </View>
+            <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+              <Text style={{ color: "#FFD700", fontSize: 14, fontWeight: "900", marginBottom: 8, letterSpacing: 1 }}>TOP VOTERS</Text>
+              {globalLeaderboardData.topUsers.length === 0 && (
+                <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, marginBottom: 16 }}>No voters yet — be the first!</Text>
+              )}
+              {globalLeaderboardData.topUsers.map((user, i) => (
+                <View key={i} style={{ flexDirection: "row", alignItems: "center", paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)" }}>
+                  <Text style={{ color: i === 0 ? "#FFD700" : i === 1 ? "#C0C0C0" : i === 2 ? "#CD7F32" : "#888", fontSize: 16, fontWeight: "900", width: 30 }}>
+                    {i === 0 ? "👑" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${i + 1}.`}
+                  </Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700" }}>{user.name}</Text>
+                    <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 11 }}>
+                      {user.totalMinutes}min • {user.totalSessions} sessions • {user.totalVotes} votes
+                    </Text>
+                  </View>
+                  <View style={{ alignItems: "flex-end" }}>
+                    <Text style={{ color: "#FFD700", fontSize: 13, fontWeight: "800" }}>{user.tokensEarned} 🪙</Text>
+                    <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 10 }}>earned</Text>
+                  </View>
+                </View>
+              ))}
+              <Text style={{ color: "#FFD700", fontSize: 14, fontWeight: "900", marginTop: 20, marginBottom: 8, letterSpacing: 1 }}>MOST POPULAR PERSONAS</Text>
+              {globalLeaderboardData.topPersonas.map((p, i) => {
+                const persona = ARENA_PERSONAS[p.personaId];
+                return (
+                  <View key={p.personaId} style={{ flexDirection: "row", alignItems: "center", paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)" }}>
+                    <Text style={{ color: i === 0 ? "#FFD700" : i === 1 ? "#C0C0C0" : i === 2 ? "#CD7F32" : "#888", fontSize: 16, fontWeight: "900", width: 30 }}>
+                      {i === 0 ? "👑" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${i + 1}.`}
+                    </Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: persona?.color || "#fff", fontSize: 14, fontWeight: "700" }}>{persona?.name || p.personaId}</Text>
+                      <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 11 }}>{p.totalVotes} votes</Text>
+                    </View>
+                    <Text style={{ color: "#FFD700", fontSize: 15, fontWeight: "900" }}>{p.totalPoints} pts</Text>
+                  </View>
+                );
+              })}
+              <View style={{ marginTop: 20, padding: 14, borderRadius: 12, backgroundColor: "rgba(255,215,0,0.08)", borderWidth: 1, borderColor: "rgba(255,215,0,0.2)" }}>
+                <Text style={{ color: "#FFD700", fontSize: 13, fontWeight: "800", marginBottom: 6 }}>🎁 USAGE REWARDS</Text>
+                <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 12, lineHeight: 18 }}>
+                  15 min → 2 free tokens (Rookie){"\n"}
+                  30 min → 3 free tokens (Regular){"\n"}
+                  1 hour → 5 free tokens (Veteran){"\n"}
+                  2 hours → 8 free tokens (Champion){"\n"}
+                  5 hours → 15 free tokens (Legend)
+                </Text>
+                <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, marginTop: 6 }}>Rewards unlock automatically at session end</Text>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       <Modal visible={showPersonaSelector} transparent animationType="slide">
         <View style={s.selectorOverlay}>

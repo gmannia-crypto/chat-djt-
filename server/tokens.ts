@@ -98,6 +98,21 @@ export async function useToken(deviceId: string): Promise<{ success: boolean; er
   };
 }
 
+export async function grantRewardTokens(deviceId: string, amount: number, description: string) {
+  const db = getPool();
+  const account = await getOrCreateAccount(deviceId);
+  await db.query(
+    `UPDATE token_accounts SET tokens = tokens + $2, updated_at = NOW() WHERE device_id = $1`,
+    [deviceId, amount]
+  );
+  await db.query(
+    `INSERT INTO token_transactions (account_id, type, amount, description, created_at)
+     VALUES ($1, 'reward', $2, $3, NOW())`,
+    [account.id, amount, description]
+  );
+  return await getTokenBalance(deviceId);
+}
+
 export async function grantSubscriptionTokens(deviceId: string, stripeCustomerId: string, stripeSubscriptionId: string, tier: "standard" | "vip" = "standard", stripeSessionId?: string) {
   const db = getPool();
   const account = await getOrCreateAccount(deviceId);
