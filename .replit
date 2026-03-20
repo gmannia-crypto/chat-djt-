@@ -82,12 +82,13 @@ outputType = "webview"
 name = "Start Frontend"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "echo 'Frontend served via Express on port 5000' && sleep infinity"
-
 [workflows.workflow.metadata]
 outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "EXPO_MAX_WORKERS=1 NODE_OPTIONS='--max-old-space-size=384' EXPO_PACKAGER_PROXY_URL=https://$REPLIT_DEV_DOMAIN REACT_NATIVE_PACKAGER_HOSTNAME=$REPLIT_DEV_DOMAIN EXPO_PUBLIC_DOMAIN=$REPLIT_DEV_DOMAIN npx expo start --port 8081"
+waitForPort = 8081
 
 [userenv]
 
