@@ -533,7 +533,31 @@ async function initStripe() {
   }
 }
 
+async function killPortIfBusy(port: number): Promise<void> {
+  const busy = await isPortInUse(port);
+  if (busy) {
+    log(`Port ${port} in use, killing stale process...`);
+    try {
+      const result = execSync(`lsof -ti :${port} 2>/dev/null`, { encoding: "utf-8" }).trim();
+      if (result) {
+        for (const pid of result.split("\n")) {
+          const p = Number(pid);
+          if (p && p !== process.pid) {
+            try { process.kill(p, "SIGKILL"); } catch {}
+          }
+        }
+        await new Promise(r => setTimeout(r, 2000));
+        log(`Killed stale processes on port ${port}`);
+      }
+    } catch {}
+  }
+}
+
 (async () => {
+  const port = parseInt(process.env.PORT || "5000", 10);
+  await killPortIfBusy(port);
+  await killPortIfBusy(METRO_PORT);
+
   setupCors(app);
 
   app.post(
@@ -571,8 +595,6 @@ async function initStripe() {
   const server = await registerRoutes(app);
 
   setupErrorHandler(app);
-
-  const port = parseInt(process.env.PORT || "5000", 10);
 
   if (process.env.NODE_ENV === "development") {
     server.on("upgrade", (req: http.IncomingMessage, socket: any, head: Buffer) => {
