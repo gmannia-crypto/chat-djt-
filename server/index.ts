@@ -597,14 +597,12 @@ async function initStripe() {
         port,
         host: "0.0.0.0",
       },
-      async () => {
+      () => {
         log(`express server serving on port ${port}`);
-        try {
-          await initStripe();
-        } catch (err) {
-          console.error("Stripe init error:", err);
-        }
-        setTimeout(() => spawnMetro(), 2000);
+        setTimeout(() => spawnMetro(), 1000);
+        setTimeout(() => {
+          initStripe().catch((err) => console.error("Stripe init error:", err));
+        }, 30000);
       },
     );
     server.on("error", (err: any) => {
@@ -645,10 +643,12 @@ async function initStripe() {
               socket.on("error", () => proxySocket.destroy());
             });
           }
-          newServer.listen({ port, host: "0.0.0.0" }, async () => {
+          newServer.listen({ port, host: "0.0.0.0" }, () => {
             log(`express server serving on port ${port} (retry ${attempt})`);
-            try { await initStripe(); } catch (err) { console.error("Stripe init error:", err); }
-            setTimeout(() => spawnMetro(), 2000);
+            setTimeout(() => spawnMetro(), 1000);
+            setTimeout(() => {
+              initStripe().catch((err) => console.error("Stripe init error:", err));
+            }, 30000);
           });
           newServer.on("error", (retryErr: any) => {
             if (retryErr.code === "EADDRINUSE" && attempt < 5) {
