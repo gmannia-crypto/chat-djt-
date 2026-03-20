@@ -1,52 +1,8 @@
 const http = require("http");
 const net = require("net");
-const { execSync } = require("child_process");
 
 const METRO_PORT = 8082;
 const LISTEN_PORT = 8081;
-
-try {
-  const pids = execSync(`lsof -ti :${LISTEN_PORT} 2>/dev/null`, { encoding: "utf-8" }).trim();
-  if (pids) {
-    for (const pid of pids.split("\n")) {
-      const p = Number(pid);
-      if (p && p !== process.pid) {
-        try { process.kill(p, "SIGKILL"); } catch {}
-      }
-    }
-    console.log(`Killed stale processes on port ${LISTEN_PORT}`);
-  }
-} catch {}
-
-function generateFallbackManifest() {
-  try {
-    const fs = require("fs");
-    const path = require("path");
-    const appJsonPath = path.resolve(__dirname, "..", "app.json");
-    const appJson = JSON.parse(fs.readFileSync(appJsonPath, "utf-8"));
-    const config = appJson.expo || appJson;
-    const timestamp = Date.now().toString();
-    return JSON.stringify({
-      id: `${config.slug || "app"}-fallback-${timestamp}`,
-      createdAt: new Date().toISOString(),
-      runtimeVersion: "1.0.0",
-      launchAsset: { url: "", key: `bundle-${timestamp}` },
-      assets: [],
-      metadata: {},
-      extra: {
-        expoClient: {
-          name: config.name || "App",
-          slug: config.slug || "app",
-          version: config.version || "1.0.0",
-          platforms: ["ios", "android", "web"],
-        },
-      },
-    });
-  } catch {
-    return JSON.stringify({ id: "app", createdAt: new Date().toISOString(), assets: [] });
-  }
-}
-
 const BACKEND_PORT = 5000;
 
 function proxyTo(port, req, res) {
@@ -67,7 +23,7 @@ function proxyTo(port, req, res) {
       res.end(JSON.stringify({ error: "Backend unavailable" }));
     } else {
       res.writeHead(200, { "content-type": "text/html" });
-      res.end('<!DOCTYPE html><html><head><meta http-equiv="refresh" content="3"></head><body style="background:#0A0A0A;color:#D4A420;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif"><h2>Starting up...</h2></body></html>');
+      res.end('<html><head><meta http-equiv="refresh" content="3"></head><body style="background:#0A0A0A;color:#D4A420;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif"><h2>Starting up...</h2></body></html>');
     }
   });
   req.pipe(proxyReq, { end: true });
@@ -75,13 +31,14 @@ function proxyTo(port, req, res) {
 
 const server = http.createServer((req, res) => {
   const urlPath = (req.url || "").split("?")[0];
+  const platform = req.headers["expo-platform"];
+
+  if (platform === "android" || platform === "ios") {
+    return proxyTo(METRO_PORT, req, res);
+  }
 
   if (urlPath.startsWith("/api/") || urlPath === "/api") {
     return proxyTo(BACKEND_PORT, req, res);
-  }
-
-  if (urlPath === "/manifest") {
-    return proxyTo(METRO_PORT, req, res);
   }
 
   if (urlPath === "/status") {
@@ -108,30 +65,42 @@ server.on("upgrade", (req, socket, head) => {
   socket.on("error", () => proxySocket.destroy());
 });
 
-function startServer(attempt) {
-  attempt = attempt || 1;
-  server.listen(LISTEN_PORT, "0.0.0.0", () => {
-    console.log(`Frontend proxy on port ${LISTEN_PORT} -> Metro on ${METRO_PORT}`);
-  });
-  server.on("error", (err) => {
-    if (err.code === "EADDRINUSE" && attempt <= 3) {
-      console.log(`Port ${LISTEN_PORT} busy, force killing and retrying (attempt ${attempt}/3)...`);
-      try {
-        execSync(`lsof -ti :${LISTEN_PORT} 2>/dev/null | xargs kill -9 2>/dev/null`, { encoding: "utf-8" });
-      } catch {}
-      setTimeout(() => {
-        server.removeAllListeners("error");
-        server.close(() => {});
-        startServer(attempt + 1);
-      }, 2000);
-    } else {
-      console.error("Failed to start frontend proxy:", err.message);
-      process.exit(1);
-    }
-  });
-}
+server.listen(LISTEN_PORT, "0.0.0.0", () => {
+  console.log(`Frontend proxy on port ${LISTEN_PORT} -> Metro ${METRO_PORT} / Backend ${BACKEND_PORT}`);
+});
 
-startServer(1);
+server.on("error", (err) => {
+  if (err.code === "EADDRINUSE") {
+    console.log(`Port ${LISTEN_PORT} busy, killing stale and retrying...`);
+    try {
+      const { execSync } = require("child_process");
+      const pids = execSync(
+        `ps aux | grep "frontend-keepalive" | grep -v grep | grep -v ${process.pid} | awk '{print $2}'`,
+        { encoding: "utf-8" }
+      ).trim();
+      if (pids) {
+        for (const p of pids.split("\n")) {
+          try { process.kill(Number(p), 9); } catch {}
+        }
+      }
+    } catch {}
+    setTimeout(() => {
+      server.close(() => {});
+      const s2 = http.createServer(server.listeners("request")[0]);
+      s2.on("upgrade", server.listeners("upgrade")[0]);
+      s2.listen(LISTEN_PORT, "0.0.0.0", () => {
+        console.log(`Frontend proxy on port ${LISTEN_PORT} (retry)`);
+      });
+      s2.on("error", (e) => {
+        console.error("Failed to start frontend proxy:", e.message);
+        process.exit(1);
+      });
+    }, 2000);
+  } else {
+    console.error("Failed to start frontend proxy:", err.message);
+    process.exit(1);
+  }
+});
 
 process.on("SIGTERM", () => process.exit(0));
 process.on("SIGINT", () => process.exit(0));
