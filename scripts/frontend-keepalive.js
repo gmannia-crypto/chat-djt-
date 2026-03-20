@@ -81,13 +81,7 @@ const server = http.createServer((req, res) => {
   }
 
   if (urlPath === "/manifest") {
-    res.writeHead(200, {
-      "content-type": "application/json",
-      "expo-protocol-version": "1",
-      "expo-sfv-version": "0",
-    });
-    res.end(generateFallbackManifest());
-    return;
+    return proxyTo(METRO_PORT, req, res);
   }
 
   if (urlPath === "/status") {
