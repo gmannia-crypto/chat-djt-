@@ -537,18 +537,23 @@ async function killPortIfBusy(port: number): Promise<void> {
   const busy = await isPortInUse(port);
   if (busy) {
     log(`Port ${port} in use, killing stale process...`);
+    const myPid = process.pid;
+    const myPpid = process.ppid;
     try {
-      const result = execSync(`lsof -ti :${port} 2>/dev/null`, { encoding: "utf-8" }).trim();
-      if (result) {
-        for (const pid of result.split("\n")) {
-          const p = Number(pid);
-          if (p && p !== process.pid) {
-            try { process.kill(p, "SIGKILL"); } catch {}
+      const allPids = execSync(
+        `ps aux | grep -E "tsx.*server|expo.*cli.*start|jest-worker" | grep -v grep | awk '{print $2}'`,
+        { encoding: "utf-8" }
+      ).trim();
+      if (allPids) {
+        for (const pidStr of allPids.split("\n")) {
+          const pid = Number(pidStr);
+          if (pid && pid !== myPid && pid !== myPpid) {
+            try { process.kill(pid, "SIGKILL"); } catch {}
           }
         }
-        await new Promise(r => setTimeout(r, 2000));
-        log(`Killed stale processes on port ${port}`);
       }
+      await new Promise(r => setTimeout(r, 3000));
+      log(`Killed stale processes on port ${port}`);
     } catch {}
   }
 }
