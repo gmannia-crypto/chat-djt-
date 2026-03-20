@@ -18,7 +18,7 @@ export function getApiUrl(): string {
     if (debuggerHost) {
       if (debuggerHost.includes("exp.direct") || debuggerHost.includes("ngrok")) {
         const host = debuggerHost.split(":")[0];
-        return `http://${host}/`;
+        return `https://${host}/`;
       }
       const host = debuggerHost.split(":")[0];
       return `http://${host}:8081/`;

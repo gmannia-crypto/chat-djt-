@@ -232645,7 +232645,7 @@ __d(function (global, require, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, expor
       if (debuggerHost) {
         if (debuggerHost.includes("exp.direct") || debuggerHost.includes("ngrok")) {
           var _host = debuggerHost.split(":")[0];
-          return `http://${_host}/`;
+          return `https://${_host}/`;
         }
         var _host2 = debuggerHost.split(":")[0];
         return `http://${_host2}:8081/`;

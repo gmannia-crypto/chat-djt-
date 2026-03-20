@@ -60,7 +60,7 @@ outputType = "console"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "echo 'App starting via Start Backend workflow' && sleep infinity"
+args = "echo 'Placeholder - use Start Backend and Start Frontend workflows'"
 
 [[workflows.workflow]]
 name = "Start Backend"
