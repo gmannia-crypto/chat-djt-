@@ -46,10 +46,6 @@ args = "Start App"
 task = "workflow.run"
 args = "Start Backend"
 
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Start Frontend"
-
 [[workflows.workflow]]
 name = "Start App"
 author = "agent"
@@ -71,15 +67,6 @@ author = "agent"
 task = "shell.exec"
 args = "node scripts/cleanup-ports.js && npm run server:dev"
 waitForPort = 5000
-
-[[workflows.workflow]]
-name = "Start Frontend"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "node scripts/frontend-keepalive.js"
-waitForPort = 8081
 
 [workflows.workflow.metadata]
 outputType = "webview"

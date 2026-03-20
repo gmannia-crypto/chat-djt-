@@ -63,7 +63,7 @@ async function spawnMetro() {
     env: {
       ...process.env,
       CI: "0",
-      EXPO_PACKAGER_PROXY_URL: devDomain ? `https://${devDomain}:3000` : "",
+      EXPO_PACKAGER_PROXY_URL: devDomain ? `https://${devDomain}` : "",
       REACT_NATIVE_PACKAGER_HOSTNAME: devDomain || "localhost",
       EXPO_PUBLIC_DOMAIN: devDomain ? `${devDomain}:5000` : "localhost:5000",
     },
