@@ -50,18 +50,21 @@ args = "Start App"
 task = "workflow.run"
 args = "Start Backend"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start Frontend"
+
 [[workflows.workflow]]
 name = "Start App"
 author = "agent"
 mode = "parallel"
 
 [[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Start Backend"
+task = "shell.exec"
+args = "echo 'App starting via Start Backend workflow' && sleep infinity"
 
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Start Frontend"
+[workflows.workflow.metadata]
+outputType = "console"
 
 [[workflows.workflow]]
 name = "Start Backend"
@@ -74,6 +77,17 @@ waitForPort = 5000
 
 [workflows.workflow.metadata]
 outputType = "webview"
+
+[[workflows.workflow]]
+name = "Start Frontend"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "echo 'Frontend served via Express on port 5000' && sleep infinity"
+
+[workflows.workflow.metadata]
+outputType = "console"
 
 [userenv]
 
