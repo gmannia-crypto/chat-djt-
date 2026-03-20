@@ -533,36 +533,7 @@ async function initStripe() {
   }
 }
 
-async function killPortIfBusy(port: number): Promise<void> {
-  const busy = await isPortInUse(port);
-  if (busy) {
-    log(`Port ${port} in use, killing stale process...`);
-    const myPid = process.pid;
-    const myPpid = process.ppid;
-    try {
-      const allPids = execSync(
-        `ps aux | grep -E "tsx.*server|expo.*cli.*start|jest-worker" | grep -v grep | awk '{print $2}'`,
-        { encoding: "utf-8" }
-      ).trim();
-      if (allPids) {
-        for (const pidStr of allPids.split("\n")) {
-          const pid = Number(pidStr);
-          if (pid && pid !== myPid && pid !== myPpid) {
-            try { process.kill(pid, "SIGKILL"); } catch {}
-          }
-        }
-      }
-      await new Promise(r => setTimeout(r, 3000));
-      log(`Killed stale processes on port ${port}`);
-    } catch {}
-  }
-}
-
 (async () => {
-  const port = parseInt(process.env.PORT || "5000", 10);
-  await killPortIfBusy(port);
-  await killPortIfBusy(METRO_PORT);
-
   setupCors(app);
 
   app.post(
@@ -600,6 +571,8 @@ async function killPortIfBusy(port: number): Promise<void> {
   const server = await registerRoutes(app);
 
   setupErrorHandler(app);
+
+  const port = parseInt(process.env.PORT || "5000", 10);
 
   if (process.env.NODE_ENV === "development") {
     server.on("upgrade", (req: http.IncomingMessage, socket: any, head: Buffer) => {
