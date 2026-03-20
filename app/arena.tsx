@@ -1223,6 +1223,7 @@ export default function ArenaScreen() {
   const [customTopicText, setCustomTopicText] = useState("");
   const [useCustomTopic, setUseCustomTopic] = useState(false);
   const [showGlobalLeaderboard, setShowGlobalLeaderboard] = useState(false);
+  const [showArenaRules, setShowArenaRules] = useState(false);
   const [globalLeaderboardData, setGlobalLeaderboardData] = useState<{ topUsers: any[]; topPersonas: any[] }>({ topUsers: [], topPersonas: [] });
   const [breakingNewsBanner, setBreakingNewsBanner] = useState<{ headline: string; source: string } | null>(null);
   const breakingNewsBannerRef = useRef<{ headline: string; source: string } | null>(null);
@@ -2872,11 +2873,45 @@ export default function ArenaScreen() {
       <View style={[s.container, { paddingTop: insets.top + webTopInset }]}>
         <LinearGradient colors={["rgba(255,77,77,0.15)", "rgba(0,0,0,0)", Colors.background]} style={StyleSheet.absoluteFill} />
         <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
-          <View style={{ alignItems: "center", marginBottom: 20 }}>
+          <View style={{ alignItems: "center", marginBottom: 12 }}>
             <Ionicons name="flame" size={40} color="#FF4D4D" />
             <Text style={{ color: "#fff", fontSize: 24, fontWeight: "900", marginTop: 8 }}>POLITICAL ARENA</Text>
             <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, marginTop: 4 }}>Pick your debaters and topic</Text>
           </View>
+
+          <Pressable
+            onPress={() => setShowArenaRules(!showArenaRules)}
+            style={{
+              backgroundColor: showArenaRules ? "rgba(255,77,77,0.15)" : "rgba(255,255,255,0.05)",
+              borderWidth: 1, borderColor: showArenaRules ? "rgba(255,77,77,0.4)" : "rgba(255,255,255,0.1)",
+              borderRadius: 12, padding: 12, marginBottom: 14, flexDirection: "row", alignItems: "center",
+            }}
+          >
+            <Ionicons name="information-circle" size={20} color={showArenaRules ? "#FF4D4D" : "#888"} style={{ marginRight: 8 }} />
+            <Text style={{ color: showArenaRules ? "#FF4D4D" : "#aaa", fontSize: 13, fontWeight: "800", flex: 1 }}>TAP HERE FOR RULES & HOW TO PLAY</Text>
+            <Ionicons name={showArenaRules ? "chevron-up" : "chevron-down"} size={16} color={showArenaRules ? "#FF4D4D" : "#888"} />
+          </Pressable>
+          {showArenaRules && (
+            <View style={{
+              backgroundColor: "rgba(255,77,77,0.08)", borderRadius: 12, padding: 14, marginBottom: 14,
+              borderWidth: 1, borderColor: "rgba(255,77,77,0.2)",
+            }}>
+              {[
+                { icon: "people" as const, text: "Pick 2-17 AI personas to debate. Each has a unique political voice & personality." },
+                { icon: "chatbubbles" as const, text: "Choose a hot topic from today's headlines or create your own. The AI debaters will argue about it in real time." },
+                { icon: "timer" as const, text: "Debates are timed (5/10/15 min). Each minute costs 1 token. When time runs out, the bell rings." },
+                { icon: "mic" as const, text: "Use the MIC button to jump in and challenge the debaters. They'll respond to you directly." },
+                { icon: "star" as const, text: "Award POINTS to personas you think are winning. At the end, the winner gets roasted and fires back." },
+                { icon: "trophy" as const, text: "Vote for your favorite persona — votes count on the GLOBAL leaderboard. Earn reward tokens by spending time in the Arena." },
+                { icon: "newspaper" as const, text: "BREAKING NEWS can interrupt mid-debate — all personas react in character when it hits." },
+              ].map((rule, i) => (
+                <View key={i} style={{ flexDirection: "row", alignItems: "flex-start", marginBottom: i < 6 ? 10 : 0 }}>
+                  <Ionicons name={rule.icon} size={15} color="#FF6B6B" style={{ marginRight: 8, marginTop: 1 }} />
+                  <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, lineHeight: 17, flex: 1 }}>{rule.text}</Text>
+                </View>
+              ))}
+            </View>
+          )}
 
           <Text style={{ color: "#FFD700", fontSize: 14, fontWeight: "800", marginBottom: 10 }}>CHOOSE DEBATERS ({selectedPersonas.length} selected)</Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
