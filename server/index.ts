@@ -397,15 +397,18 @@ function configureExpoAndLanding(app: express.Application) {
 
     const platform = req.header("expo-platform");
     if (platform && (platform === "ios" || platform === "android")) {
-      if (req.path === "/" || req.path === "/manifest") {
-        return serveExpoManifest(platform, req, res);
-      }
       if (isDev) {
         return proxyToMetro(req, res);
+      }
+      if (req.path === "/" || req.path === "/manifest") {
+        return serveExpoManifest(platform, req, res);
       }
     }
 
     if (req.path === "/manifest" && !platform) {
+      if (isDev) {
+        return proxyToMetro(req, res);
+      }
       return serveExpoManifest("ios", req, res);
     }
 
