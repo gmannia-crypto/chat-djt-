@@ -5,6 +5,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as http from "http";
 import * as net from "net";
+import * as zlib from "zlib";
 import { spawn, execSync } from "child_process";
 import { runMigrations } from "stripe-replit-sync";
 
@@ -353,6 +354,8 @@ function proxyToMetro(req: Request, res: Response) {
   const proxyPath = req.originalUrl;
   const maxRetries = 30;
   const retryDelay = 2000;
+  const isBundle = req.path.endsWith(".bundle");
+  const acceptsGzip = (req.headers["accept-encoding"] || "").toString().includes("gzip");
 
   function attempt(retryCount: number) {
     if (res.headersSent || res.destroyed) return;
@@ -360,6 +363,7 @@ function proxyToMetro(req: Request, res: Response) {
     const proxyHeaders = { ...req.headers, host: `localhost:${METRO_PORT}` };
     delete proxyHeaders.origin;
     delete proxyHeaders.referer;
+    delete proxyHeaders["accept-encoding"];
 
     const options: http.RequestOptions = {
       hostname: "localhost",
@@ -375,8 +379,18 @@ function proxyToMetro(req: Request, res: Response) {
       if (status >= 400) {
         log(`[proxy] ${status} ${req.method} ${req.path}`);
       }
-      res.writeHead(status, proxyRes.headers);
-      proxyRes.pipe(res, { end: true });
+
+      if (isBundle && acceptsGzip && status === 200) {
+        const headers = { ...proxyRes.headers };
+        delete headers["content-length"];
+        headers["content-encoding"] = "gzip";
+        res.writeHead(status, headers);
+        const gz = zlib.createGzip({ level: 1 });
+        proxyRes.pipe(gz).pipe(res, { end: true });
+      } else {
+        res.writeHead(status, proxyRes.headers);
+        proxyRes.pipe(res, { end: true });
+      }
     });
 
     proxyReq.on("error", () => {
