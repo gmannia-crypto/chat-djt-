@@ -323,38 +323,55 @@ function serveLandingPage({
 }
 
 function proxyToMetro(req: Request, res: Response) {
-  const isRootPage = req.path === "/" && req.method === "GET";
-
   const proxyPath = req.originalUrl;
+  const maxRetries = 30;
+  const retryDelay = 2000;
 
-  const proxyHeaders = { ...req.headers, host: `localhost:${METRO_PORT}` };
-  delete proxyHeaders.origin;
-  delete proxyHeaders.referer;
+  function attempt(retryCount: number) {
+    if (res.headersSent || res.destroyed) return;
 
-  const options: http.RequestOptions = {
-    hostname: "localhost",
-    port: METRO_PORT,
-    path: proxyPath,
-    method: req.method,
-    headers: proxyHeaders,
-  };
+    const proxyHeaders = { ...req.headers, host: `localhost:${METRO_PORT}` };
+    delete proxyHeaders.origin;
+    delete proxyHeaders.referer;
 
-  const proxyReq = http.request(options, (proxyRes) => {
-    const status = proxyRes.statusCode || 502;
-    if (status >= 400) {
-      log(`[proxy] ${status} ${req.method} ${req.path}`);
+    const options: http.RequestOptions = {
+      hostname: "localhost",
+      port: METRO_PORT,
+      path: proxyPath,
+      method: req.method,
+      headers: proxyHeaders,
+    };
+
+    const proxyReq = http.request(options, (proxyRes) => {
+      if (res.headersSent || res.destroyed) return;
+      const status = proxyRes.statusCode || 502;
+      if (status >= 400) {
+        log(`[proxy] ${status} ${req.method} ${req.path}`);
+      }
+      res.writeHead(status, proxyRes.headers);
+      proxyRes.pipe(res, { end: true });
+    });
+
+    proxyReq.on("error", () => {
+      if (retryCount < maxRetries) {
+        if (retryCount === 0) log(`[proxy] Waiting for Metro on ${req.path}`);
+        setTimeout(() => attempt(retryCount + 1), retryDelay);
+      } else {
+        log(`[proxy] Metro unavailable after ${maxRetries} retries for ${req.path}`);
+        if (!res.headersSent) {
+          res.status(503).json({ error: "Metro bundler not ready" });
+        }
+      }
+    });
+
+    if (retryCount === 0) {
+      req.pipe(proxyReq, { end: true });
+    } else {
+      proxyReq.end();
     }
+  }
 
-    res.writeHead(status, proxyRes.headers);
-    proxyRes.pipe(res, { end: true });
-  });
-
-  proxyReq.on("error", () => {
-    log(`[proxy] Waiting for Metro on ${req.path}`);
-    res.status(200).send(`<!DOCTYPE html><html><head><title>Chat DJT</title><meta http-equiv="refresh" content="3"></head><body style="background:#0A0A0A;color:#D4A420;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif"><h2>Starting up...</h2></body></html>`);
-  });
-
-  req.pipe(proxyReq, { end: true });
+  attempt(0);
 }
 
 function configureExpoAndLanding(app: express.Application) {
