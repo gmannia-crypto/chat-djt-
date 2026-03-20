@@ -55,12 +55,12 @@ name = "Start App"
 author = "agent"
 mode = "parallel"
 
+[workflows.workflow.metadata]
+outputType = "console"
+
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "echo 'App starting via Start Backend workflow' && sleep infinity"
-
-[workflows.workflow.metadata]
-outputType = "console"
 
 [[workflows.workflow]]
 name = "Start Backend"
@@ -83,7 +83,7 @@ outputType = "console"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "EXPO_MAX_WORKERS=1 NODE_OPTIONS='--max-old-space-size=1024' EXPO_PUBLIC_DOMAIN=$REPLIT_DEV_DOMAIN npx expo start --port 8081 --tunnel"
+args = "EXPO_MAX_WORKERS=1 NODE_OPTIONS='--max-old-space-size=2048' EXPO_PUBLIC_DOMAIN=$REPLIT_DEV_DOMAIN npx expo start --port 8081 --tunnel"
 waitForPort = 8081
 
 [userenv]
