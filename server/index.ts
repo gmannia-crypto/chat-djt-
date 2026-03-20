@@ -5,8 +5,6 @@ import * as fs from "fs";
 import * as path from "path";
 import * as http from "http";
 import * as net from "net";
-import * as zlib from "zlib";
-import { spawn, execSync } from "child_process";
 import { runMigrations } from "stripe-replit-sync";
 
 import { getStripeSync } from "./stripeClient";
@@ -15,111 +13,7 @@ import { WebhookHandlers } from "./webhookHandlers";
 const app = express();
 const log = console.log;
 
-const METRO_PORT = 8082;
-let metroProcess: ReturnType<typeof spawn> | null = null;
-let shuttingDown = false;
-
-function isPortInUse(port: number): Promise<boolean> {
-  return new Promise((resolve) => {
-    const server = net.createServer();
-    server.once("error", () => resolve(true));
-    server.once("listening", () => { server.close(); resolve(false); });
-    server.listen(port, "127.0.0.1");
-  });
-}
-
-async function spawnMetro() {
-  if (process.env.NODE_ENV !== "development" || shuttingDown) return;
-
-  const portBusy = await isPortInUse(METRO_PORT);
-  if (portBusy) {
-    try {
-      const res = await fetch(`http://127.0.0.1:${METRO_PORT}/status`);
-      const text = await res.text();
-      if (text.includes("packager-status:running")) {
-        log(`Metro already running on port ${METRO_PORT}, reusing`);
-        return;
-      }
-    } catch {}
-    try {
-      const result = execSync(
-        `lsof -ti :${METRO_PORT} 2>/dev/null`,
-        { encoding: "utf-8" }
-      ).trim();
-      if (result) {
-        for (const pid of result.split("\n")) {
-          try { process.kill(Number(pid), "SIGKILL"); } catch {}
-        }
-        log(`Killed stale process on port ${METRO_PORT}`);
-        await new Promise(r => setTimeout(r, 1000));
-      }
-    } catch {}
-  }
-
-  const expoCli = path.resolve(process.cwd(), "node_modules", "expo", "bin", "cli");
-  log(`Spawning Metro bundler on port ${METRO_PORT}...`);
-  const devDomain = process.env.REPLIT_DEV_DOMAIN || "";
-  metroProcess = spawn(process.execPath, ["--max-old-space-size=384", expoCli, "start", "--port", String(METRO_PORT)], {
-    cwd: process.cwd(),
-    env: {
-      ...process.env,
-      CI: "0",
-      EXPO_PACKAGER_PROXY_URL: devDomain ? `https://${devDomain}` : "",
-      REACT_NATIVE_PACKAGER_HOSTNAME: devDomain || "localhost",
-      EXPO_PUBLIC_DOMAIN: devDomain || "localhost:5000",
-      NODE_OPTIONS: "--max-old-space-size=384",
-      EXPO_MAX_WORKERS: "1",
-    },
-    stdio: ["pipe", "inherit", "inherit"],
-  });
-
-  metroProcess.on("exit", (code) => {
-    metroProcess = null;
-    if (!shuttingDown) {
-      log(`Metro exited with code ${code}, restarting in 10s...`);
-      setTimeout(spawnMetro, 10000);
-    }
-  });
-
-  function preWarmBundle() {
-    const bundleUrl = `http://localhost:${METRO_PORT}/node_modules/expo-router/entry.bundle?platform=android&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.bytecode=1&transform.routerRoot=app&transform.reactCompiler=true&unstable_transformProfile=hermes-stable`;
-    const cacheDir = path.resolve(process.cwd(), ".bundle-cache");
-    if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
-
-    const checkReady = () => {
-      http.get(`http://localhost:${METRO_PORT}/status`, (statusRes) => {
-        if (statusRes.statusCode === 200) {
-          log("[pre-warm] Metro ready, compiling Android bundle...");
-          http.get(bundleUrl, (bundleRes) => {
-            const chunks: Buffer[] = [];
-            bundleRes.on("data", (chunk: Buffer) => { chunks.push(chunk); });
-            bundleRes.on("end", () => {
-              const bundle = Buffer.concat(chunks);
-              const bundlePath = path.join(cacheDir, "android.bundle");
-              const gzPath = path.join(cacheDir, "android.bundle.gz");
-              fs.writeFileSync(bundlePath, bundle);
-              const compressed = zlib.gzipSync(bundle, { level: 1 });
-              fs.writeFileSync(gzPath, compressed);
-              log(`[pre-warm] Bundle saved: ${(bundle.length / 1024 / 1024).toFixed(1)}MB raw, ${(compressed.length / 1024 / 1024).toFixed(1)}MB gzip`);
-            });
-          }).on("error", (err) => {
-            log(`[pre-warm] Bundle fetch failed: ${err.message}`);
-          });
-        } else {
-          setTimeout(checkReady, 3000);
-        }
-      }).on("error", () => {
-        setTimeout(checkReady, 3000);
-      });
-    };
-    setTimeout(checkReady, 5000);
-  }
-
-  preWarmBundle();
-}
-
-process.on("SIGTERM", () => { shuttingDown = true; metroProcess?.kill("SIGTERM"); });
-process.on("SIGINT", () => { shuttingDown = true; metroProcess?.kill("SIGINT"); });
+const METRO_PORT = 8081;
 
 declare module "http" {
   interface IncomingMessage {
@@ -714,6 +608,13 @@ async function initStripe() {
 }
 
 (async () => {
+  app.use((req: Request, _res: Response, next: NextFunction) => {
+    if (!req.path.startsWith("/api/persona-image")) {
+      log(`[ALL] ${req.method} ${req.path} host=${req.get("host")} ua=${(req.get("user-agent") || "").substring(0, 80)} expo=${req.get("expo-platform") || "-"}`);
+    }
+    next();
+  });
+
   setupCors(app);
 
   app.post(
@@ -771,79 +672,15 @@ async function initStripe() {
     });
   }
 
-  function startListening(attempt: number = 1) {
-    server.listen(
-      {
-        port,
-        host: "0.0.0.0",
-      },
-      () => {
-        log(`express server serving on port ${port}`);
-        setTimeout(() => spawnMetro(), 2000);
-        setTimeout(() => {
-          initStripe().catch((err) => console.error("Stripe init error:", err));
-        }, 60000);
-      },
-    );
-    server.on("error", (err: any) => {
-      if (err.code === "EADDRINUSE" && attempt <= 5) {
-        log(`Port ${port} busy (attempt ${attempt}/5), killing and retrying...`);
-        try {
-          const { execSync } = require("child_process");
-          const pids = execSync(
-            `ps aux | grep "nodejs-22" | grep -v grep | grep -v ${process.pid} | awk '{print $2}'`,
-            { encoding: "utf-8" }
-          ).trim();
-          if (pids) {
-            for (const p of pids.split("\n")) {
-              const pid = Number(p);
-              if (pid && pid !== process.pid && pid !== process.ppid) {
-                try { process.kill(pid, 9); } catch {}
-              }
-            }
-          }
-        } catch {}
-        setTimeout(() => {
-          server.removeAllListeners("error");
-          server.close(() => {});
-          const newServer = http.createServer(app);
-          if (process.env.NODE_ENV === "development") {
-            newServer.on("upgrade", (req: http.IncomingMessage, socket: any, head: Buffer) => {
-              const proxySocket = net.connect(METRO_PORT, "localhost", () => {
-                const reqLine = `${req.method} ${req.url} HTTP/1.1\r\n`;
-                let headers = "";
-                for (let i = 0; i < req.rawHeaders.length; i += 2) {
-                  headers += `${req.rawHeaders[i]}: ${req.rawHeaders[i + 1]}\r\n`;
-                }
-                proxySocket.write(reqLine + headers + "\r\n");
-                if (head.length > 0) proxySocket.write(head);
-                socket.pipe(proxySocket).pipe(socket);
-              });
-              proxySocket.on("error", () => socket.destroy());
-              socket.on("error", () => proxySocket.destroy());
-            });
-          }
-          newServer.listen({ port, host: "0.0.0.0" }, () => {
-            log(`express server serving on port ${port} (retry ${attempt})`);
-            setTimeout(() => spawnMetro(), 2000);
-            setTimeout(() => {
-              initStripe().catch((err) => console.error("Stripe init error:", err));
-            }, 60000);
-          });
-          newServer.on("error", (retryErr: any) => {
-            if (retryErr.code === "EADDRINUSE" && attempt < 5) {
-              setTimeout(() => startListening(attempt + 1), 3000);
-            } else {
-              console.error("Fatal: cannot bind port", port, retryErr.message);
-              process.exit(1);
-            }
-          });
-        }, 3000);
-      } else {
-        console.error("Fatal server error:", err.message);
-        process.exit(1);
-      }
-    });
-  }
-  startListening(1);
+  server.listen({ port, host: "0.0.0.0" }, () => {
+    log(`express server serving on port ${port}`);
+    setTimeout(() => {
+      initStripe().catch((err) => console.error("Stripe init error:", err));
+    }, 30000);
+  });
+
+  server.on("error", (err: any) => {
+    console.error("Fatal server error:", err.message);
+    process.exit(1);
+  });
 })();
