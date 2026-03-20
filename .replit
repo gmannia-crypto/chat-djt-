@@ -12,10 +12,6 @@ run = ["npm", "run", "server:prod"]
 publicDir = "dist"
 
 [[ports]]
-localPort = 80
-externalPort = 80
-
-[[ports]]
 localPort = 5000
 externalPort = 5000
 
@@ -25,7 +21,7 @@ externalPort = 8081
 
 [[ports]]
 localPort = 8082
-externalPort = 3000
+externalPort = 80
 
 [env]
 PORT = "5000"
