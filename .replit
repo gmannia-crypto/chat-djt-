@@ -44,7 +44,7 @@ args = "Start App"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Start Frontend"
+args = "Start Backend"
 
 [[workflows.workflow]]
 name = "Start App"
@@ -69,18 +69,8 @@ task = "shell.exec"
 args = "npm run server:dev"
 waitForPort = 5000
 
-[[workflows.workflow]]
-name = "Start Frontend"
-author = "agent"
-mode = "sequential"
-
 [workflows.workflow.metadata]
 outputType = "webview"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "node scripts/frontend-keepalive.js"
-waitForPort = 8081
 
 [userenv]
 
