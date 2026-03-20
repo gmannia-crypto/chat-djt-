@@ -59,7 +59,7 @@ async function spawnMetro() {
   const expoCli = path.resolve(process.cwd(), "node_modules", "expo", "bin", "cli");
   log(`Spawning Metro bundler on port ${METRO_PORT}...`);
   const devDomain = process.env.REPLIT_DEV_DOMAIN || "";
-  metroProcess = spawn(process.execPath, ["--max-old-space-size=512", expoCli, "start", "--port", String(METRO_PORT)], {
+  metroProcess = spawn(process.execPath, ["--max-old-space-size=384", expoCli, "start", "--port", String(METRO_PORT)], {
     cwd: process.cwd(),
     env: {
       ...process.env,
@@ -67,7 +67,8 @@ async function spawnMetro() {
       EXPO_PACKAGER_PROXY_URL: devDomain ? `https://${devDomain}` : "",
       REACT_NATIVE_PACKAGER_HOSTNAME: devDomain || "localhost",
       EXPO_PUBLIC_DOMAIN: devDomain || "localhost:5000",
-      NODE_OPTIONS: "--max-old-space-size=512",
+      NODE_OPTIONS: "--max-old-space-size=384",
+      EXPO_MAX_WORKERS: "1",
     },
     stdio: ["pipe", "inherit", "inherit"],
   });
