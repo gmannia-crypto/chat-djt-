@@ -11,6 +11,20 @@ export function getApiUrl(): string {
     return window.location.origin + "/";
   }
 
+  if (Platform.OS !== "web") {
+    const Constants = require("expo-constants").default;
+    const manifest = Constants.expoConfig || Constants.manifest2 || Constants.manifest;
+    const debuggerHost = manifest?.hostUri || Constants.manifest2?.extra?.expoGo?.debuggerHost;
+    if (debuggerHost) {
+      if (debuggerHost.includes("exp.direct") || debuggerHost.includes("ngrok")) {
+        const host = debuggerHost.split(":")[0];
+        return `http://${host}/`;
+      }
+      const host = debuggerHost.split(":")[0];
+      return `http://${host}:8081/`;
+    }
+  }
+
   let host = process.env.EXPO_PUBLIC_DOMAIN;
 
   if (!host) {
