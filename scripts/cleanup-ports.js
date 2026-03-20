@@ -1,7 +1,7 @@
 const { execSync } = require("child_process");
 const net = require("net");
 
-const PORTS = [5000, 8082];
+const PORTS = [5000, 8081, 8082];
 
 function isPortBusy(port) {
   return new Promise((resolve) => {
@@ -13,25 +13,29 @@ function isPortBusy(port) {
 }
 
 async function main() {
+  const allPids = execSync(
+    `ps aux | grep "nodejs-22" | grep -v grep | grep -v cleanup-ports | awk '{print $2}'`,
+    { encoding: "utf-8" }
+  ).trim();
+
+  if (allPids) {
+    console.log("Killing all Node 22 server processes:", allPids.split("\n").join(", "));
+    for (const p of allPids.split("\n")) {
+      const pid = Number(p);
+      if (pid && pid !== process.pid) {
+        try { process.kill(pid, 9); } catch {}
+      }
+    }
+    await new Promise(r => setTimeout(r, 3000));
+  }
+
   for (const port of PORTS) {
     const busy = await isPortBusy(port);
     if (busy) {
-      console.log(`Port ${port} busy, cleaning up...`);
-      try {
-        const pids = execSync(
-          `ps aux | grep -E "tsx.*server|expo.*cli|jest-worker" | grep -v grep | grep -v cleanup-ports | awk '{print $2}'`,
-          { encoding: "utf-8" }
-        ).trim();
-        if (pids) {
-          for (const p of pids.split("\n")) {
-            try { process.kill(Number(p), 9); } catch {}
-          }
-        }
-      } catch {}
-      await new Promise(r => setTimeout(r, 2000));
-      console.log(`Port ${port} cleaned`);
+      console.log(`Port ${port} still busy after cleanup!`);
     }
   }
+
   console.log("Ports ready");
 }
 

@@ -63,7 +63,7 @@ async function spawnMetro() {
     env: {
       ...process.env,
       CI: "0",
-      EXPO_PACKAGER_PROXY_URL: devDomain ? `https://${devDomain}` : "",
+      EXPO_PACKAGER_PROXY_URL: devDomain ? `https://${devDomain}:5000` : "",
       REACT_NATIVE_PACKAGER_HOSTNAME: devDomain || "localhost",
       EXPO_PUBLIC_DOMAIN: devDomain ? `${devDomain}:5000` : "localhost:5000",
     },
@@ -591,15 +591,75 @@ async function initStripe() {
     });
   }
 
-  server.listen(
-    {
-      port,
-      host: "0.0.0.0",
-    },
-    () => {
-      log(`express server serving on port ${port}`);
-      spawnMetro();
-      initStripe().catch((err) => console.error("Stripe init error:", err));
-    },
-  );
+  function startListening(attempt: number = 1) {
+    server.listen(
+      {
+        port,
+        host: "0.0.0.0",
+      },
+      () => {
+        log(`express server serving on port ${port}`);
+        spawnMetro();
+        initStripe().catch((err) => console.error("Stripe init error:", err));
+      },
+    );
+    server.on("error", (err: any) => {
+      if (err.code === "EADDRINUSE" && attempt <= 5) {
+        log(`Port ${port} busy (attempt ${attempt}/5), killing and retrying...`);
+        try {
+          const { execSync } = require("child_process");
+          const pids = execSync(
+            `ps aux | grep "nodejs-22" | grep -v grep | grep -v ${process.pid} | awk '{print $2}'`,
+            { encoding: "utf-8" }
+          ).trim();
+          if (pids) {
+            for (const p of pids.split("\n")) {
+              const pid = Number(p);
+              if (pid && pid !== process.pid && pid !== process.ppid) {
+                try { process.kill(pid, 9); } catch {}
+              }
+            }
+          }
+        } catch {}
+        setTimeout(() => {
+          server.removeAllListeners("error");
+          server.close(() => {});
+          const newServer = http.createServer(app);
+          if (process.env.NODE_ENV === "development") {
+            newServer.on("upgrade", (req: http.IncomingMessage, socket: any, head: Buffer) => {
+              const proxySocket = net.connect(METRO_PORT, "localhost", () => {
+                const reqLine = `${req.method} ${req.url} HTTP/1.1\r\n`;
+                let headers = "";
+                for (let i = 0; i < req.rawHeaders.length; i += 2) {
+                  headers += `${req.rawHeaders[i]}: ${req.rawHeaders[i + 1]}\r\n`;
+                }
+                proxySocket.write(reqLine + headers + "\r\n");
+                if (head.length > 0) proxySocket.write(head);
+                socket.pipe(proxySocket).pipe(socket);
+              });
+              proxySocket.on("error", () => socket.destroy());
+              socket.on("error", () => proxySocket.destroy());
+            });
+          }
+          newServer.listen({ port, host: "0.0.0.0" }, () => {
+            log(`express server serving on port ${port} (retry ${attempt})`);
+            spawnMetro();
+            initStripe().catch((err) => console.error("Stripe init error:", err));
+          });
+          newServer.on("error", (retryErr: any) => {
+            if (retryErr.code === "EADDRINUSE" && attempt < 5) {
+              setTimeout(() => startListening(attempt + 1), 3000);
+            } else {
+              console.error("Fatal: cannot bind port", port, retryErr.message);
+              process.exit(1);
+            }
+          });
+        }, 3000);
+      } else {
+        console.error("Fatal server error:", err.message);
+        process.exit(1);
+      }
+    });
+  }
+  startListening(1);
 })();
