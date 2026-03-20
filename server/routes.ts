@@ -5071,6 +5071,14 @@ p{color:#999;font-size:16px;margin-bottom:24px}
     }
   });
 
+  app.post("/api/client-error", (req, res) => {
+    const { message, stack, isFatal } = req.body;
+    console.error("=== CLIENT CRASH ===", isFatal ? "[FATAL]" : "[ERROR]", message);
+    if (stack) console.error("STACK:", stack.substring(0, 1000));
+    console.error("=== END CLIENT CRASH ===");
+    res.json({ received: true });
+  });
+
   app.post("/api/track-share", async (req, res) => {
     const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
     try {

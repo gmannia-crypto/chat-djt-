@@ -15,7 +15,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { queryClient } from "@/lib/query-client";
+import { queryClient, getApiUrl } from "@/lib/query-client";
 import { TokenProvider } from "@/lib/token-context";
 import { StatusBar } from "expo-status-bar";
 import {
@@ -28,6 +28,20 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
 
 const DISCLAIMER_KEY = "chatdjt_disclaimer_accepted";
+
+if (typeof ErrorUtils !== "undefined") {
+  const origHandler = ErrorUtils.getGlobalHandler();
+  ErrorUtils.setGlobalHandler((error: any, isFatal: any) => {
+    try {
+      fetch(`${getApiUrl()}/api/client-error`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: error?.message, stack: error?.stack?.substring(0, 2000), isFatal }),
+      }).catch(() => {});
+    } catch {}
+    if (origHandler) origHandler(error, isFatal);
+  });
+}
 
 SplashScreen.preventAutoHideAsync();
 
