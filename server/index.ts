@@ -563,7 +563,7 @@ async function initStripe() {
   setupRequestLogging(app);
 
   app.get("/status", (_req: Request, res: Response) => {
-    res.status(200).send("ok");
+    res.status(200).type("text/plain").send("packager-status:running");
   });
 
   configureExpoAndLanding(app);
