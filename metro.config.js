@@ -22,7 +22,14 @@ config.server = {
     });
 
     return (req, res, next) => {
-      if (req.url && req.url.startsWith("/api/")) {
+      if (req.url && (
+        req.url.startsWith("/api/") ||
+        req.url.startsWith("/public/") ||
+        req.url.startsWith("/server/assets/") ||
+        req.url.startsWith("/js/") ||
+        req.url === "/status" ||
+        req.url === "/subscribe"
+      )) {
         return proxy(req, res, next);
       }
 
