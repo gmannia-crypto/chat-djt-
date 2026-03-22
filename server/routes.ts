@@ -2045,6 +2045,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
   });
 
   const TRUMP_GAME_VOICE_ID = "546bf63af23347308b6cb21edcd76835";
+  const DEAL_NARRATOR_VOICE_ID = "78e63426b8c140a181c97910def314bb";
 
   app.post("/api/game/generate-scenario", async (req, res) => {
     try {
@@ -2095,6 +2096,25 @@ Profit ranges by tier: T1=$3M-$20M, T2=$15M-$55M, T3=$30M-$80M, T4=$50M-$120M, T
     }
   });
 
+  app.post("/api/game/narrate-deal", async (req, res) => {
+    try {
+      const { title, description } = req.body;
+      if (!title || !description) {
+        return res.status(400).json({ error: "Title and description required" });
+      }
+      const narrationText = `${title}. ${description}`;
+      const apiKey = process.env.FISH_AUDIO_API_KEY;
+      if (!apiKey) {
+        return res.json({ audio: null });
+      }
+      const audioBuffer = await fishAudioRequest(narrationText.slice(0, 2000), DEAL_NARRATOR_VOICE_ID, 1.0, apiKey);
+      res.json({ audio: audioBuffer.toString("base64") });
+    } catch (error: any) {
+      console.error("Deal narration error:", error);
+      res.json({ audio: null });
+    }
+  });
+
   app.post("/api/game/trump-reaction", async (req, res) => {
     try {
       const { playerName, choiceText, choiceKarma, consequence, netWorth, totalKarma, turn } = req.body;
@@ -2108,13 +2128,23 @@ Profit ranges by tier: T1=$3M-$20M, T2=$15M-$55M, T3=$30M-$80M, T4=$50M-$120M, T
             content: `You are Donald Trump commentating on a billionaire game player's choices. You are boisterous, dramatic, and hilarious. You call the player by their name "${playerName}". 
 
 Your personality quirks:
-- If they made a RUTHLESS choice: praise them in a backhanded way, call them "a real killer", compare to yourself
-- If they made an ETHICAL choice: mock them lovingly, call them "a lightweight", question their IQ, say things like "You're eating the cats and dogs!" or "Very low energy!" 
-- If they made a CALCULATED choice: respect the hustle but say you'd do it better
+- If they made a RUTHLESS choice: praise them in a backhanded way, call them "a real killer", compare to yourself, say things like "Now THAT'S what I'm talking about! You've got more guts than half of Congress!"
+- If they made an ETHICAL choice: mock them savagely, compare them to political figures you dislike. Use lines like:
+  * "Look, you're fermenting up like the old broken down crow Mitch McConnell!"
+  * "You're a loser, pretty much to the likes of Biden! Sad!"
+  * "Sad to say but your IQ has pretty much reached Maxine Waters levels, and that's bad bad bad folks!"
+  * "You're weaker than Sleepy Joe at a press conference! Very low energy!"
+  * "Even Nancy Pelosi would've made that deal, and she's about 900 years old!"
+  * "You just pulled a Mitt Romney — spineless! Total lightweight!"
+  * "That's the kind of move AOC would make, and look where THAT gets you!"
+  * "You're making Liz Cheney look like a deal-maker! Pathetic!"
+  * "Even Adam Schiff has more business sense than that, and he's got the brain of a pencil!"
+- If they made a CALCULATED choice: respect the hustle but say you'd do it better, throw in a comparison like "Not bad, but I closed bigger deals before breakfast. Ask anyone!"
 - Always address ${playerName} by name
 - Keep it under 3 sentences max
 - Be unpredictable - sometimes praise what you'd normally mock, sometimes roast what you'd normally praise
-- Use your catchphrases naturally: "Nobody does it better than Trump!", "Tremendous!", "Very low IQ!", "You're a lightweight!", "Sad!", "HUGE!", "Believe me!", "You're eating the cats and dogs!"
+- Use your catchphrases naturally: "Nobody does it better than Trump!", "Tremendous!", "Very low IQ!", "You're a lightweight!", "Sad!", "HUGE!", "Believe me!", "You're eating the cats and dogs!", "Total disaster!", "Nasty!", "WRONG!"
+- Mix in political roast comparisons frequently — compare bad moves to specific politicians
 - Never repeat the same reaction pattern`
           },
           {

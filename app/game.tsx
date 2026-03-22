@@ -233,6 +233,9 @@ export default function GameScreen() {
   const [trumpSpeaking, setTrumpSpeaking] = useState(false);
   const [showHellfire, setShowHellfire] = useState(false);
   const [hellfireComplete, setHellfireComplete] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [narratorSpeaking, setNarratorSpeaking] = useState(false);
+  const narratorSoundRef = useRef<Audio.Sound | null>(null);
 
   const karmaRating = getKarmaRating(gameState.karma);
   const titleInfo = getTitle(gameState.netWorth);
@@ -259,6 +262,11 @@ export default function GameScreen() {
       try { await soundRef.current.unloadAsync(); } catch {}
       soundRef.current = null;
     }
+    if (narratorSoundRef.current) {
+      try { await narratorSoundRef.current.unloadAsync(); } catch {}
+      narratorSoundRef.current = null;
+    }
+    setNarratorSpeaking(false);
   }, []);
 
   useEffect(() => {
@@ -277,7 +285,10 @@ export default function GameScreen() {
   }, []);
 
   const playTrumpAudio = useCallback(async (audioBase64: string | null) => {
-    if (!audioBase64) return;
+    if (!audioBase64 || !voiceEnabled) {
+      setTrumpSpeaking(false);
+      return;
+    }
     await cleanupSound();
     setTrumpSpeaking(true);
     const sound = await playBase64Audio(audioBase64);
@@ -294,7 +305,30 @@ export default function GameScreen() {
     } else {
       setTrumpSpeaking(false);
     }
-  }, [cleanupSound]);
+  }, [cleanupSound, voiceEnabled]);
+
+  const playNarratorAudio = useCallback(async (audioBase64: string | null) => {
+    if (!audioBase64 || !voiceEnabled) return;
+    if (narratorSoundRef.current) {
+      try { await narratorSoundRef.current.unloadAsync(); } catch {}
+      narratorSoundRef.current = null;
+    }
+    setNarratorSpeaking(true);
+    const sound = await playBase64Audio(audioBase64);
+    if (sound) {
+      narratorSoundRef.current = sound;
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if ("didJustFinish" in status && status.didJustFinish) {
+          setNarratorSpeaking(false);
+          sound.unloadAsync().catch(() => {});
+          narratorSoundRef.current = null;
+        }
+      });
+      setTimeout(() => setNarratorSpeaking(false), 20000);
+    } else {
+      setNarratorSpeaking(false);
+    }
+  }, [voiceEnabled]);
 
   const confirmName = useCallback(async () => {
     if (!nameInput.trim()) return;
@@ -352,13 +386,22 @@ export default function GameScreen() {
       setUsedTitles(prev => [...prev, scenario.title]);
       setGameState(prev => ({ ...prev, turn: prev.turn + 1 }));
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+      if (voiceEnabled) {
+        apiCall("/api/game/narrate-deal", {
+          title: scenario.title,
+          description: scenario.description,
+        }).then((narData) => {
+          if (narData.audio) playNarratorAudio(narData.audio);
+        }).catch(() => {});
+      }
     } catch (err) {
       console.error("Failed to generate scenario:", err);
       setTrumpQuote("The AI had a little hiccup. Even the best have off days! Try again!");
     }
     setLoading(false);
     setTimeout(() => scrollRef.current?.scrollTo({ y: 0, animated: true }), 100);
-  }, [gameState, usedTitles, playerName, apiCall, getTier, cleanupSound]);
+  }, [gameState, usedTitles, playerName, apiCall, getTier, cleanupSound, voiceEnabled, playNarratorAudio]);
 
   const makeChoice = useCallback(async (choice: Choice) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
@@ -404,11 +447,26 @@ export default function GameScreen() {
         setTrumpSpeaking(false);
       }
     } catch {
-      const fallback = choice.karma <= -15
-        ? `${playerName}, that was RUTHLESS! I love it! Tremendous!`
-        : choice.karma >= 10
-        ? `${playerName}, you're a lightweight! Very low IQ move!`
-        : `${playerName}, not bad, not bad. But I'd do it BETTER!`;
+      const ruthlessLines = [
+        `${playerName}, that was RUTHLESS! I love it! Tremendous! You're like a young Trump!`,
+        `${playerName}, now THAT'S a killer move! You've got more guts than half of Congress! Believe me!`,
+        `${playerName}, beautiful! That's how you build an empire! Nobody does it better — except me!`,
+      ];
+      const ethicalLines = [
+        `Look ${playerName}, you're fermenting up like the old broken down crow Mitch McConnell! Sad!`,
+        `${playerName}, you're a loser pretty much to the likes of Biden! Very low energy!`,
+        `Sad to say ${playerName}, but your IQ has pretty much reached Maxine Waters levels, and that's bad bad bad folks!`,
+        `${playerName}, you're weaker than Sleepy Joe at a press conference! Total lightweight!`,
+        `Even Nancy Pelosi would've made that deal ${playerName}, and she's about 900 years old! Pathetic!`,
+        `${playerName}, you just pulled a Mitt Romney — spineless! Nobody respects that!`,
+      ];
+      const grayLines = [
+        `${playerName}, not bad, not bad. But I'd do it BETTER! Ask anyone!`,
+        `${playerName}, I see what you did there. Smart, but not Trump-level smart. Close though!`,
+        `${playerName}, that's the kind of move that gets you to $500M. But to a BILLION? You gotta think BIGGER!`,
+      ];
+      const pool = choice.karma <= -15 ? ruthlessLines : choice.karma >= 10 ? ethicalLines : grayLines;
+      const fallback = pool[Math.floor(Math.random() * pool.length)];
       setTrumpQuote(fallback);
       setTrumpSpeaking(false);
     }
@@ -548,9 +606,14 @@ export default function GameScreen() {
             <View style={styles.headerCenter}>
               <Text style={styles.headerTitle}>TRUMP BILLIONAIRES</Text>
             </View>
-            <Pressable onPress={handleShare} style={styles.shareBtn}>
-              <Ionicons name="share-outline" size={20} color={Colors.gold} />
-            </Pressable>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <Pressable onPress={() => { setVoiceEnabled(v => !v); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }} style={[styles.shareBtn, !voiceEnabled && { opacity: 0.4 }]}>
+                <Ionicons name={voiceEnabled ? "volume-high" : "volume-mute"} size={18} color={Colors.gold} />
+              </Pressable>
+              <Pressable onPress={handleShare} style={styles.shareBtn}>
+                <Ionicons name="share-outline" size={20} color={Colors.gold} />
+              </Pressable>
+            </View>
           </View>
 
           <Animated.View entering={FadeInDown.duration(600)} style={styles.introCard}>
@@ -736,9 +799,14 @@ export default function GameScreen() {
             {fmtMoney(gameState.netWorth)} • {karmaRating.label} • {playerName}
           </Text>
         </View>
-        <Pressable onPress={handleShare} style={styles.shareBtn}>
-          <Ionicons name="share-outline" size={20} color={Colors.gold} />
-        </Pressable>
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          <Pressable onPress={() => { setVoiceEnabled(v => !v); cleanupSound(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }} style={[styles.shareBtn, !voiceEnabled && { opacity: 0.4 }]}>
+            <Ionicons name={voiceEnabled ? "volume-high" : "volume-mute"} size={18} color={Colors.gold} />
+          </Pressable>
+          <Pressable onPress={handleShare} style={styles.shareBtn}>
+            <Ionicons name="share-outline" size={20} color={Colors.gold} />
+          </Pressable>
+        </View>
       </View>
 
       <View style={styles.progressContainer}>
@@ -779,6 +847,12 @@ export default function GameScreen() {
                 </View>
               </View>
               <Text style={styles.scenarioDesc}>{currentScenario.description}</Text>
+              {narratorSpeaking && (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10 }}>
+                  <Ionicons name="mic" size={14} color="#4ADE80" />
+                  <Text style={{ fontSize: 11, color: "#4ADE80", fontWeight: "700" }}>Narrator speaking...</Text>
+                </View>
+              )}
 
               <View style={{ marginTop: 20, gap: 12 }}>
                 {currentScenario.choices.map((choice, i) => {

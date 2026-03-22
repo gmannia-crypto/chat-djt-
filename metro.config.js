@@ -33,26 +33,7 @@ config.server = {
         return proxy(req, res, next);
       }
 
-      if (req.url && req.url.includes(".bundle") && req.url.includes("platform=android")) {
-        const cacheDir = path.resolve(__dirname, ".bundle-cache");
-        const acceptsGzip = (req.headers["accept-encoding"] || "").includes("gzip");
-        const gzPath = path.join(cacheDir, "android.bundle.gz");
-        const rawPath = path.join(cacheDir, "android.bundle");
-
-        if (acceptsGzip && fs.existsSync(gzPath)) {
-          console.log("[metro-cache] Serving cached gzip Android bundle");
-          res.setHeader("Content-Type", "application/javascript");
-          res.setHeader("Content-Encoding", "gzip");
-          res.setHeader("Content-Length", fs.statSync(gzPath).size);
-          return fs.createReadStream(gzPath).pipe(res);
-        }
-        if (fs.existsSync(rawPath)) {
-          console.log("[metro-cache] Serving cached raw Android bundle");
-          res.setHeader("Content-Type", "application/javascript");
-          res.setHeader("Content-Length", fs.statSync(rawPath).size);
-          return fs.createReadStream(rawPath).pipe(res);
-        }
-      }
+      /* Bundle cache disabled — Metro serves fresh bundles via HMR */
 
       return middleware(req, res, next);
     };
