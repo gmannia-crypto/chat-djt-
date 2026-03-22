@@ -471,10 +471,10 @@ async function fishAudioRequest(text: string, voiceId: string, speed: number, ap
         }),
       });
 
-      if (response.status === 429) {
+      if (response.status === 429 || response.status === 503 || response.status === 502) {
         const errorText = await response.text();
-        console.warn(`Fish Audio rate limited (attempt ${attempt + 1}):`, errorText);
-        lastError = new Error(`Fish Audio rate limited: 429`);
+        console.warn(`Fish Audio ${response.status} (attempt ${attempt + 1}/${retries}):`, errorText);
+        lastError = new Error(`Fish Audio error: ${response.status}`);
         continue;
       }
 
@@ -489,7 +489,7 @@ async function fishAudioRequest(text: string, voiceId: string, speed: number, ap
       setCachedTTS(cacheKey, buffer);
       return buffer;
     } catch (err: any) {
-      if (err.message?.includes("rate limited")) {
+      if (err.message?.includes("rate limited") || err.message?.includes("Fish Audio error")) {
         lastError = err;
         continue;
       }
