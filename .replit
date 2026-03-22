@@ -83,7 +83,7 @@ outputType = "console"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "EXPO_MAX_WORKERS=1 NODE_OPTIONS='--max-old-space-size=2048' EXPO_PUBLIC_DOMAIN=$REPLIT_DEV_DOMAIN npx expo start --port 8081"
+args = "EXPO_MAX_WORKERS=1 NODE_OPTIONS='--max-old-space-size=2048' EXPO_PUBLIC_DOMAIN=$REPLIT_DEV_DOMAIN npx expo start --port 8081 --tunnel"
 waitForPort = 8081
 
 [userenv]
