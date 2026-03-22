@@ -5618,9 +5618,9 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
         }
       }
 
-      const tokenResult = await useToken(deviceId);
-      if (!tokenResult.success) {
-        return res.status(403).json({ error: tokenResult.error, balance: tokenResult.balance });
+      const balance = await getTokenBalance(deviceId);
+      if (balance.totalAvailable <= 0) {
+        return res.status(403).json({ error: "No tokens remaining. Subscribe or buy Trump Tokens to continue!", balance });
       }
 
       const nameStr = name || "friend";

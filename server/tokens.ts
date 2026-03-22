@@ -1,6 +1,6 @@
 import { Pool } from "pg";
 
-const FREE_PROMPT_LIMIT = 3;
+const FREE_PROMPT_LIMIT = 10;
 const STANDARD_SUBSCRIPTION_TOKENS = 50;
 const VIP_SUBSCRIPTION_TOKENS = 150;
 const SUBSCRIPTION_TOKENS = STANDARD_SUBSCRIPTION_TOKENS;
@@ -28,12 +28,21 @@ export async function getOrCreateAccount(deviceId: string) {
   );
 
   if (result.rows.length === 0) {
+    const isDev = process.env.NODE_ENV === "development";
+    const startingTokens = isDev ? 100 : 0;
     result = await db.query(
       `INSERT INTO token_accounts (device_id, tokens, free_prompts_used, subscription_active, subscription_tokens_granted, created_at, updated_at)
-       VALUES ($1, 0, 0, false, false, NOW(), NOW())
+       VALUES ($1, $2, 0, false, false, NOW(), NOW())
        RETURNING *`,
-      [deviceId]
+      [deviceId, startingTokens]
     );
+    if (isDev && startingTokens > 0) {
+      await db.query(
+        `INSERT INTO token_transactions (account_id, type, amount, description, created_at)
+         VALUES ($1, 'reward', $2, 'Development mode starting tokens', NOW())`,
+        [result.rows[0].id, startingTokens]
+      );
+    }
   }
 
   return result.rows[0];
