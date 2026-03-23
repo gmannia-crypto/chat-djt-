@@ -1,0 +1,100 @@
+{
+  "colorScheme": "light",
+  "fonts": [
+    {
+      "family": "Roobert",
+      "count": 13
+    },
+    {
+      "family": "ui-sans-serif",
+      "count": 13
+    },
+    {
+      "family": "system-ui",
+      "count": 13
+    },
+    {
+      "family": "sans-serif",
+      "count": 13
+    }
+  ],
+  "colors": {
+    "primary": "#2E54EB",
+    "accent": "#2E54EB",
+    "background": "#FAFAFA",
+    "textPrimary": "#4C4C4C",
+    "link": "#2E54EB"
+  },
+  "typography": {
+    "fontFamilies": {
+      "primary": "Roobert",
+      "heading": "Roobert"
+    },
+    "fontStacks": {
+      "body": [
+        "Roobert",
+        "ui-sans-serif",
+        "system-ui",
+        "sans-serif"
+      ],
+      "heading": [
+        "Roobert",
+        "ui-sans-serif",
+        "system-ui",
+        "sans-serif"
+      ],
+      "paragraph": [
+        "Roobert",
+        "ui-sans-serif",
+        "system-ui",
+        "sans-serif"
+      ]
+    },
+    "fontSizes": {
+      "h1": "20px",
+      "h2": "20px",
+      "body": "16px"
+    }
+  },
+  "spacing": {
+    "baseUnit": 8,
+    "borderRadius": "0px"
+  },
+  "components": {},
+  "images": {
+    "logo": null,
+    "favicon": "File saved at: attached_assets/favicon.ico",
+    "ogImage": null
+  },
+  "personality": {
+    "tone": "professional",
+    "energy": "medium",
+    "targetAudience": "unknown"
+  },
+  "designSystem": {
+    "framework": "unknown",
+    "componentLibrary": ""
+  },
+  "confidence": {
+    "buttons": 0,
+    "colors": 0,
+    "overall": 0
+  },
+  "__llm_metadata": {
+    "logoSelection": {
+      "llmCalled": false,
+      "llmSucceeded": false,
+      "finalSource": "none",
+      "rawLogoSelection": {
+        "selectedLogoIndex": -1,
+        "selectedLogoReasoning": "LLM failed",
+        "confidence": 0
+      }
+    },
+    "buttonClassification": {
+      "llmCalled": false,
+      "llmSucceeded": false,
+      "error": "LLM call failed or returned fallback values"
+    }
+  }
+}
