@@ -521,7 +521,7 @@ export default function GameScreen() {
 
   const handleShare = useCallback(() => {
     const darkPercent = choiceHistory.length > 0 ? Math.round((choiceHistory.filter(c => c.karma < -10).length / choiceHistory.length) * 100) : 0;
-    const shareText = `🎮 TRUMP BILLIONAIRES\n\n${titleInfo.emoji} ${titleInfo.label}\n💰 Net Worth: ${fmtMoney(gameState.netWorth)}\n⚡ Moral Rating: ${karmaRating.label}\n🎭 Dark Deals: ${gameState.darkDeals}\n📊 ${darkPercent}% ruthless choices\n\n${gameWon ? "I reached $1 BILLION! 👑" : `Turn ${gameState.turn} — still climbing!`}\n\n👉 Play at chat-djt.replit.app`;
+    const shareText = `🎮 DYNAMIC BILLIONAIRES\n\n${titleInfo.emoji} ${titleInfo.label}\n💰 Net Worth: ${fmtMoney(gameState.netWorth)}\n⚡ Moral Rating: ${karmaRating.label}\n🎭 Dark Deals: ${gameState.darkDeals}\n📊 ${darkPercent}% ruthless choices\n\n${gameWon ? "I reached $1 BILLION! 👑" : `Turn ${gameState.turn} — still climbing!`}\n\n👉 Play at chat-djt.replit.app`;
     shareContent({ text: shareText, feature: "game" });
   }, [gameState, titleInfo, karmaRating, choiceHistory, gameWon]);
 
@@ -544,7 +544,7 @@ export default function GameScreen() {
             <Ionicons name="arrow-back" size={22} color={Colors.gold} />
           </Pressable>
           <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle}>TRUMP BILLIONAIRES</Text>
+            <Text style={styles.headerTitle}>DYNAMIC BILLIONAIRES</Text>
           </View>
           <View style={{ width: 36 }} />
         </View>
@@ -604,7 +604,7 @@ export default function GameScreen() {
               <Ionicons name="arrow-back" size={22} color={Colors.gold} />
             </Pressable>
             <View style={styles.headerCenter}>
-              <Text style={styles.headerTitle}>TRUMP BILLIONAIRES</Text>
+              <Text style={styles.headerTitle}>DYNAMIC BILLIONAIRES</Text>
             </View>
             <View style={{ flexDirection: "row", gap: 8 }}>
               <Pressable onPress={() => { setVoiceEnabled(v => !v); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }} style={[styles.shareBtn, !voiceEnabled && { opacity: 0.4 }]}>

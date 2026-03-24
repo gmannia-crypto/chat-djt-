@@ -6,9 +6,9 @@ const VIP_SUBSCRIPTION_TOKENS = 150;
 const SUBSCRIPTION_TOKENS = STANDARD_SUBSCRIPTION_TOKENS;
 
 export const TOKEN_PACKS = [
-  { id: "pack_15", name: "15 Trump Tokens", tokens: 15, price: 299, priceDisplay: "$2.99" },
-  { id: "pack_35", name: "35 Trump Tokens", tokens: 35, price: 499, priceDisplay: "$4.99" },
-  { id: "pack_80", name: "80 Trump Tokens", tokens: 80, price: 999, priceDisplay: "$9.99" },
+  { id: "pack_15", name: "15 Dynamic Tokens", tokens: 15, price: 299, priceDisplay: "$2.99" },
+  { id: "pack_35", name: "35 Dynamic Tokens", tokens: 35, price: 499, priceDisplay: "$4.99" },
+  { id: "pack_80", name: "80 Dynamic Tokens", tokens: 80, price: 999, priceDisplay: "$9.99" },
 ];
 
 let pool: Pool | null = null;
@@ -102,7 +102,7 @@ export async function useToken(deviceId: string): Promise<{ success: boolean; er
 
   return {
     success: false,
-    error: "No tokens remaining. Subscribe or buy Trump Tokens to continue!",
+    error: "No tokens remaining. Subscribe or buy Dynamic Tokens to continue!",
     balance: await getTokenBalance(deviceId),
   };
 }
@@ -172,7 +172,7 @@ export async function grantSubscriptionTokens(deviceId: string, stripeCustomerId
     await client.query(
       `INSERT INTO token_transactions (account_id, type, amount, description, stripe_session_id, created_at)
        VALUES ($1, 'subscription', $2, $3, $4, NOW())`,
-      [account.id, tokenAmount, `${tier === "vip" ? "VIP" : "Standard"} subscription - ${tokenAmount} Trump Tokens`, stripeSessionId || null]
+      [account.id, tokenAmount, `${tier === "vip" ? "VIP" : "Standard"} subscription - ${tokenAmount} Dynamic Tokens`, stripeSessionId || null]
     );
 
     await client.query("COMMIT");
@@ -269,7 +269,7 @@ export async function refreshSubscriptionTokens(stripeSubscriptionId: string) {
   await db.query(
     `INSERT INTO token_transactions (account_id, type, amount, description, created_at)
      VALUES ($1, 'subscription_renewal', $2, $3, NOW())`,
-    [account.id, tokenAmount, `Monthly renewal - ${tokenAmount} Trump Tokens (${tier})`]
+    [account.id, tokenAmount, `Monthly renewal - ${tokenAmount} Dynamic Tokens (${tier})`]
   );
 }
 

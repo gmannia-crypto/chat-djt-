@@ -12,13 +12,13 @@ async function createProducts() {
     },
     {
       name: 'Chat DJT Standard',
-      description: '50 Trump Tokens per month. Great deal!',
+      description: '50 Dynamic Tokens per month. Great deal!',
       metadata: { app: 'chatdjt', tier: 'standard', type: 'subscription' },
       price: 499,
     },
     {
       name: 'Chat DJT VIP',
-      description: '150 Trump Tokens per month. The best deal, believe me! Tremendous value!',
+      description: '150 Dynamic Tokens per month. The best deal, believe me! Tremendous value!',
       metadata: { app: 'chatdjt', tier: 'vip', type: 'subscription' },
       price: 999,
     },
@@ -54,9 +54,9 @@ async function createProducts() {
   }
 
   const tokenPacks = [
-    { name: '15 Trump Tokens', amount: 299, packId: 'pack_15', description: '15 extra prompts with DJT' },
-    { name: '35 Trump Tokens', amount: 499, packId: 'pack_35', description: '35 extra prompts with DJT - Popular!' },
-    { name: '80 Trump Tokens', amount: 999, packId: 'pack_80', description: '80 extra prompts with DJT - Tremendous deal!' },
+    { name: '15 Dynamic Tokens', amount: 299, packId: 'pack_15', description: '15 extra prompts with DJT' },
+    { name: '35 Dynamic Tokens', amount: 499, packId: 'pack_35', description: '35 extra prompts with DJT - Popular!' },
+    { name: '80 Dynamic Tokens', amount: 999, packId: 'pack_80', description: '80 extra prompts with DJT - Tremendous deal!' },
   ];
 
   for (const pack of tokenPacks) {

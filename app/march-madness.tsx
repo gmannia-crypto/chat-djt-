@@ -61,7 +61,7 @@ interface AnalystInfo {
 
 const ANALYSTS: AnalystInfo[] = [
   { id: "barkley", name: "Chuck", color: "#FF6F00", image: PERSONA_IMAGES.barkley },
-  { id: "trump", name: "Trump", color: "#ff4d4d", image: PERSONA_IMAGES.trump },
+  { id: "trump", name: "Dynamic", color: "#ff4d4d", image: PERSONA_IMAGES.trump },
   { id: "dickyV", name: "Dicky V", color: "#FF6F00", image: PERSONA_IMAGES.dickyV },
   { id: "loudmouth", name: "Loudmouth", color: "#E53935", image: PERSONA_IMAGES.loudmouth },
   { id: "shannon", name: "Shannon", color: "#1E88E5", image: PERSONA_IMAGES.shannon },

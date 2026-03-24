@@ -10,6 +10,8 @@ import {
   Linking,
   ActivityIndicator,
   Modal,
+  Alert,
+  BackHandler,
   type ImageSourcePropType,
 } from "react-native";
 import { router } from "expo-router";
@@ -119,7 +121,7 @@ interface PersonaInfo {
 }
 
 const PERSONAS: PersonaInfo[] = [
-  { id: "trump", name: "Trump", fullName: "Donald J. Trump", color: "#ff4d4d", image: PERSONA_IMAGES.trump },
+  { id: "trump", name: "Dynamic", fullName: "Donald J. Trump", color: "#ff4d4d", image: PERSONA_IMAGES.trump },
   { id: "loudmouth", name: "Loudmouth", fullName: "Loudmouth", color: "#E53935", image: PERSONA_IMAGES.loudmouth },
   { id: "shannon", name: "Shannon", fullName: "Shannon Sharpe", color: "#1E88E5", image: PERSONA_IMAGES.shannon },
   { id: "jordan", name: "MJ", fullName: "Michael Jordan", color: "#CE1141", image: PERSONA_IMAGES.jordan },
@@ -135,7 +137,7 @@ const PERSONAS: PersonaInfo[] = [
 ];
 
 const RACING_PERSONAS: PersonaInfo[] = [
-  { id: "trump", name: "Trump", fullName: "Donald J. Trump", color: "#ff4d4d", image: PERSONA_IMAGES.trump },
+  { id: "trump", name: "Dynamic", fullName: "Donald J. Trump", color: "#ff4d4d", image: PERSONA_IMAGES.trump },
   { id: "speedDemon", name: "Speed Demon", fullName: "Speed Demon", color: "#FF3D00", image: PERSONA_IMAGES.speedDemon },
   { id: "pitBoss", name: "Pit Boss", fullName: "Pit Boss", color: "#78909C", image: PERSONA_IMAGES.pitBoss },
   { id: "driftQueen", name: "Drift Queen", fullName: "Drift Queen", color: "#E040FB", image: PERSONA_IMAGES.driftQueen },
@@ -145,7 +147,7 @@ const RACING_PERSONAS: PersonaInfo[] = [
 ];
 
 const SOCCER_PERSONAS: PersonaInfo[] = [
-  { id: "trump", name: "Trump", fullName: "Donald J. Trump", color: "#ff4d4d", image: PERSONA_IMAGES.trump },
+  { id: "trump", name: "Dynamic", fullName: "Donald J. Trump", color: "#ff4d4d", image: PERSONA_IMAGES.trump },
   { id: "elCapitan", name: "El Capitán", fullName: "El Capitán", color: "#F44336", image: PERSONA_IMAGES.elCapitan },
   { id: "sirGodfrey", name: "Sir Godfrey", fullName: "Sir Godfrey", color: "#5D4037", image: PERSONA_IMAGES.sirGodfrey },
   { id: "mamaFutbol", name: "Mama Fútbol", fullName: "Mama Fútbol", color: "#E91E63", image: PERSONA_IMAGES.mamaFutbol },
@@ -1008,9 +1010,11 @@ export default function SportsScreen() {
   const [userName, setUserName] = useState("");
   const [nameEditing, setNameEditing] = useState(false);
   const { playClick, playTransition } = useSoundEffects();
-  const { deviceId } = useTokens();
+  const { deviceId, balance, refreshBalance } = useTokens();
   const [allTimeStats, setAllTimeStats] = useState<{ persona_id: string; total_wins: number; total_losses: number; best_streak: number; players: number }[]>([]);
   const [showAllTimeBoard, setShowAllTimeBoard] = useState(false);
+  const [recapText, setRecapText] = useState<string | null>(null);
+  const [recapLoading, setRecapLoading] = useState(false);
 
   const syncRecordsToDb = useCallback(async (t: Record<string, PersonaTally>) => {
     if (!deviceId) return;
@@ -1280,6 +1284,40 @@ export default function SportsScreen() {
     finally { if (mountedRef.current) setTrashTalkLoading(false); }
   };
 
+  const fetchRecap = async () => {
+    if (completedGames.length === 0) return;
+    setRecapLoading(true);
+    setRecapText(null);
+    try {
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      const res = await fetch(`${baseUrl}/api/sports/recap`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(deviceId ? { "x-device-id": deviceId } : {}) },
+        body: JSON.stringify({ personaId: selectedPersona, completedGames }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (data.error === "no_tokens") {
+          Alert.alert("Not Enough Tokens", "Recap costs 2 tokens. Get more tokens to continue!", [
+            { text: "Get Tokens", onPress: () => router.push("/subscribe") },
+            { text: "Cancel", style: "cancel" },
+          ]);
+          return;
+        }
+        throw new Error("Failed");
+      }
+      const data = await res.json();
+      if (mountedRef.current) {
+        setRecapText(data.recap || null);
+        refreshBalance();
+      }
+    } catch (e) {
+      console.error("Recap error:", e);
+    } finally {
+      if (mountedRef.current) setRecapLoading(false);
+    }
+  };
+
   const loadDebateData = async () => {
     if (!featuredGame) return;
     try {
@@ -1455,15 +1493,23 @@ export default function SportsScreen() {
           <MaterialCommunityIcons name="football" size={20} color={Colors.gold} />
           <Text style={styles.headerTitle}>DYNAMIC SPORTS BOOK</Text>
         </View>
-        <Pressable
-          onPress={() => { playClick(); toggleMusic(); }}
-          style={[styles.musicToggle, musicPlaying && styles.musicToggleActive]}
-        >
-          <Ionicons name={musicPlaying ? "musical-notes" : "musical-notes-outline"} size={18} color={musicPlaying ? Colors.gold : "rgba(255,255,255,0.5)"} />
-          <Text style={[styles.musicToggleText, musicPlaying && { color: Colors.gold }]}>
-            {musicPlaying ? "ON" : "OFF"}
-          </Text>
-        </Pressable>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          {balance && (
+            <Pressable onPress={() => router.push("/subscribe")} style={styles.tokenBadge}>
+              <Ionicons name="flash" size={12} color={Colors.gold} />
+              <Text style={styles.tokenBadgeText}>{balance.totalAvailable}</Text>
+            </Pressable>
+          )}
+          <Pressable
+            onPress={() => { playClick(); toggleMusic(); }}
+            style={[styles.musicToggle, musicPlaying && styles.musicToggleActive]}
+          >
+            <Ionicons name={musicPlaying ? "musical-notes" : "musical-notes-outline"} size={18} color={musicPlaying ? Colors.gold : "rgba(255,255,255,0.5)"} />
+            <Text style={[styles.musicToggleText, musicPlaying && { color: Colors.gold }]}>
+              {musicPlaying ? "ON" : "OFF"}
+            </Text>
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView
@@ -1722,6 +1768,52 @@ export default function SportsScreen() {
             })
           )}
         </Animated.View>
+
+        {completedGames.length > 0 && (
+          <Animated.View entering={FadeInDown.delay(350).duration(400)} style={styles.section}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionLabel}>LAST NIGHT'S RECAP</Text>
+              <View style={[styles.aiBadge, { backgroundColor: "rgba(255,152,0,0.15)" }]}>
+                <Ionicons name="newspaper" size={12} color="#FF9800" />
+                <Text style={[styles.aiBadgeText, { color: "#FF9800" }]}>2 TOKENS</Text>
+              </View>
+            </View>
+            <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, marginBottom: 12 }}>
+              Get {activePersona.name}'s recap of last night's games — hot takes, highlights, and who choked!
+            </Text>
+            <Pressable
+              onPress={() => { playClick(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); fetchRecap(); }}
+              disabled={recapLoading}
+              style={({ pressed }) => [styles.recapBtn, { borderColor: activePersona.color, backgroundColor: `${activePersona.color}15` }, pressed && { opacity: 0.7 }]}
+            >
+              {recapLoading ? (
+                <ActivityIndicator size="small" color={activePersona.color} />
+              ) : (
+                <Ionicons name="newspaper-outline" size={18} color={activePersona.color} />
+              )}
+              <Text style={[styles.recapBtnText, { color: activePersona.color }]}>
+                {recapLoading ? `${activePersona.name} is reviewing the tape...` : recapText ? "REFRESH RECAP" : `GET ${activePersona.name.toUpperCase()}'S RECAP`}
+              </Text>
+            </Pressable>
+            {recapText && !recapLoading && (
+              <Animated.View entering={FadeInDown.duration(300)} style={[styles.recapBox, { borderLeftColor: activePersona.color }]}>
+                <View style={styles.recapHeader}>
+                  <Image source={activePersona.image} style={[styles.commentaryAvatar, { borderColor: activePersona.color }]} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.commentaryLabel, { color: activePersona.color }]}>{activePersona.name}'s Recap</Text>
+                  </View>
+                  <Pressable
+                    onPress={() => handleSpeak(recapText, selectedPersona, 77777)}
+                    style={({ pressed }) => [styles.commentarySpeakBtn, { borderColor: activePersona.color }, pressed && { opacity: 0.7 }]}
+                  >
+                    <Ionicons name={speakingGameId === 77777 ? "stop" : "volume-high"} size={14} color={activePersona.color} />
+                  </Pressable>
+                </View>
+                <Text style={styles.commentaryText}>"{recapText}"</Text>
+              </Animated.View>
+            )}
+          </Animated.View>
+        )}
 
         {completedGames.length > 0 && (
           <Animated.View entering={FadeInDown.delay(400).duration(400)} style={styles.section}>
@@ -3121,5 +3213,50 @@ const styles = StyleSheet.create({
     top: "10%" as any,
     left: "10%" as any,
     opacity: 0.04,
+  },
+  tokenBadge: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 3,
+    backgroundColor: "rgba(212,164,32,0.15)",
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: "rgba(212,164,32,0.3)",
+  },
+  tokenBadgeText: {
+    fontSize: 11,
+    fontWeight: "800" as const,
+    color: Colors.gold,
+  },
+  recapBtn: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  recapBtnText: {
+    fontSize: 13,
+    fontWeight: "700" as const,
+    letterSpacing: 0.5,
+  },
+  recapBox: {
+    backgroundColor: "rgba(0,0,0,0.3)",
+    borderRadius: 10,
+    padding: 14,
+    marginTop: 12,
+    borderLeftWidth: 3,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+  },
+  recapHeader: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 10,
+    marginBottom: 10,
   },
 });

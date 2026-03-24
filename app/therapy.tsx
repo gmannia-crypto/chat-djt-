@@ -150,8 +150,8 @@ interface TherapistConfig {
 const THERAPIST_CONFIGS: Record<TherapistVoice, TherapistConfig> = {
   trump: {
     voice: "trump",
-    name: "Dr. Trump",
-    title: "TRUMP THERAPY",
+    name: "Dr. Dynamic",
+    title: "DYNAMIC THERAPY",
     image: trumpTherapistImage,
     accent: "#ff4d4d",
     accentLight: "rgba(255,77,77,0.15)",
@@ -160,13 +160,13 @@ const THERAPIST_CONFIGS: Record<TherapistVoice, TherapistConfig> = {
     bgGradient: ["#0a0a0a", "#1a0505", "#0a0a0a"],
     greeting: "\"Lie down. Tell me everything. I'm listening...\"",
     diagnosisLabel: "DR. TRUMP'S DIAGNOSIS",
-    introTitle: "DR. TRUMP",
+    introTitle: "DR. DYNAMIC",
     introSubtitle: "IS READY TO SEE YOU NOW",
     introQuote: "\"Lie down. Tell me everything.\"",
-    placeholder: "Tell Dr. Trump what's wrong... or tap the mic",
+    placeholder: "Tell Dr. Dynamic what's wrong... or tap the mic",
     buttonText: "GET THERAPY",
-    errorMsg: "Dr. Trump is taking a break. Even the best therapists need to play golf sometimes. Try again!",
-    rxTitle: "DR. TRUMP'S RX",
+    errorMsg: "Dr. Dynamic is taking a break. Even the best therapists need to play golf sometimes. Try again!",
+    rxTitle: "DR. DYNAMIC'S RX",
     rxSubtitle: "\"I prescribe only the best. Believe me.\"",
   },
   sophia: {
@@ -259,7 +259,7 @@ export default function TherapyScreen() {
   const insets = useSafeAreaInsets();
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
-  const { hasTokens, deviceId, refreshBalance } = useTokens();
+  const { hasTokens, deviceId, refreshBalance, balance } = useTokens();
 
   const [selectedTherapist, setSelectedTherapist] = useState<TherapistVoice>("trump");
   const [questionPrompt, setQuestionPrompt] = useState<string | null>(null);
@@ -999,6 +999,12 @@ export default function TherapyScreen() {
           <Ionicons name="arrow-back" size={22} color={config.accent} />
         </Pressable>
         <View style={{ flex: 1 }} />
+        {balance && (
+          <Pressable onPress={() => router.push("/subscribe")} style={{ flexDirection: "row" as const, alignItems: "center" as const, gap: 3, backgroundColor: "rgba(212,164,32,0.15)", borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: "rgba(212,164,32,0.3)", marginRight: 8 }}>
+            <Ionicons name="flash" size={12} color="#D4A420" />
+            <Text style={{ fontSize: 11, fontWeight: "800" as const, color: "#D4A420" }}>{balance.totalAvailable}</Text>
+          </Pressable>
+        )}
       </View>
 
       <ScrollView

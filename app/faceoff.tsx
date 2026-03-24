@@ -26,6 +26,7 @@ import Animated, {
 import Colors from "@/constants/colors";
 import { getApiUrl } from "@/lib/query-client";
 import { shareContent } from "@/lib/track-share";
+import { useTokens } from "@/lib/token-context";
 import { recordInteraction, getHeadToHead, generateTrashTalk, getPersonaRecord } from "@/lib/persona-memory";
 
 interface Persona {
@@ -68,7 +69,7 @@ interface Topic {
 const PERSONAS: Persona[] = [
   {
     id: "trump",
-    name: "Trump",
+    name: "Dynamic",
     fullName: "Donald J. Trump",
     color: "#ff4d4d",
     image: PERSONA_IMAGES.trump,
@@ -517,6 +518,7 @@ export default function FaceoffScreen() {
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
   const scrollRef = useRef<ScrollView>(null);
+  const { balance } = useTokens();
 
   const [mode, setMode] = useState<"1v1" | "battle">("1v1");
   const [selectedTopic, setSelectedTopic] = useState<Topic>(TOPICS[0]);
@@ -843,13 +845,21 @@ export default function FaceoffScreen() {
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>FINANCIAL FACEOFF</Text>
         </View>
-        {(debateStarted || battleStarted) ? (
-          <Pressable onPress={mode === "1v1" ? handleShare : handleBattleShare} style={styles.shareBtn}>
-            <Ionicons name="share-outline" size={20} color={Colors.gold} />
-          </Pressable>
-        ) : (
-          <View style={{ width: 36 }} />
-        )}
+        <View style={{ flexDirection: "row" as const, alignItems: "center" as const, gap: 6 }}>
+          {balance && (
+            <Pressable onPress={() => router.push("/subscribe")} style={{ flexDirection: "row" as const, alignItems: "center" as const, gap: 3, backgroundColor: "rgba(212,164,32,0.15)", borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: "rgba(212,164,32,0.3)" }}>
+              <Ionicons name="flash" size={12} color={Colors.gold} />
+              <Text style={{ fontSize: 11, fontWeight: "800" as const, color: Colors.gold }}>{balance.totalAvailable}</Text>
+            </Pressable>
+          )}
+          {(debateStarted || battleStarted) ? (
+            <Pressable onPress={mode === "1v1" ? handleShare : handleBattleShare} style={styles.shareBtn}>
+              <Ionicons name="share-outline" size={20} color={Colors.gold} />
+            </Pressable>
+          ) : (
+            <View style={{ width: 36 }} />
+          )}
+        </View>
       </View>
 
       <View style={styles.modeTabs}>
@@ -1216,7 +1226,7 @@ export default function FaceoffScreen() {
           <LinearGradient colors={["#1a1a08", "#0a0a04"]} style={styles.crossPromoBtnInner}>
             <MaterialCommunityIcons name="gamepad-variant" size={24} color="#FBBF24" />
             <View style={{ flex: 1 }}>
-              <Text style={styles.crossPromoTitle}>TRY TRUMP BILLIONAIRES</Text>
+              <Text style={styles.crossPromoTitle}>TRY DYNAMIC BILLIONAIRES</Text>
               <Text style={styles.crossPromoSub}>Build a real estate empire</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#FBBF24" />

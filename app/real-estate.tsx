@@ -28,6 +28,7 @@ import Animated, {
 } from "react-native-reanimated";
 import Colors from "@/constants/colors";
 import { getApiUrl } from "@/lib/query-client";
+import { useTokens } from "@/lib/token-context";
 
 interface Zone {
   id: string;
@@ -95,7 +96,7 @@ const ADVISOR_IMAGES: Record<string, any> = {
 };
 
 const REAL_ESTATE_ADVISORS = [
-  { id: "trump", name: "Trump", emoji: "\uD83D\uDDE3\uFE0F", color: "#ff4d4d", title: "45th & 47th President", stampLabel: "TRUMP APPROVED", image: ADVISOR_IMAGES.trump },
+  { id: "trump", name: "Dynamic", emoji: "\uD83D\uDDE3\uFE0F", color: "#ff4d4d", title: "45th & 47th President", stampLabel: "DYNAMIC APPROVED", image: ADVISOR_IMAGES.trump },
   { id: "buffett", name: "Buffett", emoji: "\uD83D\uDC74", color: "#4d4dff", title: "Oracle of Omaha", stampLabel: "BUFFETT ANALYZED", image: ADVISOR_IMAGES.buffett },
   { id: "suze", name: "Suze", emoji: "\uD83D\uDC69", color: "#ff99cc", title: "Personal Finance Expert", stampLabel: "SUZE REVIEWED", image: ADVISOR_IMAGES.suze },
   { id: "grandma", name: "Grandma", emoji: "\uD83D\uDC75", color: "#ffffff", title: "Voice of Experience", stampLabel: "GRANDMA APPROVED", image: ADVISOR_IMAGES.grandma },
@@ -132,6 +133,7 @@ export default function RealEstateScreen() {
   const insets = useSafeAreaInsets();
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
+  const { balance } = useTokens();
 
   const [activeTab, setActiveTab] = useState<"zones" | "properties" | "tour" | "prospect">("zones");
   const [mapLocation, setMapLocation] = useState("Miami, FL");
@@ -419,12 +421,20 @@ export default function RealEstateScreen() {
           <Ionicons name="arrow-back" size={22} color={Colors.gold} />
         </Pressable>
         <View style={s.headerCenter}>
-          <Text style={s.headerTitle}>TRUMP REALITY</Text>
+          <Text style={s.headerTitle}>DYNAMIC REALITY</Text>
           <Text style={s.headerSub}>AI-powered property intelligence</Text>
         </View>
-        <View style={[s.liveBadge, dataLive && s.liveBadgeActive]}>
-          <View style={[s.liveDot, { backgroundColor: dataLive ? "#4ADE80" : "#ff4d4d" }]} />
-          <Text style={s.liveBadgeText}>{dataLive ? "LIVE" : "SAMPLE"}</Text>
+        <View style={{ flexDirection: "row" as const, alignItems: "center" as const, gap: 6 }}>
+          {balance && (
+            <Pressable onPress={() => router.push("/subscribe")} style={{ flexDirection: "row" as const, alignItems: "center" as const, gap: 3, backgroundColor: "rgba(212,164,32,0.15)", borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: "rgba(212,164,32,0.3)" }}>
+              <Ionicons name="flash" size={12} color={Colors.gold} />
+              <Text style={{ fontSize: 11, fontWeight: "800" as const, color: Colors.gold }}>{balance.totalAvailable}</Text>
+            </Pressable>
+          )}
+          <View style={[s.liveBadge, dataLive && s.liveBadgeActive]}>
+            <View style={[s.liveDot, { backgroundColor: dataLive ? "#4ADE80" : "#ff4d4d" }]} />
+            <Text style={s.liveBadgeText}>{dataLive ? "LIVE" : "SAMPLE"}</Text>
+          </View>
         </View>
       </Animated.View>
 

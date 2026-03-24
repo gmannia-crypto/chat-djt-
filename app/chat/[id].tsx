@@ -1548,7 +1548,7 @@ export default function ChatScreen() {
         const noTokenMsg: Message = {
           id: generateUniqueId(),
           role: "assistant",
-          content: "You're out of Trump Tokens! Get more tokens to keep this tremendous conversation going.",
+          content: "You're out of Dynamic Tokens! Get more tokens to keep this tremendous conversation going.",
           timestamp: Date.now(),
         };
         setMessages((prev) => {

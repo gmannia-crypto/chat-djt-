@@ -491,7 +491,7 @@ export default function DashboardScreen() {
         >
           <MaterialCommunityIcons name="gamepad-variant" size={22} color="#FBBF24" />
           <View style={{ flex: 1 }}>
-            <Text style={styles.gamePromoTitle}>TRUMP BILLIONAIRES</Text>
+            <Text style={styles.gamePromoTitle}>DYNAMIC BILLIONAIRES</Text>
             <Text style={styles.gamePromoSub}>Use your market knowledge to build an empire!</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color="#FBBF24" />

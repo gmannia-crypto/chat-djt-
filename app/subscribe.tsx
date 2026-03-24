@@ -85,7 +85,7 @@ export default function SubscribeScreen() {
   const vipPrice = vipProduct?.prices?.find((p) => p.recurring?.interval === "month");
 
   const tokenPackProducts = productsData?.data?.filter(
-    (p) => p.name.includes("Trump Tokens")
+    (p) => p.name.includes("Dynamic Tokens")
   );
 
   useEffect(() => {
@@ -128,11 +128,11 @@ export default function SubscribeScreen() {
 
       let msg: string;
       if (data.type === "subscription" && data.tier === "vip") {
-        msg = "Welcome to VIP! 150 Trump Tokens loaded. Nobody gets a better deal than you!";
+        msg = "Welcome to VIP! 150 Dynamic Tokens loaded. Nobody gets a better deal than you!";
       } else if (data.type === "subscription") {
-        msg = "Welcome! 50 Trump Tokens loaded. Great deal, believe me!";
+        msg = "Welcome! 50 Dynamic Tokens loaded. Great deal, believe me!";
       } else {
-        msg = "Trump Tokens added to your account! Now get back in there!";
+        msg = "Dynamic Tokens added to your account! Now get back in there!";
       }
 
       if (Platform.OS === "web") {
@@ -285,7 +285,7 @@ export default function SubscribeScreen() {
           <View style={styles.tokenCircle}>
             <FontAwesome5 name="coins" size={32} color={Colors.gold} />
           </View>
-          <Text style={styles.heroTitle}>Trump Tokens</Text>
+          <Text style={styles.heroTitle}>Dynamic Tokens</Text>
           <Text style={styles.heroSubtitle}>
             Power your conversations with DJT. Each prompt costs 1 token.
           </Text>
@@ -379,7 +379,7 @@ export default function SubscribeScreen() {
                 <View style={styles.planFeatures}>
                   <View style={styles.featureRow}>
                     <FontAwesome5 name="coins" size={13} color={Colors.gold} />
-                    <Text style={styles.featureText}>50 Trump Tokens every month</Text>
+                    <Text style={styles.featureText}>50 Dynamic Tokens every month</Text>
                   </View>
                   <View style={styles.featureRow}>
                     <Ionicons name="refresh" size={15} color={Colors.gold} />
@@ -441,7 +441,7 @@ export default function SubscribeScreen() {
                 <View style={styles.planFeatures}>
                   <View style={styles.featureRow}>
                     <FontAwesome5 name="coins" size={13} color="#E8D5A0" />
-                    <Text style={styles.featureText}>150 Trump Tokens every month</Text>
+                    <Text style={styles.featureText}>150 Dynamic Tokens every month</Text>
                   </View>
                   <View style={styles.featureRow}>
                     <Ionicons name="refresh" size={15} color="#E8D5A0" />

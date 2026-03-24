@@ -69,11 +69,11 @@ const MYSTERY_BOX_KEY = "chatdjt_mystery_box";
 const MYSTERY_REWARDS = [
   { label: "Free Roast", icon: "flame", description: "Trump will personally roast you — for FREE. No tokens needed." },
   { label: "Double Fortune", icon: "crystal-ball", description: "Your next Fortune Parlor reading is DOUBLED. Twice the prophecy!" },
-  { label: "Trump Stock Tip", icon: "trending-up", description: "An exclusive AI-generated stock hot take from the Don himself." },
-  { label: "Property Discount", icon: "home", description: "VIP access to Trump Realty's top pick of the day. TREMENDOUS." },
+  { label: "Dynamic Stock Tip", icon: "trending-up", description: "An exclusive AI-generated stock hot take from the Don himself." },
+  { label: "Property Discount", icon: "home", description: "VIP access to Dynamic Realty's top pick of the day. TREMENDOUS." },
   { label: "Cabinet Roast", icon: "people", description: "Unlock a bonus Cabinet Hot Seat roast. Savage and FREE." },
   { label: "Golden Tweet", icon: "logo-twitter", description: "Generate a viral Trump tweet on ANY topic. Pure gold." },
-  { label: "Therapy Session", icon: "medical", description: "A free therapy session with Dr. Trump. Healing through WINNING." },
+  { label: "Therapy Session", icon: "medical", description: "A free therapy session with Dynamic Therapy. Healing through WINNING." },
   { label: "VIP Fortune", icon: "star", description: "A rare PREMIUM fortune reading. Only winners get this." },
   { label: "Collectible Card", icon: "cards", description: "A DJT Collectible card has been added to your collection!" },
   { label: "Collectible Card", icon: "cards", description: "A DJT Collectible card has been added to your collection!" },
@@ -291,7 +291,7 @@ export default function HomeScreen() {
   const [weeklyReminder, setWeeklyReminder] = useState(false);
   const [electionDays, setElectionDays] = useState(0);
   const [collectionCount, setCollectionCount] = useState({ owned: 0, total: 24 });
-  const { deviceId, hasTokens } = useTokens();
+  const { deviceId, hasTokens, balance } = useTokens();
   const { playClick, playTransition } = useSoundEffects();
   const mainScrollRef = useRef<ScrollView>(null);
 
@@ -1072,6 +1072,12 @@ export default function HomeScreen() {
               <Ionicons name="volume-high" size={16} color="#D4A420" />
             </Pressable>
           )}
+          {balance && (
+            <Pressable onPress={() => router.push("/subscribe")} style={{ flexDirection: "row" as const, alignItems: "center" as const, gap: 3, backgroundColor: "rgba(212,164,32,0.15)", borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: "rgba(212,164,32,0.3)" }}>
+              <Ionicons name="flash" size={12} color={Colors.gold} />
+              <Text style={{ fontSize: 11, fontWeight: "800" as const, color: Colors.gold }}>{balance.totalAvailable}</Text>
+            </Pressable>
+          )}
           <View style={styles.liveUsersBadge}>
             <View style={styles.liveUsersDot} />
             <Text style={styles.liveUsersCount}>{liveUsers.toLocaleString()}</Text>
@@ -1315,7 +1321,7 @@ export default function HomeScreen() {
             <Pressable
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-                playNavVoice("Trump Therapy. Let's work through your issues, big league.");
+                playNavVoice("Dynamic Therapy. Let's work through your issues, big league.");
                 router.push("/therapy");
               }}
               style={({ pressed }) => [styles.viralCtaButton, styles.viralTherapy, pressed && { opacity: 0.85 }]}
@@ -1328,7 +1334,7 @@ export default function HomeScreen() {
                 style={styles.viralCtaGradient}
               >
                 <MaterialCommunityIcons name="brain" size={22} color="#fff" />
-                <Text style={styles.viralCtaText}>TRUMP THERAPY</Text>
+                <Text style={styles.viralCtaText}>DYNAMIC THERAPY</Text>
                 <View style={styles.viralCtaBadge}>
                   <Text style={styles.viralCtaBadgeText}>FREE</Text>
                 </View>
