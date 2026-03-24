@@ -796,7 +796,7 @@ export default function ChatScreen() {
         if (!uri) return;
 
         const base64 = await FileSystem.readAsStringAsync(uri, {
-          encoding: FileSystem.EncodingType.Base64,
+          encoding: (FileSystem.EncodingType?.Base64 || "base64") as any,
         });
 
         await transcribeFromBase64(base64, "m4a");
@@ -1026,18 +1026,20 @@ export default function ChatScreen() {
         lastAudioMessageId = messageId;
         await playAudioFromUri(blobUrl, messageId);
       } else {
-        const arrayBuffer = await new Response(audioBlob).arrayBuffer();
-        const bytes = new Uint8Array(arrayBuffer);
-        const chunkSize = 8192;
-        let base64 = "";
-        for (let i = 0; i < bytes.length; i += chunkSize) {
-          const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
-          base64 += String.fromCharCode.apply(null, chunk as any);
-        }
-        base64 = btoa(base64);
+        const reader = new FileReader();
+        const base64 = await new Promise<string>((resolve, reject) => {
+          reader.onloadend = () => {
+            const dataUrl = reader.result as string;
+            const b64 = dataUrl.split(",")[1] || "";
+            resolve(b64);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(audioBlob);
+        });
         const tempPath = `${FileSystem.cacheDirectory}tts_${Date.now()}.mp3`;
+        const encodingBase64 = FileSystem.EncodingType?.Base64 || "base64";
         await FileSystem.writeAsStringAsync(tempPath, base64, {
-          encoding: FileSystem.EncodingType.Base64,
+          encoding: encodingBase64 as any,
         });
 
         lastAudioUri = tempPath;
@@ -1154,7 +1156,7 @@ export default function ChatScreen() {
           try {
             if (Platform.OS !== "web" && FileSystem.documentDirectory) {
               const b64 = await FileSystem.readAsStringAsync(asset.uri, {
-                encoding: FileSystem.EncodingType.Base64,
+                encoding: (FileSystem.EncodingType?.Base64 || "base64") as any,
               });
               const MAX_BASE64 = 1500000;
               base64 = b64.length > MAX_BASE64 ? b64.substring(0, MAX_BASE64) : b64;
