@@ -38,7 +38,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { createAudioPlayer, type AudioPlayer as ExpoAudioPlayer } from "expo-audio";
 import { Audio } from "expo-av";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import Colors from "@/constants/colors";
@@ -1027,26 +1027,17 @@ export default function ChatScreen() {
         await playAudioFromUri(blobUrl, messageId);
       } else {
         const reader = new FileReader();
-        const base64 = await new Promise<string>((resolve, reject) => {
-          reader.onloadend = () => {
-            const dataUrl = reader.result as string;
-            const b64 = dataUrl.split(",")[1] || "";
-            resolve(b64);
-          };
+        const dataUri = await new Promise<string>((resolve, reject) => {
+          reader.onloadend = () => resolve(reader.result as string);
           reader.onerror = reject;
           reader.readAsDataURL(audioBlob);
         });
-        const tempPath = `${FileSystem.cacheDirectory}tts_${Date.now()}.mp3`;
-        const encodingBase64 = FileSystem.EncodingType?.Base64 || "base64";
-        await FileSystem.writeAsStringAsync(tempPath, base64, {
-          encoding: encodingBase64 as any,
-        });
 
-        lastAudioUri = tempPath;
+        lastAudioUri = dataUri;
         lastAudioMood = mood;
         lastAudioSpeechCategory = speechCat;
         lastAudioMessageId = messageId;
-        await playAudioFromUri(tempPath, messageId);
+        await playAudioFromUri(dataUri, messageId);
       }
     } catch (error) {
       console.error("TTS playback error:", error);
