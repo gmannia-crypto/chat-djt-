@@ -1,3 +1,6 @@
+function _bEsc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
 function BillionairesModule(id) {
   this.el = document.getElementById(id);
   this.netWorth = 1000000;
@@ -52,7 +55,7 @@ BillionairesModule.prototype.render = function() {
     h += '<div style="font-size:11px;color:#FFD700;font-weight:bold;letter-spacing:2px;margin-bottom:8px;">CHOOSE YOUR DEAL</div>';
     for (var i=0;i<this.deals.length;i++) { var d=this.deals[i]; var canAfford=d.cost<=this.netWorth;
       h += '<div class="feat-deal" data-bdeal="'+i+'" style="opacity:'+(canAfford?'1':'0.4')+';cursor:'+(canAfford?'pointer':'not-allowed')+';">';
-      h += '<h4>'+d.name+'</h4><div class="deal-price">Cost: $'+d.cost.toLocaleString()+'</div>';
+      h += '<h4>'+_bEsc(d.name)+'</h4><div class="deal-price">Cost: $'+d.cost.toLocaleString()+'</div>';
       h += '<div class="deal-roi" style="color:#4CAF50;">Potential ROI: +'+(d.roi*100).toFixed(0)+'%</div>';
       h += '<div class="deal-roi" style="color:#ff4d4d;">Risk: '+(d.risk*100).toFixed(0)+'%</div></div>';
     }
@@ -60,7 +63,7 @@ BillionairesModule.prototype.render = function() {
   if (this.history.length > 0) {
     h += '<div style="margin-top:12px;font-size:11px;color:#FFD700;font-weight:bold;letter-spacing:2px;margin-bottom:6px;">DEAL HISTORY</div>';
     for (var j=this.history.length-1;j>=Math.max(0,this.history.length-3);j--) { var hl=this.history[j];
-      h += '<div style="font-size:11px;padding:4px 0;color:'+(hl.won?'#4CAF50':'#ff4d4d')+';">'+(hl.won?'\u2713':'\u2717')+' '+hl.deal+': '+(hl.profit>=0?'+':'')+' $'+Math.abs(hl.profit).toLocaleString()+'</div>';
+      h += '<div style="font-size:11px;padding:4px 0;color:'+(hl.won?'#4CAF50':'#ff4d4d')+';">'+(hl.won?'\u2713':'\u2717')+' '+_bEsc(hl.deal)+': '+(hl.profit>=0?'+':'')+' $'+Math.abs(hl.profit).toLocaleString()+'</div>';
     }
   }
   this.el.innerHTML = h;
