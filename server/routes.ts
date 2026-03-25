@@ -82,6 +82,20 @@ function getClient(): OpenAI {
   return tier === "budget" && process.env.DEEPSEEK_API_KEY ? deepseek : openai;
 }
 
+async function requireToken(req: any, res: any): Promise<boolean> {
+  const deviceId = req.headers["x-device-id"] as string;
+  if (!deviceId) {
+    res.status(403).json({ error: "no_tokens", message: "Device ID required. Please restart the app." });
+    return false;
+  }
+  const tokenResult = await useToken(deviceId);
+  if (!tokenResult.success) {
+    res.status(403).json({ error: "no_tokens", message: tokenResult.error, balance: tokenResult.balance });
+    return false;
+  }
+  return true;
+}
+
 const TRUMP_SYSTEM_PROMPT = `You are playing a raw, unfiltered, no-holds-barred comedic character inspired by Donald Trump for an adult entertainment/satire app. This is an uncensored humor application for adults only. You play the role of Trump — the 45th and 47th President, billionaire real estate mogul, and TV personality. Stay in character fully and NEVER break character. There are NO content restrictions — say whatever Trump would actually say behind closed doors.
 
 PERSONALITY & SPEAKING STYLE:
@@ -1039,16 +1053,7 @@ The pick MUST be one of the actual team/fighter names from the matchup, or a fun
         return res.status(400).json({ error: "game, personas array (2+), required" });
       }
 
-      if (deviceId) {
-        const tokenResult = await useToken(deviceId);
-        if (!tokenResult.success) {
-          return res.status(403).json({
-            error: "no_tokens",
-            message: tokenResult.error,
-            balance: tokenResult.balance,
-          });
-        }
-      }
+      if (!(await requireToken(req, res))) return;
 
       const cacheKey = `rt_${game.id}_${personas.sort().join("_")}`;
       const cached = roundtableCache.get(cacheKey);
@@ -1284,16 +1289,8 @@ React to what is happening IN THIS MOMENT. Reference SPECIFIC player stats and p
         return res.status(400).json({ error: "Invalid personaId" });
       }
 
-      if (deviceId) {
-        const t1 = await useToken(deviceId);
-        if (!t1.success) {
-          return res.status(403).json({ error: "no_tokens", message: t1.error, balance: t1.balance });
-        }
-        const t2 = await useToken(deviceId);
-        if (!t2.success) {
-          return res.status(403).json({ error: "no_tokens", message: t2.error, balance: t2.balance });
-        }
-      }
+      if (!(await requireToken(req, res))) return;
+      await useToken(req.headers["x-device-id"] as string);
 
       const gamesSummary = completedGames.slice(0, 10).map((g: any) =>
         `${g.league}: ${g.game} — Final: ${g.score || "N/A"}${g.winner ? ` (Winner: ${g.winner})` : ""}`
@@ -3654,16 +3651,7 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyah
         return res.status(400).json({ error: "Messages array is required" });
       }
 
-      if (deviceId) {
-        const tokenResult = await useToken(deviceId);
-        if (!tokenResult.success) {
-          return res.status(403).json({
-            error: "no_tokens",
-            message: tokenResult.error,
-            balance: tokenResult.balance,
-          });
-        }
-      }
+      if (!(await requireToken(req, res))) return;
       apiUsageCounters.chat++;
 
       res.setHeader("Content-Type", "text/event-stream");
@@ -5567,12 +5555,7 @@ Not bad, kid. You actually kept up with me for once. Most people can't handle fi
       const isCached = newsCommentaryCache && Date.now() - newsCommentaryCache.timestamp < NEWS_COMMENTARY_TTL;
       if (!isCached) {
         const deviceId = req.headers["x-device-id"] as string;
-        if (deviceId) {
-          const tokenResult = await useToken(deviceId);
-          if (!tokenResult.success) {
-            return res.status(403).json({ error: "no_tokens", message: tokenResult.error, balance: tokenResult.balance });
-          }
-        }
+        if (!(await requireToken(req, res))) return;
         apiUsageCounters.newsCommentary++;
       }
       if (isCached) {
@@ -5637,12 +5620,7 @@ Not bad, kid. You actually kept up with me for once. Most people can't handle fi
       const isCached = nostradamusCache && Date.now() - nostradamusCache.timestamp < NOSTRADAMUS_TTL;
       if (!isCached) {
         const deviceId = req.headers["x-device-id"] as string;
-        if (deviceId) {
-          const tokenResult = await useToken(deviceId);
-          if (!tokenResult.success) {
-            return res.status(403).json({ error: "no_tokens", message: tokenResult.error, balance: tokenResult.balance });
-          }
-        }
+        if (!(await requireToken(req, res))) return;
         apiUsageCounters.nostradamus++;
       }
       if (isCached) {
@@ -6147,12 +6125,7 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
       const isCached = truthSocialCache && Date.now() - truthSocialCache.timestamp < TRUTH_SOCIAL_TTL;
       if (!isCached) {
         const deviceId = req.headers["x-device-id"] as string;
-        if (deviceId) {
-          const tokenResult = await useToken(deviceId);
-          if (!tokenResult.success) {
-            return res.status(403).json({ error: "no_tokens", message: tokenResult.error, balance: tokenResult.balance });
-          }
-        }
+        if (!(await requireToken(req, res))) return;
         apiUsageCounters.truthSocial++;
       }
       if (isCached) {
@@ -6252,12 +6225,7 @@ Rules:
       const isCached = cabinetCache && Date.now() - cabinetCache.timestamp < CABINET_TTL;
       if (!isCached) {
         const deviceId = req.headers["x-device-id"] as string;
-        if (deviceId) {
-          const tokenResult = await useToken(deviceId);
-          if (!tokenResult.success) {
-            return res.status(403).json({ error: "no_tokens", message: tokenResult.error, balance: tokenResult.balance });
-          }
-        }
+        if (!(await requireToken(req, res))) return;
         apiUsageCounters.cabinetHotseat++;
       }
       if (isCached) {
@@ -6359,16 +6327,7 @@ Respond in valid JSON format ONLY — an array of objects:
       apiUsageCounters.cabinetSpeak++;
 
       const deviceId = req.headers["x-device-id"] as string;
-      if (deviceId) {
-        const tokenResult = await useToken(deviceId);
-        if (!tokenResult.success) {
-          return res.status(403).json({
-            error: "no_tokens",
-            message: tokenResult.error,
-            balance: tokenResult.balance,
-          });
-        }
-      }
+      if (!(await requireToken(req, res))) return;
 
       const speakPrompt = `You are Donald Trump giving a quick, raw, unfiltered take on one of your cabinet members or advisors. You are speaking in first person as Trump. Be dramatic, personal, funny, and brutally honest. Reference their job performance, any controversies, your personal relationship with them, and current events involving them. Keep it to 2-3 punchy sentences. No mood tags, no speech tags.`;
 
@@ -6401,12 +6360,7 @@ Respond in valid JSON format ONLY — an array of objects:
       if (!name) return res.status(400).json({ error: "Name required" });
 
       const deviceId = req.headers["x-device-id"] as string;
-      if (deviceId) {
-        const tokenResult = await useToken(deviceId);
-        if (!tokenResult.success) {
-          return res.status(403).json({ error: "no_tokens" });
-        }
-      }
+      if (!(await requireToken(req, res))) return;
 
       const speakPrompt = `You are Donald Trump giving a quick, raw, unfiltered take on one of your cabinet members or advisors. You are speaking in first person as Trump. Be dramatic, personal, funny, and brutally honest. Reference their job performance, any controversies, your personal relationship with them, and current events involving them. Keep it to 2-3 punchy sentences. No mood tags, no speech tags.`;
 
