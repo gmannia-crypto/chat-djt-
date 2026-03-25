@@ -48,7 +48,7 @@
     "expo-system-ui": "~6.0.9",
     "expo-web-browser": "~15.0.10",
     "express": "^5.0.1",
-    "fast-xml-parser": "^5.3.6",
+    "fast-xml-parser": "^5.5.6",
     "http-proxy-middleware": "^3.0.5",
     "openai": "^6.18.0",
     "p-limit": "^7.3.0",
@@ -90,6 +90,8 @@
   "overrides": {
     "minimatch": "10.2.3",
     "@isaacs/brace-expansion": "5.0.1",
-    "tar": "7.5.10"
+    "tar": "7.5.11",
+    "flatted": "3.4.2",
+    "undici": "6.24.0"
   }
 }
