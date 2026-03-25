@@ -7359,6 +7359,7 @@ function serveExpoManifest(platform, req, res) {
         manifestData.launchAsset.url = `${currentBaseUrl}${oldUrl.pathname}`;
       } catch {
       }
+      manifestData.launchAsset.contentType = "application/javascript";
     }
     if (manifestData.extra?.expoClient) {
       const client = manifestData.extra.expoClient;

@@ -190,6 +190,7 @@ function serveExpoManifest(platform: string, req: Request, res: Response) {
         const oldUrl = new URL(manifestData.launchAsset.url);
         manifestData.launchAsset.url = `${currentBaseUrl}${oldUrl.pathname}`;
       } catch {}
+      manifestData.launchAsset.contentType = "application/javascript";
     }
 
     if (manifestData.extra?.expoClient) {
