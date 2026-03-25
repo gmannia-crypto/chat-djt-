@@ -1,3 +1,13 @@
+function escHtml(str) {
+  if (str == null) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function DashboardModule(id) {
   this.el = document.getElementById(id);
   this.news = [];
@@ -32,13 +42,13 @@ DashboardModule.prototype.render = function() {
   if (this.news.length > 0) {
     h += '<div style="font-size:11px;color:#FFD700;font-weight:bold;letter-spacing:2px;margin-bottom:8px;">TOP HEADLINES</div>';
     for (var i=0;i<Math.min(this.news.length,5);i++) { var n=this.news[i];
-      h += '<div class="feat-card"><h4>'+(n.title || n.headline || 'Breaking News')+'</h4><p>'+(n.source || '')+'</p></div>';
+      h += '<div class="feat-card"><h4>'+escHtml(n.title || n.headline || 'Breaking News')+'</h4><p>'+escHtml(n.source || '')+'</p></div>';
     }
   }
   if (this.hotTakes.length > 0) {
     h += '<div style="font-size:11px;color:#ff4d4d;font-weight:bold;letter-spacing:2px;margin:12px 0 8px;">MARKET HOT TAKES</div>';
     for (var j=0;j<Math.min(this.hotTakes.length,3);j++) { var t=this.hotTakes[j];
-      h += '<div class="feat-card" style="border-color:rgba(255,77,77,0.2);"><p>'+(t.take || t.text || t.commentary || 'Markets are tremendous!')+'</p></div>';
+      h += '<div class="feat-card" style="border-color:rgba(255,77,77,0.2);"><p>'+escHtml(t.take || t.text || t.commentary || 'Markets are tremendous!')+'</p></div>';
     }
   }
   h += '<button class="feat-btn" data-drefresh style="background:linear-gradient(135deg,#333,#555);color:#fff;">REFRESH BRIEFING</button>';
