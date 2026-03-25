@@ -7688,6 +7688,17 @@ function configureExpoAndLanding(app2) {
     app2.get("/", (req, res, next) => {
       const platform = req.header("expo-platform");
       if (platform) return next();
+      const ua = req.header("user-agent") || "";
+      const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
+      if (isMobile) {
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        const htmlPath = path.join(distDir, "index.html");
+        let html = fs.readFileSync(htmlPath, "utf-8");
+        if (!html.includes("data-aff")) {
+          html = html.replace("</body>", affiliateScript + "</body>");
+        }
+        return res.send(html);
+      }
       const freshTemplate = fs.readFileSync(templatePath, "utf-8");
       return serveLandingPage({ req, res, landingPageTemplate: freshTemplate, appName });
     });
