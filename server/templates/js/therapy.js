@@ -1,3 +1,11 @@
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 function TherapyModule(id) {
   this.el = document.getElementById(id);
   this.therapist = 'trump';
@@ -43,8 +51,8 @@ TherapyModule.prototype.render = function() {
   h += '<div class="feat-card"><p style="font-size:11px;color:#888;">Style: '+th.style+'</p></div>';
   if (this.messages.length > 0) {
     for (var m=0;m<this.messages.length;m++) { var msg=this.messages[m];
-      if (msg.role==='user') h += '<div style="text-align:right;margin-bottom:8px;"><span style="background:#2a2a2a;padding:8px 12px;border-radius:16px 16px 4px 16px;font-size:12px;display:inline-block;max-width:80%;">'+msg.text+'</span></div>';
-      else h += '<div style="margin-bottom:8px;display:flex;gap:6px;align-items:flex-start;"><img src="'+th.img+'" style="width:24px;height:24px;border-radius:50%;object-fit:cover;flex-shrink:0;" onerror="this.style.display=\'none\'"><span style="background:#141414;border:1px solid '+th.color+';padding:8px 12px;border-radius:4px 16px 16px 16px;font-size:12px;display:inline-block;max-width:80%;color:#eee;">'+msg.text+'</span></div>';
+      if (msg.role==='user') h += '<div style="text-align:right;margin-bottom:8px;"><span style="background:#2a2a2a;padding:8px 12px;border-radius:16px 16px 4px 16px;font-size:12px;display:inline-block;max-width:80%;">'+escHtml(msg.text)+'</span></div>';
+      else h += '<div style="margin-bottom:8px;display:flex;gap:6px;align-items:flex-start;"><img src="'+th.img+'" style="width:24px;height:24px;border-radius:50%;object-fit:cover;flex-shrink:0;" onerror="this.style.display=\'none\'"><span style="background:#141414;border:1px solid '+th.color+';padding:8px 12px;border-radius:4px 16px 16px 16px;font-size:12px;display:inline-block;max-width:80%;color:#eee;">'+escHtml(msg.text)+'</span></div>';
     }
     if (this.loading) h += '<div class="feat-loading">Thinking...</div>';
   }
