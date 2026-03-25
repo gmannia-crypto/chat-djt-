@@ -3259,10 +3259,41 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyah
         }
       }
 
+      let winTallyContext = "";
+      const { winTally } = req.body;
+      if (winTally && typeof winTally === "object") {
+        const globalEntries = Object.entries(winTally.global || {}).sort(([, a]: any, [, b]: any) => b - a);
+        const userEntries = Object.entries(winTally.user || {}).sort(([, a]: any, [, b]: any) => b - a);
+        if (globalEntries.length > 0) {
+          const globalText = globalEntries.slice(0, 10).map(([pid, w]: any) => {
+            const pName = ARENA_NAME_MAP[pid] || pid;
+            return `${pName}: ${w} wins`;
+          }).join(", ");
+          winTallyContext += `\nARENA WIN HISTORY (global across ALL viewers): ${globalText}`;
+          const myWins = (winTally.global || {})[responderId] || 0;
+          const myRank = globalEntries.findIndex(([pid]: any) => pid === responderId) + 1;
+          if (myWins > 0) {
+            winTallyContext += `\nYour global win record: ${myWins} wins (ranked #${myRank}).`;
+          } else {
+            winTallyContext += `\nYou have ZERO global wins so far.`;
+          }
+        }
+        if (userEntries.length > 0) {
+          const userText = userEntries.map(([pid, w]: any) => `${ARENA_NAME_MAP[pid] || pid}: ${w}`).join(", ");
+          winTallyContext += `\nThis viewer's personal win tally: ${userText}`;
+        }
+        if (winTallyContext) {
+          winTallyContext += `\nYou may reference win records naturally — brag if you're winning, trash-talk rivals who have more wins, or motivate yourself if you're losing. But do it ONLY occasionally and naturally, not every response.`;
+        }
+      }
+
       const newsContext = await getArenaNewsContext();
       const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
       const currentYearContext = `\n\nCRITICAL WORLD CONTEXT — TODAY IS ${todayStr}:\n- Donald Trump is the CURRENT sitting President of the United States (inaugurated January 2025, won the 2024 election)\n- Joe Biden is the FORMER president — he LOST and is no longer in office\n- Elon Musk led DOGE (Department of Government Efficiency) for Trump's administration\n- The Iran military conflict is ongoing in 2025-2026 — Trump's opponents mockingly call it "The Epstein War" claiming he started it to distract from the Epstein files, but Trump and his supporters NEVER use that term and get furious when they hear it\n- You are fully up to date on ALL 2025-2026 world events. NEVER reference events as if they haven't happened yet. You know everything that has happened up to today.\n`;
       let systemPrompt = ARENA_PERSONA_PROMPTS[responderId] + currentYearContext;
+      if (winTallyContext) {
+        systemPrompt += winTallyContext;
+      }
       if (arenaMemoryContext) {
         systemPrompt += `\n${arenaMemoryContext}`;
       }
@@ -3419,12 +3450,27 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyah
       const lastRoast = roastRateLimit[deviceId] || 0;
       if (Date.now() - lastRoast < 30000) return res.status(429).json({ roast: "Hold on, hold on — even I need a second to think of something this good!" });
       roastRateLimit[deviceId] = Date.now();
-      const { winnerName, winnerPoints, trumpPoints, customerName, leaderboard } = req.body;
+      const { winnerId: roastWinnerId, winnerName, winnerPoints, trumpPoints, customerName, leaderboard, winTally } = req.body;
       const leaderboardText = (leaderboard || []).map((e: any, i: number) => `#${i + 1} ${e.name}: ${e.points} pts`).join(", ");
       const trumpLost = trumpPoints < winnerPoints;
 
+      let winHistoryText = "";
+      if (winTally && winTally.global) {
+        const entries = Object.entries(winTally.global).sort(([, a]: any, [, b]: any) => b - a).slice(0, 10);
+        if (entries.length > 0) {
+          const tallyStr = entries.map(([pid, w]: any) => `${ARENA_NAME_MAP[pid] || pid}: ${w} wins`).join(", ");
+          const trumpGlobalWins = (winTally.global as any)["trump"] || 0;
+          winHistoryText = `\n\nALL-TIME WIN RECORDS (across all viewers globally): ${tallyStr}\nYour all-time wins: ${trumpGlobalWins}. ${trumpGlobalWins === 0 ? "You have ZERO wins — this is UNACCEPTABLE and obviously RIGGED!" : `You have ${trumpGlobalWins} wins — TREMENDOUS!`}`;
+          const winnerGlobalWins = roastWinnerId ? (winTally.global as any)[roastWinnerId] || 0 : 0;
+          if (winnerGlobalWins > 0) {
+            winHistoryText += ` ${winnerName} has ${winnerGlobalWins} wins — they've beaten you before! Reference this!`;
+          }
+          winHistoryText += `\nBrag about your win record or complain about it being rigged. Reference specific rivals' records to trash-talk them.`;
+        }
+      }
+
       const systemPrompt = ARENA_PERSONA_PROMPTS["trump"] || "";
-      const userPrompt = `The Political Arena debate just ended. The audience voted on who made the best points. Here are the final results:\n${leaderboardText}\n\nThe WINNER is ${winnerName} with ${winnerPoints} points.${trumpLost ? ` You only got ${trumpPoints} points — you LOST to ${winnerName}. You are FURIOUS and HUMILIATED.` : ` You got ${trumpPoints} points.`}\n\nThe viewer who judged this is named "${customerName}". They gave ${winnerName} the most points${trumpLost ? " and barely voted for you" : ""}.\n\nNow ROAST both the winner AND the viewer "${customerName}" by name. Be SAVAGE, FUNNY, and totally in character. Attack ${winnerName} for thinking they won anything — "you didn't win, this was RIGGED!" Attack ${customerName} for their terrible judgment — "you have the worst taste in debate I've ever seen, ${customerName}!" Be absolutely brutal but entertaining. 3-4 sentences max.`;
+      const userPrompt = `The Political Arena debate just ended. The audience voted on who made the best points. Here are the final results:\n${leaderboardText}\n\nThe WINNER is ${winnerName} with ${winnerPoints} points.${trumpLost ? ` You only got ${trumpPoints} points — you LOST to ${winnerName}. You are FURIOUS and HUMILIATED.` : ` You got ${trumpPoints} points.`}\n\nThe viewer who judged this is named "${customerName}". They gave ${winnerName} the most points${trumpLost ? " and barely voted for you" : ""}.${winHistoryText}\n\nNow ROAST both the winner AND the viewer "${customerName}" by name. Be SAVAGE, FUNNY, and totally in character. Attack ${winnerName} for thinking they won anything — "you didn't win, this was RIGGED!" Attack ${customerName} for their terrible judgment — "you have the worst taste in debate I've ever seen, ${customerName}!" If you have a LOSING win record, EXPLODE about how it's rigged. If you're WINNING, brag MERCILESSLY. Be absolutely brutal but entertaining. 3-4 sentences max.`;
 
       const completion = await getClient().chat.completions.create({
         model: getFastModel(),
@@ -3449,13 +3495,24 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyah
     try {
       const deviceId = req.headers["x-device-id"] as string;
       if (!deviceId) return res.status(400).json({ error: "Device ID required" });
-      const { winnerId, winnerName, trumpRoast, customerName, leaderboard } = req.body;
+      const { winnerId, winnerName, trumpRoast, customerName, leaderboard, winTally } = req.body;
       if (!winnerId || !winnerName) return res.status(400).json({ error: "winnerId and winnerName required" });
 
       const personaPrompt = ARENA_PERSONA_PROMPTS[winnerId] || "";
       const leaderboardText = (leaderboard || []).map((e: any, i: number) => `#${i + 1} ${e.name}: ${e.points} pts`).join(", ");
 
-      const userPrompt = `You just WON the Political Arena debate! Final results: ${leaderboardText}\n\nTrump just attacked you with this roast: "${trumpRoast}"\n\nThe viewer "${customerName}" gave you the most points and crowned you the winner!\n\nNow DESTROY Trump with your response! Be ABSOLUTELY SAVAGE. Attack his ego, his failures, his lies. Reference specific things he's known for. Be ruthless, funny, and devastating. This is your victory lap — make it count! Mention ${customerName} by name and thank them for their taste. 3-5 sentences, go ALL OUT.`;
+      let winHistoryText = "";
+      if (winTally && winTally.global) {
+        const entries = Object.entries(winTally.global).sort(([, a]: any, [, b]: any) => b - a).slice(0, 10);
+        if (entries.length > 0) {
+          const myWins = (winTally.global as any)[winnerId] || 0;
+          const trumpWins = (winTally.global as any)["trump"] || 0;
+          const tallyStr = entries.map(([pid, w]: any) => `${ARENA_NAME_MAP[pid] || pid}: ${w} wins`).join(", ");
+          winHistoryText = `\n\nALL-TIME WIN RECORDS: ${tallyStr}\nYour all-time wins: ${myWins}. Trump's all-time wins: ${trumpWins}. ${myWins > trumpWins ? "You have MORE wins than Trump — RUB IT IN!" : myWins === trumpWins ? "You're TIED with Trump — this win puts you AHEAD!" : "Trump has more wins overall but TODAY you proved you're BETTER!"}\nBrag about your win record and mock Trump's record!`;
+        }
+      }
+
+      const userPrompt = `You just WON the Political Arena debate! Final results: ${leaderboardText}\n\nTrump just attacked you with this roast: "${trumpRoast}"\n\nThe viewer "${customerName}" gave you the most points and crowned you the winner!${winHistoryText}\n\nNow DESTROY Trump with your response! Be ABSOLUTELY SAVAGE. Attack his ego, his failures, his lies. Reference specific things he's known for. Be ruthless, funny, and devastating. This is your victory lap — make it count! Mention ${customerName} by name and thank them for their taste. Reference your WIN RECORD if you have one — brag about how many times you've beaten Trump across all debates! 3-5 sentences, go ALL OUT.`;
 
       const completion = await getClient().chat.completions.create({
         model: getFastModel(),
@@ -3472,6 +3529,95 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyah
     } catch (error: any) {
       console.error("Arena clap-back error:", error);
       res.json({ clapBack: "That's right — I WON this debate fair and square. Better luck next time, Donald!", winnerId: req.body.winnerId, winnerName: req.body.winnerName });
+    }
+  });
+
+  app.post("/api/arena/record-win", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const { personaId } = req.body;
+      if (!personaId) return res.status(400).json({ error: "personaId required" });
+      const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      try {
+        await db.query(`CREATE TABLE IF NOT EXISTS arena_wins (
+          id SERIAL PRIMARY KEY,
+          device_id TEXT NOT NULL,
+          persona_id TEXT NOT NULL,
+          wins INTEGER NOT NULL DEFAULT 0,
+          updated_at TIMESTAMP DEFAULT NOW(),
+          UNIQUE(device_id, persona_id)
+        )`);
+        await db.query(`CREATE TABLE IF NOT EXISTS arena_wins_global (
+          persona_id TEXT PRIMARY KEY,
+          total_wins INTEGER NOT NULL DEFAULT 0,
+          updated_at TIMESTAMP DEFAULT NOW()
+        )`);
+        await db.query(
+          `INSERT INTO arena_wins (device_id, persona_id, wins, updated_at)
+           VALUES ($1, $2, 1, NOW())
+           ON CONFLICT (device_id, persona_id) DO UPDATE SET wins = arena_wins.wins + 1, updated_at = NOW()`,
+          [deviceId, personaId]
+        );
+        await db.query(
+          `INSERT INTO arena_wins_global (persona_id, total_wins, updated_at)
+           VALUES ($1, 1, NOW())
+           ON CONFLICT (persona_id) DO UPDATE SET total_wins = arena_wins_global.total_wins + 1, updated_at = NOW()`,
+          [personaId]
+        );
+        const userRow = await db.query(`SELECT wins FROM arena_wins WHERE device_id = $1 AND persona_id = $2`, [deviceId, personaId]);
+        const globalRow = await db.query(`SELECT total_wins FROM arena_wins_global WHERE persona_id = $1`, [personaId]);
+        res.json({
+          success: true,
+          userWins: userRow.rows[0]?.wins || 1,
+          globalWins: globalRow.rows[0]?.total_wins || 1,
+        });
+      } finally {
+        await db.end();
+      }
+    } catch (error: any) {
+      console.error("Arena record-win error:", error);
+      res.status(500).json({ error: "Failed to record win" });
+    }
+  });
+
+  app.get("/api/arena/win-tally", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      try {
+        await db.query(`CREATE TABLE IF NOT EXISTS arena_wins (
+          id SERIAL PRIMARY KEY,
+          device_id TEXT NOT NULL,
+          persona_id TEXT NOT NULL,
+          wins INTEGER NOT NULL DEFAULT 0,
+          updated_at TIMESTAMP DEFAULT NOW(),
+          UNIQUE(device_id, persona_id)
+        )`);
+        await db.query(`CREATE TABLE IF NOT EXISTS arena_wins_global (
+          persona_id TEXT PRIMARY KEY,
+          total_wins INTEGER NOT NULL DEFAULT 0,
+          updated_at TIMESTAMP DEFAULT NOW()
+        )`);
+        const globalRows = await db.query(`SELECT persona_id, total_wins FROM arena_wins_global ORDER BY total_wins DESC`);
+        const globalTally: Record<string, number> = {};
+        for (const row of globalRows.rows) {
+          globalTally[row.persona_id] = row.total_wins;
+        }
+        let userTally: Record<string, number> = {};
+        if (deviceId) {
+          const userRows = await db.query(`SELECT persona_id, wins FROM arena_wins WHERE device_id = $1`, [deviceId]);
+          for (const row of userRows.rows) {
+            userTally[row.persona_id] = row.wins;
+          }
+        }
+        res.json({ globalTally, userTally });
+      } finally {
+        await db.end();
+      }
+    } catch (error: any) {
+      console.error("Arena win-tally error:", error);
+      res.json({ globalTally: {}, userTally: {} });
     }
   });
 

@@ -1415,6 +1415,10 @@ export default function ArenaScreen() {
   useEffect(() => { personaPointsRef.current = personaPoints; }, [personaPoints]);
   const [thankYouPlayed, setThankYouPlayed] = useState(false);
 
+  const [winTallyGlobal, setWinTallyGlobal] = useState<Record<string, number>>({});
+  const [winTallyUser, setWinTallyUser] = useState<Record<string, number>>({});
+  const winTallyRef = useRef<{ global: Record<string, number>; user: Record<string, number> }>({ global: {}, user: {} });
+
   const [allTimeScores, setAllTimeScores] = useState<Record<string, { totalPoints: number; totalVotes: number }>>({});
   const [speakerVoteCounts, setSpeakerVoteCounts] = useState<Record<string, number>>({});
   const [voteAnimations, setVoteAnimations] = useState<Record<string, number>>({});
@@ -1426,6 +1430,43 @@ export default function ArenaScreen() {
       setLastSpeakerId(currentSpeaker);
     }
   }, [currentSpeaker, lastSpeakerId]);
+
+  const loadWinTally = useCallback(async () => {
+    try {
+      const headers: Record<string, string> = {};
+      if (deviceId) headers["x-device-id"] = deviceId;
+      const res = await fetch(new URL("/api/arena/win-tally", getApiUrl()).toString(), { headers });
+      if (res.ok) {
+        const data = await res.json();
+        setWinTallyGlobal(data.globalTally || {});
+        setWinTallyUser(data.userTally || {});
+        winTallyRef.current = { global: data.globalTally || {}, user: data.userTally || {} };
+      }
+    } catch {}
+  }, [deviceId]);
+
+  useEffect(() => { loadWinTally(); }, [loadWinTally]);
+
+  const recordWin = useCallback(async (personaId: string) => {
+    try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (deviceId) headers["x-device-id"] = deviceId;
+      const res = await fetch(new URL("/api/arena/record-win", getApiUrl()).toString(), {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ personaId }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setWinTallyGlobal((prev) => ({ ...prev, [personaId]: data.globalWins }));
+        setWinTallyUser((prev) => ({ ...prev, [personaId]: data.userWins }));
+        winTallyRef.current = {
+          global: { ...winTallyRef.current.global, [personaId]: data.globalWins },
+          user: { ...winTallyRef.current.user, [personaId]: data.userWins },
+        };
+      }
+    } catch {}
+  }, [deviceId]);
 
   const loadAllTimeScores = useCallback(async () => {
     try {
@@ -2115,6 +2156,10 @@ export default function ArenaScreen() {
           topic: currentTopicRef.current,
           activePersonas: selectedPersonasRef.current,
         };
+        const currentWinTally = winTallyRef.current;
+        if (currentWinTally.global && Object.keys(currentWinTally.global).length > 0) {
+          bodyPayload.winTally = currentWinTally;
+        }
         if (arenaMemoryContextRef.current) {
           bodyPayload.arenaMemoryContext = arenaMemoryContextRef.current;
         }
@@ -2870,7 +2915,7 @@ export default function ArenaScreen() {
       const res = await fetch(new URL("/api/arena/clap-back", getApiUrl()).toString(), {
         method: "POST",
         headers,
-        body: JSON.stringify({ winnerId, winnerName, trumpRoast, customerName, leaderboard }),
+        body: JSON.stringify({ winnerId, winnerName, trumpRoast, customerName, leaderboard, winTally: winTallyRef.current }),
       });
       if (res.ok && mountedRef.current) {
         const data = await res.json();
@@ -2893,6 +2938,8 @@ export default function ArenaScreen() {
     const customerName = userNameRef.current || "this person";
     const leaderboard = sorted.slice(0, 5).map(([id, p]) => ({ name: ARENA_PERSONAS[id]?.name || id, points: p }));
 
+    await recordWin(winnerId);
+
     setIsLoadingRoast(true);
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -2901,11 +2948,13 @@ export default function ArenaScreen() {
         method: "POST",
         headers,
         body: JSON.stringify({
+          winnerId,
           winnerName,
           winnerPoints: winnerPts,
           trumpPoints: trumpPts,
           customerName,
           leaderboard,
+          winTally: winTallyRef.current,
         }),
       });
       if (res.ok) {
@@ -2920,7 +2969,7 @@ export default function ArenaScreen() {
     } catch {} finally {
       setIsLoadingRoast(false);
     }
-  }, [deviceId, queueTTS, fetchWinnerClapBack]);
+  }, [deviceId, queueTTS, fetchWinnerClapBack, recordWin]);
 
   const renderMessage = useCallback(
     ({ item, index }: { item: ConversationMessage; index: number }) => {
@@ -3073,6 +3122,11 @@ export default function ArenaScreen() {
                     </View>
                   )}
                   <Text style={{ color: isSelected ? p.color : "#888", fontSize: 12, fontWeight: "700" }}>{p.shortName}</Text>
+                  {winTallyGlobal[pid] > 0 && (
+                    <View style={{ marginLeft: 4, backgroundColor: "rgba(74,222,128,0.2)", borderRadius: 8, paddingHorizontal: 4, paddingVertical: 1 }}>
+                      <Text style={{ color: "#4ADE80", fontSize: 9, fontWeight: "800" }}>{winTallyGlobal[pid]}W</Text>
+                    </View>
+                  )}
                   {isSelected && <Ionicons name="checkmark-circle" size={14} color={p.color} style={{ marginLeft: 4 }} />}
                 </Pressable>
               );
@@ -3821,6 +3875,36 @@ export default function ArenaScreen() {
                 <Text style={[s.roastLoadingText, { color: "#3b82f6" }]}>Winner is preparing a response...</Text>
               </View>
             ) : null}
+            {Object.keys(winTallyGlobal).length > 0 && (
+              <Animated.View entering={FadeIn.delay(1200).duration(500)} style={[s.roastContainer, { borderColor: "#4ADE80", marginTop: 12 }]}>
+                <View style={s.roastHeader}>
+                  <Ionicons name="globe" size={16} color="#4ADE80" />
+                  <Text style={[s.roastTitle, { color: "#4ADE80" }]}>GLOBAL WIN TALLY</Text>
+                  <Ionicons name="globe" size={16} color="#4ADE80" />
+                </View>
+                {Object.entries(winTallyGlobal)
+                  .sort(([, a], [, b]) => b - a)
+                  .slice(0, 10)
+                  .map(([pid, wins], idx) => {
+                    const p = ARENA_PERSONAS[pid];
+                    if (!p) return null;
+                    const userWins = winTallyUser[pid] || 0;
+                    return (
+                      <View key={pid} style={{ flexDirection: "row", alignItems: "center", paddingVertical: 3, paddingHorizontal: 8 }}>
+                        <Text style={{ color: "#FFD700", fontSize: 12, width: 24, fontWeight: "700" as const }}>#{idx + 1}</Text>
+                        <View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: p.color, alignItems: "center", justifyContent: "center", marginRight: 6 }}>
+                          <Text style={{ fontSize: 8, color: "#fff", fontWeight: "800" as const }}>{p.shortName?.[0] || p.name[0]}</Text>
+                        </View>
+                        <Text style={{ color: "#fff", fontSize: 12, flex: 1, fontWeight: "600" as const }}>{p.name}</Text>
+                        <Text style={{ color: "#4ADE80", fontSize: 12, fontWeight: "700" as const }}>{wins} {wins === 1 ? "win" : "wins"}</Text>
+                        {userWins > 0 && (
+                          <Text style={{ color: "#93c5fd", fontSize: 10, marginLeft: 6 }}>(you: {userWins})</Text>
+                        )}
+                      </View>
+                    );
+                  })}
+              </Animated.View>
+            )}
             <View style={s.summaryActions}>
               <Pressable
                 onPress={() => {
