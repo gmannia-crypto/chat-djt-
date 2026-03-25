@@ -637,15 +637,135 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       megynkelly: { sentiment: 10 },
       pambondi: { sentiment: 5 },
       candace: { sentiment: 5 },
+      miller: { sentiment: 5 },
+      jimjordan: { sentiment: 5 },
+      shahid: { sentiment: 50 },
     },
     triggerWords: {
       positive: ["justice", "democracy", "voting rights", "equality", "civil rights", "accountability"],
       negative: ["trump", "maga", "fascist", "racist", "authoritarian", "insurrection", "proud boys"],
     },
   },
+  miller: {
+    id: "miller",
+    name: "Stephen Miller",
+    shortName: "Miller",
+    color: "#2c2c2c",
+    faction: "supporter",
+    image: require("@/assets/images/persona-miller.png"),
+    personality: {
+      energy: 75,
+      aggression: 90,
+      humor: 5,
+      catchphrases: ["The President's authority is absolute", "We will not apologize", "This is about national security", "The American people demand action"],
+    },
+    relationships: {
+      trump: { sentiment: 100 },
+      netanyahu: { sentiment: 95 },
+      ruckus: { sentiment: 50 },
+      galloway: { sentiment: 5 },
+      mcconnell: { sentiment: 40 },
+      carville: { sentiment: 5 },
+      maddow: { sentiment: 5 },
+      omar: { sentiment: 5 },
+      biden: { sentiment: 5 },
+      rosie: { sentiment: 5 },
+      berniemc: { sentiment: 10 },
+      elon: { sentiment: 60 },
+      graham: { sentiment: 70 },
+      megynkelly: { sentiment: 65 },
+      pambondi: { sentiment: 75 },
+      candace: { sentiment: 20 },
+      joyreid: { sentiment: 5 },
+      jimjordan: { sentiment: 80 },
+      shahid: { sentiment: 5 },
+    },
+    triggerWords: {
+      positive: ["security", "border", "immigration", "law", "enforcement", "deport", "america first"],
+      negative: ["racist", "nazi", "fascist", "concentration camp", "family separation", "anti-semitic"],
+    },
+  },
+  jimjordan: {
+    id: "jimjordan",
+    name: "Jim Jordan",
+    shortName: "Jordan",
+    color: "#cc4400",
+    faction: "supporter",
+    image: require("@/assets/images/persona-jimjordan.png"),
+    personality: {
+      energy: 95,
+      aggression: 90,
+      humor: 25,
+      catchphrases: ["The American people are SICK of this!", "This is a WITCH HUNT!", "Are you KIDDING me?!", "Let me tell you something!"],
+    },
+    relationships: {
+      trump: { sentiment: 100 },
+      netanyahu: { sentiment: 80 },
+      ruckus: { sentiment: 65 },
+      galloway: { sentiment: 10 },
+      mcconnell: { sentiment: 45 },
+      carville: { sentiment: 5 },
+      maddow: { sentiment: 5 },
+      omar: { sentiment: 5 },
+      biden: { sentiment: 5 },
+      rosie: { sentiment: 10 },
+      berniemc: { sentiment: 15 },
+      elon: { sentiment: 65 },
+      graham: { sentiment: 75 },
+      megynkelly: { sentiment: 70 },
+      pambondi: { sentiment: 80 },
+      candace: { sentiment: 45 },
+      joyreid: { sentiment: 5 },
+      miller: { sentiment: 85 },
+      shahid: { sentiment: 5 },
+    },
+    triggerWords: {
+      positive: ["trump", "freedom", "constitution", "investigation", "hearing", "subpoena"],
+      negative: ["witch hunt", "ohio state", "wrestling", "no bills", "kiss ass", "sycophant"],
+    },
+  },
+  shahid: {
+    id: "shahid",
+    name: "Shahid Bolsen",
+    shortName: "Shahid",
+    color: "#2e8b57",
+    faction: "opponent",
+    image: require("@/assets/images/persona-shahid.png"),
+    personality: {
+      energy: 70,
+      aggression: 55,
+      humor: 15,
+      catchphrases: ["The OCGFC controls this", "Follow the money", "The Global South will not be silenced", "Western democracy is a performance"],
+    },
+    relationships: {
+      trump: { sentiment: 10 },
+      netanyahu: { sentiment: 5 },
+      ruckus: { sentiment: 10 },
+      galloway: { sentiment: 90 },
+      mcconnell: { sentiment: 10 },
+      carville: { sentiment: 20 },
+      maddow: { sentiment: 25 },
+      omar: { sentiment: 75 },
+      biden: { sentiment: 15 },
+      rosie: { sentiment: 30 },
+      berniemc: { sentiment: 40 },
+      elon: { sentiment: 5 },
+      graham: { sentiment: 5 },
+      megynkelly: { sentiment: 10 },
+      pambondi: { sentiment: 5 },
+      candace: { sentiment: 45 },
+      joyreid: { sentiment: 30 },
+      miller: { sentiment: 5 },
+      jimjordan: { sentiment: 5 },
+    },
+    triggerWords: {
+      positive: ["islam", "palestine", "global south", "ocgfc", "justice", "colonialism", "truth"],
+      negative: ["terrorism", "radical", "extremist", "western values", "democracy", "freedom"],
+    },
+  },
 };
 
-const PERSONA_IDS = ["trump", "elon", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "graham", "megynkelly", "pambondi", "candace", "joyreid"];
+const PERSONA_IDS = ["trump", "elon", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "shahid"];
 
 const BREAKING_NEWS_REACTIONS: Record<string, string[]> = {
   trump: [
@@ -724,6 +844,19 @@ const BREAKING_NEWS_REACTIONS: Record<string, string[]> = {
     "HOLD UP — we got breaking news! And I KNOW this connects to the bigger pattern of what's happening in this country!",
     "WAIT — STOP everything! Breaking news and the CAUCASSITY of this timing is NOT lost on me!",
   ],
+  miller: [
+    "Breaking news. Let me be clear — the President's response to this will be swift and absolute.",
+    "This development... this is precisely why the President's policies are necessary. The American people demand action.",
+  ],
+  jimjordan: [
+    "WHOA WHOA WHOA — HOLD ON! Breaking news everybody! And I GUARANTEE the Democrats are behind this!",
+    "Are you KIDDING me?! Breaking news?! The American people are SICK of this! President Trump was RIGHT!",
+    "LET ME TELL YOU SOMETHING — this breaking news proves EVERYTHING President Trump has been saying!",
+  ],
+  shahid: [
+    "Stop — everyone stop. This breaking news... this is the OCGFC agenda playing out in real time before your eyes.",
+    "This is precisely what I have been warning about. The owners and controllers of globalized financial capital are making their move.",
+  ],
 };
 
 const TOPIC_ICON_MAP: Record<string, string> = {
@@ -757,10 +890,13 @@ const PERSONA_ALIASES: Record<string, string[]> = {
   pambondi: ["bondi", "pam bondi", "pam"],
   candace: ["candace", "candace owens", "owens"],
   joyreid: ["joy", "joy reid", "reid"],
+  miller: ["miller", "stephen miller", "stephen"],
+  jimjordan: ["jordan", "jim jordan", "jim"],
+  shahid: ["shahid", "shahid bolsen", "bolsen"],
 };
 
 function detectTrumpAttack(text: string, speakerId: string): boolean {
-  if (speakerId === "trump" || speakerId === "ruckus" || speakerId === "netanyahu" || speakerId === "graham" || speakerId === "megynkelly" || speakerId === "pambondi") return false;
+  if (speakerId === "trump" || speakerId === "ruckus" || speakerId === "netanyahu" || speakerId === "graham" || speakerId === "megynkelly" || speakerId === "pambondi" || speakerId === "miller" || speakerId === "jimjordan") return false;
   const lower = text.toLowerCase();
   const trumpMentions = /(?:trump|donald|mr\.?\s*president)/i.test(lower);
   if (!trumpMentions) return false;

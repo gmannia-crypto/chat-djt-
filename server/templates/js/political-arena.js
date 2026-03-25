@@ -15,7 +15,10 @@ function RealTimeConversationEngine(id) {
     biden:{name:"Biden",color:"#3b82f6",img:"",initials:"JB",faction:"OPPONENT"},
     rosie:{name:"Rosie",color:"#ec4899",img:"",initials:"RO",faction:"OPPONENT"},
     berniemc:{name:"Bernie Mac",color:"#f59e0b",img:"/api/persona-image/bernie",faction:"OPPONENT"},
-    joyreid:{name:"Joy Reid",color:"#9333ea",img:"",initials:"JR",faction:"OPPONENT"}
+    joyreid:{name:"Joy Reid",color:"#9333ea",img:"",initials:"JR",faction:"OPPONENT"},
+    miller:{name:"Stephen Miller",color:"#2c2c2c",img:"/api/persona-image/miller",faction:"SUPPORTER"},
+    jimjordan:{name:"Jim Jordan",color:"#cc4400",img:"/api/persona-image/jimjordan",faction:"SUPPORTER"},
+    shahid:{name:"Shahid Bolsen",color:"#2e8b57",img:"/api/persona-image/shahid",faction:"OPPONENT"}
   };
   this.personas = {};
   this.selectedPersonas = {};
