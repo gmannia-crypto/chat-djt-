@@ -1619,13 +1619,8 @@
         qrCode.append(document.getElementById("qr-code"));
 
         if (isAndroid || isIOS) {
-          loadingEl.style.display = "flex";
-          document.body.style.overflow = "hidden";
-          window.location.href = deepLink;
-          setTimeout(function () {
-            loadingEl.style.display = "none";
-            document.body.style.overflow = "";
-          }, 500);
+          var downloadSection = document.getElementById("download");
+          if (downloadSection) downloadSection.scrollIntoView({ behavior: "smooth" });
         }
       })();
     </script>
