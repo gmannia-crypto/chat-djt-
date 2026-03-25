@@ -7598,7 +7598,7 @@ function configureExpoAndLanding(app2) {
     return proxyToMetro(req, res);
   });
   app2.use((req, res, next) => {
-    if (req.path === "/" || req.path.includes(".bundle") || req.path === "/manifest" || req.path === "/_expo_bundle") {
+    if (req.path === "/" || req.path.includes(".bundle") || req.path.includes("bundle.js") || req.path === "/manifest" || req.path === "/_expo_bundle") {
       log(`[REQ] ${req.method} ${req.path} expo-platform=${req.header("expo-platform") || "none"} accept-encoding=${req.header("accept-encoding") || "none"} user-agent=${(req.header("user-agent") || "").substring(0, 60)}`);
     }
     if (req.path.startsWith("/api") || req.path === "/status" || req.path === "/_expo_bundle" || req.path === "/therapy-viral" || req.path === "/therapy-multi" || req.path === "/financial-faceoff" || req.path === "/sports-betting" || req.path === "/subscribe" && (req.query.success || req.query.canceled)) {
@@ -7648,7 +7648,32 @@ function configureExpoAndLanding(app2) {
     }
   }));
   app2.use("/js", express.static(path.resolve(process.cwd(), "server", "templates", "js")));
-  app2.use(express.static(path.resolve(process.cwd(), "static-build")));
+  app2.get("/:timestamp/_expo/static/js/:platform/bundle.js", (req, res, next) => {
+    const filePath = path.resolve(process.cwd(), "static-build", req.path.slice(1));
+    const gzPath = filePath + ".gz";
+    const acceptsGzip = (req.headers["accept-encoding"] || "").toString().includes("gzip");
+    log(`[BUNDLE-STATIC] ${req.path} gzip=${acceptsGzip} exists=${fs.existsSync(filePath)} gz=${fs.existsSync(gzPath)}`);
+    if (acceptsGzip && fs.existsSync(gzPath)) {
+      res.setHeader("Content-Type", "application/javascript");
+      res.setHeader("Content-Encoding", "gzip");
+      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      return fs.createReadStream(gzPath).pipe(res);
+    }
+    if (fs.existsSync(filePath)) {
+      res.setHeader("Content-Type", "application/javascript");
+      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      return fs.createReadStream(filePath).pipe(res);
+    }
+    next();
+  });
+  app2.use(express.static(path.resolve(process.cwd(), "static-build"), {
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith(".js")) {
+        res.setHeader("Content-Type", "application/javascript");
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      }
+    }
+  }));
   if (hasWebBuild) {
     app2.use(express.static(distDir, {
       maxAge: "1h",
