@@ -11,9 +11,11 @@ function isPortBusy(port) {
 }
 
 function killProcessOnPort(port) {
+  const safePort = parseInt(port, 10);
+  if (!safePort || safePort < 1 || safePort > 65535) return;
   try {
     const pids = execSync(
-      `lsof -ti :${port} 2>/dev/null || true`,
+      `lsof -ti :${safePort} 2>/dev/null || true`,
       { encoding: "utf-8" }
     ).trim();
     if (pids) {
