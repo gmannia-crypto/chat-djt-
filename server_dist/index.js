@@ -7693,10 +7693,7 @@ function configureExpoAndLanding(app2) {
       if (isMobile) {
         res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
         const htmlPath = path.join(distDir, "index.html");
-        let html = fs.readFileSync(htmlPath, "utf-8");
-        if (!html.includes("data-aff")) {
-          html = html.replace("</body>", affiliateScript + "</body>");
-        }
+        const html = fs.readFileSync(htmlPath, "utf-8");
         return res.send(html);
       }
       const freshTemplate = fs.readFileSync(templatePath, "utf-8");
@@ -7711,10 +7708,7 @@ function configureExpoAndLanding(app2) {
       if (platform) return next();
       res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
       const htmlPath = path.join(distDir, "index.html");
-      let html = fs.readFileSync(htmlPath, "utf-8");
-      if (!html.includes("data-aff")) {
-        html = html.replace("</body>", affiliateScript + "</body>");
-      }
+      const html = fs.readFileSync(htmlPath, "utf-8");
       return res.send(html);
     });
   } else if (!isDev) {

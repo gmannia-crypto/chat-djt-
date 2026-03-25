@@ -566,10 +566,7 @@ function configureExpoAndLanding(app: express.Application) {
       if (isMobile) {
         res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
         const htmlPath = path.join(distDir, "index.html");
-        let html = fs.readFileSync(htmlPath, "utf-8");
-        if (!html.includes("data-aff")) {
-          html = html.replace("</body>", affiliateScript + "</body>");
-        }
+        const html = fs.readFileSync(htmlPath, "utf-8");
         return res.send(html);
       }
 
@@ -587,10 +584,7 @@ function configureExpoAndLanding(app: express.Application) {
 
       res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
       const htmlPath = path.join(distDir, "index.html");
-      let html = fs.readFileSync(htmlPath, "utf-8");
-      if (!html.includes("data-aff")) {
-        html = html.replace("</body>", affiliateScript + "</body>");
-      }
+      const html = fs.readFileSync(htmlPath, "utf-8");
       return res.send(html);
     });
   } else if (!isDev) {
