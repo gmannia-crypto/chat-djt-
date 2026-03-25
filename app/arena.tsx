@@ -1748,13 +1748,39 @@ export default function ArenaScreen() {
       try {
         const sound = await playTTS("/api/persona-speak", { text: item.text, personaId: item.personaId }, { volume: 1.0 });
         currentSoundRef.current = sound;
+        const OVERLAP_MS = 3500;
         await new Promise<void>((resolve) => {
           let resolved = false;
-          const cleanup = () => { if (resolved) return; resolved = true; sound.setOnPlaybackStatusUpdate(null); sound.getStatusAsync().then((st: any) => { if (st.isLoaded) sound.unloadAsync().catch(() => {}); }).catch(() => {}); currentSoundRef.current = null; resolve(); };
+          let earlyResolved = false;
+          const fullCleanup = () => {
+            sound.setOnPlaybackStatusUpdate(null);
+            sound.getStatusAsync().then((st: any) => { if (st.isLoaded) sound.unloadAsync().catch(() => {}); }).catch(() => {});
+            if (currentSoundRef.current === sound) currentSoundRef.current = null;
+          };
+          const earlyResolve = () => {
+            if (earlyResolved || resolved) return;
+            earlyResolved = true;
+            resolve();
+          };
+          const finish = () => {
+            if (resolved) return;
+            resolved = true;
+            if (!earlyResolved) resolve();
+            fullCleanup();
+          };
           sound.setOnPlaybackStatusUpdate((status: any) => {
-            if (status.didJustFinish || status.error) cleanup();
+            if (status.didJustFinish || status.error) {
+              finish();
+              return;
+            }
+            if (!earlyResolved && ttsQueueRef.current.length > 0 && status.isPlaying && status.durationMillis && status.positionMillis) {
+              const remaining = status.durationMillis - status.positionMillis;
+              if (remaining <= OVERLAP_MS && remaining > 0) {
+                earlyResolve();
+              }
+            }
           });
-          setTimeout(cleanup, 60000);
+          setTimeout(finish, 60000);
         });
       } catch (e) {
         console.warn("Arena TTS playback error for", item.personaId, ":", e);
