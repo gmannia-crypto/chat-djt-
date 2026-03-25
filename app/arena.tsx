@@ -1384,6 +1384,7 @@ export default function ArenaScreen() {
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const ttsQueueRef = useRef<{ text: string; personaId: string }[]>([]);
   const isProcessingTTSRef = useRef(false);
+  const ttsPendingMoreRef = useRef(false);
 
   const [selectedPersonas, setSelectedPersonas] = useState<string[]>(PERSONA_IDS);
   const [showPersonaSelector, setShowPersonaSelector] = useState(false);
@@ -1722,6 +1723,7 @@ export default function ArenaScreen() {
     ttsQueueRef.current = [];
     isProcessingTTSRef.current = false;
     forcePlayRef.current = false;
+    ttsPendingMoreRef.current = false;
     const s = currentSoundRef.current;
     currentSoundRef.current = null;
     if (s) {
@@ -1773,7 +1775,7 @@ export default function ArenaScreen() {
               finish();
               return;
             }
-            if (!earlyResolved && ttsQueueRef.current.length > 0 && status.isPlaying && status.durationMillis && status.positionMillis) {
+            if (!earlyResolved && (ttsQueueRef.current.length > 0 || ttsPendingMoreRef.current) && status.isPlaying && status.durationMillis && status.positionMillis) {
               const remaining = status.durationMillis - status.positionMillis;
               if (remaining <= OVERLAP_MS && remaining > 0) {
                 earlyResolve();
@@ -2165,6 +2167,7 @@ export default function ArenaScreen() {
       if (!mountedRef.current || sessionEndedRef.current) return;
       setCurrentSpeaker(responderId);
       currentSpeakerRef.current = responderId;
+      ttsPendingMoreRef.current = true;
 
       try {
         const history = messagesRef.current
@@ -2248,12 +2251,14 @@ export default function ArenaScreen() {
 
         updateEmotions(responderId, toSpeakerId);
         if (!sessionEndedRef.current) queueTTS(data.response, responderId);
+        ttsPendingMoreRef.current = false;
 
         if (data.response && data.response.length > 30) {
           recordArenaMoment(responderId, toSpeakerId, data.response, currentTopicRef.current || "debate").catch(() => {});
         }
       } catch (err) {
         console.warn("Arena AI error:", err);
+        ttsPendingMoreRef.current = false;
       } finally {
         if (mountedRef.current) {
           setCurrentSpeaker(null);
