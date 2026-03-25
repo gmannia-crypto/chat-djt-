@@ -85,7 +85,7 @@ export default function SubscribeScreen() {
   const vipPrice = vipProduct?.prices?.find((p) => p.recurring?.interval === "month");
 
   const tokenPackProducts = productsData?.data?.filter(
-    (p) => p.name.includes("Dynamic Tokens")
+    (p) => p.name.includes("Tokens") && !p.name.includes("Chat DJT")
   );
 
   useEffect(() => {

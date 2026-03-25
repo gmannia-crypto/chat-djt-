@@ -4080,6 +4080,7 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyah
         id: product.id,
         name: product.name,
         description: product.description,
+        metadata: product.metadata,
         prices: prices.data
           .filter((p) => p.product === product.id)
           .map((p) => ({
@@ -4105,7 +4106,9 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyah
       }
 
       const stripe = await getUncachableStripeClient();
-      const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
+      const forwardedHost = req.header("x-forwarded-host");
+      const host = forwardedHost || req.get("host");
+      const baseUrl = `https://${host}`;
 
       const isSubscription = mode === "subscription";
       const metadata: Record<string, string> = {};
@@ -4955,7 +4958,9 @@ p{color:#999;font-size:16px;margin-bottom:24px}
 
       const selected = prices[plan] || prices.single;
       const stripe = await getUncachableStripeClient();
-      const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
+      const forwardedHost = req.header("x-forwarded-host");
+      const host = forwardedHost || req.get("host");
+      const baseUrl = `https://${host}`;
 
       const isViral = metadata?.source === "therapy-viral" || metadata?.type === "upsell-more-time";
       const isMulti = metadata?.source === "therapy-multi";
