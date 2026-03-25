@@ -23,7 +23,7 @@ import Animated, { FadeInDown, FadeInUp, FadeIn, FadeOut, SlideInLeft, SlideInRi
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system/legacy";
 import { getApiUrl } from "@/lib/query-client";
-import { playTTS, playAudioFromUrl } from "@/lib/audio-helper";
+import { playTTS, playAudioFromUrl, prefetchTTSAudio, playPrefetchedAudio } from "@/lib/audio-helper";
 import { playPointAwardSound, playVoteClickSound, playVoteSound2, playBellSound, playCrowdCheer, playDrumroll, playWinnerChosenSound, playWinnerAfterSound, playBreakingNewsAlert } from "@/lib/arena-sfx";
 import { useTokens } from "@/lib/token-context";
 import {
@@ -1385,6 +1385,8 @@ export default function ArenaScreen() {
   const ttsQueueRef = useRef<{ text: string; personaId: string }[]>([]);
   const isProcessingTTSRef = useRef(false);
   const ttsPendingMoreRef = useRef(false);
+  const prefetchedAudioRef = useRef<{ personaId: string; text: string; audioUri: string } | null>(null);
+  const prefetchingRef = useRef(false);
 
   const [selectedPersonas, setSelectedPersonas] = useState<string[]>(PERSONA_IDS);
   const [showPersonaSelector, setShowPersonaSelector] = useState(false);
@@ -1724,6 +1726,8 @@ export default function ArenaScreen() {
     isProcessingTTSRef.current = false;
     forcePlayRef.current = false;
     ttsPendingMoreRef.current = false;
+    prefetchedAudioRef.current = null;
+    prefetchingRef.current = false;
     const s = currentSoundRef.current;
     currentSoundRef.current = null;
     if (s) {
@@ -1738,6 +1742,18 @@ export default function ArenaScreen() {
     setIsPlayingAudio(false);
   }, []);
 
+  const startPrefetch = useCallback((item: { text: string; personaId: string }) => {
+    if (prefetchingRef.current) return;
+    if (prefetchedAudioRef.current && prefetchedAudioRef.current.text === item.text && prefetchedAudioRef.current.personaId === item.personaId) return;
+    prefetchingRef.current = true;
+    prefetchTTSAudio("/api/persona-speak", { text: item.text, personaId: item.personaId })
+      .then((audioUri) => {
+        prefetchedAudioRef.current = { personaId: item.personaId, text: item.text, audioUri };
+        prefetchingRef.current = false;
+      })
+      .catch(() => { prefetchingRef.current = false; });
+  }, []);
+
   const processTTSQueue = useCallback(async () => {
     if (isProcessingTTSRef.current || ttsQueueRef.current.length === 0) return;
     isProcessingTTSRef.current = true;
@@ -1748,12 +1764,24 @@ export default function ArenaScreen() {
       const item = ttsQueueRef.current.shift();
       if (!item || !mountedRef.current) break;
       try {
-        const sound = await playTTS("/api/persona-speak", { text: item.text, personaId: item.personaId }, { volume: 1.0 });
+        let sound: Audio.Sound;
+        const cached = prefetchedAudioRef.current;
+        if (cached && cached.text === item.text && cached.personaId === item.personaId) {
+          prefetchedAudioRef.current = null;
+          sound = await playPrefetchedAudio(cached.audioUri, { volume: 1.0 });
+        } else {
+          sound = await playTTS("/api/persona-speak", { text: item.text, personaId: item.personaId }, { volume: 1.0 });
+        }
         currentSoundRef.current = sound;
+
+        const nextItem = ttsQueueRef.current[0];
+        if (nextItem) startPrefetch(nextItem);
+
         const OVERLAP_MS = 3500;
         await new Promise<void>((resolve) => {
           let resolved = false;
           let earlyResolved = false;
+          let prefetchStarted = !!nextItem;
           const fullCleanup = () => {
             sound.setOnPlaybackStatusUpdate(null);
             sound.getStatusAsync().then((st: any) => { if (st.isLoaded) sound.unloadAsync().catch(() => {}); }).catch(() => {});
@@ -1775,10 +1803,17 @@ export default function ArenaScreen() {
               finish();
               return;
             }
-            if (!earlyResolved && (ttsQueueRef.current.length > 0 || ttsPendingMoreRef.current) && status.isPlaying && status.durationMillis && status.positionMillis) {
-              const remaining = status.durationMillis - status.positionMillis;
-              if (remaining <= OVERLAP_MS && remaining > 0) {
-                earlyResolve();
+            if (status.isPlaying && status.durationMillis && status.positionMillis) {
+              if (!prefetchStarted && (ttsQueueRef.current.length > 0 || ttsPendingMoreRef.current)) {
+                prefetchStarted = true;
+                const ni = ttsQueueRef.current[0];
+                if (ni) startPrefetch(ni);
+              }
+              if (!earlyResolved && (ttsQueueRef.current.length > 0 || prefetchedAudioRef.current)) {
+                const remaining = status.durationMillis - status.positionMillis;
+                if (remaining <= OVERLAP_MS && remaining > 0) {
+                  earlyResolve();
+                }
               }
             }
           });
@@ -1792,7 +1827,7 @@ export default function ArenaScreen() {
     forcePlayRef.current = false;
     currentSoundRef.current = null;
     if (mountedRef.current) setIsPlayingAudio(false);
-  }, []);
+  }, [startPrefetch]);
 
   const queueTTS = useCallback((text: string, personaId: string, force?: boolean) => {
     if (!force && sessionEndedRef.current) return;
@@ -2250,7 +2285,12 @@ export default function ArenaScreen() {
         });
 
         updateEmotions(responderId, toSpeakerId);
-        if (!sessionEndedRef.current) queueTTS(data.response, responderId);
+        if (!sessionEndedRef.current) {
+          if (isProcessingTTSRef.current && !prefetchingRef.current && !prefetchedAudioRef.current) {
+            startPrefetch({ text: data.response, personaId: responderId });
+          }
+          queueTTS(data.response, responderId);
+        }
         ttsPendingMoreRef.current = false;
 
         if (data.response && data.response.length > 30) {
@@ -2266,7 +2306,7 @@ export default function ArenaScreen() {
         }
       }
     },
-    [addMessage, updateEmotions, deviceId, queueTTS]
+    [addMessage, updateEmotions, deviceId, queueTTS, startPrefetch]
   );
 
   const triggerInterruption = useCallback(async (trumpMessageText: string) => {

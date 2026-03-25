@@ -87,18 +87,70 @@ export async function playAudioFromUrl(
   return sound;
 }
 
+function buildTTSUrl(endpoint: string, body: Record<string, any>): string {
+  const baseUrl = getApiUrl().replace(/\/$/, "");
+  const params = new URLSearchParams();
+  Object.entries(body).forEach(([k, v]) => {
+    if (v !== undefined && v !== null) params.append(k, String(v));
+  });
+  return `${baseUrl}${endpoint}?${params.toString()}`;
+}
+
+export async function prefetchTTSAudio(
+  endpoint: string,
+  body: Record<string, any>
+): Promise<string> {
+  const url = buildTTSUrl(endpoint, body);
+
+  await Audio.setAudioModeAsync({
+    playsInSilentModeIOS: true,
+    staysActiveInBackground: false,
+  });
+
+  if (Platform.OS === "web") {
+    const res = await globalThis.fetch(url);
+    if (!res.ok) throw new Error(`TTS prefetch failed: ${res.status}`);
+    const ct = res.headers.get("content-type") || "";
+    if (ct.includes("text/html")) throw new Error("Server returned HTML instead of audio");
+    const blob = await res.blob();
+    const reader = new FileReader();
+    const dataUri = await new Promise<string>((resolve, reject) => {
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+    return dataUri;
+  }
+
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`TTS prefetch failed: ${res.status}`);
+  return url;
+}
+
+export async function playPrefetchedAudio(
+  audioUri: string,
+  options?: { volume?: number }
+): Promise<Audio.Sound> {
+  const vol = options?.volume ?? 1.0;
+
+  await Audio.setAudioModeAsync({
+    playsInSilentModeIOS: true,
+    staysActiveInBackground: false,
+  });
+
+  const { sound } = await Audio.Sound.createAsync(
+    { uri: audioUri },
+    { shouldPlay: false, volume: vol }
+  );
+  await sound.playAsync();
+  return sound;
+}
+
 export async function playTTS(
   endpoint: string,
   body: Record<string, any>,
   options?: { volume?: number }
 ): Promise<Audio.Sound> {
-  const baseUrl = getApiUrl().replace(/\/$/, "");
-
-  const params = new URLSearchParams();
-  Object.entries(body).forEach(([k, v]) => {
-    if (v !== undefined && v !== null) params.append(k, String(v));
-  });
-  const url = `${baseUrl}${endpoint}?${params.toString()}`;
-
+  const url = buildTTSUrl(endpoint, body);
   return playAudioFromUrl(url, { volume: options?.volume });
 }

@@ -152,12 +152,7 @@ export async function playBellSound() {
     } catch {}
   } else {
     try {
-      await ensureAudioMode();
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQ==" },
-        { shouldPlay: true, volume: 0.6 }
-      );
-      setTimeout(() => sound.unloadAsync().catch(() => {}), 2000);
+      await playNativeSound("/public/winner-chosen.m4a", 0.6);
     } catch (e) {
       console.warn("SFX bell failed:", e);
     }
@@ -210,12 +205,7 @@ export async function playBreakingNewsAlert() {
     } catch {}
   } else {
     try {
-      await ensureAudioMode();
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQ==" },
-        { shouldPlay: true, volume: 0.5 }
-      );
-      setTimeout(() => sound.unloadAsync().catch(() => {}), 1500);
+      await playNativeSound("/public/vote-sound2.m4a", 0.6);
     } catch (e) {
       console.warn("SFX breaking-news alert failed:", e);
     }
@@ -237,5 +227,11 @@ export async function playDrumroll() {
         playWebTone(100, 0.4, "square", 0.15);
       }, 1300);
     } catch {}
+  } else {
+    try {
+      await playNativeSound("/public/vote-sound2.m4a", 0.5);
+    } catch (e) {
+      console.warn("SFX drumroll failed:", e);
+    }
   }
 }
