@@ -20,6 +20,16 @@ import {
   TOKEN_PACKS,
   getOrCreateAccount,
 } from "./tokens";
+import {
+  initTherapyTables,
+  analyzeUserSentiment,
+  getTherapyMemory,
+  storeTherapySession,
+  buildMemoryContextPrompt,
+  generatePersonalizedGreeting,
+  getTherapyHistory as getTherapyHistoryDB,
+  getRelationshipSummary,
+} from "./therapy-memory";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -567,6 +577,8 @@ const API_COST_ESTIMATES: Record<string, number> = {
 };
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  initTherapyTables().catch((e) => console.error("Therapy table init error:", e));
+
   app.get("/api/model-settings", (_req, res) => {
     const hasDeepseek = !!process.env.DEEPSEEK_API_KEY;
     const premiumCost = MODEL_CONFIG.premium.costPer1kTokens;
@@ -5762,6 +5774,12 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
             nextFollowUp = getFirstFollowUp(problem, nameStr);
           }
         }
+        const { tone: fuTone, topics: fuTopics, sentimentDelta: fuDelta } = analyzeUserSentiment(previousAnswer);
+        storeTherapySession(
+          deviceId, selectedVoice, previousAnswer, followUpResponse,
+          fuTone, fuTopics, parseInt(level) || 5, fuDelta
+        ).catch((e) => console.error("Failed to store follow-up session:", e));
+
         return res.json({
           therapy: followUpResponse,
           followUp: nextFollowUp,
@@ -5771,6 +5789,11 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
           voice: selectedVoice,
         });
       }
+
+      const { tone: detectedTone, topics: detectedTopics, sentimentDelta } = analyzeUserSentiment(problem);
+
+      const therapyMemory = await getTherapyMemory(deviceId, selectedVoice);
+      const memoryContext = buildMemoryContextPrompt(therapyMemory);
 
       let therapyPrompt: string;
       let userMessage: string;
@@ -5792,7 +5815,7 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
       }
 
       const messages: { role: "system" | "user"; content: string }[] = [
-        { role: "system", content: therapyPrompt },
+        { role: "system", content: therapyPrompt + memoryContext },
         { role: "user", content: userMessage },
       ];
       if (historyCtx) {
@@ -5810,6 +5833,11 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
       const therapy = completion.choices[0]?.message?.content?.trim() || "";
       apiUsageCounters.chat++;
 
+      storeTherapySession(
+        deviceId, selectedVoice, problem, therapy,
+        detectedTone, detectedTopics, parseInt(level) || 5, sentimentDelta
+      ).catch((e) => console.error("Failed to store therapy session:", e));
+
       let followUp: string | null = null;
       if (selectedVoice === "sophia") {
         followUp = getSophiaFollowUp(problem, nameStr);
@@ -5821,7 +5849,10 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
         followUp = getFirstFollowUp(problem, nameStr);
       }
 
-      res.json({ therapy, followUp, followUpIndex: 0, name: nameStr, seriousness: level, voice: selectedVoice });
+      res.json({
+        therapy, followUp, followUpIndex: 0, name: nameStr, seriousness: level, voice: selectedVoice,
+        detectedTone, detectedTopics, sessionCount: therapyMemory.interactionCount + 1,
+      });
     } catch (error) {
       console.error("Therapy error:", error);
       const { name, problem, seriousness } = req.body;
@@ -5931,6 +5962,12 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
       const selectedVoice = voice || "trump";
       const historyCtx = typeof therapyHistory === "string" ? therapyHistory.slice(0, 1000) : "";
 
+      const therapyMemory = await getTherapyMemory(deviceId, selectedVoice);
+      const memoryContext = buildMemoryContextPrompt(therapyMemory);
+
+      const lastUserMsg = chatMessages[chatMessages.length - 1]?.content || "";
+      const { tone: chatTone, topics: chatTopics, sentimentDelta: chatDelta } = analyzeUserSentiment(lastUserMsg);
+
       const freshContentClause = ` Always provide fresh, original therapeutic content — never repeat advice, exercises, or solutions you've already given in this conversation. Each response must offer NEW insights, NEW coping strategies, NEW perspectives, or NEW actionable solutions tailored to what the patient just shared. End each response with a fresh, unique, deeply personal question you've never asked before — make it feel spontaneous and tailored to what they just said. Vary your question style: sometimes reflective, sometimes challenging, sometimes imaginative, sometimes practical. NEVER repeat a question from earlier in the conversation.`;
 
       let systemPrompt: string;
@@ -5945,7 +5982,7 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
       }
 
       const apiMessages: { role: "system" | "user" | "assistant"; content: string }[] = [
-        { role: "system", content: systemPrompt },
+        { role: "system", content: systemPrompt + memoryContext },
       ];
 
       if (historyCtx) {
@@ -5971,7 +6008,12 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
       const reply = completion.choices[0]?.message?.content?.trim() || "";
       apiUsageCounters.chat++;
 
-      res.json({ reply, voice: selectedVoice });
+      storeTherapySession(
+        deviceId, selectedVoice, lastUserMsg, reply,
+        chatTone, chatTopics, 5, chatDelta
+      ).catch((e) => console.error("Failed to store therapy chat session:", e));
+
+      res.json({ reply, voice: selectedVoice, detectedTone: chatTone, detectedTopics: chatTopics });
     } catch (error) {
       console.error("Therapy chat error:", error);
       res.status(500).json({ error: "Chat failed" });
@@ -5991,6 +6033,40 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
     } catch (error) {
       console.error("Therapy charge-minute error:", error);
       res.status(500).json({ error: "Failed to charge minute" });
+    }
+  });
+
+  app.post("/api/therapy/greeting", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) {
+        return res.status(400).json({ error: "Device ID required" });
+      }
+      const { personaId } = req.body;
+      if (!personaId) {
+        return res.status(400).json({ error: "Persona ID required" });
+      }
+      const result = await generatePersonalizedGreeting(deviceId, personaId);
+      res.json(result);
+    } catch (error) {
+      console.error("Therapy greeting error:", error);
+      res.status(500).json({ error: "Failed to generate greeting" });
+    }
+  });
+
+  app.get("/api/therapy/history", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) {
+        return res.status(400).json({ error: "Device ID required" });
+      }
+      const personaId = req.query.personaId as string | undefined;
+      const sessions = await getTherapyHistoryDB(deviceId, personaId);
+      const relationships = await getRelationshipSummary(deviceId);
+      res.json({ sessions, relationships });
+    } catch (error) {
+      console.error("Therapy history error:", error);
+      res.status(500).json({ error: "Failed to fetch history" });
     }
   });
 

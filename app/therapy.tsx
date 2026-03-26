@@ -21,7 +21,7 @@ import * as Haptics from "expo-haptics";
 import * as FileSystem from "expo-file-system/legacy";
 import { Audio } from "expo-av";
 import { playTTS } from "@/lib/audio-helper";
-import { recordTherapySession, getTherapyContext, getLastTherapySessionForTherapist } from "@/lib/persona-memory";
+import { recordTherapySession, getTherapyContext } from "@/lib/persona-memory";
 import Animated, {
   FadeIn,
   FadeInDown,
@@ -670,19 +670,6 @@ export default function TherapyScreen() {
     } catch {}
   };
 
-  const generateWelcomeBack = (therapist: TherapistVoice, topic: string, name: string): string => {
-    switch (therapist) {
-      case "patricia":
-        return `Welcome back, love. Last time we discussed ${topic}. How has that been for you, gorgeous?`;
-      case "sophia":
-        return `Welcome back, ${name}. Last time we explored ${topic} together. I've been thinking about you. How are you feeling about that now?`;
-      case "james":
-        return `Good to see you again, ${name}. Our last session covered ${topic}. Let's check in on your progress with that.`;
-      default:
-        return `You're back! Last time we talked about ${topic}. Tremendous topic, by the way. So tell me — how's that going?`;
-    }
-  };
-
   const handleStartChat = async () => {
     if (!firstName.trim()) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -695,13 +682,23 @@ export default function TherapyScreen() {
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
 
-    const uid = deviceId || "anonymous";
-    const lastSession = await getLastTherapySessionForTherapist(uid, selectedTherapist).catch(() => null);
-
     let greeting: string;
-    if (lastSession) {
-      greeting = generateWelcomeBack(selectedTherapist, lastSession.problem, firstName.trim());
-    } else {
+    try {
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      const hdrs: Record<string, string> = { "Content-Type": "application/json" };
+      if (deviceId) hdrs["x-device-id"] = deviceId;
+      const greetingRes = await fetch(`${baseUrl}/api/therapy/greeting`, {
+        method: "POST",
+        headers: hdrs,
+        body: JSON.stringify({ personaId: selectedTherapist }),
+      });
+      if (greetingRes.ok) {
+        const greetingData = await greetingRes.json();
+        greeting = greetingData.greeting;
+      } else {
+        greeting = config.greeting.replace(/"/g, "");
+      }
+    } catch {
       greeting = config.greeting.replace(/"/g, "");
     }
 
