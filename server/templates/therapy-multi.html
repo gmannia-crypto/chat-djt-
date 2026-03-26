@@ -347,7 +347,7 @@
                 <div class="session-content" id="sessionContent"></div>
                 <div style="display: flex; gap: 10px; align-items: center; margin-top: 10px;">
                     <button class="tts-btn" id="ttsBtn" onclick="speakTherapy()">&#x1F50A; Listen</button>
-                    <button class="tts-btn" id="quickVideoBtn" onclick="requestQuickVideo()">&#x1F3AC; Watch Video</button>
+                    <button class="tts-btn" id="quickVideoBtn" onclick="requestQuickVideo()">&#x1F3AC; Watch Video (3 tokens)</button>
                 </div>
 
                 <div class="voice-switcher" id="voiceSwitcher">
@@ -1299,7 +1299,7 @@
             contentEl.textContent = '';
             contentEl.style.opacity = '0';
 
-            var videoText = text.length > 200 ? text.slice(0, 197) + '...' : text;
+            var videoText = text.length > 500 ? text.slice(0, 497) + '...' : text;
 
             fetch('/api/therapy/lip-sync', {
                 method: 'POST',
@@ -1309,7 +1309,7 @@
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 btn.disabled = false;
-                btn.textContent = '\uD83C\uDFAC Watch Video';
+                btn.textContent = '\uD83C\uDFAC Watch Video (3 tokens)';
                 if (data.videoUrl) {
                     var container = document.getElementById('quickVideoContainer');
                     if (!container) {
@@ -1402,7 +1402,7 @@
             })
             .catch(function(e) {
                 btn.disabled = false;
-                btn.textContent = '\uD83C\uDFAC Watch Video';
+                btn.textContent = '\uD83C\uDFAC Watch Video (3 tokens)';
                 contentEl.textContent = savedText;
                 contentEl.style.opacity = '1';
             });
@@ -1484,7 +1484,7 @@
             el.appendChild(loader);
             el.scrollTop = el.scrollHeight;
 
-            var videoText = text.length > 200 ? text.slice(0, 197) + '...' : text;
+            var videoText = text.length > 500 ? text.slice(0, 497) + '...' : text;
 
             fetch('/api/therapy/lip-sync', {
                 method: 'POST',

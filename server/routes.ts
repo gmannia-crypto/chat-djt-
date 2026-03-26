@@ -12,6 +12,7 @@ import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClie
 import {
   getTokenBalance,
   useToken,
+  useTokens,
   grantSubscriptionTokens,
   grantTokenPack,
   grantRewardTokens,
@@ -6062,7 +6063,8 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
       if (!deviceId) {
         return res.status(400).json({ error: "Device ID required" });
       }
-      const tokenResult = await useToken(deviceId);
+      const VIDEO_TOKEN_COST = 3;
+      const tokenResult = await useTokens(deviceId, VIDEO_TOKEN_COST, 'Video lip-sync generation (3 tokens)');
       if (!tokenResult.success) {
         return res.status(403).json({ error: tokenResult.error, balance: tokenResult.balance });
       }

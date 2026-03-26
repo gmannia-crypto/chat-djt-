@@ -66,6 +66,53 @@ export async function getTokenBalance(deviceId: string) {
   };
 }
 
+export async function useTokens(deviceId: string, count: number = 1, description: string = 'Token used'): Promise<{ success: boolean; error?: string; balance?: any }> {
+  const db = getPool();
+  const account = await getOrCreateAccount(deviceId);
+  const freeRemaining = Math.max(0, FREE_PROMPT_LIMIT - account.free_prompts_used);
+
+  if (count <= 1) {
+    return useToken(deviceId);
+  }
+
+  let charged = 0;
+  const freeToUse = Math.min(freeRemaining, count);
+  if (freeToUse > 0) {
+    await db.query(
+      `UPDATE token_accounts SET free_prompts_used = free_prompts_used + $2, updated_at = NOW() WHERE device_id = $1`,
+      [deviceId, freeToUse]
+    );
+    await db.query(
+      `INSERT INTO token_transactions (account_id, type, amount, description, created_at)
+       VALUES ($1, 'use_free', $2, $3, NOW())`,
+      [account.id, -freeToUse, description]
+    );
+    charged += freeToUse;
+  }
+
+  const remaining = count - charged;
+  if (remaining > 0) {
+    if (account.tokens < remaining) {
+      return {
+        success: false,
+        error: `Not enough tokens. Video costs ${count} tokens. You have ${account.tokens + (freeRemaining - freeToUse)} remaining.`,
+        balance: await getTokenBalance(deviceId),
+      };
+    }
+    await db.query(
+      `UPDATE token_accounts SET tokens = tokens - $2, updated_at = NOW() WHERE device_id = $1 AND tokens >= $2`,
+      [deviceId, remaining]
+    );
+    await db.query(
+      `INSERT INTO token_transactions (account_id, type, amount, description, created_at)
+       VALUES ($1, 'use_token', $2, $3, NOW())`,
+      [account.id, -remaining, description]
+    );
+  }
+
+  return { success: true, balance: await getTokenBalance(deviceId) };
+}
+
 export async function useToken(deviceId: string): Promise<{ success: boolean; error?: string; balance?: any }> {
   const db = getPool();
   const account = await getOrCreateAccount(deviceId);
