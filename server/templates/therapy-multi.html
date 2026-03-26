@@ -344,7 +344,10 @@
                 </div>
 
                 <div class="session-content" id="sessionContent"></div>
-                <button class="tts-btn" id="ttsBtn" onclick="speakTherapy()">&#x1F50A; Listen</button>
+                <div style="display: flex; gap: 10px; align-items: center; margin-top: 10px;">
+                    <button class="tts-btn" id="ttsBtn" onclick="speakTherapy()">&#x1F50A; Listen</button>
+                    <button class="tts-btn" id="quickVideoBtn" onclick="requestQuickVideo()">&#x1F3AC; Watch Video</button>
+                </div>
 
                 <div class="voice-switcher" id="voiceSwitcher">
                     <div class="switcher-title">Need a different perspective?</div>
@@ -1260,7 +1263,10 @@
                     addChatBubble('therapist', data.reply);
                     chatMessages.push({ role: 'assistant', content: data.reply });
                     if (chatVideoEnabled) {
+                        console.log('[Chat] Video enabled, requesting lip-sync...');
                         requestLipSyncVideo(data.reply);
+                    } else {
+                        console.log('[Chat] Video disabled, skipping lip-sync');
                     }
                 } else if (data.error) {
                     addChatBubble('therapist', 'Sorry, I couldn\'t respond right now. ' + (data.error || ''));
@@ -1275,6 +1281,53 @@
                 chatSending = false;
                 document.getElementById('chatSendBtn').disabled = false;
                 document.getElementById('chatInput').focus();
+            });
+        }
+
+        function requestQuickVideo() {
+            var text = sessionStorage.getItem('lastTherapy');
+            if (!text) { alert('Start a session first to generate a video response.'); return; }
+            var btn = document.getElementById('quickVideoBtn');
+            btn.disabled = true;
+            btn.textContent = 'Generating... (10-15s)';
+
+            fetch('/api/therapy/lip-sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-device-id': deviceId },
+                body: JSON.stringify({ text: text.slice(0, 500), personaId: selectedVoice })
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                btn.disabled = false;
+                btn.textContent = '\uD83C\uDFAC Watch Video';
+                if (data.videoUrl) {
+                    var container = document.getElementById('quickVideoContainer');
+                    if (!container) {
+                        container = document.createElement('div');
+                        container.id = 'quickVideoContainer';
+                        container.style.cssText = 'margin: 15px 0; border-radius: 12px; overflow: hidden; max-width: 320px;';
+                        document.getElementById('sessionContent').parentNode.insertBefore(container, document.getElementById('sessionContent').nextSibling);
+                    }
+                    container.innerHTML = '';
+                    var video = document.createElement('video');
+                    video.controls = true;
+                    video.autoplay = true;
+                    video.playsInline = true;
+                    video.src = data.videoUrl;
+                    video.style.cssText = 'width: 100%; border-radius: 12px;';
+                    container.appendChild(video);
+                } else if (data.audioBase64) {
+                    var audio = new Audio(data.audioBase64);
+                    audio.play().catch(function() {});
+                    btn.textContent = data.error ? '\u26A0 Audio Only' : '\uD83C\uDFAC Watch Video';
+                } else if (data.error) {
+                    alert('Video error: ' + data.error);
+                }
+            })
+            .catch(function(e) {
+                btn.disabled = false;
+                btn.textContent = '\uD83C\uDFAC Watch Video';
+                console.error('Quick video error:', e);
             });
         }
 
@@ -1342,42 +1395,64 @@
             var loader = document.createElement('div');
             loader.className = 'chat-video-loading';
             loader.id = 'chatVideoLoader';
-            loader.innerHTML = '<div class="loading-spinner"></div> Generating video response...';
+            loader.innerHTML = '<div class="loading-spinner"></div> &#x1F3AC; Generating video response... (10-15s)';
             el.appendChild(loader);
             el.scrollTop = el.scrollHeight;
+            console.log('[Video] Requesting lip-sync for:', text.slice(0, 50) + '...');
 
             fetch('/api/therapy/lip-sync', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-device-id': deviceId },
                 body: JSON.stringify({ text: text.slice(0, 500), personaId: selectedVoice })
             })
-            .then(function(r) { return r.json(); })
+            .then(function(r) {
+                console.log('[Video] Response status:', r.status);
+                return r.json();
+            })
             .then(function(data) {
+                console.log('[Video] Response data:', JSON.stringify(data).slice(0, 200));
                 var ld = document.getElementById('chatVideoLoader');
                 if (ld) ld.remove();
                 if (data.videoUrl) {
                     var vDiv = document.createElement('div');
                     vDiv.className = 'chat-video-player';
-                    vDiv.innerHTML = '<video controls autoplay playsinline src="' + data.videoUrl + '"></video>';
+                    var video = document.createElement('video');
+                    video.controls = true;
+                    video.autoplay = true;
+                    video.playsInline = true;
+                    video.src = data.videoUrl;
+                    video.style.width = '100%';
+                    video.style.borderRadius = '12px';
+                    vDiv.appendChild(video);
                     el.appendChild(vDiv);
                     el.scrollTop = el.scrollHeight;
                 } else if (data.audioBase64) {
                     var audio = new Audio(data.audioBase64);
                     audio.play().catch(function() {});
-                    if (data.error) {
-                        var note = document.createElement('div');
-                        note.className = 'chat-typing';
-                        note.textContent = 'Video unavailable — playing audio instead';
-                        el.appendChild(note);
-                        el.scrollTop = el.scrollHeight;
-                        setTimeout(function() { note.remove(); }, 4000);
-                    }
+                    var note = document.createElement('div');
+                    note.className = 'chat-typing';
+                    note.textContent = data.error ? 'Video unavailable — playing audio instead' : 'Playing audio response...';
+                    el.appendChild(note);
+                    el.scrollTop = el.scrollHeight;
+                    setTimeout(function() { if (note.parentNode) note.remove(); }, 5000);
+                } else if (data.error) {
+                    var errNote = document.createElement('div');
+                    errNote.className = 'chat-typing';
+                    errNote.textContent = 'Video error: ' + data.error;
+                    el.appendChild(errNote);
+                    el.scrollTop = el.scrollHeight;
+                    setTimeout(function() { if (errNote.parentNode) errNote.remove(); }, 5000);
                 }
             })
             .catch(function(e) {
+                console.error('[Video] Lip-sync fetch error:', e);
                 var ld = document.getElementById('chatVideoLoader');
                 if (ld) ld.remove();
-                console.error('Lip-sync error:', e);
+                var errDiv = document.createElement('div');
+                errDiv.className = 'chat-typing';
+                errDiv.textContent = 'Video generation failed — ' + e.message;
+                el.appendChild(errDiv);
+                el.scrollTop = el.scrollHeight;
             });
         }
 
