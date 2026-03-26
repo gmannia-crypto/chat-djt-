@@ -1320,23 +1320,53 @@
                     container.innerHTML = '';
                     var video = document.createElement('video');
                     video.controls = true;
-                    video.autoplay = true;
                     video.playsInline = true;
+                    video.muted = true;
                     video.src = data.videoUrl;
                     video.style.cssText = 'width: 100%; border-radius: 12px;';
                     container.appendChild(video);
-                    video.onplay = function() {
+                    var replayBtn = document.createElement('button');
+                    replayBtn.className = 'tts-btn';
+                    replayBtn.innerHTML = '&#x1F504; Replay';
+                    replayBtn.style.marginTop = '8px';
+                    container.appendChild(replayBtn);
+
+                    function revealText() {
                         contentEl.textContent = savedText;
                         contentEl.style.opacity = '1';
                         contentEl.style.transition = 'opacity 0.8s ease';
-                    };
-                    setTimeout(function() {
-                        contentEl.textContent = savedText;
-                        contentEl.style.opacity = '1';
-                    }, 3000);
+                    }
+
+                    if (data.audioBase64) {
+                        var audioBlobUrl = base64ToBlob(data.audioBase64, 'audio/mpeg');
+                        var audioEl = new Audio(audioBlobUrl);
+                        video.play().catch(function() {});
+                        audioEl.play().then(function() { revealText(); }).catch(function() { revealText(); });
+                        replayBtn.onclick = function() {
+                            video.currentTime = 0;
+                            audioEl.currentTime = 0;
+                            video.play().catch(function() {});
+                            audioEl.play().catch(function() {});
+                        };
+                    } else {
+                        video.play().then(function() {
+                            setTimeout(function() { video.muted = false; }, 100);
+                            revealText();
+                        }).catch(function() {
+                            video.muted = false;
+                            revealText();
+                        });
+                        replayBtn.onclick = function() {
+                            video.currentTime = 0;
+                            video.muted = false;
+                            video.play().catch(function() {});
+                        };
+                    }
+                    setTimeout(revealText, 3000);
                 } else if (data.audioBase64) {
-                    var audio = new Audio(data.audioBase64);
-                    audio.play().then(function() {
+                    var audioBlobUrl = base64ToBlob(data.audioBase64, 'audio/mpeg');
+                    var audioEl = new Audio(audioBlobUrl);
+                    audioEl.play().then(function() {
                         contentEl.textContent = savedText;
                         contentEl.style.opacity = '1';
                         contentEl.style.transition = 'opacity 0.8s ease';
@@ -1417,6 +1447,14 @@
             }
         }
 
+        function base64ToBlob(base64, mime) {
+            var raw = base64.split(',')[1] || base64;
+            var byteChars = atob(raw);
+            var byteArr = new Uint8Array(byteChars.length);
+            for (var i = 0; i < byteChars.length; i++) byteArr[i] = byteChars.charCodeAt(i);
+            return URL.createObjectURL(new Blob([byteArr], { type: mime }));
+        }
+
         function requestLipSyncVideo(text, onComplete) {
             var el = document.getElementById('chatMessages');
             var loader = document.createElement('div');
@@ -1442,18 +1480,58 @@
                     vDiv.className = 'chat-video-player';
                     var video = document.createElement('video');
                     video.controls = true;
-                    video.autoplay = true;
                     video.playsInline = true;
+                    video.muted = true;
                     video.src = data.videoUrl;
                     video.style.width = '100%';
                     video.style.borderRadius = '12px';
                     vDiv.appendChild(video);
+                    var replayBtn = document.createElement('button');
+                    replayBtn.className = 'tts-btn';
+                    replayBtn.innerHTML = '&#x1F504; Replay';
+                    replayBtn.style.marginTop = '5px';
+                    replayBtn.onclick = function() {
+                        video.currentTime = 0;
+                        video.muted = false;
+                        video.play().catch(function() {});
+                    };
+                    vDiv.appendChild(replayBtn);
                     el.appendChild(vDiv);
                     el.scrollTop = el.scrollHeight;
+                    video.play().then(function() {
+                        setTimeout(function() { video.muted = false; }, 100);
+                    }).catch(function() {
+                        video.muted = false;
+                    });
+                    if (data.audioBase64) {
+                        var audioBlobUrl = base64ToBlob(data.audioBase64, 'audio/mpeg');
+                        var audioEl = new Audio(audioBlobUrl);
+                        video.muted = true;
+                        audioEl.play().catch(function() {});
+                        replayBtn.onclick = function() {
+                            video.currentTime = 0;
+                            audioEl.currentTime = 0;
+                            video.play().catch(function() {});
+                            audioEl.play().catch(function() {});
+                        };
+                    }
                     if (onComplete) onComplete();
                 } else if (data.audioBase64) {
-                    var audio = new Audio(data.audioBase64);
-                    audio.play().catch(function() {});
+                    var audioBlobUrl = base64ToBlob(data.audioBase64, 'audio/mpeg');
+                    var audioEl = new Audio(audioBlobUrl);
+                    audioEl.play().catch(function() {});
+                    var replayDiv = document.createElement('div');
+                    replayDiv.style.cssText = 'display: flex; gap: 8px; align-items: center; margin: 5px 0;';
+                    var replayBtn = document.createElement('button');
+                    replayBtn.className = 'tts-btn';
+                    replayBtn.innerHTML = '&#x1F504; Replay Audio';
+                    replayBtn.onclick = function() {
+                        audioEl.currentTime = 0;
+                        audioEl.play().catch(function() {});
+                    };
+                    replayDiv.appendChild(replayBtn);
+                    el.appendChild(replayDiv);
+                    el.scrollTop = el.scrollHeight;
                     if (onComplete) onComplete();
                 } else {
                     if (onComplete) onComplete();
