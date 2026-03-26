@@ -180,6 +180,15 @@
         .chat-send-btn:hover { transform: scale(1.1); }
         .chat-send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
         .chat-typing { align-self: flex-start; color: #888; font-style: italic; font-size: 13px; padding: 8px 16px; }
+        .chat-toolbar { display: flex; gap: 8px; padding: 8px 15px 0; background: #222; justify-content: flex-start; align-items: center; }
+        .chat-tool-btn { background: #333; border: 1px solid #444; border-radius: 20px; padding: 6px 14px; color: #aaa; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 5px; transition: all 0.2s; }
+        .chat-tool-btn:hover { border-color: #888; color: white; }
+        .chat-tool-btn.active { border-color: #ff4d4d; color: #ff4d4d; background: #ff4d4d15; }
+        .chat-tool-btn.recording { border-color: #ff4d4d; color: white; background: #ff4d4d; animation: micPulse 1s infinite; }
+        .chat-tool-btn.video-active { border-color: #8b5cf6; color: #8b5cf6; background: #8b5cf620; }
+        .chat-video-player { margin: 10px 0; border-radius: 12px; overflow: hidden; max-width: 280px; align-self: flex-start; }
+        .chat-video-player video { width: 100%; border-radius: 12px; }
+        .chat-video-loading { align-self: flex-start; background: #222; border: 1px solid #444; border-radius: 12px; padding: 15px 20px; color: #888; font-size: 13px; display: flex; align-items: center; gap: 10px; }
 
         .phq-container { display: none; }
         .phq-header { text-align: center; margin-bottom: 20px; }
@@ -383,6 +392,11 @@
                 <div class="chat-messages" id="chatMessages">
                     <div class="chat-bubble therapist trump" id="chatGreeting">Welcome! Select a therapist above to start chatting.</div>
                 </div>
+                <div class="chat-toolbar">
+                    <button class="chat-tool-btn" id="chatMicBtn" onclick="toggleChatMic()">&#x1F3A4; Mic</button>
+                    <button class="chat-tool-btn" id="chatVideoBtn" onclick="toggleChatVideo()">&#x1F3AC; Video</button>
+                    <span id="chatMicStatus" style="font-size: 11px; color: #ff4d4d;"></span>
+                </div>
                 <div class="chat-input-bar">
                     <input type="text" id="chatInput" placeholder="Type your message..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChatMessage();}">
                     <button class="chat-send-btn" id="chatSendBtn" onclick="sendChatMessage()">&#x27A4;</button>
@@ -460,6 +474,9 @@
         var currentMode = 'quick';
         var chatMessages = [];
         var chatSending = false;
+        var chatVideoEnabled = false;
+        var chatMicRecording = false;
+        var chatRecognition = null;
         var phqState = { step: null, intakeData: {}, questionIndex: 0 };
         var deviceId = 'web_' + Math.random().toString(36).substring(2, 15);
         var exchanges = [];
@@ -1215,6 +1232,9 @@
                 if (data.reply) {
                     addChatBubble('therapist', data.reply);
                     chatMessages.push({ role: 'assistant', content: data.reply });
+                    if (chatVideoEnabled) {
+                        requestLipSyncVideo(data.reply);
+                    }
                 } else if (data.error) {
                     addChatBubble('therapist', 'Sorry, I couldn\'t respond right now. ' + (data.error || ''));
                 }
@@ -1228,6 +1248,109 @@
                 chatSending = false;
                 document.getElementById('chatSendBtn').disabled = false;
                 document.getElementById('chatInput').focus();
+            });
+        }
+
+        function toggleChatMic() {
+            var btn = document.getElementById('chatMicBtn');
+            var status = document.getElementById('chatMicStatus');
+            if (chatMicRecording) {
+                chatMicRecording = false;
+                btn.classList.remove('recording');
+                status.textContent = '';
+                if (chatRecognition) { chatRecognition.stop(); chatRecognition = null; }
+                return;
+            }
+            var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                alert('Speech recognition not supported in this browser. Try Chrome.');
+                return;
+            }
+            chatRecognition = new SpeechRecognition();
+            chatRecognition.continuous = false;
+            chatRecognition.interimResults = true;
+            chatRecognition.lang = 'en-US';
+            chatMicRecording = true;
+            btn.classList.add('recording');
+            status.textContent = 'Listening...';
+            chatRecognition.onresult = function(e) {
+                var transcript = '';
+                for (var i = 0; i < e.results.length; i++) {
+                    transcript += e.results[i][0].transcript;
+                }
+                document.getElementById('chatInput').value = transcript;
+                if (e.results[0].isFinal) {
+                    status.textContent = 'Got it!';
+                    setTimeout(function() { status.textContent = ''; }, 1500);
+                }
+            };
+            chatRecognition.onend = function() {
+                chatMicRecording = false;
+                btn.classList.remove('recording');
+                if (!status.textContent.includes('Got it')) status.textContent = '';
+            };
+            chatRecognition.onerror = function(e) {
+                chatMicRecording = false;
+                btn.classList.remove('recording');
+                status.textContent = 'Mic error: ' + e.error;
+                setTimeout(function() { status.textContent = ''; }, 3000);
+            };
+            chatRecognition.start();
+        }
+
+        function toggleChatVideo() {
+            chatVideoEnabled = !chatVideoEnabled;
+            var btn = document.getElementById('chatVideoBtn');
+            if (chatVideoEnabled) {
+                btn.classList.add('video-active');
+                btn.innerHTML = '&#x1F3AC; Video ON';
+            } else {
+                btn.classList.remove('video-active');
+                btn.innerHTML = '&#x1F3AC; Video';
+            }
+        }
+
+        function requestLipSyncVideo(text) {
+            var el = document.getElementById('chatMessages');
+            var loader = document.createElement('div');
+            loader.className = 'chat-video-loading';
+            loader.id = 'chatVideoLoader';
+            loader.innerHTML = '<div class="loading-spinner"></div> Generating video response...';
+            el.appendChild(loader);
+            el.scrollTop = el.scrollHeight;
+
+            fetch('/api/therapy/lip-sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-device-id': deviceId },
+                body: JSON.stringify({ text: text.slice(0, 500), personaId: selectedVoice })
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var ld = document.getElementById('chatVideoLoader');
+                if (ld) ld.remove();
+                if (data.videoUrl) {
+                    var vDiv = document.createElement('div');
+                    vDiv.className = 'chat-video-player';
+                    vDiv.innerHTML = '<video controls autoplay playsinline src="' + data.videoUrl + '"></video>';
+                    el.appendChild(vDiv);
+                    el.scrollTop = el.scrollHeight;
+                } else if (data.audioBase64) {
+                    var audio = new Audio(data.audioBase64);
+                    audio.play().catch(function() {});
+                    if (data.error) {
+                        var note = document.createElement('div');
+                        note.className = 'chat-typing';
+                        note.textContent = 'Video unavailable — playing audio instead';
+                        el.appendChild(note);
+                        el.scrollTop = el.scrollHeight;
+                        setTimeout(function() { note.remove(); }, 4000);
+                    }
+                }
+            })
+            .catch(function(e) {
+                var ld = document.getElementById('chatVideoLoader');
+                if (ld) ld.remove();
+                console.error('Lip-sync error:', e);
             });
         }
 
