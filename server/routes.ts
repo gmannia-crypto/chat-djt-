@@ -6081,8 +6081,20 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
         return res.status(500).json({ error: "TTS not configured" });
       }
 
-      let voiceId = PERSONA_VOICE_IDS[personaId];
-      if (!voiceId) {
+      const THERAPY_VOICE_IDS: Record<string, { id: string; speed: number }> = {
+        sophia: { id: SOPHIA_VOICE_ID, speed: 0.95 },
+        james: { id: JAMES_VOICE_ID, speed: 0.9 },
+        patricia: { id: PATRICIA_VOICE_ID, speed: 0.95 },
+      };
+
+      let voiceId: string;
+      let voiceSpeed = 1.0;
+      if (THERAPY_VOICE_IDS[personaId]) {
+        voiceId = THERAPY_VOICE_IDS[personaId].id;
+        voiceSpeed = THERAPY_VOICE_IDS[personaId].speed;
+      } else if (PERSONA_VOICE_IDS[personaId]) {
+        voiceId = PERSONA_VOICE_IDS[personaId];
+      } else {
         voiceId = process.env.FISH_AUDIO_VOICE_ID || "";
       }
       if (!voiceId) {
@@ -6090,7 +6102,7 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
       }
 
       const safeText = text.slice(0, 500);
-      const audioBuffer = await fishAudioRequest(safeText, voiceId, 1.0, fishApiKey);
+      const audioBuffer = await fishAudioRequest(safeText, voiceId, voiceSpeed, fishApiKey);
       const audioBase64 = audioBuffer.toString("base64");
 
       const { videoUrl, error: videoError } = await generateLipSyncVideo(audioBuffer, personaId);
