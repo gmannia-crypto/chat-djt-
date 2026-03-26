@@ -56,7 +56,6 @@ The landing page uses document-level event delegation, with three listeners (cli
 - **fal.ai**: SadTalker lip-sync video generation from therapist portrait images.
 
 ## HTML Standalone Pages
-- `/therapy-web` — Standalone HTML therapy chat page with persona selection, lip-sync video toggle, and session memory. Served from `server/templates/therapy.html`.
 - `/therapy-multi` — Multi-persona therapy page. Served from `server/templates/therapy-multi.html`.
 - `/therapy-viral` — Viral sharing therapy page. Served from `server/templates/therapy-viral.html`.
 
