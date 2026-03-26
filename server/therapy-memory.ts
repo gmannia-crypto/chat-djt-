@@ -1,4 +1,7 @@
 import { Pool } from "pg";
+import { fal } from "@fal-ai/client";
+import { join } from "node:path";
+import { readFileSync, existsSync } from "node:fs";
 
 let pool: Pool | null = null;
 
@@ -297,6 +300,81 @@ export async function getTherapyHistory(deviceId: string, personaId?: string): P
   } catch (error) {
     console.error("Error fetching therapy history:", error);
     return [];
+  }
+}
+
+const THERAPIST_PORTRAITS: Record<string, string> = {
+  trump: "trump-therapist.png",
+  sophia: "dr-sophia.jpg",
+  james: "dr-james.jpg",
+  patricia: "dr-patricia.jpg",
+};
+
+function getPortraitPath(personaId: string): string | null {
+  const filename = THERAPIST_PORTRAITS[personaId];
+  if (!filename) return null;
+
+  const serverPath = join(process.cwd(), "server", "assets", filename);
+  if (existsSync(serverPath)) return serverPath;
+
+  const assetsPath = join(process.cwd(), "assets", "images", filename);
+  if (existsSync(assetsPath)) return assetsPath;
+
+  return null;
+}
+
+export async function generateLipSyncVideo(
+  audioBuffer: Buffer,
+  personaId: string
+): Promise<{ videoUrl: string | null; error?: string }> {
+  const falKey = process.env.FAL_API_KEY;
+  if (!falKey) {
+    return { videoUrl: null, error: "FAL_API_KEY not configured" };
+  }
+
+  fal.config({ credentials: falKey });
+
+  const portraitPath = getPortraitPath(personaId);
+  if (!portraitPath) {
+    return { videoUrl: null, error: `No portrait found for ${personaId}` };
+  }
+
+  try {
+    const portraitBuffer = readFileSync(portraitPath);
+    const ext = portraitPath.endsWith(".png") ? "png" : "jpeg";
+    const portraitDataUrl = `data:image/${ext};base64,${portraitBuffer.toString("base64")}`;
+    const audioDataUrl = `data:audio/mpeg;base64,${audioBuffer.toString("base64")}`;
+
+    console.log(`[LipSync] Starting fal.ai generation for persona=${personaId}`);
+
+    const result = await fal.subscribe("fal-ai/sadtalker", {
+      input: {
+        source_image_url: portraitDataUrl,
+        driven_audio_url: audioDataUrl,
+        pose_style: 0,
+        face_model_resolution: "256",
+        expression_scale: 1.0,
+        still_mode: false,
+      },
+      logs: true,
+      onQueueUpdate: (update: any) => {
+        if (update.status === "IN_PROGRESS" && update.logs) {
+          update.logs.forEach((log: any) => console.log(`[LipSync] ${log.message}`));
+        }
+      },
+    }) as any;
+
+    const videoUrl = result?.data?.video?.url || result?.video?.url || null;
+    if (videoUrl) {
+      console.log(`[LipSync] Video generated successfully: ${videoUrl}`);
+    } else {
+      console.log(`[LipSync] No video URL in response:`, JSON.stringify(result).slice(0, 200));
+    }
+
+    return { videoUrl };
+  } catch (error: any) {
+    console.error("[LipSync] Error generating video:", error.message);
+    return { videoUrl: null, error: error.message };
   }
 }
 

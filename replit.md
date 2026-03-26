@@ -25,7 +25,8 @@ The backend is an Express 5 API gateway responsible for AI interactions, content
 - **Arena Win Tally System**: Tracks historical wins per user and globally, incorporating win records into persona prompts for competitive trash-talk.
 - **Global Arena Leaderboard**: Displays an all-time leaderboard of users and popular personas.
 - **Arena Usage Rewards**: Provides automatic token rewards for time spent in the Arena, based on reward tiers.
-- **Therapy Session Memory**: Server-side PostgreSQL storage of therapy sessions with sentiment analysis, topic extraction, relationship tracking (sentiment scores), and personalized greetings. Client-side AsyncStorage fallback also available. Tables: `therapy_sessions`, `therapy_relationships`. Endpoints: `/api/therapy/greeting`, `/api/therapy/history`.
+- **Therapy Session Memory**: Server-side PostgreSQL storage of therapy sessions with sentiment analysis, topic extraction, relationship tracking (sentiment scores), and personalized greetings. Client-side AsyncStorage fallback also available. Tables: `therapy_sessions`, `therapy_relationships`. Endpoints: `/api/therapy/greeting`, `/api/therapy/history`, `/api/therapy/lip-sync`.
+- **Lip-Sync Video Generation**: Uses fal.ai SadTalker to generate lip-synced talking-head videos from therapist portraits + Fish Audio TTS. Premium feature behind token gate. Endpoint: `POST /api/therapy/lip-sync` (text + personaId → videoUrl + audioBase64).
 - **Speech Pause System**: Manages pausing of TTS and conversation loops during user mic recording.
 - **Arena Intro Animation**: Cinematic intro with voiceovers, animated persona chips, and a countdown.
 - **Analytics & Monetization**: Tracks user events and integrates with Stripe for payment processing, employing triple-redundancy for token fulfillment.

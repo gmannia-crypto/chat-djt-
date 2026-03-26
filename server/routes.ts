@@ -29,6 +29,7 @@ import {
   generatePersonalizedGreeting,
   getTherapyHistory as getTherapyHistoryDB,
   getRelationshipSummary,
+  generateLipSyncVideo,
 } from "./therapy-memory";
 
 const openai = new OpenAI({
@@ -6051,6 +6052,52 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
     } catch (error) {
       console.error("Therapy greeting error:", error);
       res.status(500).json({ error: "Failed to generate greeting" });
+    }
+  });
+
+  app.post("/api/therapy/lip-sync", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) {
+        return res.status(400).json({ error: "Device ID required" });
+      }
+      const tokenResult = await useToken(deviceId);
+      if (!tokenResult.success) {
+        return res.status(403).json({ error: tokenResult.error, balance: tokenResult.balance });
+      }
+
+      const { text, personaId } = req.body;
+      if (!text || !personaId) {
+        return res.status(400).json({ error: "text and personaId are required" });
+      }
+
+      const fishApiKey = process.env.FISH_AUDIO_API_KEY;
+      if (!fishApiKey) {
+        return res.status(500).json({ error: "TTS not configured" });
+      }
+
+      let voiceId = PERSONA_VOICE_IDS[personaId];
+      if (!voiceId) {
+        voiceId = process.env.FISH_AUDIO_VOICE_ID || "";
+      }
+      if (!voiceId) {
+        return res.status(400).json({ error: "No voice configured for persona" });
+      }
+
+      const safeText = text.slice(0, 500);
+      const audioBuffer = await fishAudioRequest(safeText, voiceId, 1.0, fishApiKey);
+      const audioBase64 = audioBuffer.toString("base64");
+
+      const { videoUrl, error: videoError } = await generateLipSyncVideo(audioBuffer, personaId);
+
+      res.json({
+        videoUrl,
+        audioBase64: `data:audio/mpeg;base64,${audioBase64}`,
+        error: videoError || undefined,
+      });
+    } catch (error: any) {
+      console.error("Lip-sync error:", error);
+      res.status(500).json({ error: "Lip-sync generation failed" });
     }
   });
 

@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chat DJT Therapy</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #0a0a0a; color: white; margin: 0; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .persona-selector { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        .persona-btn { padding: 10px 20px; border: none; border-radius: 25px; cursor: pointer; font-weight: bold; }
+        .chat-container { background: #1a1a1a; border-radius: 15px; padding: 20px; height: 400px; overflow-y: auto; margin-bottom: 20px; }
+        .message { margin: 10px 0; padding: 10px; border-radius: 10px; max-width: 80%; }
+        .user { background: #ff4d4d; margin-left: auto; text-align: right; }
+        .assistant { background: #333; }
+        .input-area { display: flex; gap: 10px; }
+        .input-area input { flex: 1; padding: 12px; border-radius: 25px; border: none; }
+        .input-area button { padding: 12px 24px; background: #ff4d4d; border: none; border-radius: 25px; color: white; cursor: pointer; }
+        .loading { text-align: center; color: #888; margin: 10px 0; }
+        .video-container { margin: 20px 0; text-align: center; }
+        video { max-width: 100%; border-radius: 20px; }
+        audio { width: 100%; margin: 10px 0; }
+        .emotion-badge { display: inline-block; background: #ffaa00; color: black; padding: 4px 12px; border-radius: 20px; font-size: 12px; margin-left: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧠 Chat DJT Therapy</h1>
+        
+        <div class="persona-selector" id="personaSelector"></div>
+        
+        <div class="chat-container" id="chatContainer">
+            <div class="message assistant">Choose a therapist to begin your session.</div>
+        </div>
+        
+        <div class="video-container" id="videoContainer" style="display: none;">
+            <video id="avatarVideo" controls autoplay style="width: 100%; max-width: 400px; border-radius: 20px;"></video>
+        </div>
+        
+        <div class="input-area">
+            <input type="text" id="messageInput" placeholder="Type your message..." disabled>
+            <button id="sendBtn" disabled>Send</button>
+        </div>
+        <div id="loadingIndicator" class="loading" style="display: none;">Dr. Patricia is thinking...</div>
+    </div>
+
+    <script>
+        let currentPersona = null;
+        let userId = 'user_' + Math.random().toString(36).substr(2, 9);
+        let useVideo = false;
+        
+        // Load personas
+        fetch('/api/personas')
+            .then(res => res.json())
+            .then(data => {
+                const selector = document.getElementById('personaSelector');
+                data.personas.forEach(p => {
+                    const btn = document.createElement('button');
+                    btn.className = 'persona-btn';
+                    btn.style.background = p.color;
+                    btn.style.color = 'white';
+                    btn.textContent = `${p.avatar} ${p.name}`;
+                    btn.onclick = () => selectPersona(p.id);
+                    selector.appendChild(btn);
+                });
+            });
+        
+        async function selectPersona(personaId) {
+            currentPersona = personaId;
+            document.getElementById('messageInput').disabled = false;
+            document.getElementById('sendBtn').disabled = false;
+            
+            // Get greeting
+            const res = await fetch('/api/greeting', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, personaId })
+            });
+            const data = await res.json();
+            
+            // Clear chat and add greeting
+            const chat = document.getElementById('chatContainer');
+            chat.innerHTML = `<div class="message assistant">${data.greeting}</div>`;
+        }
+        
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            if (!message || !currentPersona) return;
+            
+            // Add user message to chat
+            const chat = document.getElementById('chatContainer');
+            chat.innerHTML += `<div class="message user">${message}</div>`;
+            input.value = '';
+            chat.scrollTop = chat.scrollHeight;
+            
+            // Show loading
+            document.getElementById('loadingIndicator').style.display = 'block';
+            
+            try {
+                const res = await fetch('/api/therapy', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId,
+                        personaId: currentPersona,
+                        userMessage: message,
+                        useVideo
+                    })
+                });
+                
+                const data = await res.json();
+                
+                // Add AI response to chat
+                chat.innerHTML += `<div class="message assistant">${data.text}</div>`;
+                chat.scrollTop = chat.scrollHeight;
+                
+                // Play audio if available
+                if (data.audioUrl) {
+                    const audio = new Audio(data.audioUrl);
+                    audio.play();
+                }
+                
+                // Show video if available (premium)
+                if (data.videoUrl) {
+                    const videoContainer = document.getElementById('videoContainer');
+                    const video = document.getElementById('avatarVideo');
+                    video.src = data.videoUrl;
+                    videoContainer.style.display = 'block';
+                    video.play();
+                }
+                
+                // Show emotion badge
+                if (data.detectedTone) {
+                    const lastMsg = chat.lastChild;
+                    const badge = document.createElement('span');
+                    badge.className = 'emotion-badge';
+                    badge.textContent = `🎭 ${data.detectedTone}`;
+                    lastMsg.appendChild(badge);
+                }
+                
+            } catch (error) {
+                console.error('Error:', error);
+                chat.innerHTML += `<div class="message assistant">Sorry, I'm having trouble connecting. Please try again.</div>`;
+            } finally {
+                document.getElementById('loadingIndicator').style.display = 'none';
+            }
+        }
+        
+        document.getElementById('sendBtn').onclick = sendMessage;
+        document.getElementById('messageInput').onkeypress = (e) => {
+            if (e.key === 'Enter') sendMessage();
+        };
+    </script>
+</body>
+</html>
