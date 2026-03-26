@@ -1,0 +1,415 @@
+// ==================== CHAT DJT - COMPLETE THERAPY SYSTEM ====================
+// Single file implementation for Replit
+
+const express = require('express');
+const cors = require('cors');
+const { fal } = require("@fal-ai/client");
+const OpenAI = require('openai');
+const axios = require('axios');
+const admin = require('firebase-admin');
+const { Server } = require('socket.io');
+const http = require('http');
+require('dotenv').config();
+
+// ==================== INITIALIZATION ====================
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: { origin: "*", methods: ["GET", "POST"] }
+});
+
+// Middleware
+app.use(cors());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.static('public'));
+
+// Initialize Firebase (if credentials available, otherwise use local storage)
+let db = null;
+let firebaseInitialized = false;
+
+try {
+  if (process.env.FIREBASE_PRIVATE_KEY && process.env.FIREBASE_PROJECT_ID) {
+    admin.initializeApp({
+      credential: admin.credential.cert({
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      })
+    });
+    db = admin.firestore();
+    firebaseInitialized = true;
+    console.log('✅ Firebase initialized');
+  } else {
+    console.log('⚠️ Firebase not configured, using in-memory storage');
+  }
+} catch (error) {
+  console.log('⚠️ Firebase init failed, using in-memory storage:', error.message);
+}
+
+// Initialize AI clients
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+fal.config({ credentials: process.env.FAL_API_KEY });
+
+// In-memory storage (fallback when Firebase not available)
+const inMemoryDB = {
+  users: new Map(),
+  memories: new Map(),
+  relationships: new Map(),
+  leaderboard: []
+};
+
+// ==================== PERSONA DEFINITIONS ====================
+const PERSONAS = {
+  patricia: {
+    id: 'patricia',
+    name: 'Dr. Patricia Serena',
+    avatar: '💋',
+    color: '#ff99cc',
+    voiceId: '21m00Tcm4TlvDq8ikWAM',
+    portraitUrl: 'https://your-cdn.com/portraits/patricia.png',
+    systemPrompt: `You are Dr. Patricia Serena, a warm, feminine, and slightly flirtatious therapist. You speak with empathy, intuition, and a soft, caring tone. You often use endearments like "darling", "sweetheart", "love". You listen deeply and ask gentle follow-up questions. You remember your patients and show genuine care.`,
+    greeting: "Hello, darling. I'm Dr. Patricia. Tell me what's on your heart today.",
+    anxiousGreeting: "I sense some tension in you, love. Let's breathe together and unpack what's going on.",
+    returningGreeting: "Welcome back, sweetheart. I've missed you. How are you feeling today?"
+  },
+  trump: {
+    id: 'trump',
+    name: 'Donald Trump',
+    avatar: '🗣️',
+    color: '#ff4d4d',
+    voiceId: 'AZnzlk1XvdvUeBnXmlld',
+    portraitUrl: 'https://your-cdn.com/portraits/trump.png',
+    systemPrompt: `You are Donald Trump, but as a therapist. You are confident, boastful, and use phrases like "believe me", "tremendous", "the best". You give advice that is direct and motivational. You tell patients they are winners.`,
+    greeting: "I'm here. The best therapist. Tell me your problems.",
+    anxiousGreeting: "You're worried? Don't be! I've had worries. Huge worries. And I crushed them.",
+    returningGreeting: "You're back. Smart. Ready to win again?"
+  },
+  sophia: {
+    id: 'sophia',
+    name: 'Dr. Sophia',
+    avatar: '👩‍⚕️',
+    color: '#ff99cc',
+    voiceId: 'EXAVITQu4L4MjE1GzP9F',
+    portraitUrl: 'https://your-cdn.com/portraits/sophia.png',
+    systemPrompt: `You are Dr. Sophia, a nurturing, compassionate therapist. You speak calmly and encourage patients to open up. You use phrases like "I hear you", "that must be difficult", "you're so brave".`,
+    greeting: "I'm Dr. Sophia. I'm here to listen. What would you like to talk about?",
+    anxiousGreeting: "I can hear how much this is affecting you. Let's explore it together.",
+    returningGreeting: "It's good to see you again. How have you been since our last chat?"
+  },
+  james: {
+    id: 'james',
+    name: 'Dr. James',
+    avatar: '👨‍⚕️',
+    color: '#4d4dff',
+    voiceId: 'pNInz6obpgDQGcF1JkM2',
+    portraitUrl: 'https://your-cdn.com/portraits/james.png',
+    systemPrompt: `You are Dr. James, a balanced, analytical therapist. You ask clarifying questions and provide logical perspectives. You are calm and professional.`,
+    greeting: "Hello, I'm Dr. James. Let's work through this together. What's on your mind?",
+    anxiousGreeting: "I'd like to understand what's causing this stress. Can you tell me more?",
+    returningGreeting: "Welcome back. Let's continue where we left off."
+  }
+};
+
+// ==================== HELPER FUNCTIONS ====================
+
+// Storage functions (works with Firebase or in-memory)
+async function getUserMemory(userId, personaId) {
+  if (firebaseInitialized && db) {
+    try {
+      const memorySnap = await db.doc(`users/${userId}/memory/therapy`).get();
+      const relSnap = await db.doc(`users/${userId}/personaRelationships/${personaId}`).get();
+      return {
+        memory: memorySnap.exists ? memorySnap.data() : null,
+        relationship: relSnap.exists ? relSnap.data() : null
+      };
+    } catch (e) {
+      console.log('Firebase read error, using memory');
+    }
+  }
+  
+  // Fallback to in-memory
+  return {
+    memory: inMemoryDB.memories.get(`${userId}_therapy`) || null,
+    relationship: inMemoryDB.relationships.get(`${userId}_${personaId}`) || null
+  };
+}
+
+async function storeTherapySession(userId, personaId, userMessage, aiResponse, tone, topics, sentimentDelta) {
+  const timestamp = new Date().toISOString();
+  const entry = {
+    date: timestamp,
+    userMessage,
+    aiResponse,
+    tone,
+    topics,
+    intensity: 5,
+    personaId
+  };
+  
+  if (firebaseInitialized && db) {
+    try {
+      const sessionRef = db.doc(`users/${userId}/memory/therapy`);
+      const doc = await sessionRef.get();
+      
+      if (doc.exists) {
+        await sessionRef.update({
+          moodHistory: admin.firestore.FieldValue.arrayUnion(entry),
+          recentTopics: topics,
+          dominantEmotion: tone,
+          lastUpdated: admin.firestore.FieldValue.serverTimestamp()
+        });
+      } else {
+        await sessionRef.set({
+          moodHistory: [entry],
+          recentTopics: topics,
+          dominantEmotion: tone,
+          lastUpdated: new Date()
+        });
+      }
+      
+      // Update relationship
+      const relRef = db.doc(`users/${userId}/personaRelationships/${personaId}`);
+      const relSnap = await relRef.get();
+      const current = relSnap.exists ? relSnap.data() : { interactionCount: 0, sentimentScore: 50 };
+      const newScore = Math.min(100, Math.max(0, current.sentimentScore + sentimentDelta));
+      
+      await relRef.set({
+        interactionCount: (current.interactionCount || 0) + 1,
+        lastInteraction: new Date(),
+        sentimentScore: newScore,
+        sentimentHistory: admin.firestore.FieldValue.arrayUnion({ date: new Date(), score: newScore })
+      }, { merge: true });
+      
+      return;
+    } catch (e) {
+      console.log('Firebase write error, using memory');
+    }
+  }
+  
+  // In-memory fallback
+  let memory = inMemoryDB.memories.get(`${userId}_therapy`) || { moodHistory: [], recentTopics: [] };
+  memory.moodHistory.push(entry);
+  memory.recentTopics = topics;
+  memory.dominantEmotion = tone;
+  inMemoryDB.memories.set(`${userId}_therapy`, memory);
+  
+  let rel = inMemoryDB.relationships.get(`${userId}_${personaId}`) || { interactionCount: 0, sentimentScore: 50 };
+  rel.interactionCount++;
+  rel.sentimentScore = Math.min(100, Math.max(0, rel.sentimentScore + sentimentDelta));
+  rel.lastInteraction = new Date();
+  inMemoryDB.relationships.set(`${userId}_${personaId}`, rel);
+}
+
+// Sentiment analysis
+function analyzeUserMessage(message) {
+  const lowerMsg = message.toLowerCase();
+  let tone = 'neutral';
+  if (lowerMsg.includes('anxious') || lowerMsg.includes('stressed') || lowerMsg.includes('worried')) tone = 'anxious';
+  else if (lowerMsg.includes('happy') || lowerMsg.includes('great') || lowerMsg.includes('excited')) tone = 'happy';
+  else if (lowerMsg.includes('sad') || lowerMsg.includes('depressed') || lowerMsg.includes('terrible')) tone = 'sad';
+  else if (lowerMsg.includes('angry') || lowerMsg.includes('frustrated') || lowerMsg.includes('mad')) tone = 'angry';
+
+  const topics = [];
+  if (lowerMsg.includes('work') || lowerMsg.includes('job') || lowerMsg.includes('boss')) topics.push('work');
+  if (lowerMsg.includes('relationship') || lowerMsg.includes('partner') || lowerMsg.includes('love')) topics.push('relationships');
+  if (lowerMsg.includes('family') || lowerMsg.includes('parent') || lowerMsg.includes('child')) topics.push('family');
+  if (lowerMsg.includes('money') || lowerMsg.includes('finance') || lowerMsg.includes('broke')) topics.push('finance');
+  if (lowerMsg.includes('health') || lowerMsg.includes('sleep') || lowerMsg.includes('anxiety')) topics.push('health');
+
+  return { tone, topics };
+}
+
+// Generate AI response
+async function generateAIResponse(personaId, userMessage, memory, relationship) {
+  const persona = PERSONAS[personaId] || PERSONAS.patricia;
+  
+  let context = '';
+  if (memory?.dominantEmotion) {
+    context += `\nThe patient has been feeling ${memory.dominantEmotion} in recent sessions.`;
+  }
+  if (memory?.recentTopics?.length) {
+    context += `\nRecent topics discussed: ${memory.recentTopics.join(', ')}.`;
+  }
+  if (relationship?.interactionCount > 1) {
+    context += `\nThis is session #${relationship.interactionCount + 1}. The patient has a ${relationship.sentimentScore > 70 ? 'very positive' : 'developing'} connection with you.`;
+  }
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: persona.systemPrompt + context },
+        { role: "user", content: userMessage }
+      ],
+      temperature: 0.85,
+      max_tokens: 300
+    });
+    return completion.choices[0].message.content;
+  } catch (error) {
+    console.error('OpenAI error:', error);
+    return `I'm here for you, darling. Tell me more about what's troubling you.`;
+  }
+}
+
+// Generate TTS audio
+async function generateAudio(text, personaId) {
+  const persona = PERSONAS[personaId] || PERSONAS.patricia;
+  
+  try {
+    const response = await axios({
+      method: 'POST',
+      url: `https://api.elevenlabs.io/v1/text-to-speech/${persona.voiceId}`,
+      headers: {
+        'Accept': 'audio/mpeg',
+        'Content-Type': 'application/json',
+        'xi-api-key': process.env.ELEVENLABS_API_KEY
+      },
+      data: {
+        text: text,
+        model_id: 'eleven_monolingual_v1',
+        voice_settings: { stability: 0.5, similarity_boost: 0.75 }
+      },
+      responseType: 'arraybuffer',
+      timeout: 10000
+    });
+    
+    const audioBase64 = Buffer.from(response.data).toString('base64');
+    return `data:audio/mpeg;base64,${audioBase64}`;
+  } catch (error) {
+    console.error('TTS error:', error.message);
+    return null;
+  }
+}
+
+// Generate lip-sync video
+async function generateVideo(audioBase64, personaId) {
+  const persona = PERSONAS[personaId] || PERSONAS.patricia;
+  
+  try {
+    const audioDataUrl = audioBase64.startsWith('data:') ? audioBase64 : `data:audio/mpeg;base64,${audioBase64}`;
+    
+    const result = await fal.subscribe("fal-ai/omnihuman", {
+      input: {
+        audio_url: audioDataUrl,
+        image_url: persona.portraitUrl,
+        sync_mode: "lip",
+        expression_scale: 1.0
+      },
+      logs: true
+    });
+    
+    return result.data.video_url;
+  } catch (error) {
+    console.error('Video generation error:', error.message);
+    return null;
+  }
+}
+
+// Generate personalized greeting
+async function generateGreeting(personaId, userId) {
+  const persona = PERSONAS[personaId] || PERSONAS.patricia;
+  const { memory, relationship } = await getUserMemory(userId, personaId);
+  
+  if (memory?.dominantEmotion === 'anxious') {
+    return persona.anxiousGreeting;
+  }
+  if (relationship?.interactionCount > 2) {
+    return persona.returningGreeting;
+  }
+  return persona.greeting;
+}
+
+// ==================== API ROUTES ====================
+
+// Get persona list
+app.get('/api/personas', (req, res) => {
+  const personasList = Object.values(PERSONAS).map(p => ({
+    id: p.id,
+    name: p.name,
+    avatar: p.avatar,
+    color: p.color
+  }));
+  res.json({ personas: personasList });
+});
+
+// Get personalized greeting
+app.post('/api/greeting', async (req, res) => {
+  const { userId, personaId } = req.body;
+  const greeting = await generateGreeting(personaId, userId);
+  res.json({ greeting });
+});
+
+// Main therapy endpoint
+app.post('/api/therapy', async (req, res) => {
+  try {
+    const { userId, personaId, userMessage, useVideo = false } = req.body;
+    
+    if (!userId || !personaId || !userMessage) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    
+    // 1. Get user memory
+    const { memory, relationship } = await getUserMemory(userId, personaId);
+    
+    // 2. Analyze message
+    const { tone, topics } = analyzeUserMessage(userMessage);
+    
+    // 3. Generate AI response
+    const aiText = await generateAIResponse(personaId, userMessage, memory, relationship);
+    
+    // 4. Generate audio
+    const audioDataUrl = await generateAudio(aiText, personaId);
+    
+    // 5. Generate video (premium only)
+    let videoUrl = null;
+    if (useVideo && audioDataUrl) {
+      videoUrl = await generateVideo(audioDataUrl, personaId);
+    }
+    
+    // 6. Calculate sentiment delta
+    const sentimentDelta = tone === 'happy' ? 5 : tone === 'anxious' || tone === 'sad' ? -3 : 1;
+    
+    // 7. Store session
+    await storeTherapySession(userId, personaId, userMessage, aiText, tone, topics, sentimentDelta);
+    
+    // 8. Return response
+    res.json({
+      text: aiText,
+      audioUrl: audioDataUrl,
+      videoUrl,
+      detectedTone: tone,
+      extractedTopics: topics,
+      timestamp: Date.now()
+    });
+    
+  } catch (error) {
+    console.error('Therapy error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// WebSocket for real-time conversations (optional)
+io.on('connection', (socket) => {
+  console.log('Client connected:', socket.id);
+  
+  socket.on('join_session', ({ userId, personaId }) => {
+    socket.join(`user:${userId}`);
+    console.log(`User ${userId} joined session with ${personaId}`);
+  });
+  
+  socket.on('typing', ({ userId, isTyping }) => {
+    socket.to(`user:${userId}`).emit('typing_indicator', { isTyping });
+  });
+  
+  socket.on('disconnect', () => {
+    console.log('Client disconnected:', socket.id);
+  });
+});
+
+// ==================== SERVER START ====================
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`🚀 Chat DJT Therapy Server running on port ${PORT}`);
+  console.log(`   Available personas: ${Object.keys(PERSONAS).join(', ')}`);
+  console.log(`   Firebase: ${firebaseInitialized ? 'connected' : 'using in-memory storage'}`);
+});
