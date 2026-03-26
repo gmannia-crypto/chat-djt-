@@ -29,6 +29,7 @@
         #voice-trump .voice-name { color: #ff4d4d; }
         #voice-sophia .voice-name { color: #ff99cc; }
         #voice-james .voice-name { color: #4d4dff; }
+        #voice-patricia .voice-name { color: #ff66aa; }
 
         .social-proof { display: flex; justify-content: space-around; background: linear-gradient(90deg, #ff4d4d20, #ff4d4d40, #ff4d4d20); border: 1px solid #ff4d4d; border-radius: 50px; padding: 15px; margin: 25px 0; }
         .proof-item { text-align: center; }
@@ -75,12 +76,14 @@
         .session-bg.sophia::before { background-image: url('/server/assets/dr-sophia.jpg'); filter: grayscale(30%) contrast(1.1); }
         .session-bg.james::before { background-image: url('/server/assets/dr-james.jpg'); filter: grayscale(30%) contrast(1.1); }
         .session-bg.trump::before { background-image: url('/server/assets/trump-therapist.png'); filter: grayscale(30%) contrast(1.1); }
+        .session-bg.patricia::before { background-image: url('/server/assets/dr-patricia.jpg'); filter: grayscale(30%) contrast(1.1); }
         .session-bg > * { position: relative; z-index: 1; }
 
         .session-content { font-size: 18px; line-height: 1.7; margin: 25px 0; padding: 25px; background: #333; border-left-width: 5px; border-left-style: solid; border-radius: 10px; white-space: pre-line; }
         .session-content.trump { border-left-color: #ff4d4d; }
         .session-content.sophia { border-left-color: #ff99cc; }
         .session-content.james { border-left-color: #4d4dff; }
+        .session-content.patricia { border-left-color: #ff66aa; }
 
         .voice-switcher { margin: 25px 0; padding: 20px; background: #1a1a1a; border-radius: 15px; text-align: center; display: none; }
         .switcher-title { color: #888; margin-bottom: 15px; font-size: 14px; }
@@ -90,11 +93,13 @@
         .switch-trump { background: #ff4d4d; color: white; }
         .switch-sophia { background: #ff99cc; color: white; }
         .switch-james { background: #4d4dff; color: white; }
+        .switch-patricia { background: #ff66aa; color: white; }
 
         .follow-up-card { background: #2a2a2a; border: 2px solid; border-radius: 15px; padding: 25px; margin: 25px 0; }
         .follow-up-card.trump { border-color: #ff4d4d; }
         .follow-up-card.sophia { border-color: #ff99cc; }
         .follow-up-card.james { border-color: #4d4dff; }
+        .follow-up-card.patricia { border-color: #ff66aa; }
         .follow-up-header { display: flex; align-items: center; gap: 15px; margin-bottom: 15px; }
         .follow-up-avatar { font-size: 30px; }
         .follow-up-name { font-weight: bold; }
@@ -188,6 +193,12 @@
                     <div class="voice-tagline">"Let's be rational"</div>
                     <div class="voice-badge" style="background: #4d4dff20; color: #4d4dff;">5k today</div>
                 </div>
+                <div class="voice-card" id="voice-patricia" onclick="selectVoice('patricia')" onmousedown="AudioSystem.voiceEnter('patricia')">
+                    <img class="voice-portrait" src="/server/assets/dr-patricia.jpg" alt="Dr. Patricia Serena" style="border-color: #ff66aa;">
+                    <div class="voice-name">DR. PATRICIA SERENA</div>
+                    <div class="voice-tagline">"Come closer, darling"</div>
+                    <div class="voice-badge" style="background: #ff66aa20; color: #ff66aa;">15k today</div>
+                </div>
             </div>
         </div>
 
@@ -275,6 +286,7 @@
                         <button class="switch-btn switch-trump" onclick="switchVoice('trump')">Dr. Trump</button>
                         <button class="switch-btn switch-sophia" onclick="switchVoice('sophia')">Dr. Sophia</button>
                         <button class="switch-btn switch-james" onclick="switchVoice('james')">Dr. James</button>
+                        <button class="switch-btn switch-patricia" onclick="switchVoice('patricia')">Dr. Patricia</button>
                     </div>
                 </div>
 
@@ -523,6 +535,16 @@
                 q1: '"Your name? Let\'s start there."',
                 q2: '"What brings you here today? Be as specific as you like."',
                 q3: '"Rate the severity 1-10. This helps me understand."'
+            },
+            patricia: {
+                name: 'DR. PATRICIA SERENA',
+                avatar: '\uD83D\uDC8B',
+                color: '#ff66aa',
+                image: '/server/assets/dr-patricia.jpg',
+                greeting: '"Hello, darling. Come sit down and tell me everything. I\'m here to listen \u2014 and maybe give you a little extra attention."',
+                q1: '"What\'s your name, gorgeous? I want to know who I\'m taking care of."',
+                q2: '"Tell me what\'s on your heart today. Don\'t hold back."',
+                q3: '"How heavy does this feel, sweetheart? Scale of 1-10."'
             }
         };
 
@@ -1079,6 +1101,7 @@ var AudioSystem = {
         if (voice === 'trump') this.play('soundTrump');
         else if (voice === 'sophia') this.play('soundSophia');
         else if (voice === 'james') this.play('soundJames');
+        else if (voice === 'patricia') this.play('soundSophia');
     },
     toggle: function() {
         this.enabled = !this.enabled;
