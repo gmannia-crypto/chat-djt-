@@ -1260,13 +1260,15 @@
                 var t = document.getElementById('chatTyping');
                 if (t) t.remove();
                 if (data.reply) {
-                    addChatBubble('therapist', data.reply);
                     chatMessages.push({ role: 'assistant', content: data.reply });
                     if (chatVideoEnabled) {
-                        console.log('[Chat] Video enabled, requesting lip-sync...');
-                        requestLipSyncVideo(data.reply);
+                        requestLipSyncVideo(data.reply, function() {
+                            addChatBubble('therapist', data.reply);
+                            var el = document.getElementById('chatMessages');
+                            el.scrollTop = el.scrollHeight;
+                        });
                     } else {
-                        console.log('[Chat] Video disabled, skipping lip-sync');
+                        addChatBubble('therapist', data.reply);
                     }
                 } else if (data.error) {
                     addChatBubble('therapist', 'Sorry, I couldn\'t respond right now. ' + (data.error || ''));
@@ -1289,12 +1291,19 @@
             if (!text) { alert('Start a session first to generate a video response.'); return; }
             var btn = document.getElementById('quickVideoBtn');
             btn.disabled = true;
-            btn.textContent = 'Generating... (10-15s)';
+            btn.textContent = 'Generating video...';
+
+            var contentEl = document.getElementById('sessionContent');
+            var savedText = contentEl.textContent;
+            contentEl.textContent = '';
+            contentEl.style.opacity = '0';
+
+            var videoText = text.length > 200 ? text.slice(0, 197) + '...' : text;
 
             fetch('/api/therapy/lip-sync', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-device-id': deviceId },
-                body: JSON.stringify({ text: text.slice(0, 500), personaId: selectedVoice })
+                body: JSON.stringify({ text: videoText, personaId: selectedVoice })
             })
             .then(function(r) { return r.json(); })
             .then(function(data) {
@@ -1306,7 +1315,7 @@
                         container = document.createElement('div');
                         container.id = 'quickVideoContainer';
                         container.style.cssText = 'margin: 15px 0; border-radius: 12px; overflow: hidden; max-width: 320px;';
-                        document.getElementById('sessionContent').parentNode.insertBefore(container, document.getElementById('sessionContent').nextSibling);
+                        contentEl.parentNode.insertBefore(container, contentEl);
                     }
                     container.innerHTML = '';
                     var video = document.createElement('video');
@@ -1316,18 +1325,36 @@
                     video.src = data.videoUrl;
                     video.style.cssText = 'width: 100%; border-radius: 12px;';
                     container.appendChild(video);
+                    video.onplay = function() {
+                        contentEl.textContent = savedText;
+                        contentEl.style.opacity = '1';
+                        contentEl.style.transition = 'opacity 0.8s ease';
+                    };
+                    setTimeout(function() {
+                        contentEl.textContent = savedText;
+                        contentEl.style.opacity = '1';
+                    }, 3000);
                 } else if (data.audioBase64) {
                     var audio = new Audio(data.audioBase64);
-                    audio.play().catch(function() {});
-                    btn.textContent = data.error ? '\u26A0 Audio Only' : '\uD83C\uDFAC Watch Video';
-                } else if (data.error) {
-                    alert('Video error: ' + data.error);
+                    audio.play().then(function() {
+                        contentEl.textContent = savedText;
+                        contentEl.style.opacity = '1';
+                        contentEl.style.transition = 'opacity 0.8s ease';
+                    }).catch(function() {
+                        contentEl.textContent = savedText;
+                        contentEl.style.opacity = '1';
+                    });
+                } else {
+                    contentEl.textContent = savedText;
+                    contentEl.style.opacity = '1';
+                    if (data.error) alert('Video error: ' + data.error);
                 }
             })
             .catch(function(e) {
                 btn.disabled = false;
                 btn.textContent = '\uD83C\uDFAC Watch Video';
-                console.error('Quick video error:', e);
+                contentEl.textContent = savedText;
+                contentEl.style.opacity = '1';
             });
         }
 
@@ -1390,27 +1417,24 @@
             }
         }
 
-        function requestLipSyncVideo(text) {
+        function requestLipSyncVideo(text, onComplete) {
             var el = document.getElementById('chatMessages');
             var loader = document.createElement('div');
             loader.className = 'chat-video-loading';
             loader.id = 'chatVideoLoader';
-            loader.innerHTML = '<div class="loading-spinner"></div> &#x1F3AC; Generating video response... (10-15s)';
+            loader.innerHTML = '<div class="loading-spinner"></div> &#x1F3AC; Generating video response...';
             el.appendChild(loader);
             el.scrollTop = el.scrollHeight;
-            console.log('[Video] Requesting lip-sync for:', text.slice(0, 50) + '...');
+
+            var videoText = text.length > 200 ? text.slice(0, 197) + '...' : text;
 
             fetch('/api/therapy/lip-sync', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-device-id': deviceId },
-                body: JSON.stringify({ text: text.slice(0, 500), personaId: selectedVoice })
+                body: JSON.stringify({ text: videoText, personaId: selectedVoice })
             })
-            .then(function(r) {
-                console.log('[Video] Response status:', r.status);
-                return r.json();
-            })
+            .then(function(r) { return r.json(); })
             .then(function(data) {
-                console.log('[Video] Response data:', JSON.stringify(data).slice(0, 200));
                 var ld = document.getElementById('chatVideoLoader');
                 if (ld) ld.remove();
                 if (data.videoUrl) {
@@ -1426,33 +1450,30 @@
                     vDiv.appendChild(video);
                     el.appendChild(vDiv);
                     el.scrollTop = el.scrollHeight;
+                    if (onComplete) onComplete();
                 } else if (data.audioBase64) {
                     var audio = new Audio(data.audioBase64);
                     audio.play().catch(function() {});
-                    var note = document.createElement('div');
-                    note.className = 'chat-typing';
-                    note.textContent = data.error ? 'Video unavailable — playing audio instead' : 'Playing audio response...';
-                    el.appendChild(note);
-                    el.scrollTop = el.scrollHeight;
-                    setTimeout(function() { if (note.parentNode) note.remove(); }, 5000);
-                } else if (data.error) {
-                    var errNote = document.createElement('div');
-                    errNote.className = 'chat-typing';
-                    errNote.textContent = 'Video error: ' + data.error;
-                    el.appendChild(errNote);
-                    el.scrollTop = el.scrollHeight;
-                    setTimeout(function() { if (errNote.parentNode) errNote.remove(); }, 5000);
+                    if (onComplete) onComplete();
+                } else {
+                    if (onComplete) onComplete();
+                    if (data.error) {
+                        var errNote = document.createElement('div');
+                        errNote.className = 'chat-typing';
+                        errNote.textContent = 'Video error: ' + data.error;
+                        el.appendChild(errNote);
+                        setTimeout(function() { if (errNote.parentNode) errNote.remove(); }, 5000);
+                    }
                 }
             })
             .catch(function(e) {
-                console.error('[Video] Lip-sync fetch error:', e);
                 var ld = document.getElementById('chatVideoLoader');
                 if (ld) ld.remove();
+                if (onComplete) onComplete();
                 var errDiv = document.createElement('div');
                 errDiv.className = 'chat-typing';
-                errDiv.textContent = 'Video generation failed — ' + e.message;
+                errDiv.textContent = 'Video generation failed';
                 el.appendChild(errDiv);
-                el.scrollTop = el.scrollHeight;
             });
         }
 

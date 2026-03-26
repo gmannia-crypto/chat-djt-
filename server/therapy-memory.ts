@@ -352,9 +352,9 @@ export async function generateLipSyncVideo(
         source_image_url: portraitDataUrl,
         driven_audio_url: audioDataUrl,
         pose_style: 0,
-        face_model_resolution: "512",
+        face_model_resolution: "256",
         expression_scale: 1.2,
-        still_mode: false,
+        still_mode: true,
       },
       logs: true,
       onQueueUpdate: (update: any) => {
