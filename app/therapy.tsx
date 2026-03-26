@@ -287,6 +287,9 @@ export default function TherapyScreen() {
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
   const [chatStarted, setChatStarted] = useState(false);
+  const [lipSyncEnabled, setLipSyncEnabled] = useState(false);
+  const [lipSyncVideoUrl, setLipSyncVideoUrl] = useState<string | null>(null);
+  const [lipSyncLoading, setLipSyncLoading] = useState(false);
 
   const [intakeStep, setIntakeStep] = useState<string | null>(null);
   const [intakeQuestion, setIntakeQuestion] = useState<string | null>(null);
@@ -759,7 +762,32 @@ export default function TherapyScreen() {
       setChatMessages(prev => [...prev, { role: "assistant", content: data.reply }]);
       refreshBalance();
 
-      if (data.reply) {
+      if (data.reply && lipSyncEnabled) {
+        setLipSyncLoading(true);
+        setLipSyncVideoUrl(null);
+        let videoGenerated = false;
+        try {
+          const lipRes = await fetch(`${baseUrl}/api/therapy/lip-sync`, {
+            method: "POST",
+            headers: hdrs,
+            body: JSON.stringify({ text: data.reply.slice(0, 500), personaId: currentVoice }),
+          });
+          if (lipRes.ok) {
+            const lipData = await lipRes.json();
+            if (lipData.videoUrl) {
+              setLipSyncVideoUrl(lipData.videoUrl);
+              videoGenerated = true;
+            }
+          }
+        } catch {
+        } finally {
+          setLipSyncLoading(false);
+        }
+        if (!videoGenerated) {
+          setTimeout(() => handleSpeak(data.reply, currentVoice), 500);
+        }
+        refreshBalance();
+      } else if (data.reply) {
         setTimeout(() => handleSpeak(data.reply, currentVoice), 500);
       }
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 300);
@@ -1336,6 +1364,15 @@ export default function TherapyScreen() {
               <Ionicons name="chatbubbles" size={16} color={config.accent} />
               <Text style={[styles.chatHeaderText, { color: config.accent }]}>FREE CHAT SESSION</Text>
               <Pressable
+                onPress={() => { setLipSyncEnabled(!lipSyncEnabled); setLipSyncVideoUrl(null); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+                style={[styles.chatEndBtn, { backgroundColor: lipSyncEnabled ? `${config.accent}30` : `${config.accent}10`, borderColor: lipSyncEnabled ? config.accent : `${config.accent}40` }]}
+              >
+                <Ionicons name="videocam" size={12} color={lipSyncEnabled ? config.accent : "rgba(255,255,255,0.4)"} />
+                <Text style={[styles.chatEndBtnText, { color: lipSyncEnabled ? config.accent : "rgba(255,255,255,0.4)", marginLeft: 4 }]}>
+                  {lipSyncEnabled ? "VIDEO ON" : "VIDEO"}
+                </Text>
+              </Pressable>
+              <Pressable
                 onPress={handleNewSession}
                 style={[styles.chatEndBtn, { backgroundColor: `${config.accent}20`, borderColor: `${config.accent}60` }]}
               >
@@ -1363,8 +1400,46 @@ export default function TherapyScreen() {
                 <Image source={config.image} style={styles.chatMsgAvatar} resizeMode="cover" />
                 <View style={[styles.chatMsgBubble, { backgroundColor: "rgba(255,255,255,0.06)", paddingVertical: 12 }]}>
                   <ActivityIndicator color={config.accent} size="small" />
+                  {lipSyncEnabled && <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginTop: 4 }}>Generating video...</Text>}
                 </View>
               </View>
+            )}
+
+            {lipSyncLoading && !chatLoading && (
+              <View style={styles.chatLoadingRow}>
+                <View style={[styles.chatMsgBubble, { backgroundColor: "rgba(255,255,255,0.06)", paddingVertical: 12, flexDirection: "row", alignItems: "center", gap: 8 }]}>
+                  <ActivityIndicator color={config.accent} size="small" />
+                  <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 12 }}>Creating lip-sync video...</Text>
+                </View>
+              </View>
+            )}
+
+            {lipSyncVideoUrl && (
+              <Animated.View entering={FadeIn.duration(400)} style={styles.lipSyncVideoContainer}>
+                <Pressable
+                  onPress={() => setLipSyncVideoUrl(null)}
+                  style={styles.lipSyncCloseBtn}
+                >
+                  <Ionicons name="close-circle" size={24} color="rgba(255,255,255,0.7)" />
+                </Pressable>
+                <View style={styles.lipSyncWebVideo}>
+                  <Ionicons name="videocam" size={32} color={config.accent} />
+                  <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, textAlign: "center", marginTop: 8 }}>Therapist Video Response</Text>
+                  <Pressable
+                    onPress={() => {
+                      if (Platform.OS === "web" && typeof window !== "undefined") {
+                        window.open(lipSyncVideoUrl, "_blank");
+                      } else {
+                        Linking.openURL(lipSyncVideoUrl);
+                      }
+                    }}
+                    style={({ pressed }) => [styles.lipSyncPlayBtn, { backgroundColor: config.accent }, pressed && { opacity: 0.8 }]}
+                  >
+                    <Ionicons name="play" size={20} color="#fff" />
+                    <Text style={{ color: "#fff", fontSize: 14, fontWeight: "600" as const, marginLeft: 6 }}>Play Video</Text>
+                  </Pressable>
+                </View>
+              </Animated.View>
             )}
 
             {sessionEnded && (
@@ -2674,5 +2749,31 @@ const styles = StyleSheet.create({
     justifyContent: "center" as const,
     backgroundColor: "rgba(51,51,51,0.8)",
     marginBottom: 2,
+  },
+  lipSyncVideoContainer: {
+    marginVertical: 12,
+    borderRadius: 16,
+    overflow: "hidden" as const,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    position: "relative" as const,
+  },
+  lipSyncCloseBtn: {
+    position: "absolute" as const,
+    top: 8,
+    right: 8,
+    zIndex: 10,
+  },
+  lipSyncWebVideo: {
+    padding: 20,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+  },
+  lipSyncPlayBtn: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 25,
+    marginTop: 8,
   },
 });

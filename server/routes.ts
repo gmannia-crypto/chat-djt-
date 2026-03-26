@@ -4461,6 +4461,11 @@ p{color:#999;font-size:16px;margin-bottom:24px}
     res.sendFile(multiPath);
   });
 
+  app.get("/therapy-web", (_req, res) => {
+    const therapyPath = require("path").resolve(process.cwd(), "server", "templates", "therapy.html");
+    res.sendFile(therapyPath);
+  });
+
   const viralStats: { sessions: any[]; shares: any[]; conversions: any[] } = {
     sessions: [],
     shares: [],

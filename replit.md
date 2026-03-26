@@ -53,3 +53,16 @@ The landing page uses document-level event delegation, with three listeners (cli
 - **Alternative.me Fear & Greed API**: Live Crypto Fear & Greed Index.
 - **Stripe**: Payment processing.
 - **expo-file-system**: Audio file management on native platforms.
+- **fal.ai**: SadTalker lip-sync video generation from therapist portrait images.
+
+## HTML Standalone Pages
+- `/therapy-web` — Standalone HTML therapy chat page with persona selection, lip-sync video toggle, and session memory. Served from `server/templates/therapy.html`.
+- `/therapy-multi` — Multi-persona therapy page. Served from `server/templates/therapy-multi.html`.
+- `/therapy-viral` — Viral sharing therapy page. Served from `server/templates/therapy-viral.html`.
+
+## Lip-Sync Video Integration
+The therapy chat (both Expo app and HTML standalone page) supports optional lip-sync video generation:
+- Toggle in chat header enables/disables video mode (costs 1 extra token per response)
+- When enabled: therapist response → Fish Audio TTS → fal.ai SadTalker → video URL
+- Falls back to audio-only TTS if video generation fails
+- Video opens in external player via Linking.openURL (native) or window.open (web)

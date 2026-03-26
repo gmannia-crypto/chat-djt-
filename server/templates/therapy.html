@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chat DJT Therapy</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #0a0a0a; color: white; margin: 0; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        h1 { text-align: center; margin-bottom: 20px; }
+        .persona-selector { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; justify-content: center; }
+        .persona-btn { padding: 10px 20px; border: 2px solid transparent; border-radius: 25px; cursor: pointer; font-weight: bold; font-size: 14px; transition: all 0.2s; opacity: 0.7; }
+        .persona-btn:hover { opacity: 1; transform: scale(1.05); }
+        .persona-btn.active { opacity: 1; border-color: white; transform: scale(1.05); }
+        .chat-container { background: #1a1a1a; border-radius: 15px; padding: 20px; height: 400px; overflow-y: auto; margin-bottom: 20px; scroll-behavior: smooth; }
+        .message { margin: 10px 0; padding: 12px 16px; border-radius: 12px; max-width: 80%; word-wrap: break-word; line-height: 1.5; }
+        .user { background: #ff4d4d; margin-left: auto; text-align: right; }
+        .assistant { background: #333; }
+        .input-area { display: flex; gap: 10px; }
+        .input-area input { flex: 1; padding: 12px 18px; border-radius: 25px; border: none; background: #222; color: white; font-size: 15px; outline: none; }
+        .input-area input:focus { background: #2a2a2a; box-shadow: 0 0 0 2px #ff4d4d; }
+        .input-area button { padding: 12px 24px; background: #ff4d4d; border: none; border-radius: 25px; color: white; cursor: pointer; font-weight: bold; font-size: 15px; transition: background 0.2s; }
+        .input-area button:hover:not(:disabled) { background: #ff3333; }
+        .input-area button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .loading { text-align: center; color: #888; margin: 10px 0; font-style: italic; }
+        .video-container { margin: 20px 0; text-align: center; }
+        video { max-width: 100%; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+        audio { width: 100%; margin: 10px 0; }
+        .emotion-badge { display: inline-block; background: #ffaa00; color: black; padding: 4px 12px; border-radius: 20px; font-size: 11px; margin-left: 8px; font-weight: bold; vertical-align: middle; }
+        .controls { display: flex; gap: 10px; margin-bottom: 15px; align-items: center; justify-content: center; }
+        .toggle-label { font-size: 13px; color: #aaa; display: flex; align-items: center; gap: 6px; cursor: pointer; }
+        .toggle-label input[type="checkbox"] { accent-color: #ff4d4d; width: 16px; height: 16px; }
+        .session-info { text-align: center; color: #666; font-size: 12px; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧠 Chat DJT Therapy</h1>
+
+        <div class="persona-selector" id="personaSelector">
+            <button class="persona-btn" style="background:#ff4d4d;color:white" onclick="selectPersona('trump')" id="btn-trump">🗣️ Dr. Dynamic</button>
+            <button class="persona-btn" style="background:#e87ba8;color:white" onclick="selectPersona('sophia')" id="btn-sophia">👩‍⚕️ Dr. Sophia</button>
+            <button class="persona-btn" style="background:#4d8bff;color:white" onclick="selectPersona('james')" id="btn-james">👨‍⚕️ Dr. James</button>
+            <button class="persona-btn" style="background:#ff99cc;color:white" onclick="selectPersona('patricia')" id="btn-patricia">💋 Dr. Patricia</button>
+        </div>
+
+        <div class="controls">
+            <label class="toggle-label">
+                <input type="checkbox" id="videoToggle"> 🎥 Lip-sync video (uses extra token)
+            </label>
+        </div>
+
+        <div class="chat-container" id="chatContainer">
+            <div class="message assistant">Choose a therapist to begin your session.</div>
+        </div>
+
+        <div class="video-container" id="videoContainer" style="display: none;">
+            <video id="avatarVideo" controls autoplay playsinline style="width: 100%; max-width: 400px; border-radius: 20px;"></video>
+        </div>
+
+        <div class="input-area">
+            <input type="text" id="messageInput" placeholder="Type your message..." disabled>
+            <button id="sendBtn" disabled onclick="sendMessage()">Send</button>
+        </div>
+        <div id="loadingIndicator" class="loading" style="display: none;">Therapist is thinking...</div>
+        <div class="session-info" id="sessionInfo"></div>
+    </div>
+
+    <script>
+        let currentPersona = null;
+        let deviceId = localStorage.getItem('therapy_device_id');
+        if (!deviceId) {
+            deviceId = 'web_' + Date.now().toString() + Math.random().toString(36).substr(2, 9);
+            localStorage.setItem('therapy_device_id', deviceId);
+        }
+
+        const personaNames = {
+            trump: 'Dr. Dynamic',
+            sophia: 'Dr. Sophia',
+            james: 'Dr. James',
+            patricia: 'Dr. Patricia'
+        };
+
+        async function selectPersona(personaId) {
+            currentPersona = personaId;
+            document.getElementById('messageInput').disabled = false;
+            document.getElementById('sendBtn').disabled = false;
+
+            document.querySelectorAll('.persona-btn').forEach(b => b.classList.remove('active'));
+            const btn = document.getElementById('btn-' + personaId);
+            if (btn) btn.classList.add('active');
+
+            try {
+                const res = await fetch('/api/therapy/greeting', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'x-device-id': deviceId },
+                    body: JSON.stringify({ personaId })
+                });
+                const data = await res.json();
+
+                const chat = document.getElementById('chatContainer');
+                chat.innerHTML = '<div class="message assistant">' + escapeHtml(data.greeting) + '</div>';
+
+                const info = document.getElementById('sessionInfo');
+                if (data.isReturning) {
+                    info.textContent = 'Session #' + (data.sessionCount + 1) + ' with ' + personaNames[personaId];
+                } else {
+                    info.textContent = 'First session with ' + personaNames[personaId];
+                }
+
+                document.getElementById('loadingIndicator').textContent = personaNames[personaId] + ' is thinking...';
+            } catch (err) {
+                console.error('Greeting error:', err);
+                const chat = document.getElementById('chatContainer');
+                chat.innerHTML = '<div class="message assistant">Welcome. Tell me what\'s on your mind.</div>';
+            }
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            if (!message || !currentPersona) return;
+
+            const chat = document.getElementById('chatContainer');
+            chat.innerHTML += '<div class="message user">' + escapeHtml(message) + '</div>';
+            input.value = '';
+            chat.scrollTop = chat.scrollHeight;
+
+            document.getElementById('loadingIndicator').style.display = 'block';
+            document.getElementById('sendBtn').disabled = true;
+
+            const useVideo = document.getElementById('videoToggle').checked;
+
+            try {
+                const res = await fetch('/api/therapy', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'x-device-id': deviceId },
+                    body: JSON.stringify({
+                        name: 'Friend',
+                        problem: message,
+                        seriousness: '5',
+                        voice: currentPersona,
+                    })
+                });
+
+                if (res.status === 403) {
+                    chat.innerHTML += '<div class="message assistant">Session limit reached. Subscribe for more sessions!</div>';
+                    return;
+                }
+
+                const data = await res.json();
+                let msgHtml = '<div class="message assistant">' + escapeHtml(data.therapy);
+                if (data.detectedTone && data.detectedTone !== 'neutral') {
+                    msgHtml += ' <span class="emotion-badge">🎭 ' + data.detectedTone + '</span>';
+                }
+                msgHtml += '</div>';
+                chat.innerHTML += msgHtml;
+                chat.scrollTop = chat.scrollHeight;
+
+                if (useVideo && data.therapy) {
+                    document.getElementById('loadingIndicator').textContent = 'Generating lip-sync video...';
+                    try {
+                        const lipRes = await fetch('/api/therapy/lip-sync', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'x-device-id': deviceId },
+                            body: JSON.stringify({ text: data.therapy.slice(0, 500), personaId: currentPersona })
+                        });
+                        const lipData = await lipRes.json();
+                        if (lipData.videoUrl) {
+                            const videoContainer = document.getElementById('videoContainer');
+                            const video = document.getElementById('avatarVideo');
+                            video.src = lipData.videoUrl;
+                            videoContainer.style.display = 'block';
+                            video.play().catch(() => {});
+                        } else if (lipData.audioBase64) {
+                            const audio = new Audio(lipData.audioBase64);
+                            audio.play().catch(() => {});
+                        }
+                    } catch (lipErr) {
+                        console.error('Lip-sync error:', lipErr);
+                    }
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                chat.innerHTML += '<div class="message assistant">Sorry, I\'m having trouble connecting. Please try again.</div>';
+            } finally {
+                document.getElementById('loadingIndicator').style.display = 'none';
+                document.getElementById('loadingIndicator').textContent = personaNames[currentPersona] + ' is thinking...';
+                document.getElementById('sendBtn').disabled = false;
+            }
+        }
+
+        document.getElementById('messageInput').onkeypress = function(e) {
+            if (e.key === 'Enter') sendMessage();
+        };
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
