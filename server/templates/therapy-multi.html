@@ -186,9 +186,10 @@
         .chat-tool-btn.active { border-color: #ff4d4d; color: #ff4d4d; background: #ff4d4d15; }
         .chat-tool-btn.recording { border-color: #ff4d4d; color: white; background: #ff4d4d; animation: micPulse 1s infinite; }
         .chat-tool-btn.video-active { border-color: #8b5cf6; color: #8b5cf6; background: #8b5cf620; }
-        .chat-video-player { margin: 10px 0; border-radius: 12px; overflow: hidden; max-width: 280px; align-self: flex-start; }
-        .chat-video-player video { width: 100%; border-radius: 12px; }
-        .chat-video-loading { align-self: flex-start; background: #222; border: 1px solid #444; border-radius: 12px; padding: 15px 20px; color: #888; font-size: 13px; display: flex; align-items: center; gap: 10px; }
+        .chat-video-player { margin: 10px 0; border-radius: 16px; overflow: visible; max-width: 320px; align-self: flex-start; background: #1a1a2e; padding: 8px; border: 2px solid #444; }
+        .chat-video-player video { width: 100%; border-radius: 12px; display: block; min-height: 200px; background: #000; }
+        .chat-video-loading { align-self: flex-start; background: #1a1a2e; border: 2px solid #ff66aa; border-radius: 12px; padding: 15px 20px; color: #ff66aa; font-size: 14px; display: flex; align-items: center; gap: 10px; animation: pulse-border 1.5s ease infinite; }
+        @keyframes pulse-border { 0%,100% { border-color: #ff66aa; } 50% { border-color: #444; } }
 
         .phq-container { display: none; }
         .phq-header { text-align: center; margin-bottom: 20px; }
@@ -1314,17 +1315,22 @@
                     if (!container) {
                         container = document.createElement('div');
                         container.id = 'quickVideoContainer';
-                        container.style.cssText = 'margin: 15px 0; border-radius: 12px; overflow: hidden; max-width: 320px;';
+                        container.style.cssText = 'margin: 15px 0; border-radius: 16px; overflow: visible; max-width: 320px; background: #1a1a2e; padding: 8px; border: 2px solid #444;';
                         contentEl.parentNode.insertBefore(container, contentEl);
                     }
                     container.innerHTML = '';
+                    var videoWrap = document.createElement('div');
+                    videoWrap.style.cssText = 'position: relative; cursor: pointer;';
                     var video = document.createElement('video');
                     video.controls = true;
                     video.playsInline = true;
+                    video.preload = 'auto';
                     video.muted = true;
                     video.src = data.videoUrl;
-                    video.style.cssText = 'width: 100%; border-radius: 12px;';
-                    container.appendChild(video);
+                    video.style.cssText = 'width: 100%; border-radius: 12px; display: block;';
+                    videoWrap.appendChild(video);
+                    container.appendChild(videoWrap);
+
                     var replayBtn = document.createElement('button');
                     replayBtn.className = 'tts-btn';
                     replayBtn.innerHTML = '&#x1F504; Replay';
@@ -1337,31 +1343,45 @@
                         contentEl.style.transition = 'opacity 0.8s ease';
                     }
 
+                    var audioEl = null;
                     if (data.audioBase64) {
                         var audioBlobUrl = base64ToBlob(data.audioBase64, 'audio/mpeg');
-                        var audioEl = new Audio(audioBlobUrl);
-                        video.play().catch(function() {});
-                        audioEl.play().then(function() { revealText(); }).catch(function() { revealText(); });
-                        replayBtn.onclick = function() {
-                            video.currentTime = 0;
-                            audioEl.currentTime = 0;
-                            video.play().catch(function() {});
-                            audioEl.play().catch(function() {});
-                        };
-                    } else {
-                        video.play().then(function() {
-                            setTimeout(function() { video.muted = false; }, 100);
-                            revealText();
-                        }).catch(function() {
-                            video.muted = false;
-                            revealText();
-                        });
-                        replayBtn.onclick = function() {
-                            video.currentTime = 0;
-                            video.muted = false;
-                            video.play().catch(function() {});
-                        };
+                        audioEl = new Audio(audioBlobUrl);
+                        audioEl.preload = 'auto';
                     }
+
+                    function playQuickBoth() {
+                        video.currentTime = 0;
+                        video.muted = true;
+                        video.play().catch(function() {});
+                        if (audioEl) {
+                            audioEl.currentTime = 0;
+                            audioEl.play().catch(function() { video.muted = false; });
+                        } else {
+                            video.muted = false;
+                            video.play().catch(function() {});
+                        }
+                    }
+
+                    var playOverlay = document.createElement('div');
+                    playOverlay.style.cssText = 'position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.5); border-radius: 12px; cursor: pointer; z-index: 5;';
+                    playOverlay.innerHTML = '<div style="width: 60px; height: 60px; background: rgba(255,102,170,0.9); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px;">&#x25B6;</div>';
+                    videoWrap.appendChild(playOverlay);
+
+                    video.onloadeddata = function() {
+                        playQuickBoth();
+                        revealText();
+                        setTimeout(function() { if (!video.paused) playOverlay.style.display = 'none'; }, 500);
+                    };
+                    playOverlay.onclick = function() {
+                        playOverlay.style.display = 'none';
+                        playQuickBoth();
+                        revealText();
+                    };
+                    replayBtn.onclick = function() {
+                        playOverlay.style.display = 'none';
+                        playQuickBoth();
+                    };
                     setTimeout(revealText, 3000);
                 } else if (data.audioBase64) {
                     var audioBlobUrl = base64ToBlob(data.audioBase64, 'audio/mpeg');
@@ -1478,43 +1498,75 @@
                 if (data.videoUrl) {
                     var vDiv = document.createElement('div');
                     vDiv.className = 'chat-video-player';
+                    var videoWrap = document.createElement('div');
+                    videoWrap.style.cssText = 'position: relative; cursor: pointer;';
                     var video = document.createElement('video');
                     video.controls = true;
                     video.playsInline = true;
+                    video.preload = 'auto';
                     video.muted = true;
                     video.src = data.videoUrl;
-                    video.style.width = '100%';
-                    video.style.borderRadius = '12px';
-                    vDiv.appendChild(video);
+                    video.style.cssText = 'width: 100%; border-radius: 12px; display: block;';
+                    videoWrap.appendChild(video);
+                    vDiv.appendChild(videoWrap);
+
+                    var btnRow = document.createElement('div');
+                    btnRow.style.cssText = 'display: flex; gap: 8px; margin-top: 8px;';
                     var replayBtn = document.createElement('button');
                     replayBtn.className = 'tts-btn';
                     replayBtn.innerHTML = '&#x1F504; Replay';
-                    replayBtn.style.marginTop = '5px';
-                    replayBtn.onclick = function() {
-                        video.currentTime = 0;
-                        video.muted = false;
-                        video.play().catch(function() {});
-                    };
-                    vDiv.appendChild(replayBtn);
+                    btnRow.appendChild(replayBtn);
+                    vDiv.appendChild(btnRow);
                     el.appendChild(vDiv);
                     el.scrollTop = el.scrollHeight;
-                    video.play().then(function() {
-                        setTimeout(function() { video.muted = false; }, 100);
-                    }).catch(function() {
-                        video.muted = false;
-                    });
+
+                    var audioEl = null;
                     if (data.audioBase64) {
                         var audioBlobUrl = base64ToBlob(data.audioBase64, 'audio/mpeg');
-                        var audioEl = new Audio(audioBlobUrl);
-                        video.muted = true;
-                        audioEl.play().catch(function() {});
-                        replayBtn.onclick = function() {
-                            video.currentTime = 0;
-                            audioEl.currentTime = 0;
-                            video.play().catch(function() {});
-                            audioEl.play().catch(function() {});
-                        };
+                        audioEl = new Audio(audioBlobUrl);
+                        audioEl.preload = 'auto';
                     }
+
+                    function playBoth() {
+                        video.currentTime = 0;
+                        video.muted = true;
+                        video.play().catch(function() {});
+                        if (audioEl) {
+                            audioEl.currentTime = 0;
+                            audioEl.play().catch(function(e) {
+                                console.log('[Video] Audio play failed:', e);
+                                video.muted = false;
+                            });
+                        } else {
+                            video.muted = false;
+                            video.play().catch(function() {});
+                        }
+                    }
+
+                    var playOverlay = document.createElement('div');
+                    playOverlay.style.cssText = 'position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.5); border-radius: 12px; cursor: pointer; z-index: 5;';
+                    playOverlay.innerHTML = '<div style="width: 60px; height: 60px; background: rgba(255,102,170,0.9); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px;">&#x25B6;</div>';
+                    videoWrap.appendChild(playOverlay);
+
+                    video.onloadeddata = function() {
+                        playBoth();
+                        setTimeout(function() {
+                            if (!video.paused) {
+                                playOverlay.style.display = 'none';
+                            }
+                        }, 500);
+                    };
+
+                    playOverlay.onclick = function() {
+                        playOverlay.style.display = 'none';
+                        playBoth();
+                    };
+
+                    replayBtn.onclick = function() {
+                        playOverlay.style.display = 'none';
+                        playBoth();
+                    };
+
                     if (onComplete) onComplete();
                 } else if (data.audioBase64) {
                     var audioBlobUrl = base64ToBlob(data.audioBase64, 'audio/mpeg');
