@@ -1198,34 +1198,35 @@
       }
 
       .music-widget {
-        position: fixed; bottom: 20px; right: 20px; z-index: 9000;
+        position: fixed; bottom: 24px; right: 20px; z-index: 99999;
         display: flex; align-items: center; gap: 10px;
-        background: rgba(13,13,18,0.95); border: 1px solid rgba(212,164,32,0.25);
+        background: rgba(13,13,18,0.97); border: 2px solid var(--gold);
         border-radius: 30px; padding: 8px 14px 8px 10px;
         backdrop-filter: blur(10px); transition: all 0.3s;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.6), 0 0 15px rgba(212,164,32,0.2);
       }
-      .music-widget:hover { border-color: rgba(212,164,32,0.5); }
+      .music-widget:hover { border-color: var(--gold-light); }
       .music-toggle-btn {
-        width: 36px; height: 36px; border-radius: 50%; border: none;
-        background: rgba(212,164,32,0.15); color: var(--gold); font-size: 18px;
+        width: 40px; height: 40px; border-radius: 50%; border: none;
+        background: rgba(212,164,32,0.2); color: var(--gold); font-size: 20px;
         cursor: pointer; display: flex; align-items: center; justify-content: center;
-        transition: all 0.3s;
+        transition: all 0.3s; -webkit-tap-highlight-color: transparent;
       }
-      .music-toggle-btn:hover { background: rgba(212,164,32,0.3); }
+      .music-toggle-btn:hover, .music-toggle-btn:active { background: rgba(212,164,32,0.4); }
       .music-toggle-btn.playing { background: var(--gold); color: #000; }
       .music-info { display: flex; flex-direction: column; }
-      .music-now { color: var(--gold); font-size: 11px; font-weight: 600; max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .music-now { color: var(--gold); font-size: 12px; font-weight: 600; max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .music-label { color: var(--text-dim); font-size: 10px; }
       .music-skip-btn {
-        width: 28px; height: 28px; border-radius: 50%; border: none;
-        background: rgba(255,255,255,0.05); color: var(--text-muted); font-size: 13px;
+        width: 32px; height: 32px; border-radius: 50%; border: none;
+        background: rgba(255,255,255,0.08); color: var(--text-muted); font-size: 15px;
         cursor: pointer; display: flex; align-items: center; justify-content: center;
-        transition: all 0.3s;
+        transition: all 0.3s; -webkit-tap-highlight-color: transparent;
       }
-      .music-skip-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
+      .music-skip-btn:hover, .music-skip-btn:active { background: rgba(255,255,255,0.15); color: #fff; }
       @media (max-width: 600px) {
-        .music-widget { bottom: 12px; right: 12px; padding: 6px 10px 6px 8px; }
-        .music-now { max-width: 100px; }
+        .music-widget { bottom: 80px; right: 14px; padding: 7px 12px 7px 8px; }
+        .music-now { max-width: 110px; }
       }
     </style>
   </head>
