@@ -1123,7 +1123,7 @@ export default function HomeScreen() {
           shouldPlay
           isLooping
           isMuted
-          rate={0.5}
+          rate={0.25}
           onError={(e: any) => console.warn("Video bg error:", e)}
         />
       </View>
