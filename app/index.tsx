@@ -635,7 +635,7 @@ export default function HomeScreen() {
     };
   }, []);
 
-  const bgVideoUrl = `${getApiUrl().replace(/\/$/, "")}/server/assets/menu-bg-video.mp4`;
+  const bgVideoUrl = `${getApiUrl().replace(/\/$/, "")}/server/assets/menu-bg-video-compressed.mp4`;
 
   async function checkWeeklyReminder() {
     try {
@@ -1124,14 +1124,7 @@ export default function HomeScreen() {
           isLooping
           isMuted
           rate={0.5}
-          onLoad={(status: any) => {
-            if (Platform.OS === "web") {
-              try {
-                const videoEl = document.querySelector('video');
-                if (videoEl) videoEl.playbackRate = 0.5;
-              } catch {}
-            }
-          }}
+          onError={(e: any) => console.warn("Video bg error:", e)}
         />
       </View>
       <LinearGradient
