@@ -58,6 +58,9 @@ The landing page uses document-level event delegation, with three listeners (cli
 ## Global Sound Toggle
 A floating sound toggle button (SoundToggle component) appears on the main menu, therapy, and sports screens. It uses a React context (`SoundProvider` in `lib/sound-context.tsx`) with AsyncStorage persistence. When sound is off, all TTS calls (therapy greetings, therapy readback, sports persona speak) and UI sound effects (click, transition) are suppressed. The toggle is a red pill button in the bottom-right corner that turns grey when muted.
 
+## Company Website (T. Marquell Supreme LLC)
+A static company website served at `/company` with pages for privacy policy (`/company/privacy`), terms of service (`/company/terms`), sitemap (`/company/sitemap.xml`), and robots.txt (`/robots.txt`). Files in `server/company-site/`. Contact form POSTs to `/api/company/contact`. SEO-ready with structured data (JSON-LD), Open Graph tags, and Google Search Console compatible.
+
 ## HTML Standalone Pages
 - `/therapy-multi` — Multi-persona therapy page. Served from `server/templates/therapy-multi.html`.
 - `/therapy-viral` — Viral sharing therapy page. Served from `server/templates/therapy-viral.html`.

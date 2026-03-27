@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>T. Marquell Supreme LLC — Diversified Holdings & Innovation</title>
+  <meta name="description" content="T. Marquell Supreme LLC is a diversified holding company managing physical and intellectual properties, digital applications, and emerging business ventures.">
+  <meta name="keywords" content="T. Marquell Supreme LLC, holding company, digital applications, intellectual property, real estate, business ventures">
+  <meta name="author" content="T. Marquell Supreme LLC">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://trumpbot.rip/company">
+
+  <meta property="og:title" content="T. Marquell Supreme LLC — Diversified Holdings & Innovation">
+  <meta property="og:description" content="A diversified holding company managing physical and intellectual properties, digital applications, and emerging business ventures.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://trumpbot.rip/company">
+  <meta property="og:image" content="https://trumpbot.rip/company/og-image.png">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="T. Marquell Supreme LLC">
+  <meta name="twitter:description" content="Diversified holdings, digital applications, and emerging business ventures.">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --navy: #0a1628;
+      --navy-light: #131f36;
+      --navy-card: #162040;
+      --gold: #c8a44e;
+      --gold-light: #e8cc6e;
+      --gold-dim: rgba(200, 164, 78, 0.15);
+      --white: #f0f0f0;
+      --grey: #8899aa;
+      --text: #c8d0dc;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--navy);
+      color: var(--text);
+      line-height: 1.7;
+      overflow-x: hidden;
+    }
+
+    a { color: var(--gold); text-decoration: none; transition: color 0.2s; }
+    a:hover { color: var(--gold-light); }
+
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+    /* NAV */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: rgba(10, 22, 40, 0.92);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid rgba(200, 164, 78, 0.12);
+    }
+    .nav-inner {
+      display: flex; align-items: center; justify-content: space-between;
+      max-width: 1100px; margin: 0 auto; padding: 16px 24px;
+    }
+    .nav-logo {
+      font-family: 'Playfair Display', serif;
+      font-size: 18px; font-weight: 700; color: var(--gold);
+      letter-spacing: 0.5px;
+    }
+    .nav-logo span { color: var(--white); font-weight: 400; }
+    .nav-links { display: flex; gap: 28px; list-style: none; }
+    .nav-links a {
+      color: var(--grey); font-size: 14px; font-weight: 500;
+      letter-spacing: 0.3px; transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--gold); }
+    .nav-hamburger { display: none; background: none; border: none; cursor: pointer; padding: 4px; }
+    .nav-hamburger svg { width: 24px; height: 24px; stroke: var(--gold); }
+
+    /* HERO */
+    .hero {
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      text-align: center; padding: 120px 24px 80px;
+      background: radial-gradient(ellipse at 50% 30%, rgba(200, 164, 78, 0.06) 0%, transparent 60%);
+      position: relative;
+    }
+    .hero::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23c8a44e' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+      opacity: 0.5;
+    }
+    .hero-content { position: relative; z-index: 1; max-width: 720px; }
+    .hero-badge {
+      display: inline-block; padding: 6px 20px; border-radius: 50px;
+      background: var(--gold-dim); border: 1px solid rgba(200, 164, 78, 0.25);
+      font-size: 12px; font-weight: 600; color: var(--gold);
+      letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 28px;
+    }
+    .hero h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(36px, 5vw, 56px); font-weight: 700;
+      color: var(--white); line-height: 1.15; margin-bottom: 20px;
+    }
+    .hero h1 .gold { color: var(--gold); }
+    .hero p {
+      font-size: 18px; color: var(--grey); max-width: 560px;
+      margin: 0 auto 40px; line-height: 1.7;
+    }
+    .hero-cta {
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 14px 36px; border-radius: 50px;
+      background: linear-gradient(135deg, var(--gold), #b8943e);
+      color: var(--navy); font-weight: 700; font-size: 15px;
+      letter-spacing: 0.3px; transition: transform 0.2s, box-shadow 0.2s;
+      box-shadow: 0 4px 20px rgba(200, 164, 78, 0.3);
+    }
+    .hero-cta:hover {
+      transform: translateY(-2px); color: var(--navy);
+      box-shadow: 0 8px 30px rgba(200, 164, 78, 0.4);
+    }
+
+    /* SECTIONS */
+    section { padding: 100px 0; }
+    .section-label {
+      font-size: 12px; font-weight: 700; color: var(--gold);
+      letter-spacing: 2px; text-transform: uppercase; margin-bottom: 12px;
+    }
+    .section-title {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(28px, 4vw, 40px); font-weight: 700;
+      color: var(--white); margin-bottom: 16px; line-height: 1.2;
+    }
+    .section-desc {
+      font-size: 16px; color: var(--grey); max-width: 580px; margin-bottom: 48px;
+    }
+
+    /* ABOUT */
+    .about { background: var(--navy-light); }
+    .about-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: center; }
+    .about-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 36px; }
+    .stat-card {
+      background: var(--navy-card); border-radius: 12px; padding: 24px;
+      border: 1px solid rgba(200, 164, 78, 0.1);
+    }
+    .stat-number {
+      font-family: 'Playfair Display', serif;
+      font-size: 32px; font-weight: 700; color: var(--gold); margin-bottom: 4px;
+    }
+    .stat-label { font-size: 13px; color: var(--grey); font-weight: 500; }
+
+    /* PORTFOLIO */
+    .portfolio-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; }
+    .portfolio-card {
+      background: var(--navy-light); border-radius: 16px; padding: 36px;
+      border: 1px solid rgba(200, 164, 78, 0.08);
+      transition: transform 0.3s, border-color 0.3s;
+      position: relative; overflow: hidden;
+    }
+    .portfolio-card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(200, 164, 78, 0.25);
+    }
+    .portfolio-icon {
+      width: 48px; height: 48px; border-radius: 12px;
+      background: var(--gold-dim); display: flex; align-items: center;
+      justify-content: center; margin-bottom: 20px; font-size: 22px;
+    }
+    .portfolio-card h3 {
+      font-size: 20px; font-weight: 700; color: var(--white); margin-bottom: 8px;
+    }
+    .portfolio-tag {
+      display: inline-block; padding: 3px 10px; border-radius: 20px;
+      background: var(--gold-dim); font-size: 11px; font-weight: 600;
+      color: var(--gold); letter-spacing: 0.5px; text-transform: uppercase;
+      margin-bottom: 14px;
+    }
+    .portfolio-card p { font-size: 14px; color: var(--grey); line-height: 1.7; }
+
+    /* SERVICES */
+    .services { background: var(--navy-light); }
+    .services-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px; }
+    .service-item {
+      background: var(--navy-card); border-radius: 14px; padding: 32px;
+      border: 1px solid rgba(200, 164, 78, 0.06);
+      text-align: center; transition: border-color 0.3s;
+    }
+    .service-item:hover { border-color: rgba(200, 164, 78, 0.2); }
+    .service-icon {
+      font-size: 32px; margin-bottom: 16px;
+    }
+    .service-item h4 { font-size: 17px; font-weight: 700; color: var(--white); margin-bottom: 10px; }
+    .service-item p { font-size: 14px; color: var(--grey); }
+
+    /* CONTACT */
+    .contact-box {
+      background: var(--navy-light); border-radius: 20px; padding: 60px;
+      border: 1px solid rgba(200, 164, 78, 0.1); text-align: center;
+      max-width: 640px; margin: 0 auto;
+    }
+    .contact-box h3 {
+      font-family: 'Playfair Display', serif;
+      font-size: 28px; font-weight: 700; color: var(--white); margin-bottom: 12px;
+    }
+    .contact-box p { color: var(--grey); margin-bottom: 32px; }
+    .contact-form { display: flex; flex-direction: column; gap: 16px; text-align: left; }
+    .contact-form label { font-size: 13px; font-weight: 600; color: var(--grey); letter-spacing: 0.5px; text-transform: uppercase; }
+    .contact-form input,
+    .contact-form textarea {
+      width: 100%; padding: 14px 18px; border-radius: 10px;
+      background: var(--navy-card); border: 1px solid rgba(200, 164, 78, 0.12);
+      color: var(--white); font-size: 15px; font-family: 'Inter', sans-serif;
+      outline: none; transition: border-color 0.2s;
+    }
+    .contact-form input:focus,
+    .contact-form textarea:focus { border-color: var(--gold); }
+    .contact-form textarea { min-height: 120px; resize: vertical; }
+    .contact-submit {
+      padding: 14px 36px; border-radius: 50px; border: none; cursor: pointer;
+      background: linear-gradient(135deg, var(--gold), #b8943e);
+      color: var(--navy); font-weight: 700; font-size: 15px;
+      letter-spacing: 0.3px; transition: transform 0.2s, box-shadow 0.2s;
+      align-self: center;
+    }
+    .contact-submit:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 24px rgba(200, 164, 78, 0.35);
+    }
+
+    /* FOOTER */
+    footer {
+      padding: 48px 0; border-top: 1px solid rgba(200, 164, 78, 0.08);
+      text-align: center;
+    }
+    .footer-logo {
+      font-family: 'Playfair Display', serif;
+      font-size: 16px; font-weight: 700; color: var(--gold); margin-bottom: 8px;
+    }
+    footer p { font-size: 13px; color: var(--grey); }
+    .footer-links { display: flex; gap: 24px; justify-content: center; margin-top: 16px; }
+    .footer-links a { font-size: 13px; color: var(--grey); }
+    .footer-links a:hover { color: var(--gold); }
+
+    /* MOBILE */
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+      .nav-hamburger { display: block; }
+      .nav-links.open {
+        display: flex; flex-direction: column; gap: 16px;
+        position: absolute; top: 60px; left: 0; right: 0;
+        background: rgba(10, 22, 40, 0.98); padding: 24px;
+        border-bottom: 1px solid rgba(200, 164, 78, 0.1);
+      }
+      .about-grid { grid-template-columns: 1fr; gap: 40px; }
+      .contact-box { padding: 36px 24px; }
+      section { padding: 64px 0; }
+    }
+
+    /* ANIMATIONS */
+    .fade-up {
+      opacity: 0; transform: translateY(30px);
+      transition: opacity 0.7s ease, transform 0.7s ease;
+    }
+    .fade-up.visible { opacity: 1; transform: translateY(0); }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <div class="nav-inner">
+      <div class="nav-logo">T. Marquell <span>Supreme LLC</span></div>
+      <ul class="nav-links" id="navLinks">
+        <li><a href="#about">About</a></li>
+        <li><a href="#portfolio">Portfolio</a></li>
+        <li><a href="#services">Services</a></li>
+        <li><a href="#contact">Contact</a></li>
+      </ul>
+      <button class="nav-hamburger" onclick="document.getElementById('navLinks').classList.toggle('open')" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <div class="hero-content fade-up">
+      <div class="hero-badge">Diversified Holdings &amp; Innovation</div>
+      <h1>Building the <span class="gold">Future</span>, One Venture at a Time</h1>
+      <p>T. Marquell Supreme LLC is a diversified holding company managing a growing portfolio of physical properties, intellectual assets, digital applications, and emerging business ventures.</p>
+      <a href="#portfolio" class="hero-cta">Explore Our Portfolio &#8594;</a>
+    </div>
+  </section>
+
+  <section class="about" id="about">
+    <div class="container">
+      <div class="about-grid">
+        <div class="fade-up">
+          <div class="section-label">About Us</div>
+          <h2 class="section-title">A Vision for Diversified Growth</h2>
+          <p class="section-desc">T. Marquell Supreme LLC operates at the intersection of technology, property, and innovation. We acquire, develop, and manage a diverse range of assets — from digital applications and intellectual property to physical real estate and emerging business ventures.</p>
+          <p style="color: var(--grey); font-size: 15px; line-height: 1.8;">Our approach is built on strategic acquisition, hands-on development, and long-term value creation. Each asset in our portfolio is carefully selected for its growth potential and alignment with our mission of building sustainable, forward-thinking enterprises.</p>
+        </div>
+        <div class="fade-up">
+          <div class="about-stats">
+            <div class="stat-card">
+              <div class="stat-number">5+</div>
+              <div class="stat-label">Active Ventures</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-number">3</div>
+              <div class="stat-label">Digital Products</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-number">2025</div>
+              <div class="stat-label">Founded</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-number">&#8734;</div>
+              <div class="stat-label">Growth Mindset</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="portfolio">
+    <div class="container">
+      <div class="fade-up">
+        <div class="section-label">Portfolio</div>
+        <h2 class="section-title">Our Companies &amp; Properties</h2>
+        <p class="section-desc">A curated portfolio spanning technology, entertainment, real estate, and intellectual property.</p>
+      </div>
+      <div class="portfolio-grid">
+        <div class="portfolio-card fade-up">
+          <div class="portfolio-icon">&#x1F4AC;</div>
+          <div class="portfolio-tag">Digital Application</div>
+          <h3>Chat DJT</h3>
+          <p>A flagship AI-powered entertainment application featuring interactive conversations, multi-persona therapy, financial debates, sports analysis, and a political arena. Available on iOS, Android, and web.</p>
+        </div>
+        <div class="portfolio-card fade-up">
+          <div class="portfolio-icon">&#x1F3E2;</div>
+          <div class="portfolio-tag">Real Estate</div>
+          <h3>Physical Properties</h3>
+          <p>A growing portfolio of physical real estate holdings strategically acquired for long-term value appreciation and revenue generation.</p>
+        </div>
+        <div class="portfolio-card fade-up">
+          <div class="portfolio-icon">&#x1F4A1;</div>
+          <div class="portfolio-tag">Intellectual Property</div>
+          <h3>IP &amp; Digital Assets</h3>
+          <p>Proprietary technology, algorithms, brand assets, and digital intellectual property developed in-house and through strategic acquisitions.</p>
+        </div>
+        <div class="portfolio-card fade-up">
+          <div class="portfolio-icon">&#x1F680;</div>
+          <div class="portfolio-tag">Emerging Ventures</div>
+          <h3>New Ventures</h3>
+          <p>Active pipeline of new business ventures and applications in development, spanning AI, entertainment, fintech, and consumer technology.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="services" id="services">
+    <div class="container">
+      <div class="fade-up" style="text-align: center; margin-bottom: 48px;">
+        <div class="section-label">What We Do</div>
+        <h2 class="section-title">Core Capabilities</h2>
+      </div>
+      <div class="services-grid">
+        <div class="service-item fade-up">
+          <div class="service-icon">&#x2699;&#xFE0F;</div>
+          <h4>Technology Development</h4>
+          <p>Building and scaling digital products with cutting-edge AI, mobile, and web technologies.</p>
+        </div>
+        <div class="service-item fade-up">
+          <div class="service-icon">&#x1F4C8;</div>
+          <h4>Strategic Acquisition</h4>
+          <p>Identifying and acquiring high-potential assets across diverse sectors for portfolio growth.</p>
+        </div>
+        <div class="service-item fade-up">
+          <div class="service-icon">&#x1F3E0;</div>
+          <h4>Property Management</h4>
+          <p>Professional management of real estate holdings for maximum returns and long-term value.</p>
+        </div>
+        <div class="service-item fade-up">
+          <div class="service-icon">&#x1F4B0;</div>
+          <h4>Venture Incubation</h4>
+          <p>Nurturing new business ideas from concept to market-ready products and services.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="contact">
+    <div class="container">
+      <div class="contact-box fade-up">
+        <h3>Get in Touch</h3>
+        <p>Interested in partnering, investing, or learning more about T. Marquell Supreme LLC?</p>
+        <form class="contact-form" id="contactForm" onsubmit="handleContact(event)">
+          <div>
+            <label for="name">Full Name</label>
+            <input type="text" id="name" name="name" required placeholder="Your name">
+          </div>
+          <div>
+            <label for="email">Email Address</label>
+            <input type="email" id="email" name="email" required placeholder="you@example.com">
+          </div>
+          <div>
+            <label for="message">Message</label>
+            <textarea id="message" name="message" required placeholder="Tell us about your inquiry..."></textarea>
+          </div>
+          <button type="submit" class="contact-submit">Send Message</button>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="container">
+      <div class="footer-logo">T. Marquell Supreme LLC</div>
+      <p>&copy; 2025 T. Marquell Supreme LLC. All rights reserved.</p>
+      <div class="footer-links">
+        <a href="#about">About</a>
+        <a href="#portfolio">Portfolio</a>
+        <a href="#contact">Contact</a>
+        <a href="/company/privacy">Privacy Policy</a>
+        <a href="/company/terms">Terms of Service</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+        }
+      });
+    }, { threshold: 0.15 });
+    document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+
+    document.querySelectorAll('.nav-links a').forEach(link => {
+      link.addEventListener('click', () => {
+        document.getElementById('navLinks').classList.remove('open');
+      });
+    });
+
+    function handleContact(e) {
+      e.preventDefault();
+      const form = e.target;
+      const name = form.name.value;
+      const email = form.email.value;
+      const message = form.message.value;
+
+      fetch('/api/company/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, message })
+      }).then(res => {
+        if (res.ok) {
+          form.reset();
+          alert('Thank you! Your message has been sent successfully.');
+        } else {
+          alert('Something went wrong. Please try again.');
+        }
+      }).catch(() => {
+        alert('Network error. Please try again later.');
+      });
+    }
+  </script>
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "T. Marquell Supreme LLC",
+    "description": "A diversified holding company managing physical and intellectual properties, digital applications, and emerging business ventures.",
+    "url": "https://trumpbot.rip/company",
+    "foundingDate": "2025",
+    "sameAs": []
+  }
+  </script>
+</body>
+</html>

@@ -557,6 +557,35 @@ function configureExpoAndLanding(app: express.Application) {
 
     const affiliateScript = `<script>(function(){var T='trumpbot-20';var L=[{k:['book','books','reading'],u:'https://www.amazon.com/s?k=trump+books&tag='+T},{k:['hat','hats','cap','make america great again'],u:'https://www.amazon.com/s?k=maga+hat&tag='+T},{k:['flag','american flag','patriotic flag'],u:'https://www.amazon.com/s?k=american+flag&tag='+T},{k:['shirt','tshirt','apparel'],u:'https://www.amazon.com/s?k=trump+shirt&tag='+T},{k:['gold','silver','bullion','invest'],u:'https://www.amazon.com/s?k=gold+coins&tag='+T},{k:['wall','border'],u:'https://www.amazon.com/s?k=build+the+wall&tag='+T},{k:['truth social','social media'],u:'https://www.amazon.com/s?k=trump+social&tag='+T}];function run(){document.querySelectorAll('[data-testid]').forEach(function(el){if(el.hasAttribute('data-aff')||el.querySelector('a'))return;var h=el.innerHTML,m=false;L.forEach(function(item){item.k.forEach(function(kw){var r=new RegExp('\\\\b'+kw+'\\\\b','gi');if(r.test(h)){h=h.replace(r,function(mt){return'<a href="'+item.u+'" target="_blank" rel="nofollow sponsored" style="color:#ff4d4d;text-decoration:underline;">'+mt+'</a>';});m=true;}});});if(m){el.innerHTML=h;el.setAttribute('data-aff','1');}});}var dt;var ob=new MutationObserver(function(){clearTimeout(dt);dt=setTimeout(run,1500);});document.addEventListener('DOMContentLoaded',function(){setTimeout(run,3000);ob.observe(document.body,{childList:true,subtree:true});});})();</script>`;
 
+    const companySiteDir = path.resolve(process.cwd(), "server", "company-site");
+
+    app.get("/company", (_req: Request, res: Response) => {
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      return res.sendFile(path.join(companySiteDir, "index.html"));
+    });
+    app.get("/company/privacy", (_req: Request, res: Response) => {
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      return res.sendFile(path.join(companySiteDir, "privacy.html"));
+    });
+    app.get("/company/terms", (_req: Request, res: Response) => {
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      return res.sendFile(path.join(companySiteDir, "terms.html"));
+    });
+    app.get("/company/sitemap.xml", (_req: Request, res: Response) => {
+      res.setHeader("Content-Type", "application/xml");
+      return res.sendFile(path.join(companySiteDir, "sitemap.xml"));
+    });
+    app.get("/robots.txt", (_req: Request, res: Response) => {
+      res.setHeader("Content-Type", "text/plain");
+      return res.sendFile(path.join(companySiteDir, "robots.txt"));
+    });
+    app.post("/api/company/contact", (req: Request, res: Response) => {
+      const { name, email, message } = req.body || {};
+      if (!name || !email || !message) return res.status(400).json({ error: "All fields required" });
+      log(`[COMPANY CONTACT] Name: ${name}, Email: ${email}, Message: ${message}`);
+      return res.json({ success: true });
+    });
+
     app.get("/", (req: Request, res: Response, next: NextFunction) => {
       const platform = req.header("expo-platform");
       if (platform) return next();
@@ -569,7 +598,7 @@ function configureExpoAndLanding(app: express.Application) {
 
     app.get("/{*path}", (req: Request, res: Response, next: NextFunction) => {
       if (req.path === "/") return next();
-      if (req.path.startsWith("/api") || req.path.startsWith("/js/") || req.path.startsWith("/assets/") || req.path.startsWith("/server/assets/") || req.path === "/status" || req.path === "/manifest" || req.path === "/therapy-viral" || req.path === "/therapy-multi" || req.path === "/sports-betting" || req.path === "/financial-faceoff" || (req.path === "/subscribe" && (req.query.success || req.query.canceled))) {
+      if (req.path.startsWith("/company") || req.path.startsWith("/api") || req.path.startsWith("/js/") || req.path.startsWith("/assets/") || req.path.startsWith("/server/assets/") || req.path === "/status" || req.path === "/manifest" || req.path === "/therapy-viral" || req.path === "/therapy-multi" || req.path === "/sports-betting" || req.path === "/financial-faceoff" || (req.path === "/subscribe" && (req.query.success || req.query.canceled))) {
         return next();
       }
       const platform = req.header("expo-platform");
