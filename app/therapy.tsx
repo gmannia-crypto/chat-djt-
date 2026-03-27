@@ -1176,9 +1176,6 @@ export default function TherapyScreen() {
                     const prompts = THERAPIST_CONFIGS[voice].questionPrompts;
                     setQuestionPrompt(prompts ? prompts[Math.floor(Math.random() * prompts.length)] : null);
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    if (voice === "patricia") {
-                      setShowSerenaIntro(true);
-                    }
                     speakGreeting(voice);
                   }
                 }}
@@ -1941,36 +1938,6 @@ export default function TherapyScreen() {
       </ScrollView>
 
       <Modal
-        visible={showSerenaIntro}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowSerenaIntro(false)}
-      >
-        <View style={serenaStyles.overlay}>
-          <View style={serenaStyles.videoContainer}>
-            <Video
-              ref={serenaVideoRef}
-              source={{ uri: `${getApiUrl().replace(/\/$/, "")}/server/assets/dr-serena-intro.mp4` }}
-              style={serenaStyles.video}
-              resizeMode={ResizeMode.CONTAIN}
-              shouldPlay
-              onPlaybackStatusUpdate={(status: any) => {
-                if (status.didJustFinish) {
-                  setShowSerenaIntro(false);
-                }
-              }}
-            />
-          </View>
-          <Pressable
-            onPress={() => setShowSerenaIntro(false)}
-            style={serenaStyles.skipBtn}
-          >
-            <Text style={serenaStyles.skipText}>Skip Intro</Text>
-          </Pressable>
-        </View>
-      </Modal>
-
-      <Modal
         visible={showHypnoOverlay}
         transparent
         animationType="fade"
@@ -2032,39 +1999,6 @@ export default function TherapyScreen() {
 }
 
 const serenaStyles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.95)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  videoContainer: {
-    width: "85%",
-    height: "75%",
-    borderRadius: 16,
-    overflow: "hidden",
-    borderWidth: 2,
-    borderColor: "#ff99cc",
-    backgroundColor: "#000",
-  },
-  video: {
-    width: "100%",
-    height: "100%",
-  },
-  skipBtn: {
-    marginTop: 16,
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#ff99cc",
-    backgroundColor: "rgba(255,153,204,0.15)",
-  },
-  skipText: {
-    color: "#ff99cc",
-    fontSize: 14,
-    fontWeight: "600" as const,
-  },
   hypnoOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.96)",
