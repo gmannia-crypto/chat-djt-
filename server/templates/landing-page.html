@@ -1196,10 +1196,50 @@
 
         .footer { font-size: 10px; }
       }
+
+      .music-widget {
+        position: fixed; bottom: 20px; right: 20px; z-index: 9000;
+        display: flex; align-items: center; gap: 10px;
+        background: rgba(13,13,18,0.95); border: 1px solid rgba(212,164,32,0.25);
+        border-radius: 30px; padding: 8px 14px 8px 10px;
+        backdrop-filter: blur(10px); transition: all 0.3s;
+      }
+      .music-widget:hover { border-color: rgba(212,164,32,0.5); }
+      .music-toggle-btn {
+        width: 36px; height: 36px; border-radius: 50%; border: none;
+        background: rgba(212,164,32,0.15); color: var(--gold); font-size: 18px;
+        cursor: pointer; display: flex; align-items: center; justify-content: center;
+        transition: all 0.3s;
+      }
+      .music-toggle-btn:hover { background: rgba(212,164,32,0.3); }
+      .music-toggle-btn.playing { background: var(--gold); color: #000; }
+      .music-info { display: flex; flex-direction: column; }
+      .music-now { color: var(--gold); font-size: 11px; font-weight: 600; max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .music-label { color: var(--text-dim); font-size: 10px; }
+      .music-skip-btn {
+        width: 28px; height: 28px; border-radius: 50%; border: none;
+        background: rgba(255,255,255,0.05); color: var(--text-muted); font-size: 13px;
+        cursor: pointer; display: flex; align-items: center; justify-content: center;
+        transition: all 0.3s;
+      }
+      .music-skip-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
+      @media (max-width: 600px) {
+        .music-widget { bottom: 12px; right: 12px; padding: 6px 10px 6px 8px; }
+        .music-now { max-width: 100px; }
+      }
     </style>
   </head>
   <body>
     <canvas id="particles"></canvas>
+
+    <div class="music-widget" id="musicWidget">
+      <button class="music-toggle-btn" id="menuMusicBtn" onclick="toggleMenuMusic()">&#x1F3B5;</button>
+      <div class="music-info">
+        <div class="music-label" id="menuMusicLabel">Music Off</div>
+        <div class="music-now" id="menuMusicNow"></div>
+      </div>
+      <button class="music-skip-btn" id="menuMusicSkip" onclick="skipMenuTrack()" style="display:none;">&#x23ED;</button>
+    </div>
 
     <div class="loading" id="loading">
       <div class="spinner"></div>
@@ -1623,6 +1663,71 @@
           if (downloadSection) downloadSection.scrollIntoView({ behavior: "smooth" });
         }
       })();
+    </script>
+    <script>
+      var menuTracks = [
+        { src: '/server/assets/menu-prowling-dragon.mp3', name: 'Prowling Dragon' },
+        { src: '/server/assets/menu-allure.mp3', name: 'Allure' },
+        { src: '/server/assets/menu-caleb-asher.mp3', name: 'CalebAsher' },
+        { src: '/server/assets/menu-swagg-attack.mp3', name: 'Swagg Attack' },
+        { src: '/server/assets/menu-hyperflowing-cognition.mp3', name: 'HyperFlowing Cognition' }
+      ];
+      var menuAudio = null;
+      var menuMusicPlaying = false;
+      var menuTrackOrder = [];
+      var menuTrackIdx = 0;
+
+      function shuffleMenu() {
+        menuTrackOrder = menuTracks.map(function(_, i) { return i; });
+        for (var i = menuTrackOrder.length - 1; i > 0; i--) {
+          var j = Math.floor(Math.random() * (i + 1));
+          var t = menuTrackOrder[i]; menuTrackOrder[i] = menuTrackOrder[j]; menuTrackOrder[j] = t;
+        }
+        menuTrackIdx = 0;
+      }
+      shuffleMenu();
+
+      function playMenuTrack() {
+        if (menuTrackIdx >= menuTrackOrder.length) shuffleMenu();
+        var track = menuTracks[menuTrackOrder[menuTrackIdx]];
+        if (menuAudio) { menuAudio.pause(); }
+        menuAudio = new Audio(track.src);
+        menuAudio.volume = 0.3;
+        document.getElementById('menuMusicNow').textContent = track.name;
+        menuAudio.play().catch(function() {});
+        menuAudio.onended = function() {
+          menuTrackIdx++;
+          if (menuMusicPlaying) playMenuTrack();
+        };
+      }
+
+      function toggleMenuMusic() {
+        menuMusicPlaying = !menuMusicPlaying;
+        var btn = document.getElementById('menuMusicBtn');
+        var label = document.getElementById('menuMusicLabel');
+        var nowEl = document.getElementById('menuMusicNow');
+        var skipBtn = document.getElementById('menuMusicSkip');
+        if (menuMusicPlaying) {
+          btn.classList.add('playing');
+          btn.innerHTML = '&#x23F8;';
+          label.textContent = 'Now Playing';
+          skipBtn.style.display = 'flex';
+          playMenuTrack();
+        } else {
+          btn.classList.remove('playing');
+          btn.innerHTML = '&#x1F3B5;';
+          label.textContent = 'Music Off';
+          nowEl.textContent = '';
+          skipBtn.style.display = 'none';
+          if (menuAudio) { menuAudio.pause(); menuAudio = null; }
+        }
+      }
+
+      function skipMenuTrack() {
+        if (!menuMusicPlaying) return;
+        menuTrackIdx++;
+        playMenuTrack();
+      }
     </script>
   </body>
 </html>
