@@ -162,6 +162,29 @@
         .mode-tab.active.tab-quick { background: #ff4d4d; }
         .mode-tab.active.tab-chat { background: #8b5cf6; }
         .mode-tab.active.tab-deep { background: #10b981; }
+        .mode-tab.active.tab-hypno { background: #e040fb; }
+
+        .hypno-container { display: none; padding: 20px 0; }
+        .hypno-header { text-align: center; margin-bottom: 20px; }
+        .hypno-header h3 { color: #e040fb; margin-bottom: 5px; }
+        .hypno-header p { color: #888; font-size: 13px; }
+        .hypno-presets { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin: 20px 0; }
+        .hypno-preset { background: #1a1a2e; border: 2px solid #333; border-radius: 12px; padding: 14px 18px; cursor: pointer; transition: all 0.3s; text-align: center; min-width: 120px; }
+        .hypno-preset:hover { border-color: #e040fb; transform: translateY(-2px); }
+        .hypno-preset.selected { border-color: #e040fb; background: #e040fb15; }
+        .hypno-preset-icon { font-size: 28px; margin-bottom: 6px; }
+        .hypno-preset-label { color: #ccc; font-size: 13px; font-weight: bold; }
+        .hypno-start-btn { display: block; margin: 25px auto 0; padding: 16px 40px; background: linear-gradient(135deg, #e040fb, #7c4dff); border: none; border-radius: 30px; color: white; font-size: 16px; font-weight: bold; cursor: pointer; transition: all 0.3s; letter-spacing: 1px; }
+        .hypno-start-btn:hover { transform: scale(1.05); box-shadow: 0 0 30px rgba(224,64,251,0.4); }
+        .hypno-start-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+        #hypnosisOverlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.92); z-index: 10000; }
+        .hypno-overlay-content { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; }
+        .hypno-text { color: white; font-size: 22px; margin-top: 25px; opacity: 0; transition: opacity 2s ease; font-style: italic; max-width: 400px; line-height: 1.6; }
+        .hypno-text.visible { opacity: 1; }
+        .hypno-timer { color: #e040fb; font-size: 14px; margin-top: 15px; opacity: 0.6; }
+        .hypno-close { position: absolute; top: 30px; right: 30px; background: none; border: 2px solid #555; border-radius: 50%; width: 44px; height: 44px; color: #888; font-size: 22px; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; justify-content: center; }
+        .hypno-close:hover { border-color: #e040fb; color: #e040fb; }
 
         .chat-container { display: none; flex-direction: column; height: 500px; background: #1a1a1a; border-radius: 15px; overflow: hidden; }
         .chat-messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
@@ -284,6 +307,7 @@
                 <button class="mode-tab tab-quick active" onclick="switchMode('quick')">&#x26A1; Quick Session</button>
                 <button class="mode-tab tab-chat" onclick="switchMode('chat')">&#x1F4AC; Free Chat</button>
                 <button class="mode-tab tab-deep" onclick="switchMode('deep')">&#x1F9E0; Deep PHQ-9</button>
+                <button class="mode-tab tab-hypno" onclick="switchMode('hypno')">&#x1F300; Hypnosis</button>
             </div>
 
             <div id="quickModeContainer">
@@ -426,6 +450,50 @@
                 <div id="phqAssessmentResult" style="display: none;"></div>
             </div>
 
+            <div class="hypno-container" id="hypnoModeContainer">
+                <div class="hypno-header">
+                    <h3>&#x1F300; Hypnosis Session</h3>
+                    <p>A guided relaxation experience with your chosen therapist. Select a focus below.</p>
+                </div>
+                <div class="hypno-presets" id="hypnoPresets">
+                    <div class="hypno-preset selected" onclick="selectHypnoPreset(this, 'stress')" data-preset="stress">
+                        <div class="hypno-preset-icon">&#x1F9D8;</div>
+                        <div class="hypno-preset-label">Stress Relief</div>
+                    </div>
+                    <div class="hypno-preset" onclick="selectHypnoPreset(this, 'sleep')" data-preset="sleep">
+                        <div class="hypno-preset-icon">&#x1F319;</div>
+                        <div class="hypno-preset-label">Deep Sleep</div>
+                    </div>
+                    <div class="hypno-preset" onclick="selectHypnoPreset(this, 'confidence')" data-preset="confidence">
+                        <div class="hypno-preset-icon">&#x1F4AA;</div>
+                        <div class="hypno-preset-label">Confidence</div>
+                    </div>
+                    <div class="hypno-preset" onclick="selectHypnoPreset(this, 'focus')" data-preset="focus">
+                        <div class="hypno-preset-icon">&#x1F3AF;</div>
+                        <div class="hypno-preset-label">Focus &amp; Clarity</div>
+                    </div>
+                    <div class="hypno-preset" onclick="selectHypnoPreset(this, 'anxiety')" data-preset="anxiety">
+                        <div class="hypno-preset-icon">&#x1F32C;</div>
+                        <div class="hypno-preset-label">Calm Anxiety</div>
+                    </div>
+                    <div class="hypno-preset" onclick="selectHypnoPreset(this, 'motivation')" data-preset="motivation">
+                        <div class="hypno-preset-icon">&#x1F525;</div>
+                        <div class="hypno-preset-label">Motivation</div>
+                    </div>
+                </div>
+                <div style="text-align: center; color: #888; font-size: 12px; margin: 10px 0;" id="hypnoCostNote">Session uses 2 tokens</div>
+                <button class="hypno-start-btn" id="hypnoStartBtn" onclick="startHypnosis()">&#x1F300; BEGIN HYPNOSIS</button>
+            </div>
+
+        </div>
+
+        <div id="hypnosisOverlay">
+            <button class="hypno-close" onclick="stopHypnosis()">&#x2715;</button>
+            <div class="hypno-overlay-content">
+                <canvas id="spiralCanvas" width="400" height="400"></canvas>
+                <div class="hypno-text" id="hypnoText"></div>
+                <div class="hypno-timer" id="hypnoTimer"></div>
+            </div>
         </div>
 
         <div class="upgrade-card" id="upgradeCard">
@@ -1206,6 +1274,7 @@
             var chatEl = document.getElementById('chatModeContainer');
             chatEl.style.display = mode === 'chat' ? 'flex' : 'none';
             document.getElementById('deepModeContainer').style.display = mode === 'deep' ? 'block' : 'none';
+            document.getElementById('hypnoModeContainer').style.display = mode === 'hypno' ? 'block' : 'none';
             if (mode === 'chat') initChat();
             if (mode === 'deep') initPhq();
         }
@@ -1766,6 +1835,197 @@
                 '<div class="phq-assessment-text">' + (data.assessment || '') + '</div>' +
                 '<button class="next-btn" onclick="initPhq()" style="margin-top: 20px; background: #10b981;">&#x1F504; Take Again</button>' +
             '</div>';
+        }
+
+        var hypnoPreset = 'stress';
+        var hypnoAnimFrame = null;
+        var hypnoInterval = null;
+        var hypnoAudio = null;
+        var hypnoTexts = {
+            stress: [
+                "Take a deep breath in... hold it... and slowly release...",
+                "Feel the tension melting from your shoulders...",
+                "With each breath, you sink deeper into calm...",
+                "Your muscles are softening... relaxing...",
+                "Stress is flowing out of your body like water...",
+                "You are safe... you are calm... you are at peace...",
+                "Every worry is drifting away like clouds...",
+                "You feel lighter with each passing moment...",
+                "Deep relaxation washes over you completely..."
+            ],
+            sleep: [
+                "Close your eyes... let the darkness embrace you...",
+                "Your eyelids are growing heavy... so heavy...",
+                "Each breath takes you deeper into rest...",
+                "Your body is sinking into softness...",
+                "The world is fading away... peacefully...",
+                "You are floating in warm, gentle darkness...",
+                "Sleep is calling you... welcoming you...",
+                "Let go completely... drift into deep sleep...",
+                "You are safe... comfortable... drifting away..."
+            ],
+            confidence: [
+                "You are powerful beyond measure...",
+                "Feel strength building inside you...",
+                "Every cell in your body radiates confidence...",
+                "You deserve success... you deserve greatness...",
+                "See yourself walking tall, speaking boldly...",
+                "Fear dissolves in the fire of your determination...",
+                "You are unstoppable... you are incredible...",
+                "Believe in yourself... the world believes in you...",
+                "You were born to lead, born to win..."
+            ],
+            focus: [
+                "Your mind is becoming crystal clear...",
+                "All distractions are fading to silence...",
+                "You see your goal with perfect clarity...",
+                "Your concentration sharpens like a laser...",
+                "Nothing can break your focus now...",
+                "Your thoughts align into perfect order...",
+                "You are in the zone... completely locked in...",
+                "Mental clarity flows through you effortlessly...",
+                "Your mind is a powerful, focused instrument..."
+            ],
+            anxiety: [
+                "You are safe right here, right now...",
+                "Breathe in calm... breathe out worry...",
+                "Anxiety cannot touch you in this space...",
+                "Your heartbeat is slowing... steadying...",
+                "Peace flows through your veins like warm light...",
+                "Every anxious thought dissolves into nothing...",
+                "You are grounded... you are present... you are okay...",
+                "The storm inside is passing... calm returns...",
+                "You have the power to choose peace..."
+            ],
+            motivation: [
+                "A fire is igniting inside you...",
+                "You are capable of extraordinary things...",
+                "Feel the energy building... rising... surging...",
+                "Today you will take action... unstoppable action...",
+                "Excuses are burning away in your determination...",
+                "You are a force of nature... nothing can stop you...",
+                "Visualize your success... feel it... own it...",
+                "Every second is an opportunity and you seize it...",
+                "Rise up... the world is waiting for your greatness..."
+            ]
+        };
+
+        function selectHypnoPreset(el, preset) {
+            hypnoPreset = preset;
+            document.querySelectorAll('.hypno-preset').forEach(function(p) { p.classList.remove('selected'); });
+            el.classList.add('selected');
+        }
+
+        function startHypnosis() {
+            var btn = document.getElementById('hypnoStartBtn');
+            btn.disabled = true;
+            btn.textContent = 'Preparing session...';
+
+            fetch('/api/therapy/hypnosis', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-device-id': deviceId },
+                body: JSON.stringify({ preset: hypnoPreset, personaId: selectedVoice })
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                btn.disabled = false;
+                btn.innerHTML = '&#x1F300; BEGIN HYPNOSIS';
+                if (data.error) {
+                    alert(data.error);
+                    return;
+                }
+                launchHypnosisOverlay(data.audioBase64);
+            })
+            .catch(function(e) {
+                btn.disabled = false;
+                btn.innerHTML = '&#x1F300; BEGIN HYPNOSIS';
+                launchHypnosisOverlay(null);
+            });
+        }
+
+        function launchHypnosisOverlay(audioBase64) {
+            var overlay = document.getElementById('hypnosisOverlay');
+            overlay.style.display = 'block';
+            document.body.style.overflow = 'hidden';
+
+            if (audioBase64) {
+                var blobUrl = base64ToBlob(audioBase64, 'audio/mpeg');
+                hypnoAudio = new Audio(blobUrl);
+                hypnoAudio.loop = false;
+                hypnoAudio.play().catch(function() {});
+            }
+
+            var canvas = document.getElementById('spiralCanvas');
+            var ctx = canvas.getContext('2d');
+            var angle = 0;
+            var hue = 0;
+            var textEl = document.getElementById('hypnoText');
+            var timerEl = document.getElementById('hypnoTimer');
+            var texts = hypnoTexts[hypnoPreset] || hypnoTexts.stress;
+            var textIndex = 0;
+            var startTime = Date.now();
+            var duration = 60000;
+
+            function drawSpiral() {
+                ctx.clearRect(0, 0, 400, 400);
+                for (var ring = 0; ring < 3; ring++) {
+                    ctx.beginPath();
+                    for (var i = 0; i < 720; i += 2) {
+                        var rad = i * (Math.PI / 180);
+                        var r = (i / 4) + (ring * 8);
+                        var x = 200 + Math.cos(rad + angle + ring * 0.5) * r;
+                        var y = 200 + Math.sin(rad + angle + ring * 0.5) * r;
+                        if (i === 0) ctx.moveTo(x, y);
+                        else ctx.lineTo(x, y);
+                    }
+                    var spiralHue = (hue + ring * 40) % 360;
+                    ctx.strokeStyle = 'hsla(' + spiralHue + ', 80%, 60%, ' + (0.8 - ring * 0.2) + ')';
+                    ctx.lineWidth = 3 - ring * 0.5;
+                    ctx.stroke();
+                }
+
+                ctx.beginPath();
+                ctx.arc(200, 200, 15, 0, Math.PI * 2);
+                ctx.fillStyle = 'hsla(' + hue + ', 90%, 70%, 0.9)';
+                ctx.fill();
+
+                angle += 0.02;
+                hue = (hue + 0.3) % 360;
+                hypnoAnimFrame = requestAnimationFrame(drawSpiral);
+            }
+            drawSpiral();
+
+            textEl.textContent = texts[0];
+            textEl.classList.add('visible');
+
+            hypnoInterval = setInterval(function() {
+                var elapsed = Date.now() - startTime;
+                var remaining = Math.max(0, Math.ceil((duration - elapsed) / 1000));
+                timerEl.textContent = remaining + 's remaining';
+
+                textIndex = (textIndex + 1) % texts.length;
+                textEl.classList.remove('visible');
+                setTimeout(function() {
+                    textEl.textContent = texts[textIndex];
+                    textEl.classList.add('visible');
+                }, 800);
+
+                if (elapsed >= duration) {
+                    stopHypnosis();
+                }
+            }, 5000);
+        }
+
+        function stopHypnosis() {
+            var overlay = document.getElementById('hypnosisOverlay');
+            overlay.style.display = 'none';
+            document.body.style.overflow = '';
+            if (hypnoAnimFrame) { cancelAnimationFrame(hypnoAnimFrame); hypnoAnimFrame = null; }
+            if (hypnoInterval) { clearInterval(hypnoInterval); hypnoInterval = null; }
+            if (hypnoAudio) { hypnoAudio.pause(); hypnoAudio = null; }
+            var textEl = document.getElementById('hypnoText');
+            textEl.classList.remove('visible');
+            textEl.textContent = '';
         }
 
         window.onload = init;

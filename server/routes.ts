@@ -6057,6 +6057,66 @@ Format each prediction with a number and a dramatic title, then the prophecy. Ke
     }
   });
 
+  app.post("/api/therapy/hypnosis", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) {
+        return res.status(400).json({ error: "Device ID required" });
+      }
+      const HYPNO_TOKEN_COST = 2;
+      const tokenResult = await useTokens(deviceId, HYPNO_TOKEN_COST, 'Hypnosis session (2 tokens)');
+      if (!tokenResult.success) {
+        return res.status(403).json({ error: tokenResult.error, balance: tokenResult.balance });
+      }
+
+      const { preset, personaId } = req.body;
+      const fishApiKey = process.env.FISH_AUDIO_API_KEY;
+      if (!fishApiKey) {
+        return res.status(500).json({ error: "TTS not configured" });
+      }
+
+      const THERAPY_VOICE_IDS: Record<string, { id: string; speed: number }> = {
+        sophia: { id: SOPHIA_VOICE_ID, speed: 0.85 },
+        james: { id: JAMES_VOICE_ID, speed: 0.8 },
+        patricia: { id: PATRICIA_VOICE_ID, speed: 0.85 },
+      };
+
+      let voiceId: string;
+      let voiceSpeed = 0.85;
+      if (THERAPY_VOICE_IDS[personaId]) {
+        voiceId = THERAPY_VOICE_IDS[personaId].id;
+        voiceSpeed = THERAPY_VOICE_IDS[personaId].speed;
+      } else if (PERSONA_VOICE_IDS[personaId]) {
+        voiceId = PERSONA_VOICE_IDS[personaId];
+        voiceSpeed = 0.85;
+      } else {
+        voiceId = process.env.FISH_AUDIO_VOICE_ID || "";
+      }
+
+      const hypnoIntros: Record<string, string> = {
+        stress: "Let's begin your stress relief session. Close your eyes. Take a slow, deep breath in through your nose... hold it for three seconds... and release slowly through your mouth. Feel the tension dissolving with each exhale. You are entering a state of deep relaxation.",
+        sleep: "Welcome to your sleep session. Let your body become completely comfortable. Your eyelids are growing heavy... so wonderfully heavy. Each breath carries you deeper into peaceful rest. There is nothing to do... nowhere to be... just drift.",
+        confidence: "This is your moment of transformation. Feel a warm golden light building in your chest. It grows brighter with each breath. You are powerful. You are capable. You are worthy of every success that comes your way.",
+        focus: "Clear your mind completely. Imagine a single point of brilliant white light in the center of your vision. All distractions fade into silence. Your mind becomes sharp, clear, and laser-focused. You are entering a state of pure mental clarity.",
+        anxiety: "You are completely safe in this moment. Place your hand on your heart. Feel it beating... steady and strong. Breathe in peace... breathe out worry. With each breath, anxiety loses its power over you. You are reclaiming your calm.",
+        motivation: "A fire is building inside you right now. Feel the energy rising through your body. You are capable of extraordinary things. Today is the day you take action. Nothing can stop you when you set your mind to it. Rise up."
+      };
+
+      const introText = hypnoIntros[preset] || hypnoIntros.stress;
+      const audioBuffer = await fishAudioRequest(introText, voiceId, voiceSpeed, fishApiKey);
+      const audioBase64 = audioBuffer.toString("base64");
+
+      res.json({
+        audioBase64: `data:audio/mpeg;base64,${audioBase64}`,
+        preset,
+        balance: tokenResult.balance,
+      });
+    } catch (error: any) {
+      console.error("Hypnosis error:", error);
+      res.status(500).json({ error: "Hypnosis session failed" });
+    }
+  });
+
   app.post("/api/therapy/lip-sync", async (req, res) => {
     try {
       const deviceId = req.headers["x-device-id"] as string;
