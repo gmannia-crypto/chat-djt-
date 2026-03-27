@@ -24,7 +24,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons, Feather, FontAwesome5 } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-import { Audio } from "expo-av";
+import { Audio, Video, ResizeMode } from "expo-av";
 import { playTTS } from "@/lib/audio-helper";
 import { useSoundEffects } from "@/lib/use-sound";
 import Animated, {
@@ -539,6 +539,104 @@ export default function HomeScreen() {
     } catch {}
   }, []);
 
+  const MENU_TRACKS = [
+    { src: "/server/assets/menu-prowling-dragon.mp3", name: "Prowling Dragon" },
+    { src: "/server/assets/menu-allure.mp3", name: "Allure" },
+    { src: "/server/assets/menu-caleb-asher.mp3", name: "CalebAsher" },
+    { src: "/server/assets/menu-swagg-attack.mp3", name: "Swagg Attack" },
+    { src: "/server/assets/menu-hyperflowing-cognition.mp3", name: "HyperFlowing Cognition" },
+  ];
+  const [menuMusicPlaying, setMenuMusicPlaying] = useState(false);
+  const [menuTrackName, setMenuTrackName] = useState("");
+  const menuAudioRef = useRef<Audio.Sound | null>(null);
+  const menuTrackOrderRef = useRef<number[]>([]);
+  const menuTrackIdxRef = useRef(0);
+
+  const shuffleMenuTracks = useCallback(() => {
+    const order = MENU_TRACKS.map((_, i) => i);
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+    menuTrackOrderRef.current = order;
+    menuTrackIdxRef.current = 0;
+  }, []);
+
+  const playMenuTrack = useCallback(async () => {
+    try {
+      if (menuTrackIdxRef.current >= menuTrackOrderRef.current.length) {
+        shuffleMenuTracks();
+      }
+      const track = MENU_TRACKS[menuTrackOrderRef.current[menuTrackIdxRef.current]];
+      if (menuAudioRef.current) {
+        await menuAudioRef.current.unloadAsync().catch(() => {});
+        menuAudioRef.current = null;
+      }
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      const uri = `${baseUrl}${track.src}`;
+      if (Platform.OS === "web") {
+        const audio = new window.Audio(uri);
+        audio.volume = 0.3;
+        audio.play().catch(() => {});
+        setMenuTrackName(track.name);
+        audio.onended = () => {
+          menuTrackIdxRef.current++;
+          playMenuTrack();
+        };
+        (menuAudioRef as any).current = { unloadAsync: () => { audio.pause(); audio.src = ""; return Promise.resolve(); } } as any;
+      } else {
+        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+        const { sound } = await Audio.Sound.createAsync(
+          { uri },
+          { shouldPlay: true, volume: 0.3 }
+        );
+        menuAudioRef.current = sound;
+        setMenuTrackName(track.name);
+        sound.setOnPlaybackStatusUpdate((status: any) => {
+          if (status.didJustFinish) {
+            menuTrackIdxRef.current++;
+            playMenuTrack();
+          }
+        });
+      }
+    } catch (e) {
+      console.warn("Menu music error:", e);
+    }
+  }, [shuffleMenuTracks]);
+
+  const toggleMenuMusic = useCallback(async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (menuMusicPlaying) {
+      if (menuAudioRef.current) {
+        await menuAudioRef.current.unloadAsync().catch(() => {});
+        menuAudioRef.current = null;
+      }
+      setMenuMusicPlaying(false);
+      setMenuTrackName("");
+    } else {
+      if (menuTrackOrderRef.current.length === 0) shuffleMenuTracks();
+      setMenuMusicPlaying(true);
+      playMenuTrack();
+    }
+  }, [menuMusicPlaying, shuffleMenuTracks, playMenuTrack]);
+
+  const skipMenuTrack = useCallback(async () => {
+    if (!menuMusicPlaying) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    menuTrackIdxRef.current++;
+    playMenuTrack();
+  }, [menuMusicPlaying, playMenuTrack]);
+
+  useEffect(() => {
+    return () => {
+      if (menuAudioRef.current) {
+        menuAudioRef.current.unloadAsync().catch(() => {});
+      }
+    };
+  }, []);
+
+  const bgVideoUrl = `${getApiUrl().replace(/\/$/, "")}/server/assets/menu-bg-video.mp4`;
+
   async function checkWeeklyReminder() {
     try {
       const val = await AsyncStorage.getItem("chatdjt_weekly_reminder");
@@ -1017,17 +1115,33 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + webTopInset }]}>
-      <View style={styles.woodFrameOuter} pointerEvents="none">
-        <View style={styles.woodFrameInner}>
-          <Image
-            source={require("@/assets/images/djt-logo.png")}
-            style={styles.backgroundLogo}
-            resizeMode={Platform.OS === "web" ? "contain" : "cover"}
+      {Platform.OS === "web" ? (
+        <View style={styles.videoBgContainer} pointerEvents="none">
+          <video
+            src={bgVideoUrl}
+            autoPlay
+            loop
+            muted
+            playsInline
+            style={{ position: "absolute" as any, top: 0, left: 0, width: "100%", height: "100%", objectFit: "cover" } as any}
+            ref={(el: any) => { if (el) el.playbackRate = 0.5; }}
           />
         </View>
-      </View>
+      ) : (
+        <View style={styles.videoBgContainer} pointerEvents="none">
+          <Video
+            source={{ uri: bgVideoUrl }}
+            style={styles.videoBg}
+            resizeMode={ResizeMode.COVER}
+            shouldPlay
+            isLooping
+            isMuted
+            rate={0.5}
+          />
+        </View>
+      )}
       <LinearGradient
-        colors={["rgba(10, 10, 10, 0)", "rgba(10, 10, 10, 0)", "rgba(10, 10, 10, 0.4)"]}
+        colors={["rgba(10, 10, 10, 0.3)", "rgba(10, 10, 10, 0.1)", "rgba(10, 10, 10, 0.5)"]}
         style={styles.backgroundOverlay}
         start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 1 }}
@@ -1781,6 +1895,21 @@ export default function HomeScreen() {
         )}
       </View>
 
+      <View style={[styles.musicWidget, { bottom: Platform.OS === "web" ? 34 + 24 : insets.bottom + 16 }]}>
+        <Pressable onPress={toggleMenuMusic} style={[styles.musicToggleBtn, menuMusicPlaying && styles.musicTogglePlaying]}>
+          <Ionicons name={menuMusicPlaying ? "pause" : "musical-notes"} size={20} color={menuMusicPlaying ? "#000" : "#D4A420"} />
+        </Pressable>
+        <View style={styles.musicInfoCol}>
+          <Text style={styles.musicLabel}>{menuMusicPlaying ? "Now Playing" : "Music Off"}</Text>
+          {!!menuTrackName && <Text style={styles.musicTrackName} numberOfLines={1}>{menuTrackName}</Text>}
+        </View>
+        {menuMusicPlaying && (
+          <Pressable onPress={skipMenuTrack} style={styles.musicSkipBtn}>
+            <Ionicons name="play-skip-forward" size={16} color="#aaa" />
+          </Pressable>
+        )}
+      </View>
+
       <Modal
         visible={archiveVisible}
         animationType="slide"
@@ -1987,31 +2116,15 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  woodFrameOuter: {
+  videoBgContainer: {
     position: "absolute",
-    top: Platform.OS === "web" ? "15%" : "10%",
-    left: Platform.OS === "web" ? "15%" : "10%",
-    right: Platform.OS === "web" ? "15%" : "10%",
-    bottom: Platform.OS === "web" ? "35%" : "25%",
-    borderRadius: 12,
-    borderWidth: 6,
-    borderColor: "#3B2415",
-    backgroundColor: "#1E0F07",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.8,
-    shadowRadius: 16,
-    elevation: 20,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     overflow: "hidden",
   },
-  woodFrameInner: {
-    flex: 1,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: "#5C3820",
-    overflow: "hidden",
-  },
-  backgroundLogo: {
+  videoBg: {
     width: "100%",
     height: "100%",
   },
@@ -3527,5 +3640,56 @@ const styles = StyleSheet.create({
     marginTop: 24,
     marginBottom: 10,
     paddingHorizontal: 20,
+  },
+  musicWidget: {
+    position: "absolute",
+    right: 14,
+    zIndex: 9999,
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 10,
+    backgroundColor: "rgba(13,13,18,0.95)",
+    borderWidth: 2,
+    borderColor: "#D4A420",
+    borderRadius: 30,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.6,
+    shadowRadius: 12,
+    elevation: 20,
+  },
+  musicToggleBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(212,164,32,0.2)",
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+  },
+  musicTogglePlaying: {
+    backgroundColor: "#D4A420",
+  },
+  musicInfoCol: {
+    flexDirection: "column" as const,
+    maxWidth: 120,
+  },
+  musicLabel: {
+    fontSize: 10,
+    color: "rgba(255,255,255,0.4)",
+  },
+  musicTrackName: {
+    fontSize: 12,
+    fontWeight: "600" as const,
+    color: "#D4A420",
+  },
+  musicSkipBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
   },
 });
