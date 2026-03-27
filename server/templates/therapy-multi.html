@@ -309,6 +309,14 @@
                 <button class="mode-tab tab-deep" onclick="switchMode('deep')">&#x1F9E0; Deep PHQ-9</button>
                 <button class="mode-tab tab-hypno" onclick="switchMode('hypno')">&#x1F300; Hypnosis</button>
             </div>
+            <div style="display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin: -10px 0 10px 0;">
+                <span style="color: #888; font-size: 12px;">&#x1F3B5; Ambient Music</span>
+                <label style="position: relative; display: inline-block; width: 40px; height: 22px; cursor: pointer;">
+                    <input type="checkbox" id="musicToggle" onchange="toggleTherapyMusic()" style="opacity: 0; width: 0; height: 0;">
+                    <span style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: #333; border-radius: 22px; transition: 0.3s;"></span>
+                    <span id="musicToggleKnob" style="position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; background: #888; border-radius: 50%; transition: 0.3s;"></span>
+                </label>
+            </div>
 
             <div id="quickModeContainer">
             <div class="progress-container">
@@ -2117,6 +2125,49 @@
             var textEl = document.getElementById('hypnoText');
             textEl.classList.remove('visible');
             textEl.textContent = '';
+        }
+
+        var therapyMusic = null;
+        var therapyMusicTracks = ['/server/assets/therapy-music-1.mp3', '/server/assets/therapy-music-2.mp3'];
+        var therapyMusicIndex = 0;
+        var therapyMusicOn = false;
+
+        function toggleTherapyMusic() {
+            var cb = document.getElementById('musicToggle');
+            var knob = document.getElementById('musicToggleKnob');
+            var track = knob.previousElementSibling;
+            therapyMusicOn = cb.checked;
+
+            if (therapyMusicOn) {
+                knob.style.left = '20px';
+                knob.style.background = '#e040fb';
+                track.style.background = '#e040fb44';
+                playTherapyMusic();
+            } else {
+                knob.style.left = '2px';
+                knob.style.background = '#888';
+                track.style.background = '#333';
+                stopTherapyMusic();
+            }
+        }
+
+        function playTherapyMusic() {
+            if (therapyMusic) { therapyMusic.pause(); }
+            therapyMusic = new Audio(therapyMusicTracks[therapyMusicIndex]);
+            therapyMusic.volume = 0.25;
+            therapyMusic.play().catch(function() {});
+            therapyMusic.onended = function() {
+                therapyMusicIndex = (therapyMusicIndex + 1) % therapyMusicTracks.length;
+                if (therapyMusicOn) playTherapyMusic();
+            };
+        }
+
+        function stopTherapyMusic() {
+            if (therapyMusic) {
+                therapyMusic.pause();
+                therapyMusic.currentTime = 0;
+                therapyMusic = null;
+            }
         }
 
         window.onload = init;
