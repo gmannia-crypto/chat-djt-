@@ -79,6 +79,25 @@
         .session-bg.patricia::before { background-image: url('/server/assets/dr-patricia.jpg'); filter: grayscale(30%) contrast(1.1); }
         .session-bg > * { position: relative; z-index: 1; }
 
+        .serena-video-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.92); z-index: 99999;
+            display: flex; align-items: center; justify-content: center;
+            flex-direction: column; opacity: 0; pointer-events: none;
+            transition: opacity 0.6s ease;
+        }
+        .serena-video-overlay.active { opacity: 1; pointer-events: auto; }
+        .serena-video-overlay video {
+            max-width: 90%; max-height: 70vh; border-radius: 16px;
+            border: 2px solid #ff66aa; box-shadow: 0 0 40px rgba(255,102,170,0.4);
+        }
+        .serena-video-overlay .skip-btn {
+            margin-top: 16px; background: rgba(255,102,170,0.2); border: 1px solid #ff66aa;
+            color: #ff66aa; padding: 8px 24px; border-radius: 20px; cursor: pointer;
+            font-size: 14px; transition: background 0.2s;
+        }
+        .serena-video-overlay .skip-btn:hover { background: rgba(255,102,170,0.4); }
+
         .session-content { font-size: 18px; line-height: 1.7; margin: 25px 0; padding: 25px; background: #333; border-left-width: 5px; border-left-style: solid; border-radius: 10px; white-space: pre-line; }
         .session-content.trump { border-left-color: #ff4d4d; }
         .session-content.sophia { border-left-color: #ff99cc; }
@@ -249,6 +268,11 @@
     <script src="https://js.stripe.com/v3"></script>
 </head>
 <body>
+    <div class="serena-video-overlay" id="serenaOverlay">
+        <video id="serenaVideo" src="/server/assets/dr-serena-intro.mp4" playsinline webkit-playsinline preload="auto"></video>
+        <button class="skip-btn" onclick="closeSerenaVideo()">Skip Intro</button>
+    </div>
+
     <div class="container">
         <div class="viral-header">
             <h1>MULTI-VOICE THERAPY</h1>
@@ -749,6 +773,23 @@
             checkForPaymentReturn();
         }
 
+        function closeSerenaVideo() {
+            var overlay = document.getElementById('serenaOverlay');
+            var vid = document.getElementById('serenaVideo');
+            overlay.classList.remove('active');
+            vid.pause();
+            vid.currentTime = 0;
+        }
+
+        function playSerenaIntro() {
+            var overlay = document.getElementById('serenaOverlay');
+            var vid = document.getElementById('serenaVideo');
+            overlay.classList.add('active');
+            vid.currentTime = 0;
+            vid.play().catch(function() {});
+            vid.onended = function() { closeSerenaVideo(); };
+        }
+
         function selectVoice(voice) {
             selectedVoice = voice;
             document.querySelectorAll('.voice-card').forEach(function(card) {
@@ -766,6 +807,11 @@
             document.getElementById('timerDisplay').className = 'timer-display ' + voice;
 
             trackEvent('voice_selected', { voice: voice });
+
+            if (voice === 'patricia') {
+                playSerenaIntro();
+            }
+
             speakGreeting(voice);
             if (currentMode === 'chat') {
                 chatMessages = [];

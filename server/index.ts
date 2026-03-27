@@ -576,7 +576,7 @@ function configureExpoAndLanding(app: express.Application) {
 
     app.get("/{*path}", (req: Request, res: Response, next: NextFunction) => {
       if (req.path === "/") return next();
-      if (req.path.startsWith("/api") || req.path.startsWith("/js/") || req.path.startsWith("/assets/") || req.path.startsWith("/server/assets/") || req.path === "/status" || req.path === "/manifest" || req.path === "/therapy-viral" || req.path === "/therapy-multi" || (req.path === "/subscribe" && (req.query.success || req.query.canceled))) {
+      if (req.path.startsWith("/api") || req.path.startsWith("/js/") || req.path.startsWith("/assets/") || req.path.startsWith("/server/assets/") || req.path === "/status" || req.path === "/manifest" || req.path === "/therapy-viral" || req.path === "/therapy-multi" || req.path === "/sports-betting" || req.path === "/financial-faceoff" || (req.path === "/subscribe" && (req.query.success || req.query.canceled))) {
         return next();
       }
       const platform = req.header("expo-platform");
