@@ -1,10 +1,12 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { Audio } from 'expo-av';
+import { useSound } from '@/lib/sound-context';
 
 const clickSource = require('@/assets/sfx-click.mp4');
 const transitionSource = require('@/assets/sfx-transition.mp4');
 
 export function useSoundEffects() {
+  const { soundEnabled } = useSound();
   const clickSound = useRef<Audio.Sound | null>(null);
   const transitionSound = useRef<Audio.Sound | null>(null);
   const mounted = useRef(true);
@@ -47,22 +49,24 @@ export function useSoundEffects() {
   }, []);
 
   const playClick = useCallback(async () => {
+    if (!soundEnabled) return;
     try {
       if (clickSound.current) {
         await clickSound.current.setPositionAsync(0);
         await clickSound.current.playAsync();
       }
     } catch {}
-  }, []);
+  }, [soundEnabled]);
 
   const playTransition = useCallback(async () => {
+    if (!soundEnabled) return;
     try {
       if (transitionSound.current) {
         await transitionSound.current.setPositionAsync(0);
         await transitionSound.current.playAsync();
       }
     } catch {}
-  }, []);
+  }, [soundEnabled]);
 
   return { playClick, playTransition };
 }

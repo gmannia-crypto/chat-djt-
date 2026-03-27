@@ -22,6 +22,8 @@ import * as Haptics from "expo-haptics";
 import * as FileSystem from "expo-file-system/legacy";
 import { Audio, Video, ResizeMode } from "expo-av";
 import { playTTS } from "@/lib/audio-helper";
+import { SoundToggle } from "@/components/SoundToggle";
+import { useSound } from "@/lib/sound-context";
 import { recordTherapySession, getTherapyContext } from "@/lib/persona-memory";
 import Animated, {
   FadeIn,
@@ -261,6 +263,7 @@ export default function TherapyScreen() {
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
   const { hasTokens, deviceId, refreshBalance, balance } = useTokens();
+  const { soundEnabled } = useSound();
 
   const [selectedTherapist, setSelectedTherapist] = useState<TherapistVoice>("trump");
   const [questionPrompt, setQuestionPrompt] = useState<string | null>(null);
@@ -580,6 +583,7 @@ export default function TherapyScreen() {
         await soundRef.current.unloadAsync();
         soundRef.current = null;
       }
+      if (!soundEnabled) return;
       setSpeaking(true);
       await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
       const sound = await playTTS("/api/tts", { text: text.slice(0, 2000), mood: "CALM", voice: ttsVoice });
@@ -600,6 +604,7 @@ export default function TherapyScreen() {
         await greetingSoundRef.current.unloadAsync().catch(() => {});
         greetingSoundRef.current = null;
       }
+      if (!soundEnabled) return;
       await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
       const greetingText = THERAPIST_CONFIGS[voice].greeting.replace(/"/g, "").replace(/\\/g, "");
       const sound = await playTTS("/api/tts", { text: greetingText, mood: "CALM", voice });
@@ -1994,6 +1999,7 @@ export default function TherapyScreen() {
           </Pressable>
         </View>
       </Modal>
+      <SoundToggle />
     </View>
   );
 }

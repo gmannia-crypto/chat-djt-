@@ -1,0 +1,77 @@
+<!-- Add this inside your Sports Book container -->
+<div class="sports-media-hub">
+  <div class="hub-header">
+    <h3>📻 LIVE SPORTS AUDIO</h3>
+    <div class="affiliate-badge">⚡ Affiliate Links</div>
+  </div>
+  
+  <div class="hub-tabs">
+    <button class="hub-tab active" onclick="showHubTab('live')">🔴 LIVE GAMES</button>
+    <button class="hub-tab" onclick="showHubTab('talk')">🎙️ SPORTS TALK</button>
+    <button class="hub-tab" onclick="showHubTab('gear')">🧢 FAN GEAR</button>
+  </div>
+  
+  <!-- Live Games Tab -->
+  <div id="liveTab" class="hub-tab-content">
+    <div class="game-card" onclick="window.open('https://www.westwoodone.com/sports', '_blank')">
+      <div class="game-header"><span class="league">NFL</span><span class="live-badge">LIVE</span></div>
+      <h4>Chiefs vs Bills</h4>
+      <p>Kickoff: 8:15 PM ET</p>
+      <button class="listen-btn">🎧 LISTEN LIVE on Westwood One</button>
+    </div>
+    <div class="game-card" onclick="window.open('https://www.audacy.com/stations/sports', '_blank')">
+      <div class="game-header"><span class="league">NCAA</span><span class="live-badge">LIVE</span></div>
+      <h4>Michigan vs Ohio State</h4>
+      <p>Kickoff: 7:30 PM ET</p>
+      <button class="listen-btn">🎧 LISTEN on Audacy</button>
+    </div>
+  </div>
+  
+  <!-- Sports Talk Tab -->
+  <div id="talkTab" class="hub-tab-content" style="display: none;">
+    <div class="show-card">
+      <div class="show-time">3pm – 6pm ET</div>
+      <h4>The Jim Rome Show</h4>
+      <button onclick="window.open('https://www.westwoodone.com/jim-rome', '_blank')">🎧 LISTEN LIVE</button>
+    </div>
+    <div class="show-card">
+      <div class="show-time">9am – 12pm ET</div>
+      <h4>You Better You Bet with Nick Kostos</h4>
+      <button onclick="window.open('https://www.betmgm.com', '_blank')">📊 BETTING ANALYSIS</button>
+    </div>
+  </div>
+  
+  <!-- Fan Gear Tab -->
+  <div id="gearTab" class="hub-tab-content" style="display: none;">
+    <div class="gear-card" onclick="window.open('https://store.barstoolsports.com', '_blank')">
+      <h4>🧢 Barstool Sports Store</h4>
+      <p>Official fan gear • 6% commission</p>
+      <button>🛒 SHOP NOW</button>
+    </div>
+    <div class="gear-card" onclick="window.open('https://www.fanatics.com', '_blank')">
+      <h4>🏈 Fanatics</h4>
+      <p>NFL, NBA, MLB jerseys</p>
+      <button>🛒 SHOP NOW</button>
+    </div>
+  </div>
+</div>
+
+<style>
+.sports-media-hub { background: #1a1a1a; border: 2px solid #ff4d4d; border-radius: 15px; padding: 20px; margin: 20px 0; }
+.hub-tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+.hub-tab { padding: 10px 20px; background: #333; color: white; border: none; border-radius: 25px; cursor: pointer; }
+.hub-tab.active { background: #ff4d4d; }
+.game-card, .show-card, .gear-card { background: #2a2a2a; border-radius: 10px; padding: 15px; margin-bottom: 15px; cursor: pointer; transition: transform 0.2s; }
+.game-card:hover, .show-card:hover, .gear-card:hover { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(255,75,75,0.3); }
+.live-badge { background: #ff4d4d; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; margin-left: 10px; animation: pulse 1s infinite; }
+@keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+</style>
+
+<script>
+function showHubTab(tab) {
+  document.querySelectorAll('.hub-tab-content').forEach(t => t.style.display = 'none');
+  document.getElementById(`${tab}Tab`).style.display = 'block';
+  document.querySelectorAll('.hub-tab').forEach(btn => btn.classList.remove('active'));
+  event.target.classList.add('active');
+}
+</script>

@@ -1,0 +1,101 @@
+<!-- Add this to your Arena section -->
+<div class="spectator-mode">
+  <div class="spectator-header">
+    <h3>👥 LIVE SPECTATOR MODE</h3>
+    <div class="viewer-count" id="viewerCount">1,247 watching</div>
+  </div>
+  
+  <div class="debate-stream" id="debateStream">
+    <!-- Live debate content appears here -->
+  </div>
+  
+  <div class="reaction-bar">
+    <button onclick="sendReaction('🔥')">🔥</button>
+    <button onclick="sendReaction('😂')">😂</button>
+    <button onclick="sendReaction('😡')">😡</button>
+    <button onclick="sendReaction('👏')">👏</button>
+  </div>
+  
+  <div class="live-chat" id="liveChat">
+    <div class="chat-message"><strong>@MAGAMike:</strong> Trump is crushing it!</div>
+    <div class="chat-message"><strong>@LiberalLarry:</strong> This is ridiculous 😂</div>
+  </div>
+  
+  <div class="chat-input">
+    <input type="text" id="chatInput" placeholder="Join the conversation...">
+    <button onclick="sendChat()">Send</button>
+  </div>
+</div>
+
+<style>
+.spectator-mode { background: #1a1a1a; border: 2px solid #ff4d4d; border-radius: 15px; padding: 20px; margin: 20px 0; }
+.spectator-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.viewer-count { color: #ff4d4d; font-size: 14px; animation: pulse 1s infinite; }
+.reaction-bar { display: flex; gap: 10px; margin: 15px 0; padding: 10px; border-top: 1px solid #333; border-bottom: 1px solid #333; }
+.reaction-bar button { background: #333; border: none; border-radius: 50%; width: 40px; height: 40px; font-size: 20px; cursor: pointer; transition: transform 0.1s; }
+.reaction-bar button:active { transform: scale(1.2); }
+.live-chat { height: 200px; overflow-y: auto; background: #2a2a2a; border-radius: 10px; padding: 10px; margin: 15px 0; }
+.chat-message { margin: 5px 0; font-size: 14px; }
+.chat-input { display: flex; gap: 10px; }
+.chat-input input { flex: 1; padding: 10px; background: #333; border: 1px solid #ff4d4d; border-radius: 25px; color: white; }
+.chat-input button { padding: 10px 20px; background: #ff4d4d; border: none; border-radius: 25px; color: white; cursor: pointer; }
+</style>
+
+<script>
+let viewerCount = 1247;
+let reactionInterval;
+
+function updateViewerCount() {
+  viewerCount += Math.floor(Math.random() * 10) - 3;
+  viewerCount = Math.max(500, viewerCount);
+  document.getElementById('viewerCount').innerHTML = viewerCount.toLocaleString() + ' watching';
+}
+
+function sendReaction(emoji) {
+  addChatMessage(`Anonymous: ${emoji}`, 'reaction');
+}
+
+function sendChat() {
+  const input = document.getElementById('chatInput');
+  const message = input.value.trim();
+  if (message) {
+    addChatMessage(`You: ${message}`, 'user');
+    input.value = '';
+    // Simulate other users reacting
+    setTimeout(() => {
+      const responses = ['🔥', '😂', '👏', 'Interesting take!', 'Facts!'];
+      const random = responses[Math.floor(Math.random() * responses.length)];
+      addChatMessage(`@User${Math.floor(Math.random() * 100)}: ${random}`);
+    }, 1000);
+  }
+}
+
+function addChatMessage(message, type = '') {
+  const chat = document.getElementById('liveChat');
+  const msgDiv = document.createElement('div');
+  msgDiv.className = 'chat-message';
+  if (type === 'reaction') msgDiv.style.color = '#ffaa00';
+  if (type === 'user') msgDiv.style.fontWeight = 'bold';
+  msgDiv.innerHTML = message;
+  chat.appendChild(msgDiv);
+  chat.scrollTop = chat.scrollHeight;
+  // Keep only last 50 messages
+  while (chat.children.length > 50) chat.removeChild(chat.firstChild);
+}
+
+// Simulate live debate content
+function updateDebateStream() {
+  const debates = [
+    '<div class="debate-message"><strong>Trump:</strong> "Biden has destroyed this country! Believe me!"</div>',
+    '<div class="debate-message"><strong>Biden:</strong> "That\'s malarkey! Come on, man."</div>',
+    '<div class="debate-message"><strong>Ruckus:</strong> "TELL EM, TRUMP!"</div>'
+  ];
+  const stream = document.getElementById('debateStream');
+  const newMsg = debates[Math.floor(Math.random() * debates.length)];
+  stream.innerHTML += newMsg;
+  while (stream.children.length > 5) stream.removeChild(stream.firstChild);
+}
+
+setInterval(updateViewerCount, 10000);
+setInterval(updateDebateStream, 15000);
+</script>

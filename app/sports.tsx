@@ -31,6 +31,8 @@ import {
   generateReference,
 } from "@/lib/persona-memory";
 import { useSoundEffects } from "@/lib/use-sound";
+import { SoundToggle } from "@/components/SoundToggle";
+import { useSound } from "@/lib/sound-context";
 import {
   getTallies,
   makeUniversalPick,
@@ -969,6 +971,7 @@ export default function SportsScreen() {
   const insets = useSafeAreaInsets();
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
+  const { soundEnabled } = useSound();
 
   const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1371,6 +1374,7 @@ export default function SportsScreen() {
       if (speakingGameId === gameId) return;
     }
 
+    if (!soundEnabled) return;
     setSpeakingGameId(gameId);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
@@ -2138,6 +2142,7 @@ export default function SportsScreen() {
           </View>
         </View>
       </Modal>
+      <SoundToggle />
     </View>
   );
 }

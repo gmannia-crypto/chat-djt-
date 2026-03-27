@@ -17,6 +17,7 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { queryClient } from "@/lib/query-client";
 import { TokenProvider } from "@/lib/token-context";
+import { SoundProvider } from "@/lib/sound-context";
 import { StatusBar } from "expo-status-bar";
 import {
   useFonts,
@@ -339,16 +340,18 @@ export default function RootLayout() {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <TokenProvider>
-          <GestureHandlerRootView style={{ flex: 1 }}>
-            <KeyboardProvider>
-              <StatusBar style="light" />
-              <DisclaimerModal
-                visible={disclaimerVisible}
-                onAccept={handleAcceptDisclaimer}
-              />
-              <RootLayoutNav />
-            </KeyboardProvider>
-          </GestureHandlerRootView>
+          <SoundProvider>
+            <GestureHandlerRootView style={{ flex: 1 }}>
+              <KeyboardProvider>
+                <StatusBar style="light" />
+                <DisclaimerModal
+                  visible={disclaimerVisible}
+                  onAccept={handleAcceptDisclaimer}
+                />
+                <RootLayoutNav />
+              </KeyboardProvider>
+            </GestureHandlerRootView>
+          </SoundProvider>
         </TokenProvider>
       </QueryClientProvider>
     </ErrorBoundary>

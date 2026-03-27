@@ -55,6 +55,9 @@ The landing page uses document-level event delegation, with three listeners (cli
 - **expo-file-system**: Audio file management on native platforms.
 - **fal.ai**: SadTalker lip-sync video generation from therapist portrait images.
 
+## Global Sound Toggle
+A floating sound toggle button (SoundToggle component) appears on the main menu, therapy, and sports screens. It uses a React context (`SoundProvider` in `lib/sound-context.tsx`) with AsyncStorage persistence. When sound is off, all TTS calls (therapy greetings, therapy readback, sports persona speak) and UI sound effects (click, transition) are suppressed. The toggle is a red pill button in the bottom-right corner that turns grey when muted.
+
 ## HTML Standalone Pages
 - `/therapy-multi` — Multi-persona therapy page. Served from `server/templates/therapy-multi.html`.
 - `/therapy-viral` — Viral sharing therapy page. Served from `server/templates/therapy-viral.html`.

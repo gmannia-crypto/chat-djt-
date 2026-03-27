@@ -27,6 +27,7 @@ import * as Haptics from "expo-haptics";
 import { Audio, Video, ResizeMode } from "expo-av";
 import { playTTS } from "@/lib/audio-helper";
 import { useSoundEffects } from "@/lib/use-sound";
+import { SoundToggle } from "@/components/SoundToggle";
 import Animated, {
   FadeInDown,
   FadeInUp,
@@ -2082,6 +2083,7 @@ export default function HomeScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+      <SoundToggle />
     </View>
   );
 }
