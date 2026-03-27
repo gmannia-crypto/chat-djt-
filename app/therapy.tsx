@@ -283,7 +283,7 @@ export default function TherapyScreen() {
   const [sessionEnded, setSessionEnded] = useState(false);
   const [deepDuration, setDeepDuration] = useState<5 | 10 | 15 | 20>(5);
 
-  const [sessionMode, setSessionMode] = useState<"quick" | "deep" | "chat">("quick");
+  const [sessionMode, setSessionMode] = useState<"quick" | "deep" | "chat" | "hypno">("quick");
   const [chatMessages, setChatMessages] = useState<Array<{ role: string; content: string }>>([]);
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
@@ -293,6 +293,13 @@ export default function TherapyScreen() {
   const [lipSyncLoading, setLipSyncLoading] = useState(false);
   const [showSerenaIntro, setShowSerenaIntro] = useState(false);
   const serenaVideoRef = useRef<Video>(null);
+  const [hypnoPreset, setHypnoPreset] = useState<string>("stress");
+  const [hypnoLoading, setHypnoLoading] = useState(false);
+  const [showHypnoOverlay, setShowHypnoOverlay] = useState(false);
+  const [hypnoText, setHypnoText] = useState("");
+  const hypnoAngleRef = useRef(0);
+  const hypnoAnimRef = useRef<number | null>(null);
+  const greetingSoundRef = useRef<Audio.Sound | null>(null);
 
   const [intakeStep, setIntakeStep] = useState<string | null>(null);
   const [intakeQuestion, setIntakeQuestion] = useState<string | null>(null);
@@ -586,11 +593,113 @@ export default function TherapyScreen() {
     }
   }
 
+  async function speakGreeting(voice: TherapistVoice) {
+    try {
+      if (greetingSoundRef.current) {
+        await greetingSoundRef.current.stopAsync().catch(() => {});
+        await greetingSoundRef.current.unloadAsync().catch(() => {});
+        greetingSoundRef.current = null;
+      }
+      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+      const greetingText = THERAPIST_CONFIGS[voice].greeting.replace(/"/g, "").replace(/\\/g, "");
+      const sound = await playTTS("/api/tts", { text: greetingText, mood: "CALM", voice });
+      greetingSoundRef.current = sound;
+      sound.setOnPlaybackStatusUpdate((status: any) => {
+        if (status.didJustFinish) {
+          greetingSoundRef.current = null;
+        }
+      });
+    } catch (err) {
+      console.error("Greeting TTS error:", err);
+    }
+  }
+
+  const HYPNO_PRESETS = [
+    { key: "stress", icon: "\u{1F9D8}", label: "Stress Relief" },
+    { key: "sleep", icon: "\u{1F319}", label: "Deep Sleep" },
+    { key: "confidence", icon: "\u{1F4AA}", label: "Confidence" },
+    { key: "focus", icon: "\u{1F3AF}", label: "Focus & Clarity" },
+    { key: "anxiety", icon: "\u{1F32C}", label: "Calm Anxiety" },
+    { key: "motivation", icon: "\u{1F525}", label: "Motivation" },
+  ];
+
+  const HYPNO_TEXTS: Record<string, string[]> = {
+    stress: ["Release all tension...", "Your body is weightless...", "Peace flows through you...", "You are completely calm...", "Stress dissolves away..."],
+    sleep: ["You are drifting...", "Deeper and deeper...", "Let sleep embrace you...", "Nothing matters now...", "Sweet, peaceful rest..."],
+    confidence: ["You are powerful...", "Nothing can stop you...", "Believe in yourself...", "You are unstoppable...", "Greatness is within you..."],
+    focus: ["Your mind is clear...", "Total concentration...", "Distractions fade away...", "Crystal clarity...", "Laser-sharp focus..."],
+    anxiety: ["You are safe here...", "Let go of worry...", "Peace is your shield...", "Breathe and release...", "Fear has no power..."],
+    motivation: ["Fire burns within...", "You are relentless...", "No excuses remain...", "Take action now...", "You are extraordinary..."],
+  };
+
+  async function startHypnosis() {
+    if (hypnoLoading) return;
+    setHypnoLoading(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+
+    try {
+      const apiUrl = getApiUrl();
+      const resp = await fetch(new URL("/api/therapy/hypnosis", apiUrl).toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+        body: JSON.stringify({ preset: hypnoPreset, personaId: selectedTherapist }),
+      });
+      const data = await resp.json();
+      if (data.error) {
+        alert(data.error);
+        setHypnoLoading(false);
+        return;
+      }
+      refreshBalance();
+      setShowHypnoOverlay(true);
+
+      const texts = HYPNO_TEXTS[hypnoPreset] || HYPNO_TEXTS.stress;
+      let textIdx = 0;
+      setHypnoText(texts[0]);
+      const textTimer = setInterval(() => {
+        textIdx = (textIdx + 1) % texts.length;
+        setHypnoText(texts[textIdx]);
+      }, 5000);
+
+      if (data.audioBase64) {
+        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+        const audioUri = data.audioBase64;
+        const fileUri = (FileSystem.cacheDirectory || "") + "hypnosis_audio.mp3";
+        const base64Data = audioUri.replace(/^data:audio\/mpeg;base64,/, "");
+        await FileSystem.writeAsStringAsync(fileUri, base64Data, { encoding: FileSystem.EncodingType.Base64 });
+        const { sound } = await Audio.Sound.createAsync({ uri: fileUri }, { shouldPlay: true });
+        soundRef.current = sound;
+        sound.setOnPlaybackStatusUpdate((status: any) => {
+          if (status.didJustFinish) {
+            clearInterval(textTimer);
+            setTimeout(() => {
+              setShowHypnoOverlay(false);
+              setHypnoLoading(false);
+            }, 2000);
+          }
+        });
+      } else {
+        setTimeout(() => {
+          clearInterval(textTimer);
+          setShowHypnoOverlay(false);
+          setHypnoLoading(false);
+        }, 30000);
+      }
+    } catch (err) {
+      console.error("Hypnosis error:", err);
+      setHypnoLoading(false);
+    }
+  }
+
   React.useEffect(() => {
     return () => {
       if (soundRef.current) {
         soundRef.current.unloadAsync();
         soundRef.current = null;
+      }
+      if (greetingSoundRef.current) {
+        greetingSoundRef.current.unloadAsync().catch(() => {});
+        greetingSoundRef.current = null;
       }
     };
   }, []);
@@ -1070,6 +1179,7 @@ export default function TherapyScreen() {
                     if (voice === "patricia") {
                       setShowSerenaIntro(true);
                     }
+                    speakGreeting(voice);
                   }
                 }}
                 style={[
@@ -1118,7 +1228,7 @@ export default function TherapyScreen() {
           />
         </Animated.View>
 
-        {!chatStarted && <Animated.View entering={FadeInDown.delay(300).duration(500)} style={[styles.therapyCard, { borderColor: `${config.accent}66` }]}>
+        {!chatStarted && sessionMode !== "hypno" && <Animated.View entering={FadeInDown.delay(300).duration(500)} style={[styles.therapyCard, { borderColor: `${config.accent}66` }]}>
           <Text style={[styles.greeting, { color: config.accent }]}>{config.greeting}</Text>
 
           <Text style={[styles.inputLabel, { color: config.accent }]}>{"\uD83D\uDC64"} Your name (first only):</Text>
@@ -1238,9 +1348,67 @@ export default function TherapyScreen() {
             <Ionicons name="chatbubbles" size={14} color={sessionMode === "chat" ? config.accent : "rgba(255,255,255,0.4)"} />
             <Text style={[styles.modeToggleText, sessionMode === "chat" && { color: config.accent }]}>Free Chat</Text>
           </Pressable>
+          <Pressable
+            onPress={() => { if (!therapy && !intakeStep && !chatStarted) { setSessionMode("hypno"); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); } }}
+            style={[styles.modeToggleBtn, sessionMode === "hypno" && { backgroundColor: "rgba(224,64,251,0.15)", borderColor: "#e040fb" }]}
+          >
+            <Ionicons name="eye" size={14} color={sessionMode === "hypno" ? "#e040fb" : "rgba(255,255,255,0.4)"} />
+            <Text style={[styles.modeToggleText, sessionMode === "hypno" && { color: "#e040fb" }]}>Hypnosis</Text>
+          </Pressable>
         </Animated.View>}
 
-        {!chatStarted && (
+        {sessionMode === "hypno" && !chatStarted && (
+          <Animated.View entering={FadeInDown.delay(350).duration(400)} style={{ paddingHorizontal: 20, marginBottom: 16 }}>
+            <Text style={{ color: "#e040fb", fontSize: 13, fontWeight: "700" as const, textAlign: "center", marginBottom: 12, letterSpacing: 1 }}>CHOOSE YOUR SESSION</Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 10 }}>
+              {HYPNO_PRESETS.map((p) => (
+                <Pressable
+                  key={p.key}
+                  onPress={() => { setHypnoPreset(p.key); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+                  style={{
+                    backgroundColor: hypnoPreset === p.key ? "rgba(224,64,251,0.15)" : "rgba(26,26,46,0.8)",
+                    borderWidth: 2,
+                    borderColor: hypnoPreset === p.key ? "#e040fb" : "#333",
+                    borderRadius: 12,
+                    paddingVertical: 12,
+                    paddingHorizontal: 16,
+                    alignItems: "center",
+                    minWidth: 100,
+                  }}
+                >
+                  <Text style={{ fontSize: 26, marginBottom: 4 }}>{p.icon}</Text>
+                  <Text style={{ color: hypnoPreset === p.key ? "#e040fb" : "#ccc", fontSize: 12, fontWeight: "700" as const }}>{p.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Pressable
+              onPress={startHypnosis}
+              disabled={hypnoLoading}
+              style={({ pressed }) => ({
+                marginTop: 20,
+                alignSelf: "center",
+                paddingVertical: 14,
+                paddingHorizontal: 36,
+                borderRadius: 30,
+                opacity: hypnoLoading ? 0.5 : pressed ? 0.8 : 1,
+                overflow: "hidden" as const,
+              })}
+            >
+              <LinearGradient
+                colors={["#e040fb", "#7c4dff"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={{ ...StyleSheet.absoluteFillObject, borderRadius: 30 }}
+              />
+              <Text style={{ color: "#fff", fontSize: 15, fontWeight: "700" as const, letterSpacing: 1, textAlign: "center" }}>
+                {hypnoLoading ? "Preparing..." : "\u{1F300} BEGIN HYPNOSIS"}
+              </Text>
+            </Pressable>
+            <Text style={{ color: "#999", fontSize: 11, textAlign: "center", marginTop: 8 }}>Costs 2 tokens per session</Text>
+          </Animated.View>
+        )}
+
+        {!chatStarted && sessionMode !== "hypno" && (
           <Animated.View entering={FadeInDown.delay(380).duration(400)} style={styles.durationContainer}>
             <Text style={[styles.durationLabel, { color: config.accent }]}>SESSION LENGTH</Text>
             <View style={styles.durationRow}>
@@ -1262,7 +1430,7 @@ export default function TherapyScreen() {
           </Animated.View>
         )}
 
-        {!chatStarted && (
+        {!chatStarted && sessionMode !== "hypno" && (
           <Animated.View entering={FadeInDown.delay(400).duration(500)} style={styles.buttonContainer}>
             <Pressable
               onPress={sessionMode === "chat" ? handleStartChat : sessionMode === "deep" ? handleStartIntake : handleGetTherapy}
@@ -1784,7 +1952,7 @@ export default function TherapyScreen() {
               ref={serenaVideoRef}
               source={{ uri: `${getApiUrl().replace(/\/$/, "")}/server/assets/dr-serena-intro.mp4` }}
               style={serenaStyles.video}
-              resizeMode={ResizeMode.CONTAIN}
+              resizeMode={ResizeMode.COVER}
               shouldPlay
               onPlaybackStatusUpdate={(status: any) => {
                 if (status.didJustFinish) {
@@ -1801,6 +1969,64 @@ export default function TherapyScreen() {
           </Pressable>
         </View>
       </Modal>
+
+      <Modal
+        visible={showHypnoOverlay}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setShowHypnoOverlay(false);
+          setHypnoLoading(false);
+          if (soundRef.current) {
+            soundRef.current.stopAsync().catch(() => {});
+            soundRef.current.unloadAsync().catch(() => {});
+            soundRef.current = null;
+          }
+        }}
+      >
+        <View style={serenaStyles.hypnoOverlay}>
+          <View style={serenaStyles.spiralContainer}>
+            <Animated.View
+              style={[
+                serenaStyles.spiralRing,
+                { borderColor: "#e040fb", width: 200, height: 200, borderRadius: 100 },
+              ]}
+            />
+            <Animated.View
+              style={[
+                serenaStyles.spiralRing,
+                { borderColor: "#7c4dff", width: 150, height: 150, borderRadius: 75, position: "absolute" },
+              ]}
+            />
+            <Animated.View
+              style={[
+                serenaStyles.spiralRing,
+                { borderColor: "#e040fb", width: 100, height: 100, borderRadius: 50, position: "absolute" },
+              ]}
+            />
+            <View style={serenaStyles.spiralCenter}>
+              <Ionicons name="eye" size={32} color="#e040fb" />
+            </View>
+          </View>
+          <Animated.Text entering={FadeIn.duration(1000)} style={serenaStyles.hypnoTextDisplay}>
+            {hypnoText}
+          </Animated.Text>
+          <Pressable
+            onPress={() => {
+              setShowHypnoOverlay(false);
+              setHypnoLoading(false);
+              if (soundRef.current) {
+                soundRef.current.stopAsync().catch(() => {});
+                soundRef.current.unloadAsync().catch(() => {});
+                soundRef.current = null;
+              }
+            }}
+            style={serenaStyles.hypnoExitBtn}
+          >
+            <Text style={serenaStyles.hypnoExitText}>End Session</Text>
+          </Pressable>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1808,13 +2034,14 @@ export default function TherapyScreen() {
 const serenaStyles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.92)",
+    backgroundColor: "rgba(0,0,0,0.95)",
     justifyContent: "center",
     alignItems: "center",
   },
   videoContainer: {
-    width: "90%",
-    aspectRatio: 16 / 9,
+    width: "75%",
+    aspectRatio: 9 / 16,
+    maxHeight: "70%",
     borderRadius: 16,
     overflow: "hidden",
     borderWidth: 2,
@@ -1835,6 +2062,50 @@ const serenaStyles = StyleSheet.create({
   },
   skipText: {
     color: "#ff99cc",
+    fontSize: 14,
+    fontWeight: "600" as const,
+  },
+  hypnoOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.96)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  spiralContainer: {
+    width: 200,
+    height: 200,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 40,
+  },
+  spiralRing: {
+    borderWidth: 3,
+    borderStyle: "dashed" as any,
+    opacity: 0.6,
+  },
+  spiralCenter: {
+    position: "absolute",
+  },
+  hypnoTextDisplay: {
+    color: "#e040fb",
+    fontSize: 22,
+    fontWeight: "300" as const,
+    textAlign: "center",
+    fontStyle: "italic",
+    paddingHorizontal: 40,
+    marginBottom: 40,
+    letterSpacing: 1,
+  },
+  hypnoExitBtn: {
+    paddingHorizontal: 28,
+    paddingVertical: 12,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "rgba(224,64,251,0.4)",
+    backgroundColor: "rgba(224,64,251,0.1)",
+  },
+  hypnoExitText: {
+    color: "#e040fb",
     fontSize: 14,
     fontWeight: "600" as const,
   },
