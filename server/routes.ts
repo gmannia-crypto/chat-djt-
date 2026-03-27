@@ -738,11 +738,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   async function fetchESPNScoreboard(sport: string, league: string): Promise<any[]> {
     try {
-      const url = `https://site.api.espn.com/apis/site/v2/sports/${sport}/${league}/scoreboard`;
-      const res = await fetch(url);
-      if (!res.ok) return [];
-      const data = await res.json();
-      return data.events || [];
+      const today = new Date();
+      const dates: string[] = [];
+      for (let i = 0; i < 3; i++) {
+        const d = new Date(today);
+        d.setDate(d.getDate() + i);
+        dates.push(d.toISOString().slice(0, 10).replace(/-/g, ""));
+      }
+      const allEvents: any[] = [];
+      const seenIds = new Set<string>();
+      for (const dateStr of dates) {
+        try {
+          const url = `https://site.api.espn.com/apis/site/v2/sports/${sport}/${league}/scoreboard?dates=${dateStr}`;
+          const res = await fetch(url);
+          if (!res.ok) continue;
+          const data = await res.json();
+          for (const ev of (data.events || [])) {
+            const eid = ev.id?.toString();
+            if (eid && !seenIds.has(eid)) {
+              seenIds.add(eid);
+              allEvents.push(ev);
+            }
+          }
+        } catch {}
+      }
+      return allEvents;
     } catch {
       return [];
     }

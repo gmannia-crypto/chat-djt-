@@ -1312,11 +1312,32 @@ async function registerRoutes(app2) {
   const ESPN_CACHE_TTL = 5 * 60 * 1e3;
   async function fetchESPNScoreboard(sport, league) {
     try {
-      const url = `https://site.api.espn.com/apis/site/v2/sports/${sport}/${league}/scoreboard`;
-      const res = await fetch(url);
-      if (!res.ok) return [];
-      const data = await res.json();
-      return data.events || [];
+      const today = /* @__PURE__ */ new Date();
+      const dates = [];
+      for (let i = 0; i < 3; i++) {
+        const d = new Date(today);
+        d.setDate(d.getDate() + i);
+        dates.push(d.toISOString().slice(0, 10).replace(/-/g, ""));
+      }
+      const allEvents = [];
+      const seenIds = /* @__PURE__ */ new Set();
+      for (const dateStr of dates) {
+        try {
+          const url = `https://site.api.espn.com/apis/site/v2/sports/${sport}/${league}/scoreboard?dates=${dateStr}`;
+          const res = await fetch(url);
+          if (!res.ok) continue;
+          const data = await res.json();
+          for (const ev of data.events || []) {
+            const eid = ev.id?.toString();
+            if (eid && !seenIds.has(eid)) {
+              seenIds.add(eid);
+              allEvents.push(ev);
+            }
+          }
+        } catch {
+        }
+      }
+      return allEvents;
     } catch {
       return [];
     }

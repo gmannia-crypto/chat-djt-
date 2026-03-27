@@ -1952,7 +1952,7 @@ export default function TherapyScreen() {
               ref={serenaVideoRef}
               source={{ uri: `${getApiUrl().replace(/\/$/, "")}/server/assets/dr-serena-intro.mp4` }}
               style={serenaStyles.video}
-              resizeMode={ResizeMode.COVER}
+              resizeMode={ResizeMode.CONTAIN}
               shouldPlay
               onPlaybackStatusUpdate={(status: any) => {
                 if (status.didJustFinish) {
@@ -2039,13 +2039,13 @@ const serenaStyles = StyleSheet.create({
     alignItems: "center",
   },
   videoContainer: {
-    width: "75%",
-    aspectRatio: 9 / 16,
-    maxHeight: "70%",
+    width: "85%",
+    height: "75%",
     borderRadius: 16,
     overflow: "hidden",
     borderWidth: 2,
     borderColor: "#ff99cc",
+    backgroundColor: "#000",
   },
   video: {
     width: "100%",
