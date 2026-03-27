@@ -1115,31 +1115,25 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + webTopInset }]}>
-      {Platform.OS === "web" ? (
-        <View style={styles.videoBgContainer} pointerEvents="none">
-          <video
-            src={bgVideoUrl}
-            autoPlay
-            loop
-            muted
-            playsInline
-            style={{ position: "absolute" as any, top: 0, left: 0, width: "100%", height: "100%", objectFit: "cover" } as any}
-            ref={(el: any) => { if (el) el.playbackRate = 0.5; }}
-          />
-        </View>
-      ) : (
-        <View style={styles.videoBgContainer} pointerEvents="none">
-          <Video
-            source={{ uri: bgVideoUrl }}
-            style={styles.videoBg}
-            resizeMode={ResizeMode.COVER}
-            shouldPlay
-            isLooping
-            isMuted
-            rate={0.5}
-          />
-        </View>
-      )}
+      <View style={styles.videoBgContainer} pointerEvents="none">
+        <Video
+          source={{ uri: bgVideoUrl }}
+          style={styles.videoBg}
+          resizeMode={ResizeMode.COVER}
+          shouldPlay
+          isLooping
+          isMuted
+          rate={0.5}
+          onLoad={(status: any) => {
+            if (Platform.OS === "web") {
+              try {
+                const videoEl = document.querySelector('video');
+                if (videoEl) videoEl.playbackRate = 0.5;
+              } catch {}
+            }
+          }}
+        />
+      </View>
       <LinearGradient
         colors={["rgba(10, 10, 10, 0.3)", "rgba(10, 10, 10, 0.1)", "rgba(10, 10, 10, 0.5)"]}
         style={styles.backgroundOverlay}
