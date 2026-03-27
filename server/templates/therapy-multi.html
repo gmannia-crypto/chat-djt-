@@ -155,8 +155,8 @@
         @keyframes micPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(255,77,77,0.4); } 50% { box-shadow: 0 0 0 10px rgba(255,77,77,0); } }
         .mic-status { text-align: center; font-size: 12px; color: #ff4d4d; margin-top: 5px; min-height: 18px; }
 
-        .mode-tabs { display: flex; gap: 0; margin: 20px 0; border-radius: 12px; overflow: hidden; border: 2px solid #333; }
-        .mode-tab { flex: 1; padding: 14px 10px; text-align: center; cursor: pointer; font-weight: bold; font-size: 13px; background: #1a1a1a; color: #888; border: none; transition: all 0.25s; }
+        .mode-tabs { display: flex; flex-wrap: wrap; gap: 0; margin: 20px 0; border-radius: 12px; overflow: visible; border: 2px solid #333; }
+        .mode-tab { flex: 1 1 auto; min-width: 0; padding: 14px 8px; text-align: center; cursor: pointer; font-weight: bold; font-size: 12px; background: #1a1a1a; color: #888; border: none; transition: all 0.25s; white-space: nowrap; }
         .mode-tab:hover { color: #ccc; background: #222; }
         .mode-tab.active { color: white; }
         .mode-tab.active.tab-quick { background: #ff4d4d; }
@@ -241,7 +241,8 @@
             .voice-card { width: 140px; padding: 15px 10px; }
             .pricing-grid { grid-template-columns: 1fr; }
             .share-buttons { flex-direction: column; }
-            .mode-tabs { flex-direction: column; border-radius: 12px; }
+            .mode-tabs { display: grid; grid-template-columns: 1fr 1fr; border-radius: 12px; }
+            .mode-tab { font-size: 11px; padding: 12px 6px; }
             .chat-container { height: 450px; }
         }
     </style>
