@@ -2032,28 +2032,76 @@
             }
         }
 
+        var hypnoTriggers = {
+            stress: { phrase: "I am calm", effect: "you'll instantly feel a wave of deep relaxation wash over you" },
+            sleep: { phrase: "I am drifting", effect: "your body will begin to feel heavy and ready for restful sleep" },
+            confidence: { phrase: "I am winning", effect: "you'll instantly feel more confident and powerful" },
+            focus: { phrase: "I am locked in", effect: "your mind will snap into laser-sharp focus" },
+            anxiety: { phrase: "I am safe", effect: "all anxiety will melt away and peace will fill you" },
+            motivation: { phrase: "I am unstoppable", effect: "a surge of energy and determination will ignite inside you" }
+        };
+
         function continueAfterHypnosis() {
             switchMode('chat');
             if (chatMessages.length === 0) initChat();
             var cfg = voiceConfig[selectedVoice];
-            var postHypnoMsg = cfg.name + ' sees you returning from deep relaxation...';
-            addChatBubble('therapist', postHypnoMsg);
-            chatMessages.push({ role: 'assistant', content: 'The hypnosis session is complete. You look deeply relaxed. How are you feeling? Tell me everything that is on your mind.' });
 
-            fetch('/api/tts', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'x-device-id': deviceId },
-                body: JSON.stringify({ text: 'You look so relaxed now. Open your eyes... tell me everything.', personaId: selectedVoice })
-            })
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-                if (data.audioBase64) {
-                    var blobUrl = base64ToBlob(data.audioBase64, 'audio/mpeg');
-                    var a = new Audio(blobUrl);
-                    a.play().catch(function() {});
-                }
-            })
-            .catch(function() {});
+            var trigger = hypnoTriggers[hypnoPreset] || hypnoTriggers.confidence;
+            var triggerCard = document.createElement('div');
+            triggerCard.style.cssText = 'background: #1a1a2e; border: 2px solid #e040fb; border-radius: 15px; padding: 20px; margin: 10px 0; max-width: 85%; align-self: flex-start; animation: fadeIn 0.5s;';
+            triggerCard.innerHTML =
+                '<div style="font-size: 18px; font-weight: bold; color: #e040fb; margin-bottom: 10px;">&#x1F300; Your Post-Hypnotic Trigger</div>' +
+                '<p style="color: #ccc; font-size: 14px; line-height: 1.6; margin-bottom: 12px;">Whenever you say "<strong style="color: white; font-size: 16px;">' + trigger.phrase + '</strong>" to yourself, ' + trigger.effect + '.</p>' +
+                '<div style="display: flex; gap: 8px; flex-wrap: wrap;">' +
+                    '<button class="tts-btn" onclick="copyTrigger(\'' + trigger.phrase + '\')">&#x1F4CB; Copy Trigger</button>' +
+                    '<button class="tts-btn" onclick="shareTrigger(\'' + trigger.phrase + '\', \'' + trigger.effect + '\')">&#x1F4E4; Share</button>' +
+                '</div>' +
+                '<p style="color: #666; font-size: 11px; margin-top: 10px; font-style: italic;">(Works only if you believe it...)</p>';
+            var chatEl = document.getElementById('chatMessages');
+            chatEl.appendChild(triggerCard);
+            chatEl.scrollTop = chatEl.scrollHeight;
+
+            setTimeout(function() {
+                var postMsg = 'You look so relaxed now... How are you feeling? Tell me everything that is on your mind.';
+                addChatBubble('therapist', postMsg);
+                chatMessages.push({ role: 'assistant', content: postMsg });
+
+                fetch('/api/tts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'x-device-id': deviceId },
+                    body: JSON.stringify({ text: 'You look so relaxed now. Open your eyes... tell me everything.', personaId: selectedVoice })
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.audioBase64) {
+                        var blobUrl = base64ToBlob(data.audioBase64, 'audio/mpeg');
+                        var a = new Audio(blobUrl);
+                        a.play().catch(function() {});
+                    }
+                })
+                .catch(function() {});
+            }, 2000);
+        }
+
+        function copyTrigger(phrase) {
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText('My post-hypnotic trigger: "' + phrase + '" - TrumpBot.rip Therapy').then(function() {
+                    alert('Trigger copied!');
+                });
+            } else {
+                prompt('Copy your trigger:', phrase);
+            }
+        }
+
+        function shareTrigger(phrase, effect) {
+            var shareText = 'I just did a hypnosis session on TrumpBot.rip! My trigger phrase is "' + phrase + '" — whenever I say it, ' + effect + '. Try it yourself!';
+            if (navigator.share) {
+                navigator.share({ title: 'My Hypnotic Trigger', text: shareText, url: window.location.href }).catch(function() {});
+            } else if (navigator.clipboard) {
+                navigator.clipboard.writeText(shareText).then(function() { alert('Share text copied!'); });
+            } else {
+                prompt('Share this:', shareText);
+            }
         }
 
         function stopHypnosis() {
