@@ -1948,13 +1948,6 @@
             overlay.style.display = 'block';
             document.body.style.overflow = 'hidden';
 
-            if (audioBase64) {
-                var blobUrl = base64ToBlob(audioBase64, 'audio/mpeg');
-                hypnoAudio = new Audio(blobUrl);
-                hypnoAudio.loop = false;
-                hypnoAudio.play().catch(function() {});
-            }
-
             var canvas = document.getElementById('spiralCanvas');
             var ctx = canvas.getContext('2d');
             var angle = 0;
@@ -1964,7 +1957,6 @@
             var texts = hypnoTexts[hypnoPreset] || hypnoTexts.stress;
             var textIndex = 0;
             var startTime = Date.now();
-            var duration = 60000;
 
             function drawSpiral() {
                 ctx.clearRect(0, 0, 400, 400);
@@ -1983,12 +1975,10 @@
                     ctx.lineWidth = 3 - ring * 0.5;
                     ctx.stroke();
                 }
-
                 ctx.beginPath();
                 ctx.arc(200, 200, 15, 0, Math.PI * 2);
                 ctx.fillStyle = 'hsla(' + hue + ', 90%, 70%, 0.9)';
                 ctx.fill();
-
                 angle += 0.02;
                 hue = (hue + 0.3) % 360;
                 hypnoAnimFrame = requestAnimationFrame(drawSpiral);
@@ -1999,21 +1989,71 @@
             textEl.classList.add('visible');
 
             hypnoInterval = setInterval(function() {
-                var elapsed = Date.now() - startTime;
-                var remaining = Math.max(0, Math.ceil((duration - elapsed) / 1000));
-                timerEl.textContent = remaining + 's remaining';
-
                 textIndex = (textIndex + 1) % texts.length;
                 textEl.classList.remove('visible');
                 setTimeout(function() {
                     textEl.textContent = texts[textIndex];
                     textEl.classList.add('visible');
                 }, 800);
-
-                if (elapsed >= duration) {
-                    stopHypnosis();
-                }
             }, 5000);
+
+            if (audioBase64) {
+                var blobUrl = base64ToBlob(audioBase64, 'audio/mpeg');
+                hypnoAudio = new Audio(blobUrl);
+                hypnoAudio.loop = false;
+                hypnoAudio.play().catch(function() {});
+
+                hypnoAudio.onended = function() {
+                    timerEl.textContent = 'Session complete... returning to therapy';
+                    setTimeout(function() {
+                        stopHypnosis();
+                        continueAfterHypnosis();
+                    }, 3000);
+                };
+
+                hypnoAudio.ontimeupdate = function() {
+                    if (hypnoAudio.duration && !isNaN(hypnoAudio.duration)) {
+                        var remaining = Math.max(0, Math.ceil(hypnoAudio.duration - hypnoAudio.currentTime));
+                        timerEl.textContent = remaining + 's remaining';
+                    }
+                };
+            } else {
+                var fallbackDuration = 30000;
+                var fallbackTimer = setInterval(function() {
+                    var elapsed = Date.now() - startTime;
+                    var remaining = Math.max(0, Math.ceil((fallbackDuration - elapsed) / 1000));
+                    timerEl.textContent = remaining + 's remaining';
+                    if (elapsed >= fallbackDuration) {
+                        clearInterval(fallbackTimer);
+                        stopHypnosis();
+                        continueAfterHypnosis();
+                    }
+                }, 1000);
+            }
+        }
+
+        function continueAfterHypnosis() {
+            switchMode('chat');
+            if (chatMessages.length === 0) initChat();
+            var cfg = voiceConfig[selectedVoice];
+            var postHypnoMsg = cfg.name + ' sees you returning from deep relaxation...';
+            addChatBubble('therapist', postHypnoMsg);
+            chatMessages.push({ role: 'assistant', content: 'The hypnosis session is complete. You look deeply relaxed. How are you feeling? Tell me everything that is on your mind.' });
+
+            fetch('/api/tts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-device-id': deviceId },
+                body: JSON.stringify({ text: 'You look so relaxed now. Open your eyes... tell me everything.', personaId: selectedVoice })
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.audioBase64) {
+                    var blobUrl = base64ToBlob(data.audioBase64, 'audio/mpeg');
+                    var a = new Audio(blobUrl);
+                    a.play().catch(function() {});
+                }
+            })
+            .catch(function() {});
         }
 
         function stopHypnosis() {
