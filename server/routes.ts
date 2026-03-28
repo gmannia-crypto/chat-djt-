@@ -22,6 +22,15 @@ import {
   getOrCreateAccount,
 } from "./tokens";
 import {
+  initAnalyticsTables,
+  trackPageView,
+  trackFeatureEvent,
+  submitSuggestion,
+  getAnalyticsSummary,
+  getSuggestions,
+  updateSuggestionStatus,
+} from "./analytics";
+import {
   initTherapyTables,
   analyzeUserSentiment,
   getTherapyMemory,
@@ -580,6 +589,72 @@ const API_COST_ESTIMATES: Record<string, number> = {
 
 export async function registerRoutes(app: Express): Promise<Server> {
   initTherapyTables().catch((e) => console.error("Therapy table init error:", e));
+  initAnalyticsTables().catch((e) => console.error("Analytics table init error:", e));
+
+  app.post("/api/analytics/pageview", async (req, res) => {
+    try {
+      const { deviceId, screen, durationSeconds } = req.body;
+      if (!deviceId || !screen) return res.status(400).json({ error: "missing fields" });
+      await trackPageView(deviceId, screen, durationSeconds || 0);
+      return res.json({ ok: true });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/analytics/event", async (req, res) => {
+    try {
+      const { deviceId, feature, action, metadata } = req.body;
+      if (!deviceId || !feature || !action) return res.status(400).json({ error: "missing fields" });
+      await trackFeatureEvent(deviceId, feature, action, metadata);
+      return res.json({ ok: true });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/suggestions", async (req, res) => {
+    try {
+      const { deviceId, name, message } = req.body;
+      if (!deviceId || !message) return res.status(400).json({ error: "message required" });
+      await submitSuggestion(deviceId, name || "Anonymous", message);
+      return res.json({ ok: true });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get("/api/admin/analytics", async (req, res) => {
+    try {
+      const days = parseInt(req.query.days as string) || 30;
+      const summary = await getAnalyticsSummary(days);
+      return res.json(summary);
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get("/api/admin/suggestions", async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 50;
+      const offset = parseInt(req.query.offset as string) || 0;
+      const items = await getSuggestions(limit, offset);
+      return res.json({ suggestions: items });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/admin/suggestions/:id/status", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { status, adminNote } = req.body;
+      await updateSuggestionStatus(id, status, adminNote || "");
+      return res.json({ ok: true });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  });
 
   app.get("/api/model-settings", (_req, res) => {
     const hasDeepseek = !!process.env.DEEPSEEK_API_KEY;

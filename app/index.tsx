@@ -28,6 +28,8 @@ import { Audio, Video, ResizeMode } from "expo-av";
 import { playTTS } from "@/lib/audio-helper";
 import { useSoundEffects } from "@/lib/use-sound";
 import { SoundToggle } from "@/components/SoundToggle";
+import { SuggestionBox } from "@/components/SuggestionBox";
+import { useScreenTracker, useTrackEvent } from "@/lib/use-analytics";
 import Animated, {
   FadeInDown,
   FadeInUp,
@@ -294,6 +296,8 @@ export default function HomeScreen() {
   const [collectionCount, setCollectionCount] = useState({ owned: 0, total: 24 });
   const { deviceId, hasTokens, balance } = useTokens();
   const { playClick, playTransition } = useSoundEffects();
+  useScreenTracker("main_menu");
+  const trackEvent = useTrackEvent();
   const mainScrollRef = useRef<ScrollView>(null);
 
   const refreshCollectionCount = useCallback(async () => {
@@ -2084,6 +2088,7 @@ export default function HomeScreen() {
         </Pressable>
       </Modal>
       <SoundToggle />
+      <SuggestionBox />
     </View>
   );
 }

@@ -24,6 +24,7 @@ import { Audio, Video, ResizeMode } from "expo-av";
 import { playTTS } from "@/lib/audio-helper";
 import { SoundToggle } from "@/components/SoundToggle";
 import { useSound } from "@/lib/sound-context";
+import { useScreenTracker, useTrackEvent } from "@/lib/use-analytics";
 import { recordTherapySession, getTherapyContext } from "@/lib/persona-memory";
 import Animated, {
   FadeIn,
@@ -264,6 +265,8 @@ export default function TherapyScreen() {
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
   const { hasTokens, deviceId, refreshBalance, balance } = useTokens();
   const { soundEnabled } = useSound();
+  useScreenTracker("therapy");
+  const trackEvent = useTrackEvent();
 
   const [selectedTherapist, setSelectedTherapist] = useState<TherapistVoice>("trump");
   const [questionPrompt, setQuestionPrompt] = useState<string | null>(null);

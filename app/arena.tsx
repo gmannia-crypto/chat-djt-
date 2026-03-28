@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useScreenTracker } from "@/lib/use-analytics";
 import {
   View,
   Text,
@@ -1352,6 +1353,7 @@ export default function ArenaScreen() {
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
   const { deviceId, balance, refreshBalance } = useTokens();
+  useScreenTracker("arena");
 
   const [showIntro, setShowIntro] = useState(false);
   const [showPreDebateSetup, setShowPreDebateSetup] = useState(true);

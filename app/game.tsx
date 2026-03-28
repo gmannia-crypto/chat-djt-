@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import { useScreenTracker } from "@/lib/use-analytics";
 import {
   StyleSheet,
   Text,
@@ -212,6 +213,7 @@ export default function GameScreen() {
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
   const scrollRef = useRef<ScrollView>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
+  useScreenTracker("billionaires_game");
 
   const [playerName, setPlayerName] = useState("");
   const [nameConfirmed, setNameConfirmed] = useState(false);

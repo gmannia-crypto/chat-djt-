@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback } from "react";
+import { useScreenTracker } from "@/lib/use-analytics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   StyleSheet,
@@ -69,6 +70,7 @@ export default function FortuneScreen() {
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
   const { hasTokens, deviceId, refreshBalance } = useTokens();
+  useScreenTracker("fortune");
 
   const [firstName, setFirstName] = useState("");
   const [birthMonth, setBirthMonth] = useState<number | null>(null);

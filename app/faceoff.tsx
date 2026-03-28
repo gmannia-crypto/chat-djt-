@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
+import { useScreenTracker } from "@/lib/use-analytics";
 import {
   StyleSheet,
   Text,
@@ -519,6 +520,7 @@ export default function FaceoffScreen() {
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
   const scrollRef = useRef<ScrollView>(null);
   const { balance } = useTokens();
+  useScreenTracker("faceoff");
 
   const [mode, setMode] = useState<"1v1" | "battle">("1v1");
   const [selectedTopic, setSelectedTopic] = useState<Topic>(TOPICS[0]);

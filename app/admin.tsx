@@ -1110,12 +1110,244 @@ export default function AdminScreen() {
             </View>
 
             <ModelSettingsSection onModelChange={fetchQuickModelData} />
+
+            <AnalyticsDashboard />
+            <SuggestionsViewer />
           </>
         ) : null}
       </ScrollView>
     </View>
   );
 }
+
+function AnalyticsDashboard() {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [days, setDays] = useState(30);
+
+  useEffect(() => {
+    fetchAnalytics();
+  }, [days]);
+
+  async function fetchAnalytics() {
+    setLoading(true);
+    try {
+      const res = await fetch(new URL(`/api/admin/analytics?days=${days}`, getApiUrl()).toString());
+      if (res.ok) setData(await res.json());
+    } catch {}
+    setLoading(false);
+  }
+
+  if (loading) return (
+    <View style={analyticsStyles.section}>
+      <Text style={analyticsStyles.sectionTitle}>User Analytics</Text>
+      <ActivityIndicator color={Colors.gold} style={{ marginTop: 20 }} />
+    </View>
+  );
+
+  if (!data) return null;
+
+  return (
+    <View style={analyticsStyles.section}>
+      <View style={analyticsStyles.headerRow}>
+        <Text style={analyticsStyles.sectionTitle}>User Analytics</Text>
+        <View style={analyticsStyles.periodRow}>
+          {[7, 30, 90].map((d) => (
+            <Pressable
+              key={d}
+              onPress={() => setDays(d)}
+              style={[analyticsStyles.periodBtn, days === d && analyticsStyles.periodBtnActive]}
+            >
+              <Text style={[analyticsStyles.periodText, days === d && analyticsStyles.periodTextActive]}>
+                {d}d
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+
+      <View style={analyticsStyles.statsRow}>
+        <View style={analyticsStyles.statBox}>
+          <Text style={analyticsStyles.statNum}>{data.uniqueVisitors}</Text>
+          <Text style={analyticsStyles.statLabel}>Unique Visitors</Text>
+        </View>
+        <View style={analyticsStyles.statBox}>
+          <Text style={analyticsStyles.statNum}>{data.totalPageViews}</Text>
+          <Text style={analyticsStyles.statLabel}>Page Views</Text>
+        </View>
+        <View style={analyticsStyles.statBox}>
+          <Text style={[analyticsStyles.statNum, { color: "#FF5252" }]}>{data.suggestions?.unread || 0}</Text>
+          <Text style={analyticsStyles.statLabel}>New Suggestions</Text>
+        </View>
+      </View>
+
+      {data.topScreens?.length > 0 && (
+        <View style={analyticsStyles.card}>
+          <Text style={analyticsStyles.cardTitle}>Most Popular Screens</Text>
+          {data.topScreens.map((s: any, i: number) => {
+            const maxViews = data.topScreens[0]?.views || 1;
+            return (
+              <View key={s.screen} style={analyticsStyles.barRow}>
+                <Text style={analyticsStyles.barLabel} numberOfLines={1}>{s.screen}</Text>
+                <View style={analyticsStyles.barTrack}>
+                  <View style={[analyticsStyles.barFill, { width: `${Math.max(5, (s.views / maxViews) * 100)}%` }]} />
+                </View>
+                <Text style={analyticsStyles.barValue}>{s.views}</Text>
+                <Text style={analyticsStyles.barAvg}>avg {s.avgDuration}s</Text>
+              </View>
+            );
+          })}
+        </View>
+      )}
+
+      {data.topFeatures?.length > 0 && (
+        <View style={analyticsStyles.card}>
+          <Text style={analyticsStyles.cardTitle}>Top Feature Events</Text>
+          {data.topFeatures.slice(0, 10).map((f: any, i: number) => (
+            <View key={`${f.feature}-${f.action}`} style={analyticsStyles.featureRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={analyticsStyles.featureName}>{f.feature}</Text>
+                <Text style={analyticsStyles.featureAction}>{f.action}</Text>
+              </View>
+              <Text style={analyticsStyles.featureCount}>{f.count}x</Text>
+              <Text style={analyticsStyles.featureUsers}>{f.uniqueUsers} users</Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {data.dailyVisitors?.length > 0 && (
+        <View style={analyticsStyles.card}>
+          <Text style={analyticsStyles.cardTitle}>Daily Visitors (last {days} days)</Text>
+          {data.dailyVisitors.slice(0, 14).map((d: any) => {
+            const maxV = Math.max(...data.dailyVisitors.map((x: any) => x.visitors), 1);
+            const dayStr = new Date(d.day).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+            return (
+              <View key={d.day} style={analyticsStyles.barRow}>
+                <Text style={[analyticsStyles.barLabel, { width: 50 }]}>{dayStr}</Text>
+                <View style={analyticsStyles.barTrack}>
+                  <View style={[analyticsStyles.barFill, { width: `${Math.max(3, (d.visitors / maxV) * 100)}%`, backgroundColor: "#4ADE80" }]} />
+                </View>
+                <Text style={analyticsStyles.barValue}>{d.visitors}</Text>
+              </View>
+            );
+          })}
+        </View>
+      )}
+    </View>
+  );
+}
+
+function SuggestionsViewer() {
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchSuggestions();
+  }, []);
+
+  async function fetchSuggestions() {
+    setLoading(true);
+    try {
+      const res = await fetch(new URL("/api/admin/suggestions", getApiUrl()).toString());
+      if (res.ok) {
+        const data = await res.json();
+        setSuggestions(data.suggestions || []);
+      }
+    } catch {}
+    setLoading(false);
+  }
+
+  async function markStatus(id: number, status: string) {
+    await fetch(new URL(`/api/admin/suggestions/${id}/status`, getApiUrl()).toString(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    fetchSuggestions();
+  }
+
+  return (
+    <View style={analyticsStyles.section}>
+      <Text style={analyticsStyles.sectionTitle}>Suggestion Box</Text>
+      {loading ? (
+        <ActivityIndicator color={Colors.gold} style={{ marginTop: 20 }} />
+      ) : suggestions.length === 0 ? (
+        <View style={analyticsStyles.card}>
+          <Text style={{ color: "#888", textAlign: "center", padding: 20 }}>No suggestions yet</Text>
+        </View>
+      ) : (
+        suggestions.map((s) => {
+          const statusColors: Record<string, string> = {
+            new: "#FF5252",
+            reviewed: "#FFC107",
+            implemented: "#4ADE80",
+            declined: "#888",
+          };
+          return (
+            <View key={s.id} style={analyticsStyles.suggestionCard}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <Text style={{ color: "#fff", fontWeight: "700" as const, fontSize: 15 }}>{s.name}</Text>
+                <View style={[analyticsStyles.statusBadge, { backgroundColor: (statusColors[s.status] || "#888") + "22" }]}>
+                  <Text style={[analyticsStyles.statusText, { color: statusColors[s.status] || "#888" }]}>{s.status.toUpperCase()}</Text>
+                </View>
+              </View>
+              <Text style={{ color: "#ccc", fontSize: 14, lineHeight: 20, marginBottom: 8 }}>{s.message}</Text>
+              <Text style={{ color: "#666", fontSize: 11 }}>
+                {new Date(s.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+              </Text>
+              {s.status === "new" && (
+                <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
+                  <Pressable onPress={() => markStatus(s.id, "reviewed")} style={[analyticsStyles.actionBtn, { backgroundColor: "#FFC10722" }]}>
+                    <Text style={{ color: "#FFC107", fontSize: 12, fontWeight: "700" as const }}>Mark Reviewed</Text>
+                  </Pressable>
+                  <Pressable onPress={() => markStatus(s.id, "implemented")} style={[analyticsStyles.actionBtn, { backgroundColor: "#4ADE8022" }]}>
+                    <Text style={{ color: "#4ADE80", fontSize: 12, fontWeight: "700" as const }}>Implemented</Text>
+                  </Pressable>
+                  <Pressable onPress={() => markStatus(s.id, "declined")} style={[analyticsStyles.actionBtn, { backgroundColor: "#88888822" }]}>
+                    <Text style={{ color: "#888", fontSize: 12, fontWeight: "700" as const }}>Decline</Text>
+                  </Pressable>
+                </View>
+              )}
+            </View>
+          );
+        })
+      )}
+    </View>
+  );
+}
+
+const analyticsStyles = StyleSheet.create({
+  section: { marginTop: 24, paddingHorizontal: 4 },
+  sectionTitle: { fontSize: 20, fontWeight: "800" as const, color: "#fff", marginBottom: 16 },
+  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
+  periodRow: { flexDirection: "row", gap: 6 },
+  periodBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: "#1a1a2e" },
+  periodBtnActive: { backgroundColor: Colors.gold },
+  periodText: { color: "#888", fontSize: 12, fontWeight: "700" as const },
+  periodTextActive: { color: "#0a0a0a" },
+  statsRow: { flexDirection: "row", gap: 10, marginBottom: 16 },
+  statBox: { flex: 1, backgroundColor: "#1a1a2e", borderRadius: 12, padding: 16, alignItems: "center" },
+  statNum: { fontSize: 28, fontWeight: "800" as const, color: Colors.gold },
+  statLabel: { fontSize: 11, color: "#888", marginTop: 4, fontWeight: "600" as const, textTransform: "uppercase" as const },
+  card: { backgroundColor: "#1a1a2e", borderRadius: 14, padding: 16, marginBottom: 12 },
+  cardTitle: { fontSize: 15, fontWeight: "700" as const, color: "#fff", marginBottom: 12 },
+  barRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
+  barLabel: { width: 80, fontSize: 12, color: "#aaa", fontWeight: "600" as const },
+  barTrack: { flex: 1, height: 8, backgroundColor: "#0d0d1a", borderRadius: 4, overflow: "hidden" as const },
+  barFill: { height: "100%", backgroundColor: Colors.gold, borderRadius: 4 },
+  barValue: { width: 36, fontSize: 12, color: "#fff", fontWeight: "700" as const, textAlign: "right" as const },
+  barAvg: { width: 52, fontSize: 10, color: "#888", textAlign: "right" as const },
+  featureRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: "#ffffff08" },
+  featureName: { fontSize: 13, color: "#fff", fontWeight: "600" as const },
+  featureAction: { fontSize: 11, color: "#888" },
+  featureCount: { fontSize: 13, color: Colors.gold, fontWeight: "700" as const, width: 40, textAlign: "right" as const },
+  featureUsers: { fontSize: 11, color: "#888", width: 55, textAlign: "right" as const },
+  suggestionCard: { backgroundColor: "#1a1a2e", borderRadius: 14, padding: 16, marginBottom: 10, borderLeftWidth: 3, borderLeftColor: Colors.gold },
+  statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
+  statusText: { fontSize: 10, fontWeight: "800" as const, letterSpacing: 0.5 },
+  actionBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
+});
 
 const styles = StyleSheet.create({
   container: {

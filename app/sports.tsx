@@ -33,6 +33,7 @@ import {
 import { useSoundEffects } from "@/lib/use-sound";
 import { SoundToggle } from "@/components/SoundToggle";
 import { useSound } from "@/lib/sound-context";
+import { useScreenTracker, useTrackEvent } from "@/lib/use-analytics";
 import {
   getTallies,
   makeUniversalPick,
@@ -972,6 +973,8 @@ export default function SportsScreen() {
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
   const { soundEnabled } = useSound();
+  useScreenTracker("sports");
+  const trackEvent = useTrackEvent();
 
   const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
