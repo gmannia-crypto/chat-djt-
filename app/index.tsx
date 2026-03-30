@@ -1120,17 +1120,36 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + webTopInset }]}>
-      <View style={[styles.videoBgContainer, Platform.OS === "web" && { height: SCREEN_WIDTH * 9 / 16 }]} pointerEvents="none">
-        <Video
-          source={{ uri: bgVideoUrl }}
-          style={[styles.videoBg, Platform.OS === "web" && { aspectRatio: 16 / 9, height: undefined }]}
-          resizeMode={Platform.OS === "web" ? ResizeMode.CONTAIN : ResizeMode.COVER}
-          shouldPlay
-          isLooping
-          isMuted
-          rate={0.015}
-          onError={(e: any) => console.warn("Video bg error:", e)}
-        />
+      <View style={styles.videoBgContainer} pointerEvents="none">
+        {Platform.OS === "web" ? (
+          <video
+            src={bgVideoUrl}
+            autoPlay
+            loop
+            muted
+            playsInline
+            style={{
+              width: "100%",
+              height: "auto",
+              aspectRatio: "16/9",
+              objectFit: "cover",
+              position: "absolute",
+              top: 0,
+              left: 0,
+            }}
+          />
+        ) : (
+          <Video
+            source={{ uri: bgVideoUrl }}
+            style={styles.videoBg}
+            resizeMode={ResizeMode.COVER}
+            shouldPlay
+            isLooping
+            isMuted
+            rate={0.015}
+            onError={(e: any) => console.warn("Video bg error:", e)}
+          />
+        )}
       </View>
       <LinearGradient
         colors={["rgba(10, 10, 10, 0.15)", "rgba(10, 10, 10, 0.0)", "rgba(10, 10, 10, 0.25)"]}

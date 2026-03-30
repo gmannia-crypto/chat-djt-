@@ -2037,6 +2037,7 @@ export default function TherapyScreen() {
               resizeMode={ResizeMode.CONTAIN}
               shouldPlay
               isLooping={false}
+              rate={2.0}
               onPlaybackStatusUpdate={(status: any) => {
                 if (status.didJustFinish) {
                   onSerenaVideoEnd();
