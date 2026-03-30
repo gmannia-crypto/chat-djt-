@@ -9,6 +9,7 @@ import {
   ScrollView,
   Linking,
   ActivityIndicator,
+  Image,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -128,17 +129,17 @@ export default function SubscribeScreen() {
 
       let msg: string;
       if (data.type === "subscription" && data.tier === "vip") {
-        msg = "Welcome to VIP! 150 Dynamic Tokens loaded. Nobody gets a better deal than you!";
+        msg = "Welcome to VIP! 150 D.C. Tokens loaded. Nobody gets a better deal than you!";
       } else if (data.type === "subscription") {
-        msg = "Welcome! 50 Dynamic Tokens loaded. Great deal, believe me!";
+        msg = "Welcome! 50 D.C. Tokens loaded. Great deal, believe me!";
       } else {
-        msg = "Dynamic Tokens added to your account! Now get back in there!";
+        msg = "D.C. Tokens added to your account! Now get back in there!";
       }
 
       if (Platform.OS === "web") {
         alert(msg);
       } else {
-        Alert.alert("Tokens Added!", msg, [
+        Alert.alert("D.C. Tokens Added!", msg, [
           { text: "Tremendous!", style: "default", onPress: () => router.back() },
         ]);
       }
@@ -283,9 +284,9 @@ export default function SubscribeScreen() {
           style={styles.heroSection}
         >
           <View style={styles.tokenCircle}>
-            <FontAwesome5 name="coins" size={32} color={Colors.gold} />
+            <Image source={require("@/assets/images/dynamic-creations-logo.jpg")} style={{ width: 40, height: 40, borderRadius: 20 }} />
           </View>
-          <Text style={styles.heroTitle}>Dynamic Tokens</Text>
+          <Text style={styles.heroTitle}>D.C. Tokens</Text>
           <Text style={styles.heroSubtitle}>
             Power your conversations with DJT. Each prompt costs 1 token.
           </Text>
@@ -304,9 +305,9 @@ export default function SubscribeScreen() {
             >
               <Text style={styles.balanceLabel}>YOUR BALANCE</Text>
               <View style={styles.balanceRow}>
-                <FontAwesome5 name="coins" size={24} color={Colors.gold} />
+                <Image source={require("@/assets/images/dynamic-creations-logo.jpg")} style={{ width: 28, height: 28, borderRadius: 14 }} />
                 <Text style={styles.balanceAmount}>{balance.totalAvailable}</Text>
-                <Text style={styles.balanceUnit}>tokens</Text>
+                <Text style={styles.balanceUnit}>D.C. tokens</Text>
               </View>
               {balance.freeRemaining > 0 && (
                 <Text style={styles.balanceDetail}>

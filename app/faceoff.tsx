@@ -850,7 +850,7 @@ export default function FaceoffScreen() {
         <View style={{ flexDirection: "row" as const, alignItems: "center" as const, gap: 6 }}>
           {balance && (
             <Pressable onPress={() => router.push("/subscribe")} style={{ flexDirection: "row" as const, alignItems: "center" as const, gap: 3, backgroundColor: "rgba(212,164,32,0.15)", borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: "rgba(212,164,32,0.3)" }}>
-              <Ionicons name="flash" size={12} color={Colors.gold} />
+              <Image source={require("@/assets/images/dynamic-creations-logo.jpg")} style={{ width: 14, height: 14, borderRadius: 7 }} />
               <Text style={{ fontSize: 11, fontWeight: "800" as const, color: Colors.gold }}>{balance.totalAvailable}</Text>
             </Pressable>
           )}

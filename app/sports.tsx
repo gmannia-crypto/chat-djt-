@@ -1503,7 +1503,7 @@ export default function SportsScreen() {
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
           {balance && (
             <Pressable onPress={() => router.push("/subscribe")} style={styles.tokenBadge}>
-              <Ionicons name="flash" size={12} color={Colors.gold} />
+              <Image source={require("@/assets/images/dynamic-creations-logo.jpg")} style={{ width: 14, height: 14, borderRadius: 7 }} />
               <Text style={styles.tokenBadgeText}>{balance.totalAvailable}</Text>
             </Pressable>
           )}

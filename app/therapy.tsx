@@ -102,7 +102,7 @@ function SessionTimer({ active, ended, initialSeconds, mode, deepDuration, accen
       </Text>
       {active && (
         <Text style={[timerStyles.tokens, { color: accent }]}>
-          {tokenChargeRef.current}/{deepDuration} tokens used
+          {tokenChargeRef.current}/{deepDuration} D.C. tokens used
         </Text>
       )}
       {ended && <Text style={timerStyles.expired}>SESSION ENDED</Text>}
@@ -1171,7 +1171,7 @@ export default function TherapyScreen() {
         <View style={{ flex: 1 }} />
         {balance && (
           <Pressable onPress={() => router.push("/subscribe")} style={{ flexDirection: "row" as const, alignItems: "center" as const, gap: 3, backgroundColor: "rgba(212,164,32,0.15)", borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: "rgba(212,164,32,0.3)", marginRight: 8 }}>
-            <Ionicons name="flash" size={12} color="#D4A420" />
+            <Image source={require("@/assets/images/dynamic-creations-logo.jpg")} style={{ width: 14, height: 14, borderRadius: 7 }} />
             <Text style={{ fontSize: 11, fontWeight: "800" as const, color: "#D4A420" }}>{balance.totalAvailable}</Text>
           </Pressable>
         )}
@@ -1434,7 +1434,7 @@ export default function TherapyScreen() {
                 {hypnoLoading ? "Preparing..." : "\u{1F300} BEGIN HYPNOSIS"}
               </Text>
             </Pressable>
-            <Text style={{ color: "#999", fontSize: 11, textAlign: "center", marginTop: 8 }}>Costs 2 tokens per session</Text>
+            <Text style={{ color: "#999", fontSize: 11, textAlign: "center", marginTop: 8 }}>Costs 2 D.C. tokens per session</Text>
           </Animated.View>
         )}
 
@@ -1455,7 +1455,7 @@ export default function TherapyScreen() {
             </View>
             <View style={styles.durationCostRow}>
               <Ionicons name="flash" size={12} color={config.accent} />
-              <Text style={[styles.durationCostText, { color: config.accent }]}>{deepDuration} tokens ({deepDuration} min × 1 token/min)</Text>
+              <Text style={[styles.durationCostText, { color: config.accent }]}>{deepDuration} D.C. tokens ({deepDuration} min × 1 token/min)</Text>
             </View>
           </Animated.View>
         )}

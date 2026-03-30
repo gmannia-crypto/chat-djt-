@@ -974,7 +974,7 @@ export default function AdminScreen() {
               <StatCard
                 icon="diamond"
                 iconSet="materialCommunity"
-                title="Tokens Granted"
+                title="D.C. Tokens Granted"
                 value={stats.transactions.totalTokensGranted.toString()}
                 subtitle="Total distributed"
                 delay={650}

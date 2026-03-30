@@ -140,7 +140,7 @@ export async function useToken(deviceId: string): Promise<{ success: boolean; er
     );
     await db.query(
       `INSERT INTO token_transactions (account_id, type, amount, description, created_at)
-       VALUES ($1, 'use_token', -1, 'Trump Token used for prompt', NOW())`,
+       VALUES ($1, 'use_token', -1, 'D.C. Token used for prompt', NOW())`,
       [account.id]
     );
     const balance = await getTokenBalance(deviceId);

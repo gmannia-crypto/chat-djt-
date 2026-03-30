@@ -70,7 +70,7 @@ const LAST_CHAT_DAY_KEY = "chatdjt_last_chat_day";
 const MYSTERY_BOX_KEY = "chatdjt_mystery_box";
 
 const MYSTERY_REWARDS = [
-  { label: "Free Roast", icon: "flame", description: "Trump will personally roast you — for FREE. No tokens needed." },
+  { label: "Free Roast", icon: "flame", description: "Trump will personally roast you — for FREE. No D.C. tokens needed." },
   { label: "Double Fortune", icon: "crystal-ball", description: "Your next Fortune Parlor reading is DOUBLED. Twice the prophecy!" },
   { label: "Dynamic Stock Tip", icon: "trending-up", description: "An exclusive AI-generated stock hot take from the Don himself." },
   { label: "Property Discount", icon: "home", description: "VIP access to Dynamic Realty's top pick of the day. TREMENDOUS." },
@@ -1199,7 +1199,7 @@ export default function HomeScreen() {
           )}
           {balance && (
             <Pressable onPress={() => router.push("/subscribe")} style={{ flexDirection: "row" as const, alignItems: "center" as const, gap: 3, backgroundColor: "rgba(212,164,32,0.15)", borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: "rgba(212,164,32,0.3)" }}>
-              <Ionicons name="flash" size={12} color={Colors.gold} />
+              <Image source={require("@/assets/images/dynamic-creations-logo.jpg")} style={{ width: 14, height: 14, borderRadius: 7 }} />
               <Text style={{ fontSize: 11, fontWeight: "800" as const, color: Colors.gold }}>{balance.totalAvailable}</Text>
             </Pressable>
           )}
