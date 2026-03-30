@@ -1,7 +1,7 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -15,7 +15,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { queryClient } from "@/lib/query-client";
+import { queryClient, getApiUrl } from "@/lib/query-client";
 import { TokenProvider } from "@/lib/token-context";
 import { SoundProvider } from "@/lib/sound-context";
 import { StatusBar } from "expo-status-bar";
@@ -27,10 +27,72 @@ import {
 } from "@expo-google-fonts/playfair-display";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
+import * as Notifications from "expo-notifications";
+import Constants from "expo-constants";
+import { getOrCreateDeviceId } from "@/lib/token-context";
 
 const DISCLAIMER_KEY = "chatdjt_disclaimer_accepted";
 
 SplashScreen.preventAutoHideAsync();
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
+
+async function registerForPushNotifications() {
+  if (Platform.OS === "web") return;
+
+  try {
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+
+    if (existingStatus !== "granted") {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+
+    if (finalStatus !== "granted") {
+      console.log("Push notification permission not granted");
+      return;
+    }
+
+    const projectId = Constants.expoConfig?.extra?.eas?.projectId ??
+      Constants.easConfig?.projectId;
+    const tokenData = await Notifications.getExpoPushTokenAsync({
+      projectId: projectId ?? undefined,
+    });
+    const expoPushToken = tokenData.data;
+
+    const deviceId = await getOrCreateDeviceId();
+    const baseUrl = getApiUrl();
+
+    await fetch(new URL("/api/push-tokens", baseUrl).toString(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        deviceId,
+        expoPushToken,
+        platform: Platform.OS,
+      }),
+    });
+
+    if (Platform.OS === "android") {
+      Notifications.setNotificationChannelAsync("default", {
+        name: "default",
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: "#FF231F7C",
+      });
+    }
+  } catch (error) {
+    console.log("Push notification registration error:", error);
+  }
+}
 
 function DisclaimerModal({ visible, onAccept }: { visible: boolean; onAccept: () => void }) {
   return (
@@ -313,6 +375,8 @@ export default function RootLayout() {
   });
   const [disclaimerVisible, setDisclaimerVisible] = useState(false);
   const [disclaimerChecked, setDisclaimerChecked] = useState(false);
+  const notificationListener = useRef<Notifications.EventSubscription | null>(null);
+  const responseListener = useRef<Notifications.EventSubscription | null>(null);
 
   useEffect(() => {
     AsyncStorage.getItem(DISCLAIMER_KEY).then((val) => {
@@ -321,6 +385,27 @@ export default function RootLayout() {
       }
       setDisclaimerChecked(true);
     });
+  }, []);
+
+  useEffect(() => {
+    registerForPushNotifications();
+
+    notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
+      console.log("Notification received:", notification.request.content.title);
+    });
+
+    responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
+      console.log("Notification tapped:", response.notification.request.content.title);
+    });
+
+    return () => {
+      if (notificationListener.current) {
+        notificationListener.current.remove();
+      }
+      if (responseListener.current) {
+        responseListener.current.remove();
+      }
+    };
   }, []);
 
   useEffect(() => {

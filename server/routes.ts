@@ -31,6 +31,13 @@ import {
   updateSuggestionStatus,
 } from "./analytics";
 import {
+  initPushTokensTable,
+  registerPushToken,
+  unregisterPushToken,
+  sendPushNotifications,
+  getPushTokenCount,
+} from "./push-notifications";
+import {
   initTherapyTables,
   analyzeUserSentiment,
   getTherapyMemory,
@@ -590,6 +597,7 @@ const API_COST_ESTIMATES: Record<string, number> = {
 export async function registerRoutes(app: Express): Promise<Server> {
   initTherapyTables().catch((e) => console.error("Therapy table init error:", e));
   initAnalyticsTables().catch((e) => console.error("Analytics table init error:", e));
+  initPushTokensTable().catch((e) => console.error("Push tokens table init error:", e));
 
   app.post("/api/analytics/pageview", async (req, res) => {
     try {
@@ -651,6 +659,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { status, adminNote } = req.body;
       await updateSuggestionStatus(id, status, adminNote || "");
       return res.json({ ok: true });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/push-tokens", async (req, res) => {
+    try {
+      const { deviceId, expoPushToken, platform } = req.body;
+      if (!deviceId || !expoPushToken) {
+        return res.status(400).json({ error: "deviceId and expoPushToken required" });
+      }
+      await registerPushToken(deviceId, expoPushToken, platform || "unknown");
+      return res.json({ ok: true });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.delete("/api/push-tokens", async (req, res) => {
+    try {
+      const { expoPushToken } = req.body;
+      if (!expoPushToken) {
+        return res.status(400).json({ error: "expoPushToken required" });
+      }
+      await unregisterPushToken(expoPushToken);
+      return res.json({ ok: true });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/admin/send-notification", async (req, res) => {
+    try {
+      const adminSecret = process.env.ADMIN_SECRET;
+      if (adminSecret) {
+        const { adminPassword } = req.body;
+        if (adminPassword !== adminSecret) {
+          return res.status(403).json({ error: "Invalid admin password" });
+        }
+      }
+      const { title, body } = req.body;
+      if (!title || !body) {
+        return res.status(400).json({ error: "title and body required" });
+      }
+      const result = await sendPushNotifications(title, body);
+      return res.json(result);
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get("/api/admin/push-token-count", async (_req, res) => {
+    try {
+      const count = await getPushTokenCount();
+      return res.json({ count });
     } catch (e: any) {
       return res.status(500).json({ error: e.message });
     }

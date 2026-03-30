@@ -8,6 +8,8 @@ import {
   ScrollView,
   Linking,
   ActivityIndicator,
+  TextInput,
+  Alert,
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -1111,6 +1113,8 @@ export default function AdminScreen() {
 
             <ModelSettingsSection onModelChange={fetchQuickModelData} />
 
+            <PushNotificationSection />
+
             <AnalyticsDashboard />
             <SuggestionsViewer />
           </>
@@ -1119,6 +1123,234 @@ export default function AdminScreen() {
     </View>
   );
 }
+
+function PushNotificationSection() {
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [adminPassword, setAdminPassword] = useState("");
+  const [sending, setSending] = useState(false);
+  const [tokenCount, setTokenCount] = useState<number | null>(null);
+  const [result, setResult] = useState<{ sent: number; failed: number; errors: string[] } | null>(null);
+
+  useEffect(() => {
+    fetchTokenCount();
+  }, []);
+
+  async function fetchTokenCount() {
+    try {
+      const res = await fetch(new URL("/api/admin/push-token-count", getApiUrl()).toString());
+      if (res.ok) {
+        const data = await res.json();
+        setTokenCount(data.count);
+      }
+    } catch {}
+  }
+
+  async function handleSend() {
+    if (!title.trim() || !body.trim()) {
+      Alert.alert("Missing Fields", "Please enter both a title and message.");
+      return;
+    }
+    setSending(true);
+    setResult(null);
+    try {
+      const payload: Record<string, string> = { title: title.trim(), body: body.trim() };
+      if (adminPassword.trim()) {
+        payload.adminPassword = adminPassword.trim();
+      }
+      const res = await fetch(new URL("/api/admin/send-notification", getApiUrl()).toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setResult(data);
+        Haptics.notificationAsync(
+          data.failed > 0
+            ? Haptics.NotificationFeedbackType.Warning
+            : Haptics.NotificationFeedbackType.Success
+        );
+        if (data.sent > 0) {
+          setTitle("");
+          setBody("");
+        }
+      } else {
+        const err = await res.json();
+        setResult({ sent: 0, failed: 0, errors: [err.error || "Failed to send"] });
+      }
+    } catch (e: any) {
+      setResult({ sent: 0, failed: 0, errors: [e.message || "Network error"] });
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <Animated.View entering={FadeInDown.delay(1400).duration(400)}>
+      <View style={pushStyles.container}>
+        <View style={pushStyles.header}>
+          <Ionicons name="notifications" size={20} color={Colors.gold} />
+          <Text style={pushStyles.title}>Push Notifications</Text>
+          {tokenCount !== null && (
+            <View style={pushStyles.tokenBadge}>
+              <Text style={pushStyles.tokenBadgeText}>{tokenCount} devices</Text>
+            </View>
+          )}
+        </View>
+
+        <TextInput
+          style={pushStyles.input}
+          placeholder="Notification title..."
+          placeholderTextColor="#666"
+          value={title}
+          onChangeText={setTitle}
+          testID="push-title-input"
+        />
+        <TextInput
+          style={[pushStyles.input, pushStyles.bodyInput]}
+          placeholder="Notification message..."
+          placeholderTextColor="#666"
+          value={body}
+          onChangeText={setBody}
+          multiline
+          numberOfLines={3}
+          textAlignVertical="top"
+          testID="push-body-input"
+        />
+        <TextInput
+          style={pushStyles.input}
+          placeholder="Admin password (if required)..."
+          placeholderTextColor="#555"
+          value={adminPassword}
+          onChangeText={setAdminPassword}
+          secureTextEntry
+          testID="push-admin-password"
+        />
+
+        <Pressable
+          onPress={handleSend}
+          disabled={sending || !title.trim() || !body.trim()}
+          style={({ pressed }) => [
+            pushStyles.sendBtn,
+            pressed && { opacity: 0.8 },
+            (sending || !title.trim() || !body.trim()) && { opacity: 0.5 },
+          ]}
+          testID="push-send-btn"
+        >
+          {sending ? (
+            <ActivityIndicator size="small" color="#000" />
+          ) : (
+            <>
+              <Ionicons name="send" size={16} color="#000" />
+              <Text style={pushStyles.sendBtnText}>Send to All Devices</Text>
+            </>
+          )}
+        </Pressable>
+
+        {result && (
+          <View style={[pushStyles.resultBox, result.failed > 0 && pushStyles.resultBoxError]}>
+            <Text style={pushStyles.resultText}>
+              {result.sent > 0 ? `Sent to ${result.sent} device${result.sent !== 1 ? "s" : ""}` : ""}
+              {result.sent > 0 && result.failed > 0 ? " · " : ""}
+              {result.failed > 0 ? `${result.failed} failed` : ""}
+              {result.sent === 0 && result.failed === 0 && result.errors.length > 0 ? result.errors[0] : ""}
+            </Text>
+            {result.errors.length > 0 && result.sent > 0 && (
+              <Text style={pushStyles.errorDetail}>{result.errors[0]}</Text>
+            )}
+          </View>
+        )}
+      </View>
+    </Animated.View>
+  );
+}
+
+const pushStyles = StyleSheet.create({
+  container: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(212,164,32,0.15)",
+    padding: 16,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 14,
+  },
+  title: {
+    fontSize: 16,
+    fontWeight: "700" as const,
+    color: "#FFFFFF",
+    flex: 1,
+  },
+  tokenBadge: {
+    backgroundColor: "rgba(212,164,32,0.15)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  tokenBadgeText: {
+    fontSize: 11,
+    fontWeight: "700" as const,
+    color: Colors.gold,
+  },
+  input: {
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    padding: 12,
+    fontSize: 14,
+    color: "#FFFFFF",
+    marginBottom: 10,
+  },
+  bodyInput: {
+    minHeight: 70,
+  },
+  sendBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: Colors.gold,
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginTop: 4,
+  },
+  sendBtnText: {
+    fontSize: 14,
+    fontWeight: "800" as const,
+    color: "#000",
+    letterSpacing: 0.5,
+  },
+  resultBox: {
+    marginTop: 12,
+    backgroundColor: "rgba(74,222,128,0.12)",
+    borderRadius: 10,
+    padding: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: "#4ADE80",
+  },
+  resultBoxError: {
+    backgroundColor: "rgba(248,113,113,0.12)",
+    borderLeftColor: "#F87171",
+  },
+  resultText: {
+    fontSize: 13,
+    fontWeight: "600" as const,
+    color: "#FFFFFF",
+  },
+  errorDetail: {
+    fontSize: 11,
+    color: "#F87171",
+    marginTop: 4,
+  },
+});
 
 function AnalyticsDashboard() {
   const [data, setData] = useState<any>(null);

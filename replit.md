@@ -29,6 +29,7 @@ The backend is an Express 5 API gateway responsible for AI interactions, content
 - **Lip-Sync Video Generation**: Uses fal.ai SadTalker to generate lip-synced talking-head videos from therapist portraits + Fish Audio TTS. Premium feature behind token gate. Endpoint: `POST /api/therapy/lip-sync` (text + personaId → videoUrl + audioBase64).
 - **Speech Pause System**: Manages pausing of TTS and conversation loops during user mic recording.
 - **Arena Intro Animation**: Cinematic intro with voiceovers, animated persona chips, and a countdown.
+- **Push Notifications**: Admin can send push notifications to all registered devices. Client auto-registers push tokens on first launch (iOS/Android only, web gracefully skips). Server stores tokens in PostgreSQL `push_tokens` table with auto-pruning of invalid tokens. Admin UI section in Back Office with device count, title/body inputs, and send button. Endpoints: `POST /api/push-tokens`, `DELETE /api/push-tokens`, `POST /api/admin/send-notification`, `GET /api/admin/push-token-count`.
 - **Analytics & Monetization**: Tracks user events and integrates with Stripe for payment processing, employing triple-redundancy for token fulfillment.
 - **Sports All-Time Records**: Persistent win/loss/streak tracking for sports, with auto-syncing to the server and an all-time leaderboard.
 - **Live Sports Audio**: A radio-style module offering AI-generated play-by-play audio for live/upcoming/final games with persona commentators.
@@ -44,7 +45,8 @@ The landing page uses document-level event delegation, with three listeners (cli
 - **ElevenLabs API**: Advanced text-to-speech and voice cloning.
 - **Fish Audio API**: Persona-specific text-to-speech.
 - **@react-native-async-storage/async-storage**: Client-side data persistence.
-- **Expo Services**: Mobile-specific functionalities.
+- **Expo Services**: Mobile-specific functionalities (including push notifications via `expo-notifications`).
+- **Expo Push API**: Server-side push notification delivery to registered devices.
 - **RevenueCat (`react-native-purchases`)**: In-app purchases and subscriptions.
 - **RSS Feeds**: Real-time news headlines.
 - **Open-Meteo API**: Weather forecast data.
