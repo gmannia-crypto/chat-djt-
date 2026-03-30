@@ -147,6 +147,9 @@ interface TherapistConfig {
   errorMsg: string;
   rxTitle: string;
   rxSubtitle: string;
+  credentials: string;
+  specialty: string;
+  signature: string;
   questionPrompts?: string[];
   useAIQuestions?: boolean;
 }
@@ -172,6 +175,9 @@ const THERAPIST_CONFIGS: Record<TherapistVoice, TherapistConfig> = {
     errorMsg: "Dr. Dynamic is taking a break. Even the best therapists need to play golf sometimes. Try again!",
     rxTitle: "DR. DYNAMIC'S RX",
     rxSubtitle: "\"I prescribe only the best. Believe me.\"",
+    credentials: "45th & 47th President of the United States\nBillionaire Real Estate Mogul\nSelf-Certified Genius Therapist",
+    specialty: "Winning Psychology & Executive Confidence",
+    signature: "Dr. Donald J. Trump",
   },
   sophia: {
     voice: "sophia",
@@ -193,6 +199,9 @@ const THERAPIST_CONFIGS: Record<TherapistVoice, TherapistConfig> = {
     errorMsg: "Dr. Sophia is taking a moment to center herself. Please try again in a moment.",
     rxTitle: "DR. SOPHIA'S WELLNESS",
     rxSubtitle: "\"Healing starts with nurturing yourself.\"",
+    credentials: "Ph.D. in Clinical Psychology\nSpecializing in Attachment Theory & Trauma Recovery\nLicensed in New York",
+    specialty: "Attachment Theory & Trauma Recovery",
+    signature: "Dr. Sophia Chen, Ph.D.",
   },
   james: {
     voice: "james",
@@ -214,6 +223,9 @@ const THERAPIST_CONFIGS: Record<TherapistVoice, TherapistConfig> = {
     errorMsg: "Dr. James is reviewing his notes. Please try again shortly.",
     rxTitle: "DR. JAMES'S RX",
     rxSubtitle: "\"Evidence-based recommendations for your wellbeing.\"",
+    credentials: "Psy.D. in Cognitive Behavioral Therapy\nHarvard Medical School\nBoard-Certified",
+    specialty: "Cognitive Behavioral Therapy",
+    signature: "Dr. James Mitchell, Psy.D.",
   },
   patricia: {
     voice: "patricia",
@@ -233,8 +245,11 @@ const THERAPIST_CONFIGS: Record<TherapistVoice, TherapistConfig> = {
     placeholder: "Tell Dr. Patricia what's on your mind, gorgeous... or tap the mic",
     buttonText: "BEGIN SESSION",
     errorMsg: "Dr. Patricia is freshening up. She'll be right back, sweetheart.",
-    rxTitle: "DR. PATRICIA'S RX",
-    rxSubtitle: "\"Taking care of yourself is the sexiest thing you can do.\"",
+    rxTitle: "DR. SERENA'S RX",
+    rxSubtitle: "\"Taking care of yourself is the sexiest thing you can do, darling.\"",
+    credentials: "Ph.D. in Psychology\nSpecializing in Psychodynamic & Relational Therapy\nLicensed in California & New York",
+    specialty: "Psychodynamic & Relational Therapy",
+    signature: "Dr. Patricia Serena, Ph.D.",
     questionPrompts: [
       "What's the one thing you wish someone understood about you?",
       "Mmm, tell me about the last time you felt truly alive.",
@@ -319,6 +334,10 @@ export default function TherapyScreen() {
   const [phq9Interpretation, setPhq9Interpretation] = useState<{ severity: string; description: string } | null>(null);
   const [intakeScaleValue, setIntakeScaleValue] = useState("5");
 
+  const [diagnosisPlan, setDiagnosisPlan] = useState<any>(null);
+  const [diagnosisLoading, setDiagnosisLoading] = useState(false);
+  const [showSerenaFullscreen, setShowSerenaFullscreen] = useState(false);
+
   const config = THERAPIST_CONFIGS[selectedTherapist];
 
   const [isRecording, setIsRecording] = useState(false);
@@ -334,13 +353,20 @@ export default function TherapyScreen() {
 
   const pulseValue = useSharedValue(1);
 
+  const selectedTherapistRef = useRef(selectedTherapist);
+  selectedTherapistRef.current = selectedTherapist;
+
   useFocusEffect(
     React.useCallback(() => {
       setShowIntro(true);
       introTimerRef.current = setTimeout(() => {
         setShowIntro(false);
-        if (selectedTherapist === "patricia") {
-          setShowSerenaIntro(true);
+        if (selectedTherapistRef.current === "patricia") {
+          if (Platform.OS === "web" && SCREEN_WIDTH > 768) {
+            setShowSerenaFullscreen(true);
+          } else {
+            setShowSerenaIntro(true);
+          }
         }
       }, 3200);
       return () => {
@@ -611,7 +637,11 @@ export default function TherapyScreen() {
         greetingSoundRef.current = null;
       }
       if (voice === "patricia") {
-        setShowSerenaIntro(true);
+        if (Platform.OS === "web" && SCREEN_WIDTH > 768) {
+          setShowSerenaFullscreen(true);
+        } else {
+          setShowSerenaIntro(true);
+        }
         return;
       }
       if (!soundEnabled) return;
@@ -645,6 +675,65 @@ export default function TherapyScreen() {
     } catch (err) {
       console.error("Serena greeting TTS error:", err);
     }
+  }
+
+  function onSerenaFullscreenDismiss() {
+    setShowSerenaFullscreen(false);
+    setShowSerenaIntro(true);
+  }
+
+  async function generateDiagnosisPlan() {
+    if (!therapy || diagnosisLoading) return;
+    setDiagnosisLoading(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      const sessionNotes = conversationHistory.map(m => `${m.role === "user" ? "Patient" : config.name}: ${m.text}`).join("\n");
+      const chatNotes = chatMessages.map(m => `${m.role === "user" ? "Patient" : config.name}: ${m.content}`).join("\n");
+      const allNotes = sessionNotes || chatNotes || `Patient's concern: ${problem}\n${config.name}: ${therapy}`;
+      const res = await fetch(`${baseUrl}/api/therapy/diagnosis-plan`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(deviceId ? { "x-device-id": deviceId } : {}) },
+        body: JSON.stringify({
+          voice: selectedTherapist,
+          name: firstName || "Friend",
+          problem,
+          therapy,
+          sessionNotes: allNotes,
+          level: seriousness,
+          phq9Score,
+          phq9Interpretation: phq9Interpretation?.description || null,
+        }),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        if (errData.error === "no_tokens") {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+          router.push("/subscribe");
+          return;
+        }
+        throw new Error(errData.error || "Failed to generate plan");
+      }
+      const data = await res.json();
+      if (data.plan) {
+        setDiagnosisPlan(data.plan);
+        setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 300);
+      }
+    } catch (err) {
+      console.error("Diagnosis plan error:", err);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setDiagnosisLoading(false);
+    }
+  }
+
+  async function handleShareDiagnosis() {
+    if (!diagnosisPlan) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const planText = `${config.diagnosisLabel}\nPatient: ${firstName || "Friend"}\nTherapist: ${config.signature}\n${config.credentials.replace(/\n/g, " | ")}\n\nDIAGNOSIS:\n${diagnosisPlan.diagnosis}\n\nTREATMENT PLAN:\n${diagnosisPlan.treatmentSteps?.map((s: string, i: number) => `${i + 1}. ${s}`).join("\n")}\n\nACTIONABLE SOLUTIONS:\n${diagnosisPlan.solutions?.map((s: string, i: number) => `${i + 1}. ${s}`).join("\n")}\n\nSESSION NOTES:\n${diagnosisPlan.sessionSummary}\n\nSigned: ${config.signature}\n\nGenerated by Chat DJT — trumpbot.rip`;
+    try {
+      await Share.share({ message: planText });
+    } catch {}
   }
 
   const HYPNO_PRESETS = [
@@ -1074,6 +1163,7 @@ export default function TherapyScreen() {
     setFollowUpAnswer("");
     setConversationHistory([]);
     setSessionActive(false);
+    setDiagnosisPlan(null);
     setSessionEnded(false);
     setSessionInitialSeconds(deepDuration * 60);
     setSessionTimerKey((k) => k + 1);
@@ -1850,6 +1940,26 @@ export default function TherapyScreen() {
                 <Text style={[styles.resultActionText, { color: "#fff" }]}>NEW SESSION</Text>
               </Pressable>
             </View>
+
+            {!diagnosisPlan && (
+              <Pressable
+                onPress={generateDiagnosisPlan}
+                disabled={diagnosisLoading}
+                style={({ pressed }) => [
+                  { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, marginTop: 16, borderRadius: 12, borderWidth: 1, borderColor: `${config.accent}60`, backgroundColor: config.accentBg },
+                  pressed && { opacity: 0.7 },
+                ]}
+              >
+                {diagnosisLoading ? (
+                  <ActivityIndicator color={config.accent} size="small" />
+                ) : (
+                  <>
+                    <Ionicons name="document-text" size={18} color={config.accent} />
+                    <Text style={{ color: config.accent, fontSize: 13, fontFamily: "Inter_600SemiBold", letterSpacing: 1 }}>GET DIAGNOSIS PLAN</Text>
+                  </>
+                )}
+              </Pressable>
+            )}
           </Animated.View>
         )}
 
@@ -1968,6 +2078,93 @@ export default function TherapyScreen() {
             </Text>
           </View>
         )}
+
+        {diagnosisPlan && (
+          <Animated.View entering={FadeInUp.duration(600)} style={[diagStyles.card, { borderColor: `${config.accent}60` }]}>
+            <LinearGradient colors={[`${config.accent}15`, "transparent"]} style={diagStyles.cardHeader}>
+              <View style={diagStyles.drRow}>
+                <Image source={config.image} style={diagStyles.drImage} resizeMode="cover" />
+                <View style={diagStyles.drInfo}>
+                  <Text style={[diagStyles.drName, { color: config.accent }]}>{config.signature}</Text>
+                  {config.credentials.split("\n").map((line, i) => (
+                    <Text key={i} style={diagStyles.credential}>{line}</Text>
+                  ))}
+                </View>
+              </View>
+              <View style={[diagStyles.divider, { backgroundColor: `${config.accent}30` }]} />
+              <Text style={diagStyles.planLabel}>DIAGNOSIS & TREATMENT PLAN</Text>
+              <Text style={diagStyles.patientName}>Patient: {firstName || "Friend"}</Text>
+              <Text style={diagStyles.dateText}>Date: {new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</Text>
+            </LinearGradient>
+
+            <View style={diagStyles.section}>
+              <Text style={[diagStyles.sectionTitle, { color: config.accent }]}>DIAGNOSIS</Text>
+              <Text style={diagStyles.sectionText}>{diagnosisPlan.diagnosis}</Text>
+            </View>
+
+            {diagnosisPlan.treatmentSteps?.length > 0 && (
+              <View style={diagStyles.section}>
+                <Text style={[diagStyles.sectionTitle, { color: config.accent }]}>TREATMENT PLAN</Text>
+                {diagnosisPlan.treatmentSteps.map((step: string, i: number) => (
+                  <View key={i} style={diagStyles.stepRow}>
+                    <View style={[diagStyles.stepBadge, { backgroundColor: config.accent }]}>
+                      <Text style={diagStyles.stepNum}>{i + 1}</Text>
+                    </View>
+                    <Text style={diagStyles.stepText}>{step}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {diagnosisPlan.solutions?.length > 0 && (
+              <View style={diagStyles.section}>
+                <Text style={[diagStyles.sectionTitle, { color: config.accent }]}>ACTIONABLE SOLUTIONS</Text>
+                {diagnosisPlan.solutions.map((sol: string, i: number) => (
+                  <View key={i} style={diagStyles.solRow}>
+                    <Ionicons name="checkmark-circle" size={16} color={config.accent} />
+                    <Text style={diagStyles.solText}>{sol}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            <View style={diagStyles.section}>
+              <Text style={[diagStyles.sectionTitle, { color: config.accent }]}>SESSION NOTES</Text>
+              <Text style={diagStyles.sectionText}>{diagnosisPlan.sessionSummary}</Text>
+            </View>
+
+            <View style={[diagStyles.divider, { backgroundColor: `${config.accent}30` }]} />
+
+            <View style={diagStyles.signatureBlock}>
+              <Text style={[diagStyles.signatureText, { color: config.accent }]}>{config.signature}</Text>
+              <Text style={diagStyles.specialtyText}>{config.specialty}</Text>
+              <Text style={diagStyles.disclaimerText}>For entertainment purposes only. Not a substitute for professional medical advice.</Text>
+            </View>
+
+            <View style={diagStyles.actionsRow}>
+              <Pressable
+                onPress={handleShareDiagnosis}
+                style={({ pressed }) => [diagStyles.actionBtn, { borderColor: `${config.accent}60`, backgroundColor: config.accentBg }, pressed && { opacity: 0.7 }]}
+              >
+                <Ionicons name="share-outline" size={16} color={config.accent} />
+                <Text style={[diagStyles.actionText, { color: config.accent }]}>SHARE PLAN</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  const planText = `${config.diagnosisLabel}\nPatient: ${firstName || "Friend"}\nTherapist: ${config.signature}\n${config.credentials.replace(/\n/g, " | ")}\n\nDIAGNOSIS:\n${diagnosisPlan.diagnosis}\n\nTREATMENT PLAN:\n${diagnosisPlan.treatmentSteps?.map((s: string, i: number) => `${i + 1}. ${s}`).join("\n")}\n\nACTIONABLE SOLUTIONS:\n${diagnosisPlan.solutions?.map((s: string, i: number) => `${i + 1}. ${s}`).join("\n")}\n\nSESSION NOTES:\n${diagnosisPlan.sessionSummary}\n\nSigned: ${config.signature}`;
+                  if (Platform.OS === "web") {
+                    navigator.clipboard?.writeText(planText).catch(() => {});
+                  }
+                }}
+                style={({ pressed }) => [diagStyles.actionBtn, { borderColor: `${config.accent}60`, backgroundColor: config.accentBg }, pressed && { opacity: 0.7 }]}
+              >
+                <Ionicons name="copy-outline" size={16} color={config.accent} />
+                <Text style={[diagStyles.actionText, { color: config.accent }]}>COPY</Text>
+              </Pressable>
+            </View>
+          </Animated.View>
+        )}
       </ScrollView>
 
       <Modal
@@ -2027,6 +2224,27 @@ export default function TherapyScreen() {
           </Pressable>
         </View>
       </Modal>
+      <Modal visible={showSerenaFullscreen} transparent animationType="fade" onRequestClose={() => onSerenaFullscreenDismiss()}>
+        <View style={serenaFullStyles.overlay}>
+          <LinearGradient colors={["#0a0005", "#1a0a12", "#0a0005"]} style={serenaFullStyles.bg}>
+            <Image source={patriciaImage} style={serenaFullStyles.fullImage} resizeMode="cover" />
+            <LinearGradient colors={["transparent", "rgba(0,0,0,0.9)"]} style={serenaFullStyles.bottomGradient}>
+              <Animated.View entering={FadeInUp.duration(800).delay(300)} style={serenaFullStyles.textBlock}>
+                <Text style={serenaFullStyles.nameText}>DR. SERENA</Text>
+                <Text style={serenaFullStyles.titleText}>Ph.D. in Psychology — Psychodynamic & Relational Therapy</Text>
+                <Text style={serenaFullStyles.quoteText}>"You're safe here, darling. Let's begin."</Text>
+              </Animated.View>
+              <Pressable
+                onPress={() => onSerenaFullscreenDismiss()}
+                style={({ pressed }) => [serenaFullStyles.beginBtn, pressed && { opacity: 0.8 }]}
+              >
+                <Text style={serenaFullStyles.beginText}>BEGIN SESSION</Text>
+                <Ionicons name="arrow-forward" size={18} color="#fff" />
+              </Pressable>
+            </LinearGradient>
+          </LinearGradient>
+        </View>
+      </Modal>
       <Modal visible={showSerenaIntro} transparent animationType="fade" onRequestClose={() => setShowSerenaIntro(false)}>
         <View style={serenaIntroStyles.overlay}>
           <View style={serenaIntroStyles.videoContainer}>
@@ -2058,6 +2276,229 @@ export default function TherapyScreen() {
     </View>
   );
 }
+
+const serenaFullStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "#000",
+  },
+  bg: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  fullImage: {
+    position: "absolute" as const,
+    top: 0,
+    left: 0,
+    width: "100%",
+    height: "100%",
+  },
+  bottomGradient: {
+    paddingHorizontal: 40,
+    paddingBottom: 60,
+    paddingTop: 200,
+  },
+  textBlock: {
+    marginBottom: 30,
+  },
+  nameText: {
+    fontSize: 42,
+    fontFamily: "Inter_700Bold",
+    color: "#ff99cc",
+    letterSpacing: 3,
+    marginBottom: 8,
+  },
+  titleText: {
+    fontSize: 16,
+    fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.7)",
+    marginBottom: 16,
+  },
+  quoteText: {
+    fontSize: 20,
+    fontFamily: "Inter_500Medium",
+    color: "rgba(255,255,255,0.9)",
+    fontStyle: "italic" as const,
+  },
+  beginBtn: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    gap: 10,
+    backgroundColor: "#ff99cc",
+    paddingVertical: 16,
+    borderRadius: 30,
+    marginTop: 10,
+  },
+  beginText: {
+    fontSize: 16,
+    fontFamily: "Inter_700Bold",
+    color: "#fff",
+    letterSpacing: 2,
+  },
+});
+
+const diagStyles = StyleSheet.create({
+  card: {
+    backgroundColor: "rgba(20,20,20,0.95)",
+    borderRadius: 16,
+    borderWidth: 1,
+    marginHorizontal: 16,
+    marginBottom: 24,
+    overflow: "hidden" as const,
+  },
+  cardHeader: {
+    padding: 20,
+  },
+  drRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 14,
+    marginBottom: 16,
+  },
+  drImage: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+  },
+  drInfo: {
+    flex: 1,
+  },
+  drName: {
+    fontSize: 16,
+    fontFamily: "Inter_700Bold",
+    marginBottom: 2,
+  },
+  credential: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.5)",
+    lineHeight: 16,
+  },
+  divider: {
+    height: 1,
+    marginVertical: 12,
+  },
+  planLabel: {
+    fontSize: 13,
+    fontFamily: "Inter_700Bold",
+    color: "rgba(255,255,255,0.9)",
+    letterSpacing: 2,
+    marginBottom: 6,
+  },
+  patientName: {
+    fontSize: 14,
+    fontFamily: "Inter_500Medium",
+    color: "rgba(255,255,255,0.7)",
+    marginBottom: 2,
+  },
+  dateText: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.4)",
+  },
+  section: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  sectionTitle: {
+    fontSize: 12,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: 1.5,
+    marginBottom: 8,
+  },
+  sectionText: {
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.8)",
+    lineHeight: 22,
+  },
+  stepRow: {
+    flexDirection: "row" as const,
+    alignItems: "flex-start" as const,
+    gap: 10,
+    marginBottom: 10,
+  },
+  stepBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    justifyContent: "center" as const,
+    alignItems: "center" as const,
+    marginTop: 1,
+  },
+  stepNum: {
+    fontSize: 11,
+    fontFamily: "Inter_700Bold",
+    color: "#fff",
+  },
+  stepText: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.8)",
+    lineHeight: 21,
+  },
+  solRow: {
+    flexDirection: "row" as const,
+    alignItems: "flex-start" as const,
+    gap: 8,
+    marginBottom: 8,
+  },
+  solText: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.8)",
+    lineHeight: 21,
+  },
+  signatureBlock: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    alignItems: "center" as const,
+  },
+  signatureText: {
+    fontSize: 20,
+    fontFamily: "Inter_700Bold",
+    fontStyle: "italic" as const,
+    marginBottom: 4,
+  },
+  specialtyText: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.5)",
+    marginBottom: 8,
+  },
+  disclaimerText: {
+    fontSize: 10,
+    fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.3)",
+    textAlign: "center" as const,
+    fontStyle: "italic" as const,
+  },
+  actionsRow: {
+    flexDirection: "row" as const,
+    gap: 10,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    paddingTop: 8,
+  },
+  actionBtn: {
+    flex: 1,
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  actionText: {
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
+    letterSpacing: 0.5,
+  },
+});
 
 const serenaIntroStyles = StyleSheet.create({
   overlay: {
