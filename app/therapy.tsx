@@ -227,7 +227,7 @@ const THERAPIST_CONFIGS: Record<TherapistVoice, TherapistConfig> = {
     bgGradient: ["#0a0a0a", "#1a0a12", "#0a0a0a"],
     greeting: "\"Hello darling, come sit down and tell me everything. I'm here to listen \u2014 and maybe give you a little extra attention.\"",
     diagnosisLabel: "DR. PATRICIA'S INSIGHT",
-    introTitle: "DR. PATRICIA",
+    introTitle: "DR. SERENA",
     introSubtitle: "IS READY TO SEE YOU NOW",
     introQuote: "\"You're so brave for sharing that with me.\"",
     placeholder: "Tell Dr. Patricia what's on your mind, gorgeous... or tap the mic",
@@ -268,7 +268,7 @@ export default function TherapyScreen() {
   useScreenTracker("therapy");
   const trackEvent = useTrackEvent();
 
-  const [selectedTherapist, setSelectedTherapist] = useState<TherapistVoice>("trump");
+  const [selectedTherapist, setSelectedTherapist] = useState<TherapistVoice>("patricia");
   const [questionPrompt, setQuestionPrompt] = useState<string | null>(null);
   const [showIntro, setShowIntro] = useState(true);
   const [firstName, setFirstName] = useState("");
@@ -339,6 +339,9 @@ export default function TherapyScreen() {
       setShowIntro(true);
       introTimerRef.current = setTimeout(() => {
         setShowIntro(false);
+        if (selectedTherapist === "patricia") {
+          setShowSerenaIntro(true);
+        }
       }, 3200);
       return () => {
         if (introTimerRef.current) clearTimeout(introTimerRef.current);
@@ -607,6 +610,10 @@ export default function TherapyScreen() {
         await greetingSoundRef.current.unloadAsync().catch(() => {});
         greetingSoundRef.current = null;
       }
+      if (voice === "patricia") {
+        setShowSerenaIntro(true);
+        return;
+      }
       if (!soundEnabled) return;
       await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
       const greetingText = THERAPIST_CONFIGS[voice].greeting.replace(/"/g, "").replace(/\\/g, "");
@@ -619,6 +626,24 @@ export default function TherapyScreen() {
       });
     } catch (err) {
       console.error("Greeting TTS error:", err);
+    }
+  }
+
+  async function onSerenaVideoEnd() {
+    setShowSerenaIntro(false);
+    if (!soundEnabled) return;
+    try {
+      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+      const greetingText = THERAPIST_CONFIGS.patricia.greeting.replace(/"/g, "").replace(/\\/g, "");
+      const sound = await playTTS("/api/tts", { text: greetingText, mood: "CALM", voice: "patricia" });
+      greetingSoundRef.current = sound;
+      sound.setOnPlaybackStatusUpdate((status: any) => {
+        if (status.didJustFinish) {
+          greetingSoundRef.current = null;
+        }
+      });
+    } catch (err) {
+      console.error("Serena greeting TTS error:", err);
     }
   }
 
@@ -1172,7 +1197,7 @@ export default function TherapyScreen() {
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(150).duration(500)} style={styles.therapistSelector}>
-          {(["trump", "sophia", "james", "patricia"] as TherapistVoice[]).map((voice) => {
+          {(["patricia", "trump", "sophia", "james"] as TherapistVoice[]).map((voice) => {
             const tc = THERAPIST_CONFIGS[voice];
             const isSelected = selectedTherapist === voice;
             return (
@@ -2002,10 +2027,72 @@ export default function TherapyScreen() {
           </Pressable>
         </View>
       </Modal>
+      <Modal visible={showSerenaIntro} transparent animationType="fade" onRequestClose={() => setShowSerenaIntro(false)}>
+        <View style={serenaIntroStyles.overlay}>
+          <View style={serenaIntroStyles.videoContainer}>
+            <Video
+              ref={serenaVideoRef}
+              source={{ uri: new URL("/server/assets/dr-serena-intro.mp4", getApiUrl()).toString() }}
+              style={serenaIntroStyles.video}
+              resizeMode={ResizeMode.CONTAIN}
+              shouldPlay
+              isLooping={false}
+              onPlaybackStatusUpdate={(status: any) => {
+                if (status.didJustFinish) {
+                  onSerenaVideoEnd();
+                }
+              }}
+            />
+            <Pressable
+              style={serenaIntroStyles.skipBtn}
+              onPress={() => onSerenaVideoEnd()}
+            >
+              <Text style={serenaIntroStyles.skipText}>Skip</Text>
+              <Ionicons name="chevron-forward" size={14} color="#fff" />
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
       <SoundToggle />
     </View>
   );
 }
+
+const serenaIntroStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "#000",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  videoContainer: {
+    width: "100%",
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  video: {
+    width: "100%",
+    height: "100%",
+  },
+  skipBtn: {
+    position: "absolute",
+    bottom: 60,
+    right: 30,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.15)",
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 20,
+    gap: 4,
+  },
+  skipText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600" as const,
+  },
+});
 
 const serenaStyles = StyleSheet.create({
   hypnoOverlay: {
