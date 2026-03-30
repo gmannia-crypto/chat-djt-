@@ -1120,11 +1120,11 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + webTopInset }]}>
-      <View style={styles.videoBgContainer} pointerEvents="none">
+      <View style={[styles.videoBgContainer, Platform.OS === "web" && { height: SCREEN_WIDTH * 9 / 16 }]} pointerEvents="none">
         <Video
           source={{ uri: bgVideoUrl }}
-          style={styles.videoBg}
-          resizeMode={ResizeMode.COVER}
+          style={[styles.videoBg, Platform.OS === "web" && { aspectRatio: 16 / 9, height: undefined }]}
+          resizeMode={Platform.OS === "web" ? ResizeMode.CONTAIN : ResizeMode.COVER}
           shouldPlay
           isLooping
           isMuted
