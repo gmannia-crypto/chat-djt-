@@ -1584,7 +1584,7 @@ export default function ArenaScreen() {
   const showLeaveAlert = useCallback((doNav: () => void) => {
     Alert.alert(
       "Leave Debate?",
-      hasSession ? "Your paid session will be paused. You can return within your remaining time." : "Your progress in this debate will be lost.",
+      hasSession ? "Your paid session will end. Are you sure you want to leave?" : "Your progress in this debate will be lost.",
       [
         { text: "Stay", style: "cancel" },
         { text: "Leave", style: "destructive", onPress: () => stopDebateAndLeave(doNav) },
