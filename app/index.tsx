@@ -633,6 +633,8 @@ export default function HomeScreen() {
   }, [menuMusicPlaying, playMenuTrack]);
 
   const menuMusicWasPlayingRef = useRef(false);
+  const menuMusicPlayingRef = useRef(false);
+  useEffect(() => { menuMusicPlayingRef.current = menuMusicPlaying; }, [menuMusicPlaying]);
 
   useFocusEffect(
     useCallback(() => {
@@ -642,7 +644,7 @@ export default function HomeScreen() {
         playMenuTrack();
       }
       return () => {
-        if (menuMusicPlaying) {
+        if (menuMusicPlayingRef.current) {
           menuMusicWasPlayingRef.current = true;
           if (menuAudioRef.current) {
             menuAudioRef.current.unloadAsync().catch(() => {});
@@ -650,7 +652,7 @@ export default function HomeScreen() {
           }
         }
       };
-    }, [menuMusicPlaying, playMenuTrack])
+    }, [playMenuTrack])
   );
 
   useEffect(() => {
