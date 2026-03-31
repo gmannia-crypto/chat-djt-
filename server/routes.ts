@@ -47,6 +47,8 @@ import {
   getTherapyHistory as getTherapyHistoryDB,
   getRelationshipSummary,
   generateLipSyncVideo,
+  generateLipSyncDreamface,
+  generateLipSyncFal,
 } from "./therapy-memory";
 
 const openai = new OpenAI({
@@ -6437,6 +6439,59 @@ Make each treatment step specific and actionable. Make solutions practical thing
     } catch (error: any) {
       console.error("Lip-sync error:", error);
       res.status(500).json({ error: "Lip-sync generation failed" });
+    }
+  });
+
+  app.post("/api/therapy/lip-sync-compare", async (req, res) => {
+    try {
+      const { text, personaId } = req.body;
+      if (!text || !personaId) {
+        return res.status(400).json({ error: "text and personaId required" });
+      }
+
+      const fishApiKey = process.env.FISH_AUDIO_API_KEY;
+      if (!fishApiKey) return res.status(500).json({ error: "TTS not configured" });
+
+      const THERAPY_VOICE_IDS: Record<string, { id: string; speed: number }> = {
+        sophia: { id: SOPHIA_VOICE_ID, speed: 0.95 },
+        james: { id: JAMES_VOICE_ID, speed: 0.9 },
+        patricia: { id: PATRICIA_VOICE_ID, speed: 0.95 },
+      };
+
+      let voiceId = THERAPY_VOICE_IDS[personaId]?.id || PERSONA_VOICE_IDS[personaId] || process.env.FISH_AUDIO_VOICE_ID || "";
+      let voiceSpeed = THERAPY_VOICE_IDS[personaId]?.speed || 1.0;
+      if (!voiceId) return res.status(400).json({ error: "No voice for persona" });
+
+      console.log(`[Compare] Generating TTS audio...`);
+      const audioBuffer = await fishAudioRequest(text.slice(0, 300), voiceId, voiceSpeed, fishApiKey);
+      console.log(`[Compare] Audio ready (${audioBuffer.length} bytes). Running both providers...`);
+
+      const [dreamResult, falResult] = await Promise.allSettled([
+        generateLipSyncDreamface(audioBuffer, personaId),
+        generateLipSyncFal(audioBuffer, personaId),
+      ]);
+
+      const dream = dreamResult.status === "fulfilled" ? dreamResult.value : { videoUrl: null, error: (dreamResult as any).reason?.message, provider: "dreamface", timeMs: 0 };
+      const falRes = falResult.status === "fulfilled" ? falResult.value : { videoUrl: null, error: (falResult as any).reason?.message, provider: "fal", timeMs: 0 };
+
+      res.json({
+        dreamface: {
+          success: !!dream.videoUrl,
+          videoUrl: dream.videoUrl,
+          error: dream.error,
+          timeSeconds: (dream.timeMs / 1000).toFixed(1),
+        },
+        fal: {
+          success: !!falRes.videoUrl,
+          videoUrl: falRes.videoUrl,
+          error: falRes.error,
+          timeSeconds: (falRes.timeMs / 1000).toFixed(1),
+        },
+        audioBase64: `data:audio/mpeg;base64,${audioBuffer.toString("base64")}`,
+      });
+    } catch (error: any) {
+      console.error("Compare error:", error);
+      res.status(500).json({ error: error.message });
     }
   });
 
