@@ -1099,7 +1099,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       { fighters: ["Canelo Alvarez", "David Benavidez"], date: "2026-05-03", venue: "Las Vegas", weight: "Super Middleweight" },
       { fighters: ["Vergil Ortiz Jr.", "Jermell Charlo"], date: "2026-05-10", venue: "Houston", weight: "Super Welterweight" },
       { fighters: ["Naoya Inoue", "Murodjon Akhmadaliev"], date: "2026-05-17", venue: "Tokyo", weight: "Super Bantamweight" },
-      { fighters: ["Floyd Mayweather Jr.", "John Gotti III"], date: "2026-05-24", venue: "Mexico City", weight: "Exhibition" },
+      { fighters: ["Floyd Mayweather Jr.", "Manny Pacquiao"], date: "2026-09-19", venue: "The Sphere, Las Vegas", weight: "Exhibition" },
       { fighters: ["Artur Beterbiev", "Dmitry Bivol"], date: "2026-06-07", venue: "Riyadh", weight: "Light Heavyweight Unification" },
       { fighters: ["Oleksandr Usyk", "Daniel Dubois"], date: "2026-06-14", venue: "Riyadh", weight: "Heavyweight" },
     ];
