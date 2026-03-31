@@ -2769,7 +2769,7 @@ Your personality quirks:
     const hasSession = !!(access.sessionExpiry && Date.now() < access.sessionExpiry);
     const hasFreeTrial = !!(access.freeTrialExpiry && Date.now() < access.freeTrialExpiry);
     const isNewUser = access.freeUsed === 0;
-    const freeRemaining = hasSession || hasFreeTrial ? ARENA_FREE_LIMIT : Math.max(0, ARENA_FREE_LIMIT - access.freeUsed);
+    const freeRemaining = Math.max(0, ARENA_FREE_LIMIT - access.freeUsed);
     res.json({
       freeRemaining,
       freeUsed: access.freeUsed,
@@ -3412,18 +3412,21 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyah
 
       const isPollThankYou = req.body.isPollThankYou === true;
 
-      if (deviceId && !isPollThankYou) {
+      if (!deviceId) {
+        return res.status(400).json({ error: "Device ID required" });
+      }
+
+      if (!isPollThankYou) {
         const access = arenaAccess[deviceId] || { freeUsed: 0, sessionExpiry: null, freeTrialExpiry: null };
         const hasActiveSession = access.sessionExpiry && Date.now() < access.sessionExpiry;
-        const hasFreeTrialActive = access.freeTrialExpiry && Date.now() < access.freeTrialExpiry;
-        if (!hasActiveSession && !hasFreeTrialActive && access.freeUsed >= ARENA_FREE_LIMIT) {
+        if (!hasActiveSession && access.freeUsed >= ARENA_FREE_LIMIT) {
           return res.status(403).json({
             error: "arena_locked",
             freeRemaining: 0,
             sessionCost: ARENA_SESSION_COST,
           });
         }
-        if (!hasActiveSession && !hasFreeTrialActive) {
+        if (!hasActiveSession) {
           if (access.freeUsed === 0) {
             access.freeTrialExpiry = Date.now() + ARENA_FREE_TRIAL_DURATION;
           }

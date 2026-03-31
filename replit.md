@@ -55,7 +55,8 @@ The landing page uses document-level event delegation, with three listeners (cli
 - **Alternative.me Fear & Greed API**: Live Crypto Fear & Greed Index.
 - **Stripe**: Payment processing.
 - **expo-file-system**: Audio file management on native platforms.
-- **fal.ai**: SadTalker lip-sync video generation from therapist portrait images.
+- **fal.ai**: SadTalker lip-sync video generation (fallback provider).
+- **DreamFace (DreamAPI by NewportAI)**: Primary lip-sync video generation via `api.newportai.com`. Uses `DREAMFACE_API_KEY` secret. Falls back to fal.ai if not configured.
 
 ## Global Sound Toggle
 A floating sound toggle button (SoundToggle component) appears on the main menu, therapy, and sports screens. It uses a React context (`SoundProvider` in `lib/sound-context.tsx`) with AsyncStorage persistence. When sound is off, all TTS calls (therapy greetings, therapy readback, sports persona speak) and UI sound effects (click, transition) are suppressed. The toggle is a red pill button in the bottom-right corner that turns grey when muted.
@@ -70,6 +71,13 @@ A static company website served at `/company` with pages for privacy policy (`/c
 ## Lip-Sync Video Integration
 The therapy chat (both Expo app and HTML standalone page) supports optional lip-sync video generation:
 - Toggle in chat header enables/disables video mode (costs 1 extra token per response)
-- When enabled: therapist response → Fish Audio TTS → fal.ai SadTalker → video URL
+- When enabled: therapist response → Fish Audio TTS → DreamAPI (primary) or fal.ai SadTalker (fallback) → video URL
+- DreamAPI uses async task pattern: upload portrait+audio → submit talking_face task → poll for result → return video URL
 - Falls back to audio-only TTS if video generation fails
 - Video opens in external player via Linking.openURL (native) or window.open (web)
+
+## Menu Music System
+Menu music on the home screen auto-pauses when navigating to any category screen (therapy, arena, sports, etc.) via `useFocusEffect`. Resumes when returning to home if it was playing. No two music tracks ever play simultaneously.
+
+## Arena Token Enforcement
+Arena uses a hard limit of 5 free debate API calls per device. Free uses are counted even during the initial 2-minute free trial window. After 5 uses, the server returns 403 `arena_locked` and the frontend shows a paywall. The START DEBATE button always confirms with the server before proceeding — if the status check fails or the device has no ID, the paywall is shown. Back button during an active debate shows a confirmation dialog.

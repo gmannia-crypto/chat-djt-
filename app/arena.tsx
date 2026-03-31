@@ -15,10 +15,11 @@ import {
   ScrollView,
   TextInput,
   Alert,
+  BackHandler,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, useNavigation } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown, FadeInUp, FadeIn, FadeOut, SlideInLeft, SlideInRight, SlideInUp, SlideOutUp, ZoomIn, ZoomOut, BounceIn } from "react-native-reanimated";
@@ -1564,6 +1565,58 @@ export default function ArenaScreen() {
   useEffect(() => { emotionalStatesRef.current = emotionalStates; }, [emotionalStates]);
   useEffect(() => { isRunningRef.current = isRunning; }, [isRunning]);
   useEffect(() => { voiceEnabledRef.current = voiceEnabled; }, [voiceEnabled]);
+
+  const navigation = useNavigation();
+  const isDebateActiveRef = useRef(false);
+  const confirmedExitRef = useRef(false);
+  useEffect(() => {
+    isDebateActiveRef.current = !showPreDebateSetup && !showIntro;
+  }, [showPreDebateSetup, showIntro]);
+
+  const stopDebateAndLeave = useCallback((doNav: () => void) => {
+    setIsRunning(false);
+    isRunningRef.current = false;
+    if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
+    confirmedExitRef.current = true;
+    doNav();
+  }, []);
+
+  const showLeaveAlert = useCallback((doNav: () => void) => {
+    Alert.alert(
+      "Leave Debate?",
+      hasSession ? "Your paid session will be paused. You can return within your remaining time." : "Your progress in this debate will be lost.",
+      [
+        { text: "Stay", style: "cancel" },
+        { text: "Leave", style: "destructive", onPress: () => stopDebateAndLeave(doNav) },
+      ]
+    );
+  }, [hasSession, stopDebateAndLeave]);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("beforeRemove" as any, (e: any) => {
+      if (!isDebateActiveRef.current || confirmedExitRef.current) {
+        confirmedExitRef.current = false;
+        return;
+      }
+      e.preventDefault();
+      showLeaveAlert(() => navigation.dispatch(e.data.action));
+    });
+    return unsubscribe;
+  }, [navigation, showLeaveAlert]);
+
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    const handler = () => {
+      if (!isDebateActiveRef.current) return false;
+      showLeaveAlert(() => {
+        confirmedExitRef.current = true;
+        router.back();
+      });
+      return true;
+    };
+    BackHandler.addEventListener("hardwareBackPress", handler);
+    return () => BackHandler.removeEventListener("hardwareBackPress", handler);
+  }, [showLeaveAlert]);
 
   const currentSoundRef = useRef<any>(null);
   const forcePlayRef = useRef(false);
@@ -3293,7 +3346,7 @@ export default function ArenaScreen() {
                   setFreeRemaining(data.freeRemaining ?? 0);
                   setHasSession(data.hasSession ?? false);
                   if (data.sessionExpiresAt) setSessionExpiresAt(data.sessionExpiresAt);
-                  if (!data.hasSession && !data.hasFreeTrial && (data.freeRemaining ?? 0) <= 0) {
+                  if (!data.hasSession && (data.freeRemaining ?? 0) <= 0) {
                     setShowPaywall(true);
                     return;
                   }
@@ -3360,23 +3413,10 @@ export default function ArenaScreen() {
           if (showPreDebateSetup || showIntro) {
             router.back();
           } else {
-            Alert.alert(
-              "Leave Debate?",
-              hasSession ? "Your paid session will be paused. You can return within your remaining time." : "Your progress in this debate will be lost.",
-              [
-                { text: "Stay", style: "cancel" },
-                {
-                  text: "Leave",
-                  style: "destructive",
-                  onPress: () => {
-                    setIsRunning(false);
-                    isRunningRef.current = false;
-                    if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
-                    router.back();
-                  },
-                },
-              ]
-            );
+            showLeaveAlert(() => {
+              confirmedExitRef.current = true;
+              router.back();
+            });
           }
         }} style={s.backBtn}>
           <Ionicons name="arrow-back" size={22} color="#fff" />

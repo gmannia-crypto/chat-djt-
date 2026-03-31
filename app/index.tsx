@@ -636,13 +636,13 @@ export default function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      if (menuMusicWasPlayingRef.current && !menuAudioRef.current) {
+      if (menuMusicWasPlayingRef.current) {
         menuMusicWasPlayingRef.current = false;
         setMenuMusicPlaying(true);
         playMenuTrack();
       }
       return () => {
-        if (menuMusicPlaying || menuAudioRef.current) {
+        if (menuMusicPlaying) {
           menuMusicWasPlayingRef.current = true;
           if (menuAudioRef.current) {
             menuAudioRef.current.unloadAsync().catch(() => {});
