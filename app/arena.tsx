@@ -14,6 +14,7 @@ import {
   Linking,
   ScrollView,
   TextInput,
+  Alert,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -3284,17 +3285,25 @@ export default function ArenaScreen() {
                   const res = await fetch(new URL("/api/arena/status", getApiUrl()).toString(), {
                     headers: { "x-device-id": deviceId },
                   });
-                  if (res.ok) {
-                    const data = await res.json();
-                    setFreeRemaining(data.freeRemaining ?? 0);
-                    setHasSession(data.hasSession ?? false);
-                    if (data.sessionExpiresAt) setSessionExpiresAt(data.sessionExpiresAt);
-                    if (!data.hasSession && !data.hasFreeTrial && (data.freeRemaining ?? 0) <= 0) {
-                      setShowPaywall(true);
-                      return;
-                    }
+                  if (!res.ok) {
+                    setShowPaywall(true);
+                    return;
                   }
-                } catch {}
+                  const data = await res.json();
+                  setFreeRemaining(data.freeRemaining ?? 0);
+                  setHasSession(data.hasSession ?? false);
+                  if (data.sessionExpiresAt) setSessionExpiresAt(data.sessionExpiresAt);
+                  if (!data.hasSession && !data.hasFreeTrial && (data.freeRemaining ?? 0) <= 0) {
+                    setShowPaywall(true);
+                    return;
+                  }
+                } catch {
+                  setShowPaywall(true);
+                  return;
+                }
+              } else {
+                setShowPaywall(true);
+                return;
               }
               if (useCustomTopic && customTopicText.trim()) {
                 setCurrentTopic(customTopicText.trim());
@@ -3347,7 +3356,29 @@ export default function ArenaScreen() {
       />
 
       <Animated.View entering={FadeInDown.duration(400)} style={s.header}>
-        <Pressable onPress={() => router.back()} style={s.backBtn}>
+        <Pressable onPress={() => {
+          if (showPreDebateSetup || showIntro) {
+            router.back();
+          } else {
+            Alert.alert(
+              "Leave Debate?",
+              hasSession ? "Your paid session will be paused. You can return within your remaining time." : "Your progress in this debate will be lost.",
+              [
+                { text: "Stay", style: "cancel" },
+                {
+                  text: "Leave",
+                  style: "destructive",
+                  onPress: () => {
+                    setIsRunning(false);
+                    isRunningRef.current = false;
+                    if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
+                    router.back();
+                  },
+                },
+              ]
+            );
+          }
+        }} style={s.backBtn}>
           <Ionicons name="arrow-back" size={22} color="#fff" />
         </Pressable>
         <View style={s.headerCenter}>

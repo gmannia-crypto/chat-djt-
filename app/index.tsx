@@ -632,6 +632,27 @@ export default function HomeScreen() {
     playMenuTrack();
   }, [menuMusicPlaying, playMenuTrack]);
 
+  const menuMusicWasPlayingRef = useRef(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (menuMusicWasPlayingRef.current && !menuAudioRef.current) {
+        menuMusicWasPlayingRef.current = false;
+        setMenuMusicPlaying(true);
+        playMenuTrack();
+      }
+      return () => {
+        if (menuMusicPlaying || menuAudioRef.current) {
+          menuMusicWasPlayingRef.current = true;
+          if (menuAudioRef.current) {
+            menuAudioRef.current.unloadAsync().catch(() => {});
+            menuAudioRef.current = null;
+          }
+        }
+      };
+    }, [menuMusicPlaying, playMenuTrack])
+  );
+
   useEffect(() => {
     return () => {
       if (menuAudioRef.current) {
