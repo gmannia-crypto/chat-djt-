@@ -342,15 +342,27 @@ export async function generateLipSyncVideo(
   try {
     const portraitBuffer = readFileSync(portraitPath);
     const ext = portraitPath.endsWith(".png") ? "png" : "jpeg";
-    const portraitDataUrl = `data:image/${ext};base64,${portraitBuffer.toString("base64")}`;
-    const audioDataUrl = `data:audio/mpeg;base64,${audioBuffer.toString("base64")}`;
 
-    console.log(`[LipSync] Starting fal.ai generation for persona=${personaId}`);
+    console.log(`[LipSync] Uploading files to fal.ai for persona=${personaId}`);
 
-    const result = await fal.subscribe("fal-ai/sadtalker", {
+    const portraitUrl = await fal.storage.upload(
+      new Blob([portraitBuffer], { type: `image/${ext}` })
+    );
+    const audioUrl = await fal.storage.upload(
+      new Blob([audioBuffer], { type: "audio/mpeg" })
+    );
+
+    console.log(`[LipSync] Files uploaded, starting fal.ai generation for persona=${personaId}`);
+
+    const LIPSYNC_TIMEOUT = 90000;
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Lip-sync generation timed out after 90s")), LIPSYNC_TIMEOUT)
+    );
+
+    const genPromise = fal.subscribe("fal-ai/sadtalker", {
       input: {
-        source_image_url: portraitDataUrl,
-        driven_audio_url: audioDataUrl,
+        source_image_url: portraitUrl,
+        driven_audio_url: audioUrl,
         pose_style: 0,
         face_model_resolution: "256",
         expression_scale: 1.2,
@@ -361,8 +373,11 @@ export async function generateLipSyncVideo(
         if (update.status === "IN_PROGRESS" && update.logs) {
           update.logs.forEach((log: any) => console.log(`[LipSync] ${log.message}`));
         }
+        console.log(`[LipSync] Queue status: ${update.status}`);
       },
-    }) as any;
+    });
+
+    const result = await Promise.race([genPromise, timeoutPromise]) as any;
 
     const videoUrl = result?.data?.video?.url || result?.video?.url || null;
     if (videoUrl) {
