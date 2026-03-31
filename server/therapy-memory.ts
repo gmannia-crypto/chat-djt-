@@ -323,133 +323,15 @@ function getPortraitPath(personaId: string): string | null {
   return null;
 }
 
-async function dreamApiPost(endpoint: string, payload: any, apiKey: string): Promise<any> {
-  const url = endpoint.startsWith("http") ? endpoint : `https://api.newportai.com/api/async/${endpoint}`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) throw new Error(`DreamAPI ${endpoint} failed: ${res.status} ${res.statusText}`);
-  const json = await res.json();
-  if (json.code !== 0) throw new Error(`DreamAPI error: ${json.message || "Unknown"}`);
-  return json.data;
-}
-
-async function dreamApiUploadBuffer(buf: Buffer, filename: string, mimeType: string, apiKey: string): Promise<string> {
-  const policyData = await dreamApiPost("https://api.newportai.com/api/file/v1/get_policy", { Enum: "Dream-CN" }, apiKey);
-  const { accessId, policy, signature, dir, callback } = policyData;
-  const FormData = (await import("form-data")).default;
-  const form = new FormData();
-  form.append("policy", policy);
-  form.append("OSSAccessKeyId", accessId);
-  form.append("success_action_status", "200");
-  form.append("signature", signature);
-  form.append("key", dir + filename);
-  form.append("callback", callback);
-  form.append("file", buf, { filename, contentType: mimeType });
-
-  const uploadRes = await fetch("https://dreamapi-oss.oss-cn-hongkong.aliyuncs.com", {
-    method: "POST",
-    body: form as any,
-    headers: form.getHeaders(),
-  });
-  if (!uploadRes.ok) throw new Error(`DreamAPI upload failed: ${uploadRes.status}`);
-  const uploadJson = await uploadRes.json();
-  if (uploadJson.code !== 0) throw new Error(`DreamAPI upload error: ${uploadJson.message || "Unknown"}`);
-  const reqId = uploadJson.data?.reqId;
-  if (!reqId) throw new Error("DreamAPI upload: reqId missing");
-
-  const finishData = await dreamApiPost("https://api.newportai.com/api/file/v1/policy_upload_finish", { reqId }, apiKey);
-  const rawUrl = finishData?.url;
-  if (!rawUrl) throw new Error("DreamAPI upload: final URL missing");
-  return rawUrl.split("?")[0];
-}
-
-async function dreamApiPollResult(taskId: string, apiKey: string, maxAttempts = 120): Promise<any> {
-  for (let i = 0; i < maxAttempts; i++) {
-    const data = await dreamApiPost("https://api.newportai.com/api/getAsyncResult", { taskId }, apiKey);
-    const status = data?.task?.status;
-    if (status === 3) return data;
-    if (status === 4) throw new Error(`DreamAPI task failed: ${data?.task?.reason || "Unknown"}`);
-    await new Promise(r => setTimeout(r, 2000));
-  }
-  throw new Error("DreamAPI polling timeout");
-}
-
 export async function generateLipSyncVideo(
   audioBuffer: Buffer,
   personaId: string
 ): Promise<{ videoUrl: string | null; error?: string }> {
-  const dreamKey = process.env.DREAMFACE_API_KEY;
   const falKey = process.env.FAL_API_KEY;
-
-  if (dreamKey) {
-    const result = await generateLipSyncDreamface(audioBuffer, personaId, dreamKey);
-    if (result.videoUrl) return result;
-    console.warn(`[LipSync] DreamAPI failed (${result.error}), trying fal.ai fallback...`);
-    if (falKey) return generateLipSyncFal(audioBuffer, personaId, falKey);
-    return result;
-  } else if (falKey) {
-    return generateLipSyncFal(audioBuffer, personaId, falKey);
-  }
-  return { videoUrl: null, error: "No video API key configured (DREAMFACE_API_KEY or FAL_API_KEY)" };
-}
-
-async function generateLipSyncDreamface(
-  audioBuffer: Buffer,
-  personaId: string,
-  apiKey: string
-): Promise<{ videoUrl: string | null; error?: string }> {
-  const portraitPath = getPortraitPath(personaId);
-  if (!portraitPath) {
-    return { videoUrl: null, error: `No portrait found for ${personaId}` };
+  if (!falKey) {
+    return { videoUrl: null, error: "FAL_API_KEY not configured" };
   }
 
-  try {
-    const portraitBuffer = readFileSync(portraitPath);
-    const ext = portraitPath.endsWith(".png") ? "png" : "jpeg";
-
-    console.log(`[LipSync] Starting DreamAPI generation for persona=${personaId}`);
-
-    const imageUrl = await dreamApiUploadBuffer(portraitBuffer, `portrait-${personaId}.${ext}`, `image/${ext}`, apiKey);
-    const audioUrl = await dreamApiUploadBuffer(audioBuffer, `audio-${personaId}-${Date.now()}.mp3`, "audio/mpeg", apiKey);
-
-    console.log(`[LipSync] Files uploaded, submitting talking_face task`);
-
-    const taskData = await dreamApiPost("talking_face", {
-      srcVideoUrl: imageUrl,
-      audioUrl: audioUrl,
-      videoParams: { video_bitrate: 0, video_width: 0, video_height: 0, video_enhance: 0 },
-    }, apiKey);
-
-    const taskId = taskData?.taskId;
-    if (!taskId) {
-      return { videoUrl: null, error: "DreamAPI: no taskId returned" };
-    }
-
-    console.log(`[LipSync] DreamAPI taskId=${taskId}, polling...`);
-    const result = await dreamApiPollResult(taskId, apiKey);
-    const videoUrl = result?.videos?.[0]?.videoUrl || null;
-
-    if (videoUrl) {
-      console.log(`[LipSync] DreamAPI video generated: ${videoUrl}`);
-    } else {
-      console.log(`[LipSync] DreamAPI no video URL in result:`, JSON.stringify(result).slice(0, 300));
-    }
-
-    return { videoUrl };
-  } catch (error: any) {
-    console.error("[LipSync] DreamAPI error:", error.message);
-    return { videoUrl: null, error: error.message };
-  }
-}
-
-async function generateLipSyncFal(
-  audioBuffer: Buffer,
-  personaId: string,
-  falKey: string
-): Promise<{ videoUrl: string | null; error?: string }> {
   fal.config({ credentials: falKey });
 
   const portraitPath = getPortraitPath(personaId);
