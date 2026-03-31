@@ -878,7 +878,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const today = new Date();
       const dates: string[] = [];
-      for (let i = 0; i < 5; i++) {
+      for (let i = -1; i < 5; i++) {
         const d = new Date(today);
         d.setDate(d.getDate() + i);
         dates.push(d.toISOString().slice(0, 10).replace(/-/g, ""));
@@ -982,7 +982,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const addEvents = (events: any[], label: string, offset: number, max: number) => {
         let count = 0;
         for (const ev of events) {
-          if (count >= max) break;
           const state = ev.status?.type?.state;
           if (state === "post") {
             const g = parseESPNEvent(ev, label, offset);
@@ -1024,6 +1023,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
             continue;
           }
+          if (count >= max) continue;
           const g = parseESPNEvent(ev, label, offset);
           if (g) {
             const comp = ev.competitions?.[0];
@@ -1080,7 +1080,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       addEvents(ncaaMBBEvents, "NCAAB", 10000, 6);
       addEvents(ncaaFBEvents, "NCAAF", 10500, 4);
 
-      const result = { games, results: results.slice(0, 10) };
+      const result = { games, results: results.slice(0, 20) };
       espnSportsCache.data = result;
       espnSportsCache.timestamp = Date.now();
 
