@@ -1911,18 +1911,22 @@ export default function ArenaScreen() {
         setTrumpRoastText("");
         setIsLoadingRoast(false);
         setShowScoreboard(false);
-        setIsRunning(true);
-        isRunningRef.current = true;
         refreshBalance();
         const mins = data.durationMinutes || selectedDuration;
-        addSystemMessage(`Session unlocked! ${mins} minutes of unlimited access.`);
-        setTimeout(() => { if (mountedRef.current && scheduleNextRef.current) scheduleNextRef.current(); }, 1000);
+        if (showPreDebateSetup) {
+          setShowPreDebateSetup(true);
+        } else {
+          setIsRunning(true);
+          isRunningRef.current = true;
+          addSystemMessage(`Session unlocked! ${mins} minutes of unlimited access.`);
+          setTimeout(() => { if (mountedRef.current && scheduleNextRef.current) scheduleNextRef.current(); }, 1000);
+        }
       } else if (data.error === "insufficient_tokens") {
         addSystemMessage("Not enough tokens. Visit the store to get more!");
       }
     } catch {}
     setIsUnlocking(false);
-  }, [deviceId, refreshBalance, selectedDuration]);
+  }, [deviceId, refreshBalance, selectedDuration, showPreDebateSetup]);
 
   const addSystemMessage = useCallback((text: string) => {
     const msg: ConversationMessage = {
@@ -3267,10 +3271,31 @@ export default function ArenaScreen() {
           })}
 
           <Pressable
-            onPress={() => {
+            onPress={async () => {
               const canStart = selectedPersonas.length >= 2 && !(useCustomTopic && !customTopicText.trim());
               if (!canStart) return;
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+              if (!hasSession && freeRemaining <= 0) {
+                setShowPaywall(true);
+                return;
+              }
+              if (deviceId) {
+                try {
+                  const res = await fetch(new URL("/api/arena/status", getApiUrl()).toString(), {
+                    headers: { "x-device-id": deviceId },
+                  });
+                  if (res.ok) {
+                    const data = await res.json();
+                    setFreeRemaining(data.freeRemaining ?? 0);
+                    setHasSession(data.hasSession ?? false);
+                    if (data.sessionExpiresAt) setSessionExpiresAt(data.sessionExpiresAt);
+                    if (!data.hasSession && !data.hasFreeTrial && (data.freeRemaining ?? 0) <= 0) {
+                      setShowPaywall(true);
+                      return;
+                    }
+                  }
+                } catch {}
+              }
               if (useCustomTopic && customTopicText.trim()) {
                 setCurrentTopic(customTopicText.trim());
                 currentTopicRef.current = customTopicText.trim();
