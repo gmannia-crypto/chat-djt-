@@ -741,6 +741,16 @@ async function initStripe() {
     setTimeout(() => {
       initStripe().catch((err) => console.error("Stripe init error:", err));
     }, 30000);
+
+    if (port !== 8082) {
+      const mirrorServer = require("http").createServer(app);
+      mirrorServer.listen({ port: 8082, host: "0.0.0.0" }, () => {
+        log(`mirror server also serving on port 8082`);
+      });
+      mirrorServer.on("error", (err: any) => {
+        console.log("Port 8082 mirror skipped:", err.message);
+      });
+    }
   });
 
   server.on("error", (err: any) => {
