@@ -6386,11 +6386,30 @@ Make each treatment step specific and actionable. Make solutions practical thing
       };
 
       const introText = hypnoIntros[preset] || hypnoIntros.stress;
-      const audioBuffer = await fishAudioRequest(introText, voiceId, voiceSpeed, fishApiKey);
+      const hypnoSpeed = Math.min(voiceSpeed, 0.75);
+      const audioBuffer = await fishAudioRequest(introText, voiceId, hypnoSpeed, fishApiKey);
       const audioBase64 = audioBuffer.toString("base64");
+
+      const ambientPhrases: Record<string, string> = {
+        stress: "Mmmmm... shhh... peace... calm... breathe...",
+        sleep: "Shhh... drift... float... rest... peace...",
+        confidence: "Mmm... power... strength... rise... yes...",
+        focus: "Mmm... clarity... sharp... clear... focus...",
+        anxiety: "Shhh... safe... calm... breathe... peace...",
+        motivation: "Mmm... fire... power... go... unstoppable...",
+      };
+      let ambientBase64: string | null = null;
+      try {
+        const ambientText = ambientPhrases[preset] || ambientPhrases.stress;
+        const ambientBuffer = await fishAudioRequest(ambientText, voiceId, 0.6, fishApiKey);
+        ambientBase64 = `data:audio/mpeg;base64,${ambientBuffer.toString("base64")}`;
+      } catch (ambientErr) {
+        console.error("Ambient audio generation failed (non-blocking):", ambientErr);
+      }
 
       res.json({
         audioBase64: `data:audio/mpeg;base64,${audioBase64}`,
+        ambientBase64,
         preset,
         balance: tokenResult.balance,
       });

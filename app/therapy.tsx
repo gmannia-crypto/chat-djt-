@@ -347,6 +347,8 @@ export default function TherapyScreen() {
 
   const scrollRef = useRef<ScrollView>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
+  const hypnoEchoRef = useRef<Audio.Sound | null>(null);
+  const hypnoAmbientRef = useRef<Audio.Sound | null>(null);
   const introTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const recordingRef = useRef<Audio.Recording | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -791,12 +793,45 @@ export default function TherapyScreen() {
         const fileUri = (FileSystem.cacheDirectory || "") + "hypnosis_audio.mp3";
         const base64Data = audioUri.replace(/^data:audio\/mpeg;base64,/, "");
         await FileSystem.writeAsStringAsync(fileUri, base64Data, { encoding: FileSystem.EncodingType.Base64 });
-        const { sound } = await Audio.Sound.createAsync({ uri: fileUri }, { shouldPlay: true });
+
+        if (data.ambientBase64) {
+          const ambientFileUri = (FileSystem.cacheDirectory || "") + "hypnosis_ambient.mp3";
+          const ambientB64 = data.ambientBase64.replace(/^data:audio\/mpeg;base64,/, "");
+          await FileSystem.writeAsStringAsync(ambientFileUri, ambientB64, { encoding: FileSystem.EncodingType.Base64 });
+          const { sound: ambientSound } = await Audio.Sound.createAsync(
+            { uri: ambientFileUri },
+            { shouldPlay: true, isLooping: true, volume: 0.25 }
+          );
+          hypnoAmbientRef.current = ambientSound;
+        }
+
+        const { sound } = await Audio.Sound.createAsync({ uri: fileUri }, { shouldPlay: true, volume: 1.0 });
         soundRef.current = sound;
-        sound.setOnPlaybackStatusUpdate((status: any) => {
-          if (status.didJustFinish) {
+
+        setTimeout(async () => {
+          try {
+            const { sound: echoSound } = await Audio.Sound.createAsync(
+              { uri: fileUri },
+              { shouldPlay: true, volume: 0.2 }
+            );
+            hypnoEchoRef.current = echoSound;
+          } catch {}
+        }, 180);
+
+        sound.setOnPlaybackStatusUpdate((status: { isLoaded: boolean; didJustFinish?: boolean }) => {
+          if (status.isLoaded && status.didJustFinish) {
             clearInterval(textTimer);
-            setTimeout(() => {
+            setTimeout(async () => {
+              if (hypnoEchoRef.current) {
+                await hypnoEchoRef.current.stopAsync().catch(() => {});
+                await hypnoEchoRef.current.unloadAsync().catch(() => {});
+                hypnoEchoRef.current = null;
+              }
+              if (hypnoAmbientRef.current) {
+                await hypnoAmbientRef.current.stopAsync().catch(() => {});
+                await hypnoAmbientRef.current.unloadAsync().catch(() => {});
+                hypnoAmbientRef.current = null;
+              }
               setShowHypnoOverlay(false);
               setHypnoLoading(false);
             }, 2000);
@@ -824,6 +859,14 @@ export default function TherapyScreen() {
       if (greetingSoundRef.current) {
         greetingSoundRef.current.unloadAsync().catch(() => {});
         greetingSoundRef.current = null;
+      }
+      if (hypnoEchoRef.current) {
+        hypnoEchoRef.current.unloadAsync().catch(() => {});
+        hypnoEchoRef.current = null;
+      }
+      if (hypnoAmbientRef.current) {
+        hypnoAmbientRef.current.unloadAsync().catch(() => {});
+        hypnoAmbientRef.current = null;
       }
     };
   }, []);
@@ -2216,6 +2259,16 @@ export default function TherapyScreen() {
                 soundRef.current.stopAsync().catch(() => {});
                 soundRef.current.unloadAsync().catch(() => {});
                 soundRef.current = null;
+              }
+              if (hypnoEchoRef.current) {
+                hypnoEchoRef.current.stopAsync().catch(() => {});
+                hypnoEchoRef.current.unloadAsync().catch(() => {});
+                hypnoEchoRef.current = null;
+              }
+              if (hypnoAmbientRef.current) {
+                hypnoAmbientRef.current.stopAsync().catch(() => {});
+                hypnoAmbientRef.current.unloadAsync().catch(() => {});
+                hypnoAmbientRef.current = null;
               }
             }}
             style={serenaStyles.hypnoExitBtn}
