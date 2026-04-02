@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useEngagement } from "@/lib/engagement-context";
 import { useScreenTracker } from "@/lib/use-analytics";
 import {
   View,
@@ -1355,6 +1356,7 @@ export default function ArenaScreen() {
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
   const { deviceId, balance, refreshBalance } = useTokens();
+  const { showShareCard, awardBadge } = useEngagement();
   useScreenTracker("arena");
 
   const [showIntro, setShowIntro] = useState(false);
@@ -2076,6 +2078,7 @@ export default function ArenaScreen() {
           setTimeout(() => {
             playWinnerChosenSound();
             setShowEndSummary(true);
+            awardBadge("arena_debut");
             setTimeout(() => { playWinnerAfterSound(); }, 4000);
           }, 1500);
         } else {
@@ -4075,6 +4078,18 @@ export default function ArenaScreen() {
               </Animated.View>
             )}
             <View style={s.summaryActions}>
+              <Pressable
+                onPress={() => {
+                  const winner = Object.entries(personaPoints).sort(([, a], [, b]) => b - a)[0];
+                  const winnerName = winner ? ARENA_PERSONAS[winner[0]]?.name || "Unknown" : "Unknown";
+                  const pts = winner ? winner[1] : 0;
+                  showShareCard("Debate Complete", `${winnerName} dominated the arena with ${pts} points! The crowd goes wild!`, "arena");
+                }}
+                style={[s.summaryActionBtn, { backgroundColor: "#D4A420" }]}
+              >
+                <Ionicons name="share-social" size={16} color="#000" />
+                <Text style={s.summaryActionText}>Share Results</Text>
+              </Pressable>
               <Pressable
                 onPress={() => {
                   setShowEndSummary(false);

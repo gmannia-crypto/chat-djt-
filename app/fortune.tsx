@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback } from "react";
+import { useEngagement } from "@/lib/engagement-context";
 import { useScreenTracker } from "@/lib/use-analytics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
@@ -70,6 +71,7 @@ export default function FortuneScreen() {
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
   const { hasTokens, deviceId, refreshBalance } = useTokens();
+  const { showShareCard, awardBadge } = useEngagement();
   useScreenTracker("fortune");
 
   const [firstName, setFirstName] = useState("");
@@ -162,6 +164,7 @@ export default function FortuneScreen() {
       setFortune(data.fortune);
       refreshBalance();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      awardBadge("fortune_seeker");
       try {
         const prev = await AsyncStorage.getItem("chatdjt_fortune_count");
         const count = (parseInt(prev || "0") || 0) + 1;
@@ -174,6 +177,9 @@ export default function FortuneScreen() {
 
       if (data.fortune) {
         setTimeout(() => handleSpeak(data.fortune), 500);
+        setTimeout(() => {
+          showShareCard("Your Fortune", data.fortune, "fortune");
+        }, 3000);
       }
     } catch (err) {
       setFortune("The spirits are confused... even Trump couldn't see this one coming. Try again!");

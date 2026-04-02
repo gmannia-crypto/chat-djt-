@@ -35,6 +35,8 @@ The backend is an Express 5 API gateway responsible for AI interactions, content
 - **Live Sports Audio**: A radio-style module offering AI-generated play-by-play audio for live/upcoming/final games with persona commentators.
 - **AI Model System**: Supports Premium (GPT-5.2 + GPT-4o-mini), Budget (DeepSeek V3), and Split (percentage-based routing) AI model modes, with an admin interface for dynamic selection and cost estimation.
 - **DJT Collectibles**: A digital collectible card system with 24 cards across 6 categories and 4 rarity tiers, earned via a mystery box.
+- **Engagement System**: Daily visit streak tracking, badge/achievement system (10 badges), shareable result cards with social sharing (X/Facebook/Copy/native), and toast notifications. Context: `lib/engagement-context.tsx`. Components: `ShareCard.tsx`, `StreakToast.tsx`. Streak badge shows in main menu header. Share cards trigger after arena debates, therapy sessions, and fortune readings. Badges: First Session, 3/7/30-Day Streaks, Arena Debut, Therapy Graduate, Fortune Seeker, Roast Survivor, First Share, 5 Debates.
+- **Lip-Sync Provider Comparison**: Supports both Dreamface (NewportAI) and fal.ai SadTalker with automatic fallback. Comparison endpoint: `POST /api/therapy/lip-sync-compare`. Default order: Dreamface first, fal.ai fallback.
 
 ### Landing Page Event Architecture
 The landing page uses document-level event delegation, with three listeners (click, input, keydown) on `.explore-section` routing events to active module methods.

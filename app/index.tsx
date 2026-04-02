@@ -29,6 +29,7 @@ import { playTTS } from "@/lib/audio-helper";
 import { useSoundEffects } from "@/lib/use-sound";
 import { SoundToggle } from "@/components/SoundToggle";
 import { SuggestionBox } from "@/components/SuggestionBox";
+import { useEngagement } from "@/lib/engagement-context";
 import { useScreenTracker, useTrackEvent } from "@/lib/use-analytics";
 import Animated, {
   FadeInDown,
@@ -295,6 +296,7 @@ export default function HomeScreen() {
   const [electionDays, setElectionDays] = useState(0);
   const [collectionCount, setCollectionCount] = useState({ owned: 0, total: 24 });
   const { deviceId, hasTokens, balance } = useTokens();
+  const { streak, awardBadge } = useEngagement();
   const { playClick, playTransition } = useSoundEffects();
   useScreenTracker("main_menu");
   const trackEvent = useTrackEvent();
@@ -1219,6 +1221,12 @@ export default function HomeScreen() {
             >
               <Ionicons name="volume-high" size={16} color="#D4A420" />
             </Pressable>
+          )}
+          {streak > 1 && (
+            <View style={{ flexDirection: "row" as const, alignItems: "center" as const, gap: 3, backgroundColor: "rgba(204,51,51,0.2)", borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: "rgba(204,51,51,0.4)" }}>
+              <Text style={{ fontSize: 12 }}>🔥</Text>
+              <Text style={{ fontSize: 11, fontWeight: "800" as const, color: "#FF4444" }}>{streak}</Text>
+            </View>
           )}
           {balance && (
             <Pressable onPress={() => router.push("/subscribe")} style={{ flexDirection: "row" as const, alignItems: "center" as const, gap: 3, backgroundColor: "rgba(212,164,32,0.15)", borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: "rgba(212,164,32,0.3)" }}>

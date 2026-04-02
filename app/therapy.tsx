@@ -1,4 +1,5 @@
 import React, { useState, useRef } from "react";
+import { useEngagement } from "@/lib/engagement-context";
 import {
   StyleSheet,
   Text,
@@ -279,6 +280,7 @@ export default function TherapyScreen() {
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
   const { hasTokens, deviceId, refreshBalance, balance } = useTokens();
+  const { showShareCard, awardBadge } = useEngagement();
   const { soundEnabled } = useSound();
   useScreenTracker("therapy");
   const trackEvent = useTrackEvent();
@@ -833,6 +835,7 @@ export default function TherapyScreen() {
       soundRef.current.stopAsync().catch(() => {});
     }
     setSpeaking(false);
+    awardBadge("therapy_complete");
   }, []);
 
   const handleFollowUp = async () => {
@@ -897,14 +900,10 @@ export default function TherapyScreen() {
   const handleShare = async () => {
     if (!therapy) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const snippet = therapy.length > 120 ? therapy.slice(0, 120) + "..." : therapy;
+    showShareCard("Therapy Session", `${config.therapistName} says: "${snippet}"`, "therapy");
     const baseUrl = getApiUrl().replace(/\/$/, "");
-    const cardUrl = `${baseUrl}/api/therapy/card?name=${encodeURIComponent(firstName || "Friend")}&therapy=${encodeURIComponent(therapy)}`;
-    try {
-      await Share.share({
-        message: `${config.title}\n\n${config.diagnosisLabel} for ${firstName}:\n\n"${therapy}"\n\nSee my therapy card: ${cardUrl}`,
-      });
-      fetch(`${baseUrl}/api/track-share`, { method: "POST", body: JSON.stringify({ feature: "therapy", platform: Platform.OS, contentPreview: therapy.slice(0, 100) }), headers: { "Content-Type": "application/json" } }).catch(() => {});
-    } catch {}
+    fetch(`${baseUrl}/api/track-share`, { method: "POST", body: JSON.stringify({ feature: "therapy", platform: Platform.OS, contentPreview: therapy.slice(0, 100) }), headers: { "Content-Type": "application/json" } }).catch(() => {});
   };
 
   const handleStartChat = async () => {
@@ -918,6 +917,7 @@ export default function TherapyScreen() {
       return;
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    awardBadge("first_session");
 
     let greeting: string;
     try {
