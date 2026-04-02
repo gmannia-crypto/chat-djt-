@@ -26,6 +26,7 @@ import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown, FadeInUp, FadeIn, FadeOut, SlideInLeft, SlideInRight, SlideInUp, SlideOutUp, ZoomIn, ZoomOut, BounceIn } from "react-native-reanimated";
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system/legacy";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getApiUrl } from "@/lib/query-client";
 import { playTTS, playAudioFromUrl, prefetchTTSAudio, playPrefetchedAudio } from "@/lib/audio-helper";
 import { playPointAwardSound, playVoteClickSound, playVoteSound2, playBellSound, playCrowdCheer, playDrumroll, playWinnerChosenSound, playWinnerAfterSound, playBreakingNewsAlert } from "@/lib/arena-sfx";
@@ -1351,6 +1352,17 @@ const introStyles = StyleSheet.create({
   },
 });
 
+const ARENA_SAVED_SESSION_KEY = "chatdjt_arena_saved_session";
+
+interface SavedArenaSession {
+  messages: ArenaMessage[];
+  currentTopic: string;
+  sessionExpiresAt: number;
+  topicTimer: number;
+  emotionalStates: Record<string, string>;
+  savedAt: number;
+}
+
 export default function ArenaScreen() {
   const insets = useSafeAreaInsets();
   const webTopInset = Platform.OS === "web" ? 67 : 0;
@@ -1575,21 +1587,66 @@ export default function ArenaScreen() {
     isDebateActiveRef.current = !showPreDebateSetup && !showIntro;
   }, [showPreDebateSetup, showIntro]);
 
-  const stopDebateAndLeave = useCallback((doNav: () => void) => {
+  const saveSessionState = useCallback(async () => {
+    if (!hasSession || !sessionExpiresAt || Date.now() >= sessionExpiresAt) return;
+    const saved: SavedArenaSession = {
+      messages: messagesRef.current,
+      currentTopic: currentTopicRef.current,
+      sessionExpiresAt,
+      topicTimer,
+      emotionalStates: emotionalStatesRef.current,
+      savedAt: Date.now(),
+    };
+    await AsyncStorage.setItem(ARENA_SAVED_SESSION_KEY, JSON.stringify(saved));
+  }, [hasSession, sessionExpiresAt, topicTimer]);
+
+  const clearSavedSession = useCallback(async () => {
+    await AsyncStorage.removeItem(ARENA_SAVED_SESSION_KEY);
+  }, []);
+
+  const restoreSavedSession = useCallback(async (): Promise<boolean> => {
+    try {
+      const raw = await AsyncStorage.getItem(ARENA_SAVED_SESSION_KEY);
+      if (!raw) return false;
+      const saved: SavedArenaSession = JSON.parse(raw);
+      if (Date.now() >= saved.sessionExpiresAt) {
+        await clearSavedSession();
+        return false;
+      }
+      setMessages(saved.messages);
+      setCurrentTopic(saved.currentTopic);
+      setSessionExpiresAt(saved.sessionExpiresAt);
+      setHasSession(true);
+      setTopicTimer(saved.topicTimer);
+      setEmotionalStates(saved.emotionalStates);
+      setShowPreDebateSetup(false);
+      setShowIntro(false);
+      setIsRunning(true);
+      await clearSavedSession();
+      return true;
+    } catch {
+      return false;
+    }
+  }, [clearSavedSession]);
+
+  const stopDebateAndLeave = useCallback(async (doNav: () => void) => {
+    if (hasSession && sessionExpiresAt && Date.now() < sessionExpiresAt) {
+      await saveSessionState();
+    }
     setIsRunning(false);
     isRunningRef.current = false;
     if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
     confirmedExitRef.current = true;
     doNav();
-  }, []);
+  }, [hasSession, sessionExpiresAt, saveSessionState]);
 
   const showLeaveAlert = useCallback((doNav: () => void) => {
     Alert.alert(
       "Leave Debate?",
-      hasSession ? "Your paid session will end. Are you sure you want to leave?" : "Your progress in this debate will be lost.",
+      hasSession ? "Your paid session will be paused. You can resume when you return." : "Your progress in this debate will be lost.",
       [
         { text: "Stay", style: "cancel" },
-        { text: "Leave", style: "destructive", onPress: () => stopDebateAndLeave(doNav) },
+        { text: "Leave", style: "default", onPress: () => stopDebateAndLeave(doNav) },
       ]
     );
   }, [hasSession, stopDebateAndLeave]);
@@ -2002,11 +2059,15 @@ export default function ArenaScreen() {
   }, []);
 
   useEffect(() => {
-    fetchTopics().then(() => {
-      if (!currentTopicRef.current && FALLBACK_TOPICS.length > 0) {
-        const fallbackTitle = FALLBACK_TOPICS[0].title;
-        setCurrentTopic(fallbackTitle);
-        currentTopicRef.current = fallbackTitle;
+    restoreSavedSession().then((restored) => {
+      if (!restored) {
+        fetchTopics().then(() => {
+          if (!currentTopicRef.current && FALLBACK_TOPICS.length > 0) {
+            const fallbackTitle = FALLBACK_TOPICS[0].title;
+            setCurrentTopic(fallbackTitle);
+            currentTopicRef.current = fallbackTitle;
+          }
+        });
       }
     });
     checkArenaStatus();
@@ -2026,7 +2087,7 @@ export default function ArenaScreen() {
     }).catch(() => {});
     const topicRefresh = setInterval(fetchTopics, 3 * 60 * 1000);
     return () => clearInterval(topicRefresh);
-  }, [fetchTopics, checkArenaStatus]);
+  }, [fetchTopics, checkArenaStatus, restoreSavedSession]);
 
   useEffect(() => {
     if (!hasSession || !sessionExpiresAt) { setSessionTimer(0); return; }
@@ -2079,6 +2140,7 @@ export default function ArenaScreen() {
           setTimeout(() => {
             playWinnerChosenSound();
             setShowEndSummary(true);
+            clearSavedSession();
             awardBadge("arena_debut");
             setTimeout(() => { playWinnerAfterSound(); }, 4000);
           }, 1500);
