@@ -5561,6 +5561,27 @@ p{color:#999;font-size:16px;margin-bottom:24px}
     }
   });
 
+  app.post("/api/suggestions", async (req, res) => {
+    const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+    try {
+      const { suggestion, timestamp, deviceId } = req.body;
+      if (!suggestion || typeof suggestion !== "string" || suggestion.trim().length === 0) {
+        return res.status(400).json({ error: "Suggestion text is required" });
+      }
+      console.log(`💡 Suggestion: ${suggestion} at ${new Date(timestamp || Date.now())}`);
+      await db.query(
+        `INSERT INTO suggestions (device_id, suggestion, created_at) VALUES ($1, $2, $3)`,
+        [deviceId || null, suggestion.trim(), new Date(timestamp || Date.now())]
+      );
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Suggestion error:", error);
+      res.status(500).json({ error: "Failed to save suggestion" });
+    } finally {
+      await db.end();
+    }
+  });
+
   app.post("/api/client-error", (req, res) => {
     const { message, stack, isFatal } = req.body;
     console.error("=== CLIENT CRASH ===", isFatal ? "[FATAL]" : "[ERROR]", message);
