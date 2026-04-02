@@ -1622,14 +1622,6 @@ export default function ArenaScreen() {
     }
   }, [balance, deviceId, refreshBalance, unlockedMystery]);
 
-  const allAvailablePersonas = useMemo(() => {
-    const all = { ...ARENA_PERSONAS };
-    for (const pid of unlockedMystery) {
-      if (MYSTERY_PERSONAS[pid]) all[pid] = MYSTERY_PERSONAS[pid];
-    }
-    return all;
-  }, [unlockedMystery]);
-
   const [selectedPersonas, setSelectedPersonas] = useState<string[]>(PERSONA_IDS);
   const [showPersonaSelector, setShowPersonaSelector] = useState(false);
   const selectedPersonasRef = useRef<string[]>(PERSONA_IDS);
