@@ -37,6 +37,7 @@ import Animated, {
   withTiming,
   withSequence,
   ZoomIn,
+  Easing,
 } from "react-native-reanimated";
 import Colors from "@/constants/colors";
 import { getApiUrl } from "@/lib/query-client";
@@ -356,6 +357,53 @@ export default function TherapyScreen() {
   const micTargetRef = useRef<"problem" | "followUp" | "chat">("problem");
 
   const pulseValue = useSharedValue(1);
+
+  const spiralRotation1 = useSharedValue(0);
+  const spiralRotation2 = useSharedValue(0);
+  const spiralRotation3 = useSharedValue(0);
+  const spiralScale = useSharedValue(1);
+
+  const spiralStyle1 = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${spiralRotation1.value}deg` }],
+  }));
+  const spiralStyle2 = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${spiralRotation2.value}deg` }],
+  }));
+  const spiralStyle3 = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${spiralRotation3.value}deg` }],
+  }));
+  const spiralPulseStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: spiralScale.value }],
+  }));
+
+  React.useEffect(() => {
+    if (showHypnoOverlay) {
+      spiralRotation1.value = withRepeat(
+        withTiming(360, { duration: 8000, easing: Easing.linear }),
+        -1, false
+      );
+      spiralRotation2.value = withRepeat(
+        withTiming(-360, { duration: 6000, easing: Easing.linear }),
+        -1, false
+      );
+      spiralRotation3.value = withRepeat(
+        withTiming(360, { duration: 4000, easing: Easing.linear }),
+        -1, false
+      );
+      spiralScale.value = withRepeat(
+        withSequence(
+          withTiming(1.15, { duration: 3000, easing: Easing.inOut(Easing.ease) }),
+          withTiming(0.9, { duration: 3000, easing: Easing.inOut(Easing.ease) })
+        ),
+        -1, true
+      );
+    } else {
+      spiralRotation1.value = 0;
+      spiralRotation2.value = 0;
+      spiralRotation3.value = 0;
+      spiralScale.value = 1;
+    }
+  }, [showHypnoOverlay]);
 
   const selectedTherapistRef = useRef(selectedTherapist);
   selectedTherapistRef.current = selectedTherapist;
@@ -749,19 +797,48 @@ export default function TherapyScreen() {
     { key: "motivation", icon: "\u{1F525}", label: "Motivation" },
   ];
 
-  const HYPNO_TEXTS: Record<string, string[]> = {
-    stress: ["Release all tension...", "Your body is weightless...", "Peace flows through you...", "You are completely calm...", "Stress dissolves away..."],
-    sleep: ["You are drifting...", "Deeper and deeper...", "Let sleep embrace you...", "Nothing matters now...", "Sweet, peaceful rest..."],
-    confidence: ["You are powerful...", "Nothing can stop you...", "Believe in yourself...", "You are unstoppable...", "Greatness is within you..."],
-    focus: ["Your mind is clear...", "Total concentration...", "Distractions fade away...", "Crystal clarity...", "Laser-sharp focus..."],
-    anxiety: ["You are safe here...", "Let go of worry...", "Peace is your shield...", "Breathe and release...", "Fear has no power..."],
-    motivation: ["Fire burns within...", "You are relentless...", "No excuses remain...", "Take action now...", "You are extraordinary..."],
-  };
+  const hypnoSessionRef = useRef<{ cancelled: boolean }>({ cancelled: false });
+
+  async function playHypnoSound(base64Audio: string): Promise<void> {
+    return new Promise(async (resolve) => {
+      try {
+        const fileUri = (FileSystem.cacheDirectory || "") + `hypno_${Date.now()}.mp3`;
+        const b64 = base64Audio.replace(/^data:audio\/mpeg;base64,/, "");
+        await FileSystem.writeAsStringAsync(fileUri, b64, { encoding: FileSystem.EncodingType.Base64 });
+        const { sound } = await Audio.Sound.createAsync({ uri: fileUri }, { shouldPlay: true, volume: 1.0 });
+        soundRef.current = sound;
+
+        setTimeout(async () => {
+          try {
+            const { sound: echo } = await Audio.Sound.createAsync({ uri: fileUri }, { shouldPlay: true, volume: 0.18 });
+            hypnoEchoRef.current = echo;
+          } catch {}
+        }, 200);
+
+        sound.setOnPlaybackStatusUpdate((status: { isLoaded: boolean; didJustFinish?: boolean }) => {
+          if (status.isLoaded && status.didJustFinish) {
+            sound.unloadAsync().catch(() => {});
+            if (hypnoEchoRef.current) {
+              hypnoEchoRef.current.stopAsync().catch(() => {});
+              hypnoEchoRef.current.unloadAsync().catch(() => {});
+              hypnoEchoRef.current = null;
+            }
+            soundRef.current = null;
+            resolve();
+          }
+        });
+      } catch {
+        resolve();
+      }
+    });
+  }
 
   async function startHypnosis() {
     if (hypnoLoading) return;
     setHypnoLoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    const session = { cancelled: false };
+    hypnoSessionRef.current = session;
 
     try {
       const apiUrl = getApiUrl();
@@ -777,72 +854,36 @@ export default function TherapyScreen() {
         return;
       }
       refreshBalance();
+      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
       setShowHypnoOverlay(true);
 
-      const texts = HYPNO_TEXTS[hypnoPreset] || HYPNO_TEXTS.stress;
-      let textIdx = 0;
-      setHypnoText(texts[0]);
-      const textTimer = setInterval(() => {
-        textIdx = (textIdx + 1) % texts.length;
-        setHypnoText(texts[textIdx]);
-      }, 5000);
-
       if (data.audioBase64) {
-        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-        const audioUri = data.audioBase64;
-        const fileUri = (FileSystem.cacheDirectory || "") + "hypnosis_audio.mp3";
-        const base64Data = audioUri.replace(/^data:audio\/mpeg;base64,/, "");
-        await FileSystem.writeAsStringAsync(fileUri, base64Data, { encoding: FileSystem.EncodingType.Base64 });
+        setHypnoText("Close your eyes...");
+        await playHypnoSound(data.audioBase64);
+      }
 
-        if (data.ambientBase64) {
-          const ambientFileUri = (FileSystem.cacheDirectory || "") + "hypnosis_ambient.mp3";
-          const ambientB64 = data.ambientBase64.replace(/^data:audio\/mpeg;base64,/, "");
-          await FileSystem.writeAsStringAsync(ambientFileUri, ambientB64, { encoding: FileSystem.EncodingType.Base64 });
-          const { sound: ambientSound } = await Audio.Sound.createAsync(
-            { uri: ambientFileUri },
-            { shouldPlay: true, isLooping: true, volume: 0.25 }
-          );
-          hypnoAmbientRef.current = ambientSound;
+      const phraseAudios: (string | null)[] = data.phraseAudios || [];
+      const phrases: string[] = data.phrases || [];
+
+      for (let i = 0; i < phrases.length; i++) {
+        if (session.cancelled) break;
+        setHypnoText(phrases[i]);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        if (phraseAudios[i]) {
+          await playHypnoSound(phraseAudios[i] as string);
+        } else {
+          await new Promise(r => setTimeout(r, 4000));
         }
+        if (!session.cancelled) {
+          await new Promise(r => setTimeout(r, 1500));
+        }
+      }
 
-        const { sound } = await Audio.Sound.createAsync({ uri: fileUri }, { shouldPlay: true, volume: 1.0 });
-        soundRef.current = sound;
-
-        setTimeout(async () => {
-          try {
-            const { sound: echoSound } = await Audio.Sound.createAsync(
-              { uri: fileUri },
-              { shouldPlay: true, volume: 0.2 }
-            );
-            hypnoEchoRef.current = echoSound;
-          } catch {}
-        }, 180);
-
-        sound.setOnPlaybackStatusUpdate((status: { isLoaded: boolean; didJustFinish?: boolean }) => {
-          if (status.isLoaded && status.didJustFinish) {
-            clearInterval(textTimer);
-            setTimeout(async () => {
-              if (hypnoEchoRef.current) {
-                await hypnoEchoRef.current.stopAsync().catch(() => {});
-                await hypnoEchoRef.current.unloadAsync().catch(() => {});
-                hypnoEchoRef.current = null;
-              }
-              if (hypnoAmbientRef.current) {
-                await hypnoAmbientRef.current.stopAsync().catch(() => {});
-                await hypnoAmbientRef.current.unloadAsync().catch(() => {});
-                hypnoAmbientRef.current = null;
-              }
-              setShowHypnoOverlay(false);
-              setHypnoLoading(false);
-            }, 2000);
-          }
-        });
-      } else {
-        setTimeout(() => {
-          clearInterval(textTimer);
-          setShowHypnoOverlay(false);
-          setHypnoLoading(false);
-        }, 30000);
+      if (!session.cancelled) {
+        setHypnoText("Open your eyes...");
+        await new Promise(r => setTimeout(r, 3000));
+        setShowHypnoOverlay(false);
+        setHypnoLoading(false);
       }
     } catch (err) {
       console.error("Hypnosis error:", err);
@@ -2215,6 +2256,7 @@ export default function TherapyScreen() {
         transparent
         animationType="fade"
         onRequestClose={() => {
+          hypnoSessionRef.current.cancelled = true;
           setShowHypnoOverlay(false);
           setHypnoLoading(false);
           if (soundRef.current) {
@@ -2222,37 +2264,53 @@ export default function TherapyScreen() {
             soundRef.current.unloadAsync().catch(() => {});
             soundRef.current = null;
           }
+          if (hypnoEchoRef.current) {
+            hypnoEchoRef.current.stopAsync().catch(() => {});
+            hypnoEchoRef.current.unloadAsync().catch(() => {});
+            hypnoEchoRef.current = null;
+          }
         }}
       >
         <View style={serenaStyles.hypnoOverlay}>
-          <View style={serenaStyles.spiralContainer}>
+          <Animated.View style={[serenaStyles.spiralContainer, spiralPulseStyle]}>
             <Animated.View
               style={[
                 serenaStyles.spiralRing,
-                { borderColor: "#e040fb", width: 200, height: 200, borderRadius: 100 },
+                { borderColor: "#e040fb", width: 240, height: 240, borderRadius: 120 },
+                spiralStyle1,
               ]}
             />
             <Animated.View
               style={[
                 serenaStyles.spiralRing,
-                { borderColor: "#7c4dff", width: 150, height: 150, borderRadius: 75, position: "absolute" },
+                { borderColor: "#7c4dff", width: 180, height: 180, borderRadius: 90, position: "absolute" },
+                spiralStyle2,
               ]}
             />
             <Animated.View
               style={[
                 serenaStyles.spiralRing,
-                { borderColor: "#e040fb", width: 100, height: 100, borderRadius: 50, position: "absolute" },
+                { borderColor: "#ce93d8", width: 120, height: 120, borderRadius: 60, position: "absolute" },
+                spiralStyle3,
+              ]}
+            />
+            <Animated.View
+              style={[
+                serenaStyles.spiralRing,
+                { borderColor: "#e040fb", width: 60, height: 60, borderRadius: 30, position: "absolute", opacity: 0.8 },
+                spiralStyle1,
               ]}
             />
             <View style={serenaStyles.spiralCenter}>
-              <Ionicons name="eye" size={32} color="#e040fb" />
+              <Ionicons name="eye" size={28} color="#e040fb" />
             </View>
-          </View>
-          <Animated.Text entering={FadeIn.duration(1000)} style={serenaStyles.hypnoTextDisplay}>
+          </Animated.View>
+          <Animated.Text entering={FadeIn.duration(1200)} key={hypnoText} style={serenaStyles.hypnoTextDisplay}>
             {hypnoText}
           </Animated.Text>
           <Pressable
             onPress={() => {
+              hypnoSessionRef.current.cancelled = true;
               setShowHypnoOverlay(false);
               setHypnoLoading(false);
               if (soundRef.current) {
@@ -2597,11 +2655,11 @@ const serenaStyles = StyleSheet.create({
     alignItems: "center",
   },
   spiralContainer: {
-    width: 200,
-    height: 200,
+    width: 260,
+    height: 260,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 40,
+    marginBottom: 50,
   },
   spiralRing: {
     borderWidth: 3,

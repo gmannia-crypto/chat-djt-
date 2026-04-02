@@ -6387,29 +6387,34 @@ Make each treatment step specific and actionable. Make solutions practical thing
 
       const introText = hypnoIntros[preset] || hypnoIntros.stress;
       const hypnoSpeed = Math.min(voiceSpeed, 0.75);
-      const audioBuffer = await fishAudioRequest(introText, voiceId, hypnoSpeed, fishApiKey);
-      const audioBase64 = audioBuffer.toString("base64");
 
-      const ambientPhrases: Record<string, string> = {
-        stress: "Mmmmm... shhh... peace... calm... breathe...",
-        sleep: "Shhh... drift... float... rest... peace...",
-        confidence: "Mmm... power... strength... rise... yes...",
-        focus: "Mmm... clarity... sharp... clear... focus...",
-        anxiety: "Shhh... safe... calm... breathe... peace...",
-        motivation: "Mmm... fire... power... go... unstoppable...",
+      const hypnoPhrases: Record<string, string[]> = {
+        stress: ["Release all tension...", "Your body is weightless...", "Peace flows through you...", "You are completely calm...", "Stress dissolves away..."],
+        sleep: ["You are drifting...", "Deeper and deeper...", "Let sleep embrace you...", "Nothing matters now...", "Sweet, peaceful rest..."],
+        confidence: ["You are powerful...", "Nothing can stop you...", "Believe in yourself...", "You are unstoppable...", "Greatness is within you..."],
+        focus: ["Your mind is clear...", "Total concentration...", "Distractions fade away...", "Crystal clarity...", "Laser-sharp focus..."],
+        anxiety: ["You are safe here...", "Let go of worry...", "Peace is your shield...", "Breathe and release...", "Fear has no power..."],
+        motivation: ["Fire burns within...", "You are relentless...", "No excuses remain...", "Take action now...", "You are extraordinary..."],
       };
-      let ambientBase64: string | null = null;
-      try {
-        const ambientText = ambientPhrases[preset] || ambientPhrases.stress;
-        const ambientBuffer = await fishAudioRequest(ambientText, voiceId, 0.6, fishApiKey);
-        ambientBase64 = `data:audio/mpeg;base64,${ambientBuffer.toString("base64")}`;
-      } catch (ambientErr) {
-        console.error("Ambient audio generation failed (non-blocking):", ambientErr);
-      }
+
+      const phrases = hypnoPhrases[preset] || hypnoPhrases.stress;
+
+      const introBuffer = await fishAudioRequest(introText, voiceId, hypnoSpeed, fishApiKey);
+
+      const phrasePromises = phrases.map(async (phrase) => {
+        try {
+          const buf = await fishAudioRequest(phrase, voiceId, 0.65, fishApiKey);
+          return `data:audio/mpeg;base64,${buf.toString("base64")}`;
+        } catch {
+          return null;
+        }
+      });
+      const phraseAudios = await Promise.all(phrasePromises);
 
       res.json({
-        audioBase64: `data:audio/mpeg;base64,${audioBase64}`,
-        ambientBase64,
+        audioBase64: `data:audio/mpeg;base64,${introBuffer.toString("base64")}`,
+        phraseAudios,
+        phrases,
         preset,
         balance: tokenResult.balance,
       });
