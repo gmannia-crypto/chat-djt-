@@ -6448,7 +6448,8 @@ Make each treatment step specific and actionable. Make solutions practical thing
       if (!deviceId) return res.status(400).json({ error: "Device ID required" });
 
       const adminPass = req.headers["x-admin-key"] as string;
-      if (adminPass !== (process.env.ADMIN_PASSCODE || "ADMIN2025")) {
+      const expectedPass = process.env.ADMIN_PASSCODE;
+      if (!expectedPass || adminPass !== expectedPass) {
         return res.status(403).json({ error: "Admin access required for compare endpoint" });
       }
 
