@@ -1559,7 +1559,7 @@ export default function ArenaScreen() {
   const prefetchingRef = useRef(false);
 
   const [unlockedMystery, setUnlockedMystery] = useState<string[]>([]);
-  const [showMysteryUnlock, setShowMysteryUnlock] = useState(false);
+
   const [mysteryUnlocking, setMysteryUnlocking] = useState<string | null>(null);
 
   useEffect(() => {
