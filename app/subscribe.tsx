@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Image,
 } from "react-native";
+import { TokenWinVideo } from "@/components/TokenWinVideo";
 import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -42,6 +43,9 @@ export default function SubscribeScreen() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedTab, setSelectedTab] = useState<"plans" | "tokens">("plans");
   const [fulfilled, setFulfilled] = useState(false);
+  const [winVideoVisible, setWinVideoVisible] = useState(false);
+  const [winVideoAmount, setWinVideoAmount] = useState<number | undefined>();
+  const [winVideoSource, setWinVideoSource] = useState<string | undefined>();
   const { deviceId, balance, refreshBalance } = useTokens();
 
   const webTopInset = Platform.OS === "web" ? 67 : 0;
@@ -127,22 +131,22 @@ export default function SubscribeScreen() {
         window.history.replaceState({}, "", url.pathname);
       }
 
-      let msg: string;
+      let tokenAmount: number | undefined;
+      let tokenSource: string | undefined;
       if (data.type === "subscription" && data.tier === "vip") {
-        msg = "Welcome to VIP! 150 D.C. Tokens loaded. Nobody gets a better deal than you!";
+        tokenAmount = 150;
+        tokenSource = "VIP Subscription";
       } else if (data.type === "subscription") {
-        msg = "Welcome! 50 D.C. Tokens loaded. Great deal, believe me!";
+        tokenAmount = 50;
+        tokenSource = "Standard Subscription";
       } else {
-        msg = "D.C. Tokens added to your account! Now get back in there!";
+        tokenAmount = data.tokens || undefined;
+        tokenSource = "Token Pack";
       }
 
-      if (Platform.OS === "web") {
-        alert(msg);
-      } else {
-        Alert.alert("D.C. Tokens Added!", msg, [
-          { text: "Tremendous!", style: "default", onPress: () => router.back() },
-        ]);
-      }
+      setWinVideoAmount(tokenAmount);
+      setWinVideoSource(tokenSource);
+      setWinVideoVisible(true);
     } catch (error) {
       console.error("Fulfill error:", error);
       const msg = "There was an issue adding your tokens. Please try again or contact support.";
@@ -284,7 +288,7 @@ export default function SubscribeScreen() {
           style={styles.heroSection}
         >
           <View style={styles.tokenCircle}>
-            <Image source={require("@/assets/images/dynamic-creations-logo.jpg")} style={{ width: 40, height: 40, borderRadius: 20 }} />
+            <Image source={require("@/assets/images/dc-lightning-token.jpeg")} style={{ width: 40, height: 40, borderRadius: 20 }} />
           </View>
           <Text style={styles.heroTitle}>D.C. Tokens</Text>
           <Text style={styles.heroSubtitle}>
@@ -305,7 +309,7 @@ export default function SubscribeScreen() {
             >
               <Text style={styles.balanceLabel}>YOUR BALANCE</Text>
               <View style={styles.balanceRow}>
-                <Image source={require("@/assets/images/dynamic-creations-logo.jpg")} style={{ width: 28, height: 28, borderRadius: 14 }} />
+                <Image source={require("@/assets/images/dc-lightning-token.jpeg")} style={{ width: 28, height: 28, borderRadius: 14 }} />
                 <Text style={styles.balanceAmount}>{balance.totalAvailable}</Text>
                 <Text style={styles.balanceUnit}>D.C. tokens</Text>
               </View>
@@ -558,6 +562,12 @@ export default function SubscribeScreen() {
           Token packs are one-time purchases and do not expire.
         </Text>
       </ScrollView>
+      <TokenWinVideo
+        visible={winVideoVisible}
+        onClose={() => setWinVideoVisible(false)}
+        amount={winVideoAmount}
+        source={winVideoSource}
+      />
     </View>
   );
 }

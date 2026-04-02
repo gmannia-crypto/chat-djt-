@@ -1,0 +1,349 @@
+<!-- ==================== LIGHTNING TOKENS SYSTEM ==================== -->
+<style>
+.lightning-token {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  background: linear-gradient(145deg, #1a1a1a, #2d2d2d);
+  border: 2px solid #ffd700;
+  border-radius: 50px;
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  z-index: 10000;
+  font-weight: bold;
+  box-shadow: 0 0 15px rgba(255,215,0,0.3);
+  cursor: pointer;
+}
+.lightning-token span:first-child {
+  font-size: 20px;
+}
+.lightning-token .token-count {
+  color: #ffd700;
+  font-size: 18px;
+}
+.lightning-token-shake {
+  animation: shake 0.5s ease-in-out;
+}
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+.lightning-flash {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle, rgba(255,215,0,0.3) 0%, rgba(255,215,0,0) 70%);
+  pointer-events: none;
+  z-index: 9999;
+  animation: flash 0.3s ease-out;
+}
+@keyframes flash {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.win-popup {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: linear-gradient(145deg, #1a1a1a, #2d2d2d);
+  border: 3px solid #ffd700;
+  border-radius: 20px;
+  padding: 30px;
+  text-align: center;
+  z-index: 10001;
+  animation: bounceIn 0.5s;
+  box-shadow: 0 0 50px rgba(255,215,0,0.5);
+}
+@keyframes bounceIn {
+  0% { transform: translate(-50%, -50%) scale(0.3); opacity: 0; }
+  50% { transform: translate(-50%, -50%) scale(1.05); }
+  100% { transform: translate(-50%, -50%) scale(1); }
+}
+.win-popup .amount {
+  font-size: 48px;
+  font-weight: bold;
+  color: #ffd700;
+  margin: 15px 0;
+}
+.win-popup button {
+  background: #ffd700;
+  color: black;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 25px;
+  font-weight: bold;
+  cursor: pointer;
+  margin-top: 15px;
+}
+</style>
+
+<script>
+// ==================== LIGHTNING TOKENS ====================
+(function() {
+  
+  // Token state
+  let tokenBalance = parseInt(localStorage.getItem('lightningTokens') || '0');
+  let soundEnabled = localStorage.getItem('soundEnabled') !== 'false';
+  
+  // Sound effects (Web Audio API fallback)
+  const winSound = () => {
+    if (!soundEnabled) return;
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+    oscillator.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    oscillator.frequency.value = 880;
+    gainNode.gain.value = 0.3;
+    oscillator.start();
+    gainNode.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 1);
+    oscillator.stop(audioCtx.currentTime + 1);
+  };
+  
+  const collectSound = () => {
+    if (!soundEnabled) return;
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+    oscillator.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    oscillator.frequency.value = 440;
+    gainNode.gain.value = 0.2;
+    oscillator.start();
+    gainNode.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.5);
+    oscillator.stop(audioCtx.currentTime + 0.5);
+  };
+  
+  // Haptic feedback (vibration)
+  function hapticFeedback(intensity = 'light') {
+    if (!navigator.vibrate) return;
+    if (intensity === 'light') navigator.vibrate(50);
+    else if (intensity === 'medium') navigator.vibrate([100, 50, 100]);
+    else if (intensity === 'win') navigator.vibrate([100, 50, 200, 50, 100]);
+  }
+  
+  // Visual flash effect
+  function flashScreen() {
+    const flash = document.createElement('div');
+    flash.className = 'lightning-flash';
+    document.body.appendChild(flash);
+    setTimeout(() => flash.remove(), 300);
+  }
+  
+  // Show win popup
+  function showWinPopup(amount, source) {
+    const popup = document.createElement('div');
+    popup.className = 'win-popup';
+    popup.innerHTML = `
+      <div style="font-size: 48px;">⚡</div>
+      <div class="amount">+${amount}</div>
+      <div>Lightning Tokens!</div>
+      <div style="font-size: 12px; color: #888; margin: 10px 0;">from ${source}</div>
+      <button onclick="this.closest('.win-popup').remove()">AWESOME!</button>
+    `;
+    document.body.appendChild(popup);
+    
+    // Auto-remove after 3 seconds
+    setTimeout(() => popup.remove(), 3000);
+  }
+  
+  // Update token display
+  function updateTokenDisplay() {
+    let display = document.getElementById('lightningTokenDisplay');
+    if (!display) {
+      const container = document.createElement('div');
+      container.id = 'lightningTokenDisplay';
+      container.className = 'lightning-token';
+      container.innerHTML = `
+        <span>⚡</span>
+        <span class="token-count">${tokenBalance}</span>
+        <span>Tokens</span>
+      `;
+      container.onclick = () => openTokenShop();
+      document.body.appendChild(container);
+    } else {
+      display.querySelector('.token-count').textContent = tokenBalance;
+    }
+  }
+  
+  // Open token shop (premium features)
+  function openTokenShop() {
+    const modal = document.createElement('div');
+    modal.className = 'suggestion-modal';
+    modal.innerHTML = `
+      <div class="suggestion-modal-content">
+        <h2 style="color: #ffd700;">⚡ Token Shop</h2>
+        <p>Spend your Lightning Tokens on exclusive features!</p>
+        <div style="margin: 20px 0;">
+          <div class="leaderboard-entry">🔥 100 tokens - Exclusive badge</div>
+          <div class="leaderboard-entry">🎨 250 tokens - Custom avatar frame</div>
+          <div class="leaderboard-entry">🎭 500 tokens - Secret persona</div>
+          <div class="leaderboard-entry">🏆 1000 tokens - VIP status</div>
+        </div>
+        <p style="color: #888;">Your balance: <strong style="color:#ffd700;">${tokenBalance}</strong> tokens</p>
+        <button onclick="this.closest('.suggestion-modal').remove()" style="background:#ff4d4d; margin-top:15px;">Close</button>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  }
+  
+  // ========== TOKEN REWARD FUNCTIONS (Call these from your features) ==========
+  
+  // Call this when user completes an action
+  window.awardLightningTokens = function(amount, source, showEffect = true) {
+    const oldBalance = tokenBalance;
+    tokenBalance += amount;
+    localStorage.setItem('lightningTokens', tokenBalance);
+    
+    if (showEffect) {
+      // Play sound
+      winSound();
+      // Haptic feedback on win
+      hapticFeedback('win');
+      // Visual flash
+      flashScreen();
+      // Show popup
+      showWinPopup(amount, source);
+      // Shake token counter
+      const display = document.getElementById('lightningTokenDisplay');
+      if (display) {
+        display.classList.add('lightning-token-shake');
+        setTimeout(() => display.classList.remove('lightning-token-shake'), 500);
+      }
+    }
+    
+    updateTokenDisplay();
+    
+    // Track for analytics
+    console.log(`⚡ Awarded ${amount} tokens from ${source}`);
+    
+    return tokenBalance;
+  };
+  
+  // Call this when user spends tokens
+  window.spendLightningTokens = function(amount, item) {
+    if (tokenBalance < amount) {
+      alert(`❌ Not enough tokens! Need ${amount}, you have ${tokenBalance}.`);
+      return false;
+    }
+    tokenBalance -= amount;
+    localStorage.setItem('lightningTokens', tokenBalance);
+    updateTokenDisplay();
+    collectSound();
+    hapticFeedback('medium');
+    console.log(`⚡ Spent ${amount} tokens on ${item}`);
+    return true;
+  };
+  
+  // Call this for daily bonus
+  window.claimDailyTokenBonus = function() {
+    const lastClaim = localStorage.getItem('dailyTokenClaim');
+    const today = new Date().toDateString();
+    if (lastClaim === today) {
+      alert('⏰ You already claimed your daily bonus! Come back tomorrow.');
+      return false;
+    }
+    const bonus = 25;
+    localStorage.setItem('dailyTokenClaim', today);
+    awardLightningTokens(bonus, 'Daily Bonus', true);
+    return true;
+  };
+  
+  // ========== INTEGRATION WITH YOUR EXISTING FEATURES ==========
+  
+  // Wrap your existing functions to add token rewards
+  function integrateWithExistingFeatures() {
+    // Example: When user completes daily challenge
+    const originalChallengeComplete = window.completeDailyChallenge;
+    if (originalChallengeComplete) {
+      window.completeDailyChallenge = function(...args) {
+        const result = originalChallengeComplete(...args);
+        awardLightningTokens(15, 'Daily Challenge', true);
+        return result;
+      };
+    }
+    
+    // Example: When user wins a debate in Arena
+    const originalRecordDebateWin = window.recordDebateWin;
+    if (originalRecordDebateWin) {
+      window.recordDebateWin = function(...args) {
+        const result = originalRecordDebateWin(...args);
+        awardLightningTokens(30, 'Debate Victory', true);
+        return result;
+      };
+    }
+    
+    // Example: When user wins a game
+    const originalGameWin = window.recordGameResult;
+    if (originalGameWin) {
+      window.recordGameResult = function(won, score) {
+        const result = originalGameWin(won, score);
+        if (won) {
+          awardLightningTokens(50, 'Game Victory', true);
+        } else {
+          awardLightningTokens(10, 'Participation', true);
+        }
+        return result;
+      };
+    }
+    
+    // Example: When user rates Trump
+    const originalRateTrump = window.rateTrump;
+    if (originalRateTrump) {
+      window.rateTrump = function(...args) {
+        const result = originalRateTrump(...args);
+        awardLightningTokens(5, 'Rate Trump', true);
+        return result;
+      };
+    }
+    
+    // Example: Daily streak bonus
+    const streak = parseInt(localStorage.getItem('chatdjt_streak') || '0');
+    if (streak >= 3) {
+      awardLightningTokens(10 * streak, `${streak}-Day Streak Bonus`, false);
+    }
+  }
+  
+  // ========== INITIALIZE ==========
+  function init() {
+    updateTokenDisplay();
+    integrateWithExistingFeatures();
+    
+    // Add floating claim button (optional)
+    const claimBtn = document.createElement('button');
+    claimBtn.innerHTML = '⚡ Daily Bonus';
+    claimBtn.style.cssText = `
+      position: fixed;
+      bottom: 20px;
+      right: 100px;
+      background: #ffd700;
+      color: black;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 50px;
+      cursor: pointer;
+      z-index: 9998;
+      font-weight: bold;
+      font-size: 14px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    `;
+    claimBtn.onclick = () => window.claimDailyTokenBonus();
+    document.body.appendChild(claimBtn);
+    
+    console.log('⚡ Lightning Tokens system initialized');
+  }
+  
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+  
+})();
+</script>

@@ -58,8 +58,8 @@ const openai = new OpenAI({
 
 type ModelTier = "premium" | "budget";
 type ModelMode = "premium" | "budget" | "split";
-let activeModelTier: ModelTier = "premium";
-let activeModelMode: ModelMode = "premium";
+let activeModelTier: ModelTier = "budget";
+let activeModelMode: ModelMode = "budget";
 let splitPercentBudget: number = 70;
 
 const MODEL_CONFIG = {
