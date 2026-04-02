@@ -729,6 +729,9 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       negative: ["witch hunt", "ohio state", "wrestling", "no bills", "kiss ass", "sycophant"],
     },
   },
+};
+
+const MYSTERY_PERSONAS: Record<string, ArenaPersona> = {
   schumer: {
     id: "schumer",
     name: "Chuck Schumer",
@@ -768,9 +771,6 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       negative: ["trump", "maga", "obstruction", "shutdown", "radical", "extremist"],
     },
   },
-};
-
-const MYSTERY_PERSONAS: Record<string, ArenaPersona> = {
   alexjones: {
     id: "alexjones",
     name: "Alex Jones",
@@ -893,11 +893,16 @@ const MYSTERY_PERSONAS: Record<string, ArenaPersona> = {
   },
 };
 
-const MYSTERY_PERSONA_IDS = ["alexjones", "obama", "melania"];
-const MYSTERY_UNLOCK_COST = 5;
+const MYSTERY_PERSONA_IDS = ["alexjones", "obama", "melania", "schumer"];
+const MYSTERY_UNLOCK_COSTS: Record<string, number> = {
+  alexjones: 10,
+  obama: 15,
+  melania: 12,
+  schumer: 10,
+};
 const MYSTERY_UNLOCK_KEY = "arena_mystery_unlocked";
 
-const PERSONA_IDS = ["trump", "elon", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "schumer"];
+const PERSONA_IDS = ["trump", "elon", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan"];
 
 const BREAKING_NEWS_REACTIONS: Record<string, string[]> = {
   trump: [
@@ -1569,11 +1574,12 @@ export default function ArenaScreen() {
   }, []);
 
   const unlockMysteryPersona = useCallback(async (personaId: string) => {
-    if (!balance || balance < MYSTERY_UNLOCK_COST) {
+    const cost = MYSTERY_UNLOCK_COSTS[personaId] || 10;
+    if (!balance || balance < cost) {
       if (Platform.OS === "web") {
-        alert(`You need ${MYSTERY_UNLOCK_COST} D.C. Tokens to unlock this mystery persona!`);
+        alert(`You need ${cost} D.C. Tokens to unlock this mystery persona!`);
       } else {
-        Alert.alert("Not Enough Tokens", `You need ${MYSTERY_UNLOCK_COST} D.C. Tokens to unlock this mystery persona!`);
+        Alert.alert("Not Enough Tokens", `You need ${cost} D.C. Tokens to unlock this mystery persona!`);
       }
       return;
     }
@@ -1581,11 +1587,21 @@ export default function ArenaScreen() {
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (deviceId) headers["x-device-id"] = deviceId;
-      await fetch(new URL("/api/use-token", getApiUrl()).toString(), {
+      const res = await fetch(new URL("/api/use-token", getApiUrl()).toString(), {
         method: "POST",
         headers,
-        body: JSON.stringify({ amount: MYSTERY_UNLOCK_COST, reason: `Unlock mystery persona: ${personaId}` }),
+        body: JSON.stringify({ amount: cost, reason: `Unlock mystery persona: ${personaId}` }),
       });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        const errMsg = errData?.error || "Token deduction failed. Try again.";
+        if (Platform.OS === "web") {
+          alert(errMsg);
+        } else {
+          Alert.alert("Unlock Failed", errMsg);
+        }
+        return;
+      }
       await refreshBalance();
       const newUnlocked = [...unlockedMystery, personaId];
       setUnlockedMystery(newUnlocked);
@@ -3542,7 +3558,7 @@ export default function ArenaScreen() {
           {MYSTERY_PERSONA_IDS.filter((id) => !unlockedMystery.includes(id)).length > 0 && (
             <View style={{ marginBottom: 16, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: "rgba(255,215,0,0.2)", backgroundColor: "rgba(255,215,0,0.05)" }}>
               <Text style={{ color: "#FFD700", fontSize: 13, fontWeight: "800", textAlign: "center", marginBottom: 6 }}>MYSTERY PERSONAS</Text>
-              <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, textAlign: "center", marginBottom: 10 }}>{MYSTERY_UNLOCK_COST} D.C. Tokens each to unlock</Text>
+              <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, textAlign: "center", marginBottom: 10 }}>10–15 D.C. Tokens each to unlock</Text>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
                 {MYSTERY_PERSONA_IDS.filter((id) => !unlockedMystery.includes(id)).map((pid) => (
                   <Pressable
@@ -3559,7 +3575,7 @@ export default function ArenaScreen() {
                     ) : (
                       <Ionicons name="help-circle" size={20} color="#FFD700" style={{ marginRight: 6 }} />
                     )}
-                    <Text style={{ color: "#FFD700", fontSize: 12, fontWeight: "700" }}>???</Text>
+                    <Text style={{ color: "#FFD700", fontSize: 12, fontWeight: "700" }}>??? ({MYSTERY_UNLOCK_COSTS[pid] || 10}🪙)</Text>
                     <Ionicons name="lock-closed" size={12} color="#FFD700" style={{ marginLeft: 6 }} />
                   </Pressable>
                 ))}
@@ -4232,7 +4248,7 @@ export default function ArenaScreen() {
               ListFooterComponent={() => (
                 <View style={{ marginTop: 16, borderTopWidth: 1, borderTopColor: "rgba(255,215,0,0.2)", paddingTop: 12 }}>
                   <Text style={{ color: "#FFD700", fontSize: 14, fontWeight: "bold" as const, textAlign: "center" as const, marginBottom: 8 }}>MYSTERY PERSONAS</Text>
-                  <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, textAlign: "center" as const, marginBottom: 12 }}>{MYSTERY_UNLOCK_COST} D.C. Tokens to unlock each</Text>
+                  <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, textAlign: "center" as const, marginBottom: 12 }}>10–15 D.C. Tokens to unlock each</Text>
                   <View style={{ flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 8 }}>
                     {MYSTERY_PERSONA_IDS.map((pid) => {
                       const p = MYSTERY_PERSONAS[pid];

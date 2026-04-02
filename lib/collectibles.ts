@@ -70,6 +70,11 @@ export const CARD_CATALOG: CollectibleCard[] = [
   { id: "special-collector", name: "The Collector", description: "Some collect art. You collect moments of greatness.", rarity: "Rare", category: "Special", icon: "cards", color: "#D4A420", image: require("@/assets/cards/special-collector.png") },
   { id: "special-vip", name: "VIP Access", description: "Not everyone gets in. You're on the list.", rarity: "Epic", category: "Special", icon: "star-circle", color: "#D4A420", image: require("@/assets/cards/special-vip.png") },
   { id: "special-genesis", name: "Genesis Card", description: "The first of its kind. Priceless. One of one.", rarity: "Legendary", category: "Special", icon: "shield-crown", color: "#FFD700", image: require("@/assets/cards/special-genesis.png") },
+
+  { id: "debate-alexjones", name: "Alex Jones Unleashed", description: "The documents are RIGHT HERE. Infowars mode activated.", rarity: "Epic", category: "Debate", icon: "megaphone", color: "#FF4500", image: require("@/assets/cards/debate-mic.png") },
+  { id: "debate-obama", name: "Obama Mic Drop", description: "Let me be clear... you just got presidential'd.", rarity: "Legendary", category: "Debate", icon: "podium", color: "#1a3a5c", image: require("@/assets/cards/debate-supreme.png") },
+  { id: "debate-melania", name: "Melania's Silence", description: "I really don't care, do u? The quietest power move.", rarity: "Epic", category: "Debate", icon: "flower", color: "#C0C0C0", image: require("@/assets/cards/debate-knockout.png") },
+  { id: "debate-schumer", name: "Schumer Shutdown", description: "The Senate Majority Leader has entered the arena.", rarity: "Rare", category: "Debate", icon: "gavel", color: "#003DA5", image: require("@/assets/cards/debate-mic.png") },
 ];
 
 const STORAGE_KEY = "djt_collectibles";
