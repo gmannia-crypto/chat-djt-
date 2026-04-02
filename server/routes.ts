@@ -4554,8 +4554,49 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyah
     }
   });
 
+  const isDev = process.env.NODE_ENV === "development";
+
+  const DEV_PRODUCTS = [
+    {
+      id: "dev_standard_sub", name: "Standard Subscription", description: "50 Dynamic Tokens monthly",
+      metadata: { type: "subscription", tier: "standard" },
+      prices: [{ id: "dev_price_standard", unit_amount: 499, currency: "usd", recurring: { interval: "month" } }],
+    },
+    {
+      id: "dev_vip_sub", name: "VIP Subscription", description: "150 Dynamic Tokens monthly",
+      metadata: { type: "subscription", tier: "vip" },
+      prices: [{ id: "dev_price_vip", unit_amount: 999, currency: "usd", recurring: { interval: "month" } }],
+    },
+    {
+      id: "dev_pack_15", name: "15 Dynamic Tokens", description: "One-time token pack",
+      metadata: { type: "token_pack" },
+      prices: [{ id: "dev_price_pack15", unit_amount: 299, currency: "usd", recurring: null }],
+    },
+    {
+      id: "dev_pack_35", name: "35 Dynamic Tokens", description: "One-time token pack",
+      metadata: { type: "token_pack" },
+      prices: [{ id: "dev_price_pack35", unit_amount: 499, currency: "usd", recurring: null }],
+    },
+    {
+      id: "dev_pack_80", name: "80 Dynamic Tokens", description: "One-time token pack",
+      metadata: { type: "token_pack" },
+      prices: [{ id: "dev_price_pack80", unit_amount: 999, currency: "usd", recurring: null }],
+    },
+  ];
+
+  let stripeAvailable = false;
+  try {
+    await getUncachableStripeClient();
+    stripeAvailable = true;
+  } catch {
+    if (isDev) console.log("[DEV] Stripe not available — dev mode token grants enabled");
+  }
+
   app.get("/api/stripe/publishable-key", async (_req, res) => {
     try {
+      if (!stripeAvailable && isDev) {
+        return res.json({ publishableKey: "pk_dev_mock_key" });
+      }
       const key = await getStripePublishableKey();
       res.json({ publishableKey: key });
     } catch (error) {
@@ -4566,6 +4607,9 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyah
 
   app.get("/api/stripe/products", async (_req, res) => {
     try {
+      if (!stripeAvailable && isDev) {
+        return res.json({ data: DEV_PRODUCTS });
+      }
       const stripe = await getUncachableStripeClient();
       const products = await stripe.products.list({ active: true, limit: 10 });
       const prices = await stripe.prices.list({ active: true, limit: 50 });
@@ -4597,6 +4641,48 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyah
       const { priceId, mode = "subscription", packId, deviceId, tier } = req.body;
       if (!priceId) {
         return res.status(400).json({ error: "priceId is required" });
+      }
+
+      if (!stripeAvailable && isDev) {
+        const devSessionId = `dev_session_${Date.now()}`;
+        const packTokenMap: Record<string, number> = { pack_15: 15, pack_35: 35, pack_80: 80 };
+        const subTokenMap: Record<string, number> = { vip: 150 };
+
+        if (deviceId) {
+          const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+          const account = await getOrCreateAccount(deviceId);
+          if (mode === "subscription") {
+            const tokenGrant = subTokenMap[tier] || 50;
+            const subTier = tier || "standard";
+            await db.query(
+              `UPDATE token_accounts SET tokens = tokens + $2, subscription_active = true, subscription_tier = $3, subscription_expires_at = NOW() + INTERVAL '30 days', updated_at = NOW() WHERE device_id = $1`,
+              [deviceId, tokenGrant, subTier]
+            );
+            await db.query(
+              `INSERT INTO token_transactions (account_id, type, amount, description, created_at) VALUES ($1, 'subscription', $2, $3, NOW())`,
+              [account.id, tokenGrant, `[DEV] ${subTier} subscription — ${tokenGrant} tokens`]
+            );
+          } else if (packId) {
+            const tokens = packTokenMap[packId] || 15;
+            await db.query(
+              `UPDATE token_accounts SET tokens = tokens + $2, updated_at = NOW() WHERE device_id = $1`,
+              [deviceId, tokens]
+            );
+            await db.query(
+              `INSERT INTO token_transactions (account_id, type, amount, description, created_at) VALUES ($1, 'token_pack', $2, $3, NOW())`,
+              [account.id, tokens, `[DEV] ${tokens} Dynamic Tokens purchased`]
+            );
+          }
+          await db.end();
+        }
+
+        const forwardedHost = req.header("x-forwarded-host");
+        const host = forwardedHost || req.get("host");
+        const baseUrl = `https://${host}`;
+        return res.json({
+          url: `${baseUrl}/subscribe?success=true&session_id=${devSessionId}`,
+          sessionId: devSessionId,
+        });
       }
 
       const stripe = await getUncachableStripeClient();
@@ -5509,6 +5595,11 @@ p{color:#999;font-size:16px;margin-bottom:24px}
       const { sessionId, deviceId } = req.body;
       if (!sessionId || !deviceId) {
         return res.status(400).json({ error: "sessionId and deviceId required" });
+      }
+
+      if (sessionId.startsWith("dev_session_") && isDev) {
+        const balance = await getTokenBalance(deviceId);
+        return res.json({ success: true, type: "dev_grant", tokens: balance.tokens, balance });
       }
 
       const stripe = await getUncachableStripeClient();
