@@ -65,6 +65,13 @@ interface TeamStat {
   value: string;
 }
 
+interface GolfLeaderboardEntry {
+  name: string;
+  score: string;
+  position: number;
+  rounds?: number[];
+}
+
 interface Game {
   id: number;
   league: string;
@@ -86,6 +93,11 @@ interface Game {
   startTime?: string;
   displayClock?: string;
   period?: number;
+  isGolf?: boolean;
+  tournamentName?: string;
+  venue?: string;
+  course?: string;
+  leaderboard?: GolfLeaderboardEntry[];
 }
 
 interface PersonaPick {
@@ -175,6 +187,8 @@ const LEAGUE_COLORS: Record<string, string> = {
   NASCAR: "#FFCC00",
   INDYCAR: "#0057B8",
   GOLF: "#006747",
+  PGA: "#006747",
+  LIV: "#E91E63",
   TENNIS: "#C1E72B",
   NCAAB: "#FF8C00",
   NCAAF: "#8B0000",
@@ -749,6 +763,179 @@ function GameStatsPanel({ game }: { game: Game }) {
   );
 }
 
+function GolfCard({
+  game,
+  persona,
+  pick,
+  pickLoading,
+  onSpeak,
+  speakingGameId,
+  onRefresh,
+  onPickTeam,
+  userPick,
+  pendingUserPick,
+}: {
+  game: Game;
+  persona: PersonaInfo;
+  pick: PersonaPick | null;
+  pickLoading: boolean;
+  onSpeak: (text: string, personaId: string, gameId: number) => void;
+  speakingGameId: number | null;
+  onRefresh: (gameId: number) => void;
+  onPickTeam?: (game: Game, team: string) => void;
+  userPick?: string;
+  pendingUserPick?: UserPick;
+}) {
+  const leagueColor = game.league === "LIV" ? "#E91E63" : "#4CAF50";
+  const isSpeaking = speakingGameId === game.id;
+  const isLive = game.status === "in";
+  const isPreGame = game.status === "pre" || (!game.status && !game.score && !game.final);
+  const leaderboard = game.leaderboard || [];
+  const [showFullBoard, setShowFullBoard] = useState(false);
+  const displayBoard = showFullBoard ? leaderboard.slice(0, 20) : leaderboard.slice(0, 5);
+
+  return (
+    <Animated.View entering={FadeInUp.duration(400).springify()} style={styles.gameCard}>
+      <View style={styles.gameHeader}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <View style={[styles.leagueBadge, { backgroundColor: leagueColor }]}>
+            <Ionicons name="golf-outline" size={10} color="#FFF" style={{ marginRight: 3 }} />
+            <Text style={styles.leagueText}>{game.league}</Text>
+          </View>
+          {isLive && (
+            <View style={styles.liveBadge}>
+              <View style={styles.liveDot} />
+              <Text style={styles.liveText}>LIVE</Text>
+            </View>
+          )}
+          {isPreGame && (
+            <View style={styles.upcomingBadge}>
+              <Ionicons name="time-outline" size={10} color="#FFA500" />
+              <Text style={styles.upcomingText}>UPCOMING</Text>
+            </View>
+          )}
+        </View>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <Pressable onPress={() => onRefresh(game.id)} style={({ pressed }) => [pressed && { opacity: 0.5 }]}>
+            <Ionicons name="refresh" size={14} color="rgba(255,255,255,0.4)" />
+          </Pressable>
+        </View>
+      </View>
+
+      <View style={{ marginVertical: 6 }}>
+        <Text style={[styles.gameTitle, { fontSize: 15, marginBottom: 2 }]}>{game.tournamentName || game.game}</Text>
+        {game.venue ? <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, fontFamily: "Inter_400Regular" }}>{game.venue}{game.course ? ` — ${game.course}` : ""}</Text> : null}
+        <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontFamily: "Inter_400Regular", marginTop: 2 }}>{game.time}</Text>
+      </View>
+
+      {game.winner ? (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8, backgroundColor: "rgba(76,175,80,0.15)", padding: 8, borderRadius: 8 }}>
+          <Ionicons name="trophy" size={16} color="#FFD700" />
+          <Text style={{ color: "#FFD700", fontFamily: "Inter_700Bold", fontSize: 14 }}>WINNER: {game.winner}</Text>
+        </View>
+      ) : null}
+
+      {leaderboard.length > 0 && (
+        <View style={{ marginBottom: 8 }}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
+            <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 10, fontFamily: "Inter_600SemiBold", letterSpacing: 1 }}>LEADERBOARD</Text>
+            <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontFamily: "Inter_400Regular" }}>{leaderboard.length} PLAYERS</Text>
+          </View>
+          {displayBoard.map((player, idx) => (
+            <Pressable
+              key={`${player.name}-${idx}`}
+              onPress={() => onPickTeam?.(game, player.name)}
+              style={({ pressed }) => [
+                {
+                  flexDirection: "row",
+                  alignItems: "center",
+                  paddingVertical: 6,
+                  paddingHorizontal: 8,
+                  borderRadius: 6,
+                  marginBottom: 2,
+                  backgroundColor: userPick === player.name ? `${persona.color}20` : idx === 0 ? "rgba(255,215,0,0.08)" : "transparent",
+                  borderWidth: userPick === player.name ? 1 : 0,
+                  borderColor: userPick === player.name ? persona.color : "transparent",
+                },
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              <Text style={{ color: idx === 0 ? "#FFD700" : "rgba(255,255,255,0.5)", fontSize: 11, fontFamily: "Inter_600SemiBold", width: 24 }}>
+                {player.position || idx + 1}
+              </Text>
+              <Text style={{ color: "#FFF", fontSize: 13, fontFamily: "Inter_500Medium", flex: 1 }}>{player.name}</Text>
+              <Text style={{
+                color: player.score.startsWith("-") ? "#4CAF50" : player.score === "E" ? "rgba(255,255,255,0.6)" : "#FF6B6B",
+                fontSize: 13,
+                fontFamily: "Inter_700Bold",
+                minWidth: 35,
+                textAlign: "right" as const,
+              }}>{player.score}</Text>
+              {userPick === player.name && <Ionicons name="checkmark-circle" size={14} color={persona.color} style={{ marginLeft: 6 }} />}
+            </Pressable>
+          ))}
+          {leaderboard.length > 5 && (
+            <Pressable onPress={() => setShowFullBoard(!showFullBoard)} style={({ pressed }) => [{ paddingVertical: 4, alignItems: "center" as const }, pressed && { opacity: 0.7 }]}>
+              <Text style={{ color: persona.color, fontSize: 11, fontFamily: "Inter_500Medium" }}>
+                {showFullBoard ? "Show Less" : `Show Top 20 ▼`}
+              </Text>
+            </Pressable>
+          )}
+        </View>
+      )}
+
+      {leaderboard.length === 0 && isPreGame && onPickTeam && (
+        <View style={{ marginBottom: 8, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)", borderStyle: "dashed" as const }}>
+          <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, fontFamily: "Inter_400Regular", textAlign: "center" as const }}>
+            Tournament hasn't started yet — picks coming from {persona.name}!
+          </Text>
+        </View>
+      )}
+
+      {pickLoading ? (
+        <View style={styles.pickLoadingBox}>
+          <ActivityIndicator size="small" color={persona.color} />
+          <Text style={[styles.pickLoadingText, { color: persona.color }]}>
+            {persona.name} is scouting the field...
+          </Text>
+        </View>
+      ) : pick ? (
+        <>
+          <View style={[styles.pickSection, { borderLeftColor: persona.color }]}>
+            <View style={styles.pickHeader}>
+              <Image source={persona.image} style={[styles.pickAvatar, { borderColor: persona.color }]} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.pickName, { color: persona.color }]}>{persona.name}'s Golf Pick</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                  <Ionicons name="golf-outline" size={12} color="#FFF" />
+                  <Text style={styles.pickValue}>{pick.pick}</Text>
+                </View>
+              </View>
+              {pick.confidence > 0 && (
+                <View style={[styles.confidenceBadge, { backgroundColor: `${persona.color}30` }]}>
+                  <Text style={[styles.confidenceText, { color: persona.color }]}>{pick.confidence}%</Text>
+                </View>
+              )}
+            </View>
+            <Text style={styles.pickReasoning}>"{pick.reasoning}"</Text>
+            <Text style={styles.parodyPickDisclaimer}>PARODY — For entertainment only</Text>
+          </View>
+
+          <Pressable
+            onPress={() => onSpeak(pick.reasoning, persona.id, game.id)}
+            style={({ pressed }) => [styles.listenBtn, { borderColor: persona.color }, pressed && { opacity: 0.7 }]}
+          >
+            <Ionicons name={isSpeaking ? "stop" : "volume-high"} size={16} color={persona.color} />
+            <Text style={[styles.listenBtnText, { color: persona.color }]}>
+              {isSpeaking ? "STOP" : "LISTEN"}
+            </Text>
+          </Pressable>
+        </>
+      ) : null}
+    </Animated.View>
+  );
+}
+
 function GameCard({
   game,
   persona,
@@ -1062,6 +1249,8 @@ export default function SportsScreen() {
     ? games
     : selectedLeague === "RACING"
     ? games.filter((g) => RACING_LEAGUES.includes(g.league))
+    : selectedLeague === "GOLF"
+    ? games.filter((g) => g.league === "GOLF" || g.league === "PGA" || g.league === "LIV" || g.isGolf)
     : games.filter((g) => g.league === selectedLeague);
   const currentTally = tallies[selectedPersona];
 
@@ -1807,8 +1996,9 @@ export default function SportsScreen() {
           ) : (
             filteredGames.map((game) => {
               const pickForGame = userPicks.find((p) => p.gameId === game.id && p.personaId === selectedPersona) || userPicks.find((p) => p.gameId === game.id);
+              const CardComponent = game.isGolf ? GolfCard : GameCard;
               return (
-                <GameCard
+                <CardComponent
                   key={game.id}
                   game={game}
                   persona={activePersona}

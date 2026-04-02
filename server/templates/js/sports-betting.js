@@ -19,17 +19,17 @@ function SportsBettingModule(containerId) {
     mansa:{name:"Mansa",color:"#D4AF37",img:"/api/persona-image/mansa"}
   };
   this.picks = {
-    trump:{nfl:"Take the FAVORITE! Winners pick winners!",nba:"Lakers — tremendous team.",ufc:"The toughest guy wins. Always.",mlb:"Yankees! New York's team. MY team.",soccer:"Real Madrid — they're like me. Winners.",g:"I pick winners. Always."},
-    buffett:{nfl:"Look for value where the public overreacts.",nba:"Take the under. Be contrarian.",ufc:"Take the underdog at +200.",mlb:"Think season totals, not one game.",soccer:"The draw at +240 is where value lives.",g:"Find mispriced lines. Be patient."},
-    musk:{nfl:"The OVER. We're going to Mars, not playing defense.",nba:"Player props. Individual performance is more predictable.",ufc:"Underdog by KO. Maximum disruption.",mlb:"First 5 innings bet. Limit your downside.",soccer:"Both teams to score. Chaos is certainty.",g:"Take the contrarian bet."},
-    jordan:{nfl:"Take the better team. Champions win.",nba:"Take the under. Defense wins championships.",ufc:"Bet on the champion. Mentality matters.",mlb:"Bet on the ace pitcher.",soccer:"The team with more hunger.",g:"Winners want the ball when the game is on the line."},
-    bernie:{nfl:"I ain't finna bet! But if I DID... take the over!",nba:"Gimme the team wit' the most heart!",ufc:"I'd take the underdog! I LOVE an underdog!",mlb:"If the Yankees playin', bet the Yanks.",soccer:"Sheeeeit, I don't watch soccer. Pick anybody!",g:"Don't be out here actin' a fool wit' yo money!"},
-    ruckus:{nfl:"I'm takin' the home team. Less trouble.",nba:"The team wit' better defense. Defense don't lie.",ufc:"The bigger man wins! Simple as that!",mlb:"Bet the pitcher. A good arm don't lie!",soccer:"Take the draw. Nobody deserves to win.",g:"I don't trust gamblin'. At ALL."},
-    genie:{nfl:"The underdog shall rise! Choose WISELY, master!",nba:"Take the team with fresher legs. The lamp knows!",ufc:"The underdog by submission!",mlb:"Take the over. Magic favors abundance!",soccer:"The draw — the universe seeks BALANCE!",g:"You have THREE betting wishes. Use them wisely!"},
-    grandma:{nfl:"Oh dear, I just hope nobody gets hurt!",nba:"Just enjoy the game, honey.",ufc:"Fighting?! Oh my, please be careful!",mlb:"Your grandfather'd say bet the home team.",soccer:"They run around so much!",g:"Don't bet your rent money, sweetie."},
-    suze:{nfl:"Set a LIMIT! Then take the under.",nba:"Small, responsible bets only!",ufc:"That's your emergency fund you're risking! DENIED!",mlb:"Do you have 8 months saved? Didn't think so.",soccer:"International betting = currency risk!",g:"Can you AFFORD to lose this money?"},
-    dave:{nfl:"GAMBLING IS DUMB! Enjoy the game, pay off your card.",nba:"If you have DEBT, do NOT bet!",ufc:"Fight your way out of DEBT!",mlb:"Put that money in MUTUAL FUNDS!",soccer:"Put that money in your Roth IRA!",g:"Sports betting is for people who can't do MATH!"},
-    mansa:{nfl:"Pick the richer franchise.",nba:"Take the team that controls pace.",ufc:"Bet on the one with the most to prove.",mlb:"Take the team with the better bullpen.",soccer:"Take the home side. Home is empire.",g:"Don't collapse YOUR economy with bad bets."}
+    trump:{nfl:"Take the FAVORITE! Winners pick winners!",nba:"Lakers — tremendous team.",ufc:"The toughest guy wins. Always.",mlb:"Yankees! New York's team. MY team.",soccer:"Real Madrid — they're like me. Winners.",pga:"Scheffler plays MY courses. Tremendous golfer!",liv:"LIV plays at Trump Doral — GREAT deal by the Saudis!",g:"I pick winners. Always."},
+    buffett:{nfl:"Look for value where the public overreacts.",nba:"Take the under. Be contrarian.",ufc:"Take the underdog at +200.",mlb:"Think season totals, not one game.",soccer:"The draw at +240 is where value lives.",pga:"Patience wins on the course and in markets.",liv:"Follow the money. Smart money went to LIV.",g:"Find mispriced lines. Be patient."},
+    musk:{nfl:"The OVER. We're going to Mars, not playing defense.",nba:"Player props. Individual performance is more predictable.",ufc:"Underdog by KO. Maximum disruption.",mlb:"First 5 innings bet. Limit your downside.",soccer:"Both teams to score. Chaos is certainty.",pga:"Bryson's physics-based approach is literally insane.",liv:"LIV disrupted golf. I respect that.",g:"Take the contrarian bet."},
+    jordan:{nfl:"Take the better team. Champions win.",nba:"Take the under. Defense wins championships.",ufc:"Bet on the champion. Mentality matters.",mlb:"Bet on the ace pitcher.",soccer:"The team with more hunger.",pga:"Scheffler has the clutch gene. I took that bogey personally.",liv:"I've hustled ALL those guys on the course.",g:"Winners want the ball when the game is on the line."},
+    bernie:{nfl:"I ain't finna bet! But if I DID... take the over!",nba:"Gimme the team wit' the most heart!",ufc:"I'd take the underdog! I LOVE an underdog!",mlb:"If the Yankees playin', bet the Yanks.",soccer:"Sheeeeit, I don't watch soccer. Pick anybody!",pga:"Man, golf is a RICH man's sport! Pick whoever!",liv:"Them LIV boys cashin' CHECKS out there!",g:"Don't be out here actin' a fool wit' yo money!"},
+    ruckus:{nfl:"I'm takin' the home team. Less trouble.",nba:"The team wit' better defense. Defense don't lie.",ufc:"The bigger man wins! Simple as that!",mlb:"Bet the pitcher. A good arm don't lie!",soccer:"Take the draw. Nobody deserves to win.",pga:"Golf is the gentleman's game — pick wisely.",liv:"The Europeans know how to play PROPER golf.",g:"I don't trust gamblin'. At ALL."},
+    genie:{nfl:"The underdog shall rise! Choose WISELY, master!",nba:"Take the team with fresher legs. The lamp knows!",ufc:"The underdog by submission!",mlb:"Take the over. Magic favors abundance!",soccer:"The draw — the universe seeks BALANCE!",pga:"The lamp sees a hole-in-one in your future!",liv:"Magic favors the bold — LIV is BOLD!",g:"You have THREE betting wishes. Use them wisely!"},
+    grandma:{nfl:"Oh dear, I just hope nobody gets hurt!",nba:"Just enjoy the game, honey.",ufc:"Fighting?! Oh my, please be careful!",mlb:"Your grandfather'd say bet the home team.",soccer:"They run around so much!",pga:"That nice Scheffler boy seems very polite.",liv:"Is that the one with the pretty courses?",g:"Don't bet your rent money, sweetie."},
+    suze:{nfl:"Set a LIMIT! Then take the under.",nba:"Small, responsible bets only!",ufc:"That's your emergency fund you're risking! DENIED!",mlb:"Do you have 8 months saved? Didn't think so.",soccer:"International betting = currency risk!",pga:"Can you AFFORD a golf membership AND a bet?",liv:"LIV prize money is insane. YOUR money shouldn't be.",g:"Can you AFFORD to lose this money?"},
+    dave:{nfl:"GAMBLING IS DUMB! Enjoy the game, pay off your card.",nba:"If you have DEBT, do NOT bet!",ufc:"Fight your way out of DEBT!",mlb:"Put that money in MUTUAL FUNDS!",soccer:"Put that money in your Roth IRA!",pga:"Golf memberships cost enough. STOP betting!",liv:"Put that LIV money into your emergency fund!",g:"Sports betting is for people who can't do MATH!"},
+    mansa:{nfl:"Pick the richer franchise.",nba:"Take the team that controls pace.",ufc:"Bet on the one with the most to prove.",mlb:"Take the team with the better bullpen.",soccer:"Take the home side. Home is empire.",pga:"The course is a kingdom. Pick the king.",liv:"LIV invested like an empire. Respect the gold.",g:"Don't collapse YOUR economy with bad bets."}
   };
   this.trashTalk = {
     trump:["I've won more than {o} has DREAMED of winning!","Nobody knows sports like me. NOBODY."],
@@ -240,10 +240,31 @@ SportsBettingModule.prototype.render = function() {
 
   for (var g = 0; g < this.games.length; g++) {
     var game = this.games[g];
+    var isGolfGame = game.isGolf || game.league === 'PGA' || game.league === 'LIV';
+    var lgColor = isGolfGame ? (game.league === 'LIV' ? '#E91E63' : '#006747') : '#333';
     h += '<div class="s-game">';
-    h += '<div class="s-game-top"><span class="s-league">' + game.league + '</span><span class="s-time">' + game.time + '</span></div>';
-    h += '<div class="s-matchup">' + game.game + '</div>';
-    if (game.odds) h += '<div class="s-odds">' + game.odds + '</div>';
+    h += '<div class="s-game-top"><span class="s-league" style="background:' + lgColor + ';">' + (isGolfGame ? '\u{26F3} ' : '') + game.league + '</span><span class="s-time">' + game.time + '</span></div>';
+    if (isGolfGame) {
+      h += '<div class="s-matchup">' + self.esc(game.tournamentName || game.game) + '</div>';
+      if (game.venue) h += '<div class="s-odds" style="color:#888;font-size:10px;">' + self.esc(game.venue) + (game.course ? ' \u2014 ' + self.esc(game.course) : '') + '</div>';
+      if (game.winner) h += '<div style="color:#FFD700;font-weight:bold;font-size:12px;margin:4px 0;">\u{1F3C6} WINNER: ' + self.esc(game.winner) + '</div>';
+      if (game.leaderboard && game.leaderboard.length > 0) {
+        h += '<div style="margin:6px 0;font-size:10px;color:#888;letter-spacing:1px;">LEADERBOARD</div>';
+        var lb = game.leaderboard.slice(0, 5);
+        for (var li = 0; li < lb.length; li++) {
+          var pl = lb[li];
+          var sc = String(pl.score || 'E');
+          var scColor = sc.indexOf('-') === 0 ? '#4CAF50' : (sc === 'E' ? '#888' : '#FF6B6B');
+          h += '<div style="display:flex;align-items:center;gap:6px;padding:2px 4px;font-size:12px;">';
+          h += '<span style="color:' + (li === 0 ? '#FFD700' : '#888') + ';width:18px;">' + (pl.position || (li + 1)) + '</span>';
+          h += '<span style="flex:1;color:#fff;">' + self.esc(pl.name) + '</span>';
+          h += '<span style="color:' + scColor + ';font-weight:bold;">' + self.esc(sc) + '</span></div>';
+        }
+      }
+    } else {
+      h += '<div class="s-matchup">' + game.game + '</div>';
+      if (game.odds) h += '<div class="s-odds">' + game.odds + '</div>';
+    }
     h += '<div class="s-picks">';
     var debaters = [this.p1, this.p2];
     for (var d = 0; d < debaters.length; d++) {

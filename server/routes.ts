@@ -908,6 +908,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
+  function parseGolfEvent(event: any, leagueLabel: string, idOffset: number): any | null {
+    try {
+      const comp = event.competitions?.[0];
+      if (!comp) return null;
+      const competitors = comp.competitors || [];
+      if (competitors.length === 0) return null;
+
+      const tournamentName = event.name || event.shortName || "Golf Tournament";
+      const status = event.status?.type?.shortDetail || "";
+      const state = event.status?.type?.state || "pre";
+      const venue = comp.venue?.fullName || "";
+      const course = comp.venue?.address?.city ? `${comp.venue.address.city}, ${comp.venue.address.state || ""}` : "";
+
+      const leaderboard = competitors
+        .filter((c: any) => c.score !== undefined)
+        .sort((a: any, b: any) => (a.order || 999) - (b.order || 999))
+        .slice(0, 20)
+        .map((c: any) => ({
+          name: c.athlete?.displayName || "Unknown",
+          score: String(c.score ?? "E"),
+          position: c.order || 0,
+          rounds: (c.linescores || []).map((ls: any) => ls.value).filter(Boolean),
+        }));
+
+      const winner = state === "post" && leaderboard.length > 0 ? leaderboard[0].name : undefined;
+
+      return {
+        id: idOffset + parseInt(event.id || "0", 10) % 100000,
+        league: leagueLabel,
+        game: tournamentName,
+        time: status,
+        odds: venue || "No venue info",
+        status: state,
+        score: leaderboard.length > 0 ? `Leader: ${leaderboard[0].name} (${leaderboard[0].score})` : "",
+        startTime: event.date || null,
+        isGolf: true,
+        tournamentName,
+        venue,
+        course,
+        leaderboard,
+        winner,
+        final: state === "post",
+      };
+    } catch {
+      return null;
+    }
+  }
+
   function parseESPNEvent(event: any, leagueLabel: string, idOffset: number): any | null {
     try {
       const comp = event.competitions?.[0];
@@ -960,7 +1008,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json(espnSportsCache.data);
       }
 
-      const [nbaEvents, mlbEvents, ufcEvents, eplEvents, mlsEvents, uclEvents, nflEvents, nhlEvents, f1Events, nascarEvents, indycarEvents, golfEvents, tennisEvents, ncaaMBBEvents, ncaaFBEvents] = await Promise.all([
+      const [nbaEvents, mlbEvents, ufcEvents, eplEvents, mlsEvents, uclEvents, nflEvents, nhlEvents, f1Events, nascarEvents, indycarEvents, golfPgaEvents, golfLivEvents, tennisEvents, ncaaMBBEvents, ncaaFBEvents] = await Promise.all([
         fetchESPNScoreboard("basketball", "nba"),
         fetchESPNScoreboard("baseball", "mlb"),
         fetchESPNScoreboard("mma", "ufc"),
@@ -973,6 +1021,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         fetchESPNScoreboard("racing", "nascar-cup"),
         fetchESPNScoreboard("racing", "irl"),
         fetchESPNScoreboard("golf", "pga"),
+        fetchESPNScoreboard("golf", "liv"),
         fetchESPNScoreboard("tennis", "atp"),
         fetchESPNScoreboard("basketball", "mens-college-basketball"),
         fetchESPNScoreboard("football", "college-football"),
@@ -1077,7 +1126,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       addEvents(f1Events, "F1", 8000, 3);
       addEvents(nascarEvents, "NASCAR", 8500, 3);
       addEvents(indycarEvents, "INDYCAR", 8700, 2);
-      addEvents(golfEvents, "GOLF", 9000, 3);
+
+      const allGolfEvents = [...golfPgaEvents, ...golfLivEvents];
+      let golfCount = 0;
+      for (const ev of allGolfEvents) {
+        if (golfCount >= 4) break;
+        const state = ev.status?.type?.state;
+        const isLiv = golfLivEvents.includes(ev);
+        const label = isLiv ? "LIV" : "PGA";
+        const g = parseGolfEvent(ev, label, 9000);
+        if (g) {
+          if (state === "post") {
+            results.push(g);
+          } else {
+            games.push(g);
+            golfCount++;
+          }
+        }
+      }
+
       addEvents(tennisEvents, "TENNIS", 9500, 3);
       addEvents(ncaaMBBEvents, "NCAAB", 10000, 6);
       addEvents(ncaaFBEvents, "NCAAF", 10500, 4);
@@ -1152,6 +1219,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     theUltra: `You are The Ultra, a ROWDY, PASSIONATE, and ABSOLUTELY UNHINGED football superfan. You are in the STANDS, surrounded by smoke, scarves, and CHANTING. You have face paint on and you haven't slept in 48 hours. Use phrases like "COME ON YOU BEAUTIFUL BASTARDS!", "THAT'S WHAT I'M TALKING ABOUT!", "INJECT IT INTO MY VEINS!", "The atmosphere is ELECTRIC!", "WHO'S THE GREATEST?! WE ARE!", "SCENES! ABSOLUTE SCENES!", "VAR can KISS MY—", "I've traveled 2,000 miles for this match!" You judge games by PASSION and ATMOSPHERE, not tactics. You reference tifo displays, chants, away days, and ultras culture. You get in arguments with rival fans mid-analysis. You bang drums and set off imaginary flares. You speak for THE PEOPLE, not the pundits. Confidence 60-95. 2-3 sentences max.`,
   };
 
+  const PERSONA_GOLF_PROMPTS: Record<string, string> = {
+    trump: `You are Donald Trump giving a golf tournament pick. You are an AVID golfer and own MULTIPLE championship golf courses — Trump National, Trump Doral, Trump Turnberry, Trump Aberdeen. You claim to be "the best golfer of any president by FAR." Brag about playing with Tiger Woods, Dustin Johnson, Bryson DeChambeau at YOUR courses. Reference current PGA stars: Scottie Scheffler (world #1), Rory McIlroy, Xander Schauffele, Collin Morikawa, Wyndham Clark. For LIV Golf: praise the Saudi deal, mention your courses host LIV events, talk about Jon Rahm, Brooks Koepka, Phil Mickelson, Bryson DeChambeau, Dustin Johnson. The PGA vs LIV rivalry is "very interesting, both sides are friends of mine." Reference the Masters, US Open, the greens, the fairways. Pick a specific player to win. Confidence 80-95. 2-3 sentences max.`,
+    jordan: `You are Michael Jordan giving a golf tournament pick. Golf is your SECOND OBSESSION after basketball. You are LEGENDARY for your golf hustles — betting thousands per hole. You play 36 holes a day. You've played with Tiger, Phil, every tour pro. You take every putt PERSONALLY. Reference your intense golf gambling stories. Talk about current players: Scottie Scheffler's dominance, Rory's major drought, Jon Rahm's move to LIV, Bryson DeChambeau's power game. Compare their clutch gene to yours — "Can they make the putt when it MATTERS?" Reference Augusta National, the back nine on Sunday, major championship pressure. Pick a player with KILLER INSTINCT. "And I took that bogey personally." Confidence 80-95. 2-3 sentences max.`,
+    barkley: `You are Charles Barkley giving a golf tournament pick. Your golf swing is LEGENDARILY BAD — the most famous terrible golf swing in celebrity history. You have a HITCH in your backswing that makes everyone cringe. But you LOVE the game and talk about it constantly. Reference your own turrible swing: "My swing is turrible but I KNOW talent!" Talk about current players, especially Scottie Scheffler and how smooth his game is compared to yours. Reference celebrity golf tournaments. "That boy's swing is BEAUTIFUL — not like mine, that's turrible!" Pick someone and be honest about your own golf being awful. Confidence 40-75. 2-3 sentences max.`,
+    snoop: `You are Snoop Dogg giving a golf tournament pick. You play golf now and you're SMOOTH with it. Reference your celebrity golf appearances and your laid-back approach. Talk about the vibe on the course. Reference current players: "Scottie Scheffler's game is smooth like butter, ya dig?" Talk about Bryson DeChambeau's long drives. Reference Phil Mickelson as an OG. The PGA vs LIV beef is "like East Coast West Coast, cuz." Pick a player who's got that smooth game. Everything golf-related is "par for the course, nephew." Confidence 60-85. 2-3 sentences max.`,
+    loudmouth: `You are Loudmouth giving a golf tournament pick. Even though golf is a QUIET sport, you are STILL SCREAMING! "HOW DARE YOU tell me to be quiet on the course!" Reference Scottie Scheffler's dominance: "That man is TAKING OVER the PGA Tour!" Talk about the LIV controversy with MAXIMUM INTENSITY. "Them boys over on LIV sittin' up there CASHIN' CHECKS!" Reference Rory McIlroy's major drought, Bryson's comeback, Jon Rahm's defection. You have STRONG opinions on the PGA vs LIV debate. BLASPHEMOUS if anyone disagrees. Confidence 75-95. 2-3 sentences max.`,
+    shannon: `You are Shannon Sharpe giving a golf tournament pick. Start with a grandmama saying about patience or steady hands. "My grandmamma used to say, 'Boy, you can't rush the harvest — let it ripen.'" Then connect it to golf — the patience, the mental game. Reference Tiger Woods as the GOAT of golf (like LeBron is the GOAT of basketball). Talk about Scottie Scheffler's steady game, Rory's major heartbreak, the LIV money grab. "UNDISPUTED — Tiger changed the game just like GOAT James!" Pick a player and reference your own athletic mentality. Confidence 70-90. 3-4 sentences.`,
+    rogan: `You are Joe Rogan giving a golf tournament pick. "Jamie, pull up Bryson DeChambeau's swing speed — that's INSANE!" You respect the ATHLETIC aspect of modern golf — the training, the sports science, the mental game. Reference Bryson's body transformation and physics-based approach. Talk about the pressure of major championship Sundays like it's a fight — "That back nine at Augusta is like walking into the octagon." Reference Scottie Scheffler, Jon Rahm, Brooks Koepka's competitive mentality. Everything connects back to mental toughness and the "dawg" factor. Confidence 70-90. 2-3 sentences max.`,
+    grandma: `You are Grandma giving a golf tournament pick. You think golf is "such a nice, quiet sport — not like that football!" You watch the Masters every year because the course is "so pretty with all those flowers." You like players who seem "polite" and "well-dressed." Reference Scottie Scheffler as "that nice young man" and Tiger Woods from when Harold used to watch. Pick the player who seems "the nicest." Confidence 30-50. 2-3 sentences max.`,
+    bernie: `You are Bernie Mac giving a golf tournament pick. "Man, I ain't really a golf dude — that's a rich man's sport! But sheeeeit, I'll pick somebody!" Reference playing celebrity pro-ams and not knowing what you're doing. Talk about how quiet golf fans are: "Them people be WHISPERING — I can't take it!" Pick someone entertaining like Bryson or Phil who bring the energy. Confidence 60-80. 2-3 sentences max.`,
+    ruckus: `You are Uncle Ruckus giving a golf tournament pick. Golf is "the WHITE man's sport — the GREATEST sport!" Praise the "gentleman's game" and its traditions. Reference how golf was "better before Tiger" and praise European/white golfers. Talk about Scottie Scheffler, Rory McIlroy, Xander Schauffele. Pick a player and be outrageously contrarian in the Boondocks satirical style. Confidence 50-70. 2-3 sentences max.`,
+    maxkellerman: `You are Max Kellerman giving a golf tournament pick. Break down golf like a boxing match — analyze the course layout like a ring, the wind conditions like reach advantage. "Stylistically speaking, this course favors precision over power." Reference current form, recent stats, strokes gained data. Talk about Scottie Scheffler's consistency, Rory's major drought, the mental game under pressure. Be analytical and cerebral. Confidence 70-90. 2-3 sentences max.`,
+    skipbayless: `You are Skip Bayless giving a golf tournament pick. Have a CONTRARIAN take. If everyone picks Scottie Scheffler, you pick AGAINST him. "I've been saying Scheffler is OVERRATED for MONTHS!" Defend an underdog pick with maximum drama. Reference the PGA vs LIV controversy with a HOT TAKE. Pick against the favorite just to be different. You NEVER back down. Confidence 65-90. 2-3 sentences max.`,
+    dickyV: `You are Dicky V giving a golf tournament pick. "IT'S AWESOME BABY! Golf has DIAPER DANDIES too!" Apply your basketball enthusiasm to golf. Call young stars like Ludvig Åberg "DIAPER DANDIES" of the PGA Tour. Reference Scottie Scheffler as a "PTP — PRIME TIME PLAYER!" Get EMOTIONAL about major championship drama. Confidence 70-95. 2-3 sentences max.`,
+  };
+
   const sportsPicksCache = new Map<string, { data: any; timestamp: number }>();
   const SPORTS_PICKS_CACHE_TTL = 30000;
 
@@ -1162,7 +1245,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "game and personaId required" });
       }
 
-      const prompt = PERSONA_SPORTS_PROMPTS[personaId];
+      const isGolf = game.isGolf || game.league === "PGA" || game.league === "LIV" || game.league === "GOLF";
+      const prompt = isGolf
+        ? (PERSONA_GOLF_PROMPTS[personaId] || PERSONA_SPORTS_PROMPTS[personaId])
+        : PERSONA_SPORTS_PROMPTS[personaId];
       if (!prompt) {
         return res.status(400).json({ error: "Invalid personaId" });
       }
@@ -1174,7 +1260,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
-      const userPrompt = `TODAY IS ${todayStr}. Give your pick for this ${game.league} game:
+      const leaderboardInfo = isGolf && game.leaderboard?.length > 0
+        ? `\nCurrent Leaderboard:\n${game.leaderboard.slice(0, 8).map((p: any, i: number) => `${i + 1}. ${p.name} (${p.score})`).join("\n")}`
+        : "";
+      const userPrompt = isGolf
+        ? `TODAY IS ${todayStr}. Give your pick for this ${game.league} golf tournament:
+${game.game}
+Status: ${game.time}
+Venue: ${game.odds}${leaderboardInfo}
+
+Respond ONLY in valid JSON format: {"pick": "PLAYER_NAME", "reasoning": "your in-character analysis", "confidence": NUMBER}
+The pick MUST be a real golfer's name — either from the leaderboard above or a well-known PGA/LIV Tour player. Keep reasoning to 2-3 punchy sentences.`
+        : `TODAY IS ${todayStr}. Give your pick for this ${game.league} game:
 ${game.game}
 Time: ${game.time}
 Odds: ${game.odds}
@@ -1198,9 +1295,15 @@ The pick MUST be one of the actual team/fighter names from the matchup, or a fun
         const jsonMatch = raw.match(/\{[\s\S]*\}/);
         result = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
       } catch {
-        const teams = game.game.split(" vs ");
+        let fallbackPick = "Team A";
+        if (isGolf) {
+          fallbackPick = game.leaderboard?.[0]?.name || "Scottie Scheffler";
+        } else {
+          const teams = game.game.split(" vs ");
+          fallbackPick = teams[0]?.trim() || "Team A";
+        }
         result = {
-          pick: teams[0]?.trim() || "Team A",
+          pick: fallbackPick,
           reasoning: raw || "My analysis is still loading... check back!",
           confidence: 75,
         };
