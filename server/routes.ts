@@ -4716,6 +4716,10 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyah
   app.get("/subscribe", async (req, res) => {
     const { success, session_id, canceled } = req.query;
 
+    if (success === "true" && session_id && typeof session_id === "string" && session_id.startsWith("dev_session_") && isDev) {
+      return res.sendFile(join(process.cwd(), "dist", "index.html"));
+    }
+
     if (success === "true" && session_id) {
       try {
         const stripe = await getUncachableStripeClient();
