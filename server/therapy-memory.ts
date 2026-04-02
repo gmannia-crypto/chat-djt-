@@ -351,7 +351,7 @@ async function dreamApiUploadBuffer(buf: Buffer, filename: string, mimeType: str
 
   const uploadRes = await fetch("https://dreamapi-oss.oss-cn-hongkong.aliyuncs.com", {
     method: "POST",
-    body: form as any,
+    body: form as unknown as BodyInit,
     headers: form.getHeaders(),
   });
   if (!uploadRes.ok) throw new Error(`DreamAPI upload failed: ${uploadRes.status}`);
@@ -456,14 +456,14 @@ export async function generateLipSyncFal(
         still_mode: true,
       },
       logs: true,
-      onQueueUpdate: (update: any) => {
+      onQueueUpdate: (update: { status: string; logs?: Array<{ message: string }> }) => {
         if (update.status === "IN_PROGRESS" && update.logs) {
-          update.logs.forEach((log: any) => console.log(`[LipSync:Fal] ${log.message}`));
+          update.logs.forEach((log) => console.log(`[LipSync:Fal] ${log.message}`));
         }
       },
     });
 
-    const result = await Promise.race([genPromise, timeoutPromise]) as any;
+    const result = await Promise.race([genPromise, timeoutPromise]) as Record<string, Record<string, { url?: string }>>;
     const videoUrl = result?.data?.video?.url || result?.video?.url || null;
     const timeMs = Date.now() - start;
 
