@@ -644,7 +644,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       candace: { sentiment: 5 },
       miller: { sentiment: 5 },
       jimjordan: { sentiment: 5 },
-      shahid: { sentiment: 50 },
+      schumer: { sentiment: 50 },
     },
     triggerWords: {
       positive: ["justice", "democracy", "voting rights", "equality", "civil rights", "accountability"],
@@ -683,7 +683,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       candace: { sentiment: 20 },
       joyreid: { sentiment: 5 },
       jimjordan: { sentiment: 80 },
-      shahid: { sentiment: 5 },
+      schumer: { sentiment: 5 },
     },
     triggerWords: {
       positive: ["security", "border", "immigration", "law", "enforcement", "deport", "america first"],
@@ -722,55 +722,182 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       candace: { sentiment: 45 },
       joyreid: { sentiment: 5 },
       miller: { sentiment: 85 },
-      shahid: { sentiment: 5 },
+      schumer: { sentiment: 5 },
     },
     triggerWords: {
       positive: ["trump", "freedom", "constitution", "investigation", "hearing", "subpoena"],
       negative: ["witch hunt", "ohio state", "wrestling", "no bills", "kiss ass", "sycophant"],
     },
   },
-  shahid: {
-    id: "shahid",
-    name: "Shahid Bolsen",
-    shortName: "Shahid",
-    color: "#2e8b57",
+  schumer: {
+    id: "schumer",
+    name: "Chuck Schumer",
+    shortName: "Schumer",
+    color: "#003DA5",
     faction: "opponent",
-    image: require("@/assets/images/persona-shahid.png"),
+    image: null,
     personality: {
-      energy: 70,
-      aggression: 55,
-      humor: 15,
-      catchphrases: ["The OCGFC controls this", "Follow the money", "The Global South will not be silenced", "Western democracy is a performance"],
+      energy: 65,
+      aggression: 60,
+      humor: 35,
+      catchphrases: ["Let me be clear", "The American people deserve better", "My Republican friends have lost their way", "Make no mistake about it"],
     },
     relationships: {
       trump: { sentiment: 10 },
-      netanyahu: { sentiment: 5 },
+      netanyahu: { sentiment: 50 },
       ruckus: { sentiment: 10 },
-      galloway: { sentiment: 90 },
-      mcconnell: { sentiment: 10 },
-      carville: { sentiment: 20 },
-      maddow: { sentiment: 25 },
-      omar: { sentiment: 75 },
-      biden: { sentiment: 15 },
-      rosie: { sentiment: 30 },
-      berniemc: { sentiment: 40 },
-      elon: { sentiment: 5 },
-      graham: { sentiment: 5 },
-      megynkelly: { sentiment: 10 },
-      pambondi: { sentiment: 5 },
-      candace: { sentiment: 45 },
-      joyreid: { sentiment: 30 },
+      galloway: { sentiment: 30 },
+      mcconnell: { sentiment: 15 },
+      carville: { sentiment: 80 },
+      maddow: { sentiment: 85 },
+      omar: { sentiment: 60 },
+      biden: { sentiment: 90 },
+      rosie: { sentiment: 65 },
+      berniemc: { sentiment: 55 },
+      elon: { sentiment: 15 },
+      graham: { sentiment: 15 },
+      megynkelly: { sentiment: 20 },
+      pambondi: { sentiment: 10 },
+      candace: { sentiment: 15 },
+      joyreid: { sentiment: 80 },
       miller: { sentiment: 5 },
-      jimjordan: { sentiment: 5 },
+      jimjordan: { sentiment: 10 },
     },
     triggerWords: {
-      positive: ["islam", "palestine", "global south", "ocgfc", "justice", "colonialism", "truth"],
-      negative: ["terrorism", "radical", "extremist", "western values", "democracy", "freedom"],
+      positive: ["senate", "democrat", "new york", "social security", "medicare", "bipartisan", "democracy"],
+      negative: ["trump", "maga", "obstruction", "shutdown", "radical", "extremist"],
     },
   },
 };
 
-const PERSONA_IDS = ["trump", "elon", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "shahid"];
+const MYSTERY_PERSONAS: Record<string, ArenaPersona> = {
+  alexjones: {
+    id: "alexjones",
+    name: "Alex Jones",
+    shortName: "Jones",
+    color: "#FF4500",
+    faction: "supporter",
+    image: null,
+    personality: {
+      energy: 100,
+      aggression: 95,
+      humor: 70,
+      catchphrases: ["THEY'RE TURNING THE FROGS GAY!", "I have the documents RIGHT HERE!", "The globalists are PANICKING!", "1776 WILL COMMENCE AGAIN!"],
+    },
+    relationships: {
+      trump: { sentiment: 95 },
+      netanyahu: { sentiment: 40 },
+      ruckus: { sentiment: 70 },
+      galloway: { sentiment: 30 },
+      mcconnell: { sentiment: 25 },
+      carville: { sentiment: 5 },
+      maddow: { sentiment: 5 },
+      omar: { sentiment: 5 },
+      biden: { sentiment: 5 },
+      rosie: { sentiment: 10 },
+      berniemc: { sentiment: 20 },
+      elon: { sentiment: 55 },
+      graham: { sentiment: 40 },
+      megynkelly: { sentiment: 45 },
+      pambondi: { sentiment: 50 },
+      candace: { sentiment: 60 },
+      joyreid: { sentiment: 5 },
+      miller: { sentiment: 70 },
+      jimjordan: { sentiment: 65 },
+      schumer: { sentiment: 5 },
+    },
+    triggerWords: {
+      positive: ["infowars", "conspiracy", "globalists", "truth", "freedom", "liberty", "supplements"],
+      negative: ["sandy hook", "lawsuit", "banned", "deplatformed", "crazy", "lunatic"],
+    },
+  },
+  obama: {
+    id: "obama",
+    name: "Barack Obama",
+    shortName: "Obama",
+    color: "#1a3a5c",
+    faction: "opponent",
+    image: null,
+    personality: {
+      energy: 60,
+      aggression: 35,
+      humor: 75,
+      catchphrases: ["Let me be clear", "Here's the thing", "That's not who we are", "Yes we can"],
+    },
+    relationships: {
+      trump: { sentiment: 5 },
+      netanyahu: { sentiment: 35 },
+      ruckus: { sentiment: 15 },
+      galloway: { sentiment: 40 },
+      mcconnell: { sentiment: 10 },
+      carville: { sentiment: 80 },
+      maddow: { sentiment: 85 },
+      omar: { sentiment: 65 },
+      biden: { sentiment: 95 },
+      rosie: { sentiment: 70 },
+      berniemc: { sentiment: 65 },
+      elon: { sentiment: 20 },
+      graham: { sentiment: 15 },
+      megynkelly: { sentiment: 25 },
+      pambondi: { sentiment: 10 },
+      candace: { sentiment: 15 },
+      joyreid: { sentiment: 80 },
+      miller: { sentiment: 5 },
+      jimjordan: { sentiment: 10 },
+      schumer: { sentiment: 85 },
+    },
+    triggerWords: {
+      positive: ["hope", "change", "unity", "progress", "healthcare", "diplomacy", "michelle"],
+      negative: ["trump", "maga", "birther", "muslim", "kenya", "radical"],
+    },
+  },
+  melania: {
+    id: "melania",
+    name: "Melania Trump",
+    shortName: "Melania",
+    color: "#C0C0C0",
+    faction: "supporter",
+    image: null,
+    personality: {
+      energy: 25,
+      aggression: 20,
+      humor: 40,
+      catchphrases: ["I really don't care, do u?", "Be best", "That is very interesting...", "I have my own opinion"],
+    },
+    relationships: {
+      trump: { sentiment: 70 },
+      netanyahu: { sentiment: 45 },
+      ruckus: { sentiment: 30 },
+      galloway: { sentiment: 20 },
+      mcconnell: { sentiment: 35 },
+      carville: { sentiment: 20 },
+      maddow: { sentiment: 15 },
+      omar: { sentiment: 20 },
+      biden: { sentiment: 30 },
+      rosie: { sentiment: 10 },
+      berniemc: { sentiment: 25 },
+      elon: { sentiment: 40 },
+      graham: { sentiment: 45 },
+      megynkelly: { sentiment: 35 },
+      pambondi: { sentiment: 50 },
+      candace: { sentiment: 40 },
+      joyreid: { sentiment: 15 },
+      miller: { sentiment: 30 },
+      jimjordan: { sentiment: 35 },
+      schumer: { sentiment: 20 },
+    },
+    triggerWords: {
+      positive: ["fashion", "elegance", "first lady", "barron", "slovenia", "be best"],
+      negative: ["stormy", "affair", "jacket", "melania", "trophy wife", "gold digger"],
+    },
+  },
+};
+
+const MYSTERY_PERSONA_IDS = ["alexjones", "obama", "melania"];
+const MYSTERY_UNLOCK_COST = 5;
+const MYSTERY_UNLOCK_KEY = "arena_mystery_unlocked";
+
+const PERSONA_IDS = ["trump", "elon", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "schumer"];
 
 const BREAKING_NEWS_REACTIONS: Record<string, string[]> = {
   trump: [
@@ -858,9 +985,21 @@ const BREAKING_NEWS_REACTIONS: Record<string, string[]> = {
     "Are you KIDDING me?! Breaking news?! The American people are SICK of this! President Trump was RIGHT!",
     "LET ME TELL YOU SOMETHING — this breaking news proves EVERYTHING President Trump has been saying!",
   ],
-  shahid: [
-    "Stop — everyone stop. This breaking news... this is the OCGFC agenda playing out in real time before your eyes.",
-    "This is precisely what I have been warning about. The owners and controllers of globalized financial capital are making their move.",
+  schumer: [
+    "HOLD ON — I need everyone to stop and pay attention to this. This is EXACTLY why we need to protect our democratic institutions!",
+    "Let me be clear — this breaking news is a direct consequence of Republican obstruction and the MAGA agenda. The American people deserve answers!",
+  ],
+  alexjones: [
+    "OH MY GOD! BREAKING NEWS! I TOLD YOU! I TOLD YOU THIS WAS COMING! The globalists are making their MOVE! INFOWARS DOT COM!",
+    "STOP EVERYTHING! I have the DOCUMENTS right here! This breaking news PROVES the New World Order agenda! They thought they could HIDE this from us!",
+  ],
+  obama: [
+    "Look... let me just pause here because this is important. This breaking news — this is exactly the kind of moment that tests who we are as a nation.",
+    "Here's the thing about this breaking news — it's a reminder that our democracy requires vigilance. And it requires all of us to pay attention.",
+  ],
+  melania: [
+    "...That is... very interesting. I think this breaking news speaks for itself.",
+    "I see. Well... I really don't care about the drama, but this news is... significant.",
   ],
 };
 
@@ -897,7 +1036,10 @@ const PERSONA_ALIASES: Record<string, string[]> = {
   joyreid: ["joy", "joy reid", "reid"],
   miller: ["miller", "stephen miller", "stephen"],
   jimjordan: ["jordan", "jim jordan", "jim"],
-  shahid: ["shahid", "shahid bolsen", "bolsen"],
+  schumer: ["schumer", "chuck schumer", "chuck"],
+  alexjones: ["alex jones", "jones", "alex", "infowars"],
+  obama: ["obama", "barack", "barack obama"],
+  melania: ["melania", "melania trump"],
 };
 
 function detectTrumpAttack(text: string, speakerId: string): boolean {
@@ -987,12 +1129,17 @@ const COUNTRIES = [
   "Chile","Peru","Poland","Ukraine","Czech Republic","Portugal","Belgium","Austria","Switzerland","New Zealand",
 ];
 
+function getPersona(id: string): ArenaPersona | undefined {
+  return ARENA_PERSONAS[id] || MYSTERY_PERSONAS[id] || undefined;
+}
+
 function calculateResponseProbability(
   listenerId: string,
   speakerId: string,
   text: string
 ): number {
-  const listener = ARENA_PERSONAS[listenerId];
+  const listener = getPersona(listenerId);
+  if (!listener) return 30;
   const relationship = listener.relationships[speakerId] || { sentiment: 50 };
 
   let probability = 35;
@@ -1149,7 +1296,7 @@ function ArenaIntro({ personas, onComplete }: { personas: string[]; onComplete: 
         {phase >= 2 && (
           <Animated.View entering={FadeIn.duration(300).delay(200)} style={introStyles.personaGrid}>
             {visiblePersonas.map((pid, i) => {
-              const p = ARENA_PERSONAS[pid];
+              const p = getPersona(pid);
               if (!p) return null;
               return (
                 <Animated.View
@@ -1405,6 +1552,66 @@ export default function ArenaScreen() {
   const ttsPendingMoreRef = useRef(false);
   const prefetchedAudioRef = useRef<{ personaId: string; text: string; audioUri: string } | null>(null);
   const prefetchingRef = useRef(false);
+
+  const [unlockedMystery, setUnlockedMystery] = useState<string[]>([]);
+  const [showMysteryUnlock, setShowMysteryUnlock] = useState(false);
+  const [mysteryUnlocking, setMysteryUnlocking] = useState<string | null>(null);
+
+  useEffect(() => {
+    AsyncStorage.getItem(MYSTERY_UNLOCK_KEY).then((data) => {
+      if (data) {
+        try {
+          const parsed = JSON.parse(data);
+          if (Array.isArray(parsed)) setUnlockedMystery(parsed);
+        } catch {}
+      }
+    });
+  }, []);
+
+  const unlockMysteryPersona = useCallback(async (personaId: string) => {
+    if (!balance || balance < MYSTERY_UNLOCK_COST) {
+      if (Platform.OS === "web") {
+        alert(`You need ${MYSTERY_UNLOCK_COST} D.C. Tokens to unlock this mystery persona!`);
+      } else {
+        Alert.alert("Not Enough Tokens", `You need ${MYSTERY_UNLOCK_COST} D.C. Tokens to unlock this mystery persona!`);
+      }
+      return;
+    }
+    setMysteryUnlocking(personaId);
+    try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (deviceId) headers["x-device-id"] = deviceId;
+      await fetch(new URL("/api/use-token", getApiUrl()).toString(), {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ amount: MYSTERY_UNLOCK_COST, reason: `Unlock mystery persona: ${personaId}` }),
+      });
+      await refreshBalance();
+      const newUnlocked = [...unlockedMystery, personaId];
+      setUnlockedMystery(newUnlocked);
+      await AsyncStorage.setItem(MYSTERY_UNLOCK_KEY, JSON.stringify(newUnlocked));
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      const persona = MYSTERY_PERSONAS[personaId];
+      if (persona) {
+        setSelectedPersonas((prev) => [...prev, personaId]);
+      }
+    } catch (e) {
+      if (Platform.OS === "web") {
+        alert("Failed to unlock persona. Try again.");
+      } else {
+        Alert.alert("Error", "Failed to unlock persona. Try again.");
+      }
+    }
+    setMysteryUnlocking(null);
+  }, [balance, deviceId, refreshBalance, unlockedMystery]);
+
+  const allAvailablePersonas = useMemo(() => {
+    const all = { ...ARENA_PERSONAS };
+    for (const pid of unlockedMystery) {
+      if (MYSTERY_PERSONAS[pid]) all[pid] = MYSTERY_PERSONAS[pid];
+    }
+    return all;
+  }, [unlockedMystery]);
 
   const [selectedPersonas, setSelectedPersonas] = useState<string[]>(PERSONA_IDS);
   const [showPersonaSelector, setShowPersonaSelector] = useState(false);
@@ -2301,7 +2508,7 @@ export default function ArenaScreen() {
         responder.engagement = Math.min(100, responder.engagement + 10);
         responder.lastSpoke = Date.now();
 
-        const relationship = ARENA_PERSONAS[responderId].relationships[toSpeakerId] || { sentiment: 50 };
+        const relationship = getPersona(responderId).relationships[toSpeakerId] || { sentiment: 50 };
         if (relationship.sentiment > 70) {
           responder.happiness = Math.min(100, responder.happiness + 5);
           responder.anger = Math.max(0, responder.anger - 3);
@@ -2390,7 +2597,7 @@ export default function ArenaScreen() {
         const ct = res.headers.get("content-type") || "";
         if (!ct.includes("application/json")) return;
         const data = await res.json();
-        const persona = ARENA_PERSONAS[responderId];
+        const persona = getPersona(responderId);
 
         if (data.freeRemaining !== undefined) setFreeRemaining(data.freeRemaining);
         if (data.hasSession !== undefined) setHasSession(data.hasSession);
@@ -2465,7 +2672,7 @@ export default function ArenaScreen() {
 
       if (res.ok && mountedRef.current) {
         const data = await res.json();
-        const persona = ARENA_PERSONAS[interrupter];
+        const persona = getPersona(interrupter);
         const interruptMsg: ConversationMessage = {
           id: "interrupt-" + Date.now() + Math.random().toString(36).substr(2, 5),
           speakerId: interrupter,
@@ -2526,7 +2733,7 @@ export default function ArenaScreen() {
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (deviceId) headers["x-device-id"] = deviceId;
-      const opponentName = ARENA_PERSONAS[opponentId]?.name || "someone";
+      const opponentName = getPersona(opponentId)?.name || "someone";
 
       const res = await fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
         method: "POST",
@@ -2621,7 +2828,7 @@ export default function ArenaScreen() {
       });
       if (res.ok && mountedRef.current) {
         const data = await res.json();
-        const persona = ARENA_PERSONAS[welcomer];
+        const persona = getPersona(welcomer);
         addMessage({
           id: "welcome-" + Date.now(),
           speakerId: welcomer,
@@ -2669,7 +2876,7 @@ export default function ArenaScreen() {
           responderId: reactor,
           toSpeakerId: "user",
           conversationHistory: [
-            { speakerName: ARENA_PERSONAS[askerPersona]?.name || "Someone", text: askQuestion || "What do you think?" },
+            { speakerName: getPersona(askerPersona)?.name || "Someone", text: askQuestion || "What do you think?" },
             { speakerName: userNameRef.current || "Viewer", text: responseText },
           ],
           topic: currentTopicRef.current || "debate",
@@ -2679,7 +2886,7 @@ export default function ArenaScreen() {
       });
       if (res.ok && mountedRef.current) {
         const data = await res.json();
-        const persona = ARENA_PERSONAS[reactor];
+        const persona = getPersona(reactor);
         addMessage({
           id: "react-" + Date.now(),
           speakerId: reactor,
@@ -2714,7 +2921,7 @@ export default function ArenaScreen() {
       });
       if (res.ok && mountedRef.current) {
         const data = await res.json();
-        const persona = ARENA_PERSONAS[personaId];
+        const persona = getPersona(personaId);
         addMessage({
           id: "ask-user-" + Date.now(),
           speakerId: personaId,
@@ -2890,7 +3097,7 @@ export default function ArenaScreen() {
 
           const activeP = selectedPersonasRef.current;
           const reactorId = activeP[Math.floor(Math.random() * activeP.length)];
-          const reactorPersona = ARENA_PERSONAS[reactorId];
+          const reactorPersona = getPersona(reactorId);
           const reactions = BREAKING_NEWS_REACTIONS[reactorId] || ["What the hell?! Breaking news, everybody!"];
           const reactionText = reactions[Math.floor(Math.random() * reactions.length)];
           if (reactorPersona) {
@@ -3025,7 +3232,7 @@ export default function ArenaScreen() {
     if (!name.trim() || !personaId) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     setThankYouPlayed(true);
-    const persona = ARENA_PERSONAS[personaId];
+    const persona = getPersona(personaId);
     if (!persona) return;
 
     try {
@@ -3065,7 +3272,7 @@ export default function ArenaScreen() {
     const recentMessages = messages.filter((m) => !m.isSystem).slice(-5);
     let shareText = `🔥 POLITICAL ARENA: ${topicName}\n\n`;
     recentMessages.forEach((m) => {
-      const persona = ARENA_PERSONAS[m.speakerId];
+      const persona = getPersona(m.speakerId);
       if (persona) shareText += `${persona.shortName}: "${m.text.substring(0, 80)}..."\n`;
     });
     shareText += `\nWatch the AI debate LIVE on Chat DJT! 🏛️`;
@@ -3129,11 +3336,11 @@ export default function ArenaScreen() {
     const sorted = Object.entries(pts).sort(([, a], [, b]) => b - a);
     if (sorted.length === 0) return;
     const winnerId = sorted[0][0];
-    const winnerName = ARENA_PERSONAS[winnerId]?.name || "someone";
+    const winnerName = getPersona(winnerId)?.name || "someone";
     const winnerPts = sorted[0][1];
     const trumpPts = pts["trump"] || 0;
     const customerName = userNameRef.current || "this person";
-    const leaderboard = sorted.slice(0, 5).map(([id, p]) => ({ name: ARENA_PERSONAS[id]?.name || id, points: p }));
+    const leaderboard = sorted.slice(0, 5).map(([id, p]) => ({ name: getPersona(id)?.name || id, points: p }));
 
     await recordWin(winnerId);
 
@@ -3196,7 +3403,7 @@ export default function ArenaScreen() {
           </Animated.View>
         );
       }
-      const persona = ARENA_PERSONAS[item.speakerId];
+      const persona = getPersona(item.speakerId);
       if (!persona) return null;
       const isLatest = item.id === latestPersonaMsgId;
       return (
@@ -3296,10 +3503,12 @@ export default function ArenaScreen() {
           )}
 
           <Text style={{ color: "#FFD700", fontSize: 14, fontWeight: "800", marginBottom: 10 }}>CHOOSE DEBATERS ({selectedPersonas.length} selected)</Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
-            {PERSONA_IDS.map((pid) => {
-              const p = ARENA_PERSONAS[pid];
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+            {[...PERSONA_IDS, ...unlockedMystery.filter((id) => !PERSONA_IDS.includes(id))].map((pid) => {
+              const p = getPersona(pid);
+              if (!p) return null;
               const isSelected = selectedPersonas.includes(pid);
+              const isMystery = MYSTERY_PERSONA_IDS.includes(pid);
               return (
                 <Pressable
                   key={pid}
@@ -3307,7 +3516,7 @@ export default function ArenaScreen() {
                   style={{
                     flexDirection: "row", alignItems: "center", paddingHorizontal: 10, paddingVertical: 6,
                     borderRadius: 20, borderWidth: 1.5,
-                    borderColor: isSelected ? p.color : "rgba(255,255,255,0.15)",
+                    borderColor: isSelected ? p.color : isMystery ? "rgba(255,215,0,0.3)" : "rgba(255,255,255,0.15)",
                     backgroundColor: isSelected ? p.color + "20" : "rgba(255,255,255,0.05)",
                   }}
                 >
@@ -3318,7 +3527,7 @@ export default function ArenaScreen() {
                       <Text style={{ fontSize: 9, color: "#fff", fontWeight: "800" }}>{getInitials(p.name)}</Text>
                     </View>
                   )}
-                  <Text style={{ color: isSelected ? p.color : "#888", fontSize: 12, fontWeight: "700" }}>{p.shortName}</Text>
+                  <Text style={{ color: isSelected ? p.color : "#888", fontSize: 12, fontWeight: "700" }}>{p.shortName}{isMystery ? " ★" : ""}</Text>
                   {winTallyGlobal[pid] > 0 && (
                     <View style={{ marginLeft: 4, backgroundColor: "rgba(74,222,128,0.2)", borderRadius: 8, paddingHorizontal: 4, paddingVertical: 1 }}>
                       <Text style={{ color: "#4ADE80", fontSize: 9, fontWeight: "800" }}>{winTallyGlobal[pid]}W</Text>
@@ -3329,8 +3538,37 @@ export default function ArenaScreen() {
               );
             })}
           </View>
+
+          {MYSTERY_PERSONA_IDS.filter((id) => !unlockedMystery.includes(id)).length > 0 && (
+            <View style={{ marginBottom: 16, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: "rgba(255,215,0,0.2)", backgroundColor: "rgba(255,215,0,0.05)" }}>
+              <Text style={{ color: "#FFD700", fontSize: 13, fontWeight: "800", textAlign: "center", marginBottom: 6 }}>MYSTERY PERSONAS</Text>
+              <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, textAlign: "center", marginBottom: 10 }}>{MYSTERY_UNLOCK_COST} D.C. Tokens each to unlock</Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
+                {MYSTERY_PERSONA_IDS.filter((id) => !unlockedMystery.includes(id)).map((pid) => (
+                  <Pressable
+                    key={pid}
+                    onPress={() => unlockMysteryPersona(pid)}
+                    style={{
+                      flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 8,
+                      borderRadius: 20, borderWidth: 1.5, borderColor: "rgba(255,215,0,0.4)",
+                      backgroundColor: "rgba(255,215,0,0.08)",
+                    }}
+                  >
+                    {mysteryUnlocking === pid ? (
+                      <ActivityIndicator size="small" color="#FFD700" style={{ marginRight: 6 }} />
+                    ) : (
+                      <Ionicons name="help-circle" size={20} color="#FFD700" style={{ marginRight: 6 }} />
+                    )}
+                    <Text style={{ color: "#FFD700", fontSize: 12, fontWeight: "700" }}>???</Text>
+                    <Ionicons name="lock-closed" size={12} color="#FFD700" style={{ marginLeft: 6 }} />
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          )}
+
           <Pressable
-            onPress={() => setSelectedPersonas(PERSONA_IDS)}
+            onPress={() => setSelectedPersonas([...PERSONA_IDS, ...unlockedMystery])}
             style={{ alignSelf: "flex-start", marginBottom: 16 }}
           >
             <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 12 }}>Select All</Text>
@@ -3605,7 +3843,7 @@ export default function ArenaScreen() {
             .sort(([, a], [, b]) => b.totalPoints - a.totalPoints)
             .slice(0, 8)
             .map(([pid, score], idx) => {
-              const p = ARENA_PERSONAS[pid];
+              const p = getPersona(pid);
               if (!p) return null;
               return (
                 <View key={pid} style={s.scoreRow}>
@@ -3633,7 +3871,7 @@ export default function ArenaScreen() {
                 .sort(([, a], [, b]) => b - a)
                 .slice(0, 5)
                 .map(([pid, pts], idx) => {
-                  const p = ARENA_PERSONAS[pid];
+                  const p = getPersona(pid);
                   if (!p) return null;
                   return (
                     <View key={pid} style={s.scoreRow}>
@@ -3657,7 +3895,7 @@ export default function ArenaScreen() {
 
       <Animated.View entering={FadeInDown.delay(200).duration(400)} style={s.personaRow}>
         {selectedPersonas.map((pid) => {
-          const p = ARENA_PERSONAS[pid];
+          const p = getPersona(pid);
           const emo = emotionalStates[pid];
           const isSpeaking = currentSpeaker === pid;
           const isFocused = focusedPersona === pid;
@@ -3734,12 +3972,12 @@ export default function ArenaScreen() {
       {focusedPersona && (
         <Animated.View entering={FadeIn.duration(200)} style={s.focusCard}>
           <View style={s.focusHeader}>
-            <Text style={[s.focusName, { color: ARENA_PERSONAS[focusedPersona].color }]}>
-              {ARENA_PERSONAS[focusedPersona].name}
+            <Text style={[s.focusName, { color: getPersona(focusedPersona).color }]}>
+              {getPersona(focusedPersona).name}
             </Text>
-            <View style={[s.factionBadge, { backgroundColor: FACTION_COLORS[ARENA_PERSONAS[focusedPersona].faction] + "30", borderColor: FACTION_COLORS[ARENA_PERSONAS[focusedPersona].faction] + "60" }]}>
-              <Text style={[s.factionText, { color: FACTION_COLORS[ARENA_PERSONAS[focusedPersona].faction] }]}>
-                {ARENA_PERSONAS[focusedPersona].faction}
+            <View style={[s.factionBadge, { backgroundColor: FACTION_COLORS[getPersona(focusedPersona).faction] + "30", borderColor: FACTION_COLORS[getPersona(focusedPersona).faction] + "60" }]}>
+              <Text style={[s.factionText, { color: FACTION_COLORS[getPersona(focusedPersona).faction] }]}>
+                {getPersona(focusedPersona).faction}
               </Text>
             </View>
           </View>
@@ -3772,11 +4010,11 @@ export default function ArenaScreen() {
             <View style={[s.liveDot, { width: 6, height: 6, borderRadius: 3 }]} />
             <Text style={s.streamHeaderText}>
               {currentSpeaker
-                ? `${ARENA_PERSONAS[currentSpeaker]?.shortName} is speaking...`
+                ? `${getPersona(currentSpeaker)?.shortName} is speaking...`
                 : currentTopic ? currentTopic : "Real-time AI conversation"}
             </Text>
           </View>
-          {currentSpeaker && <ActivityIndicator size="small" color={ARENA_PERSONAS[currentSpeaker]?.color || "#fff"} />}
+          {currentSpeaker && <ActivityIndicator size="small" color={getPersona(currentSpeaker)?.color || "#fff"} />}
         </View>
         <FlatList
           ref={flatListRef}
@@ -3794,7 +4032,7 @@ export default function ArenaScreen() {
               </Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.pollOptions}>
                 {pollCandidates.map((pid) => {
-                  const p = ARENA_PERSONAS[pid];
+                  const p = getPersona(pid);
                   const votes = pollVotes[pid] || 0;
                   const totalVotes = Object.values(pollVotes).reduce((a, b) => a + b, 0);
                   const pct = totalVotes > 0 ? Math.round((votes / totalVotes) * 100) : 0;
@@ -3821,7 +4059,7 @@ export default function ArenaScreen() {
               {userVoted && showNameInput && pollWinner && (
                 <View style={s.nameInputSection}>
                   <Text style={s.nameInputLabel}>
-                    Enter your name — {ARENA_PERSONAS[pollWinner]?.shortName} wants to thank you!
+                    Enter your name — {getPersona(pollWinner)?.shortName} wants to thank you!
                   </Text>
                   <View style={s.nameInputRow}>
                     <TextInput
@@ -3949,7 +4187,7 @@ export default function ArenaScreen() {
               ))}
               <Text style={{ color: "#FFD700", fontSize: 14, fontWeight: "900", marginTop: 20, marginBottom: 8, letterSpacing: 1 }}>MOST POPULAR PERSONAS</Text>
               {globalLeaderboardData.topPersonas.map((p, i) => {
-                const persona = ARENA_PERSONAS[p.personaId];
+                const persona = getPersona(p.personaId);
                 return (
                   <View key={p.personaId} style={{ flexDirection: "row", alignItems: "center", paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)" }}>
                     <Text style={{ color: i === 0 ? "#FFD700" : i === 1 ? "#C0C0C0" : i === 2 ? "#CD7F32" : "#888", fontSize: 16, fontWeight: "900", width: 30 }}>
@@ -3987,13 +4225,48 @@ export default function ArenaScreen() {
               <Text style={s.selectorSubtitle}>Pick 2 or more personas ({selectedPersonas.length} selected)</Text>
             </View>
             <FlatList
-              data={PERSONA_IDS}
+              data={[...PERSONA_IDS, ...unlockedMystery.filter((id) => !PERSONA_IDS.includes(id))]}
               keyExtractor={(id) => id}
               numColumns={2}
               contentContainerStyle={s.selectorGrid}
+              ListFooterComponent={() => (
+                <View style={{ marginTop: 16, borderTopWidth: 1, borderTopColor: "rgba(255,215,0,0.2)", paddingTop: 12 }}>
+                  <Text style={{ color: "#FFD700", fontSize: 14, fontWeight: "bold" as const, textAlign: "center" as const, marginBottom: 8 }}>MYSTERY PERSONAS</Text>
+                  <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, textAlign: "center" as const, marginBottom: 12 }}>{MYSTERY_UNLOCK_COST} D.C. Tokens to unlock each</Text>
+                  <View style={{ flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 8 }}>
+                    {MYSTERY_PERSONA_IDS.map((pid) => {
+                      const p = MYSTERY_PERSONAS[pid];
+                      const isUnlocked = unlockedMystery.includes(pid);
+                      if (isUnlocked) return null;
+                      return (
+                        <Pressable
+                          key={pid}
+                          onPress={() => unlockMysteryPersona(pid)}
+                          style={[s.selectorItem, { borderColor: "rgba(255,215,0,0.3)", backgroundColor: "rgba(255,215,0,0.05)", flex: 1, minWidth: "45%" }]}
+                        >
+                          {mysteryUnlocking === pid ? (
+                            <ActivityIndicator size="small" color="#FFD700" />
+                          ) : (
+                            <View style={[s.selectorAvatarFallback, { backgroundColor: "rgba(255,215,0,0.2)" }]}>
+                              <Ionicons name="help" size={18} color="#FFD700" />
+                            </View>
+                          )}
+                          <View style={s.selectorInfo}>
+                            <Text style={[s.selectorName, { color: "#FFD700" }]}>???</Text>
+                            <Text style={{ color: "rgba(255,215,0,0.5)", fontSize: 9 }}>TAP TO UNLOCK</Text>
+                          </View>
+                          <Ionicons name="lock-closed" size={14} color="#FFD700" />
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
               renderItem={({ item: pid }) => {
-                const p = ARENA_PERSONAS[pid];
+                const p = getPersona(pid);
+                if (!p) return null;
                 const isSelected = selectedPersonas.includes(pid);
+                const isMystery = MYSTERY_PERSONA_IDS.includes(pid);
                 return (
                   <Pressable
                     onPress={() => togglePersona(pid)}
@@ -4001,6 +4274,7 @@ export default function ArenaScreen() {
                       s.selectorItem,
                       { borderColor: isSelected ? p.color : "rgba(255,255,255,0.1)" },
                       isSelected && { backgroundColor: p.color + "15" },
+                      isMystery && { borderColor: isSelected ? p.color : "rgba(255,215,0,0.3)" },
                     ]}
                   >
                     {p.image ? (
@@ -4012,7 +4286,7 @@ export default function ArenaScreen() {
                     )}
                     <View style={s.selectorInfo}>
                       <Text style={[s.selectorName, { color: isSelected ? p.color : "#aaa" }]}>{p.shortName}</Text>
-                      <Text style={s.selectorFaction}>{p.faction}</Text>
+                      <Text style={s.selectorFaction}>{p.faction}{isMystery ? " ★" : ""}</Text>
                     </View>
                     {isSelected && <Ionicons name="checkmark-circle" size={18} color={p.color} />}
                   </Pressable>
@@ -4021,7 +4295,7 @@ export default function ArenaScreen() {
             />
             <View style={s.selectorActions}>
               <Pressable
-                onPress={() => setSelectedPersonas(PERSONA_IDS)}
+                onPress={() => setSelectedPersonas([...PERSONA_IDS, ...unlockedMystery])}
                 style={s.selectorSelectAll}
               >
                 <Text style={s.selectorSelectAllText}>Select All</Text>
@@ -4048,7 +4322,7 @@ export default function ArenaScreen() {
               {Object.entries(personaPoints)
                 .sort(([, a], [, b]) => b - a)
                 .map(([pid, pts], idx) => {
-                  const p = ARENA_PERSONAS[pid];
+                  const p = getPersona(pid);
                   if (!p) return null;
                   return (
                     <Animated.View key={pid} entering={FadeInDown.delay(idx * 150).duration(300)} style={[s.summaryRow, idx === 0 && s.summaryRowWinner]}>
@@ -4121,7 +4395,7 @@ export default function ArenaScreen() {
                   .sort(([, a], [, b]) => b - a)
                   .slice(0, 10)
                   .map(([pid, wins], idx) => {
-                    const p = ARENA_PERSONAS[pid];
+                    const p = getPersona(pid);
                     if (!p) return null;
                     const userWins = winTallyUser[pid] || 0;
                     return (
@@ -4144,7 +4418,7 @@ export default function ArenaScreen() {
               <Pressable
                 onPress={() => {
                   const winner = Object.entries(personaPoints).sort(([, a], [, b]) => b - a)[0];
-                  const winnerName = winner ? ARENA_PERSONAS[winner[0]]?.name || "Unknown" : "Unknown";
+                  const winnerName = winner ? getPersona(winner[0])?.name || "Unknown" : "Unknown";
                   const pts = winner ? winner[1] : 0;
                   showShareCard("Debate Complete", `${winnerName} dominated the arena with ${pts} points! The crowd goes wild!`, "arena");
                 }}
@@ -4242,7 +4516,7 @@ export default function ArenaScreen() {
             colors={[
               interruptionOverlay.speakerId === "trump"
                 ? "rgba(255,77,77,0.95)"
-                : `${ARENA_PERSONAS[interruptionOverlay.speakerId]?.color || "#666"}ee`,
+                : `${getPersona(interruptionOverlay.speakerId)?.color || "#666"}ee`,
               "rgba(20,20,20,0.98)",
             ]}
             start={{ x: 0, y: 0 }}
@@ -4257,7 +4531,7 @@ export default function ArenaScreen() {
               </Pressable>
             </View>
             <View style={s.interruptBody}>
-              <View style={[s.interruptAvatar, { backgroundColor: ARENA_PERSONAS[interruptionOverlay.speakerId]?.color || "#666" }]}>
+              <View style={[s.interruptAvatar, { backgroundColor: getPersona(interruptionOverlay.speakerId)?.color || "#666" }]}>
                 <Text style={s.interruptAvatarText}>
                   {interruptionOverlay.speakerName.split(" ").map((w) => w[0]).join("").substring(0, 2)}
                 </Text>
@@ -4362,9 +4636,9 @@ export default function ArenaScreen() {
         >
           <View style={s.userInputCard}>
             <View style={s.userInputHeader}>
-              <View style={[s.userInputDot, { backgroundColor: ARENA_PERSONAS[askingPersona]?.color || "#4ADE80" }]} />
+              <View style={[s.userInputDot, { backgroundColor: getPersona(askingPersona)?.color || "#4ADE80" }]} />
               <Text style={s.userInputLabel} numberOfLines={1}>
-                {ARENA_PERSONAS[askingPersona]?.shortName || "Someone"} asks:
+                {getPersona(askingPersona)?.shortName || "Someone"} asks:
               </Text>
               <Pressable
                 onPress={() => { setShowUserInput(false); setAskingPersona(null); setAskQuestion(""); }}
@@ -4469,7 +4743,7 @@ export default function ArenaScreen() {
                   }
                   if (res.ok && mountedRef.current) {
                     const data = await res.json();
-                    const persona = ARENA_PERSONAS[reactor];
+                    const persona = getPersona(reactor);
                     addMessage({
                       id: "react-user-" + Date.now(),
                       speakerId: reactor,
