@@ -1610,6 +1610,10 @@ export default function ArenaScreen() {
       const persona = MYSTERY_PERSONAS[personaId];
       if (persona) {
         setSelectedPersonas((prev) => [...prev, personaId]);
+        setEmotionalStates((prev) => ({
+          ...prev,
+          [personaId]: prev[personaId] || { anger: 20, happiness: 50, engagement: 50, lastSpoke: null },
+        }));
       }
     } catch (e) {
       if (Platform.OS === "web") {
@@ -2511,13 +2515,15 @@ export default function ArenaScreen() {
 
   const updateEmotions = useCallback(
     (responderId: string, toSpeakerId: string) => {
+      const defaultEmo: EmotionalState = { anger: 20, happiness: 50, engagement: 50, lastSpoke: null };
       setEmotionalStates((prev) => {
         const next = { ...prev };
-        const responder = { ...next[responderId] };
+        const responder = { ...(next[responderId] || defaultEmo) };
         responder.engagement = Math.min(100, responder.engagement + 10);
         responder.lastSpoke = Date.now();
 
-        const relationship = getPersona(responderId).relationships[toSpeakerId] || { sentiment: 50 };
+        const persona = getPersona(responderId);
+        const relationship = persona?.relationships[toSpeakerId] || { sentiment: 50 };
         if (relationship.sentiment > 70) {
           responder.happiness = Math.min(100, responder.happiness + 5);
           responder.anger = Math.max(0, responder.anger - 3);
@@ -2529,7 +2535,8 @@ export default function ArenaScreen() {
 
         selectedPersonasRef.current.forEach((id) => {
           if (id !== responderId) {
-            next[id] = { ...next[id], engagement: Math.min(100, next[id].engagement + 2) };
+            const existing = next[id] || defaultEmo;
+            next[id] = { ...existing, engagement: Math.min(100, existing.engagement + 2) };
           }
         });
         emotionalStatesRef.current = next;
@@ -2621,7 +2628,7 @@ export default function ArenaScreen() {
         addMessage({
           id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
           speakerId: responderId,
-          speakerName: persona.name,
+          speakerName: persona?.name || responderId,
           text: data.response,
           timestamp: Date.now(),
         });
@@ -3905,7 +3912,8 @@ export default function ArenaScreen() {
       <Animated.View entering={FadeInDown.delay(200).duration(400)} style={s.personaRow}>
         {selectedPersonas.map((pid) => {
           const p = getPersona(pid);
-          const emo = emotionalStates[pid];
+          if (!p) return null;
+          const emo = emotionalStates[pid] || { anger: 20, happiness: 50, engagement: 50, lastSpoke: null };
           const isSpeaking = currentSpeaker === pid;
           const isFocused = focusedPersona === pid;
           const voteAnim = voteAnimations[pid] || 0;
@@ -3980,13 +3988,18 @@ export default function ArenaScreen() {
 
       {focusedPersona && (
         <Animated.View entering={FadeIn.duration(200)} style={s.focusCard}>
+          {(() => {
+            const fp = getPersona(focusedPersona);
+            const fEmo = emotionalStates[focusedPersona] || { anger: 20, happiness: 50, engagement: 50, lastSpoke: null };
+            if (!fp) return null;
+            return (<>
           <View style={s.focusHeader}>
-            <Text style={[s.focusName, { color: getPersona(focusedPersona).color }]}>
-              {getPersona(focusedPersona).name}
+            <Text style={[s.focusName, { color: fp.color }]}>
+              {fp.name}
             </Text>
-            <View style={[s.factionBadge, { backgroundColor: FACTION_COLORS[getPersona(focusedPersona).faction] + "30", borderColor: FACTION_COLORS[getPersona(focusedPersona).faction] + "60" }]}>
-              <Text style={[s.factionText, { color: FACTION_COLORS[getPersona(focusedPersona).faction] }]}>
-                {getPersona(focusedPersona).faction}
+            <View style={[s.factionBadge, { backgroundColor: FACTION_COLORS[fp.faction] + "30", borderColor: FACTION_COLORS[fp.faction] + "60" }]}>
+              <Text style={[s.factionText, { color: FACTION_COLORS[fp.faction] }]}>
+                {fp.faction}
               </Text>
             </View>
           </View>
@@ -3994,22 +4007,24 @@ export default function ArenaScreen() {
             <View style={s.focusStat}>
               <Ionicons name="flame" size={12} color="#ff4d4d" />
               <Text style={s.focusStatLabel}>Anger</Text>
-              <View style={[s.focusStatBar, s.angerBar, { width: `${emotionalStates[focusedPersona].anger}%` }]} />
-              <Text style={s.focusStatVal}>{emotionalStates[focusedPersona].anger}%</Text>
+              <View style={[s.focusStatBar, s.angerBar, { width: `${fEmo.anger}%` }]} />
+              <Text style={s.focusStatVal}>{fEmo.anger}%</Text>
             </View>
             <View style={s.focusStat}>
               <Ionicons name="happy" size={12} color="#4ADE80" />
               <Text style={s.focusStatLabel}>Happy</Text>
-              <View style={[s.focusStatBar, s.happyBar, { width: `${emotionalStates[focusedPersona].happiness}%` }]} />
-              <Text style={s.focusStatVal}>{emotionalStates[focusedPersona].happiness}%</Text>
+              <View style={[s.focusStatBar, s.happyBar, { width: `${fEmo.happiness}%` }]} />
+              <Text style={s.focusStatVal}>{fEmo.happiness}%</Text>
             </View>
             <View style={s.focusStat}>
               <Ionicons name="flash" size={12} color="#FBBF24" />
               <Text style={s.focusStatLabel}>Energy</Text>
-              <View style={[s.focusStatBar, { backgroundColor: "#FBBF24" }, { width: `${emotionalStates[focusedPersona].engagement}%` }]} />
-              <Text style={s.focusStatVal}>{emotionalStates[focusedPersona].engagement}%</Text>
+              <View style={[s.focusStatBar, { backgroundColor: "#FBBF24" }, { width: `${fEmo.engagement}%` }]} />
+              <Text style={s.focusStatVal}>{fEmo.engagement}%</Text>
             </View>
           </View>
+          </>);
+          })()}
         </Animated.View>
       )}
 
@@ -4042,6 +4057,7 @@ export default function ArenaScreen() {
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.pollOptions}>
                 {pollCandidates.map((pid) => {
                   const p = getPersona(pid);
+                  if (!p) return null;
                   const votes = pollVotes[pid] || 0;
                   const totalVotes = Object.values(pollVotes).reduce((a, b) => a + b, 0);
                   const pct = totalVotes > 0 ? Math.round((votes / totalVotes) * 100) : 0;
