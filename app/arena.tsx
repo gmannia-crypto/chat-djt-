@@ -1595,7 +1595,7 @@ export default function ArenaScreen() {
   }, [hasSession, stopDebateAndLeave]);
 
   useEffect(() => {
-    const unsubscribe = navigation.addListener("beforeRemove" as any, (e: any) => {
+    const unsubscribe = navigation.addListener("beforeRemove" as "focus", (e: { preventDefault: () => void; data: { action: ReturnType<typeof import("@react-navigation/native").CommonActions.goBack> } }) => {
       if (!isDebateActiveRef.current || confirmedExitRef.current) {
         confirmedExitRef.current = false;
         return;

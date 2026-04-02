@@ -6444,6 +6444,14 @@ Make each treatment step specific and actionable. Make solutions practical thing
 
   app.post("/api/therapy/lip-sync-compare", async (req, res) => {
     try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+
+      const adminPass = req.headers["x-admin-key"] as string;
+      if (adminPass !== (process.env.ADMIN_PASSCODE || "ADMIN2025")) {
+        return res.status(403).json({ error: "Admin access required for compare endpoint" });
+      }
+
       const { text, personaId } = req.body;
       if (!text || !personaId) {
         return res.status(400).json({ error: "text and personaId required" });
@@ -6471,8 +6479,8 @@ Make each treatment step specific and actionable. Make solutions practical thing
         generateLipSyncFal(audioBuffer, personaId),
       ]);
 
-      const dream = dreamResult.status === "fulfilled" ? dreamResult.value : { videoUrl: null, error: (dreamResult as any).reason?.message, provider: "dreamface", timeMs: 0 };
-      const falRes = falResult.status === "fulfilled" ? falResult.value : { videoUrl: null, error: (falResult as any).reason?.message, provider: "fal", timeMs: 0 };
+      const dream = dreamResult.status === "fulfilled" ? dreamResult.value : { videoUrl: null, error: dreamResult.reason instanceof Error ? dreamResult.reason.message : "Unknown error", provider: "dreamface", timeMs: 0 };
+      const falRes = falResult.status === "fulfilled" ? falResult.value : { videoUrl: null, error: falResult.reason instanceof Error ? falResult.reason.message : "Unknown error", provider: "fal", timeMs: 0 };
 
       res.json({
         dreamface: {
