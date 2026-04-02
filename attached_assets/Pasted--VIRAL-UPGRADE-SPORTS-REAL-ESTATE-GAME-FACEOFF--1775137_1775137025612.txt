@@ -1,0 +1,485 @@
+<!-- ==================== VIRAL UPGRADE: SPORTS | REAL ESTATE | GAME | FACEOFF ==================== -->
+<style>
+/* ========== SHARE CARDS (Unified) ========== */
+.viral-share-card {
+  background: linear-gradient(145deg, #1a1a1a, #2d2d2d);
+  border: 3px solid #ff4d4d;
+  border-radius: 20px;
+  padding: 25px;
+  max-width: 500px;
+  margin: 0 auto;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+.viral-badge {
+  display: inline-block;
+  background: #ffaa00;
+  color: black;
+  padding: 5px 15px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: bold;
+  margin: 10px 0;
+}
+.viral-stat {
+  font-size: 32px;
+  font-weight: bold;
+  color: #ff4d4d;
+  margin: 10px 0;
+}
+.viral-quote {
+  font-style: italic;
+  background: #333;
+  padding: 15px;
+  border-radius: 10px;
+  margin: 15px 0;
+}
+
+/* ========== LIVE SPORTS TICKER ========== */
+.live-sports-ticker {
+  background: #1a1a1a;
+  border: 2px solid #ff4d4d;
+  border-radius: 50px;
+  padding: 10px 20px;
+  margin: 15px 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.ticker-content {
+  display: inline-block;
+  animation: ticker 30s linear infinite;
+}
+.ticker-item {
+  display: inline-block;
+  margin: 0 20px;
+  color: #ffaa00;
+  font-weight: bold;
+}
+
+/* ========== GAME LEADERBOARD ========== */
+.game-leaderboard {
+  background: #1a1a1a;
+  border: 2px solid #ff4d4d;
+  border-radius: 15px;
+  padding: 15px;
+  margin: 20px 0;
+}
+.leaderboard-entry {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px;
+  border-bottom: 1px solid #333;
+}
+.leaderboard-rank {
+  font-weight: bold;
+  color: #ffaa00;
+  width: 40px;
+}
+
+/* ========== PROPERTY ALERT ========== */
+.property-alert {
+  background: linear-gradient(90deg, #ff4d4d20, #ff4d4d40);
+  border-left: 4px solid #ff4d4d;
+  border-radius: 8px;
+  padding: 12px;
+  margin: 10px 0;
+  animation: pulse 1s infinite;
+}
+
+/* ========== CHALLENGE BUTTON ========== */
+.challenge-friend-btn {
+  background: #ff4d4d;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 25px;
+  cursor: pointer;
+  font-size: 12px;
+  margin-left: 10px;
+  transition: all 0.2s;
+}
+.challenge-friend-btn:hover {
+  transform: scale(1.05);
+}
+
+/* ========== ANIMATIONS ========== */
+@keyframes ticker {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+</style>
+
+<script>
+// ==================== UNIFIED VIRAL UPGRADE ====================
+(function() {
+  
+  // ========== 1. SPORTS SECTION VIRAL FEATURES ==========
+  
+  // Live scores ticker (adds urgency and engagement)
+  function addLiveSportsTicker() {
+    const sportsContainer = document.querySelector('.sports-container, #sportsSection');
+    if (!sportsContainer || document.getElementById('liveTicker')) return;
+    
+    const ticker = document.createElement('div');
+    ticker.id = 'liveTicker';
+    ticker.className = 'live-sports-ticker';
+    ticker.innerHTML = `
+      <div class="ticker-content">
+        <span class="ticker-item">⚽ LIVE: Man City 2-1 Liverpool</span>
+        <span class="ticker-item">🏈 NFL: Chiefs -3.5 vs Bills</span>
+        <span class="ticker-item">🏀 NBA: Lakers +110 tonight</span>
+        <span class="ticker-item">🎾 Wimbledon: Djokovic -180</span>
+        <span class="ticker-item">⚽ LIVE: Man City 2-1 Liverpool</span>
+        <span class="ticker-item">🏈 NFL: Chiefs -3.5 vs Bills</span>
+      </div>
+    `;
+    sportsContainer.insertBefore(ticker, sportsContainer.firstChild);
+  }
+  
+  // Generate shareable sports bet card
+  window.shareSportsPick = function(game, pick, odds) {
+    const shareCard = createShareModal(
+      '🏈 Sports Pick',
+      `${game}`,
+      `Trump says: "${pick}" at ${odds}. Who's taking this?`,
+      'sports'
+    );
+    document.body.appendChild(shareCard);
+    
+    // Track for leaderboard
+    const picks = JSON.parse(localStorage.getItem('sportsPicks') || '[]');
+    picks.push({ game, pick, date: new Date().toISOString() });
+    localStorage.setItem('sportsPicks', JSON.stringify(picks));
+    updateSportsLeaderboard();
+  };
+  
+  // Sports prediction leaderboard
+  function updateSportsLeaderboard() {
+    const picks = JSON.parse(localStorage.getItem('sportsPicks') || '[]');
+    const leaderboard = {};
+    picks.forEach(p => { leaderboard[p.pick] = (leaderboard[p.pick] || 0) + 1; });
+    
+    const sorted = Object.entries(leaderboard).sort((a,b) => b[1] - a[1]).slice(0,5);
+    
+    let leaderboardEl = document.getElementById('sportsLeaderboard');
+    if (!leaderboardEl) {
+      const container = document.querySelector('.sports-container, #sportsSection');
+      if (container) {
+        const div = document.createElement('div');
+        div.id = 'sportsLeaderboard';
+        div.className = 'game-leaderboard';
+        div.innerHTML = '<h4>🏆 TOP PICKS</h4><div id="leaderboardList"></div>';
+        container.appendChild(div);
+        leaderboardEl = div;
+      }
+    }
+    
+    const listEl = document.getElementById('leaderboardList');
+    if (listEl && sorted.length) {
+      listEl.innerHTML = sorted.map(([pick, count], i) => `
+        <div class="leaderboard-entry">
+          <span class="leaderboard-rank">${i+1}</span>
+          <span>${pick}</span>
+          <span>${count} picks</span>
+        </div>
+      `).join('');
+    }
+  }
+  
+  // ========== 2. REAL ESTATE VIRAL FEATURES ==========
+  
+  // Property alert for hot deals
+  window.showPropertyAlert = function(property, score, price) {
+    const container = document.querySelector('.realty-container, #realtySection');
+    if (!container) return;
+    
+    const alert = document.createElement('div');
+    alert.className = 'property-alert';
+    alert.innerHTML = `
+      🔥 HOT DEAL: ${property} • ${score}% investment score • $${price}
+      <button onclick="sharePropertyDeal('${property}', ${score}, ${price})" style="float:right; background:none; border:none; color:#ff4d4d; cursor:pointer;">🔁 Share</button>
+    `;
+    container.insertBefore(alert, container.firstChild);
+    setTimeout(() => alert.remove(), 10000);
+  };
+  
+  window.sharePropertyDeal = function(property, score, price) {
+    const shareCard = createShareModal(
+      '🏠 Hot Property Alert',
+      property,
+      `Investment Score: ${score}% • Price: $${price}\nTrump says: "This is a STEAL! The best deal ever!"`,
+      'realestate'
+    );
+    document.body.appendChild(shareCard);
+    
+    // Save to watched properties
+    const watched = JSON.parse(localStorage.getItem('watchedProperties') || '[]');
+    if (!watched.includes(property)) {
+      watched.push(property);
+      localStorage.setItem('watchedProperties', JSON.stringify(watched));
+      updateWatchedProperties();
+    }
+  };
+  
+  function updateWatchedProperties() {
+    const watched = JSON.parse(localStorage.getItem('watchedProperties') || '[]');
+    let watchlistEl = document.getElementById('propertyWatchlist');
+    if (!watchlistEl) {
+      const container = document.querySelector('.realty-container, #realtySection');
+      if (container && watched.length) {
+        const div = document.createElement('div');
+        div.id = 'propertyWatchlist';
+        div.className = 'game-leaderboard';
+        div.innerHTML = '<h4>👀 Your Watchlist</h4><div id="watchlistItems"></div>';
+        container.appendChild(div);
+        watchlistEl = div;
+      }
+    }
+    
+    const listEl = document.getElementById('watchlistItems');
+    if (listEl && watched.length) {
+      listEl.innerHTML = watched.slice(0,5).map(p => `
+        <div class="leaderboard-entry">
+          <span>${p}</span>
+          <button onclick="sharePropertyDeal('${p}', 85, 0)" style="background:none; border:none; color:#ff4d4d; cursor:pointer;">🔁 Share</button>
+        </div>
+      `).join('');
+    }
+  }
+  
+  // ========== 3. BILLIONAIRES GAME VIRAL FEATURES ==========
+  
+  // Game leaderboard and achievements
+  let gameStats = JSON.parse(localStorage.getItem('billionaireGame') || '{"wins":0,"losses":0,"streak":0,"highestScore":0}');
+  
+  window.recordGameResult = function(won, score) {
+    if (won) {
+      gameStats.wins++;
+      gameStats.streak++;
+      gameStats.highestScore = Math.max(gameStats.highestScore, score);
+    } else {
+      gameStats.losses++;
+      gameStats.streak = 0;
+    }
+    localStorage.setItem('billionaireGame', JSON.stringify(gameStats));
+    updateGameLeaderboard();
+    
+    if (won && gameStats.streak >= 3) {
+      showStreakNotification(gameStats.streak);
+    }
+  };
+  
+  function updateGameLeaderboard() {
+    let leaderboardEl = document.getElementById('gameLeaderboard');
+    if (!leaderboardEl) {
+      const container = document.querySelector('.game-container, #billionairesSection');
+      if (container) {
+        const div = document.createElement('div');
+        div.id = 'gameLeaderboard';
+        div.className = 'game-leaderboard';
+        div.innerHTML = `
+          <h4>🏆 YOUR STATS</h4>
+          <div class="leaderboard-entry"><span>Wins:</span><span>${gameStats.wins}</span></div>
+          <div class="leaderboard-entry"><span>Losses:</span><span>${gameStats.losses}</span></div>
+          <div class="leaderboard-entry"><span>Current Streak:</span><span>🔥 ${gameStats.streak}</span></div>
+          <div class="leaderboard-entry"><span>Highest Score:</span><span>$${gameStats.highestScore.toLocaleString()}</span></div>
+          <button onclick="shareGameStats()" class="challenge-friend-btn" style="margin-top:10px;">🔁 Share Stats</button>
+        `;
+        container.appendChild(div);
+        leaderboardEl = div;
+      }
+    } else {
+      leaderboardEl.innerHTML = `
+        <h4>🏆 YOUR STATS</h4>
+        <div class="leaderboard-entry"><span>Wins:</span><span>${gameStats.wins}</span></div>
+        <div class="leaderboard-entry"><span>Losses:</span><span>${gameStats.losses}</span></div>
+        <div class="leaderboard-entry"><span>Current Streak:</span><span>🔥 ${gameStats.streak}</span></div>
+        <div class="leaderboard-entry"><span>Highest Score:</span><span>$${gameStats.highestScore.toLocaleString()}</span></div>
+        <button onclick="shareGameStats()" class="challenge-friend-btn" style="margin-top:10px;">🔁 Share Stats</button>
+      `;
+    }
+  }
+  
+  window.shareGameStats = function() {
+    const shareCard = createShareModal(
+      '🎮 Billionaire Game Stats',
+      `${gameStats.wins} Wins • ${gameStats.losses} Losses`,
+      `Current Streak: ${gameStats.streak} 🔥\nHighest Score: $${gameStats.highestScore.toLocaleString()}\n\nCan you beat my score?`,
+      'game'
+    );
+    document.body.appendChild(shareCard);
+  };
+  
+  window.challengeFriendGame = function() {
+    const shareCard = createShareModal(
+      '👥 Challenge a Friend',
+      'Beat my Billionaire Game score!',
+      `I've won ${gameStats.wins} games and scored $${gameStats.highestScore.toLocaleString()}! Think you can do better?`,
+      'game'
+    );
+    document.body.appendChild(shareCard);
+  };
+  
+  // ========== 4. FACEOFF VIRAL FEATURES ==========
+  
+  // Track debate wins and share
+  let faceoffStats = JSON.parse(localStorage.getItem('faceoffStats') || '{"wins":0,"debates":0,"favPersona":null}');
+  
+  window.recordDebateWin = function(persona) {
+    faceoffStats.wins++;
+    faceoffStats.debates++;
+    faceoffStats.favPersona = faceoffStats.favPersona || persona;
+    localStorage.setItem('faceoffStats', JSON.stringify(faceoffStats));
+    updateFaceoffStats();
+    
+    // Auto-share after debate win
+    setTimeout(() => {
+      if (confirm(`🎉 You won with ${persona}! Share your victory?`)) {
+        shareDebateWin(persona);
+      }
+    }, 2000);
+  };
+  
+  window.recordDebateLoss = function(persona) {
+    faceoffStats.debates++;
+    localStorage.setItem('faceoffStats', JSON.stringify(faceoffStats));
+    updateFaceoffStats();
+  };
+  
+  function updateFaceoffStats() {
+    let statsEl = document.getElementById('faceoffStats');
+    if (!statsEl) {
+      const container = document.querySelector('.faceoff-container, #faceoffSection');
+      if (container) {
+        const div = document.createElement('div');
+        div.id = 'faceoffStats';
+        div.className = 'game-leaderboard';
+        div.innerHTML = `
+          <h4>⚔️ YOUR DEBATE STATS</h4>
+          <div class="leaderboard-entry"><span>Wins:</span><span>${faceoffStats.wins}</span></div>
+          <div class="leaderboard-entry"><span>Debates:</span><span>${faceoffStats.debates}</span></div>
+          <div class="leaderboard-entry"><span>Win Rate:</span><span>${faceoffStats.debates ? Math.round(faceoffStats.wins/faceoffStats.debates*100) : 0}%</span></div>
+          <button onclick="shareDebateStats()" class="challenge-friend-btn" style="margin-top:10px;">🔁 Share Stats</button>
+        `;
+        container.appendChild(div);
+        statsEl = div;
+      }
+    } else {
+      statsEl.innerHTML = `
+        <h4>⚔️ YOUR DEBATE STATS</h4>
+        <div class="leaderboard-entry"><span>Wins:</span><span>${faceoffStats.wins}</span></div>
+        <div class="leaderboard-entry"><span>Debates:</span><span>${faceoffStats.debates}</span></div>
+        <div class="leaderboard-entry"><span>Win Rate:</span><span>${faceoffStats.debates ? Math.round(faceoffStats.wins/faceoffStats.debates*100) : 0}%</span></div>
+        <button onclick="shareDebateStats()" class="challenge-friend-btn" style="margin-top:10px;">🔁 Share Stats</button>
+      `;
+    }
+  }
+  
+  window.shareDebateWin = function(persona) {
+    const shareCard = createShareModal(
+      '⚔️ Debate Victory!',
+      `I won a debate with ${persona}!`,
+      `My debate win rate is ${faceoffStats.debates ? Math.round(faceoffStats.wins/faceoffStats.debates*100) : 0}% – challenge me!`,
+      'faceoff'
+    );
+    document.body.appendChild(shareCard);
+  };
+  
+  window.shareDebateStats = function() {
+    const shareCard = createShareModal(
+      '⚔️ My Faceoff Stats',
+      `${faceoffStats.wins} Wins • ${faceoffStats.debates} Debates`,
+      `Win Rate: ${faceoffStats.debates ? Math.round(faceoffStats.wins/faceoffStats.debates*100) : 0}%\nCan you beat my record?`,
+      'faceoff'
+    );
+    document.body.appendChild(shareCard);
+  };
+  
+  // ========== 5. UNIFIED SHARE CARD SYSTEM ==========
+  
+  function createShareModal(title, headline, quote, category) {
+    const modal = document.createElement('div');
+    modal.className = 'share-card-modal';
+    modal.innerHTML = `
+      <div class="share-card-content">
+        <div class="viral-share-card">
+          <div class="viral-badge">${category === 'sports' ? '🏈 Sports' : category === 'realestate' ? '🏠 Real Estate' : category === 'game' ? '🎮 Game' : '⚔️ Faceoff'}</div>
+          <div class="viral-stat">${headline}</div>
+          <div class="viral-quote">"${quote.substring(0, 150)}${quote.length > 150 ? '...' : ''}"</div>
+          <div style="font-size: 12px; color: #888; margin: 10px 0;">— Chat DJT</div>
+          <div class="share-buttons">
+            <button class="share-twitter" onclick="window.open('https://twitter.com/intent/tweet?text=${encodeURIComponent(headline + ' - ' + quote.substring(0, 80) + '... Get yours at trumpbot.rip')}', '_blank')">🐦 Share on X</button>
+            <button class="share-copy" onclick="navigator.clipboard.writeText('${headline} - ' + '${quote.substring(0, 80)}... Get yours at trumpbot.rip'); alert('✅ Copied!');">📋 Copy</button>
+          </div>
+          <button onclick="this.closest('.share-card-modal').remove()" style="margin-top: 15px; background: none; border: none; color: #888; cursor: pointer;">Close</button>
+        </div>
+      </div>
+    `;
+    return modal;
+  }
+  
+  function showStreakNotification(streak) {
+    const toast = document.createElement('div');
+    toast.className = 'streak-toast';
+    toast.style.background = '#ffaa00';
+    toast.innerHTML = `🔥 ${streak} GAME WIN STREAK! 🔥<br>Can you make it to ${streak+1}?`;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+  }
+  
+  // ========== 6. ADD CHALLENGE BUTTONS TO EACH SECTION ==========
+  
+  function addChallengeButtons() {
+    // Sports section challenge button
+    const sportsContainer = document.querySelector('.sports-container, #sportsSection');
+    if (sportsContainer && !document.getElementById('sportsChallengeBtn')) {
+      const btn = document.createElement('button');
+      btn.id = 'sportsChallengeBtn';
+      btn.innerHTML = '👥 Challenge Friend';
+      btn.className = 'challenge-friend-btn';
+      btn.style.cssText = 'margin: 10px 0; display: inline-block;';
+      btn.onclick = () => {
+        const shareCard = createShareModal('👥 Challenge', 'Sports Bet Challenge', 'Think you can pick better than me? Let\'s see who knows sports better!', 'sports');
+        document.body.appendChild(shareCard);
+      };
+      sportsContainer.insertBefore(btn, sportsContainer.firstChild);
+    }
+    
+    // Game challenge button
+    const gameContainer = document.querySelector('.game-container, #billionairesSection');
+    if (gameContainer && !document.getElementById('gameChallengeBtn')) {
+      const btn = document.createElement('button');
+      btn.id = 'gameChallengeBtn';
+      btn.innerHTML = '👥 Challenge Friend';
+      btn.className = 'challenge-friend-btn';
+      btn.style.cssText = 'margin: 10px 0; display: inline-block;';
+      btn.onclick = window.challengeFriendGame;
+      gameContainer.insertBefore(btn, gameContainer.firstChild);
+    }
+  }
+  
+  // ========== 7. INITIALIZE EVERYTHING ==========
+  
+  function initViralUpgrade() {
+    addLiveSportsTicker();
+    updateSportsLeaderboard();
+    updateGameLeaderboard();
+    updateFaceoffStats();
+    updateWatchedProperties();
+    addChallengeButtons();
+    
+    console.log('✅ Viral upgrade loaded for Sports, Real Estate, Game & Faceoff');
+  }
+  
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initViralUpgrade);
+  } else {
+    initViralUpgrade();
+  }
+  
+})();
+</script>

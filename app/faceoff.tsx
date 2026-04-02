@@ -29,6 +29,9 @@ import { getApiUrl } from "@/lib/query-client";
 import { shareContent } from "@/lib/track-share";
 import { useTokens } from "@/lib/token-context";
 import { recordInteraction, getHeadToHead, generateTrashTalk, getPersonaRecord } from "@/lib/persona-memory";
+import { StatsPanel } from "@/components/StatsPanel";
+import { ViralShareCard } from "@/components/ViralShareCard";
+import { getFaceoffStats, recordDebateResult, type FaceoffStats } from "@/lib/viral-stats";
 
 interface Persona {
   id: string;
@@ -552,6 +555,9 @@ export default function FaceoffScreen() {
   useEffect(() => { return () => { mountedRef.current = false; }; }, []);
   const [trashTalk, setTrashTalk] = useState<string>("");
   const [h2hRecord, setH2hRecord] = useState<{ wins: number; losses: number; total: number } | null>(null);
+  const [viralFaceoffStats, setViralFaceoffStats] = useState<FaceoffStats>({ wins: 0, debates: 0, favPersona: null, winsByPersona: {} });
+  const [viralShareVisible, setViralShareVisible] = useState(false);
+  const [viralShareData, setViralShareData] = useState({ headline: "", quote: "" });
   const [persona1Record, setPersona1Record] = useState<{ wins: number; losses: number } | null>(null);
   const [persona2Record, setPersona2Record] = useState<{ wins: number; losses: number } | null>(null);
 
@@ -593,6 +599,7 @@ export default function FaceoffScreen() {
         setPotwWeek(data.week || "");
       })
       .catch(() => {});
+    getFaceoffStats().then(s => { if (mountedRef.current) setViralFaceoffStats(s); });
   }, []);
 
   const handlePotwVote = useCallback((personaId: string) => {
@@ -681,6 +688,7 @@ export default function FaceoffScreen() {
     const winnerId = personaId;
     const loserId = personaId === contender1.id ? contender2.id : contender1.id;
     recordInteraction(winnerId, loserId, "faceoff", selectedTopic.name, "win").catch(() => {});
+    recordDebateResult(true, winnerId).then(s => setViralFaceoffStats(s));
 
     try {
       const baseUrl = getApiUrl().replace(/\/$/, "");
@@ -1235,10 +1243,45 @@ export default function FaceoffScreen() {
           </LinearGradient>
         </Pressable>
 
+        {viralFaceoffStats.debates > 0 && (
+          <StatsPanel
+            title="YOUR DEBATE RECORD"
+            emoji={"\u2694\uFE0F"}
+            stats={[
+              { label: "Debates", value: String(viralFaceoffStats.debates) },
+              { label: "Wins", value: String(viralFaceoffStats.wins) },
+              { label: "Win Rate", value: viralFaceoffStats.debates > 0 ? `${Math.round((viralFaceoffStats.wins / viralFaceoffStats.debates) * 100)}%` : "0%" },
+              ...(viralFaceoffStats.favPersona ? [{ label: "Fav Persona", value: viralFaceoffStats.favPersona }] : []),
+            ]}
+            accentColor={Colors.gold}
+            onShare={() => {
+              setViralShareData({
+                headline: `${viralFaceoffStats.wins} Debate Wins`,
+                quote: `I've dominated ${viralFaceoffStats.wins} out of ${viralFaceoffStats.debates} financial debates!\n${viralFaceoffStats.favPersona ? `Favorite advisor: ${viralFaceoffStats.favPersona}` : ""}\n\nThink you know more? Battle me at trumpbot.rip`,
+              });
+              setViralShareVisible(true);
+            }}
+            onChallenge={() => {
+              shareContent({
+                text: `I've won ${viralFaceoffStats.wins} financial debates! Think you can beat me? \u2694\uFE0F\n\nChallenge me at trumpbot.rip`,
+                feature: "faceoff_challenge",
+              });
+            }}
+          />
+        )}
+
         <Text style={styles.legalDisclaimer}>
           Not affiliated with any financial persona depicted. For entertainment purposes only. Not financial advice. Affiliate links generate commissions.
         </Text>
       </ScrollView>
+
+      <ViralShareCard
+        visible={viralShareVisible}
+        onClose={() => setViralShareVisible(false)}
+        category="faceoff"
+        headline={viralShareData.headline}
+        quote={viralShareData.quote}
+      />
 
       {toastText && (
         <Animated.View entering={FadeInUp.duration(300)} style={styles.toast}>

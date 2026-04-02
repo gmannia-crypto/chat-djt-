@@ -30,6 +30,10 @@ import Animated, {
 import Colors from "@/constants/colors";
 import { getApiUrl } from "@/lib/query-client";
 import { useTokens } from "@/lib/token-context";
+import { StatsPanel } from "@/components/StatsPanel";
+import { ViralShareCard } from "@/components/ViralShareCard";
+import { shareContent } from "@/lib/track-share";
+import { getRealEstateStats, addToWatchlist, removeFromWatchlist, recordDealShare, type RealEstateStats } from "@/lib/viral-stats";
 
 interface Zone {
   id: string;
@@ -174,6 +178,9 @@ export default function RealEstateScreen() {
   const [prospectTiers, setProspectTiers] = useState<any[]>([]);
   const [expandedProspect, setExpandedProspect] = useState<string | null>(null);
 
+  const [viralReStats, setViralReStats] = useState<RealEstateStats>({ watchedProperties: [], dealsShared: 0 });
+  const [viralShareVisible, setViralShareVisible] = useState(false);
+  const [viralShareData, setViralShareData] = useState({ headline: "", quote: "" });
   const [calcOpen, setCalcOpen] = useState(false);
   const [homePrice, setHomePrice] = useState("300000");
   const [downPayment, setDownPayment] = useState("60000");
@@ -186,6 +193,7 @@ export default function RealEstateScreen() {
 
   useEffect(() => {
     fetchZones();
+    getRealEstateStats().then(s => setViralReStats(s));
   }, []);
 
   const fetchZones = useCallback(async (loc?: string) => {
@@ -575,6 +583,33 @@ export default function RealEstateScreen() {
                           <View style={s.zoneDetailRow}>
                             <Text style={s.zoneDetailLabel}>Investment Score</Text>
                             <Text style={[s.zoneDetailVal, { color: zone.color, fontWeight: "900" as const }]}>{zone.score}/100</Text>
+                          </View>
+                          <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
+                            <Pressable
+                              onPress={() => {
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                                addToWatchlist(zone.name, zone.score, zone.nightlyRate).then(s => setViralReStats(s));
+                              }}
+                              style={({ pressed }) => [{ flex: 1, backgroundColor: viralReStats.watchedProperties.some(w => w.name === zone.name) ? "rgba(78,204,163,0.2)" : "rgba(212,175,55,0.15)", paddingVertical: 8, borderRadius: 8, alignItems: "center" as const, borderWidth: 1, borderColor: viralReStats.watchedProperties.some(w => w.name === zone.name) ? "#4ECCA3" : "rgba(212,175,55,0.3)" }, pressed && { opacity: 0.7 }]}
+                            >
+                              <Text style={{ color: viralReStats.watchedProperties.some(w => w.name === zone.name) ? "#4ECCA3" : "#D4AF37", fontSize: 11, fontWeight: "700" as const }}>
+                                {viralReStats.watchedProperties.some(w => w.name === zone.name) ? "\u2705 WATCHING" : "\uD83D\uDC41 WATCH"}
+                              </Text>
+                            </Pressable>
+                            <Pressable
+                              onPress={() => {
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                                recordDealShare().then(s => setViralReStats(s));
+                                setViralShareData({
+                                  headline: zone.name,
+                                  quote: `Investment Score: ${zone.score}% \u2022 $${zone.nightlyRate}/night\nDynamic says: "This is a STEAL! The best deal ever!"`,
+                                });
+                                setViralShareVisible(true);
+                              }}
+                              style={({ pressed }) => [{ flex: 1, backgroundColor: "rgba(255,77,77,0.15)", paddingVertical: 8, borderRadius: 8, alignItems: "center" as const, borderWidth: 1, borderColor: "rgba(255,77,77,0.3)" }, pressed && { opacity: 0.7 }]}
+                            >
+                              <Text style={{ color: "#ff4d4d", fontSize: 11, fontWeight: "700" as const }}>{"\uD83D\uDD01"} SHARE DEAL</Text>
+                            </Pressable>
                           </View>
                         </Animated.View>
                       )}
@@ -1111,7 +1146,38 @@ export default function RealEstateScreen() {
             </View>
           </>
         )}
+        {viralReStats.watchedProperties.length > 0 && (
+          <StatsPanel
+            title="YOUR WATCHLIST"
+            emoji="\uD83D\uDC40"
+            stats={viralReStats.watchedProperties.slice(0, 5).map(w => ({
+              label: w.name,
+              value: w.price > 0 ? `$${(w.price / 1000).toFixed(0)}K` : `${w.score}%`,
+            }))}
+            accentColor="#D4AF37"
+            onShare={() => {
+              setViralShareData({
+                headline: `${viralReStats.watchedProperties.length} Properties Watched`,
+                quote: `I'm tracking ${viralReStats.watchedProperties.length} hot properties on Dynamic Reality!\n${viralReStats.watchedProperties.slice(0, 3).map(w => w.name).join(", ")}\n\nDynamic says: "The best deals ever!"`,
+              });
+              setViralShareVisible(true);
+            }}
+            onChallenge={() => {
+              shareContent({
+                text: `I'm tracking ${viralReStats.watchedProperties.length} hot investment properties on Dynamic Reality! Think you can find better deals? \uD83C\uDFE0\n\nCheck it at trumpbot.rip`,
+                feature: "realestate_challenge",
+              });
+            }}
+          />
+        )}
       </ScrollView>
+      <ViralShareCard
+        visible={viralShareVisible}
+        onClose={() => setViralShareVisible(false)}
+        category="realestate"
+        headline={viralShareData.headline}
+        quote={viralShareData.quote}
+      />
     </View>
   );
 }

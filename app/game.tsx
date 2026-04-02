@@ -38,6 +38,9 @@ import Animated, {
 import Colors from "@/constants/colors";
 import { shareContent } from "@/lib/track-share";
 import { getApiUrl } from "@/lib/query-client";
+import { StatsPanel } from "@/components/StatsPanel";
+import { ViralShareCard } from "@/components/ViralShareCard";
+import { getGameStats, recordGameResult as recordGameResultStats, type GameStats as ViralGameStats } from "@/lib/viral-stats";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -238,6 +241,9 @@ export default function GameScreen() {
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [narratorSpeaking, setNarratorSpeaking] = useState(false);
   const narratorSoundRef = useRef<Audio.Sound | null>(null);
+  const [viralGameStats, setViralGameStats] = useState<ViralGameStats>({ wins: 0, losses: 0, streak: 0, bestStreak: 0, highestScore: 0, gamesPlayed: 0 });
+  const [viralShareVisible, setViralShareVisible] = useState(false);
+  const [viralShareData, setViralShareData] = useState({ headline: "", quote: "" });
 
   const karmaRating = getKarmaRating(gameState.karma);
   const titleInfo = getTitle(gameState.netWorth);
@@ -272,6 +278,7 @@ export default function GameScreen() {
   }, []);
 
   useEffect(() => {
+    getGameStats().then(s => setViralGameStats(s));
     return () => { cleanupSound(); };
   }, []);
 
@@ -474,6 +481,7 @@ export default function GameScreen() {
     }
 
     if (newNetWorth >= 1_000_000_000) {
+      recordGameResultStats(true, newNetWorth).then(s => setViralGameStats(s));
       setTimeout(() => {
         if (newKarma < -30) {
           setShowHellfire(true);
@@ -772,6 +780,35 @@ export default function GameScreen() {
             </LinearGradient>
           </Animated.View>
 
+          {viralGameStats.gamesPlayed > 0 && (
+            <StatsPanel
+              title="ALL-TIME STATS"
+              emoji="\uD83C\uDFC6"
+              stats={[
+                { label: "Games Played", value: viralGameStats.gamesPlayed },
+                { label: "Wins", value: viralGameStats.wins },
+                { label: "Losses", value: viralGameStats.losses },
+                { label: "Current Streak", value: `\uD83D\uDD25 ${viralGameStats.streak}` },
+                { label: "Best Streak", value: viralGameStats.bestStreak },
+                { label: "Highest Score", value: fmtMoney(viralGameStats.highestScore) },
+              ]}
+              accentColor="#9333EA"
+              onShare={() => {
+                setViralShareData({
+                  headline: `${viralGameStats.wins} Wins \u2022 ${fmtMoney(viralGameStats.highestScore)}`,
+                  quote: `I've played ${viralGameStats.gamesPlayed} games of Dynamic Billionaires!\nBest Streak: ${viralGameStats.bestStreak}\nHighest Score: ${fmtMoney(viralGameStats.highestScore)}\n\nCan you beat my score?`,
+                });
+                setViralShareVisible(true);
+              }}
+              onChallenge={() => {
+                shareContent({
+                  text: `I've won ${viralGameStats.wins} games and scored ${fmtMoney(viralGameStats.highestScore)} in Dynamic Billionaires! Think you can do better? \uD83C\uDFAE\n\nPlay at trumpbot.rip`,
+                  feature: "game_challenge",
+                });
+              }}
+            />
+          )}
+
           <Animated.View entering={FadeInDown.delay(700).duration(400)} style={{ gap: 10 }}>
             <Pressable onPress={handleShare} style={({ pressed }) => [styles.startBtn, pressed && { opacity: 0.8 }]}>
               <LinearGradient colors={[Colors.gold, Colors.goldDark || "#B8860B"]} style={styles.startBtnGradient}>
@@ -783,6 +820,13 @@ export default function GameScreen() {
             </Pressable>
           </Animated.View>
         </ScrollView>
+        <ViralShareCard
+          visible={viralShareVisible}
+          onClose={() => setViralShareVisible(false)}
+          category="game"
+          headline={viralShareData.headline}
+          quote={viralShareData.quote}
+        />
       </View>
     );
   }

@@ -47,6 +47,11 @@ import {
 import { TextInput } from "react-native";
 import { checkGameEndEvents, cleanupBuzzer } from "@/lib/game-buzzer";
 import { useTokens } from "@/lib/token-context";
+import { LiveTicker } from "@/components/LiveTicker";
+import { StatsPanel } from "@/components/StatsPanel";
+import { ViralShareCard } from "@/components/ViralShareCard";
+import { shareContent } from "@/lib/track-share";
+import { getSportsStats, recordSportsPick, type SportsStats } from "@/lib/viral-stats";
 
 interface PlayerLeader {
   category: string;
@@ -1021,6 +1026,9 @@ export default function SportsScreen() {
   const [showAllTimeBoard, setShowAllTimeBoard] = useState(false);
   const [recapText, setRecapText] = useState<string | null>(null);
   const [recapLoading, setRecapLoading] = useState(false);
+  const [viralStats, setViralStats] = useState<SportsStats>({ picks: [], totalPicks: 0 });
+  const [viralShareVisible, setViralShareVisible] = useState(false);
+  const [viralShareData, setViralShareData] = useState({ headline: "", quote: "" });
 
   const syncRecordsToDb = useCallback(async (t: Record<string, PersonaTally>) => {
     if (!deviceId) return;
@@ -1065,6 +1073,7 @@ export default function SportsScreen() {
     loadTallyData();
     fetchAllTimeLeaderboard();
     getUserName().then((n) => { if (mountedRef.current) setUserName(n); });
+    getSportsStats().then((s) => { if (mountedRef.current) setViralStats(s); });
     const timer = setInterval(() => {
       if (mountedRef.current) setCountdown(getCountdown());
     }, 1000);
@@ -1528,6 +1537,47 @@ export default function SportsScreen() {
           <Ionicons name="information-circle" size={14} color="rgba(255,255,255,0.5)" />
           <Text style={styles.parodyText}>PARODY &amp; ENTERTAINMENT ONLY — All personas are fictional parodies. Not real advice.</Text>
         </View>
+
+        <LiveTicker
+          items={
+            games.filter(g => g.status === "in").length > 0
+              ? games.filter(g => g.status === "in").map(g => ({
+                  emoji: g.league === "NBA" ? "\uD83C\uDFC0" : g.league === "NFL" ? "\uD83C\uDFC8" : g.league === "MLB" ? "\u26BE" : g.league === "NHL" ? "\uD83C\uDFD2" : g.league === "SOCCER" ? "\u26BD" : g.league === "UFC" ? "\uD83E\uDD4A" : "\uD83C\uDFC6",
+                  text: `LIVE: ${g.game}${g.score ? ` ${g.score}` : ""}`,
+                }))
+              : [
+                  { emoji: "\uD83C\uDFC8", text: "NFL: Dynamic picks are HEATING UP" },
+                  { emoji: "\uD83C\uDFC0", text: "NBA: Who has the best picks tonight?" },
+                  { emoji: "\u26BD", text: "SOCCER: World Cup 2026 is coming!" },
+                  { emoji: "\uD83C\uDFC6", text: `${viralStats.totalPicks} total picks made` },
+                ]
+          }
+        />
+
+        {viralStats.totalPicks > 0 && (
+          <StatsPanel
+            title="YOUR PICKS"
+            emoji="\uD83C\uDFC6"
+            stats={[
+              { label: "Total Picks", value: viralStats.totalPicks },
+              { label: "Recent", value: viralStats.picks.length > 0 ? viralStats.picks[viralStats.picks.length - 1].pick : "---" },
+            ]}
+            accentColor="#ffaa00"
+            onShare={() => {
+              setViralShareData({
+                headline: `${viralStats.totalPicks} Sports Picks`,
+                quote: `I've made ${viralStats.totalPicks} picks on Dynamic Sports Book! ${viralStats.picks.length > 0 ? `Latest: ${viralStats.picks[viralStats.picks.length - 1].pick}` : ""} Think you can beat me?`,
+              });
+              setViralShareVisible(true);
+            }}
+            onChallenge={() => {
+              shareContent({
+                text: `I've made ${viralStats.totalPicks} picks on Dynamic Sports Book! Think you know sports better than me? Challenge accepted! \uD83C\uDFC8\n\nGet yours at trumpbot.rip`,
+                feature: "sports_challenge",
+              });
+            }}
+          />
+        )}
 
         <Animated.View entering={FadeInDown.delay(50).duration(400)} style={styles.worldCupCard}>
           <LinearGradient
@@ -2146,6 +2196,13 @@ export default function SportsScreen() {
         </View>
       </Modal>
       <SoundToggle />
+      <ViralShareCard
+        visible={viralShareVisible}
+        onClose={() => setViralShareVisible(false)}
+        category="sports"
+        headline={viralShareData.headline}
+        quote={viralShareData.quote}
+      />
     </View>
   );
 }
