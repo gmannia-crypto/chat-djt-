@@ -799,11 +799,45 @@ export default function TherapyScreen() {
 
   const hypnoSessionRef = useRef<{ cancelled: boolean }>({ cancelled: false });
 
+  const webEchoRef = useRef<HTMLAudioElement | null>(null);
+
   async function playHypnoSound(base64Audio: string): Promise<void> {
+    const dataUri = base64Audio.startsWith("data:") ? base64Audio : `data:audio/mpeg;base64,${base64Audio}`;
+
+    if (Platform.OS === "web") {
+      return new Promise((resolve) => {
+        try {
+          const audio = new window.Audio(dataUri);
+          audio.volume = 1.0;
+
+          setTimeout(() => {
+            try {
+              const echo = new window.Audio(dataUri);
+              echo.volume = 0.18;
+              echo.play().catch(() => {});
+              webEchoRef.current = echo;
+            } catch {}
+          }, 200);
+
+          audio.onended = () => {
+            if (webEchoRef.current) {
+              webEchoRef.current.pause();
+              webEchoRef.current = null;
+            }
+            resolve();
+          };
+          audio.onerror = () => resolve();
+          audio.play().catch(() => resolve());
+        } catch {
+          resolve();
+        }
+      });
+    }
+
     return new Promise(async (resolve) => {
       try {
         const fileUri = (FileSystem.cacheDirectory || "") + `hypno_${Date.now()}.mp3`;
-        const b64 = base64Audio.replace(/^data:audio\/mpeg;base64,/, "");
+        const b64 = dataUri.replace(/^data:audio\/mpeg;base64,/, "");
         await FileSystem.writeAsStringAsync(fileUri, b64, { encoding: FileSystem.EncodingType.Base64 });
         const { sound } = await Audio.Sound.createAsync({ uri: fileUri }, { shouldPlay: true, volume: 1.0 });
         soundRef.current = sound;
@@ -2313,6 +2347,10 @@ export default function TherapyScreen() {
               hypnoSessionRef.current.cancelled = true;
               setShowHypnoOverlay(false);
               setHypnoLoading(false);
+              if (Platform.OS === "web") {
+                if (webEchoRef.current) { webEchoRef.current.pause(); webEchoRef.current = null; }
+                document.querySelectorAll("audio").forEach(a => { a.pause(); a.remove(); });
+              }
               if (soundRef.current) {
                 soundRef.current.stopAsync().catch(() => {});
                 soundRef.current.unloadAsync().catch(() => {});
