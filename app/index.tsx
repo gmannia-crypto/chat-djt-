@@ -66,8 +66,7 @@ import {
 const FEEDBACK_SHOWN_KEY = "chatdjt_feedback_shown";
 const FEEDBACK_CONV_COUNT_KEY = "chatdjt_conv_count";
 const HOT_TAKE_CACHE_KEY = "chatdjt_hot_take_cache";
-const STREAK_KEY = "chatdjt_streak";
-const LAST_CHAT_DAY_KEY = "chatdjt_last_chat_day";
+
 const MYSTERY_BOX_KEY = "chatdjt_mystery_box";
 
 const MYSTERY_REWARDS = [
@@ -280,7 +279,7 @@ export default function HomeScreen() {
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
   const [hotTake, setHotTake] = useState<{ take: string; headline: string } | null>(null);
   const [hotTakeLoading, setHotTakeLoading] = useState(false);
-  const [streak, setStreak] = useState(0);
+
   const [dailyChallenge, setDailyChallenge] = useState<string | null>(null);
   const [mysteryTimeLeft, setMysteryTimeLeft] = useState(0);
   const [mysteryReady, setMysteryReady] = useState(false);
@@ -437,7 +436,6 @@ export default function HomeScreen() {
     useCallback(() => {
       loadConversations();
       checkFeedbackPrompt();
-      updateStreak();
       fetchDailyChallenge();
       initMysteryBox();
       fetchLeaderboard();
@@ -902,41 +900,6 @@ export default function HomeScreen() {
     setConversations(convs);
   }
 
-  async function updateStreak() {
-    try {
-      const today = Math.floor(Date.now() / 86400000);
-      const lastDayStr = await AsyncStorage.getItem(LAST_CHAT_DAY_KEY);
-      const streakStr = await AsyncStorage.getItem(STREAK_KEY);
-      const lastDay = lastDayStr ? parseInt(lastDayStr, 10) : 0;
-      const currentStreak = streakStr ? parseInt(streakStr, 10) : 0;
-
-      const convs = await getAllConversations();
-      const hasChattedToday = convs.some(c => Math.floor(c.updatedAt / 86400000) === today && c.messages.length >= 2);
-
-      if (hasChattedToday) {
-        if (lastDay === today - 1 || lastDay === today) {
-          const newStreak = lastDay === today ? currentStreak : currentStreak + 1;
-          await AsyncStorage.setItem(STREAK_KEY, String(newStreak));
-          await AsyncStorage.setItem(LAST_CHAT_DAY_KEY, String(today));
-          setStreak(newStreak);
-        } else if (lastDay < today - 1) {
-          await AsyncStorage.setItem(STREAK_KEY, "1");
-          await AsyncStorage.setItem(LAST_CHAT_DAY_KEY, String(today));
-          setStreak(1);
-        } else {
-          setStreak(currentStreak);
-        }
-      } else {
-        if (lastDay === today - 1) {
-          setStreak(currentStreak);
-        } else if (lastDay < today - 1) {
-          setStreak(0);
-        } else {
-          setStreak(currentStreak);
-        }
-      }
-    } catch {}
-  }
 
   async function fetchDailyChallenge() {
     try {

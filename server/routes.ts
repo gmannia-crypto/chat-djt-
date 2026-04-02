@@ -3412,29 +3412,25 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyah
         return res.status(400).json({ error: "Invalid responderId" });
       }
 
-      const isPollThankYou = req.body.isPollThankYou === true;
-
       if (!deviceId) {
         return res.status(400).json({ error: "Device ID required" });
       }
 
-      if (!isPollThankYou) {
-        const access = arenaAccess[deviceId] || { freeUsed: 0, sessionExpiry: null, freeTrialExpiry: null };
-        const hasActiveSession = access.sessionExpiry && Date.now() < access.sessionExpiry;
-        if (!hasActiveSession && access.freeUsed >= ARENA_FREE_LIMIT) {
-          return res.status(403).json({
-            error: "arena_locked",
-            freeRemaining: 0,
-            sessionCost: ARENA_SESSION_COST,
-          });
+      const access = arenaAccess[deviceId] || { freeUsed: 0, sessionExpiry: null, freeTrialExpiry: null };
+      const hasActiveSession = access.sessionExpiry && Date.now() < access.sessionExpiry;
+      if (!hasActiveSession && access.freeUsed >= ARENA_FREE_LIMIT) {
+        return res.status(403).json({
+          error: "arena_locked",
+          freeRemaining: 0,
+          sessionCost: ARENA_SESSION_COST,
+        });
+      }
+      if (!hasActiveSession) {
+        if (access.freeUsed === 0) {
+          access.freeTrialExpiry = Date.now() + ARENA_FREE_TRIAL_DURATION;
         }
-        if (!hasActiveSession) {
-          if (access.freeUsed === 0) {
-            access.freeTrialExpiry = Date.now() + ARENA_FREE_TRIAL_DURATION;
-          }
-          access.freeUsed = (access.freeUsed || 0) + 1;
-          arenaAccess[deviceId] = access;
-        }
+        access.freeUsed = (access.freeUsed || 0) + 1;
+        arenaAccess[deviceId] = access;
       }
 
       let winTallyContext = "";
