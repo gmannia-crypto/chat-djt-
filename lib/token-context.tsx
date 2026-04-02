@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef, ReactNode } from "react";
+import { Platform, AppState } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getApiUrl } from "@/lib/query-client";
 import { fetch } from "expo/fetch";
@@ -33,10 +34,40 @@ async function getOrCreateDeviceId(): Promise<string> {
   return id;
 }
 
+function generateBrowserFingerprint(): string {
+  if (Platform.OS !== "web") return "";
+  try {
+    const nav = typeof navigator !== "undefined" ? navigator : null;
+    if (!nav) return "";
+    const parts = [
+      nav.userAgent || "",
+      nav.language || "",
+      (typeof screen !== "undefined" ? `${screen.width}x${screen.height}x${screen.colorDepth}` : ""),
+      Intl.DateTimeFormat().resolvedOptions().timeZone || "",
+      nav.hardwareConcurrency || 0,
+      (nav as any).deviceMemory || 0,
+      nav.platform || "",
+    ];
+    const str = parts.join("|");
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const ch = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + ch;
+      hash |= 0;
+    }
+    return `fp-${Math.abs(hash).toString(36)}`;
+  } catch {
+    return "";
+  }
+}
+
 export function TokenProvider({ children }: { children: ReactNode }) {
   const [deviceId, setDeviceId] = useState<string | null>(null);
   const [balance, setBalance] = useState<TokenBalance | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const fingerprint = useRef(generateBrowserFingerprint());
+  const timeTrackerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastTrackRef = useRef(Date.now());
 
   useEffect(() => {
     getOrCreateDeviceId().then((id) => {
@@ -49,9 +80,11 @@ export function TokenProvider({ children }: { children: ReactNode }) {
     try {
       const baseUrl = getApiUrl();
       const url = new URL("/api/tokens/balance", baseUrl);
-      const res = await fetch(url.toString(), {
-        headers: { "x-device-id": deviceId },
-      });
+      const headers: Record<string, string> = { "x-device-id": deviceId };
+      if (fingerprint.current) {
+        headers["x-browser-fp"] = fingerprint.current;
+      }
+      const res = await fetch(url.toString(), { headers });
       if (res.ok) {
         const contentType = res.headers.get("content-type") || "";
         if (!contentType.includes("application/json")) {
@@ -72,6 +105,55 @@ export function TokenProvider({ children }: { children: ReactNode }) {
       refreshBalance();
     }
   }, [deviceId, refreshBalance]);
+
+  useEffect(() => {
+    if (!deviceId) return;
+    lastTrackRef.current = Date.now();
+
+    const sendTimeUpdate = async () => {
+      const now = Date.now();
+      const elapsed = Math.round((now - lastTrackRef.current) / 1000);
+      lastTrackRef.current = now;
+      if (elapsed <= 0 || elapsed > 300) return;
+      try {
+        const baseUrl = getApiUrl();
+        const url = new URL("/api/track-time", baseUrl);
+        await fetch(url.toString(), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-device-id": deviceId,
+          },
+          body: JSON.stringify({ seconds: elapsed }),
+        });
+      } catch {}
+    };
+
+    timeTrackerRef.current = setInterval(sendTimeUpdate, 60000);
+
+    const handleAppState = (nextState: string) => {
+      if (nextState === "background" || nextState === "inactive") {
+        sendTimeUpdate();
+      } else if (nextState === "active") {
+        lastTrackRef.current = Date.now();
+      }
+    };
+
+    const sub = AppState.addEventListener("change", handleAppState);
+
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      window.addEventListener("beforeunload", sendTimeUpdate);
+      window.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "hidden") sendTimeUpdate();
+        else lastTrackRef.current = Date.now();
+      });
+    }
+
+    return () => {
+      if (timeTrackerRef.current) clearInterval(timeTrackerRef.current);
+      sub.remove();
+    };
+  }, [deviceId]);
 
   const hasTokens = useMemo(() => {
     if (!balance) return true;

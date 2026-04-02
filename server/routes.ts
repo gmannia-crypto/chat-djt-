@@ -3608,11 +3608,105 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyah
       if (!deviceId) {
         return res.status(400).json({ error: "Device ID required" });
       }
+      const fingerprint = req.headers["x-browser-fp"] as string;
+      if (fingerprint) {
+        try {
+          const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+          const existing = await db.query(
+            `SELECT device_id FROM token_accounts WHERE browser_fingerprint = $1 AND device_id != $2 AND free_prompts_used < 10 LIMIT 1`,
+            [fingerprint, deviceId]
+          );
+          if (existing.rows.length > 0) {
+            await db.query(
+              `UPDATE token_accounts SET free_prompts_used = GREATEST(free_prompts_used, 10) WHERE device_id = $1`,
+              [deviceId]
+            );
+          }
+          await db.query(
+            `UPDATE token_accounts SET browser_fingerprint = $2, last_seen = NOW() WHERE device_id = $1`,
+            [deviceId, fingerprint]
+          );
+          await db.end();
+        } catch {}
+      }
       const balance = await getTokenBalance(deviceId);
       res.json(balance);
     } catch (error) {
       console.error("Token balance error:", error);
       res.status(500).json({ error: "Failed to get token balance" });
+    }
+  });
+
+  app.post("/api/track-time", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const { seconds } = req.body;
+      if (!seconds || seconds < 0 || seconds > 600) return res.json({ ok: true });
+      const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      await db.query(
+        `UPDATE token_accounts SET time_spent_seconds = COALESCE(time_spent_seconds, 0) + $2, last_seen = NOW() WHERE device_id = $1`,
+        [deviceId, Math.min(seconds, 300)]
+      );
+      await db.end();
+      res.json({ ok: true });
+    } catch {
+      res.json({ ok: true });
+    }
+  });
+
+  app.get("/api/admin/time-stats", async (_req, res) => {
+    try {
+      const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      const result = await db.query(`
+        SELECT 
+          device_id,
+          COALESCE(time_spent_seconds, 0) as total_seconds,
+          last_seen,
+          created_at,
+          tokens,
+          free_prompts_used,
+          subscription_active
+        FROM token_accounts 
+        WHERE COALESCE(time_spent_seconds, 0) > 0
+        ORDER BY time_spent_seconds DESC
+        LIMIT 50
+      `);
+      const summary = await db.query(`
+        SELECT 
+          COUNT(*) as active_users,
+          SUM(COALESCE(time_spent_seconds, 0)) as total_seconds_all,
+          AVG(COALESCE(time_spent_seconds, 0)) FILTER (WHERE COALESCE(time_spent_seconds, 0) > 0) as avg_seconds,
+          MAX(COALESCE(time_spent_seconds, 0)) as max_seconds,
+          COUNT(*) FILTER (WHERE last_seen > NOW() - INTERVAL '24 hours') as active_24h,
+          COUNT(*) FILTER (WHERE last_seen > NOW() - INTERVAL '1 hour') as active_1h
+        FROM token_accounts
+      `);
+      await db.end();
+      const s = summary.rows[0];
+      res.json({
+        summary: {
+          activeUsers: parseInt(s.active_users),
+          totalTimeAll: parseInt(s.total_seconds_all || "0"),
+          avgTimeSeconds: Math.round(parseFloat(s.avg_seconds || "0")),
+          maxTimeSeconds: parseInt(s.max_seconds || "0"),
+          active24h: parseInt(s.active_24h),
+          active1h: parseInt(s.active_1h),
+        },
+        users: result.rows.map((r: any) => ({
+          deviceId: r.device_id.slice(0, 12) + "...",
+          totalSeconds: r.total_seconds,
+          totalMinutes: Math.round(r.total_seconds / 60),
+          lastSeen: r.last_seen,
+          createdAt: r.created_at,
+          tokens: r.tokens,
+          freeUsed: r.free_prompts_used,
+          isSubscriber: r.subscription_active,
+        })),
+      });
+    } catch (error) {
+      console.error("Admin time stats error:", error);
+      res.status(500).json({ error: "Failed to fetch time stats" });
     }
   });
 

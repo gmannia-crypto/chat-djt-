@@ -1115,6 +1115,8 @@ export default function AdminScreen() {
 
             <PushNotificationSection />
 
+            <TimeTrackingSection />
+
             <AnalyticsDashboard />
             <SuggestionsViewer />
           </>
@@ -1123,6 +1125,241 @@ export default function AdminScreen() {
     </View>
   );
 }
+
+function formatDuration(totalSeconds: number): string {
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+  const hours = Math.floor(totalSeconds / 3600);
+  const mins = Math.floor((totalSeconds % 3600) / 60);
+  if (hours > 0) return `${hours}h ${mins}m`;
+  return `${mins}m`;
+}
+
+function TimeTrackingSection() {
+  const [timeData, setTimeData] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
+  const fetchTimeStats = async () => {
+    setLoading(true);
+    try {
+      const baseUrl = getApiUrl();
+      const res = await fetch(new URL("/api/admin/time-stats", baseUrl).toString());
+      if (res.ok) {
+        const data = await res.json();
+        setTimeData(data);
+      }
+    } catch {}
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchTimeStats();
+  }, []);
+
+  return (
+    <Animated.View entering={FadeInDown.delay(200).duration(400)} style={timeStyles.container}>
+      <Pressable onPress={() => setExpanded(!expanded)} style={timeStyles.header}>
+        <View style={timeStyles.headerLeft}>
+          <Ionicons name="time-outline" size={22} color={Colors.gold} />
+          <Text style={timeStyles.headerTitle}>Time On App</Text>
+        </View>
+        <View style={timeStyles.headerRight}>
+          {timeData?.summary && (
+            <Text style={timeStyles.headerBadge}>
+              {timeData.summary.active1h} active now
+            </Text>
+          )}
+          <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={18} color={Colors.whiteMuted} />
+        </View>
+      </Pressable>
+      {expanded && (
+        <View style={timeStyles.content}>
+          {loading && <ActivityIndicator color={Colors.gold} />}
+          {timeData?.summary && (
+            <View style={timeStyles.summaryRow}>
+              <View style={timeStyles.summaryCard}>
+                <Text style={timeStyles.summaryValue}>{formatDuration(timeData.summary.totalTimeAll)}</Text>
+                <Text style={timeStyles.summaryLabel}>Total Time</Text>
+              </View>
+              <View style={timeStyles.summaryCard}>
+                <Text style={timeStyles.summaryValue}>{formatDuration(timeData.summary.avgTimeSeconds)}</Text>
+                <Text style={timeStyles.summaryLabel}>Avg / User</Text>
+              </View>
+              <View style={timeStyles.summaryCard}>
+                <Text style={timeStyles.summaryValue}>{timeData.summary.active24h}</Text>
+                <Text style={timeStyles.summaryLabel}>Active 24h</Text>
+              </View>
+              <View style={timeStyles.summaryCard}>
+                <Text style={timeStyles.summaryValue}>{formatDuration(timeData.summary.maxTimeSeconds)}</Text>
+                <Text style={timeStyles.summaryLabel}>Top User</Text>
+              </View>
+            </View>
+          )}
+          {timeData?.users?.length > 0 && (
+            <View style={timeStyles.userList}>
+              <Text style={timeStyles.listTitle}>Top Users by Time</Text>
+              {timeData.users.slice(0, 15).map((u: any, i: number) => (
+                <View key={i} style={timeStyles.userRow}>
+                  <Text style={timeStyles.userRank}>#{i + 1}</Text>
+                  <Text style={timeStyles.userId}>{u.deviceId}</Text>
+                  <Text style={timeStyles.userTime}>{formatDuration(u.totalSeconds)}</Text>
+                  <View style={timeStyles.userBadges}>
+                    {u.isSubscriber && <Text style={timeStyles.subBadge}>VIP</Text>}
+                    {u.tokens > 0 && <Text style={timeStyles.tokenBadge}>{u.tokens}⚡</Text>}
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+          <Pressable onPress={fetchTimeStats} style={timeStyles.refreshBtn}>
+            <Ionicons name="refresh" size={16} color={Colors.gold} />
+            <Text style={timeStyles.refreshText}>Refresh</Text>
+          </Pressable>
+        </View>
+      )}
+    </Animated.View>
+  );
+}
+
+const timeStyles = StyleSheet.create({
+  container: {
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 16,
+    marginTop: 24,
+    borderWidth: 1,
+    borderColor: "rgba(212,175,55,0.2)",
+    overflow: "hidden",
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 16,
+  },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  headerTitle: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  headerBadge: {
+    color: Colors.gold,
+    fontSize: 12,
+    fontWeight: "600",
+    backgroundColor: "rgba(212,175,55,0.15)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  content: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  summaryRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 16,
+  },
+  summaryCard: {
+    flex: 1,
+    minWidth: 70,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    borderRadius: 10,
+    padding: 10,
+    alignItems: "center",
+  },
+  summaryValue: {
+    color: Colors.gold,
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  summaryLabel: {
+    color: Colors.whiteMuted,
+    fontSize: 10,
+    marginTop: 2,
+  },
+  userList: {
+    marginTop: 4,
+  },
+  listTitle: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "600",
+    marginBottom: 8,
+  },
+  userRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.05)",
+    gap: 8,
+  },
+  userRank: {
+    color: Colors.gold,
+    fontSize: 12,
+    fontWeight: "700",
+    width: 24,
+  },
+  userId: {
+    color: Colors.whiteMuted,
+    fontSize: 11,
+    flex: 1,
+    fontFamily: Platform.OS === "web" ? "monospace" : undefined,
+  },
+  userTime: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "600",
+    width: 50,
+    textAlign: "right",
+  },
+  userBadges: {
+    flexDirection: "row",
+    gap: 4,
+    width: 60,
+    justifyContent: "flex-end",
+  },
+  subBadge: {
+    color: Colors.gold,
+    fontSize: 9,
+    fontWeight: "700",
+    backgroundColor: "rgba(212,175,55,0.2)",
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  tokenBadge: {
+    color: "#4fc3f7",
+    fontSize: 9,
+    fontWeight: "600",
+  },
+  refreshBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 12,
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: "rgba(212,175,55,0.1)",
+  },
+  refreshText: {
+    color: Colors.gold,
+    fontSize: 13,
+    fontWeight: "600",
+  },
+});
 
 function PushNotificationSection() {
   const [title, setTitle] = useState("");

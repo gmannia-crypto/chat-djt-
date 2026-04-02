@@ -825,8 +825,6 @@ export default function HomeScreen() {
         const next = [random, ...prev];
         return next.slice(0, 5);
       });
-      const isPurchaseItem = random.includes("bought") || random.includes("Token") || random.includes("VIP") || random.includes("subscribed") || random.includes("won") || random.includes("beat");
-      triggerActivityShake(isPurchaseItem);
     }, 5000);
     return () => clearInterval(interval);
   }, [ACTIVITY_TEMPLATES]);
