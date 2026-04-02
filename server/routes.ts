@@ -1130,7 +1130,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const allGolfEvents = [...golfPgaEvents, ...golfLivEvents];
       let golfCount = 0;
       for (const ev of allGolfEvents) {
-        if (golfCount >= 4) break;
         const state = ev.status?.type?.state;
         const isLiv = golfLivEvents.includes(ev);
         const label = isLiv ? "LIV" : "PGA";
@@ -1138,7 +1137,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (g) {
           if (state === "post") {
             results.push(g);
-          } else {
+          } else if (golfCount < 4) {
             games.push(g);
             golfCount++;
           }
