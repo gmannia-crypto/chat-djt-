@@ -4088,6 +4088,25 @@ Address everyone by FIRST NAME ONLY. Keep responses to 2-3 sentences max. Stay f
     }
   });
 
+  app.post("/api/use-token", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) {
+        return res.status(400).json({ error: "Device ID required" });
+      }
+      const amount = typeof req.body?.amount === "number" && req.body.amount > 0 ? Math.floor(req.body.amount) : 1;
+      const reason = typeof req.body?.reason === "string" ? req.body.reason.slice(0, 200) : "Token used";
+      const result = await useTokens(deviceId, amount, reason);
+      if (!result.success) {
+        return res.status(403).json({ error: result.error, balance: result.balance });
+      }
+      res.json({ success: true, balance: result.balance });
+    } catch (error) {
+      console.error("Token use error:", error);
+      res.status(500).json({ error: "Failed to use token" });
+    }
+  });
+
   app.get("/api/tokens/packs", async (_req, res) => {
     res.json({ packs: TOKEN_PACKS });
   });
