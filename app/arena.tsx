@@ -1617,8 +1617,9 @@ export default function ArenaScreen() {
       } else {
         Alert.alert("Error", "Failed to unlock persona. Try again.");
       }
+    } finally {
+      setMysteryUnlocking(null);
     }
-    setMysteryUnlocking(null);
   }, [balance, deviceId, refreshBalance, unlockedMystery]);
 
   const allAvailablePersonas = useMemo(() => {

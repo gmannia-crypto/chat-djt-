@@ -80,7 +80,11 @@ const MYSTERY_REWARDS = [
   { label: "VIP Fortune", icon: "star", description: "A rare PREMIUM fortune reading. Only winners get this." },
   { label: "Collectible Card", icon: "cards", description: "A DJT Collectible card has been added to your collection!" },
   { label: "Collectible Card", icon: "cards", description: "A DJT Collectible card has been added to your collection!" },
+  { label: "Arena Persona Unlock", icon: "person-add", description: "A mystery arena debater has been unlocked! Check the Political Arena." },
 ];
+
+const ARENA_MYSTERY_PERSONA_IDS = ["alexjones", "obama", "melania", "schumer"];
+const ARENA_MYSTERY_UNLOCK_KEY = "arena_mystery_unlocked";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -850,7 +854,35 @@ export default function HomeScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     await new Promise((r) => setTimeout(r, 1200));
     const prize = MYSTERY_REWARDS[Math.floor(Math.random() * MYSTERY_REWARDS.length)];
-    if (prize.label === "Collectible Card") {
+    if (prize.label === "Arena Persona Unlock") {
+      try {
+        const stored = await AsyncStorage.getItem(ARENA_MYSTERY_UNLOCK_KEY);
+        const alreadyUnlocked: string[] = stored ? JSON.parse(stored) : [];
+        const locked = ARENA_MYSTERY_PERSONA_IDS.filter((id) => !alreadyUnlocked.includes(id));
+        if (locked.length > 0) {
+          const personaId = locked[Math.floor(Math.random() * locked.length)];
+          const newUnlocked = [...alreadyUnlocked, personaId];
+          await AsyncStorage.setItem(ARENA_MYSTERY_UNLOCK_KEY, JSON.stringify(newUnlocked));
+          const personaNames: Record<string, string> = { alexjones: "Alex Jones", obama: "Barack Obama", melania: "Melania Trump", schumer: "Chuck Schumer" };
+          setMysteryPrize({
+            ...prize,
+            label: `Persona Unlocked: ${personaNames[personaId] || personaId}`,
+            description: `${personaNames[personaId] || personaId} has joined the Political Arena! Head to the arena to debate them.`,
+          });
+        } else {
+          const card = getRandomCard();
+          const added = await addCard(card.id);
+          if (added) {
+            setMysteryPrize({ ...prize, label: `${card.rarity} Card: ${card.name}`, description: `All personas unlocked! Bonus card: ${card.description}` });
+          } else {
+            setMysteryPrize({ ...prize, label: "All Personas Unlocked!", description: "You've already unlocked every mystery persona. Champion status!" });
+          }
+          refreshCollectionCount();
+        }
+      } catch {
+        setMysteryPrize(prize);
+      }
+    } else if (prize.label === "Collectible Card") {
       const card = getRandomCard();
       const added = await addCard(card.id);
       const rarityColor = RARITY_COLORS[card.rarity];
