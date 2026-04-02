@@ -772,7 +772,49 @@ export default function HomeScreen() {
     "@MAGAMom got Bernie Mac's take",
     "@CryptoKing explored Trump's Picks",
     "@PatriotPete rated Trump 100%",
+    "\u26A1 @GoldRush99 just bought 80 D.C. Tokens!",
+    "\u26A1 @TrumpVIP joined VIP — 150 tokens loaded!",
+    "\u26A1 @DealMaker bought 35 D.C. Tokens!",
+    "\uD83C\uDFC6 @ChampTrader won a Financial Faceoff!",
+    "\uD83C\uDFB0 @LuckyStrike beat Trump Billionaires!",
+    "\uD83D\uDCB0 @WhaleAlert subscribed to Standard plan",
+    "\uD83D\uDD25 @DebateKing dominated the Arena!",
+    "\uD83C\uDFE0 @PropertyHawk added 3 to watchlist",
+    "\u2694\uFE0F @VoteWarrior cast 10 debate votes!",
+    "\uD83D\uDCAA @TherapyGrad completed Deep Session",
   ], []);
+
+  const activityShakeX = useSharedValue(0);
+  const activityShakeStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: activityShakeX.value }],
+  }));
+
+  const triggerActivityShake = useCallback((isPurchase = false) => {
+    if (isPurchase) {
+      activityShakeX.value = withSequence(
+        withTiming(-6, { duration: 40 }),
+        withTiming(6, { duration: 40 }),
+        withTiming(-5, { duration: 35 }),
+        withTiming(5, { duration: 35 }),
+        withTiming(-3, { duration: 30 }),
+        withTiming(3, { duration: 30 }),
+        withTiming(-1, { duration: 25 }),
+        withTiming(0, { duration: 25 }),
+      );
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light), 150);
+    } else {
+      activityShakeX.value = withSequence(
+        withTiming(-4, { duration: 50 }),
+        withTiming(4, { duration: 50 }),
+        withTiming(-3, { duration: 40 }),
+        withTiming(3, { duration: 40 }),
+        withTiming(-2, { duration: 30 }),
+        withTiming(0, { duration: 30 }),
+      );
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  }, []);
 
   useEffect(() => {
     const initial = ACTIVITY_TEMPLATES.slice(0, 3);
@@ -783,6 +825,8 @@ export default function HomeScreen() {
         const next = [random, ...prev];
         return next.slice(0, 5);
       });
+      const isPurchaseItem = random.includes("bought") || random.includes("Token") || random.includes("VIP") || random.includes("subscribed") || random.includes("won") || random.includes("beat");
+      triggerActivityShake(isPurchaseItem);
     }, 5000);
     return () => clearInterval(interval);
   }, [ACTIVITY_TEMPLATES]);
@@ -1258,21 +1302,24 @@ export default function HomeScreen() {
         )}
 
         {activityFeed.length > 0 && (
-          <Animated.View entering={FadeInDown.delay(850).duration(400)} style={styles.activityWall}>
-            <View style={styles.activityHeader}>
-              <Ionicons name="flash" size={14} color="#ff4d4d" />
-              <Text style={styles.activityTitle}>LIVE ACTIVITY</Text>
-            </View>
-            {activityFeed.map((activity, i) => (
-              <Animated.View
-                key={`act-${i}-${activity}`}
-                entering={FadeIn.duration(400)}
-                style={[styles.activityItem, i === 0 && styles.activityItemNew]}
-              >
-                <Text style={styles.activityDot}>{i === 0 ? "\u26A1" : "\u2022"}</Text>
-                <Text style={[styles.activityText, i === 0 && styles.activityTextNew]} numberOfLines={1}>{activity}</Text>
-              </Animated.View>
-            ))}
+          <Animated.View entering={FadeInDown.delay(850).duration(400)}>
+            <Animated.View style={[styles.activityWall, activityShakeStyle]}>
+              <View style={styles.activityHeader}>
+                <Ionicons name="flash" size={14} color="#ff4d4d" />
+                <Text style={styles.activityTitle}>LIVE ACTIVITY</Text>
+                <View style={styles.activityPulse} />
+              </View>
+              {activityFeed.map((activity, i) => (
+                <Animated.View
+                  key={`act-${i}-${activity}`}
+                  entering={FadeIn.duration(400)}
+                  style={[styles.activityItem, i === 0 && styles.activityItemNew]}
+                >
+                  <Text style={styles.activityDot}>{i === 0 ? "\u26A1" : "\u2022"}</Text>
+                  <Text style={[styles.activityText, i === 0 && styles.activityTextNew]} numberOfLines={1}>{activity}</Text>
+                </Animated.View>
+              ))}
+            </Animated.View>
           </Animated.View>
         )}
 
@@ -2336,6 +2383,13 @@ const styles = StyleSheet.create({
     fontWeight: "800" as const,
     color: "rgba(255, 77, 77, 0.8)",
     letterSpacing: 1.5,
+  },
+  activityPulse: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#ff4d4d",
+    marginLeft: "auto" as any,
   },
   activityItem: {
     flexDirection: "row",
