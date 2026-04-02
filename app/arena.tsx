@@ -1567,7 +1567,20 @@ export default function ArenaScreen() {
       if (data) {
         try {
           const parsed = JSON.parse(data);
-          if (Array.isArray(parsed)) setUnlockedMystery(parsed);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setUnlockedMystery(parsed);
+            setSelectedPersonas((prev) => {
+              const toAdd = parsed.filter((id: string) => !prev.includes(id) && MYSTERY_PERSONAS[id]);
+              return toAdd.length > 0 ? [...prev, ...toAdd] : prev;
+            });
+            setEmotionalStates((prev) => {
+              const next = { ...prev };
+              parsed.forEach((id: string) => {
+                if (!next[id]) next[id] = { anger: 20, happiness: 50, engagement: 50, lastSpoke: null };
+              });
+              return next;
+            });
+          }
         } catch {}
       }
     });
