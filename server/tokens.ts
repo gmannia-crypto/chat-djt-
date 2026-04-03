@@ -28,21 +28,20 @@ export async function getOrCreateAccount(deviceId: string) {
   );
 
   if (result.rows.length === 0) {
+    const WELCOME_BONUS_TOKENS = 25;
     const isDev = process.env.NODE_ENV === "development";
-    const startingTokens = isDev ? 100 : 0;
+    const startingTokens = isDev ? 100 : WELCOME_BONUS_TOKENS;
     result = await db.query(
       `INSERT INTO token_accounts (device_id, tokens, free_prompts_used, subscription_active, subscription_tokens_granted, created_at, updated_at)
        VALUES ($1, $2, 0, false, false, NOW(), NOW())
        RETURNING *`,
       [deviceId, startingTokens]
     );
-    if (isDev && startingTokens > 0) {
-      await db.query(
-        `INSERT INTO token_transactions (account_id, type, amount, description, created_at)
-         VALUES ($1, 'reward', $2, 'Development mode starting tokens', NOW())`,
-        [result.rows[0].id, startingTokens]
-      );
-    }
+    await db.query(
+      `INSERT INTO token_transactions (account_id, type, amount, description, created_at)
+       VALUES ($1, 'reward', $2, $3, NOW())`,
+      [result.rows[0].id, startingTokens, isDev ? 'Development mode starting tokens' : 'Welcome bonus - 25 free tokens to explore the app']
+    );
   }
 
   return result.rows[0];
