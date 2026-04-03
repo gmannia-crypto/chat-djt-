@@ -1705,15 +1705,6 @@ export default function SportsScreen() {
               <Text style={styles.tokenBadgeText}>{balance.totalAvailable}</Text>
             </Pressable>
           )}
-          <Pressable
-            onPress={() => { playClick(); toggleMusic(); }}
-            style={[styles.musicToggle, musicPlaying && styles.musicToggleActive]}
-          >
-            <Ionicons name={musicPlaying ? "musical-notes" : "musical-notes-outline"} size={18} color={musicPlaying ? Colors.gold : "rgba(255,255,255,0.5)"} />
-            <Text style={[styles.musicToggleText, musicPlaying && { color: Colors.gold }]}>
-              {musicPlaying ? "ON" : "OFF"}
-            </Text>
-          </Pressable>
         </View>
       </View>
 

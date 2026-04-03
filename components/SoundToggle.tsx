@@ -35,7 +35,9 @@ const styles = StyleSheet.create({
   btn: {
     position: "absolute",
     bottom: Platform.OS === "web" ? 54 : 20,
-    left: 16,
+    alignSelf: "center",
+    left: "50%" as any,
+    transform: [{ translateX: -55 }],
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
