@@ -1659,7 +1659,7 @@ export default function SportsScreen() {
       const allPersonaIds = activePersonaList.map((p) => p.id);
       const res = await fetch(`${baseUrl}/api/sports/roundtable`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(deviceId ? { "x-device-id": deviceId } : {}) },
         body: JSON.stringify({ game, personas: allPersonaIds }),
       });
       if (!res.ok) {
