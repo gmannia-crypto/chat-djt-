@@ -6746,7 +6746,7 @@ Make each treatment step specific and actionable. Make solutions practical thing
         return res.status(403).json({ error: tokenResult.error, balance: tokenResult.balance });
       }
 
-      const { preset, personaId, therapyHistory } = req.body;
+      const { preset, personaId, therapyHistory, patientName } = req.body;
       const fishApiKey = process.env.FISH_AUDIO_API_KEY;
       if (!fishApiKey) {
         return res.status(500).json({ error: "TTS not configured" });
@@ -6808,6 +6808,7 @@ RULES:
 4. Address recurring themes, escalating severity, or unresolved patterns you detect
 5. Do NOT use quotation marks or stage directions
 6. Do NOT mention session numbers or dates — weave the knowledge naturally
+7. ${patientName ? `The patient's name is ${patientName}. Address them by name at least once in the intro to make it deeply personal and ensure the session is directed at the right person.` : "Do not address the patient by any name."}
 
 Respond in this EXACT JSON format:
 {

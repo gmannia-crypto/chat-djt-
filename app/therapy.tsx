@@ -885,7 +885,7 @@ export default function TherapyScreen() {
       const resp = await fetch(new URL("/api/therapy/hypnosis", apiUrl).toString(), {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-device-id": deviceId },
-        body: JSON.stringify({ preset: hypnoPreset, personaId: selectedTherapist, therapyHistory: historyContext || undefined }),
+        body: JSON.stringify({ preset: hypnoPreset, personaId: selectedTherapist, therapyHistory: historyContext || undefined, patientName: firstName.trim() || undefined }),
       });
       const data = await resp.json();
       if (data.error) {
@@ -1603,6 +1603,27 @@ export default function TherapyScreen() {
 
         {sessionMode === "hypno" && !chatStarted && (
           <Animated.View entering={FadeInDown.delay(350).duration(400)} style={{ paddingHorizontal: 20, marginBottom: 16 }}>
+            <Text style={{ color: "#e040fb", fontSize: 13, fontWeight: "700" as const, textAlign: "center", marginBottom: 12, letterSpacing: 1 }}>YOUR NAME</Text>
+            <TextInput
+              value={firstName}
+              onChangeText={setFirstName}
+              placeholder="Enter your first name"
+              placeholderTextColor="rgba(255,255,255,0.3)"
+              style={{
+                backgroundColor: "rgba(26,26,46,0.8)",
+                borderWidth: 2,
+                borderColor: firstName.trim() ? "#e040fb" : "#333",
+                borderRadius: 12,
+                paddingVertical: 12,
+                paddingHorizontal: 16,
+                color: "#fff",
+                fontSize: 16,
+                fontWeight: "600" as const,
+                textAlign: "center",
+                marginBottom: 20,
+              }}
+              maxLength={30}
+            />
             <Text style={{ color: "#e040fb", fontSize: 13, fontWeight: "700" as const, textAlign: "center", marginBottom: 12, letterSpacing: 1 }}>CHOOSE YOUR SESSION</Text>
             <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 10 }}>
               {HYPNO_PRESETS.map((p) => (
@@ -1627,19 +1648,19 @@ export default function TherapyScreen() {
             </View>
             <Pressable
               onPress={startHypnosis}
-              disabled={hypnoLoading}
+              disabled={hypnoLoading || !firstName.trim()}
               style={({ pressed }) => ({
                 marginTop: 20,
                 alignSelf: "center",
                 paddingVertical: 14,
                 paddingHorizontal: 36,
                 borderRadius: 30,
-                opacity: hypnoLoading ? 0.5 : pressed ? 0.8 : 1,
+                opacity: (hypnoLoading || !firstName.trim()) ? 0.5 : pressed ? 0.8 : 1,
                 overflow: "hidden" as const,
               })}
             >
               <LinearGradient
-                colors={["#e040fb", "#7c4dff"]}
+                colors={firstName.trim() ? ["#e040fb", "#7c4dff"] : ["#333", "#222"]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={{ ...StyleSheet.absoluteFillObject, borderRadius: 30 }}
@@ -2312,6 +2333,11 @@ export default function TherapyScreen() {
         }}
       >
         <View style={serenaStyles.hypnoOverlay}>
+          <View style={{ position: "absolute", top: 50, left: 0, right: 0, alignItems: "center", zIndex: 10 }}>
+            <Text style={{ color: "rgba(224,64,251,0.6)", fontSize: 11, fontWeight: "700" as const, letterSpacing: 2, textTransform: "uppercase" as const, marginBottom: 4 }}>SESSION FOR</Text>
+            <Text style={{ color: "#e040fb", fontSize: 22, fontWeight: "800" as const, letterSpacing: 1 }}>{firstName.trim() || "Guest"}</Text>
+            <View style={{ width: 60, height: 2, backgroundColor: "rgba(224,64,251,0.3)", borderRadius: 1, marginTop: 6 }} />
+          </View>
           <Animated.View style={[serenaStyles.spiralContainer, spiralPulseStyle]}>
             <Animated.View
               style={[
