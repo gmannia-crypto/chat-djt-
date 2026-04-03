@@ -465,6 +465,10 @@ export default function TherapyScreen() {
   async function startRecording() {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      if (soundRef.current) {
+        try { await soundRef.current.stopAsync(); await soundRef.current.unloadAsync(); } catch {}
+        soundRef.current = null;
+      }
       if (Platform.OS === "web") {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         const mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });

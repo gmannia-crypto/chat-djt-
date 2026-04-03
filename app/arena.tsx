@@ -31,6 +31,7 @@ import { getApiUrl } from "@/lib/query-client";
 import { playTTS, playAudioFromUrl, prefetchTTSAudio, playPrefetchedAudio } from "@/lib/audio-helper";
 import { playPointAwardSound, playVoteClickSound, playVoteSound2, playBellSound, playCrowdCheer, playDrumroll, playWinnerChosenSound, playWinnerAfterSound, playBreakingNewsAlert } from "@/lib/arena-sfx";
 import { useTokens } from "@/lib/token-context";
+import { TokenWinVideo } from "@/components/TokenWinVideo";
 import {
   saveRecording,
   RecordedMessage,
@@ -1661,6 +1662,9 @@ export default function ArenaScreen() {
   const [awardedMessages, setAwardedMessages] = useState<Set<string>>(new Set());
   const [showScoreboard, setShowScoreboard] = useState(false);
   const [showEndSummary, setShowEndSummary] = useState(false);
+  const [tokenWinVisible, setTokenWinVisible] = useState(false);
+  const [tokenWinAmount, setTokenWinAmount] = useState<number | undefined>();
+  const [tokenWinSource, setTokenWinSource] = useState<string | undefined>();
   const [trumpRoastText, setTrumpRoastText] = useState("");
   const [isLoadingRoast, setIsLoadingRoast] = useState(false);
   const [winnerClapBack, setWinnerClapBack] = useState("");
@@ -1804,6 +1808,7 @@ export default function ArenaScreen() {
   const pendingResponseRef = useRef<string | null>(null);
   const [selectedDuration, setSelectedDuration] = useState<number>(5);
   const arenaMemoryContextRef = useRef<string>("");
+  const arenaMessageCountRef = useRef(0);
   const arenaUserContextRef = useRef<string>("");
 
   useEffect(() => { messagesRef.current = messages; }, [messages]);
@@ -2363,6 +2368,9 @@ export default function ArenaScreen() {
                   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                   playCrowdCheer();
                   refreshBalance();
+                  setTokenWinAmount(trackData.reward.tokens);
+                  setTokenWinSource(`Arena ${trackData.reward.badge} Reward`);
+                  setTokenWinVisible(true);
                 }, 3000);
               }
             }
@@ -2657,6 +2665,12 @@ export default function ArenaScreen() {
 
         if (data.response && data.response.length > 30) {
           recordArenaMoment(responderId, toSpeakerId, data.response, currentTopicRef.current || "debate").catch(() => {});
+          arenaMessageCountRef.current = (arenaMessageCountRef.current || 0) + 1;
+          if (arenaMessageCountRef.current % 10 === 0) {
+            getArenaMemoryContext("", selectedPersonasRef.current).then((ctx) => {
+              arenaMemoryContextRef.current = ctx;
+            }).catch(() => {});
+          }
         }
       } catch (err) {
         console.warn("Arena AI error:", err);
@@ -4804,6 +4818,12 @@ export default function ArenaScreen() {
           </View>
         </View>
       )}
+      <TokenWinVideo
+        visible={tokenWinVisible}
+        onClose={() => setTokenWinVisible(false)}
+        amount={tokenWinAmount}
+        source={tokenWinSource}
+      />
     </View>
   );
 }
