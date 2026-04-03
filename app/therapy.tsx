@@ -880,10 +880,12 @@ export default function TherapyScreen() {
 
     try {
       const apiUrl = getApiUrl();
+      const uid = deviceId || "anonymous";
+      const historyContext = await getTherapyContext(uid).catch(() => "");
       const resp = await fetch(new URL("/api/therapy/hypnosis", apiUrl).toString(), {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-device-id": deviceId },
-        body: JSON.stringify({ preset: hypnoPreset, personaId: selectedTherapist }),
+        body: JSON.stringify({ preset: hypnoPreset, personaId: selectedTherapist, therapyHistory: historyContext || undefined }),
       });
       const data = await resp.json();
       if (data.error) {

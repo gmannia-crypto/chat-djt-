@@ -6746,7 +6746,7 @@ Make each treatment step specific and actionable. Make solutions practical thing
         return res.status(403).json({ error: tokenResult.error, balance: tokenResult.balance });
       }
 
-      const { preset, personaId } = req.body;
+      const { preset, personaId, therapyHistory } = req.body;
       const fishApiKey = process.env.FISH_AUDIO_API_KEY;
       if (!fishApiKey) {
         return res.status(500).json({ error: "TTS not configured" });
@@ -6770,7 +6770,7 @@ Make each treatment step specific and actionable. Make solutions practical thing
         voiceId = process.env.FISH_AUDIO_VOICE_ID || "";
       }
 
-      const hypnoIntros: Record<string, string> = {
+      const defaultHypnoIntros: Record<string, string> = {
         stress: "Close your eyes... take a deep breath... feel your body relaxing... With each breath, you sink deeper into a state of calm... My voice is the only thing you hear... nothing else matters... You are safe... you are relaxed... you are ready to let go of all stress... When I count to three, you will feel completely at ease... One... two... three... open your eyes... and tell me everything that weighs on you.",
         sleep: "Close your eyes... take a deep breath... feel your body becoming heavy... wonderfully heavy... With each breath, you drift deeper into peaceful darkness... My voice is a gentle wave carrying you... There is nothing to worry about... nothing to do... just float... Let sleep embrace you... One... two... three... you are drifting away... into the deepest, most restful sleep.",
         confidence: "Close your eyes... take a deep breath... feel power building inside you... With each breath, you grow stronger... bolder... unstoppable... My voice is unlocking the greatness within you... You are powerful beyond measure... You deserve everything you desire... When I count to three, you will feel unshakable confidence... One... two... three... open your eyes... you are transformed.",
@@ -6779,10 +6779,7 @@ Make each treatment step specific and actionable. Make solutions practical thing
         motivation: "Close your eyes... take a deep breath... feel a fire igniting inside you... With each breath, the flames grow stronger... burning away every excuse, every doubt... My voice is fuel for your ambition... You are capable of extraordinary things... When I count to three, you will be ready to take unstoppable action... One... two... three... open your eyes... and tell me everything."
       };
 
-      const introText = hypnoIntros[preset] || hypnoIntros.stress;
-      const hypnoSpeed = Math.min(voiceSpeed, 0.75);
-
-      const hypnoPhrases: Record<string, string[]> = {
+      const defaultHypnoPhrases: Record<string, string[]> = {
         stress: ["Release all tension...", "Your body is weightless...", "Peace flows through you...", "You are completely calm...", "Stress dissolves away..."],
         sleep: ["You are drifting...", "Deeper and deeper...", "Let sleep embrace you...", "Nothing matters now...", "Sweet, peaceful rest..."],
         confidence: ["You are powerful...", "Nothing can stop you...", "Believe in yourself...", "You are unstoppable...", "Greatness is within you..."],
@@ -6791,7 +6788,66 @@ Make each treatment step specific and actionable. Make solutions practical thing
         motivation: ["Fire burns within...", "You are relentless...", "No excuses remain...", "Take action now...", "You are extraordinary..."],
       };
 
-      const phrases = hypnoPhrases[preset] || hypnoPhrases.stress;
+      const hypnoSpeed = Math.min(voiceSpeed, 0.75);
+      let introText: string;
+      let phrases: string[];
+
+      if (therapyHistory && therapyHistory.trim().length > 20) {
+        try {
+          const aiResponse = await getClient().chat.completions.create({
+            model: getFastModel(),
+            messages: [
+              {
+                role: "system",
+                content: `You are a master hypnotherapist creating a deeply personalized hypnosis session. The patient has previous therapy sessions that reveal their specific struggles. Use their EXACT issues, patterns, and emotional pain points to craft a targeted hypnosis that speaks directly to what they are going through.
+
+RULES:
+1. Write in a slow, hypnotic, soothing cadence with lots of ellipses (...)
+2. Reference their SPECIFIC issues from past sessions — use the actual problems they mentioned, not generic phrases
+3. The induction should feel like the therapist KNOWS them deeply and is speaking directly to their soul
+4. Address recurring themes, escalating severity, or unresolved patterns you detect
+5. Do NOT use quotation marks or stage directions
+6. Do NOT mention session numbers or dates — weave the knowledge naturally
+
+Respond in this EXACT JSON format:
+{
+  "intro": "A 4-6 sentence hypnotic induction that references their specific issues... each sentence separated by ellipses... ending with a count to three and open your eyes",
+  "phrases": ["5 short targeted hypnotic affirmations that address their specific problems... each 3-8 words... deeply personal to their struggles"]
+}
+
+The preset category is: ${preset}
+${therapyHistory}`
+              },
+              {
+                role: "user",
+                content: `Generate a deeply personalized ${preset} hypnosis session targeting this patient's specific issues from their therapy history. Make it feel like the therapist truly understands their pain and is guiding them to heal.`
+              }
+            ],
+            max_completion_tokens: 500,
+            temperature: 0.8,
+          });
+
+          const aiText = aiResponse.choices[0]?.message?.content || "";
+          const jsonMatch = aiText.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]);
+            introText = parsed.intro || defaultHypnoIntros[preset] || defaultHypnoIntros.stress;
+            phrases = Array.isArray(parsed.phrases) && parsed.phrases.length >= 3
+              ? parsed.phrases.slice(0, 7)
+              : defaultHypnoPhrases[preset] || defaultHypnoPhrases.stress;
+          } else {
+            introText = defaultHypnoIntros[preset] || defaultHypnoIntros.stress;
+            phrases = defaultHypnoPhrases[preset] || defaultHypnoPhrases.stress;
+          }
+        } catch (aiErr) {
+          console.error("Personalized hypnosis AI error:", aiErr);
+          introText = defaultHypnoIntros[preset] || defaultHypnoIntros.stress;
+          phrases = defaultHypnoPhrases[preset] || defaultHypnoPhrases.stress;
+        }
+      } else {
+        introText = defaultHypnoIntros[preset] || defaultHypnoIntros.stress;
+        phrases = defaultHypnoPhrases[preset] || defaultHypnoPhrases.stress;
+      }
 
       const introBuffer = await fishAudioRequest(introText, voiceId, hypnoSpeed, fishApiKey);
 
