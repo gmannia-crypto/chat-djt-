@@ -6770,13 +6770,26 @@ Make each treatment step specific and actionable. Make solutions practical thing
         voiceId = process.env.FISH_AUDIO_VOICE_ID || "";
       }
 
+      const openingLine = patientName
+        ? `Close your eyes, ${patientName}... take a deep, slow breath... let everything else fade away...`
+        : "Close your eyes... take a deep, slow breath... let everything else fade away...";
+
+      const closingLines: Record<string, string> = {
+        stress: "Now... when I count to three, you will open your eyes... feeling completely at peace... lighter than you have felt in a long time... One... two... three... open your eyes... welcome back... you are renewed.",
+        sleep: "Now... when I count to three, your body will sink into the deepest sleep... One... two... three... let go... drift away... into perfect, restful darkness.",
+        confidence: "Now... when I count to three, you will open your eyes... filled with unstoppable confidence... One... two... three... open your eyes... you are transformed... you are powerful.",
+        focus: "Now... when I count to three, you will open your eyes... with absolute clarity and razor-sharp focus... One... two... three... open your eyes... your mind is a laser.",
+        anxiety: "Now... when I count to three, you will open your eyes... and all worry will have melted away... One... two... three... open your eyes... you are safe... you are free.",
+        motivation: "Now... when I count to three, you will open your eyes... burning with unstoppable drive... One... two... three... open your eyes... now go... and conquer.",
+      };
+
       const defaultHypnoIntros: Record<string, string> = {
-        stress: "Close your eyes... take a deep breath... feel your body relaxing... With each breath, you sink deeper into a state of calm... My voice is the only thing you hear... nothing else matters... You are safe... you are relaxed... you are ready to let go of all stress... When I count to three, you will feel completely at ease... One... two... three... open your eyes... and tell me everything that weighs on you.",
-        sleep: "Close your eyes... take a deep breath... feel your body becoming heavy... wonderfully heavy... With each breath, you drift deeper into peaceful darkness... My voice is a gentle wave carrying you... There is nothing to worry about... nothing to do... just float... Let sleep embrace you... One... two... three... you are drifting away... into the deepest, most restful sleep.",
-        confidence: "Close your eyes... take a deep breath... feel power building inside you... With each breath, you grow stronger... bolder... unstoppable... My voice is unlocking the greatness within you... You are powerful beyond measure... You deserve everything you desire... When I count to three, you will feel unshakable confidence... One... two... three... open your eyes... you are transformed.",
-        focus: "Close your eyes... take a deep breath... feel your mind becoming crystal clear... With each breath, all distractions dissolve into silence... My voice is the only thing you hear... nothing else matters... Your thoughts align into perfect, laser focus... When I count to three, your concentration will be absolute... One... two... three... open your eyes... and tell me everything.",
-        anxiety: "Close your eyes... take a deep breath... feel your heartbeat slowing... steadying... With each breath, anxiety loses its grip on you... My voice is your anchor... you are safe here... completely safe... Fear cannot touch you in this space... When I count to three, all worry will melt away... One... two... three... open your eyes... and tell me everything.",
-        motivation: "Close your eyes... take a deep breath... feel a fire igniting inside you... With each breath, the flames grow stronger... burning away every excuse, every doubt... My voice is fuel for your ambition... You are capable of extraordinary things... When I count to three, you will be ready to take unstoppable action... One... two... three... open your eyes... and tell me everything."
+        stress: "Feel your body relaxing... With each breath, you sink deeper into a state of calm... My voice is the only thing you hear... nothing else matters... You are safe... you are relaxed... you are ready to let go of all stress.",
+        sleep: "Feel your body becoming heavy... wonderfully heavy... With each breath, you drift deeper into peaceful darkness... My voice is a gentle wave carrying you... There is nothing to worry about... nothing to do... just float.",
+        confidence: "Feel power building inside you... With each breath, you grow stronger... bolder... unstoppable... My voice is unlocking the greatness within you... You are powerful beyond measure... You deserve everything you desire.",
+        focus: "Feel your mind becoming crystal clear... With each breath, all distractions dissolve into silence... My voice is the only thing you hear... nothing else matters... Your thoughts align into perfect, laser focus.",
+        anxiety: "Feel your heartbeat slowing... steadying... With each breath, anxiety loses its grip on you... My voice is your anchor... you are safe here... completely safe... Fear cannot touch you in this space.",
+        motivation: "Feel a fire igniting inside you... With each breath, the flames grow stronger... burning away every excuse, every doubt... My voice is fuel for your ambition... You are capable of extraordinary things.",
       };
 
       const defaultHypnoPhrases: Record<string, string[]> = {
@@ -6791,6 +6804,7 @@ Make each treatment step specific and actionable. Make solutions practical thing
       const hypnoSpeed = Math.min(voiceSpeed, 0.75);
       let introText: string;
       let phrases: string[];
+      let closingText = closingLines[preset] || closingLines.stress;
 
       if (therapyHistory && therapyHistory.trim().length > 20) {
         try {
@@ -6801,6 +6815,8 @@ Make each treatment step specific and actionable. Make solutions practical thing
                 role: "system",
                 content: `You are a master hypnotherapist creating a deeply personalized hypnosis session. The patient has previous therapy sessions that reveal their specific struggles. Use their EXACT issues, patterns, and emotional pain points to craft a targeted hypnosis that speaks directly to what they are going through.
 
+IMPORTANT: The opening ("Close your eyes...") and closing ("Open your eyes...") are handled separately. Do NOT include "close your eyes" or "open your eyes" in the intro or phrases.
+
 RULES:
 1. Write in a slow, hypnotic, soothing cadence with lots of ellipses (...)
 2. Reference their SPECIFIC issues from past sessions — use the actual problems they mentioned, not generic phrases
@@ -6808,12 +6824,14 @@ RULES:
 4. Address recurring themes, escalating severity, or unresolved patterns you detect
 5. Do NOT use quotation marks or stage directions
 6. Do NOT mention session numbers or dates — weave the knowledge naturally
-7. ${patientName ? `The patient's name is ${patientName}. Address them by name at least once in the intro to make it deeply personal and ensure the session is directed at the right person.` : "Do not address the patient by any name."}
+7. Do NOT include "close your eyes" or "open your eyes" — those are added separately
+8. ${patientName ? `The patient's name is ${patientName}. Address them by name at least once in the intro to make it deeply personal.` : "Do not address the patient by any name."}
 
 Respond in this EXACT JSON format:
 {
-  "intro": "A 4-6 sentence hypnotic induction that references their specific issues... each sentence separated by ellipses... ending with a count to three and open your eyes",
-  "phrases": ["5 short targeted hypnotic affirmations that address their specific problems... each 3-8 words... deeply personal to their struggles"]
+  "intro": "A 3-4 sentence hypnotic deepening that references their specific issues... each sentence separated by ellipses... speaking to their pain points directly",
+  "phrases": ["5 short targeted hypnotic affirmations that address their specific problems... each 3-8 words... deeply personal to their struggles"],
+  "closing": "A 2-3 sentence awakening that affirms their healing from their specific issues... ending with a count one two three open your eyes"
 }
 
 The preset category is: ${preset}
@@ -6824,7 +6842,7 @@ ${therapyHistory}`
                 content: `Generate a deeply personalized ${preset} hypnosis session targeting this patient's specific issues from their therapy history. Make it feel like the therapist truly understands their pain and is guiding them to heal.`
               }
             ],
-            max_completion_tokens: 500,
+            max_completion_tokens: 600,
             temperature: 0.8,
           });
 
@@ -6836,6 +6854,9 @@ ${therapyHistory}`
             phrases = Array.isArray(parsed.phrases) && parsed.phrases.length >= 3
               ? parsed.phrases.slice(0, 7)
               : defaultHypnoPhrases[preset] || defaultHypnoPhrases.stress;
+            if (parsed.closing && parsed.closing.length > 10) {
+              closingText = parsed.closing;
+            }
           } else {
             introText = defaultHypnoIntros[preset] || defaultHypnoIntros.stress;
             phrases = defaultHypnoPhrases[preset] || defaultHypnoPhrases.stress;
@@ -6850,7 +6871,11 @@ ${therapyHistory}`
         phrases = defaultHypnoPhrases[preset] || defaultHypnoPhrases.stress;
       }
 
-      const introBuffer = await fishAudioRequest(introText, voiceId, hypnoSpeed, fishApiKey);
+      const [openingBuffer, introBuffer, closingBuffer] = await Promise.all([
+        fishAudioRequest(openingLine, voiceId, hypnoSpeed, fishApiKey),
+        fishAudioRequest(introText, voiceId, hypnoSpeed, fishApiKey),
+        fishAudioRequest(closingText, voiceId, hypnoSpeed, fishApiKey),
+      ]);
 
       const phrasePromises = phrases.map(async (phrase) => {
         try {
@@ -6863,7 +6888,12 @@ ${therapyHistory}`
       const phraseAudios = await Promise.all(phrasePromises);
 
       res.json({
+        openingAudio: `data:audio/mpeg;base64,${openingBuffer.toString("base64")}`,
+        openingText: openingLine,
         audioBase64: `data:audio/mpeg;base64,${introBuffer.toString("base64")}`,
+        introText,
+        closingAudio: `data:audio/mpeg;base64,${closingBuffer.toString("base64")}`,
+        closingText,
         phraseAudios,
         phrases,
         preset,

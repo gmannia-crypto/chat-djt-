@@ -897,9 +897,18 @@ export default function TherapyScreen() {
       await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
       setShowHypnoOverlay(true);
 
-      if (data.audioBase64) {
-        setHypnoText("Close your eyes...");
+      if (data.openingAudio) {
+        setHypnoText(data.openingText || "Close your eyes...");
+        await playHypnoSound(data.openingAudio);
+        if (session.cancelled) return;
+        await new Promise(r => setTimeout(r, 1500));
+      }
+
+      if (!session.cancelled && data.audioBase64) {
+        setHypnoText(data.introText || "Breathe deeply...");
         await playHypnoSound(data.audioBase64);
+        if (session.cancelled) return;
+        await new Promise(r => setTimeout(r, 1500));
       }
 
       const phraseAudios: (string | null)[] = data.phraseAudios || [];
@@ -919,9 +928,16 @@ export default function TherapyScreen() {
         }
       }
 
+      if (!session.cancelled && data.closingAudio) {
+        setHypnoText(data.closingText || "Open your eyes...");
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        await playHypnoSound(data.closingAudio);
+        await new Promise(r => setTimeout(r, 2000));
+      }
+
       if (!session.cancelled) {
-        setHypnoText("Open your eyes...");
-        await new Promise(r => setTimeout(r, 3000));
+        setHypnoText("Session complete.");
+        await new Promise(r => setTimeout(r, 2000));
         setShowHypnoOverlay(false);
         setHypnoLoading(false);
       }
