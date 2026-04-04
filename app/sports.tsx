@@ -842,10 +842,13 @@ function GolfCard({
             <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 10, fontFamily: "Inter_600SemiBold", letterSpacing: 1 }}>LEADERBOARD</Text>
             <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontFamily: "Inter_400Regular" }}>{leaderboard.length} PLAYERS</Text>
           </View>
-          {displayBoard.map((player, idx) => (
+          {displayBoard.map((player, idx) => {
+            const pickDisabled = !isPreGame;
+            return (
             <Pressable
               key={`${player.name}-${idx}`}
-              onPress={() => onPickTeam?.(game, player.name)}
+              onPress={() => { if (!pickDisabled) onPickTeam?.(game, player.name); }}
+              disabled={pickDisabled}
               style={({ pressed }) => [
                 {
                   flexDirection: "row",
@@ -857,8 +860,9 @@ function GolfCard({
                   backgroundColor: userPick === player.name ? `${persona.color}20` : idx === 0 ? "rgba(255,215,0,0.08)" : "transparent",
                   borderWidth: userPick === player.name ? 1 : 0,
                   borderColor: userPick === player.name ? persona.color : "transparent",
+                  opacity: pickDisabled && userPick !== player.name ? 0.5 : 1,
                 },
-                pressed && { opacity: 0.7 },
+                pressed && !pickDisabled && { opacity: 0.7 },
               ]}
             >
               <Text style={{ color: idx === 0 ? "#FFD700" : "rgba(255,255,255,0.5)", fontSize: 11, fontFamily: "Inter_600SemiBold", width: 24 }}>
@@ -872,9 +876,15 @@ function GolfCard({
                 minWidth: 35,
                 textAlign: "right" as const,
               }}>{player.score}</Text>
-              {userPick === player.name && <Ionicons name="checkmark-circle" size={14} color={persona.color} style={{ marginLeft: 6 }} />}
+              {userPick === player.name && (
+                <>
+                  <Ionicons name="checkmark-circle" size={14} color={persona.color} style={{ marginLeft: 6 }} />
+                  {pickDisabled && <Ionicons name="lock-closed" size={10} color={persona.color} style={{ marginLeft: 3 }} />}
+                </>
+              )}
             </Pressable>
-          ))}
+            );
+          })}
           {leaderboard.length > 5 && (
             <Pressable onPress={() => setShowFullBoard(!showFullBoard)} style={({ pressed }) => [{ paddingVertical: 4, alignItems: "center" as const }, pressed && { opacity: 0.7 }]}>
               <Text style={{ color: persona.color, fontSize: 11, fontFamily: "Inter_500Medium" }}>
@@ -1100,23 +1110,28 @@ function GameCard({
 
       {onPickTeam && teams.length === 2 && !isPreGame && (
         <View style={styles.pickTeamRow}>
-          <Text style={styles.pickTeamLabel}>YOUR PICK:</Text>
-          {teams.map((team) => (
-            <Pressable
-              key={team}
-              onPress={() => onPickTeam(game, team)}
-              style={({ pressed }) => [
-                styles.pickTeamBtn,
-                userPick === team && { backgroundColor: `${persona.color}30`, borderColor: persona.color },
-                pressed && { opacity: 0.7 },
-              ]}
-            >
-              <Text style={[styles.pickTeamText, userPick === team && { color: persona.color, fontWeight: "800" as const }]}>
-                {team}
+          <Text style={styles.pickTeamLabel}>
+            {userPick ? "YOUR PICK" : "PICKS CLOSED"}:
+          </Text>
+          {userPick ? (
+            <View style={[
+              styles.pickTeamBtn,
+              { backgroundColor: `${persona.color}30`, borderColor: persona.color, opacity: 0.85 },
+            ]}>
+              <Ionicons name="lock-closed" size={11} color={persona.color} />
+              <Text style={[styles.pickTeamText, { color: persona.color, fontWeight: "800" as const }]}>
+                {userPick}
               </Text>
-              {userPick === team && <Ionicons name="checkmark-circle" size={12} color={persona.color} />}
-            </Pressable>
-          ))}
+              <Ionicons name="checkmark-circle" size={12} color={persona.color} />
+            </View>
+          ) : (
+            <View style={[styles.pickTeamBtn, { borderColor: "rgba(255,255,255,0.15)", opacity: 0.5 }]}>
+              <Ionicons name="lock-closed" size={11} color="rgba(255,255,255,0.4)" />
+              <Text style={[styles.pickTeamText, { color: "rgba(255,255,255,0.4)" }]}>
+                {isLive ? "Game in progress" : "Game ended"}
+              </Text>
+            </View>
+          )}
         </View>
       )}
 
@@ -1469,6 +1484,12 @@ export default function SportsScreen() {
   };
 
   const handleUserPick = async (game: Game, team: string) => {
+    const isGameLocked = game.status === "in" || game.status === "post" || !!game.final;
+    if (isGameLocked) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert("Picks Locked", "This game has already started. You can't change your pick once a game is in progress.");
+      return;
+    }
     playClick();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const allPersonaSets = [...PERSONAS, ...RACING_PERSONAS, ...SOCCER_PERSONAS];
