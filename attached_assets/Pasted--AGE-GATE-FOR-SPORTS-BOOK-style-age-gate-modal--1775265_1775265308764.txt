@@ -1,0 +1,254 @@
+<!-- ==================== AGE GATE FOR SPORTS BOOK ==================== -->
+<style>
+.age-gate-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.95);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 20000;
+  backdrop-filter: blur(5px);
+}
+.age-gate-content {
+  background: linear-gradient(145deg, #1a1a1a, #2d2d2d);
+  border: 3px solid #ff4d4d;
+  border-radius: 20px;
+  padding: 30px;
+  max-width: 400px;
+  width: 90%;
+  text-align: center;
+  animation: fadeInUp 0.4s ease;
+}
+.age-gate-icon {
+  font-size: 64px;
+  margin-bottom: 15px;
+}
+.age-gate-title {
+  color: #ff4d4d;
+  font-size: 28px;
+  margin-bottom: 15px;
+  font-weight: bold;
+}
+.age-gate-message {
+  color: #ccc;
+  margin-bottom: 25px;
+  line-height: 1.6;
+}
+.age-gate-buttons {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+.age-gate-btn {
+  flex: 1;
+  padding: 14px;
+  border: none;
+  border-radius: 50px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 16px;
+}
+.age-gate-btn.confirm {
+  background: #ff4d4d;
+  color: white;
+}
+.age-gate-btn.confirm:hover {
+  background: #cc0000;
+  transform: scale(1.02);
+}
+.age-gate-btn.deny {
+  background: #333;
+  color: white;
+  border: 1px solid #ff4d4d;
+}
+.age-gate-btn.deny:hover {
+  background: #444;
+}
+.age-gate-disclaimer {
+  font-size: 11px;
+  color: #888;
+  margin-top: 15px;
+}
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+</style>
+
+<script>
+// ==================== AGE GATE FOR SPORTS BOOK ====================
+(function() {
+  
+  // Check if user has already verified age
+  const ageVerified = localStorage.getItem('sportsbook_age_verified');
+  const ageVerifiedDate = localStorage.getItem('sportsbook_age_verified_date');
+  const oneDay = 24 * 60 * 60 * 1000;
+  
+  // Re-verify every 30 days (optional)
+  const needsReVerification = () => {
+    if (!ageVerifiedDate) return true;
+    const verifiedDate = new Date(parseInt(ageVerifiedDate));
+    const now = new Date();
+    return (now - verifiedDate) > (30 * oneDay);
+  };
+  
+  const isVerified = ageVerified === 'true' && !needsReVerification();
+  
+  // Function to show the age gate modal
+  function showAgeGate() {
+    // Remove any existing modal
+    const existingModal = document.getElementById('ageGateModal');
+    if (existingModal) existingModal.remove();
+    
+    const modal = document.createElement('div');
+    modal.id = 'ageGateModal';
+    modal.className = 'age-gate-modal';
+    modal.innerHTML = `
+      <div class="age-gate-content">
+        <div class="age-gate-icon">🏈</div>
+        <div class="age-gate-title">Age Verification Required</div>
+        <div class="age-gate-message">
+          The Sports Book section contains links to betting affiliates and sports gambling content.
+          <br><br>
+          <strong>You must be 21+ to enter.</strong>
+        </div>
+        <div class="age-gate-buttons">
+          <button id="ageGateConfirm" class="age-gate-btn confirm">✓ I am 21 or older</button>
+          <button id="ageGateDeny" class="age-gate-btn deny">✗ I am under 21</button>
+        </div>
+        <div class="age-gate-disclaimer">
+          ⚡ Please gamble responsibly. If you or someone you know has a gambling problem, call 1-800-GAMBLER.
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    
+    // Confirm button – grant access
+    document.getElementById('ageGateConfirm').onclick = () => {
+      localStorage.setItem('sportsbook_age_verified', 'true');
+      localStorage.setItem('sportsbook_age_verified_date', Date.now().toString());
+      modal.remove();
+      
+      // Actually show the Sports Book content
+      showSportsBookContent();
+      
+      // Optional: play success sound
+      if (window.playSound) playSound('complete');
+    };
+    
+    // Deny button – redirect away or hide content
+    document.getElementById('ageGateDeny').onclick = () => {
+      modal.remove();
+      // Hide sports book and show message
+      hideSportsBookContent();
+      alert('⛔ You must be 21+ to access sports betting content.');
+    };
+  }
+  
+  // Function to actually display Sports Book content
+  function showSportsBookContent() {
+    const sportsContainer = document.querySelector('.sports-container, #sportsSection');
+    if (sportsContainer) {
+      // If content was hidden, show it
+      sportsContainer.style.display = 'block';
+      
+      // Remove any "blocked" message
+      const blockedMsg = document.getElementById('sportsBlockedMessage');
+      if (blockedMsg) blockedMsg.remove();
+    }
+  }
+  
+  // Function to hide Sports Book content and show blocked message
+  function hideSportsBookContent() {
+    const sportsContainer = document.querySelector('.sports-container, #sportsSection');
+    if (sportsContainer) {
+      sportsContainer.style.display = 'none';
+      
+      // Check if blocked message already exists
+      if (!document.getElementById('sportsBlockedMessage')) {
+        const msg = document.createElement('div');
+        msg.id = 'sportsBlockedMessage';
+        msg.style.cssText = `
+          background: #1a1a1a;
+          border: 2px solid #ff4d4d;
+          border-radius: 15px;
+          padding: 40px;
+          text-align: center;
+          margin: 20px;
+          color: white;
+        `;
+        msg.innerHTML = `
+          <div style="font-size: 48px; margin-bottom: 15px;">⛔</div>
+          <h3 style="color: #ff4d4d;">Access Restricted</h3>
+          <p>You must be 21 or older to view sports betting content.</p>
+          <button onclick="location.reload()" style="background: #ff4d4d; color: white; border: none; padding: 10px 20px; border-radius: 25px; margin-top: 15px; cursor: pointer;">
+            Back to Main
+          </button>
+        `;
+        sportsContainer.parentNode.insertBefore(msg, sportsContainer);
+      }
+    }
+  }
+  
+  // Intercept Sports Book button clicks
+  function interceptSportsBookNavigation() {
+    // Find all buttons that open the Sports Book
+    const sportsButtons = document.querySelectorAll('[onclick*="sports"], [onclick*="Sports"], .feature-btn[onclick*="sports"]');
+    
+    sportsButtons.forEach(btn => {
+      const originalClick = btn.onclick;
+      btn.onclick = function(e) {
+        if (!isVerified) {
+          e.preventDefault();
+          e.stopPropagation();
+          showAgeGate();
+          return false;
+        }
+        return originalClick ? originalClick.call(this, e) : null;
+      };
+    });
+    
+    // Also handle hash-based navigation
+    window.addEventListener('hashchange', () => {
+      if (window.location.hash.includes('sports') || window.location.hash.includes('Sports')) {
+        if (!isVerified) {
+          showAgeGate();
+          window.location.hash = '';
+        }
+      }
+    });
+  }
+  
+  // If user is already verified, ensure content is visible
+  if (isVerified) {
+    showSportsBookContent();
+  } else {
+    // Initially hide sports content if not verified
+    const sportsContainer = document.querySelector('.sports-container, #sportsSection');
+    if (sportsContainer && sportsContainer.style.display !== 'none') {
+      sportsContainer.style.display = 'none';
+    }
+  }
+  
+  // Initialize interceptor when DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', interceptSportsBookNavigation);
+  } else {
+    interceptSportsBookNavigation();
+  }
+  
+  console.log('✅ Age gate loaded | Verified:', isVerified);
+  
+})();
+</script>

@@ -567,6 +567,14 @@ function configureExpoAndLanding(app: express.Application) {
       res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
       return res.sendFile(path.join(companySiteDir, "privacy.html"));
     });
+    app.get("/privacy.html", (_req: Request, res: Response) => {
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      return res.sendFile(path.join(companySiteDir, "privacy.html"));
+    });
+    app.get("/privacy", (_req: Request, res: Response) => {
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      return res.sendFile(path.join(companySiteDir, "privacy.html"));
+    });
     app.get("/company/terms", (_req: Request, res: Response) => {
       res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
       return res.sendFile(path.join(companySiteDir, "terms.html"));

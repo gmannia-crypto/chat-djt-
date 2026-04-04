@@ -89,7 +89,7 @@
   <p><strong>Last Updated:</strong> April 3, 2026</p>
 
   <div class="highlight">
-    <strong>Quick Summary:</strong> Chat DJT is an AI-powered entertainment app. We collect very little personal data – primarily usernames for leaderboards and anonymous usage analytics. We do not sell your data. We use affiliate links (sportsbooks, lenders, etc.) which may track clicks. This policy explains everything in plain English.
+    <strong>📌 Quick Summary:</strong> Chat DJT is an AI-powered entertainment app. We collect very little personal data – primarily usernames for leaderboards and anonymous usage analytics. We do not sell your data. We use affiliate links (sportsbooks, lenders, etc.) which may track clicks. This policy explains everything in plain English.
   </div>
 
   <h2>1. Introduction</h2>
@@ -173,7 +173,7 @@
 
   <div class="last-updated">
     <p>Chat DJT – AI Parody Entertainment App</p>
-    <p>&copy; 2026 Chat DJT. All rights reserved.</p>
+    <p>© 2026 Chat DJT. All rights reserved.</p>
   </div>
 </div>
 </body>
