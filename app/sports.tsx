@@ -52,6 +52,7 @@ import { StatsPanel } from "@/components/StatsPanel";
 import { ViralShareCard } from "@/components/ViralShareCard";
 import { shareContent } from "@/lib/track-share";
 import { getSportsStats, recordSportsPick, type SportsStats } from "@/lib/viral-stats";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 interface PlayerLeader {
   category: string;
@@ -1216,6 +1217,7 @@ export default function SportsScreen() {
   const [viralStats, setViralStats] = useState<SportsStats>({ picks: [], totalPicks: 0 });
   const [viralShareVisible, setViralShareVisible] = useState(false);
   const [viralShareData, setViralShareData] = useState({ headline: "", quote: "" });
+  const [ageVerified, setAgeVerified] = useState<boolean | null>(null);
 
   const syncRecordsToDb = useCallback(async (t: Record<string, PersonaTally>) => {
     if (!deviceId) return;
@@ -1258,6 +1260,15 @@ export default function SportsScreen() {
 
   useEffect(() => {
     mountedRef.current = true;
+    AsyncStorage.getItem("sportsbook_age_verified").then((val) => {
+      if (mountedRef.current) {
+        if (val === "true") {
+          setAgeVerified(true);
+        } else {
+          setAgeVerified(false);
+        }
+      }
+    }).catch(() => { if (mountedRef.current) setAgeVerified(false); });
     fetchGames();
     loadTallyData();
     fetchAllTimeLeaderboard();
@@ -1689,6 +1700,48 @@ export default function SportsScreen() {
         style={styles.bgLogo}
         resizeMode="contain"
       />
+
+      <Modal visible={ageVerified === false} transparent animationType="fade" onRequestClose={() => { router.back(); }}>
+        <View style={ageGateStyles.overlay}>
+          <Animated.View entering={FadeInUp.duration(400)} style={ageGateStyles.card}>
+            <Text style={ageGateStyles.icon}>🏈</Text>
+            <Text style={ageGateStyles.title}>Age Verification Required</Text>
+            <Text style={ageGateStyles.message}>
+              The Sports Book section contains links to betting affiliates and sports gambling content.
+            </Text>
+            <Text style={ageGateStyles.ageWarning}>You must be 21+ to enter.</Text>
+            <View style={ageGateStyles.buttons}>
+              <Pressable
+                onPress={() => {
+                  AsyncStorage.setItem("sportsbook_age_verified", "true").catch(() => {});
+                  setAgeVerified(true);
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                }}
+                style={({ pressed }) => [ageGateStyles.btn, ageGateStyles.confirmBtn, pressed && { opacity: 0.8 }]}
+              >
+                <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                <Text style={ageGateStyles.btnText}>I am 21 or older</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                  router.back();
+                }}
+                style={({ pressed }) => [ageGateStyles.btn, ageGateStyles.denyBtn, pressed && { opacity: 0.8 }]}
+              >
+                <Ionicons name="close-circle" size={20} color="#ff4d4d" />
+                <Text style={[ageGateStyles.btnText, { color: "#ff4d4d" }]}>I am under 21</Text>
+              </Pressable>
+            </View>
+            <Text style={ageGateStyles.disclaimer}>
+              Please gamble responsibly. If you or someone you know has a gambling problem, call 1-800-GAMBLER.
+            </Text>
+            <Pressable onPress={() => Linking.openURL("/privacy.html")} style={{ marginTop: 10 }}>
+              <Text style={{ color: "#888", fontSize: 12, textDecorationLine: "underline" }}>Privacy Policy</Text>
+            </Pressable>
+          </Animated.View>
+        </View>
+      </Modal>
 
       <View style={[styles.header, { paddingTop: insets.top + webTopInset + 8 }]}>
         <Pressable onPress={() => { playTransition(); router.back(); }} style={styles.backBtn}>
@@ -3504,5 +3557,82 @@ const styles = StyleSheet.create({
     alignItems: "center" as const,
     gap: 10,
     marginBottom: 10,
+  },
+});
+
+const ageGateStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.95)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  card: {
+    backgroundColor: "#1a1a1a",
+    borderWidth: 3,
+    borderColor: "#ff4d4d",
+    borderRadius: 20,
+    padding: 30,
+    maxWidth: 400,
+    width: "100%",
+    alignItems: "center",
+  },
+  icon: {
+    fontSize: 64,
+    marginBottom: 15,
+  },
+  title: {
+    color: "#ff4d4d",
+    fontSize: 26,
+    fontWeight: "800" as const,
+    marginBottom: 15,
+    textAlign: "center",
+  },
+  message: {
+    color: "#ccc",
+    fontSize: 15,
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 10,
+  },
+  ageWarning: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "700" as const,
+    textAlign: "center",
+    marginBottom: 25,
+  },
+  buttons: {
+    width: "100%",
+    gap: 12,
+  },
+  btn: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 50,
+  },
+  confirmBtn: {
+    backgroundColor: "#ff4d4d",
+  },
+  denyBtn: {
+    backgroundColor: "#333",
+    borderWidth: 1,
+    borderColor: "#ff4d4d",
+  },
+  btnText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700" as const,
+  },
+  disclaimer: {
+    fontSize: 11,
+    color: "#888",
+    textAlign: "center",
+    marginTop: 20,
+    lineHeight: 16,
   },
 });
