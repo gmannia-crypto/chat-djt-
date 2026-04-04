@@ -807,9 +807,18 @@ export default function TherapyScreen() {
 
   async function playHypnoSound(base64Audio: string): Promise<void> {
     const dataUri = base64Audio.startsWith("data:") ? base64Audio : `data:audio/mpeg;base64,${base64Audio}`;
+    const MAX_AUDIO_TIMEOUT = 45000;
 
     if (Platform.OS === "web") {
       return new Promise((resolve) => {
+        let resolved = false;
+        const done = () => { if (!resolved) { resolved = true; resolve(); } };
+
+        const safetyTimer = setTimeout(() => {
+          console.log("Hypno audio safety timeout (web)");
+          done();
+        }, MAX_AUDIO_TIMEOUT);
+
         try {
           const audio = new window.Audio(dataUri);
           audio.volume = 1.0;
@@ -824,21 +833,41 @@ export default function TherapyScreen() {
           }, 200);
 
           audio.onended = () => {
+            clearTimeout(safetyTimer);
             if (webEchoRef.current) {
               webEchoRef.current.pause();
               webEchoRef.current = null;
             }
-            resolve();
+            done();
           };
-          audio.onerror = () => resolve();
-          audio.play().catch(() => resolve());
+          audio.onerror = () => { clearTimeout(safetyTimer); done(); };
+          audio.play().catch(() => { clearTimeout(safetyTimer); done(); });
         } catch {
-          resolve();
+          clearTimeout(safetyTimer);
+          done();
         }
       });
     }
 
     return new Promise(async (resolve) => {
+      let resolved = false;
+      const done = () => { if (!resolved) { resolved = true; resolve(); } };
+
+      const safetyTimer = setTimeout(() => {
+        console.log("Hypno audio safety timeout (native)");
+        if (soundRef.current) {
+          soundRef.current.stopAsync().catch(() => {});
+          soundRef.current.unloadAsync().catch(() => {});
+          soundRef.current = null;
+        }
+        if (hypnoEchoRef.current) {
+          hypnoEchoRef.current.stopAsync().catch(() => {});
+          hypnoEchoRef.current.unloadAsync().catch(() => {});
+          hypnoEchoRef.current = null;
+        }
+        done();
+      }, MAX_AUDIO_TIMEOUT);
+
       try {
         const fileUri = (FileSystem.cacheDirectory || "") + `hypno_${Date.now()}.mp3`;
         const b64 = dataUri.replace(/^data:audio\/mpeg;base64,/, "");
@@ -855,6 +884,7 @@ export default function TherapyScreen() {
 
         sound.setOnPlaybackStatusUpdate((status: { isLoaded: boolean; didJustFinish?: boolean }) => {
           if (status.isLoaded && status.didJustFinish) {
+            clearTimeout(safetyTimer);
             sound.unloadAsync().catch(() => {});
             if (hypnoEchoRef.current) {
               hypnoEchoRef.current.stopAsync().catch(() => {});
@@ -862,11 +892,12 @@ export default function TherapyScreen() {
               hypnoEchoRef.current = null;
             }
             soundRef.current = null;
-            resolve();
+            done();
           }
         });
       } catch {
-        resolve();
+        clearTimeout(safetyTimer);
+        done();
       }
     });
   }
@@ -897,25 +928,25 @@ export default function TherapyScreen() {
       await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
       setShowHypnoOverlay(true);
 
-      if (data.openingAudio) {
+      const isCancelled = () => session.cancelled;
+
+      if (data.openingAudio && !isCancelled()) {
         setHypnoText(data.openingText || "Close your eyes...");
         await playHypnoSound(data.openingAudio);
-        if (session.cancelled) return;
-        await new Promise(r => setTimeout(r, 1500));
+        if (!isCancelled()) await new Promise(r => setTimeout(r, 1500));
       }
 
-      if (!session.cancelled && data.audioBase64) {
+      if (data.audioBase64 && !isCancelled()) {
         setHypnoText(data.introText || "Breathe deeply...");
         await playHypnoSound(data.audioBase64);
-        if (session.cancelled) return;
-        await new Promise(r => setTimeout(r, 1500));
+        if (!isCancelled()) await new Promise(r => setTimeout(r, 1500));
       }
 
       const phraseAudios: (string | null)[] = data.phraseAudios || [];
       const phrases: string[] = data.phrases || [];
 
       for (let i = 0; i < phrases.length; i++) {
-        if (session.cancelled) break;
+        if (isCancelled()) break;
         setHypnoText(phrases[i]);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         if (phraseAudios[i]) {
@@ -923,24 +954,28 @@ export default function TherapyScreen() {
         } else {
           await new Promise(r => setTimeout(r, 4000));
         }
-        if (!session.cancelled) {
+        if (!isCancelled()) {
           await new Promise(r => setTimeout(r, 1500));
         }
       }
 
-      if (!session.cancelled && data.closingAudio) {
+      if (data.closingAudio && !isCancelled()) {
         setHypnoText(data.closingText || "Open your eyes...");
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         await playHypnoSound(data.closingAudio);
-        await new Promise(r => setTimeout(r, 2000));
+        if (!isCancelled()) await new Promise(r => setTimeout(r, 2000));
+      } else if (!data.closingAudio && !isCancelled()) {
+        setHypnoText("Open your eyes...");
+        await new Promise(r => setTimeout(r, 3000));
       }
 
-      if (!session.cancelled) {
+      if (!isCancelled()) {
         setHypnoText("Session complete.");
-        await new Promise(r => setTimeout(r, 2000));
-        setShowHypnoOverlay(false);
-        setHypnoLoading(false);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        await new Promise(r => setTimeout(r, 2500));
       }
+      setShowHypnoOverlay(false);
+      setHypnoLoading(false);
     } catch (err) {
       console.error("Hypnosis error:", err);
       setHypnoLoading(false);
