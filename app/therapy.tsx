@@ -807,7 +807,7 @@ export default function TherapyScreen() {
 
   async function playHypnoSound(base64Audio: string): Promise<void> {
     const dataUri = base64Audio.startsWith("data:") ? base64Audio : `data:audio/mpeg;base64,${base64Audio}`;
-    const MAX_AUDIO_TIMEOUT = 45000;
+    const MAX_AUDIO_TIMEOUT = 30000;
 
     if (Platform.OS === "web") {
       return new Promise((resolve) => {
