@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useEngagement } from "@/lib/engagement-context";
+import { useLiveActivity } from "@/lib/live-activity-context";
 import { useScreenTracker } from "@/lib/use-analytics";
 import {
   View,
@@ -1548,7 +1549,10 @@ export default function ArenaScreen() {
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
   const { deviceId, balance, refreshBalance } = useTokens();
   const { showShareCard, awardBadge } = useEngagement();
+  const { logEvent: logLiveEvent } = useLiveActivity();
   useScreenTracker("arena");
+
+  useEffect(() => { logLiveEvent("arena_enter"); }, []);
 
   const [showIntro, setShowIntro] = useState(false);
   const [showPreDebateSetup, setShowPreDebateSetup] = useState(true);

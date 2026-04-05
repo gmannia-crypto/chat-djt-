@@ -19,6 +19,7 @@ import { queryClient, getApiUrl } from "@/lib/query-client";
 import { TokenProvider } from "@/lib/token-context";
 import { SoundProvider } from "@/lib/sound-context";
 import { EngagementProvider } from "@/lib/engagement-context";
+import { LiveActivityProvider } from "@/lib/live-activity-context";
 import { ShareCard } from "@/components/ShareCard";
 import { StreakToast } from "@/components/StreakToast";
 import { StatusBar } from "expo-status-bar";
@@ -430,18 +431,20 @@ export default function RootLayout() {
         <TokenProvider>
           <SoundProvider>
             <EngagementProvider>
-              <GestureHandlerRootView style={{ flex: 1 }}>
-                <KeyboardProvider>
-                  <StatusBar style="light" />
-                  <DisclaimerModal
-                    visible={disclaimerVisible}
-                    onAccept={handleAcceptDisclaimer}
-                  />
-                  <RootLayoutNav />
-                  <ShareCard />
-                  <StreakToast />
-                </KeyboardProvider>
-              </GestureHandlerRootView>
+              <LiveActivityProvider>
+                <GestureHandlerRootView style={{ flex: 1 }}>
+                  <KeyboardProvider>
+                    <StatusBar style="light" />
+                    <DisclaimerModal
+                      visible={disclaimerVisible}
+                      onAccept={handleAcceptDisclaimer}
+                    />
+                    <RootLayoutNav />
+                    <ShareCard />
+                    <StreakToast />
+                  </KeyboardProvider>
+                </GestureHandlerRootView>
+              </LiveActivityProvider>
             </EngagementProvider>
           </SoundProvider>
         </TokenProvider>

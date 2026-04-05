@@ -1,5 +1,6 @@
 import React, { useState, useRef } from "react";
 import { useEngagement } from "@/lib/engagement-context";
+import { useLiveActivity } from "@/lib/live-activity-context";
 import {
   StyleSheet,
   Text,
@@ -282,8 +283,11 @@ export default function TherapyScreen() {
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
   const { hasTokens, deviceId, refreshBalance, balance } = useTokens();
   const { showShareCard, awardBadge } = useEngagement();
+  const { logEvent } = useLiveActivity();
   const { soundEnabled } = useSound();
   useScreenTracker("therapy");
+
+  React.useEffect(() => { logEvent("therapy_start"); }, []);
   const trackEvent = useTrackEvent();
 
   const [selectedTherapist, setSelectedTherapist] = useState<TherapistVoice>("patricia");

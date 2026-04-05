@@ -8467,6 +8467,86 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
     }
   });
 
+  const LIVE_ACTIVITY_BUFFER: Array<{ id: string; type: string; message: string; icon: string; color: string; timestamp: number }> = [];
+  const MAX_BUFFER = 100;
+
+  const ACTIVITY_CONFIG: Record<string, { icon: string; color: string; templates: string[] }> = {
+    visit: { icon: "eye", color: "#4ADE80", templates: ["just joined the site", "is browsing the app", "entered the lobby"] },
+    therapy_start: { icon: "heart", color: "#ec4899", templates: ["started a therapy session", "is chatting with Trump", "opened a therapy chat"] },
+    arena_enter: { icon: "flame", color: "#ff4d4d", templates: ["entered the Political Arena", "joined a live debate", "started a debate session"] },
+    arena_vote: { icon: "thumbs-up", color: "#FFD700", templates: ["cast a debate vote", "voted in the Arena", "scored a debater"] },
+    arena_win: { icon: "trophy", color: "#FFD700", templates: ["won a debate round!", "dominated the Arena!", "claimed victory!"] },
+    token_purchase: { icon: "flash", color: "#FFD700", templates: ["bought D.C. Tokens!", "loaded up on tokens!", "just purchased tokens!"] },
+    subscribe: { icon: "star", color: "#9333ea", templates: ["subscribed to VIP!", "joined the VIP club!", "upgraded their plan!"] },
+    realestate_view: { icon: "home", color: "#1DA1F2", templates: ["is browsing properties", "searched real estate listings", "checked property values"] },
+    sports_view: { icon: "football", color: "#53D337", templates: ["opened the Sports Book", "is checking predictions", "viewed sports analysis"] },
+    finance_view: { icon: "trending-up", color: "#4A90D9", templates: ["opened Financial Faceoff", "is debating finances", "checked market analysis"] },
+    mystery_box: { icon: "gift", color: "#FFD700", templates: ["opened a Mystery Box!", "revealed a mystery prize!", "got a mystery reward!"] },
+  };
+
+  const ANON_NAMES = [
+    "PatriotEagle", "MAGAMike", "CryptoQueen", "GoldBug24", "TrumpFan45",
+    "DiamondHands", "StonksMaster", "FreedomFirst", "AmericaStrong", "SilverSurfer",
+    "BasedTrader", "LibertyBell", "RedPillKing", "WallStWolf", "DealMaker99",
+    "TokenHunter", "DebateKing", "VoteWarrior", "PropertyHawk", "WhaleAlert",
+    "BitcoinBro", "GrandmaFan", "ArenaChamp", "TherapyGrad", "MuskFanboy",
+    "RealEstatePro", "BullMarket", "MAGA2024", "TrumpVIP", "LuckyStrike",
+  ];
+
+  function createActivityEvent(type: string, detail?: string) {
+    const config = ACTIVITY_CONFIG[type] || ACTIVITY_CONFIG.visit;
+    const template = config.templates[Math.floor(Math.random() * config.templates.length)];
+    const name = ANON_NAMES[Math.floor(Math.random() * ANON_NAMES.length)];
+    const isPurchase = type === "token_purchase" || type === "subscribe";
+    const prefix = isPurchase ? "⚡ " : "";
+    const event = {
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 6),
+      type,
+      message: `${prefix}@${name} ${detail || template}`,
+      icon: config.icon,
+      color: config.color,
+      timestamp: Date.now(),
+    };
+    LIVE_ACTIVITY_BUFFER.unshift(event);
+    if (LIVE_ACTIVITY_BUFFER.length > MAX_BUFFER) LIVE_ACTIVITY_BUFFER.length = MAX_BUFFER;
+    return event;
+  }
+
+  // Seed initial simulated activity so feed isn't empty
+  const seedTypes = ["visit", "therapy_start", "arena_enter", "arena_vote", "sports_view", "finance_view", "realestate_view", "visit", "mystery_box", "arena_win"];
+  for (let i = 0; i < seedTypes.length; i++) {
+    const ev = createActivityEvent(seedTypes[i]);
+    ev.timestamp = Date.now() - (seedTypes.length - i) * 6000;
+  }
+
+  // Background: generate simulated visits periodically so feed always has content
+  setInterval(() => {
+    const types = ["visit", "therapy_start", "arena_enter", "sports_view", "finance_view", "realestate_view", "arena_vote"];
+    const type = types[Math.floor(Math.random() * types.length)];
+    createActivityEvent(type);
+  }, 12000 + Math.random() * 8000);
+
+  app.post("/api/live-activity/log", (req, res) => {
+    try {
+      const { type, detail } = req.body;
+      if (!type || typeof type !== "string") return res.status(400).json({ error: "type required" });
+      createActivityEvent(type, detail);
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to log" });
+    }
+  });
+
+  app.get("/api/live-activity/feed", (req, res) => {
+    try {
+      const since = parseInt(req.query.since as string) || (Date.now() - 60000);
+      const events = LIVE_ACTIVITY_BUFFER.filter((e) => e.timestamp > since).slice(0, 20);
+      res.json({ events });
+    } catch (err) {
+      res.json({ events: [] });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

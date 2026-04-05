@@ -30,6 +30,7 @@ import { useSoundEffects } from "@/lib/use-sound";
 import { SoundToggle } from "@/components/SoundToggle";
 import { SuggestionBox } from "@/components/SuggestionBox";
 import { useEngagement } from "@/lib/engagement-context";
+import { useLiveActivity } from "@/lib/live-activity-context";
 import { useScreenTracker, useTrackEvent } from "@/lib/use-analytics";
 import Animated, {
   FadeInDown,
@@ -300,9 +301,12 @@ export default function HomeScreen() {
   const [collectionCount, setCollectionCount] = useState({ owned: 0, total: 24 });
   const { deviceId, hasTokens, balance } = useTokens();
   const { streak, awardBadge } = useEngagement();
+  const { events: liveEvents, logEvent } = useLiveActivity();
   const { playClick, playTransition } = useSoundEffects();
   useScreenTracker("main_menu");
   const trackEvent = useTrackEvent();
+
+  useEffect(() => { logEvent("visit"); }, []);
   const mainScrollRef = useRef<ScrollView>(null);
 
   const refreshCollectionCount = useCallback(async () => {
@@ -755,38 +759,14 @@ export default function HomeScreen() {
   }, []);
 
 
-  const ACTIVITY_TEMPLATES = useMemo(() => [
-    "@MAGAMike just got roasted by Trump",
-    "@CryptoQueen predicted the future",
-    "@PatriotPaul bought a property in Texas",
-    "@Grandma rated Trump 94%",
-    "@ElonFan challenged Trump to a debate",
-    "@WallStreetWolf won a Financial Faceoff",
-    "@TrumpLover45 opened a Mystery Box",
-    "@BitcoinBro asked about Dogecoin",
-    "@SilverSurfer got Grandma's advice",
-    "@MuskFanboy debated on energy policy",
-    "@GoldBug2024 checked the Fear & Greed Index",
-    "@RealEstateKing searched properties in Miami",
-    "@FreedomEagle started a therapy session",
-    "@DiamondHands got Uncle Ruckus'd",
-    "@BasedTrader used the mortgage calculator",
-    "@AmericaFirst shared a Trump prophecy",
-    "@StonksMaster beat Trump in Round 3",
-    "@MAGAMom got Bernie Mac's take",
-    "@CryptoKing explored Trump's Picks",
-    "@PatriotPete rated Trump 100%",
-    "\u26A1 @GoldRush99 just bought 80 D.C. Tokens!",
-    "\u26A1 @TrumpVIP joined VIP — 150 tokens loaded!",
-    "\u26A1 @DealMaker bought 35 D.C. Tokens!",
-    "\uD83C\uDFC6 @ChampTrader won a Financial Faceoff!",
-    "\uD83C\uDFB0 @LuckyStrike beat Trump Billionaires!",
-    "\uD83D\uDCB0 @WhaleAlert subscribed to Standard plan",
-    "\uD83D\uDD25 @DebateKing dominated the Arena!",
-    "\uD83C\uDFE0 @PropertyHawk added 3 to watchlist",
-    "\u2694\uFE0F @VoteWarrior cast 10 debate votes!",
-    "\uD83D\uDCAA @TherapyGrad completed Deep Session",
-  ], []);
+  const activityFromLive = useMemo(() => {
+    return liveEvents.slice(0, 8).map((ev) => ({
+      message: ev.message,
+      icon: ev.icon,
+      color: ev.color,
+      type: ev.type,
+    }));
+  }, [liveEvents]);
 
   const activityShakeX = useSharedValue(0);
   const activityShakeStyle = useAnimatedStyle(() => ({
@@ -821,17 +801,8 @@ export default function HomeScreen() {
   }, []);
 
   useEffect(() => {
-    const initial = ACTIVITY_TEMPLATES.slice(0, 3);
-    setActivityFeed(initial);
-    const interval = setInterval(() => {
-      const random = ACTIVITY_TEMPLATES[Math.floor(Math.random() * ACTIVITY_TEMPLATES.length)];
-      setActivityFeed((prev) => {
-        const next = [random, ...prev];
-        return next.slice(0, 5);
-      });
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [ACTIVITY_TEMPLATES]);
+    setActivityFeed(activityFromLive.map((a) => a.message));
+  }, [activityFromLive]);
 
   useEffect(() => {
     if (mysteryReady || mysteryTimeLeft <= 0) return;
@@ -1331,7 +1302,7 @@ export default function HomeScreen() {
           </Animated.View>
         )}
 
-        {activityFeed.length > 0 && (
+        {activityFromLive.length > 0 && (
           <Animated.View entering={FadeInDown.delay(850).duration(400)}>
             <Animated.View style={[styles.activityWall, activityShakeStyle]}>
               <View style={styles.activityHeader}>
@@ -1339,14 +1310,16 @@ export default function HomeScreen() {
                 <Text style={styles.activityTitle}>LIVE ACTIVITY</Text>
                 <View style={styles.activityPulse} />
               </View>
-              {activityFeed.map((activity, i) => (
+              {activityFromLive.map((activity, i) => (
                 <Animated.View
-                  key={`act-${i}-${activity}`}
+                  key={`act-${i}-${activity.message}`}
                   entering={FadeIn.duration(400)}
                   style={[styles.activityItem, i === 0 && styles.activityItemNew]}
                 >
-                  <Text style={styles.activityDot}>{i === 0 ? "\u26A1" : "\u2022"}</Text>
-                  <Text style={[styles.activityText, i === 0 && styles.activityTextNew]} numberOfLines={1}>{activity}</Text>
+                  <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: activity.color + "20", justifyContent: "center", alignItems: "center", marginRight: 6 }}>
+                    <Ionicons name={activity.icon as any} size={10} color={activity.color} />
+                  </View>
+                  <Text style={[styles.activityText, i === 0 && styles.activityTextNew, { color: i === 0 ? activity.color : "rgba(255,255,255,0.5)" }]} numberOfLines={1}>{activity.message}</Text>
                 </Animated.View>
               ))}
             </Animated.View>

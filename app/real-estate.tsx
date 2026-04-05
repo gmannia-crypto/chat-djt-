@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { useScreenTracker } from "@/lib/use-analytics";
+import { useLiveActivity } from "@/lib/live-activity-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   StyleSheet,
@@ -139,7 +140,10 @@ export default function RealEstateScreen() {
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
   const { balance } = useTokens();
+  const { logEvent } = useLiveActivity();
   useScreenTracker("real_estate");
+
+  React.useEffect(() => { logEvent("realestate_view"); }, []);
 
   const [activeTab, setActiveTab] = useState<"zones" | "properties" | "tour" | "prospect">("zones");
   const [mapLocation, setMapLocation] = useState("Miami, FL");
