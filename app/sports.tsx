@@ -1728,9 +1728,9 @@ export default function SportsScreen() {
             <Text style={ageGateStyles.icon}>🏈</Text>
             <Text style={ageGateStyles.title}>Age Verification Required</Text>
             <Text style={ageGateStyles.message}>
-              The Sports Book section contains links to betting affiliates and sports gambling content.
+              The Sports Book section contains mature entertainment content.
             </Text>
-            <Text style={ageGateStyles.ageWarning}>You must be 21+ to enter.</Text>
+            <Text style={ageGateStyles.ageWarning}>You must be 18+ to enter.</Text>
             <View style={ageGateStyles.buttons}>
               <Pressable
                 onPress={() => {
@@ -1741,7 +1741,7 @@ export default function SportsScreen() {
                 style={({ pressed }) => [ageGateStyles.btn, ageGateStyles.confirmBtn, pressed && { opacity: 0.8 }]}
               >
                 <Ionicons name="checkmark-circle" size={20} color="#fff" />
-                <Text style={ageGateStyles.btnText}>I am 21 or older</Text>
+                <Text style={ageGateStyles.btnText}>I am 18 or older</Text>
               </Pressable>
               <Pressable
                 onPress={() => {
@@ -1751,11 +1751,11 @@ export default function SportsScreen() {
                 style={({ pressed }) => [ageGateStyles.btn, ageGateStyles.denyBtn, pressed && { opacity: 0.8 }]}
               >
                 <Ionicons name="close-circle" size={20} color="#ff4d4d" />
-                <Text style={[ageGateStyles.btnText, { color: "#ff4d4d" }]}>I am under 21</Text>
+                <Text style={[ageGateStyles.btnText, { color: "#ff4d4d" }]}>I am under 18</Text>
               </Pressable>
             </View>
             <Text style={ageGateStyles.disclaimer}>
-              Please gamble responsibly. If you or someone you know has a gambling problem, call 1-800-GAMBLER.
+              For entertainment purposes only. All predictions and analysis are AI-generated.
             </Text>
             <Pressable onPress={() => Linking.openURL("/privacy.html")} style={{ marginTop: 10 }}>
               <Text style={{ color: "#888", fontSize: 12, textDecorationLine: "underline" }}>Privacy Policy</Text>
@@ -2338,45 +2338,6 @@ export default function SportsScreen() {
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(700).duration(400)} style={styles.section}>
-          <Text style={styles.sectionLabel}>PLACE YOUR BETS</Text>
-          <Text style={styles.affiliateDisclaimer}>
-            Entertainment only. Please gamble responsibly.
-          </Text>
-          <View style={styles.affiliateRow}>
-            <Pressable
-              onPress={() => handleAffiliate("https://www.draftkings.com")}
-              style={({ pressed }) => [styles.affiliateBtn, { backgroundColor: "#53D337" }, pressed && { opacity: 0.8 }]}
-            >
-              <MaterialCommunityIcons name="crown" size={20} color="#000" />
-              <Text style={styles.affiliateBtnText}>DraftKings</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => handleAffiliate("https://www.fanduel.com")}
-              style={({ pressed }) => [styles.affiliateBtn, { backgroundColor: "#1493FF" }, pressed && { opacity: 0.8 }]}
-            >
-              <MaterialCommunityIcons name="star-four-points" size={20} color="#fff" />
-              <Text style={[styles.affiliateBtnText, { color: "#fff" }]}>FanDuel</Text>
-            </Pressable>
-          </View>
-          <View style={[styles.affiliateRow, { marginTop: 8 }]}>
-            <Pressable
-              onPress={() => handleAffiliate("https://www.betmgm.com")}
-              style={({ pressed }) => [styles.affiliateBtn, { backgroundColor: "#C5A44E" }, pressed && { opacity: 0.8 }]}
-            >
-              <MaterialCommunityIcons name="trophy" size={20} color="#1a1a1a" />
-              <Text style={[styles.affiliateBtnText, { color: "#1a1a1a" }]}>BetMGM</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => handleAffiliate("https://www.caesars.com/sportsbook-and-casino")}
-              style={({ pressed }) => [styles.affiliateBtn, { backgroundColor: "#1C3A1C" }, pressed && { opacity: 0.8 }]}
-            >
-              <MaterialCommunityIcons name="poker-chip" size={20} color="#C5A44E" />
-              <Text style={[styles.affiliateBtnText, { color: "#C5A44E" }]}>Caesars</Text>
-            </Pressable>
-          </View>
-        </Animated.View>
-
-        <Animated.View entering={FadeInDown.delay(800).duration(400)} style={styles.section}>
           <Text style={styles.sectionLabel}>GEAR UP</Text>
           <Text style={styles.shopQuote}>
             {AMAZON_PICKS[selectedPersona]?.quote || AMAZON_PICKS.trump.quote}
