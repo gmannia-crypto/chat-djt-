@@ -1547,6 +1547,7 @@ export default function ArenaScreen() {
     return s;
   });
   const [currentSpeaker, setCurrentSpeaker] = useState<string | null>(null);
+  const [ttsActiveSpeaker, setTtsActiveSpeaker] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [currentTopic, setCurrentTopic] = useState<string | null>(null);
   const [focusedPersona, setFocusedPersona] = useState<string | null>(null);
@@ -2120,8 +2121,7 @@ export default function ArenaScreen() {
       const item = ttsQueueRef.current.shift();
       if (!item || !mountedRef.current) break;
       if (mountedRef.current) {
-        setCurrentSpeaker(item.personaId);
-        currentSpeakerRef.current = item.personaId;
+        setTtsActiveSpeaker(item.personaId);
       }
       try {
         let sound: Audio.Sound;
@@ -2188,8 +2188,7 @@ export default function ArenaScreen() {
     currentSoundRef.current = null;
     if (mountedRef.current) {
       setIsPlayingAudio(false);
-      setCurrentSpeaker(null);
-      currentSpeakerRef.current = null;
+      setTtsActiveSpeaker(null);
     }
   }, [startPrefetch]);
 
@@ -2204,8 +2203,7 @@ export default function ArenaScreen() {
   const playInterruptionAudio = useCallback(async (text: string, personaId: string) => {
     if (!voiceEnabledRef.current) return;
     if (mountedRef.current) {
-      setCurrentSpeaker(personaId);
-      currentSpeakerRef.current = personaId;
+      setTtsActiveSpeaker(personaId);
     }
     try {
       const sound = await playTTS("/api/persona-speak", { text, personaId }, { volume: 1.0 });
@@ -2217,9 +2215,8 @@ export default function ArenaScreen() {
         sound.getStatusAsync().then((st: any) => {
           if (st.isLoaded) sound.stopAsync().then(() => sound.unloadAsync()).catch(() => {});
         }).catch(() => {});
-        if (mountedRef.current && currentSpeakerRef.current === personaId) {
-          setCurrentSpeaker(null);
-          currentSpeakerRef.current = null;
+        if (mountedRef.current) {
+          setTtsActiveSpeaker(null);
         }
       };
       sound.setOnPlaybackStatusUpdate((status: any) => {
@@ -2696,7 +2693,7 @@ export default function ArenaScreen() {
         console.warn("Arena AI error:", err);
         ttsPendingMoreRef.current = false;
       } finally {
-        if (mountedRef.current && !isProcessingTTSRef.current && ttsQueueRef.current.length === 0) {
+        if (mountedRef.current) {
           setCurrentSpeaker(null);
           currentSpeakerRef.current = null;
         }
@@ -3961,7 +3958,7 @@ export default function ArenaScreen() {
           const p = getPersona(pid);
           if (!p) return null;
           const emo = emotionalStates[pid] || { anger: 20, happiness: 50, engagement: 50, lastSpoke: null };
-          const isSpeaking = currentSpeaker === pid;
+          const isSpeaking = currentSpeaker === pid || ttsActiveSpeaker === pid;
           const isFocused = focusedPersona === pid;
           const voteAnim = voteAnimations[pid] || 0;
           const allTime = allTimeScores[pid];
@@ -4080,12 +4077,12 @@ export default function ArenaScreen() {
           <View style={s.streamLive}>
             <View style={[s.liveDot, { width: 6, height: 6, borderRadius: 3 }]} />
             <Text style={s.streamHeaderText}>
-              {currentSpeaker
-                ? `${getPersona(currentSpeaker)?.shortName} is speaking...`
+              {(ttsActiveSpeaker || currentSpeaker)
+                ? `${getPersona(ttsActiveSpeaker || currentSpeaker)?.shortName} is speaking...`
                 : currentTopic ? currentTopic : "Real-time AI conversation"}
             </Text>
           </View>
-          {currentSpeaker && <ActivityIndicator size="small" color={getPersona(currentSpeaker)?.color || "#fff"} />}
+          {(ttsActiveSpeaker || currentSpeaker) && <ActivityIndicator size="small" color={getPersona(ttsActiveSpeaker || currentSpeaker)?.color || "#fff"} />}
         </View>
         <FlatList
           ref={flatListRef}
