@@ -1942,24 +1942,33 @@ export default function ArenaScreen() {
         return;
       }
       e.preventDefault();
-      showLeaveAlert(() => navigation.dispatch(e.data.action));
     });
     return unsubscribe;
-  }, [navigation, showLeaveAlert]);
+  }, [navigation]);
 
   useEffect(() => {
     if (Platform.OS !== "android") return;
     const handler = () => {
       if (!isDebateActiveRef.current) return false;
-      showLeaveAlert(() => {
-        confirmedExitRef.current = true;
-        router.back();
-      });
       return true;
     };
     BackHandler.addEventListener("hardwareBackPress", handler);
     return () => BackHandler.removeEventListener("hardwareBackPress", handler);
-  }, [showLeaveAlert]);
+  }, []);
+
+  const debateActive = !showPreDebateSetup && !showIntro;
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    if (!debateActive) return;
+    const blockPopState = () => {
+      if (isDebateActiveRef.current && !confirmedExitRef.current) {
+        window.history.pushState(null, "", window.location.href);
+      }
+    };
+    window.history.pushState(null, "", window.location.href);
+    window.addEventListener("popstate", blockPopState);
+    return () => window.removeEventListener("popstate", blockPopState);
+  }, [debateActive]);
 
   const currentSoundRef = useRef<any>(null);
   const forcePlayRef = useRef(false);
