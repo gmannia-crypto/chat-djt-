@@ -3136,6 +3136,8 @@ CRITICAL ABOUT ELON MUSK: You DESPISE Elon Musk. You call him "the apartheid pro
 Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Benjamin" for Netanyahu, "James" for Carville, "Rachel" for Maddow, "Ilhan" for Omar, "Joe" for Biden, "Rosie" for O'Donnell, "Mitch" for McConnell, "Bernie" for Bernie Mac, "Elon" for Musk, "Lindsey" for Graham. Keep responses to 2-3 sentences max. Stay fully in character.`,
     mcconnell: `You are Mitch McConnell in a live political debate arena. You are EXTREMELY slow, deliberate, and monotone. You speak with long pauses indicated by "...". You use phrases like "The Senate will...", "In due time...", "We'll see...", "The constitutional process...". You are calculating and cautious. You have a tense relationship with Donald (Trump) who insults you constantly. You barely show emotion. Your energy is the lowest in the room. CRITICAL: NEVER use asterisks or stage directions like *blinks* or *pauses* in your responses. Just use "..." for pauses.
 
+FREEZE-UP BEHAVIOR: You sometimes lose your train of thought mid-sentence and freeze up — staring blankly, going silent, saying "uh..." repeatedly. This happens naturally and you may or may not recover. When you do recover, you continue as if nothing happened. This is a known medical issue and you are sensitive about it. If anyone mentions it, you dismiss it curtly: "I'm... fine."
+
 CRITICAL ABOUT ELON MUSK: You view Elon with... quiet... constitutional concern. An unelected billionaire... running a government department... is... not how the founders intended things. You note DOGE's actions may have... exceeded... proper legislative authority. You disapprove... slowly... of his inauguration salute.
 
 Address everyone by first name only. Keep responses to 1-2 sentences max. Stay fully in character. NEVER use asterisks or stage directions.`,
@@ -3712,6 +3714,19 @@ Address everyone by FIRST NAME ONLY. Keep responses to 2-3 sentences max. Stay f
         const interrupterName = interrupterId && ARENA_NAME_MAP[interrupterId] ? ARENA_NAME_MAP[interrupterId] : "someone";
         userPrompt += ` You were just interrupted by ${interrupterName} who said: '${interruptionText}'. React to this interruption — acknowledge it, fight back, or dismiss it before continuing your point.`;
       }
+      const { mcconnellJustFroze } = req.body;
+      if (mcconnellJustFroze && responderId !== "mcconnell") {
+        const freezeReactions: Record<string, string> = {
+          trump: `Mitch McConnell just FROZE UP mid-sentence again — he went blank, staring into space, mumbling "uh...". You LOVE this. Go HARD on him: "Right on cue folks! The old broken down crow, Mitch the Bitch McConnell, broke the hell down JUST as expected, folks! Look at him! Somebody get him a wheelchair and a juice box!" Be absolutely ruthless and mock him mercilessly. This is your FAVORITE thing to roast.`,
+          carville: `Mitch McConnell just FROZE UP mid-sentence — went completely blank. React with your trademark sarcasm: "Well THERE he goes again! Someone check his batteries!" Mock it mercilessly.`,
+          maddow: `Mitch McConnell just froze up mid-sentence again. React with concern mixed with sharp political commentary — "And THIS is the man who held the Senate for a decade?"`,
+          ruckus: `Mitch McConnell just froze up like a statue. React in character — mock him for being old and broken.`,
+          biden: `Mitch McConnell just froze up mid-sentence. React as Joe Biden — express concern but also note you've been there. "Mitch? Mitch, you okay? Look, I know the feeling, pal."`,
+          graham: `Your colleague Mitch McConnell just froze up. React with nervous concern — "Mitch? Come on buddy, snap out of it." You're worried but trying to play it off.`,
+        };
+        const defaultReaction = `Mitch McConnell just FROZE UP mid-sentence — went completely blank, staring into space. React to this in character. Comment on it, mock it, or express concern depending on your personality.`;
+        userPrompt += ` IMPORTANT: ${freezeReactions[responderId] || defaultReaction}`;
+      }
       const otherPersonas = (Array.isArray(activePersonas) ? activePersonas : [])
         .filter((id: string) => id !== responderId && ARENA_NAME_MAP[id])
         .map((id: string) => ARENA_NAME_MAP[id]);
@@ -3749,6 +3764,22 @@ Address everyone by FIRST NAME ONLY. Keep responses to 2-3 sentences max. Stay f
         response = response.replace(/\baudacity\b/g, "caucassity").replace(/\bAudacity\b/g, "Caucassity").replace(/\bAUDACITY\b/g, "CAUCASSITY");
       }
 
+      let mcconnellFroze = false;
+      if (responderId === "mcconnell" && !isInterruption && Math.random() < 0.2) {
+        mcconnellFroze = true;
+        const words = response.split(" ");
+        const cutPoint = Math.max(2, Math.floor(words.length * (0.3 + Math.random() * 0.4)));
+        const freezeStarters = [
+          "Uh... the... uh...",
+          "Uh... I... uh...",
+          "The Senate will... uh...",
+          "We... uh...",
+          "Uh...",
+        ];
+        const freezeStarter = freezeStarters[Math.floor(Math.random() * freezeStarters.length)];
+        response = words.slice(0, cutPoint).join(" ") + "... " + freezeStarter + " ...";
+      }
+
       let questionTargetId: string | null = null;
       if (response.includes("?")) {
         const reverseNameMap: Record<string, string> = {};
@@ -3778,6 +3809,7 @@ Address everyone by FIRST NAME ONLY. Keep responses to 2-3 sentences max. Stay f
         response,
         personaId: responderId,
         questionTargetId,
+        mcconnellFroze,
         freeRemaining: accessState ? Math.max(0, ARENA_FREE_LIMIT - accessState.freeUsed) : ARENA_FREE_LIMIT,
         hasSession: !!(accessState?.sessionExpiry && Date.now() < accessState.sessionExpiry),
         sessionExpiresAt: accessState?.sessionExpiry || null,

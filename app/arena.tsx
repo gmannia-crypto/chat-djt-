@@ -1662,6 +1662,7 @@ export default function ArenaScreen() {
   const [awardedMessages, setAwardedMessages] = useState<Set<string>>(new Set());
   const [showScoreboard, setShowScoreboard] = useState(false);
   const [showEndSummary, setShowEndSummary] = useState(false);
+  const [showContinuePrompt, setShowContinuePrompt] = useState(false);
   const [tokenWinVisible, setTokenWinVisible] = useState(false);
   const [tokenWinAmount, setTokenWinAmount] = useState<number | undefined>();
   const [tokenWinSource, setTokenWinSource] = useState<string | undefined>();
@@ -1795,6 +1796,7 @@ export default function ArenaScreen() {
   const flatListRef = useRef<FlatList>(null);
   const isRunningRef = useRef(true);
   const sessionEndedRef = useRef(false);
+  const mcconnellFreezeRef = useRef(false);
   const clapBackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const messagesRef = useRef<ConversationMessage[]>([]);
   const currentSpeakerRef = useRef<string | null>(null);
@@ -2243,7 +2245,7 @@ export default function ArenaScreen() {
     } catch {}
   }, [deviceId]);
 
-  const unlockSession = useCallback(async () => {
+  const unlockSession = useCallback(async (continueMode = false) => {
     if (!deviceId) return;
     setIsUnlocking(true);
     try {
@@ -2258,19 +2260,22 @@ export default function ArenaScreen() {
         setSessionExpiresAt(data.expiresAt);
         setShowPaywall(false);
         setShowEndSummary(false);
-        setPersonaPoints({});
-        setAwardedMessages(new Set());
-        setTrumpRoastText("");
-        setIsLoadingRoast(false);
+        if (!continueMode) {
+          setPersonaPoints({});
+          setAwardedMessages(new Set());
+          setTrumpRoastText("");
+          setIsLoadingRoast(false);
+        }
         setShowScoreboard(false);
         refreshBalance();
         const mins = data.durationMinutes || selectedDuration;
-        if (showPreDebateSetup) {
+        if (showPreDebateSetup && !continueMode) {
           setShowPreDebateSetup(true);
         } else {
+          sessionEndedRef.current = false;
           setIsRunning(true);
           isRunningRef.current = true;
-          addSystemMessage(`Session unlocked! ${mins} minutes of unlimited access.`);
+          addSystemMessage(continueMode ? `Session extended! ${mins} more minutes — scores carry over. Keep going!` : `Session unlocked! ${mins} minutes of unlimited access.`);
           setTimeout(() => { if (mountedRef.current && scheduleNextRef.current) scheduleNextRef.current(); }, 1000);
         }
       } else if (data.error === "insufficient_tokens") {
@@ -2349,7 +2354,7 @@ export default function ArenaScreen() {
         conversationTimerRef.current = null;
         playBellSound();
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        addSystemMessage("TIME'S UP! The bell has rung!");
+        addSystemMessage("TIME'S UP! The bell has rung! Continue the debate or end the session.");
         (async () => {
           try {
             const sessionMins = Math.max(1, Math.round((Date.now() - (sessionExpiresAt - (hasSession ? sessionTimer * 1000 : 0))) / 60000));
@@ -2376,18 +2381,9 @@ export default function ArenaScreen() {
             }
           } catch {}
         })();
-        const totalPts = Object.values(personaPointsRef.current).reduce((a, b) => a + b, 0);
-        if (totalPts > 0) {
-          setTimeout(() => {
-            playWinnerChosenSound();
-            setShowEndSummary(true);
-            clearSavedSession();
-            awardBadge("arena_debut");
-            setTimeout(() => { playWinnerAfterSound(); }, 4000);
-          }, 1500);
-        } else {
-          setTimeout(() => { setShowPaywall(true); }, 2000);
-        }
+        setTimeout(() => {
+          setShowContinuePrompt(true);
+        }, 1500);
       }
     }, 1000);
     return () => clearInterval(tick);
@@ -2607,6 +2603,10 @@ export default function ArenaScreen() {
           bodyPayload.interrupterId = lastInt.interrupterId;
           lastInterruptionRef.current = null;
         }
+        if (mcconnellFreezeRef.current && responderId !== "mcconnell") {
+          bodyPayload.mcconnellJustFroze = true;
+          mcconnellFreezeRef.current = false;
+        }
 
         const res = await fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
           method: "POST",
@@ -2642,6 +2642,10 @@ export default function ArenaScreen() {
 
         if (data.questionTargetId && selectedPersonasRef.current.includes(data.questionTargetId)) {
           pendingResponseRef.current = data.questionTargetId;
+        }
+
+        if (data.mcconnellFroze) {
+          mcconnellFreezeRef.current = true;
         }
 
         if (sessionEndedRef.current) return;
@@ -4360,6 +4364,77 @@ export default function ArenaScreen() {
               </Pressable>
             </View>
           </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showContinuePrompt} transparent animationType="fade">
+        <View style={s.paywallOverlay}>
+          <Animated.View entering={ZoomIn.duration(400)} style={s.summaryCard}>
+            <Ionicons name="timer-outline" size={40} color="#FFD700" />
+            <Text style={s.summaryTitle}>TIME'S UP!</Text>
+            <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 14, textAlign: "center" as const, marginBottom: 6 }}>
+              Want to keep the debate going? Your scores will carry over.
+            </Text>
+            <Text style={{ color: "#FFD700", fontSize: 13, textAlign: "center" as const, marginBottom: 16 }}>
+              1 token per minute
+            </Text>
+            <View style={s.durationRow}>
+              {([5, 10, 15] as const).map((dur) => (
+                <Pressable
+                  key={dur}
+                  onPress={() => setSelectedDuration(dur)}
+                  style={[s.durationChip, selectedDuration === dur && s.durationChipActive]}
+                >
+                  <Text style={[s.durationChipText, selectedDuration === dur && s.durationChipTextActive]}>
+                    {dur} min
+                  </Text>
+                  <Text style={[s.durationChipCost, selectedDuration === dur && s.durationChipCostActive]}>
+                    {dur} tokens
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            <View style={s.paywallBalanceRow}>
+              <Ionicons name="diamond" size={16} color="#FFD700" />
+              <Text style={s.paywallBalance}>{balance?.totalAvailable ?? 0} tokens available</Text>
+            </View>
+            <Pressable
+              onPress={() => {
+                setShowContinuePrompt(false);
+                unlockSession(true);
+              }}
+              disabled={isUnlocking}
+              style={[s.paywallBtn, isUnlocking && { opacity: 0.6 }, { marginBottom: 10 }]}
+            >
+              {isUnlocking ? (
+                <ActivityIndicator size="small" color="#000" />
+              ) : (
+                <Text style={s.paywallBtnText}>Continue Debate ({selectedDuration} tokens)</Text>
+              )}
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                setShowContinuePrompt(false);
+                const totalPts = Object.values(personaPointsRef.current).reduce((a, b) => a + b, 0);
+                if (totalPts > 0) {
+                  playWinnerChosenSound();
+                  setShowEndSummary(true);
+                  clearSavedSession();
+                  awardBadge("arena_debut");
+                  setTimeout(() => { playWinnerAfterSound(); }, 4000);
+                } else {
+                  setShowPaywall(true);
+                }
+              }}
+              style={[s.summaryActionBtn, { backgroundColor: "transparent", borderWidth: 1, borderColor: "#ff4d4d", width: "100%" }]}
+            >
+              <Ionicons name="stop-circle" size={16} color="#ff4d4d" />
+              <Text style={[s.summaryActionText, { color: "#ff4d4d" }]}>End Session</Text>
+            </Pressable>
+            <Pressable onPress={() => { setShowContinuePrompt(false); router.push("/subscribe"); }} style={s.paywallSecondaryBtn}>
+              <Text style={s.paywallSecondaryText}>Get More Tokens</Text>
+            </Pressable>
+          </Animated.View>
         </View>
       </Modal>
 
