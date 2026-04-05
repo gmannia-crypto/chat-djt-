@@ -3280,7 +3280,6 @@ export default function ArenaScreen() {
   const togglePersona = useCallback((pid: string) => {
     setSelectedPersonas((prev) => {
       if (prev.includes(pid)) {
-        if (pid === "trump") return prev;
         if (prev.length <= 2) return prev;
         return prev.filter((p) => p !== pid);
       }
