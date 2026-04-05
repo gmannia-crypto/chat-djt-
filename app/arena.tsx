@@ -1641,7 +1641,12 @@ export default function ArenaScreen() {
     }
   }, [balance, deviceId, refreshBalance, unlockedMystery]);
 
-  const [selectedPersonas, setSelectedPersonas] = useState<string[]>(PERSONA_IDS);
+  const [selectedPersonas, setSelectedPersonas] = useState<string[]>(() => {
+    const others = PERSONA_IDS.filter((id) => id !== "trump");
+    const shuffled = others.sort(() => Math.random() - 0.5);
+    const randomCount = 3 + Math.floor(Math.random() * 3);
+    return ["trump", ...shuffled.slice(0, randomCount)];
+  });
   const [showPersonaSelector, setShowPersonaSelector] = useState(false);
   const selectedPersonasRef = useRef<string[]>(PERSONA_IDS);
   useEffect(() => { selectedPersonasRef.current = selectedPersonas; }, [selectedPersonas]);
@@ -3275,10 +3280,10 @@ export default function ArenaScreen() {
   const togglePersona = useCallback((pid: string) => {
     setSelectedPersonas((prev) => {
       if (prev.includes(pid)) {
+        if (pid === "trump") return prev;
         if (prev.length <= 2) return prev;
         return prev.filter((p) => p !== pid);
       }
-      if (prev.length >= 11) return prev;
       return [...prev, pid];
     });
   }, []);
@@ -3524,15 +3529,35 @@ export default function ArenaScreen() {
     [queueTTS, voiceEnabled, latestPersonaMsgId, awardedMessages]
   );
 
+  const [flashOn, setFlashOn] = useState(true);
+  useEffect(() => {
+    if (!showPreDebateSetup) return;
+    fetchTopics();
+    const flashInterval = setInterval(() => setFlashOn((v) => !v), 700);
+    return () => clearInterval(flashInterval);
+  }, [showPreDebateSetup]);
+
   if (showPreDebateSetup) {
     return (
       <View style={[s.container, { paddingTop: insets.top + webTopInset }]}>
         <LinearGradient colors={["rgba(255,77,77,0.15)", "rgba(0,0,0,0)", Colors.background]} style={StyleSheet.absoluteFill} />
         <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
-          <View style={{ alignItems: "center", marginBottom: 12 }}>
-            <Ionicons name="flame" size={40} color="#FF4D4D" />
-            <Text style={{ color: "#fff", fontSize: 24, fontWeight: "900", marginTop: 8 }}>POLITICAL ARENA</Text>
-            <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, marginTop: 4 }}>Pick your debaters and topic</Text>
+          <View style={{ alignItems: "center", marginBottom: 16 }}>
+            <Text style={{
+              color: flashOn ? "#FFD700" : "#FF4D4D",
+              fontSize: 28,
+              fontWeight: "900",
+              letterSpacing: 2,
+              textAlign: "center",
+              textShadowColor: flashOn ? "rgba(255,215,0,0.6)" : "rgba(255,77,77,0.6)",
+              textShadowOffset: { width: 0, height: 0 },
+              textShadowRadius: flashOn ? 20 : 10,
+            }}>CHOOSE YOUR DEBATERS</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", marginTop: 6 }}>
+              <Ionicons name="flame" size={20} color="#FF4D4D" />
+              <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, marginHorizontal: 8 }}>POLITICAL ARENA</Text>
+              <Ionicons name="flame" size={20} color="#FF4D4D" />
+            </View>
           </View>
 
           <Pressable
@@ -3569,22 +3594,33 @@ export default function ArenaScreen() {
             </View>
           )}
 
-          <Text style={{ color: "#FFD700", fontSize: 14, fontWeight: "800", marginBottom: 10 }}>CHOOSE DEBATERS ({selectedPersonas.length} selected)</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+            <Text style={{ color: "#FFD700", fontSize: 14, fontWeight: "800" }}>{selectedPersonas.length} DEBATERS SELECTED</Text>
+            <View style={{ flexDirection: "row", gap: 12 }}>
+              <Pressable onPress={() => setSelectedPersonas(["trump", ...PERSONA_IDS.filter((id) => id !== "trump"), ...unlockedMystery.filter((id) => !PERSONA_IDS.includes(id))])}>
+                <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, fontWeight: "600" }}>All</Text>
+              </Pressable>
+              <Pressable onPress={() => setSelectedPersonas(["trump"])}>
+                <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, fontWeight: "600" }}>Trump Only</Text>
+              </Pressable>
+            </View>
+          </View>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
             {[...PERSONA_IDS, ...unlockedMystery.filter((id) => !PERSONA_IDS.includes(id))].map((pid) => {
               const p = getPersona(pid);
               if (!p) return null;
               const isSelected = selectedPersonas.includes(pid);
               const isMystery = MYSTERY_PERSONA_IDS.includes(pid);
+              const isTrump = pid === "trump";
               return (
                 <Pressable
                   key={pid}
                   onPress={() => togglePersona(pid)}
                   style={{
                     flexDirection: "row", alignItems: "center", paddingHorizontal: 10, paddingVertical: 6,
-                    borderRadius: 20, borderWidth: 1.5,
-                    borderColor: isSelected ? p.color : isMystery ? "rgba(255,215,0,0.3)" : "rgba(255,255,255,0.15)",
-                    backgroundColor: isSelected ? p.color + "20" : "rgba(255,255,255,0.05)",
+                    borderRadius: 20, borderWidth: isTrump && isSelected ? 2 : 1.5,
+                    borderColor: isSelected ? (isTrump ? "#FFD700" : p.color) : isMystery ? "rgba(255,215,0,0.3)" : "rgba(255,255,255,0.15)",
+                    backgroundColor: isSelected ? (isTrump ? "rgba(255,215,0,0.15)" : p.color + "20") : "rgba(255,255,255,0.05)",
                   }}
                 >
                   {p.image ? (
@@ -3594,13 +3630,13 @@ export default function ArenaScreen() {
                       <Text style={{ fontSize: 9, color: "#fff", fontWeight: "800" }}>{getInitials(p.name)}</Text>
                     </View>
                   )}
-                  <Text style={{ color: isSelected ? p.color : "#888", fontSize: 12, fontWeight: "700" }}>{p.shortName}{isMystery ? " ★" : ""}</Text>
+                  <Text style={{ color: isSelected ? (isTrump ? "#FFD700" : p.color) : "#888", fontSize: 12, fontWeight: "700" }}>{p.shortName}{isMystery ? " ★" : ""}{isTrump ? " 🏛️" : ""}</Text>
                   {winTallyGlobal[pid] > 0 && (
                     <View style={{ marginLeft: 4, backgroundColor: "rgba(74,222,128,0.2)", borderRadius: 8, paddingHorizontal: 4, paddingVertical: 1 }}>
                       <Text style={{ color: "#4ADE80", fontSize: 9, fontWeight: "800" }}>{winTallyGlobal[pid]}W</Text>
                     </View>
                   )}
-                  {isSelected && <Ionicons name="checkmark-circle" size={14} color={p.color} style={{ marginLeft: 4 }} />}
+                  {isSelected && <Ionicons name={isTrump ? "star" : "checkmark-circle"} size={14} color={isTrump ? "#FFD700" : p.color} style={{ marginLeft: 4 }} />}
                 </Pressable>
               );
             })}
@@ -3634,14 +3670,7 @@ export default function ArenaScreen() {
             </View>
           )}
 
-          <Pressable
-            onPress={() => setSelectedPersonas([...PERSONA_IDS, ...unlockedMystery])}
-            style={{ alignSelf: "flex-start", marginBottom: 16 }}
-          >
-            <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 12 }}>Select All</Text>
-          </Pressable>
-
-          <Text style={{ color: "#FFD700", fontSize: 14, fontWeight: "800", marginBottom: 10 }}>CHOOSE TOPIC</Text>
+          <Text style={{ color: "#FFD700", fontSize: 14, fontWeight: "800", marginBottom: 10, marginTop: 4 }}>CHOOSE TOPIC</Text>
 
           <Pressable
             onPress={() => {
