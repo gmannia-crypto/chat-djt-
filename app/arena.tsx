@@ -1808,6 +1808,7 @@ export default function ArenaScreen() {
   const mountedRef = useRef(true);
   const voiceEnabledRef = useRef(true);
   const recentSpeakersRef = useRef<string[]>([]);
+  const ttsGenerationRef = useRef(0);
   const pendingResponseRef = useRef<string | null>(null);
   const [selectedDuration, setSelectedDuration] = useState<number>(5);
   const arenaMemoryContextRef = useRef<string>("");
@@ -2079,6 +2080,7 @@ export default function ArenaScreen() {
   }, [transcribeBase64, resumeAfterRecording]);
 
   const stopAllTTS = useCallback(() => {
+    ttsGenerationRef.current += 1;
     ttsQueueRef.current = [];
     isProcessingTTSRef.current = false;
     forcePlayRef.current = false;
@@ -2114,8 +2116,10 @@ export default function ArenaScreen() {
   const processTTSQueue = useCallback(async () => {
     if (isProcessingTTSRef.current || ttsQueueRef.current.length === 0) return;
     isProcessingTTSRef.current = true;
+    const myGeneration = ttsGenerationRef.current;
     if (mountedRef.current) setIsPlayingAudio(true);
     while (ttsQueueRef.current.length > 0) {
+      if (myGeneration !== ttsGenerationRef.current) break;
       if (!forcePlayRef.current && sessionEndedRef.current) break;
       if (!forcePlayRef.current && !voiceEnabledRef.current) break;
       const item = ttsQueueRef.current.shift();
@@ -2183,7 +2187,9 @@ export default function ArenaScreen() {
         console.warn("Arena TTS playback error for", item.personaId, ":", e);
       }
     }
-    isProcessingTTSRef.current = false;
+    if (myGeneration === ttsGenerationRef.current) {
+      isProcessingTTSRef.current = false;
+    }
     forcePlayRef.current = false;
     currentSoundRef.current = null;
     if (mountedRef.current) {
@@ -2363,6 +2369,7 @@ export default function ArenaScreen() {
         stopAllTTS();
         setCurrentSpeaker(null);
         currentSpeakerRef.current = null;
+        setTtsActiveSpeaker(null);
         if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
         conversationTimerRef.current = null;
         playBellSound();
