@@ -2119,6 +2119,10 @@ export default function ArenaScreen() {
       if (!forcePlayRef.current && !voiceEnabledRef.current) break;
       const item = ttsQueueRef.current.shift();
       if (!item || !mountedRef.current) break;
+      if (mountedRef.current) {
+        setCurrentSpeaker(item.personaId);
+        currentSpeakerRef.current = item.personaId;
+      }
       try {
         let sound: Audio.Sound;
         const cached = prefetchedAudioRef.current;
@@ -2182,7 +2186,11 @@ export default function ArenaScreen() {
     isProcessingTTSRef.current = false;
     forcePlayRef.current = false;
     currentSoundRef.current = null;
-    if (mountedRef.current) setIsPlayingAudio(false);
+    if (mountedRef.current) {
+      setIsPlayingAudio(false);
+      setCurrentSpeaker(null);
+      currentSpeakerRef.current = null;
+    }
   }, [startPrefetch]);
 
   const queueTTS = useCallback((text: string, personaId: string, force?: boolean) => {
@@ -2195,6 +2203,10 @@ export default function ArenaScreen() {
 
   const playInterruptionAudio = useCallback(async (text: string, personaId: string) => {
     if (!voiceEnabledRef.current) return;
+    if (mountedRef.current) {
+      setCurrentSpeaker(personaId);
+      currentSpeakerRef.current = personaId;
+    }
     try {
       const sound = await playTTS("/api/persona-speak", { text, personaId }, { volume: 1.0 });
       let cleaned = false;
@@ -2205,6 +2217,10 @@ export default function ArenaScreen() {
         sound.getStatusAsync().then((st: any) => {
           if (st.isLoaded) sound.stopAsync().then(() => sound.unloadAsync()).catch(() => {});
         }).catch(() => {});
+        if (mountedRef.current && currentSpeakerRef.current === personaId) {
+          setCurrentSpeaker(null);
+          currentSpeakerRef.current = null;
+        }
       };
       sound.setOnPlaybackStatusUpdate((status: any) => {
         if (status.didJustFinish || status.error) cleanup();
@@ -2680,7 +2696,7 @@ export default function ArenaScreen() {
         console.warn("Arena AI error:", err);
         ttsPendingMoreRef.current = false;
       } finally {
-        if (mountedRef.current) {
+        if (mountedRef.current && !isProcessingTTSRef.current && ttsQueueRef.current.length === 0) {
           setCurrentSpeaker(null);
           currentSpeakerRef.current = null;
         }
