@@ -2918,13 +2918,42 @@ Your personality quirks:
     }
   });
 
+  app.post("/api/arena/track-entries", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const { personaIds } = req.body;
+      if (!Array.isArray(personaIds) || personaIds.length === 0) return res.status(400).json({ error: "personaIds array required" });
+      const db = (await import("pg")).default;
+      const pool = new db.Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      await pool.query(`ALTER TABLE arena_persona_scores ADD COLUMN IF NOT EXISTS total_entries INTEGER DEFAULT 0`);
+      for (const pid of personaIds) {
+        if (typeof pid !== "string") continue;
+        await pool.query(
+          `INSERT INTO arena_persona_scores (persona_id, total_points, total_votes, total_entries, updated_at)
+           VALUES ($1, 0, 0, 1, NOW())
+           ON CONFLICT (persona_id) DO UPDATE SET
+             total_entries = arena_persona_scores.total_entries + 1,
+             updated_at = NOW()`,
+          [pid]
+        );
+      }
+      await pool.end();
+      res.json({ tracked: personaIds.length });
+    } catch (err: any) {
+      console.error("Arena track-entries error:", err);
+      res.status(500).json({ error: "Track entries failed" });
+    }
+  });
+
   app.get("/api/arena/leaderboard", async (_req, res) => {
     try {
       const db = (await import("pg")).default;
       const pool = new db.Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
-      const result = await pool.query(`SELECT persona_id, total_points, total_votes FROM arena_persona_scores ORDER BY total_points DESC`);
+      await pool.query(`ALTER TABLE arena_persona_scores ADD COLUMN IF NOT EXISTS total_entries INTEGER DEFAULT 0`);
+      const result = await pool.query(`SELECT persona_id, total_points, total_votes, COALESCE(total_entries, 0) as total_entries FROM arena_persona_scores ORDER BY total_points DESC`);
       await pool.end();
-      res.json({ leaderboard: result.rows.map((r: any) => ({ personaId: r.persona_id, totalPoints: parseInt(r.total_points), totalVotes: parseInt(r.total_votes) })) });
+      res.json({ leaderboard: result.rows.map((r: any) => ({ personaId: r.persona_id, totalPoints: parseInt(r.total_points), totalVotes: parseInt(r.total_votes), totalEntries: parseInt(r.total_entries || "0") })) });
     } catch (err: any) {
       console.error("Arena leaderboard error:", err);
       res.json({ leaderboard: [] });
@@ -4097,7 +4126,19 @@ Address everyone by FIRST NAME ONLY. Keep responses to 2-3 sentences max. Stay f
             userTally[row.persona_id] = row.wins;
           }
         }
-        res.json({ globalTally, userTally });
+        let allTimeScores: Record<string, { totalPoints: number; totalVotes: number; totalEntries: number }> = {};
+        try {
+          await db.query(`ALTER TABLE arena_persona_scores ADD COLUMN IF NOT EXISTS total_entries INTEGER DEFAULT 0`);
+          const scoresRows = await db.query(`SELECT persona_id, total_points, total_votes, COALESCE(total_entries, 0) as total_entries FROM arena_persona_scores`);
+          for (const row of scoresRows.rows) {
+            allTimeScores[row.persona_id] = {
+              totalPoints: parseInt(row.total_points || "0"),
+              totalVotes: parseInt(row.total_votes || "0"),
+              totalEntries: parseInt(row.total_entries || "0"),
+            };
+          }
+        } catch {}
+        res.json({ globalTally, userTally, allTimeScores });
       } finally {
         await db.end();
       }

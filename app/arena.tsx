@@ -53,12 +53,38 @@ const Colors = {
   whiteDim: "rgba(255,255,255,0.6)",
 };
 
+type PersonaCategory = "president" | "politician" | "journalist" | "strategist" | "podcaster" | "comedian" | "tech" | "firstlady";
+
+const PERSONA_CATEGORIES: Record<PersonaCategory, { label: string; color: string }> = {
+  president: { label: "President", color: "#FFD700" },
+  politician: { label: "Politician", color: "#4A90D9" },
+  journalist: { label: "Journalist", color: "#9333ea" },
+  strategist: { label: "Strategist", color: "#e63946" },
+  podcaster: { label: "Podcaster", color: "#FF6B35" },
+  comedian: { label: "Comedian", color: "#22c55e" },
+  tech: { label: "Tech Leader", color: "#1DA1F2" },
+  firstlady: { label: "First Lady", color: "#C0C0C0" },
+};
+
+const PERSONA_CATEGORY_MAP: Record<string, PersonaCategory> = {
+  trump: "president", biden: "president", obama: "president",
+  netanyahu: "politician", mcconnell: "politician", omar: "politician",
+  graham: "politician", pambondi: "politician", miller: "politician",
+  jimjordan: "politician", schumer: "politician",
+  maddow: "journalist", megynkelly: "journalist", joyreid: "journalist",
+  carville: "strategist",
+  galloway: "podcaster", alexjones: "podcaster", candace: "podcaster",
+  berniemc: "comedian", rosie: "comedian", ruckus: "comedian",
+  elon: "tech",
+  melania: "firstlady",
+};
+
 interface ArenaPersona {
   id: string;
   name: string;
   shortName: string;
   color: string;
-  faction: "self" | "supporter" | "opponent";
+  faction: "self" | "supporter" | "opponent" | "wildcard";
   image: any;
   personality: {
     energy: number;
@@ -1684,7 +1710,7 @@ export default function ArenaScreen() {
   const [winTallyUser, setWinTallyUser] = useState<Record<string, number>>({});
   const winTallyRef = useRef<{ global: Record<string, number>; user: Record<string, number> }>({ global: {}, user: {} });
 
-  const [allTimeScores, setAllTimeScores] = useState<Record<string, { totalPoints: number; totalVotes: number }>>({});
+  const [allTimeScores, setAllTimeScores] = useState<Record<string, { totalPoints: number; totalVotes: number; totalEntries?: number }>>({});
   const [speakerVoteCounts, setSpeakerVoteCounts] = useState<Record<string, number>>({});
   const [voteAnimations, setVoteAnimations] = useState<Record<string, number>>({});
   const [lastSpeakerId, setLastSpeakerId] = useState<string | null>(null);
@@ -1706,6 +1732,7 @@ export default function ArenaScreen() {
         setWinTallyGlobal(data.globalTally || {});
         setWinTallyUser(data.userTally || {});
         winTallyRef.current = { global: data.globalTally || {}, user: data.userTally || {} };
+        if (data.allTimeScores) setAllTimeScores(data.allTimeScores);
       }
     } catch {}
   }, [deviceId]);
@@ -1740,9 +1767,9 @@ export default function ArenaScreen() {
       const ct = res.headers.get("content-type") || "";
       if (!ct.includes("application/json")) return;
       const data = await res.json();
-      const scores: Record<string, { totalPoints: number; totalVotes: number }> = {};
+      const scores: Record<string, { totalPoints: number; totalVotes: number; totalEntries?: number }> = {};
       (data.leaderboard || []).forEach((item: any) => {
-        scores[item.personaId] = { totalPoints: item.totalPoints, totalVotes: item.totalVotes };
+        scores[item.personaId] = { totalPoints: item.totalPoints, totalVotes: item.totalVotes, totalEntries: item.totalEntries || 0 };
       });
       setAllTimeScores(scores);
     } catch {}
@@ -1781,7 +1808,7 @@ export default function ArenaScreen() {
         const data = await res.json();
         setAllTimeScores((prev) => ({
           ...prev,
-          [personaId]: { totalPoints: data.totalPoints, totalVotes: data.totalVotes },
+          [personaId]: { totalPoints: data.totalPoints, totalVotes: data.totalVotes, totalEntries: prev[personaId]?.totalEntries || 0 },
         }));
       }
     } catch {}
@@ -1887,16 +1914,25 @@ export default function ArenaScreen() {
     doNav();
   }, [hasSession, sessionExpiresAt, saveSessionState]);
 
+  const [showExitModal, setShowExitModal] = useState(false);
+  const pendingExitNavRef = useRef<(() => void) | null>(null);
+
   const showLeaveAlert = useCallback((doNav: () => void) => {
-    Alert.alert(
-      "Leave Debate?",
-      hasSession ? "Your paid session will be paused. You can resume when you return." : "Your progress in this debate will be lost.",
-      [
-        { text: "Stay", style: "cancel" },
-        { text: "Leave", style: "default", onPress: () => stopDebateAndLeave(doNav) },
-      ]
-    );
-  }, [hasSession, stopDebateAndLeave]);
+    pendingExitNavRef.current = doNav;
+    setShowExitModal(true);
+  }, []);
+
+  const confirmExit = useCallback(() => {
+    setShowExitModal(false);
+    const nav = pendingExitNavRef.current;
+    pendingExitNavRef.current = null;
+    if (nav) stopDebateAndLeave(nav);
+  }, [stopDebateAndLeave]);
+
+  const cancelExit = useCallback(() => {
+    setShowExitModal(false);
+    pendingExitNavRef.current = null;
+  }, []);
 
   useEffect(() => {
     const eventName = "beforeRemove";
@@ -3144,6 +3180,16 @@ export default function ArenaScreen() {
       arenaMemoryContextRef.current = ctx;
     } catch {}
 
+    try {
+      const entryHeaders: Record<string, string> = { "Content-Type": "application/json" };
+      if (deviceId) entryHeaders["x-device-id"] = deviceId;
+      fetch(new URL("/api/arena/track-entries", getApiUrl()).toString(), {
+        method: "POST",
+        headers: entryHeaders,
+        body: JSON.stringify({ personaIds: selectedPersonasRef.current }),
+      }).catch(() => {});
+    } catch {}
+
     if (breakingNewsTimerRef.current) clearInterval(breakingNewsTimerRef.current);
     breakingNewsTimerRef.current = setInterval(async () => {
       if (!isRunningRef.current || sessionEndedRef.current) return;
@@ -3604,42 +3650,81 @@ export default function ArenaScreen() {
               </Pressable>
             </View>
           </View>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
-            {[...PERSONA_IDS, ...unlockedMystery.filter((id) => !PERSONA_IDS.includes(id))].map((pid) => {
-              const p = getPersona(pid);
-              if (!p) return null;
-              const isSelected = selectedPersonas.includes(pid);
-              const isMystery = MYSTERY_PERSONA_IDS.includes(pid);
-              const isTrump = pid === "trump";
-              return (
-                <Pressable
-                  key={pid}
-                  onPress={() => togglePersona(pid)}
-                  style={{
-                    flexDirection: "row", alignItems: "center", paddingHorizontal: 10, paddingVertical: 6,
-                    borderRadius: 20, borderWidth: isTrump && isSelected ? 2 : 1.5,
-                    borderColor: isSelected ? (isTrump ? "#FFD700" : p.color) : isMystery ? "rgba(255,215,0,0.3)" : "rgba(255,255,255,0.15)",
-                    backgroundColor: isSelected ? (isTrump ? "rgba(255,215,0,0.15)" : p.color + "20") : "rgba(255,255,255,0.05)",
-                  }}
-                >
-                  {p.image ? (
-                    <Image source={p.image} style={{ width: 24, height: 24, borderRadius: 12, marginRight: 6 }} />
-                  ) : (
-                    <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: p.color + "40", justifyContent: "center", alignItems: "center", marginRight: 6 }}>
-                      <Text style={{ fontSize: 9, color: "#fff", fontWeight: "800" }}>{getInitials(p.name)}</Text>
-                    </View>
-                  )}
-                  <Text style={{ color: isSelected ? (isTrump ? "#FFD700" : p.color) : "#888", fontSize: 12, fontWeight: "700" }}>{p.shortName}{isMystery ? " ★" : ""}{isTrump ? " 🏛️" : ""}</Text>
-                  {winTallyGlobal[pid] > 0 && (
-                    <View style={{ marginLeft: 4, backgroundColor: "rgba(74,222,128,0.2)", borderRadius: 8, paddingHorizontal: 4, paddingVertical: 1 }}>
-                      <Text style={{ color: "#4ADE80", fontSize: 9, fontWeight: "800" }}>{winTallyGlobal[pid]}W</Text>
-                    </View>
-                  )}
-                  {isSelected && <Ionicons name={isTrump ? "star" : "checkmark-circle"} size={14} color={isTrump ? "#FFD700" : p.color} style={{ marginLeft: 4 }} />}
-                </Pressable>
-              );
-            })}
+
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+            {Object.entries(PERSONA_CATEGORIES).map(([key, cat]) => (
+              <View key={key} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: cat.color }} />
+                <Text style={{ color: cat.color, fontSize: 10, fontWeight: "700" }}>{cat.label}</Text>
+              </View>
+            ))}
           </View>
+
+          {(() => {
+            const allIds = [...PERSONA_IDS, ...unlockedMystery.filter((id) => !PERSONA_IDS.includes(id))];
+            const grouped: Record<string, string[]> = {};
+            const categoryOrder: PersonaCategory[] = ["president", "politician", "journalist", "strategist", "podcaster", "comedian", "tech", "firstlady"];
+            for (const pid of allIds) {
+              const cat = PERSONA_CATEGORY_MAP[pid] || "politician";
+              if (!grouped[cat]) grouped[cat] = [];
+              grouped[cat].push(pid);
+            }
+            return categoryOrder.filter((cat) => grouped[cat]?.length).map((cat) => {
+              const catInfo = PERSONA_CATEGORIES[cat];
+              return (
+                <View key={cat} style={{ marginBottom: 10 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 6 }}>
+                    <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: catInfo.color, marginRight: 6 }} />
+                    <Text style={{ color: catInfo.color, fontSize: 12, fontWeight: "800", letterSpacing: 1 }}>{catInfo.label.toUpperCase()}S</Text>
+                  </View>
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                    {grouped[cat].map((pid) => {
+                      const p = getPersona(pid);
+                      if (!p) return null;
+                      const isSelected = selectedPersonas.includes(pid);
+                      const isMystery = MYSTERY_PERSONA_IDS.includes(pid);
+                      const totalEntries = allTimeScores[pid]?.totalEntries || 0;
+                      const wins = winTallyGlobal[pid] || 0;
+                      const winPct = totalEntries > 0 ? Math.round((wins / totalEntries) * 100) : 0;
+                      return (
+                        <Pressable
+                          key={pid}
+                          onPress={() => togglePersona(pid)}
+                          style={{
+                            flexDirection: "row", alignItems: "center", paddingHorizontal: 10, paddingVertical: 6,
+                            borderRadius: 20, borderWidth: 1.5,
+                            borderColor: isSelected ? p.color : isMystery ? "rgba(255,215,0,0.3)" : "rgba(255,255,255,0.15)",
+                            backgroundColor: isSelected ? p.color + "20" : "rgba(255,255,255,0.05)",
+                          }}
+                        >
+                          <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: catInfo.color, marginRight: 5 }} />
+                          {p.image ? (
+                            <Image source={p.image} style={{ width: 24, height: 24, borderRadius: 12, marginRight: 6 }} />
+                          ) : (
+                            <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: p.color + "40", justifyContent: "center", alignItems: "center", marginRight: 6 }}>
+                              <Text style={{ fontSize: 9, color: "#fff", fontWeight: "800" }}>{getInitials(p.name)}</Text>
+                            </View>
+                          )}
+                          <Text style={{ color: isSelected ? p.color : "#888", fontSize: 12, fontWeight: "700" }}>{p.shortName}{isMystery ? " ★" : ""}</Text>
+                          {wins > 0 && (
+                            <View style={{ marginLeft: 4, backgroundColor: "rgba(74,222,128,0.2)", borderRadius: 8, paddingHorizontal: 4, paddingVertical: 1 }}>
+                              <Text style={{ color: "#4ADE80", fontSize: 9, fontWeight: "800" }}>{wins}W{winPct > 0 ? ` ${winPct}%` : ""}</Text>
+                            </View>
+                          )}
+                          {totalEntries > 0 && (
+                            <View style={{ marginLeft: 3, backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 8, paddingHorizontal: 4, paddingVertical: 1 }}>
+                              <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 9, fontWeight: "700" }}>{totalEntries}E</Text>
+                            </View>
+                          )}
+                          {isSelected && <Ionicons name="checkmark-circle" size={14} color={p.color} style={{ marginLeft: 4 }} />}
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              );
+            });
+          })()}
 
           {MYSTERY_PERSONA_IDS.filter((id) => !unlockedMystery.includes(id)).length > 0 && (
             <View style={{ marginBottom: 16, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: "rgba(255,215,0,0.2)", backgroundColor: "rgba(255,215,0,0.05)" }}>
@@ -3808,18 +3893,21 @@ export default function ArenaScreen() {
       />
 
       <Animated.View entering={FadeInDown.duration(400)} style={s.header}>
-        <Pressable onPress={() => {
-          if (showPreDebateSetup || showIntro) {
-            router.back();
-          } else {
+        {(showPreDebateSetup || showIntro) ? (
+          <Pressable onPress={() => router.back()} style={s.backBtn}>
+            <Ionicons name="arrow-back" size={22} color="#fff" />
+          </Pressable>
+        ) : (
+          <Pressable onPress={() => {
             showLeaveAlert(() => {
               confirmedExitRef.current = true;
               router.back();
             });
-          }
-        }} style={s.backBtn}>
-          <Ionicons name="arrow-back" size={22} color="#fff" />
-        </Pressable>
+          }} style={[s.backBtn, { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(255,77,77,0.15)", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }]}>
+            <Ionicons name="exit-outline" size={18} color="#ff4d4d" />
+            <Text style={{ color: "#ff4d4d", fontSize: 11, fontWeight: "800" }}>EXIT</Text>
+          </Pressable>
+        )}
         <View style={s.headerCenter}>
           <Text style={s.headerTitle}>POLITICAL ARENA</Text>
           <Animated.View entering={ZoomIn.duration(500).delay(300)} style={s.liveBadge}>
@@ -4412,6 +4500,25 @@ export default function ArenaScreen() {
               </Pressable>
             </View>
           </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showExitModal} transparent animationType="fade">
+        <View style={s.paywallOverlay}>
+          <Animated.View entering={ZoomIn.duration(300)} style={[s.summaryCard, { maxWidth: 340 }]}>
+            <Ionicons name="exit-outline" size={40} color="#ff4d4d" />
+            <Text style={s.summaryTitle}>Leave Debate?</Text>
+            <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 13, textAlign: "center", marginVertical: 10, lineHeight: 19 }}>
+              {hasSession ? "Your paid session will be paused and saved. You can resume when you return." : "Your progress in this debate will be lost."}
+            </Text>
+            <Pressable onPress={cancelExit} style={[s.paywallBtn, { marginBottom: 10, width: "100%" }]}>
+              <Text style={s.paywallBtnText}>Stay in Debate</Text>
+            </Pressable>
+            <Pressable onPress={confirmExit} style={[s.summaryActionBtn, { backgroundColor: "transparent", borderWidth: 1, borderColor: "#ff4d4d", width: "100%" }]}>
+              <Ionicons name="exit-outline" size={16} color="#ff4d4d" />
+              <Text style={[s.summaryActionText, { color: "#ff4d4d" }]}>Leave</Text>
+            </Pressable>
+          </Animated.View>
         </View>
       </Modal>
 
