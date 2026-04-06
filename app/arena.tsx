@@ -2241,14 +2241,22 @@ export default function ArenaScreen() {
         console.warn("Arena TTS playback error for", item.personaId, ":", e);
       }
     }
+    const hasMoreItems = ttsQueueRef.current.length > 0;
     if (myGeneration === ttsGenerationRef.current) {
       isProcessingTTSRef.current = false;
     }
-    forcePlayRef.current = false;
+    if (!hasMoreItems) {
+      forcePlayRef.current = false;
+    }
     currentSoundRef.current = null;
-    if (mountedRef.current) {
+    if (mountedRef.current && !hasMoreItems) {
       setIsPlayingAudio(false);
       setTtsActiveSpeaker(null);
+    }
+    if (hasMoreItems && forcePlayRef.current) {
+      setTimeout(() => processTTSQueue(), 50);
+    } else if (hasMoreItems && !forcePlayRef.current) {
+      ttsQueueRef.current = [];
     }
   }, [startPrefetch]);
 
@@ -3456,7 +3464,9 @@ export default function ArenaScreen() {
         setWinnerClapBack(data.clapBack);
         queueTTS(data.clapBack, winnerId, true);
       }
-    } catch {} finally {
+    } catch (e) {
+      console.warn("fetchWinnerClapBack error:", e);
+    } finally {
       if (mountedRef.current) setIsLoadingClapBack(false);
     }
   }, [deviceId, queueTTS]);
@@ -3497,7 +3507,7 @@ export default function ArenaScreen() {
         queueTTS(data.roast, "trump", true);
         if (winnerId !== "trump") {
           if (clapBackTimeoutRef.current) clearTimeout(clapBackTimeoutRef.current);
-          clapBackTimeoutRef.current = setTimeout(() => fetchWinnerClapBack(winnerId, winnerName, data.roast, leaderboard), 3000);
+          fetchWinnerClapBack(winnerId, winnerName, data.roast, leaderboard);
         }
       }
     } catch {} finally {

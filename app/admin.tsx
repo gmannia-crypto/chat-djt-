@@ -1115,6 +1115,8 @@ export default function AdminScreen() {
 
             <PushNotificationSection />
 
+            <LiveActivityStatsSection />
+
             <TimeTrackingSection />
 
             <AnalyticsDashboard />
@@ -1132,6 +1134,82 @@ function formatDuration(totalSeconds: number): string {
   const mins = Math.floor((totalSeconds % 3600) / 60);
   if (hours > 0) return `${hours}h ${mins}m`;
   return `${mins}m`;
+}
+
+function LiveActivityStatsSection() {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
+  const fetchStats = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(new URL("/api/live-activity/stats", getApiUrl()).toString());
+      if (res.ok) setData(await res.json());
+    } catch {}
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchStats(); }, []);
+
+  return (
+    <Animated.View entering={FadeInDown.delay(150).duration(400)} style={timeStyles.container}>
+      <Pressable onPress={() => setExpanded(!expanded)} style={timeStyles.header}>
+        <View style={timeStyles.headerLeft}>
+          <Ionicons name="pulse-outline" size={22} color="#4ADE80" />
+          <Text style={timeStyles.headerTitle}>Live Activity</Text>
+        </View>
+        <View style={timeStyles.headerRight}>
+          {data?.last5min && (
+            <Text style={[timeStyles.headerBadge, { backgroundColor: "rgba(74,222,128,0.15)", color: "#4ADE80" }]}>
+              {data.last5min.real} real / {data.last5min.simulated} sim
+            </Text>
+          )}
+          <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={18} color={Colors.whiteMuted} />
+        </View>
+      </Pressable>
+      {expanded && (
+        <View style={timeStyles.content}>
+          {loading && <ActivityIndicator color="#4ADE80" />}
+          {data?.last5min && (
+            <View style={timeStyles.summaryRow}>
+              <View style={timeStyles.summaryCard}>
+                <Text style={timeStyles.summaryValue}>{data.last5min.total}</Text>
+                <Text style={timeStyles.summaryLabel}>Total (5min)</Text>
+              </View>
+              <View style={timeStyles.summaryCard}>
+                <Text style={[timeStyles.summaryValue, { color: "#4ADE80" }]}>{data.last5min.real}</Text>
+                <Text style={timeStyles.summaryLabel}>Real Events</Text>
+              </View>
+              <View style={timeStyles.summaryCard}>
+                <Text style={[timeStyles.summaryValue, { color: "#aaa" }]}>{data.last5min.simulated}</Text>
+                <Text style={timeStyles.summaryLabel}>Simulated</Text>
+              </View>
+              <View style={timeStyles.summaryCard}>
+                <Text style={timeStyles.summaryValue}>{data.bufferSize}</Text>
+                <Text style={timeStyles.summaryLabel}>Buffer Size</Text>
+              </View>
+            </View>
+          )}
+          {data?.last5min?.realByType && Object.keys(data.last5min.realByType).length > 0 && (
+            <View style={{ marginTop: 12 }}>
+              <Text style={[timeStyles.listTitle, { marginBottom: 8 }]}>Real Events by Type</Text>
+              {Object.entries(data.last5min.realByType).sort(([,a]: any, [,b]: any) => b - a).map(([type, count]: any) => (
+                <View key={type} style={timeStyles.userRow}>
+                  <Text style={[timeStyles.userId, { flex: 1 }]}>{type}</Text>
+                  <Text style={[timeStyles.userTime, { color: "#4ADE80" }]}>{count}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+          <Pressable onPress={fetchStats} style={timeStyles.refreshBtn}>
+            <Ionicons name="refresh" size={16} color="#4ADE80" />
+            <Text style={[timeStyles.refreshText, { color: "#4ADE80" }]}>Refresh</Text>
+          </Pressable>
+        </View>
+      )}
+    </Animated.View>
+  );
 }
 
 function TimeTrackingSection() {

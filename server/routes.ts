@@ -8493,7 +8493,7 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
     "RealEstatePro", "BullMarket", "MAGA2024", "TrumpVIP", "LuckyStrike",
   ];
 
-  function createActivityEvent(type: string, detail?: string) {
+  function createActivityEvent(type: string, detail?: string, simulated: boolean = false) {
     const config = ACTIVITY_CONFIG[type] || ACTIVITY_CONFIG.visit;
     const template = config.templates[Math.floor(Math.random() * config.templates.length)];
     const name = ANON_NAMES[Math.floor(Math.random() * ANON_NAMES.length)];
@@ -8506,6 +8506,7 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
       icon: config.icon,
       color: config.color,
       timestamp: Date.now(),
+      simulated,
     };
     LIVE_ACTIVITY_BUFFER.unshift(event);
     if (LIVE_ACTIVITY_BUFFER.length > MAX_BUFFER) LIVE_ACTIVITY_BUFFER.length = MAX_BUFFER;
@@ -8515,7 +8516,7 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
   // Seed initial simulated activity so feed isn't empty
   const seedTypes = ["visit", "therapy_start", "arena_enter", "arena_vote", "sports_view", "finance_view", "realestate_view", "visit", "mystery_box", "arena_win"];
   for (let i = 0; i < seedTypes.length; i++) {
-    const ev = createActivityEvent(seedTypes[i]);
+    const ev = createActivityEvent(seedTypes[i], undefined, true);
     ev.timestamp = Date.now() - (seedTypes.length - i) * 6000;
   }
 
@@ -8523,7 +8524,7 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
   setInterval(() => {
     const types = ["visit", "therapy_start", "arena_enter", "sports_view", "finance_view", "realestate_view", "arena_vote"];
     const type = types[Math.floor(Math.random() * types.length)];
-    createActivityEvent(type);
+    createActivityEvent(type, undefined, true);
   }, 12000 + Math.random() * 8000);
 
   app.post("/api/live-activity/log", (req, res) => {
@@ -8544,6 +8545,30 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
       res.json({ events });
     } catch (err) {
       res.json({ events: [] });
+    }
+  });
+
+  app.get("/api/live-activity/stats", (_req, res) => {
+    try {
+      const now = Date.now();
+      const last5min = LIVE_ACTIVITY_BUFFER.filter((e: any) => e.timestamp > now - 300000);
+      const realEvents = last5min.filter((e: any) => !e.simulated);
+      const simulatedEvents = last5min.filter((e: any) => e.simulated);
+      const realByType: Record<string, number> = {};
+      for (const e of realEvents) {
+        realByType[e.type] = (realByType[e.type] || 0) + 1;
+      }
+      res.json({
+        last5min: {
+          total: last5min.length,
+          real: realEvents.length,
+          simulated: simulatedEvents.length,
+          realByType,
+        },
+        bufferSize: LIVE_ACTIVITY_BUFFER.length,
+      });
+    } catch {
+      res.json({ last5min: { total: 0, real: 0, simulated: 0 }, bufferSize: 0 });
     }
   });
 
