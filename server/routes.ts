@@ -2664,7 +2664,7 @@ Your personality quirks:
   });
 
   let arenaTopicsCache: { topics: any[]; expires: number } = { topics: [], expires: 0 };
-  const ARENA_NEWS_CACHE_TTL = 5 * 60 * 1000;
+  const ARENA_NEWS_CACHE_TTL = 15 * 60 * 1000;
 
   let topicGenerationInProgress = false;
 
@@ -2705,7 +2705,7 @@ Your personality quirks:
           max_completion_tokens: 3000,
           temperature: 0.9,
         }),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("AI timeout")), 20000)),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("AI timeout")), 45000)),
       ]);
       const raw = completion.choices[0]?.message?.content || "[]";
       const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
@@ -2808,17 +2808,26 @@ Your personality quirks:
   const ARENA_SESSION_DURATION = 5 * 60 * 1000;
   const ARENA_SESSION_COST = 5;
 
+  setTimeout(() => {
+    fetchArenaTopics().catch((err) => console.error("Startup topic pre-warm failed:", err));
+  }, 5000);
+
   app.get("/api/arena/topics", async (_req, res) => {
     try {
       if (arenaTopicsCache.topics.length > 0 && Date.now() < arenaTopicsCache.expires) {
         return res.json({ topics: arenaTopicsCache.topics });
       }
-      const defaults = getDefaultArenaTopics();
+      if (arenaTopicsCache.topics.length > 0) {
+        if (!topicGenerationInProgress) {
+          fetchArenaTopics().catch(() => {});
+        }
+        return res.json({ topics: arenaTopicsCache.topics });
+      }
       if (topicGenerationInProgress) {
-        return res.json({ topics: arenaTopicsCache.topics.length > 0 ? arenaTopicsCache.topics : defaults });
+        return res.json({ topics: getDefaultArenaTopics() });
       }
       fetchArenaTopics().catch(() => {});
-      res.json({ topics: arenaTopicsCache.topics.length > 0 ? arenaTopicsCache.topics : defaults });
+      res.json({ topics: getDefaultArenaTopics() });
     } catch (error: any) {
       console.error("Arena topics error:", error);
       res.json({ topics: getDefaultArenaTopics() });

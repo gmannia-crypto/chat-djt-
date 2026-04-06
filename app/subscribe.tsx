@@ -41,7 +41,7 @@ export default function SubscribeScreen() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ success?: string; canceled?: string; session_id?: string }>();
   const [isProcessing, setIsProcessing] = useState(false);
-  const [selectedTab, setSelectedTab] = useState<"plans" | "tokens">("plans");
+  const [selectedTab, setSelectedTab] = useState<"plans" | "tokens">("tokens");
   const [fulfilled, setFulfilled] = useState(false);
   const [winVideoVisible, setWinVideoVisible] = useState(false);
   const [winVideoAmount, setWinVideoAmount] = useState<number | undefined>();
@@ -335,19 +335,6 @@ export default function SubscribeScreen() {
           style={styles.tabRow}
         >
           <Pressable
-            onPress={() => setSelectedTab("plans")}
-            style={[styles.tab, selectedTab === "plans" && styles.tabActive]}
-          >
-            <MaterialCommunityIcons
-              name="crown"
-              size={18}
-              color={selectedTab === "plans" ? Colors.gold : Colors.whiteMuted}
-            />
-            <Text style={[styles.tabText, selectedTab === "plans" && styles.tabTextActive]}>
-              Monthly Plans
-            </Text>
-          </Pressable>
-          <Pressable
             onPress={() => setSelectedTab("tokens")}
             style={[styles.tab, selectedTab === "tokens" && styles.tabActive]}
           >
@@ -358,6 +345,19 @@ export default function SubscribeScreen() {
             />
             <Text style={[styles.tabText, selectedTab === "tokens" && styles.tabTextActive]}>
               Buy Tokens
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setSelectedTab("plans")}
+            style={[styles.tab, selectedTab === "plans" && styles.tabActive]}
+          >
+            <MaterialCommunityIcons
+              name="crown"
+              size={18}
+              color={selectedTab === "plans" ? Colors.gold : Colors.whiteMuted}
+            />
+            <Text style={[styles.tabText, selectedTab === "plans" && styles.tabTextActive]}>
+              Monthly Plans
             </Text>
           </Pressable>
         </Animated.View>
