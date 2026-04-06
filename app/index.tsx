@@ -765,6 +765,7 @@ export default function HomeScreen() {
       icon: ev.icon,
       color: ev.color,
       type: ev.type,
+      simulated: ev.simulated,
     }));
   }, [liveEvents]);
 
@@ -1310,18 +1311,21 @@ export default function HomeScreen() {
                 <Text style={styles.activityTitle}>LIVE ACTIVITY</Text>
                 <View style={styles.activityPulse} />
               </View>
-              {activityFromLive.map((activity, i) => (
+              {activityFromLive.map((activity, i) => {
+                const itemColor = activity.simulated ? "#888" : activity.color;
+                return (
                 <Animated.View
                   key={`act-${i}-${activity.message}`}
                   entering={FadeIn.duration(400)}
-                  style={[styles.activityItem, i === 0 && styles.activityItemNew]}
+                  style={[styles.activityItem, i === 0 && !activity.simulated && styles.activityItemNew, activity.simulated && { opacity: 0.5 }]}
                 >
-                  <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: activity.color + "20", justifyContent: "center", alignItems: "center", marginRight: 6 }}>
-                    <Ionicons name={activity.icon as any} size={10} color={activity.color} />
+                  <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: itemColor + "20", justifyContent: "center", alignItems: "center", marginRight: 6 }}>
+                    <Ionicons name={activity.icon as any} size={10} color={itemColor} />
                   </View>
-                  <Text style={[styles.activityText, i === 0 && styles.activityTextNew, { color: i === 0 ? activity.color : "rgba(255,255,255,0.5)" }]} numberOfLines={1}>{activity.message}</Text>
+                  <Text style={[styles.activityText, i === 0 && !activity.simulated && styles.activityTextNew, { color: i === 0 && !activity.simulated ? itemColor : "rgba(255,255,255,0.5)" }]} numberOfLines={1}>{activity.message}</Text>
                 </Animated.View>
-              ))}
+                );
+              })}
             </Animated.View>
           </Animated.View>
         )}

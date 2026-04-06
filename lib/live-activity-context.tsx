@@ -21,6 +21,7 @@ interface LiveEvent {
   icon: string;
   color: string;
   timestamp: number;
+  simulated?: boolean;
 }
 
 interface LiveActivityContextType {
@@ -123,15 +124,17 @@ function LiveToast({ event, onDismiss }: { event: LiveEvent; onDismiss: () => vo
     return () => clearTimeout(timer);
   }, []);
 
+  const displayColor = event.simulated ? "#888" : event.color;
+
   return (
     <Animated.View
       entering={FadeInRight.duration(300)}
       exiting={FadeOutRight.duration(300)}
-      style={[toastStyles.container, { borderLeftColor: event.color }]}
+      style={[toastStyles.container, { borderLeftColor: displayColor, opacity: event.simulated ? 0.6 : 1 }]}
     >
       <Pressable onPress={onDismiss} style={toastStyles.inner}>
-        <View style={[toastStyles.iconCircle, { backgroundColor: event.color + "25" }]}>
-          <Ionicons name={event.icon as any} size={14} color={event.color} />
+        <View style={[toastStyles.iconCircle, { backgroundColor: displayColor + "25" }]}>
+          <Ionicons name={event.icon as any} size={14} color={displayColor} />
         </View>
         <Text style={toastStyles.text} numberOfLines={1}>{event.message}</Text>
         <Ionicons name="close" size={12} color="rgba(255,255,255,0.3)" />
