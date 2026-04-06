@@ -2666,42 +2666,70 @@ Your personality quirks:
   let arenaTopicsCache: { topics: any[]; expires: number } = { topics: [], expires: 0 };
   const ARENA_NEWS_CACHE_TTL = 5 * 60 * 1000;
 
+  let topicGenerationInProgress = false;
+
   async function fetchArenaTopics(): Promise<any[]> {
     if (arenaTopicsCache.topics.length > 0 && Date.now() < arenaTopicsCache.expires) {
       return arenaTopicsCache.topics;
     }
+    if (topicGenerationInProgress) {
+      return arenaTopicsCache.topics.length > 0 ? arenaTopicsCache.topics : getDefaultArenaTopics();
+    }
+    topicGenerationInProgress = true;
     try {
       const allHeadlines: string[] = [];
-      const feedPromises = NEWS_FEEDS.map(f => fetchRSSFeed(f.url, f.source));
-      const results = await Promise.allSettled(feedPromises);
+      const feedPromises = NEWS_FEEDS.slice(0, 6).map(f =>
+        Promise.race([
+          fetchRSSFeed(f.url, f.source),
+          new Promise<any[]>((_, reject) => setTimeout(() => reject(new Error("RSS timeout")), 8000)),
+        ]).catch(() => [] as any[])
+      );
+      const results = await Promise.all(feedPromises);
       for (const r of results) {
-        if (r.status === "fulfilled") {
-          allHeadlines.push(...r.value.map((h: any) => `${h.title} (${h.source})`));
+        if (Array.isArray(r)) {
+          allHeadlines.push(...r.map((h: any) => `${h.title} (${h.source})`));
         }
       }
       if (allHeadlines.length < 3) {
+        topicGenerationInProgress = false;
         return getDefaultArenaTopics();
       }
-      const topHeadlines = allHeadlines.slice(0, 30).join("\n- ");
-      const completion = await getClient().chat.completions.create({
-        model: getFastModel(),
-        messages: [
-          { role: "system", content: `You generate DETAILED DAILY debate topics for a live political arena show. Today is ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}. Given today's BREAKING headlines from ACROSS THE GEOPOLITICAL SPECTRUM (including Al Jazeera, BBC, Reuters, NYT, Guardian, Fox News, CNBC), create 24 HOT debate topics that are happening RIGHT NOW — not generic evergreen topics. Each topic MUST reference a specific current event, controversy, or breaking story from the headlines. Make them provocative, DETAILED, and designed for maximum engagement. IMPORTANT: Include perspectives from non-Western sources like Al Jazeera — these often cover stories Western media ignores or frames differently. Trump would have strong opinions on all of these. Return ONLY valid JSON array of objects with "id" (lowercase_snake_case), "title" (short 3-6 word label referencing the SPECIFIC story), "description" (2-3 detailed sentences explaining what happened, who is involved, and why it's controversial — give enough context for a 5-minute debate), and "headlines" (array of 2-3 relevant headline strings from the provided list with their source attribution). MANDATORY: At least TWO topics MUST be about Palestine/Gaza/Israeli occupation/Zionist lobby — prioritize Al Jazeera and Middle East coverage. At least TWO topics MUST reference the Epstein files and Trump's military actions as a distraction. Make topics diverse: mix breaking geopolitical news, US political drama, Middle East/Palestine, global economy, culture wars, Epstein connections, tech/AI, climate, immigration, healthcare, judicial, military/defense. Cover the FULL spectrum of today's news. NEVER repeat generic evergreen framings — each topic must be anchored to a SPECIFIC breaking story from TODAY's headlines.` },
-          { role: "user", content: `TODAY'S BREAKING HEADLINES FROM ACROSS THE GEOPOLITICAL SPECTRUM (${new Date().toLocaleDateString()}):\n- ${topHeadlines}\n\nGenerate 24 FRESH detailed daily debate topics as JSON array. These must be about TODAY's specific news stories, not generic topics. Include diverse geopolitical perspectives. Include Palestine/Zionist lobby and Epstein files topics. Cover 24 different angles from today's breaking news.` },
-        ],
-        max_completion_tokens: 6000,
-        temperature: 0.9,
-      });
+      const topHeadlines = allHeadlines.slice(0, 20).join("\n- ");
+      const completion = await Promise.race([
+        getClient().chat.completions.create({
+          model: getFastModel(),
+          messages: [
+            { role: "system", content: `You generate debate topics for a live political arena show. Today is ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}. Given today's headlines, create 12 HOT debate topics. Each topic MUST reference a specific current event from the headlines. Return ONLY a valid JSON array of objects with "id" (lowercase_snake_case), "title" (short 3-6 word label), "description" (1-2 sentences on what happened and why it's controversial), and "headlines" (array of 1-2 relevant headline strings). Include at least ONE topic about Palestine/Gaza and ONE about Epstein files. Mix: geopolitics, US politics, economy, culture wars, tech/AI, military. Each must be anchored to a SPECIFIC headline.` },
+            { role: "user", content: `TODAY'S HEADLINES:\n- ${topHeadlines}\n\nGenerate 12 debate topics as a JSON array.` },
+          ],
+          max_completion_tokens: 3000,
+          temperature: 0.9,
+        }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("AI timeout")), 20000)),
+      ]);
       const raw = completion.choices[0]?.message?.content || "[]";
       const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-      const topics = JSON.parse(cleaned);
+      let topics: any[];
+      try {
+        topics = JSON.parse(cleaned);
+      } catch {
+        const lastBrace = cleaned.lastIndexOf("}");
+        if (lastBrace > 0) {
+          const trimmed = cleaned.substring(0, lastBrace + 1) + "]";
+          topics = JSON.parse(trimmed);
+        } else {
+          throw new Error("Cannot parse topics JSON");
+        }
+      }
       if (Array.isArray(topics) && topics.length > 0) {
-        arenaTopicsCache = { topics: topics.slice(0, 24), expires: Date.now() + ARENA_NEWS_CACHE_TTL };
-        return topics.slice(0, 24);
+        arenaTopicsCache = { topics: topics.slice(0, 12), expires: Date.now() + ARENA_NEWS_CACHE_TTL };
+        topicGenerationInProgress = false;
+        return topics.slice(0, 12);
       }
     } catch (err) {
       console.error("Arena topics generation error:", err);
     }
+    topicGenerationInProgress = false;
     return getDefaultArenaTopics();
   }
 
@@ -2782,8 +2810,15 @@ Your personality quirks:
 
   app.get("/api/arena/topics", async (_req, res) => {
     try {
-      const topics = await fetchArenaTopics();
-      res.json({ topics });
+      if (arenaTopicsCache.topics.length > 0 && Date.now() < arenaTopicsCache.expires) {
+        return res.json({ topics: arenaTopicsCache.topics });
+      }
+      const defaults = getDefaultArenaTopics();
+      if (topicGenerationInProgress) {
+        return res.json({ topics: arenaTopicsCache.topics.length > 0 ? arenaTopicsCache.topics : defaults });
+      }
+      fetchArenaTopics().catch(() => {});
+      res.json({ topics: arenaTopicsCache.topics.length > 0 ? arenaTopicsCache.topics : defaults });
     } catch (error: any) {
       console.error("Arena topics error:", error);
       res.json({ topics: getDefaultArenaTopics() });
