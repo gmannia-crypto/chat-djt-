@@ -2260,7 +2260,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     melania: "689489f0a6854feba39461783b3c32b9",
     odonnell: "97e32ec60be047378bbbb4982d0c19fa",
     kamala: "021cd8c8fc5642649e36ea0c8c942cc2",
-    mtg: "689489f0a6854feba39461783b3c32b9",
+    mtg: "ca7b0362e114420e9e3fd10244eb9da6",
   };
 
   app.post("/api/nav-speak", async (req, res) => {
