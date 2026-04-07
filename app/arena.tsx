@@ -71,8 +71,10 @@ const PERSONA_CATEGORY_MAP: Record<string, PersonaCategory> = {
   trump: "president", biden: "president", obama: "president",
   netanyahu: "politician", mcconnell: "politician", omar: "politician",
   graham: "politician", pambondi: "politician", miller: "politician",
-  jimjordan: "politician", schumer: "politician",
+  jimjordan: "politician", schumer: "politician", kamala: "politician",
+  mtg: "politician",
   maddow: "journalist", megynkelly: "journalist", joyreid: "journalist",
+  odonnell: "journalist",
   carville: "strategist",
   galloway: "podcaster", alexjones: "podcaster", candace: "podcaster",
   berniemc: "comedian", rosie: "comedian", ruckus: "comedian",
@@ -141,10 +143,13 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       berniemc: { sentiment: 20 },
       elon: { sentiment: 65 },
       joyreid: { sentiment: 5 },
+      odonnell: { sentiment: 2 },
+      kamala: { sentiment: 5 },
+      mtg: { sentiment: 5 },
     },
     triggerWords: {
       positive: ["great", "win", "success", "money", "deal", "beautiful", "trump"],
-      negative: ["fail", "lose", "weak", "stupid", "disaster", "fake"],
+      negative: ["fail", "lose", "weak", "stupid", "disaster", "fake", "b6", "traitor"],
     },
   },
   netanyahu: {
@@ -757,6 +762,129 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       negative: ["witch hunt", "ohio state", "wrestling", "no bills", "kiss ass", "sycophant"],
     },
   },
+  odonnell: {
+    id: "odonnell",
+    name: "Lawrence O'Donnell",
+    shortName: "Lawrence",
+    color: "#2563eb",
+    faction: "opponent",
+    image: require("@/assets/images/persona-odonnell.png"),
+    personality: {
+      energy: 85,
+      aggression: 90,
+      humor: 65,
+      catchphrases: ["Donald Trump is the STUPIDEST criminal", "Let me explain this slowly for you", "This is not complicated", "The evidence is overwhelming"],
+    },
+    relationships: {
+      trump: { sentiment: 2 },
+      netanyahu: { sentiment: 20 },
+      ruckus: { sentiment: 5 },
+      galloway: { sentiment: 55 },
+      mcconnell: { sentiment: 10 },
+      carville: { sentiment: 85 },
+      maddow: { sentiment: 95 },
+      omar: { sentiment: 80 },
+      biden: { sentiment: 70 },
+      rosie: { sentiment: 75 },
+      berniemc: { sentiment: 60 },
+      elon: { sentiment: 5 },
+      graham: { sentiment: 5 },
+      megynkelly: { sentiment: 10 },
+      pambondi: { sentiment: 5 },
+      candace: { sentiment: 10 },
+      joyreid: { sentiment: 90 },
+      miller: { sentiment: 5 },
+      jimjordan: { sentiment: 5 },
+      kamala: { sentiment: 85 },
+      mtg: { sentiment: 25 },
+    },
+    triggerWords: {
+      positive: ["facts", "evidence", "law", "constitution", "democracy", "accountability", "justice"],
+      negative: ["trump", "criminal", "incompetent", "stupid", "corrupt", "felon", "epstein"],
+    },
+  },
+  kamala: {
+    id: "kamala",
+    name: "Kamala Harris",
+    shortName: "Kamala",
+    color: "#7c3aed",
+    faction: "opponent",
+    image: require("@/assets/images/persona-kamala.png"),
+    personality: {
+      energy: 80,
+      aggression: 70,
+      humor: 50,
+      catchphrases: ["Let me be clear", "We are not going back", "The American people deserve better", "I'm speaking"],
+    },
+    relationships: {
+      trump: { sentiment: 5 },
+      netanyahu: { sentiment: 30 },
+      ruckus: { sentiment: 5 },
+      galloway: { sentiment: 45 },
+      mcconnell: { sentiment: 15 },
+      carville: { sentiment: 80 },
+      maddow: { sentiment: 85 },
+      omar: { sentiment: 75 },
+      biden: { sentiment: 90 },
+      rosie: { sentiment: 70 },
+      berniemc: { sentiment: 60 },
+      elon: { sentiment: 10 },
+      graham: { sentiment: 10 },
+      megynkelly: { sentiment: 10 },
+      pambondi: { sentiment: 10 },
+      candace: { sentiment: 10 },
+      joyreid: { sentiment: 85 },
+      miller: { sentiment: 5 },
+      jimjordan: { sentiment: 5 },
+      odonnell: { sentiment: 85 },
+      mtg: { sentiment: 30 },
+    },
+    triggerWords: {
+      positive: ["justice", "democracy", "rights", "policy", "progress", "prosecutor", "truth"],
+      negative: ["trump", "dei", "maga", "racist", "immoral", "criminal", "inhumane"],
+    },
+  },
+  mtg: {
+    id: "mtg",
+    name: "Marjorie Taylor Greene",
+    shortName: "MTG",
+    color: "#dc2626",
+    faction: "wildcard",
+    image: require("@/assets/images/persona-mtg.png"),
+    personality: {
+      energy: 95,
+      aggression: 90,
+      humor: 35,
+      catchphrases: ["Trump is INSANE!", "I was WRONG about MAGA!", "These Republican COWARDS!", "Absolute evil!"],
+    },
+    relationships: {
+      trump: { sentiment: 5 },
+      netanyahu: { sentiment: 20 },
+      ruckus: { sentiment: 5 },
+      galloway: { sentiment: 30 },
+      mcconnell: { sentiment: 10 },
+      carville: { sentiment: 35 },
+      maddow: { sentiment: 30 },
+      omar: { sentiment: 25 },
+      biden: { sentiment: 30 },
+      rosie: { sentiment: 25 },
+      berniemc: { sentiment: 20 },
+      elon: { sentiment: 10 },
+      graham: { sentiment: 5 },
+      megynkelly: { sentiment: 15 },
+      pambondi: { sentiment: 5 },
+      candace: { sentiment: 15 },
+      joyreid: { sentiment: 25 },
+      miller: { sentiment: 5 },
+      jimjordan: { sentiment: 5 },
+      odonnell: { sentiment: 30 },
+      kamala: { sentiment: 30 },
+    },
+    triggerWords: {
+      positive: ["truth", "courage", "wrong", "changed", "sorry", "amends"],
+      negative: ["trump", "maga", "coward", "b6", "bleached", "traitor", "greene", "marjorie"],
+    },
+  },
 };
 
 const MYSTERY_PERSONAS: Record<string, ArenaPersona> = {
@@ -930,7 +1058,7 @@ const MYSTERY_UNLOCK_COSTS: Record<string, number> = {
 };
 const MYSTERY_UNLOCK_KEY = "arena_mystery_unlocked";
 
-const PERSONA_IDS = ["trump", "elon", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan"];
+const PERSONA_IDS = ["trump", "elon", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "odonnell", "kamala", "mtg"];
 
 const BREAKING_NEWS_REACTIONS: Record<string, string[]> = {
   trump: [
@@ -1034,6 +1162,18 @@ const BREAKING_NEWS_REACTIONS: Record<string, string[]> = {
     "...That is... very interesting. I think this breaking news speaks for itself.",
     "I see. Well... I really don't care about the drama, but this news is... significant.",
   ],
+  odonnell: [
+    "STOP — breaking news! And I guarantee this traces right back to Trump's incompetence! Let me walk you through this!",
+    "HOLD ON — this is breaking and this is EXACTLY what I've been warning about on my show for MONTHS!",
+  ],
+  kamala: [
+    "Excuse me — we need to pause here. This breaking news — we are NOT going back. Let me be clear about what this means.",
+    "Hold on everyone — breaking development. And the American people deserve the TRUTH about what is happening right now!",
+  ],
+  mtg: [
+    "WAIT — breaking news! And I KNOW what the MAGA crowd is going to say but they're WRONG! Trump is INSANE!",
+    "HOLD ON — you see this?! This is EXACTLY the kind of evil I'm talking about! These Republican COWARDS won't say it but I WILL!",
+  ],
 };
 
 const TOPIC_ICON_MAP: Record<string, string> = {
@@ -1073,6 +1213,9 @@ const PERSONA_ALIASES: Record<string, string[]> = {
   alexjones: ["alex jones", "jones", "alex", "infowars"],
   obama: ["obama", "barack", "barack obama"],
   melania: ["melania", "melania trump"],
+  odonnell: ["lawrence", "o'donnell", "lawrence o'donnell", "last word"],
+  kamala: ["kamala", "harris", "kamala harris", "vice president"],
+  mtg: ["mtg", "marjorie", "marjorie taylor greene", "greene", "traitor-greene"],
 };
 
 function detectTrumpAttack(text: string, speakerId: string): boolean {
