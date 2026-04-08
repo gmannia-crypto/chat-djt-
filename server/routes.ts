@@ -2803,7 +2803,6 @@ Your personality quirks:
     return emotions[personaId] || "React to these headlines based on your genuine political beliefs and personality. Show real emotion — anger, joy, disgust, triumph, whatever you truly feel.";
   }
 
-  const arenaAccess: Record<string, { freeUsed: number; sessionExpiry: number | null; freeTrialExpiry: number | null }> = {};
   const ARENA_FREE_LIMIT = 5;
   const ARENA_FREE_TRIAL_DURATION = 2 * 60 * 1000;
   const ARENA_SESSION_DURATIONS: Record<number, { ms: number; cost: number }> = {
@@ -2813,6 +2812,58 @@ Your personality quirks:
   };
   const ARENA_SESSION_DURATION = 5 * 60 * 1000;
   const ARENA_SESSION_COST = 5;
+
+  try {
+    const initDb = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+    await initDb.query(`CREATE TABLE IF NOT EXISTS arena_access (
+      device_id TEXT PRIMARY KEY,
+      free_used INTEGER DEFAULT 0,
+      session_expiry BIGINT,
+      free_trial_expiry BIGINT,
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )`);
+    await initDb.end();
+    console.log("Arena access table initialized");
+  } catch (e: any) {
+    console.error("Failed to create arena_access table:", e.message);
+  }
+
+  async function getArenaAccess(deviceId: string): Promise<{ freeUsed: number; sessionExpiry: number | null; freeTrialExpiry: number | null }> {
+    const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+    try {
+      const result = await db.query(`SELECT free_used, session_expiry, free_trial_expiry FROM arena_access WHERE device_id = $1`, [deviceId]);
+      if (result.rows.length > 0) {
+        const row = result.rows[0];
+        return {
+          freeUsed: parseInt(row.free_used) || 0,
+          sessionExpiry: row.session_expiry ? parseInt(row.session_expiry) : null,
+          freeTrialExpiry: row.free_trial_expiry ? parseInt(row.free_trial_expiry) : null,
+        };
+      }
+    } catch (e: any) {
+      console.error("getArenaAccess error:", e.message);
+    } finally {
+      await db.end();
+    }
+    return { freeUsed: 0, sessionExpiry: null, freeTrialExpiry: null };
+  }
+
+  async function setArenaAccess(deviceId: string, access: { freeUsed: number; sessionExpiry: number | null; freeTrialExpiry: number | null }): Promise<void> {
+    const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+    try {
+      await db.query(
+        `INSERT INTO arena_access (device_id, free_used, session_expiry, free_trial_expiry, updated_at)
+         VALUES ($1, $2, $3, $4, NOW())
+         ON CONFLICT (device_id) DO UPDATE SET
+           free_used = $2, session_expiry = $3, free_trial_expiry = $4, updated_at = NOW()`,
+        [deviceId, access.freeUsed, access.sessionExpiry, access.freeTrialExpiry]
+      );
+    } catch (e: any) {
+      console.error("setArenaAccess error:", e.message);
+    } finally {
+      await db.end();
+    }
+  }
 
   setTimeout(() => {
     fetchArenaTopics().catch((err) => console.error("Startup topic pre-warm failed:", err));
@@ -2888,7 +2939,7 @@ Your personality quirks:
       if (!deviceId) {
         return res.status(400).json({ error: "Device ID required" });
       }
-      const access = arenaAccess[deviceId] || { freeUsed: 0, sessionExpiry: null, freeTrialExpiry: null };
+      const access = await getArenaAccess(deviceId);
       if (access.sessionExpiry && Date.now() < access.sessionExpiry) {
         return res.json({ granted: true, expiresAt: access.sessionExpiry, freeRemaining: Math.max(0, ARENA_FREE_LIMIT - access.freeUsed) });
       }
@@ -2909,7 +2960,7 @@ Your personality quirks:
         await useToken(deviceId);
       }
       const expiry = Date.now() + sessionMs;
-      arenaAccess[deviceId] = { ...access, sessionExpiry: expiry };
+      await setArenaAccess(deviceId, { ...access, sessionExpiry: expiry });
       const balance = await getTokenBalance(deviceId);
       const grantedMinutes = Object.keys(ARENA_SESSION_DURATIONS).find(k => ARENA_SESSION_DURATIONS[Number(k)].ms === sessionMs);
       res.json({ granted: true, expiresAt: expiry, balance, tokensCharged: sessionCost, durationMinutes: Number(grantedMinutes) || 5 });
@@ -2922,7 +2973,7 @@ Your personality quirks:
   app.get("/api/arena/status", async (req, res) => {
     const deviceId = req.headers["x-device-id"] as string;
     if (!deviceId) return res.json({ freeRemaining: ARENA_FREE_LIMIT, hasSession: false, hasFreeTrial: true, isNewUser: true });
-    const access = arenaAccess[deviceId] || { freeUsed: 0, sessionExpiry: null, freeTrialExpiry: null };
+    const access = await getArenaAccess(deviceId);
     const hasSession = !!(access.sessionExpiry && Date.now() < access.sessionExpiry);
     const hasFreeTrial = !!(access.freeTrialExpiry && Date.now() < access.freeTrialExpiry);
     const isNewUser = access.freeUsed === 0;
@@ -3778,7 +3829,7 @@ Address everyone by FIRST NAME ONLY. Keep responses to 2-3 sentences max. Stay f
         return res.status(400).json({ error: "Device ID required" });
       }
 
-      const access = arenaAccess[deviceId] || { freeUsed: 0, sessionExpiry: null, freeTrialExpiry: null };
+      const access = await getArenaAccess(deviceId);
       const hasActiveSession = access.sessionExpiry && Date.now() < access.sessionExpiry;
       if (!hasActiveSession && access.freeUsed >= ARENA_FREE_LIMIT) {
         return res.status(403).json({
@@ -3792,7 +3843,7 @@ Address everyone by FIRST NAME ONLY. Keep responses to 2-3 sentences max. Stay f
           access.freeTrialExpiry = Date.now() + ARENA_FREE_TRIAL_DURATION;
         }
         access.freeUsed = (access.freeUsed || 0) + 1;
-        arenaAccess[deviceId] = access;
+        await setArenaAccess(deviceId, access);
       }
 
       let winTallyContext = "";
@@ -3978,15 +4029,14 @@ Address everyone by FIRST NAME ONLY. Keep responses to 2-3 sentences max. Stay f
         }
       }
 
-      const accessState = deviceId ? arenaAccess[deviceId] : null;
       res.json({
         response,
         personaId: responderId,
         questionTargetId,
         mcconnellFroze,
-        freeRemaining: accessState ? Math.max(0, ARENA_FREE_LIMIT - accessState.freeUsed) : ARENA_FREE_LIMIT,
-        hasSession: !!(accessState?.sessionExpiry && Date.now() < accessState.sessionExpiry),
-        sessionExpiresAt: accessState?.sessionExpiry || null,
+        freeRemaining: Math.max(0, ARENA_FREE_LIMIT - access.freeUsed),
+        hasSession: !!(access.sessionExpiry && Date.now() < access.sessionExpiry),
+        sessionExpiresAt: access.sessionExpiry || null,
       });
     } catch (error: any) {
       console.error("Arena respond error:", error);

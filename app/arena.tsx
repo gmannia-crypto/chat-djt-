@@ -2341,7 +2341,7 @@ export default function ArenaScreen() {
         const nextItem = ttsQueueRef.current[0];
         if (nextItem) startPrefetch(nextItem);
 
-        const OVERLAP_MS = 3500;
+        const OVERLAP_MS = 1500;
         await new Promise<void>((resolve) => {
           let resolved = false;
           let earlyResolved = false;
