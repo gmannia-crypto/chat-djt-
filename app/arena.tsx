@@ -2037,6 +2037,20 @@ export default function ArenaScreen() {
         await clearSavedSession();
         return false;
       }
+      if (deviceId) {
+        try {
+          const statusRes = await fetch(new URL("/api/arena/status", getApiUrl()).toString(), {
+            headers: { "x-device-id": deviceId },
+          });
+          if (statusRes.ok) {
+            const statusData = await statusRes.json();
+            if (!statusData.hasSession) {
+              await clearSavedSession();
+              return false;
+            }
+          }
+        } catch {}
+      }
       setMessages(saved.messages);
       setCurrentTopic(saved.currentTopic);
       setSessionExpiresAt(saved.sessionExpiresAt);
@@ -2051,7 +2065,7 @@ export default function ArenaScreen() {
     } catch {
       return false;
     }
-  }, [clearSavedSession]);
+  }, [clearSavedSession, deviceId]);
 
   const stopDebateAndLeave = useCallback(async (doNav: () => void) => {
     if (hasSession && sessionExpiresAt && Date.now() < sessionExpiresAt) {
@@ -2486,6 +2500,7 @@ export default function ArenaScreen() {
         setHasSession(true);
         setSessionExpiresAt(data.expiresAt);
         setShowPaywall(false);
+        setShowContinuePrompt(false);
         setShowEndSummary(false);
         if (!continueMode) {
           setPersonaPoints({});
@@ -2506,9 +2521,17 @@ export default function ArenaScreen() {
           setTimeout(() => { if (mountedRef.current && scheduleNextRef.current) scheduleNextRef.current(); }, 1000);
         }
       } else if (data.error === "insufficient_tokens") {
+        setShowContinuePrompt(false);
+        setShowPaywall(true);
         addSystemMessage("Not enough tokens. Visit the store to get more!");
+      } else {
+        setShowContinuePrompt(false);
+        setShowPaywall(true);
       }
-    } catch {}
+    } catch {
+      setShowContinuePrompt(false);
+      setShowPaywall(true);
+    }
     setIsUnlocking(false);
   }, [deviceId, refreshBalance, selectedDuration, showPreDebateSetup]);
 
@@ -3339,6 +3362,23 @@ export default function ArenaScreen() {
 
   const startDebate = useCallback(async () => {
     if (!mountedRef.current) return;
+    if (deviceId) {
+      try {
+        const statusRes = await fetch(new URL("/api/arena/status", getApiUrl()).toString(), {
+          headers: { "x-device-id": deviceId },
+        });
+        if (statusRes.ok) {
+          const statusData = await statusRes.json();
+          setFreeRemaining(statusData.freeRemaining ?? 0);
+          setHasSession(statusData.hasSession ?? false);
+          if (statusData.sessionExpiresAt) setSessionExpiresAt(statusData.sessionExpiresAt);
+          if (!statusData.hasSession && (statusData.freeRemaining ?? 0) <= 0) {
+            setShowPaywall(true);
+            return;
+          }
+        }
+      } catch {}
+    }
     sessionEndedRef.current = false;
     setIsRunning(true);
     isRunningRef.current = true;
