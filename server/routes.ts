@@ -2948,16 +2948,27 @@ Your personality quirks:
       const sessionCost = durationConfig.cost;
       const sessionMs = durationConfig.ms;
       const currentBalance = await getTokenBalance(deviceId);
-      if (currentBalance < sessionCost) {
+      const availableTokens = currentBalance.tokens ?? 0;
+      if (availableTokens < sessionCost) {
         return res.status(403).json({
           error: "insufficient_tokens",
           tokensNeeded: sessionCost,
           tokensCharged: 0,
-          balance: currentBalance,
+          balance: availableTokens,
         });
       }
+      let charged = 0;
       for (let i = 0; i < sessionCost; i++) {
-        await useToken(deviceId);
+        const result = await useToken(deviceId);
+        if (result.success) charged++;
+      }
+      if (charged < sessionCost) {
+        return res.status(403).json({
+          error: "insufficient_tokens",
+          tokensNeeded: sessionCost,
+          tokensCharged: charged,
+          balance: 0,
+        });
       }
       const expiry = Date.now() + sessionMs;
       await setArenaAccess(deviceId, { ...access, sessionExpiry: expiry });
