@@ -3362,23 +3362,6 @@ export default function ArenaScreen() {
 
   const startDebate = useCallback(async () => {
     if (!mountedRef.current) return;
-    if (deviceId) {
-      try {
-        const statusRes = await fetch(new URL("/api/arena/status", getApiUrl()).toString(), {
-          headers: { "x-device-id": deviceId },
-        });
-        if (statusRes.ok) {
-          const statusData = await statusRes.json();
-          setFreeRemaining(statusData.freeRemaining ?? 0);
-          setHasSession(statusData.hasSession ?? false);
-          if (statusData.sessionExpiresAt) setSessionExpiresAt(statusData.sessionExpiresAt);
-          if (!statusData.hasSession && (statusData.freeRemaining ?? 0) <= 0) {
-            setShowPaywall(true);
-            return;
-          }
-        }
-      } catch {}
-    }
     sessionEndedRef.current = false;
     setIsRunning(true);
     isRunningRef.current = true;
@@ -4022,32 +4005,24 @@ export default function ArenaScreen() {
               const canStart = selectedPersonas.length >= 2 && !(useCustomTopic && !customTopicText.trim());
               if (!canStart) return;
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-              if (!hasSession && freeRemaining <= 0) {
-                setShowPaywall(true);
-                return;
-              }
               if (deviceId) {
                 try {
                   const res = await fetch(new URL("/api/arena/status", getApiUrl()).toString(), {
                     headers: { "x-device-id": deviceId },
                   });
-                  if (!res.ok) {
-                    setShowPaywall(true);
-                    return;
+                  if (res.ok) {
+                    const data = await res.json();
+                    setFreeRemaining(data.freeRemaining ?? 0);
+                    setHasSession(data.hasSession ?? false);
+                    if (data.sessionExpiresAt) setSessionExpiresAt(data.sessionExpiresAt);
+                    if (!data.hasSession && (data.freeRemaining ?? 0) <= 0) {
+                      setShowPaywall(true);
+                      return;
+                    }
                   }
-                  const data = await res.json();
-                  setFreeRemaining(data.freeRemaining ?? 0);
-                  setHasSession(data.hasSession ?? false);
-                  if (data.sessionExpiresAt) setSessionExpiresAt(data.sessionExpiresAt);
-                  if (!data.hasSession && (data.freeRemaining ?? 0) <= 0) {
-                    setShowPaywall(true);
-                    return;
-                  }
-                } catch {
-                  setShowPaywall(true);
-                  return;
-                }
-              } else {
+                } catch {}
+              }
+              if (!hasSession && freeRemaining <= 0) {
                 setShowPaywall(true);
                 return;
               }
