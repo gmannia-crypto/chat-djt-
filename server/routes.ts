@@ -6307,6 +6307,17 @@ p{color:#999;font-size:16px;margin-bottom:24px}
     }
   });
 
+  app.post("/api/admin/reset-arena", async (_req, res) => {
+    try {
+      const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      await db.query("DELETE FROM arena_access");
+      await db.end();
+      res.json({ success: true, message: "Arena access reset for all users" });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   app.get("/api/hot-take", async (req, res) => {
     try {
       const headline = req.query.headline as string;

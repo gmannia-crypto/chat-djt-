@@ -1115,6 +1115,8 @@ export default function AdminScreen() {
 
             <PushNotificationSection />
 
+            <ArenaResetSection />
+
             <LiveActivityStatsSection />
 
             <TimeTrackingSection />
@@ -1438,6 +1440,59 @@ const timeStyles = StyleSheet.create({
     fontWeight: "600",
   },
 });
+
+function ArenaResetSection() {
+  const [resetting, setResetting] = useState(false);
+  const [result, setResult] = useState("");
+
+  const handleReset = async () => {
+    setResetting(true);
+    setResult("");
+    try {
+      const res = await fetch(new URL("/api/admin/reset-arena", getApiUrl()).toString(), {
+        method: "POST",
+      });
+      const data = await res.json();
+      setResult(data.success ? "Arena access reset for all users" : (data.error || "Failed"));
+      Haptics.notificationAsync(data.success ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Error);
+    } catch {
+      setResult("Network error");
+    }
+    setResetting(false);
+  };
+
+  return (
+    <Animated.View entering={FadeInDown.delay(200).duration(400)} style={{ marginTop: 16, backgroundColor: "rgba(255,77,77,0.08)", borderRadius: 16, padding: 16, borderWidth: 1, borderColor: "rgba(255,77,77,0.2)" }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
+        <Ionicons name="refresh-circle" size={20} color="#FF4D4D" />
+        <Text style={{ color: "#FF4D4D", fontSize: 14, fontWeight: "800" }}>Arena Access Reset</Text>
+      </View>
+      <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, marginBottom: 10 }}>
+        Resets free prompt counters and session data for all users.
+      </Text>
+      <Pressable
+        onPress={handleReset}
+        disabled={resetting}
+        style={({ pressed }) => ({
+          backgroundColor: resetting ? "rgba(255,77,77,0.3)" : "#FF4D4D",
+          paddingVertical: 10,
+          borderRadius: 10,
+          alignItems: "center" as const,
+          opacity: pressed ? 0.7 : 1,
+        })}
+      >
+        {resetting ? (
+          <ActivityIndicator size="small" color="#fff" />
+        ) : (
+          <Text style={{ color: "#fff", fontWeight: "800", fontSize: 13 }}>Reset All Arena Access</Text>
+        )}
+      </Pressable>
+      {result ? (
+        <Text style={{ color: result.includes("reset") ? "#4ADE80" : "#FF4D4D", fontSize: 11, marginTop: 8, textAlign: "center" }}>{result}</Text>
+      ) : null}
+    </Animated.View>
+  );
+}
 
 function PushNotificationSection() {
   const [title, setTitle] = useState("");

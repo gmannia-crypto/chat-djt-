@@ -776,6 +776,8 @@ function GolfCard({
   onPickTeam,
   userPick,
   pendingUserPick,
+  allPersonaPicks,
+  allPersonas,
 }: {
   game: Game;
   persona: PersonaInfo;
@@ -787,6 +789,8 @@ function GolfCard({
   onPickTeam?: (game: Game, team: string) => void;
   userPick?: string;
   pendingUserPick?: UserPick;
+  allPersonaPicks?: Record<string, PersonaPick>;
+  allPersonas?: PersonaInfo[];
 }) {
   const leagueColor = game.league === "LIV" ? "#E91E63" : "#4CAF50";
   const isSpeaking = speakingGameId === game.id;
@@ -944,6 +948,26 @@ function GolfCard({
           </Pressable>
         </>
       ) : null}
+
+      {allPersonaPicks && allPersonas && Object.keys(allPersonaPicks).length > 1 && (
+        <View style={styles.allPicksSection}>
+          <Text style={styles.allPicksLabel}>ALL ANALYST PICKS</Text>
+          <View style={styles.allPicksGrid}>
+            {allPersonas.filter((p) => allPersonaPicks[p.id]).map((p) => {
+              const pPick = allPersonaPicks[p.id];
+              const isActive = p.id === persona.id;
+              return (
+                <View key={p.id} style={[styles.allPicksItem, isActive && { borderColor: p.color, borderWidth: 1, backgroundColor: `${p.color}10` }]}>
+                  <Image source={p.image} style={[styles.allPicksAvatar, { borderColor: p.color }]} />
+                  <Text style={[styles.allPicksName, { color: p.color }]} numberOfLines={1}>{p.name}</Text>
+                  <Text style={styles.allPicksPick} numberOfLines={1}>{pPick.pick}</Text>
+                  <Text style={[styles.allPicksConf, { color: p.color }]}>{pPick.confidence}%</Text>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      )}
     </Animated.View>
   );
 }
@@ -959,6 +983,8 @@ function GameCard({
   onPickTeam,
   userPick,
   pendingUserPick,
+  allPersonaPicks,
+  allPersonas,
 }: {
   game: Game;
   persona: PersonaInfo;
@@ -970,6 +996,8 @@ function GameCard({
   onPickTeam?: (game: Game, team: string) => void;
   userPick?: string;
   pendingUserPick?: UserPick;
+  allPersonaPicks?: Record<string, PersonaPick>;
+  allPersonas?: PersonaInfo[];
 }) {
   const leagueColor = LEAGUE_COLORS[game.league] || "#D4A420";
   const isSpeaking = speakingGameId === game.id;
@@ -1173,6 +1201,26 @@ function GameCard({
           </Pressable>
         </>
       ) : null}
+
+      {allPersonaPicks && allPersonas && Object.keys(allPersonaPicks).length > 1 && (
+        <View style={styles.allPicksSection}>
+          <Text style={styles.allPicksLabel}>ALL ANALYST PICKS</Text>
+          <View style={styles.allPicksGrid}>
+            {allPersonas.filter((p) => allPersonaPicks[p.id]).map((p) => {
+              const pPick = allPersonaPicks[p.id];
+              const isActive = p.id === persona.id;
+              return (
+                <View key={p.id} style={[styles.allPicksItem, isActive && { borderColor: p.color, borderWidth: 1, backgroundColor: `${p.color}10` }]}>
+                  <Image source={p.image} style={[styles.allPicksAvatar, { borderColor: p.color }]} />
+                  <Text style={[styles.allPicksName, { color: p.color }]} numberOfLines={1}>{p.name}</Text>
+                  <Text style={styles.allPicksPick} numberOfLines={1}>{pPick.pick}</Text>
+                  <Text style={[styles.allPicksConf, { color: p.color }]}>{pPick.confidence}%</Text>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      )}
     </Animated.View>
   );
 }
@@ -1325,6 +1373,11 @@ export default function SportsScreen() {
   useEffect(() => {
     if (games.length > 0) {
       fetchAllPicks(selectedPersona);
+      for (const p of activePersonaList) {
+        if (p.id !== selectedPersona) {
+          fetchAllPicks(p.id, true);
+        }
+      }
     }
     const t = tallies[selectedPersona];
     if (t && (t.wins + t.losses) > 0) {
@@ -1349,10 +1402,12 @@ export default function SportsScreen() {
     return res.json();
   };
 
-  const fetchAllPicks = async (personaId: string) => {
-    if (abortRef.current) abortRef.current.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
+  const fetchAllPicks = async (personaId: string, background = false) => {
+    if (!background) {
+      if (abortRef.current) abortRef.current.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+    }
 
     const newLoadingState: Record<string, boolean> = {};
     const toFetch: Game[] = [];
@@ -1360,32 +1415,36 @@ export default function SportsScreen() {
     for (const game of games) {
       const key = `${game.id}_${personaId}`;
       if (!picks[key]) {
-        newLoadingState[key] = true;
+        if (!background) newLoadingState[key] = true;
         toFetch.push(game);
       }
     }
 
     if (toFetch.length === 0) return;
-    setLoadingPicks((prev) => ({ ...prev, ...newLoadingState }));
+    if (!background) setLoadingPicks((prev) => ({ ...prev, ...newLoadingState }));
 
-    const results = await Promise.allSettled(
-      toFetch.map((game) => fetchAIPick(game, personaId))
-    );
+    const batchSize = background ? 2 : toFetch.length;
+    for (let i = 0; i < toFetch.length; i += batchSize) {
+      const batch = toFetch.slice(i, i + batchSize);
+      const results = await Promise.allSettled(
+        batch.map((game) => fetchAIPick(game, personaId))
+      );
 
-    if (!mountedRef.current || controller.signal.aborted) return;
+      if (!mountedRef.current) return;
 
-    const newPicks: Record<string, PersonaPick> = {};
-    const clearLoading: Record<string, boolean> = {};
-    results.forEach((result, i) => {
-      const key = `${toFetch[i].id}_${personaId}`;
-      clearLoading[key] = false;
-      if (result.status === "fulfilled") {
-        newPicks[key] = result.value;
-      }
-    });
+      const newPicks: Record<string, PersonaPick> = {};
+      const clearLoading: Record<string, boolean> = {};
+      results.forEach((result, j) => {
+        const key = `${batch[j].id}_${personaId}`;
+        clearLoading[key] = false;
+        if (result.status === "fulfilled") {
+          newPicks[key] = result.value;
+        }
+      });
 
-    setPicks((prev) => ({ ...prev, ...newPicks }));
-    setLoadingPicks((prev) => ({ ...prev, ...clearLoading }));
+      setPicks((prev) => ({ ...prev, ...newPicks }));
+      if (!background) setLoadingPicks((prev) => ({ ...prev, ...clearLoading }));
+    }
   };
 
   const refreshPick = async (gameId: number) => {
@@ -1876,37 +1935,7 @@ export default function SportsScreen() {
           </Text>
         </Animated.View>
 
-        <Pressable
-          onPress={() => {
-            playTransition();
-            if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            router.push("/march-madness");
-          }}
-        >
-          <Animated.View entering={FadeInDown.delay(100).duration(500).springify()} style={styles.marchMadnessCard}>
-            <LinearGradient
-              colors={["#1a0a00", "#331100", "#1a0a00"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={StyleSheet.absoluteFillObject}
-            />
-            <View style={styles.mmCardHeader}>
-              <MaterialCommunityIcons name="basketball" size={22} color="#FF6B00" />
-              <Text style={styles.mmCardTitle}>MARCH MADNESS</Text>
-              <MaterialCommunityIcons name="basketball" size={22} color="#FF6B00" />
-            </View>
-            <Text style={styles.mmCardSub}>BRACKETOLOGY • PICKS • PRIZES</Text>
-            <Text style={styles.mmCardDesc}>
-              Fill out your bracket, compete against AI personas, and earn digital prizes
-            </Text>
-            <View style={styles.mmCardBtn}>
-              <Text style={styles.mmCardBtnText}>ENTER THE BRACKET</Text>
-              <Ionicons name="arrow-forward" size={14} color="#000" />
-            </View>
-          </Animated.View>
-        </Pressable>
-
-        <Animated.View entering={FadeInDown.delay(150).duration(400)} style={styles.personaSelector}>
+        <Animated.View entering={FadeInDown.delay(100).duration(400)} style={styles.personaSelector}>
           <Text style={styles.sectionLabel}>CHOOSE YOUR ANALYST</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.personaRow}>
             {activePersonaList.map((p) => (
@@ -2066,6 +2095,11 @@ export default function SportsScreen() {
             filteredGames.map((game) => {
               const pickForGame = userPicks.find((p) => p.gameId === game.id && p.personaId === selectedPersona) || userPicks.find((p) => p.gameId === game.id);
               const CardComponent = game.isGolf ? GolfCard : GameCard;
+              const gameAllPicks: Record<string, PersonaPick> = {};
+              for (const p of activePersonaList) {
+                const pk = picks[`${game.id}_${p.id}`];
+                if (pk) gameAllPicks[p.id] = pk;
+              }
               return (
                 <CardComponent
                   key={game.id}
@@ -2079,6 +2113,8 @@ export default function SportsScreen() {
                   onPickTeam={handleUserPick}
                   userPick={pickForGame?.team}
                   pendingUserPick={pickForGame && !pickForGame.resolved ? pickForGame : undefined}
+                  allPersonaPicks={gameAllPicks}
+                  allPersonas={activePersonaList}
                 />
               );
             })
@@ -3410,6 +3446,60 @@ const styles = StyleSheet.create({
     textAlign: "center" as const,
     fontStyle: "italic" as const,
   },
+  allPicksSection: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.08)",
+  },
+  allPicksLabel: {
+    fontSize: 10,
+    fontWeight: "800" as const,
+    color: "rgba(255,255,255,0.4)",
+    letterSpacing: 1.5,
+    marginBottom: 8,
+    textAlign: "center" as const,
+  },
+  allPicksGrid: {
+    flexDirection: "row" as const,
+    flexWrap: "wrap" as const,
+    gap: 6,
+    justifyContent: "center" as const,
+  },
+  allPicksItem: {
+    alignItems: "center" as const,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    minWidth: 70,
+    maxWidth: 90,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+  },
+  allPicksAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    marginBottom: 3,
+  },
+  allPicksName: {
+    fontSize: 9,
+    fontWeight: "700" as const,
+    marginBottom: 2,
+  },
+  allPicksPick: {
+    fontSize: 10,
+    fontWeight: "800" as const,
+    color: "#fff",
+    textAlign: "center" as const,
+  },
+  allPicksConf: {
+    fontSize: 9,
+    fontWeight: "700" as const,
+    marginTop: 1,
+  },
   nameInputSection: {
     paddingHorizontal: 16,
     marginBottom: 4,
@@ -3439,57 +3529,6 @@ const styles = StyleSheet.create({
     color: "rgba(212,164,32,0.6)",
     marginTop: 4,
     fontStyle: "italic" as const,
-  },
-  marchMadnessCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "rgba(255,107,0,0.3)",
-    padding: 18,
-    marginBottom: 12,
-    overflow: "hidden" as const,
-    alignItems: "center" as const,
-  },
-  mmCardHeader: {
-    flexDirection: "row" as const,
-    alignItems: "center" as const,
-    gap: 10,
-    marginBottom: 6,
-  },
-  mmCardTitle: {
-    fontSize: 20,
-    fontWeight: "900" as const,
-    color: "#FF6B00",
-    letterSpacing: 3,
-  },
-  mmCardSub: {
-    fontSize: 10,
-    fontWeight: "800" as const,
-    color: "rgba(255,107,0,0.7)",
-    letterSpacing: 2,
-    marginBottom: 8,
-  },
-  mmCardDesc: {
-    fontSize: 12,
-    color: "rgba(255,255,255,0.5)",
-    textAlign: "center" as const,
-    lineHeight: 18,
-    marginBottom: 12,
-    paddingHorizontal: 10,
-  },
-  mmCardBtn: {
-    flexDirection: "row" as const,
-    alignItems: "center" as const,
-    backgroundColor: "#FF6B00",
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 22,
-    gap: 8,
-  },
-  mmCardBtnText: {
-    fontSize: 12,
-    fontWeight: "900" as const,
-    color: "#000",
-    letterSpacing: 1.5,
   },
   bgLogo: {
     position: "absolute" as const,
