@@ -8575,19 +8575,24 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
 
   app.post("/api/realty/tour", async (req, res) => {
     try {
-      const { guideId, message, location, userName } = req.body;
+      const { guideId, message, location, userName, property } = req.body;
       const guide = TOUR_GUIDES[guideId || "sofia"];
       if (!guide) return res.status(400).json({ error: "Unknown guide" });
 
-      const systemPrompt = `${guide.prompt}\n\nYou are giving a tour/consultation about real estate in ${location || "this area"}. The customer's name is ${userName || "friend"}. Address them by name occasionally. Be helpful, specific, and engaging. Give REAL, ACCURATE information about the actual location — mention real neighborhoods, streets, landmarks, price ranges, school districts, and market trends that exist in ${location || "this area"}. Do NOT make up fake addresses or prices. Do NOT use asterisks, stage directions, or quotation marks around your response. Keep responses concise but informative — 2-4 sentences.`;
+      let propertyContext = "";
+      if (property) {
+        propertyContext = `\n\nYou are currently showing the client this REAL property listing:\n- Address: ${property.street}, ${property.city}, ${property.state} ${property.zip}\n- Price: $${property.price?.toLocaleString()}\n- Beds: ${property.beds}, Baths: ${property.baths}, Sqft: ${property.sqft?.toLocaleString()}\n- Type: ${property.propertyType || "Property"}\n- Year Built: ${property.yearBuilt || "Unknown"}\n- Days on Market: ${property.dom || "Unknown"}\n- Price/sqft: $${property.pricePerSqFt || "N/A"}\n\nComment specifically on THIS property — its price for the area, the neighborhood, what makes it a good or bad deal, things to watch out for. Be specific to this actual listing, not generic.`;
+      }
+
+      const systemPrompt = `${guide.prompt}\n\nYou are giving a live property tour in ${location || "this area"}. The customer's name is ${userName || "friend"}. Address them by name. Give REAL, ACCURATE information about the actual location — real neighborhoods, streets, landmarks, price ranges, school districts, and market trends. Do NOT make up fake data. Do NOT use asterisks, stage directions, or quotation marks. Keep responses punchy — 2-3 sentences max.${propertyContext}`;
 
       const completion = await getClient().chat.completions.create({
         model: getFastModel(),
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: message || "Tell me about investing in this area" },
+          { role: "user", content: message || "Tell me about this property" },
         ],
-        max_completion_tokens: 250,
+        max_completion_tokens: 200,
         temperature: 0.85,
       });
       const response = completion.choices[0]?.message?.content || "Let me look into that for you...";

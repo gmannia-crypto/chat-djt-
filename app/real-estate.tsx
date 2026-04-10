@@ -162,6 +162,10 @@ export default function RealEstateScreen() {
   const tourSoundRef = useRef<Audio.Sound | null>(null);
   const [tourProperties, setTourProperties] = useState<Property[]>([]);
   const [tourPropsLoading, setTourPropsLoading] = useState(false);
+  const [tourStarted, setTourStarted] = useState(false);
+  const [tourGuideComments, setTourGuideComments] = useState<Record<string, { text: string; loading: boolean }>>({});
+  const [tourActiveProperty, setTourActiveProperty] = useState<string | null>(null);
+  const [tourLocation, setTourLocation] = useState("Miami, FL");
 
   const [location, setLocation] = useState("");
   const [properties, setProperties] = useState<Property[]>([]);
@@ -284,6 +288,35 @@ export default function RealEstateScreen() {
     setTourSpeaking(false);
   }, []);
 
+  const fetchGuideComment = useCallback(async (prop: Property, guideId: string, loc: string, userName: string, message?: string) => {
+    const propKey = prop.id || prop.street;
+    if (!propKey) return;
+    setTourGuideComments((prev) => ({ ...prev, [propKey]: { text: "", loading: true } }));
+    try {
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      const res = await fetch(`${baseUrl}/api/realty/tour`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          guideId,
+          message: message || `Walk me through this property at ${prop.street}. What's your take?`,
+          location: loc,
+          userName: userName || "friend",
+          property: { street: prop.street, city: prop.city, state: prop.state, zip: prop.zip, price: prop.price, beds: prop.beds, baths: prop.baths, sqft: prop.sqft, propertyType: prop.propertyType, yearBuilt: prop.yearBuilt, dom: prop.dom, pricePerSqFt: prop.pricePerSqFt },
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTourGuideComments((prev) => ({ ...prev, [propKey]: { text: data.response, loading: false } }));
+        speakTourMessage(data.response, guideId);
+      } else {
+        setTourGuideComments((prev) => ({ ...prev, [propKey]: { text: "", loading: false } }));
+      }
+    } catch {
+      setTourGuideComments((prev) => ({ ...prev, [propKey]: { text: "", loading: false } }));
+    }
+  }, [speakTourMessage]);
+
   const sendTourMessage = useCallback(async (msg?: string) => {
     const text = msg || tourInput.trim();
     if (!text) return;
@@ -293,11 +326,18 @@ export default function RealEstateScreen() {
     setTourMessages((prev) => [...prev, userMsg]);
     setTourLoading(true);
     try {
+      const activeProp = tourProperties.find((p) => (p.id || p.street) === tourActiveProperty);
       const baseUrl = getApiUrl().replace(/\/$/, "");
       const res = await fetch(`${baseUrl}/api/realty/tour`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ guideId: selectedGuide, message: text, location: mapLocation, userName: tourUserName || "friend" }),
+        body: JSON.stringify({
+          guideId: selectedGuide,
+          message: text,
+          location: tourLocation,
+          userName: tourUserName || "friend",
+          property: activeProp ? { street: activeProp.street, city: activeProp.city, state: activeProp.state, zip: activeProp.zip, price: activeProp.price, beds: activeProp.beds, baths: activeProp.baths, sqft: activeProp.sqft, propertyType: activeProp.propertyType, yearBuilt: activeProp.yearBuilt, dom: activeProp.dom, pricePerSqFt: activeProp.pricePerSqFt } : undefined,
+        }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -306,31 +346,35 @@ export default function RealEstateScreen() {
       }
     } catch {}
     setTourLoading(false);
-  }, [tourInput, selectedGuide, mapLocation, tourUserName, speakTourMessage]);
+  }, [tourInput, selectedGuide, tourLocation, tourUserName, speakTourMessage, tourProperties, tourActiveProperty]);
 
-  const fetchTourProperties = useCallback(async (loc: string) => {
+  const startTour = useCallback(async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    setTourStarted(true);
+    setTourMessages([]);
+    setTourProperties([]);
+    setTourGuideComments({});
+    setTourActiveProperty(null);
     setTourPropsLoading(true);
     try {
       const baseUrl = getApiUrl();
-      const res = await fetch(`${baseUrl}api/properties?location=${encodeURIComponent(loc.trim())}`);
+      const res = await fetch(`${baseUrl}api/properties?location=${encodeURIComponent(tourLocation.trim())}`);
       if (res.ok) {
         const data = await res.json();
-        setTourProperties(data.properties || []);
+        const props = data.properties || [];
+        setTourProperties(props);
+        if (props.length > 0) {
+          const firstKey = props[0].id || props[0].street;
+          setTourActiveProperty(firstKey);
+          fetchGuideComment(props[0], selectedGuide, tourLocation, tourUserName || "friend", `I just arrived to tour properties in ${tourLocation}. Let's start with this first one at ${props[0].street}. What's your initial impression?`);
+        }
       }
     } catch {
       setTourProperties([]);
     } finally {
       setTourPropsLoading(false);
     }
-  }, []);
-
-  const startTour = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    setTourMessages([]);
-    setTourProperties([]);
-    sendTourMessage(`Hi! I'm interested in real estate in ${mapLocation}. What should I know about investing here?`);
-    fetchTourProperties(mapLocation);
-  }, [mapLocation, sendTourMessage, fetchTourProperties]);
+  }, [tourLocation, selectedGuide, tourUserName, fetchGuideComment]);
 
   const calculateMortgage = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -1113,154 +1157,290 @@ export default function RealEstateScreen() {
         {activeTab === "tour" && (
           <>
             <View style={s.tourSection}>
-              <View style={s.sectionHeader}>
-                <Ionicons name="people" size={18} color={Colors.gold} />
-                <Text style={s.sectionTitle}>YOUR PERSONAL TOUR GUIDE</Text>
-              </View>
-
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.guideScroll}>
-                {TOUR_GUIDES.map((guide) => (
-                  <Pressable
-                    key={guide.id}
-                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedGuide(guide.id); }}
-                    style={[s.guidePill, { borderColor: selectedGuide === guide.id ? guide.color : "rgba(255,255,255,0.1)", backgroundColor: selectedGuide === guide.id ? `${guide.color}20` : "rgba(255,255,255,0.05)" }]}
-                  >
-                    <Text style={s.guideEmoji}>{guide.emoji}</Text>
-                    <View>
-                      <Text style={[s.guideName, selectedGuide === guide.id && { color: guide.color }]}>{guide.name}</Text>
-                      <Text style={s.guideTitle}>{guide.title}</Text>
-                    </View>
-                  </Pressable>
-                ))}
-              </ScrollView>
-
-              <View style={s.tourLocationRow}>
-                <Ionicons name="location" size={14} color={Colors.gold} />
-                <TextInput
-                  style={s.tourLocationInput}
-                  value={mapLocation}
-                  onChangeText={setMapLocation}
-                  placeholder="City, state or zip..."
-                  placeholderTextColor="rgba(255,255,255,0.3)"
-                  returnKeyType="done"
-                />
-              </View>
-              <View style={s.tourStartRow}>
-                <TextInput
-                  style={s.tourNameInput}
-                  value={tourUserName}
-                  onChangeText={setTourUserName}
-                  placeholder="Your name"
-                  placeholderTextColor="rgba(255,255,255,0.3)"
-                />
-                <Pressable onPress={startTour} style={({ pressed }) => [s.tourStartBtn, pressed && { opacity: 0.7 }]}>
-                  <View style={s.tourStartGrad}>
-                    <Ionicons name="mic" size={16} color="#fff" />
-                    <Text style={s.tourStartText}>START TOUR</Text>
+              {!tourStarted ? (
+                <>
+                  <View style={s.sectionHeader}>
+                    <Ionicons name="walk" size={18} color={Colors.gold} />
+                    <Text style={s.sectionTitle}>LIVE PROPERTY TOUR</Text>
                   </View>
-                </Pressable>
-              </View>
 
-              {tourMessages.length > 0 && (
-                <View style={s.tourConvo}>
-                  {tourMessages.map((msg) => (
-                    <Animated.View
-                      key={msg.id}
-                      entering={SlideInRight.duration(300)}
-                      style={[s.tourMsg, msg.role === "user" ? s.tourMsgUser : s.tourMsgGuide]}
-                    >
-                      {msg.role === "guide" && (
-                        <View style={s.tourGuideHeader}>
-                          <Text style={s.tourMsgName}>{msg.guideName || activeGuide.name}</Text>
-                          <Pressable
-                            testID="tour-speak-btn"
-                            accessibilityRole="button"
-                            accessibilityLabel={tourSpeaking ? "Stop speaking" : "Play voice"}
-                            onPress={() => tourSpeaking ? stopTourSpeaking() : speakTourMessage(msg.text, selectedGuide)}
-                            style={({ pressed }) => [s.tourSpeakBtn, tourSpeaking && s.tourSpeakBtnStop, pressed && { opacity: 0.6 }]}
-                          >
-                            <Ionicons name={tourSpeaking ? "stop" : "volume-high"} size={13} color={tourSpeaking ? "#EF4444" : Colors.gold} />
-                            <Text style={[s.tourSpeakText, tourSpeaking && { color: "#EF4444" }]}>{tourSpeaking ? "STOP" : "PLAY"}</Text>
-                          </Pressable>
+                  <Text style={s.tourIntroText}>Pick a guide, enter a location, and we'll walk you through real listings with photos, prices, and expert commentary.</Text>
+
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.guideScroll}>
+                    {TOUR_GUIDES.map((guide) => (
+                      <Pressable
+                        key={guide.id}
+                        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedGuide(guide.id); }}
+                        style={[s.guidePill, { borderColor: selectedGuide === guide.id ? guide.color : "rgba(255,255,255,0.1)", backgroundColor: selectedGuide === guide.id ? `${guide.color}20` : "rgba(255,255,255,0.05)" }]}
+                      >
+                        <Text style={s.guideEmoji}>{guide.emoji}</Text>
+                        <View>
+                          <Text style={[s.guideName, selectedGuide === guide.id && { color: guide.color }]}>{guide.name}</Text>
+                          <Text style={s.guideTitle}>{guide.title}</Text>
                         </View>
-                      )}
-                      <Text style={[s.tourMsgText, msg.role === "user" && { color: "#4ADE80" }]}>{msg.text}</Text>
-                    </Animated.View>
-                  ))}
-                  {tourLoading && (
-                    <View style={s.tourTyping}>
-                      <ActivityIndicator size="small" color={Colors.gold} />
-                      <Text style={s.tourTypingText}>{activeGuide.name} is thinking...</Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+
+                  <View style={s.tourLocationRow}>
+                    <Ionicons name="location" size={14} color={Colors.gold} />
+                    <TextInput
+                      style={s.tourLocationInput}
+                      value={tourLocation}
+                      onChangeText={setTourLocation}
+                      placeholder="City, state or zip code..."
+                      placeholderTextColor="rgba(255,255,255,0.3)"
+                      returnKeyType="done"
+                    />
+                  </View>
+                  <View style={s.tourStartRow}>
+                    <TextInput
+                      style={s.tourNameInput}
+                      value={tourUserName}
+                      onChangeText={setTourUserName}
+                      placeholder="Your name (optional)"
+                      placeholderTextColor="rgba(255,255,255,0.3)"
+                    />
+                    <Pressable onPress={startTour} style={({ pressed }) => [s.tourStartBtn, pressed && { opacity: 0.7 }]}>
+                      <View style={s.tourStartGrad}>
+                        <Ionicons name="walk" size={16} color="#fff" />
+                        <Text style={s.tourStartText}>START TOUR</Text>
+                      </View>
+                    </Pressable>
+                  </View>
+                </>
+              ) : (
+                <>
+                  <View style={s.tourLiveHeader}>
+                    <View style={s.tourLiveBadge}>
+                      <View style={s.tourLiveDot} />
+                      <Text style={s.tourLiveBadgeText}>LIVE TOUR</Text>
+                    </View>
+                    <Text style={s.tourLiveLocation}>{tourLocation}</Text>
+                    <Pressable onPress={() => { setTourStarted(false); setTourProperties([]); setTourGuideComments({}); setTourMessages([]); setTourActiveProperty(null); }} style={({ pressed }) => [s.tourNewBtn, pressed && { opacity: 0.7 }]}>
+                      <Ionicons name="refresh" size={14} color={Colors.gold} />
+                      <Text style={s.tourNewBtnText}>NEW TOUR</Text>
+                    </Pressable>
+                  </View>
+
+                  <View style={s.tourGuideBar}>
+                    <Text style={s.tourGuideBarEmoji}>{activeGuide.emoji}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.tourGuideBarName}>{activeGuide.name}</Text>
+                      <Text style={s.tourGuideBarTitle}>{activeGuide.title}</Text>
+                    </View>
+                    {tourSpeaking && (
+                      <Pressable onPress={stopTourSpeaking} style={({ pressed }) => [s.tourStopSpeakBtn, pressed && { opacity: 0.6 }]}>
+                        <Ionicons name="stop-circle" size={20} color="#EF4444" />
+                      </Pressable>
+                    )}
+                  </View>
+
+                  {tourPropsLoading && (
+                    <View style={s.tourLoadingBox}>
+                      <ActivityIndicator size="large" color={Colors.gold} />
+                      <Text style={s.tourLoadingText}>Searching {tourLocation} listings...</Text>
                     </View>
                   )}
-                </View>
-              )}
 
-              {tourMessages.length > 0 && (
-                <View style={s.tourInputRow}>
-                  <TextInput
-                    style={s.tourInput}
-                    value={tourInput}
-                    onChangeText={setTourInput}
-                    placeholder="Ask a question..."
-                    placeholderTextColor="rgba(255,255,255,0.3)"
-                    onSubmitEditing={() => sendTourMessage()}
-                    returnKeyType="send"
-                  />
-                  <Pressable onPress={() => sendTourMessage()} disabled={!tourInput.trim() || tourLoading} style={({ pressed }) => [s.tourSendBtn, pressed && { opacity: 0.7 }]}>
-                    <Ionicons name="send" size={18} color={!tourInput.trim() ? "rgba(255,255,255,0.3)" : Colors.gold} />
-                  </Pressable>
-                </View>
-              )}
+                  {!tourPropsLoading && tourProperties.length === 0 && (
+                    <View style={s.tourLoadingBox}>
+                      <FontAwesome5 name="hard-hat" size={36} color="rgba(212,164,32,0.3)" />
+                      <Text style={s.tourLoadingText}>No properties found in {tourLocation}</Text>
+                    </View>
+                  )}
 
-              {tourPropsLoading && (
-                <View style={s.tourPropsHeader}>
-                  <ActivityIndicator size="small" color={Colors.gold} />
-                  <Text style={s.tourPropsTitle}>Loading nearby listings...</Text>
-                </View>
-              )}
+                  {!tourPropsLoading && tourProperties.length > 0 && (
+                    <View style={s.tourPropsSection}>
+                      <View style={s.tourPropsHeader}>
+                        <Ionicons name="home" size={14} color={Colors.gold} />
+                        <Text style={s.tourPropsTitle}>{tourProperties.length} LISTINGS FOUND</Text>
+                      </View>
 
-              {!tourPropsLoading && tourProperties.length > 0 && (
-                <View style={s.tourPropsSection}>
-                  <View style={s.tourPropsHeader}>
-                    <Ionicons name="home" size={16} color={Colors.gold} />
-                    <Text style={s.tourPropsTitle}>LIVE LISTINGS IN {mapLocation.toUpperCase()}</Text>
-                    <Text style={s.tourPropsCount}>{tourProperties.length}</Text>
-                  </View>
-                  {tourProperties.slice(0, 8).map((prop, idx) => {
-                    const imgFailed = prop.img ? failedImgs.has(prop.img) : true;
-                    return (
-                      <Animated.View key={prop.id || idx} entering={FadeInDown.delay(idx * 80).duration(300)} style={s.tourPropCard}>
-                        {prop.img && !imgFailed ? (
-                          <Image
-                            source={{ uri: prop.img }}
-                            style={s.tourPropImg}
-                            onError={() => { if (prop.img) setFailedImgs(prev => new Set(prev).add(prop.img!)); }}
-                          />
-                        ) : (
-                          <View style={s.tourPropImgPlaceholder}>
-                            <Ionicons name="home" size={24} color="rgba(212,164,32,0.4)" />
-                          </View>
-                        )}
-                        <View style={s.tourPropInfo}>
-                          <Text style={s.tourPropPrice}>{formatPrice(prop.price)}</Text>
-                          <Text style={s.tourPropAddress} numberOfLines={1}>{prop.street}</Text>
-                          <Text style={s.tourPropMeta}>{prop.city}, {prop.state} {prop.zip}</Text>
-                          <View style={s.tourPropStats}>
-                            <Text style={s.tourPropStat}>{prop.beds} bd</Text>
-                            <Text style={s.tourPropStatDot}>·</Text>
-                            <Text style={s.tourPropStat}>{prop.baths} ba</Text>
-                            <Text style={s.tourPropStatDot}>·</Text>
-                            <Text style={s.tourPropStat}>{prop.sqft.toLocaleString()} sqft</Text>
-                          </View>
-                          {prop.trumpComment && (
-                            <Text style={s.tourPropComment} numberOfLines={2}>"{prop.trumpComment}"</Text>
+                      {tourProperties.slice(0, 10).map((prop, idx) => {
+                        const propKey = prop.id || prop.street;
+                        const imgFailed = prop.img ? failedImgs.has(prop.img) : true;
+                        const isActive = tourActiveProperty === propKey;
+                        const guideComment = tourGuideComments[propKey || ""];
+
+                        return (
+                          <Pressable
+                            key={propKey || idx}
+                            onPress={() => {
+                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                              setTourActiveProperty(isActive ? null : propKey);
+                              if (!isActive && propKey && !guideComment) {
+                                fetchGuideComment(prop, selectedGuide, tourLocation, tourUserName || "friend");
+                              }
+                            }}
+                          >
+                            <Animated.View entering={FadeInDown.delay(idx * 60).duration(300)} style={[s.tourPropCard, isActive && s.tourPropCardActive]}>
+                              {prop.img && !imgFailed ? (
+                                <Image
+                                  source={{ uri: prop.img }}
+                                  style={s.tourPropImgLarge}
+                                  resizeMode="cover"
+                                  onError={() => { if (prop.img) setFailedImgs((prev) => new Set(prev).add(prop.img!)); }}
+                                />
+                              ) : (
+                                <View style={s.tourPropImgPlaceholderLarge}>
+                                  <Ionicons name="home" size={40} color="rgba(212,164,32,0.3)" />
+                                </View>
+                              )}
+
+                              <View style={s.tourPropOverlay}>
+                                <Text style={s.tourPropPriceLarge}>{formatPrice(prop.price)}</Text>
+                                <Text style={s.tourPropStatusBadge}>{prop.status}</Text>
+                              </View>
+
+                              <View style={s.tourPropDetails}>
+                                <Text style={s.tourPropAddressLarge} numberOfLines={1}>{prop.street}</Text>
+                                <Text style={s.tourPropMetaLarge}>{prop.city}, {prop.state} {prop.zip}</Text>
+                                <View style={s.tourPropStatsRow}>
+                                  <View style={s.tourPropStatBox}>
+                                    <Ionicons name="bed" size={12} color={Colors.gold} />
+                                    <Text style={s.tourPropStatVal}>{prop.beds}</Text>
+                                  </View>
+                                  <View style={s.tourPropStatBox}>
+                                    <MaterialCommunityIcons name="shower" size={12} color={Colors.gold} />
+                                    <Text style={s.tourPropStatVal}>{prop.baths}</Text>
+                                  </View>
+                                  <View style={s.tourPropStatBox}>
+                                    <MaterialCommunityIcons name="ruler-square" size={12} color={Colors.gold} />
+                                    <Text style={s.tourPropStatVal}>{prop.sqft.toLocaleString()}</Text>
+                                  </View>
+                                  {prop.yearBuilt && (
+                                    <View style={s.tourPropStatBox}>
+                                      <Ionicons name="calendar" size={12} color={Colors.gold} />
+                                      <Text style={s.tourPropStatVal}>{prop.yearBuilt}</Text>
+                                    </View>
+                                  )}
+                                  {prop.dom !== null && (
+                                    <View style={s.tourPropStatBox}>
+                                      <Ionicons name="time" size={12} color={Colors.gold} />
+                                      <Text style={s.tourPropStatVal}>{prop.dom}d</Text>
+                                    </View>
+                                  )}
+                                </View>
+
+                                {isActive && guideComment?.loading && (
+                                  <Animated.View entering={FadeIn.duration(300)} style={s.tourGuideCommentBox}>
+                                    <ActivityIndicator size="small" color={Colors.gold} />
+                                    <Text style={s.tourGuideCommentLoading}>{activeGuide.name} is reviewing this property...</Text>
+                                  </Animated.View>
+                                )}
+
+                                {isActive && guideComment?.text && (
+                                  <Animated.View entering={FadeIn.duration(300)} style={s.tourGuideCommentBox}>
+                                    <View style={s.tourGuideCommentHeader}>
+                                      <Text style={s.tourGuideCommentEmoji}>{activeGuide.emoji}</Text>
+                                      <Text style={s.tourGuideCommentName}>{activeGuide.name}</Text>
+                                      <Pressable
+                                        onPress={() => tourSpeaking ? stopTourSpeaking() : speakTourMessage(guideComment.text, selectedGuide)}
+                                        style={({ pressed }) => [s.tourSpeakBtnSmall, pressed && { opacity: 0.6 }]}
+                                      >
+                                        <Ionicons name={tourSpeaking ? "stop" : "volume-high"} size={12} color={tourSpeaking ? "#EF4444" : Colors.gold} />
+                                      </Pressable>
+                                    </View>
+                                    <Text style={s.tourGuideCommentText}>{guideComment.text}</Text>
+                                    <View style={s.tourPropActions}>
+                                      <Pressable
+                                        onPress={() => {
+                                          setTourActiveProperty(propKey);
+                                          fetchGuideComment(prop, selectedGuide, tourLocation, tourUserName || "friend", "Is this a good investment? What's the ROI potential?");
+                                        }}
+                                        style={({ pressed }) => [s.tourActionBtn, pressed && { opacity: 0.7 }]}
+                                      >
+                                        <Ionicons name="trending-up" size={12} color={Colors.gold} />
+                                        <Text style={s.tourActionText}>Investment?</Text>
+                                      </Pressable>
+                                      <Pressable
+                                        onPress={() => {
+                                          setTourActiveProperty(propKey);
+                                          fetchGuideComment(prop, selectedGuide, tourLocation, tourUserName || "friend", "What are the red flags or concerns with this property?");
+                                        }}
+                                        style={({ pressed }) => [s.tourActionBtn, pressed && { opacity: 0.7 }]}
+                                      >
+                                        <Ionicons name="warning" size={12} color="#ff6b6b" />
+                                        <Text style={s.tourActionText}>Red Flags?</Text>
+                                      </Pressable>
+                                      <Pressable
+                                        onPress={() => {
+                                          setTourActiveProperty(propKey);
+                                          fetchGuideComment(prop, selectedGuide, tourLocation, tourUserName || "friend", "Tell me about this neighborhood — schools, safety, dining, walkability.");
+                                        }}
+                                        style={({ pressed }) => [s.tourActionBtn, pressed && { opacity: 0.7 }]}
+                                      >
+                                        <Ionicons name="map" size={12} color="#4ADE80" />
+                                        <Text style={s.tourActionText}>Neighborhood</Text>
+                                      </Pressable>
+                                    </View>
+                                  </Animated.View>
+                                )}
+
+                                {!isActive && (
+                                  <View style={s.tourTapHint}>
+                                    <Ionicons name="hand-left" size={11} color="rgba(255,255,255,0.3)" />
+                                    <Text style={s.tourTapHintText}>Tap for {activeGuide.name}'s take</Text>
+                                  </View>
+                                )}
+                              </View>
+                            </Animated.View>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  )}
+
+                  {tourStarted && tourProperties.length > 0 && (
+                    <View style={s.tourChatSection}>
+                      <View style={s.tourChatHeader}>
+                        <Ionicons name="chatbubbles" size={14} color={Colors.gold} />
+                        <Text style={s.tourChatTitle}>ASK {activeGuide.name.toUpperCase()}</Text>
+                      </View>
+                      {tourMessages.map((msg) => (
+                        <Animated.View
+                          key={msg.id}
+                          entering={SlideInRight.duration(300)}
+                          style={[s.tourMsg, msg.role === "user" ? s.tourMsgUser : s.tourMsgGuide]}
+                        >
+                          {msg.role === "guide" && (
+                            <View style={s.tourGuideHeader}>
+                              <Text style={s.tourMsgName}>{msg.guideName || activeGuide.name}</Text>
+                              <Pressable
+                                onPress={() => tourSpeaking ? stopTourSpeaking() : speakTourMessage(msg.text, selectedGuide)}
+                                style={({ pressed }) => [s.tourSpeakBtn, tourSpeaking && s.tourSpeakBtnStop, pressed && { opacity: 0.6 }]}
+                              >
+                                <Ionicons name={tourSpeaking ? "stop" : "volume-high"} size={13} color={tourSpeaking ? "#EF4444" : Colors.gold} />
+                              </Pressable>
+                            </View>
                           )}
+                          <Text style={[s.tourMsgText, msg.role === "user" && { color: "#4ADE80" }]}>{msg.text}</Text>
+                        </Animated.View>
+                      ))}
+                      {tourLoading && (
+                        <View style={s.tourTyping}>
+                          <ActivityIndicator size="small" color={Colors.gold} />
+                          <Text style={s.tourTypingText}>{activeGuide.name} is thinking...</Text>
                         </View>
-                      </Animated.View>
-                    );
-                  })}
-                </View>
+                      )}
+                      <View style={s.tourInputRow}>
+                        <TextInput
+                          style={s.tourInput}
+                          value={tourInput}
+                          onChangeText={setTourInput}
+                          placeholder={`Ask ${activeGuide.name} anything...`}
+                          placeholderTextColor="rgba(255,255,255,0.3)"
+                          onSubmitEditing={() => sendTourMessage()}
+                          returnKeyType="send"
+                        />
+                        <Pressable onPress={() => sendTourMessage()} disabled={!tourInput.trim() || tourLoading} style={({ pressed }) => [s.tourSendBtn, pressed && { opacity: 0.7 }]}>
+                          <Ionicons name="send" size={18} color={!tourInput.trim() ? "rgba(255,255,255,0.3)" : Colors.gold} />
+                        </Pressable>
+                      </View>
+                    </View>
+                  )}
+                </>
               )}
             </View>
           </>
@@ -1519,21 +1699,52 @@ const s = StyleSheet.create({
   prospectPriceValue: { fontSize: 13, fontWeight: "700" as const },
   prospectPriceLabel: { fontSize: 8, color: "#888", fontWeight: "600" as const, textAlign: "center" as const },
   prospectExpandHint: { alignItems: "center" as const, paddingTop: 6 },
+  tourIntroText: { fontSize: 13, color: "rgba(255,255,255,0.5)", marginBottom: 12, lineHeight: 18 },
   tourLocationRow: { flexDirection: "row" as const, alignItems: "center" as const, gap: 8, marginBottom: 8, backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 8, paddingHorizontal: 10, borderWidth: 1, borderColor: "rgba(212,175,55,0.2)" },
-  tourLocationInput: { flex: 1, height: 40, fontSize: 14, color: Colors.white },
-  tourPropsSection: { marginTop: 16, gap: 8 },
-  tourPropsHeader: { flexDirection: "row" as const, alignItems: "center" as const, gap: 8, marginBottom: 4 },
-  tourPropsTitle: { fontSize: 12, fontWeight: "800" as const, color: Colors.gold, letterSpacing: 1 },
-  tourPropsCount: { fontSize: 11, fontWeight: "700" as const, color: "#000", backgroundColor: Colors.gold, borderRadius: 10, paddingHorizontal: 7, paddingVertical: 1, overflow: "hidden" as const },
-  tourPropCard: { flexDirection: "row" as const, backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 10, borderWidth: 1, borderColor: "rgba(255,77,77,0.2)", overflow: "hidden" as const },
-  tourPropImg: { width: 90, height: 90 },
-  tourPropImgPlaceholder: { width: 90, height: 90, backgroundColor: "rgba(255,255,255,0.05)", alignItems: "center" as const, justifyContent: "center" as const },
-  tourPropInfo: { flex: 1, padding: 8, gap: 2 },
-  tourPropPrice: { fontSize: 15, fontWeight: "800" as const, color: Colors.gold },
-  tourPropAddress: { fontSize: 11, fontWeight: "600" as const, color: "#ddd" },
-  tourPropMeta: { fontSize: 10, color: "#888" },
-  tourPropStats: { flexDirection: "row" as const, alignItems: "center" as const, gap: 4, marginTop: 2 },
-  tourPropStat: { fontSize: 10, fontWeight: "600" as const, color: "#aaa" },
-  tourPropStatDot: { fontSize: 8, color: "#555" },
-  tourPropComment: { fontSize: 9, fontStyle: "italic" as const, color: "rgba(255,77,77,0.7)", marginTop: 2 },
+  tourLocationInput: { flex: 1, height: 42, fontSize: 14, color: Colors.white },
+  tourLiveHeader: { flexDirection: "row" as const, alignItems: "center" as const, gap: 10, marginBottom: 12 },
+  tourLiveBadge: { flexDirection: "row" as const, alignItems: "center" as const, gap: 5, backgroundColor: "rgba(239,68,68,0.15)", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, borderWidth: 1, borderColor: "rgba(239,68,68,0.4)" },
+  tourLiveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#EF4444" },
+  tourLiveBadgeText: { fontSize: 10, fontWeight: "800" as const, color: "#EF4444", letterSpacing: 1 },
+  tourLiveLocation: { flex: 1, fontSize: 14, fontWeight: "700" as const, color: "#fff" },
+  tourNewBtn: { flexDirection: "row" as const, alignItems: "center" as const, gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, backgroundColor: "rgba(212,175,55,0.1)", borderWidth: 1, borderColor: "rgba(212,175,55,0.3)" },
+  tourNewBtnText: { fontSize: 10, fontWeight: "700" as const, color: Colors.gold, letterSpacing: 1 },
+  tourGuideBar: { flexDirection: "row" as const, alignItems: "center" as const, gap: 10, padding: 10, backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 10, marginBottom: 12, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" },
+  tourGuideBarEmoji: { fontSize: 24 },
+  tourGuideBarName: { fontSize: 14, fontWeight: "700" as const, color: "#fff" },
+  tourGuideBarTitle: { fontSize: 11, color: "#888" },
+  tourStopSpeakBtn: { padding: 6 },
+  tourLoadingBox: { alignItems: "center" as const, justifyContent: "center" as const, paddingVertical: 40, gap: 12 },
+  tourLoadingText: { fontSize: 13, color: "#888" },
+  tourPropsSection: { gap: 12 },
+  tourPropsHeader: { flexDirection: "row" as const, alignItems: "center" as const, gap: 6 },
+  tourPropsTitle: { fontSize: 11, fontWeight: "800" as const, color: Colors.gold, letterSpacing: 1 },
+  tourPropCard: { backgroundColor: "rgba(255,255,255,0.03)", borderRadius: 12, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", overflow: "hidden" as const },
+  tourPropCardActive: { borderColor: Colors.gold, borderWidth: 2 },
+  tourPropImgLarge: { width: "100%" as any, height: 180 },
+  tourPropImgPlaceholderLarge: { width: "100%" as any, height: 140, backgroundColor: "rgba(255,255,255,0.03)", alignItems: "center" as const, justifyContent: "center" as const },
+  tourPropOverlay: { position: "absolute" as const, top: 0, left: 0, right: 0, height: 180, justifyContent: "flex-end" as const, padding: 10 },
+  tourPropPriceLarge: { fontSize: 22, fontWeight: "900" as const, color: "#fff", textShadowColor: "rgba(0,0,0,0.8)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 },
+  tourPropStatusBadge: { position: "absolute" as const, top: 8, right: 8, fontSize: 9, fontWeight: "800" as const, color: "#fff", backgroundColor: "rgba(34,197,94,0.85)", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4, overflow: "hidden" as const, letterSpacing: 0.5 },
+  tourPropDetails: { padding: 12, gap: 4 },
+  tourPropAddressLarge: { fontSize: 14, fontWeight: "700" as const, color: "#fff" },
+  tourPropMetaLarge: { fontSize: 12, color: "#888" },
+  tourPropStatsRow: { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 10, marginTop: 6 },
+  tourPropStatBox: { flexDirection: "row" as const, alignItems: "center" as const, gap: 4 },
+  tourPropStatVal: { fontSize: 12, fontWeight: "700" as const, color: "#ccc" },
+  tourGuideCommentBox: { marginTop: 8, padding: 10, backgroundColor: "rgba(212,175,55,0.06)", borderRadius: 8, borderWidth: 1, borderColor: "rgba(212,175,55,0.15)", gap: 6 },
+  tourGuideCommentLoading: { fontSize: 12, color: "#888", fontStyle: "italic" as const },
+  tourGuideCommentHeader: { flexDirection: "row" as const, alignItems: "center" as const, gap: 6 },
+  tourGuideCommentEmoji: { fontSize: 16 },
+  tourGuideCommentName: { flex: 1, fontSize: 12, fontWeight: "700" as const, color: Colors.gold },
+  tourGuideCommentText: { fontSize: 13, color: "#ddd", lineHeight: 19 },
+  tourSpeakBtnSmall: { padding: 4 },
+  tourPropActions: { flexDirection: "row" as const, gap: 8, marginTop: 8 },
+  tourActionBtn: { flexDirection: "row" as const, alignItems: "center" as const, gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, backgroundColor: "rgba(255,255,255,0.06)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
+  tourActionText: { fontSize: 10, fontWeight: "700" as const, color: "rgba(255,255,255,0.7)" },
+  tourTapHint: { flexDirection: "row" as const, alignItems: "center" as const, gap: 4, marginTop: 6 },
+  tourTapHintText: { fontSize: 10, color: "rgba(255,255,255,0.3)" },
+  tourChatSection: { marginTop: 16, padding: 12, backgroundColor: "rgba(255,255,255,0.03)", borderRadius: 12, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", gap: 8 },
+  tourChatHeader: { flexDirection: "row" as const, alignItems: "center" as const, gap: 6, marginBottom: 4 },
+  tourChatTitle: { fontSize: 11, fontWeight: "800" as const, color: Colors.gold, letterSpacing: 1 },
 });
