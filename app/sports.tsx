@@ -1258,6 +1258,7 @@ export default function SportsScreen() {
   const [debatePick2, setDebatePick2] = useState<PersonaPick | null>(null);
   const [debatePicksLoading, setDebatePicksLoading] = useState(false);
   const [selectedLeague, setSelectedLeague] = useState("ALL");
+  const [sportsTab, setSportsTab] = useState<"games" | "analysis" | "debate" | "shop">("games");
   const [roundtableDialogue, setRoundtableDialogue] = useState<{ personaId: string; text: string }[]>([]);
   const [roundtableLoading, setRoundtableLoading] = useState(false);
   const [roundtableGame, setRoundtableGame] = useState<Game | null>(null);
@@ -1871,7 +1872,25 @@ export default function SportsScreen() {
           }
         />
 
-        {viralStats.totalPicks > 0 && (
+        <View style={styles.sportsTabBar}>
+          {([
+            { key: "games" as const, label: "GAMES", icon: "football" as const },
+            { key: "analysis" as const, label: "ANALYSIS", icon: "analytics" as const },
+            { key: "debate" as const, label: "DEBATE", icon: "people" as const },
+            { key: "shop" as const, label: "SHOP", icon: "cart" as const },
+          ]).map((tab) => (
+            <Pressable
+              key={tab.key}
+              onPress={() => { playClick(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSportsTab(tab.key); }}
+              style={[styles.sportsTabItem, sportsTab === tab.key && styles.sportsTabItemActive]}
+            >
+              <Ionicons name={tab.icon} size={16} color={sportsTab === tab.key ? Colors.gold : "rgba(255,255,255,0.4)"} />
+              <Text style={[styles.sportsTabLabel, sportsTab === tab.key && styles.sportsTabLabelActive]}>{tab.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {sportsTab === "games" && viralStats.totalPicks > 0 && (
           <StatsPanel
             title="YOUR PICKS"
             emoji="\uD83C\uDFC6"
@@ -1896,7 +1915,7 @@ export default function SportsScreen() {
           />
         )}
 
-        <Animated.View entering={FadeInDown.delay(50).duration(400)} style={styles.worldCupCard}>
+        {sportsTab === "games" && <Animated.View entering={FadeInDown.delay(50).duration(400)} style={styles.worldCupCard}>
           <LinearGradient
             colors={["#0d3b0d", "#1a0f00", "#0d3b0d"]}
             start={{ x: 0, y: 0 }}
@@ -1933,7 +1952,7 @@ export default function SportsScreen() {
           <Text style={styles.wcTrumpQuote}>
             "We're gonna have the GREATEST World Cup in history. Believe me, nobody does soccer like America!"
           </Text>
-        </Animated.View>
+        </Animated.View>}
 
         <Animated.View entering={FadeInDown.delay(100).duration(400)} style={styles.personaSelector}>
           <Text style={styles.sectionLabel}>CHOOSE YOUR ANALYST</Text>
@@ -2032,7 +2051,7 @@ export default function SportsScreen() {
           </Animated.View>
         )}
 
-        <Animated.View entering={FadeInDown.delay(230).duration(400)} style={{ paddingHorizontal: 16, paddingTop: 4 }}>
+        {sportsTab === "games" && <Animated.View entering={FadeInDown.delay(230).duration(400)} style={{ paddingHorizontal: 16, paddingTop: 4 }}>
           <Pressable
             onPress={() => { fetchAllTimeLeaderboard(); setShowAllTimeBoard(true); playClick(); }}
             style={({ pressed }) => [{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 10, borderWidth: 1, borderColor: "#FFD700", backgroundColor: pressed ? "rgba(255,215,0,0.15)" : "rgba(255,215,0,0.05)" }]}
@@ -2040,9 +2059,9 @@ export default function SportsScreen() {
             <Ionicons name="trophy" size={16} color="#FFD700" />
             <Text style={{ color: "#FFD700", fontSize: 12, fontWeight: "800" as const, letterSpacing: 1 }}>ALL-TIME LEADERBOARD</Text>
           </Pressable>
-        </Animated.View>
+        </Animated.View>}
 
-        <Animated.View entering={FadeInDown.delay(250).duration(400)} style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+        {sportsTab === "games" && <Animated.View entering={FadeInDown.delay(250).duration(400)} style={{ paddingHorizontal: 16, paddingTop: 8 }}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingRight: 16 }}>
             {ALL_LEAGUES.map((league) => {
               const isActive = selectedLeague === league;
@@ -2071,9 +2090,9 @@ export default function SportsScreen() {
               );
             })}
           </ScrollView>
-        </Animated.View>
+        </Animated.View>}
 
-        <Animated.View entering={FadeInDown.delay(300).duration(400)} style={styles.section}>
+        {sportsTab === "games" && <Animated.View entering={FadeInDown.delay(300).duration(400)} style={styles.section}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionLabel}>TODAY'S GAMES</Text>
             <View style={styles.aiBadge}>
@@ -2119,9 +2138,9 @@ export default function SportsScreen() {
               );
             })
           )}
-        </Animated.View>
+        </Animated.View>}
 
-        {completedGames.length > 0 && (
+        {sportsTab === "analysis" && completedGames.length > 0 && (
           <Animated.View entering={FadeInDown.delay(350).duration(400)} style={styles.section}>
             <View style={styles.sectionHeaderRow}>
               <Text style={styles.sectionLabel}>LAST NIGHT'S RECAP</Text>
@@ -2167,7 +2186,7 @@ export default function SportsScreen() {
           </Animated.View>
         )}
 
-        {completedGames.length > 0 && (
+        {sportsTab === "games" && completedGames.length > 0 && (
           <Animated.View entering={FadeInDown.delay(400).duration(400)} style={styles.section}>
             <View style={styles.sectionHeaderRow}>
               <Text style={styles.sectionLabel}>TODAY'S RESULTS</Text>
@@ -2217,7 +2236,7 @@ export default function SportsScreen() {
           </Animated.View>
         )}
 
-        {featuredGame && (
+        {sportsTab === "debate" && featuredGame && (
           <Animated.View entering={FadeInDown.delay(500).duration(400)} style={styles.section}>
             <Text style={styles.sectionLabel}>TODAY'S DEBATE</Text>
             <View style={styles.debateCard}>
@@ -2301,7 +2320,7 @@ export default function SportsScreen() {
           </Animated.View>
         )}
 
-        <Animated.View entering={FadeInDown.delay(600).duration(400)} style={styles.section}>
+        {sportsTab === "analysis" && <Animated.View entering={FadeInDown.delay(600).duration(400)} style={styles.section}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionLabel}>SPORTS ROUNDTABLE</Text>
             <View style={[styles.aiBadge, { backgroundColor: "rgba(212,164,32,0.15)" }]}>
@@ -2375,9 +2394,9 @@ export default function SportsScreen() {
               </Pressable>
             </View>
           )}
-        </Animated.View>
+        </Animated.View>}
 
-        <Animated.View entering={FadeInDown.delay(700).duration(400)} style={styles.section}>
+        {sportsTab === "shop" && <Animated.View entering={FadeInDown.delay(700).duration(400)} style={styles.section}>
           <Text style={styles.sectionLabel}>GEAR UP</Text>
           <Text style={styles.shopQuote}>
             {AMAZON_PICKS[selectedPersona]?.quote || AMAZON_PICKS.trump.quote}
@@ -2404,7 +2423,14 @@ export default function SportsScreen() {
               Shop {activePersona.name}'s Picks on Amazon
             </Text>
           </Pressable>
-        </Animated.View>
+        </Animated.View>}
+
+        {sportsTab === "debate" && !featuredGame && (
+          <View style={[styles.emptyBox, { marginTop: 20, marginHorizontal: 16 }]}>
+            <MaterialCommunityIcons name="emoticon-sad-outline" size={40} color="rgba(255,255,255,0.2)" />
+            <Text style={styles.emptyText}>No debates available right now. Check back when games are live!</Text>
+          </View>
+        )}
       </ScrollView>
 
       <Modal visible={showAllTimeBoard} transparent animationType="fade">
@@ -2467,6 +2493,40 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#0a0a0a",
+  },
+  sportsTabBar: {
+    flexDirection: "row",
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 4,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    padding: 3,
+  },
+  sportsTabItem: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  sportsTabItemActive: {
+    backgroundColor: "rgba(212,164,32,0.2)",
+    borderWidth: 1,
+    borderColor: "rgba(212,164,32,0.4)",
+  },
+  sportsTabLabel: {
+    fontSize: 10,
+    fontWeight: "800" as const,
+    color: "rgba(255,255,255,0.4)",
+    letterSpacing: 0.5,
+  },
+  sportsTabLabelActive: {
+    color: Colors.gold,
   },
   header: {
     flexDirection: "row",

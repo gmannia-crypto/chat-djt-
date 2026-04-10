@@ -2261,6 +2261,11 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     odonnell: "97e32ec60be047378bbbb4982d0c19fa",
     kamala: "021cd8c8fc5642649e36ea0c8c942cc2",
     mtg: "ca7b0362e114420e9e3fd10244eb9da6",
+    victor: "c713d4d8220e4e498cd8bed79c385c56",
+    maya: "ce3b16c14af54adebba5ebe50a3d4417",
+    tommy: "9bd6e557d5824c7ead59da7adcc8f606",
+    sofia: "df64f0925bb94bb6998a7a3d232a38f6",
+    patricia: "e3cd384158934cc9a01029cd7d278634",
   };
 
   app.post("/api/nav-speak", async (req, res) => {

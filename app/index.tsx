@@ -1262,172 +1262,7 @@ export default function HomeScreen() {
         bounces={true}
         decelerationRate="normal"
       >
-        {streak > 0 && (
-          <Animated.View entering={FadeIn.delay(400).duration(500)} style={styles.streakRow}>
-            <View style={styles.streakBadge}>
-              <MaterialCommunityIcons name="fire" size={16} color="#FF6B35" />
-              <Text style={styles.streakText}>{streak} day streak</Text>
-            </View>
-            <Pressable
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                const msg = `I've used Chat DJT for ${streak} days in a row! \uD83D\uDD25 Can you beat my streak?`;
-                if (Platform.OS === "web") {
-                  const tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(msg)}`;
-                  Linking.openURL(tweetUrl);
-                } else {
-                  Share.share({ message: msg });
-                }
-              }}
-              style={({ pressed }) => [styles.streakShareBtn, pressed && { opacity: 0.7 }]}
-              testID="share-streak-btn"
-            >
-              <Ionicons name="share-outline" size={12} color="#FF6B35" />
-              <Text style={styles.streakShareText}>SHARE</Text>
-            </Pressable>
-          </Animated.View>
-        )}
-
-        {hotTake && (
-          <Animated.View entering={FadeIn.delay(800).duration(600)} style={styles.hotTakeBubble}>
-            <View style={styles.hotTakeHeader}>
-              <MaterialCommunityIcons name="crown" size={14} color={Colors.gold} />
-              <Text style={styles.hotTakeLabel}>HOT TAKE</Text>
-            </View>
-            <Text style={styles.hotTakeText} numberOfLines={4}>"{hotTake.take}"</Text>
-            <Text style={styles.hotTakeHeadline} numberOfLines={2}>Re: {hotTake.headline}</Text>
-          </Animated.View>
-        )}
-        {hotTakeLoading && !hotTake && (
-          <Animated.View entering={FadeIn.duration(400)} style={styles.hotTakeBubble}>
-            <ActivityIndicator size="small" color={Colors.gold} />
-          </Animated.View>
-        )}
-
-        {activityFromLive.length > 0 && (
-          <Animated.View entering={FadeInDown.delay(850).duration(400)}>
-            <Animated.View style={[styles.activityWall, activityShakeStyle]}>
-              <View style={styles.activityHeader}>
-                <Ionicons name="flash" size={14} color="#ff4d4d" />
-                <Text style={styles.activityTitle}>LIVE ACTIVITY</Text>
-                <View style={styles.activityPulse} />
-              </View>
-              {activityFromLive.map((activity, i) => {
-                const isBoosted = activity.boosted;
-                const itemColor = activity.color;
-                const isNewest = i === 0;
-                return (
-                <Animated.View
-                  key={`act-${i}-${activity.message}`}
-                  entering={FadeIn.duration(400)}
-                  style={[
-                    styles.activityItem,
-                    isNewest && styles.activityItemNew,
-                    isBoosted && { borderLeftWidth: 2, borderLeftColor: "#FFD70040", paddingLeft: 6, backgroundColor: "rgba(255,215,0,0.04)" },
-                  ]}
-                >
-                  <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: (isBoosted ? "#FFD700" : itemColor) + "20", justifyContent: "center", alignItems: "center", marginRight: 6 }}>
-                    <Ionicons name={activity.icon as any} size={10} color={isBoosted ? "#FFD700" : itemColor} />
-                  </View>
-                  <Text style={[
-                    styles.activityText,
-                    isNewest && styles.activityTextNew,
-                    { color: isNewest ? itemColor : isBoosted ? "rgba(255,215,0,0.7)" : "rgba(255,255,255,0.5)" },
-                    isBoosted && { fontWeight: "600" as const },
-                  ]} numberOfLines={1}>{activity.message}</Text>
-                </Animated.View>
-                );
-              })}
-            </Animated.View>
-          </Animated.View>
-        )}
-
-        {dailyChallenge && (
-          <Animated.View entering={FadeInDown.delay(900).duration(500)}>
-            <Pressable
-              onPress={handleDailyChallenge}
-              style={({ pressed }) => [styles.dailyChallengeCard, pressed && { opacity: 0.8 }]}
-            >
-              <View style={styles.dailyChallengeHeader}>
-                <Ionicons name="flash" size={14} color="#FFD700" />
-                <Text style={styles.dailyChallengeLabel}>DAILY CHALLENGE</Text>
-              </View>
-              <Text style={styles.dailyChallengeText} numberOfLines={2}>{dailyChallenge}</Text>
-              <Text style={styles.dailyChallengeCta}>Tap to accept</Text>
-            </Pressable>
-          </Animated.View>
-        )}
-
-        <Animated.View entering={FadeInDown.delay(920).duration(500)} style={styles.weeklyCard}>
-          <LinearGradient
-            colors={["rgba(255,215,0,0.08)", "rgba(255,77,77,0.06)"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.weeklyGradient}
-          >
-            <View style={styles.weeklyHeader}>
-              <MaterialCommunityIcons name="microphone-variant" size={18} color={Colors.gold} />
-              <Text style={styles.weeklyTitle}>TRUMP'S WEEKLY ADDRESS</Text>
-            </View>
-            {weeklyCountdown.isLive ? (
-              <View style={styles.weeklyLiveRow}>
-                <View style={styles.weeklyLiveDot} />
-                <Text style={styles.weeklyLiveText}>LIVE NOW</Text>
-              </View>
-            ) : (
-              <View style={styles.weeklyCountdownRow}>
-                <View style={styles.weeklyTimeBlock}>
-                  <Text style={styles.weeklyTimeNum}>{weeklyCountdown.days}</Text>
-                  <Text style={styles.weeklyTimeLabel}>DAYS</Text>
-                </View>
-                <Text style={styles.weeklyTimeSep}>:</Text>
-                <View style={styles.weeklyTimeBlock}>
-                  <Text style={styles.weeklyTimeNum}>{weeklyCountdown.hours}</Text>
-                  <Text style={styles.weeklyTimeLabel}>HRS</Text>
-                </View>
-                <Text style={styles.weeklyTimeSep}>:</Text>
-                <View style={styles.weeklyTimeBlock}>
-                  <Text style={styles.weeklyTimeNum}>{weeklyCountdown.minutes}</Text>
-                  <Text style={styles.weeklyTimeLabel}>MIN</Text>
-                </View>
-              </View>
-            )}
-            <Text style={styles.weeklySubtext}>Every Sunday at 8 PM EST</Text>
-            <Pressable
-              onPress={toggleWeeklyReminder}
-              style={({ pressed }) => [styles.weeklyRemindBtn, weeklyReminder && styles.weeklyRemindBtnActive, pressed && { opacity: 0.7 }]}
-              testID="weekly-remind-btn"
-            >
-              <Ionicons name={weeklyReminder ? "notifications" : "notifications-outline"} size={14} color={weeklyReminder ? "#0a0a0a" : Colors.gold} />
-              <Text style={[styles.weeklyRemindText, weeklyReminder && styles.weeklyRemindTextActive]}>{weeklyReminder ? "REMINDED" : "REMIND ME"}</Text>
-            </Pressable>
-          </LinearGradient>
-        </Animated.View>
-
-        {electionDays > 0 && (
-          <Animated.View entering={FadeInDown.delay(940).duration(500)} style={styles.electionCard}>
-            <View style={styles.electionHeader}>
-              <Text style={styles.electionIcon}>{"\uD83D\uDDF3\uFE0F"}</Text>
-              <Text style={styles.electionLabel}>NEXT ELECTION</Text>
-            </View>
-            <View style={styles.electionDaysRow}>
-              <Text style={styles.electionDaysNum}>{electionDays}</Text>
-              <Text style={styles.electionDaysSuffix}> days</Text>
-            </View>
-            <Text style={styles.electionDate}>November 3, 2026 — Midterms</Text>
-            <Text style={styles.electionQuote}>
-              "{electionDays > 200
-                ? "We're going to win SO big, it'll make your head spin. Believe me!"
-                : electionDays > 100
-                ? "They're getting nervous, folks. They know what's coming. TREMENDOUS victory incoming!"
-                : electionDays > 30
-                ? "It's almost here, and let me tell you — the other side is PANICKING. We're gonna crush it!"
-                : "Days away from the BIGGEST victory in history. Nobody's ever seen anything like it!"}"
-            </Text>
-          </Animated.View>
-        )}
-
-        <Animated.View entering={FadeInDown.delay(945).duration(600)} style={arenaFeaturedStyle}>
+        <Animated.View entering={FadeInDown.delay(200).duration(600)} style={arenaFeaturedStyle}>
           <Pressable
             onPress={() => {
               playNavVoice("Political Arena. The greatest debate you've ever seen. Believe me.");
@@ -1470,38 +1305,7 @@ export default function HomeScreen() {
           </Pressable>
         </Animated.View>
 
-        <Animated.View entering={FadeInDown.delay(950).duration(500)}>
-          <Pressable
-            onPress={mysteryReady ? openMysteryBox : undefined}
-            disabled={!mysteryReady || mysteryRevealing}
-            style={({ pressed }) => [pressed && mysteryReady && { opacity: 0.85 }]}
-          >
-            <LinearGradient
-              colors={mysteryReady ? ["#FFD700", "#b8860b", "#FFD700"] : ["#1a1a2e", "#16213e", "#1a1a2e"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.mysteryBoxCard}
-            >
-              <View style={styles.mysteryBoxHeader}>
-                <Text style={styles.mysteryBoxEmoji}>{mysteryReady ? "\uD83C\uDF81" : "\uD83D\uDD12"}</Text>
-                <View>
-                  <Text style={[styles.mysteryBoxTitle, mysteryReady && { color: "#0a0a0a" }]}>MYSTERY BOX</Text>
-                  <Text style={[styles.mysteryBoxSub, mysteryReady && { color: "#0a0a0a" }]}>
-                    {mysteryRevealing ? "REVEALING..." : mysteryReady ? "TAP TO OPEN!" : `Opens in: ${Math.floor(mysteryTimeLeft / 3600)}h ${Math.floor((mysteryTimeLeft % 3600) / 60)}m`}
-                  </Text>
-                </View>
-                {mysteryRevealing && <ActivityIndicator size="small" color={mysteryReady ? "#0a0a0a" : "#FFD700"} style={{ marginLeft: "auto" }} />}
-              </View>
-              {!mysteryReady && (
-                <View style={styles.mysteryProgressBar}>
-                  <View style={[styles.mysteryProgressFill, { width: `${Math.max(0, ((86400 - mysteryTimeLeft) / 86400) * 100)}%` as any }]} />
-                </View>
-              )}
-            </LinearGradient>
-          </Pressable>
-        </Animated.View>
-
-        <Animated.View entering={FadeInDown.delay(950).duration(600)} style={styles.viralCtaRow}>
+        <Animated.View entering={FadeInDown.delay(300).duration(600)} style={styles.viralCtaRow}>
           <Animated.View style={pulseTherapyStyle}>
             <Pressable
               onPress={() => {
@@ -1552,7 +1356,7 @@ export default function HomeScreen() {
           </Animated.View>
         </Animated.View>
 
-        <Animated.View entering={FadeInDown.delay(950).duration(500)} style={[styles.modeButtons, sportsPulseStyle]}>
+        <Animated.View entering={FadeInDown.delay(350).duration(500)} style={[styles.modeButtons, sportsPulseStyle]}>
           <Pressable
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
@@ -1576,7 +1380,7 @@ export default function HomeScreen() {
             </View>
           </Pressable>
         </Animated.View>
-        <Animated.View entering={FadeInDown.delay(1050).duration(500)} style={styles.modeButtons}>
+        <Animated.View entering={FadeInDown.delay(400).duration(500)} style={styles.modeButtons}>
           <Pressable
             onPress={() => { playNavVoice("Roast Me. You sure you can handle this?"); handleRoastMode(); }}
             style={({ pressed }) => [styles.modeButton, styles.roastButton, pressed && { opacity: 0.7 }]}
@@ -1592,7 +1396,7 @@ export default function HomeScreen() {
             <Text style={styles.modeButtonText}>DEBATE</Text>
           </Pressable>
         </Animated.View>
-        <Animated.View entering={FadeInDown.delay(1150).duration(500)} style={styles.modeButtons}>
+        <Animated.View entering={FadeInDown.delay(450).duration(500)} style={styles.modeButtons}>
           <Pressable
             onPress={() => { playNavVoice("Live News. Breaking news, Trump's take."); handleLiveNewsMode(); }}
             style={({ pressed }) => [styles.modeButton, styles.liveNewsButton, pressed && { opacity: 0.7 }]}
@@ -1613,7 +1417,7 @@ export default function HomeScreen() {
             <Text style={styles.modeButtonText}>PREDICT</Text>
           </Pressable>
         </Animated.View>
-        <Animated.View entering={FadeInDown.delay(1250).duration(500)} style={styles.modeButtons}>
+        <Animated.View entering={FadeInDown.delay(500).duration(500)} style={styles.modeButtons}>
           <Pressable
             onPress={() => { playNavVoice("Truth Social. Time to post the truth."); handleTruthSocialMode(); }}
             style={({ pressed }) => [styles.modeButton, styles.truthSocialButton, pressed && { opacity: 0.7 }]}
@@ -1640,7 +1444,7 @@ export default function HomeScreen() {
             <Text style={styles.modeButtonText}>HOT SEAT</Text>
           </Pressable>
         </Animated.View>
-        <Animated.View entering={FadeInDown.delay(1350).duration(500)} style={styles.modeButtons}>
+        <Animated.View entering={FadeInDown.delay(550).duration(500)} style={styles.modeButtons}>
           <Pressable
             onPress={() => {
               playNavVoice("Dashboard. The numbers, tremendous numbers.");
@@ -1666,7 +1470,7 @@ export default function HomeScreen() {
             <Text style={styles.modeButtonText}>RATE HIM</Text>
           </Pressable>
         </Animated.View>
-        <Animated.View entering={FadeInDown.delay(1450).duration(500)} style={styles.modeButtons}>
+        <Animated.View entering={FadeInDown.delay(600).duration(500)} style={styles.modeButtons}>
           <Pressable
             onPress={() => {
               playNavVoice("Fortune. The future is looking tremendous.");
@@ -1692,7 +1496,7 @@ export default function HomeScreen() {
             <Text style={styles.modeButtonText}>THERAPY</Text>
           </Pressable>
         </Animated.View>
-        <Animated.View entering={FadeInDown.delay(1550).duration(500)} style={styles.modeButtons}>
+        <Animated.View entering={FadeInDown.delay(650).duration(500)} style={styles.modeButtons}>
           <Pressable
             onPress={() => {
               playNavVoice("Realty. The best properties, I know real estate.");
@@ -1718,7 +1522,7 @@ export default function HomeScreen() {
             <Text style={styles.modeButtonText}>BILLIONAIRES</Text>
           </Pressable>
         </Animated.View>
-        <Animated.View entering={FadeInDown.delay(1650).duration(500)} style={styles.modeButtons}>
+        <Animated.View entering={FadeInDown.delay(700).duration(500)} style={styles.modeButtons}>
           <Pressable
             onPress={() => {
               playNavVoice("Financial Faceoff. Who's the smartest with money?");
@@ -1744,7 +1548,7 @@ export default function HomeScreen() {
             <Text style={styles.modeButtonText}>DEBATE</Text>
           </Pressable>
         </Animated.View>
-        <Animated.View entering={FadeInDown.delay(1750).duration(500)} style={styles.modeButtons}>
+        <Animated.View entering={FadeInDown.delay(750).duration(500)} style={styles.modeButtons}>
           <Pressable
             onPress={() => {
               playNavVoice("Collectibles. The most beautiful cards you've ever seen.");
@@ -1763,6 +1567,203 @@ export default function HomeScreen() {
             )}
           </Pressable>
         </Animated.View>
+
+        {streak > 0 && (
+          <Animated.View entering={FadeIn.delay(800).duration(500)} style={styles.streakRow}>
+            <View style={styles.streakBadge}>
+              <MaterialCommunityIcons name="fire" size={16} color="#FF6B35" />
+              <Text style={styles.streakText}>{streak} day streak</Text>
+            </View>
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                const msg = `I've used Chat DJT for ${streak} days in a row! \uD83D\uDD25 Can you beat my streak?`;
+                if (Platform.OS === "web") {
+                  const tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(msg)}`;
+                  Linking.openURL(tweetUrl);
+                } else {
+                  Share.share({ message: msg });
+                }
+              }}
+              style={({ pressed }) => [styles.streakShareBtn, pressed && { opacity: 0.7 }]}
+              testID="share-streak-btn"
+            >
+              <Ionicons name="share-outline" size={12} color="#FF6B35" />
+              <Text style={styles.streakShareText}>SHARE</Text>
+            </Pressable>
+          </Animated.View>
+        )}
+
+        <Animated.View entering={FadeInDown.delay(850).duration(500)}>
+          <Pressable
+            onPress={mysteryReady ? openMysteryBox : undefined}
+            disabled={!mysteryReady || mysteryRevealing}
+            style={({ pressed }) => [pressed && mysteryReady && { opacity: 0.85 }]}
+          >
+            <LinearGradient
+              colors={mysteryReady ? ["#FFD700", "#b8860b", "#FFD700"] : ["#1a1a2e", "#16213e", "#1a1a2e"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.mysteryBoxCard}
+            >
+              <View style={styles.mysteryBoxHeader}>
+                <Text style={styles.mysteryBoxEmoji}>{mysteryReady ? "\uD83C\uDF81" : "\uD83D\uDD12"}</Text>
+                <View>
+                  <Text style={[styles.mysteryBoxTitle, mysteryReady && { color: "#0a0a0a" }]}>MYSTERY BOX</Text>
+                  <Text style={[styles.mysteryBoxSub, mysteryReady && { color: "#0a0a0a" }]}>
+                    {mysteryRevealing ? "REVEALING..." : mysteryReady ? "TAP TO OPEN!" : `Opens in: ${Math.floor(mysteryTimeLeft / 3600)}h ${Math.floor((mysteryTimeLeft % 3600) / 60)}m`}
+                  </Text>
+                </View>
+                {mysteryRevealing && <ActivityIndicator size="small" color={mysteryReady ? "#0a0a0a" : "#FFD700"} style={{ marginLeft: "auto" }} />}
+              </View>
+              {!mysteryReady && (
+                <View style={styles.mysteryProgressBar}>
+                  <View style={[styles.mysteryProgressFill, { width: `${Math.max(0, ((86400 - mysteryTimeLeft) / 86400) * 100)}%` as any }]} />
+                </View>
+              )}
+            </LinearGradient>
+          </Pressable>
+        </Animated.View>
+
+        {hotTake && (
+          <Animated.View entering={FadeIn.delay(900).duration(600)} style={styles.hotTakeBubble}>
+            <View style={styles.hotTakeHeader}>
+              <MaterialCommunityIcons name="crown" size={14} color={Colors.gold} />
+              <Text style={styles.hotTakeLabel}>HOT TAKE</Text>
+            </View>
+            <Text style={styles.hotTakeText} numberOfLines={4}>"{hotTake.take}"</Text>
+            <Text style={styles.hotTakeHeadline} numberOfLines={2}>Re: {hotTake.headline}</Text>
+          </Animated.View>
+        )}
+        {hotTakeLoading && !hotTake && (
+          <Animated.View entering={FadeIn.duration(400)} style={styles.hotTakeBubble}>
+            <ActivityIndicator size="small" color={Colors.gold} />
+          </Animated.View>
+        )}
+
+        {activityFromLive.length > 0 && (
+          <Animated.View entering={FadeInDown.delay(950).duration(400)}>
+            <Animated.View style={[styles.activityWall, activityShakeStyle]}>
+              <View style={styles.activityHeader}>
+                <Ionicons name="flash" size={14} color="#ff4d4d" />
+                <Text style={styles.activityTitle}>LIVE ACTIVITY</Text>
+                <View style={styles.activityPulse} />
+              </View>
+              {activityFromLive.map((activity, i) => {
+                const isBoosted = activity.boosted;
+                const itemColor = activity.color;
+                const isNewest = i === 0;
+                return (
+                <Animated.View
+                  key={`act-${i}-${activity.message}`}
+                  entering={FadeIn.duration(400)}
+                  style={[
+                    styles.activityItem,
+                    isNewest && styles.activityItemNew,
+                    isBoosted && { borderLeftWidth: 2, borderLeftColor: "#FFD70040", paddingLeft: 6, backgroundColor: "rgba(255,215,0,0.04)" },
+                  ]}
+                >
+                  <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: (isBoosted ? "#FFD700" : itemColor) + "20", justifyContent: "center", alignItems: "center", marginRight: 6 }}>
+                    <Ionicons name={activity.icon as any} size={10} color={isBoosted ? "#FFD700" : itemColor} />
+                  </View>
+                  <Text style={[
+                    styles.activityText,
+                    isNewest && styles.activityTextNew,
+                    { color: isNewest ? itemColor : isBoosted ? "rgba(255,215,0,0.7)" : "rgba(255,255,255,0.5)" },
+                    isBoosted && { fontWeight: "600" as const },
+                  ]} numberOfLines={1}>{activity.message}</Text>
+                </Animated.View>
+                );
+              })}
+            </Animated.View>
+          </Animated.View>
+        )}
+
+        {dailyChallenge && (
+          <Animated.View entering={FadeInDown.delay(1000).duration(500)}>
+            <Pressable
+              onPress={handleDailyChallenge}
+              style={({ pressed }) => [styles.dailyChallengeCard, pressed && { opacity: 0.8 }]}
+            >
+              <View style={styles.dailyChallengeHeader}>
+                <Ionicons name="flash" size={14} color="#FFD700" />
+                <Text style={styles.dailyChallengeLabel}>DAILY CHALLENGE</Text>
+              </View>
+              <Text style={styles.dailyChallengeText} numberOfLines={2}>{dailyChallenge}</Text>
+              <Text style={styles.dailyChallengeCta}>Tap to accept</Text>
+            </Pressable>
+          </Animated.View>
+        )}
+
+        <Animated.View entering={FadeInDown.delay(1050).duration(500)} style={styles.weeklyCard}>
+          <LinearGradient
+            colors={["rgba(255,215,0,0.08)", "rgba(255,77,77,0.06)"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.weeklyGradient}
+          >
+            <View style={styles.weeklyHeader}>
+              <MaterialCommunityIcons name="microphone-variant" size={18} color={Colors.gold} />
+              <Text style={styles.weeklyTitle}>TRUMP'S WEEKLY ADDRESS</Text>
+            </View>
+            {weeklyCountdown.isLive ? (
+              <View style={styles.weeklyLiveRow}>
+                <View style={styles.weeklyLiveDot} />
+                <Text style={styles.weeklyLiveText}>LIVE NOW</Text>
+              </View>
+            ) : (
+              <View style={styles.weeklyCountdownRow}>
+                <View style={styles.weeklyTimeBlock}>
+                  <Text style={styles.weeklyTimeNum}>{weeklyCountdown.days}</Text>
+                  <Text style={styles.weeklyTimeLabel}>DAYS</Text>
+                </View>
+                <Text style={styles.weeklyTimeSep}>:</Text>
+                <View style={styles.weeklyTimeBlock}>
+                  <Text style={styles.weeklyTimeNum}>{weeklyCountdown.hours}</Text>
+                  <Text style={styles.weeklyTimeLabel}>HRS</Text>
+                </View>
+                <Text style={styles.weeklyTimeSep}>:</Text>
+                <View style={styles.weeklyTimeBlock}>
+                  <Text style={styles.weeklyTimeNum}>{weeklyCountdown.minutes}</Text>
+                  <Text style={styles.weeklyTimeLabel}>MIN</Text>
+                </View>
+              </View>
+            )}
+            <Text style={styles.weeklySubtext}>Every Sunday at 8 PM EST</Text>
+            <Pressable
+              onPress={toggleWeeklyReminder}
+              style={({ pressed }) => [styles.weeklyRemindBtn, weeklyReminder && styles.weeklyRemindBtnActive, pressed && { opacity: 0.7 }]}
+              testID="weekly-remind-btn"
+            >
+              <Ionicons name={weeklyReminder ? "notifications" : "notifications-outline"} size={14} color={weeklyReminder ? "#0a0a0a" : Colors.gold} />
+              <Text style={[styles.weeklyRemindText, weeklyReminder && styles.weeklyRemindTextActive]}>{weeklyReminder ? "REMINDED" : "REMIND ME"}</Text>
+            </Pressable>
+          </LinearGradient>
+        </Animated.View>
+
+        {electionDays > 0 && (
+          <Animated.View entering={FadeInDown.delay(1100).duration(500)} style={styles.electionCard}>
+            <View style={styles.electionHeader}>
+              <Text style={styles.electionIcon}>{"\uD83D\uDDF3\uFE0F"}</Text>
+              <Text style={styles.electionLabel}>NEXT ELECTION</Text>
+            </View>
+            <View style={styles.electionDaysRow}>
+              <Text style={styles.electionDaysNum}>{electionDays}</Text>
+              <Text style={styles.electionDaysSuffix}> days</Text>
+            </View>
+            <Text style={styles.electionDate}>November 3, 2026 — Midterms</Text>
+            <Text style={styles.electionQuote}>
+              "{electionDays > 200
+                ? "We're going to win SO big, it'll make your head spin. Believe me!"
+                : electionDays > 100
+                ? "They're getting nervous, folks. They know what's coming. TREMENDOUS victory incoming!"
+                : electionDays > 30
+                ? "It's almost here, and let me tell you — the other side is PANICKING. We're gonna crush it!"
+                : "Days away from the BIGGEST victory in history. Nobody's ever seen anything like it!"}"
+            </Text>
+          </Animated.View>
+        )}
+
         {fearGreed && (
           <Animated.View entering={FadeInDown.delay(1750).duration(500)} style={styles.fearGreedCard}>
             <View style={styles.fearGreedHeader}>
@@ -2341,13 +2342,17 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   headerBrandBy: {
-    fontSize: 13,
-    color: "rgba(255, 255, 255, 0.7)",
+    fontSize: 14,
+    color: "rgba(255, 215, 0, 0.85)",
     fontStyle: "italic",
+    fontWeight: "600" as const,
+    textShadowColor: "rgba(255, 215, 0, 0.4)",
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 6,
   },
   headerBrandLogo: {
-    width: 130,
-    height: 30,
+    width: 150,
+    height: 36,
   },
   headerRight: {
     flexDirection: "row",
