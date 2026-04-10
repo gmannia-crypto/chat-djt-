@@ -2516,6 +2516,9 @@ export default function ArenaScreen() {
           setShowPreDebateSetup(true);
         } else {
           sessionEndedRef.current = false;
+          isInterruptingRef.current = false;
+          currentSpeakerRef.current = null;
+          setCurrentSpeaker(null);
           setIsRunning(true);
           isRunningRef.current = true;
           addSystemMessage(continueMode ? `Session extended! ${mins} more minutes — scores carry over. Keep going!` : `Session unlocked! ${mins} minutes of unlimited access.`);
@@ -2595,6 +2598,7 @@ export default function ArenaScreen() {
         setIsRunning(false);
         isRunningRef.current = false;
         sessionEndedRef.current = true;
+        isInterruptingRef.current = false;
         if (breakingNewsTimerRef.current) { clearInterval(breakingNewsTimerRef.current); breakingNewsTimerRef.current = null; }
         setBreakingNewsBanner(null);
         breakingNewsBannerRef.current = null;
@@ -3364,6 +3368,9 @@ export default function ArenaScreen() {
   const startDebate = useCallback(async () => {
     if (!mountedRef.current) return;
     sessionEndedRef.current = false;
+    isInterruptingRef.current = false;
+    currentSpeakerRef.current = null;
+    setCurrentSpeaker(null);
     setIsRunning(true);
     isRunningRef.current = true;
     try {
