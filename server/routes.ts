@@ -8047,11 +8047,13 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
     const lng = p.latLong?.value?.longitude || null;
     let img: string | null = null;
     try {
-      if (p.dataSourceId && p.listingId && p.primaryPhotoDisplayLevel !== 0) {
-        img = `https://ssl.cdn-redfin.com/photo/${p.dataSourceId}/bigphoto/${Math.floor(p.listingId / 100)}/${p.listingId}_0.jpg`;
+      const mlsVal = p.mlsId?.value || "";
+      if (p.dataSourceId && mlsVal && p.primaryPhotoDisplayLevel !== 0) {
+        const last3 = mlsVal.slice(-3);
+        img = `https://ssl.cdn-redfin.com/photo/${p.dataSourceId}/bigphoto/${last3}/${mlsVal}_0.jpg`;
       }
-      if (!img && p.url) {
-        img = `https://ssl.cdn-redfin.com/system_files/media/thumbnails/${p.url.replace(/\//g, '_').replace(/^_/, '')}_0_1.jpg`;
+      if (!img && p.dataSourceId && p.listingId && p.primaryPhotoDisplayLevel !== 0) {
+        img = `https://ssl.cdn-redfin.com/photo/${p.dataSourceId}/bigphoto/${String(p.listingId).slice(-3)}/${p.listingId}_0.jpg`;
       }
     } catch {}
     const propertyId = p.propertyId || p.listingId || null;
@@ -8476,7 +8478,7 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
       const guide = TOUR_GUIDES[guideId || "sofia"];
       if (!guide) return res.status(400).json({ error: "Unknown guide" });
 
-      const systemPrompt = `${guide.prompt}\n\nYou are giving a tour/consultation about real estate in ${location || "this area"}. The customer's name is ${userName || "friend"}. Address them by name occasionally. Be helpful, specific, and engaging. Do NOT use asterisks, stage directions, or quotation marks around your response.`;
+      const systemPrompt = `${guide.prompt}\n\nYou are giving a tour/consultation about real estate in ${location || "this area"}. The customer's name is ${userName || "friend"}. Address them by name occasionally. Be helpful, specific, and engaging. Give REAL, ACCURATE information about the actual location — mention real neighborhoods, streets, landmarks, price ranges, school districts, and market trends that exist in ${location || "this area"}. Do NOT make up fake addresses or prices. Do NOT use asterisks, stage directions, or quotation marks around your response. Keep responses concise but informative — 2-4 sentences.`;
 
       const completion = await getClient().chat.completions.create({
         model: getFastModel(),
@@ -8484,7 +8486,7 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
           { role: "system", content: systemPrompt },
           { role: "user", content: message || "Tell me about investing in this area" },
         ],
-        max_completion_tokens: 120,
+        max_completion_tokens: 250,
         temperature: 0.85,
       });
       const response = completion.choices[0]?.message?.content || "Let me look into that for you...";
@@ -8508,24 +8510,78 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
         return res.json(cached.data);
       }
 
-      const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(location)}&count=1&language=en&format=json&country_code=US`);
-      if (!geoRes.ok) {
-        return res.status(502).json({ error: "Could not find that location" });
-      }
-      const geoData = await geoRes.json();
-      const place = geoData.results?.[0];
-      if (!place) {
-        return res.status(404).json({ error: "Location not found. Try a US city name like 'Miami' or 'Austin'" });
+      const isZipCode = /^\d{5}(-\d{4})?$/.test(location.trim());
+      const isAddress = /\d+\s+\w+\s+(st|street|ave|avenue|blvd|boulevard|dr|drive|rd|road|ln|lane|ct|court|way|pl|place|cir|circle)/i.test(location.trim());
+
+      let lat: number | null = null;
+      let lng: number | null = null;
+      let cityName = location;
+      let stateName = "";
+      let delta = 0.05;
+
+      if (isZipCode || isAddress) {
+        try {
+          const nomRes = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(location.trim())}&countrycodes=us&format=json&limit=1&addressdetails=1`, {
+            headers: { "User-Agent": "TrumpRealty/1.0" },
+          });
+          if (nomRes.ok) {
+            const nomData = await nomRes.json();
+            if (nomData[0]) {
+              lat = parseFloat(nomData[0].lat);
+              lng = parseFloat(nomData[0].lon);
+              const addr = nomData[0].address || {};
+              cityName = addr.city || addr.town || addr.village || addr.suburb || addr.neighbourhood || location;
+              stateName = addr.state || "";
+              if (isZipCode) delta = 0.03;
+              if (isAddress) delta = 0.01;
+            }
+          }
+        } catch {}
       }
 
-      const lat = place.latitude;
-      const lng = place.longitude;
-      const cityName = place.name || location;
-      const stateName = place.admin1 || "";
-      const delta = 0.15;
-      const poly = `${lng - delta} ${lat - delta},${lng + delta} ${lat - delta},${lng + delta} ${lat + delta},${lng - delta} ${lat + delta},${lng - delta} ${lat - delta}`;
+      if (lat === null || lng === null) {
+        try {
+          const nomRes = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(location.trim())}&countrycodes=us&format=json&limit=1&addressdetails=1`, {
+            headers: { "User-Agent": "TrumpRealty/1.0" },
+          });
+          if (nomRes.ok) {
+            const nomData = await nomRes.json();
+            if (nomData[0]) {
+              lat = parseFloat(nomData[0].lat);
+              lng = parseFloat(nomData[0].lon);
+              const addr = nomData[0].address || {};
+              cityName = addr.city || addr.town || addr.village || nomData[0].display_name?.split(",")[0] || location;
+              stateName = addr.state || "";
+            }
+          }
+        } catch {}
+      }
 
-      const redfinUrl = `https://www.redfin.com/stingray/api/gis?al=1&num_homes=12&sf=1,2,3,5,6,7&status=9&uipt=1,2,3,4,5,6,7,8&poly=${encodeURIComponent(poly)}`;
+      if (lat === null || lng === null) {
+        const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(location)}&count=5&language=en&format=json&country_code=US`);
+        if (!geoRes.ok) {
+          return res.status(502).json({ error: "Could not find that location" });
+        }
+        const geoData = await geoRes.json();
+        let place = geoData.results?.[0];
+        if (geoData.results?.length > 1) {
+          const sorted = geoData.results.sort((a: any, b: any) => (b.population || 0) - (a.population || 0));
+          place = sorted[0];
+        }
+        if (!place) {
+          return res.status(404).json({ error: "Location not found. Try a US city, zip code, or address" });
+        }
+        lat = place.latitude;
+        lng = place.longitude;
+        cityName = place.name || location;
+        stateName = place.admin1 || "";
+        const pop = place.population || 0;
+        delta = pop > 500000 ? 0.08 : pop > 100000 ? 0.06 : 0.04;
+      }
+
+      const poly = `${lng! - delta} ${lat! - delta},${lng! + delta} ${lat! - delta},${lng! + delta} ${lat! + delta},${lng! - delta} ${lat! + delta},${lng! - delta} ${lat! - delta}`;
+
+      const redfinUrl = `https://www.redfin.com/stingray/api/gis?al=1&num_homes=20&sf=1,2,3,5,6,7&status=9&uipt=1,2,3,4,5,6,7,8&poly=${encodeURIComponent(poly)}`;
       const redfinRes = await fetch(redfinUrl, {
         headers: {
           "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -8544,13 +8600,26 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
       const data = JSON.parse(jsonText);
 
       if (data.resultCode !== 0 || !data.payload?.homes) {
-        return res.json({ location: cityName, totalResults: 0, properties: [] });
+        return res.json({ location: `${cityName}${stateName ? `, ${stateName}` : ""}`, totalResults: 0, properties: [] });
       }
 
-      const props = data.payload.homes.slice(0, 12).map(trumpifyProperty);
+      let homes = data.payload.homes;
+      if (lat && lng) {
+        homes = homes.sort((a: any, b: any) => {
+          const aLat = a.latLong?.value?.latitude || 0;
+          const aLng = a.latLong?.value?.longitude || 0;
+          const bLat = b.latLong?.value?.latitude || 0;
+          const bLng = b.latLong?.value?.longitude || 0;
+          const aDist = Math.sqrt(Math.pow(aLat - lat!, 2) + Math.pow(aLng - lng!, 2));
+          const bDist = Math.sqrt(Math.pow(bLat - lat!, 2) + Math.pow(bLng - lng!, 2));
+          return aDist - bDist;
+        });
+      }
+
+      const props = homes.slice(0, 15).map(trumpifyProperty);
 
       const result = {
-        location: `${cityName}, ${stateName}`,
+        location: `${cityName}${stateName ? `, ${stateName}` : ""}`,
         totalResults: data.payload.homes.length,
         properties: props,
       };

@@ -171,6 +171,7 @@ export default function RealEstateScreen() {
   const [selectedAdvisor, setSelectedAdvisor] = useState("trump");
   const [aiComments, setAiComments] = useState<Record<string, { comment: string; rating: number }>>({});
   const [aiLoading, setAiLoading] = useState<Record<string, boolean>>({});
+  const [failedImgs, setFailedImgs] = useState<Set<string>>(new Set());
   const soundRef = useRef<Audio.Sound | null>(null);
 
   const [prospectLocation, setProspectLocation] = useState("Miami, FL");
@@ -263,6 +264,24 @@ export default function RealEstateScreen() {
     }
   }, [prospectCategory]);
 
+  const speakTourMessage = useCallback(async (text: string, guideId: string) => {
+    try {
+      if (tourSoundRef.current) { await tourSoundRef.current.stopAsync(); await tourSoundRef.current.unloadAsync(); tourSoundRef.current = null; }
+      setTourSpeaking(true);
+      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+      const sound = await playTTS("/api/persona-speak", { text, personaId: guideId });
+      tourSoundRef.current = sound;
+      sound.setOnPlaybackStatusUpdate((status: any) => {
+        if (status.didJustFinish) { setTourSpeaking(false); sound.unloadAsync(); tourSoundRef.current = null; }
+      });
+    } catch { setTourSpeaking(false); }
+  }, []);
+
+  const stopTourSpeaking = useCallback(async () => {
+    if (tourSoundRef.current) { await tourSoundRef.current.stopAsync(); await tourSoundRef.current.unloadAsync(); tourSoundRef.current = null; }
+    setTourSpeaking(false);
+  }, []);
+
   const sendTourMessage = useCallback(async (msg?: string) => {
     const text = msg || tourInput.trim();
     if (!text) return;
@@ -281,10 +300,11 @@ export default function RealEstateScreen() {
       if (res.ok) {
         const data = await res.json();
         setTourMessages((prev) => [...prev, { id: `guide-${Date.now()}`, role: "guide", text: data.response, guideName: data.guideName }]);
+        speakTourMessage(data.response, selectedGuide);
       }
     } catch {}
     setTourLoading(false);
-  }, [tourInput, selectedGuide, mapLocation, tourUserName]);
+  }, [tourInput, selectedGuide, mapLocation, tourUserName, speakTourMessage]);
 
   const startTour = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
@@ -761,7 +781,7 @@ export default function RealEstateScreen() {
               <View style={s.searchRow}>
                 <TextInput
                   style={s.searchInput}
-                  placeholder="Enter zip code or city..."
+                  placeholder="City, zip code, or address..."
                   placeholderTextColor="rgba(255,255,255,0.3)"
                   value={location}
                   onChangeText={setLocation}
@@ -774,7 +794,7 @@ export default function RealEstateScreen() {
                   </View>
                 </Pressable>
               </View>
-              <Text style={s.searchHint}>Search by zip code (e.g. 90210) or city name</Text>
+              <Text style={s.searchHint}>Try: "90210", "Miami Beach", or "123 Main St Austin TX"</Text>
             </Animated.View>
 
             <View style={s.advisorSection}>
@@ -818,8 +838,8 @@ export default function RealEstateScreen() {
               return (
                 <Animated.View entering={FadeInDown.delay(index * 100).duration(400)} key={propId} style={s.propCard}>
                   <View style={s.propImgBox}>
-                    {item.img ? (
-                      <Image source={{ uri: item.img }} style={s.propImg} resizeMode="cover" />
+                    {item.img && !failedImgs.has(propId) ? (
+                      <Image source={{ uri: item.img }} style={s.propImg} resizeMode="cover" onError={() => setFailedImgs(prev => new Set(prev).add(propId))} />
                     ) : (
                       <View style={[s.propImg, s.propNoImg]}><FontAwesome5 name="home" size={40} color="rgba(212,164,32,0.3)" /></View>
                     )}
@@ -1118,7 +1138,21 @@ export default function RealEstateScreen() {
                       entering={SlideInRight.duration(300)}
                       style={[s.tourMsg, msg.role === "user" ? s.tourMsgUser : s.tourMsgGuide]}
                     >
-                      {msg.role === "guide" && <Text style={s.tourMsgName}>{msg.guideName || activeGuide.name}</Text>}
+                      {msg.role === "guide" && (
+                        <View style={s.tourGuideHeader}>
+                          <Text style={s.tourMsgName}>{msg.guideName || activeGuide.name}</Text>
+                          <Pressable
+                            testID="tour-speak-btn"
+                            accessibilityRole="button"
+                            accessibilityLabel={tourSpeaking ? "Stop speaking" : "Play voice"}
+                            onPress={() => tourSpeaking ? stopTourSpeaking() : speakTourMessage(msg.text, selectedGuide)}
+                            style={({ pressed }) => [s.tourSpeakBtn, tourSpeaking && s.tourSpeakBtnStop, pressed && { opacity: 0.6 }]}
+                          >
+                            <Ionicons name={tourSpeaking ? "stop" : "volume-high"} size={13} color={tourSpeaking ? "#EF4444" : Colors.gold} />
+                            <Text style={[s.tourSpeakText, tourSpeaking && { color: "#EF4444" }]}>{tourSpeaking ? "STOP" : "PLAY"}</Text>
+                          </Pressable>
+                        </View>
+                      )}
                       <Text style={[s.tourMsgText, msg.role === "user" && { color: "#4ADE80" }]}>{msg.text}</Text>
                     </Animated.View>
                   ))}
@@ -1341,7 +1375,11 @@ const s = StyleSheet.create({
   tourMsg: { borderRadius: 4, padding: 10, maxWidth: "85%", borderLeftWidth: 3 },
   tourMsgUser: { alignSelf: "flex-end", backgroundColor: RE_INPUT_BG, borderLeftColor: "#4CAF50" },
   tourMsgGuide: { alignSelf: "flex-start", backgroundColor: RE_INPUT_BG, borderLeftColor: RE_RED },
-  tourMsgName: { fontSize: 10, fontWeight: "700" as const, color: RE_RED, letterSpacing: 1, marginBottom: 4 },
+  tourGuideHeader: { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, marginBottom: 4 },
+  tourMsgName: { fontSize: 10, fontWeight: "700" as const, color: RE_RED, letterSpacing: 1 },
+  tourSpeakBtn: { flexDirection: "row" as const, alignItems: "center" as const, gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, backgroundColor: "rgba(212,164,32,0.15)" },
+  tourSpeakBtnStop: { backgroundColor: "rgba(239,68,68,0.2)" },
+  tourSpeakText: { fontSize: 11, color: Colors.gold, fontWeight: "700" as const, letterSpacing: 0.5 },
   tourMsgText: { fontSize: 14, color: Colors.white, lineHeight: 22 },
   tourTyping: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8 },
   tourTypingText: { fontSize: 12, color: "#888", fontStyle: "italic" },
