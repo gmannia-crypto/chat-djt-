@@ -146,6 +146,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       odonnell: { sentiment: 2 },
       kamala: { sentiment: 5 },
       mtg: { sentiment: 5 },
+      schumer: { sentiment: 5 },
     },
     triggerWords: {
       positive: ["great", "win", "success", "money", "deal", "beautiful", "trump"],
@@ -2496,7 +2497,7 @@ export default function ArenaScreen() {
         body: JSON.stringify({ duration: selectedDuration }),
       });
       const data = await res.json();
-      if (data.granted) {
+      if (res.ok && data.granted) {
         setHasSession(true);
         setSessionExpiresAt(data.expiresAt);
         setShowPaywall(false);
