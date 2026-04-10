@@ -160,6 +160,8 @@ export default function RealEstateScreen() {
   const [tourLoading, setTourLoading] = useState(false);
   const [tourSpeaking, setTourSpeaking] = useState(false);
   const tourSoundRef = useRef<Audio.Sound | null>(null);
+  const [tourProperties, setTourProperties] = useState<Property[]>([]);
+  const [tourPropsLoading, setTourPropsLoading] = useState(false);
 
   const [location, setLocation] = useState("");
   const [properties, setProperties] = useState<Property[]>([]);
@@ -306,11 +308,29 @@ export default function RealEstateScreen() {
     setTourLoading(false);
   }, [tourInput, selectedGuide, mapLocation, tourUserName, speakTourMessage]);
 
+  const fetchTourProperties = useCallback(async (loc: string) => {
+    setTourPropsLoading(true);
+    try {
+      const baseUrl = getApiUrl();
+      const res = await fetch(`${baseUrl}api/properties?location=${encodeURIComponent(loc.trim())}`);
+      if (res.ok) {
+        const data = await res.json();
+        setTourProperties(data.properties || []);
+      }
+    } catch {
+      setTourProperties([]);
+    } finally {
+      setTourPropsLoading(false);
+    }
+  }, []);
+
   const startTour = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     setTourMessages([]);
+    setTourProperties([]);
     sendTourMessage(`Hi! I'm interested in real estate in ${mapLocation}. What should I know about investing here?`);
-  }, [mapLocation, sendTourMessage]);
+    fetchTourProperties(mapLocation);
+  }, [mapLocation, sendTourMessage, fetchTourProperties]);
 
   const calculateMortgage = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -1114,6 +1134,17 @@ export default function RealEstateScreen() {
                 ))}
               </ScrollView>
 
+              <View style={s.tourLocationRow}>
+                <Ionicons name="location" size={14} color={Colors.gold} />
+                <TextInput
+                  style={s.tourLocationInput}
+                  value={mapLocation}
+                  onChangeText={setMapLocation}
+                  placeholder="City, state or zip..."
+                  placeholderTextColor="rgba(255,255,255,0.3)"
+                  returnKeyType="done"
+                />
+              </View>
               <View style={s.tourStartRow}>
                 <TextInput
                   style={s.tourNameInput}
@@ -1179,6 +1210,56 @@ export default function RealEstateScreen() {
                   <Pressable onPress={() => sendTourMessage()} disabled={!tourInput.trim() || tourLoading} style={({ pressed }) => [s.tourSendBtn, pressed && { opacity: 0.7 }]}>
                     <Ionicons name="send" size={18} color={!tourInput.trim() ? "rgba(255,255,255,0.3)" : Colors.gold} />
                   </Pressable>
+                </View>
+              )}
+
+              {tourPropsLoading && (
+                <View style={s.tourPropsHeader}>
+                  <ActivityIndicator size="small" color={Colors.gold} />
+                  <Text style={s.tourPropsTitle}>Loading nearby listings...</Text>
+                </View>
+              )}
+
+              {!tourPropsLoading && tourProperties.length > 0 && (
+                <View style={s.tourPropsSection}>
+                  <View style={s.tourPropsHeader}>
+                    <Ionicons name="home" size={16} color={Colors.gold} />
+                    <Text style={s.tourPropsTitle}>LIVE LISTINGS IN {mapLocation.toUpperCase()}</Text>
+                    <Text style={s.tourPropsCount}>{tourProperties.length}</Text>
+                  </View>
+                  {tourProperties.slice(0, 8).map((prop, idx) => {
+                    const imgFailed = prop.img ? failedImgs.has(prop.img) : true;
+                    return (
+                      <Animated.View key={prop.id || idx} entering={FadeInDown.delay(idx * 80).duration(300)} style={s.tourPropCard}>
+                        {prop.img && !imgFailed ? (
+                          <Image
+                            source={{ uri: prop.img }}
+                            style={s.tourPropImg}
+                            onError={() => { if (prop.img) setFailedImgs(prev => new Set(prev).add(prop.img!)); }}
+                          />
+                        ) : (
+                          <View style={s.tourPropImgPlaceholder}>
+                            <Ionicons name="home" size={24} color="rgba(212,164,32,0.4)" />
+                          </View>
+                        )}
+                        <View style={s.tourPropInfo}>
+                          <Text style={s.tourPropPrice}>{formatPrice(prop.price)}</Text>
+                          <Text style={s.tourPropAddress} numberOfLines={1}>{prop.street}</Text>
+                          <Text style={s.tourPropMeta}>{prop.city}, {prop.state} {prop.zip}</Text>
+                          <View style={s.tourPropStats}>
+                            <Text style={s.tourPropStat}>{prop.beds} bd</Text>
+                            <Text style={s.tourPropStatDot}>·</Text>
+                            <Text style={s.tourPropStat}>{prop.baths} ba</Text>
+                            <Text style={s.tourPropStatDot}>·</Text>
+                            <Text style={s.tourPropStat}>{prop.sqft.toLocaleString()} sqft</Text>
+                          </View>
+                          {prop.trumpComment && (
+                            <Text style={s.tourPropComment} numberOfLines={2}>"{prop.trumpComment}"</Text>
+                          )}
+                        </View>
+                      </Animated.View>
+                    );
+                  })}
                 </View>
               )}
             </View>
@@ -1438,4 +1519,21 @@ const s = StyleSheet.create({
   prospectPriceValue: { fontSize: 13, fontWeight: "700" as const },
   prospectPriceLabel: { fontSize: 8, color: "#888", fontWeight: "600" as const, textAlign: "center" as const },
   prospectExpandHint: { alignItems: "center" as const, paddingTop: 6 },
+  tourLocationRow: { flexDirection: "row" as const, alignItems: "center" as const, gap: 8, marginBottom: 8, backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 8, paddingHorizontal: 10, borderWidth: 1, borderColor: "rgba(212,175,55,0.2)" },
+  tourLocationInput: { flex: 1, height: 40, fontSize: 14, color: Colors.white },
+  tourPropsSection: { marginTop: 16, gap: 8 },
+  tourPropsHeader: { flexDirection: "row" as const, alignItems: "center" as const, gap: 8, marginBottom: 4 },
+  tourPropsTitle: { fontSize: 12, fontWeight: "800" as const, color: Colors.gold, letterSpacing: 1 },
+  tourPropsCount: { fontSize: 11, fontWeight: "700" as const, color: "#000", backgroundColor: Colors.gold, borderRadius: 10, paddingHorizontal: 7, paddingVertical: 1, overflow: "hidden" as const },
+  tourPropCard: { flexDirection: "row" as const, backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 10, borderWidth: 1, borderColor: "rgba(255,77,77,0.2)", overflow: "hidden" as const },
+  tourPropImg: { width: 90, height: 90 },
+  tourPropImgPlaceholder: { width: 90, height: 90, backgroundColor: "rgba(255,255,255,0.05)", alignItems: "center" as const, justifyContent: "center" as const },
+  tourPropInfo: { flex: 1, padding: 8, gap: 2 },
+  tourPropPrice: { fontSize: 15, fontWeight: "800" as const, color: Colors.gold },
+  tourPropAddress: { fontSize: 11, fontWeight: "600" as const, color: "#ddd" },
+  tourPropMeta: { fontSize: 10, color: "#888" },
+  tourPropStats: { flexDirection: "row" as const, alignItems: "center" as const, gap: 4, marginTop: 2 },
+  tourPropStat: { fontSize: 10, fontWeight: "600" as const, color: "#aaa" },
+  tourPropStatDot: { fontSize: 8, color: "#555" },
+  tourPropComment: { fontSize: 9, fontStyle: "italic" as const, color: "rgba(255,77,77,0.7)", marginTop: 2 },
 });

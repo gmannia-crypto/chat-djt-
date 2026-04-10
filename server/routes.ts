@@ -8273,20 +8273,103 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
     return "avoid";
   }
 
-  function generateZonesForLocation(location: string) {
+  const zoneNeighborhoodCache = new Map<string, { names: string[]; timestamp: number }>();
+  const ZONE_NEIGHBORHOOD_TTL = 1000 * 60 * 60;
+
+  async function fetchRealNeighborhoods(location: string): Promise<string[]> {
+    const cacheKey = location.toLowerCase().trim();
+    const cached = zoneNeighborhoodCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < ZONE_NEIGHBORHOOD_TTL) return cached.names;
+
+    try {
+      const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(location)}&countrycodes=us&format=json&limit=1&addressdetails=1`, {
+        headers: { "User-Agent": "TrumpRealty/1.0" },
+      });
+      if (!geoRes.ok) return [];
+      const geoData = await geoRes.json();
+      if (!geoData[0]) return [];
+      const lat = parseFloat(geoData[0].lat);
+      const lon = parseFloat(geoData[0].lon);
+
+      const nearbyRes = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=neighborhood&viewbox=${lon - 0.15},${lat + 0.15},${lon + 0.15},${lat - 0.15}&bounded=1&format=json&limit=30&addressdetails=1&countrycodes=us`, {
+        headers: { "User-Agent": "TrumpRealty/1.0" },
+      });
+      let names: string[] = [];
+      if (nearbyRes.ok) {
+        const nearbyData = await nearbyRes.json();
+        names = nearbyData
+          .map((p: any) => {
+            const addr = p.address || {};
+            return addr.neighbourhood || addr.suburb || addr.quarter || addr.city_district || addr.town || addr.village || "";
+          })
+          .filter((n: string) => n.length > 0);
+      }
+
+      if (names.length < 5) {
+        const revRes = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&addressdetails=1&zoom=14`, {
+          headers: { "User-Agent": "TrumpRealty/1.0" },
+        });
+        if (revRes.ok) {
+          const revData = await revRes.json();
+          const addr = revData.address || {};
+          const cityName = addr.city || addr.town || addr.village || "";
+          const stateName = addr.state || "";
+
+          const offsets = [
+            [0.02, 0.02], [-0.02, 0.02], [0.02, -0.02], [-0.02, -0.02],
+            [0.04, 0], [0, 0.04], [-0.04, 0], [0, -0.04],
+            [0.06, 0.03], [-0.03, 0.06], [0.05, -0.04], [-0.06, -0.02],
+          ];
+          for (const [dlat, dlon] of offsets) {
+            if (names.length >= 12) break;
+            try {
+              const ptRes = await fetch(
+                `https://nominatim.openstreetmap.org/reverse?lat=${lat + dlat}&lon=${lon + dlon}&format=json&addressdetails=1&zoom=16`, {
+                headers: { "User-Agent": "TrumpRealty/1.0" },
+              });
+              if (ptRes.ok) {
+                const ptData = await ptRes.json();
+                const ptAddr = ptData.address || {};
+                const name = ptAddr.neighbourhood || ptAddr.suburb || ptAddr.quarter || ptAddr.city_district || ptAddr.town || ptAddr.village || "";
+                if (name && !names.includes(name) && name !== cityName && name !== stateName) {
+                  names.push(name);
+                }
+              }
+            } catch {}
+          }
+        }
+      }
+
+      const cleaned = [...new Set(names)]
+        .map((n: string) => n.replace(/ Neighborhood Council District$/i, "").replace(/ Community District$/i, "").trim())
+        .filter((n: string) => n.length > 0 && n.length < 40);
+      const unique = [...new Set(cleaned)].slice(0, 15);
+      zoneNeighborhoodCache.set(cacheKey, { names: unique, timestamp: Date.now() });
+      return unique;
+    } catch (err) {
+      console.error("Neighborhood fetch error:", err);
+      return [];
+    }
+  }
+
+  function generateZonesForLocation(location: string, realNeighborhoods?: string[]) {
     const seed = location.toLowerCase().split("").reduce((a, c) => a + c.charCodeAt(0), 0);
     const rng = (i: number) => {
       const x = Math.sin(seed * 9301 + i * 49297) * 49297;
       return x - Math.floor(x);
     };
 
-    const neighborhoods = [
+    const fallbackNames = [
       "Downtown Core", "Midtown", "Uptown", "Waterfront District", "Arts District",
       "University Quarter", "Historic District", "Tech Corridor", "Beachside", "Harbor View",
       "Old Town", "Financial District", "Garden Quarter", "Lakeside", "Sunset Strip",
     ];
 
-    const count = 6 + Math.floor(rng(0) * 5);
+    const neighborhoods = (realNeighborhoods && realNeighborhoods.length >= 3) ? realNeighborhoods : fallbackNames;
+
+    const count = Math.min(neighborhoods.length, 6 + Math.floor(rng(0) * 5));
     const zones = [];
     for (let i = 0; i < count; i++) {
       const score = Math.round(20 + rng(i * 7 + 1) * 80);
@@ -8315,7 +8398,9 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
   app.get("/api/realty/zones", async (req, res) => {
     try {
       const location = (req.query.location as string) || "Miami, FL";
-      const zones = generateZonesForLocation(location);
+      const realNeighborhoods = await fetchRealNeighborhoods(location);
+      console.log(`[ZONES] ${location} → ${realNeighborhoods.length} real neighborhoods: ${realNeighborhoods.slice(0, 5).join(", ")}`);
+      const zones = generateZonesForLocation(location, realNeighborhoods);
       const filters = req.query.filters ? (req.query.filters as string).split(",") : [];
       let filtered = zones;
       if (filters.includes("airbnb")) filtered = filtered.filter(z => z.occupancy > 70);
