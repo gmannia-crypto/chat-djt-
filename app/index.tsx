@@ -766,6 +766,7 @@ export default function HomeScreen() {
       color: ev.color,
       type: ev.type,
       simulated: ev.simulated,
+      boosted: ev.boosted,
     }));
   }, [liveEvents]);
 
@@ -1312,17 +1313,28 @@ export default function HomeScreen() {
                 <View style={styles.activityPulse} />
               </View>
               {activityFromLive.map((activity, i) => {
-                const itemColor = activity.simulated ? "#888" : activity.color;
+                const isBoosted = activity.boosted;
+                const itemColor = activity.color;
+                const isNewest = i === 0;
                 return (
                 <Animated.View
                   key={`act-${i}-${activity.message}`}
                   entering={FadeIn.duration(400)}
-                  style={[styles.activityItem, i === 0 && !activity.simulated && styles.activityItemNew, activity.simulated && { opacity: 0.5 }]}
+                  style={[
+                    styles.activityItem,
+                    isNewest && styles.activityItemNew,
+                    isBoosted && { borderLeftWidth: 2, borderLeftColor: "#FFD70040", paddingLeft: 6, backgroundColor: "rgba(255,215,0,0.04)" },
+                  ]}
                 >
-                  <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: itemColor + "20", justifyContent: "center", alignItems: "center", marginRight: 6 }}>
-                    <Ionicons name={activity.icon as any} size={10} color={itemColor} />
+                  <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: (isBoosted ? "#FFD700" : itemColor) + "20", justifyContent: "center", alignItems: "center", marginRight: 6 }}>
+                    <Ionicons name={activity.icon as any} size={10} color={isBoosted ? "#FFD700" : itemColor} />
                   </View>
-                  <Text style={[styles.activityText, i === 0 && !activity.simulated && styles.activityTextNew, { color: i === 0 && !activity.simulated ? itemColor : "rgba(255,255,255,0.5)" }]} numberOfLines={1}>{activity.message}</Text>
+                  <Text style={[
+                    styles.activityText,
+                    isNewest && styles.activityTextNew,
+                    { color: isNewest ? itemColor : isBoosted ? "rgba(255,215,0,0.7)" : "rgba(255,255,255,0.5)" },
+                    isBoosted && { fontWeight: "600" as const },
+                  ]} numberOfLines={1}>{activity.message}</Text>
                 </Animated.View>
                 );
               })}

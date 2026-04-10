@@ -8772,7 +8772,13 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
   app.get("/api/live-activity/feed", (req, res) => {
     try {
       const since = parseInt(req.query.since as string) || (Date.now() - 60000);
-      const events = LIVE_ACTIVITY_BUFFER.filter((e) => e.timestamp > since).slice(0, 20);
+      const events = LIVE_ACTIVITY_BUFFER.filter((e) => e.timestamp > since).slice(0, 20).map((e) => {
+        const { simulated, ...publicEvent } = e as any;
+        if (simulated) {
+          publicEvent.boosted = true;
+        }
+        return publicEvent;
+      });
       res.json({ events });
     } catch (err) {
       res.json({ events: [] });
