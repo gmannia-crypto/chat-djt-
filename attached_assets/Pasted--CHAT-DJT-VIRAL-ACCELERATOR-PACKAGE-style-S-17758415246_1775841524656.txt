@@ -1,0 +1,396 @@
+<!-- ==================== CHAT DJT - VIRAL ACCELERATOR PACKAGE ==================== -->
+<style>
+/* Shareable Result Card */
+.share-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.9);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 20000;
+  animation: fadeIn 0.2s;
+}
+.share-card {
+  background: linear-gradient(145deg, #1a1a1a, #2d2d2d);
+  border: 3px solid #ff4d4d;
+  border-radius: 20px;
+  padding: 25px;
+  max-width: 450px;
+  width: 90%;
+  text-align: center;
+}
+.share-result {
+  font-size: 32px;
+  font-weight: bold;
+  color: #ff4d4d;
+  margin: 15px 0;
+}
+.share-quote {
+  background: #333;
+  padding: 15px;
+  border-radius: 10px;
+  margin: 15px 0;
+  font-style: italic;
+}
+.share-buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+.share-btn {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.share-twitter { background: #1DA1F2; color: white; }
+.share-copy { background: #333; color: white; border: 1px solid #ff4d4d; }
+
+/* Reaction Feed */
+.reaction-feed {
+  background: #1a1a1a;
+  border: 1px solid #ff4d4d;
+  border-radius: 10px;
+  padding: 10px;
+  margin: 10px 0;
+  max-height: 120px;
+  overflow-y: auto;
+}
+.reaction-item {
+  font-size: 13px;
+  padding: 4px 0;
+  border-bottom: 1px solid #333;
+  animation: slideIn 0.3s;
+}
+.reaction-emoji { font-size: 16px; margin-right: 5px; }
+
+/* Prediction Leaderboard */
+.prediction-board {
+  background: #1a1a1a;
+  border: 2px solid #ffaa00;
+  border-radius: 10px;
+  padding: 12px;
+  margin: 15px 0;
+}
+.prediction-rank {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 0;
+  font-size: 13px;
+}
+
+/* Challenge Button */
+.challenge-btn {
+  background: #ff4d4d;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 25px;
+  cursor: pointer;
+  font-size: 12px;
+  margin-left: 10px;
+  transition: all 0.2s;
+}
+.challenge-btn:hover { transform: scale(1.05); }
+
+/* Topic Suggestion Input */
+.suggest-topic {
+  display: flex;
+  gap: 8px;
+  margin: 15px 0;
+}
+.suggest-topic input {
+  flex: 1;
+  padding: 8px;
+  background: #333;
+  border: 1px solid #ff4d4d;
+  border-radius: 25px;
+  color: white;
+}
+.suggest-topic button {
+  background: #ff4d4d;
+  border: none;
+  border-radius: 25px;
+  padding: 8px 16px;
+  color: white;
+  cursor: pointer;
+}
+
+/* Streak Celebration */
+.streak-celebration {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: linear-gradient(145deg, #1a1a1a, #2d2d2d);
+  border: 3px solid gold;
+  border-radius: 30px;
+  padding: 30px;
+  text-align: center;
+  z-index: 20001;
+  animation: bounceIn 0.5s;
+  box-shadow: 0 0 50px rgba(255,215,0,0.5);
+}
+.streak-fire { font-size: 64px; margin-bottom: 10px; }
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes slideIn {
+  from { transform: translateX(-20px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes bounceIn {
+  0% { transform: translate(-50%, -50%) scale(0.3); opacity: 0; }
+  50% { transform: translate(-50%, -50%) scale(1.05); }
+  100% { transform: translate(-50%, -50%) scale(1); }
+}
+</style>
+
+<script>
+// ==================== VIRAL ACCELERATOR ====================
+(function() {
+  
+  // ========== 1. SHAREABLE RESULT CARDS ==========
+  window.showShareCard = function(title, resultText, context = '') {
+    const modal = document.createElement('div');
+    modal.className = 'share-modal';
+    modal.innerHTML = `
+      <div class="share-card">
+        <div style="font-size: 48px;">🎭</div>
+        <div class="share-result">${title}</div>
+        <div class="share-quote">"${resultText.substring(0, 120)}${resultText.length > 120 ? '...' : ''}"</div>
+        <div style="font-size: 12px; color: #888;">— Chat DJT</div>
+        <div class="share-buttons">
+          <button class="share-btn share-twitter" onclick="window.open('https://twitter.com/intent/tweet?text=${encodeURIComponent('"' + resultText.substring(0, 80) + '...\n\nTry Chat DJT at trumpbot.rip')}', '_blank')">🐦 Share</button>
+          <button class="share-btn share-copy" onclick="navigator.clipboard.writeText('${resultText.substring(0, 80)}...\n\nTry Chat DJT at trumpbot.rip'); alert('✅ Copied!');">📋 Copy</button>
+        </div>
+        <button onclick="this.closest('.share-modal').remove()" style="margin-top: 15px; background: none; border: none; color: #888; cursor: pointer;">Close</button>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  };
+  
+  // ========== 2. REACTION FEED ==========
+  let reactionHistory = [];
+  function addReaction(emoji, topic) {
+    const feed = document.getElementById('reactionFeed');
+    if (!feed) return;
+    
+    reactionHistory.unshift({ emoji, topic, time: Date.now() });
+    if (reactionHistory.length > 15) reactionHistory.pop();
+    
+    feed.innerHTML = reactionHistory.map(r => `
+      <div class="reaction-item">
+        <span class="reaction-emoji">${r.emoji}</span>
+        <span>${r.topic}</span>
+      </div>
+    `).join('');
+    
+    // Auto-hide after 10 seconds of no new reactions (handled by interval)
+  }
+  
+  // Add reaction buttons to Arena
+  function addReactionButtons() {
+    const arenaContainer = document.querySelector('#politicalArena, .arena-container');
+    if (!arenaContainer || document.getElementById('reactionWidget')) return;
+    
+    const widget = document.createElement('div');
+    widget.id = 'reactionWidget';
+    widget.innerHTML = `
+      <div style="margin: 10px 0;">
+        <strong style="color: #ff4d4d;">🔥 LIVE REACTIONS</strong>
+        <div style="display: flex; gap: 8px; margin-top: 5px;">
+          <button onclick="addReaction('🔥', '🔥 Hot take!')" style="background:none; border:1px solid #ff4d4d; border-radius:30px; padding:5px 12px; cursor:pointer;">🔥</button>
+          <button onclick="addReaction('😂', '😂 Hilarious')" style="background:none; border:1px solid #ff4d4d; border-radius:30px; padding:5px 12px; cursor:pointer;">😂</button>
+          <button onclick="addReaction('🇺🇸', '🇺🇸 Based')" style="background:none; border:1px solid #ff4d4d; border-radius:30px; padding:5px 12px; cursor:pointer;">🇺🇸</button>
+          <button onclick="addReaction('💀', '💀 Dead')" style="background:none; border:1px solid #ff4d4d; border-radius:30px; padding:5px 12px; cursor:pointer;">💀</button>
+          <button onclick="addReaction('👏', '👏 Clap')" style="background:none; border:1px solid #ff4d4d; border-radius:30px; padding:5px 12px; cursor:pointer;">👏</button>
+        </div>
+        <div id="reactionFeed" class="reaction-feed" style="margin-top: 8px;"></div>
+      </div>
+    `;
+    arenaContainer.insertBefore(widget, arenaContainer.firstChild);
+  }
+  
+  // ========== 3. PREDICTION LEADERBOARD ==========
+  let predictions = JSON.parse(localStorage.getItem('debatePredictions') || '[]');
+  
+  function addPrediction(user, topic, pick) {
+    predictions.unshift({ user, topic, pick, date: Date.now() });
+    if (predictions.length > 20) predictions.pop();
+    localStorage.setItem('debatePredictions', JSON.stringify(predictions));
+    updatePredictionDisplay();
+  }
+  
+  function updatePredictionDisplay() {
+    let board = document.getElementById('predictionLeaderboard');
+    if (!board) {
+      const arena = document.querySelector('#politicalArena, .arena-container');
+      if (arena && !document.getElementById('predictionLeaderboard')) {
+        const div = document.createElement('div');
+        div.id = 'predictionLeaderboard';
+        div.className = 'prediction-board';
+        div.innerHTML = '<strong>🏆 RECENT PREDICTIONS</strong><div id="predictionList"></div>';
+        arena.appendChild(div);
+        board = div;
+      }
+    }
+    const list = document.getElementById('predictionList');
+    if (list) {
+      list.innerHTML = predictions.slice(0,5).map(p => `
+        <div class="prediction-rank">
+          <span>${p.user}</span>
+          <span>${p.topic.substring(0, 20)}...</span>
+          <span style="color:#ffaa00">${p.pick}</span>
+        </div>
+      `).join('');
+    }
+  }
+  
+  // ========== 4. USER-GENERATED DEBATE TOPICS ==========
+  function addTopicSuggestion() {
+    const arena = document.querySelector('#politicalArena, .arena-container');
+    if (!arena || document.getElementById('topicSuggestion')) return;
+    
+    const div = document.createElement('div');
+    div.id = 'topicSuggestion';
+    div.className = 'suggest-topic';
+    div.innerHTML = `
+      <input type="text" id="newTopicInput" placeholder="Suggest a debate topic...">
+      <button onclick="submitDebateTopic()">Suggest</button>
+    `;
+    arena.appendChild(div);
+  }
+  
+  window.submitDebateTopic = function() {
+    const input = document.getElementById('newTopicInput');
+    const topic = input.value.trim();
+    if (!topic) return;
+    
+    // Store in localStorage for demo
+    let topics = JSON.parse(localStorage.getItem('userTopics') || '[]');
+    topics.unshift({ topic, votes: 1, date: Date.now() });
+    localStorage.setItem('userTopics', JSON.stringify(topics));
+    
+    input.value = '';
+    alert('✅ Topic suggested! It may be featured in a future debate.');
+    
+    // Optional: send to backend
+    fetch('/api/suggest-topic', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ topic })
+    }).catch(() => {});
+  };
+  
+  // ========== 5. CHALLENGE A FRIEND ==========
+  window.challengeFriend = function(feature, data) {
+    const shareUrl = `${window.location.origin}?ref=${encodeURIComponent(feature)}&data=${encodeURIComponent(JSON.stringify(data))}`;
+    const text = encodeURIComponent(`I challenge you to beat my score in ${feature} on Chat DJT! 🎭\n\nPlay here: trumpbot.rip`);
+    window.open(`https://twitter.com/intent/tweet?text=${text}`, '_blank');
+  };
+  
+  // Add challenge buttons
+  function addChallengeButtons() {
+    // Challenge button on leaderboard
+    const leaderboard = document.querySelector('.leaderboard, .top-scores');
+    if (leaderboard && !document.getElementById('leaderboardChallenge')) {
+      const btn = document.createElement('button');
+      btn.id = 'leaderboardChallenge';
+      btn.innerHTML = '👥 Challenge Friend';
+      btn.className = 'challenge-btn';
+      btn.onclick = () => challengeFriend('Leaderboard', { score: 777 });
+      leaderboard.appendChild(btn);
+    }
+  }
+  
+  // ========== 6. STREAK CELEBRATION ==========
+  function checkAndCelebrateStreak() {
+    const streak = parseInt(localStorage.getItem('chatdjt_streak') || '0');
+    const lastCelebrated = parseInt(localStorage.getItem('streakCelebrated') || '0');
+    
+    if (streak >= 3 && streak !== lastCelebrated) {
+      localStorage.setItem('streakCelebrated', streak);
+      
+      const celebration = document.createElement('div');
+      celebration.className = 'streak-celebration';
+      celebration.innerHTML = `
+        <div class="streak-fire">🔥 ${streak} DAY STREAK! 🔥</div>
+        <div style="font-size: 18px; margin: 15px 0;">You're on fire!</div>
+        <button onclick="this.closest('.streak-celebration').remove(); window.showShareCard('${streak} Day Streak!', 'I just hit a ${streak} day streak on Chat DJT! Can you beat me?', 'streak')" style="background:#ff4d4d; border:none; padding:10px 20px; border-radius:25px; color:white; cursor:pointer;">🔥 Share My Streak</button>
+        <button onclick="this.closest('.streak-celebration').remove()" style="margin-top:10px; background:none; border:none; color:#888; cursor:pointer;">Close</button>
+      `;
+      document.body.appendChild(celebration);
+      
+      setTimeout(() => {
+        if (celebration.parentNode) celebration.remove();
+      }, 10000);
+    }
+  }
+  
+  // ========== 7. LIVE ACTIVITY DEDUPLICATION (FIX) ==========
+  const originalAddActivity = window.addActivity;
+  if (originalAddActivity) {
+    window.addActivity = function(message) {
+      const lastActivity = localStorage.getItem('lastActivity');
+      if (lastActivity !== message) {
+        localStorage.setItem('lastActivity', message);
+        return originalAddActivity(message);
+      }
+      return null;
+    };
+  }
+  
+  // ========== 8. WRAP EXISTING DEBATE FUNCTION ==========
+  const originalDebateVote = window.voteInDebate;
+  if (originalDebateVote) {
+    window.voteInDebate = function(persona, topic) {
+      const result = originalDebateVote(persona, topic);
+      // Trigger share prompt after voting
+      setTimeout(() => {
+        if (confirm(`🎉 You voted for ${persona}! Share your prediction?`)) {
+          window.showShareCard('Debate Prediction', `I predicted ${persona} would win the debate on "${topic}". Who do you think won?`, 'debate');
+          addPrediction(localStorage.getItem('username') || 'Anonymous', topic, persona);
+        }
+      }, 1000);
+      return result;
+    };
+  }
+  
+  // ========== 9. INITIALIZE ALL ==========
+  function initViralFeatures() {
+    addReactionButtons();
+    addTopicSuggestion();
+    addChallengeButtons();
+    updatePredictionDisplay();
+    checkAndCelebrateStreak();
+    
+    // Simulate periodic reactions for demo
+    setInterval(() => {
+      const emojis = ['🔥', '😂', '🇺🇸', '💀', '👏'];
+      const topics = ['Trump roast', 'Biden stumble', 'Maddow fact', 'Ruckus hype'];
+      if (Math.random() > 0.7) {
+        addReaction(emojis[Math.floor(Math.random() * emojis.length)], topics[Math.floor(Math.random() * topics.length)]);
+      }
+    }, 15000);
+    
+    console.log('✅ Viral Accelerator loaded – Share Cards, Reactions, Predictions, Challenges, Streak Celebrations');
+  }
+  
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initViralFeatures);
+  } else {
+    initViralFeatures();
+  }
+  
+})();
+</script>

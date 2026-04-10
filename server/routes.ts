@@ -2938,6 +2938,22 @@ Your personality quirks:
     }
   });
 
+  const suggestedTopics: { topic: string; date: number }[] = [];
+  app.post("/api/suggest-topic", (req, res) => {
+    const { topic } = req.body;
+    if (!topic || typeof topic !== "string" || topic.trim().length < 3) {
+      return res.status(400).json({ error: "Topic too short" });
+    }
+    suggestedTopics.unshift({ topic: topic.trim().substring(0, 200), date: Date.now() });
+    if (suggestedTopics.length > 100) suggestedTopics.pop();
+    console.log(`[VIRAL] Topic suggested: "${topic.trim().substring(0, 60)}"`);
+    res.json({ success: true });
+  });
+
+  app.get("/api/suggested-topics", (_req, res) => {
+    res.json({ topics: suggestedTopics.slice(0, 20) });
+  });
+
   app.post("/api/arena/access", async (req, res) => {
     try {
       const deviceId = req.headers["x-device-id"] as string;

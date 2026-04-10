@@ -1228,6 +1228,164 @@
         .music-widget { bottom: 80px; right: 14px; padding: 7px 12px 7px 8px; }
         .music-now { max-width: 110px; }
       }
+
+      .share-modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.9);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 20000;
+        animation: viralFadeIn 0.2s;
+      }
+      .share-card {
+        background: linear-gradient(145deg, #1a1a1a, #2d2d2d);
+        border: 3px solid #ff4d4d;
+        border-radius: 20px;
+        padding: 25px;
+        max-width: 450px;
+        width: 90%;
+        text-align: center;
+      }
+      .share-result {
+        font-size: 32px;
+        font-weight: bold;
+        color: #ff4d4d;
+        margin: 15px 0;
+      }
+      .share-quote {
+        background: #333;
+        padding: 15px;
+        border-radius: 10px;
+        margin: 15px 0;
+        font-style: italic;
+        color: #ccc;
+      }
+      .share-buttons {
+        display: flex;
+        gap: 10px;
+        margin-top: 20px;
+      }
+      .share-btn {
+        flex: 1;
+        padding: 12px;
+        border: none;
+        border-radius: 8px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-size: 14px;
+      }
+      .share-btn:hover { transform: scale(1.03); }
+      .share-twitter { background: #1DA1F2; color: white; }
+      .share-copy { background: #333; color: white; border: 1px solid #ff4d4d; }
+
+      .reaction-feed {
+        background: #1a1a1a;
+        border: 1px solid #ff4d4d;
+        border-radius: 10px;
+        padding: 10px;
+        margin: 10px 0;
+        max-height: 120px;
+        overflow-y: auto;
+      }
+      .reaction-item {
+        font-size: 13px;
+        padding: 4px 0;
+        border-bottom: 1px solid #333;
+        animation: viralSlideIn 0.3s;
+        color: #ccc;
+      }
+      .reaction-emoji { font-size: 16px; margin-right: 5px; }
+
+      .prediction-board {
+        background: #1a1a1a;
+        border: 2px solid #ffaa00;
+        border-radius: 10px;
+        padding: 12px;
+        margin: 15px 0;
+      }
+      .prediction-rank {
+        display: flex;
+        justify-content: space-between;
+        padding: 5px 0;
+        font-size: 13px;
+        color: #ccc;
+      }
+
+      .challenge-btn {
+        background: #ff4d4d;
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 25px;
+        cursor: pointer;
+        font-size: 12px;
+        margin-left: 10px;
+        transition: all 0.2s;
+      }
+      .challenge-btn:hover { transform: scale(1.05); }
+
+      .suggest-topic {
+        display: flex;
+        gap: 8px;
+        margin: 15px 0;
+      }
+      .suggest-topic input {
+        flex: 1;
+        padding: 8px 14px;
+        background: #333;
+        border: 1px solid #ff4d4d;
+        border-radius: 25px;
+        color: white;
+        font-size: 13px;
+      }
+      .suggest-topic input::placeholder { color: #888; }
+      .suggest-topic button {
+        background: #ff4d4d;
+        border: none;
+        border-radius: 25px;
+        padding: 8px 16px;
+        color: white;
+        cursor: pointer;
+        font-weight: bold;
+        font-size: 13px;
+      }
+
+      .streak-celebration {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: linear-gradient(145deg, #1a1a1a, #2d2d2d);
+        border: 3px solid gold;
+        border-radius: 30px;
+        padding: 30px;
+        text-align: center;
+        z-index: 20001;
+        animation: viralBounceIn 0.5s;
+        box-shadow: 0 0 50px rgba(255,215,0,0.5);
+        color: white;
+      }
+      .streak-fire { font-size: 64px; margin-bottom: 10px; }
+
+      @keyframes viralFadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      @keyframes viralSlideIn {
+        from { transform: translateX(-20px); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+      }
+      @keyframes viralBounceIn {
+        0% { transform: translate(-50%, -50%) scale(0.3); opacity: 0; }
+        50% { transform: translate(-50%, -50%) scale(1.05); }
+        100% { transform: translate(-50%, -50%) scale(1); }
+      }
     </style>
   </head>
   <body>
@@ -1729,6 +1887,219 @@
         menuTrackIdx++;
         playMenuTrack();
       }
+    </script>
+    <script>
+    (function() {
+
+      window.showShareCard = function(title, resultText, context) {
+        context = context || '';
+        var truncated = resultText.substring(0, 120) + (resultText.length > 120 ? '...' : '');
+        var shareText = resultText.substring(0, 80) + '...\n\nTry Chat DJT at trumpbot.rip';
+        var modal = document.createElement('div');
+        modal.className = 'share-modal';
+        modal.innerHTML =
+          '<div class="share-card">' +
+            '<div style="font-size:48px;">&#x1F3AD;</div>' +
+            '<div class="share-result">' + title + '</div>' +
+            '<div class="share-quote">"' + truncated + '"</div>' +
+            '<div style="font-size:12px;color:#888;">— Chat DJT</div>' +
+            '<div class="share-buttons">' +
+              '<button class="share-btn share-twitter" id="viralShareTwitter">&#x1F426; Share</button>' +
+              '<button class="share-btn share-copy" id="viralShareCopy">&#x1F4CB; Copy</button>' +
+            '</div>' +
+            '<button id="viralShareClose" style="margin-top:15px;background:none;border:none;color:#888;cursor:pointer;font-size:14px;">Close</button>' +
+          '</div>';
+        document.body.appendChild(modal);
+        document.getElementById('viralShareTwitter').onclick = function() {
+          window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent('"' + shareText + '"'), '_blank');
+        };
+        document.getElementById('viralShareCopy').onclick = function() {
+          navigator.clipboard.writeText(shareText);
+          this.textContent = '✅ Copied!';
+          setTimeout(function() { document.getElementById('viralShareCopy').textContent = '📋 Copy'; }, 2000);
+        };
+        document.getElementById('viralShareClose').onclick = function() { modal.remove(); };
+        modal.onclick = function(e) { if (e.target === modal) modal.remove(); };
+      };
+
+      var reactionHistory = [];
+      window.addReaction = function(emoji, topic) {
+        var feed = document.getElementById('reactionFeed');
+        if (!feed) return;
+        reactionHistory.unshift({ emoji: emoji, topic: topic, time: Date.now() });
+        if (reactionHistory.length > 15) reactionHistory.pop();
+        feed.innerHTML = reactionHistory.map(function(r) {
+          return '<div class="reaction-item"><span class="reaction-emoji">' + r.emoji + '</span><span>' + r.topic + '</span></div>';
+        }).join('');
+      };
+
+      function addReactionButtons() {
+        var arenaContainer = document.querySelector('.explore-section, #explore');
+        if (!arenaContainer || document.getElementById('reactionWidget')) return;
+        var widget = document.createElement('div');
+        widget.id = 'reactionWidget';
+        widget.style.cssText = 'margin:15px 0;padding:12px;background:rgba(255,77,77,0.05);border:1px solid rgba(255,77,77,0.2);border-radius:12px;';
+        widget.innerHTML =
+          '<strong style="color:#ff4d4d;">&#x1F525; LIVE REACTIONS</strong>' +
+          '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">' +
+            '<button onclick="addReaction(\'&#x1F525;\',\'&#x1F525; Hot take!\')" style="background:none;border:1px solid #ff4d4d;border-radius:30px;padding:5px 12px;cursor:pointer;font-size:16px;">&#x1F525;</button>' +
+            '<button onclick="addReaction(\'&#x1F602;\',\'&#x1F602; Hilarious\')" style="background:none;border:1px solid #ff4d4d;border-radius:30px;padding:5px 12px;cursor:pointer;font-size:16px;">&#x1F602;</button>' +
+            '<button onclick="addReaction(\'&#x1F1FA;&#x1F1F8;\',\'&#x1F1FA;&#x1F1F8; Based\')" style="background:none;border:1px solid #ff4d4d;border-radius:30px;padding:5px 12px;cursor:pointer;font-size:16px;">&#x1F1FA;&#x1F1F8;</button>' +
+            '<button onclick="addReaction(\'&#x1F480;\',\'&#x1F480; Dead\')" style="background:none;border:1px solid #ff4d4d;border-radius:30px;padding:5px 12px;cursor:pointer;font-size:16px;">&#x1F480;</button>' +
+            '<button onclick="addReaction(\'&#x1F44F;\',\'&#x1F44F; Clap\')" style="background:none;border:1px solid #ff4d4d;border-radius:30px;padding:5px 12px;cursor:pointer;font-size:16px;">&#x1F44F;</button>' +
+          '</div>' +
+          '<div id="reactionFeed" class="reaction-feed" style="margin-top:8px;"></div>';
+        arenaContainer.insertBefore(widget, arenaContainer.firstChild);
+      }
+
+      var predictions = JSON.parse(localStorage.getItem('debatePredictions') || '[]');
+
+      window.addPrediction = function(user, topic, pick) {
+        predictions.unshift({ user: user, topic: topic, pick: pick, date: Date.now() });
+        if (predictions.length > 20) predictions.pop();
+        localStorage.setItem('debatePredictions', JSON.stringify(predictions));
+        updatePredictionDisplay();
+      };
+
+      function updatePredictionDisplay() {
+        var board = document.getElementById('predictionLeaderboard');
+        if (!board) {
+          var arena = document.querySelector('.explore-section, #explore');
+          if (arena && !document.getElementById('predictionLeaderboard')) {
+            var div = document.createElement('div');
+            div.id = 'predictionLeaderboard';
+            div.className = 'prediction-board';
+            div.innerHTML = '<strong style="color:#ffaa00;">&#x1F3C6; RECENT PREDICTIONS</strong><div id="predictionList"></div>';
+            arena.appendChild(div);
+            board = div;
+          }
+        }
+        var list = document.getElementById('predictionList');
+        if (list) {
+          list.innerHTML = predictions.slice(0,5).map(function(p) {
+            return '<div class="prediction-rank"><span>' + p.user + '</span><span>' + p.topic.substring(0, 20) + '...</span><span style="color:#ffaa00">' + p.pick + '</span></div>';
+          }).join('');
+        }
+      }
+
+      function addTopicSuggestion() {
+        var arena = document.querySelector('.explore-section, #explore');
+        if (!arena || document.getElementById('topicSuggestion')) return;
+        var div = document.createElement('div');
+        div.id = 'topicSuggestion';
+        div.className = 'suggest-topic';
+        div.innerHTML =
+          '<input type="text" id="newTopicInput" placeholder="Suggest a debate topic...">' +
+          '<button onclick="submitDebateTopic()">Suggest</button>';
+        arena.appendChild(div);
+      }
+
+      window.submitDebateTopic = function() {
+        var input = document.getElementById('newTopicInput');
+        var topic = input.value.trim();
+        if (!topic) return;
+        var topics = JSON.parse(localStorage.getItem('userTopics') || '[]');
+        topics.unshift({ topic: topic, votes: 1, date: Date.now() });
+        localStorage.setItem('userTopics', JSON.stringify(topics));
+        input.value = '';
+        window.showShareCard('Topic Suggested!', topic + ' — Your debate topic has been submitted to Chat DJT!', 'topic');
+        fetch('/api/suggest-topic', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ topic: topic })
+        }).catch(function() {});
+      };
+
+      window.challengeFriend = function(feature, data) {
+        var text = encodeURIComponent('I challenge you to beat my score in ' + feature + ' on Chat DJT! &#x1F3AD;\n\nPlay here: trumpbot.rip');
+        window.open('https://twitter.com/intent/tweet?text=' + text, '_blank');
+      };
+
+      function addChallengeButtons() {
+        var leaderboard = document.querySelector('.leaderboard, .top-scores');
+        if (leaderboard && !document.getElementById('leaderboardChallenge')) {
+          var btn = document.createElement('button');
+          btn.id = 'leaderboardChallenge';
+          btn.innerHTML = '&#x1F465; Challenge Friend';
+          btn.className = 'challenge-btn';
+          btn.onclick = function() { challengeFriend('Leaderboard', { score: 777 }); };
+          leaderboard.appendChild(btn);
+        }
+      }
+
+      function checkAndCelebrateStreak() {
+        var streak = parseInt(localStorage.getItem('chatdjt_streak') || '0');
+        var lastCelebrated = parseInt(localStorage.getItem('streakCelebrated') || '0');
+        if (streak >= 3 && streak !== lastCelebrated) {
+          localStorage.setItem('streakCelebrated', String(streak));
+          var celebration = document.createElement('div');
+          celebration.className = 'streak-celebration';
+          celebration.innerHTML =
+            '<div class="streak-fire">&#x1F525; ' + streak + ' DAY STREAK! &#x1F525;</div>' +
+            '<div style="font-size:18px;margin:15px 0;">You\'re on fire!</div>' +
+            '<button id="streakShareBtn" style="background:#ff4d4d;border:none;padding:10px 20px;border-radius:25px;color:white;cursor:pointer;font-weight:bold;">&#x1F525; Share My Streak</button>' +
+            '<br><button id="streakCloseBtn" style="margin-top:10px;background:none;border:none;color:#888;cursor:pointer;">Close</button>';
+          document.body.appendChild(celebration);
+          document.getElementById('streakShareBtn').onclick = function() {
+            celebration.remove();
+            window.showShareCard(streak + ' Day Streak!', 'I just hit a ' + streak + ' day streak on Chat DJT! Can you beat me?', 'streak');
+          };
+          document.getElementById('streakCloseBtn').onclick = function() { celebration.remove(); };
+          setTimeout(function() { if (celebration.parentNode) celebration.remove(); }, 10000);
+        }
+      }
+
+      var originalAddActivity = window.addActivity;
+      if (originalAddActivity) {
+        window.addActivity = function(message) {
+          var lastActivity = localStorage.getItem('lastActivity');
+          if (lastActivity !== message) {
+            localStorage.setItem('lastActivity', message);
+            return originalAddActivity(message);
+          }
+          return null;
+        };
+      }
+
+      var originalDebateVote = window.voteInDebate;
+      if (originalDebateVote) {
+        window.voteInDebate = function(persona, topic) {
+          var result = originalDebateVote(persona, topic);
+          setTimeout(function() {
+            if (confirm('You voted for ' + persona + '! Share your prediction?')) {
+              window.showShareCard('Debate Prediction', 'I predicted ' + persona + ' would win the debate on "' + topic + '". Who do you think won?', 'debate');
+              addPrediction(localStorage.getItem('username') || 'Anonymous', topic, persona);
+            }
+          }, 1000);
+          return result;
+        };
+      }
+
+      function initViralFeatures() {
+        addReactionButtons();
+        addTopicSuggestion();
+        addChallengeButtons();
+        updatePredictionDisplay();
+        checkAndCelebrateStreak();
+
+        setInterval(function() {
+          var emojis = ['&#x1F525;', '&#x1F602;', '&#x1F1FA;&#x1F1F8;', '&#x1F480;', '&#x1F44F;'];
+          var topics = ['Trump roast', 'Biden stumble', 'Maddow fact', 'Ruckus hype'];
+          if (Math.random() > 0.7) {
+            addReaction(emojis[Math.floor(Math.random() * emojis.length)], topics[Math.floor(Math.random() * topics.length)]);
+          }
+        }, 15000);
+
+        console.log('Viral Accelerator loaded');
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initViralFeatures);
+      } else {
+        initViralFeatures();
+      }
+
+    })();
     </script>
   </body>
 </html>
