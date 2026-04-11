@@ -97,3 +97,7 @@ waitForPort = 8081
 [userenv.shared]
 CI = "0"
 SPORTS_API_KEY = "24db37589d114537a349d154b7a3d040"
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 180000
