@@ -20,7 +20,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { Audio } from "expo-av";
-import { playTTS } from "@/lib/audio-helper";
+import { playTTS, playTrumpTTS, isTrumpCurrentlySpeaking } from "@/lib/audio-helper";
 import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 import Colors from "@/constants/colors";
 import { getApiUrl } from "@/lib/query-client";
@@ -143,11 +143,11 @@ interface PersonaInfo {
 }
 
 const PERSONAS: PersonaInfo[] = [
-  { id: "trump", name: "Dynamic", fullName: "Donald J. Trump", color: "#ff4d4d", image: PERSONA_IMAGES.trump },
-  { id: "loudmouth", name: "Loudmouth", fullName: "Loudmouth", color: "#E53935", image: PERSONA_IMAGES.loudmouth },
-  { id: "shannon", name: "Shannon", fullName: "Shannon Sharpe", color: "#1E88E5", image: PERSONA_IMAGES.shannon },
-  { id: "jordan", name: "MJ", fullName: "Michael Jordan", color: "#CE1141", image: PERSONA_IMAGES.jordan },
   { id: "barkley", name: "Chuck", fullName: "Charles Barkley", color: "#FF6F00", image: PERSONA_IMAGES.barkley },
+  { id: "shannon", name: "Shannon", fullName: "Shannon Sharpe", color: "#1E88E5", image: PERSONA_IMAGES.shannon },
+  { id: "loudmouth", name: "Loudmouth", fullName: "Loudmouth", color: "#E53935", image: PERSONA_IMAGES.loudmouth },
+  { id: "jordan", name: "MJ", fullName: "Michael Jordan", color: "#CE1141", image: PERSONA_IMAGES.jordan },
+  { id: "trump", name: "Dynamic", fullName: "Donald J. Trump", color: "#ff4d4d", image: PERSONA_IMAGES.trump },
   { id: "snoop", name: "Snoop", fullName: "Snoop Dogg", color: "#4CAF50", image: PERSONA_IMAGES.snoop },
   { id: "rogan", name: "Rogan", fullName: "Joe Rogan", color: "#B71C1C", image: PERSONA_IMAGES.rogan },
   { id: "maxkellerman", name: "Max", fullName: "Max Kellerman", color: "#5C6BC0", image: PERSONA_IMAGES.maxkellerman },
@@ -159,20 +159,20 @@ const PERSONAS: PersonaInfo[] = [
 ];
 
 const RACING_PERSONAS: PersonaInfo[] = [
-  { id: "trump", name: "Dynamic", fullName: "Donald J. Trump", color: "#ff4d4d", image: PERSONA_IMAGES.trump },
   { id: "speedDemon", name: "Speed Demon", fullName: "Speed Demon", color: "#FF3D00", image: PERSONA_IMAGES.speedDemon },
   { id: "pitBoss", name: "Pit Boss", fullName: "Pit Boss", color: "#78909C", image: PERSONA_IMAGES.pitBoss },
   { id: "driftQueen", name: "Drift Queen", fullName: "Drift Queen", color: "#E040FB", image: PERSONA_IMAGES.driftQueen },
+  { id: "trump", name: "Dynamic", fullName: "Donald J. Trump", color: "#ff4d4d", image: PERSONA_IMAGES.trump },
   { id: "throttle", name: "Throttle", fullName: "Throttle", color: "#FF6F00", image: PERSONA_IMAGES.throttle },
   { id: "revTech", name: "Rev", fullName: "Rev Tech", color: "#00BCD4", image: PERSONA_IMAGES.revTech },
   { id: "rogan", name: "Rogan", fullName: "Joe Rogan", color: "#B71C1C", image: PERSONA_IMAGES.rogan },
 ];
 
 const SOCCER_PERSONAS: PersonaInfo[] = [
-  { id: "trump", name: "Dynamic", fullName: "Donald J. Trump", color: "#ff4d4d", image: PERSONA_IMAGES.trump },
   { id: "elCapitan", name: "El Capitán", fullName: "El Capitán", color: "#F44336", image: PERSONA_IMAGES.elCapitan },
   { id: "sirGodfrey", name: "Sir Godfrey", fullName: "Sir Godfrey", color: "#5D4037", image: PERSONA_IMAGES.sirGodfrey },
   { id: "mamaFutbol", name: "Mama Fútbol", fullName: "Mama Fútbol", color: "#E91E63", image: PERSONA_IMAGES.mamaFutbol },
+  { id: "trump", name: "Dynamic", fullName: "Donald J. Trump", color: "#ff4d4d", image: PERSONA_IMAGES.trump },
   { id: "phantomZZ", name: "Phantom ZZ", fullName: "Phantom ZZ", color: "#7E57C2", image: PERSONA_IMAGES.phantomZZ },
   { id: "theUltra", name: "The Ultra", fullName: "The Ultra", color: "#FF9800", image: PERSONA_IMAGES.theUltra },
 ];
@@ -1004,7 +1004,6 @@ function GameCard({
   const teams = game.game.split(" vs ").map((t) => t.trim());
   const isLive = game.status === "in";
   const isPreGame = game.status === "pre" || (!game.status && !game.score && !game.final);
-  const [expanded, setExpanded] = useState(isLive);
   const hasDetails = (game.homeLeaders && game.homeLeaders.length > 0) || (game.awayLeaders && game.awayLeaders.length > 0) || (game.homeStats && game.homeStats.length > 0) || (game.awayStats && game.awayStats.length > 0);
 
   const [commentary, setCommentary] = useState<string | null>(null);
@@ -1043,12 +1042,7 @@ function GameCard({
 
   return (
     <Animated.View entering={FadeInUp.duration(400).springify()} style={styles.gameCard}>
-      <Pressable
-        onPress={() => {
-          if (hasDetails) setExpanded(!expanded);
-        }}
-        style={{ opacity: 1 }}
-      >
+      <View>
         <View style={styles.gameHeader}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
             <View style={[styles.leagueBadge, { backgroundColor: leagueColor }]}>
@@ -1069,9 +1063,6 @@ function GameCard({
           </View>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <Text style={styles.gameTime}>{game.time}</Text>
-            {hasDetails && (
-              <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={14} color="rgba(255,255,255,0.4)" />
-            )}
             <Pressable onPress={() => onRefresh(game.id)} style={({ pressed }) => [pressed && { opacity: 0.5 }]}>
               <Ionicons name="refresh" size={14} color="rgba(255,255,255,0.4)" />
             </Pressable>
@@ -1082,9 +1073,9 @@ function GameCard({
           <Text style={[styles.gameScore, isLive && { color: "#FF4444" }]}>{game.score}</Text>
         ) : null}
         <Text style={styles.gameOdds}>{game.odds}</Text>
-      </Pressable>
+      </View>
 
-      {expanded && hasDetails && <GameStatsPanel game={game} />}
+      {hasDetails && <GameStatsPanel game={game} />}
 
       {isLive && (
         <View style={styles.commentarySection}>
@@ -1273,7 +1264,6 @@ export default function SportsScreen() {
   const previousGamesRef = useRef<Game[]>([]);
   const [trashTalkLine, setTrashTalkLine] = useState("");
   const [trashTalkLoading, setTrashTalkLoading] = useState(false);
-  const [expandedResult, setExpandedResult] = useState<number | null>(null);
   const [userName, setUserName] = useState("");
   const [nameEditing, setNameEditing] = useState(false);
   const { playClick, playTransition } = useSoundEffects();
@@ -1349,7 +1339,7 @@ export default function SportsScreen() {
       mountedRef.current = false;
       clearInterval(timer);
       cleanupBuzzer();
-      if (soundRef.current) {
+      if (soundRef.current && !isTrumpCurrentlySpeaking()) {
         soundRef.current.stopAsync().catch(() => {});
         soundRef.current.unloadAsync().catch(() => {});
         soundRef.current = null;
@@ -1661,8 +1651,9 @@ export default function SportsScreen() {
   };
 
   const handleSpeak = async (text: string, personaId: string, gameId: number) => {
+    if (isTrumpCurrentlySpeaking() && personaId !== "trump") return;
     if (speakingGameId !== null) {
-      if (soundRef.current) {
+      if (soundRef.current && !isTrumpCurrentlySpeaking()) {
         await soundRef.current.stopAsync();
         await soundRef.current.unloadAsync();
         soundRef.current = null;
@@ -1677,7 +1668,9 @@ export default function SportsScreen() {
 
     try {
       await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-      const sound = await playTTS("/api/persona-speak", { text, personaId });
+      const sound = personaId === "trump"
+        ? await playTrumpTTS("/api/persona-speak", { text, personaId })
+        : await playTTS("/api/persona-speak", { text, personaId });
       soundRef.current = sound;
       sound.setOnPlaybackStatusUpdate((status: any) => {
         if (status.didJustFinish) {
@@ -2197,18 +2190,11 @@ export default function SportsScreen() {
             </View>
             {completedGames.map((game) => {
               const leagueColor = LEAGUE_COLORS[game.league] || "#D4A420";
-              const isExpanded = expandedResult === game.id;
               const hasDetails = (game.homeLeaders && game.homeLeaders.length > 0) || (game.awayLeaders && game.awayLeaders.length > 0) || (game.homeStats && game.homeStats.length > 0) || (game.awayStats && game.awayStats.length > 0);
               return (
-                <Pressable
+                <View
                   key={`result-${game.id}`}
-                  onPress={() => {
-                    if (!hasDetails) return;
-                    playClick();
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setExpandedResult(isExpanded ? null : game.id);
-                  }}
-                  style={({ pressed }) => [styles.resultCard, pressed && { opacity: 0.9 }]}
+                  style={styles.resultCard}
                 >
                   <View style={styles.gameHeader}>
                     <View style={[styles.leagueBadge, { backgroundColor: leagueColor }]}>
@@ -2216,9 +2202,6 @@ export default function SportsScreen() {
                     </View>
                     <View style={{ flexDirection: "row" as const, alignItems: "center" as const, gap: 6 }}>
                       <Text style={{ color: "#4CAF50", fontSize: 10, fontWeight: "700" as const }}>FINAL</Text>
-                      {hasDetails && (
-                        <Ionicons name={isExpanded ? "chevron-up" : "chevron-down"} size={14} color="rgba(255,255,255,0.4)" />
-                      )}
                     </View>
                   </View>
                   <Text style={styles.gameTitle}>{game.game}</Text>
@@ -2229,8 +2212,8 @@ export default function SportsScreen() {
                       <Text style={styles.winnerText}>{game.winner} WINS</Text>
                     </View>
                   )}
-                  {isExpanded && hasDetails && <GameStatsPanel game={game} />}
-                </Pressable>
+                  {hasDetails && <GameStatsPanel game={game} />}
+                </View>
               );
             })}
           </Animated.View>

@@ -23,7 +23,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import * as FileSystem from "expo-file-system/legacy";
 import { Audio, Video, ResizeMode } from "expo-av";
-import { playTTS } from "@/lib/audio-helper";
+import { playTTS, playTrumpTTS, isTrumpCurrentlySpeaking } from "@/lib/audio-helper";
 import { SoundToggle } from "@/components/SoundToggle";
 import { useSound } from "@/lib/sound-context";
 import { useScreenTracker, useTrackEvent } from "@/lib/use-analytics";
@@ -671,14 +671,17 @@ export default function TherapyScreen() {
   async function handleSpeak(text: string, voice?: TherapistVoice) {
     const ttsVoice = voice || selectedTherapist;
     try {
-      if (soundRef.current) {
+      if (isTrumpCurrentlySpeaking() && ttsVoice !== "trump") return;
+      if (soundRef.current && !isTrumpCurrentlySpeaking()) {
         await soundRef.current.unloadAsync();
         soundRef.current = null;
       }
       if (!soundEnabled) return;
       setSpeaking(true);
       await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-      const sound = await playTTS("/api/tts", { text: text.slice(0, 2000), mood: "CALM", voice: ttsVoice });
+      const sound = ttsVoice === "trump"
+        ? await playTrumpTTS("/api/tts", { text: text.slice(0, 2000), mood: "CALM", voice: ttsVoice })
+        : await playTTS("/api/tts", { text: text.slice(0, 2000), mood: "CALM", voice: ttsVoice });
       soundRef.current = sound;
       sound.setOnPlaybackStatusUpdate((status: any) => {
         if (status.didJustFinish) setSpeaking(false);
@@ -707,7 +710,9 @@ export default function TherapyScreen() {
       if (!soundEnabled) return;
       await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
       const greetingText = THERAPIST_CONFIGS[voice].greeting.replace(/"/g, "").replace(/\\/g, "");
-      const sound = await playTTS("/api/tts", { text: greetingText, mood: "CALM", voice });
+      const sound = voice === "trump"
+        ? await playTrumpTTS("/api/tts", { text: greetingText, mood: "CALM", voice })
+        : await playTTS("/api/tts", { text: greetingText, mood: "CALM", voice });
       greetingSoundRef.current = sound;
       sound.setOnPlaybackStatusUpdate((status: any) => {
         if (status.didJustFinish) {

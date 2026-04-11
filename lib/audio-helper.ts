@@ -17,7 +17,7 @@ export async function playAudioFromUrl(
   if (Platform.OS === "web") {
     if (!options?.method || options.method === "GET") {
       try {
-        const res = await globalThis.fetch(url);
+        const res = await globalThis.fetch(url, options?.headers ? { headers: options.headers } : undefined);
         if (!res.ok) throw new Error(`Audio fetch failed: ${res.status}`);
         const ct = res.headers.get("content-type") || "";
         if (ct.includes("text/html")) throw new Error("Server returned HTML instead of audio");
@@ -72,13 +72,15 @@ export async function playAudioFromUrl(
     return sound;
   }
 
-  const res = await fetch(url);
+  const fetchOpts: RequestInit = {};
+  if (options?.headers) fetchOpts.headers = options.headers;
+  const res = await fetch(url, Object.keys(fetchOpts).length > 0 ? fetchOpts : undefined);
   if (!res.ok) throw new Error(`Audio fetch failed: ${res.status}`);
   const ct = res.headers.get("content-type") || "";
   if (ct.includes("text/html")) throw new Error("Server returned HTML instead of audio");
 
   const { sound } = await Audio.Sound.createAsync(
-    { uri: url },
+    { uri: url, headers: options?.headers },
     { shouldPlay: false, volume: vol, rate, shouldCorrectPitch: true }
   );
   await sound.setRateAsync(rate, true).catch(() => {});
@@ -153,4 +155,128 @@ export async function playTTS(
 ): Promise<Audio.Sound> {
   const url = buildTTSUrl(endpoint, body);
   return playAudioFromUrl(url, { volume: options?.volume });
+}
+
+let _trumpSpeakingCount = 0;
+let _trumpQueue: Promise<void> = Promise.resolve();
+
+export function isTrumpCurrentlySpeaking(): boolean {
+  return _trumpSpeakingCount > 0;
+}
+
+export async function playTrumpTTS(
+  endpoint: string,
+  body: Record<string, any>,
+  options?: { volume?: number }
+): Promise<Audio.Sound> {
+  const previous = _trumpQueue;
+  let completionResolve: () => void;
+  let completed = false;
+
+  const finish = () => {
+    if (!completed) {
+      completed = true;
+      _trumpSpeakingCount = Math.max(0, _trumpSpeakingCount - 1);
+      completionResolve!();
+    }
+  };
+
+  const completionPromise = new Promise<void>((resolve) => {
+    completionResolve = resolve;
+  });
+
+  _trumpQueue = completionPromise;
+  _trumpSpeakingCount++;
+
+  try {
+    await previous;
+  } catch {}
+
+  let sound: Audio.Sound;
+  try {
+    sound = await playTTS(endpoint, body, options);
+  } catch (err) {
+    finish();
+    throw err;
+  }
+
+  const origSetHandler = sound.setOnPlaybackStatusUpdate.bind(sound);
+  let externalHandler: ((status: any) => void) | null = null;
+
+  origSetHandler((status: any) => {
+    if (externalHandler) externalHandler(status);
+    if (!status.isLoaded || status.didJustFinish) {
+      finish();
+    }
+  });
+
+  const origUnload = sound.unloadAsync.bind(sound);
+  sound.unloadAsync = async () => {
+    finish();
+    return origUnload();
+  };
+
+  sound.setOnPlaybackStatusUpdate = (handler: (status: any) => void) => {
+    externalHandler = handler;
+  };
+
+  return sound;
+}
+
+export async function playTrumpAudioFromUrl(
+  url: string,
+  options?: { method?: string; body?: any; headers?: Record<string, string>; volume?: number; rate?: number }
+): Promise<Audio.Sound> {
+  const previous = _trumpQueue;
+  let completionResolve: () => void;
+  let completed = false;
+
+  const finish = () => {
+    if (!completed) {
+      completed = true;
+      _trumpSpeakingCount = Math.max(0, _trumpSpeakingCount - 1);
+      completionResolve!();
+    }
+  };
+
+  const completionPromise = new Promise<void>((resolve) => {
+    completionResolve = resolve;
+  });
+
+  _trumpQueue = completionPromise;
+  _trumpSpeakingCount++;
+
+  try {
+    await previous;
+  } catch {}
+
+  let sound: Audio.Sound;
+  try {
+    sound = await playAudioFromUrl(url, options);
+  } catch (err) {
+    finish();
+    throw err;
+  }
+
+  const origSetHandler = sound.setOnPlaybackStatusUpdate.bind(sound);
+  let externalHandler: ((status: any) => void) | null = null;
+
+  origSetHandler((status: any) => {
+    if (externalHandler) externalHandler(status);
+    if (!status.isLoaded || status.didJustFinish) {
+      finish();
+    }
+  });
+
+  const origUnload = sound.unloadAsync.bind(sound);
+  sound.unloadAsync = async () => {
+    finish();
+    return origUnload();
+  };
+
+  sound.setOnPlaybackStatusUpdate = (handler: (status: any) => void) => {
+    externalHandler = handler;
+  };
+
+  return sound;
 }

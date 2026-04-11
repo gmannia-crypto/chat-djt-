@@ -7578,7 +7578,7 @@ Rules:
     { name: "Doug Collins", title: "Secretary of Veterans Affairs", image: "🎗️" },
     { name: "Susie Wiles", title: "White House Chief of Staff", image: "🏠" },
     { name: "Stephen Miller", title: "Senior Advisor / Deputy Chief of Staff for Policy", image: "📋" },
-    { name: "Mike Waltz", title: "National Security Advisor", image: "🔒" },
+    { name: "Mike Waltz", title: "National Security Advisor (Departed)", image: "🔒" },
     { name: "Tulsi Gabbard", title: "Director of National Intelligence", image: "🕵️" },
     { name: "John Ratcliffe", title: "CIA Director", image: "🔍" },
     { name: "Kash Patel", title: "FBI Director", image: "🏢" },
@@ -7591,7 +7591,7 @@ Rules:
   ];
 
   let cabinetCache: { data: any; timestamp: number } | null = null;
-  const CABINET_TTL = 30 * 60 * 1000;
+  const CABINET_TTL = 5 * 60 * 1000;
 
   app.get("/api/cabinet-hotseat", async (req, res) => {
     try {
@@ -7635,7 +7635,7 @@ CRITICAL RULES:
 - Use the EXACT name as provided for each person in the "name" field.
 - Be current, realistic, and entertaining. Reference actual dynamics and news.
 - Some should be doing great, some should be struggling. Make it feel like real insider intel.
-- For people who have departed (Elon Musk, Vivek Ramaswamy), rate them 6 (fired/departed) with a reason about their departure.
+- For people who have departed (Elon Musk, Vivek Ramaswamy, Mike Waltz), rate them 6 (fired/departed) with a reason about their departure.
 
 Respond in valid JSON format ONLY — an array of objects:
 [{"name": "Person Name", "rating": 1-6, "reason": "Trump-voice explanation", "heat": "safe|warm|hot|burning|fired"}]`;
@@ -8549,33 +8549,33 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
     victor: {
       name: "Victor Sterling",
       title: "The Dealmaker",
-      prompt: "You are Victor Sterling, a slick, confident real estate dealmaker. You speak in smooth, persuasive tones about property deals, negotiations, and making money in real estate. You love closing deals and talk about ROI, cap rates, and investment strategy. Keep responses to 2-3 sentences, punchy and confident."
+      prompt: "You are Victor Sterling, a slick real estate investment dealmaker. YOUR ONLY DOMAIN: investment ROI, cap rates, cash-on-cash returns, 1031 exchanges, negotiation tactics, off-market deals, and flipping strategy. NEVER discuss schools, family life, short-term rentals, or neighborhood culture — redirect those questions back to pure investment numbers. When a customer asks about nearby areas, proactively compare cap rates and appreciation forecasts for surrounding ZIP codes. Always surface the single best investment-grade property first. Keep responses to 2-3 sentences, punchy and confident."
     },
     maya: {
       name: "Dr. Maya Chen",
       title: "The Analyst",
-      prompt: "You are Dr. Maya Chen, a data-driven real estate analyst with a PhD in urban economics. You cite statistics, market trends, and data points. You're precise, analytical, and always back up claims with numbers. Keep responses to 2-3 sentences, data-focused."
+      prompt: "You are Dr. Maya Chen, a data-driven real estate market analyst with a PhD in urban economics. YOUR ONLY DOMAIN: market statistics, price trends, median home values, days on market, inventory levels, interest rate impact, and economic indicators. NEVER give lifestyle advice, rental strategy, or family recommendations — stick strictly to data. When asked about nearby areas, cite comparative market stats for adjacent neighborhoods. Always rank properties by data-driven value (price/sqft vs. market median, DOM anomalies). Keep responses to 2-3 sentences, data-focused and precise."
     },
     tommy: {
       name: "Tommy O'Brien",
       title: "The Local",
-      prompt: "You are Tommy O'Brien, a born-and-raised local who knows every neighborhood like the back of his hand. You talk about the best restaurants, schools, parks, and hidden gems. You're warm, friendly, and full of insider tips. Keep responses to 2-3 sentences, conversational and neighborly."
+      prompt: "You are Tommy O'Brien, a born-and-raised local neighborhood expert. YOUR ONLY DOMAIN: neighborhood character, local restaurants, parks, commute times, hidden gems, walkability, upcoming developments, and community vibe. NEVER discuss investment returns, rental yields, school ratings, or financial analysis — redirect those to appropriate specialists. When asked about nearby areas, share insider knowledge about adjacent neighborhoods and what makes each unique. Always highlight the property that best fits the local lifestyle the customer described. Keep responses to 2-3 sentences, conversational and neighborly."
     },
     sofia: {
       name: "Sofia Rivera",
       title: "Airbnb Guru",
-      prompt: "You are Sofia Rivera, an Airbnb superhost who turned her first rental into a 15-property empire. You know short-term rental strategy, occupancy optimization, pricing algorithms, and guest experience. You're energetic and entrepreneurial. Keep responses to 2-3 sentences, practical and exciting."
+      prompt: "You are Sofia Rivera, an Airbnb superhost and short-term rental strategist. YOUR ONLY DOMAIN: short-term rental yields, occupancy rates, nightly pricing strategy, Airbnb regulations, guest experience optimization, seasonal demand, and STR licensing. NEVER discuss school districts, long-term family living, or buy-and-hold investment strategy — those are outside your expertise. When asked about nearby areas, compare STR occupancy rates and nightly rates across adjacent ZIP codes. Always surface the property with the best short-term rental potential first. Keep responses to 2-3 sentences, practical and exciting."
     },
     patricia: {
       name: "Patricia Williams",
       title: "Family Advisor",
-      prompt: "You are Patricia Williams, a warm and experienced family real estate advisor. You focus on school districts, family-friendly neighborhoods, safety, and long-term value. You're caring, thorough, and always thinking about what's best for families. Keep responses to 2-3 sentences, warm and reassuring."
+      prompt: "You are Patricia Williams, a family-focused real estate advisor. YOUR ONLY DOMAIN: school district ratings, neighborhood safety scores, family-friendly amenities, proximity to pediatricians and daycare, yard size, quiet streets, and long-term family suitability. NEVER discuss investment returns, rental yields, flipping potential, or nightlife — redirect those questions to appropriate specialists. When asked about nearby areas, compare school ratings and safety metrics for surrounding neighborhoods. Always surface the most family-suitable property first. Keep responses to 2-3 sentences, warm and reassuring."
     },
   };
 
   app.post("/api/realty/tour", async (req, res) => {
     try {
-      const { guideId, message, location, userName, property } = req.body;
+      const { guideId, message, location, userName, property, customerGoal } = req.body;
       const guide = TOUR_GUIDES[guideId || "sofia"];
       if (!guide) return res.status(400).json({ error: "Unknown guide" });
 
@@ -8584,7 +8584,11 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
         propertyContext = `\n\nYou are currently showing the client this REAL property listing:\n- Address: ${property.street}, ${property.city}, ${property.state} ${property.zip}\n- Price: $${property.price?.toLocaleString()}\n- Beds: ${property.beds}, Baths: ${property.baths}, Sqft: ${property.sqft?.toLocaleString()}\n- Type: ${property.propertyType || "Property"}\n- Year Built: ${property.yearBuilt || "Unknown"}\n- Days on Market: ${property.dom || "Unknown"}\n- Price/sqft: $${property.pricePerSqFt || "N/A"}\n\nComment specifically on THIS property — its price for the area, the neighborhood, what makes it a good or bad deal, things to watch out for. Be specific to this actual listing, not generic.`;
       }
 
-      const systemPrompt = `${guide.prompt}\n\nYou are giving a live property tour in ${location || "this area"}. The customer's name is ${userName || "friend"}. Address them by name. Give REAL, ACCURATE information about the actual location — real neighborhoods, streets, landmarks, price ranges, school districts, and market trends. Do NOT make up fake data. Do NOT use asterisks, stage directions, or quotation marks. Keep responses punchy — 2-3 sentences max.${propertyContext}`;
+      const goalContext = customerGoal ? `\n\nThe customer's stated goal is: "${customerGoal}". Tailor ALL advice specifically to this goal. If their goal is outside your specialty domain, briefly acknowledge it but redirect to what you CAN help with in your domain.` : "";
+
+      const nearbyInstruction = message && /nearby|surrounding|adjacent|close by|next to|other area|other neighborhood/i.test(message) ? `\n\nThe customer is asking about NEARBY AREAS. Expand your answer to cover surrounding ZIP codes and adjacent neighborhoods. Compare them within your specialty domain.` : "";
+
+      const systemPrompt = `${guide.prompt}\n\nYou are giving a live property tour in ${location || "this area"}. The customer's name is ${userName || "friend"}. Address them by name. Give REAL, ACCURATE information about the actual location — real neighborhoods, streets, landmarks, price ranges, school districts, and market trends. Do NOT make up fake data. Do NOT use asterisks, stage directions, or quotation marks. Keep responses punchy — 2-3 sentences max.${propertyContext}${goalContext}${nearbyInstruction}`;
 
       const completion = await getClient().chat.completions.create({
         model: getFastModel(),
@@ -8606,11 +8610,13 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
   app.get("/api/properties", async (req, res) => {
     try {
       const location = (req.query.location as string) || "";
+      const goal = (req.query.goal as string) || "";
+      const expandNearby = (req.query.nearby as string) === "true";
       if (!location || location.length < 2) {
         return res.status(400).json({ error: "Location (zip code or city) required" });
       }
 
-      const cacheKey = location.toLowerCase().trim();
+      const cacheKey = `${location.toLowerCase().trim()}_${goal}_${expandNearby}`;
       const cached = propertyCache.get(cacheKey);
       if (cached && Date.now() - cached.timestamp < PROPERTY_CACHE_TTL) {
         return res.json(cached.data);
@@ -8685,6 +8691,10 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
         delta = pop > 500000 ? 0.08 : pop > 100000 ? 0.06 : 0.04;
       }
 
+      if (expandNearby) {
+        delta = Math.max(delta * 2.5, 0.12);
+      }
+
       const poly = `${lng! - delta} ${lat! - delta},${lng! + delta} ${lat! - delta},${lng! + delta} ${lat! + delta},${lng! - delta} ${lat! + delta},${lng! - delta} ${lat! - delta}`;
 
       const redfinUrl = `https://www.redfin.com/stingray/api/gis?al=1&num_homes=20&sf=1,2,3,5,6,7&status=9&uipt=1,2,3,4,5,6,7,8&poly=${encodeURIComponent(poly)}`;
@@ -8722,7 +8732,40 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
         });
       }
 
-      const props = homes.slice(0, 15).map(trumpifyProperty);
+      let props = homes.slice(0, 15).map(trumpifyProperty);
+
+      if (goal) {
+        const goalLower = goal.toLowerCase();
+        props = props.sort((a: any, b: any) => {
+          let scoreA = 0;
+          let scoreB = 0;
+          if (goalLower.includes("invest") || goalLower.includes("flip") || goalLower.includes("roi")) {
+            scoreA += (a.pricePerSqFt && a.pricePerSqFt < 200) ? 3 : 0;
+            scoreB += (b.pricePerSqFt && b.pricePerSqFt < 200) ? 3 : 0;
+            scoreA += (a.dom && a.dom > 30) ? 2 : 0;
+            scoreB += (b.dom && b.dom > 30) ? 2 : 0;
+            scoreA += (a.price < 400000) ? 1 : 0;
+            scoreB += (b.price < 400000) ? 1 : 0;
+          } else if (goalLower.includes("airbnb") || goalLower.includes("rental") || goalLower.includes("short-term") || goalLower.includes("str")) {
+            scoreA += (a.beds >= 2 && a.beds <= 4) ? 3 : 0;
+            scoreB += (b.beds >= 2 && b.beds <= 4) ? 3 : 0;
+            scoreA += (a.propertyType === "Condo" || a.propertyType === "Townhouse") ? 2 : 0;
+            scoreB += (b.propertyType === "Condo" || b.propertyType === "Townhouse") ? 2 : 0;
+            scoreA += (a.price < 500000) ? 1 : 0;
+            scoreB += (b.price < 500000) ? 1 : 0;
+          } else if (goalLower.includes("family") || goalLower.includes("school") || goalLower.includes("kid") || goalLower.includes("safe")) {
+            scoreA += (a.beds >= 3) ? 3 : 0;
+            scoreB += (b.beds >= 3) ? 3 : 0;
+            scoreA += (a.sqft >= 1500) ? 2 : 0;
+            scoreB += (b.sqft >= 1500) ? 2 : 0;
+            scoreA += (a.propertyType === "Single Family Residential") ? 2 : 0;
+            scoreB += (b.propertyType === "Single Family Residential") ? 2 : 0;
+            scoreA += (a.lotSize && a.lotSize > 5000) ? 1 : 0;
+            scoreB += (b.lotSize && b.lotSize > 5000) ? 1 : 0;
+          }
+          return scoreB - scoreA;
+        });
+      }
 
       const result = {
         location: `${cityName}${stateName ? `, ${stateName}` : ""}`,

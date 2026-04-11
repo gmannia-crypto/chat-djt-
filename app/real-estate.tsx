@@ -294,6 +294,7 @@ export default function RealEstateScreen() {
     setTourGuideComments((prev) => ({ ...prev, [propKey]: { text: "", loading: true } }));
     try {
       const baseUrl = getApiUrl().replace(/\/$/, "");
+      const guideGoals: Record<string, string> = { victor: "investment", maya: "investment", tommy: "family", sofia: "airbnb", patricia: "family" };
       const res = await fetch(`${baseUrl}/api/realty/tour`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -302,6 +303,7 @@ export default function RealEstateScreen() {
           message: message || `Walk me through this property at ${prop.street}. What's your take?`,
           location: loc,
           userName: userName || "friend",
+          customerGoal: guideGoals[guideId] || undefined,
           property: { street: prop.street, city: prop.city, state: prop.state, zip: prop.zip, price: prop.price, beds: prop.beds, baths: prop.baths, sqft: prop.sqft, propertyType: prop.propertyType, yearBuilt: prop.yearBuilt, dom: prop.dom, pricePerSqFt: prop.pricePerSqFt },
         }),
       });
@@ -325,6 +327,35 @@ export default function RealEstateScreen() {
     const userMsg: TourMessage = { id: `user-${Date.now()}`, role: "user", text };
     setTourMessages((prev) => [...prev, userMsg]);
     setTourLoading(true);
+
+    const isNearbyRequest = /nearby|surrounding|adjacent|close by|next to|other area|other neighborhood/i.test(text);
+    const guideGoalMap: Record<string, string> = {
+      victor: "investment",
+      maya: "investment",
+      tommy: "family",
+      sofia: "airbnb",
+      patricia: "family",
+    };
+    const inferredGoal = guideGoalMap[selectedGuide] || "";
+    if (isNearbyRequest) {
+      try {
+        const baseUrl = getApiUrl();
+        const goalParam = inferredGoal ? `&goal=${encodeURIComponent(inferredGoal)}` : "";
+        const nearbyRes = await fetch(`${baseUrl}api/properties?location=${encodeURIComponent(tourLocation.trim())}&nearby=true${goalParam}`);
+        if (nearbyRes.ok) {
+          const nearbyData = await nearbyRes.json();
+          const newProps = nearbyData.properties || [];
+          if (newProps.length > 0) {
+            const existingIds = new Set(tourProperties.map((p: Property) => p.id || p.street));
+            const additional = newProps.filter((p: Property) => !existingIds.has(p.id || p.street));
+            if (additional.length > 0) {
+              setTourProperties((prev: Property[]) => [...prev, ...additional]);
+            }
+          }
+        }
+      } catch {}
+    }
+
     try {
       const activeProp = tourProperties.find((p) => (p.id || p.street) === tourActiveProperty);
       const baseUrl = getApiUrl().replace(/\/$/, "");
@@ -336,6 +367,7 @@ export default function RealEstateScreen() {
           message: text,
           location: tourLocation,
           userName: tourUserName || "friend",
+          customerGoal: inferredGoal || undefined,
           property: activeProp ? { street: activeProp.street, city: activeProp.city, state: activeProp.state, zip: activeProp.zip, price: activeProp.price, beds: activeProp.beds, baths: activeProp.baths, sqft: activeProp.sqft, propertyType: activeProp.propertyType, yearBuilt: activeProp.yearBuilt, dom: activeProp.dom, pricePerSqFt: activeProp.pricePerSqFt } : undefined,
         }),
       });
@@ -356,9 +388,18 @@ export default function RealEstateScreen() {
     setTourGuideComments({});
     setTourActiveProperty(null);
     setTourPropsLoading(true);
+    const guideGoalMap: Record<string, string> = {
+      victor: "investment",
+      maya: "investment",
+      tommy: "family",
+      sofia: "airbnb",
+      patricia: "family",
+    };
+    const tourGoal = guideGoalMap[selectedGuide] || "";
     try {
       const baseUrl = getApiUrl();
-      const res = await fetch(`${baseUrl}api/properties?location=${encodeURIComponent(tourLocation.trim())}`);
+      const goalParam = tourGoal ? `&goal=${encodeURIComponent(tourGoal)}` : "";
+      const res = await fetch(`${baseUrl}api/properties?location=${encodeURIComponent(tourLocation.trim())}${goalParam}`);
       if (res.ok) {
         const data = await res.json();
         const props = data.properties || [];

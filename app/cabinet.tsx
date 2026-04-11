@@ -10,7 +10,7 @@ import {
   RefreshControl,
 } from "react-native";
 import { Audio } from "expo-av";
-import { playTTS, playAudioFromUrl } from "@/lib/audio-helper";
+import { playTTS, playAudioFromUrl, playTrumpAudioFromUrl, isTrumpCurrentlySpeaking } from "@/lib/audio-helper";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -160,7 +160,8 @@ export default function CabinetHotSeat() {
       if (!resp.ok) throw new Error("Failed to fetch");
       return resp.json();
     },
-    staleTime: 10 * 60 * 1000,
+    staleTime: 2 * 60 * 1000,
+    refetchInterval: 5 * 60 * 1000,
     enabled: !!deviceId,
   });
 
@@ -168,14 +169,14 @@ export default function CabinetHotSeat() {
   const sorted = [...members].sort((a, b) => b.rating - a.rating);
 
   const handleSpeak = async (member: CabinetMember) => {
-    if (speakingName) return;
+    if (speakingName || isTrumpCurrentlySpeaking()) return;
     if (!hasTokens) {
       router.push("/subscribe");
       return;
     }
     setSpeakingName(member.name);
     try {
-      if (soundRef.current) {
+      if (soundRef.current && !isTrumpCurrentlySpeaking()) {
         await soundRef.current.unloadAsync();
         soundRef.current = null;
       }
@@ -188,39 +189,26 @@ export default function CabinetHotSeat() {
       });
       const audioUrl = `${baseUrl}api/cabinet-speak-audio?${params.toString()}`;
 
-      if (Platform.OS === "web") {
-        const resp = await globalThis.fetch(audioUrl, {
-          headers: deviceId ? { "x-device-id": deviceId } : {},
-        });
-        if (resp.status === 403) {
+      if (Platform.OS !== "web") {
+        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+      }
+      const sound = await playTrumpAudioFromUrl(audioUrl, {
+        headers: deviceId ? { "x-device-id": deviceId } : undefined,
+      });
+      soundRef.current = sound;
+      sound.setOnPlaybackStatusUpdate((status: any) => {
+        if (!status.isLoaded || status.didJustFinish) {
           setSpeakingName(null);
           refreshBalance();
-          router.push("/subscribe");
-          return;
         }
-        if (!resp.ok) throw new Error("Failed");
-        const blob = await resp.blob();
-        const url = URL.createObjectURL(blob);
-        const audio = new window.Audio(url);
-        audio.onended = () => { setSpeakingName(null); URL.revokeObjectURL(url); refreshBalance(); };
-        audio.onerror = () => { setSpeakingName(null); URL.revokeObjectURL(url); };
-        await audio.play();
-      } else {
-        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-        const sound = await playAudioFromUrl(audioUrl, {
-          headers: deviceId ? { "x-device-id": deviceId } : undefined,
-        });
-        soundRef.current = sound;
-        sound.setOnPlaybackStatusUpdate((status: any) => {
-          if (status.isLoaded && status.didJustFinish) {
-            setSpeakingName(null);
-            refreshBalance();
-          }
-        });
-      }
-    } catch (e) {
+      });
+    } catch (e: any) {
       console.error("Cabinet speak error:", e);
       setSpeakingName(null);
+      if (e?.message?.includes("403")) {
+        refreshBalance();
+        router.push("/subscribe");
+      }
     }
   };
 

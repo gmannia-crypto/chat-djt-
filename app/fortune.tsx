@@ -20,7 +20,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { Video, Audio, ResizeMode } from "expo-av";
-import { playTTS } from "@/lib/audio-helper";
+import { playTTS, playTrumpTTS, isTrumpCurrentlySpeaking } from "@/lib/audio-helper";
 import Animated, {
   FadeIn,
   FadeInDown,
@@ -201,13 +201,13 @@ export default function FortuneScreen() {
 
   async function handleSpeak(text: string) {
     try {
-      if (soundRef.current) {
+      if (soundRef.current && !isTrumpCurrentlySpeaking()) {
         await soundRef.current.unloadAsync();
         soundRef.current = null;
       }
       setSpeaking(true);
       await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-      const sound = await playTTS("/api/tts", { text, mood: "EXCITED" });
+      const sound = await playTrumpTTS("/api/tts", { text, mood: "EXCITED" });
       soundRef.current = sound;
       sound.setOnPlaybackStatusUpdate((status: any) => {
         if (status.didJustFinish) setSpeaking(false);
@@ -217,7 +217,7 @@ export default function FortuneScreen() {
 
   React.useEffect(() => {
     return () => {
-      if (soundRef.current) {
+      if (soundRef.current && !isTrumpCurrentlySpeaking()) {
         soundRef.current.unloadAsync();
         soundRef.current = null;
       }
@@ -231,7 +231,7 @@ export default function FortuneScreen() {
     setBirthMonth(null);
     setBirthDay("");
     setSelectedTopic(null);
-    if (soundRef.current) {
+    if (soundRef.current && !isTrumpCurrentlySpeaking()) {
       soundRef.current.unloadAsync();
       soundRef.current = null;
     }

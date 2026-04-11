@@ -2357,6 +2357,7 @@ export default function ArenaScreen() {
         if (nextItem) startPrefetch(nextItem);
 
         const OVERLAP_MS = 1500;
+        const isTrumpSpeaking = item.personaId === "trump";
         await new Promise<void>((resolve) => {
           let resolved = false;
           let earlyResolved = false;
@@ -2388,7 +2389,7 @@ export default function ArenaScreen() {
                 const ni = ttsQueueRef.current[0];
                 if (ni) startPrefetch(ni);
               }
-              if (!earlyResolved && (ttsQueueRef.current.length > 0 || prefetchedAudioRef.current)) {
+              if (!isTrumpSpeaking && !earlyResolved && (ttsQueueRef.current.length > 0 || prefetchedAudioRef.current)) {
                 const remaining = status.durationMillis - status.positionMillis;
                 if (remaining <= OVERLAP_MS && remaining > 0) {
                   earlyResolve();
@@ -3345,12 +3346,28 @@ export default function ArenaScreen() {
   const scheduleNext = useCallback(() => {
     if (sessionEndedRef.current) return;
     if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
+    const WATCHDOG_TIMEOUT = 8000;
+    let watchdogTimer: ReturnType<typeof setTimeout> | null = null;
     const waitForClear = () => {
       if (sessionEndedRef.current) return;
       if (isInterruptingRef.current || currentSpeakerRef.current) {
+        if (!watchdogTimer) {
+          watchdogTimer = setTimeout(() => {
+            console.warn("Arena watchdog: clearing stuck locks after timeout");
+            isInterruptingRef.current = false;
+            currentSpeakerRef.current = null;
+            setCurrentSpeaker(null);
+            isProcessingTTSRef.current = false;
+            if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
+            if (mountedRef.current && isRunningRef.current && !sessionEndedRef.current) {
+              scheduleNext();
+            }
+          }, WATCHDOG_TIMEOUT);
+        }
         conversationTimerRef.current = setTimeout(waitForClear, 100);
         return;
       }
+      if (watchdogTimer) { clearTimeout(watchdogTimer); watchdogTimer = null; }
       const delay = 50 + Math.random() * 100;
       conversationTimerRef.current = setTimeout(async () => {
         if (!mountedRef.current || sessionEndedRef.current) return;
@@ -3515,8 +3532,15 @@ export default function ArenaScreen() {
     setIsRunning((prev) => {
       const next = !prev;
       isRunningRef.current = next;
-      if (next) scheduleNext();
-      else if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
+      if (next) {
+        scheduleNext();
+      } else {
+        if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
+        isInterruptingRef.current = false;
+        currentSpeakerRef.current = null;
+        setCurrentSpeaker(null);
+        isProcessingTTSRef.current = false;
+      }
       return next;
     });
   }, [scheduleNext]);
