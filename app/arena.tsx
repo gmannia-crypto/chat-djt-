@@ -159,7 +159,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
     shortName: "Bibi",
     color: "#0038b8",
     faction: "supporter",
-    image: null,
+    image: require("@/assets/images/persona-netanyahu.png"),
     personality: {
       energy: 75,
       aggression: 60,
@@ -223,7 +223,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
     shortName: "Galloway",
     color: "#c41e3a",
     faction: "opponent",
-    image: null,
+    image: require("@/assets/images/persona-galloway.png"),
     personality: {
       energy: 85,
       aggression: 75,
@@ -255,7 +255,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
     shortName: "Mitch",
     color: "#708090",
     faction: "opponent",
-    image: null,
+    image: require("@/assets/images/persona-mcconnell.png"),
     personality: {
       energy: 20,
       aggression: 40,
@@ -287,7 +287,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
     shortName: "Carville",
     color: "#e63946",
     faction: "opponent",
-    image: null,
+    image: require("@/assets/images/persona-carville.png"),
     personality: {
       energy: 90,
       aggression: 80,
@@ -319,7 +319,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
     shortName: "Maddow",
     color: "#7c3aed",
     faction: "opponent",
-    image: null,
+    image: require("@/assets/images/persona-maddow.png"),
     personality: {
       energy: 65,
       aggression: 55,
@@ -351,7 +351,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
     shortName: "Omar",
     color: "#06b6d4",
     faction: "opponent",
-    image: null,
+    image: require("@/assets/images/persona-omar.png"),
     personality: {
       energy: 80,
       aggression: 70,
@@ -383,7 +383,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
     shortName: "Biden",
     color: "#3b82f6",
     faction: "opponent",
-    image: null,
+    image: require("@/assets/images/persona-biden.png"),
     personality: {
       energy: 25,
       aggression: 30,
@@ -415,7 +415,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
     shortName: "Rosie",
     color: "#ec4899",
     faction: "opponent",
-    image: null,
+    image: require("@/assets/images/persona-rosie.png"),
     personality: {
       energy: 95,
       aggression: 85,
@@ -479,7 +479,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
     shortName: "Elon",
     color: "#1DA1F2",
     faction: "supporter",
-    image: null,
+    image: require("@/assets/images/persona-musk.png"),
     personality: {
       energy: 70,
       aggression: 40,
@@ -544,7 +544,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
     shortName: "Megyn",
     color: "#d4af37",
     faction: "supporter",
-    image: null,
+    image: require("@/assets/images/persona-megynkelly.png"),
     personality: {
       energy: 85,
       aggression: 75,
@@ -580,7 +580,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
     shortName: "Bondi",
     color: "#b22222",
     faction: "supporter",
-    image: null,
+    image: require("@/assets/images/persona-pambondi.png"),
     personality: {
       energy: 90,
       aggression: 85,
@@ -616,7 +616,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
     shortName: "Candace",
     color: "#ff8c00",
     faction: "wildcard",
-    image: null,
+    image: require("@/assets/images/persona-candace.png"),
     personality: {
       energy: 90,
       aggression: 80,
@@ -652,7 +652,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
     shortName: "Joy",
     color: "#9333ea",
     faction: "opponent",
-    image: null,
+    image: require("@/assets/images/persona-joyreid.png"),
     personality: {
       energy: 90,
       aggression: 80,
@@ -772,7 +772,7 @@ const MYSTERY_PERSONAS: Record<string, ArenaPersona> = {
     shortName: "Schumer",
     color: "#003DA5",
     faction: "opponent",
-    image: null,
+    image: require("@/assets/images/persona-schumer.png"),
     personality: {
       energy: 65,
       aggression: 60,
@@ -811,7 +811,7 @@ const MYSTERY_PERSONAS: Record<string, ArenaPersona> = {
     shortName: "Jones",
     color: "#FF4500",
     faction: "supporter",
-    image: null,
+    image: require("@/assets/images/persona-alexjones.png"),
     personality: {
       energy: 100,
       aggression: 95,
@@ -851,7 +851,7 @@ const MYSTERY_PERSONAS: Record<string, ArenaPersona> = {
     shortName: "Obama",
     color: "#1a3a5c",
     faction: "opponent",
-    image: null,
+    image: require("@/assets/images/persona-obama.png"),
     personality: {
       energy: 60,
       aggression: 35,
@@ -891,7 +891,7 @@ const MYSTERY_PERSONAS: Record<string, ArenaPersona> = {
     shortName: "Melania",
     color: "#C0C0C0",
     faction: "supporter",
-    image: null,
+    image: require("@/assets/images/persona-melania.png"),
     personality: {
       energy: 25,
       aggression: 20,
@@ -4302,69 +4302,86 @@ export default function ArenaScreen() {
           const voteAnim = voteAnimations[pid] || 0;
           const allTime = allTimeScores[pid];
           const sessionPts = personaPoints[pid] || 0;
+          const isEnlarged = isSpeaking || isFocused;
           return (
-            <Pressable
+            <Animated.View
               key={pid}
-              onPress={() => {
-                const count = speakerVoteCounts[pid] || 0;
-                if (count >= 5) {
-                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-                  return;
-                }
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                if (count === 4) {
-                  playVoteSound2();
-                }
-                voteForPersona(pid);
-              }}
-              onLongPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setFocusedPersona(focusedPersona === pid ? null : pid);
-              }}
               style={[
-                s.personaCircle,
-                { borderColor: p.color },
-                isSpeaking && { borderColor: "#FFD700", borderWidth: 3 },
-                isFocused && { transform: [{ scale: 1.1 }] },
+                isEnlarged && {
+                  transform: [{ scale: isSpeaking ? 1.35 : 1.1 }],
+                  zIndex: 10,
+                  elevation: 10,
+                },
               ]}
             >
-              {p.image ? (
-                <Image source={p.image} style={s.personaImg} />
-              ) : (
-                <View style={[s.personaImgFallback, { backgroundColor: p.color + "40" }]}>
-                  <Text style={s.personaInitials}>{getInitials(p.name)}</Text>
+              <Pressable
+                onPress={() => {
+                  const count = speakerVoteCounts[pid] || 0;
+                  if (count >= 5) {
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                    return;
+                  }
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  if (count === 4) {
+                    playVoteSound2();
+                  }
+                  voteForPersona(pid);
+                }}
+                onLongPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setFocusedPersona(focusedPersona === pid ? null : pid);
+                }}
+                style={[
+                  s.personaCircle,
+                  { borderColor: p.color },
+                  isSpeaking && {
+                    borderColor: "#FFD700",
+                    borderWidth: 3,
+                    shadowColor: "#FFD700",
+                    shadowOffset: { width: 0, height: 0 },
+                    shadowOpacity: 0.8,
+                    shadowRadius: 12,
+                  },
+                ]}
+              >
+                {p.image ? (
+                  <Image source={p.image} style={s.personaImg} />
+                ) : (
+                  <View style={[s.personaImgFallback, { backgroundColor: p.color + "40" }]}>
+                    <Text style={s.personaInitials}>{getInitials(p.name)}</Text>
+                  </View>
+                )}
+                {isSpeaking && (
+                  <View style={s.speakingIndicator}>
+                    <MaterialCommunityIcons name="volume-high" size={10} color="#FFD700" />
+                  </View>
+                )}
+                {voteAnim > 0 && (
+                  <Animated.View entering={FadeIn.duration(200)} style={s.votePopup}>
+                    <Text style={s.votePopupText}>+1 ({voteAnim}/5)</Text>
+                  </Animated.View>
+                )}
+                {(speakerVoteCounts[pid] || 0) >= 5 && (
+                  <View style={[s.votableIndicator, { backgroundColor: "rgba(255,0,0,0.4)" }]}>
+                    <Ionicons name="checkmark" size={8} color="#fff" />
+                  </View>
+                )}
+                <Text style={[s.personaLabel, { color: isSpeaking ? "#FFD700" : p.color }]} numberOfLines={1}>
+                  {p.shortName}
+                </Text>
+                {(sessionPts > 0 || (allTime && allTime.totalPoints > 0)) && (
+                  <View style={s.personaScoreBadge}>
+                    <Text style={s.personaScoreText}>
+                      {allTime ? allTime.totalPoints : sessionPts}
+                    </Text>
+                  </View>
+                )}
+                <View style={s.emotionBars}>
+                  <View style={[s.emotionBar, s.angerBar, { width: `${emo.anger}%` }]} />
+                  <View style={[s.emotionBar, s.happyBar, { width: `${emo.happiness}%` }]} />
                 </View>
-              )}
-              {isSpeaking && (
-                <View style={s.speakingIndicator}>
-                  <MaterialCommunityIcons name="volume-high" size={10} color="#FFD700" />
-                </View>
-              )}
-              {voteAnim > 0 && (
-                <Animated.View entering={FadeIn.duration(200)} style={s.votePopup}>
-                  <Text style={s.votePopupText}>+1 ({voteAnim}/5)</Text>
-                </Animated.View>
-              )}
-              {(speakerVoteCounts[pid] || 0) >= 5 && (
-                <View style={[s.votableIndicator, { backgroundColor: "rgba(255,0,0,0.4)" }]}>
-                  <Ionicons name="checkmark" size={8} color="#fff" />
-                </View>
-              )}
-              <Text style={[s.personaLabel, { color: p.color }]} numberOfLines={1}>
-                {p.shortName}
-              </Text>
-              {(sessionPts > 0 || (allTime && allTime.totalPoints > 0)) && (
-                <View style={s.personaScoreBadge}>
-                  <Text style={s.personaScoreText}>
-                    {allTime ? allTime.totalPoints : sessionPts}
-                  </Text>
-                </View>
-              )}
-              <View style={s.emotionBars}>
-                <View style={[s.emotionBar, s.angerBar, { width: `${emo.anger}%` }]} />
-                <View style={[s.emotionBar, s.happyBar, { width: `${emo.happiness}%` }]} />
-              </View>
-            </Pressable>
+              </Pressable>
+            </Animated.View>
           );
         })}
       </Animated.View>
