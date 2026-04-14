@@ -21,7 +21,7 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { router, useNavigation } from "expo-router";
+import { router, useNavigation, useFocusEffect } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown, FadeInUp, FadeIn, FadeOut, SlideInLeft, SlideInRight, SlideInUp, SlideOutUp, ZoomIn, ZoomOut, BounceIn } from "react-native-reanimated";
@@ -1976,6 +1976,7 @@ export default function ArenaScreen() {
   const [showPaywall, setShowPaywall] = useState(false);
   const [sessionTimer, setSessionTimer] = useState<number>(0);
   const [isUnlocking, setIsUnlocking] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
 
   const flatListRef = useRef<FlatList>(null);
   const isRunningRef = useRef(true);
@@ -2011,6 +2012,15 @@ export default function ArenaScreen() {
   useEffect(() => {
     isDebateActiveRef.current = !showPreDebateSetup && !showIntro;
   }, [showPreDebateSetup, showIntro]);
+
+  useFocusEffect(
+    useCallback(() => {
+      sessionEndedRef.current = false;
+      isInterruptingRef.current = false;
+      confirmedExitRef.current = false;
+      setIsStarting(false);
+    }, [])
+  );
 
   const saveSessionState = useCallback(async () => {
     if (!hasSession || !sessionExpiresAt || Date.now() >= sessionExpiresAt) return;
@@ -2822,7 +2832,7 @@ export default function ArenaScreen() {
 
   const generateAIResponse = useCallback(
     async (responderId: string, toSpeakerId: string) => {
-      if (!mountedRef.current || sessionEndedRef.current) return;
+      if (!mountedRef.current || sessionEndedRef.current || !deviceId) return;
       setCurrentSpeaker(responderId);
       currentSpeakerRef.current = responderId;
       ttsPendingMoreRef.current = true;
@@ -3384,6 +3394,11 @@ export default function ArenaScreen() {
 
   const startDebate = useCallback(async () => {
     if (!mountedRef.current) return;
+    if (!deviceId) {
+      setShowPreDebateSetup(true);
+      setShowIntro(false);
+      return;
+    }
     sessionEndedRef.current = false;
     isInterruptingRef.current = false;
     currentSpeakerRef.current = null;
@@ -3469,7 +3484,7 @@ export default function ArenaScreen() {
     const target = pool.length > 0 ? pool[Math.floor(Math.random() * pool.length)] : starter;
     await generateAIResponse(starter, target);
     if (mountedRef.current) scheduleNext();
-  }, [addMessage, generateAIResponse, scheduleNext]);
+  }, [addMessage, deviceId, generateAIResponse, scheduleNext]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -4034,30 +4049,44 @@ export default function ArenaScreen() {
 
           <Pressable
             onPress={async () => {
-              const canStart = selectedPersonas.length >= 2 && !(useCustomTopic && !customTopicText.trim());
-              if (!canStart) return;
+              const canStart = selectedPersonas.length >= 2 && !(useCustomTopic && !customTopicText.trim()) && !!deviceId;
+              if (!canStart || isStarting) return;
+              setIsStarting(true);
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-              if (deviceId) {
+
+              let liveFreeRemaining = freeRemaining;
+              let liveHasSession = hasSession;
+
+              {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5000);
                 try {
                   const res = await fetch(new URL("/api/arena/status", getApiUrl()).toString(), {
-                    headers: { "x-device-id": deviceId },
+                    headers: { "x-device-id": deviceId! },
+                    signal: controller.signal,
                   });
                   if (res.ok) {
                     const data = await res.json();
-                    setFreeRemaining(data.freeRemaining ?? 0);
-                    setHasSession(data.hasSession ?? false);
+                    liveFreeRemaining = data.freeRemaining ?? 0;
+                    liveHasSession = data.hasSession ?? false;
+                    setFreeRemaining(liveFreeRemaining);
+                    setHasSession(liveHasSession);
                     if (data.sessionExpiresAt) setSessionExpiresAt(data.sessionExpiresAt);
-                    if (!data.hasSession && (data.freeRemaining ?? 0) <= 0) {
-                      setShowPaywall(true);
-                      return;
-                    }
                   }
-                } catch {}
+                } catch {} finally {
+                  clearTimeout(timeoutId);
+                }
               }
-              if (!hasSession && freeRemaining <= 0) {
+
+              if (!liveHasSession && liveFreeRemaining <= 0) {
                 setShowPaywall(true);
+                setIsStarting(false);
                 return;
               }
+
+              sessionEndedRef.current = false;
+              isInterruptingRef.current = false;
+
               if (useCustomTopic && customTopicText.trim()) {
                 setCurrentTopic(customTopicText.trim());
                 currentTopicRef.current = customTopicText.trim();
@@ -4070,15 +4099,17 @@ export default function ArenaScreen() {
               }
               setShowPreDebateSetup(false);
               setShowIntro(true);
+              setIsStarting(false);
             }}
+            disabled={isStarting}
             style={{
               marginTop: 20, paddingVertical: 16, borderRadius: 16, alignItems: "center",
-              backgroundColor: (selectedPersonas.length >= 2 && !(useCustomTopic && !customTopicText.trim())) ? "#FF4D4D" : "rgba(255,255,255,0.1)",
-              opacity: (selectedPersonas.length >= 2 && !(useCustomTopic && !customTopicText.trim())) ? 1 : 0.4,
+              backgroundColor: (selectedPersonas.length >= 2 && !(useCustomTopic && !customTopicText.trim()) && !isStarting && !!deviceId) ? "#FF4D4D" : "rgba(255,255,255,0.1)",
+              opacity: (selectedPersonas.length >= 2 && !(useCustomTopic && !customTopicText.trim()) && !isStarting && !!deviceId) ? 1 : 0.4,
             }}
           >
             <Text style={{ color: "#fff", fontSize: 18, fontWeight: "900", letterSpacing: 1 }}>
-              START DEBATE
+              {isStarting ? "LOADING..." : !deviceId ? "CONNECTING..." : "START DEBATE"}
             </Text>
             <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 11, marginTop: 2 }}>
               {selectedPersonas.length} debaters{useCustomTopic && customTopicText.trim() ? " • Custom topic" : selectedTopicId ? " • Topic selected" : " • Random topic"}
