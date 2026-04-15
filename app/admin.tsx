@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, createContext, useContext } from "react";
 import {
   StyleSheet,
   Text,
@@ -25,8 +25,15 @@ import Animated, {
   FadeInDown,
   FadeInUp,
 } from "react-native-reanimated";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import Colors from "@/constants/colors";
 import { getApiUrl } from "@/lib/query-client";
+
+const AdminKeyContext = createContext<string>("");
+
+function adminHeaders(adminKey: string, extra?: Record<string, string>): Record<string, string> {
+  return { "x-admin-key": adminKey, ...extra };
+}
 
 interface AdminStats {
   users: {
@@ -756,7 +763,99 @@ const modelStyles = StyleSheet.create({
   },
 });
 
+const ADMIN_KEY_STORAGE = "trumpbot-admin-key";
+
 export default function AdminScreen() {
+  const insets = useSafeAreaInsets();
+  const [adminKey, setAdminKey] = useState<string | null>(null);
+  const [keyInput, setKeyInput] = useState("");
+  const [keyChecking, setKeyChecking] = useState(true);
+  const [keyError, setKeyError] = useState("");
+
+  const webTopInset = Platform.OS === "web" ? 67 : 0;
+  const webBottomInset = Platform.OS === "web" ? 34 : 0;
+
+  useEffect(() => {
+    AsyncStorage.getItem(ADMIN_KEY_STORAGE).then((saved) => {
+      if (saved) setAdminKey(saved);
+      setKeyChecking(false);
+    }).catch(() => setKeyChecking(false));
+  }, []);
+
+  async function tryLogin() {
+    if (!keyInput.trim()) return;
+    setKeyChecking(true);
+    setKeyError("");
+    try {
+      const res = await fetch(new URL("/api/admin/recent-accounts?limit=1", getApiUrl()).toString(), {
+        headers: { "x-admin-key": keyInput.trim() },
+      });
+      if (res.ok) {
+        await AsyncStorage.setItem(ADMIN_KEY_STORAGE, keyInput.trim());
+        setAdminKey(keyInput.trim());
+      } else {
+        setKeyError("Invalid passcode");
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
+    } catch {
+      setKeyError("Connection error");
+    }
+    setKeyChecking(false);
+  }
+
+  function logout() {
+    AsyncStorage.removeItem(ADMIN_KEY_STORAGE);
+    setAdminKey(null);
+    setKeyInput("");
+  }
+
+  if (keyChecking && !adminKey) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top + webTopInset, justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator size="large" color={Colors.gold} />
+      </View>
+    );
+  }
+
+  if (!adminKey) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top + webTopInset }]}>
+        <LinearGradient colors={["rgba(212, 164, 32, 0.12)", Colors.background]} style={styles.bgGradient} />
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 32 }}>
+          <MaterialCommunityIcons name="shield-lock" size={48} color={Colors.gold} />
+          <Text style={{ color: "#fff", fontSize: 22, fontWeight: "800" as const, marginTop: 16, marginBottom: 8 }}>Admin Access</Text>
+          <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, textAlign: "center", marginBottom: 24 }}>Enter your admin passcode to continue</Text>
+          <TextInput
+            value={keyInput}
+            onChangeText={setKeyInput}
+            placeholder="Admin passcode"
+            placeholderTextColor="#555"
+            secureTextEntry
+            autoCapitalize="none"
+            autoCorrect={false}
+            onSubmitEditing={tryLogin}
+            style={{ width: "100%", backgroundColor: "#1a1a2e", color: "#fff", fontSize: 16, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: keyError ? "#FF4D4D" : "rgba(212,164,32,0.3)", textAlign: "center", marginBottom: 12 }}
+          />
+          {keyError ? <Text style={{ color: "#FF4D4D", fontSize: 13, marginBottom: 12 }}>{keyError}</Text> : null}
+          <Pressable onPress={tryLogin} disabled={keyChecking} style={({ pressed }) => ({ backgroundColor: Colors.gold, paddingVertical: 14, paddingHorizontal: 40, borderRadius: 12, opacity: pressed ? 0.7 : 1, width: "100%" })}>
+            {keyChecking ? <ActivityIndicator color="#0a0a0a" /> : <Text style={{ color: "#0a0a0a", fontSize: 16, fontWeight: "800" as const, textAlign: "center" }}>UNLOCK</Text>}
+          </Pressable>
+          <Pressable onPress={() => router.back()} style={{ marginTop: 20 }}>
+            <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 14 }}>Go Back</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <AdminKeyContext.Provider value={adminKey}>
+      <AdminDashboard adminKey={adminKey} onLogout={logout} />
+    </AdminKeyContext.Provider>
+  );
+}
+
+function AdminDashboard({ adminKey, onLogout }: { adminKey: string; onLogout: () => void }) {
   const insets = useSafeAreaInsets();
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [shareStats, setShareStats] = useState<ShareStats | null>(null);
@@ -783,9 +882,10 @@ export default function AdminScreen() {
     try {
       setLoading(true);
       setError(null);
+      const hdrs = adminHeaders(adminKey);
       const [statsRes, sharesRes] = await Promise.all([
-        fetch(new URL("/api/admin/stats", getApiUrl()).toString()),
-        fetch(new URL("/api/admin/shares", getApiUrl()).toString()),
+        fetch(new URL("/api/admin/stats", getApiUrl()).toString(), { headers: hdrs }),
+        fetch(new URL("/api/admin/shares", getApiUrl()).toString(), { headers: hdrs }),
       ]);
       if (!statsRes.ok) throw new Error("Failed to fetch stats");
       const data = await statsRes.json();
@@ -814,6 +914,15 @@ export default function AdminScreen() {
           <Text style={styles.headerTitle}>Back Office</Text>
         </View>
         <View style={styles.headerActions}>
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              onLogout();
+            }}
+            style={[styles.refreshButton, { marginRight: 4 }]}
+          >
+            <Ionicons name="log-out-outline" size={18} color="#FF4D4D" />
+          </Pressable>
           <Pressable
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -1113,6 +1222,8 @@ export default function AdminScreen() {
 
             <ModelSettingsSection onModelChange={fetchQuickModelData} />
 
+            <GrantCreditsSection />
+
             <PushNotificationSection />
 
             <ArenaResetSection />
@@ -1215,6 +1326,7 @@ function LiveActivityStatsSection() {
 }
 
 function TimeTrackingSection() {
+  const adminKey = useContext(AdminKeyContext);
   const [timeData, setTimeData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -1223,7 +1335,7 @@ function TimeTrackingSection() {
     setLoading(true);
     try {
       const baseUrl = getApiUrl();
-      const res = await fetch(new URL("/api/admin/time-stats", baseUrl).toString());
+      const res = await fetch(new URL("/api/admin/time-stats", baseUrl).toString(), { headers: adminHeaders(adminKey) });
       if (res.ok) {
         const data = await res.json();
         setTimeData(data);
@@ -1441,7 +1553,125 @@ const timeStyles = StyleSheet.create({
   },
 });
 
+function GrantCreditsSection() {
+  const adminKey = useContext(AdminKeyContext);
+  const [deviceId, setDeviceId] = useState("");
+  const [amount, setAmount] = useState("500");
+  const [resetFree, setResetFree] = useState(true);
+  const [granting, setGranting] = useState(false);
+  const [result, setResult] = useState<{ success?: boolean; error?: string; granted?: number; balance?: any } | null>(null);
+  const [lookupResult, setLookupResult] = useState<any>(null);
+
+  const handleGrant = async () => {
+    if (!deviceId.trim()) {
+      Alert.alert("Missing Device ID", "Enter a device ID to grant credits to.");
+      return;
+    }
+    setGranting(true);
+    setResult(null);
+    try {
+      const res = await fetch(new URL("/api/admin/grant-credits", getApiUrl()).toString(), {
+        method: "POST",
+        headers: adminHeaders(adminKey, { "Content-Type": "application/json" }),
+        body: JSON.stringify({ deviceId: deviceId.trim(), amount: parseInt(amount) || 500, resetFree }),
+      });
+      const data = await res.json();
+      setResult(data);
+      Haptics.notificationAsync(data.success ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Error);
+    } catch {
+      setResult({ error: "Network error" });
+    }
+    setGranting(false);
+  };
+
+  const handleLookup = async () => {
+    if (!deviceId.trim()) return;
+    try {
+      const res = await fetch(new URL(`/api/admin/lookup-account?deviceId=${encodeURIComponent(deviceId.trim())}`, getApiUrl()).toString(), {
+        headers: adminHeaders(adminKey),
+      });
+      if (res.ok) setLookupResult(await res.json());
+    } catch {}
+  };
+
+  return (
+    <Animated.View entering={FadeInDown.delay(300).duration(400)} style={{ marginTop: 16, backgroundColor: "rgba(74,222,128,0.08)", borderRadius: 16, padding: 16, borderWidth: 1, borderColor: "rgba(74,222,128,0.2)" }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
+        <Ionicons name="gift" size={20} color="#4ADE80" />
+        <Text style={{ color: "#4ADE80", fontSize: 14, fontWeight: "800" as const }}>Grant Credits</Text>
+      </View>
+      <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, marginBottom: 10 }}>
+        Add tokens to any device. Find your device ID in browser console: localStorage.getItem("trumpbot-device-id")
+      </Text>
+      <TextInput
+        value={deviceId}
+        onChangeText={setDeviceId}
+        placeholder="device-123456789-abc"
+        placeholderTextColor="#555"
+        autoCapitalize="none"
+        autoCorrect={false}
+        style={{ backgroundColor: "#1a1a2e", color: "#fff", fontSize: 13, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: "rgba(74,222,128,0.2)", marginBottom: 8 }}
+      />
+      <View style={{ flexDirection: "row", gap: 8, marginBottom: 8 }}>
+        <TextInput
+          value={amount}
+          onChangeText={setAmount}
+          placeholder="500"
+          placeholderTextColor="#555"
+          keyboardType="numeric"
+          style={{ flex: 1, backgroundColor: "#1a1a2e", color: "#fff", fontSize: 13, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: "rgba(74,222,128,0.2)" }}
+        />
+        <Pressable
+          onPress={() => setResetFree(!resetFree)}
+          style={{ backgroundColor: resetFree ? "rgba(74,222,128,0.2)" : "#1a1a2e", paddingHorizontal: 14, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: "rgba(74,222,128,0.2)", justifyContent: "center" }}
+        >
+          <Text style={{ color: resetFree ? "#4ADE80" : "#555", fontSize: 11, fontWeight: "700" as const }}>+ Reset Free</Text>
+        </Pressable>
+        <Pressable
+          onPress={handleLookup}
+          style={{ backgroundColor: "#1a1a2e", paddingHorizontal: 14, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: "rgba(212,164,32,0.2)", justifyContent: "center" }}
+        >
+          <Ionicons name="search" size={16} color={Colors.gold} />
+        </Pressable>
+      </View>
+      <Pressable
+        onPress={handleGrant}
+        disabled={granting}
+        style={({ pressed }) => ({
+          backgroundColor: granting ? "rgba(74,222,128,0.3)" : "#4ADE80",
+          paddingVertical: 10,
+          borderRadius: 10,
+          alignItems: "center" as const,
+          opacity: pressed ? 0.7 : 1,
+        })}
+      >
+        {granting ? (
+          <ActivityIndicator size="small" color="#0a0a0a" />
+        ) : (
+          <Text style={{ color: "#0a0a0a", fontWeight: "800" as const, fontSize: 13 }}>Grant {amount || "500"} Tokens</Text>
+        )}
+      </Pressable>
+      {result?.success && (
+        <Text style={{ color: "#4ADE80", fontSize: 11, marginTop: 8, textAlign: "center" }}>
+          Granted {result.granted} tokens. New balance: {result.balance?.totalAvailable ?? "?"} total
+        </Text>
+      )}
+      {result?.error && (
+        <Text style={{ color: "#FF4D4D", fontSize: 11, marginTop: 8, textAlign: "center" }}>{result.error}</Text>
+      )}
+      {lookupResult && (
+        <View style={{ marginTop: 8, backgroundColor: "rgba(212,164,32,0.08)", borderRadius: 8, padding: 10 }}>
+          <Text style={{ color: Colors.gold, fontSize: 11, fontWeight: "700" as const }}>Account Lookup</Text>
+          <Text style={{ color: "#ccc", fontSize: 11, marginTop: 4 }}>Tokens: {lookupResult.tokens} | Free left: {lookupResult.freeRemaining} | Total: {lookupResult.totalAvailable}</Text>
+          <Text style={{ color: "#888", fontSize: 10, marginTop: 2 }}>Subscribed: {lookupResult.isSubscribed ? "Yes" : "No"}{lookupResult.subscriptionTier ? ` (${lookupResult.subscriptionTier})` : ""}</Text>
+        </View>
+      )}
+    </Animated.View>
+  );
+}
+
 function ArenaResetSection() {
+  const adminKey = useContext(AdminKeyContext);
   const [resetting, setResetting] = useState(false);
   const [result, setResult] = useState("");
 
@@ -1451,6 +1681,7 @@ function ArenaResetSection() {
     try {
       const res = await fetch(new URL("/api/admin/reset-arena", getApiUrl()).toString(), {
         method: "POST",
+        headers: adminHeaders(adminKey),
       });
       const data = await res.json();
       setResult(data.success ? "Arena access reset for all users" : (data.error || "Failed"));
@@ -1495,6 +1726,7 @@ function ArenaResetSection() {
 }
 
 function PushNotificationSection() {
+  const adminKey = useContext(AdminKeyContext);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
@@ -1508,7 +1740,7 @@ function PushNotificationSection() {
 
   async function fetchTokenCount() {
     try {
-      const res = await fetch(new URL("/api/admin/push-token-count", getApiUrl()).toString());
+      const res = await fetch(new URL("/api/admin/push-token-count", getApiUrl()).toString(), { headers: adminHeaders(adminKey) });
       if (res.ok) {
         const data = await res.json();
         setTokenCount(data.count);
@@ -1530,7 +1762,7 @@ function PushNotificationSection() {
       }
       const res = await fetch(new URL("/api/admin/send-notification", getApiUrl()).toString(), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: adminHeaders(adminKey, { "Content-Type": "application/json" }),
         body: JSON.stringify(payload),
       });
       if (res.ok) {
@@ -1723,6 +1955,7 @@ const pushStyles = StyleSheet.create({
 });
 
 function AnalyticsDashboard() {
+  const adminKey = useContext(AdminKeyContext);
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(30);
@@ -1734,7 +1967,7 @@ function AnalyticsDashboard() {
   async function fetchAnalytics() {
     setLoading(true);
     try {
-      const res = await fetch(new URL(`/api/admin/analytics?days=${days}`, getApiUrl()).toString());
+      const res = await fetch(new URL(`/api/admin/analytics?days=${days}`, getApiUrl()).toString(), { headers: adminHeaders(adminKey) });
       if (res.ok) setData(await res.json());
     } catch {}
     setLoading(false);
@@ -1841,6 +2074,7 @@ function AnalyticsDashboard() {
 }
 
 function SuggestionsViewer() {
+  const adminKey = useContext(AdminKeyContext);
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -1851,7 +2085,7 @@ function SuggestionsViewer() {
   async function fetchSuggestions() {
     setLoading(true);
     try {
-      const res = await fetch(new URL("/api/admin/suggestions", getApiUrl()).toString());
+      const res = await fetch(new URL("/api/admin/suggestions", getApiUrl()).toString(), { headers: adminHeaders(adminKey) });
       if (res.ok) {
         const data = await res.json();
         setSuggestions(data.suggestions || []);
@@ -1863,7 +2097,7 @@ function SuggestionsViewer() {
   async function markStatus(id: number, status: string) {
     await fetch(new URL(`/api/admin/suggestions/${id}/status`, getApiUrl()).toString(), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: adminHeaders(adminKey, { "Content-Type": "application/json" }),
       body: JSON.stringify({ status }),
     });
     fetchSuggestions();
