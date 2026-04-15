@@ -6353,12 +6353,71 @@ p{color:#999;font-size:16px;margin-bottom:24px}
     }
   });
 
-  app.post("/api/admin/reset-arena", async (_req, res) => {
+  app.post("/api/admin/reset-arena", async (req, res) => {
+    const adminKey = req.headers["x-admin-key"] as string;
+    if (!process.env.ADMIN_PASSCODE || adminKey !== process.env.ADMIN_PASSCODE) {
+      return res.status(403).json({ error: "Invalid admin key" });
+    }
     try {
       const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
       await db.query("DELETE FROM arena_access");
       await db.end();
       res.json({ success: true, message: "Arena access reset for all users" });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/admin/grant-credits", async (req, res) => {
+    const adminKey = req.headers["x-admin-key"] as string;
+    if (!process.env.ADMIN_PASSCODE || adminKey !== process.env.ADMIN_PASSCODE) {
+      return res.status(403).json({ error: "Invalid admin key" });
+    }
+    try {
+      const { deviceId, amount, resetFree } = req.body;
+      if (!deviceId) return res.status(400).json({ error: "deviceId required" });
+      const tokens = parseInt(amount) || 500;
+      const balance = await grantRewardTokens(deviceId, tokens, `Admin grant — ${tokens} tokens`);
+      if (resetFree) {
+        const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+        await db.query("UPDATE token_accounts SET free_prompts_used = 0 WHERE device_id = $1", [deviceId]);
+        await db.end();
+      }
+      res.json({ success: true, granted: tokens, resetFree: !!resetFree, balance });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get("/api/admin/lookup-account", async (req, res) => {
+    const adminKey = req.headers["x-admin-key"] as string;
+    if (!process.env.ADMIN_PASSCODE || adminKey !== process.env.ADMIN_PASSCODE) {
+      return res.status(403).json({ error: "Invalid admin key" });
+    }
+    try {
+      const deviceId = req.query.deviceId as string;
+      if (!deviceId) return res.status(400).json({ error: "deviceId query param required" });
+      const balance = await getTokenBalance(deviceId);
+      res.json({ deviceId, ...balance });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get("/api/admin/recent-accounts", async (req, res) => {
+    const adminKey = req.headers["x-admin-key"] as string;
+    if (!process.env.ADMIN_PASSCODE || adminKey !== process.env.ADMIN_PASSCODE) {
+      return res.status(403).json({ error: "Invalid admin key" });
+    }
+    try {
+      const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
+      const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      const result = await db.query(
+        `SELECT device_id, tokens, free_prompts_used, subscription_active, subscription_tier, created_at, updated_at
+         FROM token_accounts ORDER BY updated_at DESC LIMIT $1`, [limit]
+      );
+      await db.end();
+      res.json({ accounts: result.rows });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
