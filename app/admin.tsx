@@ -764,6 +764,7 @@ const modelStyles = StyleSheet.create({
 });
 
 const ADMIN_KEY_STORAGE = "trumpbot-admin-key";
+const DEVICE_ID_KEY = "chatdjt_device_id";
 
 export default function AdminScreen() {
   const insets = useSafeAreaInsets();
@@ -771,6 +772,7 @@ export default function AdminScreen() {
   const [keyInput, setKeyInput] = useState("");
   const [keyChecking, setKeyChecking] = useState(true);
   const [keyError, setKeyError] = useState("");
+  const [myDeviceId, setMyDeviceId] = useState<string | null>(null);
 
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
@@ -780,6 +782,9 @@ export default function AdminScreen() {
       if (saved) setAdminKey(saved);
       setKeyChecking(false);
     }).catch(() => setKeyChecking(false));
+    AsyncStorage.getItem(DEVICE_ID_KEY).then((id) => {
+      if (id) setMyDeviceId(id);
+    }).catch(() => {});
   }, []);
 
   async function tryLogin() {
@@ -855,6 +860,21 @@ export default function AdminScreen() {
           <Pressable onPress={() => router.back()} style={{ marginTop: 20 }}>
             <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 14 }}>Go Back</Text>
           </Pressable>
+          {myDeviceId && (
+            <Pressable
+              onPress={() => {
+                if (Platform.OS === "web") {
+                  try { navigator.clipboard.writeText(myDeviceId); } catch {}
+                }
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                Alert.alert("Device ID Copied", myDeviceId);
+              }}
+              style={{ marginTop: 32, padding: 12, backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 10, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", width: "100%" }}
+            >
+              <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: "700" as const, textAlign: "center", letterSpacing: 1, marginBottom: 4 }}>YOUR DEVICE ID (tap to copy)</Text>
+              <Text style={{ color: Colors.gold, fontSize: 11, fontWeight: "600" as const, textAlign: "center" }} selectable>{myDeviceId}</Text>
+            </Pressable>
+          )}
         </View>
       </View>
     );
