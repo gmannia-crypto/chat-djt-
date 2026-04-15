@@ -1068,6 +1068,11 @@ function GameCard({
             </Pressable>
           </View>
         </View>
+        {game.startTime && !isLive && (
+          <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: "600" as const, marginTop: 2, letterSpacing: 0.5 }}>
+            {new Date(game.startTime).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} {!game.final ? new Date(game.startTime).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : ""}
+          </Text>
+        )}
         <Text style={styles.gameTitle}>{game.game}</Text>
         {game.score ? (
           <Text style={[styles.gameScore, isLive && { color: "#FF4444" }]}>{game.score}</Text>
@@ -1216,6 +1221,613 @@ function GameCard({
   );
 }
 
+const DC_ROYAL_STORAGE = "dc-royal-crowns";
+const SPORT_CATEGORIES = ["NBA", "NFL", "MLB", "NHL", "SOCCER", "UFC"];
+
+interface DCRoyalWinner {
+  personaId: string;
+  category: string;
+  wins: number;
+  record: string;
+  crowns: number;
+}
+
+function DCRoyalTab({
+  personas,
+  personaImages,
+  completedGames,
+  tallies,
+  deviceId,
+  playClick,
+}: {
+  personas: PersonaInfo[];
+  personaImages: Record<string, ImageSourcePropType>;
+  completedGames: Game[];
+  tallies: Record<string, PersonaTally>;
+  deviceId: string | null;
+  playClick: () => void;
+}) {
+  const [crawlItems, setCrawlItems] = useState<{ emoji: string; text: string }[]>([]);
+  const [standings, setStandings] = useState<any[]>([]);
+  const [standingsLeague, setStandingsLeague] = useState("nba");
+  const [standingsLoading, setStandingsLoading] = useState(false);
+  const [crowns, setCrowns] = useState<Record<string, number>>({});
+  const [discussion, setDiscussion] = useState<{ personaId: string; text: string }[]>([]);
+  const [discussionLoading, setDiscussionLoading] = useState(false);
+  const [winners, setWinners] = useState<DCRoyalWinner[]>([]);
+  const crawlRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    loadCrowns();
+    fetchCrawl();
+    fetchStandings("nba");
+  }, []);
+
+  useEffect(() => {
+    const topPersonas = Object.entries(tallies)
+      .filter(([_, t]) => t.wins > 0)
+      .sort((a, b) => b[1].wins - a[1].wins);
+
+    const seen = new Set<string>();
+    const computed: DCRoyalWinner[] = [];
+    for (const [pid, t] of topPersonas) {
+      if (seen.has(pid)) continue;
+      seen.add(pid);
+      computed.push({
+        personaId: pid,
+        category: "ALL",
+        wins: t.wins,
+        record: `${t.wins}-${t.losses}`,
+        crowns: crowns[pid] || 0,
+      });
+      if (computed.length >= 5) break;
+    }
+    setWinners(computed);
+  }, [tallies, crowns, personas]);
+
+  const loadCrowns = async () => {
+    try {
+      const saved = await AsyncStorage.getItem(DC_ROYAL_STORAGE);
+      if (saved) setCrowns(JSON.parse(saved));
+    } catch {}
+  };
+
+  const saveCrowns = async (c: Record<string, number>) => {
+    setCrowns(c);
+    try { await AsyncStorage.setItem(DC_ROYAL_STORAGE, JSON.stringify(c)); } catch {}
+  };
+
+  const fetchCrawl = async () => {
+    try {
+      const res = await fetch(new URL("/api/sports/crawl", getApiUrl()).toString());
+      if (res.ok) {
+        const data = await res.json();
+        setCrawlItems(data.headlines || []);
+      }
+    } catch {}
+  };
+
+  const fetchStandings = async (league: string) => {
+    setStandingsLoading(true);
+    setStandingsLeague(league);
+    try {
+      const res = await fetch(new URL(`/api/sports/standings?league=${league}`, getApiUrl()).toString());
+      if (res.ok) {
+        const data = await res.json();
+        setStandings(data.standings || []);
+      }
+    } catch {}
+    setStandingsLoading(false);
+  };
+
+  const awardCrowns = async () => {
+    const updated = { ...crowns };
+    const seen = new Set<string>();
+    for (const w of winners) {
+      if (seen.has(w.personaId)) continue;
+      seen.add(w.personaId);
+      updated[w.personaId] = (updated[w.personaId] || 0) + 1;
+    }
+    await saveCrowns(updated);
+  };
+
+  const startDiscussion = async () => {
+    if (!deviceId || winners.length < 2) return;
+    setDiscussionLoading(true);
+    playClick();
+    try {
+      const res = await fetch(new URL("/api/sports/dc-royal/discussion", getApiUrl()).toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+        body: JSON.stringify({
+          winners: winners.map(w => ({ ...w, crowns: crowns[w.personaId] || 0 })),
+          deviceId,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setDiscussion(data.dialogue || []);
+        awardCrowns();
+      }
+    } catch {}
+    setDiscussionLoading(false);
+  };
+
+  useEffect(() => {
+    if (crawlItems.length === 0) return;
+    const interval = setInterval(() => {
+      crawlRef.current?.scrollTo({ x: 0, animated: false });
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [crawlItems]);
+
+  const sortedCrowns = Object.entries(crowns)
+    .filter(([_, c]) => c > 0)
+    .sort((a, b) => b[1] - a[1]);
+
+  return (
+    <Animated.View entering={FadeInDown.delay(100).duration(400)} style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+      <View style={dcStyles.crawlContainer}>
+        <View style={dcStyles.crawlLabel}>
+          <Ionicons name="radio" size={12} color="#FF4D4D" />
+          <Text style={dcStyles.crawlLabelText}>SPORTS CRAWL</Text>
+        </View>
+        <ScrollView ref={crawlRef} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 24, paddingHorizontal: 8 }}>
+          {crawlItems.length > 0 ? crawlItems.map((item, i) => (
+            <View key={i} style={dcStyles.crawlItem}>
+              <Text style={dcStyles.crawlEmoji}>{item.emoji}</Text>
+              <Text style={dcStyles.crawlText} numberOfLines={1}>{item.text}</Text>
+            </View>
+          )) : (
+            <Text style={dcStyles.crawlText}>Loading sports headlines...</Text>
+          )}
+        </ScrollView>
+      </View>
+
+      <View style={dcStyles.crownHeader}>
+        <MaterialCommunityIcons name="crown" size={22} color="#FFD700" />
+        <Text style={dcStyles.crownTitle}>DC ROYAL CROWN</Text>
+        <MaterialCommunityIcons name="crown" size={22} color="#FFD700" />
+      </View>
+      <Text style={dcStyles.crownSubtitle}>Yesterday's top analysts earn the coveted DC Royal chip crown</Text>
+
+      {winners.length > 0 ? (
+        <View style={dcStyles.winnersGrid}>
+          {winners.map((w, i) => {
+            const p = personas.find(pp => pp.id === w.personaId);
+            if (!p) return null;
+            return (
+              <Animated.View key={`${w.personaId}-${w.category}`} entering={FadeInDown.delay(150 + i * 80).duration(400)} style={dcStyles.winnerCard}>
+                <View style={[dcStyles.winnerBadge, { backgroundColor: `${p.color}20`, borderColor: p.color }]}>
+                  <Text style={[dcStyles.winnerCategory, { color: p.color }]}>{w.category}</Text>
+                </View>
+                <Image source={p.image} style={[dcStyles.winnerAvatar, { borderColor: p.color }]} />
+                <Text style={dcStyles.winnerName}>{p.name}</Text>
+                <Text style={[dcStyles.winnerRecord, { color: p.color }]}>{w.record}</Text>
+                <View style={dcStyles.crownChipRow}>
+                  <MaterialCommunityIcons name="crown" size={14} color="#FFD700" />
+                  <Text style={dcStyles.crownCount}>{crowns[w.personaId] || 0}</Text>
+                </View>
+              </Animated.View>
+            );
+          })}
+        </View>
+      ) : (
+        <View style={dcStyles.emptyWinners}>
+          <MaterialCommunityIcons name="crown-outline" size={32} color="rgba(255,255,255,0.15)" />
+          <Text style={dcStyles.emptyText}>Make picks and check back to see who earns the DC Royal crown!</Text>
+        </View>
+      )}
+
+      {winners.length >= 2 && (
+        <Pressable
+          onPress={startDiscussion}
+          disabled={discussionLoading}
+          style={({ pressed }) => [dcStyles.discussionBtn, pressed && { opacity: 0.8 }]}
+        >
+          {discussionLoading ? (
+            <ActivityIndicator size="small" color="#0a0a0a" />
+          ) : (
+            <>
+              <Ionicons name="chatbubbles" size={18} color="#0a0a0a" />
+              <Text style={dcStyles.discussionBtnText}>START WINNER DISCUSSION</Text>
+              <View style={dcStyles.tokenCost}>
+                <Text style={dcStyles.tokenCostText}>1 TOKEN</Text>
+              </View>
+            </>
+          )}
+        </Pressable>
+      )}
+
+      {discussion.length > 0 && (
+        <Animated.View entering={FadeInDown.delay(100).duration(400)} style={dcStyles.discussionContainer}>
+          <View style={dcStyles.discussionHeader}>
+            <MaterialCommunityIcons name="microphone-variant" size={18} color="#FFD700" />
+            <Text style={dcStyles.discussionTitle}>DC ROYAL ROUNDTABLE</Text>
+          </View>
+          {discussion.map((msg, i) => {
+            const p = personas.find(pp => pp.id === msg.personaId);
+            return (
+              <Animated.View key={i} entering={FadeInDown.delay(i * 60).duration(300)} style={dcStyles.msgRow}>
+                <Image source={p?.image || personaImages.trump} style={[dcStyles.msgAvatar, { borderColor: p?.color || "#ff4d4d" }]} />
+                <View style={dcStyles.msgBubble}>
+                  <Text style={[dcStyles.msgName, { color: p?.color || "#ff4d4d" }]}>{p?.name || "???"}</Text>
+                  <Text style={dcStyles.msgText}>{msg.text}</Text>
+                </View>
+              </Animated.View>
+            );
+          })}
+        </Animated.View>
+      )}
+
+      {sortedCrowns.length > 0 && (
+        <Animated.View entering={FadeInDown.delay(200).duration(400)} style={dcStyles.leaderboardContainer}>
+          <View style={dcStyles.leaderboardHeader}>
+            <MaterialCommunityIcons name="podium-gold" size={18} color="#FFD700" />
+            <Text style={dcStyles.leaderboardTitle}>ALL-TIME DC ROYAL LEADERBOARD</Text>
+          </View>
+          {sortedCrowns.map(([pid, count], i) => {
+            const p = personas.find(pp => pp.id === pid) || { name: pid, color: "#888" };
+            return (
+              <View key={pid} style={dcStyles.leaderRow}>
+                <Text style={[dcStyles.leaderRank, i === 0 && { color: "#FFD700" }, i === 1 && { color: "#C0C0C0" }, i === 2 && { color: "#CD7F32" }]}>#{i + 1}</Text>
+                <Text style={[dcStyles.leaderName, { color: p.color }]}>{p.name}</Text>
+                <View style={dcStyles.crownChipRow}>
+                  <MaterialCommunityIcons name="crown" size={14} color="#FFD700" />
+                  <Text style={dcStyles.crownCount}>{count}</Text>
+                </View>
+              </View>
+            );
+          })}
+        </Animated.View>
+      )}
+
+      <View style={dcStyles.standingsSection}>
+        <Text style={dcStyles.standingsTitle}>LEAGUE STANDINGS</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, marginBottom: 12 }}>
+          {[
+            { key: "nba", label: "NBA", color: "#FF6B00" },
+            { key: "nfl", label: "NFL", color: "#ff4d4d" },
+            { key: "mlb", label: "MLB", color: "#2E7D32" },
+            { key: "nhl", label: "NHL", color: "#00529B" },
+            { key: "epl", label: "EPL", color: "#1976D2" },
+            { key: "mls", label: "MLS", color: "#4CAF50" },
+          ].map((l) => (
+            <Pressable
+              key={l.key}
+              onPress={() => fetchStandings(l.key)}
+              style={[dcStyles.standingsTab, standingsLeague === l.key && { backgroundColor: `${l.color}30`, borderColor: l.color }]}
+            >
+              <Text style={[dcStyles.standingsTabText, standingsLeague === l.key && { color: l.color }]}>{l.label}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+        {standingsLoading ? (
+          <ActivityIndicator color={Colors.gold} style={{ marginTop: 16 }} />
+        ) : standings.length > 0 ? (
+          <View style={dcStyles.standingsTable}>
+            <View style={dcStyles.standingsHeaderRow}>
+              <Text style={[dcStyles.standingsCell, { flex: 3, color: "rgba(255,255,255,0.4)" }]}>TEAM</Text>
+              <Text style={[dcStyles.standingsCell, { color: "rgba(255,255,255,0.4)" }]}>W</Text>
+              <Text style={[dcStyles.standingsCell, { color: "rgba(255,255,255,0.4)" }]}>L</Text>
+              <Text style={[dcStyles.standingsCell, { color: "rgba(255,255,255,0.4)" }]}>PCT</Text>
+              <Text style={[dcStyles.standingsCell, { color: "rgba(255,255,255,0.4)" }]}>GB</Text>
+            </View>
+            {standings.slice(0, 15).map((s, i) => (
+              <View key={i} style={[dcStyles.standingsRow, i % 2 === 0 && { backgroundColor: "rgba(255,255,255,0.02)" }]}>
+                <View style={[dcStyles.standingsCell, { flex: 3, flexDirection: "row", alignItems: "center", gap: 6 }]}>
+                  {s.logo ? <Image source={{ uri: s.logo }} style={{ width: 16, height: 16 }} /> : null}
+                  <Text style={dcStyles.standingsTeam} numberOfLines={1}>{s.team}</Text>
+                </View>
+                <Text style={dcStyles.standingsVal}>{s.wins}</Text>
+                <Text style={dcStyles.standingsVal}>{s.losses}</Text>
+                <Text style={[dcStyles.standingsVal, { color: Colors.gold }]}>{s.pct}</Text>
+                <Text style={dcStyles.standingsVal}>{s.gb}</Text>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <Text style={dcStyles.emptyText}>No standings data available</Text>
+        )}
+      </View>
+    </Animated.View>
+  );
+}
+
+const dcStyles = StyleSheet.create({
+  crawlContainer: {
+    backgroundColor: "rgba(255,77,77,0.08)",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,77,77,0.2)",
+    padding: 10,
+    marginBottom: 16,
+  },
+  crawlLabel: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginBottom: 6,
+  },
+  crawlLabelText: {
+    color: "#FF4D4D",
+    fontSize: 10,
+    fontWeight: "800" as const,
+    letterSpacing: 1,
+  },
+  crawlItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    minWidth: 250,
+  },
+  crawlEmoji: { fontSize: 14 },
+  crawlText: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 12,
+    fontWeight: "500" as const,
+  },
+  crownHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginBottom: 4,
+  },
+  crownTitle: {
+    color: "#FFD700",
+    fontSize: 20,
+    fontWeight: "900" as const,
+    letterSpacing: 2,
+  },
+  crownSubtitle: {
+    color: "rgba(255,255,255,0.4)",
+    fontSize: 11,
+    textAlign: "center",
+    marginBottom: 16,
+  },
+  winnersGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  winnerCard: {
+    backgroundColor: "rgba(255,215,0,0.06)",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,215,0,0.15)",
+    padding: 12,
+    alignItems: "center",
+    width: 100,
+  },
+  winnerBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  winnerCategory: {
+    fontSize: 9,
+    fontWeight: "800" as const,
+    letterSpacing: 0.5,
+  },
+  winnerAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 2,
+    marginBottom: 6,
+  },
+  winnerName: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "700" as const,
+  },
+  winnerRecord: {
+    fontSize: 11,
+    fontWeight: "800" as const,
+    marginTop: 2,
+  },
+  crownChipRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    marginTop: 4,
+  },
+  crownCount: {
+    color: "#FFD700",
+    fontSize: 12,
+    fontWeight: "800" as const,
+  },
+  emptyWinners: {
+    alignItems: "center",
+    paddingVertical: 24,
+    gap: 8,
+  },
+  emptyText: {
+    color: "rgba(255,255,255,0.3)",
+    fontSize: 12,
+    textAlign: "center",
+  },
+  discussionBtn: {
+    backgroundColor: "#FFD700",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  discussionBtnText: {
+    color: "#0a0a0a",
+    fontSize: 14,
+    fontWeight: "900" as const,
+    letterSpacing: 1,
+  },
+  tokenCost: {
+    backgroundColor: "rgba(0,0,0,0.15)",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  tokenCostText: {
+    color: "rgba(0,0,0,0.6)",
+    fontSize: 10,
+    fontWeight: "700" as const,
+  },
+  discussionContainer: {
+    backgroundColor: "rgba(255,215,0,0.05)",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,215,0,0.12)",
+    padding: 14,
+    marginBottom: 16,
+  },
+  discussionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 14,
+  },
+  discussionTitle: {
+    color: "#FFD700",
+    fontSize: 14,
+    fontWeight: "900" as const,
+    letterSpacing: 1,
+  },
+  msgRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 12,
+  },
+  msgAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1.5,
+  },
+  msgBubble: {
+    flex: 1,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 10,
+    padding: 10,
+  },
+  msgName: {
+    fontSize: 11,
+    fontWeight: "800" as const,
+    marginBottom: 3,
+  },
+  msgText: {
+    color: "rgba(255,255,255,0.85)",
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  leaderboardContainer: {
+    backgroundColor: "rgba(255,215,0,0.05)",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,215,0,0.12)",
+    padding: 14,
+    marginBottom: 16,
+  },
+  leaderboardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+  },
+  leaderboardTitle: {
+    color: "#FFD700",
+    fontSize: 12,
+    fontWeight: "900" as const,
+    letterSpacing: 1,
+  },
+  leaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.04)",
+  },
+  leaderRank: {
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 13,
+    fontWeight: "800" as const,
+    width: 32,
+  },
+  leaderName: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "700" as const,
+  },
+  standingsSection: {
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  standingsTitle: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "900" as const,
+    letterSpacing: 1,
+    marginBottom: 12,
+  },
+  standingsTab: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    backgroundColor: "rgba(255,255,255,0.04)",
+  },
+  standingsTabText: {
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 12,
+    fontWeight: "700" as const,
+  },
+  standingsTable: {
+    backgroundColor: "rgba(255,255,255,0.03)",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+    overflow: "hidden" as const,
+  },
+  standingsHeaderRow: {
+    flexDirection: "row",
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.08)",
+  },
+  standingsRow: {
+    flexDirection: "row",
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    alignItems: "center",
+  },
+  standingsCell: {
+    flex: 1,
+    fontSize: 10,
+    fontWeight: "700" as const,
+    textAlign: "center" as const,
+  },
+  standingsTeam: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "600" as const,
+  },
+  standingsVal: {
+    flex: 1,
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 11,
+    fontWeight: "600" as const,
+    textAlign: "center" as const,
+  },
+});
+
 export default function SportsScreen() {
   const insets = useSafeAreaInsets();
   const webTopInset = Platform.OS === "web" ? 67 : 0;
@@ -1249,7 +1861,7 @@ export default function SportsScreen() {
   const [debatePick2, setDebatePick2] = useState<PersonaPick | null>(null);
   const [debatePicksLoading, setDebatePicksLoading] = useState(false);
   const [selectedLeague, setSelectedLeague] = useState("ALL");
-  const [sportsTab, setSportsTab] = useState<"games" | "analysis" | "debate" | "shop">("games");
+  const [sportsTab, setSportsTab] = useState<"games" | "analysis" | "debate" | "dc-royal" | "shop">("games");
   const [roundtableDialogue, setRoundtableDialogue] = useState<{ personaId: string; text: string }[]>([]);
   const [roundtableLoading, setRoundtableLoading] = useState(false);
   const [roundtableGame, setRoundtableGame] = useState<Game | null>(null);
@@ -1830,6 +2442,12 @@ export default function SportsScreen() {
           <Text style={styles.headerTitle}>DYNAMIC SPORTS BOOK</Text>
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <Pressable
+            onPress={toggleMusic}
+            style={({ pressed }) => [styles.musicToggle, musicPlaying && styles.musicToggleActive, pressed && { opacity: 0.7 }]}
+          >
+            <Ionicons name={musicPlaying ? "musical-notes" : "musical-notes-outline"} size={16} color={musicPlaying ? "#0a0a0a" : Colors.gold} />
+          </Pressable>
           {balance && (
             <Pressable onPress={() => router.push("/subscribe")} style={styles.tokenBadge}>
               <Image source={require("@/assets/images/dc-lightning-token.jpeg")} style={{ width: 14, height: 14, borderRadius: 7 }} />
@@ -1868,6 +2486,7 @@ export default function SportsScreen() {
         <View style={styles.sportsTabBar}>
           {([
             { key: "games" as const, label: "GAMES", icon: "football" as const },
+            { key: "dc-royal" as const, label: "DC ROYAL", icon: "trophy" as const },
             { key: "analysis" as const, label: "ANALYSIS", icon: "analytics" as const },
             { key: "debate" as const, label: "DEBATE", icon: "people" as const },
             { key: "shop" as const, label: "SHOP", icon: "cart" as const },
@@ -2378,6 +2997,17 @@ export default function SportsScreen() {
             </View>
           )}
         </Animated.View>}
+
+        {sportsTab === "dc-royal" && (
+          <DCRoyalTab
+            personas={activePersonaList}
+            personaImages={PERSONA_IMAGES}
+            completedGames={completedGames}
+            tallies={tallies}
+            deviceId={deviceId}
+            playClick={playClick}
+          />
+        )}
 
         {sportsTab === "shop" && <Animated.View entering={FadeInDown.delay(700).duration(400)} style={styles.section}>
           <Text style={styles.sectionLabel}>GEAR UP</Text>

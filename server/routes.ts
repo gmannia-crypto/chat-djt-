@@ -1159,6 +1159,168 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/sports/standings", async (req, res) => {
+    try {
+      const league = (req.query.league as string || "nba").toLowerCase();
+      const leagueMap: Record<string, { sport: string; league: string }> = {
+        nba: { sport: "basketball", league: "nba" },
+        nfl: { sport: "football", league: "nfl" },
+        mlb: { sport: "baseball", league: "mlb" },
+        nhl: { sport: "hockey", league: "nhl" },
+        epl: { sport: "soccer", league: "eng.1" },
+        mls: { sport: "soccer", league: "usa.1" },
+      };
+      const info = leagueMap[league] || leagueMap.nba;
+      const url = `https://site.api.espn.com/apis/v2/sports/${info.sport}/${info.league}/standings`;
+      const resp = await fetch(url);
+      if (!resp.ok) return res.json({ standings: [] });
+      const data = await resp.json() as any;
+      const standings: any[] = [];
+      for (const group of (data.children || [])) {
+        const groupName = group.name || group.abbreviation || "";
+        for (const entry of (group.standings?.entries || [])) {
+          const team = entry.team?.displayName || entry.team?.name || "Unknown";
+          const logo = entry.team?.logos?.[0]?.href || "";
+          const stats: Record<string, string> = {};
+          for (const s of (entry.stats || [])) {
+            stats[s.abbreviation || s.name || ""] = s.displayValue || s.value?.toString() || "0";
+          }
+          standings.push({ team, logo, group: groupName, wins: stats["W"] || "0", losses: stats["L"] || "0", pct: stats["PCT"] || stats["WPCT"] || ".000", streak: stats["STRK"] || stats["STREAK"] || "-", gb: stats["GB"] || "-" });
+        }
+      }
+      res.json({ league: league.toUpperCase(), standings });
+    } catch (e: any) {
+      console.error("Standings error:", e.message);
+      res.json({ standings: [] });
+    }
+  });
+
+  app.get("/api/sports/crawl", async (_req, res) => {
+    try {
+      const headlines: { emoji: string; text: string; category: string }[] = [];
+      const fetchHeadlines = async (sport: string, league: string, emoji: string, category: string) => {
+        try {
+          const url = `https://site.api.espn.com/apis/site/v2/sports/${sport}/${league}/news?limit=3`;
+          const resp = await fetch(url);
+          if (!resp.ok) return;
+          const data = await resp.json() as any;
+          for (const article of (data.articles || []).slice(0, 3)) {
+            headlines.push({ emoji, text: article.headline || article.title || "", category });
+          }
+        } catch {}
+      };
+      await Promise.all([
+        fetchHeadlines("basketball", "nba", "\uD83C\uDFC0", "NBA"),
+        fetchHeadlines("football", "nfl", "\uD83C\uDFC8", "NFL"),
+        fetchHeadlines("baseball", "mlb", "\u26BE", "MLB"),
+        fetchHeadlines("hockey", "nhl", "\uD83C\uDFD2", "NHL"),
+        fetchHeadlines("soccer", "eng.1", "\u26BD", "Soccer"),
+        fetchHeadlines("mma", "ufc", "\uD83E\uDD4A", "UFC"),
+        fetchHeadlines("racing", "f1", "\uD83C\uDFCE\uFE0F", "F1"),
+      ]);
+      headlines.push(
+        { emoji: "\uD83C\uDFC3", text: "Track & Field: World Athletics Grand Prix Series continues with Diamond League qualifiers", category: "Track" },
+        { emoji: "\uD83C\uDFC3", text: "Track & Field: Olympic medalists gear up for 2026 World Championships in Tokyo", category: "Track" },
+        { emoji: "\uD83C\uDFC3", text: "Track & Field: New 100m season-best times shaking up sprint rankings", category: "Track" },
+      );
+      const shuffled = headlines.sort(() => Math.random() - 0.5);
+      res.json({ headlines: shuffled });
+    } catch (e: any) {
+      res.json({ headlines: [] });
+    }
+  });
+
+  app.post("/api/sports/dc-royal/discussion", async (req, res) => {
+    try {
+      const { winners, deviceId: dId } = req.body;
+      const deviceId = dId || req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      if (!winners || !Array.isArray(winners) || winners.length < 2) {
+        return res.status(400).json({ error: "Need at least 2 winners for a discussion" });
+      }
+
+      if (!(await requireToken(req, res))) return;
+
+      const personaNames: Record<string, string> = {
+        trump: "Donald Trump", loudmouth: "Loudmouth (Stephen A. Smith)", jordan: "Michael Jordan",
+        shannon: "Shannon Sharpe", barkley: "Charles Barkley", rogan: "Joe Rogan",
+        snoop: "Snoop Dogg", maxkellerman: "Max Kellerman", bernie: "Bernie Mac",
+        ruckus: "Uncle Ruckus", grandma: "Grandma", dickyV: "Dicky V", skipbayless: "Skip Bayless",
+        speedDemon: "Speed Demon", pitBoss: "Pit Boss", driftQueen: "Drift Queen",
+        throttle: "Throttle", revTech: "Rev Tech",
+        elCapitan: "El Capitán", sirGodfrey: "Sir Godfrey", mamaFutbol: "Mama Fútbol",
+        phantomZZ: "Phantom ZZ", theUltra: "The Ultra",
+      };
+
+      const winnerDescriptions = winners.map((w: any) =>
+        `${personaNames[w.personaId] || w.personaId} — won ${w.wins} picks in ${w.category}, record: ${w.record}, DC Royal crowns: ${w.crowns || 0}`
+      ).join("\n");
+
+      const prompt = `You are writing a 5-minute competitive sports discussion between these winning persona analysts who earned "DC Royal" crowns yesterday. Each persona speaks IN CHARACTER with their unique voice and mannerisms.
+
+WINNERS:
+${winnerDescriptions}
+
+RULES:
+- Each persona BRAGS about their winning picks and mocks the others' records
+- They argue about upcoming games and who they're betting on next
+- Some agree on certain picks which creates temporary alliances before turning competitive again
+- Reference their DC Royal crown count — more crowns = more bragging rights
+- The tone is ALWAYS competitive, entertaining, and in-character
+- Use each persona's signature catchphrases and speaking style
+- Include specific sports references to current 2025-2026 games and players
+- Format: Each line starts with the persona name in brackets like [Trump]: or [Barkley]:
+- Generate 15-20 exchanges total for a rich, entertaining discussion
+- End with each persona making a bold prediction for tonight's games`;
+
+      const completion = await getClient().chat.completions.create({
+        model: getChatModel(),
+        messages: [{ role: "system", content: prompt }],
+        max_tokens: 1200,
+        temperature: 0.95,
+      });
+
+      const text = completion.choices[0]?.message?.content || "";
+      const lines = text.split("\n").filter((l: string) => l.trim());
+      const dialogue: { personaId: string; text: string }[] = [];
+
+      for (const line of lines) {
+        const match = line.match(/^\[([^\]]+)\]:\s*(.*)/);
+        if (match) {
+          const name = match[1].trim().toLowerCase();
+          const msg = match[2].trim();
+          const idMap: Record<string, string> = {
+            trump: "trump", "donald trump": "trump", "donald j. trump": "trump",
+            loudmouth: "loudmouth", "stephen a. smith": "loudmouth", "stephen a": "loudmouth",
+            jordan: "jordan", "michael jordan": "jordan", mj: "jordan",
+            shannon: "shannon", "shannon sharpe": "shannon",
+            barkley: "barkley", "charles barkley": "barkley", chuck: "barkley",
+            rogan: "rogan", "joe rogan": "rogan",
+            snoop: "snoop", "snoop dogg": "snoop",
+            maxkellerman: "maxkellerman", "max kellerman": "maxkellerman", max: "maxkellerman",
+            bernie: "bernie", "bernie mac": "bernie",
+            ruckus: "ruckus", "uncle ruckus": "ruckus",
+            grandma: "grandma", "your grandma": "grandma",
+            "dicky v": "dickyV", dickyv: "dickyV",
+            "skip bayless": "skipbayless", skip: "skipbayless",
+            "speed demon": "speedDemon", "pit boss": "pitBoss", "drift queen": "driftQueen",
+            throttle: "throttle", "rev tech": "revTech",
+            "el capitán": "elCapitan", "el capitan": "elCapitan",
+            "sir godfrey": "sirGodfrey", "mama fútbol": "mamaFutbol", "mama futbol": "mamaFutbol",
+            "phantom zz": "phantomZZ", "the ultra": "theUltra",
+          };
+          const personaId = idMap[name] || winners.find((w: any) => (personaNames[w.personaId] || "").toLowerCase().includes(name))?.personaId || winners[0]?.personaId || "trump";
+          if (msg) dialogue.push({ personaId, text: msg });
+        }
+      }
+
+      res.json({ dialogue });
+    } catch (e: any) {
+      console.error("DC Royal discussion error:", e.message);
+      res.status(500).json({ error: "Failed to generate discussion" });
+    }
+  });
+
   function getUpcomingBoxing(): any[] {
     const knownFights = [
       { fighters: ["Gervonta Davis", "Shakur Stevenson"], date: "2026-04-12", venue: "Brooklyn", weight: "Lightweight" },
