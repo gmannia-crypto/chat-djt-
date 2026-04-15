@@ -6523,9 +6523,25 @@ p{color:#999;font-size:16px;margin-bottom:24px}
     }
   });
 
+  function checkAdminKey(req: any): boolean {
+    const adminKey = (req.headers["x-admin-key"] as string || "").trim();
+    const expected = (process.env.ADMIN_PASSCODE || "").trim();
+    if (!expected) {
+      console.error("ADMIN_PASSCODE env var is not set!");
+      return false;
+    }
+    return adminKey === expected;
+  }
+
+  app.get("/api/admin/auth-check", (req, res) => {
+    const hasSecret = !!(process.env.ADMIN_PASSCODE || "").trim();
+    const keyProvided = !!(req.headers["x-admin-key"] as string || "").trim();
+    const valid = checkAdminKey(req);
+    res.json({ secretConfigured: hasSecret, keyProvided, valid });
+  });
+
   app.post("/api/admin/reset-arena", async (req, res) => {
-    const adminKey = req.headers["x-admin-key"] as string;
-    if (!process.env.ADMIN_PASSCODE || adminKey !== process.env.ADMIN_PASSCODE) {
+    if (!checkAdminKey(req)) {
       return res.status(403).json({ error: "Invalid admin key" });
     }
     try {
@@ -6539,8 +6555,7 @@ p{color:#999;font-size:16px;margin-bottom:24px}
   });
 
   app.post("/api/admin/grant-credits", async (req, res) => {
-    const adminKey = req.headers["x-admin-key"] as string;
-    if (!process.env.ADMIN_PASSCODE || adminKey !== process.env.ADMIN_PASSCODE) {
+    if (!checkAdminKey(req)) {
       return res.status(403).json({ error: "Invalid admin key" });
     }
     try {
@@ -6560,8 +6575,7 @@ p{color:#999;font-size:16px;margin-bottom:24px}
   });
 
   app.get("/api/admin/lookup-account", async (req, res) => {
-    const adminKey = req.headers["x-admin-key"] as string;
-    if (!process.env.ADMIN_PASSCODE || adminKey !== process.env.ADMIN_PASSCODE) {
+    if (!checkAdminKey(req)) {
       return res.status(403).json({ error: "Invalid admin key" });
     }
     try {
@@ -6575,8 +6589,7 @@ p{color:#999;font-size:16px;margin-bottom:24px}
   });
 
   app.get("/api/admin/recent-accounts", async (req, res) => {
-    const adminKey = req.headers["x-admin-key"] as string;
-    if (!process.env.ADMIN_PASSCODE || adminKey !== process.env.ADMIN_PASSCODE) {
+    if (!checkAdminKey(req)) {
       return res.status(403).json({ error: "Invalid admin key" });
     }
     try {
@@ -7561,9 +7574,7 @@ ${therapyHistory}`
       const deviceId = req.headers["x-device-id"] as string;
       if (!deviceId) return res.status(400).json({ error: "Device ID required" });
 
-      const adminPass = req.headers["x-admin-key"] as string;
-      const expectedPass = process.env.ADMIN_PASSCODE;
-      if (!expectedPass || adminPass !== expectedPass) {
+      if (!checkAdminKey(req)) {
         return res.status(403).json({ error: "Admin access required for compare endpoint" });
       }
 

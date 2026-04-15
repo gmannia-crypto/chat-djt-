@@ -787,14 +787,26 @@ export default function AdminScreen() {
     setKeyChecking(true);
     setKeyError("");
     try {
-      const res = await fetch(new URL("/api/admin/recent-accounts?limit=1", getApiUrl()).toString(), {
+      const checkRes = await fetch(new URL("/api/admin/auth-check", getApiUrl()).toString(), {
         headers: { "x-admin-key": keyInput.trim() },
       });
-      if (res.ok) {
-        await AsyncStorage.setItem(ADMIN_KEY_STORAGE, keyInput.trim());
-        setAdminKey(keyInput.trim());
+      if (checkRes.ok) {
+        const checkData = await checkRes.json();
+        if (!checkData.secretConfigured) {
+          setKeyError("Admin passcode not configured on server");
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          setKeyChecking(false);
+          return;
+        }
+        if (checkData.valid) {
+          await AsyncStorage.setItem(ADMIN_KEY_STORAGE, keyInput.trim());
+          setAdminKey(keyInput.trim());
+        } else {
+          setKeyError("Invalid passcode");
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        }
       } else {
-        setKeyError("Invalid passcode");
+        setKeyError("Server error");
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
     } catch {
