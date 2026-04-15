@@ -1078,6 +1078,21 @@ function GameCard({
           <Text style={[styles.gameScore, isLive && { color: "#FF4444" }]}>{game.score}</Text>
         ) : null}
         <Text style={styles.gameOdds}>{game.odds}</Text>
+        <Pressable
+          onPress={() => {
+            const searchQuery = encodeURIComponent(`${game.game} highlights ${new Date().getFullYear()}`);
+            Linking.openURL(`https://www.youtube.com/results?search_query=${searchQuery}`);
+          }}
+          style={({ pressed }) => [{
+            flexDirection: "row", alignItems: "center", gap: 5, marginTop: 8,
+            paddingVertical: 5, paddingHorizontal: 10, borderRadius: 8,
+            backgroundColor: "rgba(255,0,0,0.08)", borderWidth: 1, borderColor: "rgba(255,0,0,0.15)",
+            alignSelf: "flex-start",
+          }, pressed && { opacity: 0.6 }]}
+        >
+          <Ionicons name="logo-youtube" size={14} color="#FF0000" />
+          <Text style={{ color: "#FF4444", fontSize: 10, fontWeight: "700" as const, letterSpacing: 0.5 }}>HIGHLIGHTS</Text>
+        </Pressable>
       </View>
 
       {hasDetails && <GameStatsPanel game={game} />}
@@ -1218,6 +1233,221 @@ function GameCard({
         </View>
       )}
     </Animated.View>
+  );
+}
+
+function QuestionOfTheDay() {
+  const [qotd, setQotd] = useState<{ sport: string; question: string; options: string[]; answer: string; explanation: string; difficulty: string } | null>(null);
+  const [revealed, setRevealed] = useState(false);
+  const [selected, setSelected] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(new URL("/api/sports/question-of-day", getApiUrl()).toString());
+        if (res.ok) setQotd(await res.json());
+      } catch {}
+    })();
+  }, []);
+
+  if (!qotd) return null;
+
+  const sportIcons: Record<string, string> = { basketball: "basketball", boxing: "fitness", golf: "golf", football: "american-football" };
+  const sportColors: Record<string, string> = { basketball: "#FF6B00", boxing: "#FF4D4D", golf: "#2E7D32", football: "#8B4513" };
+  const color = sportColors[qotd.sport] || Colors.gold;
+
+  return (
+    <Animated.View entering={FadeInDown.delay(200).duration(400)} style={{
+      marginHorizontal: 16, marginBottom: 14, padding: 14, borderRadius: 14,
+      backgroundColor: `${color}08`, borderWidth: 1, borderColor: `${color}20`,
+    }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
+        <Ionicons name={(sportIcons[qotd.sport] || "help-circle") as any} size={16} color={color} />
+        <Text style={{ color, fontSize: 11, fontWeight: "900" as const, letterSpacing: 1 }}>QUESTION OF THE DAY</Text>
+        <View style={{ marginLeft: "auto", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: `${color}15` }}>
+          <Text style={{ color, fontSize: 9, fontWeight: "700" as const }}>{qotd.difficulty?.toUpperCase()}</Text>
+        </View>
+      </View>
+      <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700" as const, lineHeight: 20, marginBottom: 10 }}>{qotd.question}</Text>
+      {qotd.options.map((opt, i) => {
+        const letter = opt.charAt(0).toUpperCase();
+        const isCorrect = letter === qotd.answer.charAt(0).toUpperCase();
+        const isSelected = selected === letter;
+        const showResult = revealed;
+        return (
+          <Pressable
+            key={i}
+            onPress={() => {
+              if (revealed) return;
+              setSelected(letter);
+              setRevealed(true);
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            }}
+            style={({ pressed }) => [{
+              paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, marginBottom: 6,
+              borderWidth: 1,
+              borderColor: showResult ? (isCorrect ? "#4CAF50" : isSelected ? "#FF4D4D" : "rgba(255,255,255,0.06)") : "rgba(255,255,255,0.08)",
+              backgroundColor: showResult ? (isCorrect ? "rgba(76,175,80,0.1)" : isSelected ? "rgba(255,77,77,0.1)" : "rgba(255,255,255,0.02)") : "rgba(255,255,255,0.03)",
+            }, pressed && !revealed && { opacity: 0.7 }]}
+          >
+            <Text style={{ color: showResult ? (isCorrect ? "#4CAF50" : isSelected ? "#FF4D4D" : "rgba(255,255,255,0.5)") : "rgba(255,255,255,0.8)", fontSize: 12, fontWeight: "600" as const }}>{opt}</Text>
+          </Pressable>
+        );
+      })}
+      {revealed && (
+        <Animated.View entering={FadeInDown.duration(300)} style={{ marginTop: 6, padding: 10, borderRadius: 8, backgroundColor: "rgba(76,175,80,0.08)" }}>
+          <Text style={{ color: "#4CAF50", fontSize: 11, fontWeight: "700" as const }}>{selected === qotd.answer ? "Correct!" : `Answer: ${qotd.answer}`}</Text>
+          <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 11, marginTop: 4 }}>{qotd.explanation}</Text>
+        </Animated.View>
+      )}
+    </Animated.View>
+  );
+}
+
+function PlayerStatsLookup() {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [selectedPlayer, setSelectedPlayer] = useState<any>(null);
+  const [playerStats, setPlayerStats] = useState<any>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statLeague, setStatLeague] = useState("nba");
+  const [searchError, setSearchError] = useState("");
+  const [statsError, setStatsError] = useState("");
+
+  const searchPlayers = async () => {
+    if (!searchQuery.trim()) return;
+    setSearchLoading(true);
+    setSearchResults([]);
+    setSearchError("");
+    try {
+      const sport = statLeague === "nba" ? "basketball" : statLeague === "nfl" ? "football" : statLeague === "mlb" ? "baseball" : "hockey";
+      const res = await fetch(new URL(`/api/sports/player-search?q=${encodeURIComponent(searchQuery)}&sport=${sport}&league=${statLeague}`, getApiUrl()).toString());
+      if (res.ok) {
+        const data = await res.json();
+        const results = data.results || [];
+        setSearchResults(results);
+        if (results.length === 0) setSearchError("No players found. Try a different name.");
+      } else {
+        setSearchError("Search failed. Try again.");
+      }
+    } catch {
+      setSearchError("Network error. Check connection.");
+    }
+    setSearchLoading(false);
+  };
+
+  const loadPlayerStats = async (player: any) => {
+    setSelectedPlayer(player);
+    setStatsLoading(true);
+    setPlayerStats(null);
+    setSearchResults([]);
+    setStatsError("");
+    try {
+      const sport = statLeague === "nba" ? "basketball" : statLeague === "nfl" ? "football" : statLeague === "mlb" ? "baseball" : "hockey";
+      const res = await fetch(new URL(`/api/sports/player-stats?athlete=${player.id}&sport=${sport}&league=${statLeague}`, getApiUrl()).toString());
+      if (res.ok) {
+        setPlayerStats(await res.json());
+      } else {
+        setStatsError("Stats unavailable for this player.");
+      }
+    } catch {
+      setStatsError("Failed to load stats. Try again.");
+    }
+    setStatsLoading(false);
+  };
+
+  return (
+    <View style={{ marginTop: 20 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
+        <Ionicons name="stats-chart" size={18} color={Colors.gold} />
+        <Text style={{ color: "#fff", fontSize: 16, fontWeight: "900" as const, letterSpacing: 1 }}>PLAYER STATS</Text>
+      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, marginBottom: 10 }}>
+        {[
+          { key: "nba", label: "NBA" }, { key: "nfl", label: "NFL" },
+          { key: "mlb", label: "MLB" }, { key: "nhl", label: "NHL" },
+        ].map((l) => (
+          <Pressable key={l.key} onPress={() => { setStatLeague(l.key); setSelectedPlayer(null); setPlayerStats(null); setSearchResults([]); }}
+            style={[dcStyles.standingsTab, statLeague === l.key && { backgroundColor: "rgba(212,164,32,0.2)", borderColor: Colors.gold }]}>
+            <Text style={[dcStyles.standingsTabText, statLeague === l.key && { color: Colors.gold }]}>{l.label}</Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+      <View style={{ flexDirection: "row", gap: 8, marginBottom: 10 }}>
+        <TextInput
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          placeholder="Search player name..."
+          placeholderTextColor="#555"
+          onSubmitEditing={searchPlayers}
+          style={{ flex: 1, backgroundColor: "#1a1a2e", color: "#fff", fontSize: 13, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: "rgba(212,164,32,0.2)" }}
+        />
+        <Pressable onPress={searchPlayers} disabled={searchLoading}
+          style={({ pressed }) => [{ backgroundColor: Colors.gold, paddingHorizontal: 14, borderRadius: 10, justifyContent: "center" as const }, pressed && { opacity: 0.7 }]}>
+          {searchLoading ? <ActivityIndicator size="small" color="#0a0a0a" /> : <Ionicons name="search" size={16} color="#0a0a0a" />}
+        </Pressable>
+      </View>
+      {searchError ? (
+        <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, textAlign: "center" as const, marginBottom: 10, fontStyle: "italic" as const }}>{searchError}</Text>
+      ) : null}
+      {searchResults.length > 0 && (
+        <View style={{ backgroundColor: "rgba(255,255,255,0.03)", borderRadius: 10, borderWidth: 1, borderColor: "rgba(255,255,255,0.06)", marginBottom: 10 }}>
+          {searchResults.map((p, i) => (
+            <Pressable key={p.id || i} onPress={() => loadPlayerStats(p)}
+              style={({ pressed }) => [{ flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderBottomWidth: i < searchResults.length - 1 ? 1 : 0, borderBottomColor: "rgba(255,255,255,0.04)" }, pressed && { backgroundColor: "rgba(212,164,32,0.05)" }]}>
+              {p.headshot ? <Image source={{ uri: p.headshot }} style={{ width: 28, height: 28, borderRadius: 14 }} /> : <Ionicons name="person-circle" size={28} color="#555" />}
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: "#fff", fontSize: 13, fontWeight: "700" as const }}>{p.name}</Text>
+                {p.team ? <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 10 }}>{p.team}</Text> : null}
+              </View>
+              <Ionicons name="chevron-forward" size={14} color="rgba(255,255,255,0.3)" />
+            </Pressable>
+          ))}
+        </View>
+      )}
+      {statsLoading && <ActivityIndicator color={Colors.gold} style={{ marginVertical: 16 }} />}
+      {statsError ? (
+        <Text style={{ color: "#FF4D4D", fontSize: 12, textAlign: "center" as const, marginBottom: 10 }}>{statsError}</Text>
+      ) : null}
+      {selectedPlayer && playerStats && (
+        <Animated.View entering={FadeInDown.duration(300)} style={{ backgroundColor: "rgba(212,164,32,0.05)", borderRadius: 14, borderWidth: 1, borderColor: "rgba(212,164,32,0.12)", padding: 14, marginBottom: 12 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 12 }}>
+            {playerStats.headshot ? <Image source={{ uri: playerStats.headshot }} style={{ width: 48, height: 48, borderRadius: 24, borderWidth: 2, borderColor: Colors.gold }} /> : null}
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: "#fff", fontSize: 16, fontWeight: "800" as const }}>{playerStats.name || selectedPlayer.name}</Text>
+              <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 12 }}>{playerStats.position} {playerStats.team ? `• ${playerStats.team}` : ""}</Text>
+            </View>
+            <Pressable onPress={() => { setSelectedPlayer(null); setPlayerStats(null); }}>
+              <Ionicons name="close-circle" size={22} color="rgba(255,255,255,0.3)" />
+            </Pressable>
+          </View>
+          {playerStats.stats ? Object.entries(playerStats.stats).map(([catName, catData]: [string, any]) => (
+            <View key={catName} style={{ marginBottom: 12 }}>
+              <Text style={{ color: Colors.gold, fontSize: 11, fontWeight: "800" as const, letterSpacing: 1, marginBottom: 6 }}>{catName.toUpperCase()}</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View>
+                  <View style={{ flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.08)", paddingBottom: 4, marginBottom: 4 }}>
+                    <Text style={{ width: 70, color: "rgba(255,255,255,0.4)", fontSize: 9, fontWeight: "700" as const }}>SEASON</Text>
+                    {(catData.labels || []).slice(0, 8).map((label: string, li: number) => (
+                      <Text key={li} style={{ width: 50, color: "rgba(255,255,255,0.4)", fontSize: 9, fontWeight: "700" as const, textAlign: "center" as const }}>{label}</Text>
+                    ))}
+                  </View>
+                  {(catData.entries || []).slice(0, 6).map((entry: any, ei: number) => (
+                    <View key={ei} style={{ flexDirection: "row", paddingVertical: 3, backgroundColor: ei % 2 === 0 ? "rgba(255,255,255,0.02)" : "transparent" }}>
+                      <Text style={{ width: 70, color: "rgba(255,255,255,0.6)", fontSize: 10, fontWeight: "600" as const }} numberOfLines={1}>{entry.season}</Text>
+                      {(catData.labels || []).slice(0, 8).map((label: string, li: number) => (
+                        <Text key={li} style={{ width: 50, color: entry.season === "Career" ? Colors.gold : "rgba(255,255,255,0.7)", fontSize: 10, fontWeight: entry.season === "Career" ? "700" as const : "500" as const, textAlign: "center" as const }}>{entry[label] || "-"}</Text>
+                      ))}
+                    </View>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+          )) : <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 12, textAlign: "center" as const }}>No stats available for this player</Text>}
+        </Animated.View>
+      )}
+    </View>
   );
 }
 
@@ -1481,6 +1711,8 @@ function DCRoyalTab({
           })}
         </Animated.View>
       )}
+
+      <PlayerStatsLookup />
 
       <View style={dcStyles.standingsSection}>
         <Text style={dcStyles.standingsTitle}>LEAGUE STANDINGS</Text>
@@ -2501,6 +2733,8 @@ export default function SportsScreen() {
             </Pressable>
           ))}
         </View>
+
+        <QuestionOfTheDay />
 
         {sportsTab === "games" && viralStats.totalPicks > 0 && (
           <StatsPanel

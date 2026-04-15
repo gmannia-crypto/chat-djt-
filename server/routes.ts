@@ -1230,6 +1230,205 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/sports/player-stats", async (req, res) => {
+    try {
+      const athleteId = req.query.athlete as string;
+      const sport = (req.query.sport as string || "basketball").toLowerCase();
+      const league = (req.query.league as string || "nba").toLowerCase();
+      if (!athleteId) return res.status(400).json({ error: "athlete query param required" });
+
+      const sportMap: Record<string, string> = { basketball: "basketball", football: "football", baseball: "baseball", hockey: "hockey", soccer: "soccer" };
+      const leagueMap: Record<string, string> = { nba: "nba", nfl: "nfl", mlb: "mlb", nhl: "nhl", epl: "eng.1", mls: "usa.1" };
+      const s = sportMap[sport] || "basketball";
+      const l = leagueMap[league] || "nba";
+
+      const url = `https://site.api.espn.com/apis/common/v3/sports/${s}/${l}/athletes/${athleteId}/stats`;
+      const resp = await fetch(url);
+      if (!resp.ok) {
+        const bioUrl = `https://site.api.espn.com/apis/site/v2/sports/${s}/${l}/athletes/${athleteId}`;
+        const bioResp = await fetch(bioUrl);
+        if (!bioResp.ok) return res.json({ stats: null });
+        const bioData = await bioResp.json() as any;
+        return res.json({
+          name: bioData.athlete?.displayName || bioData.displayName || "Unknown",
+          team: bioData.athlete?.team?.displayName || "",
+          position: bioData.athlete?.position?.abbreviation || "",
+          headshot: bioData.athlete?.headshot?.href || "",
+          stats: null,
+        });
+      }
+      const data = await resp.json() as any;
+
+      const categories = data.categories || data.splits?.categories || [];
+      const statSummary: Record<string, any> = {};
+      for (const cat of categories) {
+        const catName = cat.displayName || cat.name || "stats";
+        const statNames = (cat.labels || []).map((l: string) => l);
+        const entries: any[] = [];
+        for (const split of (cat.splits || [])) {
+          const entry: Record<string, string> = { season: split.displayName || split.season?.displayName || "Career" };
+          for (let i = 0; i < statNames.length; i++) {
+            entry[statNames[i]] = split.stats?.[i]?.toString() || "-";
+          }
+          entries.push(entry);
+        }
+        statSummary[catName] = { labels: statNames, entries };
+      }
+
+      const bioUrl2 = `https://site.api.espn.com/apis/site/v2/sports/${s}/${l}/athletes/${athleteId}`;
+      let name = "", team = "", position = "", headshot = "";
+      try {
+        const bioResp2 = await fetch(bioUrl2);
+        if (bioResp2.ok) {
+          const bio2 = await bioResp2.json() as any;
+          name = bio2.athlete?.displayName || bio2.displayName || "";
+          team = bio2.athlete?.team?.displayName || "";
+          position = bio2.athlete?.position?.abbreviation || "";
+          headshot = bio2.athlete?.headshot?.href || "";
+        }
+      } catch {}
+
+      res.json({ name, team, position, headshot, stats: statSummary });
+    } catch (e: any) {
+      console.error("Player stats error:", e.message);
+      res.json({ stats: null });
+    }
+  });
+
+  app.get("/api/sports/player-search", async (req, res) => {
+    try {
+      const query = req.query.q as string;
+      const sport = (req.query.sport as string || "basketball").toLowerCase();
+      const league = (req.query.league as string || "nba").toLowerCase();
+      if (!query) return res.json({ results: [] });
+
+      const sportMap: Record<string, string> = { basketball: "basketball", football: "football", baseball: "baseball", hockey: "hockey" };
+      const leagueMap: Record<string, string> = { nba: "nba", nfl: "nfl", mlb: "mlb", nhl: "nhl" };
+      const s = sportMap[sport] || "basketball";
+      const l = leagueMap[league] || "nba";
+
+      const url = `https://site.api.espn.com/apis/common/v3/search?query=${encodeURIComponent(query)}&limit=8&type=player&sport=${s}&league=${l}`;
+      const resp = await fetch(url);
+      if (!resp.ok) return res.json({ results: [] });
+      const data = await resp.json() as any;
+
+      const results = (data.items || data.results || []).map((item: any) => ({
+        id: item.id || item.$ref?.match(/athletes\/(\d+)/)?.[1] || "",
+        name: item.displayName || item.title || item.name || "",
+        team: item.description || "",
+        headshot: item.image || item.logo || "",
+      })).filter((r: any) => r.id);
+
+      res.json({ results });
+    } catch (e: any) {
+      res.json({ results: [] });
+    }
+  });
+
+  app.get("/api/sports/team-stats", async (req, res) => {
+    try {
+      const teamId = req.query.team as string;
+      const sport = (req.query.sport as string || "basketball").toLowerCase();
+      const league = (req.query.league as string || "nba").toLowerCase();
+      if (!teamId) return res.status(400).json({ error: "team query param required" });
+
+      const sportMap: Record<string, string> = { basketball: "basketball", football: "football", baseball: "baseball", hockey: "hockey" };
+      const leagueMap: Record<string, string> = { nba: "nba", nfl: "nfl", mlb: "mlb", nhl: "nhl" };
+      const s = sportMap[sport] || "basketball";
+      const l = leagueMap[league] || "nba";
+
+      const teamUrl = `https://site.api.espn.com/apis/site/v2/sports/${s}/${l}/teams/${teamId}`;
+      const resp = await fetch(teamUrl);
+      if (!resp.ok) return res.json({ team: null });
+      const data = await resp.json() as any;
+      const t = data.team || {};
+
+      const rosterUrl = `https://site.api.espn.com/apis/site/v2/sports/${s}/${l}/teams/${teamId}/roster`;
+      let roster: any[] = [];
+      try {
+        const rosterResp = await fetch(rosterUrl);
+        if (rosterResp.ok) {
+          const rosterData = await rosterResp.json() as any;
+          for (const group of (rosterData.athletes || [])) {
+            for (const athlete of (group.items || [])) {
+              roster.push({
+                id: athlete.id,
+                name: athlete.displayName || athlete.fullName || "",
+                position: athlete.position?.abbreviation || "",
+                jersey: athlete.jersey || "",
+                headshot: athlete.headshot?.href || "",
+              });
+            }
+          }
+        }
+      } catch {}
+
+      const statsUrl = `https://site.api.espn.com/apis/site/v2/sports/${s}/${l}/teams/${teamId}/statistics`;
+      let teamStats: Record<string, string> = {};
+      try {
+        const statsResp = await fetch(statsUrl);
+        if (statsResp.ok) {
+          const statsData = await statsResp.json() as any;
+          for (const cat of (statsData.results?.stats?.categories || statsData.stats?.categories || statsData.categories || [])) {
+            for (const stat of (cat.stats || [])) {
+              teamStats[stat.displayName || stat.name || ""] = stat.displayValue || stat.value?.toString() || "";
+            }
+          }
+        }
+      } catch {}
+
+      res.json({
+        name: t.displayName || t.name || "",
+        abbreviation: t.abbreviation || "",
+        logo: t.logos?.[0]?.href || "",
+        color: t.color ? `#${t.color}` : "#888",
+        record: t.record?.items?.[0]?.summary || "",
+        conference: t.groups?.parent?.name || t.groups?.name || "",
+        division: t.groups?.name || "",
+        roster: roster.slice(0, 20),
+        stats: teamStats,
+      });
+    } catch (e: any) {
+      console.error("Team stats error:", e.message);
+      res.json({ team: null });
+    }
+  });
+
+  const qotdCache: { date: string; question: any } = { date: "", question: null };
+  app.get("/api/sports/question-of-day", async (_req, res) => {
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      if (qotdCache.date === today && qotdCache.question) {
+        return res.json(qotdCache.question);
+      }
+
+      const sports = ["basketball", "boxing", "golf", "football"];
+      const sport = sports[Math.floor(Math.random() * sports.length)];
+
+      const completion = await getClient().chat.completions.create({
+        model: getFastModel(),
+        messages: [{
+          role: "system",
+          content: `Generate a sports trivia question of the day about ${sport}. Return JSON only with this exact format:
+{"sport":"${sport}","question":"<the trivia question>","options":["A) ...","B) ...","C) ...","D) ..."],"answer":"<correct letter A/B/C/D>","explanation":"<1-2 sentence explanation of the answer>","difficulty":"<easy/medium/hard>"}
+Make it interesting — reference real players, historic moments, records, or stats. Mix between current and all-time topics.`
+        }],
+        max_tokens: 300,
+        temperature: 0.9,
+      });
+
+      let text = completion.choices[0]?.message?.content || "";
+      text = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      const parsed = JSON.parse(text);
+      qotdCache.date = today;
+      qotdCache.question = parsed;
+      res.json(parsed);
+    } catch (e: any) {
+      console.error("QOTD error:", e.message);
+      res.json({ sport: "basketball", question: "Which player has the most NBA championship rings?", options: ["A) Michael Jordan", "B) Bill Russell", "C) Kareem Abdul-Jabbar", "D) Magic Johnson"], answer: "B", explanation: "Bill Russell won 11 NBA championships with the Boston Celtics.", difficulty: "medium" });
+    }
+  });
+
   app.post("/api/sports/dc-royal/discussion", async (req, res) => {
     try {
       const { winners, deviceId: dId } = req.body;
@@ -1441,7 +1640,9 @@ ${game.game}
 Time: ${game.time}
 Odds: ${game.odds}
 
-Respond ONLY in valid JSON format: {"pick": "TEAM_NAME", "reasoning": "your in-character analysis", "confidence": NUMBER}
+IMPORTANT: Back up your pick with SPECIFIC STATS, RECORDS, and NUMBERS. Cite player averages (PPG, TD passes, ERA, save %), team records (W-L), head-to-head matchup history, playoff records, all-time rankings, and streaks. Use real stats from the 2025-26 season. The more specific data you cite, the better your analysis. Example: "Jokic averagin a TRIPLE DOUBLE this season — 26/13/10 — you can NOT stop that man!"
+
+Respond ONLY in valid JSON format: {"pick": "TEAM_NAME", "reasoning": "your in-character analysis with specific stats cited", "confidence": NUMBER}
 The pick MUST be one of the actual team/fighter names from the matchup, or a funny refusal like "SAVE YOUR MONEY" if that fits your character. Keep reasoning to 2-3 punchy sentences.`;
 
       const completion = await getClient().chat.completions.create({
