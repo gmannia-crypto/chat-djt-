@@ -3086,6 +3086,217 @@ Your personality quirks:
     }
   });
 
+  // ─── Billionaires Game: Save/Load/Leaderboard ───────────────────────
+  const BILLIONAIRE_DDL = `
+    CREATE TABLE IF NOT EXISTS billionaire_games (
+      id SERIAL PRIMARY KEY,
+      device_id TEXT NOT NULL,
+      player_name TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'in_progress',
+      game_state JSONB,
+      choice_history JSONB DEFAULT '[]',
+      used_titles JSONB DEFAULT '[]',
+      final_net_worth BIGINT DEFAULT 0,
+      turns INTEGER DEFAULT 0,
+      duration_seconds INTEGER DEFAULT 0,
+      milestones_hit INTEGER DEFAULT 0,
+      best_streak INTEGER DEFAULT 0,
+      karma INTEGER DEFAULT 0,
+      dark_deals INTEGER DEFAULT 0,
+      created_at TIMESTAMP DEFAULT NOW(),
+      completed_at TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_bg_device ON billionaire_games(device_id);
+    CREATE INDEX IF NOT EXISTS idx_bg_status ON billionaire_games(status);
+    CREATE INDEX IF NOT EXISTS idx_bg_leaderboard ON billionaire_games(status, turns, duration_seconds) WHERE status = 'won';
+  `;
+
+  (async () => {
+    try {
+      const initPool = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      await initPool.query(BILLIONAIRE_DDL);
+      console.log("Billionaire games table initialized");
+      await initPool.end();
+    } catch (e: any) {
+      console.error("Failed to init billionaire_games table:", e.message);
+    }
+  })();
+
+  app.post("/api/game/save-progress", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const { playerName, gameState, choiceHistory, usedTitles } = req.body;
+      if (!playerName || !gameState) return res.status(400).json({ error: "playerName and gameState required" });
+
+      const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      const existing = await pool.query(
+        `SELECT id FROM billionaire_games WHERE device_id = $1 AND status = 'in_progress' ORDER BY updated_at DESC LIMIT 1`,
+        [deviceId]
+      );
+
+      if (existing.rows.length > 0) {
+        await pool.query(
+          `UPDATE billionaire_games SET game_state = $1, choice_history = $2, used_titles = $3, player_name = $4, turns = $5, updated_at = NOW() WHERE id = $6`,
+          [JSON.stringify(gameState), JSON.stringify(choiceHistory || []), JSON.stringify(usedTitles || []), playerName, gameState.turn || 0, existing.rows[0].id]
+        );
+      } else {
+        await pool.query(
+          `INSERT INTO billionaire_games (device_id, player_name, status, game_state, choice_history, used_titles, turns) VALUES ($1, $2, 'in_progress', $3, $4, $5, $6)`,
+          [deviceId, playerName, JSON.stringify(gameState), JSON.stringify(choiceHistory || []), JSON.stringify(usedTitles || []), gameState.turn || 0]
+        );
+      }
+      await pool.end();
+      res.json({ saved: true });
+    } catch (error: any) {
+      console.error("Save progress error:", error);
+      res.status(500).json({ error: "Failed to save progress" });
+    }
+  });
+
+  app.get("/api/game/load-progress", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+
+      const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      const result = await pool.query(
+        `SELECT player_name, game_state, choice_history, used_titles, created_at FROM billionaire_games WHERE device_id = $1 AND status = 'in_progress' ORDER BY updated_at DESC LIMIT 1`,
+        [deviceId]
+      );
+      await pool.end();
+
+      if (result.rows.length === 0) {
+        return res.json({ hasProgress: false });
+      }
+
+      const row = result.rows[0];
+      res.json({
+        hasProgress: true,
+        playerName: row.player_name,
+        gameState: row.game_state,
+        choiceHistory: row.choice_history || [],
+        usedTitles: row.used_titles || [],
+        startedAt: row.created_at,
+      });
+    } catch (error: any) {
+      console.error("Load progress error:", error);
+      res.status(500).json({ error: "Failed to load progress" });
+    }
+  });
+
+  app.post("/api/game/submit-result", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const { playerName, won, gameState, durationSeconds } = req.body;
+      if (!playerName || !gameState) return res.status(400).json({ error: "playerName and gameState required" });
+
+      const status = won ? "won" : "lost";
+      const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+
+      const existing = await pool.query(
+        `SELECT id FROM billionaire_games WHERE device_id = $1 AND status = 'in_progress' ORDER BY updated_at DESC LIMIT 1`,
+        [deviceId]
+      );
+
+      if (existing.rows.length > 0) {
+        await pool.query(
+          `UPDATE billionaire_games SET status = $1, final_net_worth = $2, turns = $3, duration_seconds = $4, milestones_hit = $5, best_streak = $6, karma = $7, dark_deals = $8, player_name = $9, completed_at = NOW(), updated_at = NOW() WHERE id = $10`,
+          [status, gameState.netWorth || 0, gameState.turn || 0, durationSeconds || 0, (gameState.milestonesHit || []).length, gameState.bestStreak || 0, gameState.karma || 0, gameState.darkDeals || 0, playerName, existing.rows[0].id]
+        );
+      } else {
+        await pool.query(
+          `INSERT INTO billionaire_games (device_id, player_name, status, final_net_worth, turns, duration_seconds, milestones_hit, best_streak, karma, dark_deals, completed_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())`,
+          [deviceId, playerName, status, gameState.netWorth || 0, gameState.turn || 0, durationSeconds || 0, (gameState.milestonesHit || []).length, gameState.bestStreak || 0, gameState.karma || 0, gameState.darkDeals || 0]
+        );
+      }
+
+      await pool.query(
+        `DELETE FROM billionaire_games WHERE device_id = $1 AND status = 'in_progress'`,
+        [deviceId]
+      );
+
+      await pool.end();
+      res.json({ submitted: true });
+    } catch (error: any) {
+      console.error("Submit result error:", error);
+      res.status(500).json({ error: "Failed to submit result" });
+    }
+  });
+
+  app.get("/api/game/leaderboard", async (req, res) => {
+    try {
+      const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      const result = await pool.query(`
+        SELECT
+          player_name,
+          final_net_worth,
+          turns,
+          duration_seconds,
+          milestones_hit,
+          best_streak,
+          karma,
+          dark_deals,
+          completed_at,
+          ROUND(final_net_worth::numeric / GREATEST(turns, 1), 0) as efficiency_score,
+          ROUND(final_net_worth::numeric / GREATEST(duration_seconds, 1), 0) as speed_score
+        FROM billionaire_games
+        WHERE status = 'won'
+        ORDER BY turns ASC, duration_seconds ASC
+        LIMIT 50
+      `);
+
+      const totalWins = await pool.query(`SELECT COUNT(*) as count FROM billionaire_games WHERE status = 'won'`);
+      const totalGames = await pool.query(`SELECT COUNT(*) as count FROM billionaire_games WHERE status IN ('won', 'lost')`);
+      const fastestWin = await pool.query(`SELECT MIN(turns) as min_turns, MIN(duration_seconds) as min_duration FROM billionaire_games WHERE status = 'won'`);
+
+      await pool.end();
+
+      res.json({
+        leaderboard: result.rows.map((r: any, i: number) => ({
+          rank: i + 1,
+          playerName: r.player_name,
+          finalNetWorth: Number(r.final_net_worth),
+          turns: r.turns,
+          durationSeconds: r.duration_seconds,
+          milestonesHit: r.milestones_hit,
+          bestStreak: r.best_streak,
+          karma: r.karma,
+          darkDeals: r.dark_deals,
+          completedAt: r.completed_at,
+          efficiencyScore: Number(r.efficiency_score),
+          speedScore: Number(r.speed_score),
+        })),
+        stats: {
+          totalWins: Number(totalWins.rows[0]?.count || 0),
+          totalGames: Number(totalGames.rows[0]?.count || 0),
+          fastestTurns: fastestWin.rows[0]?.min_turns || null,
+          fastestDuration: fastestWin.rows[0]?.min_duration || null,
+        },
+      });
+    } catch (error: any) {
+      console.error("Leaderboard error:", error);
+      res.status(500).json({ error: "Failed to load leaderboard" });
+    }
+  });
+
+  app.delete("/api/game/clear-progress", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      await pool.query(`DELETE FROM billionaire_games WHERE device_id = $1 AND status = 'in_progress'`, [deviceId]);
+      await pool.end();
+      res.json({ cleared: true });
+    } catch (error: any) {
+      console.error("Clear progress error:", error);
+      res.status(500).json({ error: "Failed to clear progress" });
+    }
+  });
+  // ─── End Billionaires Game Save/Leaderboard ────────────────────────
+
   function formatMoney(n: number): string {
     if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(2)}B`;
     if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;

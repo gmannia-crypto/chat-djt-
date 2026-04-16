@@ -41,6 +41,37 @@ import { getApiUrl } from "@/lib/query-client";
 import { StatsPanel } from "@/components/StatsPanel";
 import { ViralShareCard } from "@/components/ViralShareCard";
 import { getGameStats, recordGameResult as recordGameResultStats, type GameStats as ViralGameStats } from "@/lib/viral-stats";
+import { getOrCreateDeviceId } from "@/lib/token-context";
+import { FlatList } from "react-native";
+
+interface LeaderboardEntry {
+  rank: number;
+  playerName: string;
+  finalNetWorth: number;
+  turns: number;
+  durationSeconds: number;
+  milestonesHit: number;
+  bestStreak: number;
+  karma: number;
+  darkDeals: number;
+  completedAt: string;
+  efficiencyScore: number;
+  speedScore: number;
+}
+
+interface LeaderboardData {
+  leaderboard: LeaderboardEntry[];
+  stats: { totalWins: number; totalGames: number; fastestTurns: number | null; fastestDuration: number | null };
+}
+
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  if (mins < 60) return `${mins}m ${secs}s`;
+  const hrs = Math.floor(mins / 60);
+  return `${hrs}h ${mins % 60}m`;
+}
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -287,6 +318,15 @@ export default function GameScreen() {
   const [viralGameStats, setViralGameStats] = useState<ViralGameStats>({ wins: 0, losses: 0, streak: 0, bestStreak: 0, highestScore: 0, gamesPlayed: 0 });
   const [viralShareVisible, setViralShareVisible] = useState(false);
   const [viralShareData, setViralShareData] = useState({ headline: "", quote: "" });
+  const [deviceId, setDeviceId] = useState("");
+  const gameStartTime = useRef<number>(Date.now());
+  const elapsedBeforeResume = useRef<number>(0);
+  const [isResolvingChoice, setIsResolvingChoice] = useState(false);
+  const [savedProgress, setSavedProgress] = useState<{ playerName: string; gameState: GameState; choiceHistory: any[]; usedTitles: string[] } | null>(null);
+  const [showResumePrompt, setShowResumePrompt] = useState(false);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [leaderboardData, setLeaderboardData] = useState<LeaderboardData | null>(null);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
 
   const karmaRating = getKarmaRating(gameState.karma);
   const titleInfo = getTitle(gameState.netWorth);
@@ -322,6 +362,26 @@ export default function GameScreen() {
 
   useEffect(() => {
     getGameStats().then(s => setViralGameStats(s));
+    getOrCreateDeviceId().then(id => {
+      setDeviceId(id);
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      fetch(`${baseUrl}/api/game/load-progress`, {
+        headers: { "x-device-id": id },
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data.hasProgress && data.gameState && data.gameState.turn > 0) {
+            setSavedProgress({
+              playerName: data.playerName,
+              gameState: data.gameState,
+              choiceHistory: data.choiceHistory || [],
+              usedTitles: data.usedTitles || [],
+            });
+            setShowResumePrompt(true);
+          }
+        })
+        .catch(() => {});
+    });
     return () => { cleanupSound(); };
   }, []);
 
@@ -329,12 +389,99 @@ export default function GameScreen() {
     const baseUrl = getApiUrl().replace(/\/$/, "");
     const res = await fetch(`${baseUrl}${endpoint}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "x-device-id": deviceId },
       body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error(`API error: ${res.status}`);
     return res.json();
+  }, [deviceId]);
+
+  const saveProgress = useCallback(async (gs: GameState, ch: any[], ut: string[], pn: string) => {
+    if (!deviceId || !pn || gs.turn === 0) return;
+    const sessionSeconds = Math.round((Date.now() - gameStartTime.current) / 1000);
+    const totalElapsed = sessionSeconds + elapsedBeforeResume.current;
+    try {
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      await fetch(`${baseUrl}/api/game/save-progress`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+        body: JSON.stringify({ playerName: pn, gameState: { ...gs, elapsedSeconds: totalElapsed }, choiceHistory: ch, usedTitles: ut }),
+      });
+    } catch {}
+  }, [deviceId]);
+
+  const submitResult = useCallback(async (won: boolean, gs: GameState, pn: string) => {
+    if (!deviceId || !pn) return;
+    const sessionSeconds = Math.round((Date.now() - gameStartTime.current) / 1000);
+    const durationSeconds = sessionSeconds + elapsedBeforeResume.current;
+    try {
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      await fetch(`${baseUrl}/api/game/submit-result`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+        body: JSON.stringify({ playerName: pn, won, gameState: gs, durationSeconds }),
+      });
+    } catch {}
+  }, [deviceId]);
+
+  const loadLeaderboard = useCallback(async () => {
+    setLeaderboardLoading(true);
+    try {
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      const res = await fetch(`${baseUrl}/api/game/leaderboard`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (data && Array.isArray(data.leaderboard)) {
+        setLeaderboardData(data);
+      } else {
+        setLeaderboardData({ leaderboard: [], stats: { totalWins: 0, totalGames: 0, fastestTurns: null, fastestDuration: null } });
+      }
+    } catch {
+      setLeaderboardData({ leaderboard: [], stats: { totalWins: 0, totalGames: 0, fastestTurns: null, fastestDuration: null } });
+    }
+    setLeaderboardLoading(false);
   }, []);
+
+  const resumeGame = useCallback(() => {
+    if (!savedProgress) return;
+    setPlayerName(savedProgress.playerName);
+    setNameConfirmed(true);
+    const gs = savedProgress.gameState;
+    setGameState({
+      netWorth: gs.netWorth || 1_000_000,
+      karma: gs.karma || 0,
+      turn: gs.turn || 0,
+      empire: gs.empire || [],
+      headlines: gs.headlines || [],
+      darkDeals: gs.darkDeals || 0,
+      politiciansBought: gs.politiciansBought || 0,
+      livesAffected: gs.livesAffected || 0,
+      streak: gs.streak || 0,
+      bestStreak: gs.bestStreak || 0,
+      milestonesHit: gs.milestonesHit || [],
+    });
+    setChoiceHistory(savedProgress.choiceHistory || []);
+    setUsedTitles(savedProgress.usedTitles || []);
+    setTrumpQuote(`Welcome back, ${savedProgress.playerName}! I knew you'd be back! Nobody quits when they're this close!`);
+    setShowResumePrompt(false);
+    setSavedProgress(null);
+    elapsedBeforeResume.current = gs.elapsedSeconds || 0;
+    gameStartTime.current = Date.now();
+  }, [savedProgress]);
+
+  const dismissResume = useCallback(async () => {
+    setShowResumePrompt(false);
+    setSavedProgress(null);
+    if (deviceId) {
+      try {
+        const baseUrl = getApiUrl().replace(/\/$/, "");
+        await fetch(`${baseUrl}/api/game/clear-progress`, {
+          method: "DELETE",
+          headers: { "x-device-id": deviceId },
+        });
+      } catch {}
+    }
+  }, [deviceId]);
 
   const playTrumpAudio = useCallback(async (audioBase64: string | null) => {
     if (!audioBase64 || !voiceEnabled) {
@@ -388,6 +535,8 @@ export default function GameScreen() {
     setPlayerName(name);
     setNameConfirmed(true);
     setLoading(true);
+    elapsedBeforeResume.current = 0;
+    gameStartTime.current = Date.now();
     try {
       const data = await apiCall("/api/game/trump-welcome", { playerName: name });
       setTrumpQuote(data.text);
@@ -412,6 +561,7 @@ export default function GameScreen() {
     setLoading(true);
     setShowConsequence(false);
     setLastChoice(null);
+    setIsResolvingChoice(false);
     await cleanupSound();
 
     try {
@@ -456,6 +606,8 @@ export default function GameScreen() {
   }, [gameState, usedTitles, playerName, apiCall, getTier, cleanupSound, voiceEnabled, playNarratorAudio]);
 
   const makeChoice = useCallback(async (choice: Choice) => {
+    if (isResolvingChoice) return;
+    setIsResolvingChoice(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     setLastChoice(choice);
     setShowConsequence(true);
@@ -565,8 +717,24 @@ export default function GameScreen() {
       setTrumpSpeaking(false);
     }
 
+    const updatedState: GameState = {
+      ...gameState,
+      netWorth: newNetWorth,
+      karma: newKarma,
+      turn: gameState.turn,
+      empire: choice.profit > 0 ? [...gameState.empire, choice.industry] : gameState.empire,
+      headlines: [...gameState.headlines, choice.consequence.substring(0, 60) + "..."],
+      darkDeals: choice.karma < -10 ? gameState.darkDeals + 1 : gameState.darkDeals,
+      politiciansBought: choice.industry === "politics" && choice.karma < 0 ? gameState.politiciansBought + 1 : gameState.politiciansBought,
+      livesAffected: gameState.livesAffected + Math.abs(choice.karma) * 1000,
+      streak: newStreak,
+      bestStreak: Math.max(gameState.bestStreak, newStreak),
+      milestonesHit: newMilestones.length > 0 ? [...gameState.milestonesHit, ...newMilestones.map(m => m.threshold)] : gameState.milestonesHit,
+    };
+
     if (newNetWorth >= 1_000_000_000) {
       recordGameResultStats(true, newNetWorth).then(s => setViralGameStats(s));
+      submitResult(true, updatedState, playerName);
       setTimeout(() => {
         if (newKarma < -30) {
           setShowHellfire(true);
@@ -575,8 +743,13 @@ export default function GameScreen() {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         }
       }, 3000);
+    } else if (newNetWorth <= 0) {
+      recordGameResultStats(false, 0).then(s => setViralGameStats(s));
+      submitResult(false, updatedState, playerName);
+    } else {
+      saveProgress(updatedState, [...choiceHistory, { scenario: currentScenario?.title || "", choice: choice.text, profit: adjustedProfit, karma: choice.karma }], usedTitles, playerName);
     }
-  }, [gameState, currentScenario, playerName, apiCall, playTrumpAudio]);
+  }, [gameState, currentScenario, playerName, apiCall, playTrumpAudio, saveProgress, submitResult, choiceHistory, usedTitles]);
 
   const handleHellfireComplete = useCallback(async () => {
     setHellfireComplete(true);
@@ -609,6 +782,8 @@ export default function GameScreen() {
     setGameWon(false);
     setShowHellfire(false);
     setHellfireComplete(false);
+    setIsResolvingChoice(false);
+    elapsedBeforeResume.current = 0;
     setNameConfirmed(false);
     setPlayerName("");
     setNameInput("");
@@ -634,6 +809,100 @@ export default function GameScreen() {
     return <HellfireAnimation playerName={playerName} onComplete={handleHellfireComplete} />;
   }
 
+  if (showLeaderboard) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top + webTopInset }]}>
+        <LinearGradient colors={["#0a0a14", "#000", "#140a0a"]} style={StyleSheet.absoluteFillObject} />
+        <View style={styles.header}>
+          <Pressable onPress={() => setShowLeaderboard(false)} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={22} color={Colors.gold} />
+          </Pressable>
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerTitle}>ALL-TIME RANKINGS</Text>
+          </View>
+          <View style={{ width: 36 }} />
+        </View>
+
+        {leaderboardLoading ? (
+          <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+            <ActivityIndicator color={Colors.gold} size="large" />
+            <Text style={{ color: "rgba(255,255,255,0.5)", marginTop: 12, fontSize: 13 }}>Loading leaderboard...</Text>
+          </View>
+        ) : leaderboardData && leaderboardData.leaderboard.length > 0 ? (
+          <FlatList
+            data={leaderboardData.leaderboard}
+            keyExtractor={(_, i) => String(i)}
+            contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + webBottomInset + 30 }]}
+            ListHeaderComponent={
+              <View>
+                {leaderboardData.stats && (
+                  <View style={[styles.statsCard, { marginBottom: 16 }]}>
+                    <View style={styles.statItem}>
+                      <Text style={styles.statValue}>{leaderboardData.stats.totalWins}</Text>
+                      <Text style={styles.statLabel}>TOTAL WINS</Text>
+                    </View>
+                    <View style={styles.statDivider} />
+                    <View style={styles.statItem}>
+                      <Text style={styles.statValue}>{leaderboardData.stats.totalGames}</Text>
+                      <Text style={styles.statLabel}>GAMES</Text>
+                    </View>
+                    <View style={styles.statDivider} />
+                    <View style={styles.statItem}>
+                      <Text style={styles.statValue}>{leaderboardData.stats.fastestTurns || "—"}</Text>
+                      <Text style={styles.statLabel}>FASTEST (TURNS)</Text>
+                    </View>
+                  </View>
+                )}
+                <View style={{ flexDirection: "row", paddingHorizontal: 4, marginBottom: 8 }}>
+                  <Text style={{ flex: 0.15, color: "rgba(255,255,255,0.4)", fontSize: 9, fontWeight: "700" as const }}>RANK</Text>
+                  <Text style={{ flex: 0.35, color: "rgba(255,255,255,0.4)", fontSize: 9, fontWeight: "700" as const }}>PLAYER</Text>
+                  <Text style={{ flex: 0.2, color: "rgba(255,255,255,0.4)", fontSize: 9, fontWeight: "700" as const, textAlign: "center" as const }}>TURNS</Text>
+                  <Text style={{ flex: 0.3, color: "rgba(255,255,255,0.4)", fontSize: 9, fontWeight: "700" as const, textAlign: "right" as const }}>TIME</Text>
+                </View>
+              </View>
+            }
+            renderItem={({ item }) => (
+              <Animated.View entering={FadeInDown.duration(300)}>
+                <View style={{ backgroundColor: item.rank <= 3 ? "rgba(212,164,32,0.08)" : "rgba(255,255,255,0.03)", borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: item.rank <= 3 ? "rgba(212,164,32,0.2)" : "rgba(255,255,255,0.05)" }}>
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    <View style={{ flex: 0.15, alignItems: "center" as const }}>
+                      <Text style={{ fontSize: item.rank <= 3 ? 20 : 14, fontWeight: "900" as const, color: item.rank === 1 ? "#FFD700" : item.rank === 2 ? "#C0C0C0" : item.rank === 3 ? "#CD7F32" : "rgba(255,255,255,0.5)" }}>
+                        {item.rank <= 3 ? ["🥇", "🥈", "🥉"][item.rank - 1] : `#${item.rank}`}
+                      </Text>
+                    </View>
+                    <View style={{ flex: 0.35 }}>
+                      <Text style={{ color: "#fff", fontSize: 13, fontWeight: "800" as const }} numberOfLines={1}>{item.playerName}</Text>
+                      <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, marginTop: 2 }}>
+                        {fmtMoney(item.finalNetWorth)} • {item.karma >= 0 ? "+" : ""}{item.karma} karma
+                      </Text>
+                    </View>
+                    <View style={{ flex: 0.2, alignItems: "center" as const }}>
+                      <Text style={{ color: Colors.gold, fontSize: 16, fontWeight: "900" as const }}>{item.turns}</Text>
+                      <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 8 }}>DEALS</Text>
+                    </View>
+                    <View style={{ flex: 0.3, alignItems: "flex-end" as const }}>
+                      <Text style={{ color: "#22C55E", fontSize: 12, fontWeight: "800" as const }}>{formatDuration(item.durationSeconds)}</Text>
+                      <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 8, marginTop: 2 }}>
+                        🔥{item.bestStreak} streak • {item.milestonesHit}/{MILESTONES.length}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              </Animated.View>
+            )}
+          />
+        ) : (
+          <View style={{ flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 30 }}>
+            <Text style={{ fontSize: 48 }}>🏛️</Text>
+            <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 14, textAlign: "center" as const, marginTop: 12 }}>
+              No winners yet! Be the first to reach $1 Billion and claim the #1 spot!
+            </Text>
+          </View>
+        )}
+      </View>
+    );
+  }
+
   if (!nameConfirmed) {
     return (
       <View style={[styles.container, { paddingTop: insets.top + webTopInset }]}>
@@ -645,50 +914,77 @@ export default function GameScreen() {
           <View style={styles.headerCenter}>
             <Text style={styles.headerTitle}>DYNAMIC BILLIONAIRES</Text>
           </View>
-          <View style={{ width: 36 }} />
+          <Pressable onPress={() => { setShowLeaderboard(true); loadLeaderboard(); }} style={styles.backBtn}>
+            <Ionicons name="trophy" size={18} color={Colors.gold} />
+          </Pressable>
         </View>
-        <View style={styles.nameInputContainer}>
-          <Animated.View entering={FadeInDown.duration(600)}>
-            <Image source={require("@/assets/images/trump-avatar.jpg")} style={styles.nameAvatar} />
-          </Animated.View>
-          <Animated.View entering={FadeInDown.delay(200).duration(500)}>
-            <Text style={styles.namePromptTitle}>WHAT'S YOUR NAME?</Text>
-            <Text style={styles.namePromptSub}>Trump needs to know who he's dealing with...</Text>
-          </Animated.View>
-          <Animated.View entering={FadeInDown.delay(400).duration(400)} style={{ width: "100%", maxWidth: 300 }}>
-            <TextInput
-              style={styles.nameTextInput}
-              placeholder="Enter your name..."
-              placeholderTextColor="rgba(255,255,255,0.3)"
-              value={nameInput}
-              onChangeText={setNameInput}
-              autoCapitalize="words"
-              autoFocus
-              maxLength={20}
-              onSubmitEditing={confirmName}
-              returnKeyType="go"
-            />
-          </Animated.View>
-          <Animated.View entering={FadeInDown.delay(600).duration(400)}>
-            <Pressable
-              onPress={confirmName}
-              disabled={!nameInput.trim() || loading}
-              style={({ pressed }) => [
-                styles.nameConfirmBtn,
-                !nameInput.trim() && { opacity: 0.4 },
-                pressed && { opacity: 0.8, transform: [{ scale: 0.97 }] },
-              ]}
-            >
-              <LinearGradient colors={[Colors.gold, Colors.goldDark || "#B8860B"]} style={styles.startBtnGradient}>
-                {loading ? (
-                  <ActivityIndicator color="#000" />
-                ) : (
-                  <Text style={styles.startBtnText}>LET'S GO!</Text>
-                )}
-              </LinearGradient>
-            </Pressable>
-          </Animated.View>
-        </View>
+
+        {showResumePrompt && savedProgress ? (
+          <View style={styles.nameInputContainer}>
+            <Animated.View entering={FadeInDown.duration(600)}>
+              <Text style={{ fontSize: 48, textAlign: "center" as const }}>💾</Text>
+            </Animated.View>
+            <Animated.View entering={FadeInDown.delay(200).duration(500)}>
+              <Text style={styles.namePromptTitle}>RESUME GAME?</Text>
+              <Text style={styles.namePromptSub}>
+                {savedProgress.playerName}'s empire at {fmtMoney(savedProgress.gameState.netWorth)} • Turn {savedProgress.gameState.turn}
+              </Text>
+            </Animated.View>
+            <Animated.View entering={FadeInDown.delay(400).duration(400)} style={{ width: "100%", maxWidth: 300, gap: 10 }}>
+              <Pressable onPress={resumeGame} style={({ pressed }) => [styles.nameConfirmBtn, pressed && { opacity: 0.8, transform: [{ scale: 0.97 }] }]}>
+                <LinearGradient colors={[Colors.gold, Colors.goldDark || "#B8860B"]} style={styles.startBtnGradient}>
+                  <Text style={styles.startBtnText}>RESUME — {fmtMoney(savedProgress.gameState.netWorth)}</Text>
+                </LinearGradient>
+              </Pressable>
+              <Pressable onPress={dismissResume} style={({ pressed }) => [styles.resetBtn, pressed && { opacity: 0.7 }]}>
+                <Text style={styles.resetBtnText}>START FRESH</Text>
+              </Pressable>
+            </Animated.View>
+          </View>
+        ) : (
+          <View style={styles.nameInputContainer}>
+            <Animated.View entering={FadeInDown.duration(600)}>
+              <Image source={require("@/assets/images/trump-avatar.jpg")} style={styles.nameAvatar} />
+            </Animated.View>
+            <Animated.View entering={FadeInDown.delay(200).duration(500)}>
+              <Text style={styles.namePromptTitle}>WHAT'S YOUR NAME?</Text>
+              <Text style={styles.namePromptSub}>Trump needs to know who he's dealing with...</Text>
+            </Animated.View>
+            <Animated.View entering={FadeInDown.delay(400).duration(400)} style={{ width: "100%", maxWidth: 300 }}>
+              <TextInput
+                style={styles.nameTextInput}
+                placeholder="Enter your name..."
+                placeholderTextColor="rgba(255,255,255,0.3)"
+                value={nameInput}
+                onChangeText={setNameInput}
+                autoCapitalize="words"
+                autoFocus
+                maxLength={20}
+                onSubmitEditing={confirmName}
+                returnKeyType="go"
+              />
+            </Animated.View>
+            <Animated.View entering={FadeInDown.delay(600).duration(400)}>
+              <Pressable
+                onPress={confirmName}
+                disabled={!nameInput.trim() || loading}
+                style={({ pressed }) => [
+                  styles.nameConfirmBtn,
+                  !nameInput.trim() && { opacity: 0.4 },
+                  pressed && { opacity: 0.8, transform: [{ scale: 0.97 }] },
+                ]}
+              >
+                <LinearGradient colors={[Colors.gold, Colors.goldDark || "#B8860B"]} style={styles.startBtnGradient}>
+                  {loading ? (
+                    <ActivityIndicator color="#000" />
+                  ) : (
+                    <Text style={styles.startBtnText}>LET'S GO!</Text>
+                  )}
+                </LinearGradient>
+              </Pressable>
+            </Animated.View>
+          </View>
+        )}
       </View>
     );
   }
@@ -706,6 +1002,9 @@ export default function GameScreen() {
               <Text style={styles.headerTitle}>DYNAMIC BILLIONAIRES</Text>
             </View>
             <View style={{ flexDirection: "row", gap: 8 }}>
+              <Pressable onPress={() => { setShowLeaderboard(true); loadLeaderboard(); }} style={styles.shareBtn}>
+                <Ionicons name="trophy" size={18} color={Colors.gold} />
+              </Pressable>
               <Pressable onPress={() => { setVoiceEnabled(v => !v); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }} style={[styles.shareBtn, !voiceEnabled && { opacity: 0.4 }]}>
                 <Ionicons name={voiceEnabled ? "volume-high" : "volume-mute"} size={18} color={Colors.gold} />
               </Pressable>
@@ -901,6 +1200,11 @@ export default function GameScreen() {
           )}
 
           <Animated.View entering={FadeInDown.delay(700).duration(400)} style={{ gap: 10 }}>
+            <Pressable onPress={() => { setShowLeaderboard(true); loadLeaderboard(); }} style={({ pressed }) => [styles.startBtn, pressed && { opacity: 0.8 }]}>
+              <LinearGradient colors={["#9333EA", "#7C3AED"]} style={styles.startBtnGradient}>
+                <Text style={[styles.startBtnText, { color: "#fff" }]}>🏆 ALL-TIME RANKINGS</Text>
+              </LinearGradient>
+            </Pressable>
             <Pressable onPress={handleShare} style={({ pressed }) => [styles.startBtn, pressed && { opacity: 0.8 }]}>
               <LinearGradient colors={[Colors.gold, Colors.goldDark || "#B8860B"]} style={styles.startBtnGradient}>
                 <Text style={styles.startBtnText}>SHARE YOUR EMPIRE</Text>
