@@ -2859,7 +2859,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     }
   });
 
-  const TRUMP_GAME_VOICE_ID = "546bf63af23347308b6cb21edcd76835";
+  const TRUMP_GAME_VOICE_ID = TRUMP_FIRED_UP_VOICE_ID;
   const DEAL_NARRATOR_VOICE_ID = "78e63426b8c140a181c97910def314bb";
 
   app.post("/api/game/generate-scenario", async (req, res) => {
