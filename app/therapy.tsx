@@ -601,6 +601,31 @@ export default function TherapyScreen() {
     }
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+
+    try {
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      const hdrs: Record<string, string> = { "Content-Type": "application/json" };
+      if (deviceId) hdrs["x-device-id"] = deviceId;
+      const sessionRes = await fetch(`${baseUrl}/api/therapy/start-session`, {
+        method: "POST",
+        headers: hdrs,
+        body: JSON.stringify({ duration: deepDuration }),
+      });
+      if (!sessionRes.ok) {
+        const errData = await sessionRes.json().catch(() => ({}));
+        if (errData.error === "insufficient_tokens") {
+          refreshBalance();
+          router.push("/subscribe");
+          return;
+        }
+        throw new Error("Session start failed");
+      }
+      refreshBalance();
+    } catch {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      return;
+    }
+
     setLoading(true);
     setTherapy(null);
 
@@ -1101,6 +1126,32 @@ export default function TherapyScreen() {
       return;
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+
+    try {
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      const hdrs: Record<string, string> = { "Content-Type": "application/json" };
+      if (deviceId) hdrs["x-device-id"] = deviceId;
+
+      const sessionRes = await fetch(`${baseUrl}/api/therapy/start-session`, {
+        method: "POST",
+        headers: hdrs,
+        body: JSON.stringify({ duration: deepDuration }),
+      });
+      if (!sessionRes.ok) {
+        const errData = await sessionRes.json().catch(() => ({}));
+        if (errData.error === "insufficient_tokens") {
+          refreshBalance();
+          router.push("/subscribe");
+          return;
+        }
+        throw new Error("Session start failed");
+      }
+      refreshBalance();
+    } catch {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      return;
+    }
+
     awardBadge("first_session");
 
     let greeting: string;
@@ -1234,6 +1285,31 @@ export default function TherapyScreen() {
       return;
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+
+    try {
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      const hdrs: Record<string, string> = { "Content-Type": "application/json" };
+      if (deviceId) hdrs["x-device-id"] = deviceId;
+      const sessionRes = await fetch(`${baseUrl}/api/therapy/start-session`, {
+        method: "POST",
+        headers: hdrs,
+        body: JSON.stringify({ duration: deepDuration }),
+      });
+      if (!sessionRes.ok) {
+        const errData = await sessionRes.json().catch(() => ({}));
+        if (errData.error === "insufficient_tokens") {
+          refreshBalance();
+          router.push("/subscribe");
+          return;
+        }
+        throw new Error("Session start failed");
+      }
+      refreshBalance();
+    } catch {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      return;
+    }
+
     setIntakeLoading(true);
     setIntakeMessages([{ role: "user", text: problem.trim() }]);
     try {

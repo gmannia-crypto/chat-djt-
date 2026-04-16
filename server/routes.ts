@@ -1429,6 +1429,109 @@ Make it interesting — reference real players, historic moments, records, or st
     }
   });
 
+  const DC_ROYAL_DEBATE_DURATIONS: Record<number, { cost: number; ms: number }> = {
+    5: { cost: 5, ms: 5 * 60 * 1000 },
+    10: { cost: 10, ms: 10 * 60 * 1000 },
+    15: { cost: 15, ms: 15 * 60 * 1000 },
+  };
+
+  app.post("/api/sports/dc-royal/start-debate", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const { duration, winners } = req.body;
+      if (!winners || !Array.isArray(winners) || winners.length < 2) {
+        return res.status(400).json({ error: "Need at least 2 winners" });
+      }
+      const config = DC_ROYAL_DEBATE_DURATIONS[duration] || DC_ROYAL_DEBATE_DURATIONS[5];
+      const cost = config.cost;
+      const balance = await getTokenBalance(deviceId);
+      if ((balance.totalAvailable ?? 0) < cost) {
+        return res.status(403).json({ error: "insufficient_tokens", tokensNeeded: cost, balance: balance.totalAvailable ?? 0 });
+      }
+      let charged = 0;
+      for (let i = 0; i < cost; i++) {
+        const r = await useToken(deviceId);
+        if (r.success) charged++;
+      }
+      if (charged < cost) {
+        return res.status(403).json({ error: "insufficient_tokens", tokensNeeded: cost, tokensCharged: charged });
+      }
+      const expiresAt = Date.now() + config.ms;
+      const newBalance = await getTokenBalance(deviceId);
+      res.json({ success: true, tokensCharged: cost, durationMinutes: duration || 5, expiresAt, balance: newBalance });
+    } catch (e: any) {
+      console.error("DC Royal start-debate error:", e.message);
+      res.status(500).json({ error: "Failed to start debate" });
+    }
+  });
+
+  app.post("/api/sports/dc-royal/respond", async (req, res) => {
+    try {
+      const { responderId, winners, conversationHistory, expiresAt } = req.body;
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      if (expiresAt && Date.now() > expiresAt) {
+        return res.status(403).json({ error: "debate_expired" });
+      }
+
+      const personaNames: Record<string, string> = {
+        trump: "Donald Trump", loudmouth: "Loudmouth (Stephen A. Smith)", jordan: "Michael Jordan",
+        shannon: "Shannon Sharpe", barkley: "Charles Barkley", rogan: "Joe Rogan",
+        snoop: "Snoop Dogg", maxkellerman: "Max Kellerman", bernie: "Bernie Mac",
+        ruckus: "Uncle Ruckus", grandma: "Grandma", dickyV: "Dicky V", skipbayless: "Skip Bayless",
+        speedDemon: "Speed Demon", pitBoss: "Pit Boss", driftQueen: "Drift Queen",
+        throttle: "Throttle", revTech: "Rev Tech",
+        elCapitan: "El Capitán", sirGodfrey: "Sir Godfrey", mamaFutbol: "Mama Fútbol",
+        phantomZZ: "Phantom ZZ", theUltra: "The Ultra",
+      };
+
+      const winnerDescriptions = (winners || []).map((w: any) =>
+        `${personaNames[w.personaId] || w.personaId} — record: ${w.record}, DC Royal crowns: ${w.crowns || 0}`
+      ).join("\n");
+
+      const sportsPrompt = PERSONA_SPORTS_PROMPTS[responderId] || PERSONA_SPORTS_PROMPTS["trump"];
+      const historyText = (conversationHistory || []).slice(-8).map((m: any) =>
+        `${personaNames[m.personaId] || m.personaId}: "${m.text}"`
+      ).join("\n");
+
+      const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+      const prompt = `${sportsPrompt}
+
+TODAY IS ${todayStr}. You are in a LIVE DC Royal debate — a competitive roundtable between the top-performing sports analysts who earned DC Royal crowns.
+
+DC ROYAL WINNERS IN THIS DEBATE:
+${winnerDescriptions}
+
+DEBATE RULES:
+- You are ${personaNames[responderId] || responderId}. Respond IN CHARACTER with your unique voice.
+- BRAG about your winning picks and MOCK the others' records and analysis
+- Reference specific stats, player performances, and game outcomes to back up your trash talk
+- If someone just said something, RESPOND to it — agree, disagree, or clap back
+- Reference DC Royal crown counts — more crowns = more bragging rights
+- Make bold predictions for upcoming games
+- Keep your response to 2-4 sentences — punchy, quotable, IN CHARACTER
+- Use your signature catchphrases and speaking patterns
+- Reference current 2025-2026 sports: NBA playoffs, MLB 2026, NFL offseason, NHL playoffs
+
+${historyText ? `RECENT DEBATE:\n${historyText}\n\nRespond to what was just said. Be competitive and entertaining.` : "You're opening the debate. Come out STRONG with a bold take and some trash talk."}`;
+
+      const completion = await getClient().chat.completions.create({
+        model: getFastModel(),
+        messages: [{ role: "system", content: prompt }],
+        max_completion_tokens: 250,
+        temperature: 0.95,
+      });
+
+      const text = completion.choices[0]?.message?.content?.trim() || "";
+      const cleaned = text.replace(/^\[.*?\]:\s*/, "").replace(/^["']|["']$/g, "");
+      res.json({ personaId: responderId, text: cleaned });
+    } catch (e: any) {
+      console.error("DC Royal respond error:", e.message);
+      res.status(500).json({ error: "Failed to generate response" });
+    }
+  });
+
   app.post("/api/sports/dc-royal/discussion", async (req, res) => {
     try {
       const { winners, deviceId: dId } = req.body;
@@ -7506,16 +7609,40 @@ Make each treatment step specific and actionable. Make solutions practical thing
     }
   });
 
+  app.post("/api/therapy/start-session", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const { duration } = req.body;
+      const minutes = [5, 10, 15].includes(duration) ? duration : 5;
+      const cost = minutes;
+      const currentBalance = await getTokenBalance(deviceId);
+      const available = currentBalance.totalAvailable ?? 0;
+      if (available < cost) {
+        return res.status(403).json({ error: "insufficient_tokens", tokensNeeded: cost, balance: available });
+      }
+      let charged = 0;
+      for (let i = 0; i < cost; i++) {
+        const r = await useToken(deviceId);
+        if (r.success) charged++;
+      }
+      if (charged < cost) {
+        return res.status(403).json({ error: "insufficient_tokens", tokensNeeded: cost, tokensCharged: charged, balance: 0 });
+      }
+      const balance = await getTokenBalance(deviceId);
+      res.json({ success: true, tokensCharged: cost, durationMinutes: minutes, balance });
+    } catch (error) {
+      console.error("Therapy start-session error:", error);
+      res.status(500).json({ error: "Failed to start session" });
+    }
+  });
+
   app.post("/api/therapy/charge-minute", async (req, res) => {
     try {
       const deviceId = req.headers["x-device-id"] as string;
       if (!deviceId) return res.status(400).json({ error: "Device ID required" });
       const { minute } = req.body;
-      const tokenResult = await useToken(deviceId);
-      if (!tokenResult.success) {
-        return res.status(403).json({ error: "no_tokens", message: tokenResult.error, balance: tokenResult.balance, minute });
-      }
-      res.json({ success: true, minute, balance: tokenResult.balance });
+      res.json({ success: true, minute });
     } catch (error) {
       console.error("Therapy charge-minute error:", error);
       res.status(500).json({ error: "Failed to charge minute" });

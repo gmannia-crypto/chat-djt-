@@ -1469,6 +1469,8 @@ function DCRoyalTab({
   tallies,
   deviceId,
   playClick,
+  onSpeak,
+  refreshBalance,
 }: {
   personas: PersonaInfo[];
   personaImages: Record<string, ImageSourcePropType>;
@@ -1476,6 +1478,8 @@ function DCRoyalTab({
   tallies: Record<string, PersonaTally>;
   deviceId: string | null;
   playClick: () => void;
+  onSpeak: (text: string, personaId: string, gameId: number) => void;
+  refreshBalance: () => void;
 }) {
   const [crawlItems, setCrawlItems] = useState<{ emoji: string; text: string }[]>([]);
   const [standings, setStandings] = useState<any[]>([]);
@@ -1486,6 +1490,115 @@ function DCRoyalTab({
   const [discussionLoading, setDiscussionLoading] = useState(false);
   const [winners, setWinners] = useState<DCRoyalWinner[]>([]);
   const crawlRef = useRef<ScrollView>(null);
+
+  const [debateDuration, setDebateDuration] = useState<5 | 10 | 15>(5);
+  const [debateActive, setDebateActive] = useState(false);
+  const [debateExpiresAt, setDebateExpiresAt] = useState(0);
+  const [debateSeconds, setDebateSeconds] = useState(0);
+  const [debateMessages, setDebateMessages] = useState<{ personaId: string; text: string }[]>([]);
+  const [debateLoading, setDebateLoading] = useState(false);
+  const [debateStarting, setDebateStarting] = useState(false);
+  const [debateEnded, setDebateEnded] = useState(false);
+  const debateTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const debateScrollRef = useRef<ScrollView>(null);
+  const debateRunningRef = useRef(false);
+  const debateMountedRef = useRef(true);
+
+  useEffect(() => {
+    debateMountedRef.current = true;
+    return () => { debateMountedRef.current = false; };
+  }, []);
+
+  useEffect(() => {
+    if (debateActive && debateSeconds > 0) {
+      debateTimerRef.current = setInterval(() => {
+        if (!debateMountedRef.current) return;
+        setDebateSeconds(prev => {
+          if (prev <= 1) {
+            if (debateTimerRef.current) clearInterval(debateTimerRef.current);
+            setDebateActive(false);
+            setDebateEnded(true);
+            debateRunningRef.current = false;
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      return () => { if (debateTimerRef.current) clearInterval(debateTimerRef.current); };
+    }
+  }, [debateActive]);
+
+  const startDebate = async () => {
+    if (!deviceId || winners.length < 2) return;
+    setDebateStarting(true);
+    playClick();
+    try {
+      const res = await fetch(new URL("/api/sports/dc-royal/start-debate", getApiUrl()).toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+        body: JSON.stringify({ duration: debateDuration, winners: winners.map(w => ({ ...w, crowns: crowns[w.personaId] || 0 })) }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        if (err.error === "insufficient_tokens") {
+          refreshBalance();
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        }
+        setDebateStarting(false);
+        return;
+      }
+      const data = await res.json();
+      refreshBalance();
+      setDebateExpiresAt(data.expiresAt);
+      setDebateSeconds(debateDuration * 60);
+      setDebateMessages([]);
+      setDebateActive(true);
+      setDebateEnded(false);
+      debateRunningRef.current = true;
+      awardCrowns();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      runDebateLoop(data.expiresAt);
+    } catch {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
+    setDebateStarting(false);
+  };
+
+  const runDebateLoop = async (expiresAt: number) => {
+    const history: { personaId: string; text: string }[] = [];
+    let turnIndex = 0;
+    while (debateMountedRef.current && debateRunningRef.current && Date.now() < expiresAt) {
+      const responder = winners[turnIndex % winners.length];
+      try {
+        const res = await fetch(new URL("/api/sports/dc-royal/respond", getApiUrl()).toString(), {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-device-id": deviceId || "" },
+          body: JSON.stringify({
+            responderId: responder.personaId,
+            winners: winners.map(w => ({ ...w, crowns: crowns[w.personaId] || 0 })),
+            conversationHistory: history.slice(-8),
+            expiresAt,
+          }),
+        });
+        if (!res.ok) break;
+        const msg = await res.json();
+        if (!debateMountedRef.current || !debateRunningRef.current) break;
+        history.push(msg);
+        setDebateMessages(prev => [...prev, msg]);
+        setTimeout(() => debateScrollRef.current?.scrollToEnd({ animated: true }), 200);
+        onSpeak(msg.text, msg.personaId, 80000 + turnIndex);
+        await new Promise(r => setTimeout(r, 6000 + Math.random() * 4000));
+      } catch { break; }
+      turnIndex++;
+    }
+  };
+
+  const formatDebateTime = (s: number) => {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${m}:${sec.toString().padStart(2, "0")}`;
+  };
 
   useEffect(() => {
     loadCrowns();
@@ -1649,44 +1762,89 @@ function DCRoyalTab({
         </View>
       )}
 
-      {winners.length >= 2 && (
-        <Pressable
-          onPress={startDiscussion}
-          disabled={discussionLoading}
-          style={({ pressed }) => [dcStyles.discussionBtn, pressed && { opacity: 0.8 }]}
-        >
-          {discussionLoading ? (
-            <ActivityIndicator size="small" color="#0a0a0a" />
-          ) : (
-            <>
-              <Ionicons name="chatbubbles" size={18} color="#0a0a0a" />
-              <Text style={dcStyles.discussionBtnText}>START WINNER DISCUSSION</Text>
-              <View style={dcStyles.tokenCost}>
-                <Text style={dcStyles.tokenCostText}>1 TOKEN</Text>
-              </View>
-            </>
-          )}
-        </Pressable>
+      {winners.length >= 2 && !debateActive && !debateEnded && (
+        <Animated.View entering={FadeInDown.delay(300).duration(400)} style={{ marginTop: 14 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
+            <Ionicons name="mic" size={16} color={Colors.gold} />
+            <Text style={{ color: "#fff", fontSize: 13, fontWeight: "900" as const, letterSpacing: 1 }}>DC ROYAL DEBATE</Text>
+          </View>
+          <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginBottom: 10 }}>Live timed debate between the winning analysts — they speak!</Text>
+          <View style={{ flexDirection: "row", gap: 8, marginBottom: 10 }}>
+            {([5, 10, 15] as const).map(mins => (
+              <Pressable key={mins} onPress={() => setDebateDuration(mins)}
+                style={[dcStyles.standingsTab, { flex: 1, alignItems: "center" as const, paddingVertical: 10 },
+                  debateDuration === mins && { backgroundColor: "rgba(212,164,32,0.2)", borderColor: Colors.gold }]}>
+                <Text style={{ color: debateDuration === mins ? Colors.gold : "rgba(255,255,255,0.5)", fontSize: 16, fontWeight: "800" as const }}>{mins}</Text>
+                <Text style={{ color: debateDuration === mins ? Colors.gold : "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: "600" as const }}>MIN</Text>
+                <Text style={{ color: debateDuration === mins ? Colors.gold : "rgba(255,255,255,0.2)", fontSize: 9, marginTop: 2 }}>{mins} tokens</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Pressable onPress={startDebate} disabled={debateStarting}
+            style={({ pressed }) => [dcStyles.discussionBtn, pressed && { opacity: 0.8 }]}>
+            {debateStarting ? (
+              <ActivityIndicator size="small" color="#0a0a0a" />
+            ) : (
+              <>
+                <Ionicons name="mic" size={18} color="#0a0a0a" />
+                <Text style={dcStyles.discussionBtnText}>START {debateDuration} MIN DEBATE</Text>
+                <View style={dcStyles.tokenCost}>
+                  <Text style={dcStyles.tokenCostText}>{debateDuration} TOKENS</Text>
+                </View>
+              </>
+            )}
+          </Pressable>
+        </Animated.View>
       )}
 
-      {discussion.length > 0 && (
+      {(debateActive || debateEnded) && (
         <Animated.View entering={FadeInDown.delay(100).duration(400)} style={dcStyles.discussionContainer}>
           <View style={dcStyles.discussionHeader}>
             <MaterialCommunityIcons name="microphone-variant" size={18} color="#FFD700" />
-            <Text style={dcStyles.discussionTitle}>DC ROYAL ROUNDTABLE</Text>
-          </View>
-          {discussion.map((msg, i) => {
-            const p = personas.find(pp => pp.id === msg.personaId);
-            return (
-              <Animated.View key={i} entering={FadeInDown.delay(i * 60).duration(300)} style={dcStyles.msgRow}>
-                <Image source={p?.image || personaImages.trump} style={[dcStyles.msgAvatar, { borderColor: p?.color || "#ff4d4d" }]} />
-                <View style={dcStyles.msgBubble}>
-                  <Text style={[dcStyles.msgName, { color: p?.color || "#ff4d4d" }]}>{p?.name || "???"}</Text>
-                  <Text style={dcStyles.msgText}>{msg.text}</Text>
+            <Text style={dcStyles.discussionTitle}>DC ROYAL DEBATE</Text>
+            <View style={{ marginLeft: "auto", flexDirection: "row", alignItems: "center", gap: 6 }}>
+              {debateActive && (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(255,77,77,0.15)", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 }}>
+                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: "#FF4D4D" }} />
+                  <Text style={{ color: "#FF4D4D", fontSize: 11, fontWeight: "800" as const }}>{formatDebateTime(debateSeconds)}</Text>
                 </View>
-              </Animated.View>
-            );
-          })}
+              )}
+              {debateEnded && (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(255,215,0,0.12)", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 }}>
+                  <Ionicons name="checkmark-circle" size={12} color="#FFD700" />
+                  <Text style={{ color: "#FFD700", fontSize: 11, fontWeight: "800" as const }}>DEBATE OVER</Text>
+                </View>
+              )}
+            </View>
+          </View>
+          <ScrollView ref={debateScrollRef} style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
+            {debateMessages.map((msg, i) => {
+              const p = personas.find(pp => pp.id === msg.personaId);
+              return (
+                <Animated.View key={i} entering={FadeInDown.delay(50).duration(300)} style={dcStyles.msgRow}>
+                  <Pressable onPress={() => onSpeak(msg.text, msg.personaId, 80000 + i)}>
+                    <Image source={p?.image || personaImages.trump} style={[dcStyles.msgAvatar, { borderColor: p?.color || "#ff4d4d" }]} />
+                  </Pressable>
+                  <View style={dcStyles.msgBubble}>
+                    <Text style={[dcStyles.msgName, { color: p?.color || "#ff4d4d" }]}>{p?.name || "???"}</Text>
+                    <Text style={dcStyles.msgText}>{msg.text}</Text>
+                  </View>
+                </Animated.View>
+              );
+            })}
+            {debateActive && debateMessages.length === 0 && (
+              <View style={{ alignItems: "center", paddingVertical: 20 }}>
+                <ActivityIndicator color={Colors.gold} />
+                <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginTop: 8 }}>Debate starting...</Text>
+              </View>
+            )}
+          </ScrollView>
+          {debateEnded && (
+            <Pressable onPress={() => { setDebateEnded(false); setDebateMessages([]); }}
+              style={({ pressed }) => [{ marginTop: 10, paddingVertical: 8, borderRadius: 8, backgroundColor: "rgba(255,255,255,0.06)", alignItems: "center" as const }, pressed && { opacity: 0.7 }]}>
+              <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, fontWeight: "600" as const }}>CLOSE DEBATE</Text>
+            </Pressable>
+          )}
         </Animated.View>
       )}
 
@@ -3240,6 +3398,8 @@ export default function SportsScreen() {
             tallies={tallies}
             deviceId={deviceId}
             playClick={playClick}
+            onSpeak={handleSpeak}
+            refreshBalance={refreshBalance}
           />
         )}
 
