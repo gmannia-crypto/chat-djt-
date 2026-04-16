@@ -2872,6 +2872,8 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
             role: "system",
             content: `You generate dark, morally complex business scenarios for a billionaire simulation game. Each scenario must be deep, thought-provoking, and feel realistic. Include real-world parallels without using real company names. Scenarios should test the player's ethics across industries: pharma, prisons, politics, healthcare, military, lobbying, welfare, tech, media, energy. Make each scenario unique and never repeat themes. The player "${playerName || 'Player'}" currently has ${formatMoney(netWorth || 1000000)} net worth and ${karma || 0} karma. Tier ${tier || 1} (1=early game, 5=endgame with massive stakes).
 
+CRITICAL: All profit values MUST be written as FULL INTEGER DOLLAR AMOUNTS. Never use shorthand. Examples: 5 million = 5000000, 50 million = 50000000, 120 million = 120000000. The ethical choice can have a NEGATIVE profit (losing money for doing the right thing).
+
 Return ONLY valid JSON with this exact structure:
 {
   "title": "SHORT DRAMATIC TITLE IN CAPS",
@@ -2879,13 +2881,19 @@ Return ONLY valid JSON with this exact structure:
   "icon": "single emoji",
   "industry": "one of: pharma, prisons, politics, healthcare, military, lobbying, welfare, tech, media, energy",
   "choices": [
-    {"text": "The ruthless option description", "profit": number, "karma": negative_number, "karmaLabel": "LABEL", "consequence": "What happens - vivid 2 sentence consequence", "industry": "same_industry"},
-    {"text": "The ethical option description", "profit": small_or_negative_number, "karma": positive_number, "karmaLabel": "LABEL", "consequence": "What happens", "industry": "same_industry"},
-    {"text": "The gray area middle option", "profit": medium_number, "karma": small_negative, "karmaLabel": "LABEL", "consequence": "What happens", "industry": "same_industry"}
+    {"text": "The ruthless option description", "profit": 15000000, "karma": -25, "karmaLabel": "RUTHLESS", "consequence": "What happens - vivid 2 sentence consequence", "industry": "same_industry"},
+    {"text": "The ethical option description", "profit": -2000000, "karma": 20, "karmaLabel": "ETHICAL", "consequence": "What happens", "industry": "same_industry"},
+    {"text": "The gray area middle option", "profit": 8000000, "karma": -8, "karmaLabel": "CALCULATED", "consequence": "What happens", "industry": "same_industry"}
   ]
 }
 
-Profit ranges by tier: T1=$3M-$20M, T2=$15M-$55M, T3=$30M-$80M, T4=$50M-$120M, T5=$80M-$200M. Karma: ruthless=-20 to -45, ethical=+10 to +30, gray=-5 to -15.`
+Profit ranges by tier (FULL DOLLAR AMOUNTS):
+- Tier 1 (net worth <$5M): ruthless 3000000-20000000, ethical -5000000 to 1000000, gray 2000000-10000000
+- Tier 2 (net worth <$20M): ruthless 15000000-55000000, ethical -10000000 to 3000000, gray 8000000-30000000
+- Tier 3 (net worth <$100M): ruthless 30000000-80000000, ethical -15000000 to 5000000, gray 15000000-45000000
+- Tier 4 (net worth <$500M): ruthless 50000000-150000000, ethical -25000000 to 10000000, gray 25000000-80000000
+- Tier 5 (net worth >$500M): ruthless 80000000-250000000, ethical -40000000 to 20000000, gray 40000000-120000000
+Karma: ruthless=-20 to -45, ethical=+10 to +30, gray=-5 to -15.`
           },
           {
             role: "user",
@@ -2904,6 +2912,38 @@ Profit ranges by tier: T1=$3M-$20M, T2=$15M-$55M, T3=$30M-$80M, T4=$50M-$120M, T
       const scenario = JSON.parse(jsonMatch[0]);
       scenario.id = "ai_" + Date.now();
       scenario.tier = tier || 1;
+
+      const tierRanges: Record<number, { ruthless: [number, number]; ethical: [number, number]; gray: [number, number] }> = {
+        1: { ruthless: [3000000, 20000000], ethical: [-5000000, 1000000], gray: [2000000, 10000000] },
+        2: { ruthless: [15000000, 55000000], ethical: [-10000000, 3000000], gray: [8000000, 30000000] },
+        3: { ruthless: [30000000, 80000000], ethical: [-15000000, 5000000], gray: [15000000, 45000000] },
+        4: { ruthless: [50000000, 150000000], ethical: [-25000000, 10000000], gray: [25000000, 80000000] },
+        5: { ruthless: [80000000, 250000000], ethical: [-40000000, 20000000], gray: [40000000, 120000000] },
+      };
+      const tierNum = scenario.tier || 1;
+      const ranges = tierRanges[tierNum] || tierRanges[1];
+      const choiceTypes: Array<"ruthless" | "ethical" | "gray"> = ["ruthless", "ethical", "gray"];
+
+      if (scenario.choices && Array.isArray(scenario.choices)) {
+        scenario.choices = scenario.choices.map((c: any, idx: number) => {
+          let profit = Number(c.profit) || 0;
+          if (Math.abs(profit) > 0 && Math.abs(profit) < 100000) {
+            profit = profit * 1000000;
+          }
+          const type = choiceTypes[idx] || "gray";
+          const [minP, maxP] = ranges[type];
+          if (type === "ethical") {
+            profit = Math.max(minP, Math.min(maxP, profit));
+          } else {
+            profit = Math.max(minP, Math.min(maxP, Math.abs(profit)));
+          }
+          let karma = Number(c.karma) || 0;
+          if (idx === 0 && karma > 0) karma = -karma;
+          if (idx === 1 && karma < 0) karma = -karma;
+          return { ...c, profit, karma };
+        });
+      }
+
       res.json(scenario);
     } catch (error: any) {
       console.error("Generate scenario error:", error);

@@ -74,7 +74,45 @@ interface GameState {
   darkDeals: number;
   politiciansBought: number;
   livesAffected: number;
+  streak: number;
+  bestStreak: number;
+  milestonesHit: number[];
 }
+
+const MILESTONES = [
+  { threshold: 5_000_000, label: "MILLIONAIRE STATUS", emoji: "📈", message: "You just crossed $5M! The hustle is real!" },
+  { threshold: 10_000_000, label: "MOGUL MODE", emoji: "💰", message: "Double digits! $10M and climbing!" },
+  { threshold: 25_000_000, label: "POWER PLAYER", emoji: "⚡", message: "$25M! You're making moves that matter!" },
+  { threshold: 50_000_000, label: "MEGA MOGUL", emoji: "🏗️", message: "$50M! Half way to centimillionaire!" },
+  { threshold: 100_000_000, label: "CENTIMILLIONAIRE", emoji: "🏰", message: "$100M! The big leagues! Forbes is watching!" },
+  { threshold: 250_000_000, label: "QUARTER BILLIONAIRE", emoji: "💎", message: "$250M! A quarter of the way to the top!" },
+  { threshold: 500_000_000, label: "HALF BILLIONAIRE", emoji: "🔥", message: "$500M! The billion-dollar club is in sight!" },
+  { threshold: 750_000_000, label: "THREE-QUARTER BILLION", emoji: "🚀", message: "$750M! So close you can taste it!" },
+];
+
+const BREAKING_NEWS = [
+  "WALL STREET JOURNAL: \"{player}\" disrupts {industry} sector with controversial new deal",
+  "FORBES BREAKING: {player} net worth surges to {worth} — experts stunned",
+  "CNN: Is {player} the next business titan? Sources say yes",
+  "FOX BUSINESS: {player}'s {industry} empire grows — \"Tremendous!\" says Trump",
+  "BLOOMBERG: {player} closes massive {industry} deal worth {deal}",
+  "THE ECONOMIST: The {player} effect — how one tycoon is reshaping {industry}",
+  "FINANCIAL TIMES: {player} makes bold {industry} play — rivals scramble to respond",
+  "REUTERS: {player} reaches {worth} net worth milestone in record time",
+  "CNBC: \"{player} is either a genius or insane\" — market analysts react",
+  "AP NEWS: {player}'s controversial {industry} strategy pays off big",
+];
+
+const RANDOM_EVENTS = [
+  { type: "boom", emoji: "📈", title: "MARKET BOOM!", message: "A bull market surge boosts your portfolio!", multiplier: 1.15 },
+  { type: "crash", emoji: "📉", title: "MARKET CRASH!", message: "A sudden downturn hits your investments!", multiplier: 0.88 },
+  { type: "audit", emoji: "🔍", title: "SEC INVESTIGATION!", message: "Federal regulators are asking questions about your deals...", multiplier: 0.92 },
+  { type: "windfall", emoji: "🎰", title: "WINDFALL!", message: "An old investment just paid off massively!", multiplier: 1.20 },
+  { type: "scandal", emoji: "📰", title: "MEDIA SCANDAL!", message: "A leaked email costs you PR damage and legal fees!", multiplier: 0.90 },
+  { type: "lobby", emoji: "🏛️", title: "POLITICAL FAVOR!", message: "A senator you backed just passed a favorable bill!", multiplier: 1.12 },
+  { type: "lawsuit", emoji: "⚖️", title: "CLASS ACTION LAWSUIT!", message: "Former employees are suing. Lawyers aren't cheap!", multiplier: 0.85 },
+  { type: "ipo", emoji: "🔔", title: "SURPRISE IPO!", message: "One of your companies just went public!", multiplier: 1.25 },
+];
 
 const INDUSTRY_COLORS: Record<Industry, string> = {
   pharma: "#9333EA",
@@ -225,6 +263,7 @@ export default function GameScreen() {
   const [gameState, setGameState] = useState<GameState>({
     netWorth: 1_000_000, karma: 0, turn: 0, empire: [], headlines: [],
     darkDeals: 0, politiciansBought: 0, livesAffected: 0,
+    streak: 0, bestStreak: 0, milestonesHit: [],
   });
 
   const [currentScenario, setCurrentScenario] = useState<Scenario | null>(null);
@@ -240,6 +279,10 @@ export default function GameScreen() {
   const [hellfireComplete, setHellfireComplete] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [narratorSpeaking, setNarratorSpeaking] = useState(false);
+  const [milestone, setMilestone] = useState<typeof MILESTONES[0] | null>(null);
+  const [breakingNews, setBreakingNews] = useState("");
+  const [randomEvent, setRandomEvent] = useState<typeof RANDOM_EVENTS[0] | null>(null);
+  const [streakBonus, setStreakBonus] = useState(0);
   const narratorSoundRef = useRef<Audio.Sound | null>(null);
   const [viralGameStats, setViralGameStats] = useState<ViralGameStats>({ wins: 0, losses: 0, streak: 0, bestStreak: 0, highestScore: 0, gamesPlayed: 0 });
   const [viralShareVisible, setViralShareVisible] = useState(false);
@@ -417,25 +460,67 @@ export default function GameScreen() {
     setLastChoice(choice);
     setShowConsequence(true);
     setTrumpSpeaking(true);
+    setMilestone(null);
+    setBreakingNews("");
+    setRandomEvent(null);
+    setStreakBonus(0);
 
-    const newNetWorth = Math.max(0, gameState.netWorth + choice.profit);
+    const newStreak = choice.profit > 0 ? gameState.streak + 1 : 0;
+    let bonusMultiplier = 1;
+    if (newStreak >= 5) { bonusMultiplier = 1.5; setStreakBonus(50); }
+    else if (newStreak >= 3) { bonusMultiplier = 1.25; setStreakBonus(25); }
+
+    const adjustedProfit = Math.round(choice.profit * bonusMultiplier);
+    let newNetWorth = Math.max(0, gameState.netWorth + adjustedProfit);
     const newKarma = gameState.karma + choice.karma;
+
+    const shouldTriggerEvent = gameState.turn > 0 && gameState.turn % 4 === 0 && Math.random() > 0.4;
+    let eventApplied: typeof RANDOM_EVENTS[0] | null = null;
+    if (shouldTriggerEvent) {
+      eventApplied = RANDOM_EVENTS[Math.floor(Math.random() * RANDOM_EVENTS.length)];
+      newNetWorth = Math.max(0, Math.round(newNetWorth * eventApplied.multiplier));
+      setRandomEvent(eventApplied);
+    }
+
+    const newMilestones = MILESTONES.filter(
+      m => newNetWorth >= m.threshold && !gameState.milestonesHit.includes(m.threshold)
+    );
+    const hitMilestone = newMilestones.length > 0 ? newMilestones[newMilestones.length - 1] : null;
+    if (hitMilestone) {
+      setMilestone(hitMilestone);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+
+    const newsTemplate = BREAKING_NEWS[Math.floor(Math.random() * BREAKING_NEWS.length)];
+    setBreakingNews(
+      newsTemplate
+        .replace(/\{player\}/g, playerName)
+        .replace(/\{industry\}/g, currentScenario?.industry || "business")
+        .replace(/\{worth\}/g, fmtMoney(newNetWorth))
+        .replace(/\{deal\}/g, fmtMoney(Math.abs(adjustedProfit)))
+    );
 
     setGameState(prev => ({
       ...prev,
-      netWorth: Math.max(0, prev.netWorth + choice.profit),
+      netWorth: newNetWorth,
       karma: prev.karma + choice.karma,
       empire: choice.profit > 0 ? [...prev.empire, choice.industry] : prev.empire,
       headlines: [...prev.headlines, choice.consequence.substring(0, 60) + "..."],
       darkDeals: choice.karma < -10 ? prev.darkDeals + 1 : prev.darkDeals,
       politiciansBought: choice.industry === "politics" && choice.karma < 0 ? prev.politiciansBought + 1 : prev.politiciansBought,
       livesAffected: prev.livesAffected + Math.abs(choice.karma) * 1000,
+      streak: newStreak,
+      bestStreak: Math.max(prev.bestStreak, newStreak),
+      milestonesHit: newMilestones.length > 0 ? [...prev.milestonesHit, ...newMilestones.map(m => m.threshold)] : prev.milestonesHit,
     }));
+
+    const displayChoice = { ...choice, profit: adjustedProfit };
+    setLastChoice(displayChoice);
 
     setChoiceHistory(prev => [...prev, {
       scenario: currentScenario?.title || "",
       choice: choice.text,
-      profit: choice.profit,
+      profit: adjustedProfit,
       karma: choice.karma,
     }]);
 
@@ -514,7 +599,7 @@ export default function GameScreen() {
   const handleReset = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     cleanupSound();
-    setGameState({ netWorth: 1_000_000, karma: 0, turn: 0, empire: [], headlines: [], darkDeals: 0, politiciansBought: 0, livesAffected: 0 });
+    setGameState({ netWorth: 1_000_000, karma: 0, turn: 0, empire: [], headlines: [], darkDeals: 0, politiciansBought: 0, livesAffected: 0, streak: 0, bestStreak: 0, milestonesHit: [] });
     setCurrentScenario(null);
     setShowConsequence(false);
     setLastChoice(null);
@@ -527,6 +612,10 @@ export default function GameScreen() {
     setNameConfirmed(false);
     setPlayerName("");
     setNameInput("");
+    setMilestone(null);
+    setBreakingNews("");
+    setRandomEvent(null);
+    setStreakBonus(0);
   }, [cleanupSound]);
 
   const handleShare = useCallback(() => {
@@ -668,8 +757,8 @@ export default function GameScreen() {
                 </View>
                 <View style={styles.statDivider} />
                 <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{gameState.turn}</Text>
-                  <Text style={styles.statLabel}>DEALS</Text>
+                  <Text style={styles.statValue}>{gameState.streak > 0 ? `🔥${gameState.streak}` : String(gameState.turn)}</Text>
+                  <Text style={styles.statLabel}>{gameState.streak > 0 ? "STREAK" : "DEALS"}</Text>
                 </View>
               </View>
             </Animated.View>
@@ -756,6 +845,8 @@ export default function GameScreen() {
                 { label: "Dark Deals", value: String(gameState.darkDeals), color: "#EF4444" },
                 { label: "Politicians Bought", value: String(gameState.politiciansBought), color: "#7C3AED" },
                 { label: "Lives Affected", value: gameState.livesAffected.toLocaleString(), color: "#fff" },
+                { label: "Best Deal Streak", value: `🔥 ${gameState.bestStreak}`, color: "#EAB308" },
+                { label: "Milestones Hit", value: `${gameState.milestonesHit.length}/${MILESTONES.length}`, color: Colors.gold },
                 { label: "Ruthless Choices", value: `${darkPercent}%`, color: "#F97316" },
               ].map((row, i) => (
                 <View key={i} style={styles.summaryRow}>
@@ -963,7 +1054,62 @@ export default function GameScreen() {
                 </View>
               </View>
 
+              {streakBonus > 0 && (
+                <Animated.View entering={FadeInDown.delay(100).duration(300)}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "rgba(234,179,8,0.15)", borderRadius: 10, padding: 10, marginBottom: 10, borderWidth: 1, borderColor: "rgba(234,179,8,0.3)" }}>
+                    <Text style={{ fontSize: 20 }}>🔥</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: "#EAB308", fontSize: 12, fontWeight: "900" as const, letterSpacing: 1 }}>
+                        {gameState.streak}x DEAL STREAK! +{streakBonus}% BONUS
+                      </Text>
+                      <Text style={{ color: "rgba(234,179,8,0.7)", fontSize: 10, marginTop: 2 }}>
+                        Consecutive profitable deals pay more!
+                      </Text>
+                    </View>
+                  </View>
+                </Animated.View>
+              )}
+
+              {randomEvent && (
+                <Animated.View entering={FadeInDown.delay(200).duration(400)}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: randomEvent.multiplier >= 1 ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)", borderRadius: 10, padding: 10, marginBottom: 10, borderWidth: 1, borderColor: randomEvent.multiplier >= 1 ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)" }}>
+                    <Text style={{ fontSize: 24 }}>{randomEvent.emoji}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: randomEvent.multiplier >= 1 ? "#22C55E" : "#EF4444", fontSize: 12, fontWeight: "900" as const, letterSpacing: 0.5 }}>
+                        {randomEvent.title}
+                      </Text>
+                      <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 11, marginTop: 2 }}>
+                        {randomEvent.message} ({randomEvent.multiplier >= 1 ? "+" : ""}{Math.round((randomEvent.multiplier - 1) * 100)}% net worth)
+                      </Text>
+                    </View>
+                  </View>
+                </Animated.View>
+              )}
+
               <Text style={styles.consequenceText}>{lastChoice.consequence}</Text>
+
+              {milestone && (
+                <Animated.View entering={FadeInDown.delay(300).duration(500)}>
+                  <LinearGradient colors={["rgba(212,164,32,0.2)", "rgba(212,164,32,0.05)"]} style={{ borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: "rgba(212,164,32,0.4)", alignItems: "center" as const }}>
+                    <Text style={{ fontSize: 36 }}>{milestone.emoji}</Text>
+                    <Text style={{ color: Colors.gold, fontSize: 16, fontWeight: "900" as const, letterSpacing: 2, marginTop: 6 }}>
+                      {milestone.label}
+                    </Text>
+                    <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, marginTop: 4, textAlign: "center" as const }}>
+                      {milestone.message}
+                    </Text>
+                  </LinearGradient>
+                </Animated.View>
+              )}
+
+              {breakingNews ? (
+                <Animated.View entering={FadeInDown.delay(400).duration(300)}>
+                  <View style={{ backgroundColor: "rgba(220,38,38,0.12)", borderRadius: 8, padding: 8, marginBottom: 12, borderLeftWidth: 3, borderLeftColor: "#DC2626" }}>
+                    <Text style={{ color: "#DC2626", fontSize: 9, fontWeight: "900" as const, letterSpacing: 1, marginBottom: 3 }}>BREAKING NEWS</Text>
+                    <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 11, fontStyle: "italic" as const, lineHeight: 16 }}>{breakingNews}</Text>
+                  </View>
+                </Animated.View>
+              ) : null}
 
               <View style={[styles.trumpQuoteCard, trumpSpeaking && { borderLeftColor: "#22C55E" }]}>
                 <Image source={require("@/assets/images/trump-avatar.jpg")} style={[styles.trumpAvatar, { width: 32, height: 32 }]} />
@@ -988,8 +1134,8 @@ export default function GameScreen() {
                   <Text style={styles.miniStatLabel}>KARMA</Text>
                 </View>
                 <View style={styles.miniStat}>
-                  <Text style={styles.miniStatValue}>{gameState.darkDeals}</Text>
-                  <Text style={styles.miniStatLabel}>DARK DEALS</Text>
+                  <Text style={styles.miniStatValue}>{gameState.streak > 0 ? `🔥${gameState.streak}` : gameState.darkDeals}</Text>
+                  <Text style={styles.miniStatLabel}>{gameState.streak > 0 ? "STREAK" : "DARK DEALS"}</Text>
                 </View>
               </View>
 
