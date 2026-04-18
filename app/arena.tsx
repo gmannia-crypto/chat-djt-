@@ -1225,6 +1225,10 @@ const BREAKING_NEWS_REACTIONS: Record<string, string[]> = {
     "WAIT — breaking news! And I KNOW what the MAGA crowd is going to say but they're WRONG! Trump is INSANE!",
     "HOLD ON — you see this?! This is EXACTLY the kind of evil I'm talking about! These Republican COWARDS won't say it but I WILL!",
   ],
+  rfk: [
+    "Hold on, hold on... uh... breaking news? Look, this... this is... this is exactly what I've been... what I've been saying about... about Big Pharma, the... the data is clear...",
+    "Wait... *ahem* ...wait, did you... did you all hear that? This is... this is the kind of thing the... the mainstream media buries, folks, the... the truth is finally coming out...",
+  ],
 };
 
 const TOPIC_ICON_MAP: Record<string, string> = {
