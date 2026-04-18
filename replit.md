@@ -85,3 +85,9 @@ Menu music on the home screen auto-pauses when navigating to any category screen
 
 ## Arena Token Enforcement
 Arena uses a hard limit of 5 free debate API calls per device. Free uses are counted even during the initial 2-minute free trial window. After 5 uses, the server returns 403 `arena_locked` and the frontend shows a paywall. The START DEBATE button always confirms with the server before proceeding — if the status check fails or the device has no ID, the paywall is shown. Back button during an active debate shows a confirmation dialog.
+## Recent additions (Apr 18 2026)
+- **RFK Jr. mystery persona**: Added Robert F. Kennedy Jr. as 8th unlockable arena persona. Voice ID dc436d1018d5496ebbc39cc7498042d8. Stuttering/raspy/conspiracy-rambling personality with brain worm, dead bear, whale head, anti-vax history that other personas (Maddow, Carville, Joy Reid) actively mock.
+- **MTG attacks Elon on immigration**: Updated MTG arena prompt with relentless attacks on Elon's South African student-visa-overstay history.
+- **Sports debate fluid overlap**: Reduced sports debate inter-turn delay from 6-10s to text-length-based heuristic with 1s overlap target.
+- Added 'wildcard' faction color (purple) and RFK PERSONA_ALIASES.
+

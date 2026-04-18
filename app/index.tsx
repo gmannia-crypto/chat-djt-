@@ -84,7 +84,7 @@ const MYSTERY_REWARDS = [
   { label: "Arena Persona Unlock", icon: "person-add", description: "A mystery arena debater has been unlocked! Check the Political Arena." },
 ];
 
-const ARENA_MYSTERY_PERSONA_IDS = ["alexjones", "obama", "melania", "schumer", "odonnell", "kamala", "mtg"];
+const ARENA_MYSTERY_PERSONA_IDS = ["alexjones", "obama", "melania", "schumer", "odonnell", "kamala", "mtg", "rfk"];
 const ARENA_MYSTERY_UNLOCK_KEY = "arena_mystery_unlocked";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -836,7 +836,7 @@ export default function HomeScreen() {
           const personaId = locked[Math.floor(Math.random() * locked.length)];
           const newUnlocked = [...alreadyUnlocked, personaId];
           await AsyncStorage.setItem(ARENA_MYSTERY_UNLOCK_KEY, JSON.stringify(newUnlocked));
-          const personaNames: Record<string, string> = { alexjones: "Alex Jones", obama: "Barack Obama", melania: "Melania Trump", schumer: "Chuck Schumer", odonnell: "Lawrence O'Donnell", kamala: "Kamala Harris", mtg: "Marjorie Taylor Greene" };
+          const personaNames: Record<string, string> = { alexjones: "Alex Jones", obama: "Barack Obama", melania: "Melania Trump", schumer: "Chuck Schumer", odonnell: "Lawrence O'Donnell", kamala: "Kamala Harris", mtg: "Marjorie Taylor Greene", rfk: "Robert F. Kennedy Jr." };
           setMysteryPrize({
             ...prize,
             label: `Persona Unlocked: ${personaNames[personaId] || personaId}`,

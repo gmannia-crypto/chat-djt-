@@ -1588,7 +1588,9 @@ function DCRoyalTab({
         setDebateMessages(prev => [...prev, msg]);
         setTimeout(() => debateScrollRef.current?.scrollToEnd({ animated: true }), 200);
         onSpeak(msg.text, msg.personaId, 80000 + turnIndex);
-        await new Promise(r => setTimeout(r, 6000 + Math.random() * 4000));
+        const estimatedSpeechMs = Math.max(2500, msg.text.length * 60);
+        const overlapMs = 1000;
+        await new Promise(r => setTimeout(r, Math.max(800, estimatedSpeechMs - overlapMs)));
       } catch { break; }
       turnIndex++;
     }

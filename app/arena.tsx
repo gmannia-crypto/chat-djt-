@@ -72,7 +72,7 @@ const PERSONA_CATEGORY_MAP: Record<string, PersonaCategory> = {
   netanyahu: "politician", mcconnell: "politician", omar: "politician",
   graham: "politician", pambondi: "politician", miller: "politician",
   jimjordan: "politician", schumer: "politician", kamala: "politician",
-  mtg: "politician",
+  mtg: "politician", rfk: "politician",
   maddow: "journalist", megynkelly: "journalist", joyreid: "journalist",
   odonnell: "journalist",
   carville: "strategist",
@@ -1048,9 +1048,55 @@ const MYSTERY_PERSONAS: Record<string, ArenaPersona> = {
       negative: ["trump", "maga", "coward", "b6", "bleached", "traitor", "greene", "marjorie"],
     },
   },
+  rfk: {
+    id: "rfk",
+    name: "Robert F. Kennedy Jr.",
+    shortName: "RFK Jr.",
+    color: "#7c3aed",
+    faction: "wildcard",
+    image: require("@/assets/images/persona-rfk.png"),
+    personality: {
+      energy: 70,
+      aggression: 45,
+      humor: 25,
+      catchphrases: ["The... the data is clear...", "Make America Healthy Again", "Big Pharma is hiding...", "I'm just asking questions"],
+    },
+    relationships: {
+      trump: { sentiment: 70 },
+      netanyahu: { sentiment: 40 },
+      ruckus: { sentiment: 30 },
+      galloway: { sentiment: 20 },
+      mcconnell: { sentiment: 35 },
+      carville: { sentiment: 15 },
+      maddow: { sentiment: 10 },
+      omar: { sentiment: 30 },
+      biden: { sentiment: 25 },
+      rosie: { sentiment: 20 },
+      berniemc: { sentiment: 30 },
+      elon: { sentiment: 55 },
+      graham: { sentiment: 40 },
+      megynkelly: { sentiment: 35 },
+      pambondi: { sentiment: 50 },
+      candace: { sentiment: 40 },
+      joyreid: { sentiment: 10 },
+      miller: { sentiment: 45 },
+      jimjordan: { sentiment: 45 },
+      odonnell: { sentiment: 10 },
+      kamala: { sentiment: 25 },
+      mtg: { sentiment: 60 },
+      alexjones: { sentiment: 65 },
+      obama: { sentiment: 20 },
+      melania: { sentiment: 30 },
+      schumer: { sentiment: 20 },
+    },
+    triggerWords: {
+      positive: ["health", "vaccine", "pharma", "kennedy", "truth", "maha", "natural", "chemical", "fluoride", "seed oil"],
+      negative: ["worm", "brain worm", "bear", "whale", "conspiracy", "anti-vax", "debunked", "measles", "fringe", "cheryl", "dog"],
+    },
+  },
 };
 
-const MYSTERY_PERSONA_IDS = ["alexjones", "obama", "melania", "schumer", "odonnell", "kamala", "mtg"];
+const MYSTERY_PERSONA_IDS = ["alexjones", "obama", "melania", "schumer", "odonnell", "kamala", "mtg", "rfk"];
 const MYSTERY_UNLOCK_COSTS: Record<string, number> = {
   alexjones: 10,
   obama: 15,
@@ -1059,6 +1105,7 @@ const MYSTERY_UNLOCK_COSTS: Record<string, number> = {
   odonnell: 10,
   kamala: 12,
   mtg: 10,
+  rfk: 12,
 };
 const MYSTERY_UNLOCK_KEY = "arena_mystery_unlocked";
 
@@ -1220,6 +1267,7 @@ const PERSONA_ALIASES: Record<string, string[]> = {
   odonnell: ["lawrence", "o'donnell", "lawrence o'donnell", "last word"],
   kamala: ["kamala", "harris", "kamala harris", "vice president"],
   mtg: ["mtg", "marjorie", "marjorie taylor greene", "greene", "traitor-greene"],
+  rfk: ["rfk", "rfk jr", "robert kennedy", "robert f kennedy", "bobby", "bobby kennedy", "kennedy"],
 };
 
 function detectTrumpAttack(text: string, speakerId: string): boolean {
@@ -1280,10 +1328,11 @@ const AFFILIATE_LINKS = [
   { title: "Trump Bobblehead", url: "https://www.amazon.com/s?k=trump+bobblehead&tag=trumpbot-20", icon: "gift" },
 ];
 
-const FACTION_COLORS = {
+const FACTION_COLORS: Record<"self" | "supporter" | "opponent" | "wildcard", string> = {
   self: "#FFD700",
   supporter: "#22c55e",
   opponent: "#3b82f6",
+  wildcard: "#a855f7",
 };
 
 function getInitials(name: string) {

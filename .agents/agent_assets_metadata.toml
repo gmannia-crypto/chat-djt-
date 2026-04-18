@@ -102,3 +102,9 @@ id = "C7195-cczUMkJn2s5-3of"
 uri = "file://assets/images/persona-melania.png"
 type = "image"
 title = "generated_image"
+
+[[generated]]
+id = "in9f0GrRAKny4vUx_Is9X"
+uri = "file://assets/images/persona-rfk.png"
+type = "image"
+title = "RFK Jr persona caricature"
