@@ -29,6 +29,7 @@ import { playTTS } from "@/lib/audio-helper";
 import { useSoundEffects } from "@/lib/use-sound";
 import { SoundToggle } from "@/components/SoundToggle";
 import { SuggestionBox } from "@/components/SuggestionBox";
+import { ShareAppButton } from "@/components/ShareAppButton";
 import { useEngagement } from "@/lib/engagement-context";
 import { useLiveActivity } from "@/lib/live-activity-context";
 import { useScreenTracker, useTrackEvent } from "@/lib/use-analytics";
@@ -1249,6 +1250,7 @@ export default function HomeScreen() {
             <Text style={styles.liveUsersCount}>{liveUsers.toLocaleString()}</Text>
             <Text style={styles.liveUsersLabel}>live</Text>
           </View>
+          <ShareAppButton variant="icon" />
         </View>
       </Animated.View>
 

@@ -3690,8 +3690,10 @@ Your personality quirks:
     return emotions[personaId] || "React to these headlines based on your genuine political beliefs and personality. Show real emotion — anger, joy, disgust, triumph, whatever you truly feel.";
   }
 
-  const ARENA_FREE_LIMIT = 5;
+  const ARENA_FREE_LIMIT = 15;
   const ARENA_FREE_TRIAL_DURATION = 2 * 60 * 1000;
+  const ARENA_DAILY_TRIAL_MS = 2 * 60 * 1000;
+  const ARENA_DAILY_TRIAL_COOLDOWN = 24 * 60 * 60 * 1000;
   const ARENA_SESSION_DURATIONS: Record<number, { ms: number; cost: number }> = {
     5: { ms: 5 * 60 * 1000, cost: 5 },
     10: { ms: 10 * 60 * 1000, cost: 10 },
@@ -3709,22 +3711,24 @@ Your personality quirks:
       free_trial_expiry BIGINT,
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )`);
+    await initDb.query(`ALTER TABLE arena_access ADD COLUMN IF NOT EXISTS last_trial_at BIGINT`);
     await initDb.end();
     console.log("Arena access table initialized");
   } catch (e: any) {
     console.error("Failed to create arena_access table:", e.message);
   }
 
-  async function getArenaAccess(deviceId: string): Promise<{ freeUsed: number; sessionExpiry: number | null; freeTrialExpiry: number | null }> {
+  async function getArenaAccess(deviceId: string): Promise<{ freeUsed: number; sessionExpiry: number | null; freeTrialExpiry: number | null; lastTrialAt: number | null }> {
     const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
     try {
-      const result = await db.query(`SELECT free_used, session_expiry, free_trial_expiry FROM arena_access WHERE device_id = $1`, [deviceId]);
+      const result = await db.query(`SELECT free_used, session_expiry, free_trial_expiry, last_trial_at FROM arena_access WHERE device_id = $1`, [deviceId]);
       if (result.rows.length > 0) {
         const row = result.rows[0];
         return {
           freeUsed: parseInt(row.free_used) || 0,
           sessionExpiry: row.session_expiry ? parseInt(row.session_expiry) : null,
           freeTrialExpiry: row.free_trial_expiry ? parseInt(row.free_trial_expiry) : null,
+          lastTrialAt: row.last_trial_at ? parseInt(row.last_trial_at) : null,
         };
       }
     } catch (e: any) {
@@ -3732,18 +3736,18 @@ Your personality quirks:
     } finally {
       await db.end();
     }
-    return { freeUsed: 0, sessionExpiry: null, freeTrialExpiry: null };
+    return { freeUsed: 0, sessionExpiry: null, freeTrialExpiry: null, lastTrialAt: null };
   }
 
-  async function setArenaAccess(deviceId: string, access: { freeUsed: number; sessionExpiry: number | null; freeTrialExpiry: number | null }): Promise<void> {
+  async function setArenaAccess(deviceId: string, access: { freeUsed: number; sessionExpiry: number | null; freeTrialExpiry: number | null; lastTrialAt?: number | null }): Promise<void> {
     const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
     try {
       await db.query(
-        `INSERT INTO arena_access (device_id, free_used, session_expiry, free_trial_expiry, updated_at)
-         VALUES ($1, $2, $3, $4, NOW())
+        `INSERT INTO arena_access (device_id, free_used, session_expiry, free_trial_expiry, last_trial_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, NOW())
          ON CONFLICT (device_id) DO UPDATE SET
-           free_used = $2, session_expiry = $3, free_trial_expiry = $4, updated_at = NOW()`,
-        [deviceId, access.freeUsed, access.sessionExpiry, access.freeTrialExpiry]
+           free_used = $2, session_expiry = $3, free_trial_expiry = $4, last_trial_at = COALESCE($5, arena_access.last_trial_at), updated_at = NOW()`,
+        [deviceId, access.freeUsed, access.sessionExpiry, access.freeTrialExpiry, access.lastTrialAt ?? null]
       );
     } catch (e: any) {
       console.error("setArenaAccess error:", e.message);
@@ -3886,12 +3890,14 @@ Your personality quirks:
 
   app.get("/api/arena/status", async (req, res) => {
     const deviceId = req.headers["x-device-id"] as string;
-    if (!deviceId) return res.json({ freeRemaining: ARENA_FREE_LIMIT, hasSession: false, hasFreeTrial: true, isNewUser: true });
+    if (!deviceId) return res.json({ freeRemaining: ARENA_FREE_LIMIT, hasSession: false, hasFreeTrial: true, isNewUser: true, dailyTrialAvailable: true });
     const access = await getArenaAccess(deviceId);
-    const hasSession = !!(access.sessionExpiry && Date.now() < access.sessionExpiry);
-    const hasFreeTrial = !!(access.freeTrialExpiry && Date.now() < access.freeTrialExpiry);
+    const now = Date.now();
+    const hasSession = !!(access.sessionExpiry && now < access.sessionExpiry);
+    const hasFreeTrial = !!(access.freeTrialExpiry && now < access.freeTrialExpiry);
     const isNewUser = access.freeUsed === 0;
     const freeRemaining = Math.max(0, ARENA_FREE_LIMIT - access.freeUsed);
+    const dailyTrialAvailable = !access.lastTrialAt || (now - access.lastTrialAt) >= ARENA_DAILY_TRIAL_COOLDOWN;
     res.json({
       freeRemaining,
       freeUsed: access.freeUsed,
@@ -3900,12 +3906,36 @@ Your personality quirks:
       freeTrialExpiresAt: hasFreeTrial ? access.freeTrialExpiry : null,
       sessionExpiresAt: hasSession ? access.sessionExpiry : null,
       sessionCost: ARENA_SESSION_COST,
+      dailyTrialAvailable,
+      dailyTrialMinutes: Math.round(ARENA_DAILY_TRIAL_MS / 60000),
       durations: [
         { minutes: 5, cost: 5 },
         { minutes: 10, cost: 10 },
         { minutes: 15, cost: 15 },
       ],
     });
+  });
+
+  app.post("/api/arena/free-trial", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const access = await getArenaAccess(deviceId);
+      const now = Date.now();
+      if (access.sessionExpiry && now < access.sessionExpiry) {
+        return res.json({ granted: true, expiresAt: access.sessionExpiry, alreadyActive: true });
+      }
+      if (access.lastTrialAt && (now - access.lastTrialAt) < ARENA_DAILY_TRIAL_COOLDOWN) {
+        const nextAvailable = access.lastTrialAt + ARENA_DAILY_TRIAL_COOLDOWN;
+        return res.status(403).json({ error: "trial_cooldown", nextAvailableAt: nextAvailable });
+      }
+      const expiry = now + ARENA_DAILY_TRIAL_MS;
+      await setArenaAccess(deviceId, { ...access, sessionExpiry: expiry, lastTrialAt: now });
+      res.json({ granted: true, expiresAt: expiry, durationMinutes: Math.round(ARENA_DAILY_TRIAL_MS / 60000) });
+    } catch (error: any) {
+      console.error("Arena free-trial error:", error);
+      res.status(500).json({ error: "Failed to grant free trial" });
+    }
   });
 
   app.post("/api/arena/vote", async (req, res) => {

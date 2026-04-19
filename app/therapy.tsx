@@ -25,6 +25,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import { Audio, Video, ResizeMode } from "expo-av";
 import { playTTS, playTrumpTTS, isTrumpCurrentlySpeaking } from "@/lib/audio-helper";
 import { SoundToggle } from "@/components/SoundToggle";
+import { ShareAppButton } from "@/components/ShareAppButton";
 import { useSound } from "@/lib/sound-context";
 import { useScreenTracker, useTrackEvent } from "@/lib/use-analytics";
 import { recordTherapySession, getTherapyContext } from "@/lib/persona-memory";
@@ -1525,6 +1526,7 @@ export default function TherapyScreen() {
             <Text style={{ fontSize: 11, fontWeight: "800" as const, color: "#D4A420" }}>{balance.totalAvailable}</Text>
           </Pressable>
         )}
+        <ShareAppButton variant="icon" area="therapy" />
       </View>
 
       <ScrollView

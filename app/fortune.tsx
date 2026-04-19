@@ -32,6 +32,7 @@ import Animated, {
   withSequence,
 } from "react-native-reanimated";
 import Colors from "@/constants/colors";
+import { ShareAppButton } from "@/components/ShareAppButton";
 import { getApiUrl } from "@/lib/query-client";
 import { useTokens } from "@/lib/token-context";
 
@@ -265,7 +266,7 @@ export default function FortuneScreen() {
           <Ionicons name="chevron-back" size={24} color={Colors.white} />
         </Pressable>
         <Text style={styles.headerTitle}>{"\uD83D\uDD2E"} FORTUNE PARLOR</Text>
-        <View style={{ width: 36 }} />
+        <ShareAppButton variant="icon" area="fortune" />
       </View>
 
       <ScrollView

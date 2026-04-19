@@ -51,6 +51,7 @@ import { useTokens } from "@/lib/token-context";
 import { LiveTicker } from "@/components/LiveTicker";
 import { StatsPanel } from "@/components/StatsPanel";
 import { ViralShareCard } from "@/components/ViralShareCard";
+import { ShareAppButton } from "@/components/ShareAppButton";
 import { shareContent } from "@/lib/track-share";
 import { getSportsStats, recordSportsPick, type SportsStats } from "@/lib/viral-stats";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -2846,6 +2847,7 @@ export default function SportsScreen() {
               <Text style={styles.tokenBadgeText}>{balance.totalAvailable}</Text>
             </Pressable>
           )}
+          <ShareAppButton variant="icon" area="sports" />
         </View>
       </View>
 

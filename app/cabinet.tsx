@@ -19,6 +19,7 @@ import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useQuery } from "@tanstack/react-query";
 import Colors from "@/constants/colors";
+import { ShareAppButton } from "@/components/ShareAppButton";
 import { getApiUrl } from "@/lib/query-client";
 import { useTokens } from "@/lib/token-context";
 
@@ -247,6 +248,7 @@ export default function CabinetHotSeat() {
         >
           <Ionicons name="refresh" size={20} color={Colors.gold} />
         </Pressable>
+        <ShareAppButton variant="icon" area="djt" style={{ marginLeft: 6 }} />
       </View>
 
       <View style={styles.legendRow}>

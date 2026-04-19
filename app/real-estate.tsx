@@ -33,6 +33,7 @@ import { getApiUrl } from "@/lib/query-client";
 import { useTokens } from "@/lib/token-context";
 import { StatsPanel } from "@/components/StatsPanel";
 import { ViralShareCard } from "@/components/ViralShareCard";
+import { ShareAppButton } from "@/components/ShareAppButton";
 import { shareContent } from "@/lib/track-share";
 import { getRealEstateStats, addToWatchlist, removeFromWatchlist, recordDealShare, type RealEstateStats } from "@/lib/viral-stats";
 
@@ -574,6 +575,7 @@ export default function RealEstateScreen() {
             <View style={[s.liveDot, { backgroundColor: dataLive ? "#4ADE80" : "#ff4d4d" }]} />
             <Text style={s.liveBadgeText}>{dataLive ? "LIVE" : "SAMPLE"}</Text>
           </View>
+          <ShareAppButton variant="icon" area="realestate" />
         </View>
       </Animated.View>
 

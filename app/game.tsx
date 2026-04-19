@@ -40,6 +40,7 @@ import { shareContent } from "@/lib/track-share";
 import { getApiUrl } from "@/lib/query-client";
 import { StatsPanel } from "@/components/StatsPanel";
 import { ViralShareCard } from "@/components/ViralShareCard";
+import { ShareAppButton } from "@/components/ShareAppButton";
 import { getGameStats, recordGameResult as recordGameResultStats, type GameStats as ViralGameStats } from "@/lib/viral-stats";
 import { getOrCreateDeviceId } from "@/lib/token-context";
 import { FlatList } from "react-native";
@@ -917,6 +918,7 @@ export default function GameScreen() {
           <Pressable onPress={() => { setShowLeaderboard(true); loadLeaderboard(); }} style={styles.backBtn}>
             <Ionicons name="trophy" size={18} color={Colors.gold} />
           </Pressable>
+          <ShareAppButton variant="icon" area="billionaires" style={{ marginLeft: 6 }} />
         </View>
 
         {showResumePrompt && savedProgress ? (

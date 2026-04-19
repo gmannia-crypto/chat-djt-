@@ -33,6 +33,7 @@ import { playTTS, playAudioFromUrl, prefetchTTSAudio, playPrefetchedAudio } from
 import { playPointAwardSound, playVoteClickSound, playVoteSound2, playBellSound, playCrowdCheer, playDrumroll, playWinnerChosenSound, playWinnerAfterSound, playBreakingNewsAlert } from "@/lib/arena-sfx";
 import { useTokens } from "@/lib/token-context";
 import { TokenWinVideo } from "@/components/TokenWinVideo";
+import { ShareAppButton } from "@/components/ShareAppButton";
 import {
   saveRecording,
   RecordedMessage,
@@ -4132,9 +4133,25 @@ export default function ArenaScreen() {
               }
 
               if (!liveHasSession && liveFreeRemaining <= 0) {
-                setShowPaywall(true);
-                setIsStarting(false);
-                return;
+                try {
+                  const trialRes = await fetch(new URL("/api/arena/free-trial", getApiUrl()).toString(), {
+                    method: "POST",
+                    headers: { "x-device-id": deviceId!, "Content-Type": "application/json" },
+                  });
+                  if (trialRes.ok) {
+                    const trialData = await trialRes.json();
+                    if (trialData.granted && trialData.expiresAt) {
+                      liveHasSession = true;
+                      setHasSession(true);
+                      setSessionExpiresAt(trialData.expiresAt);
+                    }
+                  }
+                } catch {}
+                if (!liveHasSession) {
+                  setShowPaywall(true);
+                  setIsStarting(false);
+                  return;
+                }
               }
 
               sessionEndedRef.current = false;
