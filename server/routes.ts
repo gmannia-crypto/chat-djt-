@@ -3732,6 +3732,18 @@ Your personality quirks:
       created_at TIMESTAMPTZ DEFAULT NOW()
     )`);
     await initDb.query(`CREATE INDEX IF NOT EXISTS interview_history_device_idx ON interview_history (device_id, ended_at DESC)`);
+    await initDb.query(`CREATE TABLE IF NOT EXISTS interview_lie_votes (
+      lie_id TEXT NOT NULL,
+      device_id TEXT NOT NULL,
+      vote SMALLINT NOT NULL,
+      interviewee_id TEXT,
+      lie_text TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      PRIMARY KEY (lie_id, device_id)
+    )`);
+    await initDb.query(`CREATE INDEX IF NOT EXISTS interview_lie_votes_lie_idx ON interview_lie_votes (lie_id)`);
+    await initDb.query(`CREATE INDEX IF NOT EXISTS interview_lie_votes_persona_idx ON interview_lie_votes (interviewee_id)`);
     await initDb.end();
     console.log("Arena access + interview history tables initialized");
   } catch (e: any) {
@@ -5473,6 +5485,104 @@ Return ONLY valid JSON: {"score": 0-100, "isLie": boolean (true if score<40), "r
     } catch (error: any) {
       console.error("Interview factcheck error:", error);
       res.status(500).json({ error: "Fact-check failed", score: 70, isLie: false, reason: "", fact: "" });
+    }
+  });
+
+  // Audience vote on a flagged lie. One vote per (lie_id, device_id).
+  // Sending the same vote again clears it (toggle off). Sending the opposite vote replaces it.
+  app.post("/api/arena/interview-lie-vote", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const { lieId, vote, intervieweeId, lieText } = req.body || {};
+      const cleanLieId = String(lieId || "").trim().slice(0, 200);
+      if (!cleanLieId) return res.status(400).json({ error: "lieId required" });
+      const numericVote = Number(vote);
+      if (numericVote !== 1 && numericVote !== -1 && numericVote !== 0) {
+        return res.status(400).json({ error: "vote must be 1, -1, or 0" });
+      }
+      const cleanInterviewee = intervieweeId ? String(intervieweeId).slice(0, 80) : null;
+      const cleanText = lieText ? String(lieText).slice(0, 800) : null;
+
+      const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      try {
+        if (numericVote === 0) {
+          await db.query(
+            `DELETE FROM interview_lie_votes WHERE lie_id = $1 AND device_id = $2`,
+            [cleanLieId, deviceId],
+          );
+        } else {
+          await db.query(
+            `INSERT INTO interview_lie_votes (lie_id, device_id, vote, interviewee_id, lie_text, updated_at)
+             VALUES ($1, $2, $3, $4, $5, NOW())
+             ON CONFLICT (lie_id, device_id)
+             DO UPDATE SET vote = EXCLUDED.vote, updated_at = NOW(),
+               interviewee_id = COALESCE(interview_lie_votes.interviewee_id, EXCLUDED.interviewee_id),
+               lie_text = COALESCE(interview_lie_votes.lie_text, EXCLUDED.lie_text)`,
+            [cleanLieId, deviceId, numericVote, cleanInterviewee, cleanText],
+          );
+        }
+        const tally = await db.query(
+          `SELECT
+             COALESCE(SUM(CASE WHEN vote =  1 THEN 1 ELSE 0 END), 0)::int AS up,
+             COALESCE(SUM(CASE WHEN vote = -1 THEN 1 ELSE 0 END), 0)::int AS down
+           FROM interview_lie_votes WHERE lie_id = $1`,
+          [cleanLieId],
+        );
+        const row = tally.rows[0] || { up: 0, down: 0 };
+        res.json({
+          ok: true,
+          lieId: cleanLieId,
+          up: Number(row.up) || 0,
+          down: Number(row.down) || 0,
+          myVote: numericVote === 0 ? 0 : numericVote,
+        });
+      } finally {
+        await db.end();
+      }
+    } catch (error: any) {
+      console.error("Interview lie vote error:", error);
+      res.status(500).json({ error: "Vote failed" });
+    }
+  });
+
+  // Fetch current tallies + this device's votes for a batch of lie ids.
+  app.post("/api/arena/interview-lie-votes", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const ids = Array.isArray(req.body?.lieIds) ? req.body.lieIds : [];
+      const cleanIds = Array.from(new Set(
+        ids.map((x: any) => String(x || "").trim().slice(0, 200)).filter(Boolean),
+      )).slice(0, 200);
+      if (cleanIds.length === 0) return res.json({ tallies: {} });
+
+      const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      try {
+        const rows = await db.query(
+          `SELECT lie_id,
+             COALESCE(SUM(CASE WHEN vote =  1 THEN 1 ELSE 0 END), 0)::int AS up,
+             COALESCE(SUM(CASE WHEN vote = -1 THEN 1 ELSE 0 END), 0)::int AS down,
+             COALESCE(SUM(CASE WHEN device_id = $2 THEN vote ELSE 0 END), 0)::int AS my_vote
+           FROM interview_lie_votes WHERE lie_id = ANY($1::text[])
+           GROUP BY lie_id`,
+          [cleanIds, deviceId],
+        );
+        const tallies: Record<string, { up: number; down: number; myVote: number }> = {};
+        for (const r of rows.rows) {
+          tallies[r.lie_id] = {
+            up: Number(r.up) || 0,
+            down: Number(r.down) || 0,
+            myVote: Number(r.my_vote) || 0,
+          };
+        }
+        res.json({ tallies });
+      } finally {
+        await db.end();
+      }
+    } catch (error: any) {
+      console.error("Interview lie votes fetch error:", error);
+      res.status(500).json({ error: "Fetch failed", tallies: {} });
     }
   });
 

@@ -204,6 +204,67 @@ export default function InterviewScreen() {
   const [lieCount, setLieCount] = useState(0);
   const [lies, setLies] = useState<LieEntry[]>([]);
   const [liesSheetOpen, setLiesSheetOpen] = useState(false);
+  const [lieVotes, setLieVotes] = useState<Record<string, { up: number; down: number; myVote: number }>>({});
+  const lieVotesPendingRef = useRef<Set<string>>(new Set());
+
+  const submitLieVote = useCallback((lie: LieEntry, direction: 1 | -1) => {
+    if (!deviceId) return;
+    if (lieVotesPendingRef.current.has(lie.id)) return;
+    lieVotesPendingRef.current.add(lie.id);
+    const current = lieVotes[lie.id] || { up: 0, down: 0, myVote: 0 };
+    const nextVote: 1 | -1 | 0 = current.myVote === direction ? 0 : direction;
+    let optimistic = { ...current };
+    if (current.myVote === 1) optimistic.up = Math.max(0, optimistic.up - 1);
+    if (current.myVote === -1) optimistic.down = Math.max(0, optimistic.down - 1);
+    if (nextVote === 1) optimistic.up += 1;
+    if (nextVote === -1) optimistic.down += 1;
+    optimistic.myVote = nextVote;
+    setLieVotes((prev) => ({ ...prev, [lie.id]: optimistic }));
+    fetch(new URL("/api/arena/interview-lie-vote", getApiUrl()).toString(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+      body: JSON.stringify({ lieId: lie.id, vote: nextVote, intervieweeId: lie.speakerId, lieText: lie.text }),
+    })
+      .then((r) => r.ok ? r.json() : Promise.reject(new Error("vote failed")))
+      .then((data: any) => {
+        if (data && typeof data.up === "number") {
+          setLieVotes((prev) => ({
+            ...prev,
+            [lie.id]: { up: data.up, down: data.down, myVote: data.myVote },
+          }));
+        }
+      })
+      .catch(() => {
+        // Roll back the optimistic update so the UI reflects reality.
+        setLieVotes((prev) => ({ ...prev, [lie.id]: current }));
+      })
+      .finally(() => { lieVotesPendingRef.current.delete(lie.id); });
+  }, [deviceId, lieVotes]);
+
+  // When the lies sheet opens, refresh tallies for any lies the user hasn't voted on yet
+  useEffect(() => {
+    if (!liesSheetOpen || !deviceId || lies.length === 0) return;
+    const ids = lies.map((l) => l.id);
+    fetch(new URL("/api/arena/interview-lie-votes", getApiUrl()).toString(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+      body: JSON.stringify({ lieIds: ids }),
+    })
+      .then((r) => r.ok ? r.json() : null)
+      .then((data: any) => {
+        if (!data?.tallies) return;
+        setLieVotes((prev) => {
+          const next = { ...prev };
+          for (const id of ids) {
+            const t = data.tallies[id];
+            if (t) next[id] = { up: t.up || 0, down: t.down || 0, myVote: t.myVote || 0 };
+            else if (!next[id]) next[id] = { up: 0, down: 0, myVote: 0 };
+          }
+          return next;
+        });
+      })
+      .catch(() => {});
+  }, [liesSheetOpen, deviceId, lies]);
   const [latestTruthScore, setLatestTruthScore] = useState<number | null>(null);
   const flashOpacity = useSharedValue(0);
   const glowPulse = useSharedValue(0);
@@ -1302,17 +1363,43 @@ export default function InterviewScreen() {
             <ScrollView style={{ maxHeight: 480 }}>
               {lies.length === 0 ? (
                 <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, textAlign: "center", padding: 30 }}>No flagged statements yet. The lightning will strike when something doesn't add up.</Text>
-              ) : lies.map((l) => (
-                <View key={l.id} style={s.lieRow}>
-                  <View style={s.lieHeader}>
-                    <Text style={{ color: "#FFD700", fontSize: 12, fontWeight: "900", flex: 1 }} numberOfLines={1}>{l.speakerName}</Text>
-                    <View style={s.lieScore}><Text style={{ color: "#ff4d4d", fontSize: 11, fontWeight: "900" }}>{l.score}/100</Text></View>
+              ) : lies.map((l) => {
+                const v = lieVotes[l.id] || { up: 0, down: 0, myVote: 0 };
+                return (
+                  <View key={l.id} style={s.lieRow}>
+                    <View style={s.lieHeader}>
+                      <Text style={{ color: "#FFD700", fontSize: 12, fontWeight: "900", flex: 1 }} numberOfLines={1}>{l.speakerName}</Text>
+                      <View style={s.lieScore}><Text style={{ color: "#ff4d4d", fontSize: 11, fontWeight: "900" }}>{l.score}/100</Text></View>
+                    </View>
+                    <Text style={s.lieQuote}>"{l.text}"</Text>
+                    {!!l.fact && <Text style={s.lieFact}>FACT: {l.fact}</Text>}
+                    {!!l.reason && <Text style={s.lieReason}>{l.reason}</Text>}
+                    <View style={s.voteRow}>
+                      <Pressable
+                        onPress={() => submitLieVote(l, 1)}
+                        style={[s.voteBtn, v.myVote === 1 && s.voteBtnUpActive]}
+                        testID={`lie-vote-up-${l.id}`}
+                        hitSlop={6}
+                      >
+                        <Ionicons name={v.myVote === 1 ? "thumbs-up" : "thumbs-up-outline"} size={14} color={v.myVote === 1 ? "#4ADE80" : "rgba(255,255,255,0.7)"} />
+                        <Text style={[s.voteBtnText, v.myVote === 1 && { color: "#4ADE80" }]}>{v.up}</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => submitLieVote(l, -1)}
+                        style={[s.voteBtn, v.myVote === -1 && s.voteBtnDownActive]}
+                        testID={`lie-vote-down-${l.id}`}
+                        hitSlop={6}
+                      >
+                        <Ionicons name={v.myVote === -1 ? "thumbs-down" : "thumbs-down-outline"} size={14} color={v.myVote === -1 ? "#ff4d4d" : "rgba(255,255,255,0.7)"} />
+                        <Text style={[s.voteBtnText, v.myVote === -1 && { color: "#ff4d4d" }]}>{v.down}</Text>
+                      </Pressable>
+                      <Text style={s.voteTally}>
+                        {v.up + v.down === 0 ? "Be the first to weigh in" : `${v.up} agree · ${v.down} disagree`}
+                      </Text>
+                    </View>
                   </View>
-                  <Text style={s.lieQuote}>"{l.text}"</Text>
-                  {!!l.fact && <Text style={s.lieFact}>FACT: {l.fact}</Text>}
-                  {!!l.reason && <Text style={s.lieReason}>{l.reason}</Text>}
-                </View>
-              ))}
+                );
+              })}
               <View style={{ height: 30 }} />
             </ScrollView>
           </View>
@@ -1477,4 +1564,10 @@ const s = StyleSheet.create({
   lieQuote: { color: "#fff", fontSize: 13, fontStyle: "italic", marginTop: 4 },
   lieFact: { color: "#4ADE80", fontSize: 12, fontWeight: "800", marginTop: 6 },
   lieReason: { color: "rgba(255,255,255,0.6)", fontSize: 11, marginTop: 4 },
+  voteRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.06)" },
+  voteBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.05)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
+  voteBtnUpActive: { backgroundColor: "rgba(74,222,128,0.15)", borderColor: "rgba(74,222,128,0.5)" },
+  voteBtnDownActive: { backgroundColor: "rgba(255,77,77,0.15)", borderColor: "rgba(255,77,77,0.5)" },
+  voteBtnText: { color: "rgba(255,255,255,0.85)", fontSize: 12, fontWeight: "800" },
+  voteTally: { color: "rgba(255,255,255,0.45)", fontSize: 11, fontWeight: "600", flex: 1, textAlign: "right" },
 });
