@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   View, Text, Pressable, ScrollView, StyleSheet, Modal, ActivityIndicator,
-  Platform, Image, FlatList,
+  Platform, Image, FlatList, TextInput, KeyboardAvoidingView,
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -9,15 +9,125 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { fetch } from "expo/fetch";
-import Animated, { FadeIn, FadeInDown, FadeInUp, FadeOut } from "react-native-reanimated";
+import Animated, { FadeIn, FadeInDown, FadeInUp, FadeOut, useSharedValue, useAnimatedStyle, withTiming, withRepeat, withSequence, cancelAnimation } from "react-native-reanimated";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Audio } from "expo-av";
 import { getApiUrl } from "@/lib/query-client";
 import { useTokens } from "@/lib/token-context";
 import Colors from "@/constants/colors";
 import { ShareAppButton } from "@/components/ShareAppButton";
+import { playTTS } from "@/lib/audio-helper";
 
 type PersonaLite = { id: string; name: string };
 type Topic = { id: string; title: string; description: string; era: "current" | "past" };
-type Msg = { id: string; speakerId: string; speakerName: string; text: string; ts: number; isInterruption?: boolean };
+type Msg = { id: string; speakerId: string; speakerName: string; text: string; ts: number; isInterruption?: boolean; isCallIn?: boolean; callerName?: string };
+
+type Emotions = { anger: number; happy: number; engagement: number; frantic: number; sad: number };
+type LieEntry = { id: string; speakerId: string; speakerName: string; text: string; score: number; reason: string; fact: string; ts: number };
+
+const ZERO_EMO: Emotions = { anger: 10, happy: 10, engagement: 30, frantic: 5, sad: 5 };
+const EMO_KEYS: (keyof Emotions)[] = ["anger", "happy", "engagement", "frantic", "sad"];
+const EMO_LABELS: Record<keyof Emotions, string> = { anger: "ANGR", happy: "HAPPY", engagement: "ENGD", frantic: "FRNT", sad: "SAD" };
+const EMO_COLORS: Record<keyof Emotions, string> = { anger: "#ff4d4d", happy: "#4ADE80", engagement: "#FFD700", frantic: "#a855f7", sad: "#60a5fa" };
+
+// Persona id → portrait require()
+const PERSONA_PORTRAITS: Record<string, any> = {
+  trump: require("@/assets/images/persona-trump.png"),
+  netanyahu: require("@/assets/images/persona-netanyahu.png"),
+  ruckus: require("@/assets/images/persona-ruckus.png"),
+  galloway: require("@/assets/images/persona-galloway.png"),
+  mcconnell: require("@/assets/images/persona-mcconnell.png"),
+  carville: require("@/assets/images/persona-carville.png"),
+  maddow: require("@/assets/images/persona-maddow.png"),
+  omar: require("@/assets/images/persona-omar.png"),
+  biden: require("@/assets/images/persona-biden.png"),
+  rosie: require("@/assets/images/persona-rosie.png"),
+  berniemc: require("@/assets/images/persona-bernie.png"),
+  elon: require("@/assets/images/persona-musk.png"),
+  graham: require("@/assets/images/persona-graham.png"),
+  megynkelly: require("@/assets/images/persona-megynkelly.png"),
+  pambondi: require("@/assets/images/persona-pambondi.png"),
+  candace: require("@/assets/images/persona-candace.png"),
+  joyreid: require("@/assets/images/persona-joyreid.png"),
+  miller: require("@/assets/images/persona-miller.png"),
+  jimjordan: require("@/assets/images/persona-jimjordan.png"),
+  schumer: require("@/assets/images/persona-schumer.png"),
+  alexjones: require("@/assets/images/persona-alexjones.png"),
+  obama: require("@/assets/images/persona-obama.png"),
+  melania: require("@/assets/images/persona-melania.png"),
+  odonnell: require("@/assets/images/persona-odonnell.png"),
+  kamala: require("@/assets/images/persona-kamala.png"),
+  mtg: require("@/assets/images/persona-mtg.png"),
+  rfk: require("@/assets/images/persona-rfk.png"),
+};
+
+const FX_KEY = "interview_fx_enabled_v1";
+const VOICE_KEY = "interview_voice_enabled_v1";
+const NAME_KEY = "interview_caller_name_v1";
+
+// Lightweight emotion delta from text heuristics
+function computeEmotionDelta(text: string): Partial<Emotions> {
+  const t = (text || "").trim();
+  if (!t) return {};
+  const lettersOnly = t.replace(/[^A-Za-z]/g, "");
+  const upperCount = (t.match(/[A-Z]/g) || []).length;
+  const capsRatio = lettersOnly.length > 4 ? upperCount / lettersOnly.length : 0;
+  const excls = (t.match(/!/g) || []).length;
+  const lower = t.toLowerCase();
+  const angerWords = ["fake", "stupid", "loser", "traitor", "disgust", "hate", "lie", "liar", "destroy", "kill", "pathetic", "horrible", "shameful", "ugly", "moron", "idiot", "scumbag", "trash"];
+  const happyWords = ["love", "great", "tremendous", "amazing", "wonderful", "best", "winning", "incredible", "fantastic", "beautiful", "proud"];
+  const sadWords = ["sad", "cry", "tragic", "heartbreak", "suffering", "devastat", "lost", "grief", "lonely", "broken"];
+  const franticWords = ["never", "always", "everyone", "nobody", "everything", "anything", "completely", "totally", "absolutely", "literally"];
+  const angerHits = angerWords.reduce((a, w) => a + (lower.includes(w) ? 1 : 0), 0);
+  const happyHits = happyWords.reduce((a, w) => a + (lower.includes(w) ? 1 : 0), 0);
+  const sadHits = sadWords.reduce((a, w) => a + (lower.includes(w) ? 1 : 0), 0);
+  const franticHits = franticWords.reduce((a, w) => a + (lower.includes(w) ? 1 : 0), 0);
+  const len = t.length;
+
+  return {
+    anger: Math.min(60, capsRatio * 50 + excls * 6 + angerHits * 14),
+    happy: Math.min(50, happyHits * 14 - angerHits * 4),
+    engagement: Math.min(45, Math.max(-10, len > 180 ? 18 : len > 80 ? 10 : len < 35 ? -8 : 4)),
+    frantic: Math.min(55, capsRatio * 35 + excls * 4 + franticHits * 8),
+    sad: Math.min(60, sadHits * 18),
+  };
+}
+
+function clampEmo(e: Emotions): Emotions {
+  const c = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
+  return { anger: c(e.anger), happy: c(e.happy), engagement: c(e.engagement), frantic: c(e.frantic), sad: c(e.sad) };
+}
+
+function applyEmotionDelta(prev: Emotions, delta: Partial<Emotions>): Emotions {
+  // Decay 8% per turn so meters drift toward calm
+  const decay = (v: number) => v * 0.92;
+  return clampEmo({
+    anger: decay(prev.anger) + (delta.anger || 0),
+    happy: decay(prev.happy) + (delta.happy || 0),
+    engagement: decay(prev.engagement) + (delta.engagement || 0),
+    frantic: decay(prev.frantic) + (delta.frantic || 0),
+    sad: decay(prev.sad) + (delta.sad || 0),
+  });
+}
+
+// 200ms beep via Web Audio (web) — silent on native (haptic substitutes)
+function playLieBeep() {
+  if (Platform.OS !== "web") return;
+  try {
+    const AC: any = (globalThis as any).AudioContext || (globalThis as any).webkitAudioContext;
+    if (!AC) return;
+    const ctx = new AC();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "square";
+    osc.frequency.value = 880;
+    gain.gain.value = 0.18;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    setTimeout(() => { try { osc.stop(); ctx.close(); } catch {} }, 220);
+  } catch {}
+}
 
 const DURATIONS: Array<{ minutes: 5 | 10 | 15; cost: number }> = [
   { minutes: 5, cost: 5 },
@@ -64,11 +174,206 @@ export default function InterviewScreen() {
 
   const runningRef = useRef(false);
   const isPausedRef = useRef(false);
+  const [isPaused, setIsPaused] = useState(false);
   const exchangesOnTopicRef = useRef(0);
   const messagesRef = useRef<Msg[]>([]);
   const topicIdxRef = useRef(0);
   useEffect(() => { messagesRef.current = messages; }, [messages]);
   useEffect(() => { topicIdxRef.current = topicIdx; }, [topicIdx]);
+
+  // ── Pro mode state ───────────────────────────────────────────────────────
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const voiceEnabledRef = useRef(true);
+  const [fxEnabled, setFxEnabled] = useState(true);
+  const fxEnabledRef = useRef(true);
+  const [activeSpeaker, setActiveSpeaker] = useState<string | null>(null);
+  const activeSpeakerRef = useRef<string | null>(null);
+  const ttsQueueRef = useRef<Array<{ text: string; personaId: string }>>([]);
+  const ttsRunningRef = useRef(false);
+  const currentSoundRef = useRef<Audio.Sound | null>(null);
+
+  const [emoInterviewer, setEmoInterviewer] = useState<Emotions>(ZERO_EMO);
+  const [emoInterviewee, setEmoInterviewee] = useState<Emotions>(ZERO_EMO);
+
+  const [lieCount, setLieCount] = useState(0);
+  const [lies, setLies] = useState<LieEntry[]>([]);
+  const [liesSheetOpen, setLiesSheetOpen] = useState(false);
+  const flashOpacity = useSharedValue(0);
+  const glowPulse = useSharedValue(0);
+
+  const [callerName, setCallerName] = useState("");
+  const [callinText, setCallinText] = useState("");
+  const [isCallinSending, setIsCallinSending] = useState(false);
+  const [callinOpen, setCallinOpen] = useState(false);
+
+  // Load persisted toggles + caller name
+  useEffect(() => {
+    (async () => {
+      try {
+        const [fx, vc, nm] = await Promise.all([
+          AsyncStorage.getItem(FX_KEY), AsyncStorage.getItem(VOICE_KEY), AsyncStorage.getItem(NAME_KEY),
+        ]);
+        if (fx !== null) { const v = fx === "1"; setFxEnabled(v); fxEnabledRef.current = v; }
+        if (vc !== null) { const v = vc === "1"; setVoiceEnabled(v); voiceEnabledRef.current = v; }
+        if (nm) setCallerName(nm);
+      } catch {}
+    })();
+  }, []);
+
+  const toggleVoice = useCallback(() => {
+    const next = !voiceEnabledRef.current;
+    voiceEnabledRef.current = next;
+    setVoiceEnabled(next);
+    AsyncStorage.setItem(VOICE_KEY, next ? "1" : "0").catch(() => {});
+    if (!next) {
+      // stop current playback
+      const snd = currentSoundRef.current;
+      currentSoundRef.current = null;
+      ttsQueueRef.current = [];
+      setActiveSpeaker(null);
+      activeSpeakerRef.current = null;
+      if (snd) snd.stopAsync().then(() => snd.unloadAsync()).catch(() => {});
+    }
+  }, []);
+  const toggleFx = useCallback(() => {
+    const next = !fxEnabledRef.current;
+    fxEnabledRef.current = next;
+    setFxEnabled(next);
+    AsyncStorage.setItem(FX_KEY, next ? "1" : "0").catch(() => {});
+  }, []);
+
+  // ── TTS queue (sequential, single sound at a time) ───────────────────────
+  const processQueue = useCallback(async () => {
+    if (ttsRunningRef.current) return;
+    ttsRunningRef.current = true;
+    while (ttsQueueRef.current.length > 0 && voiceEnabledRef.current && runningRef.current) {
+      const item = ttsQueueRef.current.shift();
+      if (!item) break;
+      setActiveSpeaker(item.personaId);
+      activeSpeakerRef.current = item.personaId;
+      try {
+        const sound = await playTTS("/api/persona-speak", { text: item.text, personaId: item.personaId }, { volume: 1.0 });
+        currentSoundRef.current = sound;
+        await new Promise<void>((resolve) => {
+          let done = false;
+          const finish = () => {
+            if (done) return; done = true;
+            sound.setOnPlaybackStatusUpdate(null);
+            sound.getStatusAsync().then((st: any) => { if (st.isLoaded) sound.unloadAsync().catch(() => {}); }).catch(() => {});
+            if (currentSoundRef.current === sound) currentSoundRef.current = null;
+            resolve();
+          };
+          sound.setOnPlaybackStatusUpdate((status: any) => {
+            if (!status.isLoaded || status.didJustFinish || status.error) finish();
+          });
+          setTimeout(finish, 30000);
+        });
+      } catch (e) {
+        // ignore TTS error and continue
+      }
+      // small breath between turns
+      await new Promise((r) => setTimeout(r, 150));
+    }
+    ttsRunningRef.current = false;
+    if (ttsQueueRef.current.length === 0) {
+      setActiveSpeaker(null);
+      activeSpeakerRef.current = null;
+    }
+  }, []);
+
+  const enqueueTTS = useCallback((text: string, personaId: string) => {
+    if (!voiceEnabledRef.current) return;
+    ttsQueueRef.current.push({ text, personaId });
+    processQueue();
+  }, [processQueue]);
+
+  const stopAllAudio = useCallback(() => {
+    ttsQueueRef.current = [];
+    const snd = currentSoundRef.current;
+    currentSoundRef.current = null;
+    setActiveSpeaker(null);
+    activeSpeakerRef.current = null;
+    if (snd) snd.stopAsync().then(() => snd.unloadAsync()).catch(() => {});
+  }, []);
+
+  // Pulse animation for the active speaker glow + reactive active flags via shared values
+  const interviewerActiveSV = useSharedValue(0);
+  const intervieweeActiveSV = useSharedValue(0);
+  useEffect(() => {
+    if (activeSpeaker) {
+      glowPulse.value = withRepeat(withTiming(1, { duration: 700 }), -1, true);
+    } else {
+      cancelAnimation(glowPulse);
+      glowPulse.value = withTiming(0, { duration: 200 });
+    }
+    interviewerActiveSV.value = activeSpeaker && interviewerId && activeSpeaker === interviewerId ? 1 : 0;
+    intervieweeActiveSV.value = activeSpeaker && intervieweeId && activeSpeaker === intervieweeId ? 1 : 0;
+  }, [activeSpeaker, glowPulse, interviewerId, intervieweeId, interviewerActiveSV, intervieweeActiveSV]);
+
+  const interviewerGlowStyle = useAnimatedStyle(() => ({
+    opacity: interviewerActiveSV.value ? 0.45 + glowPulse.value * 0.55 : 0,
+  }));
+  const intervieweeGlowStyle = useAnimatedStyle(() => ({
+    opacity: intervieweeActiveSV.value ? 0.45 + glowPulse.value * 0.55 : 0,
+  }));
+  const flashStyle = useAnimatedStyle(() => ({ opacity: flashOpacity.value }));
+
+  const triggerLightning = useCallback(() => {
+    if (!fxEnabledRef.current) return;
+    flashOpacity.value = withSequence(
+      withTiming(0.85, { duration: 80 }),
+      withTiming(0.0, { duration: 120 }),
+      withTiming(0.7, { duration: 70 }),
+      withTiming(0.0, { duration: 200 }),
+    );
+    if (Platform.OS === "web") {
+      playLieBeep();
+    } else {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+    }
+  }, [flashOpacity]);
+
+  // Fire-and-forget fact-check on each non-trivial interviewee statement
+  const runFactCheck = useCallback((msg: Msg) => {
+    if (!intervieweeId || msg.speakerId !== intervieweeId) return;
+    if (msg.text.length < 25) return;
+    if (!deviceId) return;
+    fetch(new URL("/api/arena/interview-factcheck", getApiUrl()).toString(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+      body: JSON.stringify({ intervieweeId, text: msg.text, topic: currentTopicRef.current }),
+    })
+      .then((r) => r.ok ? r.json() : null)
+      .then((data: any) => {
+        if (!data) return;
+        const score = Math.max(0, Math.min(100, Number(data.score) || 70));
+        if (score < 40 || data.isLie) {
+          setLieCount((c) => c + 1);
+          setLies((prev) => [...prev, {
+            id: `lie-${msg.id}`,
+            speakerId: msg.speakerId,
+            speakerName: msg.speakerName,
+            text: msg.text,
+            score,
+            reason: String(data.reason || ""),
+            fact: String(data.fact || ""),
+            ts: Date.now(),
+          }]);
+          triggerLightning();
+        }
+      })
+      .catch(() => {});
+  }, [intervieweeId, deviceId, triggerLightning]);
+
+  // Wrap addMessage to also drive emotions, TTS, fact-check
+  const enrichAndAddMessage = useCallback((m: Msg) => {
+    setMessages((prev) => [...prev, m]);
+    enqueueTTS(m.text, m.speakerId);
+    const delta = computeEmotionDelta(m.text);
+    if (interviewerId && m.speakerId === interviewerId) setEmoInterviewer((p) => applyEmotionDelta(p, delta));
+    else if (intervieweeId && m.speakerId === intervieweeId) setEmoInterviewee((p) => applyEmotionDelta(p, delta));
+    if (intervieweeId && m.speakerId === intervieweeId && !m.isInterruption) runFactCheck(m);
+  }, [enqueueTTS, interviewerId, intervieweeId, runFactCheck]);
 
   // Load persona lists
   useEffect(() => {
@@ -90,6 +395,8 @@ export default function InterviewScreen() {
   const interviewer = useMemo(() => interviewers.find((p) => p.id === interviewerId) || null, [interviewers, interviewerId]);
   const interviewee = useMemo(() => interviewees.find((p) => p.id === intervieweeId) || null, [interviewees, intervieweeId]);
   const currentTopic = topics[topicIdx] || null;
+  const currentTopicRef = useRef(currentTopic);
+  useEffect(() => { currentTopicRef.current = currentTopic; }, [currentTopic]);
 
   const generateTopics = useCallback(async () => {
     if (!interviewerId || !intervieweeId) return;
@@ -218,7 +525,7 @@ export default function InterviewScreen() {
       });
       setIsThinking(null);
       if (!q || !runningRef.current) break;
-      addMessage({ id: `q-${Date.now()}-${Math.random()}`, speakerId: q.speakerId, speakerName: q.speakerName, text: q.text, ts: Date.now() });
+      enrichAndAddMessage({ id: `q-${Date.now()}-${Math.random()}`, speakerId: q.speakerId, speakerName: q.speakerName, text: q.text, ts: Date.now() });
 
       // Estimate read time and start answer with ~1s overlap
       const qReadMs = Math.min(7000, Math.max(2200, q.text.length * 55));
@@ -231,7 +538,7 @@ export default function InterviewScreen() {
         const intr = await fetchAnswer(q.text, { isInterruption: true });
         if (intr && intr.text && runningRef.current) {
           interruptionText = intr.text;
-          addMessage({ id: `intr-${Date.now()}-${Math.random()}`, speakerId: intr.speakerId, speakerName: intr.speakerName, text: intr.text, ts: Date.now(), isInterruption: true });
+          enrichAndAddMessage({ id: `intr-${Date.now()}-${Math.random()}`, speakerId: intr.speakerId, speakerName: intr.speakerName, text: intr.text, ts: Date.now(), isInterruption: true });
           await new Promise((r) => setTimeout(r, 600));
         }
       }
@@ -241,7 +548,7 @@ export default function InterviewScreen() {
       const a = await fetchAnswer(q.text, { wasInterrupted: !!interruptionText, interruptionText });
       setIsThinking(null);
       if (!a || !runningRef.current) break;
-      addMessage({ id: `a-${Date.now()}-${Math.random()}`, speakerId: a.speakerId, speakerName: a.speakerName, text: a.text, ts: Date.now() });
+      enrichAndAddMessage({ id: `a-${Date.now()}-${Math.random()}`, speakerId: a.speakerId, speakerName: a.speakerName, text: a.text, ts: Date.now() });
 
       const aReadMs = Math.min(8500, Math.max(2500, a.text.length * 55));
       await new Promise((r) => setTimeout(r, Math.max(900, aReadMs - 1000)));
@@ -251,7 +558,7 @@ export default function InterviewScreen() {
       if (Math.random() < 0.1) {
         const cut = await fetchQuestion({ isInterruption: true, currentTopicArg: topic });
         if (cut && cut.text && runningRef.current) {
-          addMessage({ id: `cut-${Date.now()}-${Math.random()}`, speakerId: cut.speakerId, speakerName: cut.speakerName, text: cut.text, ts: Date.now(), isInterruption: true });
+          enrichAndAddMessage({ id: `cut-${Date.now()}-${Math.random()}`, speakerId: cut.speakerId, speakerName: cut.speakerName, text: cut.text, ts: Date.now(), isInterruption: true });
           await new Promise((r) => setTimeout(r, 700));
         }
       }
@@ -280,7 +587,7 @@ export default function InterviewScreen() {
         });
         setIsThinking(null);
         if (trans && trans.text && runningRef.current) {
-          addMessage({ id: `trans-${Date.now()}-${Math.random()}`, speakerId: trans.speakerId, speakerName: trans.speakerName, text: trans.text, ts: Date.now() });
+          enrichAndAddMessage({ id: `trans-${Date.now()}-${Math.random()}`, speakerId: trans.speakerId, speakerName: trans.speakerName, text: trans.text, ts: Date.now() });
         }
         setTopicIdx(nextIdx);
         topicIdxRef.current = nextIdx;
@@ -290,7 +597,7 @@ export default function InterviewScreen() {
     }
     runningRef.current = false;
     if (Date.now() >= sessionEndsAtRef.current) setPhase("ended");
-  }, [topics, fetchQuestion, fetchAnswer, addMessage, duration]);
+  }, [topics, fetchQuestion, fetchAnswer, enrichAndAddMessage, duration]);
 
   const startInterview = useCallback(async () => {
     if (!deviceId || !interviewerId || !intervieweeId || topics.length === 0 || isStarting) return;
@@ -332,9 +639,15 @@ export default function InterviewScreen() {
     topicIdxRef.current = 0;
     exchangesOnTopicRef.current = 0;
     setCompletedTopics(new Set());
+    setEmoInterviewer(ZERO_EMO);
+    setEmoInterviewee(ZERO_EMO);
+    setLieCount(0);
+    setLies([]);
+    ttsQueueRef.current = [];
     setPhase("live");
     runningRef.current = true;
     isPausedRef.current = false;
+    setIsPaused(false);
     setIsStarting(false);
     setTimeout(() => { runLoop(); }, 300);
   }, [deviceId, interviewerId, intervieweeId, topics.length, isStarting, duration, runLoop]);
@@ -360,9 +673,15 @@ export default function InterviewScreen() {
         topicIdxRef.current = 0;
         exchangesOnTopicRef.current = 0;
         setCompletedTopics(new Set());
+        setEmoInterviewer(ZERO_EMO);
+        setEmoInterviewee(ZERO_EMO);
+        setLieCount(0);
+        setLies([]);
+        ttsQueueRef.current = [];
         setPhase("live");
         runningRef.current = true;
         isPausedRef.current = false;
+        setIsPaused(false);
         setTimeout(() => { runLoop(); }, 300);
       }
     } catch {} finally {
@@ -372,12 +691,98 @@ export default function InterviewScreen() {
 
   const stopInterview = useCallback(() => {
     runningRef.current = false;
+    stopAllAudio();
     setPhase("ended");
-  }, []);
+  }, [stopAllAudio]);
 
   const togglePause = useCallback(() => {
-    isPausedRef.current = !isPausedRef.current;
+    const next = !isPausedRef.current;
+    isPausedRef.current = next;
+    setIsPaused(next);
+    if (next) stopAllAudio();
+  }, [stopAllAudio]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      runningRef.current = false;
+      ttsQueueRef.current = [];
+      const snd = currentSoundRef.current;
+      currentSoundRef.current = null;
+      if (snd) snd.stopAsync().then(() => snd.unloadAsync()).catch(() => {});
+    };
   }, []);
+
+  // ── Call-in handler ──────────────────────────────────────────────────────
+  const sendCallIn = useCallback(async () => {
+    const q = callinText.trim();
+    if (!q || !deviceId || !interviewerId || !intervieweeId || isCallinSending) return;
+    if (callerName.trim()) AsyncStorage.setItem(NAME_KEY, callerName.trim()).catch(() => {});
+    setIsCallinSending(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+
+    // Show user's call-in bubble immediately
+    const callerLabel = callerName.trim() || "You";
+    const userMsg: Msg = {
+      id: `call-${Date.now()}-${Math.random()}`,
+      speakerId: "__viewer__",
+      speakerName: `📞 ${callerLabel}`,
+      text: q,
+      ts: Date.now(),
+      isCallIn: true,
+      callerName: callerLabel,
+    };
+    setMessages((prev) => [...prev, userMsg]);
+
+    // Briefly pause loop while call-in plays out
+    const wasRunning = runningRef.current;
+    isPausedRef.current = true;
+    setIsPaused(true);
+
+    try {
+      const res = await fetch(new URL("/api/arena/interview-callin", getApiUrl()).toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+        body: JSON.stringify({
+          interviewerId, intervieweeId, userQuestion: q, userName: callerName.trim(),
+          conversationHistory: messagesRef.current.slice(-4), topic: currentTopic,
+        }),
+      });
+      if (res.status === 403) {
+        setShowPaywall(true);
+      } else if (res.ok) {
+        const data = await res.json();
+        if (data?.interviewer?.text) {
+          enrichAndAddMessage({
+            id: `cq-${Date.now()}-${Math.random()}`,
+            speakerId: data.interviewer.speakerId,
+            speakerName: data.interviewer.speakerName,
+            text: data.interviewer.text,
+            ts: Date.now(),
+          });
+        }
+        // Wait for interviewer audio before pushing answer so playback stays sequential
+        const readMs = Math.min(7000, Math.max(2200, (data?.interviewer?.text?.length || 80) * 55));
+        await new Promise((r) => setTimeout(r, Math.max(900, readMs - 800)));
+        if (data?.interviewee?.text) {
+          enrichAndAddMessage({
+            id: `ca-${Date.now()}-${Math.random()}`,
+            speakerId: data.interviewee.speakerId,
+            speakerName: data.interviewee.speakerName,
+            text: data.interviewee.text,
+            ts: Date.now(),
+          });
+        }
+      }
+    } catch {} finally {
+      setCallinText("");
+      setIsCallinSending(false);
+      // Resume after a beat
+      setTimeout(() => {
+        if (wasRunning) { isPausedRef.current = false; setIsPaused(false); }
+      }, 1200);
+    }
+  }, [callinText, deviceId, interviewerId, intervieweeId, callerName, currentTopic, isCallinSending, enrichAndAddMessage]);
 
   const skipTopic = useCallback(() => {
     if (topicIdx + 1 >= topics.length) return;
@@ -519,6 +924,8 @@ export default function InterviewScreen() {
   }
 
   // LIVE / ENDED
+  const interviewerPortrait = interviewerId ? PERSONA_PORTRAITS[interviewerId] : null;
+  const intervieweePortrait = intervieweeId ? PERSONA_PORTRAITS[intervieweeId] : null;
   return (
     <View style={[s.container, { paddingTop: insets.top + webTop }]}>
       <LinearGradient colors={["rgba(255,215,0,0.08)", "rgba(0,0,0,0)", "#0a0a0a"]} style={StyleSheet.absoluteFill} />
@@ -534,10 +941,55 @@ export default function InterviewScreen() {
             <Text style={s.liveText}>LIVE · {mmss(secondsLeft)}</Text>
           </View>
         </View>
-        <Pressable onPress={togglePause} style={s.iconBtn}>
-          <Ionicons name={isPausedRef.current ? "play" : "pause"} size={18} color="#FFD700" />
+        <Pressable onPress={() => setLiesSheetOpen(true)} style={[s.liePill, lieCount > 0 && s.liePillActive]} testID="lie-counter">
+          <Ionicons name="flash" size={12} color={lieCount > 0 ? "#ff4d4d" : "rgba(255,255,255,0.4)"} />
+          <Text style={[s.liePillText, lieCount > 0 && { color: "#ff4d4d" }]}>{lieCount}</Text>
         </Pressable>
-        <ShareAppButton variant="icon" area="arena" />
+        <Pressable onPress={toggleVoice} style={s.iconBtnSm} testID="toggle-voice">
+          <Ionicons name={voiceEnabled ? "volume-high" : "volume-mute"} size={16} color={voiceEnabled ? "#FFD700" : "rgba(255,255,255,0.4)"} />
+        </Pressable>
+        <Pressable onPress={toggleFx} style={s.iconBtnSm} testID="toggle-fx">
+          <Ionicons name={fxEnabled ? "flash" : "flash-off"} size={16} color={fxEnabled ? "#FFD700" : "rgba(255,255,255,0.4)"} />
+        </Pressable>
+        <Pressable onPress={togglePause} style={s.iconBtnSm}>
+          <Ionicons name={isPaused ? "play" : "pause"} size={16} color="#FFD700" />
+        </Pressable>
+      </View>
+
+      {/* Portrait stage with mood meters */}
+      <View style={s.stage}>
+        {[
+          { id: interviewerId, name: interviewer?.name, portrait: interviewerPortrait, glow: interviewerGlowStyle, emo: emoInterviewer, role: "INTERVIEWER", color: "#FFD700" },
+          { id: intervieweeId, name: interviewee?.name, portrait: intervieweePortrait, glow: intervieweeGlowStyle, emo: emoInterviewee, role: "GUEST", color: "#4ADE80" },
+        ].map((p, idx) => (
+          <View key={`${p.id}-${idx}`} style={s.stageCol}>
+            <View style={s.portraitWrap}>
+              <Animated.View style={[s.portraitGlow, { shadowColor: p.color, borderColor: p.color }, p.glow]} />
+              {p.portrait ? (
+                <Image source={p.portrait} style={s.portraitImg} />
+              ) : (
+                <View style={[s.portraitImg, { backgroundColor: "#222", alignItems: "center", justifyContent: "center" }]}>
+                  <Ionicons name="person" size={42} color="#666" />
+                </View>
+              )}
+              {isThinking === (idx === 0 ? "interviewer" : "interviewee") && (
+                <View style={s.thinkingDot}>
+                  <ActivityIndicator size="small" color={p.color} />
+                </View>
+              )}
+            </View>
+            <Text style={[s.stageRole, { color: p.color }]} numberOfLines={1}>{p.role}</Text>
+            <Text style={s.stageName} numberOfLines={1}>{p.name || "—"}</Text>
+            <View style={s.emoBars}>
+              {EMO_KEYS.map((k) => (
+                <View key={k} style={s.emoBarRow}>
+                  <View style={[s.emoBarFill, { width: `${Math.min(100, Math.max(0, p.emo[k]))}%`, backgroundColor: EMO_COLORS[k] }]} />
+                  <Text style={s.emoBarLabel}>{EMO_LABELS[k]}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        ))}
       </View>
 
       {/* Topic strip */}
@@ -553,38 +1005,77 @@ export default function InterviewScreen() {
         <Ionicons name="list" size={18} color="#FFD700" style={{ marginLeft: 10 }} />
       </Pressable>
 
-      <FlatList
-        data={messages}
-        keyExtractor={(m) => m.id}
-        contentContainerStyle={{ padding: 14, paddingBottom: insets.bottom + webBottom + 90 }}
-        renderItem={({ item }) => {
-          const isInterviewer = item.speakerId === interviewerId;
-          return (
-            <Animated.View entering={FadeInUp.duration(300)} style={[s.bubbleRow, isInterviewer ? { justifyContent: "flex-start" } : { justifyContent: "flex-end" }]}>
-              <View style={[
-                s.bubble,
-                isInterviewer ? s.bubbleInterviewer : s.bubbleInterviewee,
-                item.isInterruption && s.bubbleInterrupt,
-              ]}>
-                <Text style={[s.bubbleName, { color: isInterviewer ? "#FFD700" : "#4ADE80" }]}>
-                  {item.speakerName}{item.isInterruption ? " · INTERRUPTS" : ""}
-                </Text>
-                <Text style={s.bubbleText}>{item.text}</Text>
-              </View>
-            </Animated.View>
-          );
-        }}
-        ListFooterComponent={
-          isThinking ? (
-            <Animated.View entering={FadeIn} exiting={FadeOut} style={[s.bubbleRow, isThinking === "interviewer" ? { justifyContent: "flex-start" } : { justifyContent: "flex-end" }]}>
-              <View style={[s.bubble, isThinking === "interviewer" ? s.bubbleInterviewer : s.bubbleInterviewee, { paddingVertical: 10 }]}>
-                <ActivityIndicator size="small" color={isThinking === "interviewer" ? "#FFD700" : "#4ADE80"} />
-              </View>
-            </Animated.View>
-          ) : null
-        }
-        scrollEnabled={messages.length > 0}
-      />
+      <View style={{ flex: 1 }}>
+        <FlatList
+          data={messages}
+          keyExtractor={(m) => m.id}
+          contentContainerStyle={{ padding: 14, paddingBottom: 12 }}
+          renderItem={({ item }) => {
+            const isInterviewer = item.speakerId === interviewerId;
+            const isCallIn = !!item.isCallIn;
+            return (
+              <Animated.View entering={FadeInUp.duration(300)} style={[s.bubbleRow, isCallIn ? { justifyContent: "center" } : isInterviewer ? { justifyContent: "flex-start" } : { justifyContent: "flex-end" }]}>
+                <View style={[
+                  s.bubble,
+                  isCallIn ? s.bubbleCallIn : isInterviewer ? s.bubbleInterviewer : s.bubbleInterviewee,
+                  item.isInterruption && s.bubbleInterrupt,
+                ]}>
+                  <Text style={[s.bubbleName, { color: isCallIn ? "#60a5fa" : isInterviewer ? "#FFD700" : "#4ADE80" }]}>
+                    {item.speakerName}{item.isInterruption ? " · INTERRUPTS" : ""}{isCallIn ? " · CALL-IN" : ""}
+                  </Text>
+                  <Text style={s.bubbleText}>{item.text}</Text>
+                </View>
+              </Animated.View>
+            );
+          }}
+          ListFooterComponent={
+            isThinking ? (
+              <Animated.View entering={FadeIn} exiting={FadeOut} style={[s.bubbleRow, isThinking === "interviewer" ? { justifyContent: "flex-start" } : { justifyContent: "flex-end" }]}>
+                <View style={[s.bubble, isThinking === "interviewer" ? s.bubbleInterviewer : s.bubbleInterviewee, { paddingVertical: 10 }]}>
+                  <ActivityIndicator size="small" color={isThinking === "interviewer" ? "#FFD700" : "#4ADE80"} />
+                </View>
+              </Animated.View>
+            ) : null
+          }
+          scrollEnabled={messages.length > 0}
+        />
+        <Animated.View pointerEvents="none" style={[s.lightning, flashStyle]} />
+      </View>
+
+      {/* Call-in bar */}
+      {phase === "live" && (
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} keyboardVerticalOffset={0}>
+          <View style={[s.callinBar, { paddingBottom: Math.max(10, insets.bottom + webBottom) }]}>
+            <View style={s.callinNameRow}>
+              <Ionicons name="call" size={12} color="#60a5fa" />
+              <TextInput
+                value={callerName}
+                onChangeText={setCallerName}
+                placeholder="Your name (optional)"
+                placeholderTextColor="rgba(255,255,255,0.35)"
+                style={s.callinNameInput}
+                maxLength={24}
+                testID="callin-name"
+              />
+            </View>
+            <View style={s.callinInputRow}>
+              <TextInput
+                value={callinText}
+                onChangeText={setCallinText}
+                placeholder={`Ask ${interviewer?.name || "the host"} anything…`}
+                placeholderTextColor="rgba(255,255,255,0.35)"
+                style={s.callinInput}
+                multiline
+                maxLength={240}
+                testID="callin-input"
+              />
+              <Pressable onPress={sendCallIn} disabled={!callinText.trim() || isCallinSending} style={[s.callinSend, (!callinText.trim() || isCallinSending) && { opacity: 0.4 }]} testID="callin-send">
+                {isCallinSending ? <ActivityIndicator size="small" color="#000" /> : <Ionicons name="send" size={16} color="#000" />}
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      )}
 
       {phase === "ended" && (
         <Animated.View entering={FadeInDown.duration(300)} style={[s.endedBar, { paddingBottom: insets.bottom + webBottom + 12 }]}>
@@ -629,6 +1120,37 @@ export default function InterviewScreen() {
                   </View>
                 );
               })}
+              <View style={{ height: 30 }} />
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Lies sheet */}
+      <Modal visible={liesSheetOpen} transparent animationType="slide" onRequestClose={() => setLiesSheetOpen(false)}>
+        <View style={s.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setLiesSheetOpen(false)} />
+          <View style={s.topicsSheet}>
+            <View style={s.handle} />
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 10 }}>
+              <Ionicons name="flash" size={20} color="#ff4d4d" />
+              <Text style={{ flex: 1, color: "#fff", fontSize: 18, fontWeight: "900", marginLeft: 8 }}>LIE DETECTOR · {lies.length}</Text>
+              <Pressable onPress={() => setLiesSheetOpen(false)}><Ionicons name="close" size={22} color="#fff" /></Pressable>
+            </View>
+            <ScrollView style={{ maxHeight: 480 }}>
+              {lies.length === 0 ? (
+                <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, textAlign: "center", padding: 30 }}>No flagged statements yet. The lightning will strike when something doesn't add up.</Text>
+              ) : lies.map((l) => (
+                <View key={l.id} style={s.lieRow}>
+                  <View style={s.lieHeader}>
+                    <Text style={{ color: "#FFD700", fontSize: 12, fontWeight: "900", flex: 1 }} numberOfLines={1}>{l.speakerName}</Text>
+                    <View style={s.lieScore}><Text style={{ color: "#ff4d4d", fontSize: 11, fontWeight: "900" }}>{l.score}/100</Text></View>
+                  </View>
+                  <Text style={s.lieQuote}>"{l.text}"</Text>
+                  {!!l.fact && <Text style={s.lieFact}>FACT: {l.fact}</Text>}
+                  {!!l.reason && <Text style={s.lieReason}>{l.reason}</Text>}
+                </View>
+              ))}
               <View style={{ height: 30 }} />
             </ScrollView>
           </View>
@@ -750,4 +1272,40 @@ const s = StyleSheet.create({
   paywallBtnText: { color: "#000", fontSize: 13, fontWeight: "900" },
   paywallSecondary: { marginTop: 8, paddingVertical: 8 },
   paywallSecondaryText: { color: "#FFD700", fontSize: 12, fontWeight: "800" },
+
+  iconBtnSm: { width: 32, height: 32, borderRadius: 16, backgroundColor: "rgba(255,255,255,0.06)", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "rgba(255,215,0,0.2)" },
+  liePill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, height: 28, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.05)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
+  liePillActive: { backgroundColor: "rgba(255,77,77,0.12)", borderColor: "rgba(255,77,77,0.5)" },
+  liePillText: { color: "rgba(255,255,255,0.4)", fontSize: 12, fontWeight: "900" },
+
+  stage: { flexDirection: "row", paddingHorizontal: 12, paddingTop: 6, paddingBottom: 8, gap: 10 },
+  stageCol: { flex: 1, alignItems: "center" },
+  portraitWrap: { width: 96, height: 96, borderRadius: 48, alignItems: "center", justifyContent: "center" },
+  portraitGlow: { position: "absolute", width: 110, height: 110, borderRadius: 55, borderWidth: 2, shadowOpacity: 0.9, shadowRadius: 18, shadowOffset: { width: 0, height: 0 }, elevation: 8 },
+  portraitImg: { width: 92, height: 92, borderRadius: 46, borderWidth: 2, borderColor: "rgba(0,0,0,0.6)" },
+  thinkingDot: { position: "absolute", bottom: -2, right: -2, width: 26, height: 26, borderRadius: 13, backgroundColor: "#0a0a0a", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "rgba(255,255,255,0.2)" },
+  stageRole: { fontSize: 10, fontWeight: "900", letterSpacing: 1, marginTop: 6 },
+  stageName: { color: "#fff", fontSize: 12, fontWeight: "800", marginTop: 1 },
+  emoBars: { width: "100%", marginTop: 6, gap: 3 },
+  emoBarRow: { height: 10, borderRadius: 5, backgroundColor: "rgba(255,255,255,0.06)", overflow: "hidden", justifyContent: "center" },
+  emoBarFill: { position: "absolute", left: 0, top: 0, bottom: 0, opacity: 0.85, borderRadius: 5 },
+  emoBarLabel: { color: "rgba(255,255,255,0.85)", fontSize: 8, fontWeight: "900", letterSpacing: 0.6, paddingLeft: 6 },
+
+  bubbleCallIn: { backgroundColor: "rgba(96,165,250,0.12)", borderColor: "rgba(96,165,250,0.45)", borderWidth: 1, maxWidth: "92%" },
+
+  lightning: { ...StyleSheet.absoluteFillObject, backgroundColor: "#ff2a2a" },
+
+  callinBar: { backgroundColor: "rgba(15,15,18,0.95)", borderTopWidth: 1, borderColor: "rgba(96,165,250,0.25)", paddingHorizontal: 10, paddingTop: 8, gap: 6 },
+  callinNameRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, height: 28, borderRadius: 14, backgroundColor: "rgba(96,165,250,0.08)", borderWidth: 1, borderColor: "rgba(96,165,250,0.2)" },
+  callinNameInput: { flex: 1, color: "#fff", fontSize: 12, padding: 0 },
+  callinInputRow: { flexDirection: "row", alignItems: "flex-end", gap: 8 },
+  callinInput: { flex: 1, minHeight: 40, maxHeight: 100, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 18, color: "#fff", fontSize: 14, borderWidth: 1, borderColor: "rgba(255,255,255,0.12)" },
+  callinSend: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#FFD700", alignItems: "center", justifyContent: "center" },
+
+  lieRow: { backgroundColor: "rgba(255,77,77,0.06)", borderWidth: 1, borderColor: "rgba(255,77,77,0.25)", borderRadius: 12, padding: 12, marginBottom: 8 },
+  lieHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
+  lieScore: { paddingHorizontal: 8, height: 22, borderRadius: 11, backgroundColor: "rgba(255,77,77,0.18)", alignItems: "center", justifyContent: "center" },
+  lieQuote: { color: "#fff", fontSize: 13, fontStyle: "italic", marginTop: 4 },
+  lieFact: { color: "#4ADE80", fontSize: 12, fontWeight: "800", marginTop: 6 },
+  lieReason: { color: "rgba(255,255,255,0.6)", fontSize: 11, marginTop: 4 },
 });

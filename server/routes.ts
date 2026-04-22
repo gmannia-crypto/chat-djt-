@@ -5260,7 +5260,11 @@ Use "era":"current" for today's news, "era":"past" for old controversies. Do not
       const intervieweeName = ARENA_NAME_MAP[intervieweeId] || intervieweeId;
       const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
 
-      const intervieweeStyle = `You are ${intervieweeName} being grilled in a high-stakes 1-on-1 interview by ${interviewerName}. Today is ${todayStr}. Stay 100% in character — your tone, vocabulary, ideology, and combativeness are all who you are. ${ARENA_PERSONA_PROMPTS[intervieweeId]}`;
+      const intervieweeStyle = `You are ${intervieweeName} being grilled in a high-stakes 1-on-1 interview by ${interviewerName}. Today is ${todayStr}.
+
+CRITICAL TARGETING: ${interviewerName} is sitting across from you RIGHT NOW. They are your interviewer AND your adversary. If your character profile contains insults, attacks, nicknames, or hostility toward "${interviewerName}", USE THEM. Address them by name. Throw the savage lines from your profile at them DIRECTLY — do not soften, do not generalize. If your character normally calls them ugly, dumb, a traitor, a foreigner, a loser, a liar, etc., say it to their face. This is YOUR moment to attack the messenger.
+
+Stay 100% in character — your tone, vocabulary, ideology, and combativeness are all who you are. Do not break character to be polite to the interviewer. ${ARENA_PERSONA_PROMPTS[intervieweeId]}`;
 
       const historyContext = (conversationHistory || []).slice(-6).map((m: any) =>
         `${m.speakerName}: "${m.text}"`
@@ -5283,8 +5287,8 @@ Use "era":"current" for today's news, "era":"past" for old controversies. Do not
           { role: "system", content: intervieweeStyle },
           { role: "user", content: userPrompt },
         ],
-        max_completion_tokens: isInterruption ? 40 : 160,
-        temperature: 0.9,
+        max_completion_tokens: isInterruption ? 40 : 220,
+        temperature: 0.95,
       });
       let text = completion.choices[0]?.message?.content || "...";
       text = text.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim();
@@ -5303,6 +5307,150 @@ Use "era":"current" for today's news, "era":"past" for old controversies. Do not
     } catch (error: any) {
       console.error("Interview answer error:", error);
       res.status(500).json({ error: "Failed to generate answer" });
+    }
+  });
+
+  // Viewer call-in: user submits a question, interviewer reads it on-air, interviewee responds in character
+  app.post("/api/arena/interview-callin", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const { interviewerId, intervieweeId, userQuestion, userName, conversationHistory = [], topic } = req.body || {};
+      if (!interviewerId || !ARENA_PERSONA_PROMPTS[interviewerId]) return res.status(400).json({ error: "Invalid interviewerId" });
+      if (!intervieweeId || !ARENA_PERSONA_PROMPTS[intervieweeId]) return res.status(400).json({ error: "Invalid intervieweeId" });
+      const cleanQ = String(userQuestion || "").trim().slice(0, 400);
+      if (!cleanQ) return res.status(400).json({ error: "userQuestion required" });
+
+      const accessCheck = await checkInterviewAccess(deviceId, true);
+      if (!accessCheck.ok) {
+        return res.status(403).json({ error: accessCheck.reason || "arena_locked", freeRemaining: 0, sessionCost: ARENA_SESSION_COST });
+      }
+
+      const interviewerName = ARENA_NAME_MAP[interviewerId] || interviewerId;
+      const intervieweeName = ARENA_NAME_MAP[intervieweeId] || intervieweeId;
+      const callerLabel = String(userName || "").trim().slice(0, 30) || "a viewer";
+      const historyContext = (conversationHistory || []).slice(-4).map((m: any) =>
+        `${m.speakerName}: "${m.text}"`
+      ).join("\n");
+
+      // Step 1: interviewer frames the call-in question
+      const framePrompt = `You are ${interviewerName}, the interviewer. ${ARENA_PERSONA_PROMPTS[interviewerId]}
+
+A viewer named "${callerLabel}" just sent in this question for ${intervieweeName}: "${cleanQ}"
+
+In character, briefly introduce the call-in (1 sentence, ~12 words: "We've got a caller — ${callerLabel} from the audience asks…" or similar), then RELAY the viewer's question to ${intervieweeName} sharply. Keep the entire output under 35 words. Write ONLY your spoken words — no quotes, no stage directions.`;
+
+      const frameCompletion = await getClient().chat.completions.create({
+        model: getFastModel(),
+        messages: [{ role: "system", content: framePrompt }, { role: "user", content: "Read the call-in question now." }],
+        max_completion_tokens: 100,
+        temperature: 0.85,
+      });
+      let interviewerText = frameCompletion.choices[0]?.message?.content || `We've got a call-in from ${callerLabel}: ${cleanQ}`;
+      interviewerText = interviewerText.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim();
+
+      // Step 2: interviewee answers the call-in
+      const answerPrompt = `You are ${intervieweeName} being interviewed live by ${interviewerName}. Today is ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}.
+
+A viewer call-in just came in. ${interviewerName} read it: "${interviewerText}"
+
+The viewer ${callerLabel} asked: "${cleanQ}"
+
+Answer the viewer's question in character — punchy, provocative, true to your beliefs. You may briefly acknowledge the caller by name. 2-3 sentences max. Write ONLY your spoken response.
+
+${ARENA_PERSONA_PROMPTS[intervieweeId]}`;
+
+      const answerCompletion = await getClient().chat.completions.create({
+        model: getFastModel(),
+        messages: [
+          { role: "system", content: answerPrompt },
+          { role: "user", content: `Recent context:\n${historyContext}\n\nAnswer ${callerLabel}'s question now.` },
+        ],
+        max_completion_tokens: 220,
+        temperature: 0.95,
+      });
+      let intervieweeText = answerCompletion.choices[0]?.message?.content || "...";
+      intervieweeText = intervieweeText.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim();
+      if (intervieweeId === "trump" || intervieweeId === "ruckus" || intervieweeId === "graham" || intervieweeId === "megynkelly" || intervieweeId === "pambondi") {
+        intervieweeText = intervieweeText.replace(/(?:the\s+)?epstein\s+war/gi, "the Iran war");
+      }
+
+      res.json({
+        interviewer: { speakerId: interviewerId, speakerName: interviewerName, text: interviewerText },
+        interviewee: { speakerId: intervieweeId, speakerName: intervieweeName, text: intervieweeText },
+        freeRemaining: Math.max(0, ARENA_FREE_LIMIT - (accessCheck.access?.freeUsed || 0)),
+        hasSession: !!(accessCheck.access?.sessionExpiry && Date.now() < accessCheck.access.sessionExpiry),
+      });
+    } catch (error: any) {
+      console.error("Interview callin error:", error);
+      res.status(500).json({ error: "Failed to generate call-in response" });
+    }
+  });
+
+  // Lie detector: score truthfulness of an interviewee statement
+  app.post("/api/arena/interview-factcheck", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const { intervieweeId, text, topic } = req.body || {};
+      if (!intervieweeId || !ARENA_PERSONA_PROMPTS[intervieweeId]) return res.status(400).json({ error: "Invalid intervieweeId" });
+      const claim = String(text || "").trim().slice(0, 800);
+      if (!claim) return res.status(400).json({ error: "text required" });
+
+      // Require an active interview session (does not consume — fact checks fire continuously)
+      const accessCheck = await checkInterviewAccess(deviceId, false);
+      if (!accessCheck.ok) return res.status(403).json({ error: accessCheck.error || "No active interview session" });
+
+      const intervieweeName = ARENA_NAME_MAP[intervieweeId] || intervieweeId;
+      const newsContext = await getArenaNewsContext().catch(() => "");
+
+      const systemPrompt = `You are a sharp, neutral fact-checker scoring a single quote from public figure ${intervieweeName} on a 0-100 truthfulness scale.
+
+100 = fully accurate, well-supported.
+60-99 = mostly true with minor exaggeration or spin.
+40-59 = mixed / cherry-picked / misleading framing.
+20-39 = significant falsehood or distortion of the record.
+0-19 = blatant lie, conspiracy theory, or outright fabrication.
+
+Use your knowledge of the public record AND the live headlines below. Be especially harsh on:
+- Election fraud claims (Trump 2020 was NOT stolen).
+- Anti-vax / brain worm denial / "chemicals turning frogs gay" (RFK).
+- Holocaust denial, deep state conspiracies (Alex Jones).
+- "I barely knew Epstein" claims.
+- Inflated crowd sizes, business deals that fell through, "everyone says" claims.
+- Made-up statistics, fake quotes attributed to opponents.
+
+Be lenient on opinion, prediction, or value statements (those are not lies — score 60-80 if reasonable).
+
+LIVE HEADLINES:
+${newsContext || "(none available)"}
+
+Return ONLY valid JSON: {"score": 0-100, "isLie": boolean (true if score<40), "reason": "short 1-sentence explanation", "fact": "1-sentence corrective fact (only if isLie=true, else empty string)"}`;
+
+      const completion = await getClient().chat.completions.create({
+        model: getFastModel(),
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: `${intervieweeName} just said: "${claim}"\n\nTopic context: ${topic?.title || "general"}.\n\nScore it now as JSON.` },
+        ],
+        max_completion_tokens: 180,
+        temperature: 0.3,
+        response_format: { type: "json_object" },
+      });
+      const raw = completion.choices[0]?.message?.content || "{}";
+      let parsed: any = {};
+      try { parsed = JSON.parse(raw); } catch { parsed = {}; }
+      const score = Math.max(0, Math.min(100, Number(parsed.score) || 70));
+      const isLie = score < 40 || parsed.isLie === true;
+      res.json({
+        score,
+        isLie,
+        reason: String(parsed.reason || "").slice(0, 240),
+        fact: String(parsed.fact || "").slice(0, 240),
+      });
+    } catch (error: any) {
+      console.error("Interview factcheck error:", error);
+      res.status(500).json({ error: "Fact-check failed", score: 70, isLie: false, reason: "", fact: "" });
     }
   });
 
