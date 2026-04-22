@@ -1479,7 +1479,7 @@ function DCRoyalTab({
   tallies: Record<string, PersonaTally>;
   deviceId: string | null;
   playClick: () => void;
-  onSpeak: (text: string, personaId: string, gameId: number) => void;
+  onSpeak: (text: string, personaId: string, gameId: number) => Promise<Audio.Sound | null> | void;
   refreshBalance: () => void;
 }) {
   const [crawlItems, setCrawlItems] = useState<{ emoji: string; text: string }[]>([]);
@@ -1588,10 +1588,27 @@ function DCRoyalTab({
         history.push(msg);
         setDebateMessages(prev => [...prev, msg]);
         setTimeout(() => debateScrollRef.current?.scrollToEnd({ animated: true }), 200);
-        onSpeak(msg.text, msg.personaId, 80000 + turnIndex);
-        const estimatedSpeechMs = Math.max(2500, msg.text.length * 60);
+        const speakResult = onSpeak(msg.text, msg.personaId, 80000 + turnIndex);
+        const sound = speakResult && typeof (speakResult as Promise<Audio.Sound | null>).then === "function"
+          ? await (speakResult as Promise<Audio.Sound | null>).catch(() => null)
+          : null;
         const overlapMs = 1000;
-        await new Promise(r => setTimeout(r, Math.max(800, estimatedSpeechMs - overlapMs)));
+        const fallbackMs = Math.max(2500, msg.text.length * 60);
+        let durationMs: number | null = null;
+        if (sound) {
+          for (let i = 0; i < 8 && durationMs === null; i++) {
+            try {
+              const status = await sound.getStatusAsync();
+              if (status.isLoaded && typeof status.durationMillis === "number" && status.durationMillis > 0) {
+                durationMs = status.durationMillis;
+                break;
+              }
+            } catch {}
+            await new Promise(r => setTimeout(r, 100));
+          }
+        }
+        const speechMs = durationMs ?? fallbackMs;
+        await new Promise(r => setTimeout(r, Math.max(800, speechMs - overlapMs)));
       } catch { break; }
       turnIndex++;
     }
@@ -2655,8 +2672,8 @@ export default function SportsScreen() {
     loadDebateData();
   };
 
-  const handleSpeak = async (text: string, personaId: string, gameId: number) => {
-    if (isTrumpCurrentlySpeaking() && personaId !== "trump") return;
+  const handleSpeak = async (text: string, personaId: string, gameId: number): Promise<Audio.Sound | null> => {
+    if (isTrumpCurrentlySpeaking() && personaId !== "trump") return null;
     if (speakingGameId !== null) {
       if (soundRef.current && !isTrumpCurrentlySpeaking()) {
         await soundRef.current.stopAsync();
@@ -2664,10 +2681,10 @@ export default function SportsScreen() {
         soundRef.current = null;
       }
       setSpeakingGameId(null);
-      if (speakingGameId === gameId) return;
+      if (speakingGameId === gameId) return null;
     }
 
-    if (!soundEnabled) return;
+    if (!soundEnabled) return null;
     setSpeakingGameId(gameId);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
@@ -2684,8 +2701,10 @@ export default function SportsScreen() {
           soundRef.current = null;
         }
       });
+      return sound;
     } catch {
       if (mountedRef.current) setSpeakingGameId(null);
+      return null;
     }
   };
 
