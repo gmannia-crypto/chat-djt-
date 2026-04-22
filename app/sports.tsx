@@ -1453,6 +1453,9 @@ function PlayerStatsLookup() {
 }
 
 const DC_ROYAL_STORAGE = "dc-royal-crowns";
+const DC_ROYAL_OVERLAP_STORAGE = "dc-royal-overlap";
+type OverlapMode = "none" | "subtle" | "chaotic";
+const OVERLAP_MS: Record<OverlapMode, number> = { none: 0, subtle: 1000, chaotic: 1800 };
 const SPORT_CATEGORIES = ["NBA", "NFL", "MLB", "NHL", "SOCCER", "UFC"];
 
 interface DCRoyalWinner {
@@ -1493,6 +1496,8 @@ function DCRoyalTab({
   const crawlRef = useRef<ScrollView>(null);
 
   const [debateDuration, setDebateDuration] = useState<5 | 10 | 15>(5);
+  const [debateOverlap, setDebateOverlapState] = useState<OverlapMode>("subtle");
+  const debateOverlapRef = useRef<OverlapMode>("subtle");
   const [debateActive, setDebateActive] = useState(false);
   const [debateExpiresAt, setDebateExpiresAt] = useState(0);
   const [debateSeconds, setDebateSeconds] = useState(0);
@@ -1592,7 +1597,7 @@ function DCRoyalTab({
         const sound = speakResult && typeof (speakResult as Promise<Audio.Sound | null>).then === "function"
           ? await (speakResult as Promise<Audio.Sound | null>).catch(() => null)
           : null;
-        const overlapMs = 1000;
+        const overlapMs = OVERLAP_MS[debateOverlapRef.current] ?? 1000;
         const fallbackMs = Math.max(2500, msg.text.length * 60);
         let durationMs: number | null = null;
         if (sound) {
@@ -1659,6 +1664,21 @@ function DCRoyalTab({
     setCrowns(c);
     try { await AsyncStorage.setItem(DC_ROYAL_STORAGE, JSON.stringify(c)); } catch {}
   };
+
+  const setDebateOverlap = (mode: OverlapMode) => {
+    debateOverlapRef.current = mode;
+    setDebateOverlapState(mode);
+    AsyncStorage.setItem(DC_ROYAL_OVERLAP_STORAGE, mode).catch(() => {});
+  };
+
+  useEffect(() => {
+    AsyncStorage.getItem(DC_ROYAL_OVERLAP_STORAGE).then(saved => {
+      if (saved === "none" || saved === "subtle" || saved === "chaotic") {
+        debateOverlapRef.current = saved;
+        setDebateOverlapState(saved);
+      }
+    }).catch(() => {});
+  }, []);
 
   const fetchCrawl = async () => {
     try {
@@ -1789,6 +1809,24 @@ function DCRoyalTab({
             <Text style={{ color: "#fff", fontSize: 13, fontWeight: "900" as const, letterSpacing: 1 }}>DC ROYAL DEBATE</Text>
           </View>
           <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginBottom: 10 }}>Live timed debate between the winning analysts — they speak!</Text>
+          <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: "700" as const, letterSpacing: 1, marginBottom: 6 }}>CROSSTALK</Text>
+          <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
+            {(["none", "subtle", "chaotic"] as const).map(mode => {
+              const active = debateOverlap === mode;
+              const label = mode === "none" ? "POLITE" : mode === "subtle" ? "SUBTLE" : "CHAOTIC";
+              const sub = mode === "none" ? "no overlap" : mode === "subtle" ? "1s overlap" : "heavy overlap";
+              return (
+                <Pressable key={mode} onPress={() => setDebateOverlap(mode)}
+                  testID={`overlap-${mode}`}
+                  style={[dcStyles.standingsTab, { flex: 1, alignItems: "center" as const, paddingVertical: 8 },
+                    active && { backgroundColor: "rgba(212,164,32,0.2)", borderColor: Colors.gold }]}>
+                  <Text style={{ color: active ? Colors.gold : "rgba(255,255,255,0.5)", fontSize: 11, fontWeight: "900" as const, letterSpacing: 0.5 }}>{label}</Text>
+                  <Text style={{ color: active ? Colors.gold : "rgba(255,255,255,0.3)", fontSize: 9, marginTop: 2 }}>{sub}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: "700" as const, letterSpacing: 1, marginBottom: 6 }}>DURATION</Text>
           <View style={{ flexDirection: "row", gap: 8, marginBottom: 10 }}>
             {([5, 10, 15] as const).map(mins => (
               <Pressable key={mins} onPress={() => setDebateDuration(mins)}
