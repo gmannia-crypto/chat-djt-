@@ -1303,6 +1303,32 @@ export default function HomeScreen() {
                   <Text style={styles.arenaFeaturedCtaText}>TRY IT NOW FOR FREE</Text>
                 </LinearGradient>
               </View>
+              <Pressable
+                onPress={(e) => {
+                  e.stopPropagation();
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  router.push("/interview");
+                }}
+                style={({ pressed }) => [{
+                  marginTop: 10,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                  paddingVertical: 10,
+                  paddingHorizontal: 14,
+                  borderRadius: 12,
+                  backgroundColor: "rgba(255,215,0,0.12)",
+                  borderWidth: 1,
+                  borderColor: "#FFD700",
+                  opacity: pressed ? 0.8 : 1,
+                }]}
+                testID="home-interview-shortcut"
+              >
+                <Ionicons name="mic" size={14} color="#FFD700" />
+                <Text style={{ color: "#FFD700", fontSize: 12, fontWeight: "900", letterSpacing: 1 }}>NEW · 1-ON-1 INTERVIEWS</Text>
+                <Ionicons name="chevron-forward" size={14} color="#FFD700" />
+              </Pressable>
             </LinearGradient>
           </Pressable>
         </Animated.View>
