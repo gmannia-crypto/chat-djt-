@@ -104,8 +104,9 @@ export default function InterviewTranscriptScreen() {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
       if (Platform.OS === "web") {
-        const nav: any = typeof navigator !== "undefined" ? navigator : null;
-        if (nav?.share) {
+        const nav: (Navigator & { share?: (data: { text?: string; url?: string; title?: string }) => Promise<void> }) | undefined =
+          typeof navigator !== "undefined" ? navigator : undefined;
+        if (nav && typeof nav.share === "function") {
           await nav.share({ text, url: SHARE_URL });
           setShareMsg(null);
           return;
