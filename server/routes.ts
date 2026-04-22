@@ -3712,8 +3712,28 @@ Your personality quirks:
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )`);
     await initDb.query(`ALTER TABLE arena_access ADD COLUMN IF NOT EXISTS last_trial_at BIGINT`);
+    await initDb.query(`CREATE TABLE IF NOT EXISTS interview_history (
+      id TEXT PRIMARY KEY,
+      device_id TEXT NOT NULL,
+      interviewer_id TEXT NOT NULL,
+      interviewer_name TEXT NOT NULL,
+      interviewee_id TEXT NOT NULL,
+      interviewee_name TEXT NOT NULL,
+      duration_minutes INTEGER NOT NULL,
+      lie_count INTEGER NOT NULL DEFAULT 0,
+      message_count INTEGER NOT NULL DEFAULT 0,
+      messages JSONB NOT NULL,
+      lies JSONB NOT NULL,
+      emo_interviewer JSONB,
+      emo_interviewee JSONB,
+      topics JSONB,
+      started_at BIGINT NOT NULL,
+      ended_at BIGINT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )`);
+    await initDb.query(`CREATE INDEX IF NOT EXISTS interview_history_device_idx ON interview_history (device_id, ended_at DESC)`);
     await initDb.end();
-    console.log("Arena access table initialized");
+    console.log("Arena access + interview history tables initialized");
   } catch (e: any) {
     console.error("Failed to create arena_access table:", e.message);
   }
@@ -5453,6 +5473,130 @@ Return ONLY valid JSON: {"score": 0-100, "isLie": boolean (true if score<40), "r
     } catch (error: any) {
       console.error("Interview factcheck error:", error);
       res.status(500).json({ error: "Fact-check failed", score: 70, isLie: false, reason: "", fact: "" });
+    }
+  });
+
+  // Save a completed interview transcript so the user can re-read it later
+  app.post("/api/arena/interview-save", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const {
+        id, interviewerId, intervieweeId, durationMinutes,
+        messages, lies, emoInterviewer, emoInterviewee, topics,
+        startedAt, endedAt,
+      } = req.body || {};
+      if (!interviewerId || !intervieweeId) return res.status(400).json({ error: "personas required" });
+      if (!Array.isArray(messages) || messages.length === 0) return res.status(400).json({ error: "messages required" });
+      const interviewerName = ARENA_NAME_MAP[interviewerId] || interviewerId;
+      const intervieweeName = ARENA_NAME_MAP[intervieweeId] || intervieweeId;
+      const recordId = String(id || `iv-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`);
+      const safeMsgs = messages.slice(0, 1000);
+      const safeLies = Array.isArray(lies) ? lies.slice(0, 200) : [];
+      const safeTopics = Array.isArray(topics) ? topics.slice(0, 50) : [];
+      const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      try {
+        await db.query(
+          `INSERT INTO interview_history
+            (id, device_id, interviewer_id, interviewer_name, interviewee_id, interviewee_name,
+             duration_minutes, lie_count, message_count, messages, lies, emo_interviewer, emo_interviewee, topics,
+             started_at, ended_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+           ON CONFLICT (id) DO NOTHING`,
+          [
+            recordId, deviceId, interviewerId, interviewerName, intervieweeId, intervieweeName,
+            Number(durationMinutes) || 0,
+            safeLies.length, safeMsgs.length,
+            JSON.stringify(safeMsgs), JSON.stringify(safeLies),
+            emoInterviewer ? JSON.stringify(emoInterviewer) : null,
+            emoInterviewee ? JSON.stringify(emoInterviewee) : null,
+            JSON.stringify(safeTopics),
+            Number(startedAt) || Date.now(), Number(endedAt) || Date.now(),
+          ],
+        );
+        res.json({ ok: true, id: recordId });
+      } finally {
+        await db.end();
+      }
+    } catch (error: any) {
+      console.error("Interview save error:", error);
+      res.status(500).json({ error: "Failed to save interview" });
+    }
+  });
+
+  app.get("/api/arena/interview-history", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      try {
+        const result = await db.query(
+          `SELECT id, interviewer_id, interviewer_name, interviewee_id, interviewee_name,
+                  duration_minutes, lie_count, message_count, started_at, ended_at
+           FROM interview_history
+           WHERE device_id = $1
+           ORDER BY ended_at DESC
+           LIMIT 100`,
+          [deviceId],
+        );
+        const items = result.rows.map((r: any) => ({
+          id: r.id,
+          interviewerId: r.interviewer_id,
+          interviewerName: r.interviewer_name,
+          intervieweeId: r.interviewee_id,
+          intervieweeName: r.interviewee_name,
+          durationMinutes: r.duration_minutes,
+          lieCount: r.lie_count,
+          messageCount: r.message_count,
+          startedAt: Number(r.started_at),
+          endedAt: Number(r.ended_at),
+        }));
+        res.json({ items });
+      } finally {
+        await db.end();
+      }
+    } catch (error: any) {
+      console.error("Interview history error:", error);
+      res.status(500).json({ error: "Failed to load history" });
+    }
+  });
+
+  app.get("/api/arena/interview-history/:id", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const id = req.params.id;
+      const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      try {
+        const result = await db.query(
+          `SELECT * FROM interview_history WHERE id = $1 AND device_id = $2 LIMIT 1`,
+          [id, deviceId],
+        );
+        if (result.rows.length === 0) return res.status(404).json({ error: "Not found" });
+        const r: any = result.rows[0];
+        res.json({
+          id: r.id,
+          interviewerId: r.interviewer_id,
+          interviewerName: r.interviewer_name,
+          intervieweeId: r.interviewee_id,
+          intervieweeName: r.interviewee_name,
+          durationMinutes: r.duration_minutes,
+          lieCount: r.lie_count,
+          messageCount: r.message_count,
+          messages: r.messages || [],
+          lies: r.lies || [],
+          emoInterviewer: r.emo_interviewer || null,
+          emoInterviewee: r.emo_interviewee || null,
+          topics: r.topics || [],
+          startedAt: Number(r.started_at),
+          endedAt: Number(r.ended_at),
+        });
+      } finally {
+        await db.end();
+      }
+    } catch (error: any) {
+      console.error("Interview history detail error:", error);
+      res.status(500).json({ error: "Failed to load interview" });
     }
   });
 

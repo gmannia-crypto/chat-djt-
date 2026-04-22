@@ -171,7 +171,10 @@ export default function InterviewScreen() {
 
   const [secondsLeft, setSecondsLeft] = useState(0);
   const sessionEndsAtRef = useRef<number>(0);
+  const sessionStartedAtRef = useRef<number>(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const savedSessionRef = useRef(false);
+  const [savedSessionId, setSavedSessionId] = useState<string | null>(null);
 
   const runningRef = useRef(false);
   const isPausedRef = useRef(false);
@@ -704,6 +707,7 @@ export default function InterviewScreen() {
       return;
     }
 
+    sessionStartedAtRef.current = Date.now();
     sessionEndsAtRef.current = Date.now() + duration * 60 * 1000;
     setSecondsLeft(duration * 60);
     setMessages([]);
@@ -716,6 +720,8 @@ export default function InterviewScreen() {
     setLieCount(0);
     setLies([]);
     setLatestTruthScore(null);
+    savedSessionRef.current = false;
+    setSavedSessionId(null);
     ttsQueueRef.current = [];
     setPhase("live");
     runningRef.current = true;
@@ -739,6 +745,7 @@ export default function InterviewScreen() {
         setShowPaywall(false);
         await refreshBalance();
         // Auto-start
+        sessionStartedAtRef.current = Date.now();
         sessionEndsAtRef.current = Date.now() + duration * 60 * 1000;
         setSecondsLeft(duration * 60);
         setMessages([]);
@@ -751,6 +758,8 @@ export default function InterviewScreen() {
         setLieCount(0);
         setLies([]);
         setLatestTruthScore(null);
+        savedSessionRef.current = false;
+        setSavedSessionId(null);
         ttsQueueRef.current = [];
         setPhase("live");
         runningRef.current = true;
@@ -768,6 +777,50 @@ export default function InterviewScreen() {
     stopAllAudio();
     setPhase("ended");
   }, [stopAllAudio]);
+
+  // Persist transcript when an interview ends so viewers can re-read it
+  useEffect(() => {
+    if (phase !== "ended") return;
+    if (savedSessionRef.current) return;
+    if (!deviceId || !interviewerId || !intervieweeId) return;
+    const msgs = messagesRef.current;
+    if (!msgs || msgs.length === 0) return;
+    savedSessionRef.current = true;
+    const startedAt = sessionStartedAtRef.current || msgs[0]?.ts || Date.now();
+    const endedAt = Date.now();
+    const sessionId = `iv-${startedAt}-${Math.random().toString(36).slice(2, 9)}`;
+    const payload = {
+      id: sessionId,
+      interviewerId,
+      intervieweeId,
+      durationMinutes: duration,
+      messages: msgs,
+      lies,
+      emoInterviewer,
+      emoInterviewee,
+      topics,
+      startedAt,
+      endedAt,
+    };
+    fetch(new URL("/api/arena/interview-save", getApiUrl()).toString(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+      body: JSON.stringify(payload),
+    })
+      .then(async (r) => {
+        if (!r.ok) {
+          savedSessionRef.current = false;
+          return null;
+        }
+        return r.json();
+      })
+      .then((data: any) => {
+        if (data?.id) setSavedSessionId(data.id);
+      })
+      .catch(() => {
+        savedSessionRef.current = false;
+      });
+  }, [phase, deviceId, interviewerId, intervieweeId, duration, lies, emoInterviewer, emoInterviewee, topics]);
 
   const togglePause = useCallback(() => {
     const next = !isPausedRef.current;
@@ -883,6 +936,14 @@ export default function InterviewScreen() {
             <Text style={s.headerTitle}>1-ON-1 INTERVIEWS</Text>
             <Text style={s.headerSub}>Provocative · Live · Unscripted</Text>
           </View>
+          <Pressable
+            onPress={() => router.push("/interview-history")}
+            style={s.iconBtn}
+            testID="open-interview-history"
+            accessibilityLabel="Past Interviews"
+          >
+            <Ionicons name="time-outline" size={20} color="#FFD700" />
+          </Pressable>
           <ShareAppButton variant="icon" area="arena" />
         </View>
 
@@ -1173,10 +1234,18 @@ export default function InterviewScreen() {
       {phase === "ended" && (
         <Animated.View entering={FadeInDown.duration(300)} style={[s.endedBar, { paddingBottom: insets.bottom + webBottom + 12 }]}>
           <Text style={s.endedTitle}>INTERVIEW COMPLETE</Text>
-          <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
+          <View style={{ flexDirection: "row", gap: 8, marginTop: 8, flexWrap: "wrap", justifyContent: "center" }}>
             <Pressable onPress={() => setPhase("setup")} style={s.endedBtnSecondary}>
               <Ionicons name="arrow-back" size={14} color="#fff" />
               <Text style={{ color: "#fff", fontSize: 12, fontWeight: "800" }}>NEW BOOKING</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => router.push(savedSessionId ? `/interview-history/${savedSessionId}` : "/interview-history")}
+              style={s.endedBtnPrimary}
+              testID="view-transcript"
+            >
+              <Ionicons name="document-text-outline" size={14} color="#000" />
+              <Text style={{ color: "#000", fontSize: 12, fontWeight: "900" }}>VIEW TRANSCRIPT</Text>
             </Pressable>
             <ShareAppButton variant="pill" area="arena" />
           </View>
@@ -1350,6 +1419,7 @@ const s = StyleSheet.create({
   endedBar: { position: "absolute", left: 0, right: 0, bottom: 0, padding: 14, backgroundColor: "rgba(20,20,20,0.95)", borderTopWidth: 1, borderTopColor: "rgba(255,215,0,0.3)", alignItems: "center" },
   endedTitle: { color: "#FFD700", fontSize: 13, fontWeight: "900", letterSpacing: 1 },
   endedBtnSecondary: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 16, backgroundColor: "rgba(255,255,255,0.08)", borderWidth: 1, borderColor: "rgba(255,255,255,0.15)" },
+  endedBtnPrimary: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 16, backgroundColor: "#FFD700" },
 
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.75)", justifyContent: "flex-end" },
   topicsSheet: { backgroundColor: "#0F0F12", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 18, borderTopWidth: 1, borderColor: "rgba(255,215,0,0.2)" },
