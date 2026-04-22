@@ -291,6 +291,10 @@ export default function HomeScreen() {
   const [mysteryReady, setMysteryReady] = useState(false);
   const [mysteryPrize, setMysteryPrize] = useState<typeof MYSTERY_REWARDS[0] | null>(null);
   const [mysteryRevealing, setMysteryRevealing] = useState(false);
+  const [rfkUnlockVisible, setRfkUnlockVisible] = useState(false);
+  const wormWiggle = useSharedValue(0);
+  const syringePulse = useSharedValue(1);
+  const mahaGlow = useSharedValue(0.6);
   const [leaderboardData, setLeaderboardData] = useState<{ name: string; score: number; avatar: string; isYou?: boolean }[]>([]);
   const [fearGreed, setFearGreed] = useState<{ value: number; label: string; trumpComment: string } | null>(null);
   const [liveUsers, setLiveUsers] = useState(1247);
@@ -382,6 +386,22 @@ export default function HomeScreen() {
       true
     );
   }, []);
+
+  const wormStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: wormWiggle.value * 18 },
+      { rotate: `${wormWiggle.value * 14}deg` },
+    ],
+  }));
+
+  const syringeStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: syringePulse.value }, { rotate: "-32deg" }],
+  }));
+
+  const mahaBadgeStyle = useAnimatedStyle(() => ({
+    shadowOpacity: mahaGlow.value,
+    shadowRadius: 14 + mahaGlow.value * 10,
+  }));
 
   const pulseTherapyStyle = useAnimatedStyle(() => ({
     transform: [{ scale: pulseScale.value }],
@@ -838,11 +858,18 @@ export default function HomeScreen() {
           const newUnlocked = [...alreadyUnlocked, personaId];
           await AsyncStorage.setItem(ARENA_MYSTERY_UNLOCK_KEY, JSON.stringify(newUnlocked));
           const personaNames: Record<string, string> = { alexjones: "Alex Jones", obama: "Barack Obama", melania: "Melania Trump", schumer: "Chuck Schumer", odonnell: "Lawrence O'Donnell", kamala: "Kamala Harris", mtg: "Marjorie Taylor Greene", rfk: "Robert F. Kennedy Jr." };
-          setMysteryPrize({
-            ...prize,
-            label: `Persona Unlocked: ${personaNames[personaId] || personaId}`,
-            description: `${personaNames[personaId] || personaId} has joined the Political Arena! Head to the arena to debate them.`,
-          });
+          if (personaId === "rfk") {
+            wormWiggle.value = withRepeat(withSequence(withTiming(1, { duration: 380 }), withTiming(-1, { duration: 380 })), -1, true);
+            syringePulse.value = withRepeat(withSequence(withTiming(1.15, { duration: 520 }), withTiming(1, { duration: 520 })), -1, true);
+            mahaGlow.value = withRepeat(withSequence(withTiming(1, { duration: 700 }), withTiming(0.55, { duration: 700 })), -1, true);
+            setRfkUnlockVisible(true);
+          } else {
+            setMysteryPrize({
+              ...prize,
+              label: `Persona Unlocked: ${personaNames[personaId] || personaId}`,
+              description: `${personaNames[personaId] || personaId} has joined the Political Arena! Head to the arena to debate them.`,
+            });
+          }
         } else {
           const card = getRandomCard();
           const added = await addCard(card.id);
@@ -888,6 +915,14 @@ export default function HomeScreen() {
   function dismissMysteryPrize() {
     setMysteryPrize(null);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }
+
+  function dismissRfkUnlock() {
+    setRfkUnlockVisible(false);
+    wormWiggle.value = withTiming(0);
+    syringePulse.value = withTiming(1);
+    mahaGlow.value = withTiming(0.6);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   }
 
   async function fetchLeaderboard() {
@@ -2159,6 +2194,65 @@ export default function HomeScreen() {
               <Text style={styles.passcodeSubmitText}>Enter</Text>
             </Pressable>
           </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal
+        visible={rfkUnlockVisible}
+        animationType="fade"
+        transparent
+        onRequestClose={dismissRfkUnlock}
+      >
+        <Pressable style={styles.rfkOverlay} onPress={dismissRfkUnlock}>
+          <Animated.View
+            entering={FadeIn.duration(420)}
+            style={styles.rfkCard}
+          >
+           <Pressable onPress={() => {}}>
+            <LinearGradient
+              colors={["#0a3d1f", "#1f6b3a", "#3d2914"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.rfkGradient}
+            >
+              <Animated.View style={[styles.rfkBadge, mahaBadgeStyle]}>
+                <Text style={styles.rfkBadgeText}>MAHA</Text>
+              </Animated.View>
+
+              <Text style={styles.rfkOverline}>MAKE AMERICA HEALTHY AGAIN</Text>
+              <Text style={styles.rfkTitle}>RFK JR. UNLOCKED</Text>
+
+              <View style={styles.rfkIconRow}>
+                <Animated.View style={[styles.rfkSyringeWrap, syringeStyle]}>
+                  <MaterialCommunityIcons name="needle" size={64} color="#f4e9c1" />
+                  <View style={styles.rfkSyringeXBadge}>
+                    <Ionicons name="close" size={28} color="#fff" />
+                  </View>
+                </Animated.View>
+
+                <Animated.View style={[styles.rfkWormWrap, wormStyle]}>
+                  <Text style={styles.rfkWormEmoji}>{"\uD83E\uDEB1"}</Text>
+                </Animated.View>
+
+                <View style={styles.rfkLeafWrap}>
+                  <MaterialCommunityIcons name="leaf" size={56} color="#7ed957" />
+                </View>
+              </View>
+
+              <Text style={styles.rfkQuote}>
+                {"\u201C"}A worm ate part of my brain{"\u201D"}
+              </Text>
+              <Text style={styles.rfkDesc}>
+                Robert F. Kennedy Jr. has joined the Political Arena. Debate
+                vaccines, raw milk, and the deep state — if you dare.
+              </Text>
+
+              <Pressable onPress={dismissRfkUnlock} style={styles.rfkDismiss}>
+                <Text style={styles.rfkDismissText}>ENTER THE ARENA</Text>
+              </Pressable>
+            </LinearGradient>
+           </Pressable>
+          </Animated.View>
         </Pressable>
       </Modal>
 
@@ -3517,6 +3611,132 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "rgba(10,10,10,0.5)",
     fontWeight: "600" as const,
+  },
+  rfkOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.85)",
+    justifyContent: "center" as const,
+    alignItems: "center" as const,
+    padding: 20,
+  },
+  rfkCard: {
+    width: "100%",
+    maxWidth: 380,
+    borderRadius: 24,
+    overflow: "hidden" as const,
+    borderWidth: 2,
+    borderColor: "#7ed957",
+  },
+  rfkGradient: {
+    padding: 24,
+    alignItems: "center" as const,
+  },
+  rfkBadge: {
+    backgroundColor: "#f4e9c1",
+    borderRadius: 999,
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    marginBottom: 14,
+    shadowColor: "#7ed957",
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 10,
+    borderWidth: 2,
+    borderColor: "#3d2914",
+  },
+  rfkBadgeText: {
+    fontSize: 22,
+    fontWeight: "900" as const,
+    color: "#0a3d1f",
+    letterSpacing: 4,
+  },
+  rfkOverline: {
+    fontSize: 11,
+    fontWeight: "800" as const,
+    color: "#7ed957",
+    letterSpacing: 2.5,
+    marginBottom: 6,
+    textAlign: "center" as const,
+  },
+  rfkTitle: {
+    fontSize: 26,
+    fontWeight: "900" as const,
+    color: "#fff",
+    letterSpacing: 1.5,
+    textAlign: "center" as const,
+    marginBottom: 18,
+  },
+  rfkIconRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    gap: 14,
+    marginVertical: 14,
+    height: 84,
+  },
+  rfkSyringeWrap: {
+    position: "relative" as const,
+    width: 80,
+    height: 80,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+  },
+  rfkSyringeXBadge: {
+    position: "absolute" as const,
+    top: 6,
+    right: 2,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#c0392b",
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    borderWidth: 2,
+    borderColor: "#fff",
+  },
+  rfkWormWrap: {
+    width: 64,
+    height: 64,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+  },
+  rfkWormEmoji: {
+    fontSize: 52,
+  },
+  rfkLeafWrap: {
+    width: 64,
+    height: 64,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+  },
+  rfkQuote: {
+    fontSize: 14,
+    color: "#f4e9c1",
+    fontStyle: "italic" as const,
+    textAlign: "center" as const,
+    marginTop: 8,
+    marginBottom: 6,
+  },
+  rfkDesc: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.85)",
+    textAlign: "center" as const,
+    lineHeight: 18,
+    marginBottom: 18,
+    paddingHorizontal: 6,
+  },
+  rfkDismiss: {
+    backgroundColor: "#0a3d1f",
+    borderRadius: 999,
+    paddingHorizontal: 28,
+    paddingVertical: 12,
+    borderWidth: 2,
+    borderColor: "#7ed957",
+  },
+  rfkDismissText: {
+    fontSize: 13,
+    fontWeight: "800" as const,
+    color: "#7ed957",
+    letterSpacing: 1.8,
   },
   electionCard: {
     marginTop: 12,
