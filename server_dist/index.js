@@ -4519,8 +4519,10 @@ Generate 12 debate topics as a JSON array.` }
     };
     return emotions[personaId] || "React to these headlines based on your genuine political beliefs and personality. Show real emotion \u2014 anger, joy, disgust, triumph, whatever you truly feel.";
   }
-  const ARENA_FREE_LIMIT = 5;
+  const ARENA_FREE_LIMIT = 15;
   const ARENA_FREE_TRIAL_DURATION = 2 * 60 * 1e3;
+  const ARENA_DAILY_TRIAL_MS = 2 * 60 * 1e3;
+  const ARENA_DAILY_TRIAL_COOLDOWN = 24 * 60 * 60 * 1e3;
   const ARENA_SESSION_DURATIONS = {
     5: { ms: 5 * 60 * 1e3, cost: 5 },
     10: { ms: 10 * 60 * 1e3, cost: 10 },
@@ -4537,6 +4539,7 @@ Generate 12 debate topics as a JSON array.` }
       free_trial_expiry BIGINT,
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )`);
+    await initDb.query(`ALTER TABLE arena_access ADD COLUMN IF NOT EXISTS last_trial_at BIGINT`);
     await initDb.end();
     console.log("Arena access table initialized");
   } catch (e) {
@@ -4545,13 +4548,14 @@ Generate 12 debate topics as a JSON array.` }
   async function getArenaAccess(deviceId) {
     const db = new Pool5({ connectionString: process.env.DATABASE_URL, max: 2 });
     try {
-      const result = await db.query(`SELECT free_used, session_expiry, free_trial_expiry FROM arena_access WHERE device_id = $1`, [deviceId]);
+      const result = await db.query(`SELECT free_used, session_expiry, free_trial_expiry, last_trial_at FROM arena_access WHERE device_id = $1`, [deviceId]);
       if (result.rows.length > 0) {
         const row = result.rows[0];
         return {
           freeUsed: parseInt(row.free_used) || 0,
           sessionExpiry: row.session_expiry ? parseInt(row.session_expiry) : null,
-          freeTrialExpiry: row.free_trial_expiry ? parseInt(row.free_trial_expiry) : null
+          freeTrialExpiry: row.free_trial_expiry ? parseInt(row.free_trial_expiry) : null,
+          lastTrialAt: row.last_trial_at ? parseInt(row.last_trial_at) : null
         };
       }
     } catch (e) {
@@ -4559,17 +4563,17 @@ Generate 12 debate topics as a JSON array.` }
     } finally {
       await db.end();
     }
-    return { freeUsed: 0, sessionExpiry: null, freeTrialExpiry: null };
+    return { freeUsed: 0, sessionExpiry: null, freeTrialExpiry: null, lastTrialAt: null };
   }
   async function setArenaAccess(deviceId, access) {
     const db = new Pool5({ connectionString: process.env.DATABASE_URL, max: 2 });
     try {
       await db.query(
-        `INSERT INTO arena_access (device_id, free_used, session_expiry, free_trial_expiry, updated_at)
-         VALUES ($1, $2, $3, $4, NOW())
+        `INSERT INTO arena_access (device_id, free_used, session_expiry, free_trial_expiry, last_trial_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, NOW())
          ON CONFLICT (device_id) DO UPDATE SET
-           free_used = $2, session_expiry = $3, free_trial_expiry = $4, updated_at = NOW()`,
-        [deviceId, access.freeUsed, access.sessionExpiry, access.freeTrialExpiry]
+           free_used = $2, session_expiry = $3, free_trial_expiry = $4, last_trial_at = COALESCE($5, arena_access.last_trial_at), updated_at = NOW()`,
+        [deviceId, access.freeUsed, access.sessionExpiry, access.freeTrialExpiry, access.lastTrialAt ?? null]
       );
     } catch (e) {
       console.error("setArenaAccess error:", e.message);
@@ -4706,12 +4710,14 @@ Generate 12 debate topics as a JSON array.` }
   });
   app2.get("/api/arena/status", async (req, res) => {
     const deviceId = req.headers["x-device-id"];
-    if (!deviceId) return res.json({ freeRemaining: ARENA_FREE_LIMIT, hasSession: false, hasFreeTrial: true, isNewUser: true });
+    if (!deviceId) return res.json({ freeRemaining: ARENA_FREE_LIMIT, hasSession: false, hasFreeTrial: true, isNewUser: true, dailyTrialAvailable: true });
     const access = await getArenaAccess(deviceId);
-    const hasSession = !!(access.sessionExpiry && Date.now() < access.sessionExpiry);
-    const hasFreeTrial = !!(access.freeTrialExpiry && Date.now() < access.freeTrialExpiry);
+    const now = Date.now();
+    const hasSession = !!(access.sessionExpiry && now < access.sessionExpiry);
+    const hasFreeTrial = !!(access.freeTrialExpiry && now < access.freeTrialExpiry);
     const isNewUser = access.freeUsed === 0;
     const freeRemaining = Math.max(0, ARENA_FREE_LIMIT - access.freeUsed);
+    const dailyTrialAvailable = !access.lastTrialAt || now - access.lastTrialAt >= ARENA_DAILY_TRIAL_COOLDOWN;
     res.json({
       freeRemaining,
       freeUsed: access.freeUsed,
@@ -4720,12 +4726,35 @@ Generate 12 debate topics as a JSON array.` }
       freeTrialExpiresAt: hasFreeTrial ? access.freeTrialExpiry : null,
       sessionExpiresAt: hasSession ? access.sessionExpiry : null,
       sessionCost: ARENA_SESSION_COST,
+      dailyTrialAvailable,
+      dailyTrialMinutes: Math.round(ARENA_DAILY_TRIAL_MS / 6e4),
       durations: [
         { minutes: 5, cost: 5 },
         { minutes: 10, cost: 10 },
         { minutes: 15, cost: 15 }
       ]
     });
+  });
+  app2.post("/api/arena/free-trial", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"];
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const access = await getArenaAccess(deviceId);
+      const now = Date.now();
+      if (access.sessionExpiry && now < access.sessionExpiry) {
+        return res.json({ granted: true, expiresAt: access.sessionExpiry, alreadyActive: true });
+      }
+      if (access.lastTrialAt && now - access.lastTrialAt < ARENA_DAILY_TRIAL_COOLDOWN) {
+        const nextAvailable = access.lastTrialAt + ARENA_DAILY_TRIAL_COOLDOWN;
+        return res.status(403).json({ error: "trial_cooldown", nextAvailableAt: nextAvailable });
+      }
+      const expiry = now + ARENA_DAILY_TRIAL_MS;
+      await setArenaAccess(deviceId, { ...access, sessionExpiry: expiry, lastTrialAt: now });
+      res.json({ granted: true, expiresAt: expiry, durationMinutes: Math.round(ARENA_DAILY_TRIAL_MS / 6e4) });
+    } catch (error) {
+      console.error("Arena free-trial error:", error);
+      res.status(500).json({ error: "Failed to grant free trial" });
+    }
   });
   app2.post("/api/arena/vote", async (req, res) => {
     try {
@@ -5870,6 +5899,251 @@ You are now directly addressing a viewer named ${userContext.name || "someone"} 
     } catch (error) {
       console.error("Arena respond error:", error);
       res.status(500).json({ error: "Failed to generate response" });
+    }
+  });
+  const INTERVIEWER_IDS = ["maddow", "joyreid", "megynkelly", "candace", "odonnell", "alexjones", "galloway", "carville"];
+  const INTERVIEWEE_IDS = ["trump", "biden", "netanyahu", "mcconnell", "omar", "rosie", "berniemc", "elon", "graham", "pambondi", "jimjordan", "schumer", "obama", "melania", "kamala", "mtg", "rfk", "ruckus", "miller"];
+  app2.get("/api/arena/interview-personas", (_req, res) => {
+    const interviewers = INTERVIEWER_IDS.filter((id) => ARENA_PERSONA_PROMPTS[id]).map((id) => ({
+      id,
+      name: ARENA_NAME_MAP[id] || id
+    }));
+    const interviewees = INTERVIEWEE_IDS.filter((id) => ARENA_PERSONA_PROMPTS[id]).map((id) => ({
+      id,
+      name: ARENA_NAME_MAP[id] || id
+    }));
+    res.json({ interviewers, interviewees });
+  });
+  app2.post("/api/arena/interview-topics", async (req, res) => {
+    try {
+      const { interviewerId, intervieweeId, topicMix = "mixed", durationMinutes = 10 } = req.body || {};
+      if (!interviewerId || !intervieweeId) return res.status(400).json({ error: "interviewerId and intervieweeId required" });
+      if (!ARENA_PERSONA_PROMPTS[interviewerId] || !ARENA_PERSONA_PROMPTS[intervieweeId]) {
+        return res.status(400).json({ error: "Invalid persona ids" });
+      }
+      const interviewerName = ARENA_NAME_MAP[interviewerId] || interviewerId;
+      const intervieweeName = ARENA_NAME_MAP[intervieweeId] || intervieweeId;
+      const topicCount = durationMinutes <= 5 ? 4 : durationMinutes <= 10 ? 6 : 8;
+      const newsContext = await getArenaNewsContext().catch(() => "");
+      const todayStr = (/* @__PURE__ */ new Date()).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+      const eraDirective = topicMix === "current" ? "ALL topics must be drawn from CURRENT 2026 news headlines and live political flashpoints happening right now." : topicMix === "past" ? "ALL topics must be drawn from PAST controversies, scandals, embarrassing moments, or historic decisions involving the interviewee." : "Mix half topics from CURRENT 2026 headlines and half from PAST scandals, controversies, or career-defining decisions involving the interviewee.";
+      const systemPrompt = `You are a sharp, ruthless booking producer setting up a televised 1-on-1 interview between ${interviewerName} (the interviewer) and ${intervieweeName} (the guest). Today is ${todayStr}.
+
+Generate exactly ${topicCount} interview topics that ${interviewerName} would absolutely grill ${intervieweeName} about \u2014 based on their political beliefs, history, public clashes, and the actual headlines below.
+
+${eraDirective}
+
+Each topic must be:
+- Provocative and engaging \u2014 designed to make the guest squirm or fire back
+- Specific (not vague). Reference real events, real names, real dates, real claims.
+- Tailored to the unique tension between THIS interviewer and THIS guest.
+
+LIVE HEADLINES (use these for "current" topics):
+${newsContext || "No live headlines available \u2014 rely on general knowledge of 2026 events."}
+
+Return ONLY valid JSON in this exact shape:
+{"topics":[{"title":"Short punchy headline","description":"1-sentence framing of the angle the interviewer takes","era":"current"}]}
+Use "era":"current" for today's news, "era":"past" for old controversies. Do not include any text outside the JSON.`;
+      const completion = await getClient().chat.completions.create({
+        model: getFastModel(),
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: `Generate the ${topicCount} interview topics now as JSON.` }
+        ],
+        max_completion_tokens: 700,
+        temperature: 0.85,
+        response_format: { type: "json_object" }
+      });
+      const raw = completion.choices[0]?.message?.content || "{}";
+      let parsed = {};
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        parsed = {};
+      }
+      let topics = Array.isArray(parsed.topics) ? parsed.topics : [];
+      topics = topics.slice(0, topicCount).map((t, i) => ({
+        id: `interview-topic-${Date.now()}-${i}`,
+        title: String(t.title || `Topic ${i + 1}`).slice(0, 120),
+        description: String(t.description || "").slice(0, 240),
+        era: t.era === "past" ? "past" : "current"
+      }));
+      if (topics.length === 0) {
+        topics = Array.from({ length: topicCount }).map((_, i) => ({
+          id: `interview-topic-${Date.now()}-${i}`,
+          title: `Topic ${i + 1}`,
+          description: `${interviewerName} questions ${intervieweeName}.`,
+          era: "current"
+        }));
+      }
+      res.json({ topics, interviewerName, intervieweeName });
+    } catch (error) {
+      console.error("Interview topics error:", error);
+      res.status(500).json({ error: "Failed to generate topics" });
+    }
+  });
+  async function checkInterviewAccess(deviceId, consume) {
+    const access = await getArenaAccess(deviceId);
+    const hasActiveSession = access.sessionExpiry && Date.now() < access.sessionExpiry;
+    if (!hasActiveSession && access.freeUsed >= ARENA_FREE_LIMIT) {
+      return { ok: false, reason: "arena_locked", access };
+    }
+    if (!hasActiveSession && consume) {
+      if (access.freeUsed === 0) access.freeTrialExpiry = Date.now() + ARENA_FREE_TRIAL_DURATION;
+      access.freeUsed = (access.freeUsed || 0) + 1;
+      await setArenaAccess(deviceId, access);
+    }
+    return { ok: true, access };
+  }
+  app2.post("/api/arena/interview-question", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"];
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const { interviewerId, intervieweeId, topic, conversationHistory = [], isFollowUp = false, isTransition = false, previousTopicTitle, isInterruption = false } = req.body || {};
+      if (!interviewerId || !ARENA_PERSONA_PROMPTS[interviewerId]) return res.status(400).json({ error: "Invalid interviewerId" });
+      if (!intervieweeId || !ARENA_PERSONA_PROMPTS[intervieweeId]) return res.status(400).json({ error: "Invalid intervieweeId" });
+      const accessCheck = await checkInterviewAccess(deviceId, !isInterruption);
+      if (!accessCheck.ok) {
+        return res.status(403).json({ error: accessCheck.reason || "arena_locked", freeRemaining: 0, sessionCost: ARENA_SESSION_COST });
+      }
+      const interviewerName = ARENA_NAME_MAP[interviewerId] || interviewerId;
+      const intervieweeName = ARENA_NAME_MAP[intervieweeId] || intervieweeId;
+      const todayStr = (/* @__PURE__ */ new Date()).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+      const newsContext = await getArenaNewsContext().catch(() => "");
+      const interviewerStyle = `You are ${interviewerName} hosting a high-stakes 1-on-1 interview with ${intervieweeName}. Today is ${todayStr}. Stay 100% in character \u2014 your tone, vocabulary, ideology, and aggression level are all who you are. ${ARENA_PERSONA_PROMPTS[interviewerId]}`;
+      const historyContext = (conversationHistory || []).slice(-6).map(
+        (m) => `${m.speakerName}: "${m.text}"`
+      ).join("\n");
+      let userPrompt = "";
+      if (isInterruption) {
+        userPrompt = `${intervieweeName} is mid-answer and dodging or rambling. CUT THEM OFF with one short sharp interjection. MAXIMUM 1 sentence under 12 words. No long speeches.
+
+Recent exchange:
+${historyContext}`;
+      } else if (isTransition && topic) {
+        userPrompt = `You are TRANSITIONING from "${previousTopicTitle || "the last topic"}" to a new topic: "${topic.title}" \u2014 ${topic.description}
+
+Recent exchange:
+${historyContext}
+
+Do a quick pivot ("Let's move on...", "I want to ask you about...", "Speaking of which..."), then ask your FIRST hard question on the new topic. 1-2 sentences max.`;
+      } else if (isFollowUp && topic) {
+        userPrompt = `Topic: "${topic.title}" \u2014 ${topic.description}
+
+Recent exchange:
+${historyContext}
+
+${intervieweeName} just answered. Ask a SHARP follow-up that pushes back on their answer, exposes a contradiction, or demands specifics. 1-2 sentences max. No preamble.`;
+      } else if (topic) {
+        userPrompt = `Topic: "${topic.title}" \u2014 ${topic.description}
+
+Open this topic with your FIRST hard question to ${intervieweeName}. Be provocative \u2014 set the tone. 1-2 sentences max. No greeting if there is already conversation history.
+
+Recent exchange:
+${historyContext}`;
+      } else {
+        userPrompt = `Open the interview by greeting ${intervieweeName} and warning them this won't be soft. 1-2 sentences max.`;
+      }
+      if (newsContext && (topic?.era === "current" || isTransition)) {
+        userPrompt += `
+
+LIVE HEADLINES you can reference:
+${newsContext}`;
+      }
+      userPrompt += `
+
+Write ONLY your spoken question \u2014 no quotes, no stage directions, no asterisks.`;
+      const completion = await getClient().chat.completions.create({
+        model: getFastModel(),
+        messages: [
+          { role: "system", content: interviewerStyle },
+          { role: "user", content: userPrompt }
+        ],
+        max_completion_tokens: isInterruption ? 40 : 130,
+        temperature: 0.9
+      });
+      let text = completion.choices[0]?.message?.content || "...";
+      text = text.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim();
+      res.json({
+        text,
+        speakerId: interviewerId,
+        speakerName: interviewerName,
+        freeRemaining: Math.max(0, ARENA_FREE_LIMIT - (accessCheck.access?.freeUsed || 0)),
+        hasSession: !!(accessCheck.access?.sessionExpiry && Date.now() < accessCheck.access.sessionExpiry),
+        sessionExpiresAt: accessCheck.access?.sessionExpiry || null
+      });
+    } catch (error) {
+      console.error("Interview question error:", error);
+      res.status(500).json({ error: "Failed to generate question" });
+    }
+  });
+  app2.post("/api/arena/interview-answer", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"];
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const { interviewerId, intervieweeId, topic, conversationHistory = [], lastQuestion, wasInterrupted = false, interruptionText, isInterruption = false } = req.body || {};
+      if (!interviewerId || !ARENA_PERSONA_PROMPTS[interviewerId]) return res.status(400).json({ error: "Invalid interviewerId" });
+      if (!intervieweeId || !ARENA_PERSONA_PROMPTS[intervieweeId]) return res.status(400).json({ error: "Invalid intervieweeId" });
+      const accessCheck = await checkInterviewAccess(deviceId, false);
+      if (!accessCheck.ok) {
+        return res.status(403).json({ error: accessCheck.reason || "arena_locked", freeRemaining: 0, sessionCost: ARENA_SESSION_COST });
+      }
+      const interviewerName = ARENA_NAME_MAP[interviewerId] || interviewerId;
+      const intervieweeName = ARENA_NAME_MAP[intervieweeId] || intervieweeId;
+      const todayStr = (/* @__PURE__ */ new Date()).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+      const intervieweeStyle = `You are ${intervieweeName} being grilled in a high-stakes 1-on-1 interview by ${interviewerName}. Today is ${todayStr}. Stay 100% in character \u2014 your tone, vocabulary, ideology, and combativeness are all who you are. ${ARENA_PERSONA_PROMPTS[intervieweeId]}`;
+      const historyContext = (conversationHistory || []).slice(-6).map(
+        (m) => `${m.speakerName}: "${m.text}"`
+      ).join("\n");
+      let userPrompt = "";
+      if (isInterruption) {
+        userPrompt = `${interviewerName} is asking a leading question. CUT IN with a fast pushback or correction. MAXIMUM 1 sentence under 12 words. No speeches.
+
+Recent exchange:
+${historyContext}`;
+      } else {
+        userPrompt = `Topic: ${topic?.title ? `"${topic.title}" \u2014 ${topic.description || ""}` : "the interview"}
+
+Recent exchange:
+${historyContext}
+
+${interviewerName} just asked you: "${lastQuestion || "..."}"
+
+Answer in character \u2014 punchy, provocative, true to your beliefs. Push back if you disagree. 2-3 sentences max.`;
+        if (wasInterrupted && interruptionText) {
+          userPrompt += `
+
+You were just interrupted with: "${interruptionText}". Address the interruption first, then continue.`;
+        }
+      }
+      userPrompt += `
+
+Write ONLY your spoken response \u2014 no quotes, no stage directions, no asterisks.`;
+      const completion = await getClient().chat.completions.create({
+        model: getFastModel(),
+        messages: [
+          { role: "system", content: intervieweeStyle },
+          { role: "user", content: userPrompt }
+        ],
+        max_completion_tokens: isInterruption ? 40 : 160,
+        temperature: 0.9
+      });
+      let text = completion.choices[0]?.message?.content || "...";
+      text = text.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim();
+      if (intervieweeId === "trump" || intervieweeId === "ruckus" || intervieweeId === "graham" || intervieweeId === "megynkelly" || intervieweeId === "pambondi") {
+        text = text.replace(/(?:the\s+)?epstein\s+war/gi, "the Iran war");
+      }
+      res.json({
+        text,
+        speakerId: intervieweeId,
+        speakerName: intervieweeName,
+        freeRemaining: Math.max(0, ARENA_FREE_LIMIT - (accessCheck.access?.freeUsed || 0)),
+        hasSession: !!(accessCheck.access?.sessionExpiry && Date.now() < accessCheck.access.sessionExpiry),
+        sessionExpiresAt: accessCheck.access?.sessionExpiry || null
+      });
+    } catch (error) {
+      console.error("Interview answer error:", error);
+      res.status(500).json({ error: "Failed to generate answer" });
     }
   });
   app2.get("/api/tokens/balance", async (req, res) => {
