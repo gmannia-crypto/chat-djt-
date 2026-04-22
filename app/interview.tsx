@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   View, Text, Pressable, ScrollView, StyleSheet, Modal, ActivityIndicator,
-  Platform, Image, FlatList, TextInput, KeyboardAvoidingView,
+  Platform, Image, FlatList, TextInput, KeyboardAvoidingView, Alert,
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -63,6 +63,7 @@ const PERSONA_PORTRAITS: Record<string, any> = {
 
 const FX_KEY = "interview_fx_enabled_v1";
 const VOICE_KEY = "interview_voice_enabled_v1";
+const BEEP_KEY = "interview_beep_enabled_v1";
 const NAME_KEY = "interview_caller_name_v1";
 
 // Lightweight emotion delta from text heuristics
@@ -186,6 +187,8 @@ export default function InterviewScreen() {
   const voiceEnabledRef = useRef(true);
   const [fxEnabled, setFxEnabled] = useState(true);
   const fxEnabledRef = useRef(true);
+  const [beepEnabled, setBeepEnabled] = useState(true);
+  const beepEnabledRef = useRef(true);
   const [activeSpeaker, setActiveSpeaker] = useState<string | null>(null);
   const activeSpeakerRef = useRef<string | null>(null);
   const ttsQueueRef = useRef<Array<{ text: string; personaId: string }>>([]);
@@ -198,9 +201,16 @@ export default function InterviewScreen() {
   const [lieCount, setLieCount] = useState(0);
   const [lies, setLies] = useState<LieEntry[]>([]);
   const [liesSheetOpen, setLiesSheetOpen] = useState(false);
+  const [latestTruthScore, setLatestTruthScore] = useState<number | null>(null);
   const flashOpacity = useSharedValue(0);
   const glowPulse = useSharedValue(0);
 
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+  useEffect(() => () => {
+    try { recognitionRef.current?.stop?.(); } catch {}
+    recognitionRef.current = null;
+  }, []);
   const [callerName, setCallerName] = useState("");
   const [callinText, setCallinText] = useState("");
   const [isCallinSending, setIsCallinSending] = useState(false);
@@ -210,11 +220,12 @@ export default function InterviewScreen() {
   useEffect(() => {
     (async () => {
       try {
-        const [fx, vc, nm] = await Promise.all([
-          AsyncStorage.getItem(FX_KEY), AsyncStorage.getItem(VOICE_KEY), AsyncStorage.getItem(NAME_KEY),
+        const [fx, vc, bp, nm] = await Promise.all([
+          AsyncStorage.getItem(FX_KEY), AsyncStorage.getItem(VOICE_KEY), AsyncStorage.getItem(BEEP_KEY), AsyncStorage.getItem(NAME_KEY),
         ]);
         if (fx !== null) { const v = fx === "1"; setFxEnabled(v); fxEnabledRef.current = v; }
         if (vc !== null) { const v = vc === "1"; setVoiceEnabled(v); voiceEnabledRef.current = v; }
+        if (bp !== null) { const v = bp === "1"; setBeepEnabled(v); beepEnabledRef.current = v; }
         if (nm) setCallerName(nm);
       } catch {}
     })();
@@ -240,6 +251,50 @@ export default function InterviewScreen() {
     fxEnabledRef.current = next;
     setFxEnabled(next);
     AsyncStorage.setItem(FX_KEY, next ? "1" : "0").catch(() => {});
+  }, []);
+  const toggleMic = useCallback(() => {
+    if (Platform.OS !== "web") {
+      Alert.alert("Voice input", "Voice input is only available on the web version. Type your question to call in.");
+      return;
+    }
+    const w: any = typeof window !== "undefined" ? window : null;
+    const SR = w && (w.SpeechRecognition || w.webkitSpeechRecognition);
+    if (!SR) {
+      Alert.alert("Voice input not supported", "Your browser doesn't support speech recognition. Try Chrome or Safari.");
+      return;
+    }
+    if (recognitionRef.current && isListening) {
+      try { recognitionRef.current.stop(); } catch {}
+      recognitionRef.current = null;
+      setIsListening(false);
+      return;
+    }
+    try {
+      const rec = new SR();
+      rec.lang = "en-US";
+      rec.interimResults = true;
+      rec.continuous = false;
+      rec.onresult = (e: any) => {
+        let txt = "";
+        for (let i = 0; i < e.results.length; i++) txt += e.results[i][0].transcript;
+        setCallinText(txt.trim().slice(0, 240));
+      };
+      rec.onerror = () => { setIsListening(false); recognitionRef.current = null; };
+      rec.onend = () => { setIsListening(false); recognitionRef.current = null; };
+      recognitionRef.current = rec;
+      setIsListening(true);
+      rec.start();
+    } catch {
+      setIsListening(false);
+      recognitionRef.current = null;
+    }
+  }, [isListening]);
+
+  const toggleBeep = useCallback(() => {
+    const next = !beepEnabledRef.current;
+    beepEnabledRef.current = next;
+    setBeepEnabled(next);
+    AsyncStorage.setItem(BEEP_KEY, next ? "1" : "0").catch(() => {});
   }, []);
 
   // ── TTS queue (sequential, single sound at a time) ───────────────────────
@@ -326,12 +381,16 @@ export default function InterviewScreen() {
       withTiming(0.7, { duration: 70 }),
       withTiming(0.0, { duration: 200 }),
     );
+  }, [flashOpacity]);
+
+  const playLieAlert = useCallback(() => {
+    if (!beepEnabledRef.current) return;
     if (Platform.OS === "web") {
       playLieBeep();
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
     }
-  }, [flashOpacity]);
+  }, []);
 
   // Fire-and-forget fact-check on each non-trivial interviewee statement
   const runFactCheck = useCallback((msg: Msg) => {
@@ -347,6 +406,7 @@ export default function InterviewScreen() {
       .then((data: any) => {
         if (!data) return;
         const score = Math.max(0, Math.min(100, Number(data.score) || 70));
+        setLatestTruthScore(score);
         if (score < 40 || data.isLie) {
           setLieCount((c) => c + 1);
           setLies((prev) => [...prev, {
@@ -360,10 +420,11 @@ export default function InterviewScreen() {
             ts: Date.now(),
           }]);
           triggerLightning();
+          playLieAlert();
         }
       })
       .catch(() => {});
-  }, [intervieweeId, deviceId, triggerLightning]);
+  }, [intervieweeId, deviceId, triggerLightning, playLieAlert]);
 
   // Wrap addMessage to also drive emotions, TTS, fact-check
   const enrichAndAddMessage = useCallback((m: Msg) => {
@@ -643,6 +704,7 @@ export default function InterviewScreen() {
     setEmoInterviewee(ZERO_EMO);
     setLieCount(0);
     setLies([]);
+    setLatestTruthScore(null);
     ttsQueueRef.current = [];
     setPhase("live");
     runningRef.current = true;
@@ -677,6 +739,7 @@ export default function InterviewScreen() {
         setEmoInterviewee(ZERO_EMO);
         setLieCount(0);
         setLies([]);
+        setLatestTruthScore(null);
         ttsQueueRef.current = [];
         setPhase("live");
         runningRef.current = true;
@@ -941,6 +1004,19 @@ export default function InterviewScreen() {
             <Text style={s.liveText}>LIVE · {mmss(secondsLeft)}</Text>
           </View>
         </View>
+        {latestTruthScore !== null && (
+          <View style={s.truthMeter} testID="truth-meter">
+            <Text style={[s.truthLabel, { color: latestTruthScore < 40 ? "#ff4d4d" : latestTruthScore < 70 ? "#facc15" : "#4ADE80" }]}>
+              {latestTruthScore}
+            </Text>
+            <View style={s.truthTrack}>
+              <View style={[s.truthFill, {
+                width: `${latestTruthScore}%`,
+                backgroundColor: latestTruthScore < 40 ? "#ff4d4d" : latestTruthScore < 70 ? "#facc15" : "#4ADE80",
+              }]} />
+            </View>
+          </View>
+        )}
         <Pressable onPress={() => setLiesSheetOpen(true)} style={[s.liePill, lieCount > 0 && s.liePillActive]} testID="lie-counter">
           <Ionicons name="flash" size={12} color={lieCount > 0 ? "#ff4d4d" : "rgba(255,255,255,0.4)"} />
           <Text style={[s.liePillText, lieCount > 0 && { color: "#ff4d4d" }]}>{lieCount}</Text>
@@ -950,6 +1026,9 @@ export default function InterviewScreen() {
         </Pressable>
         <Pressable onPress={toggleFx} style={s.iconBtnSm} testID="toggle-fx">
           <Ionicons name={fxEnabled ? "flash" : "flash-off"} size={16} color={fxEnabled ? "#FFD700" : "rgba(255,255,255,0.4)"} />
+        </Pressable>
+        <Pressable onPress={toggleBeep} style={s.iconBtnSm} testID="toggle-beep">
+          <Ionicons name={beepEnabled ? "notifications" : "notifications-off"} size={16} color={beepEnabled ? "#FFD700" : "rgba(255,255,255,0.4)"} />
         </Pressable>
         <Pressable onPress={togglePause} style={s.iconBtnSm}>
           <Ionicons name={isPaused ? "play" : "pause"} size={16} color="#FFD700" />
@@ -1069,6 +1148,9 @@ export default function InterviewScreen() {
                 maxLength={240}
                 testID="callin-input"
               />
+              <Pressable onPress={toggleMic} style={[s.callinMic, isListening && s.callinMicActive]} testID="callin-mic">
+                <Ionicons name={isListening ? "mic" : "mic-outline"} size={18} color={isListening ? "#ff4d4d" : "#60a5fa"} />
+              </Pressable>
               <Pressable onPress={sendCallIn} disabled={!callinText.trim() || isCallinSending} style={[s.callinSend, (!callinText.trim() || isCallinSending) && { opacity: 0.4 }]} testID="callin-send">
                 {isCallinSending ? <ActivityIndicator size="small" color="#000" /> : <Ionicons name="send" size={16} color="#000" />}
               </Pressable>
@@ -1301,6 +1383,12 @@ const s = StyleSheet.create({
   callinInputRow: { flexDirection: "row", alignItems: "flex-end", gap: 8 },
   callinInput: { flex: 1, minHeight: 40, maxHeight: 100, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 18, color: "#fff", fontSize: 14, borderWidth: 1, borderColor: "rgba(255,255,255,0.12)" },
   callinSend: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#FFD700", alignItems: "center", justifyContent: "center" },
+  callinMic: { width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(96,165,250,0.12)", borderWidth: 1, borderColor: "rgba(96,165,250,0.35)", alignItems: "center", justifyContent: "center" },
+  callinMicActive: { backgroundColor: "rgba(255,77,77,0.18)", borderColor: "#ff4d4d" },
+  truthMeter: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, height: 26, borderRadius: 13, backgroundColor: "rgba(255,255,255,0.06)", borderWidth: 1, borderColor: "rgba(255,255,255,0.12)" },
+  truthLabel: { fontSize: 11, fontWeight: "700" as const, minWidth: 18, textAlign: "right" as const },
+  truthTrack: { width: 38, height: 5, borderRadius: 3, backgroundColor: "rgba(255,255,255,0.12)", overflow: "hidden" as const },
+  truthFill: { height: "100%", borderRadius: 3 },
 
   lieRow: { backgroundColor: "rgba(255,77,77,0.06)", borderWidth: 1, borderColor: "rgba(255,77,77,0.25)", borderRadius: 12, padding: 12, marginBottom: 8 },
   lieHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },

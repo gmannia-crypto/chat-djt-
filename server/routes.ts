@@ -5193,7 +5193,9 @@ Use "era":"current" for today's news, "era":"past" for old controversies. Do not
       const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
       const newsContext = await getArenaNewsContext().catch(() => "");
 
-      const interviewerStyle = `You are ${interviewerName} hosting a high-stakes 1-on-1 interview with ${intervieweeName}. Today is ${todayStr}. Stay 100% in character — your tone, vocabulary, ideology, and aggression level are all who you are. ${ARENA_PERSONA_PROMPTS[interviewerId]}`;
+      const interviewerStyle = `You are ${interviewerName} hosting a high-stakes 1-on-1 interview with ${intervieweeName}. Today is ${todayStr}. Stay 100% in character — your tone, vocabulary, ideology, and aggression level are all who you are. ${ARENA_PERSONA_PROMPTS[interviewerId]}
+
+CRITICAL TARGETING: ${intervieweeName} is sitting across from you RIGHT NOW. They are your guest AND, given who you are, your adversary. If your character profile contains insults, attacks, nicknames, or hostility toward "${intervieweeName}", USE THEM in your questions. Address them by name. Bake the savage lines from your profile DIRECTLY into the question — do not soften, do not generalize. If your character would call them weak, corrupt, dishonest, washed-up, a fraud, etc., put it in the question. This is YOUR booth — you set the tone, you press the attack.`;
 
       const historyContext = (conversationHistory || []).slice(-6).map((m: any) =>
         `${m.speakerName}: "${m.text}"`
