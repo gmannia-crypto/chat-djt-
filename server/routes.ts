@@ -3732,6 +3732,7 @@ Your personality quirks:
       created_at TIMESTAMPTZ DEFAULT NOW()
     )`);
     await initDb.query(`CREATE INDEX IF NOT EXISTS interview_history_device_idx ON interview_history (device_id, ended_at DESC)`);
+    await initDb.query(`ALTER TABLE interview_history ADD COLUMN IF NOT EXISTS title TEXT`);
     await initDb.query(`CREATE TABLE IF NOT EXISTS interview_lie_votes (
       lie_id TEXT NOT NULL,
       device_id TEXT NOT NULL,
@@ -5652,7 +5653,7 @@ Return ONLY valid JSON: {"score": 0-100, "isLie": boolean (true if score<40), "r
       try {
         const result = await db.query(
           `SELECT id, interviewer_id, interviewer_name, interviewee_id, interviewee_name,
-                  duration_minutes, lie_count, message_count, started_at, ended_at
+                  duration_minutes, lie_count, message_count, started_at, ended_at, title
            FROM interview_history
            WHERE device_id = $1
            ORDER BY ended_at DESC
@@ -5670,6 +5671,7 @@ Return ONLY valid JSON: {"score": 0-100, "isLie": boolean (true if score<40), "r
           messageCount: r.message_count,
           startedAt: Number(r.started_at),
           endedAt: Number(r.ended_at),
+          title: r.title || null,
         }));
         res.json({ items });
       } finally {
@@ -5710,6 +5712,7 @@ Return ONLY valid JSON: {"score": 0-100, "isLie": boolean (true if score<40), "r
           topics: r.topics || [],
           startedAt: Number(r.started_at),
           endedAt: Number(r.ended_at),
+          title: r.title || null,
         });
       } finally {
         await db.end();
@@ -5717,6 +5720,60 @@ Return ONLY valid JSON: {"score": 0-100, "isLie": boolean (true if score<40), "r
     } catch (error: any) {
       console.error("Interview history detail error:", error);
       res.status(500).json({ error: "Failed to load interview" });
+    }
+  });
+
+  app.delete("/api/arena/interview-history/:id", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const id = req.params.id;
+      const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      try {
+        const result = await db.query(
+          `DELETE FROM interview_history WHERE id = $1 AND device_id = $2`,
+          [id, deviceId],
+        );
+        if (result.rowCount === 0) return res.status(404).json({ error: "Not found" });
+        res.json({ ok: true });
+      } finally {
+        await db.end();
+      }
+    } catch (error: any) {
+      console.error("Interview delete error:", error);
+      res.status(500).json({ error: "Failed to delete interview" });
+    }
+  });
+
+  app.patch("/api/arena/interview-history/:id", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const id = req.params.id;
+      const rawTitle = req.body?.title;
+      let title: string | null = null;
+      if (rawTitle === null || typeof rawTitle === "undefined") {
+        title = null;
+      } else if (typeof rawTitle === "string") {
+        const trimmed = rawTitle.trim().slice(0, 80);
+        title = trimmed.length === 0 ? null : trimmed;
+      } else {
+        return res.status(400).json({ error: "Invalid title" });
+      }
+      const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      try {
+        const result = await db.query(
+          `UPDATE interview_history SET title = $1 WHERE id = $2 AND device_id = $3 RETURNING id`,
+          [title, id, deviceId],
+        );
+        if (result.rowCount === 0) return res.status(404).json({ error: "Not found" });
+        res.json({ ok: true, title });
+      } finally {
+        await db.end();
+      }
+    } catch (error: any) {
+      console.error("Interview rename error:", error);
+      res.status(500).json({ error: "Failed to rename interview" });
     }
   });
 

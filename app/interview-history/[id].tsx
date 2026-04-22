@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import {
   View, Text, Pressable, StyleSheet, FlatList, ActivityIndicator,
-  Image, Platform, Modal, ScrollView, Share,
+  Image, Platform, Modal, ScrollView, Share, TextInput,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -32,6 +32,7 @@ type Detail = {
   topics: { id: string; title: string; description: string; era: string }[];
   startedAt: number;
   endedAt: number;
+  title?: string | null;
 };
 
 const PERSONA_PORTRAITS: Record<string, any> = {
@@ -83,6 +84,44 @@ export default function InterviewTranscriptScreen() {
   const [liesOpen, setLiesOpen] = useState(false);
   const [shareMsg, setShareMsg] = useState<Msg | null>(null);
   const [copied, setCopied] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
+  const [savingRename, setSavingRename] = useState(false);
+  const [renameError, setRenameError] = useState<string | null>(null);
+
+  const defaultTitle = data ? `${data.interviewerName} × ${data.intervieweeName}` : "TRANSCRIPT";
+  const displayTitle = (data?.title && data.title.trim().length > 0) ? data.title : defaultTitle;
+
+  const openRename = () => {
+    setRenameValue(data?.title || "");
+    setRenameError(null);
+    setRenameOpen(true);
+  };
+
+  const submitRename = async () => {
+    if (!data || !deviceId) return;
+    setRenameError(null);
+    setSavingRename(true);
+    const trimmed = renameValue.trim().slice(0, 80);
+    const newTitle = trimmed.length === 0 ? null : trimmed;
+    try {
+      const res = await fetch(new URL(`/api/arena/interview-history/${data.id}`, getApiUrl()).toString(), {
+        method: "PATCH",
+        headers: { "x-device-id": deviceId, "Content-Type": "application/json" },
+        body: JSON.stringify({ title: newTitle }),
+      });
+      if (res.ok) {
+        setData((prev) => prev ? { ...prev, title: newTitle } : prev);
+        setRenameOpen(false);
+      } else {
+        setRenameError("Couldn't save title. Please try again.");
+      }
+    } catch {
+      setRenameError("Couldn't save title. Please try again.");
+    } finally {
+      setSavingRename(false);
+    }
+  };
 
   const buildShareText = (m: Msg) => {
     if (!data) return m.text;
@@ -206,10 +245,18 @@ export default function InterviewTranscriptScreen() {
           <Ionicons name="arrow-back" size={22} color="#fff" />
         </Pressable>
         <View style={s.headerCenter}>
-          <Text style={s.headerTitle} numberOfLines={1}>{data ? `${data.interviewerName} × ${data.intervieweeName}` : "TRANSCRIPT"}</Text>
-          <Text style={s.headerSub}>Read-only replay</Text>
+          <Text style={s.headerTitle} numberOfLines={1}>{displayTitle}</Text>
+          <Text style={s.headerSub} numberOfLines={1}>
+            {data?.title ? defaultTitle : "Read-only replay"}
+          </Text>
         </View>
-        <View style={{ width: 38 }} />
+        {data ? (
+          <Pressable onPress={openRename} style={s.iconBtn} testID="transcript-rename">
+            <Ionicons name="create-outline" size={20} color="#FFD700" />
+          </Pressable>
+        ) : (
+          <View style={{ width: 38 }} />
+        )}
       </View>
 
       {loading ? (
@@ -325,6 +372,50 @@ export default function InterviewTranscriptScreen() {
           </View>
         </View>
       </Modal>
+
+      <Modal visible={renameOpen} transparent animationType="fade" onRequestClose={() => setRenameOpen(false)}>
+        <View style={s.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setRenameOpen(false)} />
+          <View style={s.renameSheet} testID="transcript-rename-sheet">
+            <View style={s.handle} />
+            <Text style={s.renameTitle}>Rename interview</Text>
+            <Text style={s.renameSub}>{defaultTitle}</Text>
+            <TextInput
+              value={renameValue}
+              onChangeText={setRenameValue}
+              placeholder="Custom title (leave blank to clear)"
+              placeholderTextColor="rgba(255,255,255,0.35)"
+              style={s.renameInput}
+              maxLength={80}
+              autoFocus
+              testID="transcript-rename-input"
+            />
+            {renameError ? (
+              <Text style={s.renameErrorText} testID="transcript-rename-error">{renameError}</Text>
+            ) : null}
+            <View style={s.renameActions}>
+              <Pressable
+                style={[s.renameBtn, s.renameBtnGhost]}
+                onPress={() => setRenameOpen(false)}
+              >
+                <Text style={s.renameBtnGhostText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[s.renameBtn, s.renameBtnPrimary]}
+                onPress={submitRename}
+                disabled={savingRename}
+                testID="transcript-rename-save"
+              >
+                {savingRename ? (
+                  <ActivityIndicator color="#000" />
+                ) : (
+                  <Text style={s.renameBtnPrimaryText}>Save</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -389,4 +480,16 @@ const s = StyleSheet.create({
   lieQuote: { color: "#fff", fontSize: 13, fontStyle: "italic", lineHeight: 18 },
   lieFact: { color: "#4ADE80", fontSize: 11, marginTop: 6, fontWeight: "700" },
   lieReason: { color: "rgba(255,255,255,0.65)", fontSize: 11, marginTop: 4, lineHeight: 15 },
+
+  renameSheet: { backgroundColor: "#0F0F12", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 18, borderTopWidth: 1, borderColor: "rgba(255,215,0,0.2)", paddingBottom: Platform.OS === "web" ? 34 : 24 },
+  renameTitle: { color: "#fff", fontSize: 16, fontWeight: "900" as const, marginBottom: 4 },
+  renameSub: { color: "rgba(255,255,255,0.55)", fontSize: 12, marginBottom: 14 },
+  renameInput: { backgroundColor: "rgba(255,255,255,0.06)", borderWidth: 1, borderColor: "rgba(255,215,0,0.3)", borderRadius: 12, paddingHorizontal: 12, paddingVertical: Platform.OS === "ios" ? 12 : 8, color: "#fff", fontSize: 14, marginBottom: 14 },
+  renameActions: { flexDirection: "row", gap: 8 },
+  renameBtn: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 12, borderRadius: 12 },
+  renameBtnGhost: { backgroundColor: "rgba(255,255,255,0.06)", borderWidth: 1, borderColor: "rgba(255,255,255,0.12)" },
+  renameBtnGhostText: { color: "#fff", fontSize: 13, fontWeight: "800" as const },
+  renameBtnPrimary: { backgroundColor: "#FFD700" },
+  renameBtnPrimaryText: { color: "#000", fontSize: 13, fontWeight: "900" as const },
+  renameErrorText: { color: "#ff4d4d", fontSize: 12, fontWeight: "700" as const, marginTop: -6, marginBottom: 10 },
 });

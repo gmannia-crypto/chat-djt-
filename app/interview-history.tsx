@@ -1,13 +1,14 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
   View, Text, Pressable, StyleSheet, FlatList, ActivityIndicator,
-  RefreshControl, Image, Platform,
+  RefreshControl, Image, Platform, Modal, TextInput, Alert,
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { fetch } from "expo/fetch";
+import * as Haptics from "expo-haptics";
 import { getApiUrl } from "@/lib/query-client";
 import { useTokens } from "@/lib/token-context";
 
@@ -22,6 +23,7 @@ type HistoryItem = {
   messageCount: number;
   startedAt: number;
   endedAt: number;
+  title?: string | null;
 };
 
 const PERSONA_PORTRAITS: Record<string, any> = {
@@ -70,12 +72,30 @@ function formatDate(ms: number) {
   return d.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" }) + " · " + time;
 }
 
+function defaultTitle(it: HistoryItem) {
+  return `${it.interviewerName} × ${it.intervieweeName}`;
+}
+
 export default function InterviewHistoryScreen() {
   const insets = useSafeAreaInsets();
   const { deviceId } = useTokens();
   const [items, setItems] = useState<HistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [actionItem, setActionItem] = useState<HistoryItem | null>(null);
+  const [renameItem, setRenameItem] = useState<HistoryItem | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [savingRename, setSavingRename] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<HistoryItem | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const longPressedRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (!errorMsg) return;
+    const t = setTimeout(() => setErrorMsg(null), 3000);
+    return () => clearTimeout(t);
+  }, [errorMsg]);
 
   const load = useCallback(async () => {
     if (!deviceId) return;
@@ -99,6 +119,79 @@ export default function InterviewHistoryScreen() {
     setRefreshing(true);
     load();
   }, [load]);
+
+  const openActions = (it: HistoryItem) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    setActionItem(it);
+  };
+
+  const startRename = (it: HistoryItem) => {
+    setActionItem(null);
+    setRenameValue(it.title || "");
+    setRenameItem(it);
+  };
+
+  const submitRename = async () => {
+    if (!renameItem || !deviceId) return;
+    setSavingRename(true);
+    const trimmed = renameValue.trim().slice(0, 80);
+    const newTitle = trimmed.length === 0 ? null : trimmed;
+    try {
+      const res = await fetch(new URL(`/api/arena/interview-history/${renameItem.id}`, getApiUrl()).toString(), {
+        method: "PATCH",
+        headers: { "x-device-id": deviceId, "Content-Type": "application/json" },
+        body: JSON.stringify({ title: newTitle }),
+      });
+      if (res.ok) {
+        setItems((prev) => prev.map((x) => x.id === renameItem.id ? { ...x, title: newTitle } : x));
+        setRenameItem(null);
+      } else {
+        setErrorMsg("Couldn't rename interview. Please try again.");
+      }
+    } catch {
+      setErrorMsg("Couldn't rename interview. Please try again.");
+    } finally {
+      setSavingRename(false);
+    }
+  };
+
+  const startDelete = (it: HistoryItem) => {
+    setActionItem(null);
+    if (Platform.OS === "web") {
+      setConfirmDelete(it);
+    } else {
+      Alert.alert(
+        "Delete interview?",
+        `"${it.title || defaultTitle(it)}" will be permanently removed.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Delete", style: "destructive", onPress: () => doDelete(it) },
+        ],
+      );
+    }
+  };
+
+  const doDelete = async (it: HistoryItem) => {
+    if (!deviceId) return;
+    setDeletingId(it.id);
+    try {
+      const res = await fetch(new URL(`/api/arena/interview-history/${it.id}`, getApiUrl()).toString(), {
+        method: "DELETE",
+        headers: { "x-device-id": deviceId },
+      });
+      if (res.ok) {
+        setItems((prev) => prev.filter((x) => x.id !== it.id));
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      } else {
+        setErrorMsg("Couldn't delete interview. Please try again.");
+      }
+    } catch {
+      setErrorMsg("Couldn't delete interview. Please try again.");
+    } finally {
+      setDeletingId(null);
+      setConfirmDelete(null);
+    }
+  };
 
   return (
     <View style={[s.container, { paddingTop: insets.top + webTop }]}>
@@ -136,10 +229,23 @@ export default function InterviewHistoryScreen() {
           renderItem={({ item }) => {
             const ip = PERSONA_PORTRAITS[item.interviewerId];
             const ep = PERSONA_PORTRAITS[item.intervieweeId];
+            const displayTitle = item.title || defaultTitle(item);
+            const isDeleting = deletingId === item.id;
             return (
               <Pressable
-                onPress={() => router.push(`/interview-history/${item.id}`)}
-                style={s.row}
+                onPress={() => {
+                  if (longPressedRef.current) {
+                    longPressedRef.current = false;
+                    return;
+                  }
+                  router.push(`/interview-history/${item.id}`);
+                }}
+                onLongPress={() => {
+                  longPressedRef.current = true;
+                  openActions(item);
+                }}
+                delayLongPress={350}
+                style={[s.row, isDeleting && { opacity: 0.5 }]}
                 testID={`history-row-${item.id}`}
               >
                 <View style={s.portraits}>
@@ -148,8 +254,15 @@ export default function InterviewHistoryScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={s.rowTitle} numberOfLines={1}>
-                    {item.interviewerName} <Text style={{ color: "rgba(255,255,255,0.4)" }}>×</Text> {item.intervieweeName}
+                    {item.title ? item.title : (
+                      <>
+                        {item.interviewerName} <Text style={{ color: "rgba(255,255,255,0.4)" }}>×</Text> {item.intervieweeName}
+                      </>
+                    )}
                   </Text>
+                  {item.title ? (
+                    <Text style={s.rowSubtitle} numberOfLines={1}>{defaultTitle(item)}</Text>
+                  ) : null}
                   <Text style={s.rowDate}>{formatDate(item.endedAt)}</Text>
                   <View style={s.metaRow}>
                     <View style={s.metaPill}>
@@ -166,12 +279,129 @@ export default function InterviewHistoryScreen() {
                     </View>
                   </View>
                 </View>
-                <Ionicons name="chevron-forward" size={20} color="rgba(255,215,0,0.7)" />
+                <Pressable
+                  onPress={() => openActions(item)}
+                  hitSlop={12}
+                  style={s.menuBtn}
+                  testID={`history-menu-${item.id}`}
+                  accessibilityLabel={`More options for ${displayTitle}`}
+                >
+                  <Ionicons name="ellipsis-horizontal" size={20} color="rgba(255,215,0,0.85)" />
+                </Pressable>
               </Pressable>
             );
           }}
         />
       )}
+
+      <Modal visible={!!actionItem} transparent animationType="fade" onRequestClose={() => setActionItem(null)}>
+        <View style={s.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setActionItem(null)} />
+          <View style={s.sheet} testID="history-action-sheet">
+            <View style={s.handle} />
+            <Text style={s.sheetTitle} numberOfLines={1}>
+              {actionItem ? (actionItem.title || defaultTitle(actionItem)) : ""}
+            </Text>
+            <Pressable
+              style={s.sheetAction}
+              onPress={() => actionItem && startRename(actionItem)}
+              testID="history-action-rename"
+            >
+              <Ionicons name="create-outline" size={20} color="#FFD700" />
+              <Text style={s.sheetActionText}>{actionItem?.title ? "Edit title" : "Rename"}</Text>
+            </Pressable>
+            <Pressable
+              style={s.sheetAction}
+              onPress={() => actionItem && startDelete(actionItem)}
+              testID="history-action-delete"
+            >
+              <Ionicons name="trash-outline" size={20} color="#ff4d4d" />
+              <Text style={[s.sheetActionText, { color: "#ff4d4d" }]}>Delete interview</Text>
+            </Pressable>
+            <Pressable style={s.sheetCancel} onPress={() => setActionItem(null)}>
+              <Text style={s.sheetCancelText}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={!!renameItem} transparent animationType="fade" onRequestClose={() => setRenameItem(null)}>
+        <View style={s.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setRenameItem(null)} />
+          <View style={s.sheet} testID="history-rename-sheet">
+            <View style={s.handle} />
+            <Text style={s.sheetTitle}>Rename interview</Text>
+            <Text style={s.sheetSub}>
+              {renameItem ? defaultTitle(renameItem) : ""}
+            </Text>
+            <TextInput
+              value={renameValue}
+              onChangeText={setRenameValue}
+              placeholder="Custom title (leave blank to clear)"
+              placeholderTextColor="rgba(255,255,255,0.35)"
+              style={s.input}
+              maxLength={80}
+              autoFocus
+              testID="history-rename-input"
+            />
+            <View style={s.sheetActions}>
+              <Pressable
+                style={[s.sheetBtn, s.sheetBtnGhost]}
+                onPress={() => setRenameItem(null)}
+              >
+                <Text style={s.sheetBtnGhostText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[s.sheetBtn, s.sheetBtnPrimary]}
+                onPress={submitRename}
+                disabled={savingRename}
+                testID="history-rename-save"
+              >
+                {savingRename ? (
+                  <ActivityIndicator color="#000" />
+                ) : (
+                  <Text style={s.sheetBtnPrimaryText}>Save</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {errorMsg ? (
+        <View style={s.toast} pointerEvents="none" testID="history-error-toast">
+          <Ionicons name="alert-circle" size={16} color="#ff4d4d" />
+          <Text style={s.toastText}>{errorMsg}</Text>
+        </View>
+      ) : null}
+
+      <Modal visible={!!confirmDelete} transparent animationType="fade" onRequestClose={() => setConfirmDelete(null)}>
+        <View style={s.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setConfirmDelete(null)} />
+          <View style={s.sheet} testID="history-confirm-delete">
+            <View style={s.handle} />
+            <Text style={s.sheetTitle}>Delete interview?</Text>
+            <Text style={s.sheetSub}>
+              "{confirmDelete ? (confirmDelete.title || defaultTitle(confirmDelete)) : ""}" will be permanently removed.
+            </Text>
+            <View style={s.sheetActions}>
+              <Pressable
+                style={[s.sheetBtn, s.sheetBtnGhost]}
+                onPress={() => setConfirmDelete(null)}
+              >
+                <Text style={s.sheetBtnGhostText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[s.sheetBtn, s.sheetBtnDanger]}
+                onPress={() => confirmDelete && doDelete(confirmDelete)}
+                testID="history-confirm-delete-yes"
+              >
+                <Text style={s.sheetBtnDangerText}>Delete</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -194,8 +424,31 @@ const s = StyleSheet.create({
   portraitOverlap: { marginLeft: -14 },
   portraitFallback: { backgroundColor: "#222", alignItems: "center", justifyContent: "center" },
   rowTitle: { color: "#fff", fontSize: 14, fontWeight: "800" },
+  rowSubtitle: { color: "rgba(255,255,255,0.45)", fontSize: 11, marginTop: 1, fontWeight: "600" },
   rowDate: { color: "rgba(255,215,0,0.7)", fontSize: 11, marginTop: 2, fontWeight: "700" },
   metaRow: { flexDirection: "row", gap: 6, marginTop: 6, flexWrap: "wrap" },
   metaPill: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.05)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
   metaText: { color: "rgba(255,255,255,0.7)", fontSize: 10, fontWeight: "700" },
+  menuBtn: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.75)", justifyContent: "flex-end" },
+  sheet: { backgroundColor: "#0F0F12", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 18, borderTopWidth: 1, borderColor: "rgba(255,215,0,0.2)", paddingBottom: Platform.OS === "web" ? 34 : 24 },
+  handle: { alignSelf: "center", width: 44, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.2)", marginBottom: 12 },
+  sheetTitle: { color: "#fff", fontSize: 16, fontWeight: "900", marginBottom: 6 },
+  sheetSub: { color: "rgba(255,255,255,0.55)", fontSize: 12, marginBottom: 14 },
+  sheetAction: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 14, paddingHorizontal: 4, borderTopWidth: 1, borderColor: "rgba(255,255,255,0.06)" },
+  sheetActionText: { color: "#fff", fontSize: 15, fontWeight: "700" },
+  sheetCancel: { alignItems: "center", paddingVertical: 12, marginTop: 6 },
+  sheetCancelText: { color: "rgba(255,255,255,0.5)", fontSize: 12, fontWeight: "700" },
+  input: { backgroundColor: "rgba(255,255,255,0.06)", borderWidth: 1, borderColor: "rgba(255,215,0,0.3)", borderRadius: 12, paddingHorizontal: 12, paddingVertical: Platform.OS === "ios" ? 12 : 8, color: "#fff", fontSize: 14, marginBottom: 14 },
+  sheetActions: { flexDirection: "row", gap: 8 },
+  sheetBtn: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 12, borderRadius: 12 },
+  sheetBtnGhost: { backgroundColor: "rgba(255,255,255,0.06)", borderWidth: 1, borderColor: "rgba(255,255,255,0.12)" },
+  sheetBtnGhostText: { color: "#fff", fontSize: 13, fontWeight: "800" },
+  sheetBtnPrimary: { backgroundColor: "#FFD700" },
+  sheetBtnPrimaryText: { color: "#000", fontSize: 13, fontWeight: "900" },
+  sheetBtnDanger: { backgroundColor: "#ff4d4d" },
+  sheetBtnDangerText: { color: "#fff", fontSize: 13, fontWeight: "900" },
+  toast: { position: "absolute", left: 16, right: 16, bottom: 24, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12, backgroundColor: "rgba(20,20,24,0.96)", borderWidth: 1, borderColor: "rgba(255,77,77,0.5)" },
+  toastText: { flex: 1, color: "#fff", fontSize: 13, fontWeight: "700" },
 });
