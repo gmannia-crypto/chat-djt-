@@ -1,15 +1,19 @@
 import React, { useEffect, useState, useMemo } from "react";
 import {
   View, Text, Pressable, StyleSheet, FlatList, ActivityIndicator,
-  Image, Platform, Modal, ScrollView,
+  Image, Platform, Modal, ScrollView, Share,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { fetch } from "expo/fetch";
+import * as Haptics from "expo-haptics";
+import * as Clipboard from "expo-clipboard";
 import { getApiUrl } from "@/lib/query-client";
 import { useTokens } from "@/lib/token-context";
+
+const SHARE_URL = "https://trumpbot.rip";
 
 type Msg = { id: string; speakerId: string; speakerName: string; text: string; ts: number; isInterruption?: boolean; isCallIn?: boolean; callerName?: string };
 type LieEntry = { id: string; speakerId: string; speakerName: string; text: string; score: number; reason: string; fact: string; ts: number };
@@ -77,6 +81,44 @@ export default function InterviewTranscriptScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [liesOpen, setLiesOpen] = useState(false);
+  const [shareMsg, setShareMsg] = useState<Msg | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const buildShareText = (m: Msg) => {
+    if (!data) return m.text;
+    const speaker = m.isCallIn ? `${m.speakerName} (caller)` : m.speakerName;
+    return `"${m.text}"\n— ${speaker}\n\nFrom ${data.interviewerName} × ${data.intervieweeName} on TrumpBot.rip\n${SHARE_URL}`;
+  };
+
+  const handleCopyMsg = async (m: Msg) => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+      await Clipboard.setStringAsync(buildShareText(m));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1400);
+    } catch {}
+  };
+
+  const handleShareMsg = async (m: Msg) => {
+    const text = buildShareText(m);
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+      if (Platform.OS === "web") {
+        const nav: any = typeof navigator !== "undefined" ? navigator : null;
+        if (nav?.share) {
+          await nav.share({ text, url: SHARE_URL });
+          setShareMsg(null);
+          return;
+        }
+        await Clipboard.setStringAsync(text);
+        setCopied(true);
+        setTimeout(() => { setCopied(false); setShareMsg(null); }, 1200);
+        return;
+      }
+      await Share.share({ message: text, url: SHARE_URL });
+      setShareMsg(null);
+    } catch {}
+  };
 
   useEffect(() => {
     if (!deviceId || !id) return;
@@ -190,21 +232,66 @@ export default function InterviewTranscriptScreen() {
             const isCallIn = !!item.isCallIn;
             return (
               <View style={[s.bubbleRow, isCallIn ? { justifyContent: "center" } : isInterviewer ? { justifyContent: "flex-start" } : { justifyContent: "flex-end" }]}>
-                <View style={[
-                  s.bubble,
-                  isCallIn ? s.bubbleCallIn : isInterviewer ? s.bubbleInterviewer : s.bubbleInterviewee,
-                  item.isInterruption && s.bubbleInterrupt,
-                ]}>
+                <Pressable
+                  onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {}); setShareMsg(item); }}
+                  onPress={() => setShareMsg(item)}
+                  delayLongPress={300}
+                  testID={`bubble-${item.id}`}
+                  style={[
+                    s.bubble,
+                    isCallIn ? s.bubbleCallIn : isInterviewer ? s.bubbleInterviewer : s.bubbleInterviewee,
+                    item.isInterruption && s.bubbleInterrupt,
+                  ]}
+                >
                   <Text style={[s.bubbleName, { color: isCallIn ? "#60a5fa" : isInterviewer ? "#FFD700" : "#4ADE80" }]}>
                     {item.speakerName}{item.isInterruption ? " · INTERRUPTS" : ""}{isCallIn ? " · CALL-IN" : ""}
                   </Text>
                   <Text style={s.bubbleText}>{item.text}</Text>
-                </View>
+                </Pressable>
               </View>
             );
           }}
         />
       )}
+
+      <Modal visible={!!shareMsg} transparent animationType="fade" onRequestClose={() => setShareMsg(null)}>
+        <View style={s.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShareMsg(null)} />
+          <View style={s.shareSheet} testID="bubble-share-sheet">
+            <View style={s.handle} />
+            <Text style={s.shareTitle}>Share this moment</Text>
+            {shareMsg && (
+              <View style={s.sharePreview}>
+                <Text style={s.sharePreviewSpeaker}>
+                  {shareMsg.speakerName}{shareMsg.isCallIn ? " · CALL-IN" : ""}{shareMsg.isInterruption ? " · INTERRUPTS" : ""}
+                </Text>
+                <Text style={s.sharePreviewText} numberOfLines={5}>"{shareMsg.text}"</Text>
+              </View>
+            )}
+            <View style={s.shareActions}>
+              <Pressable
+                onPress={() => shareMsg && handleCopyMsg(shareMsg)}
+                style={[s.shareActionBtn, s.shareCopyBtn]}
+                testID="bubble-copy"
+              >
+                <Ionicons name={copied ? "checkmark" : "copy-outline"} size={16} color="#FFD700" />
+                <Text style={s.shareCopyText}>{copied ? "Copied" : "Copy"}</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => shareMsg && handleShareMsg(shareMsg)}
+                style={[s.shareActionBtn, s.shareShareBtn]}
+                testID="bubble-share"
+              >
+                <Ionicons name="share-outline" size={16} color="#000" />
+                <Text style={s.shareShareText}>Share</Text>
+              </Pressable>
+            </View>
+            <Pressable onPress={() => setShareMsg(null)} style={s.shareCancel}>
+              <Text style={s.shareCancelText}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
 
       <Modal visible={liesOpen} transparent animationType="slide" onRequestClose={() => setLiesOpen(false)}>
         <View style={s.modalOverlay}>
@@ -280,6 +367,20 @@ const s = StyleSheet.create({
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.75)", justifyContent: "flex-end" },
   sheet: { backgroundColor: "#0F0F12", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 18, borderTopWidth: 1, borderColor: "rgba(255,215,0,0.2)" },
   handle: { alignSelf: "center", width: 44, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.2)", marginBottom: 12 },
+
+  shareSheet: { backgroundColor: "#0F0F12", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 18, borderTopWidth: 1, borderColor: "rgba(255,215,0,0.2)", paddingBottom: Platform.OS === "web" ? 34 : 18 },
+  shareTitle: { color: "#fff", fontSize: 16, fontWeight: "900" as const, marginBottom: 12 },
+  sharePreview: { backgroundColor: "rgba(255,255,255,0.04)", borderWidth: 1, borderColor: "rgba(255,215,0,0.18)", borderRadius: 12, padding: 12, marginBottom: 14 },
+  sharePreviewSpeaker: { color: "#FFD700", fontSize: 11, fontWeight: "900" as const, letterSpacing: 0.5, marginBottom: 4 },
+  sharePreviewText: { color: "#fff", fontSize: 13, lineHeight: 18, fontStyle: "italic" as const },
+  shareActions: { flexDirection: "row", gap: 8, marginBottom: 8 },
+  shareActionBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderRadius: 12 },
+  shareCopyBtn: { backgroundColor: "rgba(255,215,0,0.1)", borderWidth: 1, borderColor: "rgba(255,215,0,0.3)" },
+  shareCopyText: { color: "#FFD700", fontSize: 13, fontWeight: "800" as const },
+  shareShareBtn: { backgroundColor: "#FFD700" },
+  shareShareText: { color: "#000", fontSize: 13, fontWeight: "900" as const },
+  shareCancel: { alignItems: "center", paddingVertical: 10 },
+  shareCancelText: { color: "rgba(255,255,255,0.5)", fontSize: 12, fontWeight: "700" as const },
 
   lieRow: { padding: 12, marginBottom: 10, borderRadius: 12, backgroundColor: "rgba(255,77,77,0.06)", borderWidth: 1, borderColor: "rgba(255,77,77,0.25)" },
   lieHeader: { flexDirection: "row", alignItems: "center", marginBottom: 6 },
