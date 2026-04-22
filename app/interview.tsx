@@ -220,12 +220,15 @@ export default function InterviewScreen() {
   useEffect(() => {
     (async () => {
       try {
-        const [fx, vc, bp, nm] = await Promise.all([
+        const [fx, vc, bp, nm, globalSound] = await Promise.all([
           AsyncStorage.getItem(FX_KEY), AsyncStorage.getItem(VOICE_KEY), AsyncStorage.getItem(BEEP_KEY), AsyncStorage.getItem(NAME_KEY),
+          AsyncStorage.getItem("trumpbot_sound_enabled"),
         ]);
         if (fx !== null) { const v = fx === "1"; setFxEnabled(v); fxEnabledRef.current = v; }
         if (vc !== null) { const v = vc === "1"; setVoiceEnabled(v); voiceEnabledRef.current = v; }
+        else if (globalSound === "false") { setVoiceEnabled(false); voiceEnabledRef.current = false; }
         if (bp !== null) { const v = bp === "1"; setBeepEnabled(v); beepEnabledRef.current = v; }
+        else if (globalSound === "false") { setBeepEnabled(false); beepEnabledRef.current = false; }
         if (nm) setCallerName(nm);
       } catch {}
     })();
@@ -236,6 +239,7 @@ export default function InterviewScreen() {
     voiceEnabledRef.current = next;
     setVoiceEnabled(next);
     AsyncStorage.setItem(VOICE_KEY, next ? "1" : "0").catch(() => {});
+    AsyncStorage.setItem("trumpbot_sound_enabled", next ? "true" : "false").catch(() => {});
     if (!next) {
       // stop current playback
       const snd = currentSoundRef.current;
@@ -389,6 +393,17 @@ export default function InterviewScreen() {
       playLieBeep();
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+      (async () => {
+        try {
+          const { sound } = await Audio.Sound.createAsync(
+            require("@/assets/sfx-click.mp4"),
+            { shouldPlay: true, volume: 0.9 },
+          );
+          sound.setOnPlaybackStatusUpdate((st: any) => {
+            if (st?.didJustFinish) sound.unloadAsync().catch(() => {});
+          });
+        } catch {}
+      })();
     }
   }, []);
 
