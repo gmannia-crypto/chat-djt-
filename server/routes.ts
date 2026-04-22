@@ -5073,6 +5073,239 @@ Address everyone by FIRST NAME ONLY: "Donald" for Trump, "Rachel" for Maddow, "J
     }
   });
 
+  const INTERVIEWER_IDS = ["maddow", "joyreid", "megynkelly", "candace", "odonnell", "alexjones", "galloway", "carville"];
+  const INTERVIEWEE_IDS = ["trump", "biden", "netanyahu", "mcconnell", "omar", "rosie", "berniemc", "elon", "graham", "pambondi", "jimjordan", "schumer", "obama", "melania", "kamala", "mtg", "rfk", "ruckus", "miller"];
+
+  app.get("/api/arena/interview-personas", (_req, res) => {
+    const interviewers = INTERVIEWER_IDS.filter((id) => ARENA_PERSONA_PROMPTS[id]).map((id) => ({
+      id,
+      name: ARENA_NAME_MAP[id] || id,
+    }));
+    const interviewees = INTERVIEWEE_IDS.filter((id) => ARENA_PERSONA_PROMPTS[id]).map((id) => ({
+      id,
+      name: ARENA_NAME_MAP[id] || id,
+    }));
+    res.json({ interviewers, interviewees });
+  });
+
+  app.post("/api/arena/interview-topics", async (req, res) => {
+    try {
+      const { interviewerId, intervieweeId, topicMix = "mixed", durationMinutes = 10 } = req.body || {};
+      if (!interviewerId || !intervieweeId) return res.status(400).json({ error: "interviewerId and intervieweeId required" });
+      if (!ARENA_PERSONA_PROMPTS[interviewerId] || !ARENA_PERSONA_PROMPTS[intervieweeId]) {
+        return res.status(400).json({ error: "Invalid persona ids" });
+      }
+      const interviewerName = ARENA_NAME_MAP[interviewerId] || interviewerId;
+      const intervieweeName = ARENA_NAME_MAP[intervieweeId] || intervieweeId;
+      const topicCount = durationMinutes <= 5 ? 4 : durationMinutes <= 10 ? 6 : 8;
+      const newsContext = await getArenaNewsContext().catch(() => "");
+      const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+
+      const eraDirective =
+        topicMix === "current"
+          ? "ALL topics must be drawn from CURRENT 2026 news headlines and live political flashpoints happening right now."
+          : topicMix === "past"
+          ? "ALL topics must be drawn from PAST controversies, scandals, embarrassing moments, or historic decisions involving the interviewee."
+          : "Mix half topics from CURRENT 2026 headlines and half from PAST scandals, controversies, or career-defining decisions involving the interviewee.";
+
+      const systemPrompt = `You are a sharp, ruthless booking producer setting up a televised 1-on-1 interview between ${interviewerName} (the interviewer) and ${intervieweeName} (the guest). Today is ${todayStr}.
+
+Generate exactly ${topicCount} interview topics that ${interviewerName} would absolutely grill ${intervieweeName} about — based on their political beliefs, history, public clashes, and the actual headlines below.
+
+${eraDirective}
+
+Each topic must be:
+- Provocative and engaging — designed to make the guest squirm or fire back
+- Specific (not vague). Reference real events, real names, real dates, real claims.
+- Tailored to the unique tension between THIS interviewer and THIS guest.
+
+LIVE HEADLINES (use these for "current" topics):
+${newsContext || "No live headlines available — rely on general knowledge of 2026 events."}
+
+Return ONLY valid JSON in this exact shape:
+{"topics":[{"title":"Short punchy headline","description":"1-sentence framing of the angle the interviewer takes","era":"current"}]}
+Use "era":"current" for today's news, "era":"past" for old controversies. Do not include any text outside the JSON.`;
+
+      const completion = await getClient().chat.completions.create({
+        model: getFastModel(),
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: `Generate the ${topicCount} interview topics now as JSON.` },
+        ],
+        max_completion_tokens: 700,
+        temperature: 0.85,
+        response_format: { type: "json_object" },
+      });
+      const raw = completion.choices[0]?.message?.content || "{}";
+      let parsed: any = {};
+      try { parsed = JSON.parse(raw); } catch { parsed = {}; }
+      let topics: any[] = Array.isArray(parsed.topics) ? parsed.topics : [];
+      topics = topics.slice(0, topicCount).map((t: any, i: number) => ({
+        id: `interview-topic-${Date.now()}-${i}`,
+        title: String(t.title || `Topic ${i + 1}`).slice(0, 120),
+        description: String(t.description || "").slice(0, 240),
+        era: t.era === "past" ? "past" : "current",
+      }));
+      if (topics.length === 0) {
+        topics = Array.from({ length: topicCount }).map((_, i) => ({
+          id: `interview-topic-${Date.now()}-${i}`,
+          title: `Topic ${i + 1}`,
+          description: `${interviewerName} questions ${intervieweeName}.`,
+          era: "current",
+        }));
+      }
+      res.json({ topics, interviewerName, intervieweeName });
+    } catch (error: any) {
+      console.error("Interview topics error:", error);
+      res.status(500).json({ error: "Failed to generate topics" });
+    }
+  });
+
+  async function checkInterviewAccess(deviceId: string, consume: boolean): Promise<{ ok: boolean; reason?: string; access?: any }> {
+    const access = await getArenaAccess(deviceId);
+    const hasActiveSession = access.sessionExpiry && Date.now() < access.sessionExpiry;
+    if (!hasActiveSession && access.freeUsed >= ARENA_FREE_LIMIT) {
+      return { ok: false, reason: "arena_locked", access };
+    }
+    if (!hasActiveSession && consume) {
+      if (access.freeUsed === 0) access.freeTrialExpiry = Date.now() + ARENA_FREE_TRIAL_DURATION;
+      access.freeUsed = (access.freeUsed || 0) + 1;
+      await setArenaAccess(deviceId, access);
+    }
+    return { ok: true, access };
+  }
+
+  app.post("/api/arena/interview-question", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const { interviewerId, intervieweeId, topic, conversationHistory = [], isFollowUp = false, isTransition = false, previousTopicTitle, isInterruption = false } = req.body || {};
+      if (!interviewerId || !ARENA_PERSONA_PROMPTS[interviewerId]) return res.status(400).json({ error: "Invalid interviewerId" });
+      if (!intervieweeId || !ARENA_PERSONA_PROMPTS[intervieweeId]) return res.status(400).json({ error: "Invalid intervieweeId" });
+
+      const accessCheck = await checkInterviewAccess(deviceId, !isInterruption);
+      if (!accessCheck.ok) {
+        return res.status(403).json({ error: accessCheck.reason || "arena_locked", freeRemaining: 0, sessionCost: ARENA_SESSION_COST });
+      }
+
+      const interviewerName = ARENA_NAME_MAP[interviewerId] || interviewerId;
+      const intervieweeName = ARENA_NAME_MAP[intervieweeId] || intervieweeId;
+      const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+      const newsContext = await getArenaNewsContext().catch(() => "");
+
+      const interviewerStyle = `You are ${interviewerName} hosting a high-stakes 1-on-1 interview with ${intervieweeName}. Today is ${todayStr}. Stay 100% in character — your tone, vocabulary, ideology, and aggression level are all who you are. ${ARENA_PERSONA_PROMPTS[interviewerId]}`;
+
+      const historyContext = (conversationHistory || []).slice(-6).map((m: any) =>
+        `${m.speakerName}: "${m.text}"`
+      ).join("\n");
+
+      let userPrompt = "";
+      if (isInterruption) {
+        userPrompt = `${intervieweeName} is mid-answer and dodging or rambling. CUT THEM OFF with one short sharp interjection. MAXIMUM 1 sentence under 12 words. No long speeches.\n\nRecent exchange:\n${historyContext}`;
+      } else if (isTransition && topic) {
+        userPrompt = `You are TRANSITIONING from "${previousTopicTitle || "the last topic"}" to a new topic: "${topic.title}" — ${topic.description}\n\nRecent exchange:\n${historyContext}\n\nDo a quick pivot ("Let's move on...", "I want to ask you about...", "Speaking of which..."), then ask your FIRST hard question on the new topic. 1-2 sentences max.`;
+      } else if (isFollowUp && topic) {
+        userPrompt = `Topic: "${topic.title}" — ${topic.description}\n\nRecent exchange:\n${historyContext}\n\n${intervieweeName} just answered. Ask a SHARP follow-up that pushes back on their answer, exposes a contradiction, or demands specifics. 1-2 sentences max. No preamble.`;
+      } else if (topic) {
+        userPrompt = `Topic: "${topic.title}" — ${topic.description}\n\nOpen this topic with your FIRST hard question to ${intervieweeName}. Be provocative — set the tone. 1-2 sentences max. No greeting if there is already conversation history.\n\nRecent exchange:\n${historyContext}`;
+      } else {
+        userPrompt = `Open the interview by greeting ${intervieweeName} and warning them this won't be soft. 1-2 sentences max.`;
+      }
+
+      if (newsContext && (topic?.era === "current" || isTransition)) {
+        userPrompt += `\n\nLIVE HEADLINES you can reference:\n${newsContext}`;
+      }
+      userPrompt += `\n\nWrite ONLY your spoken question — no quotes, no stage directions, no asterisks.`;
+
+      const completion = await getClient().chat.completions.create({
+        model: getFastModel(),
+        messages: [
+          { role: "system", content: interviewerStyle },
+          { role: "user", content: userPrompt },
+        ],
+        max_completion_tokens: isInterruption ? 40 : 130,
+        temperature: 0.9,
+      });
+      let text = completion.choices[0]?.message?.content || "...";
+      text = text.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim();
+
+      res.json({
+        text,
+        speakerId: interviewerId,
+        speakerName: interviewerName,
+        freeRemaining: Math.max(0, ARENA_FREE_LIMIT - (accessCheck.access?.freeUsed || 0)),
+        hasSession: !!(accessCheck.access?.sessionExpiry && Date.now() < accessCheck.access.sessionExpiry),
+        sessionExpiresAt: accessCheck.access?.sessionExpiry || null,
+      });
+    } catch (error: any) {
+      console.error("Interview question error:", error);
+      res.status(500).json({ error: "Failed to generate question" });
+    }
+  });
+
+  app.post("/api/arena/interview-answer", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const { interviewerId, intervieweeId, topic, conversationHistory = [], lastQuestion, wasInterrupted = false, interruptionText, isInterruption = false } = req.body || {};
+      if (!interviewerId || !ARENA_PERSONA_PROMPTS[interviewerId]) return res.status(400).json({ error: "Invalid interviewerId" });
+      if (!intervieweeId || !ARENA_PERSONA_PROMPTS[intervieweeId]) return res.status(400).json({ error: "Invalid intervieweeId" });
+
+      const accessCheck = await checkInterviewAccess(deviceId, false);
+      if (!accessCheck.ok) {
+        return res.status(403).json({ error: accessCheck.reason || "arena_locked", freeRemaining: 0, sessionCost: ARENA_SESSION_COST });
+      }
+
+      const interviewerName = ARENA_NAME_MAP[interviewerId] || interviewerId;
+      const intervieweeName = ARENA_NAME_MAP[intervieweeId] || intervieweeId;
+      const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+
+      const intervieweeStyle = `You are ${intervieweeName} being grilled in a high-stakes 1-on-1 interview by ${interviewerName}. Today is ${todayStr}. Stay 100% in character — your tone, vocabulary, ideology, and combativeness are all who you are. ${ARENA_PERSONA_PROMPTS[intervieweeId]}`;
+
+      const historyContext = (conversationHistory || []).slice(-6).map((m: any) =>
+        `${m.speakerName}: "${m.text}"`
+      ).join("\n");
+
+      let userPrompt = "";
+      if (isInterruption) {
+        userPrompt = `${interviewerName} is asking a leading question. CUT IN with a fast pushback or correction. MAXIMUM 1 sentence under 12 words. No speeches.\n\nRecent exchange:\n${historyContext}`;
+      } else {
+        userPrompt = `Topic: ${topic?.title ? `"${topic.title}" — ${topic.description || ""}` : "the interview"}\n\nRecent exchange:\n${historyContext}\n\n${interviewerName} just asked you: "${lastQuestion || "..."}"\n\nAnswer in character — punchy, provocative, true to your beliefs. Push back if you disagree. 2-3 sentences max.`;
+        if (wasInterrupted && interruptionText) {
+          userPrompt += `\n\nYou were just interrupted with: "${interruptionText}". Address the interruption first, then continue.`;
+        }
+      }
+      userPrompt += `\n\nWrite ONLY your spoken response — no quotes, no stage directions, no asterisks.`;
+
+      const completion = await getClient().chat.completions.create({
+        model: getFastModel(),
+        messages: [
+          { role: "system", content: intervieweeStyle },
+          { role: "user", content: userPrompt },
+        ],
+        max_completion_tokens: isInterruption ? 40 : 160,
+        temperature: 0.9,
+      });
+      let text = completion.choices[0]?.message?.content || "...";
+      text = text.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim();
+      if (intervieweeId === "trump" || intervieweeId === "ruckus" || intervieweeId === "graham" || intervieweeId === "megynkelly" || intervieweeId === "pambondi") {
+        text = text.replace(/(?:the\s+)?epstein\s+war/gi, "the Iran war");
+      }
+
+      res.json({
+        text,
+        speakerId: intervieweeId,
+        speakerName: intervieweeName,
+        freeRemaining: Math.max(0, ARENA_FREE_LIMIT - (accessCheck.access?.freeUsed || 0)),
+        hasSession: !!(accessCheck.access?.sessionExpiry && Date.now() < accessCheck.access.sessionExpiry),
+        sessionExpiresAt: accessCheck.access?.sessionExpiry || null,
+      });
+    } catch (error: any) {
+      console.error("Interview answer error:", error);
+      res.status(500).json({ error: "Failed to generate answer" });
+    }
+  });
+
   app.get("/api/tokens/balance", async (req, res) => {
     try {
       const deviceId = req.headers["x-device-id"] as string;

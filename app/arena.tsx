@@ -3932,6 +3932,24 @@ export default function ArenaScreen() {
             </View>
           )}
 
+          <Pressable
+            onPress={() => router.push("/interview")}
+            style={{
+              flexDirection: "row", alignItems: "center", padding: 14, borderRadius: 14, marginBottom: 14,
+              backgroundColor: "rgba(255,215,0,0.12)", borderWidth: 1, borderColor: "#FFD700",
+            }}
+            testID="open-interview-mode"
+          >
+            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,215,0,0.25)", alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+              <Ionicons name="mic" size={20} color="#FFD700" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: "#FFD700", fontSize: 14, fontWeight: "900", letterSpacing: 1 }}>1-ON-1 INTERVIEWS</Text>
+              <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 11, marginTop: 2 }}>Maddow grills Trump · Megyn vs Bernie · 5/10/15 min</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#FFD700" />
+          </Pressable>
+
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
             <Text style={{ color: "#FFD700", fontSize: 14, fontWeight: "800" }}>{selectedPersonas.length} DEBATERS SELECTED</Text>
             <View style={{ flexDirection: "row", gap: 12 }}>
