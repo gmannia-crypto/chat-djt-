@@ -234,8 +234,8 @@ export default function InterviewTranscriptScreen() {
             return (
               <View style={[s.bubbleRow, isCallIn ? { justifyContent: "center" } : isInterviewer ? { justifyContent: "flex-start" } : { justifyContent: "flex-end" }]}>
                 <Pressable
-                  onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {}); setShareMsg(item); }}
-                  onPress={() => setShareMsg(item)}
+                  onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {}); setCopied(false); setShareMsg(item); }}
+                  onPress={() => { setCopied(false); setShareMsg(item); }}
                   delayLongPress={300}
                   testID={`bubble-${item.id}`}
                   style={[
