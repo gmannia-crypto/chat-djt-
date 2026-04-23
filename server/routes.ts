@@ -3733,6 +3733,8 @@ Your personality quirks:
     )`);
     await initDb.query(`CREATE INDEX IF NOT EXISTS interview_history_device_idx ON interview_history (device_id, ended_at DESC)`);
     await initDb.query(`ALTER TABLE interview_history ADD COLUMN IF NOT EXISTS title TEXT`);
+    await initDb.query(`ALTER TABLE interview_history ADD COLUMN IF NOT EXISTS deleted_at BIGINT`);
+    await initDb.query(`CREATE INDEX IF NOT EXISTS interview_history_deleted_idx ON interview_history (device_id, deleted_at)`);
     await initDb.query(`CREATE TABLE IF NOT EXISTS interview_lie_votes (
       lie_id TEXT NOT NULL,
       device_id TEXT NOT NULL,
@@ -5790,11 +5792,29 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
           `SELECT id, interviewer_id, interviewer_name, interviewee_id, interviewee_name,
                   duration_minutes, lie_count, message_count, started_at, ended_at, title
            FROM interview_history
-           WHERE device_id = $1
+           WHERE device_id = $1 AND deleted_at IS NULL
            ORDER BY ended_at DESC
            LIMIT 100`,
           [deviceId],
         );
+        // Opportunistically purge soft-deleted interviews (and any bookmarks
+        // that point at them) once they are past the 7-day restore window.
+        try {
+          const purgeBefore = Date.now() - 7 * 24 * 60 * 60 * 1000;
+          const purged = await db.query(
+            `DELETE FROM interview_history
+               WHERE device_id = $1 AND deleted_at IS NOT NULL AND deleted_at < $2
+               RETURNING id`,
+            [deviceId, purgeBefore],
+          );
+          const purgedIds = (purged.rows || []).map((r: any) => r.id).filter(Boolean);
+          if (purgedIds.length > 0) {
+            await db.query(
+              `DELETE FROM interview_bookmarks WHERE device_id = $1 AND interview_id = ANY($2::text[])`,
+              [deviceId, purgedIds],
+            );
+          }
+        } catch {}
         const items = result.rows.map((r: any) => ({
           id: r.id,
           interviewerId: r.interviewer_id,
@@ -5826,7 +5846,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
       const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
       try {
         const result = await db.query(
-          `SELECT * FROM interview_history WHERE id = $1 AND device_id = $2 LIMIT 1`,
+          `SELECT * FROM interview_history WHERE id = $1 AND device_id = $2 AND deleted_at IS NULL LIMIT 1`,
           [id, deviceId],
         );
         if (result.rows.length === 0) return res.status(404).json({ error: "Not found" });
@@ -5865,22 +5885,52 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
       const id = req.params.id;
       const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
       try {
+        // Soft delete: mark with deleted_at so the user can undo within the
+        // restore window. Bookmarks stay intact so they come back on restore;
+        // both are purged together once the window expires (see GET list).
         const result = await db.query(
-          `DELETE FROM interview_history WHERE id = $1 AND device_id = $2`,
-          [id, deviceId],
+          `UPDATE interview_history SET deleted_at = $1
+             WHERE id = $2 AND device_id = $3 AND deleted_at IS NULL
+             RETURNING id`,
+          [Date.now(), id, deviceId],
         );
         if (result.rowCount === 0) return res.status(404).json({ error: "Not found" });
-        await db.query(
-          `DELETE FROM interview_bookmarks WHERE interview_id = $1 AND device_id = $2`,
-          [id, deviceId],
-        );
-        res.json({ ok: true });
+        res.json({ ok: true, restorable: true });
       } finally {
         await db.end();
       }
     } catch (error: any) {
       console.error("Interview delete error:", error);
       res.status(500).json({ error: "Failed to delete interview" });
+    }
+  });
+
+  // Restore a recently soft-deleted interview within the 7-day undo window
+  app.post("/api/arena/interview-history/:id/restore", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const id = req.params.id;
+      const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      try {
+        const restoreCutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+        const result = await db.query(
+          `UPDATE interview_history SET deleted_at = NULL
+             WHERE id = $1 AND device_id = $2
+               AND deleted_at IS NOT NULL AND deleted_at >= $3
+             RETURNING id`,
+          [id, deviceId, restoreCutoff],
+        );
+        if (result.rowCount === 0) {
+          return res.status(404).json({ error: "Interview can't be restored" });
+        }
+        res.json({ ok: true });
+      } finally {
+        await db.end();
+      }
+    } catch (error: any) {
+      console.error("Interview restore error:", error);
+      res.status(500).json({ error: "Failed to restore interview" });
     }
   });
 
@@ -6121,17 +6171,31 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
       const interviewIdFilter = (req.query.interviewId as string) || null;
       const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
       try {
+        // Skip bookmarks whose parent interview is currently soft-deleted —
+        // they should reappear if the user restores the interview.
         const result = interviewIdFilter
           ? await db.query(
-              `SELECT * FROM interview_bookmarks
-                 WHERE device_id = $1 AND interview_id = $2
-                 ORDER BY created_at DESC LIMIT 500`,
+              `SELECT b.* FROM interview_bookmarks b
+                 WHERE b.device_id = $1 AND b.interview_id = $2
+                   AND NOT EXISTS (
+                     SELECT 1 FROM interview_history h
+                       WHERE h.id = b.interview_id
+                         AND h.device_id = b.device_id
+                         AND h.deleted_at IS NOT NULL
+                   )
+                 ORDER BY b.created_at DESC LIMIT 500`,
               [deviceId, interviewIdFilter],
             )
           : await db.query(
-              `SELECT * FROM interview_bookmarks
-                 WHERE device_id = $1
-                 ORDER BY created_at DESC LIMIT 500`,
+              `SELECT b.* FROM interview_bookmarks b
+                 WHERE b.device_id = $1
+                   AND NOT EXISTS (
+                     SELECT 1 FROM interview_history h
+                       WHERE h.id = b.interview_id
+                         AND h.device_id = b.device_id
+                         AND h.deleted_at IS NOT NULL
+                   )
+                 ORDER BY b.created_at DESC LIMIT 500`,
               [deviceId],
             );
         const items = result.rows.map((r: any) => ({

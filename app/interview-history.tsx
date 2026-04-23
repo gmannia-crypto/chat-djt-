@@ -89,6 +89,8 @@ export default function InterviewHistoryScreen() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<HistoryItem | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [undoItem, setUndoItem] = useState<HistoryItem | null>(null);
+  const [restoring, setRestoring] = useState(false);
   const longPressedRef = React.useRef(false);
 
   React.useEffect(() => {
@@ -96,6 +98,12 @@ export default function InterviewHistoryScreen() {
     const t = setTimeout(() => setErrorMsg(null), 3000);
     return () => clearTimeout(t);
   }, [errorMsg]);
+
+  React.useEffect(() => {
+    if (!undoItem) return;
+    const t = setTimeout(() => setUndoItem(null), 5000);
+    return () => clearTimeout(t);
+  }, [undoItem]);
 
   const load = useCallback(async () => {
     if (!deviceId) return;
@@ -162,7 +170,7 @@ export default function InterviewHistoryScreen() {
     } else {
       Alert.alert(
         "Delete interview?",
-        `"${it.title || defaultTitle(it)}" will be permanently removed.`,
+        `"${it.title || defaultTitle(it)}" will disappear from your history. You can undo right after, or it's removed for good after 7 days.`,
         [
           { text: "Cancel", style: "cancel" },
           { text: "Delete", style: "destructive", onPress: () => doDelete(it) },
@@ -182,6 +190,8 @@ export default function InterviewHistoryScreen() {
       if (res.ok) {
         setItems((prev) => prev.filter((x) => x.id !== it.id));
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        setErrorMsg(null);
+        setUndoItem(it);
       } else {
         setErrorMsg("Couldn't delete interview. Please try again.");
       }
@@ -190,6 +200,36 @@ export default function InterviewHistoryScreen() {
     } finally {
       setDeletingId(null);
       setConfirmDelete(null);
+    }
+  };
+
+  const restoreDeleted = async () => {
+    if (!undoItem || !deviceId || restoring) return;
+    const it = undoItem;
+    setRestoring(true);
+    try {
+      const res = await fetch(new URL(`/api/arena/interview-history/${it.id}/restore`, getApiUrl()).toString(), {
+        method: "POST",
+        headers: { "x-device-id": deviceId },
+      });
+      if (res.ok) {
+        setItems((prev) => {
+          if (prev.some((x) => x.id === it.id)) return prev;
+          const next = [...prev, it];
+          next.sort((a, b) => b.endedAt - a.endedAt);
+          return next;
+        });
+        setUndoItem(null);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      } else {
+        setErrorMsg("Couldn't restore interview. Please try again.");
+        setUndoItem(null);
+      }
+    } catch {
+      setErrorMsg("Couldn't restore interview. Please try again.");
+      setUndoItem(null);
+    } finally {
+      setRestoring(false);
     }
   };
 
@@ -382,6 +422,38 @@ export default function InterviewHistoryScreen() {
         </View>
       ) : null}
 
+      {undoItem ? (
+        <View style={s.undoToast} testID="history-undo-toast">
+          <Ionicons name="trash" size={16} color="rgba(255,255,255,0.85)" />
+          <Text style={s.toastText} numberOfLines={1}>
+            Deleted "{undoItem.title || defaultTitle(undoItem)}"
+          </Text>
+          <Pressable
+            onPress={restoreDeleted}
+            disabled={restoring}
+            hitSlop={10}
+            style={s.undoBtn}
+            testID="history-undo-restore"
+            accessibilityLabel="Undo delete"
+          >
+            {restoring ? (
+              <ActivityIndicator color="#FFD700" />
+            ) : (
+              <Text style={s.undoBtnText}>UNDO</Text>
+            )}
+          </Pressable>
+          <Pressable
+            onPress={() => setUndoItem(null)}
+            hitSlop={10}
+            style={s.undoClose}
+            testID="history-undo-dismiss"
+            accessibilityLabel="Dismiss undo"
+          >
+            <Ionicons name="close" size={16} color="rgba(255,255,255,0.6)" />
+          </Pressable>
+        </View>
+      ) : null}
+
       <Modal visible={!!confirmDelete} transparent animationType="fade" onRequestClose={() => setConfirmDelete(null)}>
         <View style={s.modalOverlay}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setConfirmDelete(null)} />
@@ -389,7 +461,7 @@ export default function InterviewHistoryScreen() {
             <View style={s.handle} />
             <Text style={s.sheetTitle}>Delete interview?</Text>
             <Text style={s.sheetSub}>
-              "{confirmDelete ? (confirmDelete.title || defaultTitle(confirmDelete)) : ""}" will be permanently removed.
+              "{confirmDelete ? (confirmDelete.title || defaultTitle(confirmDelete)) : ""}" will disappear from your history. You can undo right after, or it's removed for good after 7 days.
             </Text>
             <View style={s.sheetActions}>
               <Pressable
@@ -458,4 +530,8 @@ const s = StyleSheet.create({
   sheetBtnDangerText: { color: "#fff", fontSize: 13, fontWeight: "900" },
   toast: { position: "absolute", left: 16, right: 16, bottom: 24, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12, backgroundColor: "rgba(20,20,24,0.96)", borderWidth: 1, borderColor: "rgba(255,77,77,0.5)" },
   toastText: { flex: 1, color: "#fff", fontSize: 13, fontWeight: "700" },
+  undoToast: { position: "absolute", left: 16, right: 16, bottom: 24 + (Platform.OS === "web" ? 34 : 0), flexDirection: "row", alignItems: "center", gap: 10, paddingLeft: 14, paddingRight: 6, paddingVertical: 8, borderRadius: 12, backgroundColor: "rgba(20,20,24,0.98)", borderWidth: 1, borderColor: "rgba(255,215,0,0.45)" },
+  undoBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: "rgba(255,215,0,0.14)", borderWidth: 1, borderColor: "rgba(255,215,0,0.55)" },
+  undoBtnText: { color: "#FFD700", fontSize: 12, fontWeight: "900", letterSpacing: 1 },
+  undoClose: { width: 28, height: 28, alignItems: "center", justifyContent: "center", borderRadius: 14 },
 });
