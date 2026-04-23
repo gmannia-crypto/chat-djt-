@@ -998,6 +998,14 @@ export default function InterviewScreen() {
             <Text style={s.headerSub}>Provocative · Live · Unscripted</Text>
           </View>
           <Pressable
+            onPress={() => router.push("/lie-leaderboard")}
+            style={s.iconBtn}
+            testID="open-lie-leaderboard"
+            accessibilityLabel="Caught Lying Leaderboard"
+          >
+            <Ionicons name="trophy-outline" size={20} color="#FFD700" />
+          </Pressable>
+          <Pressable
             onPress={() => router.push("/interview-history")}
             style={s.iconBtn}
             testID="open-interview-history"

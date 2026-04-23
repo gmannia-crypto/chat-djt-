@@ -1,0 +1,248 @@
+import React, { useCallback, useEffect, useState } from "react";
+import {
+  View, Text, Pressable, StyleSheet, FlatList, ActivityIndicator,
+  RefreshControl, Image, Platform,
+} from "react-native";
+import { router } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import { fetch } from "expo/fetch";
+import { getApiUrl } from "@/lib/query-client";
+import { ShareAppButton } from "@/components/ShareAppButton";
+
+type LeaderRow = {
+  intervieweeId: string;
+  intervieweeName: string;
+  lieCount: number;
+  agree: number;
+  disagree: number;
+  lieScore: number;
+};
+
+const PERSONA_PORTRAITS: Record<string, any> = {
+  trump: require("@/assets/images/persona-trump.png"),
+  netanyahu: require("@/assets/images/persona-netanyahu.png"),
+  ruckus: require("@/assets/images/persona-ruckus.png"),
+  galloway: require("@/assets/images/persona-galloway.png"),
+  mcconnell: require("@/assets/images/persona-mcconnell.png"),
+  carville: require("@/assets/images/persona-carville.png"),
+  maddow: require("@/assets/images/persona-maddow.png"),
+  omar: require("@/assets/images/persona-omar.png"),
+  biden: require("@/assets/images/persona-biden.png"),
+  rosie: require("@/assets/images/persona-rosie.png"),
+  berniemc: require("@/assets/images/persona-bernie.png"),
+  elon: require("@/assets/images/persona-musk.png"),
+  graham: require("@/assets/images/persona-graham.png"),
+  megynkelly: require("@/assets/images/persona-megynkelly.png"),
+  pambondi: require("@/assets/images/persona-pambondi.png"),
+  candace: require("@/assets/images/persona-candace.png"),
+  joyreid: require("@/assets/images/persona-joyreid.png"),
+  miller: require("@/assets/images/persona-miller.png"),
+  jimjordan: require("@/assets/images/persona-jimjordan.png"),
+  schumer: require("@/assets/images/persona-schumer.png"),
+  alexjones: require("@/assets/images/persona-alexjones.png"),
+  obama: require("@/assets/images/persona-obama.png"),
+  melania: require("@/assets/images/persona-melania.png"),
+  odonnell: require("@/assets/images/persona-odonnell.png"),
+  kamala: require("@/assets/images/persona-kamala.png"),
+  mtg: require("@/assets/images/persona-mtg.png"),
+  rfk: require("@/assets/images/persona-rfk.png"),
+};
+
+const webTop = Platform.OS === "web" ? 67 : 0;
+const webBottom = Platform.OS === "web" ? 34 : 0;
+
+function rankColor(rank: number): string {
+  if (rank === 0) return "#FFD700";
+  if (rank === 1) return "#C0C0C0";
+  if (rank === 2) return "#CD7F32";
+  return "#7a7a7a";
+}
+
+export default function LieLeaderboardScreen() {
+  const insets = useSafeAreaInsets();
+  const [rows, setRows] = useState<LeaderRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      setErrorMsg(null);
+      const res = await fetch(
+        new URL("/api/arena/lie-leaderboard?limit=20", getApiUrl()).toString(),
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setRows(Array.isArray(data.leaderboard) ? data.leaderboard : []);
+      } else {
+        setErrorMsg("Couldn't load leaderboard");
+      }
+    } catch {
+      setErrorMsg("Couldn't load leaderboard");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    load();
+  }, [load]);
+
+  const renderRow = ({ item, index }: { item: LeaderRow; index: number }) => {
+    const portrait = PERSONA_PORTRAITS[item.intervieweeId];
+    const totalVotes = item.agree + item.disagree;
+    const agreePct = totalVotes > 0 ? Math.round((item.agree / totalVotes) * 100) : 0;
+    return (
+      <View style={[s.row, index < 3 && s.rowTop]} testID={`leader-row-${item.intervieweeId}`}>
+        <View style={[s.rankBadge, { backgroundColor: rankColor(index) }]}>
+          <Text style={s.rankText}>{index + 1}</Text>
+        </View>
+        {portrait ? (
+          <Image source={portrait} style={s.avatar} resizeMode="cover" />
+        ) : (
+          <View style={[s.avatar, s.avatarFallback]}>
+            <Ionicons name="person" size={22} color="#FFD700" />
+          </View>
+        )}
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={s.name} numberOfLines={1}>{item.intervieweeName}</Text>
+          <Text style={s.metaSub} numberOfLines={1}>
+            {item.lieCount} flagged · {agreePct}% agree
+          </Text>
+        </View>
+        <View style={s.scoreCol}>
+          <Text style={s.scoreNum}>{item.lieScore > 0 ? `+${item.lieScore}` : item.lieScore}</Text>
+          <View style={s.voteRow}>
+            <Ionicons name="thumbs-up" size={11} color="#4ADE80" />
+            <Text style={[s.voteNum, { color: "#4ADE80" }]}>{item.agree}</Text>
+            <Ionicons name="thumbs-down" size={11} color="#ff6b6b" style={{ marginLeft: 6 }} />
+            <Text style={[s.voteNum, { color: "#ff6b6b" }]}>{item.disagree}</Text>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  return (
+    <View style={[s.container, { paddingTop: insets.top + webTop, paddingBottom: webBottom }]}>
+      <LinearGradient colors={["rgba(255,215,0,0.12)", "rgba(0,0,0,0)", "#0a0a0a"]} style={StyleSheet.absoluteFill} />
+
+      <View style={s.header}>
+        <Pressable onPress={() => router.back()} style={s.iconBtn} testID="leaderboard-back">
+          <Ionicons name="arrow-back" size={22} color="#fff" />
+        </Pressable>
+        <View style={s.headerCenter}>
+          <Text style={s.headerTitle}>CAUGHT LYING</Text>
+          <Text style={s.headerSub}>Community fact-check leaderboard</Text>
+        </View>
+        <ShareAppButton variant="icon" area="arena" />
+      </View>
+
+      <View style={s.legendCard}>
+        <Ionicons name="information-circle-outline" size={16} color="#FFD700" />
+        <Text style={s.legendText}>
+          Lie score = agree votes minus disagree votes on lies flagged during interviews.
+        </Text>
+      </View>
+
+      {loading ? (
+        <View style={s.centered}>
+          <ActivityIndicator size="large" color="#FFD700" />
+        </View>
+      ) : rows.length === 0 ? (
+        <View style={s.centered}>
+          <Ionicons name="trophy-outline" size={48} color="#555" />
+          <Text style={s.emptyTitle}>No votes yet</Text>
+          <Text style={s.emptyText}>
+            Run an interview, vote on the lies the AI catches, and the leaderboard fills up.
+          </Text>
+          <Pressable onPress={() => router.replace("/interview")} style={s.startBtn} testID="leaderboard-start">
+            <Text style={s.startBtnText}>Start an Interview</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <FlatList
+          data={rows}
+          keyExtractor={(it) => it.intervieweeId}
+          renderItem={renderRow}
+          contentContainerStyle={{ padding: 12, paddingBottom: 60 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFD700" />}
+          ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
+        />
+      )}
+
+      {errorMsg && (
+        <View style={s.errorToast}>
+          <Text style={s.errorToastText}>{errorMsg}</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#0a0a0a" },
+  header: {
+    flexDirection: "row", alignItems: "center", paddingHorizontal: 12,
+    paddingVertical: 10, gap: 8,
+  },
+  iconBtn: {
+    width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  headerCenter: { flex: 1, alignItems: "center" },
+  headerTitle: { color: "#FFD700", fontSize: 16, fontWeight: "800", letterSpacing: 1.5 },
+  headerSub: { color: "#aaa", fontSize: 11, marginTop: 2 },
+  legendCard: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    marginHorizontal: 12, marginTop: 4, marginBottom: 6,
+    padding: 10, borderRadius: 10,
+    backgroundColor: "rgba(255,215,0,0.08)",
+    borderWidth: 1, borderColor: "rgba(255,215,0,0.25)",
+  },
+  legendText: { color: "#ddd", fontSize: 12, flex: 1 },
+  centered: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 10 },
+  emptyTitle: { color: "#FFD700", fontSize: 18, fontWeight: "700", marginTop: 6 },
+  emptyText: { color: "#aaa", fontSize: 13, textAlign: "center", maxWidth: 320 },
+  startBtn: {
+    marginTop: 12, paddingHorizontal: 18, paddingVertical: 10,
+    borderRadius: 22, backgroundColor: "#FFD700",
+  },
+  startBtnText: { color: "#000", fontWeight: "700" },
+  row: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    padding: 12, borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.06)",
+  },
+  rowTop: {
+    backgroundColor: "rgba(255,215,0,0.08)",
+    borderColor: "rgba(255,215,0,0.3)",
+  },
+  rankBadge: {
+    width: 30, height: 30, borderRadius: 15,
+    alignItems: "center", justifyContent: "center",
+  },
+  rankText: { color: "#000", fontWeight: "800", fontSize: 13 },
+  avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: "#222" },
+  avatarFallback: { alignItems: "center", justifyContent: "center" },
+  name: { color: "#fff", fontSize: 15, fontWeight: "700" },
+  metaSub: { color: "#999", fontSize: 11, marginTop: 2 },
+  scoreCol: { alignItems: "flex-end", minWidth: 64 },
+  scoreNum: { color: "#FFD700", fontSize: 18, fontWeight: "800" },
+  voteRow: { flexDirection: "row", alignItems: "center", marginTop: 2 },
+  voteNum: { fontSize: 11, fontWeight: "700", marginLeft: 3 },
+  errorToast: {
+    position: "absolute", left: 16, right: 16, bottom: 24 + webBottom,
+    padding: 12, borderRadius: 10,
+    backgroundColor: "rgba(255,80,80,0.95)",
+    alignItems: "center",
+  },
+  errorToastText: { color: "#fff", fontWeight: "700" },
+});

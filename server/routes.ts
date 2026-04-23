@@ -5597,6 +5597,50 @@ Return ONLY valid JSON: {"score": 0-100, "isLie": boolean (true if score<40), "r
     }
   });
 
+  // Public leaderboard: which guests get caught lying most, ranked by net agreement
+  app.get("/api/arena/lie-leaderboard", async (req, res) => {
+    try {
+      const limit = Math.min(Math.max(parseInt(String(req.query.limit || "20"), 10) || 20, 1), 50);
+      const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      try {
+        const rows = await db.query(
+          `SELECT interviewee_id,
+             COUNT(DISTINCT lie_id)::int AS lie_count,
+             COALESCE(SUM(CASE WHEN vote =  1 THEN 1 ELSE 0 END), 0)::int AS agree,
+             COALESCE(SUM(CASE WHEN vote = -1 THEN 1 ELSE 0 END), 0)::int AS disagree
+           FROM interview_lie_votes
+           WHERE interviewee_id IS NOT NULL AND interviewee_id <> ''
+           GROUP BY interviewee_id
+           HAVING COALESCE(SUM(CASE WHEN vote =  1 THEN 1 ELSE 0 END), 0)
+                + COALESCE(SUM(CASE WHEN vote = -1 THEN 1 ELSE 0 END), 0) > 0
+           ORDER BY (COALESCE(SUM(CASE WHEN vote =  1 THEN 1 ELSE 0 END), 0)
+                   - COALESCE(SUM(CASE WHEN vote = -1 THEN 1 ELSE 0 END), 0)) DESC,
+                    COUNT(DISTINCT lie_id) DESC
+           LIMIT $1`,
+          [limit],
+        );
+        const leaderboard = rows.rows.map((r: any) => {
+          const agree = Number(r.agree) || 0;
+          const disagree = Number(r.disagree) || 0;
+          return {
+            intervieweeId: r.interviewee_id,
+            intervieweeName: ARENA_NAME_MAP[r.interviewee_id] || r.interviewee_id,
+            lieCount: Number(r.lie_count) || 0,
+            agree,
+            disagree,
+            lieScore: agree - disagree,
+          };
+        });
+        res.json({ leaderboard });
+      } finally {
+        await db.end();
+      }
+    } catch (error: any) {
+      console.error("Lie leaderboard fetch error:", error);
+      res.status(500).json({ error: "Fetch failed", leaderboard: [] });
+    }
+  });
+
   // Save a completed interview transcript so the user can re-read it later
   app.post("/api/arena/interview-save", async (req, res) => {
     try {
