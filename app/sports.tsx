@@ -1455,7 +1455,7 @@ function PlayerStatsLookup() {
 const DC_ROYAL_STORAGE = "dc-royal-crowns";
 const DC_ROYAL_OVERLAP_STORAGE = "dc-royal-overlap";
 type OverlapMode = "none" | "subtle" | "chaotic";
-const OVERLAP_MS: Record<OverlapMode, number> = { none: 0, subtle: 1000, chaotic: 1800 };
+const OVERLAP_MS: Record<OverlapMode, number> = { none: 0, subtle: 1500, chaotic: 2500 };
 const SPORT_CATEGORIES = ["NBA", "NFL", "MLB", "NHL", "SOCCER", "UFC"];
 
 interface DCRoyalWinner {
@@ -1573,49 +1573,63 @@ function DCRoyalTab({
 
   const runDebateLoop = async (expiresAt: number) => {
     const history: { personaId: string; text: string }[] = [];
+    type Msg = { personaId: string; text: string };
+
+    const fetchNext = (turnIdx: number, hist: Msg[]): Promise<Msg | null> => {
+      const responder = winners[turnIdx % winners.length];
+      return fetch(new URL("/api/sports/dc-royal/respond", getApiUrl()).toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-device-id": deviceId || "" },
+        body: JSON.stringify({
+          responderId: responder.personaId,
+          winners: winners.map(w => ({ ...w, crowns: crowns[w.personaId] || 0 })),
+          conversationHistory: hist.slice(-8),
+          expiresAt,
+        }),
+      }).then(r => r.ok ? r.json() : null).catch(() => null);
+    };
+
     let turnIndex = 0;
+    let pending: Promise<Msg | null> = fetchNext(turnIndex, history);
+
     while (debateMountedRef.current && debateRunningRef.current && Date.now() < expiresAt) {
-      const responder = winners[turnIndex % winners.length];
-      try {
-        const res = await fetch(new URL("/api/sports/dc-royal/respond", getApiUrl()).toString(), {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-device-id": deviceId || "" },
-          body: JSON.stringify({
-            responderId: responder.personaId,
-            winners: winners.map(w => ({ ...w, crowns: crowns[w.personaId] || 0 })),
-            conversationHistory: history.slice(-8),
-            expiresAt,
-          }),
-        });
-        if (!res.ok) break;
-        const msg = await res.json();
-        if (!debateMountedRef.current || !debateRunningRef.current) break;
-        history.push(msg);
-        setDebateMessages(prev => [...prev, msg]);
-        setTimeout(() => debateScrollRef.current?.scrollToEnd({ animated: true }), 200);
-        const speakResult = onSpeak(msg.text, msg.personaId, 80000 + turnIndex);
-        const sound = speakResult && typeof (speakResult as Promise<Audio.Sound | null>).then === "function"
-          ? await (speakResult as Promise<Audio.Sound | null>).catch(() => null)
-          : null;
-        const overlapMs = OVERLAP_MS[debateOverlapRef.current] ?? 1000;
-        const fallbackMs = Math.max(2500, msg.text.length * 60);
-        let durationMs: number | null = null;
-        if (sound) {
-          for (let i = 0; i < 8 && durationMs === null; i++) {
-            try {
-              const status = await sound.getStatusAsync();
-              if (status.isLoaded && typeof status.durationMillis === "number" && status.durationMillis > 0) {
-                durationMs = status.durationMillis;
-                break;
-              }
-            } catch {}
-            await new Promise(r => setTimeout(r, 100));
-          }
-        }
-        const speechMs = durationMs ?? fallbackMs;
-        await new Promise(r => setTimeout(r, Math.max(800, speechMs - overlapMs)));
-      } catch { break; }
+      const msg = await pending;
+      if (!msg || !debateMountedRef.current || !debateRunningRef.current) break;
+      history.push(msg);
+      setDebateMessages(prev => [...prev, msg]);
+      setTimeout(() => debateScrollRef.current?.scrollToEnd({ animated: true }), 200);
+
+      const speakResult = onSpeak(msg.text, msg.personaId, 80000 + turnIndex);
+
+      // Kick off the NEXT response fetch immediately (parallel with TTS + playback)
+      // so by the time we're ready for the next speaker, the text is already here.
       turnIndex++;
+      pending = fetchNext(turnIndex, [...history, msg]);
+
+      const sound = speakResult && typeof (speakResult as Promise<Audio.Sound | null>).then === "function"
+        ? await (speakResult as Promise<Audio.Sound | null>).catch(() => null)
+        : null;
+
+      const overlapMs = OVERLAP_MS[debateOverlapRef.current] ?? 1500;
+      const fallbackMs = Math.max(2200, msg.text.length * 55);
+      let durationMs: number | null = null;
+      if (sound) {
+        for (let i = 0; i < 4 && durationMs === null; i++) {
+          try {
+            const status = await sound.getStatusAsync();
+            if (status.isLoaded && typeof status.durationMillis === "number" && status.durationMillis > 0) {
+              durationMs = status.durationMillis;
+              break;
+            }
+          } catch {}
+          await new Promise(r => setTimeout(r, 50));
+        }
+      }
+      const speechMs = durationMs ?? fallbackMs;
+      const wait = debateOverlapRef.current === "none"
+        ? Math.max(400, speechMs - overlapMs)
+        : Math.max(250, speechMs - overlapMs);
+      await new Promise(r => setTimeout(r, wait));
     }
   };
 
@@ -1814,7 +1828,7 @@ function DCRoyalTab({
             {(["none", "subtle", "chaotic"] as const).map(mode => {
               const active = debateOverlap === mode;
               const label = mode === "none" ? "POLITE" : mode === "subtle" ? "SUBTLE" : "CHAOTIC";
-              const sub = mode === "none" ? "no overlap" : mode === "subtle" ? "1s overlap" : "heavy overlap";
+              const sub = mode === "none" ? "no overlap" : mode === "subtle" ? "~1.5s overlap" : "~2.5s overlap";
               return (
                 <Pressable key={mode} onPress={() => setDebateOverlap(mode)}
                   testID={`overlap-${mode}`}
