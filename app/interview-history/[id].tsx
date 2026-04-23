@@ -92,6 +92,10 @@ export default function InterviewTranscriptScreen() {
   const [renameValue, setRenameValue] = useState("");
   const [savingRename, setSavingRename] = useState(false);
   const [renameError, setRenameError] = useState<string | null>(null);
+  const [bookmarks, setBookmarks] = useState<Record<string, string>>({});
+  const [bookmarkBusy, setBookmarkBusy] = useState(false);
+  const [bookmarkError, setBookmarkError] = useState<string | null>(null);
+  const [bookmarkJustAdded, setBookmarkJustAdded] = useState(false);
 
   const defaultTitle = data ? `${data.interviewerName} × ${data.intervieweeName}` : "TRANSCRIPT";
   const displayTitle = (data?.title && data.title.trim().length > 0) ? data.title : defaultTitle;
@@ -225,6 +229,80 @@ export default function InterviewTranscriptScreen() {
       await Share.share({ message: text, url: SHARE_URL });
       setShareMsg(null);
     } catch {}
+  };
+
+  useEffect(() => {
+    if (!deviceId || !id) return;
+    let cancel = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          new URL(`/api/arena/interview-bookmarks?interviewId=${encodeURIComponent(String(id))}`, getApiUrl()).toString(),
+          { headers: { "x-device-id": deviceId } },
+        );
+        if (res.ok) {
+          const j = await res.json();
+          if (!cancel && Array.isArray(j.items)) {
+            const m: Record<string, string> = {};
+            for (const it of j.items) {
+              if (it?.msgId && it?.id) m[String(it.msgId)] = String(it.id);
+            }
+            setBookmarks(m);
+          }
+        }
+      } catch {}
+    })();
+    return () => { cancel = true; };
+  }, [deviceId, id]);
+
+  const isBookmarked = (m: Msg | null) => !!(m && bookmarks[m.id]);
+
+  const toggleBookmark = async (m: Msg) => {
+    if (!data || !deviceId || bookmarkBusy) return;
+    setBookmarkError(null);
+    const existingId = bookmarks[m.id];
+    setBookmarkBusy(true);
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+      if (existingId) {
+        const res = await fetch(new URL(`/api/arena/interview-bookmarks/${existingId}`, getApiUrl()).toString(), {
+          method: "DELETE",
+          headers: { "x-device-id": deviceId },
+        });
+        if (res.ok || res.status === 404) {
+          setBookmarks((prev) => {
+            const n = { ...prev };
+            delete n[m.id];
+            return n;
+          });
+          setBookmarkJustAdded(false);
+        } else {
+          setBookmarkError("Couldn't remove bookmark.");
+        }
+      } else {
+        const res = await fetch(new URL(`/api/arena/interview-bookmarks`, getApiUrl()).toString(), {
+          method: "POST",
+          headers: { "x-device-id": deviceId, "Content-Type": "application/json" },
+          body: JSON.stringify({ interviewId: data.id, msgId: m.id }),
+        });
+        if (res.ok) {
+          const j = await res.json();
+          const newId = j?.bookmark?.id;
+          if (newId) {
+            setBookmarks((prev) => ({ ...prev, [m.id]: String(newId) }));
+            setBookmarkJustAdded(true);
+            setTimeout(() => setBookmarkJustAdded(false), 1600);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+          }
+        } else {
+          setBookmarkError("Couldn't bookmark moment.");
+        }
+      }
+    } catch {
+      setBookmarkError("Couldn't update bookmark.");
+    } finally {
+      setBookmarkBusy(false);
+    }
   };
 
   useEffect(() => {
@@ -369,9 +447,9 @@ export default function InterviewTranscriptScreen() {
         />
       )}
 
-      <Modal visible={!!shareMsg} transparent animationType="fade" onRequestClose={() => { setShareMsg(null); setImageError(null); }}>
+      <Modal visible={!!shareMsg} transparent animationType="fade" onRequestClose={() => { setShareMsg(null); setImageError(null); setBookmarkError(null); setBookmarkJustAdded(false); }}>
         <View style={s.modalOverlay}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => { setShareMsg(null); setImageError(null); }} />
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => { setShareMsg(null); setImageError(null); setBookmarkError(null); setBookmarkJustAdded(false); }} />
           <View style={s.shareSheet} testID="bubble-share-sheet">
             <View style={s.handle} />
             <Text style={s.shareTitle}>Share this moment</Text>
@@ -383,6 +461,37 @@ export default function InterviewTranscriptScreen() {
                 <Text style={s.sharePreviewText} numberOfLines={5}>"{shareMsg.text}"</Text>
               </View>
             )}
+            <Pressable
+              onPress={() => shareMsg && toggleBookmark(shareMsg)}
+              style={[
+                s.shareActionBtn,
+                s.shareBookmarkBtn,
+                isBookmarked(shareMsg) && s.shareBookmarkBtnActive,
+                bookmarkBusy && { opacity: 0.7 },
+              ]}
+              disabled={bookmarkBusy}
+              testID="bubble-bookmark"
+            >
+              {bookmarkBusy ? (
+                <ActivityIndicator color="#FFD700" size="small" />
+              ) : (
+                <Ionicons
+                  name={isBookmarked(shareMsg) ? "bookmark" : "bookmark-outline"}
+                  size={18}
+                  color="#FFD700"
+                />
+              )}
+              <Text style={s.shareBookmarkText}>
+                {bookmarkBusy
+                  ? (isBookmarked(shareMsg) ? "Removing…" : "Saving…")
+                  : isBookmarked(shareMsg)
+                    ? (bookmarkJustAdded ? "Saved to favorites" : "Remove bookmark")
+                    : "Save to favorites"}
+              </Text>
+            </Pressable>
+            {bookmarkError ? (
+              <Text style={s.imageErrorText} testID="bubble-bookmark-error">{bookmarkError}</Text>
+            ) : null}
             <Pressable
               onPress={() => shareMsg && handleShareImage(shareMsg)}
               style={[s.shareActionBtn, s.shareImageBtn, generatingImage && { opacity: 0.7 }]}
@@ -417,7 +526,7 @@ export default function InterviewTranscriptScreen() {
                 <Text style={s.shareShareText}>Share text</Text>
               </Pressable>
             </View>
-            <Pressable onPress={() => { setShareMsg(null); setImageError(null); }} style={s.shareCancel}>
+            <Pressable onPress={() => { setShareMsg(null); setImageError(null); setBookmarkError(null); setBookmarkJustAdded(false); }} style={s.shareCancel}>
               <Text style={s.shareCancelText}>Cancel</Text>
             </Pressable>
           </View>
@@ -561,6 +670,9 @@ const s = StyleSheet.create({
   shareShareBtn: { backgroundColor: "#FFD700" },
   shareShareText: { color: "#000", fontSize: 13, fontWeight: "900" as const },
   shareImageBtn: { backgroundColor: "#FFD700", marginBottom: 8, paddingVertical: 14, gap: 8 },
+  shareBookmarkBtn: { backgroundColor: "rgba(255,215,0,0.08)", borderWidth: 1, borderColor: "rgba(255,215,0,0.35)", marginBottom: 8, paddingVertical: 12, gap: 8 },
+  shareBookmarkBtnActive: { backgroundColor: "rgba(255,215,0,0.18)", borderColor: "rgba(255,215,0,0.6)" },
+  shareBookmarkText: { color: "#FFD700", fontSize: 13, fontWeight: "800" as const },
   imageErrorText: { color: "#ff4d4d", fontSize: 12, textAlign: "center" as const, marginBottom: 8 },
   shareCancel: { alignItems: "center", paddingVertical: 10 },
   shareCancelText: { color: "rgba(255,255,255,0.5)", fontSize: 12, fontWeight: "700" as const },

@@ -204,7 +204,14 @@ export default function InterviewHistoryScreen() {
           <Text style={s.headerTitle}>PAST INTERVIEWS</Text>
           <Text style={s.headerSub}>{items.length} saved · re-read the show</Text>
         </View>
-        <View style={{ width: 38 }} />
+        <Pressable
+          onPress={() => router.push("/interview-bookmarks")}
+          style={s.iconBtn}
+          testID="open-bookmarks"
+          accessibilityLabel="Open favorite moments"
+        >
+          <Ionicons name="bookmark" size={18} color="#FFD700" />
+        </Pressable>
       </View>
 
       {loading ? (

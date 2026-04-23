@@ -3745,6 +3745,25 @@ Your personality quirks:
     )`);
     await initDb.query(`CREATE INDEX IF NOT EXISTS interview_lie_votes_lie_idx ON interview_lie_votes (lie_id)`);
     await initDb.query(`CREATE INDEX IF NOT EXISTS interview_lie_votes_persona_idx ON interview_lie_votes (interviewee_id)`);
+    await initDb.query(`CREATE TABLE IF NOT EXISTS interview_bookmarks (
+      id TEXT PRIMARY KEY,
+      device_id TEXT NOT NULL,
+      interview_id TEXT NOT NULL,
+      msg_id TEXT NOT NULL,
+      speaker_id TEXT,
+      speaker_name TEXT,
+      message_text TEXT NOT NULL,
+      is_call_in BOOLEAN DEFAULT FALSE,
+      is_interruption BOOLEAN DEFAULT FALSE,
+      interviewer_id TEXT,
+      interviewer_name TEXT,
+      interviewee_id TEXT,
+      interviewee_name TEXT,
+      interview_title TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )`);
+    await initDb.query(`CREATE UNIQUE INDEX IF NOT EXISTS interview_bookmarks_unique_idx ON interview_bookmarks (device_id, interview_id, msg_id)`);
+    await initDb.query(`CREATE INDEX IF NOT EXISTS interview_bookmarks_device_idx ON interview_bookmarks (device_id, created_at DESC)`);
     await initDb.end();
     console.log("Arena access + interview history tables initialized");
   } catch (e: any) {
@@ -5851,6 +5870,10 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
           [id, deviceId],
         );
         if (result.rowCount === 0) return res.status(404).json({ error: "Not found" });
+        await db.query(
+          `DELETE FROM interview_bookmarks WHERE interview_id = $1 AND device_id = $2`,
+          [id, deviceId],
+        );
         res.json({ ok: true });
       } finally {
         await db.end();
@@ -6088,6 +6111,168 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
     } catch (error: any) {
       console.error("Interview clip image error:", error);
       res.status(500).json({ error: "Failed to generate clip image" });
+    }
+  });
+
+  app.get("/api/arena/interview-bookmarks", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const interviewIdFilter = (req.query.interviewId as string) || null;
+      const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      try {
+        const result = interviewIdFilter
+          ? await db.query(
+              `SELECT * FROM interview_bookmarks
+                 WHERE device_id = $1 AND interview_id = $2
+                 ORDER BY created_at DESC LIMIT 500`,
+              [deviceId, interviewIdFilter],
+            )
+          : await db.query(
+              `SELECT * FROM interview_bookmarks
+                 WHERE device_id = $1
+                 ORDER BY created_at DESC LIMIT 500`,
+              [deviceId],
+            );
+        const items = result.rows.map((r: any) => ({
+          id: r.id,
+          interviewId: r.interview_id,
+          msgId: r.msg_id,
+          speakerId: r.speaker_id,
+          speakerName: r.speaker_name,
+          text: r.message_text,
+          isCallIn: !!r.is_call_in,
+          isInterruption: !!r.is_interruption,
+          interviewerId: r.interviewer_id,
+          interviewerName: r.interviewer_name,
+          intervieweeId: r.interviewee_id,
+          intervieweeName: r.interviewee_name,
+          interviewTitle: r.interview_title || null,
+          createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
+        }));
+        res.json({ items });
+      } finally {
+        await db.end();
+      }
+    } catch (error: any) {
+      console.error("Interview bookmarks list error:", error);
+      res.status(500).json({ error: "Failed to load bookmarks" });
+    }
+  });
+
+  app.post("/api/arena/interview-bookmarks", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const interviewId = String(req.body?.interviewId || "").trim();
+      const msgId = String(req.body?.msgId || "").trim();
+      if (!interviewId || !msgId) return res.status(400).json({ error: "interviewId and msgId required" });
+
+      const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      try {
+        const ihRes = await db.query(
+          `SELECT id, interviewer_id, interviewer_name, interviewee_id, interviewee_name, messages, title
+             FROM interview_history WHERE id = $1 AND device_id = $2 LIMIT 1`,
+          [interviewId, deviceId],
+        );
+        if (ihRes.rows.length === 0) return res.status(404).json({ error: "Interview not found" });
+        const row: any = ihRes.rows[0];
+        const messages: any[] = Array.isArray(row.messages) ? row.messages : [];
+        const msg = messages.find((m: any) => String(m?.id) === msgId);
+        if (!msg) return res.status(404).json({ error: "Message not found" });
+
+        const id = `bm_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+        const insert = await db.query(
+          `INSERT INTO interview_bookmarks
+            (id, device_id, interview_id, msg_id, speaker_id, speaker_name, message_text,
+             is_call_in, is_interruption, interviewer_id, interviewer_name,
+             interviewee_id, interviewee_name, interview_title)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+           ON CONFLICT (device_id, interview_id, msg_id) DO NOTHING
+           RETURNING id, created_at`,
+          [
+            id, deviceId, interviewId, msgId,
+            msg.speakerId || null, msg.speakerName || null, String(msg.text || ""),
+            !!msg.isCallIn, !!msg.isInterruption,
+            row.interviewer_id, row.interviewer_name,
+            row.interviewee_id, row.interviewee_name,
+            row.title || null,
+          ],
+        );
+        if (insert.rowCount === 0) {
+          const existing = await db.query(
+            `SELECT id, created_at FROM interview_bookmarks WHERE device_id = $1 AND interview_id = $2 AND msg_id = $3 LIMIT 1`,
+            [deviceId, interviewId, msgId],
+          );
+          if (existing.rows.length > 0) {
+            return res.json({
+              ok: true,
+              bookmark: { id: existing.rows[0].id, interviewId, msgId, alreadyBookmarked: true },
+            });
+          }
+        }
+        const bm = insert.rows[0] || { id, created_at: new Date() };
+        res.json({
+          ok: true,
+          bookmark: {
+            id: bm.id,
+            interviewId,
+            msgId,
+            createdAt: bm.created_at ? new Date(bm.created_at).getTime() : Date.now(),
+          },
+        });
+      } finally {
+        await db.end();
+      }
+    } catch (error: any) {
+      console.error("Interview bookmark create error:", error);
+      res.status(500).json({ error: "Failed to bookmark moment" });
+    }
+  });
+
+  app.delete("/api/arena/interview-bookmarks/:id", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const id = req.params.id;
+      const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      try {
+        const result = await db.query(
+          `DELETE FROM interview_bookmarks WHERE id = $1 AND device_id = $2`,
+          [id, deviceId],
+        );
+        if (result.rowCount === 0) return res.status(404).json({ error: "Not found" });
+        res.json({ ok: true });
+      } finally {
+        await db.end();
+      }
+    } catch (error: any) {
+      console.error("Interview bookmark delete error:", error);
+      res.status(500).json({ error: "Failed to delete bookmark" });
+    }
+  });
+
+  app.delete("/api/arena/interview-bookmarks", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const interviewId = String(req.query.interviewId || "").trim();
+      const msgId = String(req.query.msgId || "").trim();
+      if (!interviewId || !msgId) return res.status(400).json({ error: "interviewId and msgId required" });
+      const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      try {
+        const result = await db.query(
+          `DELETE FROM interview_bookmarks WHERE device_id = $1 AND interview_id = $2 AND msg_id = $3`,
+          [deviceId, interviewId, msgId],
+        );
+        if (result.rowCount === 0) return res.status(404).json({ error: "Not found" });
+        res.json({ ok: true });
+      } finally {
+        await db.end();
+      }
+    } catch (error: any) {
+      console.error("Interview bookmark delete-by-msg error:", error);
+      res.status(500).json({ error: "Failed to delete bookmark" });
     }
   });
 
