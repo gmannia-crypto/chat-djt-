@@ -1454,6 +1454,17 @@ function PlayerStatsLookup() {
 
 const DC_ROYAL_STORAGE = "dc-royal-crowns";
 const DC_ROYAL_OVERLAP_STORAGE = "dc-royal-overlap";
+const PERSONA_VOICE_STORAGE = "persona-voice-settings";
+
+interface PersonaVoiceSetting {
+  muted: boolean;
+  volume: number;
+}
+type PersonaVoiceSettings = Record<string, PersonaVoiceSetting>;
+
+function getVoiceSetting(settings: PersonaVoiceSettings, personaId: string): PersonaVoiceSetting {
+  return settings[personaId] ?? { muted: false, volume: 1.0 };
+}
 type OverlapMode = "none" | "subtle" | "chaotic";
 const OVERLAP_MS: Record<OverlapMode, number> = { none: 0, subtle: 1500, chaotic: 2500 };
 const SPORT_CATEGORIES = ["NBA", "NFL", "MLB", "NHL", "SOCCER", "UFC"];
@@ -1475,6 +1486,8 @@ function DCRoyalTab({
   playClick,
   onSpeak,
   refreshBalance,
+  voiceSettings,
+  onUpdateVoiceSetting,
 }: {
   personas: PersonaInfo[];
   personaImages: Record<string, ImageSourcePropType>;
@@ -1484,7 +1497,10 @@ function DCRoyalTab({
   playClick: () => void;
   onSpeak: (text: string, personaId: string, gameId: number) => Promise<Audio.Sound | null> | void;
   refreshBalance: () => void;
+  voiceSettings: PersonaVoiceSettings;
+  onUpdateVoiceSetting: (personaId: string, update: Partial<PersonaVoiceSetting>) => void;
 }) {
+  const [voicePopoverPersonaId, setVoicePopoverPersonaId] = useState<string | null>(null);
   const [crawlItems, setCrawlItems] = useState<{ emoji: string; text: string }[]>([]);
   const [standings, setStandings] = useState<any[]>([]);
   const [standingsLeague, setStandingsLeague] = useState("nba");
@@ -1793,12 +1809,27 @@ function DCRoyalTab({
           {winners.map((w, i) => {
             const p = personas.find(pp => pp.id === w.personaId);
             if (!p) return null;
+            const setting = getVoiceSetting(voiceSettings, w.personaId);
             return (
               <Animated.View key={`${w.personaId}-${w.category}`} entering={FadeInDown.delay(150 + i * 80).duration(400)} style={dcStyles.winnerCard}>
                 <View style={[dcStyles.winnerBadge, { backgroundColor: `${p.color}20`, borderColor: p.color }]}>
                   <Text style={[dcStyles.winnerCategory, { color: p.color }]}>{w.category}</Text>
                 </View>
-                <Image source={p.image} style={[dcStyles.winnerAvatar, { borderColor: p.color }]} />
+                <Pressable
+                  testID={`winner-avatar-${w.personaId}`}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setVoicePopoverPersonaId(w.personaId);
+                  }}
+                  style={({ pressed }) => [{ position: "relative" }, pressed && { opacity: 0.7 }]}
+                >
+                  <Image source={p.image} style={[dcStyles.winnerAvatar, { borderColor: p.color }]} />
+                  {setting.muted && (
+                    <View style={dcStyles.mutedBadge}>
+                      <Ionicons name="volume-mute" size={11} color="#fff" />
+                    </View>
+                  )}
+                </Pressable>
                 <Text style={dcStyles.winnerName}>{p.name}</Text>
                 <Text style={[dcStyles.winnerRecord, { color: p.color }]}>{w.record}</Text>
                 <View style={dcStyles.crownChipRow}>
@@ -1992,7 +2023,132 @@ function DCRoyalTab({
           <Text style={dcStyles.emptyText}>No standings data available</Text>
         )}
       </View>
+
+      <VoiceControlPopover
+        personaId={voicePopoverPersonaId}
+        persona={voicePopoverPersonaId ? personas.find(pp => pp.id === voicePopoverPersonaId) : undefined}
+        setting={voicePopoverPersonaId ? getVoiceSetting(voiceSettings, voicePopoverPersonaId) : null}
+        onClose={() => setVoicePopoverPersonaId(null)}
+        onUpdate={(update) => {
+          if (voicePopoverPersonaId) onUpdateVoiceSetting(voicePopoverPersonaId, update);
+        }}
+      />
     </Animated.View>
+  );
+}
+
+function VoiceControlPopover({
+  personaId,
+  persona,
+  setting,
+  onClose,
+  onUpdate,
+}: {
+  personaId: string | null;
+  persona: PersonaInfo | undefined;
+  setting: PersonaVoiceSetting | null;
+  onClose: () => void;
+  onUpdate: (update: Partial<PersonaVoiceSetting>) => void;
+}) {
+  const visible = !!personaId && !!persona && !!setting;
+  const [trackWidth, setTrackWidth] = useState(0);
+  const volume = setting?.volume ?? 1.0;
+  const muted = setting?.muted ?? false;
+  const settingRef = useRef<PersonaVoiceSetting>({ muted: false, volume: 1.0 });
+  useEffect(() => {
+    if (setting) settingRef.current = setting;
+  }, [setting]);
+
+  const updateVolumeFromTouch = (locationX: number) => {
+    if (trackWidth <= 0) return;
+    const pct = Math.max(0, Math.min(1, locationX / trackWidth));
+    const rounded = Math.round(pct * 100) / 100;
+    onUpdate({ volume: rounded, muted: rounded === 0 ? true : false });
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={dcStyles.popoverBackdrop} onPress={onClose}>
+        <Pressable style={dcStyles.popoverCard} onPress={(e) => e.stopPropagation()}>
+          {persona && (
+            <>
+              <View style={dcStyles.popoverHeader}>
+                <Image source={persona.image} style={[dcStyles.popoverAvatar, { borderColor: persona.color }]} />
+                <View style={{ flex: 1 }}>
+                  <Text style={dcStyles.popoverTitle}>{persona.name}</Text>
+                  <Text style={dcStyles.popoverSubtitle}>VOICE CONTROL</Text>
+                </View>
+                <Pressable onPress={onClose} testID="voice-popover-close" hitSlop={10}>
+                  <Ionicons name="close" size={22} color="rgba(255,255,255,0.6)" />
+                </Pressable>
+              </View>
+
+              <Pressable
+                testID="voice-popover-mute"
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  const wasMuted = settingRef.current.muted;
+                  const currentVolume = settingRef.current.volume;
+                  if (wasMuted && currentVolume <= 0) {
+                    onUpdate({ muted: false, volume: 0.5 });
+                  } else {
+                    onUpdate({ muted: !wasMuted });
+                  }
+                }}
+                style={({ pressed }) => [
+                  dcStyles.muteToggle,
+                  muted && { backgroundColor: "rgba(255,77,77,0.18)", borderColor: "#FF4D4D" },
+                  pressed && { opacity: 0.8 },
+                ]}
+              >
+                <Ionicons
+                  name={muted ? "volume-mute" : "volume-high"}
+                  size={18}
+                  color={muted ? "#FF4D4D" : Colors.gold}
+                />
+                <Text style={[dcStyles.muteToggleText, { color: muted ? "#FF4D4D" : Colors.gold }]}>
+                  {muted ? "MUTED" : "UNMUTED"}
+                </Text>
+              </Pressable>
+
+              <Text style={dcStyles.volumeLabel}>VOLUME · {Math.round(volume * 100)}%</Text>
+              <View
+                testID="voice-popover-slider"
+                style={dcStyles.sliderTrack}
+                onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
+                onStartShouldSetResponder={() => true}
+                onMoveShouldSetResponder={() => true}
+                onResponderGrant={(e) => updateVolumeFromTouch(e.nativeEvent.locationX)}
+                onResponderMove={(e) => updateVolumeFromTouch(e.nativeEvent.locationX)}
+              >
+                <View style={[dcStyles.sliderFill, { width: `${volume * 100}%`, backgroundColor: persona.color }]} />
+                <View style={[dcStyles.sliderThumb, { left: `${volume * 100}%`, borderColor: persona.color }]} />
+              </View>
+
+              <View style={dcStyles.presetRow}>
+                {[0, 0.25, 0.5, 0.75, 1.0].map((v) => (
+                  <Pressable
+                    key={v}
+                    testID={`voice-preset-${Math.round(v * 100)}`}
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      onUpdate({ volume: v, muted: v === 0 });
+                    }}
+                    style={({ pressed }) => [
+                      dcStyles.presetBtn,
+                      Math.abs(volume - v) < 0.01 && !muted && { backgroundColor: `${persona.color}30`, borderColor: persona.color },
+                      pressed && { opacity: 0.8 },
+                    ]}
+                  >
+                    <Text style={dcStyles.presetText}>{v === 0 ? "MUTE" : v === 1.0 ? "MAX" : `${Math.round(v * 100)}%`}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </>
+          )}
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -2288,6 +2444,125 @@ const dcStyles = StyleSheet.create({
     fontWeight: "600" as const,
     textAlign: "center" as const,
   },
+  mutedBadge: {
+    position: "absolute",
+    top: -2,
+    right: -2,
+    backgroundColor: "#FF4D4D",
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#0a0a0a",
+  },
+  popoverBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  popoverCard: {
+    width: "100%",
+    maxWidth: 340,
+    backgroundColor: "#141414",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "rgba(255,215,0,0.25)",
+    padding: 18,
+  },
+  popoverHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 16,
+  },
+  popoverAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 2,
+  },
+  popoverTitle: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "800" as const,
+  },
+  popoverSubtitle: {
+    color: "rgba(255,255,255,0.4)",
+    fontSize: 10,
+    fontWeight: "700" as const,
+    letterSpacing: 1,
+    marginTop: 2,
+  },
+  muteToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(212,164,32,0.4)",
+    backgroundColor: "rgba(212,164,32,0.1)",
+    marginBottom: 16,
+  },
+  muteToggleText: {
+    fontSize: 12,
+    fontWeight: "900" as const,
+    letterSpacing: 1,
+  },
+  volumeLabel: {
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 10,
+    fontWeight: "800" as const,
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
+  sliderTrack: {
+    height: 28,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderRadius: 14,
+    justifyContent: "center",
+    marginBottom: 14,
+    overflow: "visible",
+  },
+  sliderFill: {
+    height: 28,
+    borderRadius: 14,
+    opacity: 0.6,
+  },
+  sliderThumb: {
+    position: "absolute",
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "#fff",
+    borderWidth: 2,
+    top: 3,
+    marginLeft: -11,
+  },
+  presetRow: {
+    flexDirection: "row",
+    gap: 6,
+  },
+  presetBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    backgroundColor: "rgba(255,255,255,0.04)",
+    alignItems: "center",
+  },
+  presetText: {
+    color: "rgba(255,255,255,0.8)",
+    fontSize: 10,
+    fontWeight: "800" as const,
+    letterSpacing: 0.5,
+  },
 });
 
 export default function SportsScreen() {
@@ -2329,6 +2604,34 @@ export default function SportsScreen() {
   const [roundtableGame, setRoundtableGame] = useState<Game | null>(null);
   const [musicPlaying, setMusicPlaying] = useState(false);
   const musicRef = useRef<Audio.Sound | null>(null);
+  const [personaVoiceSettings, setPersonaVoiceSettings] = useState<PersonaVoiceSettings>({});
+  const personaVoiceSettingsRef = useRef<PersonaVoiceSettings>({});
+
+  useEffect(() => {
+    AsyncStorage.getItem(PERSONA_VOICE_STORAGE).then(saved => {
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved) as PersonaVoiceSettings;
+          setPersonaVoiceSettings(parsed);
+          personaVoiceSettingsRef.current = parsed;
+        } catch {}
+      }
+    }).catch(() => {});
+  }, []);
+
+  const updatePersonaVoiceSetting = useCallback((personaId: string, update: Partial<PersonaVoiceSetting>) => {
+    setPersonaVoiceSettings(prev => {
+      const current = prev[personaId] ?? { muted: false, volume: 1.0 };
+      const next: PersonaVoiceSettings = {
+        ...prev,
+        [personaId]: { ...current, ...update },
+      };
+      personaVoiceSettingsRef.current = next;
+      AsyncStorage.setItem(PERSONA_VOICE_STORAGE, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+  }, []);
+
   const mountedRef = useRef(true);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -2737,14 +3040,17 @@ export default function SportsScreen() {
     }
 
     if (!soundEnabled) return null;
+    const voiceSetting = getVoiceSetting(personaVoiceSettingsRef.current, personaId);
+    if (voiceSetting.muted || voiceSetting.volume <= 0) return null;
+    const clampedVolume = Math.max(0, Math.min(1, voiceSetting.volume));
     setSpeakingGameId(gameId);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
       await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
       const sound = personaId === "trump"
-        ? await playTrumpTTS("/api/persona-speak", { text, personaId })
-        : await playTTS("/api/persona-speak", { text, personaId });
+        ? await playTrumpTTS("/api/persona-speak", { text, personaId }, { volume: clampedVolume })
+        : await playTTS("/api/persona-speak", { text, personaId }, { volume: clampedVolume });
       soundRef.current = sound;
       sound.setOnPlaybackStatusUpdate((status: any) => {
         if (status.didJustFinish) {
@@ -3475,6 +3781,8 @@ export default function SportsScreen() {
             playClick={playClick}
             onSpeak={handleSpeak}
             refreshBalance={refreshBalance}
+            voiceSettings={personaVoiceSettings}
+            onUpdateVoiceSetting={updatePersonaVoiceSetting}
           />
         )}
 
