@@ -16,7 +16,7 @@ import { useTokens } from "@/lib/token-context";
 const SHARE_URL = "https://trumpbot.rip";
 
 type Msg = { id: string; speakerId: string; speakerName: string; text: string; ts: number; isInterruption?: boolean; isCallIn?: boolean; callerName?: string };
-type LieEntry = { id: string; speakerId: string; speakerName: string; text: string; score: number; reason: string; fact: string; ts: number };
+type LieEntry = { id: string; speakerId: string; speakerName: string; text: string; score: number; reason: string; fact: string; ts: number; userFlagged?: boolean };
 
 type Detail = {
   id: string;
@@ -360,6 +360,12 @@ export default function InterviewTranscriptScreen() {
                 <View key={l.id} style={s.lieRow}>
                   <View style={s.lieHeader}>
                     <Text style={{ color: "#FFD700", fontSize: 12, fontWeight: "900", flex: 1 }} numberOfLines={1}>{l.speakerName}</Text>
+                    {l.userFlagged && (
+                      <View style={s.userFlagBadge}>
+                        <Ionicons name="flag" size={9} color="#60a5fa" />
+                        <Text style={s.userFlagBadgeText}>USER-FLAGGED</Text>
+                      </View>
+                    )}
                     <View style={s.lieScore}><Text style={{ color: "#ff4d4d", fontSize: 11, fontWeight: "900" }}>{l.score}/100</Text></View>
                   </View>
                   <Text style={s.lieQuote}>"{l.text}"</Text>
@@ -475,8 +481,10 @@ const s = StyleSheet.create({
   shareCancelText: { color: "rgba(255,255,255,0.5)", fontSize: 12, fontWeight: "700" as const },
 
   lieRow: { padding: 12, marginBottom: 10, borderRadius: 12, backgroundColor: "rgba(255,77,77,0.06)", borderWidth: 1, borderColor: "rgba(255,77,77,0.25)" },
-  lieHeader: { flexDirection: "row", alignItems: "center", marginBottom: 6 },
+  lieHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
   lieScore: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, backgroundColor: "rgba(255,77,77,0.15)" },
+  userFlagBadge: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, backgroundColor: "rgba(96,165,250,0.18)", borderWidth: 1, borderColor: "rgba(96,165,250,0.4)" },
+  userFlagBadgeText: { color: "#60a5fa", fontSize: 9, fontWeight: "900", letterSpacing: 0.4 },
   lieQuote: { color: "#fff", fontSize: 13, fontStyle: "italic", lineHeight: 18 },
   lieFact: { color: "#4ADE80", fontSize: 11, marginTop: 6, fontWeight: "700" },
   lieReason: { color: "rgba(255,255,255,0.65)", fontSize: 11, marginTop: 4, lineHeight: 15 },

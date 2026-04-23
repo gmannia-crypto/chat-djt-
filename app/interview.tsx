@@ -23,7 +23,7 @@ type Topic = { id: string; title: string; description: string; era: "current" | 
 type Msg = { id: string; speakerId: string; speakerName: string; text: string; ts: number; isInterruption?: boolean; isCallIn?: boolean; callerName?: string };
 
 type Emotions = { anger: number; happy: number; engagement: number; frantic: number; sad: number };
-type LieEntry = { id: string; speakerId: string; speakerName: string; text: string; score: number; reason: string; fact: string; ts: number };
+type LieEntry = { id: string; speakerId: string; speakerName: string; text: string; score: number; reason: string; fact: string; ts: number; userFlagged?: boolean; pending?: boolean };
 
 const ZERO_EMO: Emotions = { anger: 10, happy: 10, engagement: 30, frantic: 5, sad: 5 };
 const EMO_KEYS: (keyof Emotions)[] = ["anger", "happy", "engagement", "frantic", "sad"];
@@ -206,6 +206,8 @@ export default function InterviewScreen() {
   const [liesSheetOpen, setLiesSheetOpen] = useState(false);
   const [lieVotes, setLieVotes] = useState<Record<string, { up: number; down: number; myVote: number }>>({});
   const lieVotesPendingRef = useRef<Set<string>>(new Set());
+  const [flaggedMsgIds, setFlaggedMsgIds] = useState<Set<string>>(new Set());
+  const flagPendingRef = useRef<Set<string>>(new Set());
 
   const submitLieVote = useCallback((lie: LieEntry, direction: 1 | -1) => {
     if (!deviceId) return;
@@ -501,6 +503,72 @@ export default function InterviewScreen() {
       .catch(() => {});
   }, [intervieweeId, deviceId, triggerLightning, playLieAlert]);
 
+  // Viewer manually flags an interviewee message as a suspected lie the AI missed.
+  // The server re-runs fact-check scoring; the entry is always inserted with a
+  // "user-flagged" badge regardless of the resulting score.
+  const flagMessageAsLie = useCallback((msg: Msg) => {
+    if (!deviceId) return;
+    if (flaggedMsgIds.has(msg.id) || flagPendingRef.current.has(msg.id)) return;
+    if (!msg.text || msg.text.trim().length < 4) return;
+    flagPendingRef.current.add(msg.id);
+    setFlaggedMsgIds((prev) => {
+      const next = new Set(prev);
+      next.add(msg.id);
+      return next;
+    });
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+
+    const lieId = `userlie-${msg.id}`;
+    const placeholder: LieEntry = {
+      id: lieId,
+      speakerId: msg.speakerId,
+      speakerName: msg.speakerName,
+      text: msg.text,
+      score: 50,
+      reason: "Scoring viewer report…",
+      fact: "",
+      ts: Date.now(),
+      userFlagged: true,
+      pending: true,
+    };
+    setLies((prev) => prev.some((l) => l.id === lieId) ? prev : [...prev, placeholder]);
+    setLieCount((c) => c + 1);
+
+    fetch(new URL("/api/arena/interview-flag-lie", getApiUrl()).toString(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+      body: JSON.stringify({ speakerId: msg.speakerId, text: msg.text, topic: currentTopicRef.current }),
+    })
+      .then((r) => r.ok ? r.json() : Promise.reject(new Error("flag failed")))
+      .then((data: any) => {
+        const score = Math.max(0, Math.min(100, Number(data?.score) || 50));
+        setLies((prev) => prev.map((l) => l.id === lieId ? {
+          ...l,
+          score,
+          reason: String(data?.reason || ""),
+          fact: String(data?.fact || ""),
+          pending: false,
+        } : l));
+        setLatestTruthScore(score);
+        if (score < 40) {
+          triggerLightning();
+          playLieAlert();
+        }
+      })
+      .catch(() => {
+        // Roll back on failure
+        setLies((prev) => prev.filter((l) => l.id !== lieId));
+        setLieCount((c) => Math.max(0, c - 1));
+        setFlaggedMsgIds((prev) => {
+          const next = new Set(prev);
+          next.delete(msg.id);
+          return next;
+        });
+        Alert.alert("Couldn't flag", "We couldn't reach the fact-checker. Try again in a moment.");
+      })
+      .finally(() => { flagPendingRef.current.delete(msg.id); });
+  }, [deviceId, flaggedMsgIds, triggerLightning, playLieAlert]);
+
   // Wrap addMessage to also drive emotions, TTS, fact-check
   const enrichAndAddMessage = useCallback((m: Msg) => {
     setMessages((prev) => [...prev, m]);
@@ -780,6 +848,7 @@ export default function InterviewScreen() {
     setEmoInterviewee(ZERO_EMO);
     setLieCount(0);
     setLies([]);
+    setFlaggedMsgIds(new Set());
     setLatestTruthScore(null);
     savedSessionRef.current = false;
     setSavedSessionId(null);
@@ -818,6 +887,7 @@ export default function InterviewScreen() {
         setEmoInterviewee(ZERO_EMO);
         setLieCount(0);
         setLies([]);
+        setFlaggedMsgIds(new Set());
         setLatestTruthScore(null);
         savedSessionRef.current = false;
         setSavedSessionId(null);
@@ -1233,6 +1303,8 @@ export default function InterviewScreen() {
           renderItem={({ item }) => {
             const isInterviewer = item.speakerId === interviewerId;
             const isCallIn = !!item.isCallIn;
+            const canFlag = !isInterviewer && !isCallIn && intervieweeId && item.speakerId === intervieweeId;
+            const alreadyFlagged = flaggedMsgIds.has(item.id);
             return (
               <Animated.View entering={FadeInUp.duration(300)} style={[s.bubbleRow, isCallIn ? { justifyContent: "center" } : isInterviewer ? { justifyContent: "flex-start" } : { justifyContent: "flex-end" }]}>
                 <View style={[
@@ -1244,6 +1316,24 @@ export default function InterviewScreen() {
                     {item.speakerName}{item.isInterruption ? " · INTERRUPTS" : ""}{isCallIn ? " · CALL-IN" : ""}
                   </Text>
                   <Text style={s.bubbleText}>{item.text}</Text>
+                  {canFlag && (
+                    <Pressable
+                      onPress={() => flagMessageAsLie(item)}
+                      disabled={alreadyFlagged}
+                      hitSlop={6}
+                      style={[s.flagBtn, alreadyFlagged && s.flagBtnDone]}
+                      testID={`flag-lie-${item.id}`}
+                    >
+                      <Ionicons
+                        name={alreadyFlagged ? "flag" : "flag-outline"}
+                        size={11}
+                        color={alreadyFlagged ? "#ff4d4d" : "rgba(255,255,255,0.55)"}
+                      />
+                      <Text style={[s.flagBtnText, alreadyFlagged && { color: "#ff4d4d" }]}>
+                        {alreadyFlagged ? "FLAGGED" : "FLAG AS LIE"}
+                      </Text>
+                    </Pressable>
+                  )}
                 </View>
               </Animated.View>
             );
@@ -1377,7 +1467,19 @@ export default function InterviewScreen() {
                   <View key={l.id} style={s.lieRow}>
                     <View style={s.lieHeader}>
                       <Text style={{ color: "#FFD700", fontSize: 12, fontWeight: "900", flex: 1 }} numberOfLines={1}>{l.speakerName}</Text>
-                      <View style={s.lieScore}><Text style={{ color: "#ff4d4d", fontSize: 11, fontWeight: "900" }}>{l.score}/100</Text></View>
+                      {l.userFlagged && (
+                        <View style={s.userFlagBadge}>
+                          <Ionicons name="flag" size={9} color="#60a5fa" />
+                          <Text style={s.userFlagBadgeText}>USER-FLAGGED</Text>
+                        </View>
+                      )}
+                      <View style={s.lieScore}>
+                        {l.pending ? (
+                          <ActivityIndicator size="small" color="#ff4d4d" />
+                        ) : (
+                          <Text style={{ color: "#ff4d4d", fontSize: 11, fontWeight: "900" }}>{l.score}/100</Text>
+                        )}
+                      </View>
                     </View>
                     <Text style={s.lieQuote}>"{l.text}"</Text>
                     {!!l.fact && <Text style={s.lieFact}>FACT: {l.fact}</Text>}
@@ -1385,7 +1487,8 @@ export default function InterviewScreen() {
                     <View style={s.voteRow}>
                       <Pressable
                         onPress={() => submitLieVote(l, 1)}
-                        style={[s.voteBtn, v.myVote === 1 && s.voteBtnUpActive]}
+                        disabled={!!l.pending}
+                        style={[s.voteBtn, v.myVote === 1 && s.voteBtnUpActive, l.pending && { opacity: 0.4 }]}
                         testID={`lie-vote-up-${l.id}`}
                         hitSlop={6}
                       >
@@ -1394,7 +1497,8 @@ export default function InterviewScreen() {
                       </Pressable>
                       <Pressable
                         onPress={() => submitLieVote(l, -1)}
-                        style={[s.voteBtn, v.myVote === -1 && s.voteBtnDownActive]}
+                        disabled={!!l.pending}
+                        style={[s.voteBtn, v.myVote === -1 && s.voteBtnDownActive, l.pending && { opacity: 0.4 }]}
                         testID={`lie-vote-down-${l.id}`}
                         hitSlop={6}
                       >
@@ -1578,4 +1682,10 @@ const s = StyleSheet.create({
   voteBtnDownActive: { backgroundColor: "rgba(255,77,77,0.15)", borderColor: "rgba(255,77,77,0.5)" },
   voteBtnText: { color: "rgba(255,255,255,0.85)", fontSize: 12, fontWeight: "800" },
   voteTally: { color: "rgba(255,255,255,0.45)", fontSize: 11, fontWeight: "600", flex: 1, textAlign: "right" },
+
+  flagBtn: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", marginTop: 6, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.05)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
+  flagBtnDone: { backgroundColor: "rgba(255,77,77,0.12)", borderColor: "rgba(255,77,77,0.4)" },
+  flagBtnText: { color: "rgba(255,255,255,0.6)", fontSize: 9, fontWeight: "900", letterSpacing: 0.6 },
+  userFlagBadge: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, backgroundColor: "rgba(96,165,250,0.18)", borderWidth: 1, borderColor: "rgba(96,165,250,0.4)" },
+  userFlagBadgeText: { color: "#60a5fa", fontSize: 9, fontWeight: "900", letterSpacing: 0.4 },
 });

@@ -5499,6 +5499,78 @@ Return ONLY valid JSON: {"score": 0-100, "isLie": boolean (true if score<40), "r
     }
   });
 
+  // Viewer-reported lie: a viewer flagged a specific message the AI didn't catch.
+  // Re-runs the same fact-check scoring but always returns a payload (even if score>=40)
+  // so the client can insert it into the lies list with a "user-flagged" badge.
+  app.post("/api/arena/interview-flag-lie", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const { speakerId, text, topic } = req.body || {};
+      if (!speakerId || !ARENA_PERSONA_PROMPTS[speakerId]) {
+        return res.status(400).json({ error: "Invalid speakerId" });
+      }
+      const claim = String(text || "").trim().slice(0, 800);
+      if (!claim) return res.status(400).json({ error: "text required" });
+
+      const accessCheck = await checkInterviewAccess(deviceId, false);
+      if (!accessCheck.ok) {
+        return res.status(403).json({ error: accessCheck.error || "No active interview session" });
+      }
+
+      const speakerName = ARENA_NAME_MAP[speakerId] || speakerId;
+      const newsContext = await getArenaNewsContext().catch(() => "");
+
+      const systemPrompt = `You are a sharp, neutral fact-checker. A viewer has flagged this quote from public figure ${speakerName} as a suspected lie that an automated check missed. Score it on a 0-100 truthfulness scale and explain your reasoning.
+
+100 = fully accurate, well-supported.
+60-99 = mostly true with minor exaggeration or spin.
+40-59 = mixed / cherry-picked / misleading framing.
+20-39 = significant falsehood or distortion of the record.
+0-19 = blatant lie, conspiracy theory, or outright fabrication.
+
+Use your knowledge of the public record AND the live headlines below. Be especially harsh on:
+- Election fraud claims (Trump 2020 was NOT stolen).
+- Anti-vax / brain worm denial / "chemicals turning frogs gay" (RFK).
+- Holocaust denial, deep state conspiracies (Alex Jones).
+- "I barely knew Epstein" claims.
+- Inflated crowd sizes, business deals that fell through, "everyone says" claims.
+- Made-up statistics, fake quotes attributed to opponents.
+
+Be honest if the claim is actually true or just opinion — the viewer can be wrong.
+
+LIVE HEADLINES:
+${newsContext || "(none available)"}
+
+Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation of why the viewer is right or wrong to flag this", "fact": "1-sentence corrective fact (only if score<60, else empty string)"}`;
+
+      const completion = await getClient().chat.completions.create({
+        model: getFastModel(),
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: `${speakerName} said: "${claim}"\n\nTopic context: ${topic?.title || "general"}.\n\nA viewer flagged this as a suspected lie. Score it now as JSON.` },
+        ],
+        max_completion_tokens: 200,
+        temperature: 0.3,
+        response_format: { type: "json_object" },
+      });
+      const raw = completion.choices[0]?.message?.content || "{}";
+      let parsed: any = {};
+      try { parsed = JSON.parse(raw); } catch { parsed = {}; }
+      const score = Math.max(0, Math.min(100, Number(parsed.score) || 50));
+      res.json({
+        score,
+        isLie: score < 40,
+        reason: String(parsed.reason || "").slice(0, 240),
+        fact: String(parsed.fact || "").slice(0, 240),
+        userFlagged: true,
+      });
+    } catch (error: any) {
+      console.error("Interview flag-lie error:", error);
+      res.status(500).json({ error: "Flag failed", score: 50, isLie: false, reason: "", fact: "", userFlagged: true });
+    }
+  });
+
   // Audience vote on a flagged lie. One vote per (lie_id, device_id).
   // Sending the same vote again clears it (toggle off). Sending the opposite vote replaces it.
   app.post("/api/arena/interview-lie-vote", async (req, res) => {
