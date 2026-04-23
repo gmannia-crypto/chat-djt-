@@ -731,31 +731,41 @@ export default function InterviewScreen() {
       if (!q || !runningRef.current) break;
       enrichAndAddMessage({ id: `q-${Date.now()}-${Math.random()}`, speakerId: q.speakerId, speakerName: q.speakerName, text: q.text, ts: Date.now() });
 
-      // Estimate read time and start answer with ~1s overlap
+      // Decide up-front whether to interrupt — needed so we can prefetch when not interrupting
+      const willInterrupt = Math.random() < 0.12;
+
+      // PIPELINE: kick off the answer fetch immediately, in parallel with the question's "read" wait,
+      // so by the time the user finishes hearing the question, the answer is already loaded.
+      const answerPromise: Promise<{ speakerId: string; speakerName: string; text: string } | null> | null =
+        willInterrupt ? null : fetchAnswer(q.text, {});
+
+      // Estimate read time and start answer with ~1.5s overlap
       const qReadMs = Math.min(7000, Math.max(2200, q.text.length * 55));
-      await new Promise((r) => setTimeout(r, Math.max(800, qReadMs - 1000)));
+      await new Promise((r) => setTimeout(r, Math.max(400, qReadMs - 1500)));
       if (!runningRef.current) break;
 
-      // Random interruption from interviewee on the question (15%)
+      // Random interruption from interviewee on the question (12%)
       let interruptionText: string | undefined;
-      if (Math.random() < 0.12) {
+      if (willInterrupt) {
         const intr = await fetchAnswer(q.text, { isInterruption: true });
         if (intr && intr.text && runningRef.current) {
           interruptionText = intr.text;
           enrichAndAddMessage({ id: `intr-${Date.now()}-${Math.random()}`, speakerId: intr.speakerId, speakerName: intr.speakerName, text: intr.text, ts: Date.now(), isInterruption: true });
-          await new Promise((r) => setTimeout(r, 600));
+          await new Promise((r) => setTimeout(r, 350));
         }
       }
       if (!runningRef.current) break;
 
       setIsThinking("interviewee");
-      const a = await fetchAnswer(q.text, { wasInterrupted: !!interruptionText, interruptionText });
+      const a = answerPromise
+        ? await answerPromise
+        : await fetchAnswer(q.text, { wasInterrupted: !!interruptionText, interruptionText });
       setIsThinking(null);
       if (!a || !runningRef.current) break;
       enrichAndAddMessage({ id: `a-${Date.now()}-${Math.random()}`, speakerId: a.speakerId, speakerName: a.speakerName, text: a.text, ts: Date.now() });
 
       const aReadMs = Math.min(8500, Math.max(2500, a.text.length * 55));
-      await new Promise((r) => setTimeout(r, Math.max(900, aReadMs - 1000)));
+      await new Promise((r) => setTimeout(r, Math.max(450, aReadMs - 1500)));
       if (!runningRef.current) break;
 
       // Random interviewer cut-in mid-answer (10%)
