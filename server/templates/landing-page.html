@@ -1507,11 +1507,7 @@
       </div>
 
       <div class="feature-tabs">
-        <button class="feature-tab active" data-feature="sports" onclick="showFeature('sports')">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2c2.5 2 4 5.5 4 10s-1.5 8-4 10"/></svg>
-          Sports
-        </button>
-        <button class="feature-tab" data-feature="faceoff" onclick="showFeature('faceoff')">
+        <button class="feature-tab active" data-feature="faceoff" onclick="showFeature('faceoff')">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
           Faceoff
         </button>
@@ -1549,7 +1545,6 @@
         </button>
       </div>
 
-      <div id="sportsTab" class="feature-container" style="display:none;"></div>
       <div id="faceoffTab" class="feature-container" style="display:none;"></div>
       <div id="therapyTab" class="feature-container" style="display:none;"></div>
       <div id="rateTab" class="feature-container" style="display:none;"></div>
@@ -1703,7 +1698,6 @@
       });
 
       var featureModules = {
-        sports: { src: '/js/sports-betting.js', containerId: 'sportsTab', ctor: 'SportsBettingModule' },
         faceoff: { src: '/js/financial-faceoff.js', containerId: 'faceoffTab', ctor: 'FaceoffModule' },
         therapy: { src: '/js/therapy.js', containerId: 'therapyTab', ctor: 'TherapyModule' },
         rate: { src: '/js/rate-trump.js', containerId: 'rateTab', ctor: 'RateModule' },

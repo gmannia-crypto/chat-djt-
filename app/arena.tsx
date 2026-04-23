@@ -1504,8 +1504,19 @@ function ArenaIntro({ personas, onComplete }: { personas: string[]; onComplete: 
   const progress = (5 - countdown) / 5;
 
   return (
-    <View style={introStyles.container}>
+    <Pressable
+      onPress={() => {
+        try { countdownSoundRef.current?.unloadAsync?.(); } catch {}
+        try { engageSoundRef.current?.unloadAsync?.(); } catch {}
+        try { titleSoundRef.current?.unloadAsync?.(); } catch {}
+        onCompleteRef.current();
+      }}
+      style={introStyles.container}
+    >
       <LinearGradient colors={["#0a0a0a", "#111", "#0a0a0a"]} style={StyleSheet.absoluteFill} />
+      <View style={{ position: "absolute", top: insets.top + webTopInset + 12, right: 16, zIndex: 10, backgroundColor: "rgba(255,255,255,0.08)", borderColor: "rgba(255,255,255,0.2)", borderWidth: 1, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999 }}>
+        <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 11, fontWeight: "800", letterSpacing: 1 }}>TAP TO SKIP</Text>
+      </View>
       <View style={[introStyles.content, { paddingTop: insets.top + webTopInset + 20 }]}>
         {phase >= 0 && (
           <Animated.View entering={FadeIn.duration(600)} style={introStyles.liveRow}>
@@ -1568,7 +1579,7 @@ function ArenaIntro({ personas, onComplete }: { personas: string[]; onComplete: 
           </Animated.View>
         )}
       </View>
-    </View>
+    </Pressable>
   );
 }
 

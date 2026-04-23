@@ -863,14 +863,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get("/sports-betting", (_req, res) => {
-    try {
-      const htmlPath = join(process.cwd(), "server", "templates", "sports-betting.html");
-      const html = readFileSync(htmlPath, "utf-8");
-      res.type("html").send(html);
-    } catch (error) {
-      console.error("Sports betting page error:", error);
-      res.status(500).send("Failed to load Sports Betting page");
-    }
+    res.redirect(301, "/");
   });
 
   const espnSportsCache: { data: any; timestamp: number } = { data: null, timestamp: 0 };
