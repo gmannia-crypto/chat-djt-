@@ -5893,6 +5893,204 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
     }
   });
 
+  app.get("/api/arena/interview-clip-image/:id", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string | undefined;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const id = req.params.id;
+      const msgId = (req.query.msgId as string) || "";
+      if (!msgId) return res.status(400).json({ error: "msgId required" });
+
+      type ClipMsg = {
+        id?: string;
+        speakerId?: string;
+        speakerName?: string;
+        text?: string;
+        isCallIn?: boolean;
+        isInterruption?: boolean;
+      };
+      type ClipRow = {
+        id: string;
+        interviewer_id: string;
+        interviewer_name: string;
+        interviewee_id: string;
+        interviewee_name: string;
+        messages: ClipMsg[] | null;
+      };
+
+      const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      let row: ClipRow;
+      try {
+        const result = await db.query<ClipRow>(
+          `SELECT id, interviewer_id, interviewer_name, interviewee_id, interviewee_name, messages
+             FROM interview_history WHERE id = $1 AND device_id = $2 LIMIT 1`,
+          [id, deviceId],
+        );
+        if (result.rows.length === 0) return res.status(404).json({ error: "Not found" });
+        row = result.rows[0];
+      } finally {
+        await db.end();
+      }
+
+      const messages: ClipMsg[] = Array.isArray(row.messages) ? row.messages : [];
+      const msg = messages.find((m) => String(m?.id) === msgId);
+      if (!msg) return res.status(404).json({ error: "Message not found" });
+
+      const sharp = (await import("sharp")).default;
+
+      const PERSONA_FILE: Record<string, string> = {
+        berniemc: "bernie",
+        elon: "musk",
+      };
+      const portraitFile = (pid: string) => {
+        const mapped = PERSONA_FILE[pid] || pid;
+        return join(process.cwd(), "assets", "images", `persona-${mapped}.png`);
+      };
+      const loadPortrait = async (pid: string): Promise<Buffer | null> => {
+        try {
+          const p = portraitFile(pid);
+          if (!existsSync(p)) return null;
+          return await sharp(p).resize(280, 280, { fit: "cover" }).png().toBuffer();
+        } catch { return null; }
+      };
+
+      const interviewerPortrait = await loadPortrait(row.interviewer_id);
+      const intervieweePortrait = await loadPortrait(row.interviewee_id);
+
+      const W = 1080;
+      const H = 1080;
+
+      const escapeXml = (s: string) =>
+        s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+
+      const wrapText = (text: string, maxChars: number, maxLines: number): string[] => {
+        const words = text.split(/\s+/).filter(Boolean);
+        const lines: string[] = [];
+        let cur = "";
+        for (const w of words) {
+          const candidate = cur ? cur + " " + w : w;
+          if (candidate.length <= maxChars) {
+            cur = candidate;
+          } else {
+            if (cur) lines.push(cur);
+            if (lines.length >= maxLines) break;
+            cur = w.length > maxChars ? w.slice(0, maxChars - 1) + "…" : w;
+          }
+        }
+        if (cur && lines.length < maxLines) lines.push(cur);
+        if (lines.length >= maxLines && words.join(" ").length > lines.join(" ").length) {
+          const last = lines[maxLines - 1];
+          lines[maxLines - 1] = last.length > maxChars - 1 ? last.slice(0, maxChars - 1) + "…" : last + "…";
+        }
+        return lines;
+      };
+
+      const rawQuote = String(msg.text || "").replace(/\s+/g, " ").trim();
+      const quoteLines = wrapText(rawQuote, 36, 8);
+      const quoteFontSize = quoteLines.length <= 3 ? 56 : quoteLines.length <= 5 ? 48 : 40;
+      const quoteLineHeight = Math.round(quoteFontSize * 1.25);
+      const quoteBlockHeight = quoteLines.length * quoteLineHeight;
+      const quoteStartY = 540 - Math.round(quoteBlockHeight / 2) + quoteFontSize;
+
+      const isCallIn = !!msg.isCallIn;
+      const isInterruption = !!msg.isInterruption;
+      const speakerLabel = String(msg.speakerName || "").toUpperCase();
+      const speakerSub = isCallIn ? "CALL-IN" : isInterruption ? "INTERRUPTS" : (msg.speakerId === row.interviewer_id ? "INTERVIEWER" : "GUEST");
+      const speakerColor = isCallIn ? "#60a5fa" : msg.speakerId === row.interviewer_id ? "#FFD700" : "#4ADE80";
+
+      const interviewerName = String(row.interviewer_name || "").toUpperCase();
+      const intervieweeName = String(row.interviewee_name || "").toUpperCase();
+
+      const portraitSlot = (label: string, name: string, x: number, color: string, hasImage: boolean) => {
+        const ring = `<circle cx="${x}" cy="180" r="124" fill="none" stroke="${color}" stroke-width="6" opacity="0.85"/>`;
+        const placeholder = !hasImage
+          ? `<circle cx="${x}" cy="180" r="120" fill="#1a1a1a"/><text x="${x}" y="195" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="64" font-weight="900" fill="#444">?</text>`
+          : "";
+        return `
+          ${placeholder}
+          ${ring}
+          <text x="${x}" y="345" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="20" font-weight="900" fill="${color}" letter-spacing="3">${escapeXml(label)}</text>
+          <text x="${x}" y="378" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="26" font-weight="800" fill="#ffffff">${escapeXml(name)}</text>
+        `;
+      };
+
+      const quoteSvgLines = quoteLines.map((line, i) => {
+        const y = quoteStartY + i * quoteLineHeight;
+        return `<text x="540" y="${y}" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="${quoteFontSize}" font-style="italic" fill="#ffffff" font-weight="600">${escapeXml(line)}</text>`;
+      }).join("\n");
+
+      const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1a1308"/>
+      <stop offset="40%" stop-color="#0a0a0a"/>
+      <stop offset="100%" stop-color="#000000"/>
+    </linearGradient>
+    <linearGradient id="goldStroke" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#FFD700" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#FFD700" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#FFD700" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="${W}" height="${H}" fill="url(#bg)"/>
+  <rect x="20" y="20" width="${W - 40}" height="${H - 40}" fill="none" stroke="#FFD700" stroke-opacity="0.25" stroke-width="2" rx="24"/>
+
+  ${portraitSlot("INTERVIEWER", interviewerName, 320, "#FFD700", !!interviewerPortrait)}
+  <text x="540" y="190" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="64" font-weight="900" fill="rgba(255,255,255,0.4)">×</text>
+  ${portraitSlot("GUEST", intervieweeName, 760, "#4ADE80", !!intervieweePortrait)}
+
+  <line x1="120" y1="430" x2="${W - 120}" y2="430" stroke="url(#goldStroke)" stroke-width="2"/>
+
+  <text x="540" y="${quoteStartY - quoteLineHeight - 20}" text-anchor="middle" font-family="Georgia, serif" font-size="120" fill="#FFD700" opacity="0.35" font-weight="700">“</text>
+
+  ${quoteSvgLines}
+
+  <line x1="${W / 2 - 80}" y1="${H - 220}" x2="${W / 2 + 80}" y2="${H - 220}" stroke="${speakerColor}" stroke-width="2" opacity="0.7"/>
+  <text x="540" y="${H - 175}" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="28" font-weight="900" fill="${speakerColor}" letter-spacing="2">${escapeXml(speakerLabel)}</text>
+  <text x="540" y="${H - 140}" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="16" font-weight="800" fill="rgba(255,255,255,0.55)" letter-spacing="4">${escapeXml(speakerSub)}</text>
+
+  <text x="540" y="${H - 70}" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="32" font-weight="900" fill="#FFD700" letter-spacing="3">TRUMPBOT.RIP</text>
+  <text x="540" y="${H - 40}" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="rgba(255,255,255,0.45)" letter-spacing="3">AI POLITICAL ARENA · INTERVIEW MODE</text>
+</svg>`;
+
+      let pipeline = sharp(Buffer.from(svg));
+      type CompositeInput = { input: Buffer; top: number; left: number };
+      const composites: CompositeInput[] = [];
+      if (interviewerPortrait) {
+        const masked = await sharp(interviewerPortrait)
+          .composite([{
+            input: Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="280" height="280"><circle cx="140" cy="140" r="140" fill="white"/></svg>`),
+            blend: "dest-in",
+          }])
+          .png()
+          .toBuffer();
+        composites.push({ input: masked, top: 40, left: 180 });
+      }
+      if (intervieweePortrait) {
+        const masked = await sharp(intervieweePortrait)
+          .composite([{
+            input: Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="280" height="280"><circle cx="140" cy="140" r="140" fill="white"/></svg>`),
+            blend: "dest-in",
+          }])
+          .png()
+          .toBuffer();
+        composites.push({ input: masked, top: 40, left: 620 });
+      }
+      if (composites.length) pipeline = pipeline.composite(composites);
+      const png = await pipeline.png().toBuffer();
+
+      res.setHeader("Content-Type", "image/png");
+      res.setHeader("Cache-Control", "private, no-store");
+      res.setHeader("Vary", "x-device-id");
+      res.setHeader("Content-Disposition", `inline; filename="trumpbot-clip-${id}.png"`);
+      res.send(png);
+    } catch (error: any) {
+      console.error("Interview clip image error:", error);
+      res.status(500).json({ error: "Failed to generate clip image" });
+    }
+  });
+
   app.get("/api/tokens/balance", async (req, res) => {
     try {
       const deviceId = req.headers["x-device-id"] as string;

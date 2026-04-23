@@ -10,6 +10,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import { fetch } from "expo/fetch";
 import * as Haptics from "expo-haptics";
 import * as Clipboard from "expo-clipboard";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
 import { getApiUrl } from "@/lib/query-client";
 import { useTokens } from "@/lib/token-context";
 
@@ -84,6 +86,8 @@ export default function InterviewTranscriptScreen() {
   const [liesOpen, setLiesOpen] = useState(false);
   const [shareMsg, setShareMsg] = useState<Msg | null>(null);
   const [copied, setCopied] = useState(false);
+  const [generatingImage, setGeneratingImage] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameValue, setRenameValue] = useState("");
   const [savingRename, setSavingRename] = useState(false);
@@ -136,6 +140,69 @@ export default function InterviewTranscriptScreen() {
       setCopied(true);
       setTimeout(() => setCopied(false), 1400);
     } catch {}
+  };
+
+  const buildImageUrl = (m: Msg) => {
+    if (!data) return "";
+    return new URL(`/api/arena/interview-clip-image/${data.id}?msgId=${encodeURIComponent(m.id)}`, getApiUrl()).toString();
+  };
+
+  const handleShareImage = async (m: Msg) => {
+    if (!data || !deviceId) return;
+    setImageError(null);
+    setGeneratingImage(true);
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+      const url = buildImageUrl(m);
+      if (Platform.OS === "web") {
+        const res = await fetch(url, { headers: { "x-device-id": deviceId } });
+        if (!res.ok) throw new Error("image fetch failed");
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const file = new File([blob], `trumpbot-clip-${data.id}.png`, { type: "image/png" });
+        type ShareNavigator = Navigator & {
+          share?: (data: { files?: File[]; text?: string; url?: string; title?: string }) => Promise<void>;
+          canShare?: (data: { files?: File[] }) => boolean;
+        };
+        const nav: ShareNavigator | undefined = typeof navigator !== "undefined" ? (navigator as ShareNavigator) : undefined;
+        if (nav && typeof nav.canShare === "function" && nav.canShare({ files: [file] }) && typeof nav.share === "function") {
+          try {
+            await nav.share({ files: [file], text: buildShareText(m), url: SHARE_URL });
+            URL.revokeObjectURL(blobUrl);
+            setShareMsg(null);
+            return;
+          } catch {}
+        }
+        const a = document.createElement("a");
+        a.href = blobUrl;
+        a.download = `trumpbot-clip-${data.id}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(blobUrl);
+        setShareMsg(null);
+        return;
+      }
+
+      const target = `${FileSystem.cacheDirectory}trumpbot-clip-${data.id}-${m.id}.png`;
+      const dl = await FileSystem.downloadAsync(url, target, { headers: { "x-device-id": deviceId } });
+      if (dl.status !== 200) throw new Error("download failed");
+      const available = await Sharing.isAvailableAsync();
+      if (available) {
+        await Sharing.shareAsync(dl.uri, {
+          mimeType: "image/png",
+          dialogTitle: "Share interview moment",
+          UTI: "public.png",
+        });
+      } else {
+        await Share.share({ url: dl.uri, message: buildShareText(m) });
+      }
+      setShareMsg(null);
+    } catch {
+      setImageError("Couldn't build the image. Try the text share.");
+    } finally {
+      setGeneratingImage(false);
+    }
   };
 
   const handleShareMsg = async (m: Msg) => {
@@ -302,9 +369,9 @@ export default function InterviewTranscriptScreen() {
         />
       )}
 
-      <Modal visible={!!shareMsg} transparent animationType="fade" onRequestClose={() => setShareMsg(null)}>
+      <Modal visible={!!shareMsg} transparent animationType="fade" onRequestClose={() => { setShareMsg(null); setImageError(null); }}>
         <View style={s.modalOverlay}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShareMsg(null)} />
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => { setShareMsg(null); setImageError(null); }} />
           <View style={s.shareSheet} testID="bubble-share-sheet">
             <View style={s.handle} />
             <Text style={s.shareTitle}>Share this moment</Text>
@@ -316,6 +383,22 @@ export default function InterviewTranscriptScreen() {
                 <Text style={s.sharePreviewText} numberOfLines={5}>"{shareMsg.text}"</Text>
               </View>
             )}
+            <Pressable
+              onPress={() => shareMsg && handleShareImage(shareMsg)}
+              style={[s.shareActionBtn, s.shareImageBtn, generatingImage && { opacity: 0.7 }]}
+              disabled={generatingImage}
+              testID="bubble-share-image"
+            >
+              {generatingImage ? (
+                <ActivityIndicator color="#000" size="small" />
+              ) : (
+                <Ionicons name="image-outline" size={18} color="#000" />
+              )}
+              <Text style={s.shareShareText}>{generatingImage ? "Building card…" : (Platform.OS === "web" ? "Share image card" : "Share image card")}</Text>
+            </Pressable>
+            {imageError ? (
+              <Text style={s.imageErrorText} testID="bubble-share-image-error">{imageError}</Text>
+            ) : null}
             <View style={s.shareActions}>
               <Pressable
                 onPress={() => shareMsg && handleCopyMsg(shareMsg)}
@@ -323,7 +406,7 @@ export default function InterviewTranscriptScreen() {
                 testID="bubble-copy"
               >
                 <Ionicons name={copied ? "checkmark" : "copy-outline"} size={16} color="#FFD700" />
-                <Text style={s.shareCopyText}>{copied ? "Copied" : "Copy"}</Text>
+                <Text style={s.shareCopyText}>{copied ? "Copied" : "Copy text"}</Text>
               </Pressable>
               <Pressable
                 onPress={() => shareMsg && handleShareMsg(shareMsg)}
@@ -331,10 +414,10 @@ export default function InterviewTranscriptScreen() {
                 testID="bubble-share"
               >
                 <Ionicons name="share-outline" size={16} color="#000" />
-                <Text style={s.shareShareText}>Share</Text>
+                <Text style={s.shareShareText}>Share text</Text>
               </Pressable>
             </View>
-            <Pressable onPress={() => setShareMsg(null)} style={s.shareCancel}>
+            <Pressable onPress={() => { setShareMsg(null); setImageError(null); }} style={s.shareCancel}>
               <Text style={s.shareCancelText}>Cancel</Text>
             </Pressable>
           </View>
@@ -477,6 +560,8 @@ const s = StyleSheet.create({
   shareCopyText: { color: "#FFD700", fontSize: 13, fontWeight: "800" as const },
   shareShareBtn: { backgroundColor: "#FFD700" },
   shareShareText: { color: "#000", fontSize: 13, fontWeight: "900" as const },
+  shareImageBtn: { backgroundColor: "#FFD700", marginBottom: 8, paddingVertical: 14, gap: 8 },
+  imageErrorText: { color: "#ff4d4d", fontSize: 12, textAlign: "center" as const, marginBottom: 8 },
   shareCancel: { alignItems: "center", paddingVertical: 10 },
   shareCancelText: { color: "rgba(255,255,255,0.5)", fontSize: 12, fontWeight: "700" as const },
 
