@@ -539,7 +539,16 @@ export default function InterviewScreen() {
       headers: { "Content-Type": "application/json", "x-device-id": deviceId },
       body: JSON.stringify({ speakerId: msg.speakerId, text: msg.text, topic: currentTopicRef.current }),
     })
-      .then((r) => r.ok ? r.json() : Promise.reject(new Error("flag failed")))
+      .then(async (r) => {
+        if (r.ok) return r.json();
+        let body: any = {};
+        try { body = await r.json(); } catch {}
+        const err: any = new Error(body?.error || "flag failed");
+        err.status = r.status;
+        err.code = body?.error;
+        err.message_text = body?.message;
+        throw err;
+      })
       .then((data: any) => {
         const score = Math.max(0, Math.min(100, Number(data?.score) || 50));
         setLies((prev) => prev.map((l) => l.id === lieId ? {
@@ -555,7 +564,7 @@ export default function InterviewScreen() {
           playLieAlert();
         }
       })
-      .catch(() => {
+      .catch((err: any) => {
         // Roll back on failure
         setLies((prev) => prev.filter((l) => l.id !== lieId));
         setLieCount((c) => Math.max(0, c - 1));
@@ -564,7 +573,16 @@ export default function InterviewScreen() {
           next.delete(msg.id);
           return next;
         });
-        Alert.alert("Couldn't flag", "We couldn't reach the fact-checker. Try again in a moment.");
+        const code = err?.code;
+        if (code === "duplicate") {
+          Alert.alert("Already flagged", err?.message_text || "You already flagged that quote.");
+        } else if (code === "rate_limited") {
+          Alert.alert("Slow down", err?.message_text || "You're flagging too fast. Try again in a moment.");
+        } else if (code === "session_limit") {
+          Alert.alert("Flag limit reached", err?.message_text || "You've hit the flag limit for this session.");
+        } else {
+          Alert.alert("Couldn't flag", "We couldn't reach the fact-checker. Try again in a moment.");
+        }
       })
       .finally(() => { flagPendingRef.current.delete(msg.id); });
   }, [deviceId, flaggedMsgIds, triggerLightning, playLieAlert]);

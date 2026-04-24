@@ -5514,6 +5514,32 @@ Return ONLY valid JSON: {"score": 0-100, "isLie": boolean (true if score<40), "r
     }
   });
 
+  // Per-device rate limiting + duplicate detection for viewer lie reports.
+  // Prevents spammers from racking up OpenAI fact-check costs by hammering the endpoint.
+  // - Max 10 flags per rolling 60s window
+  // - Max 50 flags per interview session (or per ~1h bucket if no paid session)
+  // - Rejects identical (speakerId, normalizedText) submissions in the same session
+  const FLAG_PER_MINUTE_LIMIT = 10;
+  const FLAG_PER_SESSION_LIMIT = 50;
+  const flagLimiter = new Map<string, {
+    recent: number[];
+    sessionKey: string;
+    sessionCount: number;
+    seen: Map<string, number>;
+    lastTouched: number;
+  }>();
+  const flagLimiterCleanup: any = setInterval(() => {
+    const cutoff = Date.now() - 6 * 60 * 60 * 1000;
+    for (const [k, v] of flagLimiter) {
+      if (v.lastTouched < cutoff) flagLimiter.delete(k);
+    }
+  }, 30 * 60 * 1000);
+  if (typeof flagLimiterCleanup?.unref === "function") flagLimiterCleanup.unref();
+
+  function normalizeFlagText(s: string): string {
+    return s.toLowerCase().replace(/\s+/g, " ").trim();
+  }
+
   // Viewer-reported lie: a viewer flagged a specific message the AI didn't catch.
   // Re-runs the same fact-check scoring but always returns a payload (even if score>=40)
   // so the client can insert it into the lies list with a "user-flagged" badge.
@@ -5532,6 +5558,49 @@ Return ONLY valid JSON: {"score": 0-100, "isLie": boolean (true if score<40), "r
       if (!accessCheck.ok) {
         return res.status(403).json({ error: accessCheck.error || "No active interview session" });
       }
+
+      // Rate limit + dedupe gate
+      const now = Date.now();
+      const access: any = accessCheck.access || {};
+      const sessionKey = String(
+        (access.sessionExpiry && access.sessionExpiry > now)
+          ? `s:${access.sessionExpiry}`
+          : (access.freeTrialExpiry && access.freeTrialExpiry > now)
+            ? `t:${access.freeTrialExpiry}`
+            : `h:${Math.floor(now / 3600000)}`
+      );
+      let bucket = flagLimiter.get(deviceId);
+      if (!bucket || bucket.sessionKey !== sessionKey) {
+        bucket = { recent: [], sessionKey, sessionCount: 0, seen: new Map(), lastTouched: now };
+        flagLimiter.set(deviceId, bucket);
+      }
+      bucket.recent = bucket.recent.filter((t) => now - t < 60_000);
+      if (bucket.recent.length >= FLAG_PER_MINUTE_LIMIT) {
+        const retryAfter = Math.max(1, Math.ceil((60_000 - (now - bucket.recent[0])) / 1000));
+        res.setHeader("Retry-After", String(retryAfter));
+        return res.status(429).json({
+          error: "rate_limited",
+          message: `You're flagging too fast. Try again in ${retryAfter}s.`,
+          retryAfter,
+        });
+      }
+      if (bucket.sessionCount >= FLAG_PER_SESSION_LIMIT) {
+        return res.status(429).json({
+          error: "session_limit",
+          message: `You've hit the ${FLAG_PER_SESSION_LIMIT}-flag limit for this session.`,
+        });
+      }
+      const dedupeKey = `${speakerId}::${normalizeFlagText(claim)}`;
+      if (bucket.seen.has(dedupeKey)) {
+        return res.status(409).json({
+          error: "duplicate",
+          message: "You already flagged that quote.",
+        });
+      }
+      bucket.recent.push(now);
+      bucket.sessionCount += 1;
+      bucket.seen.set(dedupeKey, now);
+      bucket.lastTouched = now;
 
       const speakerName = ARENA_NAME_MAP[speakerId] || speakerId;
       const newsContext = await getArenaNewsContext().catch(() => "");
