@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View, Text, Pressable, StyleSheet, FlatList, ActivityIndicator,
-  RefreshControl, Image, Platform, Modal, TextInput, Alert,
+  RefreshControl, Image, Platform, Modal, TextInput, Alert, ScrollView,
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -24,7 +24,15 @@ type HistoryItem = {
   startedAt: number;
   endedAt: number;
   title?: string | null;
+  tags?: string[];
 };
+
+const MAX_TAGS_PER_INTERVIEW = 8;
+const MAX_TAG_LENGTH = 24;
+
+function normalizeTag(raw: string): string {
+  return raw.trim().replace(/\s+/g, " ").slice(0, MAX_TAG_LENGTH);
+}
 
 const PERSONA_PORTRAITS: Record<string, any> = {
   trump: require("@/assets/images/persona-trump.png"),
@@ -91,7 +99,43 @@ export default function InterviewHistoryScreen() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [undoItem, setUndoItem] = useState<HistoryItem | null>(null);
   const [restoring, setRestoring] = useState(false);
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [tagsItem, setTagsItem] = useState<HistoryItem | null>(null);
+  const [tagsDraft, setTagsDraft] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState("");
+  const [savingTags, setSavingTags] = useState(false);
   const longPressedRef = React.useRef(false);
+
+  const allTags = useMemo(() => {
+    const counts = new Map<string, { label: string; count: number }>();
+    for (const it of items) {
+      const tags = Array.isArray(it.tags) ? it.tags : [];
+      for (const t of tags) {
+        if (typeof t !== "string") continue;
+        const cleaned = normalizeTag(t);
+        if (!cleaned) continue;
+        const key = cleaned.toLowerCase();
+        const existing = counts.get(key);
+        if (existing) existing.count += 1;
+        else counts.set(key, { label: cleaned, count: 1 });
+      }
+    }
+    return Array.from(counts.values()).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+  }, [items]);
+
+  const filteredItems = useMemo(() => {
+    if (!selectedTag) return items;
+    const key = selectedTag.toLowerCase();
+    return items.filter((it) =>
+      Array.isArray(it.tags) && it.tags.some((t) => typeof t === "string" && t.toLowerCase() === key),
+    );
+  }, [items, selectedTag]);
+
+  useEffect(() => {
+    if (selectedTag && !allTags.some((t) => t.label.toLowerCase() === selectedTag.toLowerCase())) {
+      setSelectedTag(null);
+    }
+  }, [allTags, selectedTag]);
 
   React.useEffect(() => {
     if (!errorMsg) return;
@@ -137,6 +181,70 @@ export default function InterviewHistoryScreen() {
     setActionItem(null);
     setRenameValue(it.title || "");
     setRenameItem(it);
+  };
+
+  const startEditTags = (it: HistoryItem) => {
+    setActionItem(null);
+    const initial = Array.isArray(it.tags)
+      ? it.tags.map(normalizeTag).filter((t) => t.length > 0)
+      : [];
+    setTagsDraft(initial);
+    setTagInput("");
+    setTagsItem(it);
+  };
+
+  const addDraftTag = (raw: string) => {
+    const cleaned = normalizeTag(raw);
+    if (!cleaned) return;
+    setTagsDraft((prev) => {
+      if (prev.length >= MAX_TAGS_PER_INTERVIEW) return prev;
+      const key = cleaned.toLowerCase();
+      if (prev.some((t) => t.toLowerCase() === key)) return prev;
+      return [...prev, cleaned];
+    });
+    setTagInput("");
+  };
+
+  const removeDraftTag = (tag: string) => {
+    const key = tag.toLowerCase();
+    setTagsDraft((prev) => prev.filter((t) => t.toLowerCase() !== key));
+  };
+
+  const submitTags = async () => {
+    if (!tagsItem || !deviceId) return;
+    setSavingTags(true);
+    let nextTags = [...tagsDraft];
+    const pending = normalizeTag(tagInput);
+    if (pending && nextTags.length < MAX_TAGS_PER_INTERVIEW) {
+      const key = pending.toLowerCase();
+      if (!nextTags.some((t) => t.toLowerCase() === key)) {
+        nextTags.push(pending);
+      }
+    }
+    try {
+      const res = await fetch(new URL(`/api/arena/interview-history/${tagsItem.id}`, getApiUrl()).toString(), {
+        method: "PATCH",
+        headers: { "x-device-id": deviceId, "Content-Type": "application/json" },
+        body: JSON.stringify({ tags: nextTags }),
+      });
+      if (res.ok) {
+        let savedTags: string[] = nextTags;
+        try {
+          const j = await res.json();
+          if (Array.isArray(j?.tags)) savedTags = j.tags;
+        } catch {}
+        const targetId = tagsItem.id;
+        setItems((prev) => prev.map((x) => x.id === targetId ? { ...x, tags: savedTags } : x));
+        setTagsItem(null);
+        setTagInput("");
+      } else {
+        setErrorMsg("Couldn't update tags. Please try again.");
+      }
+    } catch {
+      setErrorMsg("Couldn't update tags. Please try again.");
+    } finally {
+      setSavingTags(false);
+    }
   };
 
   const submitRename = async () => {
@@ -242,7 +350,11 @@ export default function InterviewHistoryScreen() {
         </Pressable>
         <View style={s.headerCenter}>
           <Text style={s.headerTitle}>PAST INTERVIEWS</Text>
-          <Text style={s.headerSub}>{items.length} saved · re-read the show</Text>
+          <Text style={s.headerSub}>
+            {selectedTag
+              ? `${filteredItems.length} of ${items.length} · #${selectedTag}`
+              : `${items.length} saved · re-read the show`}
+          </Text>
         </View>
         <Pressable
           onPress={() => router.push("/interview-bookmarks")}
@@ -269,7 +381,53 @@ export default function InterviewHistoryScreen() {
         </View>
       ) : (
         <FlatList
-          data={items}
+          data={filteredItems}
+          ListHeaderComponent={
+            allTags.length > 0 ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={s.filterRow}
+                style={s.filterRowOuter}
+                testID="history-filter-row"
+              >
+                <Pressable
+                  onPress={() => setSelectedTag(null)}
+                  style={[s.filterPill, !selectedTag && s.filterPillActive]}
+                  testID="history-filter-all"
+                >
+                  <Text style={[s.filterPillText, !selectedTag && s.filterPillTextActive]}>
+                    All · {items.length}
+                  </Text>
+                </Pressable>
+                {allTags.map((t) => {
+                  const active = !!selectedTag && selectedTag.toLowerCase() === t.label.toLowerCase();
+                  return (
+                    <Pressable
+                      key={t.label.toLowerCase()}
+                      onPress={() => setSelectedTag(active ? null : t.label)}
+                      style={[s.filterPill, active && s.filterPillActive]}
+                      testID={`history-filter-tag-${t.label.toLowerCase()}`}
+                    >
+                      <Text style={[s.filterPillText, active && s.filterPillTextActive]}>
+                        #{t.label} · {t.count}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            ) : null
+          }
+          ListEmptyComponent={
+            selectedTag ? (
+              <View style={s.filterEmpty}>
+                <Text style={s.filterEmptyTitle}>No interviews tagged #{selectedTag}</Text>
+                <Pressable onPress={() => setSelectedTag(null)} style={s.filterEmptyBtn}>
+                  <Text style={s.filterEmptyBtnText}>Clear filter</Text>
+                </Pressable>
+              </View>
+            ) : null
+          }
           keyExtractor={(it) => it.id}
           contentContainerStyle={{ padding: 14, paddingBottom: insets.bottom + webBottom + 24 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFD700" />}
@@ -325,6 +483,21 @@ export default function InterviewHistoryScreen() {
                       <Text style={[s.metaText, item.lieCount > 0 && { color: "#ff4d4d" }]}>{item.lieCount} lies</Text>
                     </View>
                   </View>
+                  {Array.isArray(item.tags) && item.tags.length > 0 ? (
+                    <View style={s.tagsRow}>
+                      {item.tags.slice(0, 4).map((t) => {
+                        const active = !!selectedTag && selectedTag.toLowerCase() === t.toLowerCase();
+                        return (
+                          <View key={t.toLowerCase()} style={[s.rowTagChip, active && s.rowTagChipActive]}>
+                            <Text style={[s.rowTagChipText, active && s.rowTagChipTextActive]}>#{t}</Text>
+                          </View>
+                        );
+                      })}
+                      {item.tags.length > 4 ? (
+                        <Text style={s.rowTagsMore}>+{item.tags.length - 4}</Text>
+                      ) : null}
+                    </View>
+                  ) : null}
                 </View>
                 <Pressable
                   onPress={() => openActions(item)}
@@ -356,6 +529,18 @@ export default function InterviewHistoryScreen() {
             >
               <Ionicons name="create-outline" size={20} color="#FFD700" />
               <Text style={s.sheetActionText}>{actionItem?.title ? "Edit title" : "Rename"}</Text>
+            </Pressable>
+            <Pressable
+              style={s.sheetAction}
+              onPress={() => actionItem && startEditTags(actionItem)}
+              testID="history-action-tags"
+            >
+              <Ionicons name="pricetags-outline" size={20} color="#FFD700" />
+              <Text style={s.sheetActionText}>
+                {actionItem && Array.isArray(actionItem.tags) && actionItem.tags.length > 0
+                  ? `Edit tags (${actionItem.tags.length})`
+                  : "Add tags"}
+              </Text>
             </Pressable>
             <Pressable
               style={s.sheetAction}
@@ -405,6 +590,108 @@ export default function InterviewHistoryScreen() {
                 testID="history-rename-save"
               >
                 {savingRename ? (
+                  <ActivityIndicator color="#000" />
+                ) : (
+                  <Text style={s.sheetBtnPrimaryText}>Save</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={!!tagsItem} transparent animationType="fade" onRequestClose={() => setTagsItem(null)}>
+        <View style={s.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setTagsItem(null)} />
+          <View style={s.sheet} testID="history-tags-sheet">
+            <View style={s.handle} />
+            <Text style={s.sheetTitle}>Tag this interview</Text>
+            <Text style={s.sheetSub}>
+              Add up to {MAX_TAGS_PER_INTERVIEW} short tags (e.g. favorites, for the show, spicy).
+            </Text>
+
+            {tagsDraft.length > 0 ? (
+              <View style={s.draftTagsRow}>
+                {tagsDraft.map((t) => (
+                  <Pressable
+                    key={t.toLowerCase()}
+                    onPress={() => removeDraftTag(t)}
+                    style={s.draftTagChip}
+                    testID={`history-tag-draft-${t.toLowerCase()}`}
+                  >
+                    <Text style={s.draftTagChipText}>#{t}</Text>
+                    <Ionicons name="close" size={12} color="#000" />
+                  </Pressable>
+                ))}
+              </View>
+            ) : (
+              <Text style={s.tagsHint}>No tags yet — type one below or pick from your set.</Text>
+            )}
+
+            <View style={s.tagInputRow}>
+              <TextInput
+                value={tagInput}
+                onChangeText={(v) => setTagInput(v.slice(0, MAX_TAG_LENGTH))}
+                placeholder="New tag"
+                placeholderTextColor="rgba(255,255,255,0.35)"
+                style={[s.input, { flex: 1, marginBottom: 0 }]}
+                maxLength={MAX_TAG_LENGTH}
+                onSubmitEditing={() => addDraftTag(tagInput)}
+                returnKeyType="done"
+                blurOnSubmit={false}
+                editable={tagsDraft.length < MAX_TAGS_PER_INTERVIEW}
+                testID="history-tags-input"
+              />
+              <Pressable
+                onPress={() => addDraftTag(tagInput)}
+                disabled={!normalizeTag(tagInput) || tagsDraft.length >= MAX_TAGS_PER_INTERVIEW}
+                style={[
+                  s.tagAddBtn,
+                  (!normalizeTag(tagInput) || tagsDraft.length >= MAX_TAGS_PER_INTERVIEW) && { opacity: 0.4 },
+                ]}
+                testID="history-tags-add"
+              >
+                <Ionicons name="add" size={20} color="#000" />
+              </Pressable>
+            </View>
+
+            {allTags.length > 0 ? (
+              <View style={{ marginTop: 14 }}>
+                <Text style={s.tagsSectionLabel}>Your tags</Text>
+                <View style={s.suggestionRow}>
+                  {allTags.map((t) => {
+                    const inDraft = tagsDraft.some((d) => d.toLowerCase() === t.label.toLowerCase());
+                    return (
+                      <Pressable
+                        key={t.label.toLowerCase()}
+                        onPress={() => {
+                          if (inDraft) removeDraftTag(t.label);
+                          else addDraftTag(t.label);
+                        }}
+                        style={[s.suggestionChip, inDraft && s.suggestionChipActive]}
+                        testID={`history-tag-suggest-${t.label.toLowerCase()}`}
+                      >
+                        <Text style={[s.suggestionChipText, inDraft && s.suggestionChipTextActive]}>
+                          #{t.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            ) : null}
+
+            <View style={[s.sheetActions, { marginTop: 18 }]}>
+              <Pressable style={[s.sheetBtn, s.sheetBtnGhost]} onPress={() => setTagsItem(null)}>
+                <Text style={s.sheetBtnGhostText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[s.sheetBtn, s.sheetBtnPrimary]}
+                onPress={submitTags}
+                disabled={savingTags}
+                testID="history-tags-save"
+              >
+                {savingTags ? (
                   <ActivityIndicator color="#000" />
                 ) : (
                   <Text style={s.sheetBtnPrimaryText}>Save</Text>
@@ -534,4 +821,35 @@ const s = StyleSheet.create({
   undoBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: "rgba(255,215,0,0.14)", borderWidth: 1, borderColor: "rgba(255,215,0,0.55)" },
   undoBtnText: { color: "#FFD700", fontSize: 12, fontWeight: "900", letterSpacing: 1 },
   undoClose: { width: 28, height: 28, alignItems: "center", justifyContent: "center", borderRadius: 14 },
+
+  filterRowOuter: { marginBottom: 8 },
+  filterRow: { flexDirection: "row", gap: 6, paddingVertical: 2, paddingRight: 4 },
+  filterPill: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, backgroundColor: "rgba(255,255,255,0.05)", borderWidth: 1, borderColor: "rgba(255,255,255,0.12)" },
+  filterPillActive: { backgroundColor: "rgba(255,215,0,0.18)", borderColor: "rgba(255,215,0,0.7)" },
+  filterPillText: { color: "rgba(255,255,255,0.75)", fontSize: 11, fontWeight: "800", letterSpacing: 0.3 },
+  filterPillTextActive: { color: "#FFD700" },
+  filterEmpty: { alignItems: "center", paddingVertical: 28, gap: 10 },
+  filterEmptyTitle: { color: "rgba(255,255,255,0.7)", fontSize: 13, fontWeight: "700" },
+  filterEmptyBtn: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 10, backgroundColor: "rgba(255,215,0,0.16)", borderWidth: 1, borderColor: "rgba(255,215,0,0.5)" },
+  filterEmptyBtnText: { color: "#FFD700", fontSize: 11, fontWeight: "900", letterSpacing: 0.6 },
+
+  tagsRow: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 6, alignItems: "center" },
+  rowTagChip: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, backgroundColor: "rgba(255,215,0,0.08)", borderWidth: 1, borderColor: "rgba(255,215,0,0.3)" },
+  rowTagChipActive: { backgroundColor: "rgba(255,215,0,0.24)", borderColor: "rgba(255,215,0,0.75)" },
+  rowTagChipText: { color: "rgba(255,215,0,0.85)", fontSize: 10, fontWeight: "800" },
+  rowTagChipTextActive: { color: "#FFD700" },
+  rowTagsMore: { color: "rgba(255,255,255,0.45)", fontSize: 10, fontWeight: "700", marginLeft: 2 },
+
+  draftTagsRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 },
+  draftTagChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, backgroundColor: "#FFD700" },
+  draftTagChipText: { color: "#000", fontSize: 12, fontWeight: "900" },
+  tagsHint: { color: "rgba(255,255,255,0.45)", fontSize: 11, marginBottom: 12, fontWeight: "600" },
+  tagInputRow: { flexDirection: "row", gap: 8, alignItems: "center" },
+  tagAddBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: "#FFD700", alignItems: "center", justifyContent: "center" },
+  tagsSectionLabel: { color: "rgba(255,255,255,0.55)", fontSize: 10, fontWeight: "900", letterSpacing: 0.8, marginBottom: 8 },
+  suggestionRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  suggestionChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.05)", borderWidth: 1, borderColor: "rgba(255,255,255,0.14)" },
+  suggestionChipActive: { backgroundColor: "rgba(255,215,0,0.18)", borderColor: "rgba(255,215,0,0.7)" },
+  suggestionChipText: { color: "rgba(255,255,255,0.75)", fontSize: 11, fontWeight: "700" },
+  suggestionChipTextActive: { color: "#FFD700", fontWeight: "900" },
 });

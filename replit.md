@@ -45,6 +45,7 @@ The backend is an Express 5 API gateway responsible for AI interactions, content
 - **Menu Music System**: Menu music on the home screen auto-pauses when navigating to other screens and resumes upon return.
 - **Arena Token Enforcement**: Implements a system for free debate API calls, daily free trials, and paid session access to manage user engagement.
 - **Share App Templates**: Reusable `<ShareAppButton />` provides a global share button with pre-written templates for various app sections.
+- **Interview History Tags**: Saved interviews can have user-defined tags (max 8 per interview, 24 chars each, case-insensitive dedup) stored in a JSONB `tags` column on `interview_history`. The Past Interviews screen shows a horizontal filter pill row aggregated from all tags, lets users tag/untag from the row's action sheet, and surfaces tag chips on each row. The PATCH `/api/arena/interview-history/:id` endpoint accepts `{ title?, tags? }`.
 
 ## External Dependencies
 - **OpenAI API**: AI chat, audio transcription, and analysis.

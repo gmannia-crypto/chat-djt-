@@ -3728,6 +3728,7 @@ Your personality quirks:
     await initDb.query(`ALTER TABLE interview_history ADD COLUMN IF NOT EXISTS title TEXT`);
     await initDb.query(`ALTER TABLE interview_history ADD COLUMN IF NOT EXISTS deleted_at BIGINT`);
     await initDb.query(`CREATE INDEX IF NOT EXISTS interview_history_deleted_idx ON interview_history (device_id, deleted_at)`);
+    await initDb.query(`ALTER TABLE interview_history ADD COLUMN IF NOT EXISTS tags JSONB NOT NULL DEFAULT '[]'::jsonb`);
     await initDb.query(`CREATE TABLE IF NOT EXISTS interview_lie_votes (
       lie_id TEXT NOT NULL,
       device_id TEXT NOT NULL,
@@ -5783,7 +5784,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
       try {
         const result = await db.query(
           `SELECT id, interviewer_id, interviewer_name, interviewee_id, interviewee_name,
-                  duration_minutes, lie_count, message_count, started_at, ended_at, title
+                  duration_minutes, lie_count, message_count, started_at, ended_at, title, tags
            FROM interview_history
            WHERE device_id = $1 AND deleted_at IS NULL
            ORDER BY ended_at DESC
@@ -5820,6 +5821,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
           startedAt: Number(r.started_at),
           endedAt: Number(r.ended_at),
           title: r.title || null,
+          tags: Array.isArray(r.tags) ? r.tags : [],
         }));
         res.json({ items });
       } finally {
@@ -5861,6 +5863,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
           startedAt: Number(r.started_at),
           endedAt: Number(r.ended_at),
           title: r.title || null,
+          tags: Array.isArray(r.tags) ? r.tags : [],
         });
       } finally {
         await db.end();
@@ -5932,30 +5935,77 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
       const deviceId = req.headers["x-device-id"] as string;
       if (!deviceId) return res.status(400).json({ error: "Device ID required" });
       const id = req.params.id;
-      const rawTitle = req.body?.title;
-      let title: string | null = null;
-      if (rawTitle === null || typeof rawTitle === "undefined") {
-        title = null;
-      } else if (typeof rawTitle === "string") {
-        const trimmed = rawTitle.trim().slice(0, 80);
-        title = trimmed.length === 0 ? null : trimmed;
-      } else {
-        return res.status(400).json({ error: "Invalid title" });
+      const body = req.body || {};
+      const hasTitle = Object.prototype.hasOwnProperty.call(body, "title");
+      const hasTags = Object.prototype.hasOwnProperty.call(body, "tags");
+      if (!hasTitle && !hasTags) {
+        return res.status(400).json({ error: "Nothing to update" });
       }
+
+      let title: string | null = null;
+      if (hasTitle) {
+        const rawTitle = body.title;
+        if (rawTitle === null || typeof rawTitle === "undefined") {
+          title = null;
+        } else if (typeof rawTitle === "string") {
+          const trimmed = rawTitle.trim().slice(0, 80);
+          title = trimmed.length === 0 ? null : trimmed;
+        } else {
+          return res.status(400).json({ error: "Invalid title" });
+        }
+      }
+
+      let tags: string[] = [];
+      if (hasTags) {
+        const rawTags = body.tags;
+        if (!Array.isArray(rawTags)) {
+          return res.status(400).json({ error: "Invalid tags" });
+        }
+        const seen = new Set<string>();
+        for (const t of rawTags) {
+          if (typeof t !== "string") continue;
+          const cleaned = t.trim().replace(/\s+/g, " ").slice(0, 24);
+          if (!cleaned) continue;
+          const key = cleaned.toLowerCase();
+          if (seen.has(key)) continue;
+          seen.add(key);
+          tags.push(cleaned);
+          if (tags.length >= 8) break;
+        }
+      }
+
       const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
       try {
-        const result = await db.query(
-          `UPDATE interview_history SET title = $1 WHERE id = $2 AND device_id = $3 RETURNING id`,
-          [title, id, deviceId],
-        );
+        let result;
+        if (hasTitle && hasTags) {
+          result = await db.query(
+            `UPDATE interview_history SET title = $1, tags = $2::jsonb WHERE id = $3 AND device_id = $4 RETURNING id, title, tags`,
+            [title, JSON.stringify(tags), id, deviceId],
+          );
+        } else if (hasTitle) {
+          result = await db.query(
+            `UPDATE interview_history SET title = $1 WHERE id = $2 AND device_id = $3 RETURNING id, title, tags`,
+            [title, id, deviceId],
+          );
+        } else {
+          result = await db.query(
+            `UPDATE interview_history SET tags = $1::jsonb WHERE id = $2 AND device_id = $3 RETURNING id, title, tags`,
+            [JSON.stringify(tags), id, deviceId],
+          );
+        }
         if (result.rowCount === 0) return res.status(404).json({ error: "Not found" });
-        res.json({ ok: true, title });
+        const row: any = result.rows[0];
+        res.json({
+          ok: true,
+          title: row.title || null,
+          tags: Array.isArray(row.tags) ? row.tags : [],
+        });
       } finally {
         await db.end();
       }
     } catch (error: any) {
-      console.error("Interview rename error:", error);
-      res.status(500).json({ error: "Failed to rename interview" });
+      console.error("Interview update error:", error);
+      res.status(500).json({ error: "Failed to update interview" });
     }
   });
 
