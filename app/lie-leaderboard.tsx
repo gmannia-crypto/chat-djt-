@@ -60,18 +60,24 @@ function rankColor(rank: number): string {
   return "#7a7a7a";
 }
 
+type LeaderboardMode = "worst" | "honest";
+
 export default function LieLeaderboardScreen() {
   const insets = useSafeAreaInsets();
+  const [mode, setMode] = useState<LeaderboardMode>("worst");
   const [rows, setRows] = useState<LeaderRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (currentMode: LeaderboardMode) => {
     try {
       setErrorMsg(null);
       const res = await fetch(
-        new URL("/api/arena/lie-leaderboard?limit=20", getApiUrl()).toString(),
+        new URL(
+          `/api/arena/lie-leaderboard?limit=20&order=${currentMode}`,
+          getApiUrl(),
+        ).toString(),
       );
       if (res.ok) {
         const data = await res.json();
@@ -87,19 +93,49 @@ export default function LieLeaderboardScreen() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    setLoading(true);
+    load(mode);
+  }, [load, mode]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    load();
-  }, [load]);
+    load(mode);
+  }, [load, mode]);
+
+  const switchMode = useCallback((next: LeaderboardMode) => {
+    setMode((prev) => (prev === next ? prev : next));
+  }, []);
+
+  const isHonest = mode === "honest";
+  const accentColor = isHonest ? "#4ADE80" : "#FFD700";
+  const headerTitle = isHonest ? "MOST HONEST" : "CAUGHT LYING";
+  const headerSub = isHonest
+    ? "Lie flags the community shot down"
+    : "Community fact-check leaderboard";
+  const legendText = isHonest
+    ? "Ranked by lowest lie score — guests viewers most often dismiss as not actually lying."
+    : "Lie score = agree votes minus disagree votes on lies flagged during interviews.";
+  const emptyTitle = isHonest ? "No honest crowd yet" : "No votes yet";
+  const emptyText = isHonest
+    ? "Once viewers start dismissing AI lie flags as wrong, the most-honest list fills up."
+    : "Run an interview, vote on the lies the AI catches, and the leaderboard fills up.";
 
   const renderRow = ({ item, index }: { item: LeaderRow; index: number }) => {
     const portrait = PERSONA_PORTRAITS[item.intervieweeId];
     const totalVotes = item.agree + item.disagree;
-    const agreePct = totalVotes > 0 ? Math.round((item.agree / totalVotes) * 100) : 0;
+    const ratePct = totalVotes > 0
+      ? Math.round(((isHonest ? item.disagree : item.agree) / totalVotes) * 100)
+      : 0;
+    const rateLabel = isHonest ? "disagree" : "agree";
     return (
-      <View style={[s.row, index < 3 && s.rowTop]} testID={`leader-row-${item.intervieweeId}`}>
+      <View
+        style={[
+          s.row,
+          index < 3 && (isHonest ? s.rowTopHonest : s.rowTop),
+        ]}
+        testID={`leader-row-${item.intervieweeId}`}
+      >
         <View style={[s.rankBadge, { backgroundColor: rankColor(index) }]}>
           <Text style={s.rankText}>{index + 1}</Text>
         </View>
@@ -107,17 +143,19 @@ export default function LieLeaderboardScreen() {
           <Image source={portrait} style={s.avatar} resizeMode="cover" />
         ) : (
           <View style={[s.avatar, s.avatarFallback]}>
-            <Ionicons name="person" size={22} color="#FFD700" />
+            <Ionicons name="person" size={22} color={accentColor} />
           </View>
         )}
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={s.name} numberOfLines={1}>{item.intervieweeName}</Text>
           <Text style={s.metaSub} numberOfLines={1}>
-            {item.lieCount} flagged · {agreePct}% agree
+            {item.lieCount} flagged · {ratePct}% {rateLabel}
           </Text>
         </View>
         <View style={s.scoreCol}>
-          <Text style={s.scoreNum}>{item.lieScore > 0 ? `+${item.lieScore}` : item.lieScore}</Text>
+          <Text style={[s.scoreNum, { color: accentColor }]}>
+            {item.lieScore > 0 ? `+${item.lieScore}` : item.lieScore}
+          </Text>
           <View style={s.voteRow}>
             <Ionicons name="thumbs-up" size={11} color="#4ADE80" />
             <Text style={[s.voteNum, { color: "#4ADE80" }]}>{item.agree}</Text>
@@ -131,38 +169,88 @@ export default function LieLeaderboardScreen() {
 
   return (
     <View style={[s.container, { paddingTop: insets.top + webTop, paddingBottom: webBottom }]}>
-      <LinearGradient colors={["rgba(255,215,0,0.12)", "rgba(0,0,0,0)", "#0a0a0a"]} style={StyleSheet.absoluteFill} />
+      <LinearGradient
+        colors={
+          isHonest
+            ? ["rgba(74,222,128,0.12)", "rgba(0,0,0,0)", "#0a0a0a"]
+            : ["rgba(255,215,0,0.12)", "rgba(0,0,0,0)", "#0a0a0a"]
+        }
+        style={StyleSheet.absoluteFill}
+      />
 
       <View style={s.header}>
         <Pressable onPress={() => router.back()} style={s.iconBtn} testID="leaderboard-back">
           <Ionicons name="arrow-back" size={22} color="#fff" />
         </Pressable>
         <View style={s.headerCenter}>
-          <Text style={s.headerTitle}>CAUGHT LYING</Text>
-          <Text style={s.headerSub}>Community fact-check leaderboard</Text>
+          <Text style={[s.headerTitle, { color: accentColor }]}>{headerTitle}</Text>
+          <Text style={s.headerSub}>{headerSub}</Text>
         </View>
         <ShareAppButton variant="icon" area="arena" />
       </View>
 
-      <View style={s.legendCard}>
-        <Ionicons name="information-circle-outline" size={16} color="#FFD700" />
-        <Text style={s.legendText}>
-          Lie score = agree votes minus disagree votes on lies flagged during interviews.
-        </Text>
+      <View style={s.tabRow}>
+        <Pressable
+          onPress={() => switchMode("worst")}
+          style={[s.tabBtn, !isHonest && s.tabBtnActiveWorst]}
+          testID="leaderboard-tab-worst"
+        >
+          <Ionicons
+            name="flame"
+            size={14}
+            color={!isHonest ? "#000" : "#FFD700"}
+          />
+          <Text style={[s.tabText, !isHonest && s.tabTextActiveWorst]}>
+            Caught Lying
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={() => switchMode("honest")}
+          style={[s.tabBtn, isHonest && s.tabBtnActiveHonest]}
+          testID="leaderboard-tab-honest"
+        >
+          <Ionicons
+            name="shield-checkmark"
+            size={14}
+            color={isHonest ? "#000" : "#4ADE80"}
+          />
+          <Text style={[s.tabText, isHonest && s.tabTextActiveHonest]}>
+            Most Honest
+          </Text>
+        </Pressable>
+      </View>
+
+      <View
+        style={[
+          s.legendCard,
+          isHonest && {
+            backgroundColor: "rgba(74,222,128,0.08)",
+            borderColor: "rgba(74,222,128,0.25)",
+          },
+        ]}
+      >
+        <Ionicons name="information-circle-outline" size={16} color={accentColor} />
+        <Text style={s.legendText}>{legendText}</Text>
       </View>
 
       {loading ? (
         <View style={s.centered}>
-          <ActivityIndicator size="large" color="#FFD700" />
+          <ActivityIndicator size="large" color={accentColor} />
         </View>
       ) : rows.length === 0 ? (
         <View style={s.centered}>
-          <Ionicons name="trophy-outline" size={48} color="#555" />
-          <Text style={s.emptyTitle}>No votes yet</Text>
-          <Text style={s.emptyText}>
-            Run an interview, vote on the lies the AI catches, and the leaderboard fills up.
-          </Text>
-          <Pressable onPress={() => router.replace("/interview")} style={s.startBtn} testID="leaderboard-start">
+          <Ionicons
+            name={isHonest ? "shield-checkmark-outline" : "trophy-outline"}
+            size={48}
+            color="#555"
+          />
+          <Text style={[s.emptyTitle, { color: accentColor }]}>{emptyTitle}</Text>
+          <Text style={s.emptyText}>{emptyText}</Text>
+          <Pressable
+            onPress={() => router.replace("/interview")}
+            style={[s.startBtn, { backgroundColor: accentColor }]}
+            testID="leaderboard-start"
+          >
             <Text style={s.startBtnText}>Start an Interview</Text>
           </Pressable>
         </View>
@@ -172,7 +260,13 @@ export default function LieLeaderboardScreen() {
           keyExtractor={(it) => it.intervieweeId}
           renderItem={renderRow}
           contentContainerStyle={{ padding: 12, paddingBottom: 60 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFD700" />}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={accentColor}
+            />
+          }
           ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
         />
       )}
@@ -199,9 +293,26 @@ const s = StyleSheet.create({
   headerCenter: { flex: 1, alignItems: "center" },
   headerTitle: { color: "#FFD700", fontSize: 16, fontWeight: "800", letterSpacing: 1.5 },
   headerSub: { color: "#aaa", fontSize: 11, marginTop: 2 },
+  tabRow: {
+    flexDirection: "row", alignItems: "center",
+    marginHorizontal: 12, marginTop: 4,
+    padding: 4, borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.08)",
+    gap: 4,
+  },
+  tabBtn: {
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 6, paddingVertical: 8, borderRadius: 18,
+  },
+  tabBtnActiveWorst: { backgroundColor: "#FFD700" },
+  tabBtnActiveHonest: { backgroundColor: "#4ADE80" },
+  tabText: { color: "#ccc", fontWeight: "700", fontSize: 12 },
+  tabTextActiveWorst: { color: "#000" },
+  tabTextActiveHonest: { color: "#000" },
   legendCard: {
     flexDirection: "row", alignItems: "center", gap: 8,
-    marginHorizontal: 12, marginTop: 4, marginBottom: 6,
+    marginHorizontal: 12, marginTop: 8, marginBottom: 6,
     padding: 10, borderRadius: 10,
     backgroundColor: "rgba(255,215,0,0.08)",
     borderWidth: 1, borderColor: "rgba(255,215,0,0.25)",
@@ -224,6 +335,10 @@ const s = StyleSheet.create({
   rowTop: {
     backgroundColor: "rgba(255,215,0,0.08)",
     borderColor: "rgba(255,215,0,0.3)",
+  },
+  rowTopHonest: {
+    backgroundColor: "rgba(74,222,128,0.08)",
+    borderColor: "rgba(74,222,128,0.3)",
   },
   rankBadge: {
     width: 30, height: 30, borderRadius: 15,

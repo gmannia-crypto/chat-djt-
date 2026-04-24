@@ -5688,6 +5688,16 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
   app.get("/api/arena/lie-leaderboard", async (req, res) => {
     try {
       const limit = Math.min(Math.max(parseInt(String(req.query.limit || "20"), 10) || 20, 1), 50);
+      const orderRaw = String(req.query.order || "worst").toLowerCase();
+      const order = orderRaw === "honest" ? "honest" : "worst";
+      const orderClause = order === "honest"
+        ? `ORDER BY (COALESCE(SUM(CASE WHEN vote =  1 THEN 1 ELSE 0 END), 0)
+                   - COALESCE(SUM(CASE WHEN vote = -1 THEN 1 ELSE 0 END), 0)) ASC,
+                    COALESCE(SUM(CASE WHEN vote = -1 THEN 1 ELSE 0 END), 0) DESC,
+                    COUNT(DISTINCT lie_id) ASC`
+        : `ORDER BY (COALESCE(SUM(CASE WHEN vote =  1 THEN 1 ELSE 0 END), 0)
+                   - COALESCE(SUM(CASE WHEN vote = -1 THEN 1 ELSE 0 END), 0)) DESC,
+                    COUNT(DISTINCT lie_id) DESC`;
       const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
       try {
         const rows = await db.query(
@@ -5700,9 +5710,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
            GROUP BY interviewee_id
            HAVING COALESCE(SUM(CASE WHEN vote =  1 THEN 1 ELSE 0 END), 0)
                 + COALESCE(SUM(CASE WHEN vote = -1 THEN 1 ELSE 0 END), 0) > 0
-           ORDER BY (COALESCE(SUM(CASE WHEN vote =  1 THEN 1 ELSE 0 END), 0)
-                   - COALESCE(SUM(CASE WHEN vote = -1 THEN 1 ELSE 0 END), 0)) DESC,
-                    COUNT(DISTINCT lie_id) DESC
+           ${orderClause}
            LIMIT $1`,
           [limit],
         );
