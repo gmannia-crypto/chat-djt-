@@ -5860,7 +5860,11 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
       try {
         const result = await db.query(
           `SELECT id, interviewer_id, interviewer_name, interviewee_id, interviewee_name,
-                  duration_minutes, lie_count, message_count, started_at, ended_at, title, tags
+                  duration_minutes, lie_count, message_count, started_at, ended_at, title, tags,
+                  COALESCE((
+                    SELECT COUNT(*)::int FROM jsonb_array_elements(lies) AS l
+                    WHERE COALESCE((l->>'userFlagged')::boolean, false) IS TRUE
+                  ), 0) AS user_lie_count
            FROM interview_history
            WHERE device_id = $1 AND deleted_at IS NULL
            ORDER BY ended_at DESC
@@ -5893,6 +5897,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
           intervieweeName: r.interviewee_name,
           durationMinutes: r.duration_minutes,
           lieCount: r.lie_count,
+          userLieCount: Number(r.user_lie_count) || 0,
           messageCount: r.message_count,
           startedAt: Number(r.started_at),
           endedAt: Number(r.ended_at),

@@ -332,6 +332,8 @@ export default function InterviewTranscriptScreen() {
   const intervieweePortrait = data ? PERSONA_PORTRAITS[data.intervieweeId] : null;
 
   const lies = data?.lies || [];
+  const userLieCount = lies.reduce((n, l) => n + (l.userFlagged ? 1 : 0), 0);
+  const aiLieCount = lies.length - userLieCount;
 
   const renderHeader = useMemo(() => {
     if (!data) return null;
@@ -538,11 +540,37 @@ export default function InterviewTranscriptScreen() {
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setLiesOpen(false)} />
           <View style={s.sheet}>
             <View style={s.handle} />
-            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 10 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 6 }}>
               <Ionicons name="flash" size={20} color="#ff4d4d" />
               <Text style={{ flex: 1, color: "#fff", fontSize: 18, fontWeight: "900", marginLeft: 8 }}>LIE DETECTOR · {lies.length}</Text>
               <Pressable onPress={() => setLiesOpen(false)}><Ionicons name="close" size={22} color="#fff" /></Pressable>
             </View>
+            {lies.length > 0 ? (
+              <View style={s.lieBreakdownRow} testID="lie-breakdown">
+                <View style={[s.lieBreakdownPill, s.lieBreakdownAi]}>
+                  <Ionicons name="sparkles" size={11} color="#ff4d4d" />
+                  <Text style={s.lieBreakdownAiText}>AI: {aiLieCount}</Text>
+                </View>
+                <Text style={s.lieBreakdownSep}>·</Text>
+                <View
+                  style={[
+                    s.lieBreakdownPill,
+                    userLieCount > 0 ? s.lieBreakdownViewerActive : s.lieBreakdownViewerEmpty,
+                  ]}
+                >
+                  <Ionicons
+                    name="flag"
+                    size={11}
+                    color={userLieCount > 0 ? "#60a5fa" : "rgba(255,255,255,0.45)"}
+                  />
+                  <Text
+                    style={userLieCount > 0 ? s.lieBreakdownViewerText : s.lieBreakdownViewerEmptyText}
+                  >
+                    Viewers: {userLieCount}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
             <ScrollView style={{ maxHeight: 480 }}>
               {lies.length === 0 ? (
                 <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, textAlign: "center", padding: 30 }}>
@@ -677,6 +705,15 @@ const s = StyleSheet.create({
   shareCancel: { alignItems: "center", paddingVertical: 10 },
   shareCancelText: { color: "rgba(255,255,255,0.5)", fontSize: 12, fontWeight: "700" as const },
 
+  lieBreakdownRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 12, marginLeft: 28 },
+  lieBreakdownPill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10, borderWidth: 1 },
+  lieBreakdownAi: { backgroundColor: "rgba(255,77,77,0.12)", borderColor: "rgba(255,77,77,0.4)" },
+  lieBreakdownAiText: { color: "#ff4d4d", fontSize: 11, fontWeight: "900" as const, letterSpacing: 0.4 },
+  lieBreakdownViewerActive: { backgroundColor: "rgba(96,165,250,0.14)", borderColor: "rgba(96,165,250,0.45)" },
+  lieBreakdownViewerEmpty: { backgroundColor: "rgba(255,255,255,0.04)", borderColor: "rgba(255,255,255,0.12)" },
+  lieBreakdownViewerText: { color: "#60a5fa", fontSize: 11, fontWeight: "900" as const, letterSpacing: 0.4 },
+  lieBreakdownViewerEmptyText: { color: "rgba(255,255,255,0.45)", fontSize: 11, fontWeight: "900" as const, letterSpacing: 0.4 },
+  lieBreakdownSep: { color: "rgba(255,255,255,0.35)", fontSize: 14, fontWeight: "900" as const },
   lieRow: { padding: 12, marginBottom: 10, borderRadius: 12, backgroundColor: "rgba(255,77,77,0.06)", borderWidth: 1, borderColor: "rgba(255,77,77,0.25)" },
   lieHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
   lieScore: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, backgroundColor: "rgba(255,77,77,0.15)" },

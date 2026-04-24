@@ -20,6 +20,7 @@ type HistoryItem = {
   intervieweeName: string;
   durationMinutes: number;
   lieCount: number;
+  userLieCount?: number;
   messageCount: number;
   startedAt: number;
   endedAt: number;
@@ -482,6 +483,18 @@ export default function InterviewHistoryScreen() {
                       <Ionicons name="flash" size={11} color={item.lieCount > 0 ? "#ff4d4d" : "rgba(255,255,255,0.6)"} />
                       <Text style={[s.metaText, item.lieCount > 0 && { color: "#ff4d4d" }]}>{item.lieCount} lies</Text>
                     </View>
+                    {(item.userLieCount ?? 0) > 0 ? (
+                      <View
+                        style={[s.metaPill, s.viewerPill]}
+                        testID={`history-viewer-reports-${item.id}`}
+                        accessibilityLabel={`${item.userLieCount} viewer report${item.userLieCount === 1 ? "" : "s"}`}
+                      >
+                        <Ionicons name="flag" size={11} color="#60a5fa" />
+                        <Text style={[s.metaText, s.viewerPillText]}>
+                          {item.userLieCount} viewer report{item.userLieCount === 1 ? "" : "s"}
+                        </Text>
+                      </View>
+                    ) : null}
                   </View>
                   {Array.isArray(item.tags) && item.tags.length > 0 ? (
                     <View style={s.tagsRow}>
@@ -795,6 +808,8 @@ const s = StyleSheet.create({
   metaRow: { flexDirection: "row", gap: 6, marginTop: 6, flexWrap: "wrap" },
   metaPill: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.05)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
   metaText: { color: "rgba(255,255,255,0.7)", fontSize: 10, fontWeight: "700" },
+  viewerPill: { backgroundColor: "rgba(96,165,250,0.12)", borderColor: "rgba(96,165,250,0.4)" },
+  viewerPillText: { color: "#60a5fa" },
   menuBtn: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
 
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.75)", justifyContent: "flex-end" },
