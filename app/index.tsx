@@ -1485,12 +1485,6 @@ export default function HomeScreen() {
               <Ionicons name="volume-high" size={16} color="#D4A420" />
             </Pressable>
           )}
-          {streak > 1 && (
-            <View style={{ flexDirection: "row" as const, alignItems: "center" as const, gap: 3, backgroundColor: "rgba(204,51,51,0.2)", borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: "rgba(204,51,51,0.4)" }}>
-              <Text style={{ fontSize: 12 }}>🔥</Text>
-              <Text style={{ fontSize: 11, fontWeight: "800" as const, color: "#FF4444" }}>{streak}</Text>
-            </View>
-          )}
           {balance && (
             <Pressable onPress={() => router.push("/subscribe")} style={{ flexDirection: "row" as const, alignItems: "center" as const, gap: 3, backgroundColor: "rgba(212,164,32,0.15)", borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: "rgba(212,164,32,0.3)" }}>
               <Image source={require("@/assets/images/dc-lightning-token.jpeg")} style={{ width: 14, height: 14, borderRadius: 7 }} />
