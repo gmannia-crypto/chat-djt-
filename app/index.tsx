@@ -656,6 +656,7 @@ export default function HomeScreen() {
   function handleSecretTap() {
     secretTapCount.current += 1;
     if (secretTapTimer.current) clearTimeout(secretTapTimer.current);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     if (secretTapCount.current >= 5) {
       secretTapCount.current = 0;
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
@@ -666,7 +667,7 @@ export default function HomeScreen() {
     } else {
       secretTapTimer.current = setTimeout(() => {
         secretTapCount.current = 0;
-      }, 2000);
+      }, 3500);
     }
   }
 
@@ -1474,14 +1475,7 @@ export default function HomeScreen() {
             <Text style={styles.glossyHeaderLabel}>Archive</Text>
           </Pressable>
         </View>
-        <Pressable onPress={handleSecretTap} style={styles.headerBrand}>
-          <Text style={styles.headerBrandBy}>by</Text>
-          <Image
-            source={require("@/assets/images/dynamic-creations.jpg")}
-            style={styles.headerBrandLogo}
-            resizeMode="contain"
-          />
-        </Pressable>
+        <View style={styles.headerBrand} pointerEvents="none" />
         <View style={{ flexDirection: "row" as const, alignItems: "center" as const, gap: 8 }}>
           {!welcomePlayedRef.current && (
             <Pressable
@@ -1511,6 +1505,35 @@ export default function HomeScreen() {
           <ShareAppButton variant="icon" />
         </View>
       </Animated.View>
+
+      <Pressable
+        onPress={handleSecretTap}
+        hitSlop={{ top: 16, bottom: 16, left: 24, right: 24 }}
+        accessibilityLabel="Dynamic Creations"
+        testID="dynamic-creations-brand"
+        style={({ pressed }) => ({
+          alignSelf: "center" as const,
+          flexDirection: "row" as const,
+          alignItems: "center" as const,
+          justifyContent: "center" as const,
+          gap: 8,
+          paddingVertical: 10,
+          paddingHorizontal: 18,
+          marginTop: 4,
+          marginBottom: 6,
+          borderRadius: 999,
+          backgroundColor: pressed ? "rgba(255,215,0,0.12)" : "rgba(255,255,255,0.04)",
+          borderWidth: 1,
+          borderColor: "rgba(255,215,0,0.25)",
+        })}
+      >
+        <Text style={styles.headerBrandBy}>by</Text>
+        <Image
+          source={require("@/assets/images/dynamic-creations.jpg")}
+          style={styles.headerBrandLogo}
+          resizeMode="contain"
+        />
+      </Pressable>
 
       <ScrollView
         ref={mainScrollRef}
