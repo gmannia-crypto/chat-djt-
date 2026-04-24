@@ -129,12 +129,19 @@ export default function LieLeaderboardScreen() {
       : 0;
     const rateLabel = isHonest ? "disagree" : "agree";
     return (
-      <View
-        style={[
+      <Pressable
+        onPress={() => {
+          const qs = `?name=${encodeURIComponent(item.intervieweeName)}&mode=${encodeURIComponent(mode)}`;
+          router.push(`/lie-leaderboard/${encodeURIComponent(item.intervieweeId)}${qs}`);
+        }}
+        style={({ pressed }) => [
           s.row,
           index < 3 && (isHonest ? s.rowTopHonest : s.rowTop),
+          pressed && { opacity: 0.7 },
         ]}
         testID={`leader-row-${item.intervieweeId}`}
+        accessibilityRole="button"
+        accessibilityLabel={`See flagged lies for ${item.intervieweeName}`}
       >
         <View style={[s.rankBadge, { backgroundColor: rankColor(index) }]}>
           <Text style={s.rankText}>{index + 1}</Text>
@@ -163,7 +170,8 @@ export default function LieLeaderboardScreen() {
             <Text style={[s.voteNum, { color: "#ff6b6b" }]}>{item.disagree}</Text>
           </View>
         </View>
-      </View>
+        <Ionicons name="chevron-forward" size={18} color="#666" style={{ marginLeft: 4 }} />
+      </Pressable>
     );
   };
 

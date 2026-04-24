@@ -361,6 +361,14 @@ function RootLayoutNav() {
         name="arena-replay"
         options={{ headerShown: false }}
       />
+      <Stack.Screen
+        name="lie-leaderboard"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="lie-leaderboard/[id]"
+        options={{ headerShown: false, animation: "slide_from_right" }}
+      />
     </Stack>
   );
 }

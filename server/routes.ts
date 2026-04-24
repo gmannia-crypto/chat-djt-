@@ -5736,6 +5736,74 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
     }
   });
 
+  // Per-persona breakdown of every flagged lie with vote tallies, sorted by net agreement.
+  app.get("/api/arena/lie-leaderboard/:intervieweeId", async (req, res) => {
+    try {
+      const intervieweeIdRaw = String(req.params.intervieweeId || "").slice(0, 80).trim();
+      if (!intervieweeIdRaw) {
+        return res.status(400).json({ error: "intervieweeId required", lies: [] });
+      }
+      const limit = Math.min(Math.max(parseInt(String(req.query.limit || "50"), 10) || 50, 1), 100);
+      const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      try {
+        const rows = await db.query(
+          `SELECT lie_id,
+             MAX(lie_text) AS lie_text,
+             COALESCE(SUM(CASE WHEN vote =  1 THEN 1 ELSE 0 END), 0)::int AS agree,
+             COALESCE(SUM(CASE WHEN vote = -1 THEN 1 ELSE 0 END), 0)::int AS disagree,
+             MAX(updated_at) AS last_voted_at
+           FROM interview_lie_votes
+           WHERE interviewee_id = $1
+           GROUP BY lie_id
+           HAVING (COALESCE(SUM(CASE WHEN vote =  1 THEN 1 ELSE 0 END), 0)
+                 + COALESCE(SUM(CASE WHEN vote = -1 THEN 1 ELSE 0 END), 0)) > 0
+              AND MAX(lie_text) IS NOT NULL
+              AND MAX(lie_text) <> ''
+           ORDER BY (COALESCE(SUM(CASE WHEN vote =  1 THEN 1 ELSE 0 END), 0)
+                   - COALESCE(SUM(CASE WHEN vote = -1 THEN 1 ELSE 0 END), 0)) DESC,
+                    COALESCE(SUM(CASE WHEN vote =  1 THEN 1 ELSE 0 END), 0) DESC,
+                    MAX(updated_at) DESC
+           LIMIT $2`,
+          [intervieweeIdRaw, limit],
+        );
+        const lies = rows.rows.map((r: any) => {
+          const agree = Number(r.agree) || 0;
+          const disagree = Number(r.disagree) || 0;
+          return {
+            lieId: r.lie_id,
+            lieText: r.lie_text || "",
+            agree,
+            disagree,
+            netScore: agree - disagree,
+            lastVotedAt: r.last_voted_at ? new Date(r.last_voted_at).getTime() : null,
+          };
+        });
+        const totals = lies.reduce(
+          (acc: { agree: number; disagree: number }, l: { agree: number; disagree: number }) => {
+            acc.agree += l.agree;
+            acc.disagree += l.disagree;
+            return acc;
+          },
+          { agree: 0, disagree: 0 },
+        );
+        res.json({
+          intervieweeId: intervieweeIdRaw,
+          intervieweeName: ARENA_NAME_MAP[intervieweeIdRaw] || intervieweeIdRaw,
+          lieCount: lies.length,
+          totalAgree: totals.agree,
+          totalDisagree: totals.disagree,
+          lieScore: totals.agree - totals.disagree,
+          lies,
+        });
+      } finally {
+        await db.end();
+      }
+    } catch (error: any) {
+      console.error("Per-persona lie leaderboard fetch error:", error);
+      res.status(500).json({ error: "Fetch failed", lies: [] });
+    }
+  });
+
   // Save a completed interview transcript so the user can re-read it later
   app.post("/api/arena/interview-save", async (req, res) => {
     try {
