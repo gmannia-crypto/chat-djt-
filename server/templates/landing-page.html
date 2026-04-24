@@ -1507,7 +1507,11 @@
       </div>
 
       <div class="feature-tabs">
-        <button class="feature-tab active" data-feature="faceoff" onclick="showFeature('faceoff')">
+        <button class="feature-tab active" data-feature="conversation" onclick="showFeature('conversation')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          Political Arena
+        </button>
+        <button class="feature-tab" data-feature="faceoff" onclick="showFeature('faceoff')">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
           Faceoff
         </button>
@@ -1530,10 +1534,6 @@
         <button class="feature-tab" data-feature="billionaires" onclick="showFeature('billionaires')">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
           Billions
-        </button>
-        <button class="feature-tab" data-feature="conversation" onclick="showFeature('conversation')">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-          Real Talk
         </button>
         <button class="feature-tab" data-feature="sportsmedia" onclick="showFeature('sportsmedia')">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
@@ -1787,7 +1787,7 @@
         if (mod && mod.handleKeydown) mod.handleKeydown(e);
       });
 
-      showFeature("sports");
+      showFeature("conversation");
     </script>
     <script src="https://unpkg.com/qr-code-styling@1.6.0/lib/qr-code-styling.js"></script>
     <script>
