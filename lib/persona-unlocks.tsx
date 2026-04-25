@@ -4,6 +4,7 @@ import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from "@expo/vector-ico
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
   FadeIn,
+  FadeOut,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
@@ -209,6 +210,201 @@ export const PERSONA_UNLOCKS: Record<string, PersonaUnlockConfig> = {
     dismiss: { text: "OPEN FIRE", bg: "#1a0000", textColor: "#ffd700", borderColor: "#ffd700" },
   },
 };
+
+export interface MysteryTeaserPalette {
+  gradient: [string, string, string];
+  borderColor: string;
+  accent: string;
+  badgeText: string;
+}
+
+export function getMysteryTeaserPalettes(
+  finalPersonaId: string,
+  lockedIds: readonly string[],
+  count = 3,
+): MysteryTeaserPalette[] {
+  const finalCfg = PERSONA_UNLOCKS[finalPersonaId];
+  const decoyIds = lockedIds.filter(
+    (id) => id !== finalPersonaId && PERSONA_UNLOCKS[id],
+  );
+  const shuffled = [...decoyIds];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  const decoyCount = Math.max(0, Math.min(count - 1, shuffled.length));
+  const sequence: MysteryTeaserPalette[] = [];
+  for (let i = 0; i < decoyCount; i++) {
+    const cfg = PERSONA_UNLOCKS[shuffled[i]];
+    if (!cfg) continue;
+    sequence.push({
+      gradient: cfg.gradient,
+      borderColor: cfg.borderColor,
+      accent: cfg.overlineColor,
+      badgeText: cfg.badge.text,
+    });
+  }
+  if (finalCfg) {
+    sequence.push({
+      gradient: finalCfg.gradient,
+      borderColor: finalCfg.borderColor,
+      accent: finalCfg.overlineColor,
+      badgeText: finalCfg.badge.text,
+    });
+  }
+  return sequence;
+}
+
+export function MysteryPersonaTeaser({
+  state,
+}: {
+  state: { palette: MysteryTeaserPalette; step: number; total: number } | null;
+}) {
+  const pulse = useSharedValue(1);
+  const glow = useSharedValue(0.5);
+
+  useEffect(() => {
+    if (state) {
+      pulse.value = withRepeat(
+        withSequence(
+          withTiming(1.12, { duration: 360 }),
+          withTiming(1, { duration: 360 }),
+        ),
+        -1,
+        true,
+      );
+      glow.value = withRepeat(
+        withSequence(
+          withTiming(1, { duration: 460 }),
+          withTiming(0.4, { duration: 460 }),
+        ),
+        -1,
+        true,
+      );
+    } else {
+      pulse.value = withTiming(1);
+      glow.value = withTiming(0.5);
+    }
+  }, [!!state]);
+
+  const silhouetteStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pulse.value }],
+    shadowOpacity: glow.value,
+    shadowRadius: 18 + glow.value * 16,
+  }));
+
+  const labelStyle = useAnimatedStyle(() => ({
+    opacity: 0.65 + glow.value * 0.35,
+  }));
+
+  const palette = state?.palette ?? null;
+
+  return (
+    <Modal visible={!!state} animationType="fade" transparent onRequestClose={() => {}}>
+      <View style={teaserStyles.overlay} pointerEvents="none">
+        {state && palette && (
+          <Animated.View
+            key={`teaser-${state.step}-${palette.badgeText}`}
+            entering={FadeIn.duration(220)}
+            exiting={FadeOut.duration(180)}
+            style={[teaserStyles.card, { borderColor: palette.borderColor }]}
+          >
+            <LinearGradient
+              colors={palette.gradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={teaserStyles.gradient}
+            >
+              <Animated.Text
+                style={[teaserStyles.label, { color: palette.accent }, labelStyle]}
+              >
+                WHO COULD IT BE?
+              </Animated.Text>
+
+              <Animated.View
+                style={[
+                  teaserStyles.silhouette,
+                  {
+                    backgroundColor: palette.accent,
+                    shadowColor: palette.accent,
+                    borderColor: palette.borderColor,
+                  },
+                  silhouetteStyle,
+                ]}
+              >
+                <MaterialCommunityIcons name="incognito" size={92} color="#0a0a0a" />
+              </Animated.View>
+
+              <View style={teaserStyles.dotsRow}>
+                {Array.from({ length: state.total }).map((_, i) => (
+                  <View
+                    key={i}
+                    style={[
+                      teaserStyles.dot,
+                      {
+                        backgroundColor:
+                          i <= state.step ? palette.accent : "rgba(255,255,255,0.25)",
+                      },
+                    ]}
+                  />
+                ))}
+              </View>
+            </LinearGradient>
+          </Animated.View>
+        )}
+      </View>
+    </Modal>
+  );
+}
+
+const teaserStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.85)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  card: {
+    width: "100%",
+    maxWidth: 320,
+    borderRadius: 24,
+    overflow: "hidden",
+    borderWidth: 2,
+  },
+  gradient: {
+    paddingVertical: 32,
+    paddingHorizontal: 20,
+    alignItems: "center",
+    gap: 18,
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: "900",
+    letterSpacing: 3,
+    textAlign: "center",
+  },
+  silhouette: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 3,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 12,
+  },
+  dotsRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 4,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+});
 
 export function PersonaUnlockIconView({
   icon,

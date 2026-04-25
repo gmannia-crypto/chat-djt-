@@ -69,6 +69,9 @@ import {
   ARENA_MYSTERY_PERSONA_IDS,
   ARENA_MYSTERY_PERSONA_NAMES,
   ARENA_MYSTERY_UNLOCK_KEY,
+  MysteryPersonaTeaser,
+  getMysteryTeaserPalettes,
+  type MysteryTeaserPalette,
 } from "@/lib/persona-unlocks";
 
 const FEEDBACK_SHOWN_KEY = "chatdjt_feedback_shown";
@@ -294,6 +297,7 @@ export default function HomeScreen() {
   const [mysteryReady, setMysteryReady] = useState(false);
   const [mysteryPrize, setMysteryPrize] = useState<typeof MYSTERY_REWARDS[0] | null>(null);
   const [mysteryRevealing, setMysteryRevealing] = useState(false);
+  const [mysteryTeaser, setMysteryTeaser] = useState<{ palette: MysteryTeaserPalette; step: number; total: number } | null>(null);
   const [unlockedPersonaId, setUnlockedPersonaId] = useState<string | null>(null);
   const [unlockedPersonaCount, setUnlockedPersonaCount] = useState(0);
   const [leaderboardData, setLeaderboardData] = useState<{ name: string; score: number; avatar: string; isYou?: boolean }[]>([]);
@@ -859,6 +863,16 @@ export default function HomeScreen() {
         const locked = ARENA_MYSTERY_PERSONA_IDS.filter((id) => !alreadyUnlocked.includes(id));
         if (locked.length > 0) {
           const personaId = locked[Math.floor(Math.random() * locked.length)];
+          const teaserSeq = getMysteryTeaserPalettes(personaId, locked, 3);
+          const decoyMs = 440;
+          const finalMs = Math.max(560, 1100 - decoyMs * (teaserSeq.length - 1));
+          for (let i = 0; i < teaserSeq.length; i++) {
+            setMysteryTeaser({ palette: teaserSeq[i], step: i, total: teaserSeq.length });
+            try { Haptics.selectionAsync(); } catch {}
+            const isFinal = i === teaserSeq.length - 1;
+            await new Promise((r) => setTimeout(r, isFinal ? finalMs : decoyMs));
+          }
+          setMysteryTeaser(null);
           const newUnlocked = [...alreadyUnlocked, personaId];
           await AsyncStorage.setItem(ARENA_MYSTERY_UNLOCK_KEY, JSON.stringify(newUnlocked));
           refreshUnlockedPersonaCount();
@@ -2231,6 +2245,7 @@ export default function HomeScreen() {
         </Pressable>
       </Modal>
 
+      <MysteryPersonaTeaser state={mysteryTeaser} />
       <PersonaUnlockModal personaId={unlockedPersonaId} onDismiss={dismissPersonaUnlock} />
 
       <Modal
