@@ -358,6 +358,10 @@ function RootLayoutNav() {
         options={{ headerShown: false }}
       />
       <Stack.Screen
+        name="personas"
+        options={{ headerShown: false, animation: "slide_from_right" }}
+      />
+      <Stack.Screen
         name="arena-replay"
         options={{ headerShown: false }}
       />
