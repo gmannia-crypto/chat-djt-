@@ -373,6 +373,10 @@ function RootLayoutNav() {
         name="lie-leaderboard/[id]"
         options={{ headerShown: false, animation: "slide_from_right" }}
       />
+      <Stack.Screen
+        name="voice-mixer"
+        options={{ headerShown: false, presentation: "modal", animation: "slide_from_bottom" }}
+      />
     </Stack>
   );
 }
