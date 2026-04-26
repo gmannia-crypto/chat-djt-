@@ -10,107 +10,28 @@ import {
   Platform,
   type ImageSourcePropType,
 } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import {
+  PERSONA_VOICE_STORAGE,
+  getVoiceSetting,
+  usePersonaVoiceSettings,
+  type PersonaVoiceSetting,
+  type PersonaVoiceSettings,
+} from "@/lib/persona-voice";
 
-export const PERSONA_VOICE_STORAGE = "persona-voice-settings";
-
-export interface PersonaVoiceSetting {
-  muted: boolean;
-  volume: number;
-}
-export type PersonaVoiceSettings = Record<string, PersonaVoiceSetting>;
-
-export function getVoiceSetting(
-  settings: PersonaVoiceSettings,
-  personaId: string
-): PersonaVoiceSetting {
-  return settings[personaId] ?? { muted: false, volume: 1.0 };
-}
-
-// Module-level shared store so every screen using usePersonaVoiceSettings()
-// stays in sync without having to remount. AsyncStorage is the source of
-// truth for cold start; afterwards listeners are notified in-process.
-type VoiceStoreListener = (settings: PersonaVoiceSettings) => void;
-const voiceStore: {
-  settings: PersonaVoiceSettings;
-  hydrated: boolean;
-  hydrating: Promise<void> | null;
-  listeners: Set<VoiceStoreListener>;
-} = {
-  settings: {},
-  hydrated: false,
-  hydrating: null,
-  listeners: new Set(),
+// Re-export the shared voice-settings primitives so existing imports from
+// "@/components/VoiceMixer" keep working. The canonical store now lives in
+// lib/persona-voice.ts and is consumed by every screen that plays persona TTS.
+export {
+  PERSONA_VOICE_STORAGE,
+  getVoiceSetting,
+  usePersonaVoiceSettings,
+  type PersonaVoiceSetting,
+  type PersonaVoiceSettings,
 };
-
-function hydrateVoiceStore(): Promise<void> {
-  if (voiceStore.hydrated) return Promise.resolve();
-  if (voiceStore.hydrating) return voiceStore.hydrating;
-  voiceStore.hydrating = AsyncStorage.getItem(PERSONA_VOICE_STORAGE)
-    .then((saved) => {
-      if (saved) {
-        try {
-          voiceStore.settings = JSON.parse(saved) as PersonaVoiceSettings;
-        } catch {}
-      }
-      voiceStore.hydrated = true;
-      voiceStore.listeners.forEach((l) => l(voiceStore.settings));
-    })
-    .catch(() => {
-      voiceStore.hydrated = true;
-    });
-  return voiceStore.hydrating;
-}
-
-function applyVoiceUpdate(
-  personaId: string,
-  update: Partial<PersonaVoiceSetting>
-): PersonaVoiceSettings {
-  const current =
-    voiceStore.settings[personaId] ?? { muted: false, volume: 1.0 };
-  const next: PersonaVoiceSettings = {
-    ...voiceStore.settings,
-    [personaId]: { ...current, ...update },
-  };
-  voiceStore.settings = next;
-  AsyncStorage.setItem(PERSONA_VOICE_STORAGE, JSON.stringify(next)).catch(
-    () => {}
-  );
-  voiceStore.listeners.forEach((l) => l(next));
-  return next;
-}
-
-export function usePersonaVoiceSettings() {
-  const [settings, setSettings] = useState<PersonaVoiceSettings>(
-    voiceStore.settings
-  );
-  const settingsRef = useRef<PersonaVoiceSettings>(voiceStore.settings);
-
-  useEffect(() => {
-    const listener: VoiceStoreListener = (next) => {
-      settingsRef.current = next;
-      setSettings(next);
-    };
-    voiceStore.listeners.add(listener);
-    hydrateVoiceStore().then(() => listener(voiceStore.settings));
-    return () => {
-      voiceStore.listeners.delete(listener);
-    };
-  }, []);
-
-  const updateSetting = useCallback(
-    (personaId: string, update: Partial<PersonaVoiceSetting>) => {
-      applyVoiceUpdate(personaId, update);
-    },
-    []
-  );
-
-  return { settings, settingsRef, updateSetting };
-}
 
 export interface PersonaMixerInfo {
   id: string;

@@ -53,6 +53,7 @@ import {
 } from "@/lib/chat-storage";
 import { streamChat, type ChatMood, type SpeechCategory } from "@/lib/stream-chat";
 import { getApiUrl } from "@/lib/query-client";
+import { getPersonaVoiceVolume, shouldSkipPersonaVoice } from "@/lib/persona-voice";
 import { useTokens } from "@/lib/token-context";
 
 interface FileAttachment {
@@ -895,13 +896,15 @@ export default function ChatScreen() {
     }
   }
 
-  async function playAudioFromUri(uri: string, msgId: string): Promise<void> {
+  async function playAudioFromUri(uri: string, msgId: string, volume: number = 1): Promise<void> {
     stopCurrentPlayer();
     setSpeakingMessageId(msgId);
 
     try {
+      const clampedVolume = Math.max(0, Math.min(1, volume));
       if (Platform.OS === "web") {
         const audio = new window.Audio(uri);
+        audio.volume = clampedVolume;
         currentPlayer = audio;
 
         audio.onloadedmetadata = () => {
@@ -939,6 +942,7 @@ export default function ChatScreen() {
         }
       } else {
         const player = createAudioPlayer({ uri });
+        player.volume = clampedVolume;
         currentPlayer = player;
 
         let hasFinished = false;
@@ -993,6 +997,10 @@ export default function ChatScreen() {
   }
 
   async function handleSpeak(messageId: string, text: string, mood?: ChatMood, speechCat?: SpeechCategory) {
+    if (shouldSkipPersonaVoice("trump")) {
+      setSpeakingMessageId(null);
+      return;
+    }
     stopCurrentPlayer();
     setSpeakingMessageId(messageId);
 
@@ -1014,6 +1022,7 @@ export default function ChatScreen() {
       if (!response.ok) throw new Error(`TTS request failed: ${response.status}`);
 
       const audioBlob = await response.blob();
+      const trumpVolume = getPersonaVoiceVolume("trump");
 
       if (Platform.OS === "web") {
         if (lastAudioUri) {
@@ -1024,7 +1033,7 @@ export default function ChatScreen() {
         lastAudioMood = mood;
         lastAudioSpeechCategory = speechCat;
         lastAudioMessageId = messageId;
-        await playAudioFromUri(blobUrl, messageId);
+        await playAudioFromUri(blobUrl, messageId, trumpVolume);
       } else {
         const reader = new FileReader();
         const dataUri = await new Promise<string>((resolve, reject) => {
@@ -1037,7 +1046,7 @@ export default function ChatScreen() {
         lastAudioMood = mood;
         lastAudioSpeechCategory = speechCat;
         lastAudioMessageId = messageId;
-        await playAudioFromUri(dataUri, messageId);
+        await playAudioFromUri(dataUri, messageId, trumpVolume);
       }
     } catch (error) {
       console.error("TTS playback error:", error);
@@ -1048,7 +1057,8 @@ export default function ChatScreen() {
   async function handleReplay() {
     if (!lastAudioUri || !lastAudioMessageId) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    await playAudioFromUri(lastAudioUri, lastAudioMessageId);
+    if (shouldSkipPersonaVoice("trump")) return;
+    await playAudioFromUri(lastAudioUri, lastAudioMessageId, getPersonaVoiceVolume("trump"));
   }
 
   handleSpeakRef.current = handleSpeak;

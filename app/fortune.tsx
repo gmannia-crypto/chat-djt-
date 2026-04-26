@@ -21,6 +21,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { Video, Audio, ResizeMode } from "expo-av";
 import { playTTS, playTrumpTTS, isTrumpCurrentlySpeaking } from "@/lib/audio-helper";
+import { getPersonaVoiceVolume, shouldSkipPersonaVoice } from "@/lib/persona-voice";
 import Animated, {
   FadeIn,
   FadeInDown,
@@ -206,9 +207,10 @@ export default function FortuneScreen() {
         await soundRef.current.unloadAsync();
         soundRef.current = null;
       }
+      if (shouldSkipPersonaVoice("trump")) return;
       setSpeaking(true);
       await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-      const sound = await playTrumpTTS("/api/tts", { text, mood: "EXCITED" });
+      const sound = await playTrumpTTS("/api/tts", { text, mood: "EXCITED" }, { volume: getPersonaVoiceVolume("trump") });
       soundRef.current = sound;
       sound.setOnPlaybackStatusUpdate((status: any) => {
         if (status.didJustFinish) setSpeaking(false);

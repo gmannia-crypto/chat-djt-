@@ -18,6 +18,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { Audio } from "expo-av";
 import { playTTS, playTrumpTTS, isTrumpCurrentlySpeaking } from "@/lib/audio-helper";
+import { getPersonaVoiceVolume, shouldSkipPersonaVoice } from "@/lib/persona-voice";
 import Animated, {
   FadeInDown,
   FadeInUp,
@@ -572,12 +573,14 @@ export default function FaceoffScreen() {
         await soundRef.current.unloadAsync();
         soundRef.current = null;
       }
+      if (shouldSkipPersonaVoice(personaId)) return;
+      const personaVolume = getPersonaVoiceVolume(personaId);
       setSpeakingId(personaId);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
       const sound = personaId === "trump"
-        ? await playTrumpTTS("/api/persona-speak", { text, personaId })
-        : await playTTS("/api/persona-speak", { text, personaId });
+        ? await playTrumpTTS("/api/persona-speak", { text, personaId }, { volume: personaVolume })
+        : await playTTS("/api/persona-speak", { text, personaId }, { volume: personaVolume });
       soundRef.current = sound;
       sound.setOnPlaybackStatusUpdate((status: any) => {
         if (status.isLoaded && status.didJustFinish) {

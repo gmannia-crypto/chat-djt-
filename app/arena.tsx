@@ -30,6 +30,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getApiUrl } from "@/lib/query-client";
 import { playTTS, playAudioFromUrl, prefetchTTSAudio, playPrefetchedAudio } from "@/lib/audio-helper";
+import { getPersonaVoiceVolume, shouldSkipPersonaVoice } from "@/lib/persona-voice";
 import { playPointAwardSound, playVoteClickSound, playVoteSound2, playBellSound, playCrowdCheer, playDrumroll, playWinnerChosenSound, playWinnerAfterSound, playBreakingNewsAlert } from "@/lib/arena-sfx";
 import { useTokens } from "@/lib/token-context";
 import { TokenWinVideo } from "@/components/TokenWinVideo";
@@ -2393,6 +2394,7 @@ export default function ArenaScreen() {
 
   const startPrefetch = useCallback((item: { text: string; personaId: string }) => {
     if (prefetchingRef.current) return;
+    if (shouldSkipPersonaVoice(item.personaId)) return;
     if (prefetchedAudioRef.current && prefetchedAudioRef.current.text === item.text && prefetchedAudioRef.current.personaId === item.personaId) return;
     prefetchingRef.current = true;
     prefetchTTSAudio("/api/persona-speak", { text: item.text, personaId: item.personaId })
@@ -2414,17 +2416,22 @@ export default function ArenaScreen() {
       if (!forcePlayRef.current && !voiceEnabledRef.current) break;
       const item = ttsQueueRef.current.shift();
       if (!item || !mountedRef.current) break;
+      if (shouldSkipPersonaVoice(item.personaId)) {
+        // Skip this turn entirely so a muted persona still yields the floor.
+        continue;
+      }
       if (mountedRef.current) {
         setTtsActiveSpeaker(item.personaId);
       }
       try {
         let sound: Audio.Sound;
+        const personaVolume = getPersonaVoiceVolume(item.personaId);
         const cached = prefetchedAudioRef.current;
         if (cached && cached.text === item.text && cached.personaId === item.personaId) {
           prefetchedAudioRef.current = null;
-          sound = await playPrefetchedAudio(cached.audioUri, { volume: 1.0 });
+          sound = await playPrefetchedAudio(cached.audioUri, { volume: personaVolume });
         } else {
-          sound = await playTTS("/api/persona-speak", { text: item.text, personaId: item.personaId }, { volume: 1.0 });
+          sound = await playTTS("/api/persona-speak", { text: item.text, personaId: item.personaId }, { volume: personaVolume });
         }
         currentSoundRef.current = sound;
 
@@ -2507,11 +2514,12 @@ export default function ArenaScreen() {
 
   const playInterruptionAudio = useCallback(async (text: string, personaId: string) => {
     if (!voiceEnabledRef.current) return;
+    if (shouldSkipPersonaVoice(personaId)) return;
     if (mountedRef.current) {
       setTtsActiveSpeaker(personaId);
     }
     try {
-      const sound = await playTTS("/api/persona-speak", { text, personaId }, { volume: 1.0 });
+      const sound = await playTTS("/api/persona-speak", { text, personaId }, { volume: getPersonaVoiceVolume(personaId) });
       let cleaned = false;
       const cleanup = () => {
         if (cleaned) return;

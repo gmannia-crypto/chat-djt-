@@ -22,6 +22,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { Audio } from "expo-av";
 import { playTTS } from "@/lib/audio-helper";
+import { getPersonaVoiceVolume, shouldSkipPersonaVoice } from "@/lib/persona-voice";
 import Animated, {
   FadeIn,
   FadeInDown,
@@ -274,9 +275,10 @@ export default function RealEstateScreen() {
   const speakTourMessage = useCallback(async (text: string, guideId: string) => {
     try {
       if (tourSoundRef.current) { await tourSoundRef.current.stopAsync(); await tourSoundRef.current.unloadAsync(); tourSoundRef.current = null; }
+      if (shouldSkipPersonaVoice(guideId)) return;
       setTourSpeaking(true);
       await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-      const sound = await playTTS("/api/persona-speak", { text, personaId: guideId });
+      const sound = await playTTS("/api/persona-speak", { text, personaId: guideId }, { volume: getPersonaVoiceVolume(guideId) });
       tourSoundRef.current = sound;
       sound.setOnPlaybackStatusUpdate((status: any) => {
         if (status.didJustFinish) { setTourSpeaking(false); sound.unloadAsync(); tourSoundRef.current = null; }
@@ -527,12 +529,13 @@ export default function RealEstateScreen() {
       setSpeakingId(null);
       return;
     }
+    if (shouldSkipPersonaVoice(selectedAdvisor)) return;
     setSpeaking(true);
     setSpeakingId(propId);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-      const sound = await playTTS("/api/persona-speak", { text, personaId: selectedAdvisor });
+      const sound = await playTTS("/api/persona-speak", { text, personaId: selectedAdvisor }, { volume: getPersonaVoiceVolume(selectedAdvisor) });
       soundRef.current = sound;
       sound.setOnPlaybackStatusUpdate((status: any) => {
         if (status.didJustFinish) { setSpeaking(false); setSpeakingId(null); sound.unloadAsync(); soundRef.current = null; }

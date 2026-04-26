@@ -24,6 +24,7 @@ import * as Haptics from "expo-haptics";
 import * as FileSystem from "expo-file-system/legacy";
 import { Audio, Video, ResizeMode } from "expo-av";
 import { playTTS, playTrumpTTS, isTrumpCurrentlySpeaking } from "@/lib/audio-helper";
+import { getPersonaVoiceVolume, shouldSkipPersonaVoice } from "@/lib/persona-voice";
 import { SoundToggle } from "@/components/SoundToggle";
 import { ShareAppButton } from "@/components/ShareAppButton";
 import { useSound } from "@/lib/sound-context";
@@ -703,11 +704,13 @@ export default function TherapyScreen() {
         soundRef.current = null;
       }
       if (!soundEnabled) return;
+      if (shouldSkipPersonaVoice(ttsVoice)) return;
+      const personaVolume = getPersonaVoiceVolume(ttsVoice);
       setSpeaking(true);
       await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
       const sound = ttsVoice === "trump"
-        ? await playTrumpTTS("/api/tts", { text: text.slice(0, 2000), mood: "CALM", voice: ttsVoice })
-        : await playTTS("/api/tts", { text: text.slice(0, 2000), mood: "CALM", voice: ttsVoice });
+        ? await playTrumpTTS("/api/tts", { text: text.slice(0, 2000), mood: "CALM", voice: ttsVoice }, { volume: personaVolume })
+        : await playTTS("/api/tts", { text: text.slice(0, 2000), mood: "CALM", voice: ttsVoice }, { volume: personaVolume });
       soundRef.current = sound;
       sound.setOnPlaybackStatusUpdate((status: any) => {
         if (status.didJustFinish) setSpeaking(false);
@@ -734,11 +737,13 @@ export default function TherapyScreen() {
         return;
       }
       if (!soundEnabled) return;
+      if (shouldSkipPersonaVoice(voice)) return;
+      const personaVolume = getPersonaVoiceVolume(voice);
       await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
       const greetingText = THERAPIST_CONFIGS[voice].greeting.replace(/"/g, "").replace(/\\/g, "");
       const sound = voice === "trump"
-        ? await playTrumpTTS("/api/tts", { text: greetingText, mood: "CALM", voice })
-        : await playTTS("/api/tts", { text: greetingText, mood: "CALM", voice });
+        ? await playTrumpTTS("/api/tts", { text: greetingText, mood: "CALM", voice }, { volume: personaVolume })
+        : await playTTS("/api/tts", { text: greetingText, mood: "CALM", voice }, { volume: personaVolume });
       greetingSoundRef.current = sound;
       sound.setOnPlaybackStatusUpdate((status: any) => {
         if (status.didJustFinish) {
@@ -753,10 +758,11 @@ export default function TherapyScreen() {
   async function onSerenaVideoEnd() {
     setShowSerenaIntro(false);
     if (!soundEnabled) return;
+    if (shouldSkipPersonaVoice("patricia")) return;
     try {
       await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
       const greetingText = THERAPIST_CONFIGS.patricia.greeting.replace(/"/g, "").replace(/\\/g, "");
-      const sound = await playTTS("/api/tts", { text: greetingText, mood: "CALM", voice: "patricia" });
+      const sound = await playTTS("/api/tts", { text: greetingText, mood: "CALM", voice: "patricia" }, { volume: getPersonaVoiceVolume("patricia") });
       greetingSoundRef.current = sound;
       sound.setOnPlaybackStatusUpdate((status: any) => {
         if (status.didJustFinish) {

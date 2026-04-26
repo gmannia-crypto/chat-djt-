@@ -16,6 +16,7 @@ import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown, FadeIn, SlideInRight } from "react-native-reanimated";
 import { Audio } from "expo-av";
 import { playTTS, playAudioFromUrl } from "@/lib/audio-helper";
+import { getPersonaVoiceVolume, shouldSkipPersonaVoice } from "@/lib/persona-voice";
 import {
   ArenaRecording,
   RecordedMessage,
@@ -73,9 +74,10 @@ export default function ArenaReplayScreen() {
 
   const playReplayTTS = useCallback(async (text: string, personaId: string) => {
     if (!voiceEnabledRef.current) return;
+    if (shouldSkipPersonaVoice(personaId)) return;
     stopReplayAudio();
     try {
-      const sound = await playTTS("/api/persona-speak", { text, personaId }, { volume: 1.0 });
+      const sound = await playTTS("/api/persona-speak", { text, personaId }, { volume: getPersonaVoiceVolume(personaId) });
       currentSoundRef.current = sound;
       let cleaned = false;
       const cleanup = () => {

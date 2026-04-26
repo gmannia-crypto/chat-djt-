@@ -17,6 +17,7 @@ import { useTokens } from "@/lib/token-context";
 import Colors from "@/constants/colors";
 import { ShareAppButton } from "@/components/ShareAppButton";
 import { playTTS } from "@/lib/audio-helper";
+import { getPersonaVoiceVolume, shouldSkipPersonaVoice } from "@/lib/persona-voice";
 
 type PersonaLite = { id: string; name: string };
 type Topic = { id: string; title: string; description: string; era: "current" | "past" };
@@ -370,10 +371,14 @@ export default function InterviewScreen() {
     while (ttsQueueRef.current.length > 0 && voiceEnabledRef.current && runningRef.current) {
       const item = ttsQueueRef.current.shift();
       if (!item) break;
+      if (shouldSkipPersonaVoice(item.personaId)) {
+        // Skip muted speakers but keep advancing the queue.
+        continue;
+      }
       setActiveSpeaker(item.personaId);
       activeSpeakerRef.current = item.personaId;
       try {
-        const sound = await playTTS("/api/persona-speak", { text: item.text, personaId: item.personaId }, { volume: 1.0 });
+        const sound = await playTTS("/api/persona-speak", { text: item.text, personaId: item.personaId }, { volume: getPersonaVoiceVolume(item.personaId) });
         currentSoundRef.current = sound;
         await new Promise<void>((resolve) => {
           let done = false;

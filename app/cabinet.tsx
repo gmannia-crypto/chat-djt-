@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { Audio } from "expo-av";
 import { playTTS, playAudioFromUrl, playTrumpAudioFromUrl, isTrumpCurrentlySpeaking } from "@/lib/audio-helper";
+import { getPersonaVoiceVolume, shouldSkipPersonaVoice } from "@/lib/persona-voice";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -175,6 +176,7 @@ export default function CabinetHotSeat() {
       router.push("/subscribe");
       return;
     }
+    if (shouldSkipPersonaVoice("trump")) return;
     setSpeakingName(member.name);
     try {
       if (soundRef.current && !isTrumpCurrentlySpeaking()) {
@@ -195,6 +197,7 @@ export default function CabinetHotSeat() {
       }
       const sound = await playTrumpAudioFromUrl(audioUrl, {
         headers: deviceId ? { "x-device-id": deviceId } : undefined,
+        volume: getPersonaVoiceVolume("trump"),
       });
       soundRef.current = sound;
       sound.setOnPlaybackStatusUpdate((status: any) => {

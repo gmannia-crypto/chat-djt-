@@ -37,6 +37,7 @@ import { useTokens } from "@/lib/token-context";
 import { useQuery } from "@tanstack/react-query";
 import { Audio } from "expo-av";
 import { playTTS, playTrumpTTS, isTrumpCurrentlySpeaking } from "@/lib/audio-helper";
+import { getPersonaVoiceVolume, shouldSkipPersonaVoice } from "@/lib/persona-voice";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -235,9 +236,10 @@ export default function RateTrumpScreen() {
         await soundRef.current.unloadAsync();
         soundRef.current = null;
       }
+      if (shouldSkipPersonaVoice("trump")) return;
       setSpeaking(true);
       await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-      const sound = await playTrumpTTS("/api/tts", { text, mood });
+      const sound = await playTrumpTTS("/api/tts", { text, mood }, { volume: getPersonaVoiceVolume("trump") });
       soundRef.current = sound;
       sound.setOnPlaybackStatusUpdate((status: any) => {
         if (status.didJustFinish) {

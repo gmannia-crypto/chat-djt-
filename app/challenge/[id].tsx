@@ -33,6 +33,7 @@ import { shareContent } from "@/lib/track-share";
 import { useTokens } from "@/lib/token-context";
 import { Audio } from "expo-av";
 import { playTTS } from "@/lib/audio-helper";
+import { getPersonaVoiceVolume, shouldSkipPersonaVoice } from "@/lib/persona-voice";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -179,9 +180,10 @@ export default function ChallengeScreen() {
         await soundRef.current.unloadAsync();
         soundRef.current = null;
       }
+      if (shouldSkipPersonaVoice("trump")) return;
       setSpeaking(true);
       await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-      const sound = await playTTS("/api/tts", { text, mood });
+      const sound = await playTTS("/api/tts", { text, mood }, { volume: getPersonaVoiceVolume("trump") });
       soundRef.current = sound;
       sound.setOnPlaybackStatusUpdate((status: any) => {
         if (status.didJustFinish) setSpeaking(false);
