@@ -60,6 +60,9 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   kamala: require("@/assets/images/persona-kamala.png"),
   mtg: require("@/assets/images/persona-mtg.png"),
   rfk: require("@/assets/images/persona-rfk.png"),
+  erikakirk: require("@/assets/images/persona-erikakirk.png"),
+  loomer: require("@/assets/images/persona-loomer.png"),
+  leavitt: require("@/assets/images/persona-leavitt.png"),
 };
 
 const FX_KEY = "interview_fx_enabled_v1";
@@ -762,9 +765,9 @@ export default function InterviewScreen() {
       const answerPromise: Promise<{ speakerId: string; speakerName: string; text: string } | null> | null =
         willInterrupt ? null : fetchAnswer(q.text, {});
 
-      // Estimate read time and start answer with ~1.5s overlap
+      // Estimate read time and start answer with ~2.5s overlap (matches Political Arena chaotic mode)
       const qReadMs = Math.min(7000, Math.max(2200, q.text.length * 55));
-      await new Promise((r) => setTimeout(r, Math.max(400, qReadMs - 1500)));
+      await new Promise((r) => setTimeout(r, Math.max(250, qReadMs - 2500)));
       if (!runningRef.current) break;
 
       // Random interruption from interviewee on the question (12%)
@@ -788,7 +791,7 @@ export default function InterviewScreen() {
       enrichAndAddMessage({ id: `a-${Date.now()}-${Math.random()}`, speakerId: a.speakerId, speakerName: a.speakerName, text: a.text, ts: Date.now() });
 
       const aReadMs = Math.min(8500, Math.max(2500, a.text.length * 55));
-      await new Promise((r) => setTimeout(r, Math.max(450, aReadMs - 1500)));
+      await new Promise((r) => setTimeout(r, Math.max(300, aReadMs - 2500)));
       if (!runningRef.current) break;
 
       // Random interviewer cut-in mid-answer (10%)

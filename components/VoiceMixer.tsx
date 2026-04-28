@@ -58,6 +58,9 @@ export const VOICE_MIXER_PERSONAS: PersonaMixerInfo[] = [
   { id: "melania", name: "Melania Trump", color: "#C0C0C0", image: require("@/assets/images/persona-melania.png"), group: "Politics" },
   { id: "pambondi", name: "Pam Bondi", color: "#9c27b0", image: require("@/assets/images/persona-pambondi.png"), group: "Politics" },
   { id: "miller", name: "Stephen Miller", color: "#444444", image: require("@/assets/images/persona-miller.png"), group: "Politics" },
+  { id: "erikakirk", name: "Erika Kirk", color: "#E8A2B8", image: require("@/assets/images/persona-erikakirk.png"), group: "Politics" },
+  { id: "loomer", name: "Laura Loomer", color: "#8B0000", image: require("@/assets/images/persona-loomer.png"), group: "Politics" },
+  { id: "leavitt", name: "Caroline Leavitt", color: "#1f3a8a", image: require("@/assets/images/persona-leavitt.png"), group: "Politics" },
 
   // Pundits + Media
   { id: "carville", name: "James Carville", color: "#5C4033", image: require("@/assets/images/persona-carville.png"), group: "Media" },

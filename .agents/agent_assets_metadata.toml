@@ -108,3 +108,21 @@ id = "in9f0GrRAKny4vUx_Is9X"
 uri = "file://assets/images/persona-rfk.png"
 type = "image"
 title = "RFK Jr persona caricature"
+
+[[generated]]
+id = "HESSsnU73xeS5ubNmWDZq"
+uri = "file://assets/images/persona-erikakirk.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "YxUWvM2y9-gYPgwEImvBa"
+uri = "file://assets/images/persona-loomer.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "Eu1DmqZODcSuVR3mnp4je"
+uri = "file://assets/images/persona-leavitt.png"
+type = "image"
+title = "generated_image"
