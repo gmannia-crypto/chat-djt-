@@ -6088,6 +6088,56 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
     }
   });
 
+  // List soft-deleted interviews still inside the 7-day restore window.
+  // Registered BEFORE the `:id` GET route so the literal `/deleted` segment
+  // doesn't get captured as an interview id.
+  app.get("/api/arena/interview-history/deleted", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      try {
+        const restoreCutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+        const result = await db.query(
+          `SELECT id, interviewer_id, interviewer_name, interviewee_id, interviewee_name,
+                  duration_minutes, lie_count, message_count, started_at, ended_at, title, tags,
+                  deleted_at,
+                  COALESCE((
+                    SELECT COUNT(*)::int FROM jsonb_array_elements(lies) AS l
+                    WHERE COALESCE((l->>'userFlagged')::boolean, false) IS TRUE
+                  ), 0) AS user_lie_count
+           FROM interview_history
+           WHERE device_id = $1 AND deleted_at IS NOT NULL AND deleted_at >= $2
+           ORDER BY deleted_at DESC
+           LIMIT 100`,
+          [deviceId, restoreCutoff],
+        );
+        const items = result.rows.map((r: any) => ({
+          id: r.id,
+          interviewerId: r.interviewer_id,
+          interviewerName: r.interviewer_name,
+          intervieweeId: r.interviewee_id,
+          intervieweeName: r.interviewee_name,
+          durationMinutes: r.duration_minutes,
+          lieCount: r.lie_count,
+          userLieCount: Number(r.user_lie_count) || 0,
+          messageCount: r.message_count,
+          startedAt: Number(r.started_at),
+          endedAt: Number(r.ended_at),
+          title: r.title || null,
+          tags: Array.isArray(r.tags) ? r.tags : [],
+          deletedAt: Number(r.deleted_at),
+        }));
+        res.json({ items });
+      } finally {
+        await db.end();
+      }
+    } catch (error: any) {
+      console.error("Interview deleted list error:", error);
+      res.status(500).json({ error: "Failed to load deleted interviews" });
+    }
+  });
+
   app.get("/api/arena/interview-history/:id", async (req, res) => {
     try {
       const deviceId = req.headers["x-device-id"] as string;
@@ -6182,6 +6232,44 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
     } catch (error: any) {
       console.error("Interview restore error:", error);
       res.status(500).json({ error: "Failed to restore interview" });
+    }
+  });
+
+  // Permanently remove a soft-deleted interview (and any bookmarks pointing
+  // at it) before the 7-day window expires. Only soft-deleted rows are
+  // hard-deletable so a stray DELETE call can't wipe a live interview.
+  app.delete("/api/arena/interview-history/:id/permanent", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const id = req.params.id;
+      const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      try {
+        const result = await db.query(
+          `DELETE FROM interview_history
+             WHERE id = $1 AND device_id = $2 AND deleted_at IS NOT NULL
+             RETURNING id`,
+          [id, deviceId],
+        );
+        if (result.rowCount === 0) return res.status(404).json({ error: "Not found" });
+        try {
+          await db.query(
+            `DELETE FROM interview_bookmarks WHERE device_id = $1 AND interview_id = $2`,
+            [deviceId, id],
+          );
+        } catch (bookmarkErr: any) {
+          console.warn(
+            `Bookmark cleanup failed for permanently deleted interview ${id} (device ${deviceId}):`,
+            bookmarkErr?.message || bookmarkErr,
+          );
+        }
+        res.json({ ok: true });
+      } finally {
+        await db.end();
+      }
+    } catch (error: any) {
+      console.error("Interview permanent delete error:", error);
+      res.status(500).json({ error: "Failed to permanently delete interview" });
     }
   });
 

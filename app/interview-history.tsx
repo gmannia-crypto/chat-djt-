@@ -28,6 +28,28 @@ type HistoryItem = {
   tags?: string[];
 };
 
+type DeletedHistoryItem = HistoryItem & { deletedAt: number };
+
+const RESTORE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+function formatRemaining(deletedAt: number): string {
+  const expiresAt = deletedAt + RESTORE_WINDOW_MS;
+  const remaining = expiresAt - Date.now();
+  if (remaining <= 0) return "removing soon";
+  const dayMs = 24 * 60 * 60 * 1000;
+  const hourMs = 60 * 60 * 1000;
+  if (remaining >= dayMs) {
+    const days = Math.round(remaining / dayMs);
+    return `${days} day${days === 1 ? "" : "s"} left`;
+  }
+  if (remaining >= hourMs) {
+    const hours = Math.max(1, Math.round(remaining / hourMs));
+    return `${hours} hour${hours === 1 ? "" : "s"} left`;
+  }
+  const minutes = Math.max(1, Math.round(remaining / (60 * 1000)));
+  return `${minutes} min left`;
+}
+
 const MAX_TAGS_PER_INTERVIEW = 8;
 const MAX_TAG_LENGTH = 24;
 
@@ -105,6 +127,13 @@ export default function InterviewHistoryScreen() {
   const [tagsDraft, setTagsDraft] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [savingTags, setSavingTags] = useState(false);
+  const [showDeleted, setShowDeleted] = useState(false);
+  const [deletedItems, setDeletedItems] = useState<DeletedHistoryItem[]>([]);
+  const [deletedLoading, setDeletedLoading] = useState(false);
+  const [deletedRefreshing, setDeletedRefreshing] = useState(false);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
+  const [purgingId, setPurgingId] = useState<string | null>(null);
+  const [confirmPurge, setConfirmPurge] = useState<DeletedHistoryItem | null>(null);
   const longPressedRef = React.useRef(false);
 
   const allTags = useMemo(() => {
@@ -312,6 +341,99 @@ export default function InterviewHistoryScreen() {
     }
   };
 
+  const loadDeleted = useCallback(async (mode: "initial" | "refresh" = "initial") => {
+    if (!deviceId) return;
+    if (mode === "initial") setDeletedLoading(true);
+    else setDeletedRefreshing(true);
+    try {
+      const res = await fetch(new URL("/api/arena/interview-history/deleted", getApiUrl()).toString(), {
+        headers: { "x-device-id": deviceId },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setDeletedItems(Array.isArray(data.items) ? data.items : []);
+      } else {
+        setErrorMsg("Couldn't load recently deleted interviews.");
+      }
+    } catch {
+      setErrorMsg("Couldn't load recently deleted interviews.");
+    } finally {
+      setDeletedLoading(false);
+      setDeletedRefreshing(false);
+    }
+  }, [deviceId]);
+
+  const openDeletedSheet = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    setShowDeleted(true);
+    loadDeleted("initial");
+  }, [loadDeleted]);
+
+  const restoreFromTrash = async (it: DeletedHistoryItem) => {
+    if (!deviceId || restoringId) return;
+    setRestoringId(it.id);
+    try {
+      const res = await fetch(new URL(`/api/arena/interview-history/${it.id}/restore`, getApiUrl()).toString(), {
+        method: "POST",
+        headers: { "x-device-id": deviceId },
+      });
+      if (res.ok) {
+        setDeletedItems((prev) => prev.filter((x) => x.id !== it.id));
+        setItems((prev) => {
+          if (prev.some((x) => x.id === it.id)) return prev;
+          const { deletedAt: _ignored, ...restored } = it;
+          const next = [...prev, restored];
+          next.sort((a, b) => b.endedAt - a.endedAt);
+          return next;
+        });
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      } else {
+        setErrorMsg("Couldn't restore interview. Please try again.");
+      }
+    } catch {
+      setErrorMsg("Couldn't restore interview. Please try again.");
+    } finally {
+      setRestoringId(null);
+    }
+  };
+
+  const purgeFromTrash = async (it: DeletedHistoryItem) => {
+    if (!deviceId || purgingId) return;
+    setPurgingId(it.id);
+    try {
+      const res = await fetch(new URL(`/api/arena/interview-history/${it.id}/permanent`, getApiUrl()).toString(), {
+        method: "DELETE",
+        headers: { "x-device-id": deviceId },
+      });
+      if (res.ok) {
+        setDeletedItems((prev) => prev.filter((x) => x.id !== it.id));
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      } else {
+        setErrorMsg("Couldn't delete interview. Please try again.");
+      }
+    } catch {
+      setErrorMsg("Couldn't delete interview. Please try again.");
+    } finally {
+      setPurgingId(null);
+      setConfirmPurge(null);
+    }
+  };
+
+  const startPurge = (it: DeletedHistoryItem) => {
+    if (Platform.OS === "web") {
+      setConfirmPurge(it);
+    } else {
+      Alert.alert(
+        "Delete forever?",
+        `"${it.title || defaultTitle(it)}" will be removed immediately and can't be restored.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Delete forever", style: "destructive", onPress: () => purgeFromTrash(it) },
+        ],
+      );
+    }
+  };
+
   const restoreDeleted = async () => {
     if (!undoItem || !deviceId || restoring) return;
     const it = undoItem;
@@ -364,6 +486,19 @@ export default function InterviewHistoryScreen() {
           accessibilityLabel="Open favorite moments"
         >
           <Ionicons name="bookmark" size={18} color="#FFD700" />
+        </Pressable>
+      </View>
+
+      <View style={s.deletedPillRow}>
+        <Pressable
+          onPress={openDeletedSheet}
+          style={s.deletedPill}
+          testID="open-recently-deleted"
+          accessibilityLabel="View recently deleted interviews"
+        >
+          <Ionicons name="trash-bin-outline" size={13} color="rgba(255,215,0,0.85)" />
+          <Text style={s.deletedPillText}>Recently deleted</Text>
+          <Ionicons name="chevron-forward" size={13} color="rgba(255,215,0,0.6)" />
         </Pressable>
       </View>
 
@@ -754,6 +889,168 @@ export default function InterviewHistoryScreen() {
         </View>
       ) : null}
 
+      <Modal
+        visible={showDeleted}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowDeleted(false)}
+      >
+        <View style={s.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowDeleted(false)} />
+          <View style={s.deletedSheet} testID="recently-deleted-sheet">
+            <View style={s.handle} />
+            <View style={s.deletedHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.sheetTitle}>Recently deleted</Text>
+                <Text style={s.sheetSub}>
+                  Interviews you removed in the last 7 days. Restore one or remove it for good.
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => loadDeleted("refresh")}
+                hitSlop={10}
+                style={s.iconBtnSmall}
+                testID="recently-deleted-refresh"
+                accessibilityLabel="Refresh recently deleted"
+              >
+                {deletedRefreshing ? (
+                  <ActivityIndicator color="#FFD700" size="small" />
+                ) : (
+                  <Ionicons name="refresh" size={16} color="#FFD700" />
+                )}
+              </Pressable>
+            </View>
+
+            {deletedLoading ? (
+              <View style={s.deletedEmpty}>
+                <ActivityIndicator color="#FFD700" />
+              </View>
+            ) : deletedItems.length === 0 ? (
+              <View style={s.deletedEmpty}>
+                <Ionicons name="trash-outline" size={36} color="rgba(255,215,0,0.4)" />
+                <Text style={s.deletedEmptyTitle}>Nothing recently deleted</Text>
+                <Text style={s.deletedEmptySub}>
+                  Interviews you delete will appear here for 7 days, then be removed for good.
+                </Text>
+              </View>
+            ) : (
+              <FlatList
+                data={deletedItems}
+                keyExtractor={(it) => it.id}
+                style={s.deletedList}
+                contentContainerStyle={{ paddingBottom: 8 }}
+                refreshControl={
+                  <RefreshControl
+                    refreshing={deletedRefreshing}
+                    onRefresh={() => loadDeleted("refresh")}
+                    tintColor="#FFD700"
+                  />
+                }
+                renderItem={({ item }) => {
+                  const ip = PERSONA_PORTRAITS[item.interviewerId];
+                  const ep = PERSONA_PORTRAITS[item.intervieweeId];
+                  const displayTitle = item.title || defaultTitle(item);
+                  const isRestoring = restoringId === item.id;
+                  const isPurging = purgingId === item.id;
+                  const busy = isRestoring || isPurging;
+                  return (
+                    <View
+                      style={[s.deletedRow, busy && { opacity: 0.6 }]}
+                      testID={`deleted-row-${item.id}`}
+                    >
+                      <View style={s.portraits}>
+                        {ip ? <Image source={ip} style={s.portrait} /> : <View style={[s.portrait, s.portraitFallback]}><Ionicons name="person" size={18} color="#666" /></View>}
+                        {ep ? <Image source={ep} style={[s.portrait, s.portraitOverlap]} /> : <View style={[s.portrait, s.portraitOverlap, s.portraitFallback]}><Ionicons name="person" size={18} color="#666" /></View>}
+                      </View>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={s.rowTitle} numberOfLines={1}>{displayTitle}</Text>
+                        <Text style={s.rowDate} numberOfLines={1}>
+                          Deleted {formatDate(item.deletedAt)}
+                        </Text>
+                        <View style={s.deletedMetaRow}>
+                          <View style={s.remainingPill}>
+                            <Ionicons name="hourglass-outline" size={11} color="#FFD700" />
+                            <Text style={s.remainingText}>{formatRemaining(item.deletedAt)}</Text>
+                          </View>
+                        </View>
+                      </View>
+                      <View style={s.deletedActions}>
+                        <Pressable
+                          onPress={() => restoreFromTrash(item)}
+                          disabled={busy}
+                          style={s.restoreBtn}
+                          testID={`deleted-restore-${item.id}`}
+                          accessibilityLabel={`Restore ${displayTitle}`}
+                        >
+                          {isRestoring ? (
+                            <ActivityIndicator color="#000" size="small" />
+                          ) : (
+                            <>
+                              <Ionicons name="arrow-undo" size={14} color="#000" />
+                              <Text style={s.restoreBtnText}>Restore</Text>
+                            </>
+                          )}
+                        </Pressable>
+                        <Pressable
+                          onPress={() => startPurge(item)}
+                          disabled={busy}
+                          hitSlop={6}
+                          style={s.purgeBtn}
+                          testID={`deleted-purge-${item.id}`}
+                          accessibilityLabel={`Delete ${displayTitle} forever`}
+                        >
+                          {isPurging ? (
+                            <ActivityIndicator color="#ff4d4d" size="small" />
+                          ) : (
+                            <Ionicons name="trash" size={16} color="#ff4d4d" />
+                          )}
+                        </Pressable>
+                      </View>
+                    </View>
+                  );
+                }}
+              />
+            )}
+
+            <Pressable
+              style={s.sheetCancel}
+              onPress={() => setShowDeleted(false)}
+              testID="recently-deleted-close"
+            >
+              <Text style={s.sheetCancelText}>Close</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={!!confirmPurge} transparent animationType="fade" onRequestClose={() => setConfirmPurge(null)}>
+        <View style={s.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setConfirmPurge(null)} />
+          <View style={s.sheet} testID="recently-deleted-confirm-purge">
+            <View style={s.handle} />
+            <Text style={s.sheetTitle}>Delete forever?</Text>
+            <Text style={s.sheetSub}>
+              "{confirmPurge ? (confirmPurge.title || defaultTitle(confirmPurge)) : ""}" will be removed immediately and can't be restored.
+            </Text>
+            <View style={s.sheetActions}>
+              <Pressable
+                style={[s.sheetBtn, s.sheetBtnGhost]}
+                onPress={() => setConfirmPurge(null)}
+              >
+                <Text style={s.sheetBtnGhostText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[s.sheetBtn, s.sheetBtnDanger]}
+                onPress={() => confirmPurge && purgeFromTrash(confirmPurge)}
+                testID="recently-deleted-confirm-purge-yes"
+              >
+                <Text style={s.sheetBtnDangerText}>Delete forever</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <Modal visible={!!confirmDelete} transparent animationType="fade" onRequestClose={() => setConfirmDelete(null)}>
         <View style={s.modalOverlay}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setConfirmDelete(null)} />
@@ -867,4 +1164,24 @@ const s = StyleSheet.create({
   suggestionChipActive: { backgroundColor: "rgba(255,215,0,0.18)", borderColor: "rgba(255,215,0,0.7)" },
   suggestionChipText: { color: "rgba(255,255,255,0.75)", fontSize: 11, fontWeight: "700" },
   suggestionChipTextActive: { color: "#FFD700", fontWeight: "900" },
+
+  deletedPillRow: { flexDirection: "row", paddingHorizontal: 14, marginTop: 8, marginBottom: 8, zIndex: 5 },
+  deletedPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14, backgroundColor: "rgba(255,215,0,0.18)", borderWidth: 1, borderColor: "rgba(255,215,0,0.5)" },
+  deletedPillText: { color: "#FFD700", fontSize: 12, fontWeight: "800", letterSpacing: 0.4 },
+
+  deletedSheet: { backgroundColor: "#0F0F12", borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 18, paddingTop: 12, paddingBottom: Platform.OS === "web" ? 34 : 24, borderTopWidth: 1, borderColor: "rgba(255,215,0,0.2)", maxHeight: "85%" },
+  deletedHeader: { flexDirection: "row", alignItems: "flex-start", gap: 10, marginBottom: 6 },
+  iconBtnSmall: { width: 32, height: 32, borderRadius: 16, backgroundColor: "rgba(255,255,255,0.06)", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "rgba(255,215,0,0.25)" },
+  deletedList: { marginTop: 6 },
+  deletedRow: { flexDirection: "row", alignItems: "center", padding: 10, marginBottom: 8, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.04)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", gap: 10 },
+  deletedMetaRow: { flexDirection: "row", gap: 6, marginTop: 6, flexWrap: "wrap" },
+  remainingPill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, backgroundColor: "rgba(255,215,0,0.1)", borderWidth: 1, borderColor: "rgba(255,215,0,0.35)" },
+  remainingText: { color: "#FFD700", fontSize: 10, fontWeight: "800" },
+  deletedActions: { alignItems: "flex-end", gap: 6 },
+  restoreBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10, backgroundColor: "#FFD700", minWidth: 84, justifyContent: "center" },
+  restoreBtnText: { color: "#000", fontSize: 11, fontWeight: "900", letterSpacing: 0.4 },
+  purgeBtn: { width: 32, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,77,77,0.1)", borderWidth: 1, borderColor: "rgba(255,77,77,0.35)" },
+  deletedEmpty: { alignItems: "center", paddingHorizontal: 20, paddingVertical: 36, gap: 8 },
+  deletedEmptyTitle: { color: "#fff", fontSize: 14, fontWeight: "800", marginTop: 4 },
+  deletedEmptySub: { color: "rgba(255,255,255,0.5)", fontSize: 12, textAlign: "center" },
 });
