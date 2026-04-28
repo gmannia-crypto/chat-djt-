@@ -1245,7 +1245,7 @@ const MYSTERY_PERSONAS: Record<string, ArenaPersona> = {
   },
 };
 
-const MYSTERY_PERSONA_IDS = ["alexjones", "obama", "melania", "schumer", "odonnell", "kamala", "mtg", "rfk", "erikakirk", "loomer", "leavitt"];
+const MYSTERY_PERSONA_IDS = ["alexjones", "obama", "melania", "schumer", "odonnell", "kamala", "mtg", "rfk"];
 const MYSTERY_UNLOCK_COSTS: Record<string, number> = {
   alexjones: 10,
   obama: 15,
@@ -1255,13 +1255,10 @@ const MYSTERY_UNLOCK_COSTS: Record<string, number> = {
   kamala: 12,
   mtg: 10,
   rfk: 12,
-  erikakirk: 12,
-  loomer: 12,
-  leavitt: 12,
 };
 const MYSTERY_UNLOCK_KEY = "arena_mystery_unlocked";
 
-const PERSONA_IDS = ["trump", "elon", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan"];
+const PERSONA_IDS = ["trump", "elon", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "leavitt", "erikakirk", "loomer"];
 
 const BREAKING_NEWS_REACTIONS: Record<string, string[]> = {
   trump: [
