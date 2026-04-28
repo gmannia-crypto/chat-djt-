@@ -5,6 +5,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as http from "http";
 import * as net from "net";
+import { Pool } from "pg";
 import { runMigrations } from "stripe-replit-sync";
 
 import { getStripeSync } from "./stripeClient";
@@ -647,6 +648,75 @@ function setupErrorHandler(app: express.Application) {
   });
 }
 
+const INTERVIEW_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const CLEANUP_INITIAL_DELAY_MS = 60 * 1000;
+
+async function purgeExpiredDeletedInterviews() {
+  if (!process.env.DATABASE_URL) return;
+  const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+  try {
+    const purgeBefore = Date.now() - INTERVIEW_RETENTION_MS;
+    // Single atomic CTE so we can't leave orphan bookmarks on partial failure.
+    const result = await db.query(
+      `WITH purged_interviews AS (
+         DELETE FROM interview_history
+           WHERE deleted_at IS NOT NULL AND deleted_at < $1
+           RETURNING id, device_id
+       ),
+       purged_bookmarks AS (
+         DELETE FROM interview_bookmarks
+           WHERE (device_id, interview_id) IN (
+             SELECT device_id, id FROM purged_interviews
+           )
+           RETURNING id
+       )
+       SELECT
+         (SELECT COUNT(*) FROM purged_interviews)::int AS interview_count,
+         (SELECT COUNT(*) FROM purged_bookmarks)::int AS bookmark_count`,
+      [purgeBefore],
+    );
+    const interviewCount = Number(result.rows?.[0]?.interview_count || 0);
+    const bookmarkCount = Number(result.rows?.[0]?.bookmark_count || 0);
+
+    // Self-healing sweep for any pre-existing orphan bookmarks.
+    const orphanSweep = await db.query(
+      `DELETE FROM interview_bookmarks b
+         WHERE NOT EXISTS (
+           SELECT 1 FROM interview_history h
+            WHERE h.id = b.interview_id AND h.device_id = b.device_id
+         )`,
+    );
+    const orphansSwept = orphanSweep.rowCount || 0;
+
+    // Heartbeat: one log line per daily run, even when nothing was purged.
+    log(
+      `[cleanup] Heartbeat: purged ${interviewCount} expired interviews, ${bookmarkCount} matching bookmarks, ${orphansSwept} orphan bookmarks`,
+    );
+  } catch (err: any) {
+    console.error("[cleanup] Failed to purge expired interviews:", err?.message || err);
+  } finally {
+    try {
+      await db.end();
+    } catch {}
+  }
+}
+
+function scheduleInterviewCleanup() {
+  const initialTimer = setTimeout(() => {
+    purgeExpiredDeletedInterviews().catch((err) =>
+      console.error("[cleanup] initial run error:", err),
+    );
+    const intervalTimer = setInterval(() => {
+      purgeExpiredDeletedInterviews().catch((err) =>
+        console.error("[cleanup] scheduled run error:", err),
+      );
+    }, CLEANUP_INTERVAL_MS) as unknown as { unref?: () => void };
+    intervalTimer.unref?.();
+  }, CLEANUP_INITIAL_DELAY_MS) as unknown as { unref?: () => void };
+  initialTimer.unref?.();
+}
+
 async function initStripe() {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
@@ -749,6 +819,7 @@ async function initStripe() {
     setTimeout(() => {
       initStripe().catch((err) => console.error("Stripe init error:", err));
     }, 30000);
+    scheduleInterviewCleanup();
 
     if (port !== 8082) {
       const mirrorServer = require("http").createServer(app);

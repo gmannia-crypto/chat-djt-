@@ -6057,6 +6057,10 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
         );
         // Opportunistically purge soft-deleted interviews (and any bookmarks
         // that point at them) once they are past the 7-day restore window.
+        // Intentionally kept alongside the daily background job in
+        // server/index.ts: this gives the active user a same-second
+        // experience (their list never shows expired rows even briefly),
+        // while the background job is the safety net for inactive devices.
         try {
           const purgeBefore = Date.now() - 7 * 24 * 60 * 60 * 1000;
           const purged = await db.query(
