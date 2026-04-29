@@ -1968,6 +1968,16 @@ export default function ArenaScreen() {
   const flagPendingRef = useRef<Set<string>>(new Set());
   const [latestTruthScore, setLatestTruthScore] = useState<number | null>(null);
   const [lieFlashOn, setLieFlashOn] = useState(false);
+  // Liar of the Day — global leaderboard (server) + personal lifetime tally (AsyncStorage)
+  const [globalLieStats, setGlobalLieStats] = useState<{
+    today: { personaId: string; name: string; count: number }[];
+    allTime: { personaId: string; name: string; count: number }[];
+    liarOfTheDay: { personaId: string; name: string; count: number } | null;
+    liarOfAllTime: { personaId: string; name: string; count: number } | null;
+  } | null>(null);
+  const [personalLieHistory, setPersonalLieHistory] = useState<Record<string, number>>({});
+  const personalLieHistoryRef = useRef<Record<string, number>>({});
+  const seenLieIdsRef = useRef<Set<string>>(new Set());
   const [emotionalStates, setEmotionalStates] = useState<Record<string, EmotionalState>>(() => {
     const s: Record<string, EmotionalState> = {};
     PERSONA_IDS.forEach((id) => {
@@ -2141,6 +2151,56 @@ export default function ArenaScreen() {
   }, [deviceId]);
 
   useEffect(() => { loadWinTally(); }, [loadWinTally]);
+
+  // ── LIAR OF THE DAY: global leaderboard polling + personal lifetime history persistence ──
+  useEffect(() => {
+    let cancelled = false;
+    const fetchStats = async () => {
+      try {
+        const res = await fetch(new URL("/api/arena/lie-stats", getApiUrl()).toString());
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (!cancelled) setGlobalLieStats(data);
+      } catch {}
+    };
+    fetchStats();
+    const t = setInterval(fetchStats, 30_000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, []);
+
+  useEffect(() => {
+    if (!deviceId) return;
+    AsyncStorage.getItem(`arena_lie_history_${deviceId}`).then((raw) => {
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === "object") {
+            setPersonalLieHistory(parsed);
+            personalLieHistoryRef.current = parsed;
+          }
+        } catch {}
+      }
+    });
+  }, [deviceId]);
+
+  useEffect(() => {
+    if (!deviceId || lies.length === 0) return;
+    let dirty = false;
+    const next = { ...personalLieHistoryRef.current };
+    for (const l of lies) {
+      if (!l.id || seenLieIdsRef.current.has(l.id)) continue;
+      if (l.pending) continue;
+      if (typeof l.score === "number" && l.score >= 40) { seenLieIdsRef.current.add(l.id); continue; }
+      seenLieIdsRef.current.add(l.id);
+      next[l.speakerId] = (next[l.speakerId] || 0) + 1;
+      dirty = true;
+    }
+    if (dirty) {
+      personalLieHistoryRef.current = next;
+      setPersonalLieHistory(next);
+      AsyncStorage.setItem(`arena_lie_history_${deviceId}`, JSON.stringify(next)).catch(() => {});
+    }
+  }, [lies, deviceId]);
 
   const recordWin = useCallback(async (personaId: string) => {
     try {
@@ -5708,6 +5768,83 @@ export default function ArenaScreen() {
               <Pressable onPress={() => setLiesSheetOpen(false)}><Ionicons name="close" size={22} color="#fff" /></Pressable>
             </View>
             <ScrollView style={{ maxHeight: 480 }}>
+              {(() => {
+                const sessionCounts: Record<string, number> = {};
+                for (const l of lies) {
+                  if (l.pending) continue;
+                  if (typeof l.score === "number" && l.score >= 40) continue;
+                  sessionCounts[l.speakerId] = (sessionCounts[l.speakerId] || 0) + 1;
+                }
+                const sessionEntries = Object.entries(sessionCounts).sort((a, b) => b[1] - a[1]);
+                const personalEntries = Object.entries(personalLieHistory).sort((a, b) => b[1] - a[1]).slice(0, 6);
+                const lod = globalLieStats?.liarOfTheDay;
+                const sessionTop = sessionEntries[0];
+                return (
+                  <View style={{ marginBottom: 14 }}>
+                    <View style={s.liarOfDayBanner}>
+                      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 6 }}>
+                        <Ionicons name="trophy" size={14} color="#FFD700" />
+                        <Text style={s.liarOfDayLabel}>  LIAR OF THE DAY</Text>
+                      </View>
+                      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={s.liarOfDaySub}>GLOBAL (everyone)</Text>
+                          {lod ? (
+                            <Text style={s.liarOfDayName} numberOfLines={1}>
+                              {lod.name} <Text style={s.liarOfDayCount}>· {lod.count} {lod.count === 1 ? "lie" : "lies"}</Text>
+                            </Text>
+                          ) : (
+                            <Text style={s.liarOfDayEmpty}>No lies caught yet today</Text>
+                          )}
+                        </View>
+                        <View style={{ width: 12 }} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={s.liarOfDaySub}>THIS SESSION</Text>
+                          {sessionTop ? (
+                            <Text style={s.liarOfDayName} numberOfLines={1}>
+                              {getPersona(sessionTop[0])?.shortName || getPersona(sessionTop[0])?.name || sessionTop[0]} <Text style={s.liarOfDayCount}>· {sessionTop[1]}</Text>
+                            </Text>
+                          ) : (
+                            <Text style={s.liarOfDayEmpty}>None yet</Text>
+                          )}
+                        </View>
+                      </View>
+                    </View>
+                    {personalEntries.length > 0 && (
+                      <View style={s.lieBreakdown}>
+                        <Text style={s.lieBreakdownTitle}>YOUR LIE TALLY (lifetime, this device)</Text>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                          {personalEntries.map(([pid, count]) => {
+                            const p = getPersona(pid);
+                            return (
+                              <View key={pid} style={[s.lieBreakdownChip, { borderColor: (p?.color || "#ff4d4d") + "55" }]}>
+                                <Text style={[s.lieBreakdownChipName, { color: p?.color || "#fff" }]} numberOfLines={1}>{p?.shortName || p?.name || pid}</Text>
+                                <Text style={s.lieBreakdownChipCount}>{count}</Text>
+                              </View>
+                            );
+                          })}
+                        </ScrollView>
+                      </View>
+                    )}
+                    {globalLieStats?.allTime && globalLieStats.allTime.length > 0 && (
+                      <View style={s.lieBreakdown}>
+                        <Text style={s.lieBreakdownTitle}>ALL-TIME LIARS (global)</Text>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                          {globalLieStats.allTime.slice(0, 8).map((row) => {
+                            const p = getPersona(row.personaId);
+                            return (
+                              <View key={row.personaId} style={[s.lieBreakdownChip, { borderColor: "rgba(255,77,77,0.4)" }]}>
+                                <Text style={[s.lieBreakdownChipName, { color: p?.color || "#fff" }]} numberOfLines={1}>{row.name}</Text>
+                                <Text style={s.lieBreakdownChipCount}>{row.count}</Text>
+                              </View>
+                            );
+                          })}
+                        </ScrollView>
+                      </View>
+                    )}
+                  </View>
+                );
+              })()}
               {lies.length === 0 ? (
                 <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, textAlign: "center" as const, padding: 30 }}>No flagged statements yet. Tap the flag on any quote — or wait for the AI to call out a whopper.</Text>
               ) : lies.map((l) => {
@@ -7461,5 +7598,72 @@ const s = StyleSheet.create({
     fontSize: 9,
     fontWeight: "900" as const,
     letterSpacing: 0.5,
+  },
+  liarOfDayBanner: {
+    backgroundColor: "rgba(255,215,0,0.07)",
+    borderWidth: 1,
+    borderColor: "rgba(255,215,0,0.35)",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+  },
+  liarOfDayLabel: {
+    color: "#FFD700",
+    fontSize: 11,
+    fontWeight: "900" as const,
+    letterSpacing: 1,
+  },
+  liarOfDaySub: {
+    color: "rgba(255,255,255,0.45)",
+    fontSize: 9,
+    fontWeight: "800" as const,
+    letterSpacing: 0.8,
+    marginBottom: 3,
+  },
+  liarOfDayName: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "900" as const,
+  },
+  liarOfDayCount: {
+    color: "#ff4d4d",
+    fontSize: 11,
+    fontWeight: "800" as const,
+  },
+  liarOfDayEmpty: {
+    color: "rgba(255,255,255,0.35)",
+    fontSize: 11,
+    fontStyle: "italic" as const,
+  },
+  lieBreakdown: {
+    marginBottom: 8,
+  },
+  lieBreakdownTitle: {
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 10,
+    fontWeight: "900" as const,
+    letterSpacing: 0.8,
+    marginBottom: 6,
+  },
+  lieBreakdownChip: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 6,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    marginRight: 6,
+  },
+  lieBreakdownChipName: {
+    fontSize: 11,
+    fontWeight: "800" as const,
+    maxWidth: 90,
+  },
+  lieBreakdownChipCount: {
+    color: "#ff4d4d",
+    fontSize: 11,
+    fontWeight: "900" as const,
   },
 });

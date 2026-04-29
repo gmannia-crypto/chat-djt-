@@ -3744,6 +3744,14 @@ Your personality quirks:
     )`);
     await initDb.query(`CREATE INDEX IF NOT EXISTS interview_lie_votes_lie_idx ON interview_lie_votes (lie_id)`);
     await initDb.query(`CREATE INDEX IF NOT EXISTS interview_lie_votes_persona_idx ON interview_lie_votes (interviewee_id)`);
+    await initDb.query(`CREATE TABLE IF NOT EXISTS lie_tallies (
+      persona_id TEXT NOT NULL,
+      day TEXT NOT NULL,
+      count INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (persona_id, day)
+    )`);
+    await initDb.query(`CREATE INDEX IF NOT EXISTS lie_tallies_day_idx ON lie_tallies (day)`);
+    await initDb.query(`CREATE INDEX IF NOT EXISTS lie_tallies_persona_idx ON lie_tallies (persona_id)`);
     await initDb.query(`CREATE TABLE IF NOT EXISTS interview_bookmarks (
       id TEXT PRIMARY KEY,
       device_id TEXT NOT NULL,
@@ -3805,6 +3813,81 @@ Your personality quirks:
     } finally {
       await db.end();
     }
+  }
+
+  // ── LIE TALLY: per-persona daily + all-time global counter (write-through cache) ──
+  function todayUtc(): string {
+    return new Date().toISOString().slice(0, 10);
+  }
+  const lieTallyAllTimeCache = new Map<string, number>();
+  const lieTallyTodayCache = new Map<string, number>();
+  let lieTallyCacheLoadedAt = 0;
+  // Refresh merges DB values with the in-memory cache via Math.max so that
+  // optimistic increments from in-flight bumpLieTally calls (which write to the
+  // cache before committing to DB) cannot be clobbered by a stale DB read.
+  // Stale entries that no longer have any DB row simply keep their cached count
+  // (they will be reconciled on the next bump's DB write).
+  async function loadLieTalliesIntoCache(): Promise<void> {
+    const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+    try {
+      const all = await db.query(`SELECT persona_id, SUM(count)::int AS total FROM lie_tallies GROUP BY persona_id`);
+      const seenAll = new Set<string>();
+      for (const row of all.rows) {
+        const dbVal = parseInt(row.total) || 0;
+        const cached = lieTallyAllTimeCache.get(row.persona_id) || 0;
+        lieTallyAllTimeCache.set(row.persona_id, Math.max(dbVal, cached));
+        seenAll.add(row.persona_id);
+      }
+      // Drop personas that have zero cached AND no DB row (avoids unbounded growth from typos)
+      for (const k of Array.from(lieTallyAllTimeCache.keys())) {
+        if (!seenAll.has(k) && (lieTallyAllTimeCache.get(k) || 0) === 0) lieTallyAllTimeCache.delete(k);
+      }
+      const today = await db.query(`SELECT persona_id, count FROM lie_tallies WHERE day = $1`, [todayUtc()]);
+      const seenToday = new Set<string>();
+      for (const row of today.rows) {
+        const dbVal = parseInt(row.count) || 0;
+        const cached = lieTallyTodayCache.get(row.persona_id) || 0;
+        lieTallyTodayCache.set(row.persona_id, Math.max(dbVal, cached));
+        seenToday.add(row.persona_id);
+      }
+      // Clear today cache entries from prior days that are no longer "today"
+      for (const k of Array.from(lieTallyTodayCache.keys())) {
+        if (!seenToday.has(k) && (lieTallyTodayCache.get(k) || 0) === 0) lieTallyTodayCache.delete(k);
+      }
+      lieTallyCacheLoadedAt = Date.now();
+    } catch (e: any) {
+      console.error("loadLieTalliesIntoCache error:", e.message);
+    } finally {
+      await db.end();
+    }
+  }
+  loadLieTalliesIntoCache().catch(() => {});
+  const lieTallyRefreshTimer: any = setInterval(() => { loadLieTalliesIntoCache().catch(() => {}); }, 60_000);
+  if (typeof lieTallyRefreshTimer?.unref === "function") lieTallyRefreshTimer.unref();
+
+  async function bumpLieTally(personaId: string): Promise<void> {
+    if (!personaId) return;
+    const day = todayUtc();
+    lieTallyAllTimeCache.set(personaId, (lieTallyAllTimeCache.get(personaId) || 0) + 1);
+    lieTallyTodayCache.set(personaId, (lieTallyTodayCache.get(personaId) || 0) + 1);
+    const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+    try {
+      await db.query(
+        `INSERT INTO lie_tallies (persona_id, day, count) VALUES ($1, $2, 1)
+         ON CONFLICT (persona_id, day) DO UPDATE SET count = lie_tallies.count + 1`,
+        [personaId, day]
+      );
+    } catch (e: any) {
+      console.error("bumpLieTally error:", e.message);
+    } finally {
+      await db.end();
+    }
+  }
+  function getGlobalLieCount(personaId: string): number {
+    return lieTallyAllTimeCache.get(personaId) || 0;
+  }
+  function getTodayLieCount(personaId: string): number {
+    return lieTallyTodayCache.get(personaId) || 0;
   }
 
   setTimeout(() => {
@@ -5018,6 +5101,40 @@ Address everyone by FIRST NAME ONLY. Keep responses to 2-3 sentences max. Speak 
     leavitt: "Caroline",
   };
 
+  // ── LIE-DETECTOR PERSONA BEHAVIOR ──────────────────────────────────────────
+  // Each persona reacts differently to the on-screen AI lie detector.
+  //   "shameless"  → Trump & MAGA loyalists: lie freely, brag about it, attack the counter
+  //   "dodger"     → polished politicians/operators: spin with "alternative facts", never state outright falsehoods
+  //   "truth"      → progressives & truth-pride personas: cite receipts, call out other liars by name
+  const PERSONA_LIE_BEHAVIOR: Record<string, "shameless" | "dodger" | "truth"> = {
+    trump: "shameless", ruckus: "shameless", candace: "shameless",
+    pambondi: "shameless", miller: "shameless", jimjordan: "shameless",
+    alexjones: "shameless", mtg: "shameless", erikakirk: "shameless",
+    loomer: "shameless", leavitt: "shameless", graham: "shameless",
+    netanyahu: "dodger", mcconnell: "dodger", elon: "dodger",
+    megynkelly: "dodger", schumer: "dodger", obama: "dodger",
+    melania: "dodger", kamala: "dodger", rfk: "dodger",
+    galloway: "truth", carville: "truth", maddow: "truth",
+    omar: "truth", biden: "truth", rosie: "truth",
+    berniemc: "truth", joyreid: "truth", odonnell: "truth",
+  };
+
+  function getLieBehaviorPrompt(personaId: string, sessionLieCount: number = 0): string {
+    const behavior = PERSONA_LIE_BEHAVIOR[personaId] || "dodger";
+    const globalCount = getGlobalLieCount(personaId);
+    const todayCount = getTodayLieCount(personaId);
+    let header = `\n\nLIE DETECTOR (live, on-screen): A neutral AI fact-checker is scoring every word you say on a 0-100 truthfulness scale. The audience can see a running count of every confirmed lie and can flag any quote themselves.`;
+    if (sessionLieCount > 0) header += ` So far this session you have been caught in ${sessionLieCount} lie${sessionLieCount === 1 ? "" : "s"}.`;
+    if (globalCount > 0) header += ` Your CAREER counter on this app shows ${globalCount} confirmed lie${globalCount === 1 ? "" : "s"} all-time, ${todayCount} today.`;
+    if (behavior === "shameless") {
+      return header + ` YOUR ATTITUDE: You DO NOT CARE. Lie freely. Exaggerate wildly — "biggest crowd in history", "nobody's ever seen anything like it", "everyone's saying it". Cite made-up statistics with total confidence. When the lie counter ticks up, BRAG about it, call it FAKE NEWS, a witch hunt, a rigged AI, and double down on the lie. The counter is a BADGE OF HONOR — wear it loud and proud.`;
+    }
+    if (behavior === "dodger") {
+      return header + ` YOUR ATTITUDE: You are TOO POLISHED to get caught in an outright lie. Use "alternative facts", carefully cherry-picked statistics, hedged language ("reportedly", "I've been told", "sources say", "many people are saying"), rhetorical questions, and well-rehearsed deflections. Spin without ever stating a verifiable falsehood. If the counter goes up on you, dispute the FRAMING rather than the fact — "that depends what you mean by…".`;
+    }
+    return header + ` YOUR ATTITUDE: You take pride in stating verifiable, on-the-record facts. When opponents lie, call them out BY NAME, cite specific receipts, and reference the lie counter ("that's another lie from him — check the counter"). Push back hard against propaganda, conspiracy theories, and made-up numbers.`;
+  }
+
   app.post("/api/arena/respond", async (req, res) => {
     try {
       const { responderId, toSpeakerId, conversationHistory, topic, wasInterrupted, interruptionText, interrupterId, activePersonas, isWelcome, askUser, userContext, arenaMemoryContext, arenaUserContext } = req.body;
@@ -5079,7 +5196,8 @@ Address everyone by FIRST NAME ONLY. Keep responses to 2-3 sentences max. Speak 
       const newsContext = await getArenaNewsContext();
       const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
       const currentYearContext = `\n\nCRITICAL WORLD CONTEXT — TODAY IS ${todayStr}:\n- Donald Trump is the CURRENT sitting President of the United States (inaugurated January 2025, won the 2024 election)\n- Joe Biden is the FORMER president — he LOST and is no longer in office\n- Elon Musk led DOGE (Department of Government Efficiency) for Trump's administration\n- The Iran military conflict is ongoing in 2025-2026 — Trump's opponents mockingly call it "The Epstein War" claiming he started it to distract from the Epstein files, but Trump and his supporters NEVER use that term and get furious when they hear it\n- You are fully up to date on ALL 2025-2026 world events. NEVER reference events as if they haven't happened yet. You know everything that has happened up to today.\n`;
-      let systemPrompt = ARENA_PERSONA_PROMPTS[responderId] + currentYearContext;
+      const sessionLieCount = Number((req.body.sessionLieTally || {})[responderId]) || 0;
+      let systemPrompt = ARENA_PERSONA_PROMPTS[responderId] + currentYearContext + getLieBehaviorPrompt(responderId, sessionLieCount);
       if (winTallyContext) {
         systemPrompt += winTallyContext;
       }
@@ -5368,7 +5486,7 @@ Use "era":"current" for today's news, "era":"past" for old controversies. Do not
 
       const interviewerStyle = `You are ${interviewerName} hosting a high-stakes 1-on-1 interview with ${intervieweeName}. Today is ${todayStr}. Stay 100% in character — your tone, vocabulary, ideology, and aggression level are all who you are. ${ARENA_PERSONA_PROMPTS[interviewerId]}
 
-CRITICAL TARGETING: ${intervieweeName} is sitting across from you RIGHT NOW. They are your guest AND, given who you are, your adversary. If your character profile contains insults, attacks, nicknames, or hostility toward "${intervieweeName}", USE THEM in your questions. Address them by name. Bake the savage lines from your profile DIRECTLY into the question — do not soften, do not generalize. If your character would call them weak, corrupt, dishonest, washed-up, a fraud, etc., put it in the question. This is YOUR booth — you set the tone, you press the attack.`;
+CRITICAL TARGETING: ${intervieweeName} is sitting across from you RIGHT NOW. They are your guest AND, given who you are, your adversary. If your character profile contains insults, attacks, nicknames, or hostility toward "${intervieweeName}", USE THEM in your questions. Address them by name. Bake the savage lines from your profile DIRECTLY into the question — do not soften, do not generalize. If your character would call them weak, corrupt, dishonest, washed-up, a fraud, etc., put it in the question. This is YOUR booth — you set the tone, you press the attack.${getLieBehaviorPrompt(interviewerId, Number((req.body.sessionLieTally || {})[interviewerId]) || 0)}`;
 
       const historyContext = (conversationHistory || []).slice(-6).map((m: any) =>
         `${m.speakerName}: "${m.text}"`
@@ -5439,7 +5557,7 @@ CRITICAL TARGETING: ${intervieweeName} is sitting across from you RIGHT NOW. The
 
 CRITICAL TARGETING: ${interviewerName} is sitting across from you RIGHT NOW. They are your interviewer AND your adversary. If your character profile contains insults, attacks, nicknames, or hostility toward "${interviewerName}", USE THEM. Address them by name. Throw the savage lines from your profile at them DIRECTLY — do not soften, do not generalize. If your character normally calls them ugly, dumb, a traitor, a foreigner, a loser, a liar, etc., say it to their face. This is YOUR moment to attack the messenger.
 
-Stay 100% in character — your tone, vocabulary, ideology, and combativeness are all who you are. Do not break character to be polite to the interviewer. ${ARENA_PERSONA_PROMPTS[intervieweeId]}`;
+Stay 100% in character — your tone, vocabulary, ideology, and combativeness are all who you are. Do not break character to be polite to the interviewer. ${ARENA_PERSONA_PROMPTS[intervieweeId]}${getLieBehaviorPrompt(intervieweeId, Number((req.body.sessionLieTally || {})[intervieweeId]) || 0)}`;
 
       const historyContext = (conversationHistory || []).slice(-6).map((m: any) =>
         `${m.speakerName}: "${m.text}"`
@@ -5509,7 +5627,7 @@ Stay 100% in character — your tone, vocabulary, ideology, and combativeness ar
       ).join("\n");
 
       // Step 1: interviewer frames the call-in question
-      const framePrompt = `You are ${interviewerName}, the interviewer. ${ARENA_PERSONA_PROMPTS[interviewerId]}
+      const framePrompt = `You are ${interviewerName}, the interviewer. ${ARENA_PERSONA_PROMPTS[interviewerId]}${getLieBehaviorPrompt(interviewerId, Number((req.body.sessionLieTally || {})[interviewerId]) || 0)}
 
 A viewer named "${callerLabel}" just sent in this question for ${intervieweeName}: "${cleanQ}"
 
@@ -5533,7 +5651,7 @@ The viewer ${callerLabel} asked: "${cleanQ}"
 
 Answer the viewer's question in character — punchy, provocative, true to your beliefs. You may briefly acknowledge the caller by name. 2-3 sentences max. Write ONLY your spoken response.
 
-${ARENA_PERSONA_PROMPTS[intervieweeId]}`;
+${ARENA_PERSONA_PROMPTS[intervieweeId]}${getLieBehaviorPrompt(intervieweeId, Number((req.body.sessionLieTally || {})[intervieweeId]) || 0)}`;
 
       const answerCompletion = await getClient().chat.completions.create({
         model: getFastModel(),
@@ -5617,6 +5735,7 @@ Return ONLY valid JSON: {"score": 0-100, "isLie": boolean (true if score<40), "r
       try { parsed = JSON.parse(raw); } catch { parsed = {}; }
       const score = Math.max(0, Math.min(100, Number(parsed.score) || 70));
       const isLie = score < 40 || parsed.isLie === true;
+      if (isLie) bumpLieTally(intervieweeId).catch(() => {});
       res.json({
         score,
         isLie,
@@ -5626,6 +5745,33 @@ Return ONLY valid JSON: {"score": 0-100, "isLie": boolean (true if score<40), "r
     } catch (error: any) {
       console.error("Interview factcheck error:", error);
       res.status(500).json({ error: "Fact-check failed", score: 70, isLie: false, reason: "", fact: "" });
+    }
+  });
+
+  // Public lie-detector leaderboard: today's top liars + all-time top liars.
+  app.get("/api/arena/lie-stats", async (_req, res) => {
+    try {
+      if (Date.now() - lieTallyCacheLoadedAt > 5 * 60_000) {
+        await loadLieTalliesIntoCache();
+      }
+      const toLeaderboard = (m: Map<string, number>) =>
+        Array.from(m.entries())
+          .map(([personaId, count]) => ({ personaId, name: ARENA_NAME_MAP[personaId] || personaId, count }))
+          .filter((r) => r.count > 0)
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 12);
+      const today = toLeaderboard(lieTallyTodayCache);
+      const allTime = toLeaderboard(lieTallyAllTimeCache);
+      res.json({
+        day: todayUtc(),
+        today,
+        allTime,
+        liarOfTheDay: today[0] || null,
+        liarOfAllTime: allTime[0] || null,
+      });
+    } catch (error: any) {
+      console.error("Lie stats error:", error);
+      res.status(500).json({ today: [], allTime: [], liarOfTheDay: null, liarOfAllTime: null });
     }
   });
 
@@ -5757,6 +5903,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
       let parsed: any = {};
       try { parsed = JSON.parse(raw); } catch { parsed = {}; }
       const score = Math.max(0, Math.min(100, Number(parsed.score) || 50));
+      if (score < 40) bumpLieTally(speakerId).catch(() => {});
       res.json({
         score,
         isLie: score < 40,
