@@ -14,6 +14,14 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { getApiUrl } from "@/lib/query-client";
 import { useTokens } from "@/lib/token-context";
+import { buildSmartTagSuggestions } from "@/lib/smart-tags";
+
+const MAX_TAGS_PER_INTERVIEW = 8;
+const MAX_TAG_LENGTH = 24;
+
+function normalizeTag(raw: string): string {
+  return raw.trim().replace(/\s+/g, " ").slice(0, MAX_TAG_LENGTH);
+}
 
 const SHARE_URL = "https://trumpbot.rip";
 
@@ -35,6 +43,7 @@ type Detail = {
   startedAt: number;
   endedAt: number;
   title?: string | null;
+  tags?: string[];
 };
 
 const PERSONA_PORTRAITS: Record<string, any> = {
@@ -96,6 +105,78 @@ export default function InterviewTranscriptScreen() {
   const [bookmarkBusy, setBookmarkBusy] = useState(false);
   const [bookmarkError, setBookmarkError] = useState<string | null>(null);
   const [bookmarkJustAdded, setBookmarkJustAdded] = useState(false);
+  const [addingTag, setAddingTag] = useState<string | null>(null);
+  const [tagError, setTagError] = useState<string | null>(null);
+
+  const tags = useMemo(() => {
+    if (!data || !Array.isArray(data.tags)) return [] as string[];
+    return data.tags
+      .filter((t): t is string => typeof t === "string")
+      .map((t) => normalizeTag(t))
+      .filter((t) => t.length > 0);
+  }, [data]);
+
+  const smartSuggestions = useMemo(() => {
+    if (!data) return [] as string[];
+    return buildSmartTagSuggestions(
+      {
+        interviewerId: data.interviewerId,
+        intervieweeId: data.intervieweeId,
+        interviewerName: data.interviewerName,
+        intervieweeName: data.intervieweeName,
+        lieCount: data.lieCount,
+        userLieCount: (data.lies || []).reduce((n, l) => n + (l.userFlagged ? 1 : 0), 0),
+        messageCount: data.messageCount,
+        durationMinutes: data.durationMinutes,
+        topics: data.topics,
+      },
+      tags,
+      5,
+    );
+  }, [data, tags]);
+
+  const addSmartTag = async (label: string) => {
+    if (!data || !deviceId || addingTag) return;
+    const cleaned = normalizeTag(label);
+    if (!cleaned) return;
+    if (tags.length >= MAX_TAGS_PER_INTERVIEW) {
+      setTagError(`Limit is ${MAX_TAGS_PER_INTERVIEW} tags.`);
+      return;
+    }
+    if (tags.some((t) => t.toLowerCase() === cleaned.toLowerCase())) return;
+    setTagError(null);
+    setAddingTag(cleaned);
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+      const nextTags = [...tags, cleaned];
+      const res = await fetch(new URL(`/api/arena/interview-history/${data.id}`, getApiUrl()).toString(), {
+        method: "PATCH",
+        headers: { "x-device-id": deviceId, "Content-Type": "application/json" },
+        body: JSON.stringify({ tags: nextTags }),
+      });
+      if (res.ok) {
+        let savedTags: string[] = nextTags;
+        try {
+          const j = await res.json();
+          if (Array.isArray(j?.tags)) savedTags = j.tags;
+        } catch {}
+        setData((prev) => (prev ? { ...prev, tags: savedTags } : prev));
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      } else {
+        setTagError("Couldn't add tag. Please try again.");
+      }
+    } catch {
+      setTagError("Couldn't add tag. Please try again.");
+    } finally {
+      setAddingTag(null);
+    }
+  };
+
+  useEffect(() => {
+    if (!tagError) return;
+    const t = setTimeout(() => setTagError(null), 2500);
+    return () => clearTimeout(t);
+  }, [tagError]);
 
   const defaultTitle = data ? `${data.interviewerName} × ${data.intervieweeName}` : "TRANSCRIPT";
   const displayTitle = (data?.title && data.title.trim().length > 0) ? data.title : defaultTitle;
@@ -379,10 +460,61 @@ export default function InterviewTranscriptScreen() {
             <Text style={[s.statText, lies.length > 0 && { color: "#ff4d4d" }]}>{lies.length} lies</Text>
           </Pressable>
         </View>
+
+        {(tags.length > 0 || smartSuggestions.length > 0) ? (
+          <View style={s.tagsBlock} testID="transcript-tags-block">
+            {tags.length > 0 ? (
+              <View style={s.tagsLine}>
+                {tags.map((t) => (
+                  <View
+                    key={`tag-${t.toLowerCase()}`}
+                    style={s.tagChip}
+                    testID={`transcript-tag-${t.toLowerCase()}`}
+                  >
+                    <Text style={s.tagChipText}>#{t}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+            {smartSuggestions.length > 0 ? (
+              <View style={{ marginTop: tags.length > 0 ? 10 : 0 }}>
+                <View style={s.suggestLabelRow}>
+                  <Ionicons name="sparkles" size={10} color="#FFD700" />
+                  <Text style={s.suggestLabel}>SMART TAGS · TAP TO ADD</Text>
+                </View>
+                <View style={s.tagsLine}>
+                  {smartSuggestions.map((label) => {
+                    const busy = addingTag === label;
+                    return (
+                      <Pressable
+                        key={`smart-${label.toLowerCase()}`}
+                        onPress={() => addSmartTag(label)}
+                        disabled={!!addingTag}
+                        style={[s.smartChip, busy && { opacity: 0.7 }]}
+                        testID={`transcript-smart-suggest-${label.toLowerCase()}`}
+                      >
+                        {busy ? (
+                          <ActivityIndicator size="small" color="#FFD700" />
+                        ) : (
+                          <Ionicons name="add" size={11} color="#FFD700" />
+                        )}
+                        <Text style={s.smartChipText}>#{label}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                {tagError ? (
+                  <Text style={s.tagErrorText} testID="transcript-tag-error">{tagError}</Text>
+                ) : null}
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+
         <Text style={s.transcriptLabel}>TRANSCRIPT</Text>
       </View>
     );
-  }, [data, interviewerPortrait, intervieweePortrait, lies.length]);
+  }, [data, interviewerPortrait, intervieweePortrait, lies.length, tags, smartSuggestions, addingTag, tagError]);
 
   return (
     <View style={[s.container, { paddingTop: insets.top + webTop }]}>
@@ -672,6 +804,16 @@ const s = StyleSheet.create({
   statPill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.05)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
   statText: { color: "rgba(255,255,255,0.8)", fontSize: 11, fontWeight: "700" },
   transcriptLabel: { color: "#FFD700", fontSize: 10, fontWeight: "900", letterSpacing: 1.5, marginTop: 14, textAlign: "center" },
+
+  tagsBlock: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.08)" },
+  tagsLine: { flexDirection: "row", flexWrap: "wrap", gap: 6, justifyContent: "center" },
+  tagChip: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 12, backgroundColor: "rgba(255,215,0,0.15)", borderWidth: 1, borderColor: "rgba(255,215,0,0.45)" },
+  tagChipText: { color: "#FFD700", fontSize: 11, fontWeight: "800" },
+  suggestLabelRow: { flexDirection: "row", alignItems: "center", gap: 4, justifyContent: "center", marginBottom: 6 },
+  suggestLabel: { color: "rgba(255,215,0,0.7)", fontSize: 9, fontWeight: "900", letterSpacing: 0.8 },
+  smartChip: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 12, backgroundColor: "rgba(255,215,0,0.08)", borderWidth: 1, borderColor: "rgba(255,215,0,0.4)", borderStyle: "dashed" },
+  smartChipText: { color: "#FFD700", fontSize: 11, fontWeight: "800" },
+  tagErrorText: { color: "#ff4d4d", fontSize: 11, textAlign: "center", marginTop: 8, fontWeight: "700" },
 
   bubbleRow: { flexDirection: "row", marginVertical: 6 },
   bubble: { maxWidth: "82%", borderRadius: 14, paddingHorizontal: 12, paddingVertical: 9, borderWidth: 1 },
