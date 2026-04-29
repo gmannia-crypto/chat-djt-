@@ -383,25 +383,51 @@ export default function InterviewScreen() {
       try {
         const sound = await playTTS("/api/persona-speak", { text: item.text, personaId: item.personaId }, { volume: getPersonaVoiceVolume(item.personaId) });
         currentSoundRef.current = sound;
+        // Early-resolve ~1s before audio finishes so the next line can start while the
+        // current speaker's tail is still playing — gives a natural overlap instead of
+        // a hard sequential gap. The sound itself keeps playing in the background until
+        // didJustFinish unloads it.
+        const OVERLAP_MS = 1000;
         await new Promise<void>((resolve) => {
-          let done = false;
-          const finish = () => {
-            if (done) return; done = true;
+          let resolved = false;
+          let earlyResolved = false;
+          const fullCleanup = () => {
             sound.setOnPlaybackStatusUpdate(null);
             sound.getStatusAsync().then((st: any) => { if (st.isLoaded) sound.unloadAsync().catch(() => {}); }).catch(() => {});
             if (currentSoundRef.current === sound) currentSoundRef.current = null;
+          };
+          const earlyResolve = () => {
+            if (earlyResolved || resolved) return;
+            earlyResolved = true;
             resolve();
           };
+          const finish = () => {
+            if (resolved) return;
+            resolved = true;
+            if (!earlyResolved) resolve();
+            fullCleanup();
+          };
           sound.setOnPlaybackStatusUpdate((status: any) => {
-            if (!status.isLoaded || status.didJustFinish || status.error) finish();
+            if (!status.isLoaded || status.didJustFinish || status.error) {
+              finish();
+              return;
+            }
+            if (status.isPlaying && status.durationMillis && status.positionMillis) {
+              if (!earlyResolved && ttsQueueRef.current.length > 0) {
+                const remaining = status.durationMillis - status.positionMillis;
+                if (remaining <= OVERLAP_MS && remaining > 0) {
+                  earlyResolve();
+                }
+              }
+            }
           });
           setTimeout(finish, 30000);
         });
       } catch (e) {
         // ignore TTS error and continue
       }
-      // small breath between turns
-      await new Promise((r) => setTimeout(r, 150));
+      // tiny breath between turns — kept short since audio overlap already provides flow
+      await new Promise((r) => setTimeout(r, 60));
     }
     ttsRunningRef.current = false;
     if (ttsQueueRef.current.length === 0) {
@@ -765,9 +791,11 @@ export default function InterviewScreen() {
       const answerPromise: Promise<{ speakerId: string; speakerName: string; text: string } | null> | null =
         willInterrupt ? null : fetchAnswer(q.text, {});
 
-      // Estimate read time and start answer with ~2.5s overlap (matches Political Arena chaotic mode)
+      // Estimate read time and queue the answer with ~3.5s lead so it lines up just before
+      // the question's audio finishes. The TTS queue's per-clip early-resolve (1s before end)
+      // then provides the actual audible overlap.
       const qReadMs = Math.min(7000, Math.max(2200, q.text.length * 55));
-      await new Promise((r) => setTimeout(r, Math.max(250, qReadMs - 2500)));
+      await new Promise((r) => setTimeout(r, Math.max(150, qReadMs - 3500)));
       if (!runningRef.current) break;
 
       // Random interruption from interviewee on the question (12%)
@@ -791,7 +819,7 @@ export default function InterviewScreen() {
       enrichAndAddMessage({ id: `a-${Date.now()}-${Math.random()}`, speakerId: a.speakerId, speakerName: a.speakerName, text: a.text, ts: Date.now() });
 
       const aReadMs = Math.min(8500, Math.max(2500, a.text.length * 55));
-      await new Promise((r) => setTimeout(r, Math.max(300, aReadMs - 2500)));
+      await new Promise((r) => setTimeout(r, Math.max(200, aReadMs - 3500)));
       if (!runningRef.current) break;
 
       // Random interviewer cut-in mid-answer (10%)

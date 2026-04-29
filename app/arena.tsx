@@ -118,6 +118,19 @@ interface ConversationMessage {
   audioUri?: string;
 }
 
+type LieEntry = {
+  id: string;
+  speakerId: string;
+  speakerName: string;
+  text: string;
+  score: number;
+  reason: string;
+  fact: string;
+  ts: number;
+  userFlagged?: boolean;
+  pending?: boolean;
+};
+
 const ARENA_PERSONAS: Record<string, ArenaPersona> = {
   trump: {
     id: "trump",
@@ -1944,6 +1957,17 @@ export default function ArenaScreen() {
   const [bannerFlash, setBannerFlash] = useState(false);
 
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
+
+  // ── LIE DETECTOR (ported from 1-on-1 interview screen, same backend endpoints) ─
+  const [lieCount, setLieCount] = useState(0);
+  const [lies, setLies] = useState<LieEntry[]>([]);
+  const [liesSheetOpen, setLiesSheetOpen] = useState(false);
+  const [lieVotes, setLieVotes] = useState<Record<string, { up: number; down: number; myVote: number }>>({});
+  const lieVotesPendingRef = useRef<Set<string>>(new Set());
+  const [flaggedMsgIds, setFlaggedMsgIds] = useState<Set<string>>(new Set());
+  const flagPendingRef = useRef<Set<string>>(new Set());
+  const [latestTruthScore, setLatestTruthScore] = useState<number | null>(null);
+  const [lieFlashOn, setLieFlashOn] = useState(false);
   const [emotionalStates, setEmotionalStates] = useState<Record<string, EmotionalState>>(() => {
     const s: Record<string, EmotionalState> = {};
     PERSONA_IDS.forEach((id) => {
@@ -2978,12 +3002,207 @@ export default function ArenaScreen() {
     return () => { if (topicTimerRef.current) clearInterval(topicTimerRef.current); };
   }, [currentTopic, dynamicTopics, saveCurrentSession]);
 
+  // ── LIE DETECTOR HELPERS (use the same /api/arena/interview-* endpoints as the 1-on-1 screen)
+  const triggerLieFlash = useCallback(() => {
+    setLieFlashOn(true);
+    setTimeout(() => setLieFlashOn(false), 450);
+  }, []);
+
+  const playLieAlert = useCallback(() => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+    if (Platform.OS === "web") return;
+    (async () => {
+      try {
+        const { sound } = await Audio.Sound.createAsync(
+          require("@/assets/sfx-click.mp4"),
+          { shouldPlay: true, volume: 0.9 },
+        );
+        sound.setOnPlaybackStatusUpdate((st: any) => {
+          if (st?.didJustFinish) sound.unloadAsync().catch(() => {});
+        });
+      } catch {}
+    })();
+  }, []);
+
+  const runFactCheck = useCallback((msg: ConversationMessage) => {
+    if (!deviceId) return;
+    if (msg.isSystem || msg.speakerId === "user") return;
+    if (!msg.text || msg.text.length < 25) return;
+    fetch(new URL("/api/arena/interview-factcheck", getApiUrl()).toString(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+      body: JSON.stringify({ intervieweeId: msg.speakerId, text: msg.text, topic: currentTopicRef.current }),
+    })
+      .then((r) => r.ok ? r.json() : null)
+      .then((data: any) => {
+        if (!data) return;
+        const score = Math.max(0, Math.min(100, Number(data.score) || 70));
+        setLatestTruthScore(score);
+        if (score < 40 || data.isLie) {
+          setLieCount((c) => c + 1);
+          setLies((prev) => [...prev, {
+            id: `lie-${msg.id}`,
+            speakerId: msg.speakerId,
+            speakerName: msg.speakerName,
+            text: msg.text,
+            score,
+            reason: String(data.reason || ""),
+            fact: String(data.fact || ""),
+            ts: Date.now(),
+          }]);
+          triggerLieFlash();
+          playLieAlert();
+        }
+      })
+      .catch(() => {});
+  }, [deviceId, triggerLieFlash, playLieAlert]);
+
+  const flagMessageAsLie = useCallback((msg: ConversationMessage) => {
+    if (!deviceId) return;
+    if (flaggedMsgIds.has(msg.id) || flagPendingRef.current.has(msg.id)) return;
+    if (!msg.text || msg.text.trim().length < 4) return;
+    flagPendingRef.current.add(msg.id);
+    setFlaggedMsgIds((prev) => {
+      const next = new Set(prev);
+      next.add(msg.id);
+      return next;
+    });
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+
+    const lieId = `userlie-${msg.id}`;
+    const placeholder: LieEntry = {
+      id: lieId,
+      speakerId: msg.speakerId,
+      speakerName: msg.speakerName,
+      text: msg.text,
+      score: 50,
+      reason: "Scoring viewer report…",
+      fact: "",
+      ts: Date.now(),
+      userFlagged: true,
+      pending: true,
+    };
+    setLies((prev) => prev.some((l) => l.id === lieId) ? prev : [...prev, placeholder]);
+    setLieCount((c) => c + 1);
+
+    fetch(new URL("/api/arena/interview-flag-lie", getApiUrl()).toString(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+      body: JSON.stringify({ speakerId: msg.speakerId, text: msg.text, topic: currentTopicRef.current }),
+    })
+      .then(async (r) => {
+        if (r.ok) return r.json();
+        let body: any = {};
+        try { body = await r.json(); } catch {}
+        const err: any = new Error(body?.error || "flag failed");
+        err.status = r.status;
+        err.code = body?.error;
+        err.message_text = body?.message;
+        throw err;
+      })
+      .then((data: any) => {
+        const score = Math.max(0, Math.min(100, Number(data?.score) || 50));
+        setLies((prev) => prev.map((l) => l.id === lieId ? {
+          ...l,
+          score,
+          reason: String(data?.reason || ""),
+          fact: String(data?.fact || ""),
+          pending: false,
+        } : l));
+        setLatestTruthScore(score);
+        if (score < 40) {
+          triggerLieFlash();
+          playLieAlert();
+        }
+      })
+      .catch((err: any) => {
+        setLies((prev) => prev.filter((l) => l.id !== lieId));
+        setLieCount((c) => Math.max(0, c - 1));
+        setFlaggedMsgIds((prev) => {
+          const next = new Set(prev);
+          next.delete(msg.id);
+          return next;
+        });
+        const code = err?.code;
+        if (code === "duplicate") {
+          Alert.alert("Already flagged", err?.message_text || "You already flagged that quote.");
+        } else if (code === "rate_limited") {
+          Alert.alert("Slow down", err?.message_text || "You're flagging too fast. Try again in a moment.");
+        } else if (code === "session_limit") {
+          Alert.alert("Flag limit reached", err?.message_text || "You've hit the flag limit for this session.");
+        } else {
+          Alert.alert("Couldn't flag", "We couldn't reach the fact-checker. Try again in a moment.");
+        }
+      })
+      .finally(() => { flagPendingRef.current.delete(msg.id); });
+  }, [deviceId, flaggedMsgIds, triggerLieFlash, playLieAlert]);
+
+  const submitLieVote = useCallback((lie: LieEntry, direction: 1 | -1) => {
+    if (!deviceId) return;
+    if (lieVotesPendingRef.current.has(lie.id)) return;
+    lieVotesPendingRef.current.add(lie.id);
+    const current = lieVotes[lie.id] || { up: 0, down: 0, myVote: 0 };
+    const nextVote: 1 | -1 | 0 = current.myVote === direction ? 0 : direction;
+    let optimistic = { ...current };
+    if (current.myVote === 1) optimistic.up = Math.max(0, optimistic.up - 1);
+    if (current.myVote === -1) optimistic.down = Math.max(0, optimistic.down - 1);
+    if (nextVote === 1) optimistic.up += 1;
+    if (nextVote === -1) optimistic.down += 1;
+    optimistic.myVote = nextVote;
+    setLieVotes((prev) => ({ ...prev, [lie.id]: optimistic }));
+    fetch(new URL("/api/arena/interview-lie-vote", getApiUrl()).toString(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+      body: JSON.stringify({ lieId: lie.id, vote: nextVote, intervieweeId: lie.speakerId, lieText: lie.text }),
+    })
+      .then((r) => r.ok ? r.json() : Promise.reject(new Error("vote failed")))
+      .then((data: any) => {
+        if (data && typeof data.up === "number") {
+          setLieVotes((prev) => ({
+            ...prev,
+            [lie.id]: { up: data.up, down: data.down, myVote: data.myVote },
+          }));
+        }
+      })
+      .catch(() => {
+        setLieVotes((prev) => ({ ...prev, [lie.id]: current }));
+      })
+      .finally(() => { lieVotesPendingRef.current.delete(lie.id); });
+  }, [deviceId, lieVotes]);
+
+  // Refresh lie tallies when sheet opens for any unscored entries
+  useEffect(() => {
+    if (!liesSheetOpen || !deviceId || lies.length === 0) return;
+    const ids = lies.map((l) => l.id);
+    fetch(new URL("/api/arena/interview-lie-votes", getApiUrl()).toString(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+      body: JSON.stringify({ ids }),
+    })
+      .then((r) => r.ok ? r.json() : null)
+      .then((data: any) => {
+        if (!data?.tallies) return;
+        setLieVotes((prev) => {
+          const next = { ...prev };
+          for (const id of ids) {
+            const t = data.tallies[id];
+            if (t) next[id] = { up: t.up || 0, down: t.down || 0, myVote: t.myVote || 0 };
+          }
+          return next;
+        });
+      })
+      .catch(() => {});
+  }, [liesSheetOpen, deviceId, lies]);
+
   const addMessage = useCallback((msg: ConversationMessage) => {
     setMessages((prev) => {
       const next = [...prev, msg].slice(-50);
       messagesRef.current = next;
       return next;
     });
+    if (!msg.isSystem && msg.speakerId !== "user") {
+      runFactCheck(msg);
+    }
     if (!msg.isSystem && msg.speakerId !== "user") {
       personaMessageCountRef.current += 1;
       if (personaMessageCountRef.current === 2 && !joinPromptShownRef.current && !userJoinedRef.current) {
@@ -3030,7 +3249,7 @@ export default function ArenaScreen() {
     setTimeout(() => {
       flatListRef.current?.scrollToEnd({ animated: true });
     }, 100);
-  }, []);
+  }, [runFactCheck]);
 
   const updateEmotions = useCallback(
     (responderId: string, toSpeakerId: string) => {
@@ -4018,6 +4237,19 @@ export default function ArenaScreen() {
             >
               <Ionicons name="volume-medium" size={14} color="rgba(255,255,255,0.4)" />
             </Pressable>
+            <Pressable
+              onPress={() => flagMessageAsLie(item)}
+              style={s.msgListenBtn}
+              hitSlop={8}
+              testID={`flag-lie-${item.id}`}
+              disabled={flaggedMsgIds.has(item.id)}
+            >
+              <Ionicons
+                name={flaggedMsgIds.has(item.id) ? "flag" : "flag-outline"}
+                size={13}
+                color={flaggedMsgIds.has(item.id) ? "#ff4d4d" : "rgba(255,255,255,0.4)"}
+              />
+            </Pressable>
             {!awardedMessages.has(item.id) ? (
               <Pressable
                 onPress={() => {
@@ -4045,7 +4277,7 @@ export default function ArenaScreen() {
         </Animated.View>
       );
     },
-    [queueTTS, voiceEnabled, latestPersonaMsgId, awardedMessages]
+    [queueTTS, voiceEnabled, latestPersonaMsgId, awardedMessages, flagMessageAsLie, flaggedMsgIds]
   );
 
   const [flashOn, setFlashOn] = useState(true);
@@ -4433,6 +4665,16 @@ export default function ArenaScreen() {
         </View>
         <Pressable onPress={() => setShowPersonaSelector(true)} style={s.headerIconBtn}>
           <Ionicons name="people" size={18} color="#FFD700" />
+        </Pressable>
+        <Pressable
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setLiesSheetOpen(true); }}
+          style={[s.headerIconBtn, lieCount > 0 && { backgroundColor: "rgba(255,77,77,0.15)", borderColor: "rgba(255,77,77,0.5)" }]}
+          testID="arena-lie-counter"
+        >
+          <Ionicons name="flash" size={16} color={lieCount > 0 ? "#ff4d4d" : "rgba(255,255,255,0.6)"} />
+          {lieCount > 0 && (
+            <Text style={{ color: "#ff4d4d", fontSize: 10, fontWeight: "900", marginLeft: 2 }}>{lieCount}</Text>
+          )}
         </Pressable>
         <Pressable onPress={shareDebate} style={s.headerIconBtn}>
           <Ionicons name="share-social" size={18} color="#fff" />
@@ -5441,6 +5683,87 @@ export default function ArenaScreen() {
               <Text style={s.joinCountdownText}>Auto-dismiss in {joinCountdown}s</Text>
             )}
           </Animated.View>
+        </View>
+      </Modal>
+
+      {/* Lie detector flash overlay */}
+      {lieFlashOn && (
+        <View pointerEvents="none" style={s.lieFlashOverlay} />
+      )}
+
+      {/* Lies sheet (mirrors 1-on-1 interview lie detector UI) */}
+      <Modal visible={liesSheetOpen} transparent animationType="slide" onRequestClose={() => setLiesSheetOpen(false)}>
+        <View style={s.paywallOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setLiesSheetOpen(false)} />
+          <View style={s.liesSheet}>
+            <View style={s.liesHandle} />
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 10 }}>
+              <Ionicons name="flash" size={20} color="#ff4d4d" />
+              <Text style={{ flex: 1, color: "#fff", fontSize: 18, fontWeight: "900", marginLeft: 8 }}>LIE DETECTOR · {lies.length}</Text>
+              {latestTruthScore !== null && (
+                <View style={{ marginRight: 8, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: latestTruthScore < 40 ? "rgba(255,77,77,0.18)" : "rgba(74,222,128,0.18)", borderWidth: 1, borderColor: latestTruthScore < 40 ? "rgba(255,77,77,0.4)" : "rgba(74,222,128,0.4)" }}>
+                  <Text style={{ color: latestTruthScore < 40 ? "#ff4d4d" : "#4ADE80", fontSize: 10, fontWeight: "900" }}>TRUTH {latestTruthScore}</Text>
+                </View>
+              )}
+              <Pressable onPress={() => setLiesSheetOpen(false)}><Ionicons name="close" size={22} color="#fff" /></Pressable>
+            </View>
+            <ScrollView style={{ maxHeight: 480 }}>
+              {lies.length === 0 ? (
+                <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, textAlign: "center" as const, padding: 30 }}>No flagged statements yet. Tap the flag on any quote — or wait for the AI to call out a whopper.</Text>
+              ) : lies.map((l) => {
+                const v = lieVotes[l.id] || { up: 0, down: 0, myVote: 0 };
+                return (
+                  <View key={l.id} style={s.lieRow}>
+                    <View style={s.lieHeader}>
+                      <Text style={{ color: "#FFD700", fontSize: 12, fontWeight: "900", flex: 1 }} numberOfLines={1}>{l.speakerName}</Text>
+                      {l.userFlagged && (
+                        <View style={s.userFlagBadge}>
+                          <Ionicons name="flag" size={9} color="#60a5fa" />
+                          <Text style={s.userFlagBadgeText}>USER-FLAGGED</Text>
+                        </View>
+                      )}
+                      <View style={s.lieScore}>
+                        {l.pending ? (
+                          <ActivityIndicator size="small" color="#ff4d4d" />
+                        ) : (
+                          <Text style={{ color: "#ff4d4d", fontSize: 11, fontWeight: "900" }}>{l.score}/100</Text>
+                        )}
+                      </View>
+                    </View>
+                    <Text style={s.lieQuote}>"{l.text}"</Text>
+                    {!!l.fact && <Text style={s.lieFact}>FACT: {l.fact}</Text>}
+                    {!!l.reason && <Text style={s.lieReason}>{l.reason}</Text>}
+                    <View style={s.voteRow}>
+                      <Pressable
+                        onPress={() => submitLieVote(l, 1)}
+                        disabled={!!l.pending}
+                        style={[s.voteBtn, v.myVote === 1 && s.voteBtnUpActive, l.pending && { opacity: 0.4 }]}
+                        testID={`lie-vote-up-${l.id}`}
+                        hitSlop={6}
+                      >
+                        <Ionicons name={v.myVote === 1 ? "thumbs-up" : "thumbs-up-outline"} size={14} color={v.myVote === 1 ? "#4ADE80" : "rgba(255,255,255,0.7)"} />
+                        <Text style={[s.voteBtnText, v.myVote === 1 && { color: "#4ADE80" }]}>{v.up}</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => submitLieVote(l, -1)}
+                        disabled={!!l.pending}
+                        style={[s.voteBtn, v.myVote === -1 && s.voteBtnDownActive, l.pending && { opacity: 0.4 }]}
+                        testID={`lie-vote-down-${l.id}`}
+                        hitSlop={6}
+                      >
+                        <Ionicons name={v.myVote === -1 ? "thumbs-down" : "thumbs-down-outline"} size={14} color={v.myVote === -1 ? "#ff4d4d" : "rgba(255,255,255,0.7)"} />
+                        <Text style={[s.voteBtnText, v.myVote === -1 && { color: "#ff4d4d" }]}>{v.down}</Text>
+                      </Pressable>
+                      <Text style={s.voteTally}>
+                        {v.up + v.down === 0 ? "Be the first to weigh in" : `${v.up} agree · ${v.down} disagree`}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })}
+              <View style={{ height: 30 }} />
+            </ScrollView>
+          </View>
         </View>
       </Modal>
 
@@ -7015,5 +7338,128 @@ const s = StyleSheet.create({
     fontSize: 14,
     fontWeight: "800" as const,
     color: "#000",
+  },
+  // ── LIE DETECTOR ──────────────────────────────────────────────────────────
+  liesSheet: {
+    backgroundColor: "#0a0a0a",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 24,
+    borderTopWidth: 2,
+    borderTopColor: "rgba(255,77,77,0.4)",
+  },
+  liesHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "rgba(255,255,255,0.25)",
+    alignSelf: "center" as const,
+    marginBottom: 12,
+  },
+  lieFlashOverlay: {
+    position: "absolute" as const,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(255,77,77,0.18)",
+    zIndex: 999,
+  },
+  lieRow: {
+    backgroundColor: "rgba(255,77,77,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,77,77,0.25)",
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 10,
+  },
+  lieHeader: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 6,
+    marginBottom: 6,
+  },
+  lieScore: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    backgroundColor: "rgba(255,77,77,0.18)",
+    borderWidth: 1,
+    borderColor: "rgba(255,77,77,0.4)",
+    minWidth: 56,
+    alignItems: "center" as const,
+  },
+  lieQuote: {
+    color: "#fff",
+    fontSize: 13,
+    fontStyle: "italic" as const,
+    lineHeight: 18,
+    marginBottom: 6,
+  },
+  lieFact: {
+    color: "#4ADE80",
+    fontSize: 11,
+    fontWeight: "800" as const,
+    marginBottom: 4,
+  },
+  lieReason: {
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  voteRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 8,
+    marginTop: 8,
+  },
+  voteBtn: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  voteBtnUpActive: {
+    backgroundColor: "rgba(74,222,128,0.18)",
+    borderColor: "rgba(74,222,128,0.5)",
+  },
+  voteBtnDownActive: {
+    backgroundColor: "rgba(255,77,77,0.18)",
+    borderColor: "rgba(255,77,77,0.5)",
+  },
+  voteBtnText: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 11,
+    fontWeight: "800" as const,
+  },
+  voteTally: {
+    marginLeft: "auto" as const,
+    color: "rgba(255,255,255,0.4)",
+    fontSize: 10,
+    fontStyle: "italic" as const,
+  },
+  userFlagBadge: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    backgroundColor: "rgba(96,165,250,0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(96,165,250,0.4)",
+  },
+  userFlagBadgeText: {
+    color: "#60a5fa",
+    fontSize: 9,
+    fontWeight: "900" as const,
+    letterSpacing: 0.5,
   },
 });
