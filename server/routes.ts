@@ -6035,7 +6035,13 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
           `SELECT interviewee_id,
              COUNT(DISTINCT lie_id)::int AS lie_count,
              COALESCE(SUM(CASE WHEN vote =  1 THEN 1 ELSE 0 END), 0)::int AS agree,
-             COALESCE(SUM(CASE WHEN vote = -1 THEN 1 ELSE 0 END), 0)::int AS disagree
+             COALESCE(SUM(CASE WHEN vote = -1 THEN 1 ELSE 0 END), 0)::int AS disagree,
+             (COALESCE(SUM(CASE WHEN vote =  1 AND updated_at >= NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END), 0)
+            - COALESCE(SUM(CASE WHEN vote = -1 AND updated_at >= NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END), 0))::int AS recent_score,
+             (COALESCE(SUM(CASE WHEN vote =  1 AND updated_at >= NOW() - INTERVAL '14 days' AND updated_at < NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END), 0)
+            - COALESCE(SUM(CASE WHEN vote = -1 AND updated_at >= NOW() - INTERVAL '14 days' AND updated_at < NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END), 0))::int AS prior_score,
+             (COALESCE(SUM(CASE WHEN updated_at >= NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END), 0))::int AS recent_votes,
+             (COALESCE(SUM(CASE WHEN updated_at >= NOW() - INTERVAL '14 days' AND updated_at < NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END), 0))::int AS prior_votes
            FROM interview_lie_votes
            WHERE interviewee_id IS NOT NULL AND interviewee_id <> ''
            GROUP BY interviewee_id
@@ -6048,6 +6054,10 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
         const leaderboard = rows.rows.map((r: any) => {
           const agree = Number(r.agree) || 0;
           const disagree = Number(r.disagree) || 0;
+          const recentScore = Number(r.recent_score) || 0;
+          const priorScore = Number(r.prior_score) || 0;
+          const recentVotes = Number(r.recent_votes) || 0;
+          const priorVotes = Number(r.prior_votes) || 0;
           return {
             intervieweeId: r.interviewee_id,
             intervieweeName: ARENA_NAME_MAP[r.interviewee_id] || r.interviewee_id,
@@ -6055,6 +6065,11 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
             agree,
             disagree,
             lieScore: agree - disagree,
+            recentScore,
+            priorScore,
+            recentVotes,
+            priorVotes,
+            trend: recentScore - priorScore,
           };
         });
         res.json({ leaderboard });

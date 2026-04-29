@@ -18,6 +18,11 @@ type LeaderRow = {
   agree: number;
   disagree: number;
   lieScore: number;
+  recentScore: number;
+  priorScore: number;
+  recentVotes: number;
+  priorVotes: number;
+  trend: number;
 };
 
 const PERSONA_PORTRAITS: Record<string, any> = {
@@ -114,8 +119,8 @@ export default function LieLeaderboardScreen() {
     ? "Lie flags the community shot down"
     : "Community fact-check leaderboard";
   const legendText = isHonest
-    ? "Ranked by lowest lie score — guests viewers most often dismiss as not actually lying."
-    : "Lie score = agree votes minus disagree votes on lies flagged during interviews.";
+    ? "Ranked by lowest lie score — guests viewers most often dismiss as not actually lying. Arrows show this week's lie score vs the prior 7 days."
+    : "Lie score = agree votes minus disagree votes on lies flagged during interviews. Arrows show this week's lie score vs the prior 7 days.";
   const emptyTitle = isHonest ? "No honest crowd yet" : "No votes yet";
   const emptyText = isHonest
     ? "Once viewers start dismissing AI lie flags as wrong, the most-honest list fills up."
@@ -128,6 +133,39 @@ export default function LieLeaderboardScreen() {
       ? Math.round(((isHonest ? item.disagree : item.agree) / totalVotes) * 100)
       : 0;
     const rateLabel = isHonest ? "disagree" : "agree";
+
+    const recentVotes = item.recentVotes ?? 0;
+    const priorVotes = item.priorVotes ?? 0;
+    const trend = item.trend ?? 0;
+    const hasTrendData = recentVotes + priorVotes > 0;
+    let trendIcon: "arrow-up" | "arrow-down" | "remove" = "remove";
+    let trendColor = "#7a7a7a";
+    let trendA11y = "no recent change";
+    if (!hasTrendData) {
+      trendIcon = "remove";
+      trendColor = "#555";
+      trendA11y = "no votes in the last two weeks";
+    } else if (trend > 0) {
+      trendIcon = "arrow-up";
+      trendColor = "#ff6b6b";
+      trendA11y = `lie score up ${trend} this week`;
+    } else if (trend < 0) {
+      trendIcon = "arrow-down";
+      trendColor = "#4ADE80";
+      trendA11y = `lie score down ${Math.abs(trend)} this week`;
+    } else {
+      trendIcon = "remove";
+      trendColor = "#9aa0a6";
+      trendA11y = "lie score unchanged this week";
+    }
+    const trendLabel = hasTrendData
+      ? trend > 0
+        ? `+${trend}`
+        : trend < 0
+          ? `${trend}`
+          : "0"
+      : "—";
+
     return (
       <Pressable
         onPress={() => {
@@ -160,9 +198,19 @@ export default function LieLeaderboardScreen() {
           </Text>
         </View>
         <View style={s.scoreCol}>
-          <Text style={[s.scoreNum, { color: accentColor }]}>
-            {item.lieScore > 0 ? `+${item.lieScore}` : item.lieScore}
-          </Text>
+          <View style={s.scoreLine}>
+            <Text style={[s.scoreNum, { color: accentColor }]}>
+              {item.lieScore > 0 ? `+${item.lieScore}` : item.lieScore}
+            </Text>
+            <View
+              style={[s.trendPill, { borderColor: trendColor }]}
+              accessibilityLabel={trendA11y}
+              testID={`leader-trend-${item.intervieweeId}`}
+            >
+              <Ionicons name={trendIcon} size={10} color={trendColor} />
+              <Text style={[s.trendText, { color: trendColor }]}>{trendLabel}</Text>
+            </View>
+          </View>
           <View style={s.voteRow}>
             <Ionicons name="thumbs-up" size={11} color="#4ADE80" />
             <Text style={[s.voteNum, { color: "#4ADE80" }]}>{item.agree}</Text>
@@ -357,8 +405,16 @@ const s = StyleSheet.create({
   avatarFallback: { alignItems: "center", justifyContent: "center" },
   name: { color: "#fff", fontSize: 15, fontWeight: "700" },
   metaSub: { color: "#999", fontSize: 11, marginTop: 2 },
-  scoreCol: { alignItems: "flex-end", minWidth: 64 },
+  scoreCol: { alignItems: "flex-end", minWidth: 78 },
+  scoreLine: { flexDirection: "row", alignItems: "center", gap: 6 },
   scoreNum: { color: "#FFD700", fontSize: 18, fontWeight: "800" },
+  trendPill: {
+    flexDirection: "row", alignItems: "center", gap: 2,
+    paddingHorizontal: 5, paddingVertical: 2,
+    borderRadius: 8, borderWidth: 1,
+    backgroundColor: "rgba(255,255,255,0.04)",
+  },
+  trendText: { fontSize: 10, fontWeight: "700" },
   voteRow: { flexDirection: "row", alignItems: "center", marginTop: 2 },
   voteNum: { fontSize: 11, fontWeight: "700", marginLeft: 3 },
   errorToast: {
