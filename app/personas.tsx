@@ -23,6 +23,9 @@ import {
   ARENA_MYSTERY_UNLOCK_KEY,
   PERSONA_UNLOCKS,
   PersonaUnlockModal,
+  MysteryPersonaTeaser,
+  getMysteryTeaserPalettes,
+  type MysteryTeaserPalette,
 } from "@/lib/persona-unlocks";
 
 const WEB_TOP_INSET = 67;
@@ -33,6 +36,12 @@ export default function PersonasTrophyScreen() {
   const [unlocked, setUnlocked] = useState<string[]>([]);
   const [previewPersonaId, setPreviewPersonaId] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [replayTeaser, setReplayTeaser] = useState<{
+    palette: MysteryTeaserPalette;
+    step: number;
+    total: number;
+  } | null>(null);
+  const [replayingId, setReplayingId] = useState<string | null>(null);
 
   const refreshUnlocked = useCallback(async () => {
     try {
@@ -57,6 +66,37 @@ export default function PersonasTrophyScreen() {
     useCallback(() => {
       refreshUnlocked();
     }, [refreshUnlocked]),
+  );
+
+  const playReveal = useCallback(
+    async (personaId: string) => {
+      if (replayingId) return;
+      const cfg = PERSONA_UNLOCKS[personaId];
+      if (!cfg) return;
+      setReplayingId(personaId);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      try {
+        // Decoy pool = every other persona that has a config (regardless of
+        // unlock state) so the teaser still feels suspenseful on replay.
+        const decoyPool = (ARENA_MYSTERY_PERSONA_IDS as readonly string[]).filter(
+          (id) => id !== personaId && PERSONA_UNLOCKS[id],
+        );
+        const teaserSeq = getMysteryTeaserPalettes(personaId, decoyPool, 3);
+        const decoyMs = 440;
+        const finalMs = Math.max(560, 1100 - decoyMs * (teaserSeq.length - 1));
+        for (let i = 0; i < teaserSeq.length; i++) {
+          setReplayTeaser({ palette: teaserSeq[i], step: i, total: teaserSeq.length });
+          try { Haptics.selectionAsync(); } catch {}
+          const isFinal = i === teaserSeq.length - 1;
+          await new Promise((r) => setTimeout(r, isFinal ? finalMs : decoyMs));
+        }
+      } finally {
+        setReplayTeaser(null);
+        setPreviewPersonaId(personaId);
+        setReplayingId(null);
+      }
+    },
+    [replayingId],
   );
 
   const topPad = (Platform.OS === "web" ? WEB_TOP_INSET : insets.top) + 12;
@@ -111,11 +151,10 @@ export default function PersonasTrophyScreen() {
                 style={styles.cardWrap}
               >
                 <Pressable
-                  disabled={!isUnlocked || !cfg}
+                  disabled={!isUnlocked || !cfg || !!replayingId}
                   onPress={() => {
                     if (!isUnlocked || !cfg) return;
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                    setPreviewPersonaId(personaId);
+                    playReveal(personaId);
                   }}
                   style={({ pressed }) => [
                     styles.card,
@@ -206,6 +245,8 @@ export default function PersonasTrophyScreen() {
           </View>
         )}
       </ScrollView>
+
+      <MysteryPersonaTeaser state={replayTeaser} />
 
       <PersonaUnlockModal
         personaId={previewPersonaId}
