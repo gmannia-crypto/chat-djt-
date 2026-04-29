@@ -15,13 +15,10 @@ import * as Sharing from "expo-sharing";
 import { getApiUrl } from "@/lib/query-client";
 import { useTokens } from "@/lib/token-context";
 import { buildSmartTagSuggestions } from "@/lib/smart-tags";
-
-const MAX_TAGS_PER_INTERVIEW = 8;
-const MAX_TAG_LENGTH = 24;
-
-function normalizeTag(raw: string): string {
-  return raw.trim().replace(/\s+/g, " ").slice(0, MAX_TAG_LENGTH);
-}
+import TagEditorModal, {
+  MAX_TAGS_PER_INTERVIEW,
+  normalizeTag,
+} from "@/components/TagEditorModal";
 
 const SHARE_URL = "https://trumpbot.rip";
 
@@ -105,8 +102,9 @@ export default function InterviewTranscriptScreen() {
   const [bookmarkBusy, setBookmarkBusy] = useState(false);
   const [bookmarkError, setBookmarkError] = useState<string | null>(null);
   const [bookmarkJustAdded, setBookmarkJustAdded] = useState(false);
-  const [addingTag, setAddingTag] = useState<string | null>(null);
-  const [tagError, setTagError] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [tagEditorOpen, setTagEditorOpen] = useState(false);
+  const [allUserTags, setAllUserTags] = useState<{ label: string; count: number }[]>([]);
 
   const tags = useMemo(() => {
     if (!data || !Array.isArray(data.tags)) return [] as string[];
@@ -135,49 +133,6 @@ export default function InterviewTranscriptScreen() {
     );
   }, [data, tags]);
 
-  const addSmartTag = async (label: string) => {
-    if (!data || !deviceId || addingTag) return;
-    const cleaned = normalizeTag(label);
-    if (!cleaned) return;
-    if (tags.length >= MAX_TAGS_PER_INTERVIEW) {
-      setTagError(`Limit is ${MAX_TAGS_PER_INTERVIEW} tags.`);
-      return;
-    }
-    if (tags.some((t) => t.toLowerCase() === cleaned.toLowerCase())) return;
-    setTagError(null);
-    setAddingTag(cleaned);
-    try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-      const nextTags = [...tags, cleaned];
-      const res = await fetch(new URL(`/api/arena/interview-history/${data.id}`, getApiUrl()).toString(), {
-        method: "PATCH",
-        headers: { "x-device-id": deviceId, "Content-Type": "application/json" },
-        body: JSON.stringify({ tags: nextTags }),
-      });
-      if (res.ok) {
-        let savedTags: string[] = nextTags;
-        try {
-          const j = await res.json();
-          if (Array.isArray(j?.tags)) savedTags = j.tags;
-        } catch {}
-        setData((prev) => (prev ? { ...prev, tags: savedTags } : prev));
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      } else {
-        setTagError("Couldn't add tag. Please try again.");
-      }
-    } catch {
-      setTagError("Couldn't add tag. Please try again.");
-    } finally {
-      setAddingTag(null);
-    }
-  };
-
-  useEffect(() => {
-    if (!tagError) return;
-    const t = setTimeout(() => setTagError(null), 2500);
-    return () => clearTimeout(t);
-  }, [tagError]);
-
   const defaultTitle = data ? `${data.interviewerName} × ${data.intervieweeName}` : "TRANSCRIPT";
   const displayTitle = (data?.title && data.title.trim().length > 0) ? data.title : defaultTitle;
 
@@ -185,6 +140,95 @@ export default function InterviewTranscriptScreen() {
     setRenameValue(data?.title || "");
     setRenameError(null);
     setRenameOpen(true);
+  };
+
+  const fetchAllUserTags = async () => {
+    if (!deviceId) return;
+    try {
+      const res = await fetch(new URL("/api/arena/interview-history", getApiUrl()).toString(), {
+        headers: { "x-device-id": deviceId },
+      });
+      if (!res.ok) return;
+      const json = await res.json();
+      const items: Array<{ id?: string; tags?: unknown }> = Array.isArray(json?.items) ? json.items : [];
+      const counts = new Map<string, { label: string; count: number }>();
+      for (const it of items) {
+        if (it?.id === data?.id) continue;
+        const list = Array.isArray(it.tags) ? it.tags : [];
+        for (const t of list) {
+          if (typeof t !== "string") continue;
+          const cleaned = normalizeTag(t);
+          if (!cleaned) continue;
+          const key = cleaned.toLowerCase();
+          const existing = counts.get(key);
+          if (existing) existing.count += 1;
+          else counts.set(key, { label: cleaned, count: 1 });
+        }
+      }
+      setAllUserTags(
+        Array.from(counts.values()).sort(
+          (a, b) => b.count - a.count || a.label.localeCompare(b.label),
+        ),
+      );
+    } catch {}
+  };
+
+  const openTagEditor = () => {
+    setMenuOpen(false);
+    setTagEditorOpen(true);
+    fetchAllUserTags();
+  };
+
+  const handleEditorAddSmartTag = async (
+    _label: string,
+    nextDraft: string[],
+  ): Promise<{ ok: true; tags?: string[] } | { ok: false; error?: string }> => {
+    if (!data || !deviceId) return { ok: false, error: "Couldn't add tag. Please try again." };
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+      const res = await fetch(new URL(`/api/arena/interview-history/${data.id}`, getApiUrl()).toString(), {
+        method: "PATCH",
+        headers: { "x-device-id": deviceId, "Content-Type": "application/json" },
+        body: JSON.stringify({ tags: nextDraft }),
+      });
+      if (!res.ok) return { ok: false, error: "Couldn't add tag. Please try again." };
+      let savedTags: string[] = nextDraft;
+      try {
+        const j = await res.json();
+        if (Array.isArray(j?.tags)) savedTags = j.tags;
+      } catch {}
+      setData((prev) => (prev ? { ...prev, tags: savedTags } : prev));
+      return { ok: true, tags: savedTags };
+    } catch {
+      return { ok: false, error: "Couldn't add tag. Please try again." };
+    }
+  };
+
+  const handleEditorSave = async (
+    nextTags: string[],
+  ): Promise<{ ok: true; tags?: string[] } | { ok: false; error?: string }> => {
+    if (!data || !deviceId) return { ok: false };
+    try {
+      const res = await fetch(new URL(`/api/arena/interview-history/${data.id}`, getApiUrl()).toString(), {
+        method: "PATCH",
+        headers: { "x-device-id": deviceId, "Content-Type": "application/json" },
+        body: JSON.stringify({ tags: nextTags }),
+      });
+      if (!res.ok) {
+        return { ok: false, error: "Couldn't save tags. Please try again." };
+      }
+      let savedTags: string[] = nextTags;
+      try {
+        const j = await res.json();
+        if (Array.isArray(j?.tags)) savedTags = j.tags;
+      } catch {}
+      setData((prev) => (prev ? { ...prev, tags: savedTags } : prev));
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      setTagEditorOpen(false);
+      return { ok: true, tags: savedTags };
+    } catch {
+      return { ok: false, error: "Couldn't save tags. Please try again." };
+    }
   };
 
   const submitRename = async () => {
@@ -461,60 +505,26 @@ export default function InterviewTranscriptScreen() {
           </Pressable>
         </View>
 
-        {(tags.length > 0 || smartSuggestions.length > 0) ? (
+        {tags.length > 0 ? (
           <View style={s.tagsBlock} testID="transcript-tags-block">
-            {tags.length > 0 ? (
-              <View style={s.tagsLine}>
-                {tags.map((t) => (
-                  <View
-                    key={`tag-${t.toLowerCase()}`}
-                    style={s.tagChip}
-                    testID={`transcript-tag-${t.toLowerCase()}`}
-                  >
-                    <Text style={s.tagChipText}>#{t}</Text>
-                  </View>
-                ))}
-              </View>
-            ) : null}
-            {smartSuggestions.length > 0 ? (
-              <View style={{ marginTop: tags.length > 0 ? 10 : 0 }}>
-                <View style={s.suggestLabelRow}>
-                  <Ionicons name="sparkles" size={10} color="#FFD700" />
-                  <Text style={s.suggestLabel}>SMART TAGS · TAP TO ADD</Text>
+            <View style={s.tagsLine}>
+              {tags.map((t) => (
+                <View
+                  key={`tag-${t.toLowerCase()}`}
+                  style={s.tagChip}
+                  testID={`transcript-tag-${t.toLowerCase()}`}
+                >
+                  <Text style={s.tagChipText}>#{t}</Text>
                 </View>
-                <View style={s.tagsLine}>
-                  {smartSuggestions.map((label) => {
-                    const busy = addingTag === label;
-                    return (
-                      <Pressable
-                        key={`smart-${label.toLowerCase()}`}
-                        onPress={() => addSmartTag(label)}
-                        disabled={!!addingTag}
-                        style={[s.smartChip, busy && { opacity: 0.7 }]}
-                        testID={`transcript-smart-suggest-${label.toLowerCase()}`}
-                      >
-                        {busy ? (
-                          <ActivityIndicator size="small" color="#FFD700" />
-                        ) : (
-                          <Ionicons name="add" size={11} color="#FFD700" />
-                        )}
-                        <Text style={s.smartChipText}>#{label}</Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-                {tagError ? (
-                  <Text style={s.tagErrorText} testID="transcript-tag-error">{tagError}</Text>
-                ) : null}
-              </View>
-            ) : null}
+              ))}
+            </View>
           </View>
         ) : null}
 
         <Text style={s.transcriptLabel}>TRANSCRIPT</Text>
       </View>
     );
-  }, [data, interviewerPortrait, intervieweePortrait, lies.length, tags, smartSuggestions, addingTag, tagError]);
+  }, [data, interviewerPortrait, intervieweePortrait, lies.length, tags]);
 
   return (
     <View style={[s.container, { paddingTop: insets.top + webTop }]}>
@@ -530,8 +540,16 @@ export default function InterviewTranscriptScreen() {
           </Text>
         </View>
         {data ? (
-          <Pressable onPress={openRename} style={s.iconBtn} testID="transcript-rename">
-            <Ionicons name="create-outline" size={20} color="#FFD700" />
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+              setMenuOpen(true);
+            }}
+            style={s.iconBtn}
+            testID="transcript-menu"
+            accessibilityLabel="More actions"
+          >
+            <Ionicons name="ellipsis-vertical" size={20} color="#FFD700" />
           </Pressable>
         ) : (
           <View style={{ width: 38 }} />
@@ -731,6 +749,84 @@ export default function InterviewTranscriptScreen() {
         </View>
       </Modal>
 
+      <Modal visible={menuOpen} transparent animationType="fade" onRequestClose={() => setMenuOpen(false)}>
+        <View style={s.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setMenuOpen(false)} />
+          <View style={s.menuSheet} testID="transcript-menu-sheet">
+            <View style={s.handle} />
+            <Text style={s.menuTitle}>Interview options</Text>
+            <Pressable
+              onPress={() => { setMenuOpen(false); openRename(); }}
+              style={s.menuRow}
+              testID="transcript-menu-rename"
+            >
+              <Ionicons name="create-outline" size={20} color="#FFD700" />
+              <View style={{ flex: 1 }}>
+                <Text style={s.menuRowText}>Rename</Text>
+                <Text style={s.menuRowSub}>Give this interview a custom title.</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.35)" />
+            </Pressable>
+            <Pressable
+              onPress={openTagEditor}
+              style={s.menuRow}
+              testID="transcript-menu-tags"
+            >
+              <Ionicons name="pricetags-outline" size={20} color="#FFD700" />
+              <View style={{ flex: 1 }}>
+                <Text style={s.menuRowText}>Tags</Text>
+                <Text style={s.menuRowSub}>
+                  {tags.length > 0
+                    ? `${tags.length} of ${MAX_TAGS_PER_INTERVIEW} used · edit list`
+                    : "Add tags to organize this interview."}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.35)" />
+            </Pressable>
+            <Pressable
+              onPress={() => setMenuOpen(false)}
+              style={s.menuCancel}
+              testID="transcript-menu-close"
+            >
+              <Text style={s.menuCancelText}>Close</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      <TagEditorModal
+        visible={tagEditorOpen}
+        initialTags={tags}
+        smartSuggestions={smartSuggestions}
+        computeSmartSuggestions={(draft) =>
+          data
+            ? buildSmartTagSuggestions(
+                {
+                  interviewerId: data.interviewerId,
+                  intervieweeId: data.intervieweeId,
+                  interviewerName: data.interviewerName,
+                  intervieweeName: data.intervieweeName,
+                  lieCount: data.lieCount,
+                  userLieCount: (data.lies || []).reduce(
+                    (n, l) => n + (l.userFlagged ? 1 : 0),
+                    0,
+                  ),
+                  messageCount: data.messageCount,
+                  durationMinutes: data.durationMinutes,
+                  topics: data.topics,
+                },
+                draft,
+                5,
+              )
+            : []
+        }
+        allTags={allUserTags}
+        onClose={() => setTagEditorOpen(false)}
+        onSave={handleEditorSave}
+        onAddSmartTag={handleEditorAddSmartTag}
+        testIDPrefix="transcript-tags"
+      />
+
       <Modal visible={renameOpen} transparent animationType="fade" onRequestClose={() => setRenameOpen(false)}>
         <View style={s.modalOverlay}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setRenameOpen(false)} />
@@ -864,6 +960,14 @@ const s = StyleSheet.create({
   lieQuote: { color: "#fff", fontSize: 13, fontStyle: "italic", lineHeight: 18 },
   lieFact: { color: "#4ADE80", fontSize: 11, marginTop: 6, fontWeight: "700" },
   lieReason: { color: "rgba(255,255,255,0.65)", fontSize: 11, marginTop: 4, lineHeight: 15 },
+
+  menuSheet: { backgroundColor: "#0F0F12", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 18, borderTopWidth: 1, borderColor: "rgba(255,215,0,0.2)", paddingBottom: Platform.OS === "web" ? 34 : 24 },
+  menuTitle: { color: "#fff", fontSize: 16, fontWeight: "900" as const, marginBottom: 8 },
+  menuRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 14, paddingHorizontal: 4, borderTopWidth: 1, borderColor: "rgba(255,255,255,0.06)" },
+  menuRowText: { color: "#fff", fontSize: 14, fontWeight: "800" as const },
+  menuRowSub: { color: "rgba(255,255,255,0.5)", fontSize: 11, marginTop: 2, fontWeight: "600" as const },
+  menuCancel: { alignItems: "center", paddingVertical: 12, marginTop: 6 },
+  menuCancelText: { color: "rgba(255,255,255,0.5)", fontSize: 12, fontWeight: "700" as const },
 
   renameSheet: { backgroundColor: "#0F0F12", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 18, borderTopWidth: 1, borderColor: "rgba(255,215,0,0.2)", paddingBottom: Platform.OS === "web" ? 34 : 24 },
   renameTitle: { color: "#fff", fontSize: 16, fontWeight: "900" as const, marginBottom: 4 },

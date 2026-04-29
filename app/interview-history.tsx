@@ -3,7 +3,7 @@ import {
   View, Text, Pressable, StyleSheet, FlatList, ActivityIndicator,
   RefreshControl, Image, Platform, Modal, TextInput, Alert, ScrollView,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -12,6 +12,7 @@ import * as Haptics from "expo-haptics";
 import { getApiUrl } from "@/lib/query-client";
 import { useTokens } from "@/lib/token-context";
 import { buildSmartTagSuggestions } from "@/lib/smart-tags";
+import TagEditorModal, { normalizeTag } from "@/components/TagEditorModal";
 
 type HistoryItem = {
   id: string;
@@ -49,13 +50,6 @@ function formatRemaining(deletedAt: number): string {
   }
   const minutes = Math.max(1, Math.round(remaining / (60 * 1000)));
   return `${minutes} min left`;
-}
-
-const MAX_TAGS_PER_INTERVIEW = 8;
-const MAX_TAG_LENGTH = 24;
-
-function normalizeTag(raw: string): string {
-  return raw.trim().replace(/\s+/g, " ").slice(0, MAX_TAG_LENGTH);
 }
 
 const PERSONA_PORTRAITS: Record<string, any> = {
@@ -125,11 +119,6 @@ export default function InterviewHistoryScreen() {
   const [restoring, setRestoring] = useState(false);
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [tagsItem, setTagsItem] = useState<HistoryItem | null>(null);
-  const [tagsDraft, setTagsDraft] = useState<string[]>([]);
-  const [addingSmartTag, setAddingSmartTag] = useState<string | null>(null);
-  const [smartTagError, setSmartTagError] = useState<string | null>(null);
-  const [tagInput, setTagInput] = useState("");
-  const [savingTags, setSavingTags] = useState(false);
   const [showDeleted, setShowDeleted] = useState(false);
   const [deletedItems, setDeletedItems] = useState<DeletedHistoryItem[]>([]);
   const [deletedLoading, setDeletedLoading] = useState(false);
@@ -198,7 +187,11 @@ export default function InterviewHistoryScreen() {
     }
   }, [deviceId]);
 
-  useEffect(() => { load(); }, [load]);
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load])
+  );
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -216,137 +209,92 @@ export default function InterviewHistoryScreen() {
     setRenameItem(it);
   };
 
-  const addSmartTagInline = async (label: string) => {
-    if (!tagsItem || !deviceId || addingSmartTag) return;
-    const cleaned = normalizeTag(label);
-    if (!cleaned) return;
-    if (tagsDraft.length >= MAX_TAGS_PER_INTERVIEW) {
-      setSmartTagError(`Limit is ${MAX_TAGS_PER_INTERVIEW} tags.`);
-      return;
+  const startEditTags = (it: HistoryItem) => {
+    setActionItem(null);
+    setTagsItem(it);
+  };
+
+  const initialTagsForEditor = useMemo(() => {
+    if (!tagsItem) return [] as string[];
+    return Array.isArray(tagsItem.tags)
+      ? tagsItem.tags.map(normalizeTag).filter((t) => t.length > 0)
+      : [];
+  }, [tagsItem]);
+
+  const tagsItemSmartBase = useMemo(() => {
+    if (!tagsItem) return null;
+    return {
+      interviewerId: tagsItem.interviewerId,
+      intervieweeId: tagsItem.intervieweeId,
+      interviewerName: tagsItem.interviewerName,
+      intervieweeName: tagsItem.intervieweeName,
+      lieCount: tagsItem.lieCount,
+      userLieCount: tagsItem.userLieCount,
+      messageCount: tagsItem.messageCount,
+      durationMinutes: tagsItem.durationMinutes,
+    };
+  }, [tagsItem]);
+
+  const smartSuggestions = useMemo(() => {
+    if (!tagsItemSmartBase) return [];
+    return buildSmartTagSuggestions(tagsItemSmartBase, initialTagsForEditor, 5);
+  }, [tagsItemSmartBase, initialTagsForEditor]);
+
+  const handleAddSmartTag = useCallback(async (
+    _label: string,
+    nextDraft: string[],
+  ): Promise<{ ok: true; tags?: string[] } | { ok: false; error?: string }> => {
+    if (!tagsItem || !deviceId) {
+      return { ok: false, error: "Couldn't add tag. Please try again." };
     }
-    if (tagsDraft.some((t) => t.toLowerCase() === cleaned.toLowerCase())) return;
-    setSmartTagError(null);
-    setAddingSmartTag(cleaned);
+    const targetId = tagsItem.id;
     try {
-      const nextTags = [...tagsDraft, cleaned];
-      const targetId = tagsItem.id;
+      const res = await fetch(new URL(`/api/arena/interview-history/${targetId}`, getApiUrl()).toString(), {
+        method: "PATCH",
+        headers: { "x-device-id": deviceId, "Content-Type": "application/json" },
+        body: JSON.stringify({ tags: nextDraft }),
+      });
+      if (!res.ok) return { ok: false, error: "Couldn't add tag. Please try again." };
+      let savedTags: string[] = nextDraft;
+      try {
+        const j = await res.json();
+        if (Array.isArray(j?.tags)) savedTags = j.tags;
+      } catch {}
+      setItems((prev) => prev.map((x) => x.id === targetId ? { ...x, tags: savedTags } : x));
+      return { ok: true, tags: savedTags };
+    } catch {
+      return { ok: false, error: "Couldn't add tag. Please try again." };
+    }
+  }, [tagsItem, deviceId]);
+
+  const handleSaveTags = useCallback(async (
+    nextTags: string[],
+  ): Promise<{ ok: true; tags?: string[] } | { ok: false; error?: string }> => {
+    if (!tagsItem || !deviceId) return { ok: false };
+    const targetId = tagsItem.id;
+    try {
       const res = await fetch(new URL(`/api/arena/interview-history/${targetId}`, getApiUrl()).toString(), {
         method: "PATCH",
         headers: { "x-device-id": deviceId, "Content-Type": "application/json" },
         body: JSON.stringify({ tags: nextTags }),
       });
-      if (res.ok) {
-        let savedTags: string[] = nextTags;
-        try {
-          const j = await res.json();
-          if (Array.isArray(j?.tags)) savedTags = j.tags;
-        } catch {}
-        setTagsDraft(savedTags);
-        setItems((prev) => prev.map((x) => x.id === targetId ? { ...x, tags: savedTags } : x));
-      } else {
-        setSmartTagError("Couldn't add tag. Please try again.");
-      }
-    } catch {
-      setSmartTagError("Couldn't add tag. Please try again.");
-    } finally {
-      setAddingSmartTag(null);
-    }
-  };
-
-  useEffect(() => {
-    if (!smartTagError) return;
-    const t = setTimeout(() => setSmartTagError(null), 2500);
-    return () => clearTimeout(t);
-  }, [smartTagError]);
-
-  useEffect(() => {
-    if (!tagsItem) {
-      setSmartTagError(null);
-      setAddingSmartTag(null);
-    }
-  }, [tagsItem]);
-
-  const startEditTags = (it: HistoryItem) => {
-    setActionItem(null);
-    const initial = Array.isArray(it.tags)
-      ? it.tags.map(normalizeTag).filter((t) => t.length > 0)
-      : [];
-    setTagsDraft(initial);
-    setTagInput("");
-    setTagsItem(it);
-  };
-
-  const addDraftTag = (raw: string) => {
-    const cleaned = normalizeTag(raw);
-    if (!cleaned) return;
-    setTagsDraft((prev) => {
-      if (prev.length >= MAX_TAGS_PER_INTERVIEW) return prev;
-      const key = cleaned.toLowerCase();
-      if (prev.some((t) => t.toLowerCase() === key)) return prev;
-      return [...prev, cleaned];
-    });
-    setTagInput("");
-  };
-
-  const removeDraftTag = (tag: string) => {
-    const key = tag.toLowerCase();
-    setTagsDraft((prev) => prev.filter((t) => t.toLowerCase() !== key));
-  };
-
-  const smartSuggestions = useMemo(() => {
-    if (!tagsItem) return [];
-    return buildSmartTagSuggestions(
-      {
-        interviewerId: tagsItem.interviewerId,
-        intervieweeId: tagsItem.intervieweeId,
-        interviewerName: tagsItem.interviewerName,
-        intervieweeName: tagsItem.intervieweeName,
-        lieCount: tagsItem.lieCount,
-        userLieCount: tagsItem.userLieCount,
-        messageCount: tagsItem.messageCount,
-        durationMinutes: tagsItem.durationMinutes,
-      },
-      tagsDraft,
-      5,
-    );
-  }, [tagsItem, tagsDraft]);
-
-  const submitTags = async () => {
-    if (!tagsItem || !deviceId) return;
-    setSavingTags(true);
-    let nextTags = [...tagsDraft];
-    const pending = normalizeTag(tagInput);
-    if (pending && nextTags.length < MAX_TAGS_PER_INTERVIEW) {
-      const key = pending.toLowerCase();
-      if (!nextTags.some((t) => t.toLowerCase() === key)) {
-        nextTags.push(pending);
-      }
-    }
-    try {
-      const res = await fetch(new URL(`/api/arena/interview-history/${tagsItem.id}`, getApiUrl()).toString(), {
-        method: "PATCH",
-        headers: { "x-device-id": deviceId, "Content-Type": "application/json" },
-        body: JSON.stringify({ tags: nextTags }),
-      });
-      if (res.ok) {
-        let savedTags: string[] = nextTags;
-        try {
-          const j = await res.json();
-          if (Array.isArray(j?.tags)) savedTags = j.tags;
-        } catch {}
-        const targetId = tagsItem.id;
-        setItems((prev) => prev.map((x) => x.id === targetId ? { ...x, tags: savedTags } : x));
-        setTagsItem(null);
-        setTagInput("");
-      } else {
+      if (!res.ok) {
         setErrorMsg("Couldn't update tags. Please try again.");
+        return { ok: false };
       }
+      let savedTags: string[] = nextTags;
+      try {
+        const j = await res.json();
+        if (Array.isArray(j?.tags)) savedTags = j.tags;
+      } catch {}
+      setItems((prev) => prev.map((x) => x.id === targetId ? { ...x, tags: savedTags } : x));
+      setTagsItem(null);
+      return { ok: true, tags: savedTags };
     } catch {
       setErrorMsg("Couldn't update tags. Please try again.");
-    } finally {
-      setSavingTags(false);
+      return { ok: false };
     }
-  };
+  }, [tagsItem, deviceId]);
 
   const submitRename = async () => {
     if (!renameItem || !deviceId) return;
@@ -819,137 +767,19 @@ export default function InterviewHistoryScreen() {
         </View>
       </Modal>
 
-      <Modal visible={!!tagsItem} transparent animationType="fade" onRequestClose={() => setTagsItem(null)}>
-        <View style={s.modalOverlay}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => setTagsItem(null)} />
-          <View style={s.sheet} testID="history-tags-sheet">
-            <View style={s.handle} />
-            <Text style={s.sheetTitle}>Tag this interview</Text>
-            <Text style={s.sheetSub}>
-              Add up to {MAX_TAGS_PER_INTERVIEW} short tags (e.g. favorites, for the show, spicy).
-            </Text>
-
-            {tagsDraft.length > 0 ? (
-              <View style={s.draftTagsRow}>
-                {tagsDraft.map((t) => (
-                  <Pressable
-                    key={t.toLowerCase()}
-                    onPress={() => removeDraftTag(t)}
-                    style={s.draftTagChip}
-                    testID={`history-tag-draft-${t.toLowerCase()}`}
-                  >
-                    <Text style={s.draftTagChipText}>#{t}</Text>
-                    <Ionicons name="close" size={12} color="#000" />
-                  </Pressable>
-                ))}
-              </View>
-            ) : (
-              <Text style={s.tagsHint}>No tags yet — type one below or pick from your set.</Text>
-            )}
-
-            <View style={s.tagInputRow}>
-              <TextInput
-                value={tagInput}
-                onChangeText={(v) => setTagInput(v.slice(0, MAX_TAG_LENGTH))}
-                placeholder="New tag"
-                placeholderTextColor="rgba(255,255,255,0.35)"
-                style={[s.input, { flex: 1, marginBottom: 0 }]}
-                maxLength={MAX_TAG_LENGTH}
-                onSubmitEditing={() => addDraftTag(tagInput)}
-                returnKeyType="done"
-                blurOnSubmit={false}
-                editable={tagsDraft.length < MAX_TAGS_PER_INTERVIEW}
-                testID="history-tags-input"
-              />
-              <Pressable
-                onPress={() => addDraftTag(tagInput)}
-                disabled={!normalizeTag(tagInput) || tagsDraft.length >= MAX_TAGS_PER_INTERVIEW}
-                style={[
-                  s.tagAddBtn,
-                  (!normalizeTag(tagInput) || tagsDraft.length >= MAX_TAGS_PER_INTERVIEW) && { opacity: 0.4 },
-                ]}
-                testID="history-tags-add"
-              >
-                <Ionicons name="add" size={20} color="#000" />
-              </Pressable>
-            </View>
-
-            {smartSuggestions.length > 0 ? (
-              <View style={{ marginTop: 14 }} testID="history-smart-suggestions">
-                <Text style={s.tagsSectionLabel}>Smart suggestions</Text>
-                <View style={s.suggestionRow}>
-                  {smartSuggestions.map((label) => {
-                    const busy = addingSmartTag === label;
-                    return (
-                      <Pressable
-                        key={`smart-${label.toLowerCase()}`}
-                        onPress={() => addSmartTagInline(label)}
-                        disabled={!!addingSmartTag}
-                        style={[s.suggestionChip, s.smartSuggestionChip, busy && { opacity: 0.6 }]}
-                        testID={`history-smart-suggest-${label.toLowerCase()}`}
-                      >
-                        <Ionicons name="sparkles" size={11} color="#FFD700" />
-                        <Text style={[s.suggestionChipText, s.smartSuggestionChipText]}>
-                          #{label}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-                {smartTagError ? (
-                  <Text style={s.smartTagErrorText} testID="history-smart-tag-error">
-                    {smartTagError}
-                  </Text>
-                ) : null}
-              </View>
-            ) : null}
-
-            {allTags.length > 0 ? (
-              <View style={{ marginTop: 14 }}>
-                <Text style={s.tagsSectionLabel}>Your tags</Text>
-                <View style={s.suggestionRow}>
-                  {allTags.map((t) => {
-                    const inDraft = tagsDraft.some((d) => d.toLowerCase() === t.label.toLowerCase());
-                    return (
-                      <Pressable
-                        key={t.label.toLowerCase()}
-                        onPress={() => {
-                          if (inDraft) removeDraftTag(t.label);
-                          else addDraftTag(t.label);
-                        }}
-                        style={[s.suggestionChip, inDraft && s.suggestionChipActive]}
-                        testID={`history-tag-suggest-${t.label.toLowerCase()}`}
-                      >
-                        <Text style={[s.suggestionChipText, inDraft && s.suggestionChipTextActive]}>
-                          #{t.label}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </View>
-            ) : null}
-
-            <View style={[s.sheetActions, { marginTop: 18 }]}>
-              <Pressable style={[s.sheetBtn, s.sheetBtnGhost]} onPress={() => setTagsItem(null)}>
-                <Text style={s.sheetBtnGhostText}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                style={[s.sheetBtn, s.sheetBtnPrimary]}
-                onPress={submitTags}
-                disabled={savingTags}
-                testID="history-tags-save"
-              >
-                {savingTags ? (
-                  <ActivityIndicator color="#000" />
-                ) : (
-                  <Text style={s.sheetBtnPrimaryText}>Save</Text>
-                )}
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      <TagEditorModal
+        visible={!!tagsItem}
+        initialTags={initialTagsForEditor}
+        smartSuggestions={smartSuggestions}
+        computeSmartSuggestions={(draft) =>
+          tagsItemSmartBase ? buildSmartTagSuggestions(tagsItemSmartBase, draft, 5) : []
+        }
+        allTags={allTags}
+        onClose={() => setTagsItem(null)}
+        onSave={handleSaveTags}
+        onAddSmartTag={handleAddSmartTag}
+        testIDPrefix="history-tags"
+      />
 
       {errorMsg ? (
         <View style={s.toast} pointerEvents="none" testID="history-error-toast">
@@ -1252,22 +1082,6 @@ const s = StyleSheet.create({
   rowTagChipText: { color: "rgba(255,215,0,0.85)", fontSize: 10, fontWeight: "800" },
   rowTagChipTextActive: { color: "#FFD700" },
   rowTagsMore: { color: "rgba(255,255,255,0.45)", fontSize: 10, fontWeight: "700", marginLeft: 2 },
-
-  draftTagsRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 },
-  draftTagChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, backgroundColor: "#FFD700" },
-  draftTagChipText: { color: "#000", fontSize: 12, fontWeight: "900" },
-  tagsHint: { color: "rgba(255,255,255,0.45)", fontSize: 11, marginBottom: 12, fontWeight: "600" },
-  tagInputRow: { flexDirection: "row", gap: 8, alignItems: "center" },
-  tagAddBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: "#FFD700", alignItems: "center", justifyContent: "center" },
-  tagsSectionLabel: { color: "rgba(255,255,255,0.55)", fontSize: 10, fontWeight: "900", letterSpacing: 0.8, marginBottom: 8 },
-  suggestionRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  suggestionChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.05)", borderWidth: 1, borderColor: "rgba(255,255,255,0.14)" },
-  suggestionChipActive: { backgroundColor: "rgba(255,215,0,0.18)", borderColor: "rgba(255,215,0,0.7)" },
-  suggestionChipText: { color: "rgba(255,255,255,0.75)", fontSize: 11, fontWeight: "700" },
-  suggestionChipTextActive: { color: "#FFD700", fontWeight: "900" },
-  smartSuggestionChip: { backgroundColor: "rgba(255,215,0,0.1)", borderColor: "rgba(255,215,0,0.45)", borderStyle: "dashed" },
-  smartSuggestionChipText: { color: "#FFD700", fontWeight: "800" },
-  smartTagErrorText: { color: "#ff4d4d", fontSize: 11, marginTop: 8, fontWeight: "700" },
 
   deletedPillRow: { flexDirection: "row", paddingHorizontal: 14, marginTop: 8, marginBottom: 8, zIndex: 5 },
   deletedPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14, backgroundColor: "rgba(255,215,0,0.18)", borderWidth: 1, borderColor: "rgba(255,215,0,0.5)" },
