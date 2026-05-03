@@ -87,14 +87,25 @@ const PERSONA_CATEGORY_MAP: Record<string, PersonaCategory> = {
 // Political Facts IQ: everyone starts at 100 (seeded from all-time average).
 // Rises with verified truths (+5 strong, +2 moderate) and falls with lies (-8 AI, -4 viewer).
 // Range 0–200 per session, synced to all-time rolling average on the backend.
+// Four tiers: Political Genius (green ≥130) | Politically Savvy (yellow ≥90) |
+//             Politically Ignorant (orange ≥60) | Complete Dumb Ass (red <60)
 function iqColor(iq: number): string {
-  if (iq >= 160) return "#4ADE80";
-  if (iq >= 130) return "#86EFAC";
-  if (iq >= 110) return "#BEF264";
+  if (iq >= 130) return "#4ADE80";
   if (iq >= 90)  return "#FBBF24";
-  if (iq >= 70)  return "#F97316";
-  if (iq >= 40)  return "#EF4444";
+  if (iq >= 60)  return "#F97316";
   return "#DC2626";
+}
+function iqLabelFull(iq: number): string {
+  if (iq >= 130) return "Political Genius";
+  if (iq >= 90)  return "Politically Savvy";
+  if (iq >= 60)  return "Politically Ignorant";
+  return "Complete Dumb Ass";
+}
+function iqLabelShort(iq: number): string {
+  if (iq >= 130) return "GENIUS";
+  if (iq >= 90)  return "SAVVY";
+  if (iq >= 60)  return "IGNORANT";
+  return "DUMB ASS";
 }
 
 interface ArenaPersona {
@@ -4358,7 +4369,7 @@ export default function ArenaScreen() {
             {personaSessionIQ[item.speakerId] !== undefined && (
               <View style={[s.iqPill, { borderColor: iqColor(personaSessionIQ[item.speakerId]) + "70", backgroundColor: iqColor(personaSessionIQ[item.speakerId]) + "1A" }]}>
                 <Text style={[s.iqPillText, { color: iqColor(personaSessionIQ[item.speakerId]) }]}>
-                  IQ {personaSessionIQ[item.speakerId]}
+                  {iqLabelShort(personaSessionIQ[item.speakerId])} {personaSessionIQ[item.speakerId]}
                 </Text>
               </View>
             )}
@@ -5107,7 +5118,7 @@ export default function ArenaScreen() {
               return (
                 <View style={s.focusStat}>
                   <Ionicons name="bulb-outline" size={12} color={col} />
-                  <Text style={s.focusStatLabel}>Facts IQ</Text>
+                  <Text style={[s.focusStatLabel, { color: col, fontWeight: "800" as const }]}>{iqLabelFull(iq)}</Text>
                   <View style={[s.focusStatBar, { backgroundColor: col }, { width: `${Math.min(100, Math.round(iq / 2))}%` }]} />
                   <Text style={[s.focusStatVal, { color: col }]}>{iq}</Text>
                 </View>
