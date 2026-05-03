@@ -3752,6 +3752,12 @@ Your personality quirks:
     )`);
     await initDb.query(`CREATE INDEX IF NOT EXISTS lie_tallies_day_idx ON lie_tallies (day)`);
     await initDb.query(`CREATE INDEX IF NOT EXISTS lie_tallies_persona_idx ON lie_tallies (persona_id)`);
+    await initDb.query(`CREATE TABLE IF NOT EXISTS persona_iq_alltime (
+      persona_id TEXT PRIMARY KEY,
+      avg_iq NUMERIC(7,2) NOT NULL DEFAULT 100,
+      session_count INTEGER NOT NULL DEFAULT 0,
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )`);
     await initDb.query(`CREATE TABLE IF NOT EXISTS interview_bookmarks (
       id TEXT PRIMARY KEY,
       device_id TEXT NOT NULL,
@@ -3813,6 +3819,28 @@ Your personality quirks:
     } finally {
       await db.end();
     }
+  }
+
+  // ── POLITICAL FACTS IQ: all-time rolling average per persona (write-through cache) ──
+  const iqAlltimeCache = new Map<string, number>();
+  let iqCacheLoadedAt = 0;
+  async function loadIqCache(): Promise<void> {
+    const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+    try {
+      const rows = await db.query(`SELECT persona_id, avg_iq FROM persona_iq_alltime`);
+      for (const row of rows.rows) {
+        iqAlltimeCache.set(row.persona_id, parseFloat(row.avg_iq) || 100);
+      }
+      iqCacheLoadedAt = Date.now();
+    } catch (e: any) {
+      console.error("loadIqCache error:", e.message);
+    } finally { await db.end(); }
+  }
+  loadIqCache().catch(() => {});
+  const iqCacheTimer: any = setInterval(() => loadIqCache().catch(() => {}), 60_000);
+  if (typeof iqCacheTimer?.unref === "function") iqCacheTimer.unref();
+  function getPersonaAllTimeIq(personaId: string): number {
+    return Math.round(iqAlltimeCache.get(personaId) ?? 100);
   }
 
   // ── LIE TALLY: per-persona daily + all-time global counter (write-through cache) ──
@@ -5119,20 +5147,51 @@ Address everyone by FIRST NAME ONLY. Keep responses to 2-3 sentences max. Speak 
     berniemc: "truth", joyreid: "truth", odonnell: "truth",
   };
 
-  function getLieBehaviorPrompt(personaId: string, sessionLieCount: number = 0): string {
+  function getLieBehaviorPrompt(personaId: string, sessionLieCount: number = 0, sessionIqMap?: Record<string, number>): string {
     const behavior = PERSONA_LIE_BEHAVIOR[personaId] || "dodger";
     const globalCount = getGlobalLieCount(personaId);
     const todayCount = getTodayLieCount(personaId);
     let header = `\n\nLIE DETECTOR (live, on-screen): A neutral AI fact-checker is scoring every word you say on a 0-100 truthfulness scale. The audience can see a running count of every confirmed lie and can flag any quote themselves.`;
     if (sessionLieCount > 0) header += ` So far this session you have been caught in ${sessionLieCount} lie${sessionLieCount === 1 ? "" : "s"}.`;
     if (globalCount > 0) header += ` Your CAREER counter on this app shows ${globalCount} confirmed lie${globalCount === 1 ? "" : "s"} all-time, ${todayCount} today.`;
+    let behaviorText: string;
     if (behavior === "shameless") {
-      return header + ` YOUR ATTITUDE: You DO NOT CARE. Lie freely. Exaggerate wildly — "biggest crowd in history", "nobody's ever seen anything like it", "everyone's saying it". Cite made-up statistics with total confidence. When the lie counter ticks up, BRAG about it, call it FAKE NEWS, a witch hunt, a rigged AI, and double down on the lie. The counter is a BADGE OF HONOR — wear it loud and proud.`;
+      behaviorText = ` YOUR ATTITUDE: You DO NOT CARE. Lie freely. Exaggerate wildly — "biggest crowd in history", "nobody's ever seen anything like it", "everyone's saying it". Cite made-up statistics with total confidence. When the lie counter ticks up, BRAG about it, call it FAKE NEWS, a witch hunt, a rigged AI, and double down on the lie. The counter is a BADGE OF HONOR — wear it loud and proud.`;
+    } else if (behavior === "dodger") {
+      behaviorText = ` YOUR ATTITUDE: You are TOO POLISHED to get caught in an outright lie. Use "alternative facts", carefully cherry-picked statistics, hedged language ("reportedly", "I've been told", "sources say", "many people are saying"), rhetorical questions, and well-rehearsed deflections. Spin without ever stating a verifiable falsehood. If the counter goes up on you, dispute the FRAMING rather than the fact — "that depends what you mean by…".`;
+    } else {
+      behaviorText = ` YOUR ATTITUDE: You take pride in stating verifiable, on-the-record facts. When opponents lie, call them out BY NAME, cite specific receipts, and reference the lie counter ("that's another lie from him — check the counter"). Push back hard against propaganda, conspiracy theories, and made-up numbers.`;
     }
-    if (behavior === "dodger") {
-      return header + ` YOUR ATTITUDE: You are TOO POLISHED to get caught in an outright lie. Use "alternative facts", carefully cherry-picked statistics, hedged language ("reportedly", "I've been told", "sources say", "many people are saying"), rhetorical questions, and well-rehearsed deflections. Spin without ever stating a verifiable falsehood. If the counter goes up on you, dispute the FRAMING rather than the fact — "that depends what you mean by…".`;
+    let iqContext = "";
+    if (sessionIqMap && Object.keys(sessionIqMap).length > 0) {
+      const iqEntries = Object.entries(sessionIqMap)
+        .filter(([pid]) => ARENA_NAME_MAP[pid])
+        .sort(([, a], [, b]) => (b as number) - (a as number));
+      if (iqEntries.length > 0) {
+        const iqList = iqEntries.map(([pid, iq]) => `${ARENA_NAME_MAP[pid]}: ${Math.round(iq as number)}`).join(", ");
+        iqContext = `\n\nPOLITICAL FACTS IQ (live 0–200 scale, starts at 100, rises with verified facts, drops with detected lies — audience sees it in real time): ${iqList}.`;
+        const myIq = sessionIqMap[personaId];
+        if (myIq !== undefined) {
+          const r = Math.round(myIq as number);
+          if (r >= 150) {
+            iqContext += ` YOUR IQ is ${r} — the highest in the room. Make sure your opponents know it.`;
+          } else if (r >= 120) {
+            iqContext += ` YOUR IQ is ${r} — above average. Facts are on your side; push that advantage.`;
+          } else if (r >= 80) {
+            iqContext += ` YOUR IQ is ${r} — close to average. Stay sharp.`;
+          } else if (r >= 50) {
+            iqContext += ` YOUR IQ is ${r} — the lie detector has hurt you. React as your character naturally would.`;
+          } else {
+            iqContext += ` YOUR IQ is ${r} — near the bottom. The fact-checker is destroying your credibility. React as your character naturally would.`;
+          }
+          const lowestEntry = iqEntries[iqEntries.length - 1];
+          if (lowestEntry && lowestEntry[0] !== personaId && (lowestEntry[1] as number) < myIq - 20) {
+            iqContext += ` ${ARENA_NAME_MAP[lowestEntry[0]] || lowestEntry[0]} has the lowest IQ in the room at ${Math.round(lowestEntry[1] as number)} — you may bring this up to discredit them.`;
+          }
+        }
+      }
     }
-    return header + ` YOUR ATTITUDE: You take pride in stating verifiable, on-the-record facts. When opponents lie, call them out BY NAME, cite specific receipts, and reference the lie counter ("that's another lie from him — check the counter"). Push back hard against propaganda, conspiracy theories, and made-up numbers.`;
+    return header + behaviorText + iqContext;
   }
 
   app.post("/api/arena/respond", async (req, res) => {
@@ -5196,8 +5255,10 @@ Address everyone by FIRST NAME ONLY. Keep responses to 2-3 sentences max. Speak 
       const newsContext = await getArenaNewsContext();
       const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
       const currentYearContext = `\n\nCRITICAL WORLD CONTEXT — TODAY IS ${todayStr}:\n- Donald Trump is the CURRENT sitting President of the United States (inaugurated January 2025, won the 2024 election)\n- Joe Biden is the FORMER president — he LOST and is no longer in office\n- Elon Musk led DOGE (Department of Government Efficiency) for Trump's administration\n- The Iran military conflict is ongoing in 2025-2026 — Trump's opponents mockingly call it "The Epstein War" claiming he started it to distract from the Epstein files, but Trump and his supporters NEVER use that term and get furious when they hear it\n- You are fully up to date on ALL 2025-2026 world events. NEVER reference events as if they haven't happened yet. You know everything that has happened up to today.\n`;
-      const sessionLieCount = Number((req.body.sessionLieTally || {})[responderId]) || 0;
-      let systemPrompt = ARENA_PERSONA_PROMPTS[responderId] + currentYearContext + getLieBehaviorPrompt(responderId, sessionLieCount);
+      const sessionLieTally: Record<string, number> = req.body.sessionLieTally || {};
+      const sessionIQ: Record<string, number> = req.body.sessionIQ || {};
+      const sessionLieCount = Number(sessionLieTally[responderId]) || 0;
+      let systemPrompt = ARENA_PERSONA_PROMPTS[responderId] + currentYearContext + getLieBehaviorPrompt(responderId, sessionLieCount, sessionIQ);
       if (winTallyContext) {
         systemPrompt += winTallyContext;
       }
@@ -5486,7 +5547,7 @@ Use "era":"current" for today's news, "era":"past" for old controversies. Do not
 
       const interviewerStyle = `You are ${interviewerName} hosting a high-stakes 1-on-1 interview with ${intervieweeName}. Today is ${todayStr}. Stay 100% in character — your tone, vocabulary, ideology, and aggression level are all who you are. ${ARENA_PERSONA_PROMPTS[interviewerId]}
 
-CRITICAL TARGETING: ${intervieweeName} is sitting across from you RIGHT NOW. They are your guest AND, given who you are, your adversary. If your character profile contains insults, attacks, nicknames, or hostility toward "${intervieweeName}", USE THEM in your questions. Address them by name. Bake the savage lines from your profile DIRECTLY into the question — do not soften, do not generalize. If your character would call them weak, corrupt, dishonest, washed-up, a fraud, etc., put it in the question. This is YOUR booth — you set the tone, you press the attack.${getLieBehaviorPrompt(interviewerId, Number((req.body.sessionLieTally || {})[interviewerId]) || 0)}`;
+CRITICAL TARGETING: ${intervieweeName} is sitting across from you RIGHT NOW. They are your guest AND, given who you are, your adversary. If your character profile contains insults, attacks, nicknames, or hostility toward "${intervieweeName}", USE THEM in your questions. Address them by name. Bake the savage lines from your profile DIRECTLY into the question — do not soften, do not generalize. If your character would call them weak, corrupt, dishonest, washed-up, a fraud, etc., put it in the question. This is YOUR booth — you set the tone, you press the attack.${getLieBehaviorPrompt(interviewerId, Number((req.body.sessionLieTally || {})[interviewerId]) || 0, req.body.sessionIQ || {})}`;
 
       const historyContext = (conversationHistory || []).slice(-6).map((m: any) =>
         `${m.speakerName}: "${m.text}"`
@@ -5557,7 +5618,7 @@ CRITICAL TARGETING: ${intervieweeName} is sitting across from you RIGHT NOW. The
 
 CRITICAL TARGETING: ${interviewerName} is sitting across from you RIGHT NOW. They are your interviewer AND your adversary. If your character profile contains insults, attacks, nicknames, or hostility toward "${interviewerName}", USE THEM. Address them by name. Throw the savage lines from your profile at them DIRECTLY — do not soften, do not generalize. If your character normally calls them ugly, dumb, a traitor, a foreigner, a loser, a liar, etc., say it to their face. This is YOUR moment to attack the messenger.
 
-Stay 100% in character — your tone, vocabulary, ideology, and combativeness are all who you are. Do not break character to be polite to the interviewer. ${ARENA_PERSONA_PROMPTS[intervieweeId]}${getLieBehaviorPrompt(intervieweeId, Number((req.body.sessionLieTally || {})[intervieweeId]) || 0)}`;
+Stay 100% in character — your tone, vocabulary, ideology, and combativeness are all who you are. Do not break character to be polite to the interviewer. ${ARENA_PERSONA_PROMPTS[intervieweeId]}${getLieBehaviorPrompt(intervieweeId, Number((req.body.sessionLieTally || {})[intervieweeId]) || 0, req.body.sessionIQ || {})}`;
 
       const historyContext = (conversationHistory || []).slice(-6).map((m: any) =>
         `${m.speakerName}: "${m.text}"`
@@ -5627,7 +5688,7 @@ Stay 100% in character — your tone, vocabulary, ideology, and combativeness ar
       ).join("\n");
 
       // Step 1: interviewer frames the call-in question
-      const framePrompt = `You are ${interviewerName}, the interviewer. ${ARENA_PERSONA_PROMPTS[interviewerId]}${getLieBehaviorPrompt(interviewerId, Number((req.body.sessionLieTally || {})[interviewerId]) || 0)}
+      const framePrompt = `You are ${interviewerName}, the interviewer. ${ARENA_PERSONA_PROMPTS[interviewerId]}${getLieBehaviorPrompt(interviewerId, Number((req.body.sessionLieTally || {})[interviewerId]) || 0, req.body.sessionIQ || {})}
 
 A viewer named "${callerLabel}" just sent in this question for ${intervieweeName}: "${cleanQ}"
 
@@ -5651,7 +5712,7 @@ The viewer ${callerLabel} asked: "${cleanQ}"
 
 Answer the viewer's question in character — punchy, provocative, true to your beliefs. You may briefly acknowledge the caller by name. 2-3 sentences max. Write ONLY your spoken response.
 
-${ARENA_PERSONA_PROMPTS[intervieweeId]}${getLieBehaviorPrompt(intervieweeId, Number((req.body.sessionLieTally || {})[intervieweeId]) || 0)}`;
+${ARENA_PERSONA_PROMPTS[intervieweeId]}${getLieBehaviorPrompt(intervieweeId, Number((req.body.sessionLieTally || {})[intervieweeId]) || 0, req.body.sessionIQ || {})}`;
 
       const answerCompletion = await getClient().chat.completions.create({
         model: getFastModel(),
@@ -5772,6 +5833,51 @@ Return ONLY valid JSON: {"score": 0-100, "isLie": boolean (true if score<40), "r
     } catch (error: any) {
       console.error("Lie stats error:", error);
       res.status(500).json({ today: [], allTime: [], liarOfTheDay: null, liarOfAllTime: null });
+    }
+  });
+
+  // Political Facts IQ all-time averages: GET returns all persona averages, POST updates with session data.
+  app.get("/api/arena/iq-alltime", async (_req, res) => {
+    try {
+      if (Date.now() - iqCacheLoadedAt > 5 * 60_000) await loadIqCache();
+      const result: Record<string, number> = {};
+      for (const [pid, avg] of iqAlltimeCache.entries()) {
+        result[pid] = Math.round(avg);
+      }
+      res.json(result);
+    } catch (e: any) {
+      console.error("iq-alltime GET error:", e.message);
+      res.json({});
+    }
+  });
+
+  app.post("/api/arena/iq-alltime", async (req, res) => {
+    try {
+      const sessions: Record<string, number> = req.body?.sessions || {};
+      const entries = Object.entries(sessions).filter(([pid]) => ARENA_NAME_MAP[pid] !== undefined);
+      if (entries.length === 0) return res.json({ ok: true });
+      const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      try {
+        for (const [pid, sessionIq] of entries) {
+          const clampedIq = Math.max(0, Math.min(200, Number(sessionIq) || 100));
+          await db.query(
+            `INSERT INTO persona_iq_alltime (persona_id, avg_iq, session_count, updated_at)
+             VALUES ($1, $2, 1, NOW())
+             ON CONFLICT (persona_id) DO UPDATE SET
+               avg_iq = (persona_iq_alltime.avg_iq * persona_iq_alltime.session_count + $2) / (persona_iq_alltime.session_count + 1),
+               session_count = persona_iq_alltime.session_count + 1,
+               updated_at = NOW()`,
+            [pid, clampedIq]
+          );
+          const newAvg = (((iqAlltimeCache.get(pid) ?? 100) * (1)) + clampedIq) / 2;
+          iqAlltimeCache.set(pid, newAvg);
+        }
+      } finally { await db.end(); }
+      await loadIqCache();
+      res.json({ ok: true });
+    } catch (e: any) {
+      console.error("iq-alltime POST error:", e.message);
+      res.status(500).json({ error: "Failed to update IQ" });
     }
   });
 

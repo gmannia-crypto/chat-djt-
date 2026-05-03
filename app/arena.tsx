@@ -84,48 +84,17 @@ const PERSONA_CATEGORY_MAP: Record<string, PersonaCategory> = {
   melania: "firstlady",
 };
 
-// Satirical baseline Political Facts IQ per persona.
-// Starts high for fact-checkers, low for conspiracy merchants.
-// Drops -8 per AI-caught lie and -4 per viewer flag during the session.
-const PERSONA_BASE_IQ: Record<string, number> = {
-  trump:      62,
-  netanyahu:  84,
-  ruckus:     71,
-  galloway:  114,
-  mcconnell:  78,
-  carville:  116,
-  maddow:    128,
-  omar:      119,
-  biden:      72,
-  rosie:      93,
-  berniemc:  118,
-  elon:      104,
-  graham:     69,
-  megynkelly: 88,
-  pambondi:   73,
-  candace:    77,
-  joyreid:   107,
-  miller:     65,
-  jimjordan:  68,
-  schumer:    89,
-  alexjones:  46,
-  obama:     124,
-  melania:    95,
-  odonnell:  112,
-  kamala:     81,
-  mtg:        53,
-  rfk:        79,
-  erikakirk:  76,
-  loomer:     51,
-  leavitt:    74,
-};
-
+// Political Facts IQ: everyone starts at 100 (seeded from all-time average).
+// Rises with verified truths (+5 strong, +2 moderate) and falls with lies (-8 AI, -4 viewer).
+// Range 0–200 per session, synced to all-time rolling average on the backend.
 function iqColor(iq: number): string {
-  if (iq >= 120) return "#4ADE80";
-  if (iq >= 100) return "#86EFAC";
-  if (iq >= 80)  return "#FBBF24";
-  if (iq >= 60)  return "#F97316";
-  return "#ff4d4d";
+  if (iq >= 160) return "#4ADE80";
+  if (iq >= 130) return "#86EFAC";
+  if (iq >= 110) return "#BEF264";
+  if (iq >= 90)  return "#FBBF24";
+  if (iq >= 70)  return "#F97316";
+  if (iq >= 40)  return "#EF4444";
+  return "#DC2626";
 }
 
 interface ArenaPersona {
@@ -2023,18 +1992,21 @@ export default function ArenaScreen() {
   const personalLieHistoryRef = useRef<Record<string, number>>({});
   const seenLieIdsRef = useRef<Set<string>>(new Set());
 
-  // Live Political Facts IQ: base score minus session-detected lies.
-  const personaSessionIQ = React.useMemo(() => {
-    const result: Record<string, number> = {};
-    for (const pid of Object.keys(PERSONA_BASE_IQ)) {
-      const base = PERSONA_BASE_IQ[pid] ?? 100;
-      const sessionLies = lies.filter((l) => l.speakerId === pid);
-      const autoLies   = sessionLies.filter((l) => !l.userFlagged).length;
-      const flaggedLies = sessionLies.filter((l) => !!l.userFlagged).length;
-      result[pid] = Math.max(12, base - autoLies * 8 - flaggedLies * 4);
-    }
-    return result;
-  }, [lies]);
+  // Political Facts IQ: starts at 100 (or all-time avg), rises with truths, falls with lies.
+  const [personaSessionIQ, setPersonaSessionIQ] = useState<Record<string, number>>({});
+  const personaSessionIQRef = useRef<Record<string, number>>({});
+
+  const adjustPersonaIQ = useCallback((pid: string, delta: number) => {
+    setPersonaSessionIQ((prev) => {
+      const cur = prev[pid] ?? 100;
+      const next = Math.max(0, Math.min(200, Math.round(cur + delta)));
+      const updated = { ...prev, [pid]: next };
+      personaSessionIQRef.current = updated;
+      return updated;
+    });
+  }, []);
+  const sessionLieTallyRef = useRef<Record<string, number>>({});
+  const alltimeIQRef = useRef<Record<string, number>>({});
 
   const [emotionalStates, setEmotionalStates] = useState<Record<string, EmotionalState>>(() => {
     const s: Record<string, EmotionalState> = {};
@@ -2971,6 +2943,12 @@ export default function ArenaScreen() {
       }
     }).catch(() => {});
     const topicRefresh = setInterval(fetchTopics, 3 * 60 * 1000);
+    fetch(new URL("/api/arena/iq-alltime", getApiUrl()).toString())
+      .then((r) => r.ok ? r.json() : {})
+      .then((data: Record<string, number>) => {
+        alltimeIQRef.current = data;
+      })
+      .catch(() => {});
     return () => clearInterval(topicRefresh);
   }, [fetchTopics, checkArenaStatus, restoreSavedSession]);
 
@@ -2999,6 +2977,18 @@ export default function ArenaScreen() {
         playBellSound();
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         addSystemMessage("TIME'S UP! The bell has rung! Continue the debate or end the session.");
+        const activeIds = selectedPersonasRef.current;
+        if (activeIds.length > 0) {
+          const sessions: Record<string, number> = {};
+          for (const pid of activeIds) { sessions[pid] = personaSessionIQRef.current[pid] ?? 100; }
+          fetch(new URL("/api/arena/iq-alltime", getApiUrl()).toString(), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sessions }),
+          }).then((r) => r.ok ? r.json() : {}).then((data: Record<string, number>) => {
+            if (Object.keys(data).length > 0) alltimeIQRef.current = { ...alltimeIQRef.current, ...data };
+          }).catch(() => {});
+        }
         (async () => {
           try {
             const sessionMins = Math.max(1, Math.round((Date.now() - (sessionExpiresAt - (hasSession ? sessionTimer * 1000 : 0))) / 60000));
@@ -3157,6 +3147,8 @@ export default function ArenaScreen() {
         const score = Math.max(0, Math.min(100, Number(data.score) || 70));
         setLatestTruthScore(score);
         if (score < 40 || data.isLie) {
+          adjustPersonaIQ(msg.speakerId, -8);
+          sessionLieTallyRef.current = { ...sessionLieTallyRef.current, [msg.speakerId]: (sessionLieTallyRef.current[msg.speakerId] || 0) + 1 };
           setLieCount((c) => c + 1);
           setLies((prev) => [...prev, {
             id: `lie-${msg.id}`,
@@ -3170,10 +3162,14 @@ export default function ArenaScreen() {
           }]);
           triggerLieFlash();
           playLieAlert();
+        } else if (score >= 80) {
+          adjustPersonaIQ(msg.speakerId, 5);
+        } else if (score >= 60) {
+          adjustPersonaIQ(msg.speakerId, 2);
         }
       })
       .catch(() => {});
-  }, [deviceId, triggerLieFlash, playLieAlert]);
+  }, [deviceId, triggerLieFlash, playLieAlert, adjustPersonaIQ]);
 
   const flagMessageAsLie = useCallback((msg: ConversationMessage) => {
     if (!deviceId) return;
@@ -3229,6 +3225,8 @@ export default function ArenaScreen() {
         } : l));
         setLatestTruthScore(score);
         if (score < 40) {
+          adjustPersonaIQ(msg.speakerId, -4);
+          sessionLieTallyRef.current = { ...sessionLieTallyRef.current, [msg.speakerId]: (sessionLieTallyRef.current[msg.speakerId] || 0) + 1 };
           triggerLieFlash();
           playLieAlert();
         }
@@ -3253,7 +3251,7 @@ export default function ArenaScreen() {
         }
       })
       .finally(() => { flagPendingRef.current.delete(msg.id); });
-  }, [deviceId, flaggedMsgIds, triggerLieFlash, playLieAlert]);
+  }, [deviceId, flaggedMsgIds, triggerLieFlash, playLieAlert, adjustPersonaIQ]);
 
   const submitLieVote = useCallback((lie: LieEntry, direction: 1 | -1) => {
     if (!deviceId) return;
@@ -3446,6 +3444,8 @@ export default function ArenaScreen() {
           bodyPayload.mcconnellJustFroze = true;
           mcconnellFreezeRef.current = false;
         }
+        bodyPayload.sessionIQ = personaSessionIQRef.current;
+        bodyPayload.sessionLieTally = sessionLieTallyRef.current;
 
         const res = await fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
           method: "POST",
@@ -3977,6 +3977,13 @@ export default function ArenaScreen() {
     setCurrentSpeaker(null);
     setIsRunning(true);
     isRunningRef.current = true;
+    sessionLieTallyRef.current = {};
+    const seededIQ: Record<string, number> = {};
+    for (const pid of selectedPersonasRef.current) {
+      seededIQ[pid] = alltimeIQRef.current[pid] ?? 100;
+    }
+    setPersonaSessionIQ(seededIQ);
+    personaSessionIQRef.current = seededIQ;
     try {
       const ctx = await getArenaMemoryContext("", selectedPersonasRef.current);
       arenaMemoryContextRef.current = ctx;
@@ -5101,7 +5108,7 @@ export default function ArenaScreen() {
                 <View style={s.focusStat}>
                   <Ionicons name="bulb-outline" size={12} color={col} />
                   <Text style={s.focusStatLabel}>Facts IQ</Text>
-                  <View style={[s.focusStatBar, { backgroundColor: col }, { width: `${Math.min(100, Math.round(iq / 1.6))}%` }]} />
+                  <View style={[s.focusStatBar, { backgroundColor: col }, { width: `${Math.min(100, Math.round(iq / 2))}%` }]} />
                   <Text style={[s.focusStatVal, { color: col }]}>{iq}</Text>
                 </View>
               );
