@@ -84,6 +84,50 @@ const PERSONA_CATEGORY_MAP: Record<string, PersonaCategory> = {
   melania: "firstlady",
 };
 
+// Satirical baseline Political Facts IQ per persona.
+// Starts high for fact-checkers, low for conspiracy merchants.
+// Drops -8 per AI-caught lie and -4 per viewer flag during the session.
+const PERSONA_BASE_IQ: Record<string, number> = {
+  trump:      62,
+  netanyahu:  84,
+  ruckus:     71,
+  galloway:  114,
+  mcconnell:  78,
+  carville:  116,
+  maddow:    128,
+  omar:      119,
+  biden:      72,
+  rosie:      93,
+  berniemc:  118,
+  elon:      104,
+  graham:     69,
+  megynkelly: 88,
+  pambondi:   73,
+  candace:    77,
+  joyreid:   107,
+  miller:     65,
+  jimjordan:  68,
+  schumer:    89,
+  alexjones:  46,
+  obama:     124,
+  melania:    95,
+  odonnell:  112,
+  kamala:     81,
+  mtg:        53,
+  rfk:        79,
+  erikakirk:  76,
+  loomer:     51,
+  leavitt:    74,
+};
+
+function iqColor(iq: number): string {
+  if (iq >= 120) return "#4ADE80";
+  if (iq >= 100) return "#86EFAC";
+  if (iq >= 80)  return "#FBBF24";
+  if (iq >= 60)  return "#F97316";
+  return "#ff4d4d";
+}
+
 interface ArenaPersona {
   id: string;
   name: string;
@@ -1978,6 +2022,20 @@ export default function ArenaScreen() {
   const [personalLieHistory, setPersonalLieHistory] = useState<Record<string, number>>({});
   const personalLieHistoryRef = useRef<Record<string, number>>({});
   const seenLieIdsRef = useRef<Set<string>>(new Set());
+
+  // Live Political Facts IQ: base score minus session-detected lies.
+  const personaSessionIQ = React.useMemo(() => {
+    const result: Record<string, number> = {};
+    for (const pid of Object.keys(PERSONA_BASE_IQ)) {
+      const base = PERSONA_BASE_IQ[pid] ?? 100;
+      const sessionLies = lies.filter((l) => l.speakerId === pid);
+      const autoLies   = sessionLies.filter((l) => !l.userFlagged).length;
+      const flaggedLies = sessionLies.filter((l) => !!l.userFlagged).length;
+      result[pid] = Math.max(12, base - autoLies * 8 - flaggedLies * 4);
+    }
+    return result;
+  }, [lies]);
+
   const [emotionalStates, setEmotionalStates] = useState<Record<string, EmotionalState>>(() => {
     const s: Record<string, EmotionalState> = {};
     PERSONA_IDS.forEach((id) => {
@@ -4290,6 +4348,13 @@ export default function ArenaScreen() {
             <View style={[s.factionBadge, { backgroundColor: FACTION_COLORS[persona.faction] + "30", borderColor: FACTION_COLORS[persona.faction] + "60" }]}>
               <Text style={[s.factionText, { color: FACTION_COLORS[persona.faction] }]}>{persona.faction}</Text>
             </View>
+            {personaSessionIQ[item.speakerId] !== undefined && (
+              <View style={[s.iqPill, { borderColor: iqColor(personaSessionIQ[item.speakerId]) + "70", backgroundColor: iqColor(personaSessionIQ[item.speakerId]) + "1A" }]}>
+                <Text style={[s.iqPillText, { color: iqColor(personaSessionIQ[item.speakerId]) }]}>
+                  IQ {personaSessionIQ[item.speakerId]}
+                </Text>
+              </View>
+            )}
             <Pressable
               onPress={() => queueTTS(item.text, item.speakerId, true)}
               style={s.msgListenBtn}
@@ -4337,7 +4402,7 @@ export default function ArenaScreen() {
         </Animated.View>
       );
     },
-    [queueTTS, voiceEnabled, latestPersonaMsgId, awardedMessages, flagMessageAsLie, flaggedMsgIds]
+    [queueTTS, voiceEnabled, latestPersonaMsgId, awardedMessages, flagMessageAsLie, flaggedMsgIds, personaSessionIQ]
   );
 
   const [flashOn, setFlashOn] = useState(true);
@@ -4971,6 +5036,11 @@ export default function ArenaScreen() {
                 <Text style={[s.personaLabel, { color: isSpeaking ? "#FFD700" : p.color }]} numberOfLines={1}>
                   {p.shortName}
                 </Text>
+                {personaSessionIQ[pid] !== undefined && (
+                  <Text style={[s.personaIqLabel, { color: iqColor(personaSessionIQ[pid]) }]}>
+                    IQ {personaSessionIQ[pid]}
+                  </Text>
+                )}
                 {(sessionPts > 0 || (allTime && allTime.totalPoints > 0)) && (
                   <View style={s.personaScoreBadge}>
                     <Text style={s.personaScoreText}>
@@ -5024,6 +5094,18 @@ export default function ArenaScreen() {
               <View style={[s.focusStatBar, { backgroundColor: "#FBBF24" }, { width: `${fEmo.engagement}%` }]} />
               <Text style={s.focusStatVal}>{fEmo.engagement}%</Text>
             </View>
+            {focusedPersona !== null && personaSessionIQ[focusedPersona] !== undefined && (() => {
+              const iq = personaSessionIQ[focusedPersona as string];
+              const col = iqColor(iq);
+              return (
+                <View style={s.focusStat}>
+                  <Ionicons name="bulb-outline" size={12} color={col} />
+                  <Text style={s.focusStatLabel}>Facts IQ</Text>
+                  <View style={[s.focusStatBar, { backgroundColor: col }, { width: `${Math.min(100, Math.round(iq / 1.6))}%` }]} />
+                  <Text style={[s.focusStatVal, { color: col }]}>{iq}</Text>
+                </View>
+              );
+            })()}
           </View>
           </>);
           })()}
@@ -7665,5 +7747,22 @@ const s = StyleSheet.create({
     color: "#ff4d4d",
     fontSize: 11,
     fontWeight: "900" as const,
+  },
+  iqPill: {
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+  },
+  iqPillText: {
+    fontSize: 9,
+    fontWeight: "900" as const,
+    letterSpacing: 0.5,
+  },
+  personaIqLabel: {
+    fontSize: 9,
+    fontWeight: "900" as const,
+    letterSpacing: 0.4,
+    marginTop: 1,
   },
 });
