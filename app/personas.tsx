@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -14,12 +14,20 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-import Animated, { FadeInDown } from "react-native-reanimated";
+import Animated, {
+  FadeInDown,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated";
 import Colors from "@/constants/colors";
 import {
   ARENA_MYSTERY_PERSONA_AVATARS,
   ARENA_MYSTERY_PERSONA_IDS,
   ARENA_MYSTERY_PERSONA_NAMES,
+  ARENA_MYSTERY_PERSONAS_SEEN_KEY,
   ARENA_MYSTERY_UNLOCK_KEY,
   PERSONA_UNLOCKS,
   PersonaUnlockModal,
@@ -31,9 +39,50 @@ import {
 const WEB_TOP_INSET = 67;
 const WEB_BOTTOM_INSET = 34;
 
+// Module-level cache so that React StrictMode's synchronous double-mount
+// (cleanup → remount in the same microtask) on the trophy room screen reuses
+// the baseline captured by the first mount, instead of reading back the
+// just-written "seen" value as the new baseline (which would hide all NEW
+// badges). The cache is cleared a short moment after a real blur, so a
+// genuine revisit reads fresh state from storage.
+let mysteryBaselineCache: { seen: string[] } | null = null;
+let mysteryBaselineClearTimer: ReturnType<typeof setTimeout> | null = null;
+
+function NewBadge({ testID }: { testID?: string }) {
+  const pulse = useSharedValue(1);
+
+  useEffect(() => {
+    pulse.value = withRepeat(
+      withSequence(
+        withTiming(1.18, { duration: 520 }),
+        withTiming(1, { duration: 520 }),
+      ),
+      -1,
+      true,
+    );
+  }, []);
+
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pulse.value }],
+  }));
+
+  return (
+    <View
+      pointerEvents="none"
+      style={styles.newBadgeAnchor}
+      testID={testID}
+    >
+      <Animated.View style={[styles.newBadge, animStyle]}>
+        <Text style={styles.newBadgeText}>NEW</Text>
+      </Animated.View>
+    </View>
+  );
+}
+
 export default function PersonasTrophyScreen() {
   const insets = useSafeAreaInsets();
   const [unlocked, setUnlocked] = useState<string[]>([]);
+  const [seenBaseline, setSeenBaseline] = useState<string[]>([]);
   const [previewPersonaId, setPreviewPersonaId] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [replayTeaser, setReplayTeaser] = useState<{
@@ -43,29 +92,92 @@ export default function PersonasTrophyScreen() {
   } | null>(null);
   const [replayingId, setReplayingId] = useState<string | null>(null);
 
-  const refreshUnlocked = useCallback(async () => {
-    try {
-      const stored = await AsyncStorage.getItem(ARENA_MYSTERY_UNLOCK_KEY);
-      const parsed = stored ? JSON.parse(stored) : [];
-      const validIds = ARENA_MYSTERY_PERSONA_IDS as readonly string[];
-      const safe = Array.isArray(parsed)
-        ? parsed.filter(
-            (id): id is string =>
-              typeof id === "string" && validIds.includes(id),
-          )
-        : [];
-      setUnlocked(safe);
-    } catch {
-      setUnlocked([]);
-    } finally {
-      setLoaded(true);
-    }
-  }, []);
-
   useFocusEffect(
     useCallback(() => {
-      refreshUnlocked();
-    }, [refreshUnlocked]),
+      let cancelled = false;
+      const validIds = ARENA_MYSTERY_PERSONA_IDS as readonly string[];
+
+      // If a previous focus left a pending cache-clear scheduled (e.g. from a
+      // StrictMode unmount), cancel it so this re-focus reuses the cached
+      // baseline.
+      if (mysteryBaselineClearTimer) {
+        clearTimeout(mysteryBaselineClearTimer);
+        mysteryBaselineClearTimer = null;
+      }
+
+      (async () => {
+        let unlockedSafe: string[] = [];
+        try {
+          const stored = await AsyncStorage.getItem(ARENA_MYSTERY_UNLOCK_KEY);
+          const parsed = stored ? JSON.parse(stored) : [];
+          unlockedSafe = Array.isArray(parsed)
+            ? parsed.filter(
+                (id): id is string =>
+                  typeof id === "string" && validIds.includes(id),
+              )
+            : [];
+        } catch {
+          unlockedSafe = [];
+        }
+        if (cancelled) return;
+        setUnlocked(unlockedSafe);
+        setLoaded(true);
+
+        // Determine the "seen" baseline that drives the NEW badges. Prefer
+        // the module-level cache so dev-mode double-mounts don't read back
+        // the just-persisted value and accidentally hide all badges.
+        let seenBaselineNow: string[];
+        if (mysteryBaselineCache) {
+          seenBaselineNow = mysteryBaselineCache.seen;
+        } else {
+          let safeSeen: string[] = [];
+          try {
+            const storedSeen = await AsyncStorage.getItem(
+              ARENA_MYSTERY_PERSONAS_SEEN_KEY,
+            );
+            const parsedSeen = storedSeen ? JSON.parse(storedSeen) : [];
+            safeSeen = Array.isArray(parsedSeen)
+              ? parsedSeen.filter(
+                  (id): id is string =>
+                    typeof id === "string" && validIds.includes(id),
+                )
+              : [];
+          } catch {
+            safeSeen = [];
+          }
+          mysteryBaselineCache = { seen: safeSeen };
+          seenBaselineNow = safeSeen;
+
+          // Persist the current unlocked set as "seen" right away so even a
+          // brief visit clears the badges on next entry. The badge UI uses
+          // the captured baseline state and is unaffected by this write.
+          try {
+            await AsyncStorage.setItem(
+              ARENA_MYSTERY_PERSONAS_SEEN_KEY,
+              JSON.stringify(unlockedSafe),
+            );
+          } catch {
+            // Non-fatal — badges will simply re-appear on next focus.
+          }
+        }
+        if (cancelled) return;
+        setSeenBaseline(seenBaselineNow);
+      })();
+
+      return () => {
+        cancelled = true;
+        // Schedule the cache clear so that synchronous StrictMode remounts
+        // still hit the cache, but a real navigation away (followed by a
+        // later revisit) reads fresh storage state.
+        if (mysteryBaselineClearTimer) {
+          clearTimeout(mysteryBaselineClearTimer);
+        }
+        mysteryBaselineClearTimer = setTimeout(() => {
+          mysteryBaselineCache = null;
+          mysteryBaselineClearTimer = null;
+        }, 50);
+      };
+    }, []),
   );
 
   const playReveal = useCallback(
@@ -144,6 +256,7 @@ export default function PersonasTrophyScreen() {
             const isUnlocked = unlocked.includes(personaId);
             const cfg = PERSONA_UNLOCKS[personaId];
             const name = ARENA_MYSTERY_PERSONA_NAMES[personaId] || personaId;
+            const isNew = isUnlocked && !seenBaseline.includes(personaId);
             return (
               <Animated.View
                 key={personaId}
@@ -202,6 +315,7 @@ export default function PersonasTrophyScreen() {
                         <Ionicons name="play-circle" size={14} color="#fff" />
                         <Text style={styles.replayText}>REPLAY REVEAL</Text>
                       </View>
+                      {isNew && <NewBadge testID={`persona-new-${personaId}`} />}
                     </LinearGradient>
                   ) : (
                     <View style={[styles.cardInner, styles.lockedInner]}>
@@ -394,6 +508,31 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#fff",
     letterSpacing: 1.2,
+  },
+  newBadgeAnchor: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    zIndex: 10,
+    elevation: 10,
+  },
+  newBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: "#FFD700",
+    borderWidth: 1.5,
+    borderColor: "#fff",
+    shadowColor: "#FFD700",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 8,
+  },
+  newBadgeText: {
+    fontSize: 9,
+    fontWeight: "900",
+    color: "#0a0a0a",
+    letterSpacing: 1.4,
   },
   silhouette: {
     width: 84,

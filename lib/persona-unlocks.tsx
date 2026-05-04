@@ -42,6 +42,8 @@ export const ARENA_MYSTERY_PERSONA_IDS = ["alexjones", "obama", "melania", "schu
 
 export const ARENA_MYSTERY_UNLOCK_KEY = "arena_mystery_unlocked";
 
+export const ARENA_MYSTERY_PERSONAS_SEEN_KEY = "arena_mystery_personas_seen";
+
 export const ARENA_MYSTERY_PERSONA_NAMES: Record<string, string> = {
   alexjones: "Alex Jones",
   obama: "Barack Obama",
