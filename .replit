@@ -27,6 +27,10 @@ externalPort = 80
 localPort = 8083
 externalPort = 3000
 
+[[ports]]
+localPort = 15432
+externalPort = 3001
+
 [env]
 PORT = "5000"
 
@@ -53,6 +57,10 @@ args = "Start Backend"
 [[workflows.workflow.tasks]]
 task = "workflow.run"
 args = "Start Frontend"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "stale-dist"
 
 [[workflows.workflow]]
 name = "Start App"
@@ -89,6 +97,17 @@ outputType = "console"
 task = "shell.exec"
 args = "EXPO_MAX_WORKERS=1 NODE_OPTIONS='--max-old-space-size=2048' EXPO_PUBLIC_DOMAIN=$REPLIT_DEV_DOMAIN npx expo start --port 8081"
 waitForPort = 8081
+
+[[workflows.workflow]]
+name = "stale-dist"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run test:stale-dist"
+
+[workflows.workflow.metadata]
+isValidation = true
 
 [userenv]
 
