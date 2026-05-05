@@ -10,6 +10,12 @@ import { runMigrations } from "stripe-replit-sync";
 
 import { getStripeSync } from "./stripeClient";
 import { WebhookHandlers } from "./webhookHandlers";
+import {
+  INTERVIEW_RETENTION_MS,
+  CLEANUP_INTERVAL_MS,
+  INTERVIEW_RETENTION_DAYS,
+  INTERVIEW_CLEANUP_INTERVAL_HOURS,
+} from "./cleanupConfig";
 
 const app = express();
 const log = console.log;
@@ -654,8 +660,6 @@ function setupErrorHandler(app: express.Application) {
   });
 }
 
-const INTERVIEW_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
-const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const CLEANUP_INITIAL_DELAY_MS = 60 * 1000;
 
 async function purgeExpiredDeletedInterviews() {
@@ -709,6 +713,9 @@ async function purgeExpiredDeletedInterviews() {
 }
 
 function scheduleInterviewCleanup() {
+  log(
+    `[cleanup] Retention=${INTERVIEW_RETENTION_DAYS}d, interval=${INTERVIEW_CLEANUP_INTERVAL_HOURS}h (override via INTERVIEW_RETENTION_DAYS / INTERVIEW_CLEANUP_INTERVAL_HOURS)`,
+  );
   const initialTimer = setTimeout(() => {
     purgeExpiredDeletedInterviews().catch((err) =>
       console.error("[cleanup] initial run error:", err),

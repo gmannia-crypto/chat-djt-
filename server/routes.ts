@@ -9,6 +9,7 @@ import OpenAI from "openai";
 import { XMLParser } from "fast-xml-parser";
 import { Pool } from "pg";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
+import { INTERVIEW_RETENTION_MS } from "./cleanupConfig";
 import {
   getTokenBalance,
   useToken,
@@ -6330,7 +6331,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
         // experience (their list never shows expired rows even briefly),
         // while the background job is the safety net for inactive devices.
         try {
-          const purgeBefore = Date.now() - 7 * 24 * 60 * 60 * 1000;
+          const purgeBefore = Date.now() - INTERVIEW_RETENTION_MS;
           const purged = await db.query(
             `DELETE FROM interview_history
                WHERE device_id = $1 AND deleted_at IS NOT NULL AND deleted_at < $2
@@ -6379,7 +6380,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
       if (!deviceId) return res.status(400).json({ error: "Device ID required" });
       const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
       try {
-        const restoreCutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+        const restoreCutoff = Date.now() - INTERVIEW_RETENTION_MS;
         const result = await db.query(
           `SELECT id, interviewer_id, interviewer_name, interviewee_id, interviewee_name,
                   duration_minutes, lie_count, message_count, started_at, ended_at, title, tags,
@@ -6496,7 +6497,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
       const id = req.params.id;
       const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
       try {
-        const restoreCutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+        const restoreCutoff = Date.now() - INTERVIEW_RETENTION_MS;
         const result = await db.query(
           `UPDATE interview_history SET deleted_at = NULL
              WHERE id = $1 AND device_id = $2
