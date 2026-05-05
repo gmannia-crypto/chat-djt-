@@ -19,6 +19,23 @@ type LieRow = {
   disagree: number;
   netScore: number;
   lastVotedAt: number | null;
+  recentNet: number;
+  priorNet: number;
+  recentVotes: number;
+  lieTrend: number;
+};
+
+type ApiLieRow = {
+  lieId: string;
+  lieText: string;
+  agree: number;
+  disagree: number;
+  netScore: number;
+  lastVotedAt: number | null;
+  recentNet: number;
+  priorNet: number;
+  recentVotes: number;
+  lieTrend: number;
 };
 
 type Detail = {
@@ -28,6 +45,10 @@ type Detail = {
   totalAgree: number;
   totalDisagree: number;
   lieScore: number;
+  recentScore: number;
+  priorScore: number;
+  trend: number;
+  recentVotes: number;
   lies: LieRow[];
 };
 
@@ -63,6 +84,93 @@ const PERSONA_PORTRAITS: Record<string, any> = {
 
 const webTop = Platform.OS === "web" ? 67 : 0;
 const webBottom = Platform.OS === "web" ? 34 : 0;
+
+type TrendIcon = "trending-up" | "trending-down" | "remove";
+
+function TrendPill({ trend, recentVotes }: { trend: number; recentVotes: number }) {
+  if (recentVotes === 0 && trend === 0) return null;
+  const isUp = trend > 0;
+  const isDown = trend < 0;
+  const isFlat = trend === 0;
+  const bg = isUp
+    ? "rgba(255,215,0,0.15)"
+    : isDown
+    ? "rgba(74,222,128,0.12)"
+    : "rgba(255,255,255,0.07)";
+  const borderColor = isUp
+    ? "rgba(255,215,0,0.4)"
+    : isDown
+    ? "rgba(74,222,128,0.3)"
+    : "rgba(255,255,255,0.14)";
+  const textColor = isUp ? "#FFD700" : isDown ? "#4ADE80" : "#888";
+  const icon: TrendIcon = isUp ? "trending-up" : isDown ? "trending-down" : "remove";
+  const label = isFlat
+    ? "flat"
+    : `${isUp ? "+" : ""}${trend} 7d`;
+
+  return (
+    <View style={[trendStyle.pill, { backgroundColor: bg, borderColor }]} testID="trend-pill">
+      <Ionicons name={icon} size={13} color={textColor} />
+      <Text style={[trendStyle.label, { color: textColor }]}>{label}</Text>
+    </View>
+  );
+}
+
+const trendStyle = StyleSheet.create({
+  pill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  label: { fontSize: 11, fontWeight: "700", letterSpacing: 0.3 },
+});
+
+type LieTrendIcon = "flame" | "trending-down" | "pulse";
+
+function LieTrendBadge({ lieTrend, recentVotes }: { lieTrend: number; recentVotes: number }) {
+  if (recentVotes === 0) return null;
+  const isUp = lieTrend > 0;
+  const isDown = lieTrend < 0;
+  const icon: LieTrendIcon = isUp ? "flame" : isDown ? "trending-down" : "pulse";
+  const color = isUp ? "#FFD700" : isDown ? "#4ADE80" : "#888";
+  const bg = isUp
+    ? "rgba(255,215,0,0.13)"
+    : isDown
+    ? "rgba(74,222,128,0.10)"
+    : "rgba(255,255,255,0.06)";
+  const borderColor = isUp
+    ? "rgba(255,215,0,0.35)"
+    : isDown
+    ? "rgba(74,222,128,0.25)"
+    : "rgba(255,255,255,0.10)";
+  const label = lieTrend === 0
+    ? "active"
+    : `${isUp ? "+" : ""}${lieTrend}`;
+
+  return (
+    <View style={[lieStyle.badge, { backgroundColor: bg, borderColor }]} testID="lie-trend-badge">
+      <Ionicons name={icon} size={11} color={color} />
+      <Text style={[lieStyle.label, { color }]}>{label}</Text>
+    </View>
+  );
+}
+
+const lieStyle = StyleSheet.create({
+  badge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  label: { fontSize: 10, fontWeight: "700", letterSpacing: 0.2 },
+});
 
 export default function LieLeaderboardDetailScreen() {
   const insets = useSafeAreaInsets();
@@ -101,7 +209,22 @@ export default function LieLeaderboardDetailScreen() {
           totalAgree: Number(data.totalAgree) || 0,
           totalDisagree: Number(data.totalDisagree) || 0,
           lieScore: Number(data.lieScore) || 0,
-          lies: Array.isArray(data.lies) ? data.lies : [],
+          recentScore: Number(data.recentScore) || 0,
+          priorScore: Number(data.priorScore) || 0,
+          trend: Number(data.trend) || 0,
+          recentVotes: Number(data.recentVotes) || 0,
+          lies: Array.isArray(data.lies) ? (data.lies as ApiLieRow[]).map((l) => ({
+            lieId: l.lieId,
+            lieText: l.lieText || "",
+            agree: Number(l.agree) || 0,
+            disagree: Number(l.disagree) || 0,
+            netScore: Number(l.netScore) || 0,
+            lastVotedAt: l.lastVotedAt ?? null,
+            recentNet: Number(l.recentNet) || 0,
+            priorNet: Number(l.priorNet) || 0,
+            recentVotes: Number(l.recentVotes) || 0,
+            lieTrend: Number(l.lieTrend) || 0,
+          })) : [],
         });
       } else {
         setErrorMsg("Couldn't load flagged lies");
@@ -164,6 +287,7 @@ export default function LieLeaderboardDetailScreen() {
             <Text style={[s.netNum, { color: netColor }]}>{netLabel}</Text>
             <Text style={s.netLabel}>net</Text>
           </View>
+          <LieTrendBadge lieTrend={item.lieTrend} recentVotes={item.recentVotes} />
           <View style={{ flex: 1 }} />
           <Pressable
             onPress={() => handleShare(item)}
@@ -199,6 +323,8 @@ export default function LieLeaderboardDetailScreen() {
       </View>
     );
   };
+
+  const recentVotesTotal = detail?.recentVotes ?? 0;
 
   return (
     <View style={[s.container, { paddingTop: insets.top + webTop, paddingBottom: webBottom }]}>
@@ -238,6 +364,14 @@ export default function LieLeaderboardDetailScreen() {
           <Text style={s.summaryStats}>
             {detail?.lieCount ?? 0} flagged · {detail?.totalAgree ?? 0} agree · {detail?.totalDisagree ?? 0} disagree
           </Text>
+          {detail && (
+            <View style={s.trendRow}>
+              <TrendPill trend={detail.trend} recentVotes={recentVotesTotal} />
+              {recentVotesTotal > 0 && (
+                <Text style={s.trendContext}>{recentVotesTotal} vote{recentVotesTotal === 1 ? "" : "s"} this week</Text>
+              )}
+            </View>
+          )}
         </View>
         <View style={s.scoreCol}>
           <Text style={[s.scoreNum, { color: accentColor }]}>
@@ -317,6 +451,8 @@ const s = StyleSheet.create({
   avatarFallback: { alignItems: "center", justifyContent: "center" },
   summaryName: { color: "#fff", fontSize: 16, fontWeight: "800" },
   summaryStats: { color: "#aaa", fontSize: 12, marginTop: 3 },
+  trendRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 5 },
+  trendContext: { color: "#666", fontSize: 10, fontWeight: "600" },
   scoreCol: { alignItems: "flex-end", minWidth: 64 },
   scoreNum: { fontSize: 20, fontWeight: "800" },
   scoreLabel: { color: "#888", fontSize: 10, marginTop: 2, textTransform: "uppercase", letterSpacing: 0.6 },

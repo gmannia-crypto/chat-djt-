@@ -6199,29 +6199,50 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
       const limit = Math.min(Math.max(parseInt(String(req.query.limit || "50"), 10) || 50, 1), 100);
       const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
       try {
-        const rows = await db.query(
-          `SELECT lie_id,
-             MAX(lie_text) AS lie_text,
-             COALESCE(SUM(CASE WHEN vote =  1 THEN 1 ELSE 0 END), 0)::int AS agree,
-             COALESCE(SUM(CASE WHEN vote = -1 THEN 1 ELSE 0 END), 0)::int AS disagree,
-             MAX(updated_at) AS last_voted_at
-           FROM interview_lie_votes
-           WHERE interviewee_id = $1
-           GROUP BY lie_id
-           HAVING (COALESCE(SUM(CASE WHEN vote =  1 THEN 1 ELSE 0 END), 0)
-                 + COALESCE(SUM(CASE WHEN vote = -1 THEN 1 ELSE 0 END), 0)) > 0
-              AND MAX(lie_text) IS NOT NULL
-              AND MAX(lie_text) <> ''
-           ORDER BY (COALESCE(SUM(CASE WHEN vote =  1 THEN 1 ELSE 0 END), 0)
-                   - COALESCE(SUM(CASE WHEN vote = -1 THEN 1 ELSE 0 END), 0)) DESC,
-                    COALESCE(SUM(CASE WHEN vote =  1 THEN 1 ELSE 0 END), 0) DESC,
-                    MAX(updated_at) DESC
-           LIMIT $2`,
-          [intervieweeIdRaw, limit],
-        );
-        const lies = rows.rows.map((r: any) => {
+        const [liesResult, trendResult] = await Promise.all([
+          db.query(
+            `SELECT lie_id,
+               MAX(lie_text) AS lie_text,
+               COALESCE(SUM(CASE WHEN vote =  1 THEN 1 ELSE 0 END), 0)::int AS agree,
+               COALESCE(SUM(CASE WHEN vote = -1 THEN 1 ELSE 0 END), 0)::int AS disagree,
+               MAX(updated_at) AS last_voted_at,
+               (COALESCE(SUM(CASE WHEN vote =  1 AND updated_at >= NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END), 0)
+              - COALESCE(SUM(CASE WHEN vote = -1 AND updated_at >= NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END), 0))::int AS recent_net,
+               (COALESCE(SUM(CASE WHEN vote =  1 AND updated_at >= NOW() - INTERVAL '14 days' AND updated_at < NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END), 0)
+              - COALESCE(SUM(CASE WHEN vote = -1 AND updated_at >= NOW() - INTERVAL '14 days' AND updated_at < NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END), 0))::int AS prior_net,
+               COALESCE(SUM(CASE WHEN updated_at >= NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END), 0)::int AS recent_votes
+             FROM interview_lie_votes
+             WHERE interviewee_id = $1
+             GROUP BY lie_id
+             HAVING (COALESCE(SUM(CASE WHEN vote =  1 THEN 1 ELSE 0 END), 0)
+                   + COALESCE(SUM(CASE WHEN vote = -1 THEN 1 ELSE 0 END), 0)) > 0
+                AND MAX(lie_text) IS NOT NULL
+                AND MAX(lie_text) <> ''
+             ORDER BY (COALESCE(SUM(CASE WHEN vote =  1 THEN 1 ELSE 0 END), 0)
+                     - COALESCE(SUM(CASE WHEN vote = -1 THEN 1 ELSE 0 END), 0)) DESC,
+                      COALESCE(SUM(CASE WHEN vote =  1 THEN 1 ELSE 0 END), 0) DESC,
+                      MAX(updated_at) DESC
+             LIMIT $2`,
+            [intervieweeIdRaw, limit],
+          ),
+          db.query(
+            `SELECT
+               (COALESCE(SUM(CASE WHEN vote =  1 AND updated_at >= NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END), 0)
+              - COALESCE(SUM(CASE WHEN vote = -1 AND updated_at >= NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END), 0))::int AS recent_score,
+               (COALESCE(SUM(CASE WHEN vote =  1 AND updated_at >= NOW() - INTERVAL '14 days' AND updated_at < NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END), 0)
+              - COALESCE(SUM(CASE WHEN vote = -1 AND updated_at >= NOW() - INTERVAL '14 days' AND updated_at < NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END), 0))::int AS prior_score,
+               COALESCE(SUM(CASE WHEN updated_at >= NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END), 0)::int AS recent_votes
+             FROM interview_lie_votes
+             WHERE interviewee_id = $1`,
+            [intervieweeIdRaw],
+          ),
+        ]);
+        const lies = liesResult.rows.map((r: any) => {
           const agree = Number(r.agree) || 0;
           const disagree = Number(r.disagree) || 0;
+          const recentNet = Number(r.recent_net) || 0;
+          const priorNet = Number(r.prior_net) || 0;
+          const recentVotes = Number(r.recent_votes) || 0;
           return {
             lieId: r.lie_id,
             lieText: r.lie_text || "",
@@ -6229,6 +6250,10 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
             disagree,
             netScore: agree - disagree,
             lastVotedAt: r.last_voted_at ? new Date(r.last_voted_at).getTime() : null,
+            recentNet,
+            priorNet,
+            recentVotes,
+            lieTrend: recentNet - priorNet,
           };
         });
         const totals = lies.reduce(
@@ -6239,6 +6264,10 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
           },
           { agree: 0, disagree: 0 },
         );
+        const trendRow = trendResult.rows[0] || {};
+        const recentScore = Number(trendRow.recent_score) || 0;
+        const priorScore = Number(trendRow.prior_score) || 0;
+        const recentVotes = Number(trendRow.recent_votes) || 0;
         res.json({
           intervieweeId: intervieweeIdRaw,
           intervieweeName: ARENA_NAME_MAP[intervieweeIdRaw] || intervieweeIdRaw,
@@ -6246,6 +6275,10 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
           totalAgree: totals.agree,
           totalDisagree: totals.disagree,
           lieScore: totals.agree - totals.disagree,
+          recentScore,
+          priorScore,
+          trend: recentScore - priorScore,
+          recentVotes,
           lies,
         });
       } finally {
