@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+// THIS IS THE ONLY SCRIPT THAT SHOULD POPULATE dist/.
+// dist/ is a production artifact served by the Express app when NODE_ENV !== "development".
+// Do NOT call `npx expo export --output-dir dist` from any other script (post-merge,
+// dev workflows, etc.) — see task #68. In dev, Metro on port 8081 serves fresh code via
+// the proxy in server/index.ts; a stale dist/ would shadow those changes on the preview.
 const { execSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");

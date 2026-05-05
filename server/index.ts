@@ -431,10 +431,16 @@ function configureExpoAndLanding(app: express.Application) {
   log("Serving static Expo files with dynamic manifest routing");
 
   const distDir = path.resolve(process.cwd(), "dist");
-  const hasWebBuild = fs.existsSync(path.join(distDir, "index.html"));
+  // dist/ is for PRODUCTION DEPLOYS ONLY. In dev mode we always proxy to Metro
+  // so code changes are reflected on every preview port immediately. If a stray
+  // dist/ exists locally (e.g. from a manual build), ignore it in dev — otherwise
+  // the public preview keeps serving stale bundles and hides fresh edits.
+  const hasWebBuild = !isDev && fs.existsSync(path.join(distDir, "index.html"));
 
   if (hasWebBuild) {
     log("Production web build found in dist/, serving static files");
+  } else if (isDev && fs.existsSync(path.join(distDir, "index.html"))) {
+    log("dist/ present but ignored in dev mode — proxying everything to Metro on 8081");
   }
 
   app.get("/_expo_bundle", (req: Request, res: Response) => {
