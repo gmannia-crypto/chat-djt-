@@ -34,22 +34,25 @@ type DeletedHistoryItem = HistoryItem & { deletedAt: number };
 
 const RESTORE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
-function formatRemaining(deletedAt: number): string {
+function formatRemaining(deletedAt: number): { text: string; urgent: boolean } {
   const expiresAt = deletedAt + RESTORE_WINDOW_MS;
   const remaining = expiresAt - Date.now();
-  if (remaining <= 0) return "removing soon";
   const dayMs = 24 * 60 * 60 * 1000;
   const hourMs = 60 * 60 * 1000;
+  if (remaining <= 0) {
+    return { text: "Deletes any moment now", urgent: true };
+  }
+  const urgent = remaining <= dayMs;
   if (remaining >= dayMs) {
-    const days = Math.round(remaining / dayMs);
-    return `${days} day${days === 1 ? "" : "s"} left`;
+    const days = Math.floor(remaining / dayMs);
+    return { text: `Permanently deletes in ${days} day${days === 1 ? "" : "s"}`, urgent };
   }
   if (remaining >= hourMs) {
-    const hours = Math.max(1, Math.round(remaining / hourMs));
-    return `${hours} hour${hours === 1 ? "" : "s"} left`;
+    const hours = Math.max(1, Math.floor(remaining / hourMs));
+    return { text: `Permanently deletes in ${hours} hour${hours === 1 ? "" : "s"}`, urgent };
   }
-  const minutes = Math.max(1, Math.round(remaining / (60 * 1000)));
-  return `${minutes} min left`;
+  const minutes = Math.max(1, Math.floor(remaining / (60 * 1000)));
+  return { text: `Permanently deletes in ${minutes} min`, urgent };
 }
 
 const PERSONA_PORTRAITS: Record<string, any> = {
@@ -899,10 +902,27 @@ export default function InterviewHistoryScreen() {
                           Deleted {formatDate(item.deletedAt)}
                         </Text>
                         <View style={s.deletedMetaRow}>
-                          <View style={s.remainingPill}>
-                            <Ionicons name="hourglass-outline" size={11} color="#FFD700" />
-                            <Text style={s.remainingText}>{formatRemaining(item.deletedAt)}</Text>
-                          </View>
+                          {(() => {
+                            const remaining = formatRemaining(item.deletedAt);
+                            const iconColor = remaining.urgent ? "#ff6b6b" : "#FFD700";
+                            return (
+                              <View
+                                style={[s.remainingPill, remaining.urgent && s.remainingPillUrgent]}
+                                testID={`deleted-remaining-${item.id}`}
+                              >
+                                <Ionicons
+                                  name={remaining.urgent ? "alert-circle" : "hourglass-outline"}
+                                  size={11}
+                                  color={iconColor}
+                                />
+                                <Text
+                                  style={[s.remainingText, remaining.urgent && s.remainingTextUrgent]}
+                                >
+                                  {remaining.text}
+                                </Text>
+                              </View>
+                            );
+                          })()}
                         </View>
                       </View>
                       <View style={s.deletedActions}>
@@ -1095,6 +1115,8 @@ const s = StyleSheet.create({
   deletedMetaRow: { flexDirection: "row", gap: 6, marginTop: 6, flexWrap: "wrap" },
   remainingPill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, backgroundColor: "rgba(255,215,0,0.1)", borderWidth: 1, borderColor: "rgba(255,215,0,0.35)" },
   remainingText: { color: "#FFD700", fontSize: 10, fontWeight: "800" },
+  remainingPillUrgent: { backgroundColor: "rgba(255,77,77,0.14)", borderColor: "rgba(255,107,107,0.6)" },
+  remainingTextUrgent: { color: "#ff6b6b" },
   deletedActions: { alignItems: "flex-end", gap: 6 },
   restoreBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10, backgroundColor: "#FFD700", minWidth: 84, justifyContent: "center" },
   restoreBtnText: { color: "#000", fontSize: 11, fontWeight: "900", letterSpacing: 0.4 },
