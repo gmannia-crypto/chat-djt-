@@ -22,6 +22,12 @@ export type PersonaUnlockIcon =
   | { kind: "fa5"; name: Fa5IconName; size: number; color: string; anim?: "pulse" | "wiggle"; rotate?: string }
   | { kind: "emoji"; char: string; size: number; anim?: "pulse" | "wiggle" };
 
+export interface PersonaSting {
+  source: "click" | "transition" | "buzzer";
+  rate: number;
+  volume: number;
+}
+
 export interface PersonaUnlockConfig {
   gradient: [string, string, string];
   borderColor: string;
@@ -36,6 +42,7 @@ export interface PersonaUnlockConfig {
   description: string;
   descColor?: string;
   dismiss: { text: string; bg: string; textColor: string; borderColor: string };
+  sting?: PersonaSting;
 }
 
 export const ARENA_MYSTERY_PERSONA_IDS = ["alexjones", "obama", "melania", "schumer", "odonnell", "kamala", "mtg", "rfk"] as const;
@@ -84,6 +91,7 @@ export const PERSONA_UNLOCKS: Record<string, PersonaUnlockConfig> = {
     quoteColor: "#f4e9c1",
     description: "Robert F. Kennedy Jr. has joined the Political Arena. Debate vaccines, raw milk, and the deep state \u2014 if you dare.",
     dismiss: { text: "ENTER THE ARENA", bg: "#0a3d1f", textColor: "#7ed957", borderColor: "#7ed957" },
+    sting: { source: "buzzer", rate: 0.55, volume: 0.7 },
   },
   alexjones: {
     gradient: ["#1a0000", "#4a0000", "#8b0000"],
@@ -102,6 +110,7 @@ export const PERSONA_UNLOCKS: Record<string, PersonaUnlockConfig> = {
     quoteColor: "#ffd700",
     description: "Alex Jones has burst into the Political Arena. Brace for tin-foil truth bombs and frog-related conspiracies.",
     dismiss: { text: "GO LIVE", bg: "#000", textColor: "#ff4500", borderColor: "#ff4500" },
+    sting: { source: "buzzer", rate: 1.4, volume: 0.85 },
   },
   obama: {
     gradient: ["#0a3161", "#1f4d8a", "#b22234"],
@@ -120,6 +129,7 @@ export const PERSONA_UNLOCKS: Record<string, PersonaUnlockConfig> = {
     quoteColor: "#f4e9c1",
     description: "Barack Obama strolls into the Political Arena. Bring your A-game \u2014 he\u2019s about to drop a measured, eight-minute response.",
     dismiss: { text: "ENTER THE ARENA", bg: "#0a3161", textColor: "#f4e9c1", borderColor: "#f4e9c1" },
+    sting: { source: "transition", rate: 0.65, volume: 0.6 },
   },
   melania: {
     gradient: ["#1a1a1a", "#3a2c0e", "#7a5d10"],
@@ -138,6 +148,7 @@ export const PERSONA_UNLOCKS: Record<string, PersonaUnlockConfig> = {
     quoteColor: "#f5f5dc",
     description: "Melania Trump glides into the Political Arena. Approach with caution \u2014 her shade levels are diplomatic-incident grade.",
     dismiss: { text: "STRIKE A POSE", bg: "#1a1a1a", textColor: "#d4af37", borderColor: "#d4af37" },
+    sting: { source: "click", rate: 0.7, volume: 0.55 },
   },
   schumer: {
     gradient: ["#0a1a3d", "#1f3d6b", "#102a55"],
@@ -156,6 +167,7 @@ export const PERSONA_UNLOCKS: Record<string, PersonaUnlockConfig> = {
     quoteColor: "#c9a227",
     description: "Chuck Schumer takes the floor in the Political Arena. Expect long sentences, longer pauses, and the occasional finger-wag.",
     dismiss: { text: "TAKE THE FLOOR", bg: "#0a1a3d", textColor: "#c9a227", borderColor: "#c9a227" },
+    sting: { source: "buzzer", rate: 0.85, volume: 0.65 },
   },
   odonnell: {
     gradient: ["#1a1a1a", "#3a1212", "#b22234"],
@@ -174,6 +186,7 @@ export const PERSONA_UNLOCKS: Record<string, PersonaUnlockConfig> = {
     quoteColor: "#c0c0c0",
     description: "Lawrence O\u2019Donnell turns on the cameras in the Political Arena. He\u2019ll have the last word \u2014 even if it takes the full segment.",
     dismiss: { text: "GO ON AIR", bg: "#1a1a1a", textColor: "#c0c0c0", borderColor: "#c0c0c0" },
+    sting: { source: "transition", rate: 0.8, volume: 0.6 },
   },
   kamala: {
     gradient: ["#3d0a55", "#6a0dad", "#1a1a1a"],
@@ -192,6 +205,7 @@ export const PERSONA_UNLOCKS: Record<string, PersonaUnlockConfig> = {
     quoteColor: "#d4af37",
     description: "Kamala Harris cackles into the Political Arena. The context is unburdened by what has been.",
     dismiss: { text: "UNBURDENED", bg: "#3d0a55", textColor: "#d4af37", borderColor: "#d4af37" },
+    sting: { source: "transition", rate: 1.25, volume: 0.6 },
   },
   mtg: {
     gradient: ["#1a0000", "#4a0000", "#1a1a1a"],
@@ -210,6 +224,7 @@ export const PERSONA_UNLOCKS: Record<string, PersonaUnlockConfig> = {
     quoteColor: "#ffd700",
     description: "Marjorie Taylor Greene barges into the Political Arena. Reality is optional. Lasers are not.",
     dismiss: { text: "OPEN FIRE", bg: "#1a0000", textColor: "#ffd700", borderColor: "#ffd700" },
+    sting: { source: "buzzer", rate: 1.85, volume: 0.8 },
   },
 };
 

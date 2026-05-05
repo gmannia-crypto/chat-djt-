@@ -312,7 +312,7 @@ export default function HomeScreen() {
   const { deviceId, hasTokens, balance } = useTokens();
   const { streak, awardBadge } = useEngagement();
   const { events: liveEvents, logEvent } = useLiveActivity();
-  const { playClick, playTransition } = useSoundEffects();
+  const { playClick, playTransition, playWhoosh, playPersonaSting } = useSoundEffects();
   useScreenTracker("main_menu");
   const trackEvent = useTrackEvent();
 
@@ -869,6 +869,7 @@ export default function HomeScreen() {
           for (let i = 0; i < teaserSeq.length; i++) {
             setMysteryTeaser({ palette: teaserSeq[i], step: i, total: teaserSeq.length });
             try { Haptics.selectionAsync(); } catch {}
+            playWhoosh();
             const isFinal = i === teaserSeq.length - 1;
             await new Promise((r) => setTimeout(r, isFinal ? finalMs : decoyMs));
           }
@@ -877,6 +878,7 @@ export default function HomeScreen() {
           await AsyncStorage.setItem(ARENA_MYSTERY_UNLOCK_KEY, JSON.stringify(newUnlocked));
           refreshUnlockedPersonaCount();
           if (PERSONA_UNLOCKS[personaId]) {
+            playPersonaSting(personaId);
             setUnlockedPersonaId(personaId);
           } else {
             setMysteryPrize({
