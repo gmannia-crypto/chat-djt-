@@ -1,4 +1,6 @@
-import React, { useEffect } from "react";
+import React, { useCallback, useEffect, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect } from "expo-router";
 import { Modal, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -707,3 +709,48 @@ const personaUnlockStyles = StyleSheet.create({
     letterSpacing: 1.8,
   },
 });
+
+/**
+ * Returns the count of mystery personas that have been unlocked but not yet
+ * seen in the trophy room. Re-evaluates whenever the screen gains focus so
+ * the pip disappears automatically after the user visits /personas.
+ */
+export function useUnseenMysteryCount(): [count: number, refresh: () => void] {
+  const [count, setCount] = useState(0);
+
+  const refresh = useCallback(() => {
+    const validIds = ARENA_MYSTERY_PERSONA_IDS as readonly string[];
+    (async () => {
+      let unlocked: string[] = [];
+      let seen: string[] = [];
+      try {
+        const storedUnlocked = await AsyncStorage.getItem(ARENA_MYSTERY_UNLOCK_KEY);
+        const parsedUnlocked = storedUnlocked ? JSON.parse(storedUnlocked) : [];
+        unlocked = Array.isArray(parsedUnlocked)
+          ? parsedUnlocked.filter(
+              (id): id is string => typeof id === "string" && validIds.includes(id),
+            )
+          : [];
+      } catch {}
+      try {
+        const storedSeen = await AsyncStorage.getItem(ARENA_MYSTERY_PERSONAS_SEEN_KEY);
+        const parsedSeen = storedSeen ? JSON.parse(storedSeen) : [];
+        seen = Array.isArray(parsedSeen)
+          ? parsedSeen.filter(
+              (id): id is string => typeof id === "string" && validIds.includes(id),
+            )
+          : [];
+      } catch {}
+      const unseen = unlocked.filter((id) => !seen.includes(id));
+      setCount(unseen.length);
+    })();
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
+    }, [refresh]),
+  );
+
+  return [count, refresh];
+}

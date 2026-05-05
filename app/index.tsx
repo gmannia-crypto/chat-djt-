@@ -71,6 +71,7 @@ import {
   ARENA_MYSTERY_UNLOCK_KEY,
   MysteryPersonaTeaser,
   getMysteryTeaserPalettes,
+  useUnseenMysteryCount,
   type MysteryTeaserPalette,
 } from "@/lib/persona-unlocks";
 
@@ -276,6 +277,50 @@ function ConversationItem({
 
 const ADMIN_PASSCODE = "Greatestofalltime";
 
+function TrophyNewPip({ testID }: { testID?: string }) {
+  const pulse = useSharedValue(1);
+  useEffect(() => {
+    pulse.value = withRepeat(
+      withSequence(
+        withTiming(1.35, { duration: 540 }),
+        withTiming(1, { duration: 540 }),
+      ),
+      -1,
+      true,
+    );
+  }, []);
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pulse.value }],
+  }));
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[trophyNewPipStyles.pip, animStyle]}
+      testID={testID}
+    />
+  );
+}
+
+const trophyNewPipStyles = StyleSheet.create({
+  pip: {
+    position: "absolute",
+    top: -2,
+    right: -2,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#FFD700",
+    borderWidth: 1.5,
+    borderColor: "#0a0a0a",
+    shadowColor: "#FFD700",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 6,
+    elevation: 8,
+    zIndex: 10,
+  },
+});
+
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -300,6 +345,7 @@ export default function HomeScreen() {
   const [mysteryTeaser, setMysteryTeaser] = useState<{ palette: MysteryTeaserPalette; step: number; total: number } | null>(null);
   const [unlockedPersonaId, setUnlockedPersonaId] = useState<string | null>(null);
   const [unlockedPersonaCount, setUnlockedPersonaCount] = useState(0);
+  const [unseenMysteryCount, refreshUnseenMysteryCount] = useUnseenMysteryCount();
   const [leaderboardData, setLeaderboardData] = useState<{ name: string; score: number; avatar: string; isYou?: boolean }[]>([]);
   const [fearGreed, setFearGreed] = useState<{ value: number; label: string; trumpComment: string } | null>(null);
   const [liveUsers, setLiveUsers] = useState(1247);
@@ -877,6 +923,7 @@ export default function HomeScreen() {
           const newUnlocked = [...alreadyUnlocked, personaId];
           await AsyncStorage.setItem(ARENA_MYSTERY_UNLOCK_KEY, JSON.stringify(newUnlocked));
           refreshUnlockedPersonaCount();
+          refreshUnseenMysteryCount();
           if (PERSONA_UNLOCKS[personaId]) {
             playPersonaSting(personaId);
             setUnlockedPersonaId(personaId);
@@ -1727,6 +1774,7 @@ export default function HomeScreen() {
           >
             <View style={styles.personasTrophyIconWrap}>
               <MaterialCommunityIcons name="trophy" size={18} color="#FFD700" />
+              {unseenMysteryCount > 0 && <TrophyNewPip testID="personas-trophy-new-pip" />}
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.personasTrophyTitle}>PERSONAS TROPHY ROOM</Text>
