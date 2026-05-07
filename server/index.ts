@@ -501,10 +501,6 @@ function configureExpoAndLanding(app: express.Application) {
     }
 
     if (isDev && !hasWebBuild) {
-      if (req.path === "/" ) {
-        const freshTemplate = fs.readFileSync(templatePath, "utf-8");
-        return serveLandingPage({ req, res, landingPageTemplate: freshTemplate, appName });
-      }
       if (req.path === "/server/assets" || req.path.startsWith("/server/assets/") || req.path.startsWith("/js/") || req.path.startsWith("/assets/") || req.path.startsWith("/public/")) {
         return next();
       }
@@ -629,10 +625,6 @@ function configureExpoAndLanding(app: express.Application) {
       const htmlPath = path.join(distDir, "index.html");
       const html = fs.readFileSync(htmlPath, "utf-8");
       return res.send(html);
-    });
-  } else if (!isDev) {
-    app.get("/", (req: Request, res: Response) => {
-      return serveLandingPage({ req, res, landingPageTemplate, appName });
     });
   }
 
