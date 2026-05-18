@@ -2017,6 +2017,8 @@ export default function ArenaScreen() {
     });
   }, []);
   const sessionLieTallyRef = useRef<Record<string, number>>({});
+  const [altFactCount, setAltFactCount] = useState(0);
+  const sessionAltFactTallyRef = useRef<Record<string, number>>({});
   const alltimeIQRef = useRef<Record<string, number>>({});
 
   const [emotionalStates, setEmotionalStates] = useState<Record<string, EmotionalState>>(() => {
@@ -3173,9 +3175,15 @@ export default function ArenaScreen() {
           }]);
           triggerLieFlash();
           playLieAlert();
+        } else if (score >= 40 && score < 70) {
+          sessionAltFactTallyRef.current = { ...sessionAltFactTallyRef.current, [msg.speakerId]: (sessionAltFactTallyRef.current[msg.speakerId] || 0) + 1 };
+          setAltFactCount((c) => c + 1);
+          if (score >= 60) {
+            adjustPersonaIQ(msg.speakerId, 2);
+          }
         } else if (score >= 80) {
           adjustPersonaIQ(msg.speakerId, 5);
-        } else if (score >= 60) {
+        } else {
           adjustPersonaIQ(msg.speakerId, 2);
         }
       })
@@ -3457,6 +3465,7 @@ export default function ArenaScreen() {
         }
         bodyPayload.sessionIQ = personaSessionIQRef.current;
         bodyPayload.sessionLieTally = sessionLieTallyRef.current;
+        bodyPayload.sessionAltFactTally = sessionAltFactTallyRef.current;
 
         const res = await fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
           method: "POST",
@@ -3989,6 +3998,8 @@ export default function ArenaScreen() {
     setIsRunning(true);
     isRunningRef.current = true;
     sessionLieTallyRef.current = {};
+    sessionAltFactTallyRef.current = {};
+    setAltFactCount(0);
     const seededIQ: Record<string, number> = {};
     for (const pid of selectedPersonasRef.current) {
       seededIQ[pid] = alltimeIQRef.current[pid] ?? 100;
@@ -4809,6 +4820,16 @@ export default function ArenaScreen() {
         <Pressable onPress={() => setShowPersonaSelector(true)} style={s.headerIconBtn}>
           <Ionicons name="people" size={18} color="#FFD700" />
         </Pressable>
+        {altFactCount > 0 && (
+          <Pressable
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setLiesSheetOpen(true); }}
+            style={[s.headerIconBtn, { backgroundColor: "rgba(251,191,36,0.15)", borderColor: "rgba(251,191,36,0.5)" }]}
+            testID="arena-altfact-counter"
+          >
+            <Ionicons name="star-half" size={15} color="#FBB924" />
+            <Text style={{ color: "#FBB924", fontSize: 10, fontWeight: "900", marginLeft: 2 }}>{altFactCount}</Text>
+          </Pressable>
+        )}
         <Pressable
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setLiesSheetOpen(true); }}
           style={[s.headerIconBtn, lieCount > 0 && { backgroundColor: "rgba(255,77,77,0.15)", borderColor: "rgba(255,77,77,0.5)" }]}
@@ -5857,7 +5878,7 @@ export default function ArenaScreen() {
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setLiesSheetOpen(false)} />
           <View style={s.liesSheet}>
             <View style={s.liesHandle} />
-            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 10 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 6 }}>
               <Ionicons name="flash" size={20} color="#ff4d4d" />
               <Text style={{ flex: 1, color: "#fff", fontSize: 18, fontWeight: "900", marginLeft: 8 }}>LIE DETECTOR · {lies.length}</Text>
               {latestTruthScore !== null && (
@@ -5867,6 +5888,13 @@ export default function ArenaScreen() {
               )}
               <Pressable onPress={() => setLiesSheetOpen(false)}><Ionicons name="close" size={22} color="#fff" /></Pressable>
             </View>
+            {altFactCount > 0 && (
+              <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 10, paddingVertical: 6, marginBottom: 10, borderRadius: 8, backgroundColor: "rgba(251,191,36,0.1)", borderWidth: 1, borderColor: "rgba(251,191,36,0.35)" }}>
+                <Ionicons name="star-half" size={14} color="#FBB924" />
+                <Text style={{ color: "#FBB924", fontSize: 12, fontWeight: "800", marginLeft: 6 }}>ALTERNATIVE FACTS · {altFactCount}</Text>
+                <Text style={{ color: "rgba(251,191,36,0.7)", fontSize: 11, marginLeft: 6, flex: 1 }}>half-truths &amp; spin caught this session</Text>
+              </View>
+            )}
             <ScrollView style={{ maxHeight: 480 }}>
               {(() => {
                 const sessionCounts: Record<string, number> = {};
