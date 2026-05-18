@@ -502,7 +502,7 @@ function configureExpoAndLanding(app: express.Application) {
     }
 
     if (isDev && !hasWebBuild) {
-      if (req.path === "/server/assets" || req.path.startsWith("/server/assets/") || req.path.startsWith("/js/") || req.path.startsWith("/assets/") || req.path.startsWith("/public/")) {
+      if (req.path === "/server/assets" || req.path.startsWith("/server/assets/") || req.path.startsWith("/js/") || req.path.startsWith("/public/")) {
         return next();
       }
       return proxyToMetro(req, res);
