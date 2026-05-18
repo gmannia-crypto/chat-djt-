@@ -172,6 +172,176 @@ const lieStyle = StyleSheet.create({
   label: { fontSize: 10, fontWeight: "700", letterSpacing: 0.2 },
 });
 
+const TRENDING_MIN_VOTES = 2;
+
+function TrendingBanner({
+  lie,
+  personaName,
+  copiedLieId,
+  onShare,
+}: {
+  lie: LieRow;
+  personaName: string;
+  copiedLieId: string | null;
+  onShare: (lie: LieRow) => void;
+}) {
+  const totalVotes = lie.agree + lie.disagree;
+  const agreePct = totalVotes > 0 ? Math.round((lie.agree / totalVotes) * 100) : 0;
+  const netLabel = lie.netScore > 0 ? `+${lie.netScore}` : `${lie.netScore}`;
+  const netColor = lie.netScore > 0 ? "#FFD700" : lie.netScore < 0 ? "#4ADE80" : "#aaa";
+
+  return (
+    <View style={tb.wrapper} testID="trending-lie-banner">
+      <LinearGradient
+        colors={["rgba(255,140,0,0.22)", "rgba(255,80,0,0.10)", "rgba(0,0,0,0)"]}
+        style={StyleSheet.absoluteFill}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      />
+      <View style={tb.labelRow}>
+        <Ionicons name="flame" size={14} color="#FF6B00" />
+        <Text style={tb.labelText}>TRENDING THIS WEEK</Text>
+        <Text style={tb.votesText}>{lie.recentVotes} vote{lie.recentVotes === 1 ? "" : "s"} in 7 days</Text>
+      </View>
+      <View style={tb.lieHeader}>
+        <View style={tb.rankBadge}>
+          <Text style={tb.rankText}>🔥</Text>
+        </View>
+        <View style={tb.netPill}>
+          <Text style={[tb.netNum, { color: netColor }]}>{netLabel}</Text>
+          <Text style={tb.netLabel}>net</Text>
+        </View>
+        <LieTrendBadge lieTrend={lie.lieTrend} recentVotes={lie.recentVotes} />
+        <View style={{ flex: 1 }} />
+        <Pressable
+          onPress={() => onShare(lie)}
+          style={({ pressed }) => [tb.shareBtn, pressed && { opacity: 0.6 }]}
+          testID={`trending-lie-share-${lie.lieId}`}
+          accessibilityLabel="Share trending flagged lie"
+        >
+          <Ionicons
+            name={copiedLieId === lie.lieId ? "checkmark" : (Platform.OS === "web" ? "copy-outline" : "share-outline")}
+            size={16}
+            color={copiedLieId === lie.lieId ? "#4ADE80" : "#ddd"}
+          />
+        </Pressable>
+      </View>
+      <Text style={tb.lieText}>"{lie.lieText}"</Text>
+      <View style={tb.barTrack}>
+        <View style={[tb.barAgree, { width: `${agreePct}%` }]} />
+      </View>
+      <View style={tb.voteRow}>
+        <View style={tb.voteChip}>
+          <Ionicons name="thumbs-up" size={13} color="#4ADE80" />
+          <Text style={[tb.voteNum, { color: "#4ADE80" }]}>{lie.agree}</Text>
+          <Text style={tb.voteWord}>agree</Text>
+        </View>
+        <View style={tb.voteChip}>
+          <Ionicons name="thumbs-down" size={13} color="#ff6b6b" />
+          <Text style={[tb.voteNum, { color: "#ff6b6b" }]}>{lie.disagree}</Text>
+          <Text style={tb.voteWord}>disagree</Text>
+        </View>
+        <View style={{ flex: 1 }} />
+        <Text style={tb.totalVotes}>{totalVotes} {totalVotes === 1 ? "vote" : "votes"}</Text>
+      </View>
+    </View>
+  );
+}
+
+const tb = StyleSheet.create({
+  wrapper: {
+    marginHorizontal: 0,
+    marginBottom: 10,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: "rgba(255,140,0,0.45)",
+    backgroundColor: "rgba(255,100,0,0.06)",
+    overflow: "hidden",
+  },
+  labelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginBottom: 10,
+  },
+  labelText: {
+    color: "#FF6B00",
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
+    flex: 1,
+  },
+  votesText: {
+    color: "rgba(255,140,0,0.7)",
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  lieHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+  },
+  rankBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    backgroundColor: "rgba(255,140,0,0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(255,140,0,0.4)",
+  },
+  rankText: { fontSize: 13 },
+  netPill: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    backgroundColor: "rgba(255,255,255,0.05)",
+  },
+  netNum: { fontSize: 14, fontWeight: "800" },
+  netLabel: { color: "#888", fontSize: 10, fontWeight: "600", textTransform: "uppercase" },
+  shareBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  lieText: {
+    color: "#f3f3f3",
+    fontSize: 15,
+    lineHeight: 22,
+    fontStyle: "italic",
+    marginBottom: 10,
+  },
+  barTrack: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "rgba(255,107,107,0.35)",
+    overflow: "hidden",
+    marginBottom: 8,
+  },
+  barAgree: { height: "100%", backgroundColor: "#4ADE80", borderRadius: 2 },
+  voteRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  voteChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+    backgroundColor: "rgba(255,255,255,0.05)",
+  },
+  voteNum: { fontSize: 12, fontWeight: "800" },
+  voteWord: { color: "#aaa", fontSize: 11, fontWeight: "600" },
+  totalVotes: { color: "#777", fontSize: 11, fontWeight: "600" },
+});
+
 export default function LieLeaderboardDetailScreen() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ id: string; name?: string; mode?: string }>();
@@ -326,6 +496,17 @@ export default function LieLeaderboardDetailScreen() {
 
   const recentVotesTotal = detail?.recentVotes ?? 0;
 
+  const trendingLie = detail?.lies.length
+    ? (() => {
+        const best = detail.lies.reduce<LieRow | null>((acc, lie) => {
+          if (lie.recentVotes < TRENDING_MIN_VOTES) return acc;
+          if (!acc || lie.recentVotes > acc.recentVotes) return lie;
+          return acc;
+        }, null);
+        return best;
+      })()
+    : null;
+
   return (
     <View style={[s.container, { paddingTop: insets.top + webTop, paddingBottom: webBottom }]}>
       <LinearGradient
@@ -407,6 +588,21 @@ export default function LieLeaderboardDetailScreen() {
           keyExtractor={(it) => it.lieId}
           renderItem={renderItem}
           contentContainerStyle={{ padding: 12, paddingBottom: 60 }}
+          ListHeaderComponent={
+            trendingLie ? (
+              <View style={{ marginBottom: 16 }}>
+                <TrendingBanner
+                  lie={trendingLie}
+                  personaName={personaName}
+                  copiedLieId={copiedLieId}
+                  onShare={handleShare}
+                />
+                <View style={s.rankedLabel}>
+                  <Text style={s.rankedLabelText}>ALL FLAGGED LIES</Text>
+                </View>
+              </View>
+            ) : null
+          }
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -516,4 +712,17 @@ const s = StyleSheet.create({
     alignItems: "center",
   },
   errorToastText: { color: "#fff", fontWeight: "700" },
+  rankedLabel: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  rankedLabelText: {
+    color: "rgba(255,255,255,0.3)",
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 1.4,
+    textTransform: "uppercase",
+  },
 });
