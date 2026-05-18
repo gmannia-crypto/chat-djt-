@@ -29,3 +29,8 @@ export const INTERVIEW_CLEANUP_INTERVAL_HOURS = readPositiveNumberEnv(
 
 export const INTERVIEW_RETENTION_MS = INTERVIEW_RETENTION_DAYS * DAY_MS;
 export const CLEANUP_INTERVAL_MS = INTERVIEW_CLEANUP_INTERVAL_HOURS * HOUR_MS;
+
+export const INTERVIEW_CLEANUP_DISABLED: boolean = (() => {
+  const raw = process.env["INTERVIEW_CLEANUP_DISABLED"];
+  return raw === "1" || raw === "true" || raw === "yes";
+})();

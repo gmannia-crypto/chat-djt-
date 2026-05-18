@@ -9,7 +9,7 @@ import OpenAI from "openai";
 import { XMLParser } from "fast-xml-parser";
 import { Pool } from "pg";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
-import { INTERVIEW_RETENTION_MS } from "./cleanupConfig";
+import { INTERVIEW_RETENTION_MS, INTERVIEW_CLEANUP_DISABLED } from "./cleanupConfig";
 import {
   getTokenBalance,
   useToken,
@@ -6363,7 +6363,8 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
         // server/index.ts: this gives the active user a same-second
         // experience (their list never shows expired rows even briefly),
         // while the background job is the safety net for inactive devices.
-        try {
+        // Skipped entirely when INTERVIEW_CLEANUP_DISABLED=1.
+        if (!INTERVIEW_CLEANUP_DISABLED) try {
           const purgeBefore = Date.now() - INTERVIEW_RETENTION_MS;
           const purged = await db.query(
             `DELETE FROM interview_history

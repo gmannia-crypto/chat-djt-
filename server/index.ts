@@ -15,6 +15,7 @@ import {
   CLEANUP_INTERVAL_MS,
   INTERVIEW_RETENTION_DAYS,
   INTERVIEW_CLEANUP_INTERVAL_HOURS,
+  INTERVIEW_CLEANUP_DISABLED,
 } from "./cleanupConfig";
 
 const app = express();
@@ -705,6 +706,12 @@ async function purgeExpiredDeletedInterviews() {
 }
 
 function scheduleInterviewCleanup() {
+  if (INTERVIEW_CLEANUP_DISABLED) {
+    log(
+      "[cleanup] Cleanup job DISABLED (INTERVIEW_CLEANUP_DISABLED=1). Soft-deleted interviews will not be purged automatically.",
+    );
+    return;
+  }
   log(
     `[cleanup] Retention=${INTERVIEW_RETENTION_DAYS}d, interval=${INTERVIEW_CLEANUP_INTERVAL_HOURS}h (override via INTERVIEW_RETENTION_DAYS / INTERVIEW_CLEANUP_INTERVAL_HOURS)`,
   );
