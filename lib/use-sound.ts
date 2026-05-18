@@ -1,23 +1,27 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { Audio } from 'expo-av';
 import { useSound } from '@/lib/sound-context';
-import { PERSONA_UNLOCKS, type PersonaSting } from '@/lib/persona-unlocks';
+import { PERSONA_UNLOCKS } from '@/lib/persona-unlocks';
 
 const clickSource = require('@/assets/sfx-click.mp4');
 const transitionSource = require('@/assets/sfx-transition.mp4');
-const buzzerSource = require('@/assets/sounds/buzzer.mp3');
 
-type StingSourceKey = PersonaSting['source'];
+const STING_FILE_SOURCES: Record<string, number> = {
+  rfk: require('@/assets/sounds/stings/rfk.mp3'),
+  alexjones: require('@/assets/sounds/stings/alexjones.mp3'),
+  obama: require('@/assets/sounds/stings/obama.mp3'),
+  melania: require('@/assets/sounds/stings/melania.mp3'),
+  schumer: require('@/assets/sounds/stings/schumer.mp3'),
+  odonnell: require('@/assets/sounds/stings/odonnell.mp3'),
+  kamala: require('@/assets/sounds/stings/kamala.mp3'),
+  mtg: require('@/assets/sounds/stings/mtg.mp3'),
+};
 
 export function useSoundEffects() {
   const { soundEnabled } = useSound();
   const clickSound = useRef<Audio.Sound | null>(null);
   const transitionSound = useRef<Audio.Sound | null>(null);
-  const stingSounds = useRef<Record<StingSourceKey, Audio.Sound | null>>({
-    click: null,
-    transition: null,
-    buzzer: null,
-  });
+  const stingSounds = useRef<Record<string, Audio.Sound | null>>({});
   const mounted = useRef(true);
 
   useEffect(() => {
@@ -38,27 +42,6 @@ export function useSoundEffects() {
         });
         if (mounted.current) transitionSound.current = transition;
         else transition.unloadAsync();
-
-        const { sound: stingClick } = await Audio.Sound.createAsync(clickSource, {
-          shouldPlay: false,
-          volume: 0.6,
-        });
-        if (mounted.current) stingSounds.current.click = stingClick;
-        else stingClick.unloadAsync();
-
-        const { sound: stingTransition } = await Audio.Sound.createAsync(transitionSource, {
-          shouldPlay: false,
-          volume: 0.6,
-        });
-        if (mounted.current) stingSounds.current.transition = stingTransition;
-        else stingTransition.unloadAsync();
-
-        const { sound: stingBuzzer } = await Audio.Sound.createAsync(buzzerSource, {
-          shouldPlay: false,
-          volume: 0.6,
-        });
-        if (mounted.current) stingSounds.current.buzzer = stingBuzzer;
-        else stingBuzzer.unloadAsync();
       } catch {}
     };
 
@@ -73,12 +56,12 @@ export function useSoundEffects() {
       mounted.current = false;
       clickSound.current?.unloadAsync().catch(() => {});
       transitionSound.current?.unloadAsync().catch(() => {});
-      stingSounds.current.click?.unloadAsync().catch(() => {});
-      stingSounds.current.transition?.unloadAsync().catch(() => {});
-      stingSounds.current.buzzer?.unloadAsync().catch(() => {});
       clickSound.current = null;
       transitionSound.current = null;
-      stingSounds.current = { click: null, transition: null, buzzer: null };
+      for (const [personaId, sound] of Object.entries(stingSounds.current)) {
+        sound?.unloadAsync().catch(() => {});
+        stingSounds.current[personaId] = null;
+      }
     };
   }, []);
 
@@ -124,15 +107,32 @@ export function useSoundEffects() {
     async (personaId: string) => {
       if (!soundEnabled) return;
       const cfg = PERSONA_UNLOCKS[personaId];
-      const sting: PersonaSting = cfg?.sting ?? { source: 'transition', rate: 1, volume: 0.5 };
-      const sound = stingSounds.current[sting.source];
-      if (!sound) return;
+      const fileKey = cfg?.sting?.file;
+      if (!fileKey) return;
+
+      const source = STING_FILE_SOURCES[fileKey];
+      if (!source) return;
+
       try {
+        let sound = stingSounds.current[personaId] ?? null;
+
+        if (!sound) {
+          const volume = Math.min(1, Math.max(0, cfg.sting?.volume ?? 0.8));
+          const { sound: loaded } = await Audio.Sound.createAsync(source, {
+            shouldPlay: false,
+            volume,
+          });
+          if (!mounted.current) {
+            loaded.unloadAsync().catch(() => {});
+            return;
+          }
+          stingSounds.current[personaId] = loaded;
+          sound = loaded;
+        }
+
+        const volume = Math.min(1, Math.max(0, cfg.sting?.volume ?? 0.8));
         await sound.setPositionAsync(0);
-        try {
-          await sound.setRateAsync(sting.rate ?? 1, true);
-        } catch {}
-        await sound.setVolumeAsync(Math.min(1, Math.max(0, sting.volume ?? 0.6))).catch(() => {});
+        await sound.setVolumeAsync(volume).catch(() => {});
         await sound.playAsync();
       } catch {}
     },
