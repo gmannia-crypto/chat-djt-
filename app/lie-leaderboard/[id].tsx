@@ -87,6 +87,129 @@ const webBottom = Platform.OS === "web" ? 34 : 0;
 
 type TrendIcon = "trending-up" | "trending-down" | "remove";
 
+const CHART_MAX_H = 34;
+const CHART_BAR_W = 18;
+
+function MiniTrendChart({
+  recentScore,
+  priorScore,
+  trend,
+  recentVotes,
+}: {
+  recentScore: number;
+  priorScore: number;
+  trend: number;
+  recentVotes: number;
+}) {
+  const maxVal = Math.max(Math.abs(recentScore), Math.abs(priorScore));
+
+  if (maxVal === 0) {
+    return (
+      <View style={chartSt.wrapper}>
+        <TrendPill trend={trend} recentVotes={recentVotes} />
+        {recentVotes > 0 && (
+          <Text style={chartSt.votesLabel}>
+            {recentVotes} vote{recentVotes === 1 ? "" : "s"} this week
+          </Text>
+        )}
+      </View>
+    );
+  }
+
+  const recentH = Math.max(4, Math.round((Math.abs(recentScore) / maxVal) * CHART_MAX_H));
+  const priorH = Math.max(4, Math.round((Math.abs(priorScore) / maxVal) * CHART_MAX_H));
+
+  const isUp = recentScore > priorScore;
+  const isDown = recentScore < priorScore;
+  const recentColor = isUp ? "#FFD700" : isDown ? "#4ADE80" : "#888";
+  const recentBg = isUp
+    ? "rgba(255,215,0,0.18)"
+    : isDown
+    ? "rgba(74,222,128,0.14)"
+    : "rgba(255,255,255,0.08)";
+  const recentBorder = isUp
+    ? "rgba(255,215,0,0.5)"
+    : isDown
+    ? "rgba(74,222,128,0.35)"
+    : "rgba(255,255,255,0.18)";
+
+  return (
+    <View style={chartSt.wrapper} testID="mini-trend-chart">
+      <View style={chartSt.barsRow}>
+        <View style={chartSt.barCol}>
+          <View
+            style={[
+              chartSt.bar,
+              {
+                height: priorH,
+                width: CHART_BAR_W,
+                backgroundColor: "rgba(255,255,255,0.13)",
+                borderColor: "rgba(255,255,255,0.22)",
+              },
+            ]}
+          />
+          <Text style={chartSt.barLabel}>prior</Text>
+        </View>
+        <View style={chartSt.barCol}>
+          <View
+            style={[
+              chartSt.bar,
+              {
+                height: recentH,
+                width: CHART_BAR_W,
+                backgroundColor: recentBg,
+                borderColor: recentBorder,
+              },
+            ]}
+          />
+          <Text style={[chartSt.barLabel, { color: recentColor }]}>now</Text>
+        </View>
+      </View>
+      {recentVotes > 0 && (
+        <Text style={chartSt.votesLabel}>
+          {recentVotes} vote{recentVotes === 1 ? "" : "s"} this week
+        </Text>
+      )}
+    </View>
+  );
+}
+
+const chartSt = StyleSheet.create({
+  wrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  barsRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 3,
+    height: CHART_MAX_H + 16,
+    paddingBottom: 16,
+  },
+  barCol: {
+    alignItems: "center",
+    gap: 3,
+    justifyContent: "flex-end",
+  },
+  bar: {
+    borderRadius: 4,
+    borderWidth: 1,
+  },
+  barLabel: {
+    color: "#666",
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+  },
+  votesLabel: {
+    color: "#666",
+    fontSize: 10,
+    fontWeight: "600",
+  },
+});
+
 function TrendPill({ trend, recentVotes }: { trend: number; recentVotes: number }) {
   if (recentVotes === 0 && trend === 0) return null;
   const isUp = trend > 0;
@@ -547,10 +670,12 @@ export default function LieLeaderboardDetailScreen() {
           </Text>
           {detail && (
             <View style={s.trendRow}>
-              <TrendPill trend={detail.trend} recentVotes={recentVotesTotal} />
-              {recentVotesTotal > 0 && (
-                <Text style={s.trendContext}>{recentVotesTotal} vote{recentVotesTotal === 1 ? "" : "s"} this week</Text>
-              )}
+              <MiniTrendChart
+                recentScore={detail.recentScore}
+                priorScore={detail.priorScore}
+                trend={detail.trend}
+                recentVotes={recentVotesTotal}
+              />
             </View>
           )}
         </View>
