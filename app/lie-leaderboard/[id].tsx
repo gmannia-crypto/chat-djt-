@@ -3,6 +3,14 @@ import {
   View, Text, Pressable, StyleSheet, FlatList, ActivityIndicator,
   RefreshControl, Image, Platform, Share,
 } from "react-native";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withRepeat,
+  withSequence,
+  Easing,
+} from "react-native-reanimated";
 import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -313,8 +321,34 @@ function TrendingBanner({
   const netLabel = lie.netScore > 0 ? `+${lie.netScore}` : `${lie.netScore}`;
   const netColor = lie.netScore > 0 ? "#FFD700" : lie.netScore < 0 ? "#4ADE80" : "#aaa";
 
+  const opacity = useSharedValue(0);
+  const scale = useSharedValue(0.88);
+  const flameOpacity = useSharedValue(1);
+
+  useEffect(() => {
+    opacity.value = withTiming(1, { duration: 420, easing: Easing.out(Easing.cubic) });
+    scale.value = withTiming(1, { duration: 420, easing: Easing.out(Easing.back(1.1)) });
+    flameOpacity.value = withRepeat(
+      withSequence(
+        withTiming(0.35, { duration: 650, easing: Easing.inOut(Easing.ease) }),
+        withTiming(1, { duration: 650, easing: Easing.inOut(Easing.ease) }),
+      ),
+      -1,
+      false,
+    );
+  }, []);
+
+  const bannerStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ scale: scale.value }],
+  }));
+
+  const flameStyle = useAnimatedStyle(() => ({
+    opacity: flameOpacity.value,
+  }));
+
   return (
-    <View style={tb.wrapper} testID="trending-lie-banner">
+    <Animated.View style={[tb.wrapper, bannerStyle]} testID="trending-lie-banner">
       <LinearGradient
         colors={["rgba(255,140,0,0.22)", "rgba(255,80,0,0.10)", "rgba(0,0,0,0)"]}
         style={StyleSheet.absoluteFill}
@@ -322,7 +356,9 @@ function TrendingBanner({
         end={{ x: 1, y: 1 }}
       />
       <View style={tb.labelRow}>
-        <Ionicons name="flame" size={14} color="#FF6B00" />
+        <Animated.View style={flameStyle}>
+          <Ionicons name="flame" size={14} color="#FF6B00" />
+        </Animated.View>
         <Text style={tb.labelText}>TRENDING THIS WEEK</Text>
         <Text style={tb.votesText}>{lie.recentVotes} vote{lie.recentVotes === 1 ? "" : "s"} in 7 days</Text>
       </View>
@@ -367,7 +403,7 @@ function TrendingBanner({
         <View style={{ flex: 1 }} />
         <Text style={tb.totalVotes}>{totalVotes} {totalVotes === 1 ? "vote" : "votes"}</Text>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
