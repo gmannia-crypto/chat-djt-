@@ -501,7 +501,10 @@ function configureExpoAndLanding(app: express.Application) {
       return serveExpoManifest("ios", req, res);
     }
 
-    if (isDev && !hasWebBuild) {
+    // Skip Metro proxy in smoke-check mode — Metro is not running during the check
+    // and proxyToMetro retries for up to 60 s, which would stall the assertion.
+    // In smoke-check mode we fall through to the landing-page handler instead.
+    if (isDev && !hasWebBuild && process.env.SMOKE_CHECK !== "1") {
       if (req.path === "/server/assets" || req.path.startsWith("/server/assets/") || req.path.startsWith("/js/") || req.path.startsWith("/public/")) {
         return next();
       }
@@ -828,19 +831,21 @@ async function initStripe() {
 
   server.listen({ port, host: "0.0.0.0" }, () => {
     log(`express server serving on port ${port}`);
-    setTimeout(() => {
-      initStripe().catch((err) => console.error("Stripe init error:", err));
-    }, 30000);
-    scheduleInterviewCleanup();
+    if (process.env.SMOKE_CHECK !== "1") {
+      setTimeout(() => {
+        initStripe().catch((err) => console.error("Stripe init error:", err));
+      }, 30000);
+      scheduleInterviewCleanup();
 
-    if (port !== 8082) {
-      const mirrorServer = require("http").createServer(app);
-      mirrorServer.listen({ port: 8082, host: "0.0.0.0" }, () => {
-        log(`mirror server also serving on port 8082`);
-      });
-      mirrorServer.on("error", (err: any) => {
-        console.log("Port 8082 mirror skipped:", err.message);
-      });
+      if (port !== 8082) {
+        const mirrorServer = require("http").createServer(app);
+        mirrorServer.listen({ port: 8082, host: "0.0.0.0" }, () => {
+          log(`mirror server also serving on port 8082`);
+        });
+        mirrorServer.on("error", (err: any) => {
+          console.log("Port 8082 mirror skipped:", err.message);
+        });
+      }
     }
   });
 

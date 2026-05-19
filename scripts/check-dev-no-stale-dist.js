@@ -27,7 +27,7 @@ const DIST_INDEX = path.join(ROOT, "dist", "index.html");
 const MARKER = "STALE_DIST_SMOKE_CHECK_MARKER_DO_NOT_SERVE";
 const STARTUP_LOG_PATTERN = "dist/ present but ignored in dev mode";
 const READY_POLL_INTERVAL_MS = 300;
-const READY_TIMEOUT_MS = 25_000;
+const READY_TIMEOUT_MS = 12_000;
 
 let serverProc = null;
 let originalContent = null;
@@ -169,6 +169,7 @@ async function waitForServer(port, timeoutMs) {
     ...process.env,
     NODE_ENV: "development",
     PORT: String(testPort),
+    SMOKE_CHECK: "1",
   };
 
   let combinedOutput = "";
