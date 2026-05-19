@@ -37,6 +37,7 @@ import Animated, {
   FadeInDown,
   FadeInUp,
   FadeIn,
+  ZoomIn,
   useSharedValue,
   useAnimatedStyle,
   withRepeat,
@@ -78,6 +79,31 @@ import {
 const FEEDBACK_SHOWN_KEY = "chatdjt_feedback_shown";
 const FEEDBACK_CONV_COUNT_KEY = "chatdjt_conv_count";
 const HOT_TAKE_CACHE_KEY = "chatdjt_hot_take_cache";
+const ONBOARDING_DONE_KEY = "chatdjt_onboarding_done";
+
+const FEATURE_OF_DAY = [
+  { emoji: "🏛️", title: "Political Arena", sub: "Watch 20 AI personas debate live news — and award points!", route: "/arena", color: "#D4A420" },
+  { emoji: "🛋️", title: "Dynamic Therapy", sub: "Trump-themed therapists help you work through it. Bigly.", route: "/therapy", color: "#a855f7" },
+  { emoji: "💰", title: "Financial Face-Off", sub: "Debate stocks, crypto & real estate with AI billionaires.", route: "/faceoff", color: "#22c55e" },
+  { emoji: "🏈", title: "Trump's Sports Book", sub: "AI persona picks, live commentary & trash talk.", route: "/sports", color: "#3b82f6" },
+  { emoji: "🔮", title: "Fortune Parlor", sub: "Trump predicts your future. Might even be accurate.", route: "/fortune", color: "#f97316" },
+  { emoji: "🗞️", title: "Cabinet Hot Seat", sub: "Grill the cabinet. Watch them sweat under pressure.", route: "/cabinet", color: "#ef4444" },
+  { emoji: "🎤", title: "1-on-1 Interview", sub: "You're the reporter. Get exclusive quotes from any persona.", route: "/interview", color: "#06b6d4" },
+  { emoji: "🏆", title: "Trump Billionaires", sub: "Make ethical choices to reach $1 billion. Trump coaches you.", route: "/billionaires", color: "#FFD700" },
+];
+
+const ONBOARDING_STEPS = [
+  { emoji: "👋", title: "Welcome to Chat DJT", body: "The most tremendous AI chat app ever built. Voice-cloned personas, live debates, and zero filter. Believe me." },
+  { emoji: "🏛️", title: "Political Arena", body: "Pick up to 20 AI personas and watch them debate live news headlines. Award points, trigger breaking news, and declare a winner." },
+  { emoji: "🛋️", title: "Dynamic Therapy", body: "Choose from 5 therapist personas — each with a unique style. Deep sessions, PHQ-9 assessments, and shareable diagnosis plans." },
+  { emoji: "🪙", title: "D.C. Lightning Tokens", body: "Premium features cost tokens. Earn free ones via daily streaks, the Mystery Box, and the Arena. You can always buy more." },
+  { emoji: "🎁", title: "Daily Mystery Box", body: "Open your free Mystery Box every 24 hours for rewards: roasts, collectible cards, persona unlocks, and more." },
+];
+
+function getDailyFeature() {
+  const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000);
+  return FEATURE_OF_DAY[dayOfYear % FEATURE_OF_DAY.length];
+}
 
 const MYSTERY_BOX_KEY = "chatdjt_mystery_box";
 
@@ -355,6 +381,9 @@ export default function HomeScreen() {
   const [weeklyReminder, setWeeklyReminder] = useState(false);
   const [electionDays, setElectionDays] = useState(0);
   const [collectionCount, setCollectionCount] = useState({ owned: 0, total: 24 });
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingStep, setOnboardingStep] = useState(0);
+  const dailyFeature = useMemo(() => getDailyFeature(), []);
   const { deviceId, hasTokens, balance } = useTokens();
   const { streak, awardBadge } = useEngagement();
   const { events: liveEvents, logEvent } = useLiveActivity();
@@ -526,6 +555,9 @@ export default function HomeScreen() {
       checkWeeklyReminder();
       refreshCollectionCount();
       refreshUnlockedPersonaCount();
+      AsyncStorage.getItem(ONBOARDING_DONE_KEY).then((done) => {
+        if (!done) setShowOnboarding(true);
+      });
     }, [])
   );
 
@@ -1840,6 +1872,31 @@ export default function HomeScreen() {
           </Animated.View>
         )}
 
+        <Animated.View entering={FadeInDown.delay(990).duration(500)}>
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              router.push(dailyFeature.route as any);
+            }}
+            style={({ pressed }) => [styles.featureOfDayCard, pressed && { opacity: 0.85 }]}
+          >
+            <View style={[styles.featureOfDayAccent, { backgroundColor: dailyFeature.color + "30" }]} />
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <View style={[styles.featureOfDayIconWrap, { backgroundColor: dailyFeature.color + "22" }]}>
+                <Text style={{ fontSize: 22 }}>{dailyFeature.emoji}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                  <Text style={styles.featureOfDayLabel}>🔥 TODAY'S HOT FEATURE</Text>
+                </View>
+                <Text style={[styles.featureOfDayTitle, { color: dailyFeature.color }]}>{dailyFeature.title}</Text>
+                <Text style={styles.featureOfDaySub} numberOfLines={2}>{dailyFeature.sub}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={dailyFeature.color} />
+            </View>
+          </Pressable>
+        </Animated.View>
+
         {dailyChallenge && (
           <Animated.View entering={FadeInDown.delay(1000).duration(500)}>
             <Pressable
@@ -2142,6 +2199,50 @@ export default function HomeScreen() {
           </Pressable>
         )}
       </View>
+
+      <Modal visible={showOnboarding} transparent animationType="fade" onRequestClose={() => {}}>
+        <View style={styles.onboardingOverlay}>
+          <Animated.View entering={ZoomIn.duration(400)} style={styles.onboardingCard}>
+            <View style={styles.onboardingEmojiWrap}>
+              <Text style={{ fontSize: 48 }}>{ONBOARDING_STEPS[onboardingStep].emoji}</Text>
+            </View>
+            <Text style={styles.onboardingTitle}>{ONBOARDING_STEPS[onboardingStep].title}</Text>
+            <Text style={styles.onboardingBody}>{ONBOARDING_STEPS[onboardingStep].body}</Text>
+            <View style={styles.onboardingDots}>
+              {ONBOARDING_STEPS.map((_, i) => (
+                <View key={i} style={[styles.onboardingDot, i === onboardingStep && styles.onboardingDotActive]} />
+              ))}
+            </View>
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                if (onboardingStep < ONBOARDING_STEPS.length - 1) {
+                  setOnboardingStep(onboardingStep + 1);
+                } else {
+                  AsyncStorage.setItem(ONBOARDING_DONE_KEY, "1");
+                  setShowOnboarding(false);
+                  setOnboardingStep(0);
+                }
+              }}
+              style={styles.onboardingNextBtn}
+            >
+              <Text style={styles.onboardingNextText}>
+                {onboardingStep < ONBOARDING_STEPS.length - 1 ? "Next →" : "Let's Go!"}
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                AsyncStorage.setItem(ONBOARDING_DONE_KEY, "1");
+                setShowOnboarding(false);
+                setOnboardingStep(0);
+              }}
+              style={styles.onboardingSkip}
+            >
+              <Text style={styles.onboardingSkipText}>Skip</Text>
+            </Pressable>
+          </Animated.View>
+        </View>
+      </Modal>
 
       <Modal
         visible={archiveVisible}
@@ -3920,6 +4021,123 @@ const styles = StyleSheet.create({
     marginTop: 24,
     marginBottom: 10,
     paddingHorizontal: 20,
+  },
+  featureOfDayCard: {
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: 14,
+    backgroundColor: "rgba(13,13,20,0.95)",
+    borderWidth: 1,
+    borderColor: "rgba(255,215,0,0.2)",
+    padding: 14,
+    overflow: "hidden" as const,
+  },
+  featureOfDayAccent: {
+    position: "absolute" as const,
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+    borderTopLeftRadius: 14,
+    borderTopRightRadius: 14,
+  },
+  featureOfDayIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+  },
+  featureOfDayLabel: {
+    fontSize: 10,
+    fontWeight: "700" as const,
+    color: "rgba(255,165,0,0.8)",
+    letterSpacing: 1,
+  },
+  featureOfDayTitle: {
+    fontSize: 16,
+    fontWeight: "800" as const,
+    marginBottom: 2,
+  },
+  featureOfDaySub: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.55)",
+    lineHeight: 16,
+  },
+  onboardingOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.85)",
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    paddingHorizontal: 24,
+  },
+  onboardingCard: {
+    backgroundColor: "#0D0D12",
+    borderRadius: 24,
+    padding: 28,
+    width: "100%" as any,
+    maxWidth: 380,
+    alignItems: "center" as const,
+    borderWidth: 1,
+    borderColor: "rgba(212,164,32,0.3)",
+  },
+  onboardingEmojiWrap: {
+    width: 80,
+    height: 80,
+    borderRadius: 20,
+    backgroundColor: "rgba(212,164,32,0.1)",
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    marginBottom: 20,
+  },
+  onboardingTitle: {
+    fontSize: 22,
+    fontWeight: "800" as const,
+    color: "#FFD700",
+    textAlign: "center" as const,
+    marginBottom: 12,
+  },
+  onboardingBody: {
+    fontSize: 15,
+    color: "rgba(255,255,255,0.75)",
+    textAlign: "center" as const,
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  onboardingDots: {
+    flexDirection: "row" as const,
+    gap: 8,
+    marginBottom: 24,
+  },
+  onboardingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "rgba(255,255,255,0.2)",
+  },
+  onboardingDotActive: {
+    backgroundColor: "#FFD700",
+    width: 20,
+  },
+  onboardingNextBtn: {
+    width: "100%" as any,
+    backgroundColor: "#D4A420",
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center" as const,
+    marginBottom: 12,
+  },
+  onboardingNextText: {
+    fontSize: 16,
+    fontWeight: "800" as const,
+    color: "#000",
+  },
+  onboardingSkip: {
+    paddingVertical: 8,
+  },
+  onboardingSkipText: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.35)",
   },
   musicWidget: {
     position: "absolute",

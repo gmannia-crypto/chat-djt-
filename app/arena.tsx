@@ -4323,18 +4323,34 @@ export default function ArenaScreen() {
 
   const shareDebate = useCallback(async () => {
     const topicName = currentTopic || "Political Arena";
-    const recentMessages = messages.filter((m) => !m.isSystem).slice(-5);
-    let shareText = `🔥 POLITICAL ARENA: ${topicName}\n\n`;
-    recentMessages.forEach((m) => {
-      const persona = getPersona(m.speakerId);
-      if (persona) shareText += `${persona.shortName}: "${m.text.substring(0, 80)}..."\n`;
-    });
-    shareText += `\nWatch the AI debate LIVE on Chat DJT! 🏛️`;
+    const recentMessages = messages.filter((m) => !m.isSystem && m.speakerId !== "user").slice(-4);
+    const winner = Object.entries(personaPointsRef.current).sort(([, a], [, b]) => b - a)[0];
+    const winnerPersona = winner ? getPersona(winner[0]) : null;
+    const winnerName = winnerPersona?.name || null;
+    const winnerPts = winner ? winner[1] : 0;
+
+    let shareText = `🏛️ POLITICAL ARENA — Chat DJT\n`;
+    shareText += `📰 Topic: "${topicName}"\n\n`;
+    if (recentMessages.length > 0) {
+      shareText += `🔥 Highlights:\n`;
+      recentMessages.forEach((m) => {
+        const persona = getPersona(m.speakerId);
+        if (persona) {
+          const snippet = m.text.length > 90 ? m.text.substring(0, 87) + "…" : m.text;
+          shareText += `${persona.shortName || persona.name}: "${snippet}"\n`;
+        }
+      });
+      shareText += "\n";
+    }
+    if (winnerName && winnerPts > 0) {
+      shareText += `👑 Winning: ${winnerName} with ${winnerPts} pts\n\n`;
+    }
+    shareText += `Watch 20 AI personas debate LIVE 👇\nChat DJT — chatdjt.com`;
 
     try {
       if (Platform.OS === "web") {
         if (navigator.share) {
-          await navigator.share({ title: `Political Arena: ${topicName}`, text: shareText });
+          await navigator.share({ title: `Political Arena: ${topicName}`, text: shareText, url: "https://chatdjt.com" });
         } else {
           const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`;
           Linking.openURL(twitterUrl);
@@ -5777,11 +5793,39 @@ export default function ArenaScreen() {
             )}
             <View style={s.summaryActions}>
               <Pressable
-                onPress={() => {
-                  const winner = Object.entries(personaPoints).sort(([, a], [, b]) => b - a)[0];
+                onPress={async () => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  const sortedPersonas = Object.entries(personaPoints).sort(([, a], [, b]) => b - a);
+                  const winner = sortedPersonas[0];
                   const winnerName = winner ? getPersona(winner[0])?.name || "Unknown" : "Unknown";
                   const pts = winner ? winner[1] : 0;
-                  showShareCard("Debate Complete", `${winnerName} dominated the arena with ${pts} points! The crowd goes wild!`, "arena");
+                  const topicName = currentTopic || "Political Arena";
+                  const totalMessages = messages.filter((m) => !m.isSystem && m.speakerId !== "user").length;
+                  const personaCount = selectedPersonas.length;
+                  let viral = `🏛️ POLITICAL ARENA RESULTS\n`;
+                  viral += `📰 "${topicName}"\n\n`;
+                  viral += `👑 WINNER: ${winnerName} — ${pts} pts\n`;
+                  if (sortedPersonas[1]) {
+                    const p2 = getPersona(sortedPersonas[1][0]);
+                    if (p2) viral += `🥈 Runner-Up: ${p2.name} — ${sortedPersonas[1][1]} pts\n`;
+                  }
+                  viral += `\n💬 ${totalMessages} AI statements across ${personaCount} personas\n`;
+                  if (trumpRoastText) {
+                    viral += `\n🔥 Trump said: "${trumpRoastText.substring(0, 80)}…"\n`;
+                  }
+                  viral += `\nWatch 20 voice-cloned AI personas debate LIVE 👇\nChat DJT — chatdjt.com`;
+
+                  try {
+                    if (Platform.OS === "web") {
+                      if (navigator.share) {
+                        await navigator.share({ title: `${winnerName} wins the Political Arena!`, text: viral, url: "https://chatdjt.com" });
+                      } else {
+                        Linking.openURL(`https://twitter.com/intent/tweet?text=${encodeURIComponent(viral)}`);
+                      }
+                    } else {
+                      await Share.share({ message: viral, title: `${winnerName} wins the Political Arena!` });
+                    }
+                  } catch {}
                 }}
                 style={[s.summaryActionBtn, { backgroundColor: "#D4A420" }]}
               >
