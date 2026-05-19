@@ -1,0 +1,31 @@
+Your app is now feature-rich. The path to virality is about amplifying the most shareable moments and lowering any remaining friction.
+
+Make Every Interaction Shareable
+
+The Opportunity: The funniest debates, roasts, and fortunes are currently trapped in the app.
+
+The Action: For every major interaction (debate result, fortune, roast), add a prominent "Share This" button that generates a unique, branded image or video clip with the user's result and a call-to-action to download the app. This is your single most powerful free marketing tool.
+
+Guide New Users Immediately
+
+The Opportunity: A first-time user might feel overwhelmed by 20+ personas and a dozen features.
+
+The Action: Add a brief, optional tutorial or a "Quick Start" guide when a user first launches the app. Highlight the "Try It Now" demo on your landing page to let users sample the core debate before installing.
+
+Leverage the "Voice Cloned" Differentiator
+
+The Opportunity: "Voice-cloned" is a huge technical achievement and a potential viral hook.
+
+The Action: Create short video trailers showcasing the voice cloning. For example, a 15-second clip of Trump verbally roasting a user's text input. Post these natively on TikTok, YouTube Shorts, and Instagram Reels with a clear call-to-action.
+
+Focus on a Single, Powerful Call-to-Action (CTA)
+
+The Opportunity: Your landing page has many great elements, but the primary goal should be crystal clear.
+
+The Action: On the main page, make the primary button something like "Try the Demo" (to hook them) or "Download on App Store / Google Play" (when they're ready). The current "Get the App" section is good, but consider making the first CTA button more prominent at the top.
+
+Build a "Feature of the Day" Loop
+
+The Opportunity: With 10+ features, users might not explore everything.
+
+The Action: On the main dashboard, add a small "🔥 Today's Hot Feature" block that rotates daily, highlighting a different persona or game mode (e.g., "Financial Faceoff" on Mo
