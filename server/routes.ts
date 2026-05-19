@@ -7348,6 +7348,84 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
     }
   });
 
+  app.post("/api/arena/viral-clip", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+
+      const VIDEO_TOKEN_COST = 3;
+      const tokenResult = await useTokens(deviceId, VIDEO_TOKEN_COST, "Arena viral clip video (3 tokens)");
+      if (!tokenResult.success) {
+        return res.status(403).json({ error: tokenResult.error, balance: tokenResult.balance });
+      }
+
+      const { text, personaId } = req.body;
+      if (!text || !personaId) {
+        return res.status(400).json({ error: "text and personaId are required" });
+      }
+
+      const fishApiKey = process.env.FISH_AUDIO_API_KEY;
+      if (!fishApiKey) {
+        return res.status(500).json({ error: "TTS not configured" });
+      }
+
+      const PERSONA_VOICE_IDS_LOCAL: Record<string, string> = {
+        trump: "7379b5f7cf9a4337b54a8fa819ae8502",
+        netanyahu: "3c5fe93c3f5348bbaeb5cee4f27bb359",
+        ruckus: "35cec18b290d4896b92644f2298330ab",
+        galloway: "12206c42bd74465f987178e33c277d87",
+        mcconnell: "f338ac02d7df4e6e959e131d6126aeff",
+        carville: "ce3ba02102a34819abd74838d220d68e",
+        maddow: "7a8e38ef826c4352915c230a37fca0d9",
+        omar: "478ccf652e0049898fbf11d0fb9f9d2a",
+        biden: "39c0a6dc47054f9bbcd2e064a41fea9f",
+        rosie: "0b2a697d1ed141c7965cd65d197f54ba",
+        berniemc: "5cbb7b199c5a4b538bf1018e6341ebc4",
+        elon: "03397b4c4be74759b72533b663fbd001",
+        graham: "abd23192e4ee4bf4889cbaa4d0ce4ccc",
+        megynkelly: "45b6fe2bac574d6ea96f074cb107a83f",
+        pambondi: "e43ce1df9213416a80060704a82727d3",
+        candace: "8c23d7c5e8234ed487552ad7b43604fb",
+        joyreid: "369be6bca4b54c529a49add2c16bd1b7",
+        miller: "65576015a38a4e3cbf503728ad0514c2",
+        jimjordan: "6d262d99f138409e8de98b555062cdb3",
+        schumer: "1691d6793e2b46808010896a8d6c371c",
+        alexjones: "64430d22bc8b4744999439b9281b71a6",
+        obama: "a7a0826352d240878d6a6566b61e4a61",
+        melania: "689489f0a6854feba39461783b3c32b9",
+        odonnell: "97e32ec60be047378bbbb4982d0c19fa",
+        kamala: "021cd8c8fc5642649e36ea0c8c942cc2",
+        mtg: "ca7b0362e114420e9e3fd10244eb9da6",
+        rfk: "dc436d1018d5496ebbc39cc7498042d8",
+        erikakirk: "e8c2a040af5f4641bad5949b4cdf50d8",
+        loomer: "294d0f01d330442db05d861507f797fc",
+        leavitt: "e703fb0cd635480b8afdad8cefb34e91",
+        bannon: "05a1596ba26148f18b81c96a04e57917",
+      };
+
+      const voiceId = PERSONA_VOICE_IDS_LOCAL[personaId] || process.env.FISH_AUDIO_VOICE_ID || "";
+      if (!voiceId) {
+        return res.status(400).json({ error: "No voice configured for this persona" });
+      }
+
+      const safeText = text.slice(0, 500);
+      const audioBuffer = await fishAudioRequest(safeText, voiceId, 1.0, fishApiKey);
+      const audioBase64 = audioBuffer.toString("base64");
+
+      const { generateLipSyncVideo } = await import("./therapy-memory");
+      const { videoUrl, error: videoError } = await generateLipSyncVideo(audioBuffer, personaId);
+
+      res.json({
+        videoUrl,
+        audioBase64: `data:audio/mpeg;base64,${audioBase64}`,
+        error: videoError || undefined,
+      });
+    } catch (error: any) {
+      console.error("Arena viral clip error:", error);
+      res.status(500).json({ error: "Viral clip generation failed" });
+    }
+  });
+
   app.post("/api/arena/record-win", async (req, res) => {
     try {
       const deviceId = req.headers["x-device-id"] as string;

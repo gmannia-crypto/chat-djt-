@@ -1603,6 +1603,67 @@ function getPersona(id: string): ArenaPersona | undefined {
   return ARENA_PERSONAS[id] || MYSTERY_PERSONAS[id] || undefined;
 }
 
+interface ViralMoment {
+  index: number;
+  message: ConversationMessage;
+  persona: ArenaPersona;
+  score: number;
+}
+
+function pickViralMoments(messages: ConversationMessage[], maxCount = 3): ViralMoment[] {
+  const FIRE_WORDS = [
+    "never","always","destroy","disgrace","liar","fraud","fake","truth","america","fight","win","lose",
+    "pathetic","embarrass","criminal","genius","tremendous","disaster","corrupt","revolution","history",
+    "unprecedented","outrageous","shameful","brilliant","incredible","unbelievable","betrayed","exposed",
+  ];
+  const candidates = messages
+    .map((m, index) => ({ m, index }))
+    .filter(({ m }) => !m.isSystem && m.speakerId !== "user" && m.text && m.text.length > 60);
+
+  const scored = candidates.map(({ m, index }) => {
+    const txt = m.text;
+    const lower = txt.toLowerCase();
+    let score = 0;
+    score += Math.min(txt.length / 20, 10);
+    score += (txt.match(/!/g) || []).length * 3;
+    score += (txt.match(/\?/g) || []).length * 2;
+    const capsWords = txt.match(/\b[A-Z]{3,}\b/g) || [];
+    score += capsWords.length * 4;
+    FIRE_WORDS.forEach((w) => { if (lower.includes(w)) score += 5; });
+    const p = getPersona(m.speakerId);
+    if (p) {
+      score += p.personality.aggression * 0.08;
+      score += p.personality.humor * 0.04;
+    }
+    return { index, message: m, score };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+
+  const chosen: ViralMoment[] = [];
+  const usedSpeakers = new Set<string>();
+  for (const s of scored) {
+    if (chosen.length >= maxCount) break;
+    const p = getPersona(s.message.speakerId);
+    if (!p) continue;
+    if (usedSpeakers.has(s.message.speakerId)) continue;
+    usedSpeakers.add(s.message.speakerId);
+    chosen.push({ ...s, persona: p });
+  }
+
+  if (chosen.length < maxCount) {
+    for (const s of scored) {
+      if (chosen.length >= maxCount) break;
+      if (chosen.find((c) => c.index === s.index)) continue;
+      const p = getPersona(s.message.speakerId);
+      if (!p) continue;
+      chosen.push({ ...s, persona: p });
+    }
+  }
+
+  return chosen.sort((a, b) => a.index - b.index);
+}
+
 function calculateResponseProbability(
   listenerId: string,
   speakerId: string,
@@ -1991,6 +2052,425 @@ interface SavedArenaSession {
   savedAt: number;
 }
 
+interface ViralClipsModalProps {
+  visible: boolean;
+  onClose: () => void;
+  messages: ConversationMessage[];
+  currentTopic: string | null;
+  videoStates: Record<number, { loading: boolean; videoUrl: string | null; error: string | null }>;
+  setVideoStates: React.Dispatch<React.SetStateAction<Record<number, { loading: boolean; videoUrl: string | null; error: string | null }>>>;
+  deviceId: string | null;
+}
+
+function ViralClipsModal({ visible, onClose, messages, currentTopic, videoStates, setVideoStates, deviceId }: ViralClipsModalProps) {
+  const insets = useSafeAreaInsets();
+  const moments = React.useMemo(() => pickViralMoments(messages, 3), [messages]);
+
+  async function generateVideo(idx: number, moment: ViralMoment) {
+    if (!deviceId) { Alert.alert("Error", "Device ID not available"); return; }
+    setVideoStates((prev) => ({ ...prev, [idx]: { loading: true, videoUrl: null, error: null } }));
+    try {
+      const url = new URL("/api/arena/viral-clip", getApiUrl());
+      const res = await fetch(url.toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+        body: JSON.stringify({ text: moment.message.text.slice(0, 500), personaId: moment.persona.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setVideoStates((prev) => ({ ...prev, [idx]: { loading: false, videoUrl: null, error: data.error || "Failed" } }));
+      } else {
+        setVideoStates((prev) => ({ ...prev, [idx]: { loading: false, videoUrl: data.videoUrl || null, error: data.error || null } }));
+      }
+    } catch (e: any) {
+      setVideoStates((prev) => ({ ...prev, [idx]: { loading: false, videoUrl: null, error: e.message || "Network error" } }));
+    }
+  }
+
+  async function shareClip(moment: ViralMoment) {
+    const text = `"${moment.message.text.slice(0, 120)}${moment.message.text.length > 120 ? "…" : ""}"\n\n— ${moment.persona.name} on the Political Arena\n\nTopic: ${currentTopic || "Political Arena"}\n\nWatch 20 AI personas debate LIVE 🏛️\nChat DJT — chatdjt.com`;
+    try {
+      if (Platform.OS === "web") {
+        if (navigator.share) {
+          await navigator.share({ title: `${moment.persona.name} drops a fire line!`, text, url: "https://chatdjt.com" });
+        } else {
+          await Linking.openURL(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`);
+        }
+      } else {
+        await Share.share({ message: text, title: `${moment.persona.name} drops a fire line!` });
+      }
+    } catch {}
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={vcStyles.overlay}>
+        <Animated.View entering={SlideInUp.duration(300).springify()} style={[vcStyles.card, { paddingTop: insets.top + 16 }]}>
+          <View style={vcStyles.header}>
+            <View style={vcStyles.headerLeft}>
+              <Ionicons name="flame" size={20} color="#ff4d4d" />
+              <Text style={vcStyles.headerTitle}>VIRAL MOMENTS</Text>
+              <Ionicons name="flame" size={20} color="#ff4d4d" />
+            </View>
+            <Pressable onPress={onClose} style={vcStyles.closeBtn}>
+              <Ionicons name="close" size={22} color="#fff" />
+            </Pressable>
+          </View>
+          <Text style={vcStyles.subtitle}>
+            Top {moments.length} most explosive moments from this debate
+          </Text>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}>
+            {moments.length === 0 ? (
+              <View style={vcStyles.emptyState}>
+                <Ionicons name="chatbubbles-outline" size={40} color="rgba(255,255,255,0.3)" />
+                <Text style={vcStyles.emptyText}>No moments yet — start a debate first!</Text>
+              </View>
+            ) : (
+              moments.map((moment, idx) => {
+                const vs = videoStates[idx] || { loading: false, videoUrl: null, error: null };
+                return (
+                  <Animated.View key={idx} entering={FadeInDown.delay(idx * 120).duration(300)} style={vcStyles.momentCard}>
+                    <LinearGradient
+                      colors={[`${moment.persona.color}22`, "rgba(0,0,0,0.95)"]}
+                      style={vcStyles.momentGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                    >
+                      <View style={vcStyles.momentTop}>
+                        {moment.persona.image ? (
+                          <Image source={moment.persona.image} style={[vcStyles.momentAvatar, { borderColor: moment.persona.color }]} />
+                        ) : (
+                          <View style={[vcStyles.momentAvatarFallback, { backgroundColor: moment.persona.color }]}>
+                            <Text style={vcStyles.momentAvatarLetter}>{moment.persona.name[0]}</Text>
+                          </View>
+                        )}
+                        <View style={vcStyles.momentPersonaInfo}>
+                          <Text style={[vcStyles.momentPersonaName, { color: moment.persona.color }]}>{moment.persona.name}</Text>
+                          <Text style={vcStyles.momentTopicLabel}>{currentTopic ? currentTopic.slice(0, 40) : "Political Arena"}</Text>
+                        </View>
+                        <View style={vcStyles.fireBadge}>
+                          <Text style={vcStyles.fireBadgeText}>🔥 #{idx + 1}</Text>
+                        </View>
+                      </View>
+
+                      <View style={vcStyles.quoteBlock}>
+                        <Text style={vcStyles.quoteMarks}>"</Text>
+                        <Text style={vcStyles.quoteText} numberOfLines={5}>{moment.message.text}</Text>
+                        <Text style={[vcStyles.quoteMarks, vcStyles.quoteMarksClose]}>"</Text>
+                      </View>
+
+                      <View style={vcStyles.momentBrand}>
+                        <Text style={vcStyles.momentBrandText}>Chat DJT · chatdjt.com</Text>
+                      </View>
+
+                      {vs.videoUrl ? (
+                        <View style={vcStyles.videoReady}>
+                          <Ionicons name="checkmark-circle" size={18} color="#4ADE80" />
+                          <Text style={vcStyles.videoReadyText}>Video ready!</Text>
+                          <Pressable
+                            onPress={async () => {
+                              try {
+                                if (Platform.OS === "web") {
+                                  await Linking.openURL(vs.videoUrl!);
+                                } else {
+                                  await Share.share({ message: `${vs.videoUrl}\n\nWatch ${moment.persona.name} go off on the Political Arena!\n\nChat DJT — chatdjt.com`, title: "Arena Viral Clip" });
+                                }
+                              } catch {}
+                            }}
+                            style={vcStyles.shareVideoBtn}
+                          >
+                            <Ionicons name="share-social" size={14} color="#000" />
+                            <Text style={vcStyles.shareVideoBtnText}>Share Video</Text>
+                          </Pressable>
+                        </View>
+                      ) : vs.loading ? (
+                        <View style={vcStyles.videoLoading}>
+                          <ActivityIndicator size="small" color="#7c3aed" />
+                          <Text style={vcStyles.videoLoadingText}>Generating lip-sync video… (may take ~60s)</Text>
+                        </View>
+                      ) : (
+                        <View style={vcStyles.momentActions}>
+                          <Pressable onPress={() => shareClip(moment)} style={vcStyles.shareTextBtn}>
+                            <Ionicons name="share-social" size={14} color="#FFD700" />
+                            <Text style={vcStyles.shareTextBtnText}>Share Quote</Text>
+                          </Pressable>
+                          <Pressable
+                            onPress={() => {
+                              if (!deviceId) return Alert.alert("Error", "Device ID not available");
+                              Alert.alert(
+                                "Generate Viral Video",
+                                `Generate a lip-sync video of ${moment.persona.name} saying this line?\n\nCosts 3 tokens.`,
+                                [
+                                  { text: "Cancel", style: "cancel" },
+                                  { text: "Generate (3 tokens)", onPress: () => generateVideo(idx, moment) },
+                                ]
+                              );
+                            }}
+                            style={vcStyles.generateVideoBtn}
+                          >
+                            <Ionicons name="film" size={14} color="#fff" />
+                            <Text style={vcStyles.generateVideoBtnText}>Generate Video · 3🪙</Text>
+                          </Pressable>
+                        </View>
+                      )}
+                      {vs.error && !vs.loading && (
+                        <Text style={vcStyles.errorText}>⚠ {vs.error}</Text>
+                      )}
+                    </LinearGradient>
+                  </Animated.View>
+                );
+              })
+            )}
+          </ScrollView>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+}
+
+const vcStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.85)",
+    justifyContent: "flex-end",
+  },
+  card: {
+    backgroundColor: "#0f0f0f",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderTopWidth: 1,
+    borderColor: "rgba(255,77,77,0.3)",
+    maxHeight: "92%",
+    minHeight: "60%",
+    paddingHorizontal: 16,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "900" as const,
+    color: "#fff",
+    letterSpacing: 2,
+  },
+  closeBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  subtitle: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.5)",
+    marginBottom: 16,
+    letterSpacing: 0.5,
+  },
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 60,
+    gap: 12,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.4)",
+    textAlign: "center",
+  },
+  momentCard: {
+    borderRadius: 16,
+    overflow: "hidden",
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  momentGradient: {
+    padding: 16,
+  },
+  momentTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+    gap: 10,
+  },
+  momentAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 2,
+  },
+  momentAvatarFallback: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  momentAvatarLetter: {
+    fontSize: 18,
+    fontWeight: "900" as const,
+    color: "#fff",
+  },
+  momentPersonaInfo: {
+    flex: 1,
+  },
+  momentPersonaName: {
+    fontSize: 15,
+    fontWeight: "800" as const,
+    letterSpacing: 0.3,
+  },
+  momentTopicLabel: {
+    fontSize: 10,
+    color: "rgba(255,255,255,0.45)",
+    marginTop: 2,
+  },
+  fireBadge: {
+    backgroundColor: "rgba(255,77,77,0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(255,77,77,0.4)",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  fireBadgeText: {
+    fontSize: 11,
+    fontWeight: "800" as const,
+    color: "#ff7070",
+  },
+  quoteBlock: {
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 10,
+    borderLeftWidth: 3,
+    borderLeftColor: "#FFD700",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 10,
+  },
+  quoteMarks: {
+    fontSize: 28,
+    color: "#FFD700",
+    fontWeight: "900" as const,
+    lineHeight: 20,
+    marginBottom: -4,
+  },
+  quoteMarksClose: {
+    textAlign: "right",
+    marginTop: -4,
+    marginBottom: 0,
+  },
+  quoteText: {
+    fontSize: 14,
+    color: "#fff",
+    lineHeight: 20,
+    fontWeight: "500" as const,
+    fontStyle: "italic",
+  },
+  momentBrand: {
+    alignItems: "flex-end",
+    marginBottom: 10,
+  },
+  momentBrandText: {
+    fontSize: 10,
+    color: "rgba(212,164,32,0.6)",
+    fontWeight: "700" as const,
+    letterSpacing: 1,
+  },
+  momentActions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  shareTextBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    backgroundColor: "rgba(212,164,32,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(212,164,32,0.4)",
+    borderRadius: 10,
+    paddingVertical: 9,
+  },
+  shareTextBtnText: {
+    fontSize: 12,
+    fontWeight: "800" as const,
+    color: "#FFD700",
+  },
+  generateVideoBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    backgroundColor: "#7c3aed",
+    borderRadius: 10,
+    paddingVertical: 9,
+  },
+  generateVideoBtnText: {
+    fontSize: 12,
+    fontWeight: "800" as const,
+    color: "#fff",
+  },
+  videoLoading: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 8,
+    backgroundColor: "rgba(124,58,237,0.1)",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+  },
+  videoLoadingText: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.6)",
+    flex: 1,
+  },
+  videoReady: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 8,
+    backgroundColor: "rgba(74,222,128,0.1)",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+  },
+  videoReadyText: {
+    fontSize: 11,
+    color: "#4ADE80",
+    flex: 1,
+    fontWeight: "700" as const,
+  },
+  shareVideoBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#4ADE80",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  shareVideoBtnText: {
+    fontSize: 11,
+    fontWeight: "800" as const,
+    color: "#000",
+  },
+  errorText: {
+    fontSize: 11,
+    color: "#ff7070",
+    marginTop: 6,
+    textAlign: "center",
+  },
+});
+
 export default function ArenaScreen() {
   const insets = useSafeAreaInsets();
   const webTopInset = Platform.OS === "web" ? 67 : 0;
@@ -2187,6 +2667,8 @@ export default function ArenaScreen() {
   const [awardedMessages, setAwardedMessages] = useState<Set<string>>(new Set());
   const [showScoreboard, setShowScoreboard] = useState(false);
   const [showEndSummary, setShowEndSummary] = useState(false);
+  const [showViralClips, setShowViralClips] = useState(false);
+  const [viralClipVideoStates, setViralClipVideoStates] = useState<Record<number, { loading: boolean; videoUrl: string | null; error: string | null }>>({});
   const [showContinuePrompt, setShowContinuePrompt] = useState(false);
   const [tokenWinVisible, setTokenWinVisible] = useState(false);
   const [tokenWinAmount, setTokenWinAmount] = useState<number | undefined>();
@@ -5791,6 +6273,18 @@ export default function ArenaScreen() {
                   })}
               </Animated.View>
             )}
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                setViralClipVideoStates({});
+                setShowViralClips(true);
+              }}
+              style={[s.summaryActionBtn, { backgroundColor: "#7c3aed", flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 }]}
+            >
+              <Ionicons name="film" size={16} color="#fff" />
+              <Text style={[s.summaryActionText, { color: "#fff" }]}>Viral Clips</Text>
+            </Pressable>
+
             <View style={s.summaryActions}>
               <Pressable
                 onPress={async () => {
@@ -5862,6 +6356,16 @@ export default function ArenaScreen() {
           </Animated.View>
         </View>
       </Modal>
+
+      <ViralClipsModal
+        visible={showViralClips}
+        onClose={() => setShowViralClips(false)}
+        messages={messages}
+        currentTopic={currentTopic}
+        videoStates={viralClipVideoStates}
+        setVideoStates={setViralClipVideoStates}
+        deviceId={deviceId}
+      />
 
       <Modal visible={showPaywall} transparent animationType="fade">
         <View style={s.paywallOverlay}>

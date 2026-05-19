@@ -332,15 +332,54 @@ const THERAPIST_PORTRAITS: Record<string, string> = {
   patricia: "dr-patricia.jpg",
 };
 
-function getPortraitPath(personaId: string): string | null {
-  const filename = THERAPIST_PORTRAITS[personaId];
-  if (!filename) return null;
+const ARENA_PORTRAITS: Record<string, string> = {
+  trump: "persona-trump.png",
+  netanyahu: "persona-netanyahu.png",
+  ruckus: "persona-ruckus.png",
+  galloway: "persona-galloway.png",
+  mcconnell: "persona-mcconnell.png",
+  carville: "persona-carville.png",
+  maddow: "persona-maddow.png",
+  omar: "persona-omar.png",
+  biden: "persona-biden.png",
+  rosie: "persona-rosie.png",
+  berniemc: "persona-bernie.png",
+  elon: "persona-musk.png",
+  graham: "persona-graham.png",
+  megynkelly: "persona-megynkelly.png",
+  pambondi: "persona-pambondi.png",
+  candace: "persona-candace.png",
+  joyreid: "persona-joyreid.png",
+  miller: "persona-miller.png",
+  jimjordan: "persona-jimjordan.png",
+  schumer: "persona-schumer.png",
+  alexjones: "persona-alexjones.png",
+  obama: "persona-obama.png",
+  melania: "persona-melania.png",
+  odonnell: "persona-odonnell.png",
+  kamala: "persona-kamala.png",
+  mtg: "persona-mtg.png",
+  rfk: "persona-rfk.png",
+  erikakirk: "persona-erikakirk.png",
+  loomer: "persona-loomer.png",
+  leavitt: "persona-leavitt.png",
+  bannon: "persona-bannon.png",
+};
 
-  const serverPath = join(process.cwd(), "server", "assets", filename);
-  if (existsSync(serverPath)) return serverPath;
+export function getPortraitPath(personaId: string): string | null {
+  const therapistFilename = THERAPIST_PORTRAITS[personaId];
+  if (therapistFilename) {
+    const serverPath = join(process.cwd(), "server", "assets", therapistFilename);
+    if (existsSync(serverPath)) return serverPath;
+    const assetsPath = join(process.cwd(), "assets", "images", therapistFilename);
+    if (existsSync(assetsPath)) return assetsPath;
+  }
 
-  const assetsPath = join(process.cwd(), "assets", "images", filename);
-  if (existsSync(assetsPath)) return assetsPath;
+  const arenaFilename = ARENA_PORTRAITS[personaId];
+  if (arenaFilename) {
+    const assetsPath = join(process.cwd(), "assets", "images", arenaFilename);
+    if (existsSync(assetsPath)) return assetsPath;
+  }
 
   return null;
 }
