@@ -1280,6 +1280,42 @@ const MYSTERY_PERSONAS: Record<string, ArenaPersona> = {
       negative: ["liar", "spin", "young", "inexperienced", "talking points", "robot"],
     },
   },
+  bannon: {
+    id: "bannon",
+    name: "Steve Bannon",
+    shortName: "Bannon",
+    color: "#8B0000",
+    faction: "supporter",
+    image: require("@/assets/images/persona-bannon.png"),
+    personality: {
+      energy: 95,
+      aggression: 95,
+      humor: 20,
+      catchphrases: ["Globalists!", "The forgotten man!", "Burn it down!", "Sloppy Steve? FINE!", "American workers!"],
+    },
+    relationships: {
+      trump: { sentiment: 80 },
+      elon: { sentiment: 2 },
+      miller: { sentiment: 90 },
+      jimjordan: { sentiment: 85 },
+      bannon: { sentiment: 100 },
+      melania: { sentiment: 70 },
+      loomer: { sentiment: 45 },
+      erikakirk: { sentiment: 50 },
+      leavitt: { sentiment: 55 },
+      galloway: { sentiment: 40 },
+      carville: { sentiment: 10 },
+      maddow: { sentiment: 5 },
+      omar: { sentiment: 5 },
+      biden: { sentiment: 5 },
+      obama: { sentiment: 5 },
+      kamala: { sentiment: 5 },
+    },
+    triggerWords: {
+      positive: ["working class", "america", "maga", "sovereignty", "nationalism", "forgotten man", "populist"],
+      negative: ["globalist", "elon", "tech oligarch", "wall street", "jared", "sloppy", "establishment"],
+    },
+  },
 };
 
 const MYSTERY_PERSONA_IDS = ["alexjones", "obama", "melania", "schumer", "odonnell", "kamala", "mtg", "rfk"];
@@ -1295,7 +1331,7 @@ const MYSTERY_UNLOCK_COSTS: Record<string, number> = {
 };
 const MYSTERY_UNLOCK_KEY = "arena_mystery_unlocked";
 
-const PERSONA_IDS = ["trump", "elon", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "leavitt", "erikakirk", "loomer"];
+const PERSONA_IDS = ["trump", "elon", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "leavitt", "erikakirk", "loomer", "bannon"];
 
 const BREAKING_NEWS_REACTIONS: Record<string, string[]> = {
   trump: [

@@ -126,3 +126,9 @@ id = "Eu1DmqZODcSuVR3mnp4je"
 uri = "file://assets/images/persona-leavitt.png"
 type = "image"
 title = "generated_image"
+
+[[generated]]
+id = "CJPFkKXPQ_xgxYA5jj0lS"
+uri = "file://attached_assets/generated_images/steve_bannon_political_portrait_a28a.png"
+type = "image"
+title = "generated_image"

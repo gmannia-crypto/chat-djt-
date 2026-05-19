@@ -63,6 +63,7 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   erikakirk: require("@/assets/images/persona-erikakirk.png"),
   loomer: require("@/assets/images/persona-loomer.png"),
   leavitt: require("@/assets/images/persona-leavitt.png"),
+  bannon: require("@/assets/images/persona-bannon.png"),
 };
 
 const FX_KEY = "interview_fx_enabled_v1";
