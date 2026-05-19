@@ -25,7 +25,10 @@
       }
     },
     "web": {
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "description": "Chat DJT — Talk to an AI Donald Trump. Unfiltered debates, political arena, therapy sessions, and more. The most tremendous AI chat experience, believe me.",
+      "themeColor": "#000000",
+      "backgroundColor": "#000000"
     },
     "plugins": [
       [

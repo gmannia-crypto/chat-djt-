@@ -1,7 +1,5 @@
 User-agent: *
-Allow: /company
-Allow: /company/privacy
-Allow: /company/terms
+Allow: /
 Disallow: /api/
 
 Sitemap: https://trumpbot.rip/company/sitemap.xml
