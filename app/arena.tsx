@@ -2566,8 +2566,11 @@ export default function ArenaScreen() {
   const [showIntro, setShowIntro] = useState(false);
   const [showPreDebateSetup, setShowPreDebateSetup] = useState(true);
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
+  const selectedTopicIdRef = useRef<string | null>(null);
   const [customTopicText, setCustomTopicText] = useState("");
+  const customTopicTextRef = useRef("");
   const [useCustomTopic, setUseCustomTopic] = useState(false);
+  const useCustomTopicRef = useRef(false);
   const [showGlobalLeaderboard, setShowGlobalLeaderboard] = useState(false);
   const [showArenaRules, setShowArenaRules] = useState(false);
   const [globalLeaderboardData, setGlobalLeaderboardData] = useState<{ topUsers: any[]; topPersonas: any[] }>({ topUsers: [], topPersonas: [] });
@@ -2957,6 +2960,9 @@ export default function ArenaScreen() {
   useEffect(() => { messagesRef.current = messages; }, [messages]);
   useEffect(() => { currentSpeakerRef.current = currentSpeaker; }, [currentSpeaker]);
   useEffect(() => { currentTopicRef.current = currentTopic; }, [currentTopic]);
+  useEffect(() => { selectedTopicIdRef.current = selectedTopicId; }, [selectedTopicId]);
+  useEffect(() => { customTopicTextRef.current = customTopicText; }, [customTopicText]);
+  useEffect(() => { useCustomTopicRef.current = useCustomTopic; }, [useCustomTopic]);
   useEffect(() => { emotionalStatesRef.current = emotionalStates; }, [emotionalStates]);
   useEffect(() => { isRunningRef.current = isRunning; }, [isRunning]);
   useEffect(() => { voiceEnabledRef.current = voiceEnabled; }, [voiceEnabled]);
@@ -3486,7 +3492,19 @@ export default function ArenaScreen() {
         refreshBalance();
         const mins = data.durationMinutes || selectedDuration;
         if (showPreDebateSetup && !continueMode) {
-          setShowPreDebateSetup(true);
+          if (useCustomTopicRef.current && customTopicTextRef.current.trim()) {
+            const t = customTopicTextRef.current.trim();
+            setCurrentTopic(t);
+            currentTopicRef.current = t;
+          } else if (selectedTopicIdRef.current) {
+            const found = dynamicTopics.find((t) => t.id === selectedTopicIdRef.current);
+            if (found) {
+              setCurrentTopic(found.title);
+              currentTopicRef.current = found.title;
+            }
+          }
+          setShowPreDebateSetup(false);
+          setShowIntro(true);
         } else {
           sessionEndedRef.current = false;
           isInterruptingRef.current = false;
@@ -3510,7 +3528,7 @@ export default function ArenaScreen() {
       setShowPaywall(true);
     }
     setIsUnlocking(false);
-  }, [deviceId, refreshBalance, selectedDuration, showPreDebateSetup]);
+  }, [deviceId, refreshBalance, selectedDuration, showPreDebateSetup, dynamicTopics]);
 
   const addSystemMessage = useCallback((text: string) => {
     const msg: ConversationMessage = {
@@ -4040,7 +4058,7 @@ export default function ArenaScreen() {
           responderId,
           toSpeakerId,
           conversationHistory: history,
-          topic: currentTopicRef.current,
+          topic: currentTopicRef.current || "Current Events",
           activePersonas: selectedPersonasRef.current,
         };
         const currentWinTally = winTallyRef.current;
