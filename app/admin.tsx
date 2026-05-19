@@ -1633,7 +1633,7 @@ function GrantCreditsSection() {
         <Text style={{ color: "#4ADE80", fontSize: 14, fontWeight: "800" as const }}>Grant Credits</Text>
       </View>
       <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, marginBottom: 10 }}>
-        Add tokens to any device. Find your device ID in browser console: localStorage.getItem("trumpbot-device-id")
+        Add tokens to any device. Your own Device ID is shown in gold at the top of this admin screen — tap it to copy, then paste it here.
       </Text>
       <TextInput
         value={deviceId}
