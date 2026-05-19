@@ -1588,11 +1588,18 @@ const timeStyles = StyleSheet.create({
 function GrantCreditsSection() {
   const adminKey = useContext(AdminKeyContext);
   const [deviceId, setDeviceId] = useState("");
+  const [myId, setMyId] = useState<string | null>(null);
   const [amount, setAmount] = useState("500");
   const [resetFree, setResetFree] = useState(true);
   const [granting, setGranting] = useState(false);
   const [result, setResult] = useState<{ success?: boolean; error?: string; granted?: number; balance?: any } | null>(null);
   const [lookupResult, setLookupResult] = useState<any>(null);
+
+  useEffect(() => {
+    AsyncStorage.getItem(DEVICE_ID_KEY).then((id) => {
+      if (id) { setMyId(id); setDeviceId(id); }
+    }).catch(() => {});
+  }, []);
 
   const handleGrant = async () => {
     if (!deviceId.trim()) {
@@ -1632,8 +1639,23 @@ function GrantCreditsSection() {
         <Ionicons name="gift" size={20} color="#4ADE80" />
         <Text style={{ color: "#4ADE80", fontSize: 14, fontWeight: "800" as const }}>Grant Credits</Text>
       </View>
+      {myId && (
+        <Pressable
+          onPress={() => {
+            setDeviceId(myId);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            Alert.alert("Your Device ID", myId);
+          }}
+          style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(255,215,0,0.08)", borderRadius: 8, padding: 8, marginBottom: 10, borderWidth: 1, borderColor: "rgba(255,215,0,0.25)" }}
+        >
+          <Ionicons name="person-circle" size={14} color={Colors.gold} />
+          <Text style={{ color: Colors.gold, fontSize: 11, fontWeight: "700" as const }}>YOUR ID: </Text>
+          <Text style={{ color: Colors.gold, fontSize: 11, flex: 1 }} numberOfLines={1}>{myId}</Text>
+          <Ionicons name="copy-outline" size={13} color={Colors.gold} />
+        </Pressable>
+      )}
       <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, marginBottom: 10 }}>
-        Add tokens to any device. Your own Device ID is shown in gold at the top of this admin screen — tap it to copy, then paste it here.
+        Your ID is pre-filled below. Change it to grant tokens to another device instead.
       </Text>
       <TextInput
         value={deviceId}
