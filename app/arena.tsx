@@ -3327,7 +3327,7 @@ export default function ArenaScreen() {
         const nextItem = ttsQueueRef.current[0];
         if (nextItem) startPrefetch(nextItem);
 
-        const OVERLAP_MS = 400;
+        const OVERLAP_MS = 1500;
         const isTrumpSpeaking = item.personaId === "trump";
         await new Promise<void>((resolve) => {
           let resolved = false;
@@ -3341,7 +3341,6 @@ export default function ArenaScreen() {
           const earlyResolve = () => {
             if (earlyResolved || resolved) return;
             earlyResolved = true;
-            sound.stopAsync().catch(() => {}).finally(() => fullCleanup());
             resolve();
           };
           const finish = () => {
