@@ -87,10 +87,10 @@ const PERSONA_CATEGORY_MAP: Record<string, PersonaCategory> = {
 // Political Facts IQ: everyone starts at 100 (seeded from all-time average).
 // Rises with verified truths (+5 strong, +2 moderate) and falls with lies (-8 AI, -4 viewer).
 // Range 0–200 per session, synced to all-time rolling average on the backend.
-// Four tiers: Political Genius (green ≥130) | Politically Savvy (yellow ≥90) |
+// Four tiers: Political Genius (gold ≥130) | Politically Savvy (yellow ≥90) |
 //             Politically Ignorant (orange ≥60) | Complete Dumb Ass (red <60)
 function iqColor(iq: number): string {
-  if (iq >= 130) return "#4ADE80";
+  if (iq >= 130) return "#FFD700";
   if (iq >= 90)  return "#FBBF24";
   if (iq >= 60)  return "#F97316";
   return "#DC2626";
@@ -2055,6 +2055,7 @@ export default function ArenaScreen() {
   const sessionLieTallyRef = useRef<Record<string, number>>({});
   const [altFactCount, setAltFactCount] = useState(0);
   const sessionAltFactTallyRef = useRef<Record<string, number>>({});
+  const [personaAltTruths, setPersonaAltTruths] = useState<Record<string, number>>({});
   const alltimeIQRef = useRef<Record<string, number>>({});
 
   const [emotionalStates, setEmotionalStates] = useState<Record<string, EmotionalState>>(() => {
@@ -3214,6 +3215,7 @@ export default function ArenaScreen() {
         } else if (score >= 40 && score < 70) {
           sessionAltFactTallyRef.current = { ...sessionAltFactTallyRef.current, [msg.speakerId]: (sessionAltFactTallyRef.current[msg.speakerId] || 0) + 1 };
           setAltFactCount((c) => c + 1);
+          setPersonaAltTruths((prev) => ({ ...prev, [msg.speakerId]: (prev[msg.speakerId] || 0) + 1 }));
           if (score >= 60) {
             adjustPersonaIQ(msg.speakerId, 2);
           }
@@ -3543,6 +3545,23 @@ export default function ArenaScreen() {
           mcconnellFreezeRef.current = true;
         }
 
+        if (typeof data.currentIQ === "number") {
+          setPersonaSessionIQ((prev) => {
+            const updated = { ...prev, [responderId]: data.currentIQ };
+            personaSessionIQRef.current = updated;
+            return updated;
+          });
+        } else if (typeof data.iqDelta === "number" && data.iqDelta !== 0) {
+          adjustPersonaIQ(responderId, data.iqDelta);
+        }
+        if (typeof data.altTruthCount === "number") {
+          setPersonaAltTruths((prev) => ({ ...prev, [responderId]: data.altTruthCount }));
+          sessionAltFactTallyRef.current = { ...sessionAltFactTallyRef.current, [responderId]: data.altTruthCount };
+        } else if (data.altTruthIncrement) {
+          setPersonaAltTruths((prev) => ({ ...prev, [responderId]: (prev[responderId] || 0) + 1 }));
+          sessionAltFactTallyRef.current = { ...sessionAltFactTallyRef.current, [responderId]: (sessionAltFactTallyRef.current[responderId] || 0) + 1 };
+        }
+
         if (sessionEndedRef.current) return;
 
         addMessage({
@@ -3609,6 +3628,9 @@ export default function ArenaScreen() {
           conversationHistory: [{ speakerName: "Donald Trump", text: trumpMessageText }],
           topic: currentTopicRef.current || "debate",
           isInterruption: true,
+          sessionIQ: personaSessionIQRef.current,
+          sessionLieTally: sessionLieTallyRef.current,
+          sessionAltFactTally: sessionAltFactTallyRef.current,
         }),
       });
 
@@ -3626,6 +3648,13 @@ export default function ArenaScreen() {
         showInterruptionBanner(interrupter, persona.name, data.response);
         lastInterruptionRef.current = { text: data.response, interrupterId: interrupter };
         playInterruptionAudio(data.response, interrupter);
+        if (typeof data.currentIQ === "number") {
+          setPersonaSessionIQ((prev) => { const u = { ...prev, [interrupter]: data.currentIQ }; personaSessionIQRef.current = u; return u; });
+        } else if (typeof data.iqDelta === "number" && data.iqDelta !== 0) adjustPersonaIQ(interrupter, data.iqDelta);
+        if (typeof data.altTruthCount === "number") {
+          setPersonaAltTruths((prev) => ({ ...prev, [interrupter]: data.altTruthCount }));
+          sessionAltFactTallyRef.current = { ...sessionAltFactTallyRef.current, [interrupter]: data.altTruthCount };
+        } else if (data.altTruthIncrement) setPersonaAltTruths((prev) => ({ ...prev, [interrupter]: (prev[interrupter] || 0) + 1 }));
 
         await new Promise((r) => setTimeout(r, 500 + Math.random() * 500));
         if (!mountedRef.current || !isRunningRef.current) return;
@@ -3642,6 +3671,9 @@ export default function ArenaScreen() {
             ],
             topic: currentTopicRef.current || "debate",
             isInterruption: true,
+            sessionIQ: personaSessionIQRef.current,
+            sessionLieTally: sessionLieTallyRef.current,
+            sessionAltFactTally: sessionAltFactTallyRef.current,
           }),
         });
 
@@ -3655,6 +3687,13 @@ export default function ArenaScreen() {
             timestamp: Date.now(),
           });
           queueTTS(clapData.response, "trump");
+          if (typeof clapData.currentIQ === "number") {
+            setPersonaSessionIQ((prev) => { const u = { ...prev, trump: clapData.currentIQ }; personaSessionIQRef.current = u; return u; });
+          } else if (typeof clapData.iqDelta === "number" && clapData.iqDelta !== 0) adjustPersonaIQ("trump", clapData.iqDelta);
+          if (typeof clapData.altTruthCount === "number") {
+            setPersonaAltTruths((prev) => ({ ...prev, trump: clapData.altTruthCount }));
+            sessionAltFactTallyRef.current = { ...sessionAltFactTallyRef.current, trump: clapData.altTruthCount };
+          } else if (clapData.altTruthIncrement) setPersonaAltTruths((prev) => ({ ...prev, trump: (prev.trump || 0) + 1 }));
           await new Promise((r) => setTimeout(r, 500));
         }
       }
@@ -3687,6 +3726,9 @@ export default function ArenaScreen() {
           topic: currentTopicRef.current || "debate",
           isInterruption: true,
           isTrumpInitiated: true,
+          sessionIQ: personaSessionIQRef.current,
+          sessionLieTally: sessionLieTallyRef.current,
+          sessionAltFactTally: sessionAltFactTallyRef.current,
         }),
       });
 
@@ -3702,6 +3744,13 @@ export default function ArenaScreen() {
         showInterruptionBanner("trump", "Donald Trump", data.response);
         lastInterruptionRef.current = { text: data.response, interrupterId: "trump" };
         playInterruptionAudio(data.response, "trump");
+        if (typeof data.currentIQ === "number") {
+          setPersonaSessionIQ((prev) => { const u = { ...prev, trump: data.currentIQ }; personaSessionIQRef.current = u; return u; });
+        } else if (typeof data.iqDelta === "number" && data.iqDelta !== 0) adjustPersonaIQ("trump", data.iqDelta);
+        if (typeof data.altTruthCount === "number") {
+          setPersonaAltTruths((prev) => ({ ...prev, trump: data.altTruthCount }));
+          sessionAltFactTallyRef.current = { ...sessionAltFactTallyRef.current, trump: data.altTruthCount };
+        } else if (data.altTruthIncrement) setPersonaAltTruths((prev) => ({ ...prev, trump: (prev.trump || 0) + 1 }));
         await new Promise((r) => setTimeout(r, 500));
       }
     } catch {} finally {
@@ -3766,6 +3815,9 @@ export default function ArenaScreen() {
           activePersonas: active,
           isWelcome: true,
           userContext: { name: userName.trim(), location: locationStr },
+          sessionIQ: personaSessionIQRef.current,
+          sessionLieTally: sessionLieTallyRef.current,
+          sessionAltFactTally: sessionAltFactTallyRef.current,
         }),
       });
       if (res.ok && mountedRef.current) {
@@ -3824,6 +3876,9 @@ export default function ArenaScreen() {
           topic: currentTopicRef.current || "debate",
           activePersonas: active,
           userContext: { name: userNameRef.current, location: locationParts.join(", ") },
+          sessionIQ: personaSessionIQRef.current,
+          sessionLieTally: sessionLieTallyRef.current,
+          sessionAltFactTally: sessionAltFactTallyRef.current,
         }),
       });
       if (res.ok && mountedRef.current) {
@@ -3837,9 +3892,16 @@ export default function ArenaScreen() {
           timestamp: Date.now(),
         });
         queueTTS(data.response, reactor);
+        if (typeof data.currentIQ === "number") {
+          setPersonaSessionIQ((prev) => { const u = { ...prev, [reactor]: data.currentIQ }; personaSessionIQRef.current = u; return u; });
+        } else if (typeof data.iqDelta === "number" && data.iqDelta !== 0) adjustPersonaIQ(reactor, data.iqDelta);
+        if (typeof data.altTruthCount === "number") {
+          setPersonaAltTruths((prev) => ({ ...prev, [reactor]: data.altTruthCount }));
+          sessionAltFactTallyRef.current = { ...sessionAltFactTallyRef.current, [reactor]: data.altTruthCount };
+        } else if (data.altTruthIncrement) setPersonaAltTruths((prev) => ({ ...prev, [reactor]: (prev[reactor] || 0) + 1 }));
       }
     } catch {}
-  }, [userInputText, askingPersona, askQuestion, deviceId, addMessage, queueTTS]);
+  }, [userInputText, askingPersona, askQuestion, deviceId, addMessage, queueTTS, adjustPersonaIQ, setPersonaAltTruths]);
 
   const askUserQuestion = useCallback(async (personaId: string) => {
     if (!userJoinedRef.current || !mountedRef.current || showUserInput || isAskingUserRef.current) return;
@@ -4036,6 +4098,7 @@ export default function ArenaScreen() {
     sessionLieTallyRef.current = {};
     sessionAltFactTallyRef.current = {};
     setAltFactCount(0);
+    setPersonaAltTruths({});
     const seededIQ: Record<string, number> = {};
     for (const pid of selectedPersonasRef.current) {
       seededIQ[pid] = alltimeIQRef.current[pid] ?? 100;
@@ -4416,7 +4479,7 @@ export default function ArenaScreen() {
             {personaSessionIQ[item.speakerId] !== undefined && (
               <View style={[s.iqPill, { borderColor: iqColor(personaSessionIQ[item.speakerId]) + "70", backgroundColor: iqColor(personaSessionIQ[item.speakerId]) + "1A" }]}>
                 <Text style={[s.iqPillText, { color: iqColor(personaSessionIQ[item.speakerId]) }]}>
-                  {iqLabelShort(personaSessionIQ[item.speakerId])} {personaSessionIQ[item.speakerId]}
+                  {iqLabelShort(personaSessionIQ[item.speakerId])} {Math.round(personaSessionIQ[item.speakerId] / 2)}
                 </Text>
               </View>
             )}
@@ -5112,9 +5175,22 @@ export default function ArenaScreen() {
                   {p.shortName}
                 </Text>
                 {personaSessionIQ[pid] !== undefined && (
-                  <Text style={[s.personaIqLabel, { color: iqColor(personaSessionIQ[pid]) }]}>
-                    IQ {personaSessionIQ[pid]}
-                  </Text>
+                  <Animated.Text
+                    key={`iq-${pid}-${personaSessionIQ[pid]}`}
+                    entering={ZoomIn.duration(250)}
+                    style={[s.personaIqLabel, { color: iqColor(personaSessionIQ[pid]) }]}
+                  >
+                    {personaSessionIQ[pid] < 80 ? "😵 " : personaSessionIQ[pid] > 160 ? "🌟 " : ""}IQ {Math.round(personaSessionIQ[pid] / 2)}
+                  </Animated.Text>
+                )}
+                {(personaAltTruths[pid] || 0) > 0 && (
+                  <Animated.Text
+                    key={`alt-${pid}-${personaAltTruths[pid]}`}
+                    entering={ZoomIn.duration(250)}
+                    style={s.personaAltTruthLabel}
+                  >
+                    Alt. Truths: {personaAltTruths[pid]}
+                  </Animated.Text>
                 )}
                 {(sessionPts > 0 || (allTime && allTime.totalPoints > 0)) && (
                   <View style={s.personaScoreBadge}>
@@ -5172,14 +5248,25 @@ export default function ArenaScreen() {
             {focusedPersona !== null && personaSessionIQ[focusedPersona] !== undefined && (() => {
               const iq = personaSessionIQ[focusedPersona as string];
               const col = iqColor(iq);
-              return (
+              const altCount = personaAltTruths[focusedPersona as string] || 0;
+              return (<>
                 <View style={s.focusStat}>
                   <Ionicons name="bulb-outline" size={12} color={col} />
-                  <Text style={[s.focusStatLabel, { color: col, fontWeight: "800" as const }]}>{iqLabelFull(iq)}</Text>
+                  <Text style={[s.focusStatLabel, { color: col, fontWeight: "800" as const }]}>
+                    {iq < 80 ? "😵 " : iq > 160 ? "🌟 " : ""}{iqLabelFull(iq)}
+                  </Text>
                   <View style={[s.focusStatBar, { backgroundColor: col }, { width: `${Math.min(100, Math.round(iq / 2))}%` }]} />
-                  <Text style={[s.focusStatVal, { color: col }]}>{iq}</Text>
+                  <Text style={[s.focusStatVal, { color: col }]}>{Math.round(iq / 2)}</Text>
                 </View>
-              );
+                {altCount > 0 && (
+                  <View style={s.focusStat}>
+                    <Ionicons name="alert-circle" size={12} color="#F59E0B" />
+                    <Text style={[s.focusStatLabel, { color: "#F59E0B", fontWeight: "800" as const }]}>Alt. Truths</Text>
+                    <View style={[s.focusStatBar, { backgroundColor: "#F59E0B" }, { width: `${Math.min(100, altCount * 20)}%` }]} />
+                    <Text style={[s.focusStatVal, { color: "#F59E0B" }]}>{altCount}</Text>
+                  </View>
+                )}
+              </>);
             })()}
           </View>
           </>);
@@ -7846,5 +7933,12 @@ const s = StyleSheet.create({
     fontWeight: "900" as const,
     letterSpacing: 0.4,
     marginTop: 1,
+  },
+  personaAltTruthLabel: {
+    fontSize: 9,
+    fontWeight: "900" as const,
+    letterSpacing: 0.4,
+    marginTop: 1,
+    color: "#F59E0B",
   },
 });

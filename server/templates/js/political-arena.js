@@ -39,6 +39,8 @@ function RealTimeConversationEngine(id) {
   this.freeLimit = 4;
   this.locked = false;
   this.votes = {};
+  this.altTruths = {};
+  this.iqMap = {};
   this.allTimeScores = this.loadScores();
   this.replayIndex = 0;
   this.replaying = false;
@@ -127,7 +129,11 @@ RealTimeConversationEngine.prototype.startDebate = function() {
   var sel = Object.keys(this.selectedPersonas).filter(function(k) { return this.selectedPersonas[k]; }.bind(this));
   if (sel.length < 2) return;
   this.personas = {};
-  for (var i = 0; i < sel.length; i++) this.personas[sel[i]] = this.allPersonas[sel[i]];
+  for (var i = 0; i < sel.length; i++) {
+    this.personas[sel[i]] = this.allPersonas[sel[i]];
+    this.iqMap[sel[i]] = this.iqMap[sel[i]] || 100;
+    this.altTruths[sel[i]] = 0;
+  }
   this.phase = 'debate';
   this.start();
 };
@@ -168,7 +174,7 @@ RealTimeConversationEngine.prototype.prefetchNext = function() {
   this.prefetchPromise = fetch('/api/arena/respond', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ responderId: responderId, toSpeakerId: toSpeakerId, topic: this.topic, conversationHistory: history })
+    body: JSON.stringify({ responderId: responderId, toSpeakerId: toSpeakerId, topic: this.topic, conversationHistory: history, sessionIQ: self.iqMap, sessionLieTally: self.lieTally || {}, sessionAltFactTally: self.altTruths })
   }).then(function(r) { return r.json(); }).then(function(d) {
     self.prefetchPromise = null;
     if (d && d.response) return d;
@@ -186,6 +192,16 @@ RealTimeConversationEngine.prototype.generate = function(cb) {
     if (self.messages.length > 50) self.messages = self.messages.slice(-30);
     self.freeUsed++;
     if (d.freeRemaining !== undefined) self.freeUsed = self.freeLimit - d.freeRemaining;
+    if (d.currentIQ !== undefined && pid) {
+      self.iqMap[pid] = d.currentIQ;
+    } else if (d.iqDelta !== undefined && pid) {
+      self.iqMap[pid] = Math.max(0, Math.min(200, (self.iqMap[pid] || 100) + d.iqDelta));
+    }
+    if (d.altTruthCount !== undefined && pid) {
+      self.altTruths[pid] = d.altTruthCount;
+    } else if (d.altTruthIncrement && pid) {
+      self.altTruths[pid] = (self.altTruths[pid] || 0) + 1;
+    }
     self.loading = false;
     self.render();
     var stream = self.el.querySelector('.conv-stream');
@@ -218,7 +234,7 @@ RealTimeConversationEngine.prototype.doFreshGenerate = function(doProcess, cb) {
   fetch('/api/arena/respond', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ responderId: responderId, toSpeakerId: toSpeakerId, topic: this.topic, conversationHistory: history })
+    body: JSON.stringify({ responderId: responderId, toSpeakerId: toSpeakerId, topic: self.topic, conversationHistory: history, sessionIQ: self.iqMap, sessionLieTally: self.lieTally || {}, sessionAltFactTally: self.altTruths })
   })
   .then(function(r) {
     if (r.status === 403) { return r.json().then(function(){ self.locked = true; self.stop(); self.render(); return null; }); }
@@ -378,8 +394,14 @@ RealTimeConversationEngine.prototype.renderDebate = function() {
     for (var v = 0; v < vKeys.length; v++) { if (this.votes[vKeys[v]] === id) sessionVotes++; }
     var imgHtml = p.img ? '<img src="'+p.img+'" style="width:36px;height:36px;border-radius:50%;border:2px solid '+p.color+';object-fit:cover;" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">' : '';
     var initialsHtml = '<div style="'+(p.img?'display:none;':'display:flex;')+'width:36px;height:36px;border-radius:50%;border:2px solid '+p.color+';background:rgba(255,255,255,0.08);align-items:center;justify-content:center;font-size:11px;font-weight:bold;color:'+p.color+';">'+(p.initials||p.name.slice(0,2).toUpperCase())+'</div>';
+    var chipIqRaw = this.iqMap[id] !== undefined ? Math.round(this.iqMap[id]) : null;
+    var chipIq = chipIqRaw !== null ? Math.round(chipIqRaw / 2) : null;
+    var chipIqColor = chipIqRaw !== null ? (chipIqRaw >= 130 ? '#FFD700' : (chipIqRaw >= 90 ? '#FBBF24' : (chipIqRaw >= 60 ? '#F97316' : '#DC2626'))) : null;
+    var chipAlt = this.altTruths[id] || 0;
     h += '<div class="s-chip" style="border-color:'+p.color+';">'+imgHtml+initialsHtml+'<div class="s-chip-name" style="color:'+p.color+';">'+p.name+'</div>';
     if (sessionVotes > 0) h += '<div style="font-size:9px;color:#FFD700;font-weight:bold;">'+sessionVotes+' vote'+(sessionVotes>1?'s':'')+'</div>';
+    if (chipIq !== null) h += '<div style="font-size:8px;font-weight:900;color:'+chipIqColor+';letter-spacing:0.3px;">'+(chipIqRaw < 80 ? '😵 ' : (chipIqRaw > 160 ? '🌟 ' : ''))+'IQ '+chipIq+'</div>';
+    if (chipAlt > 0) h += '<div style="font-size:8px;font-weight:900;color:#F59E0B;letter-spacing:0.3px;">Alt. Truths: '+chipAlt+'</div>';
     h += '</div>';
   }
   h += '</div>';
