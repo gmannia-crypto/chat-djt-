@@ -2065,20 +2065,23 @@ interface ViralClipsModalProps {
 function ViralClipsModal({ visible, onClose, messages, currentTopic, videoStates, setVideoStates, deviceId }: ViralClipsModalProps) {
   const insets = useSafeAreaInsets();
   const moments = React.useMemo(() => pickViralMoments(messages, 3), [messages]);
+  const [confirmIdx, setConfirmIdx] = useState<number | null>(null);
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
 
   async function generateVideo(idx: number, moment: ViralMoment) {
-    if (!deviceId) { Alert.alert("Error", "Device ID not available"); return; }
+    setConfirmIdx(null);
+    if (!deviceId) return;
     setVideoStates((prev) => ({ ...prev, [idx]: { loading: true, videoUrl: null, error: null } }));
     try {
-      const url = new URL("/api/arena/viral-clip", getApiUrl());
-      const res = await fetch(url.toString(), {
+      const apiBase = getApiUrl().replace(/\/$/, "");
+      const res = await globalThis.fetch(`${apiBase}/api/arena/viral-clip`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-device-id": deviceId },
         body: JSON.stringify({ text: moment.message.text.slice(0, 500), personaId: moment.persona.id }),
       });
       const data = await res.json();
       if (!res.ok) {
-        setVideoStates((prev) => ({ ...prev, [idx]: { loading: false, videoUrl: null, error: data.error || "Failed" } }));
+        setVideoStates((prev) => ({ ...prev, [idx]: { loading: false, videoUrl: null, error: data.error || "Generation failed" } }));
       } else {
         setVideoStates((prev) => ({ ...prev, [idx]: { loading: false, videoUrl: data.videoUrl || null, error: data.error || null } }));
       }
@@ -2087,19 +2090,50 @@ function ViralClipsModal({ visible, onClose, messages, currentTopic, videoStates
     }
   }
 
-  async function shareClip(moment: ViralMoment) {
+  async function shareClip(idx: number, moment: ViralMoment) {
     const text = `"${moment.message.text.slice(0, 120)}${moment.message.text.length > 120 ? "…" : ""}"\n\n— ${moment.persona.name} on the Political Arena\n\nTopic: ${currentTopic || "Political Arena"}\n\nWatch 20 AI personas debate LIVE 🏛️\nChat DJT — chatdjt.com`;
+    let shared = false;
     try {
-      if (Platform.OS === "web") {
-        if (navigator.share) {
-          await navigator.share({ title: `${moment.persona.name} drops a fire line!`, text, url: "https://chatdjt.com" });
-        } else {
-          await Linking.openURL(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`);
-        }
-      } else {
-        await Share.share({ message: text, title: `${moment.persona.name} drops a fire line!` });
+      if (Platform.OS !== "web") {
+        await Share.share({ message: text });
+        shared = true;
+      } else if (typeof navigator !== "undefined" && navigator.share) {
+        await navigator.share({ title: `${moment.persona.name} on the Political Arena`, text });
+        shared = true;
       }
     } catch {}
+    if (!shared) {
+      try {
+        const Clipboard = await import("expo-clipboard");
+        await Clipboard.setStringAsync(text);
+        setCopiedIdx(idx);
+        setTimeout(() => setCopiedIdx(null), 2000);
+      } catch {
+        try { await Linking.openURL(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text.slice(0, 280))}`); } catch {}
+      }
+    }
+  }
+
+  async function shareVideo(videoUrl: string, personaName: string) {
+    const msg = `${videoUrl}\n\nWatch ${personaName} go off on the Political Arena!\n\nChat DJT — chatdjt.com`;
+    let shared = false;
+    try {
+      if (Platform.OS !== "web") {
+        await Share.share({ message: msg });
+        shared = true;
+      } else if (typeof navigator !== "undefined" && navigator.share) {
+        await navigator.share({ title: `${personaName} — Arena Viral Clip`, url: videoUrl });
+        shared = true;
+      }
+    } catch {}
+    if (!shared) {
+      try {
+        const Clipboard = await import("expo-clipboard");
+        await Clipboard.setStringAsync(videoUrl);
+      } catch {
+        try { await Linking.openURL(videoUrl); } catch {}
+      }
+    }
   }
 
   return (
@@ -2128,6 +2162,8 @@ function ViralClipsModal({ visible, onClose, messages, currentTopic, videoStates
             ) : (
               moments.map((moment, idx) => {
                 const vs = videoStates[idx] || { loading: false, videoUrl: null, error: null };
+                const isConfirming = confirmIdx === idx;
+                const isCopied = copiedIdx === idx;
                 return (
                   <Animated.View key={idx} entering={FadeInDown.delay(idx * 120).duration(300)} style={vcStyles.momentCard}>
                     <LinearGradient
@@ -2167,44 +2203,41 @@ function ViralClipsModal({ visible, onClose, messages, currentTopic, videoStates
                         <View style={vcStyles.videoReady}>
                           <Ionicons name="checkmark-circle" size={18} color="#4ADE80" />
                           <Text style={vcStyles.videoReadyText}>Video ready!</Text>
-                          <Pressable
-                            onPress={async () => {
-                              try {
-                                if (Platform.OS === "web") {
-                                  await Linking.openURL(vs.videoUrl!);
-                                } else {
-                                  await Share.share({ message: `${vs.videoUrl}\n\nWatch ${moment.persona.name} go off on the Political Arena!\n\nChat DJT — chatdjt.com`, title: "Arena Viral Clip" });
-                                }
-                              } catch {}
-                            }}
-                            style={vcStyles.shareVideoBtn}
-                          >
+                          <Pressable onPress={() => shareVideo(vs.videoUrl!, moment.persona.name)} style={vcStyles.shareVideoBtn}>
                             <Ionicons name="share-social" size={14} color="#000" />
-                            <Text style={vcStyles.shareVideoBtnText}>Share Video</Text>
+                            <Text style={vcStyles.shareVideoBtnText}>Share</Text>
                           </Pressable>
                         </View>
                       ) : vs.loading ? (
                         <View style={vcStyles.videoLoading}>
                           <ActivityIndicator size="small" color="#7c3aed" />
-                          <Text style={vcStyles.videoLoadingText}>Generating lip-sync video… (may take ~60s)</Text>
+                          <Text style={vcStyles.videoLoadingText}>Generating lip-sync video… (~60s)</Text>
+                        </View>
+                      ) : isConfirming ? (
+                        <View style={vcStyles.confirmRow}>
+                          <Text style={vcStyles.confirmText}>Cost: 3 tokens — confirm?</Text>
+                          <View style={vcStyles.confirmBtns}>
+                            <Pressable onPress={() => setConfirmIdx(null)} style={vcStyles.confirmCancel}>
+                              <Text style={vcStyles.confirmCancelText}>Cancel</Text>
+                            </Pressable>
+                            <Pressable onPress={() => generateVideo(idx, moment)} style={vcStyles.confirmGo}>
+                              <Ionicons name="film" size={13} color="#fff" />
+                              <Text style={vcStyles.confirmGoText}>Generate</Text>
+                            </Pressable>
+                          </View>
                         </View>
                       ) : (
                         <View style={vcStyles.momentActions}>
-                          <Pressable onPress={() => shareClip(moment)} style={vcStyles.shareTextBtn}>
-                            <Ionicons name="share-social" size={14} color="#FFD700" />
-                            <Text style={vcStyles.shareTextBtnText}>Share Quote</Text>
+                          <Pressable onPress={() => shareClip(idx, moment)} style={vcStyles.shareTextBtn}>
+                            <Ionicons name={isCopied ? "checkmark" : "share-social"} size={14} color={isCopied ? "#4ADE80" : "#FFD700"} />
+                            <Text style={[vcStyles.shareTextBtnText, isCopied && { color: "#4ADE80" }]}>
+                              {isCopied ? "Copied!" : "Share Quote"}
+                            </Text>
                           </Pressable>
                           <Pressable
                             onPress={() => {
-                              if (!deviceId) return Alert.alert("Error", "Device ID not available");
-                              Alert.alert(
-                                "Generate Viral Video",
-                                `Generate a lip-sync video of ${moment.persona.name} saying this line?\n\nCosts 3 tokens.`,
-                                [
-                                  { text: "Cancel", style: "cancel" },
-                                  { text: "Generate (3 tokens)", onPress: () => generateVideo(idx, moment) },
-                                ]
-                              );
+                              if (!deviceId) return;
+                              setConfirmIdx(idx);
                             }}
                             style={vcStyles.generateVideoBtn}
                           >
@@ -2468,6 +2501,54 @@ const vcStyles = StyleSheet.create({
     color: "#ff7070",
     marginTop: 6,
     textAlign: "center",
+  },
+  confirmRow: {
+    marginTop: 10,
+    backgroundColor: "rgba(124,58,237,0.15)",
+    borderRadius: 10,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "rgba(124,58,237,0.4)",
+  },
+  confirmText: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.8)",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  confirmBtns: {
+    flexDirection: "row",
+    gap: 8,
+    justifyContent: "center",
+  },
+  confirmCancel: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 7,
+    borderRadius: 8,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)",
+  },
+  confirmCancelText: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.6)",
+    fontWeight: "600" as const,
+  },
+  confirmGo: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    paddingVertical: 7,
+    borderRadius: 8,
+    backgroundColor: "#7c3aed",
+  },
+  confirmGoText: {
+    fontSize: 12,
+    color: "#fff",
+    fontWeight: "700" as const,
   },
 });
 
@@ -3246,7 +3327,7 @@ export default function ArenaScreen() {
         const nextItem = ttsQueueRef.current[0];
         if (nextItem) startPrefetch(nextItem);
 
-        const OVERLAP_MS = 1500;
+        const OVERLAP_MS = 400;
         const isTrumpSpeaking = item.personaId === "trump";
         await new Promise<void>((resolve) => {
           let resolved = false;
@@ -3260,6 +3341,7 @@ export default function ArenaScreen() {
           const earlyResolve = () => {
             if (earlyResolved || resolved) return;
             earlyResolved = true;
+            sound.stopAsync().catch(() => {}).finally(() => fullCleanup());
             resolve();
           };
           const finish = () => {
