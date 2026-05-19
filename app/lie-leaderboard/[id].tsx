@@ -7,6 +7,7 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
+  withDelay,
   withRepeat,
   withSequence,
   Easing,
@@ -501,6 +502,27 @@ const tb = StyleSheet.create({
   totalVotes: { color: "#777", fontSize: 11, fontWeight: "600" },
 });
 
+const STAGGER_MS = 40;
+const STAGGER_CAP = 5;
+
+function AnimatedLieCard({ index, children }: { index: number; children: React.ReactNode }) {
+  const opacity = useSharedValue(0);
+  const translateY = useSharedValue(18);
+  const delay = Math.min(index, STAGGER_CAP) * STAGGER_MS;
+
+  useEffect(() => {
+    opacity.value = withDelay(delay, withTiming(1, { duration: 340, easing: Easing.out(Easing.cubic) }));
+    translateY.value = withDelay(delay, withTiming(0, { duration: 340, easing: Easing.out(Easing.cubic) }));
+  }, []);
+
+  const animStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ translateY: translateY.value }],
+  }));
+
+  return <Animated.View style={animStyle}>{children}</Animated.View>;
+}
+
 export default function LieLeaderboardDetailScreen() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ id: string; name?: string; mode?: string }>();
@@ -607,49 +629,51 @@ export default function LieLeaderboardDetailScreen() {
     const netLabel = item.netScore > 0 ? `+${item.netScore}` : `${item.netScore}`;
     const netColor = item.netScore > 0 ? "#FFD700" : item.netScore < 0 ? "#4ADE80" : "#aaa";
     return (
-      <View style={s.lieCard} testID={`lie-row-${item.lieId}`}>
-        <View style={s.lieHeader}>
-          <View style={s.lieRankBadge}>
-            <Text style={s.lieRankText}>#{index + 1}</Text>
+      <AnimatedLieCard index={index}>
+        <View style={s.lieCard} testID={`lie-row-${item.lieId}`}>
+          <View style={s.lieHeader}>
+            <View style={s.lieRankBadge}>
+              <Text style={s.lieRankText}>#{index + 1}</Text>
+            </View>
+            <View style={s.netPill}>
+              <Text style={[s.netNum, { color: netColor }]}>{netLabel}</Text>
+              <Text style={s.netLabel}>net</Text>
+            </View>
+            <LieTrendBadge lieTrend={item.lieTrend} recentVotes={item.recentVotes} />
+            <View style={{ flex: 1 }} />
+            <Pressable
+              onPress={() => handleShare(item)}
+              style={({ pressed }) => [s.shareBtn, pressed && { opacity: 0.6 }]}
+              testID={`lie-share-${item.lieId}`}
+              accessibilityLabel="Share this flagged lie"
+            >
+              <Ionicons
+                name={copiedLieId === item.lieId ? "checkmark" : (Platform.OS === "web" ? "copy-outline" : "share-outline")}
+                size={16}
+                color={copiedLieId === item.lieId ? "#4ADE80" : "#ddd"}
+              />
+            </Pressable>
           </View>
-          <View style={s.netPill}>
-            <Text style={[s.netNum, { color: netColor }]}>{netLabel}</Text>
-            <Text style={s.netLabel}>net</Text>
+          <Text style={s.lieText}>"{item.lieText}"</Text>
+          <View style={s.barTrack}>
+            <View style={[s.barAgree, { width: `${agreePct}%` }]} />
           </View>
-          <LieTrendBadge lieTrend={item.lieTrend} recentVotes={item.recentVotes} />
-          <View style={{ flex: 1 }} />
-          <Pressable
-            onPress={() => handleShare(item)}
-            style={({ pressed }) => [s.shareBtn, pressed && { opacity: 0.6 }]}
-            testID={`lie-share-${item.lieId}`}
-            accessibilityLabel="Share this flagged lie"
-          >
-            <Ionicons
-              name={copiedLieId === item.lieId ? "checkmark" : (Platform.OS === "web" ? "copy-outline" : "share-outline")}
-              size={16}
-              color={copiedLieId === item.lieId ? "#4ADE80" : "#ddd"}
-            />
-          </Pressable>
+          <View style={s.voteRow}>
+            <View style={s.voteChip}>
+              <Ionicons name="thumbs-up" size={13} color="#4ADE80" />
+              <Text style={[s.voteNum, { color: "#4ADE80" }]}>{item.agree}</Text>
+              <Text style={s.voteWord}>agree</Text>
+            </View>
+            <View style={s.voteChip}>
+              <Ionicons name="thumbs-down" size={13} color="#ff6b6b" />
+              <Text style={[s.voteNum, { color: "#ff6b6b" }]}>{item.disagree}</Text>
+              <Text style={s.voteWord}>disagree</Text>
+            </View>
+            <View style={{ flex: 1 }} />
+            <Text style={s.totalVotes}>{totalVotes} {totalVotes === 1 ? "vote" : "votes"}</Text>
+          </View>
         </View>
-        <Text style={s.lieText}>"{item.lieText}"</Text>
-        <View style={s.barTrack}>
-          <View style={[s.barAgree, { width: `${agreePct}%` }]} />
-        </View>
-        <View style={s.voteRow}>
-          <View style={s.voteChip}>
-            <Ionicons name="thumbs-up" size={13} color="#4ADE80" />
-            <Text style={[s.voteNum, { color: "#4ADE80" }]}>{item.agree}</Text>
-            <Text style={s.voteWord}>agree</Text>
-          </View>
-          <View style={s.voteChip}>
-            <Ionicons name="thumbs-down" size={13} color="#ff6b6b" />
-            <Text style={[s.voteNum, { color: "#ff6b6b" }]}>{item.disagree}</Text>
-            <Text style={s.voteWord}>disagree</Text>
-          </View>
-          <View style={{ flex: 1 }} />
-          <Text style={s.totalVotes}>{totalVotes} {totalVotes === 1 ? "vote" : "votes"}</Text>
-        </View>
-      </View>
+      </AnimatedLieCard>
     );
   };
 
