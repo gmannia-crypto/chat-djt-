@@ -7829,20 +7829,37 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
   const NEWS_CACHE_TTL = 3 * 60 * 1000;
 
   const NEWS_FEEDS = [
+    // International / Global
     { url: "https://www.aljazeera.com/xml/rss/all.xml", source: "Al Jazeera" },
-    { url: "https://rss.nytimes.com/services/xml/rss/nyt/Politics.xml", source: "NYT" },
-    { url: "https://rss.nytimes.com/services/xml/rss/nyt/World.xml", source: "NYT World" },
-    { url: "https://rss.nytimes.com/services/xml/rss/nyt/Business.xml", source: "NYT" },
-    { url: "https://feeds.bbci.co.uk/news/world/rss.xml", source: "BBC World" },
-    { url: "https://feeds.bbci.co.uk/news/world/middle_east/rss.xml", source: "BBC Middle East" },
-    { url: "https://feeds.bbci.co.uk/news/business/rss.xml", source: "BBC" },
-    { url: "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114", source: "CNBC" },
-    { url: "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10001147", source: "CNBC" },
-    { url: "https://feeds.content.dowjones.io/public/rss/mw_topstories", source: "MarketWatch" },
-    { url: "https://feeds.content.dowjones.io/public/rss/mw_realtimeheadlines", source: "MarketWatch" },
-    { url: "https://feeds.foxnews.com/foxnews/politics", source: "Fox News" },
-    { url: "https://www.theguardian.com/world/rss", source: "The Guardian" },
+    { url: "https://feeds.bbci.co.uk/news/world/us_and_canada/rss.xml", source: "BBC" },
     { url: "https://feeds.reuters.com/Reuters/worldNews", source: "Reuters" },
+    { url: "https://www.theguardian.com/us-news/rss", source: "The Guardian" },
+    // AP News — neutral wire service
+    { url: "https://feeds.apnews.com/apf-topnews", source: "AP" },
+    { url: "https://feeds.apnews.com/apf-politics", source: "AP" },
+    // Center / Mainstream US
+    { url: "https://rss.nytimes.com/services/xml/rss/nyt/Politics.xml", source: "NYT" },
+    { url: "https://rss.nytimes.com/services/xml/rss/nyt/World.xml", source: "NYT" },
+    { url: "https://abcnews.go.com/abcnews/politicsheadlines", source: "ABC News" },
+    { url: "https://www.cbsnews.com/latest/rss/politics", source: "CBS News" },
+    { url: "https://feeds.npr.org/1014/rss.xml", source: "NPR" },
+    { url: "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10001147", source: "CNBC" },
+    { url: "https://www.newsweek.com/rss", source: "Newsweek" },
+    { url: "https://rss.usatoday.com/UsatodaycomNation-TopStories", source: "USA Today" },
+    // Political / Insider
+    { url: "https://rss.politico.com/politics-news.xml", source: "Politico" },
+    { url: "https://thehill.com/news/feed/", source: "The Hill" },
+    { url: "https://api.axios.com/feed/", source: "Axios" },
+    // Left-leaning
+    { url: "https://www.motherjones.com/feed/", source: "Mother Jones" },
+    { url: "https://www.thenation.com/feed/?post_type=article", source: "The Nation" },
+    // Right-leaning
+    { url: "https://feeds.foxnews.com/foxnews/politics", source: "Fox News" },
+    { url: "https://feeds.foxnews.com/foxnews/latest", source: "Fox News" },
+    { url: "https://www.dailymail.co.uk/news/us-politics/index.rss", source: "Daily Mail" },
+    // Business / Finance
+    { url: "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114", source: "CNBC Markets" },
+    { url: "https://feeds.content.dowjones.io/public/rss/mw_topstories", source: "MarketWatch" },
   ];
 
   async function fetchRSSFeed(feedUrl: string, source: string): Promise<any[]> {
@@ -10753,11 +10770,16 @@ ${therapyHistory}`
   });
 
   const TRUTH_SOCIAL_FEEDS = [
+    { url: "https://feeds.apnews.com/apf-politics", source: "AP" },
     { url: "https://feeds.foxnews.com/foxnews/politics", source: "Fox News" },
     { url: "https://rss.nytimes.com/services/xml/rss/nyt/Politics.xml", source: "NYT" },
+    { url: "https://rss.politico.com/politics-news.xml", source: "Politico" },
+    { url: "https://thehill.com/news/feed/", source: "The Hill" },
     { url: "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10001147", source: "CNBC" },
     { url: "https://feeds.bbci.co.uk/news/world/us_and_canada/rss.xml", source: "BBC" },
+    { url: "https://www.motherjones.com/feed/", source: "Mother Jones" },
     { url: "https://www.dailymail.co.uk/news/us-politics/index.rss", source: "Daily Mail" },
+    { url: "https://www.aljazeera.com/xml/rss/all.xml", source: "Al Jazeera" },
   ];
 
   let truthSocialCache: { data: any; timestamp: number } | null = null;
