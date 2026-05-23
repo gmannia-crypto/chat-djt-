@@ -85,26 +85,26 @@ const PERSONA_CATEGORY_MAP: Record<string, PersonaCategory> = {
 };
 
 // Political Facts IQ: everyone starts at 100 (seeded from all-time average).
-// Rises with verified truths (+5 strong, +2 moderate) and falls with lies (-8 AI, -4 viewer).
-// Range 0–200 per session, synced to all-time rolling average on the backend.
-// Four tiers: Political Genius (gold ≥130) | Politically Savvy (yellow ≥90) |
-//             Politically Ignorant (orange ≥60) | Complete Dumb Ass (red <60)
+// Scored on factual accuracy + political logic consistency. Range 0–200.
+// Four tiers: Political Genius (gold ≥160) | Politically Savvy (yellow ≥110) |
+//             Politically Ignorant (orange ≥70) | Complete Dumb Ass (red <70)
+// "True Arena IQ" = compiled all-time average across sessions (displayed alongside session IQ).
 function iqColor(iq: number): string {
-  if (iq >= 130) return "#FFD700";
-  if (iq >= 90)  return "#FBBF24";
-  if (iq >= 60)  return "#F97316";
+  if (iq >= 160) return "#FFD700";
+  if (iq >= 110) return "#FBBF24";
+  if (iq >= 70)  return "#F97316";
   return "#DC2626";
 }
 function iqLabelFull(iq: number): string {
-  if (iq >= 130) return "Political Genius";
-  if (iq >= 90)  return "Politically Savvy";
-  if (iq >= 60)  return "Politically Ignorant";
+  if (iq >= 160) return "Political Genius";
+  if (iq >= 110) return "Politically Savvy";
+  if (iq >= 70)  return "Politically Ignorant";
   return "Complete Dumb Ass";
 }
 function iqLabelShort(iq: number): string {
-  if (iq >= 130) return "GENIUS";
-  if (iq >= 90)  return "SAVVY";
-  if (iq >= 60)  return "IGNORANT";
+  if (iq >= 160) return "GENIUS";
+  if (iq >= 110) return "SAVVY";
+  if (iq >= 70)  return "IGNORANT";
   return "DUMB ASS";
 }
 
@@ -5076,7 +5076,7 @@ export default function ArenaScreen() {
             {personaSessionIQ[item.speakerId] !== undefined && (
               <View style={[s.iqPill, { borderColor: iqColor(personaSessionIQ[item.speakerId]) + "70", backgroundColor: iqColor(personaSessionIQ[item.speakerId]) + "1A" }]}>
                 <Text style={[s.iqPillText, { color: iqColor(personaSessionIQ[item.speakerId]) }]}>
-                  {iqLabelShort(personaSessionIQ[item.speakerId])} {Math.round(personaSessionIQ[item.speakerId] / 2)}
+                  {iqLabelShort(personaSessionIQ[item.speakerId])} {Math.round(personaSessionIQ[item.speakerId])}
                 </Text>
               </View>
             )}
@@ -5777,8 +5777,13 @@ export default function ArenaScreen() {
                     entering={ZoomIn.duration(250)}
                     style={[s.personaIqLabel, { color: iqColor(personaSessionIQ[pid]) }]}
                   >
-                    {personaSessionIQ[pid] < 80 ? "😵 " : personaSessionIQ[pid] > 160 ? "🌟 " : ""}IQ {Math.round(personaSessionIQ[pid] / 2)}
+                    {personaSessionIQ[pid] < 70 ? "😵 " : personaSessionIQ[pid] > 160 ? "🌟 " : ""}IQ {Math.round(personaSessionIQ[pid])}
                   </Animated.Text>
+                )}
+                {alltimeIQRef.current[pid] !== undefined && (
+                  <Text style={[s.personaIqLabel, { color: "#888", fontSize: 9 }]}>
+                    ★ {Math.round(alltimeIQRef.current[pid])} all-time
+                  </Text>
                 )}
                 {(personaAltTruths[pid] || 0) > 0 && (
                   <Animated.Text
@@ -5846,15 +5851,24 @@ export default function ArenaScreen() {
               const iq = personaSessionIQ[focusedPersona as string];
               const col = iqColor(iq);
               const altCount = personaAltTruths[focusedPersona as string] || 0;
+              const trueIq = alltimeIQRef.current[focusedPersona as string];
               return (<>
                 <View style={s.focusStat}>
                   <Ionicons name="bulb-outline" size={12} color={col} />
                   <Text style={[s.focusStatLabel, { color: col, fontWeight: "800" as const }]}>
-                    {iq < 80 ? "😵 " : iq > 160 ? "🌟 " : ""}{iqLabelFull(iq)}
+                    {iq < 70 ? "😵 " : iq > 160 ? "🌟 " : ""}{iqLabelFull(iq)}
                   </Text>
                   <View style={[s.focusStatBar, { backgroundColor: col }, { width: `${Math.min(100, Math.round(iq / 2))}%` }]} />
-                  <Text style={[s.focusStatVal, { color: col }]}>{Math.round(iq / 2)}</Text>
+                  <Text style={[s.focusStatVal, { color: col }]}>{Math.round(iq)}/200</Text>
                 </View>
+                {trueIq !== undefined && (
+                  <View style={s.focusStat}>
+                    <Ionicons name="star-outline" size={12} color="#C084FC" />
+                    <Text style={[s.focusStatLabel, { color: "#C084FC", fontWeight: "700" as const }]}>True Arena IQ</Text>
+                    <View style={[s.focusStatBar, { backgroundColor: "#C084FC" }, { width: `${Math.min(100, Math.round(trueIq / 2))}%` }]} />
+                    <Text style={[s.focusStatVal, { color: "#C084FC" }]}>{Math.round(trueIq)}</Text>
+                  </View>
+                )}
                 {altCount > 0 && (
                   <View style={s.focusStat}>
                     <Ionicons name="alert-circle" size={12} color="#F59E0B" />
