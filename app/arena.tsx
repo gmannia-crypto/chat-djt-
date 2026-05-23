@@ -3697,7 +3697,7 @@ export default function ArenaScreen() {
     setInterruptionOverlay({ speakerId, speakerName, text });
     interruptionTimerRef.current = setTimeout(() => {
       setInterruptionOverlay(null);
-    }, 4000);
+    }, 10000);
   }, []);
 
   useEffect(() => {
