@@ -18,6 +18,7 @@ import {
   TextInput,
   Alert,
   BackHandler,
+  useWindowDimensions,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -538,10 +539,44 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       rosie: { sentiment: 10 },
       berniemc: { sentiment: 20 },
       joyreid: { sentiment: 5 },
+      errol: { sentiment: 2 },
     },
     triggerWords: {
       positive: ["mars", "tesla", "spacex", "innovation", "x", "doge", "efficiency", "rockets"],
-      negative: ["apartheid", "racism", "salute", "privilege", "billionaire", "exploit", "workers"],
+      negative: ["apartheid", "racism", "salute", "privilege", "billionaire", "exploit", "workers", "jana", "step-sister"],
+    },
+  },
+  errol: {
+    id: "errol",
+    name: "Errol Musk",
+    shortName: "Errol",
+    color: "#8B7355",
+    faction: "wildcard",
+    image: undefined,
+    personality: {
+      energy: 55,
+      aggression: 60,
+      humor: 40,
+      catchphrases: ["I'll tell you something now", "In my day", "Quite frankly", "heh heh heh", "The honest truth is"],
+    },
+    relationships: {
+      elon: { sentiment: 70 },
+      trump: { sentiment: 65 },
+      carville: { sentiment: 20 },
+      maddow: { sentiment: 10 },
+      omar: { sentiment: 5 },
+      biden: { sentiment: 30 },
+      rosie: { sentiment: 15 },
+      berniemc: { sentiment: 10 },
+      joyreid: { sentiment: 5 },
+      galloway: { sentiment: 25 },
+      ruckus: { sentiment: 20 },
+      netanyahu: { sentiment: 55 },
+      graham: { sentiment: 60 },
+    },
+    triggerWords: {
+      positive: ["apartheid", "south africa", "white", "infrastructure", "engineering", "civilisation", "order"],
+      negative: ["mandela", "racism", "jana", "step", "diversity", "woke", "communist"],
     },
   },
   graham: {
@@ -1331,7 +1366,7 @@ const MYSTERY_UNLOCK_COSTS: Record<string, number> = {
 };
 const MYSTERY_UNLOCK_KEY = "arena_mystery_unlocked";
 
-const PERSONA_IDS = ["trump", "elon", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "leavitt", "erikakirk", "loomer", "bannon"];
+const PERSONA_IDS = ["trump", "elon", "errol", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "leavitt", "erikakirk", "loomer", "bannon"];
 
 const BREAKING_NEWS_REACTIONS: Record<string, string[]> = {
   trump: [
@@ -1389,6 +1424,11 @@ const BREAKING_NEWS_REACTIONS: Record<string, string[]> = {
   elon: [
     "Interesting... breaking news. This is actually very relevant to what I was about to say about efficiency.",
     "Hold on — let me check X... yeah, this is trending. Breaking news, everyone.",
+  ],
+  errol: [
+    "Well, I'll tell you something now — in my day in South Africa, breaking news meant something. This? heh heh heh.",
+    "Ah, breaking news. You see, the thing is, nothing surprises me anymore. Not after what I watched Mandela's lot do to that country.",
+    "Hold on, hold on. Let me hear this. I'll tell you, the world has gone quite mad since we handed everything over. heh heh.",
   ],
   graham: [
     "WAIT just a MINUTE! Breaking news! I'll tell you what — this is OUTRAGEOUS!",
@@ -1580,7 +1620,7 @@ function getInitials(name: string) {
   return name.split(" ").map(w => w[0]).join("").substring(0, 2);
 }
 
-const INTERRUPTERS = ["biden", "rosie", "galloway", "berniemc", "omar", "elon", "candace", "megynkelly", "pambondi", "joyreid"];
+const INTERRUPTERS = ["biden", "rosie", "galloway", "berniemc", "omar", "elon", "errol", "candace", "megynkelly", "pambondi", "joyreid"];
 
 const US_STATES = [
   "Alabama","Alaska","Arizona","Arkansas","California","Colorado","Connecticut","Delaware","Florida","Georgia",
@@ -2554,6 +2594,8 @@ const vcStyles = StyleSheet.create({
 
 export default function ArenaScreen() {
   const insets = useSafeAreaInsets();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const speakingOverlaySize = Math.round(Math.sqrt(screenWidth * screenHeight / 8));
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
   const { deviceId, balance, refreshBalance } = useTokens();
@@ -5693,6 +5735,103 @@ export default function ArenaScreen() {
           )}
         </Animated.View>
       )}
+
+      {(() => {
+        const activeSpeakerId = ttsActiveSpeaker || currentSpeaker;
+        const sp = activeSpeakerId ? getPersona(activeSpeakerId) : null;
+        if (!sp) return null;
+        const spVotes = speakerVoteCounts[activeSpeakerId!] || 0;
+        const maxVotes = spVotes >= 5;
+        return (
+          <Animated.View
+            key={activeSpeakerId}
+            entering={FadeIn.duration(200)}
+            exiting={FadeOut.duration(300)}
+            style={{
+              position: "absolute",
+              bottom: 180,
+              right: 12,
+              zIndex: 50,
+              alignItems: "center",
+            }}
+          >
+            <Pressable
+              onPress={() => {
+                if (maxVotes) return;
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                if (spVotes === 4) playVoteSound2();
+                voteForPersona(activeSpeakerId!);
+              }}
+              style={{
+                width: speakingOverlaySize,
+                height: speakingOverlaySize,
+                borderRadius: speakingOverlaySize * 0.18,
+                backgroundColor: sp.color + "22",
+                borderWidth: 2.5,
+                borderColor: "#FFD700",
+                alignItems: "center",
+                justifyContent: "center",
+                overflow: "hidden",
+                opacity: 0.82,
+                shadowColor: "#FFD700",
+                shadowOffset: { width: 0, height: 0 },
+                shadowOpacity: 0.6,
+                shadowRadius: 16,
+              }}
+            >
+              {sp.image ? (
+                <Image source={sp.image} style={{ width: speakingOverlaySize, height: speakingOverlaySize, borderRadius: speakingOverlaySize * 0.16 }} />
+              ) : (
+                <View style={{ width: speakingOverlaySize, height: speakingOverlaySize, alignItems: "center", justifyContent: "center", backgroundColor: sp.color + "40" }}>
+                  <Text style={{ fontSize: speakingOverlaySize * 0.32, fontWeight: "800" as const, color: "#fff" }}>{getInitials(sp.name)}</Text>
+                </View>
+              )}
+              <View style={{
+                position: "absolute",
+                bottom: 0,
+                left: 0,
+                right: 0,
+                paddingVertical: 5,
+                backgroundColor: "rgba(0,0,0,0.65)",
+                alignItems: "center",
+              }}>
+                <Text style={{ color: "#FFD700", fontSize: speakingOverlaySize * 0.12, fontWeight: "900" as const, letterSpacing: 0.5 }} numberOfLines={1}>
+                  {sp.shortName}
+                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 3, marginTop: 2 }}>
+                  <MaterialCommunityIcons name="volume-high" size={speakingOverlaySize * 0.1} color="#FFD700" />
+                  <Text style={{ color: "rgba(255,215,0,0.7)", fontSize: speakingOverlaySize * 0.09, fontWeight: "700" as const }}>SPEAKING</Text>
+                </View>
+              </View>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                if (maxVotes) return;
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                if (spVotes === 4) playVoteSound2();
+                voteForPersona(activeSpeakerId!);
+              }}
+              style={{
+                marginTop: 6,
+                paddingHorizontal: 12,
+                paddingVertical: 5,
+                borderRadius: 20,
+                backgroundColor: maxVotes ? "rgba(255,0,0,0.3)" : "rgba(255,215,0,0.2)",
+                borderWidth: 1,
+                borderColor: maxVotes ? "rgba(255,0,0,0.5)" : "rgba(255,215,0,0.5)",
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 4,
+              }}
+            >
+              <Ionicons name={maxVotes ? "checkmark-circle" : "thumbs-up"} size={12} color={maxVotes ? "#ff4d4d" : "#FFD700"} />
+              <Text style={{ color: maxVotes ? "#ff4d4d" : "#FFD700", fontSize: 11, fontWeight: "800" as const }}>
+                {maxVotes ? "MAX" : `VOTE ${spVotes}/5`}
+              </Text>
+            </Pressable>
+          </Animated.View>
+        );
+      })()}
 
       <Animated.View entering={FadeInDown.delay(200).duration(400)} style={s.personaRow}>
         {selectedPersonas.map((pid) => {
