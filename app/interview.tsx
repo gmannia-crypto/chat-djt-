@@ -16,7 +16,7 @@ import { getApiUrl } from "@/lib/query-client";
 import { useTokens } from "@/lib/token-context";
 import Colors from "@/constants/colors";
 import { ShareAppButton } from "@/components/ShareAppButton";
-import { playTTS } from "@/lib/audio-helper";
+import { playTTS, prefetchTTSAudio, playPrefetchedAudio } from "@/lib/audio-helper";
 import { getPersonaVoiceVolume, shouldSkipPersonaVoice } from "@/lib/persona-voice";
 
 type PersonaLite = { id: string; name: string };
@@ -165,6 +165,7 @@ export default function InterviewScreen() {
   const [topics, setTopics] = useState<Topic[]>([]);
   const [topicsLoading, setTopicsLoading] = useState(false);
   const [topicIdx, setTopicIdx] = useState(0);
+  const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
   const [completedTopics, setCompletedTopics] = useState<Set<string>>(new Set());
 
   const [phase, setPhase] = useState<"setup" | "live" | "ended">("setup");
@@ -203,6 +204,8 @@ export default function InterviewScreen() {
   const ttsQueueRef = useRef<Array<{ text: string; personaId: string }>>([]);
   const ttsRunningRef = useRef(false);
   const currentSoundRef = useRef<Audio.Sound | null>(null);
+  const prefetchedAudioRef = useRef<{ personaId: string; text: string; audioUri: string } | null>(null);
+  const prefetchingRef = useRef(false);
 
   const [emoInterviewer, setEmoInterviewer] = useState<Emotions>(ZERO_EMO);
   const [emoInterviewee, setEmoInterviewee] = useState<Emotions>(ZERO_EMO);
@@ -370,7 +373,22 @@ export default function InterviewScreen() {
     AsyncStorage.setItem(BEEP_KEY, next ? "1" : "0").catch(() => {});
   }, []);
 
-  // ── TTS queue (sequential, single sound at a time) ───────────────────────
+  // ── Audio prefetch — fetch next clip's audio while current clip is playing ──
+  const startPrefetch = useCallback((item: { text: string; personaId: string }) => {
+    if (prefetchingRef.current) return;
+    if (shouldSkipPersonaVoice(item.personaId)) return;
+    const cached = prefetchedAudioRef.current;
+    if (cached && cached.text === item.text && cached.personaId === item.personaId) return;
+    prefetchingRef.current = true;
+    prefetchTTSAudio("/api/persona-speak", { text: item.text, personaId: item.personaId })
+      .then((audioUri) => {
+        prefetchedAudioRef.current = { personaId: item.personaId, text: item.text, audioUri };
+        prefetchingRef.current = false;
+      })
+      .catch(() => { prefetchingRef.current = false; });
+  }, []);
+
+  // ── TTS queue: sequential playback with 1s overlap + audio prefetch ────────
   const processQueue = useCallback(async () => {
     if (ttsRunningRef.current) return;
     ttsRunningRef.current = true;
@@ -378,17 +396,24 @@ export default function InterviewScreen() {
       const item = ttsQueueRef.current.shift();
       if (!item) break;
       if (shouldSkipPersonaVoice(item.personaId)) {
-        // Skip muted speakers but keep advancing the queue.
         continue;
       }
       setActiveSpeaker(item.personaId);
       activeSpeakerRef.current = item.personaId;
       try {
-        const sound = await playTTS("/api/persona-speak", { text: item.text, personaId: item.personaId }, { volume: getPersonaVoiceVolume(item.personaId) });
+        // Use prefetched audio if it matches this item — eliminates fetch latency gap
+        const cached = prefetchedAudioRef.current;
+        let sound: Audio.Sound;
+        if (cached && cached.text === item.text && cached.personaId === item.personaId) {
+          prefetchedAudioRef.current = null;
+          sound = await playPrefetchedAudio(cached.audioUri, { volume: getPersonaVoiceVolume(item.personaId) });
+        } else {
+          sound = await playTTS("/api/persona-speak", { text: item.text, personaId: item.personaId }, { volume: getPersonaVoiceVolume(item.personaId) });
+        }
         currentSoundRef.current = sound;
-        // Early-resolve 1500ms before audio finishes — next speaker begins while current
-        // tail is still playing, giving a natural broadcast overlap. Matches arena timing.
-        const OVERLAP_MS = 1500;
+        // 1s overlap: next speaker starts 1000ms before current finishes, voices cross-fade
+        const OVERLAP_MS = 1000;
+        let prefetchStarted = false;
         await new Promise<void>((resolve) => {
           let resolved = false;
           let earlyResolved = false;
@@ -414,11 +439,15 @@ export default function InterviewScreen() {
               return;
             }
             if (status.isPlaying && status.durationMillis && status.positionMillis) {
-              if (!earlyResolved && ttsQueueRef.current.length > 0) {
-                const remaining = status.durationMillis - status.positionMillis;
-                if (remaining <= OVERLAP_MS && remaining > 0) {
-                  earlyResolve();
-                }
+              const remaining = status.durationMillis - status.positionMillis;
+              // Kick off audio prefetch for the next item as soon as possible
+              if (!prefetchStarted && ttsQueueRef.current.length > 0) {
+                prefetchStarted = true;
+                startPrefetch(ttsQueueRef.current[0]);
+              }
+              // Early-resolve at OVERLAP_MS from end so next speaker starts while tail plays
+              if (!earlyResolved && ttsQueueRef.current.length > 0 && remaining <= OVERLAP_MS && remaining > 0) {
+                earlyResolve();
               }
             }
           });
@@ -427,14 +456,13 @@ export default function InterviewScreen() {
       } catch (e) {
         // ignore TTS error and continue
       }
-      // no breath — overlap already provides natural flow like the arena
     }
     ttsRunningRef.current = false;
     if (ttsQueueRef.current.length === 0) {
       setActiveSpeaker(null);
       activeSpeakerRef.current = null;
     }
-  }, []);
+  }, [startPrefetch]);
 
   const enqueueTTS = useCallback((text: string, personaId: string) => {
     if (!voiceEnabledRef.current) return;
@@ -444,6 +472,8 @@ export default function InterviewScreen() {
 
   const stopAllAudio = useCallback(() => {
     ttsQueueRef.current = [];
+    prefetchedAudioRef.current = null;
+    prefetchingRef.current = false;
     const snd = currentSoundRef.current;
     currentSoundRef.current = null;
     setActiveSpeaker(null);
@@ -663,6 +693,7 @@ export default function InterviewScreen() {
     setTopicsLoading(true);
     setTopics([]);
     setTopicIdx(0);
+    setSelectedTopicId(null);
     setCompletedTopics(new Set());
     try {
       const res = await fetch(new URL("/api/arena/interview-topics", getApiUrl()).toString(), {
@@ -903,8 +934,9 @@ export default function InterviewScreen() {
     sessionEndsAtRef.current = Date.now() + duration * 60 * 1000;
     setSecondsLeft(duration * 60);
     setMessages([]);
-    setTopicIdx(0);
-    topicIdxRef.current = 0;
+    const startIdx = selectedTopicId ? Math.max(0, topics.findIndex(t => t.id === selectedTopicId)) : 0;
+    setTopicIdx(startIdx);
+    topicIdxRef.current = startIdx;
     exchangesOnTopicRef.current = 0;
     setCompletedTopics(new Set());
     setEmoInterviewer(ZERO_EMO);
@@ -944,7 +976,7 @@ export default function InterviewScreen() {
       } catch {}
       if (runningRef.current) runLoop();
     })();
-  }, [deviceId, interviewerId, intervieweeId, topics.length, isStarting, duration, runLoop, enrichAndAddMessage]);
+  }, [deviceId, interviewerId, intervieweeId, topics, isStarting, duration, runLoop, enrichAndAddMessage, selectedTopicId]);
 
   const unlockSession = useCallback(async () => {
     if (!deviceId || isUnlocking) return;
@@ -964,8 +996,9 @@ export default function InterviewScreen() {
         sessionEndsAtRef.current = Date.now() + duration * 60 * 1000;
         setSecondsLeft(duration * 60);
         setMessages([]);
-        setTopicIdx(0);
-        topicIdxRef.current = 0;
+        const startIdx2 = selectedTopicId ? Math.max(0, topics.findIndex(t => t.id === selectedTopicId)) : 0;
+        setTopicIdx(startIdx2);
+        topicIdxRef.current = startIdx2;
         exchangesOnTopicRef.current = 0;
         setCompletedTopics(new Set());
         setEmoInterviewer(ZERO_EMO);
@@ -1006,7 +1039,7 @@ export default function InterviewScreen() {
     } catch {} finally {
       setIsUnlocking(false);
     }
-  }, [deviceId, duration, isUnlocking, refreshBalance, runLoop, interviewerId, intervieweeId, enrichAndAddMessage]);
+  }, [deviceId, duration, isUnlocking, refreshBalance, runLoop, interviewerId, intervieweeId, enrichAndAddMessage, selectedTopicId, topics]);
 
   const stopInterview = useCallback(() => {
     runningRef.current = false;
@@ -1261,22 +1294,29 @@ export default function InterviewScreen() {
                 Pick an interviewer and guest to generate questions.
               </Text>
             ) : (
-              topics.map((t, i) => (
-                <View key={t.id} style={s.topicRow}>
-                  <View style={[s.topicNum, { backgroundColor: t.era === "current" ? "rgba(74,222,128,0.2)" : "rgba(255,215,0,0.2)" }]}>
-                    <Text style={[s.topicNumText, { color: t.era === "current" ? "#4ADE80" : "#FFD700" }]}>{i + 1}</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.topicTitle} numberOfLines={2}>{t.title}</Text>
-                    <Text style={s.topicDesc} numberOfLines={2}>{t.description}</Text>
-                    <View style={[s.eraTag, { backgroundColor: t.era === "current" ? "rgba(74,222,128,0.15)" : "rgba(255,215,0,0.12)" }]}>
-                      <Text style={[s.eraTagText, { color: t.era === "current" ? "#4ADE80" : "#FFD700" }]}>
-                        {t.era === "current" ? "TODAY" : "PAST"}
-                      </Text>
+              topics.map((t, i) => {
+                const isSelected = selectedTopicId === t.id;
+                return (
+                  <Pressable key={t.id} onPress={() => { Haptics.selectionAsync(); setSelectedTopicId(isSelected ? null : t.id); }}
+                    style={[s.topicRow, isSelected && s.topicRowSelected]}>
+                    <View style={[s.topicNum, { backgroundColor: isSelected ? "rgba(255,215,0,0.35)" : t.era === "current" ? "rgba(74,222,128,0.2)" : "rgba(255,215,0,0.2)" }]}>
+                      {isSelected
+                        ? <Ionicons name="play" size={12} color="#FFD700" />
+                        : <Text style={[s.topicNumText, { color: t.era === "current" ? "#4ADE80" : "#FFD700" }]}>{i + 1}</Text>}
                     </View>
-                  </View>
-                </View>
-              ))
+                    <View style={{ flex: 1 }}>
+                      <Text style={[s.topicTitle, isSelected && { color: "#FFD700" }]} numberOfLines={2}>{t.title}</Text>
+                      <Text style={s.topicDesc} numberOfLines={2}>{t.description}</Text>
+                      <View style={[s.eraTag, { backgroundColor: t.era === "current" ? "rgba(74,222,128,0.15)" : "rgba(255,215,0,0.12)" }]}>
+                        <Text style={[s.eraTagText, { color: t.era === "current" ? "#4ADE80" : "#FFD700" }]}>
+                          {t.era === "current" ? "TODAY" : "PAST"}
+                        </Text>
+                      </View>
+                    </View>
+                    {isSelected && <View style={s.topicStartBadge}><Text style={s.topicStartBadgeText}>START HERE</Text></View>}
+                  </Pressable>
+                );
+              })
             )}
           </View>
 
@@ -1292,7 +1332,7 @@ export default function InterviewScreen() {
             </Text>
           </Pressable>
           <Text style={s.startSub}>
-            {interviewer?.name || "—"} grills {interviewee?.name || "—"} · {topics.length} topic{topics.length === 1 ? "" : "s"}
+            {interviewer?.name || "—"} grills {interviewee?.name || "—"} · {selectedTopicId ? `starting on "${topics.find(t => t.id === selectedTopicId)?.title}"` : `${topics.length} topic${topics.length === 1 ? "" : "s"}`}
           </Text>
         </ScrollView>
 
@@ -1703,7 +1743,10 @@ const s = StyleSheet.create({
   refreshTopicsBtn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(255,215,0,0.1)", borderWidth: 1, borderColor: "rgba(255,215,0,0.3)", borderRadius: 16, paddingHorizontal: 10, paddingVertical: 5 },
   refreshTopicsText: { color: "#FFD700", fontSize: 11, fontWeight: "800" },
   topicRow: { flexDirection: "row", alignItems: "flex-start", paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.05)" },
+  topicRowSelected: { backgroundColor: "rgba(255,215,0,0.06)", borderRadius: 8, borderWidth: 1, borderColor: "rgba(255,215,0,0.3)", marginHorizontal: -4, paddingHorizontal: 4 },
   topicNum: { width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center", marginRight: 10, marginTop: 2 },
+  topicStartBadge: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, backgroundColor: "#FFD700", alignSelf: "center", marginLeft: 6 },
+  topicStartBadgeText: { color: "#000", fontSize: 9, fontWeight: "900", letterSpacing: 0.5 },
   topicNumText: { fontSize: 12, fontWeight: "900" },
   topicTitle: { color: "#fff", fontSize: 13, fontWeight: "700" },
   topicDesc: { color: "rgba(255,255,255,0.55)", fontSize: 11, marginTop: 2, lineHeight: 15 },
