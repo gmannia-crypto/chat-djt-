@@ -6552,6 +6552,48 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
     }
   });
 
+  app.get("/api/arena/interview-lie-tally", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      try {
+        const result = await db.query(
+          `SELECT
+             COALESCE(SUM(lie_count), 0)::int          AS total_lies,
+             COUNT(*)::int                              AS total_sessions,
+             COALESCE(MAX(lie_count), 0)::int           AS best_session,
+             (SELECT interviewee_name
+              FROM interview_history
+              WHERE device_id = $1 AND deleted_at IS NULL AND lie_count > 0
+              GROUP BY interviewee_id, interviewee_name
+              ORDER BY SUM(lie_count) DESC LIMIT 1)     AS top_liar_name,
+             (SELECT SUM(lie_count)::int
+              FROM interview_history
+              WHERE device_id = $1 AND deleted_at IS NULL AND lie_count > 0
+              GROUP BY interviewee_id, interviewee_name
+              ORDER BY SUM(lie_count) DESC LIMIT 1)     AS top_liar_count
+           FROM interview_history
+           WHERE device_id = $1 AND deleted_at IS NULL`,
+          [deviceId],
+        );
+        const row = result.rows[0] || {};
+        res.json({
+          totalLies:    Number(row.total_lies)    || 0,
+          totalSessions:Number(row.total_sessions)|| 0,
+          bestSession:  Number(row.best_session)  || 0,
+          topLiarName:  row.top_liar_name  || null,
+          topLiarCount: Number(row.top_liar_count) || 0,
+        });
+      } finally {
+        await db.end();
+      }
+    } catch (error: any) {
+      console.error("Interview lie tally error:", error);
+      res.status(500).json({ error: "Failed to load tally" });
+    }
+  });
+
   app.get("/api/arena/interview-history", async (req, res) => {
     try {
       const deviceId = req.headers["x-device-id"] as string;

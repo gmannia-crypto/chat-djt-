@@ -210,6 +210,8 @@ export default function InterviewScreen() {
   const [emoInterviewer, setEmoInterviewer] = useState<Emotions>(ZERO_EMO);
   const [emoInterviewee, setEmoInterviewee] = useState<Emotions>(ZERO_EMO);
 
+  const [lieTally, setLieTally] = useState<{ totalLies: number; totalSessions: number; bestSession: number; topLiarName: string | null; topLiarCount: number } | null>(null);
+
   const [lieCount, setLieCount] = useState(0);
   const [lies, setLies] = useState<LieEntry[]>([]);
   const [liesSheetOpen, setLiesSheetOpen] = useState(false);
@@ -682,6 +684,18 @@ export default function InterviewScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const fetchLieTally = useCallback(async () => {
+    if (!deviceId) return;
+    try {
+      const res = await fetch(new URL("/api/arena/interview-lie-tally", getApiUrl()).toString(), {
+        headers: { "x-device-id": deviceId },
+      });
+      if (res.ok) setLieTally(await res.json());
+    } catch {}
+  }, [deviceId]);
+
+  useEffect(() => { fetchLieTally(); }, [fetchLieTally]);
+
   const interviewer = useMemo(() => interviewers.find((p) => p.id === interviewerId) || null, [interviewers, interviewerId]);
   const interviewee = useMemo(() => interviewees.find((p) => p.id === intervieweeId) || null, [interviewees, intervieweeId]);
   const currentTopic = topics[topicIdx] || null;
@@ -1085,11 +1099,12 @@ export default function InterviewScreen() {
       })
       .then((data: any) => {
         if (data?.id) setSavedSessionId(data.id);
+        fetchLieTally();
       })
       .catch(() => {
         savedSessionRef.current = false;
       });
-  }, [phase, deviceId, interviewerId, intervieweeId, duration, lies, emoInterviewer, emoInterviewee, topics]);
+  }, [phase, deviceId, interviewerId, intervieweeId, duration, lies, emoInterviewer, emoInterviewee, topics, fetchLieTally]);
 
   const togglePause = useCallback(() => {
     const next = !isPausedRef.current;
@@ -1222,6 +1237,27 @@ export default function InterviewScreen() {
           </Pressable>
           <ShareAppButton variant="icon" area="arena" />
         </View>
+
+        {lieTally && lieTally.totalSessions > 0 && (
+          <View style={s.lieTallyStrip}>
+            <View style={s.lieTallyMain}>
+              <Text style={s.lieTallyNum}>{lieTally.totalLies}</Text>
+              <View>
+                <Text style={s.lieTallyLabel}>ALL-TIME LIES CAUGHT</Text>
+                <Text style={s.lieTallySub}>
+                  {lieTally.totalSessions} session{lieTally.totalSessions === 1 ? "" : "s"} · record {lieTally.bestSession} in one
+                </Text>
+              </View>
+            </View>
+            {lieTally.topLiarName && (
+              <View style={s.lieTallyBiggest}>
+                <Text style={s.lieTallyBiggestLabel}>BIGGEST LIAR</Text>
+                <Text style={s.lieTallyBiggestName} numberOfLines={1}>{lieTally.topLiarName}</Text>
+                <Text style={s.lieTallyBiggestCount}>{lieTally.topLiarCount} lies</Text>
+              </View>
+            )}
+          </View>
+        )}
 
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
           <Text style={s.sectionLabel}>INTERVIEWER</Text>
@@ -1752,6 +1788,16 @@ const s = StyleSheet.create({
   topicDesc: { color: "rgba(255,255,255,0.55)", fontSize: 11, marginTop: 2, lineHeight: 15 },
   eraTag: { alignSelf: "flex-start", paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, marginTop: 5 },
   eraTagText: { fontSize: 9, fontWeight: "900", letterSpacing: 0.5 },
+
+  lieTallyStrip: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginHorizontal: 12, marginBottom: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, backgroundColor: "rgba(220,38,38,0.1)", borderWidth: 1, borderColor: "rgba(220,38,38,0.35)" },
+  lieTallyMain: { flexDirection: "row", alignItems: "center", gap: 12 },
+  lieTallyNum: { color: "#EF4444", fontSize: 38, fontWeight: "900", lineHeight: 42 },
+  lieTallyLabel: { color: "#EF4444", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
+  lieTallySub: { color: "rgba(255,255,255,0.5)", fontSize: 10, marginTop: 1 },
+  lieTallyBiggest: { alignItems: "flex-end" },
+  lieTallyBiggestLabel: { color: "rgba(255,255,255,0.4)", fontSize: 8, fontWeight: "900", letterSpacing: 0.8 },
+  lieTallyBiggestName: { color: "#fff", fontSize: 12, fontWeight: "800", maxWidth: 100 },
+  lieTallyBiggestCount: { color: "#EF4444", fontSize: 10, fontWeight: "700" },
 
   startBtn: { marginTop: 20, paddingVertical: 16, borderRadius: 16, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8, backgroundColor: "#FFD700" },
   startBtnText: { color: "#000", fontSize: 16, fontWeight: "900", letterSpacing: 1 },
