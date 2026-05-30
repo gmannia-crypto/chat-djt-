@@ -210,6 +210,7 @@ export default function InterviewScreen() {
   const [lieCount, setLieCount] = useState(0);
   const [lies, setLies] = useState<LieEntry[]>([]);
   const [liesSheetOpen, setLiesSheetOpen] = useState(false);
+  const [lieFlashOn, setLieFlashOn] = useState(false);
   const [lieVotes, setLieVotes] = useState<Record<string, { up: number; down: number; myVote: number }>>({});
   const lieVotesPendingRef = useRef<Set<string>>(new Set());
   const [flaggedMsgIds, setFlaggedMsgIds] = useState<Set<string>>(new Set());
@@ -385,11 +386,9 @@ export default function InterviewScreen() {
       try {
         const sound = await playTTS("/api/persona-speak", { text: item.text, personaId: item.personaId }, { volume: getPersonaVoiceVolume(item.personaId) });
         currentSoundRef.current = sound;
-        // Early-resolve ~1s before audio finishes so the next line can start while the
-        // current speaker's tail is still playing — gives a natural overlap instead of
-        // a hard sequential gap. The sound itself keeps playing in the background until
-        // didJustFinish unloads it.
-        const OVERLAP_MS = 1000;
+        // Early-resolve 1500ms before audio finishes — next speaker begins while current
+        // tail is still playing, giving a natural broadcast overlap. Matches arena timing.
+        const OVERLAP_MS = 1500;
         await new Promise<void>((resolve) => {
           let resolved = false;
           let earlyResolved = false;
@@ -428,8 +427,7 @@ export default function InterviewScreen() {
       } catch (e) {
         // ignore TTS error and continue
       }
-      // tiny breath between turns — kept short since audio overlap already provides flow
-      await new Promise((r) => setTimeout(r, 60));
+      // no breath — overlap already provides natural flow like the arena
     }
     ttsRunningRef.current = false;
     if (ttsQueueRef.current.length === 0) {
@@ -534,6 +532,8 @@ export default function InterviewScreen() {
           }]);
           triggerLightning();
           playLieAlert();
+          setLieFlashOn(true);
+          setTimeout(() => setLieFlashOn(false), 450);
         }
       })
       .catch(() => {});
@@ -598,6 +598,8 @@ export default function InterviewScreen() {
         if (score < 40) {
           triggerLightning();
           playLieAlert();
+          setLieFlashOn(true);
+          setTimeout(() => setLieFlashOn(false), 450);
         }
       })
       .catch((err: any) => {
@@ -785,51 +787,51 @@ export default function InterviewScreen() {
       if (!q || !runningRef.current) break;
       enrichAndAddMessage({ id: `q-${Date.now()}-${Math.random()}`, speakerId: q.speakerId, speakerName: q.speakerName, text: q.text, ts: Date.now() });
 
-      // Decide up-front whether to interrupt — needed so we can prefetch when not interrupting
-      const willInterrupt = Math.random() < 0.12;
+      // Decide up-front whether to interrupt — needed so we can pre-fetch correctly
+      const willInterrupt = Math.random() < 0.20;
 
-      // PIPELINE: kick off the answer fetch immediately, in parallel with the question's "read" wait,
-      // so by the time the user finishes hearing the question, the answer is already loaded.
-      const answerPromise: Promise<{ speakerId: string; speakerName: string; text: string } | null> | null =
-        willInterrupt ? null : fetchAnswer(q.text, {});
+      // PIPELINE: kick off the answer fetch immediately in parallel with question TTS.
+      // When interrupting, pre-fetch BOTH the jab AND the full answer in parallel so
+      // there's no dead air after the interruption.
+      const answerPromise: Promise<{ speakerId: string; speakerName: string; text: string } | null> =
+        fetchAnswer(q.text, { wasInterrupted: willInterrupt });
+      const interruptPromise: Promise<{ speakerId: string; speakerName: string; text: string } | null> | null =
+        willInterrupt ? fetchAnswer(q.text, { isInterruption: true }) : null;
 
-      // Estimate read time and queue the answer with ~3.5s lead so it lines up just before
-      // the question's audio finishes. The TTS queue's per-clip early-resolve (1s before end)
-      // then provides the actual audible overlap.
-      const qReadMs = Math.min(7000, Math.max(2200, q.text.length * 55));
-      await new Promise((r) => setTimeout(r, Math.max(150, qReadMs - 3500)));
+      // Use 40ms/char estimate — closer to real TTS pace — with a 3s lead window.
+      // The TTS queue's 1500ms early-resolve then provides the actual audible overlap.
+      const qReadMs = Math.min(6000, Math.max(1800, q.text.length * 40));
+      await new Promise((r) => setTimeout(r, Math.max(100, qReadMs - 3000)));
       if (!runningRef.current) break;
 
-      // Random interruption from interviewee on the question (12%)
+      // Random interruption from interviewee on the question (20%)
       let interruptionText: string | undefined;
-      if (willInterrupt) {
-        const intr = await fetchAnswer(q.text, { isInterruption: true });
+      if (willInterrupt && interruptPromise) {
+        const intr = await interruptPromise;
         if (intr && intr.text && runningRef.current) {
           interruptionText = intr.text;
           enrichAndAddMessage({ id: `intr-${Date.now()}-${Math.random()}`, speakerId: intr.speakerId, speakerName: intr.speakerName, text: intr.text, ts: Date.now(), isInterruption: true });
-          await new Promise((r) => setTimeout(r, 350));
+          await new Promise((r) => setTimeout(r, 100));
         }
       }
       if (!runningRef.current) break;
 
       setIsThinking("interviewee");
-      const a = answerPromise
-        ? await answerPromise
-        : await fetchAnswer(q.text, { wasInterrupted: !!interruptionText, interruptionText });
+      const a = await answerPromise;
       setIsThinking(null);
       if (!a || !runningRef.current) break;
       enrichAndAddMessage({ id: `a-${Date.now()}-${Math.random()}`, speakerId: a.speakerId, speakerName: a.speakerName, text: a.text, ts: Date.now() });
 
-      const aReadMs = Math.min(8500, Math.max(2500, a.text.length * 55));
-      await new Promise((r) => setTimeout(r, Math.max(200, aReadMs - 3500)));
+      const aReadMs = Math.min(7000, Math.max(1800, a.text.length * 40));
+      await new Promise((r) => setTimeout(r, Math.max(100, aReadMs - 3000)));
       if (!runningRef.current) break;
 
-      // Random interviewer cut-in mid-answer (10%)
-      if (Math.random() < 0.1) {
+      // Random interviewer cut-in mid-answer (18%)
+      if (Math.random() < 0.18) {
         const cut = await fetchQuestion({ isInterruption: true, currentTopicArg: topic });
         if (cut && cut.text && runningRef.current) {
           enrichAndAddMessage({ id: `cut-${Date.now()}-${Math.random()}`, speakerId: cut.speakerId, speakerName: cut.speakerName, text: cut.text, ts: Date.now(), isInterruption: true });
-          await new Promise((r) => setTimeout(r, 700));
+          await new Promise((r) => setTimeout(r, 200));
         }
       }
 
@@ -857,7 +859,7 @@ export default function InterviewScreen() {
         setTopicIdx(nextIdx);
         topicIdxRef.current = nextIdx;
         exchangesOnTopicRef.current = 1; // transition counts as first question
-        await new Promise((r) => setTimeout(r, 700));
+        await new Promise((r) => setTimeout(r, 250));
       }
     }
     runningRef.current = false;
@@ -1330,9 +1332,13 @@ export default function InterviewScreen() {
             </View>
           </View>
         )}
-        <Pressable onPress={() => setLiesSheetOpen(true)} style={[s.liePill, lieCount > 0 && s.liePillActive]} testID="lie-counter">
-          <Ionicons name="flash" size={12} color={lieCount > 0 ? "#ff4d4d" : "rgba(255,255,255,0.4)"} />
-          <Text style={[s.liePillText, lieCount > 0 && { color: "#ff4d4d" }]}>{lieCount}</Text>
+        <Pressable onPress={() => setLiesSheetOpen(true)} style={[s.liePill, (lieCount > 0 || lieFlashOn) && s.liePillActive]} testID="lie-counter">
+          <Ionicons name="flash" size={12} color={lieCount > 0 || lieFlashOn ? "#ff4d4d" : "rgba(255,255,255,0.4)"} />
+          {lieFlashOn ? (
+            <Text style={[s.liePillText, { color: "#ff4d4d", letterSpacing: 1 }]}>LIE</Text>
+          ) : (
+            <Text style={[s.liePillText, lieCount > 0 && { color: "#ff4d4d" }]}>{lieCount}</Text>
+          )}
         </Pressable>
         <Pressable onPress={toggleVoice} style={s.iconBtnSm} testID="toggle-voice">
           <Ionicons name={voiceEnabled ? "volume-high" : "volume-mute"} size={16} color={voiceEnabled ? "#FFD700" : "rgba(255,255,255,0.4)"} />
@@ -1452,6 +1458,11 @@ export default function InterviewScreen() {
           scrollEnabled={messages.length > 0}
         />
         <Animated.View pointerEvents="none" style={[s.lightning, flashStyle]} />
+        {lieFlashOn && (
+          <View pointerEvents="none" style={s.lieFlashOverlay}>
+            <Text style={s.lieFlashWord}>LIE</Text>
+          </View>
+        )}
       </View>
 
       {/* Call-in bar */}
@@ -1758,6 +1769,8 @@ const s = StyleSheet.create({
   bubbleCallIn: { backgroundColor: "rgba(96,165,250,0.12)", borderColor: "rgba(96,165,250,0.45)", borderWidth: 1, maxWidth: "92%" },
 
   lightning: { ...StyleSheet.absoluteFillObject, backgroundColor: "#ff2a2a" },
+  lieFlashOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(255,77,77,0.18)", justifyContent: "center", alignItems: "center", zIndex: 999 },
+  lieFlashWord: { color: "#ff4d4d", fontSize: 72, fontWeight: "900", letterSpacing: 8, opacity: 0.85, textShadowColor: "#ff0000", textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 24 },
 
   callinBar: { backgroundColor: "rgba(15,15,18,0.95)", borderTopWidth: 1, borderColor: "rgba(96,165,250,0.25)", paddingHorizontal: 10, paddingTop: 8, gap: 6 },
   callinNameRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, height: 28, borderRadius: 14, backgroundColor: "rgba(96,165,250,0.08)", borderWidth: 1, borderColor: "rgba(96,165,250,0.2)" },
