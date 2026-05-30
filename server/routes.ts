@@ -1615,7 +1615,7 @@ Make it interesting — reference real players, historic moments, records, or st
 
   app.post("/api/sports/dc-royal/respond", async (req, res) => {
     try {
-      const { responderId, winners, conversationHistory, expiresAt } = req.body;
+      const { responderId, winners, conversationHistory, expiresAt, isInterruption = false, interruptTarget } = req.body;
       const deviceId = req.headers["x-device-id"] as string;
       if (!deviceId) return res.status(400).json({ error: "Device ID required" });
       if (expiresAt && Date.now() > expiresAt) {
@@ -1644,6 +1644,7 @@ Make it interesting — reference real players, historic moments, records, or st
 
       const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
       const sportsCtx = await getSportsContext();
+      const interruptTargetName = interruptTarget ? (personaNames[interruptTarget] || interruptTarget) : null;
       const prompt = `${sportsPrompt}
 
 ${sportsCtx}
@@ -1653,7 +1654,12 @@ TODAY IS ${todayStr}. You are in a LIVE DC Royal debate — a competitive roundt
 DC ROYAL WINNERS IN THIS DEBATE:
 ${winnerDescriptions}
 
-DEBATE RULES:
+${isInterruption
+  ? `INTERRUPTION MODE: ${interruptTargetName || "Someone"} is in the middle of speaking and you are CUTTING THEM OFF. Fire ONE explosive jab — maximum 1 sentence, under 12 words. Like a heckle or trash-talk cut-in. No long speeches. Direct, punchy, savage.
+
+RECENT DEBATE:
+${historyText}`
+  : `DEBATE RULES:
 - You are ${personaNames[responderId] || responderId}. Respond IN CHARACTER with your unique voice.
 - BRAG about your winning picks and MOCK the others' records and analysis
 - Reference specific stats, player performances, and game outcomes to back up your trash talk
@@ -1664,18 +1670,18 @@ DEBATE RULES:
 - Use your signature catchphrases and speaking patterns
 - Reference the CURRENT sports calendar from the context above — do NOT invent events that haven't happened yet
 
-${historyText ? `RECENT DEBATE:\n${historyText}\n\nRespond to what was just said. Be competitive and entertaining.` : "You're opening the debate. Come out STRONG with a bold take and some trash talk."}`;
+${historyText ? `RECENT DEBATE:\n${historyText}\n\nRespond to what was just said. Be competitive and entertaining.` : "You're opening the debate. Come out STRONG with a bold take and some trash talk."}`}`;
 
       const completion = await getClient().chat.completions.create({
         model: getFastModel(),
         messages: [{ role: "system", content: prompt }],
-        max_completion_tokens: 250,
+        max_completion_tokens: isInterruption ? 35 : 250,
         temperature: 0.95,
       });
 
       const text = completion.choices[0]?.message?.content?.trim() || "";
-      const cleaned = text.replace(/^\[.*?\]:\s*/, "").replace(/^["']|["']$/g, "");
-      res.json({ personaId: responderId, text: cleaned });
+      const cleaned = text.replace(/^\[.*?\]:\s*/, "").replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").trim();
+      res.json({ personaId: responderId, text: cleaned, isInterruption });
     } catch (e: any) {
       console.error("DC Royal respond error:", e.message);
       res.status(500).json({ error: "Failed to generate response" });
@@ -5588,8 +5594,8 @@ Address everyone by LAST NAME ONLY — no first names except for Trump, whom you
     }
   });
 
-  const INTERVIEWER_IDS = ["maddow", "joyreid", "megynkelly", "candace", "odonnell", "alexjones", "galloway", "carville", "leavitt", "loomer"];
-  const INTERVIEWEE_IDS = ["trump", "biden", "netanyahu", "mcconnell", "omar", "rosie", "berniemc", "elon", "graham", "pambondi", "jimjordan", "schumer", "obama", "melania", "kamala", "mtg", "rfk", "ruckus", "miller", "erikakirk", "loomer", "leavitt"];
+  const INTERVIEWER_IDS = ["maddow", "joyreid", "megynkelly", "candace", "odonnell", "alexjones", "galloway", "carville", "leavitt", "loomer", "errol"];
+  const INTERVIEWEE_IDS = ["trump", "biden", "netanyahu", "mcconnell", "omar", "rosie", "berniemc", "elon", "errol", "graham", "pambondi", "jimjordan", "schumer", "obama", "melania", "kamala", "mtg", "rfk", "ruckus", "miller", "erikakirk", "loomer", "leavitt"];
 
   app.get("/api/arena/interview-personas", (_req, res) => {
     const interviewers = INTERVIEWER_IDS.filter((id) => ARENA_PERSONA_PROMPTS[id]).map((id) => ({
@@ -5601,6 +5607,52 @@ Address everyone by LAST NAME ONLY — no first names except for Trump, whom you
       name: ARENA_NAME_MAP[id] || id,
     }));
     res.json({ interviewers, interviewees });
+  });
+
+  app.post("/api/arena/interview-greeting", async (req, res) => {
+    try {
+      const { interviewerId, intervieweeId } = req.body || {};
+      if (!interviewerId || !intervieweeId) return res.status(400).json({ error: "interviewerId and intervieweeId required" });
+      if (!ARENA_PERSONA_PROMPTS[interviewerId] || !ARENA_PERSONA_PROMPTS[intervieweeId]) {
+        return res.status(400).json({ error: "Invalid persona ids" });
+      }
+      const interviewerName = ARENA_NAME_MAP[interviewerId] || interviewerId;
+      const intervieweeName = ARENA_NAME_MAP[intervieweeId] || intervieweeId;
+      const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+
+      // Generate both greeting lines in parallel
+      const [ivResult, iveeResult] = await Promise.all([
+        getClient().chat.completions.create({
+          model: getFastModel(),
+          messages: [
+            { role: "system", content: `${ARENA_PERSONA_PROMPTS[interviewerId]}\n\nYou are ${interviewerName}. Today is ${todayStr}. You are opening a live televised 1-on-1 interview with ${intervieweeName}.` },
+            { role: "user", content: `Open the interview. Introduce yourself briefly, welcome ${intervieweeName} to your show — with YOUR signature tone (hostile, skeptical, enthusiastic, satirical — whatever fits who YOU are). Warn them this won't be a softball interview. 1-2 punchy sentences max. No quotes, no asterisks, no stage directions. Spoken words only.` },
+          ],
+          max_completion_tokens: 80,
+          temperature: 0.9,
+        }),
+        getClient().chat.completions.create({
+          model: getFastModel(),
+          messages: [
+            { role: "system", content: `${ARENA_PERSONA_PROMPTS[intervieweeId]}\n\nYou are ${intervieweeName}. Today is ${todayStr}. You are appearing on a live TV interview hosted by ${interviewerName}.` },
+            { role: "user", content: `${interviewerName} just greeted you and opened the interview. Respond in character — brief acknowledgment of being there, set YOUR tone (combative, confident, defensive, charming — whatever fits your character). You can take a jab at ${interviewerName} if your character would. 1-2 sentences max. No quotes, no asterisks, no stage directions. Spoken words only.` },
+          ],
+          max_completion_tokens: 80,
+          temperature: 0.9,
+        }),
+      ]);
+
+      const ivText = (ivResult.choices[0]?.message?.content || "").replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").trim();
+      const iveeText = (iveeResult.choices[0]?.message?.content || "").replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").trim();
+
+      res.json({
+        interviewer: { speakerId: interviewerId, speakerName: interviewerName, text: ivText },
+        interviewee: { speakerId: intervieweeId, speakerName: intervieweeName, text: iveeText },
+      });
+    } catch (err: any) {
+      console.error("Interview greeting error:", err.message);
+      res.status(500).json({ error: "Failed to generate greeting" });
+    }
   });
 
   app.post("/api/arena/interview-topics", async (req, res) => {

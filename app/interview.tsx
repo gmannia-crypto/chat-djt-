@@ -35,7 +35,8 @@ const EMO_COLORS: Record<keyof Emotions, string> = { anger: "#ff4d4d", happy: "#
 const PERSONA_PORTRAITS: Record<string, any> = {
   trump: require("@/assets/images/persona-trump.png"),
   netanyahu: require("@/assets/images/persona-netanyahu.png"),
-  ruckus: require("@/assets/images/persona-ruckus.png"),
+  ruckus: require("@/assets/images/persona-ruckus.jpg"),
+  errol: require("@/assets/images/persona-errol.jpg"),
   galloway: require("@/assets/images/persona-galloway.png"),
   mcconnell: require("@/assets/images/persona-mcconnell.png"),
   carville: require("@/assets/images/persona-carville.png"),
@@ -839,13 +840,8 @@ export default function InterviewScreen() {
       const shouldAdvance = exchangesOnTopicRef.current >= exchangesPerTopic;
       if (shouldAdvance) {
         setCompletedTopics((prev) => new Set(prev).add(topic.id));
-        const nextIdx = idx + 1;
-        if (nextIdx >= topics.length) {
-          // All topics done — end
-          runningRef.current = false;
-          setPhase("ended");
-          break;
-        }
+        // Cycle back to topic 0 when we exhaust the list — keep going until time runs out
+        const nextIdx = idx + 1 < topics.length ? idx + 1 : 0;
         // Transition message
         const nextTopic = topics[nextIdx];
         setIsThinking("interviewer");
@@ -923,8 +919,30 @@ export default function InterviewScreen() {
     isPausedRef.current = false;
     setIsPaused(false);
     setIsStarting(false);
-    setTimeout(() => { runLoop(); }, 300);
-  }, [deviceId, interviewerId, intervieweeId, topics.length, isStarting, duration, runLoop]);
+    // Fetch greeting in parallel, show it, then start the main loop
+    (async () => {
+      try {
+        const gRes = await fetch(new URL("/api/arena/interview-greeting", getApiUrl()).toString(), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ interviewerId, intervieweeId }),
+        });
+        if (gRes.ok && runningRef.current) {
+          const gData = await gRes.json();
+          if (gData?.interviewer?.text) {
+            enrichAndAddMessage({ id: `greet-iv-${Date.now()}`, speakerId: gData.interviewer.speakerId, speakerName: gData.interviewer.speakerName, text: gData.interviewer.text, ts: Date.now() });
+            // Small gap so interviewee response feels natural after interviewer
+            await new Promise((r) => setTimeout(r, Math.min(6000, Math.max(1800, gData.interviewer.text.length * 50))));
+          }
+          if (gData?.interviewee?.text && runningRef.current) {
+            enrichAndAddMessage({ id: `greet-ivee-${Date.now()}`, speakerId: gData.interviewee.speakerId, speakerName: gData.interviewee.speakerName, text: gData.interviewee.text, ts: Date.now() });
+            await new Promise((r) => setTimeout(r, Math.min(5000, Math.max(1500, gData.interviewee.text.length * 50))));
+          }
+        }
+      } catch {}
+      if (runningRef.current) runLoop();
+    })();
+  }, [deviceId, interviewerId, intervieweeId, topics.length, isStarting, duration, runLoop, enrichAndAddMessage]);
 
   const unlockSession = useCallback(async () => {
     if (!deviceId || isUnlocking) return;
@@ -961,12 +979,32 @@ export default function InterviewScreen() {
         runningRef.current = true;
         isPausedRef.current = false;
         setIsPaused(false);
-        setTimeout(() => { runLoop(); }, 300);
+        (async () => {
+          try {
+            const gRes = await fetch(new URL("/api/arena/interview-greeting", getApiUrl()).toString(), {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ interviewerId, intervieweeId }),
+            });
+            if (gRes.ok && runningRef.current) {
+              const gData = await gRes.json();
+              if (gData?.interviewer?.text) {
+                enrichAndAddMessage({ id: `greet-iv-${Date.now()}`, speakerId: gData.interviewer.speakerId, speakerName: gData.interviewer.speakerName, text: gData.interviewer.text, ts: Date.now() });
+                await new Promise((r) => setTimeout(r, Math.min(6000, Math.max(1800, gData.interviewer.text.length * 50))));
+              }
+              if (gData?.interviewee?.text && runningRef.current) {
+                enrichAndAddMessage({ id: `greet-ivee-${Date.now()}`, speakerId: gData.interviewee.speakerId, speakerName: gData.interviewee.speakerName, text: gData.interviewee.text, ts: Date.now() });
+                await new Promise((r) => setTimeout(r, Math.min(5000, Math.max(1500, gData.interviewee.text.length * 50))));
+              }
+            }
+          } catch {}
+          if (runningRef.current) runLoop();
+        })();
       }
     } catch {} finally {
       setIsUnlocking(false);
     }
-  }, [deviceId, duration, isUnlocking, refreshBalance, runLoop]);
+  }, [deviceId, duration, isUnlocking, refreshBalance, runLoop, interviewerId, intervieweeId, enrichAndAddMessage]);
 
   const stopInterview = useCallback(() => {
     runningRef.current = false;
@@ -1057,7 +1095,6 @@ export default function InterviewScreen() {
     };
     setMessages((prev) => [...prev, userMsg]);
 
-    // Briefly pause loop while call-in plays out
     const wasRunning = runningRef.current;
     isPausedRef.current = true;
     setIsPaused(true);

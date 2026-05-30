@@ -122,7 +122,7 @@ const PERSONA_IMAGES: Record<string, ImageSourcePropType> = {
   loudmouth: require("@/assets/images/persona-loudmouth.png"),
   jordan: require("@/assets/images/persona-jordan.png"),
   bernie: require("@/assets/images/persona-bernie.png"),
-  ruckus: require("@/assets/images/persona-ruckus.png"),
+  ruckus: require("@/assets/images/persona-ruckus.jpg"),
   maxkellerman: require("@/assets/images/persona-maxkellerman.png"),
   snoop: require("@/assets/images/persona-snoop.png"),
   barkley: require("@/assets/images/persona-barkley.png"),
@@ -1584,25 +1584,27 @@ function DCRoyalTab({
   };
 
   const runDebateLoop = async (expiresAt: number) => {
-    const history: { personaId: string; text: string }[] = [];
-    type Msg = { personaId: string; text: string };
+    const history: { personaId: string; text: string; isInterruption?: boolean }[] = [];
+    type Msg = { personaId: string; text: string; isInterruption?: boolean };
 
-    const fetchNext = (turnIdx: number, hist: Msg[]): Promise<Msg | null> => {
-      const responder = winners[turnIdx % winners.length];
+    const fetchNext = (responderId: string, hist: Msg[], opts?: { isInterruption?: boolean; interruptTarget?: string }): Promise<Msg | null> => {
       return fetch(new URL("/api/sports/dc-royal/respond", getApiUrl()).toString(), {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-device-id": deviceId || "" },
         body: JSON.stringify({
-          responderId: responder.personaId,
+          responderId,
           winners: winners.map(w => ({ ...w, crowns: crowns[w.personaId] || 0 })),
           conversationHistory: hist.slice(-8),
           expiresAt,
+          isInterruption: !!opts?.isInterruption,
+          interruptTarget: opts?.interruptTarget,
         }),
       }).then(r => r.ok ? r.json() : null).catch(() => null);
     };
 
     let turnIndex = 0;
-    let pending: Promise<Msg | null> = fetchNext(turnIndex, history);
+    const getResponder = (idx: number) => winners[idx % winners.length];
+    let pending: Promise<Msg | null> = fetchNext(getResponder(turnIndex).personaId, history);
 
     while (debateMountedRef.current && debateRunningRef.current && Date.now() < expiresAt) {
       const msg = await pending;
@@ -1613,10 +1615,10 @@ function DCRoyalTab({
 
       const speakResult = onSpeak(msg.text, msg.personaId, 80000 + turnIndex);
 
-      // Kick off the NEXT response fetch immediately (parallel with TTS + playback)
-      // so by the time we're ready for the next speaker, the text is already here.
+      // Pre-fetch the next regular response in parallel with TTS playback
       turnIndex++;
-      pending = fetchNext(turnIndex, [...history, msg]);
+      const nextResponder = getResponder(turnIndex);
+      pending = fetchNext(nextResponder.personaId, [...history]);
 
       const sound = speakResult && typeof (speakResult as Promise<Audio.Sound | null>).then === "function"
         ? await (speakResult as Promise<Audio.Sound | null>).catch(() => null)
@@ -1642,6 +1644,24 @@ function DCRoyalTab({
         ? Math.max(400, speechMs - overlapMs)
         : Math.max(250, speechMs - overlapMs);
       await new Promise(r => setTimeout(r, wait));
+
+      // ~18% chance of interruption — a different persona cuts in with a jab
+      if (winners.length > 1 && Math.random() < 0.18 && debateMountedRef.current && debateRunningRef.current && Date.now() < expiresAt) {
+        const others = winners.filter(w => w.personaId !== msg.personaId);
+        const intruder = others[Math.floor(Math.random() * others.length)];
+        if (intruder) {
+          const intrMsg = await fetchNext(intruder.personaId, [...history], { isInterruption: true, interruptTarget: msg.personaId }).catch(() => null);
+          if (intrMsg?.text && debateMountedRef.current && debateRunningRef.current) {
+            const intrWithFlag: Msg = { ...intrMsg, isInterruption: true };
+            history.push(intrWithFlag);
+            setDebateMessages(prev => [...prev, intrWithFlag]);
+            setTimeout(() => debateScrollRef.current?.scrollToEnd({ animated: true }), 150);
+            onSpeak(intrMsg.text, intrMsg.personaId, 80000 + turnIndex + 1000);
+            // Brief pause after interrupt before main turn continues
+            await new Promise(r => setTimeout(r, Math.min(3500, Math.max(1200, intrMsg.text.length * 45))));
+          }
+        }
+      }
     }
   };
 
@@ -1919,13 +1939,19 @@ function DCRoyalTab({
           <ScrollView ref={debateScrollRef} style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
             {debateMessages.map((msg, i) => {
               const p = personas.find(pp => pp.id === msg.personaId);
+              const isIntr = !!(msg as any).isInterruption;
               return (
-                <Animated.View key={i} entering={FadeInDown.delay(50).duration(300)} style={dcStyles.msgRow}>
+                <Animated.View key={i} entering={FadeInDown.delay(50).duration(300)}
+                  style={[dcStyles.msgRow, isIntr && { marginLeft: 24, opacity: 0.9 }]}>
                   <Pressable onPress={() => onSpeak(msg.text, msg.personaId, 80000 + i)}>
-                    <Image source={p?.image || personaImages.trump} style={[dcStyles.msgAvatar, { borderColor: p?.color || "#ff4d4d" }]} />
+                    <Image source={p?.image || personaImages.trump}
+                      style={[dcStyles.msgAvatar, { borderColor: p?.color || "#ff4d4d" }, isIntr && { width: 32, height: 32 }]} />
                   </Pressable>
-                  <View style={dcStyles.msgBubble}>
-                    <Text style={[dcStyles.msgName, { color: p?.color || "#ff4d4d" }]}>{p?.name || "???"}</Text>
+                  <View style={[dcStyles.msgBubble, isIntr && { backgroundColor: "rgba(255,100,0,0.08)", borderLeftWidth: 2, borderLeftColor: p?.color || "#ff4d4d", paddingLeft: 8 }]}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <Text style={[dcStyles.msgName, { color: p?.color || "#ff4d4d" }]}>{p?.name || "???"}</Text>
+                      {isIntr && <Text style={{ color: "#ff8c00", fontSize: 9, fontWeight: "800" }}>⚡ CUT IN</Text>}
+                    </View>
                     <Text style={dcStyles.msgText}>{msg.text}</Text>
                   </View>
                 </Animated.View>
