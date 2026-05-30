@@ -231,7 +231,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
     shortName: "Ruckus",
     color: "#8b0000",
     faction: "supporter",
-    image: require("@/assets/images/persona-ruckus.png"),
+    image: require("@/assets/images/persona-ruckus.jpg"),
     personality: {
       energy: 100,
       aggression: 80,
@@ -552,7 +552,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
     shortName: "Errol",
     color: "#8B7355",
     faction: "wildcard",
-    image: undefined,
+    image: require("@/assets/images/persona-errol.jpg"),
     personality: {
       energy: 55,
       aggression: 60,
