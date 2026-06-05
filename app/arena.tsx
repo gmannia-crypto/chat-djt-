@@ -860,7 +860,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       energy: 98,
       aggression: 80,
       humor: 55,
-      catchphrases: ["HOWEVER!", "Let me tell you something!", "Do NOT get it twisted!", "PERIOD. FULL STOP.", "I am NOT taking questions!"],
+      catchphrases: ["HOWEVER!", "BLASPHEMY!", "Heheheh. Oh you serious?", "Ain't nobody fidna—", "Go kick rocks!", "I don't give a DAMN!", "Sittin up there actin like—", "On everythin I love—", "PERIOD. POINT BLANK.", "Fidna tell ME?!"],
     },
     relationships: {
       trump: { sentiment: 65 },
