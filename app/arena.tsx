@@ -855,7 +855,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
     shortName: "Stephen A.",
     color: "#FF8C00",
     faction: "neutral",
-    image: null,
+    image: require("@/assets/images/persona-stephena.jpg"),
     personality: {
       energy: 98,
       aggression: 80,
@@ -887,7 +887,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
     shortName: "Malema",
     color: "#CC0000",
     faction: "opponent",
-    image: null,
+    image: require("@/assets/images/persona-malema.jpg"),
     personality: {
       energy: 92,
       aggression: 88,
@@ -919,7 +919,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
     shortName: "Hannity",
     color: "#003087",
     faction: "supporter",
-    image: null,
+    image: require("@/assets/images/persona-hannity.jpg"),
     personality: {
       energy: 88,
       aggression: 85,
@@ -953,7 +953,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
     shortName: "Neil T.",
     color: "#00BFFF",
     faction: "neutral",
-    image: null,
+    image: require("@/assets/images/persona-neiltyson.jpg"),
     personality: {
       energy: 70,
       aggression: 35,
