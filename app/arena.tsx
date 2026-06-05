@@ -57,7 +57,7 @@ const Colors = {
   whiteDim: "rgba(255,255,255,0.6)",
 };
 
-type PersonaCategory = "president" | "politician" | "journalist" | "strategist" | "podcaster" | "comedian" | "tech" | "firstlady";
+type PersonaCategory = "president" | "politician" | "journalist" | "strategist" | "podcaster" | "comedian" | "tech" | "firstlady" | "commentator" | "activist" | "scientist";
 
 const PERSONA_CATEGORIES: Record<PersonaCategory, { label: string; color: string }> = {
   president: { label: "President", color: "#FFD700" },
@@ -68,6 +68,9 @@ const PERSONA_CATEGORIES: Record<PersonaCategory, { label: string; color: string
   comedian: { label: "Comedian", color: "#22c55e" },
   tech: { label: "Tech Leader", color: "#1DA1F2" },
   firstlady: { label: "First Lady", color: "#C0C0C0" },
+  commentator: { label: "Commentator", color: "#FF8C00" },
+  activist: { label: "Activist", color: "#00C896" },
+  scientist: { label: "Scientist", color: "#00BFFF" },
 };
 
 const PERSONA_CATEGORY_MAP: Record<string, PersonaCategory> = {
@@ -83,6 +86,15 @@ const PERSONA_CATEGORY_MAP: Record<string, PersonaCategory> = {
   berniemc: "comedian", rosie: "comedian", ruckus: "comedian",
   elon: "tech",
   melania: "firstlady",
+  stephena: "commentator",
+  malema: "activist",
+  hannity: "journalist",
+  neiltyson: "scientist",
+  errol: "politician",
+  leavitt: "journalist",
+  erikakirk: "journalist",
+  loomer: "podcaster",
+  bannon: "strategist",
 };
 
 // Political Facts IQ: everyone starts at 100 (seeded from all-time average).
@@ -837,6 +849,136 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       negative: ["witch hunt", "ohio state", "wrestling", "no bills", "kiss ass", "sycophant"],
     },
   },
+  stephena: {
+    id: "stephena",
+    name: "Stephen A. Smith",
+    shortName: "Stephen A.",
+    color: "#FF8C00",
+    faction: "neutral",
+    image: null,
+    personality: {
+      energy: 98,
+      aggression: 80,
+      humor: 55,
+      catchphrases: ["HOWEVER!", "Let me tell you something!", "Do NOT get it twisted!", "PERIOD. FULL STOP.", "I am NOT taking questions!"],
+    },
+    relationships: {
+      trump: { sentiment: 65 },
+      candace: { sentiment: 75 },
+      joyreid: { sentiment: 10 },
+      maddow: { sentiment: 20 },
+      carville: { sentiment: 20 },
+      ruckus: { sentiment: 35 },
+      hannity: { sentiment: 55 },
+      neiltyson: { sentiment: 70 },
+      malema: { sentiment: 20 },
+      berniemc: { sentiment: 40 },
+      elon: { sentiment: 40 },
+      biden: { sentiment: 30 },
+    },
+    triggerWords: {
+      positive: ["espn", "first take", "independent", "results", "economy", "accountability", "black excellence"],
+      negative: ["sellout", "uncle tom", "house negro", "trump puppet", "republican tool", "coward"],
+    },
+  },
+  malema: {
+    id: "malema",
+    name: "Julius Malema",
+    shortName: "Malema",
+    color: "#CC0000",
+    faction: "opponent",
+    image: null,
+    personality: {
+      energy: 92,
+      aggression: 88,
+      humor: 45,
+      catchphrases: ["Amandla! Awethu!", "The land must be returned!", "We are not afraid!", "Economic freedom in our lifetime!", "Fighters!"],
+    },
+    relationships: {
+      trump: { sentiment: 5 },
+      elon: { sentiment: 5 },
+      galloway: { sentiment: 85 },
+      omar: { sentiment: 80 },
+      berniemc: { sentiment: 65 },
+      carville: { sentiment: 35 },
+      maddow: { sentiment: 45 },
+      stephena: { sentiment: 20 },
+      candace: { sentiment: 5 },
+      ruckus: { sentiment: 10 },
+      neiltyson: { sentiment: 60 },
+      netanyahu: { sentiment: 5 },
+    },
+    triggerWords: {
+      positive: ["land", "freedom", "colonialism", "africa", "eff", "liberation", "workers", "masses", "revolution"],
+      negative: ["white monopoly", "oligarch", "imperialist", "boer", "settler", "nato", "apartheid"],
+    },
+  },
+  hannity: {
+    id: "hannity",
+    name: "Sean Hannity",
+    shortName: "Hannity",
+    color: "#003087",
+    faction: "supporter",
+    image: null,
+    personality: {
+      energy: 88,
+      aggression: 85,
+      humor: 30,
+      catchphrases: ["Let me be clear—", "The RADICAL LEFT—", "Mainstream media HOAX!", "The President is getting it done.", "Sean Hannity, Fox News."],
+    },
+    relationships: {
+      trump: { sentiment: 99 },
+      candace: { sentiment: 80 },
+      graham: { sentiment: 85 },
+      miller: { sentiment: 90 },
+      bannon: { sentiment: 75 },
+      leavitt: { sentiment: 75 },
+      carville: { sentiment: 5 },
+      maddow: { sentiment: 3 },
+      joyreid: { sentiment: 5 },
+      galloway: { sentiment: 10 },
+      omar: { sentiment: 5 },
+      berniemc: { sentiment: 15 },
+      neiltyson: { sentiment: 40 },
+      stephena: { sentiment: 55 },
+    },
+    triggerWords: {
+      positive: ["trump", "fox news", "maga", "america", "border", "military", "israel", "conservative"],
+      negative: ["hillary", "hunter", "deep state", "radical left", "mainstream media", "democrats", "witch hunt"],
+    },
+  },
+  neiltyson: {
+    id: "neiltyson",
+    name: "Neil deGrasse Tyson",
+    shortName: "Neil T.",
+    color: "#00BFFF",
+    faction: "neutral",
+    image: null,
+    personality: {
+      energy: 70,
+      aggression: 35,
+      humor: 75,
+      catchphrases: ["Consider this—", "From a scientific perspective—", "Actually—", "The data shows—", "When you consider the scale of the universe—"],
+    },
+    relationships: {
+      trump: { sentiment: 30 },
+      elon: { sentiment: 50 },
+      maddow: { sentiment: 65 },
+      carville: { sentiment: 55 },
+      berniemc: { sentiment: 60 },
+      omar: { sentiment: 60 },
+      galloway: { sentiment: 40 },
+      bannon: { sentiment: 15 },
+      hannity: { sentiment: 25 },
+      stephena: { sentiment: 65 },
+      malema: { sentiment: 50 },
+      ruckus: { sentiment: 20 },
+    },
+    triggerWords: {
+      positive: ["science", "data", "evidence", "research", "nasa", "climate", "universe", "physics", "facts"],
+      negative: ["anti-science", "climate denial", "flat earth", "antivax", "conspiracy", "pseudoscience"],
+    },
+  },
 };
 
 const MYSTERY_PERSONAS: Record<string, ArenaPersona> = {
@@ -1366,7 +1508,7 @@ const MYSTERY_UNLOCK_COSTS: Record<string, number> = {
 };
 const MYSTERY_UNLOCK_KEY = "arena_mystery_unlocked";
 
-const PERSONA_IDS = ["trump", "elon", "errol", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "leavitt", "erikakirk", "loomer", "bannon"];
+const PERSONA_IDS = ["trump", "elon", "errol", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "leavitt", "erikakirk", "loomer", "bannon", "stephena", "malema", "hannity", "neiltyson"];
 
 const BREAKING_NEWS_REACTIONS: Record<string, string[]> = {
   trump: [
@@ -1778,7 +1920,7 @@ function ArenaIntro({ personas, onComplete }: { personas: string[]; onComplete: 
   useEffect(() => {
     const t1 = setTimeout(() => {
       setPhase(1);
-      playTTS("/api/nav-speak", { text: "Political Arena." })
+      playTTS("/api/nav-speak", { text: "The Arena." })
         .then((sound) => { titleSoundRef.current = sound; }).catch(() => {});
     }, 400);
     const t2 = setTimeout(() => setPhase(2), 1600);
@@ -2131,14 +2273,14 @@ function ViralClipsModal({ visible, onClose, messages, currentTopic, videoStates
   }
 
   async function shareClip(idx: number, moment: ViralMoment) {
-    const text = `"${moment.message.text.slice(0, 120)}${moment.message.text.length > 120 ? "…" : ""}"\n\n— ${moment.persona.name} on the Political Arena\n\nTopic: ${currentTopic || "Political Arena"}\n\nWatch 20 AI personas debate LIVE 🏛️\nChat DJT — chatdjt.com`;
+    const text = `"${moment.message.text.slice(0, 120)}${moment.message.text.length > 120 ? "…" : ""}"\n\n— ${moment.persona.name} on The Arena\n\nTopic: ${currentTopic || "The Arena"}\n\nWatch 28 AI personas debate LIVE 🏛️\nChat DJT — chatdjt.com`;
     let shared = false;
     try {
       if (Platform.OS !== "web") {
         await Share.share({ message: text });
         shared = true;
       } else if (typeof navigator !== "undefined" && navigator.share) {
-        await navigator.share({ title: `${moment.persona.name} on the Political Arena`, text });
+        await navigator.share({ title: `${moment.persona.name} on The Arena`, text });
         shared = true;
       }
     } catch {}
@@ -2155,7 +2297,7 @@ function ViralClipsModal({ visible, onClose, messages, currentTopic, videoStates
   }
 
   async function shareVideo(videoUrl: string, personaName: string) {
-    const msg = `${videoUrl}\n\nWatch ${personaName} go off on the Political Arena!\n\nChat DJT — chatdjt.com`;
+    const msg = `${videoUrl}\n\nWatch ${personaName} go off on The Arena!\n\nChat DJT — chatdjt.com`;
     let shared = false;
     try {
       if (Platform.OS !== "web") {
@@ -2222,7 +2364,7 @@ function ViralClipsModal({ visible, onClose, messages, currentTopic, videoStates
                         )}
                         <View style={vcStyles.momentPersonaInfo}>
                           <Text style={[vcStyles.momentPersonaName, { color: moment.persona.color }]}>{moment.persona.name}</Text>
-                          <Text style={vcStyles.momentTopicLabel}>{currentTopic ? currentTopic.slice(0, 40) : "Political Arena"}</Text>
+                          <Text style={vcStyles.momentTopicLabel}>{currentTopic ? currentTopic.slice(0, 40) : "The Arena"}</Text>
                         </View>
                         <View style={vcStyles.fireBadge}>
                           <Text style={vcStyles.fireBadgeText}>🔥 #{idx + 1}</Text>
@@ -2644,6 +2786,39 @@ export default function ArenaScreen() {
   const [personalLieHistory, setPersonalLieHistory] = useState<Record<string, number>>({});
   const personalLieHistoryRef = useRef<Record<string, number>>({});
   const seenLieIdsRef = useRef<Set<string>>(new Set());
+
+  // ── DEBATE SETTINGS ─────────────────────────────────────────────────────────
+  const [debateMode, setDebateMode] = useState<"civil" | "elevated" | "savage">("elevated");
+  const debateModeRef = useRef<"civil" | "elevated" | "savage">("elevated");
+  useEffect(() => { debateModeRef.current = debateMode; }, [debateMode]);
+  const [topicCategory, setTopicCategory] = useState<string>("politics");
+  const [bleepEnabled, setBleepEnabled] = useState<boolean>(false);
+
+  const applyBleep = useCallback((text: string): string => {
+    if (!bleepEnabled) return text;
+    const profanity = [
+      /\bf+u+c+k+(e+r+s?|i+n+g?|e+d?)?\b/gi,
+      /\bs+h+i+t+(t+y|t+e+r+s?|t+i+n+g?)?\b/gi,
+      /\ba+s+s+(h+o+l+e+s?|f+u+c+k+e+r+s?|w+i+p+e+s?)?\b/gi,
+      /\bb+i+t+c+h+(e+s?|i+n+g?)?\b/gi,
+      /\bc+u+n+t+s?\b/gi,
+      /\bd+a+m+n+s?\b/gi,
+      /\bp+r+i+c+k+s?\b/gi,
+      /\bc+o+c+k+s?\b/gi,
+      /\bd+i+c+k+(s|h+e+a+d+s?|f+a+c+e+s?)?\b/gi,
+      /\bm+o+t+h+e+r+f+u+c+k+(e+r+s?|i+n+g?)?\b/gi,
+      /\bb+a+s+t+a+r+d+s?\b/gi,
+      /\bw+h+o+r+e+s?\b/gi,
+      /\bs+l+u+t+s?\b/gi,
+      /\bn+i+g+g+(e+r+s?|a+s?)\b/gi,
+      /\bf+a+g+(g+o+t+s?|s)?\b/gi,
+    ];
+    let result = text;
+    for (const re of profanity) {
+      result = result.replace(re, (m) => m[0] + "*".repeat(Math.max(1, m.length - 1)));
+    }
+    return result;
+  }, [bleepEnabled]);
 
   // Political Facts IQ: starts at 100 (or all-time avg), rises with truths, falls with lies.
   const [personaSessionIQ, setPersonaSessionIQ] = useState<Record<string, number>>({});
@@ -3476,13 +3651,17 @@ export default function ArenaScreen() {
     } catch {}
   }, []);
 
-  const fetchTopics = useCallback(async () => {
+  const fetchTopics = useCallback(async (category?: string) => {
     try {
-      const res = await fetch(new URL("/api/arena/topics", getApiUrl()).toString());
+      const cat = category || "politics";
+      const url = new URL("/api/arena/topics", getApiUrl());
+      url.searchParams.set("category", cat);
+      const res = await fetch(url.toString());
       if (res.ok) {
         const data = await res.json();
         if (data.topics?.length > 0) {
           setDynamicTopics(data.topics);
+          setSelectedTopicId(null);
           if (!currentTopicRef.current && data.topics[0]) {
             const firstTopic = data.topics[0].title;
             setCurrentTopic(firstTopic);
@@ -4102,6 +4281,7 @@ export default function ArenaScreen() {
           conversationHistory: history,
           topic: currentTopicRef.current || "Current Events",
           activePersonas: selectedPersonasRef.current,
+          debateMode: debateModeRef.current,
         };
         const currentWinTally = winTallyRef.current;
         if (currentWinTally.global && Object.keys(currentWinTally.global).length > 0) {
@@ -4797,7 +4977,7 @@ export default function ArenaScreen() {
       id: "system-start",
       speakerId: "system",
       speakerName: "System",
-      text: "The Political Arena is live. Personas are entering...",
+      text: "The Arena is live. Personas are entering...",
       timestamp: Date.now(),
       isSystem: true,
     });
@@ -4945,7 +5125,7 @@ export default function ArenaScreen() {
   }, [deviceId, currentTopic, addMessage, queueTTS]);
 
   const shareDebate = useCallback(async () => {
-    const topicName = currentTopic || "Political Arena";
+    const topicName = currentTopic || "The Arena";
     const recentMessages = messages.filter((m) => !m.isSystem && m.speakerId !== "user").slice(-4);
     const winner = Object.entries(personaPointsRef.current).sort(([, a], [, b]) => b - a)[0];
     const winnerPersona = winner ? getPersona(winner[0]) : null;
@@ -4973,13 +5153,13 @@ export default function ArenaScreen() {
     try {
       if (Platform.OS === "web") {
         if (navigator.share) {
-          await navigator.share({ title: `Political Arena: ${topicName}`, text: shareText, url: "https://chatdjt.com" });
+          await navigator.share({ title: `The Arena: ${topicName}`, text: shareText, url: "https://chatdjt.com" });
         } else {
           const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`;
           Linking.openURL(twitterUrl);
         }
       } else {
-        await Share.share({ message: shareText, title: `Political Arena: ${topicName}` });
+        await Share.share({ message: shareText, title: `The Arena: ${topicName}` });
       }
     } catch {}
   }, [currentTopic, messages]);
@@ -5094,7 +5274,7 @@ export default function ArenaScreen() {
                 {new Date(item.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
               </Text>
             </View>
-            <Text style={s.msgText}>{item.text}</Text>
+            <Text style={s.msgText}>{applyBleep(item.text)}</Text>
           </Animated.View>
         );
       }
@@ -5165,20 +5345,20 @@ export default function ArenaScreen() {
               {new Date(item.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
             </Text>
           </View>
-          <TypewriterText text={item.text} style={s.msgText} voiceEnabled={voiceEnabled} isLatest={isLatest} />
+          <TypewriterText text={applyBleep(item.text)} style={s.msgText} voiceEnabled={voiceEnabled} isLatest={isLatest} />
         </Animated.View>
       );
     },
-    [queueTTS, voiceEnabled, latestPersonaMsgId, awardedMessages, flagMessageAsLie, flaggedMsgIds, personaSessionIQ]
+    [queueTTS, voiceEnabled, latestPersonaMsgId, awardedMessages, flagMessageAsLie, flaggedMsgIds, personaSessionIQ, applyBleep, bleepEnabled]
   );
 
   const [flashOn, setFlashOn] = useState(true);
   useEffect(() => {
     if (!showPreDebateSetup) return;
-    fetchTopics();
+    fetchTopics(topicCategory);
     const flashInterval = setInterval(() => setFlashOn((v) => !v), 700);
     return () => clearInterval(flashInterval);
-  }, [showPreDebateSetup]);
+  }, [showPreDebateSetup, topicCategory]);
 
   if (showPreDebateSetup) {
     return (
@@ -5198,7 +5378,7 @@ export default function ArenaScreen() {
             }}>CHOOSE YOUR DEBATERS</Text>
             <View style={{ flexDirection: "row", alignItems: "center", marginTop: 6 }}>
               <Ionicons name="flame" size={20} color="#FF4D4D" />
-              <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, marginHorizontal: 8 }}>POLITICAL ARENA</Text>
+              <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, marginHorizontal: 8 }}>THE ARENA</Text>
               <Ionicons name="flame" size={20} color="#FF4D4D" />
             </View>
           </View>
@@ -5279,7 +5459,7 @@ export default function ArenaScreen() {
           {(() => {
             const allIds = [...PERSONA_IDS, ...unlockedMystery.filter((id) => !PERSONA_IDS.includes(id))];
             const grouped: Record<string, string[]> = {};
-            const categoryOrder: PersonaCategory[] = ["president", "politician", "journalist", "strategist", "podcaster", "comedian", "tech", "firstlady"];
+            const categoryOrder: PersonaCategory[] = ["president", "politician", "journalist", "commentator", "strategist", "podcaster", "comedian", "tech", "firstlady", "activist", "scientist"];
             for (const pid of allIds) {
               const cat = PERSONA_CATEGORY_MAP[pid] || "politician";
               if (!grouped[cat]) grouped[cat] = [];
@@ -5370,7 +5550,61 @@ export default function ArenaScreen() {
             </View>
           )}
 
-          <Text style={{ color: "#FFD700", fontSize: 14, fontWeight: "800", marginBottom: 10, marginTop: 4 }}>CHOOSE TOPIC</Text>
+          {/* ── DEBATE MODE ─────────────────────────────────── */}
+          <Text style={{ color: "#FFD700", fontSize: 14, fontWeight: "800", marginBottom: 8, marginTop: 4 }}>DEBATE MODE</Text>
+          <View style={{ flexDirection: "row", gap: 8, marginBottom: 14 }}>
+            {(["civil", "elevated", "savage"] as const).map((mode) => {
+              const modeConfig = {
+                civil:    { label: "🕊 Civil",    color: "#60A5FA", desc: "Facts & logic" },
+                elevated: { label: "🔥 Elevated",  color: "#FFD700", desc: "Heated debate" },
+                savage:   { label: "💀 Savage",    color: "#FF4D4D", desc: "No holds barred" },
+              }[mode];
+              const isActive = debateMode === mode;
+              return (
+                <Pressable
+                  key={mode}
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setDebateMode(mode); }}
+                  style={{
+                    flex: 1, padding: 10, borderRadius: 12, alignItems: "center",
+                    borderWidth: 1.5, borderColor: isActive ? modeConfig.color : "rgba(255,255,255,0.1)",
+                    backgroundColor: isActive ? modeConfig.color + "18" : "rgba(255,255,255,0.04)",
+                  }}
+                >
+                  <Text style={{ color: isActive ? modeConfig.color : "#888", fontSize: 12, fontWeight: "800" }}>{modeConfig.label}</Text>
+                  <Text style={{ color: isActive ? modeConfig.color + "bb" : "rgba(255,255,255,0.3)", fontSize: 10, marginTop: 2 }}>{modeConfig.desc}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {/* ── TOPIC CATEGORY ──────────────────────────────── */}
+          <Text style={{ color: "#FFD700", fontSize: 14, fontWeight: "800", marginBottom: 8 }}>CHOOSE TOPIC</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }} contentContainerStyle={{ gap: 6, paddingVertical: 2 }}>
+            {[
+              { key: "politics", label: "🏛 Politics",   color: "#FF4D4D" },
+              { key: "sports",   label: "🏆 Sports",     color: "#F59E0B" },
+              { key: "science",  label: "🔭 Science",    color: "#60A5FA" },
+              { key: "health",   label: "💊 Health",     color: "#4ADE80" },
+              { key: "wealth",   label: "💰 Wealth",     color: "#FFD700" },
+              { key: "finance",  label: "📈 Finance",    color: "#A78BFA" },
+              { key: "motivation", label: "🚀 Motivation", color: "#FB923C" },
+            ].map(({ key, label, color }) => {
+              const isActive = topicCategory === key;
+              return (
+                <Pressable
+                  key={key}
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setTopicCategory(key); }}
+                  style={{
+                    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5,
+                    borderColor: isActive ? color : "rgba(255,255,255,0.12)",
+                    backgroundColor: isActive ? color + "20" : "rgba(255,255,255,0.04)",
+                  }}
+                >
+                  <Text style={{ color: isActive ? color : "#888", fontSize: 12, fontWeight: "700" }}>{label}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
 
           <Pressable
             onPress={() => {
@@ -5604,6 +5838,15 @@ export default function ArenaScreen() {
           />
           <Text style={[s.voiceToggleText, voiceEnabled && s.voiceToggleTextActive]}>
             {voiceEnabled ? (isPlayingAudio ? "PLAYING" : "VOICE ON") : "VOICE OFF"}
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setBleepEnabled((p) => !p); }}
+          style={[s.voiceToggle, bleepEnabled && { borderColor: "#60A5FA", backgroundColor: "rgba(96,165,250,0.15)" }]}
+        >
+          <Ionicons name={bleepEnabled ? "shield-checkmark" : "shield-outline"} size={16} color={bleepEnabled ? "#60A5FA" : "#aaa"} />
+          <Text style={[s.voiceToggleText, bleepEnabled && { color: "#60A5FA" }]}>
+            {bleepEnabled ? "BLEEP ON" : "BLEEP OFF"}
           </Text>
         </Pressable>
         <Pressable onPress={replayLastMessage} style={s.replayBtn}>
@@ -6545,10 +6788,10 @@ export default function ArenaScreen() {
                   const winner = sortedPersonas[0];
                   const winnerName = winner ? getPersona(winner[0])?.name || "Unknown" : "Unknown";
                   const pts = winner ? winner[1] : 0;
-                  const topicName = currentTopic || "Political Arena";
+                  const topicName = currentTopic || "The Arena";
                   const totalMessages = messages.filter((m) => !m.isSystem && m.speakerId !== "user").length;
                   const personaCount = selectedPersonas.length;
-                  let viral = `🏛️ POLITICAL ARENA RESULTS\n`;
+                  let viral = `🏛️ THE ARENA RESULTS\n`;
                   viral += `📰 "${topicName}"\n\n`;
                   viral += `👑 WINNER: ${winnerName} — ${pts} pts\n`;
                   if (sortedPersonas[1]) {
@@ -6564,12 +6807,12 @@ export default function ArenaScreen() {
                   try {
                     if (Platform.OS === "web") {
                       if (navigator.share) {
-                        await navigator.share({ title: `${winnerName} wins the Political Arena!`, text: viral, url: "https://chatdjt.com" });
+                        await navigator.share({ title: `${winnerName} wins The Arena!`, text: viral, url: "https://chatdjt.com" });
                       } else {
                         Linking.openURL(`https://twitter.com/intent/tweet?text=${encodeURIComponent(viral)}`);
                       }
                     } else {
-                      await Share.share({ message: viral, title: `${winnerName} wins the Political Arena!` });
+                      await Share.share({ message: viral, title: `${winnerName} wins The Arena!` });
                     }
                   } catch {}
                 }}

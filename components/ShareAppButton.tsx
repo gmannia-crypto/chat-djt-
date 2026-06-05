@@ -22,7 +22,7 @@ const TEMPLATES: Template[] = [
   },
   {
     id: "arena",
-    label: "Political Arena",
+    label: "The Arena",
     emoji: "🥊",
     message: `Trump just DEMOLISHED the entire cabinet in a live debate on TrumpBot.rip 😂 Pick your team 👉 ${SHARE_URL}/arena`,
   },

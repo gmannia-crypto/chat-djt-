@@ -82,7 +82,7 @@ const HOT_TAKE_CACHE_KEY = "chatdjt_hot_take_cache";
 const ONBOARDING_DONE_KEY = "chatdjt_onboarding_done";
 
 const FEATURE_OF_DAY = [
-  { emoji: "🏛️", title: "Political Arena", sub: "Watch 20 AI personas debate live news — and award points!", route: "/arena", color: "#D4A420" },
+  { emoji: "🏛️", title: "The Arena", sub: "Watch 28 AI personas debate live news — and award points!", route: "/arena", color: "#D4A420" },
   { emoji: "🛋️", title: "Dynamic Therapy", sub: "Trump-themed therapists help you work through it. Bigly.", route: "/therapy", color: "#a855f7" },
   { emoji: "💰", title: "Financial Face-Off", sub: "Debate stocks, crypto & real estate with AI billionaires.", route: "/faceoff", color: "#22c55e" },
   { emoji: "🏈", title: "Trump's Sports Book", sub: "AI persona picks, live commentary & trash talk.", route: "/sports", color: "#3b82f6" },

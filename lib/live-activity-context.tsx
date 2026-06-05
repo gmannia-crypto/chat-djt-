@@ -55,7 +55,7 @@ const EVENT_CONFIG: Record<string, { icon: string; color: string; templates: str
   arena_enter: {
     icon: "flame",
     color: "#ff4d4d",
-    templates: ["entered the Political Arena", "joined a live debate", "started a debate session"],
+    templates: ["entered The Arena", "joined a live debate", "started a debate session"],
   },
   arena_vote: {
     icon: "thumbs-up",

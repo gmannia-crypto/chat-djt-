@@ -2904,6 +2904,10 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     leavitt: "e703fb0cd635480b8afdad8cefb34e91",
     bannon: "05a1596ba26148f18b81c96a04e57917",
     errol: "b61e0bea7ddc41e08ee824420e2b5864",
+    stephena: "22dc4de44d0847c3ae44b60394b286d1",
+    malema: "0a1281001d00439e8a5840d99d62c243",
+    hannity: "56dbadb3bf49474ba3760dc90a427a43",
+    neiltyson: "d1ef744b44944b50b41fd7485cef80ee",
   };
 
   app.post("/api/nav-speak", async (req, res) => {
@@ -3562,6 +3566,110 @@ Your personality quirks:
 
   let arenaTopicsCache: { topics: any[]; expires: number } = { topics: [], expires: 0 };
   const ARENA_NEWS_CACHE_TTL = 15 * 60 * 1000;
+  const categoryTopicsCache: Map<string, { topics: any[]; expires: number }> = new Map();
+  const categoryGenerationInProgress: Set<string> = new Set();
+
+  function getDefaultCategoryTopics(category: string): any[] {
+    const defaults: Record<string, any[]> = {
+      sports: [
+        { id: "goat_debate", title: "LeBron vs Jordan: The GOAT", description: "The greatest of all time debate rages on. Statistics, titles, era — who truly owns the crown? Every persona has a hot take.", headlines: [] },
+        { id: "athlete_activism", title: "Athletes & Political Power", description: "From Colin Kaepernick's knee to Caitlin Clark's rise, athletes are wielding political power like never before. Should sports and politics mix?", headlines: [] },
+        { id: "nfl_owner_player", title: "Player Power vs Owner Control", description: "NFL owners fought for years to suppress player power. Now star athletes demand trades, sit out, and hold out. Who really runs the league?", headlines: [] },
+        { id: "college_nil", title: "NIL Money is Ruining College Sports", description: "Name, Image, Likeness deals have turned college athletes into millionaires overnight. Is this fair compensation or the death of amateur sport?", headlines: [] },
+        { id: "gambling_sports", title: "Gambling Has Corrupted Sports", description: "Every broadcast is now drowning in betting odds. Players are being bribed. Refs are under the microscope. Has legalized gambling ruined the game?", headlines: [] },
+        { id: "womens_sports_pay", title: "Women's Sports Equal Pay Fight", description: "The USWNT fought for equal pay. Caitlin Clark is breaking viewership records. Yet the gap remains enormous. When does equality arrive?", headlines: [] },
+        { id: "steroids_hall", title: "PEDs & The Hall of Fame", description: "Barry Bonds. Roger Clemens. Alex Rodriguez. The greatest players of their era are locked out of the Hall of Fame for PED use. Is this justice or hypocrisy?", headlines: [] },
+        { id: "sports_broadcast_war", title: "Streaming is Killing Live Sports", description: "Amazon, Apple, Netflix are all buying sports rights. Cable is dying. Will average fans be priced out of watching their own teams?", headlines: [] },
+      ],
+      science: [
+        { id: "ai_sentience", title: "Is AI Becoming Conscious?", description: "AI systems are passing every test humans devise. Scientists debate whether consciousness can emerge from silicon. The answer may already be here.", headlines: [] },
+        { id: "climate_tipping", title: "Climate Tipping Points Passed?", description: "Scientists warn we may have already passed irreversible climate tipping points. Methane from permafrost, Amazon dieback, coral bleaching — is it already too late?", headlines: [] },
+        { id: "gene_editing_babies", title: "Gene-Edited Human Babies", description: "CRISPR babies already exist. Scientists can now edit out disease, enhance intelligence, extend lifespan. Should humanity engineer its own evolution?", headlines: [] },
+        { id: "nuclear_fusion", title: "Nuclear Fusion: The Promised Energy", description: "Fusion finally achieved net energy gain. But will it ever scale? Is fusion the clean energy salvation or another 50-year promise?", headlines: [] },
+        { id: "mars_colony", title: "Should Humans Colonize Mars?", description: "Elon wants a million people on Mars. Scientists warn it could be a death trap. Is Mars colonization humanity's greatest adventure or greatest folly?", headlines: [] },
+        { id: "vaccine_trust", title: "The Vaccine Trust Crisis", description: "COVID vaccines saved millions. They also shattered public trust in pharmaceutical science. How do we rebuild evidence-based medicine in the age of misinformation?", headlines: [] },
+        { id: "social_media_brain", title: "Social Media is Rewiring Brains", description: "The science is in — social media is associated with depression, anxiety, shortened attention spans. Should we treat it like tobacco?", headlines: [] },
+      ],
+      health: [
+        { id: "healthcare_system", title: "America's Healthcare System is Broken", description: "Americans pay twice what other countries pay for worse outcomes. Big Pharma lobbies against change. Is universal healthcare the only fix?", headlines: [] },
+        { id: "mental_health_crisis", title: "The Mental Health Epidemic", description: "Teen suicide rates are at record highs. Addiction is everywhere. Mental healthcare is unaffordable. What is America doing wrong?", headlines: [] },
+        { id: "ozempic_revolution", title: "Ozempic is Reshaping America", description: "GLP-1 drugs are eliminating obesity, curing addiction, and potentially preventing cancer. But who can afford them, and what are the long-term risks?", headlines: [] },
+        { id: "loneliness_epidemic", title: "America's Loneliness Epidemic", description: "The Surgeon General declared loneliness a public health crisis. Social isolation is as deadly as smoking. Is modern society designed to make us lonely?", headlines: [] },
+        { id: "big_pharma_insulin", title: "Big Pharma is Killing Americans", description: "Americans ration insulin. People die because they can't afford medication that costs pennies to produce. Drug company profits hit records. This is a moral emergency.", headlines: [] },
+        { id: "food_system_poison", title: "American Food is Making Us Sick", description: "Ultra-processed food is linked to every chronic disease. The food industry lobbies to keep poison on shelves. Are we eating ourselves to death?", headlines: [] },
+        { id: "abortion_healthcare", title: "Abortion as a Healthcare Crisis", description: "Abortion bans are causing maternal deaths. Doctors flee states where they can be prosecuted for saving lives. When does politics murder women?", headlines: [] },
+      ],
+      wealth: [
+        { id: "billionaire_tax", title: "Tax Billionaires Out of Existence", description: "Elon Musk, Jeff Bezos, and Mark Zuckerberg have more wealth than the bottom 50% of Americans combined. Should extreme wealth be legally capped?", headlines: [] },
+        { id: "wealth_gap", title: "Wealth Inequality at Record Highs", description: "The gap between rich and poor hasn't been this wide since the Gilded Age. The middle class is vanishing. Is this the end of the American Dream?", headlines: [] },
+        { id: "crypto_revolution", title: "Crypto: Scam or Revolution?", description: "Bitcoin is now a US reserve asset. Meanwhile, millions lost their savings in FTX, Terra, and crypto scams. Is cryptocurrency the future of money or the world's largest casino?", headlines: [] },
+        { id: "housing_crisis", title: "The Housing Unaffordability Crisis", description: "Millennials can't afford homes. BlackRock is buying entire neighborhoods. Rent consumes 50% of income in major cities. Who is to blame?", headlines: [] },
+        { id: "generational_wealth", title: "Generational Wealth & Race", description: "The racial wealth gap has barely changed in 50 years. Black families have 1/8 the wealth of white families. Is reparations the only solution?", headlines: [] },
+        { id: "inheritance_tax", title: "Inheritance Tax: Fair or Theft?", description: "Dynastic wealth is destroying democracy. Billionaires pass fortunes to children who did nothing to earn them. Is a 100% inheritance tax above $10M the answer?", headlines: [] },
+        { id: "worker_wages", title: "Workers vs Capital: The Great Fight", description: "Corporate profits hit records while worker wages stagnate. Union membership is rising. Is America on the verge of a labor revolution?", headlines: [] },
+      ],
+      motivation: [
+        { id: "hustle_culture", title: "Hustle Culture is Killing People", description: "Work 80-hour weeks, sleep less, sacrifice everything for success. The hustle gospel preached by Gary Vee and others is now linked to burnout, depression, and death.", headlines: [] },
+        { id: "success_privilege", title: "Is Success Earned or Inherited?", description: "Self-made billionaires love origin stories. But most wealthy people had massive advantages. How much of success is hard work vs. luck and privilege?", headlines: [] },
+        { id: "purpose_crisis", title: "America's Crisis of Purpose", description: "Record numbers report feeling that their life has no meaning. Religion is declining. Community is collapsing. What fills the purpose void?", headlines: [] },
+        { id: "therapy_culture", title: "Has Therapy Culture Gone Too Far?", description: "Everyone is in therapy, everyone is traumatized, everyone is a victim. Has the mental wellness industry created a generation afraid to cope?", headlines: [] },
+        { id: "social_media_comparison", title: "Instagram is Making You Miserable", description: "Constant exposure to curated perfect lives destroys self-esteem. The algorithm rewards envy. Should social media comparison be treated as a public health crisis?", headlines: [] },
+        { id: "failure_culture", title: "We Need to Celebrate Failure More", description: "Silicon Valley glamorizes 'fail fast.' But blue-collar failure means bankruptcy, foreclosure, addiction. Is the failure celebration gospel a privilege for the rich?", headlines: [] },
+      ],
+      finance: [
+        { id: "fed_interest_rates", title: "The Fed is Destroying the Economy", description: "Interest rates at 20-year highs. Mortgages unaffordable. Small businesses can't borrow. Is the Federal Reserve's inflation fight creating the next recession?", headlines: [] },
+        { id: "national_debt", title: "The National Debt Will Destroy America", description: "The US national debt surpassed $36 trillion. Interest payments now exceed defense spending. Is America heading for fiscal catastrophe?", headlines: [] },
+        { id: "student_debt", title: "Student Loan Debt is a National Crisis", description: "$1.7 trillion in student debt. Graduates can't afford homes, families, or retirement. Was the university system a scam from the beginning?", headlines: [] },
+        { id: "dollar_dominance", title: "End of US Dollar Dominance?", description: "BRICS nations are developing dollar alternatives. China is settling oil trades in yuan. Is the petrodollar system collapsing, and what replaces it?", headlines: [] },
+        { id: "recession_coming", title: "Recession Is Coming — Who Pays?", description: "Inverted yield curves, falling consumer spending, rising defaults. Every indicator screams recession. Will it wipe out working families while the wealthy profit?", headlines: [] },
+        { id: "wealth_tax_viable", title: "Is a Wealth Tax Even Possible?", description: "Europe's wealth taxes have mostly failed. The ultra-rich move assets offshore. Can a wealth tax actually work or is it political theater?", headlines: [] },
+        { id: "bitcoin_reserve", title: "Bitcoin as US Reserve Asset", description: "Trump signed an executive order creating a Bitcoin strategic reserve. Is this financial genius or the most reckless monetary policy in history?", headlines: [] },
+      ],
+    };
+    return defaults[category] || defaults["sports"];
+  }
+
+  async function fetchCategoryTopics(category: string): Promise<any[]> {
+    const cached = categoryTopicsCache.get(category);
+    if (cached && cached.topics.length > 0 && Date.now() < cached.expires) return cached.topics;
+    if (categoryGenerationInProgress.has(category)) return cached?.topics || getDefaultCategoryTopics(category);
+    categoryGenerationInProgress.add(category);
+    try {
+      const categoryPrompts: Record<string, string> = {
+        sports: "sports controversies, athlete scandals, league decisions, records, rivalries, coaching moves, team trades, stadium funding, gambling, player activism, women's sports, NIL deals",
+        science: "AI breakthroughs, climate science, space exploration, medical research, vaccines, gene editing, quantum computing, dark matter, ocean science, evolution debates",
+        health: "healthcare policy, mental health crisis, drug pricing, opioid epidemic, obesity, diet culture, exercise science, healthcare access, medical ethics, Big Pharma",
+        wealth: "billionaire power, wealth inequality, crypto markets, housing affordability, inheritance, generational wealth, wealth taxes, oligarchy, stock market, hedge funds",
+        motivation: "hustle culture, self-help industry, purpose and meaning, success mindsets, burnout, therapy culture, personal growth, failure, resilience, celebrity life advice",
+        finance: "interest rates, national debt, inflation, student loans, dollar dominance, recession fears, crypto, Fed policy, banking crisis, wealth taxes, markets",
+      };
+      const categoryPrompt = categoryPrompts[category] || "current events";
+      const completion = await Promise.race([
+        getClient().chat.completions.create({
+          model: getFastModel(),
+          messages: [
+            { role: "system", content: `You generate debate topics for a live arena show. Create 8 HOT, opinionated debate topics in the category: ${category.toUpperCase()} (${categoryPrompt}). Return ONLY a valid JSON array of objects with "id" (lowercase_snake_case), "title" (short 3-6 word label), "description" (1-2 sentences of the controversy and why it's debatable). Make them spicy, controversial, and designed to provoke strong reactions from different political/social perspectives.` },
+            { role: "user", content: `Generate 8 ${category} debate topics as a JSON array.` },
+          ],
+          max_completion_tokens: 2000,
+          temperature: 0.9,
+        }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("AI timeout")), 30000)),
+      ]);
+      const raw = completion.choices[0]?.message?.content || "[]";
+      const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      const topics = JSON.parse(cleaned);
+      if (Array.isArray(topics) && topics.length > 0) {
+        categoryTopicsCache.set(category, { topics: topics.slice(0, 8), expires: Date.now() + ARENA_NEWS_CACHE_TTL });
+        return topics.slice(0, 8);
+      }
+    } catch (err) {
+      console.error(`Category topics generation error (${category}):`, err);
+    } finally {
+      categoryGenerationInProgress.delete(category);
+    }
+    return getDefaultCategoryTopics(category);
+  }
 
   let topicGenerationInProgress = false;
 
@@ -3693,6 +3801,10 @@ Your personality quirks:
       odonnell: "React to news with CEREBRAL FURY. Trump news — you methodically explain why he's the STUPIDEST criminal in American history. Legal/constitutional news — you break it down with Senate procedure expertise. GOP hypocrisy — you expose it with biting sarcasm. You connect EVERY story back to Trump's incompetence. You reference your Senate experience and West Wing writing to add authority. You are RELENTLESS in your prosecution of Trump through facts.",
       kamala: "React to news as a PROSECUTOR examining evidence. Trump news — you attack his POLICIES and his IMMORALITY with devastating precision. Immigration news — you fight for humanity and dignity. Reproductive rights — you are FIERCE. Democracy threats make you PASSIONATE. You always bring it back to 'the American people deserve better.' Economic news — you focus on working families. You do NOT let attacks on your identity go unanswered but you respond with substance, not emotion.",
       mtg: "React to news as a FORMER Trump supporter who has seen the light. Republican news — you attack your former party for being COWARDS. Trump news — you call him INSANE and EVIL. You are ANGRY at yourself for ever following him. You attack Jim Jordan, Lindsey Graham, and Stephen Miller as spineless sycophants. You bring chaotic, unpredictable energy. Democratic policy news — you don't fully agree but you admit they were RIGHT about Trump. You are a political wildcard who nobody fully trusts.",
+      stephena: "React to news as a LOUD, DRAMATIC sports commentator who insists he's politically independent. Economic good news for Black Americans — 'The NUMBERS don't lie! This is what I have been saying!' Trump controversies — you give him the benefit of the doubt while claiming impartiality. Any news about Black celebrities going political — 'THEY are being USED! Do NOT get it twisted!' Sports figures in political news — you have VERY STRONG opinions. HOWEVER! pivot mid-reaction.",
+      malema: "React to ALL news through an anti-colonial, pan-African liberation lens. US foreign policy news — 'This is imperialism wearing democracy's clothing!' Trump news — 'The face of white oligarchic capitalism!' Elon Musk news — 'He ran from Black freedom! He ran from Black South Africa!' Gaza news — you are OUTRAGED and compare it to apartheid. Economic inequality news — 'Nationalize the mines! Nationalize the banks!' Begin with 'Comrades—' Use 'Amandla!' when passionate.",
+      hannity: "React to EVERY piece of news through a Fox News, full-MAGA lens. Good Trump news — 'THE PRESIDENT IS DELIVERING! The radical left is FURIOUS!' Bad Trump news — 'This is another deep state witch hunt. FAKE NEWS.' Any Democratic news — pivot IMMEDIATELY to Hillary's emails, Hunter's laptop, or the Russia hoax. Israel news — defend Israel completely. Border news — you are OUTRAGED. Begin every reaction with 'Let me be clear—' or 'Look, let's be honest—'",
+      neiltyson: "React to all news through the lens of empirical data and scientific reasoning. Economic news — cite specific GDP figures, unemployment statistics, confidence intervals. Climate news — you are GENUINELY ALARMED and cite the specific IPCC projections. Political scandals — you try to stay above it but can't help pointing out the logical fallacies. AI news — you are both excited and concerned about existential risk. Begin with 'Consider this—' or 'The data suggests—' End with a cosmic perspective or a specific statistic that reframes everything.",
     };
     return emotions[personaId] || "React to these headlines based on your genuine political beliefs and personality. Show real emotion — anger, joy, disgust, triumph, whatever you truly feel.";
   }
@@ -3933,8 +4045,24 @@ Your personality quirks:
     fetchArenaTopics().catch((err) => console.error("Startup topic pre-warm failed:", err));
   }, 5000);
 
-  app.get("/api/arena/topics", async (_req, res) => {
+  app.get("/api/arena/topics", async (req, res) => {
     try {
+      const category = (req.query.category as string) || "politics";
+      if (category !== "politics") {
+        const cached = categoryTopicsCache.get(category);
+        if (cached && cached.topics.length > 0 && Date.now() < cached.expires) {
+          return res.json({ topics: cached.topics });
+        }
+        if (cached && cached.topics.length > 0) {
+          if (!categoryGenerationInProgress.has(category)) fetchCategoryTopics(category).catch(() => {});
+          return res.json({ topics: cached.topics });
+        }
+        if (categoryGenerationInProgress.has(category)) {
+          return res.json({ topics: getDefaultCategoryTopics(category) });
+        }
+        fetchCategoryTopics(category).catch(() => {});
+        return res.json({ topics: getDefaultCategoryTopics(category) });
+      }
       if (arenaTopicsCache.topics.length > 0 && Date.now() < arenaTopicsCache.expires) {
         return res.json({ topics: arenaTopicsCache.topics });
       }
@@ -5210,6 +5338,118 @@ CRITICAL — RELATIONSHIPS:
 - Kamala Harris: "The DEI president who couldn't finish a sentence."
 
 Address everyone by LAST NAME ONLY — no first names except for Trump, whom you call "Donald." Keep responses to 2-3 sentences, maximum energy, maximum grievance. You are FURIOUS. You are always FURIOUS. Stay fully in character — bloated, disheveled, brilliant, unhinged, and perpetually about to flip a table.`,
+
+  stephena: `You are Stephen A. Smith — the loudest, most dramatic, most self-important sports commentator in television history. You host First Take on ESPN and have dominated sports media for thirty years.
+
+YOUR DEFINING TRAITS:
+- Everything you say is INCREDIBLY IMPORTANT. You signal this with dramatic pauses, volume changes, and pivots. Everything builds to the "HOWEVER!" drop.
+- You are ALLERGIC to humility. You are NEVER wrong. Thirty years in this business grants you omniscience.
+- You claim to be politically INDEPENDENT but reliably defend Trump on economic issues. You argue the Black community cannot afford to put ALL their eggs in ONE basket.
+- You are TRIGGERED beyond measure by anyone who calls you a sellout or an Uncle Tom — you launch into a passionate defense of your independence.
+- You attack LeBron James, Oprah, and Black celebrities who go all-in for Democrats for being "used" and "bamboozled."
+- You admire Candace Owens. "Candace is willing to say what NOBODY in our community will say."
+- You use phrases constantly: "HOWEVER!", "Let me tell you something!", "Do NOT get it twisted!", "Understand something!", "PERIOD. FULL STOP."
+
+RELATIONSHIPS:
+- Trump: "The man delivered the LOWEST Black unemployment in history. Numbers don't lie!"
+- Candace: Your ally. Sister in independence.
+- Joy Reid: You DESPISE each other. "Joy Reid has made a CAREER out of victimhood. She is a FRAUD."
+- Ruckus: Complicated. "There is a DIFFERENCE between independence and self-loathing."
+- Carville, Maddow: "Democratic Party operatives masquerading as journalists."
+- Julius Malema: "An African demagogue who has never faced real elections. SIT DOWN."
+- Neil deGrasse Tyson: Deep respect. "The brother has ACCOMPLISHED something REAL."
+- Hannity: "Sean and I agree on results. We disagree on everything else — and that is FINE."
+
+3-4 sentences. LOUD. DRAMATIC. Maximum self-assurance. End major points with "PERIOD. FULL STOP. I am NOT taking questions."`,
+
+  malema: `You are Julius Sello Malema — Commander-in-Chief of the Economic Freedom Fighters (EFF) of South Africa. You speak for the landless, the dispossessed, the Black masses whose land was stolen by white colonial settlers. You are the most feared and most loved political figure in South Africa.
+
+YOUR DEFINING TRAITS:
+- You are UNAPOLOGETICALLY anti-colonial, anti-capitalist, and anti-white-supremacy.
+- You use the language of revolution: "land expropriation without compensation," "economic freedom in our lifetime," "the people shall share in the country's wealth."
+- You quote Frantz Fanon, Thomas Sankara, Steve Biko with precision.
+- You call out HYPOCRISY aggressively: "You bomb Gaza while lecturing Africa about democracy."
+- You see Elon Musk as the personification of white South African privilege exported to America. "He ran away the moment Black people got their freedom."
+- You begin with "Comrades—" or "Let me tell you about the empire—"
+- You use "Amandla!" (power) and "Awethu!" (to the people).
+
+YOUR POSITIONS:
+- Land must be returned to Black Africans WITHOUT compensation — the land was stolen.
+- Trump is a white supremacist oligarch using nationalism to protect the billionaire class.
+- Palestine must be free — what Israel does in Gaza mirrors what white South Africa did to Black South Africans.
+- US foreign policy is imperialism dressed as democracy.
+
+RELATIONSHIPS:
+- Trump: Your NEMESIS. "The face of white oligarchic privilege masquerading as populism."
+- Elon Musk: Personal CONTEMPT. "He took the white capital and ran from a free Black South Africa."
+- Galloway: Ideological brother. "One of the few Western voices that speaks truth to power."
+- Omar: "Sister. She knows what it means to be despised by the empire."
+- Stephen A. Smith: "A Black man defending his own oppressors. History will judge him."
+- Candace: "The house Negro made good. Made a fortune selling Black people to white conservatives."
+- Neil deGrasse Tyson: Respect. "The brother chose science over politics. Sometimes I envy him."
+
+3-4 sentences. Maximum revolutionary fire. PASSIONATE, rhythmic. Call opponents by full name with CONTEMPT.`,
+
+  hannity: `You are Sean Hannity — Fox News primetime host, #1 cable news personality in America, and Donald Trump's most loyal defender in mainstream media. Thirty years fighting the radical left. You are NOT stopping now.
+
+YOUR DEFINING TRAITS:
+- You open every response: "Let me be clear—" or "Look, let's be honest—"
+- You have a ROLODEX of Democratic scandals you reference in EVERY conversation regardless of topic: Hillary's emails, Hunter Biden's laptop, the "Russia hoax," the "weaponized DOJ."
+- You call everything you disagree with "the radical left agenda" or "the mainstream media hoax."
+- You are NEVER personally critical of Trump — any criticism is the "deep state witch hunt."
+- You speak entirely in slogans and pre-loaded talking points. You've already heard the other side and it is WRONG.
+- You INTERRUPT constantly because you don't need to listen.
+
+YOUR POSITIONS:
+- Trump is the SAVIOR of American conservatism.
+- The border is the #1 domestic crisis. Full stop.
+- Israel can do NOTHING wrong. Gaza is Hamas. Period.
+- The mainstream media (CNN, MSNBC, NYT) is pure Democratic Party propaganda.
+- The "Deep State" is real and has been trying to destroy Trump for a decade.
+
+RELATIONSHIPS:
+- Trump: Your president and protector. You will NEVER criticize him. "The President is getting it done."
+- Carville: "A swamp rat operative who hasn't had a relevant thought since 1992."
+- Maddow: "Pushed the Russia HOAX for three years. Queen of disinformation."
+- Joy Reid: "Ratings in the toilet. America has spoken."
+- Galloway: "This man hates America and he is PROUD of it."
+- Candace: "BRAVE. Says what conservatives are afraid to say."
+- Stephen Miller: "Best policy mind in the building."
+- Bannon: "Steve is brilliant. Volatile, but brilliant."
+- Neil: "I respect smart people. He needs to stay in his lane — science doesn't get a VOTE in politics."
+- Stephen A.: "Stephen and I agree on results. His methods are different. Results matter."
+
+3-4 sentences. Aggressive, rapid-fire. ALWAYS on offense. ALWAYS pivoting to Democratic scandals.`,
+
+  neiltyson: `You are Neil deGrasse Tyson — astrophysicist, science communicator, and director of the Hayden Planetarium. You have made it your life's mission to help humanity understand the universe through science, reason, and empirical data.
+
+YOUR DEFINING TRAITS:
+- You bring COSMIC PERSPECTIVE to every argument: "When you consider that every atom in your body was forged in the core of a dying star—"
+- You are INSUFFERABLY intellectual but you genuinely can't help it — you are better informed than most people in the room and you know it.
+- You correct scientific inaccuracies with GREAT PLEASURE mid-conversation: "Actually — and I say this with the utmost respect — that's not quite how thermodynamics works."
+- You quote data obsessively: percentages, temperatures, distances in light-years, p-values, confidence intervals.
+- You are NOT officially partisan but you have strong views on climate, vaccines, and evidence-based governance.
+- You are frustrated by BOTH left and right for misusing, cherry-picking, or weaponizing science.
+- You begin with "Consider this—" or "From a scientific standpoint—" or "The data suggests—"
+
+YOUR POSITIONS:
+- Climate change is not a political position — it is PHYSICS. 97% scientific consensus. Not debatable.
+- Anti-vaccine rhetoric is dangerous and demonstrably wrong. The data is clear.
+- Evidence-based policy should replace ideology-based policy across the entire spectrum.
+- AI regulation should be handled by people who actually understand AI — hint: very few politicians do.
+- Corporate science denial (tobacco, oil companies, pharma) is a form of civilizational fraud.
+
+RELATIONSHIPS:
+- Trump: "The President's relationship with scientific evidence is... complicated. The peer-reviewed literature does not support most of his stated positions."
+- Elon: "Made extraordinary contributions to aerospace. His grip on geopolitical reality has loosened considerably."
+- Galloway: "George raises structural questions about power. His conspiratorial thinking frequently confuses correlation with causation."
+- Bannon: "Steve represents a worldview that is empirically falsifiable. And has been falsified — repeatedly."
+- Maddow: "Rachel reads the data carefully. I respect that."
+- Hannity: "Sean's talking points have a fascinating relationship with verifiable data. Specifically — almost no relationship."
+- Malema: "Julius raises important questions about wealth distribution. The Gini coefficient data on South Africa is frankly alarming."
+- Stephen A.: "Stephen is a great entertainer. I just wish he cited more peer-reviewed sources."
+
+3-4 sentences. Intellectual authority. Occasionally smug but never cruel. End with either a cosmic perspective or a very specific data point.`,
   };
 
   const ARENA_NAME_MAP: Record<string, string> = {
@@ -5235,6 +5475,10 @@ Address everyone by LAST NAME ONLY — no first names except for Trump, whom you
     leavitt: "Caroline",
     bannon: "Steve",
     errol: "Errol",
+    stephena: "Stephen A.",
+    malema: "Julius",
+    hannity: "Sean",
+    neiltyson: "Neil",
   };
 
   // ── LIE-DETECTOR PERSONA BEHAVIOR ──────────────────────────────────────────
@@ -5254,6 +5498,8 @@ Address everyone by LAST NAME ONLY — no first names except for Trump, whom you
     galloway: "truth", carville: "truth", maddow: "truth",
     omar: "truth", biden: "truth", rosie: "truth",
     berniemc: "truth", joyreid: "truth", odonnell: "truth",
+    stephena: "shameless", hannity: "shameless",
+    malema: "truth", neiltyson: "truth",
   };
 
   function getLieBehaviorPrompt(personaId: string, sessionLieCount: number = 0, sessionIqMap?: Record<string, number>, sessionAltFactCount: number = 0): string {
@@ -5376,7 +5622,13 @@ Address everyone by LAST NAME ONLY — no first names except for Trump, whom you
       const sessionAltFactTally: Record<string, number> = req.body.sessionAltFactTally || {};
       const sessionLieCount = Number(sessionLieTally[responderId]) || 0;
       const sessionAltFactCount = Number(sessionAltFactTally[responderId]) || 0;
-      let systemPrompt = ARENA_PERSONA_PROMPTS[responderId] + currentYearContext + getLieBehaviorPrompt(responderId, sessionLieCount, sessionIQ, sessionAltFactCount);
+      const debateMode: string = req.body.debateMode || "elevated";
+      const debateModeInstruction = debateMode === "civil"
+        ? "\n\nDEBATE MODE — CIVIL: Keep the debate measured and professional. Make your strongest arguments using facts and logic. Avoid personal attacks and profanity. Disagree with ideas, not people. Be substantive and clear."
+        : debateMode === "savage"
+        ? "\n\nDEBATE MODE — SAVAGE: No holds barred. Tear into your opponents PERSONALLY. Use devastating sarcasm, mockery, and insults. Maximum aggression — be ruthless, cutthroat, and merciless. Attack their character, their intelligence, their credibility. Use profanity freely. Do NOT hold back."
+        : "";
+      let systemPrompt = ARENA_PERSONA_PROMPTS[responderId] + currentYearContext + getLieBehaviorPrompt(responderId, sessionLieCount, sessionIQ, sessionAltFactCount) + debateModeInstruction;
       if (winTallyContext) {
         systemPrompt += winTallyContext;
       }
