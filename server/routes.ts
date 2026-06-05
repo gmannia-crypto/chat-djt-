@@ -3629,42 +3629,120 @@ Your personality quirks:
     return defaults[category] || defaults["sports"];
   }
 
+  const CATEGORY_RSS_FEEDS: Record<string, { url: string; source: string }[]> = {
+    sports: [
+      { url: "https://www.espn.com/espn/rss/news", source: "ESPN" },
+      { url: "https://rss.nytimes.com/services/xml/rss/nyt/Sports.xml", source: "NYT Sports" },
+      { url: "https://feeds.bbci.co.uk/sport/rss.xml", source: "BBC Sport" },
+      { url: "https://www.cbssports.com/rss/headlines/", source: "CBS Sports" },
+      { url: "https://feeds.apnews.com/apf-Sports", source: "AP Sports" },
+      { url: "https://bleacherreport.com/articles/feed", source: "Bleacher Report" },
+    ],
+    science: [
+      { url: "https://www.sciencedaily.com/rss/all.xml", source: "ScienceDaily" },
+      { url: "https://rss.nytimes.com/services/xml/rss/nyt/Science.xml", source: "NYT Science" },
+      { url: "https://www.wired.com/feed/category/science/latest/rss", source: "Wired" },
+      { url: "https://feeds.newscientist.com/full-feed", source: "New Scientist" },
+      { url: "https://www.theguardian.com/science/rss", source: "Guardian Science" },
+      { url: "https://feeds.nature.com/nature/rss/current", source: "Nature" },
+      { url: "https://www.nasa.gov/rss/dyn/breaking_news.rss", source: "NASA" },
+    ],
+    health: [
+      { url: "https://rss.nytimes.com/services/xml/rss/nyt/Health.xml", source: "NYT Health" },
+      { url: "https://feeds.npr.org/1128/rss.xml", source: "NPR Health" },
+      { url: "https://feeds.bbci.co.uk/news/health/rss.xml", source: "BBC Health" },
+      { url: "https://www.theguardian.com/society/health/rss", source: "Guardian Health" },
+      { url: "https://feeds.reuters.com/reuters/healthNews", source: "Reuters Health" },
+      { url: "https://tools.cdc.gov/api/v2/resources/media/132608.rss", source: "CDC" },
+    ],
+    wealth: [
+      { url: "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114", source: "CNBC Markets" },
+      { url: "https://feeds.content.dowjones.io/public/rss/mw_topstories", source: "MarketWatch" },
+      { url: "https://feeds.reuters.com/reuters/businessNews", source: "Reuters Business" },
+      { url: "https://rss.nytimes.com/services/xml/rss/nyt/Economy.xml", source: "NYT Economy" },
+      { url: "https://feeds.bbci.co.uk/news/business/rss.xml", source: "BBC Business" },
+      { url: "https://fortune.com/feed/", source: "Fortune" },
+    ],
+    finance: [
+      { url: "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114", source: "CNBC Markets" },
+      { url: "https://feeds.content.dowjones.io/public/rss/mw_topstories", source: "MarketWatch" },
+      { url: "https://feeds.reuters.com/reuters/businessNews", source: "Reuters Business" },
+      { url: "https://rss.nytimes.com/services/xml/rss/nyt/Economy.xml", source: "NYT Economy" },
+      { url: "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10001147", source: "CNBC" },
+      { url: "https://feeds.content.dowjones.io/public/rss/mw_realtimeheadlines", source: "MarketWatch Live" },
+    ],
+    motivation: [
+      { url: "https://feeds.inc.com/magazine/rss.xml", source: "Inc." },
+      { url: "https://hbr.org/stories.rss", source: "Harvard Business Review" },
+      { url: "https://feeds.feedburner.com/entrepreneur/latest", source: "Entrepreneur" },
+      { url: "https://feeds.fastcompany.com/fastcompany/headlines", source: "Fast Company" },
+      { url: "https://feeds.bbci.co.uk/news/business/rss.xml", source: "BBC Business" },
+      { url: "https://rss.nytimes.com/services/xml/rss/nyt/Business.xml", source: "NYT Business" },
+    ],
+  };
+
+  const CATEGORY_AI_PROMPTS: Record<string, string> = {
+    sports: `You generate debate topics for a live arena sports show. Today is ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}. Given TODAY's sports headlines, create 8 HOT debate topics about what is happening in sports RIGHT NOW. Each topic MUST be anchored to a SPECIFIC story from the headlines — player trades, coaching decisions, scandals, controversial calls, athlete statements, contract disputes, rivalry matchups, or league policy. Make them spicy and designed to provoke strong opinions. Return ONLY a valid JSON array with "id" (snake_case), "title" (3-6 words), "description" (1-2 punchy sentences naming the specific players/teams/events), "headlines" (array of 1-2 relevant headline strings).`,
+    science: `You generate debate topics for a live arena science and technology show. Today is ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}. Given TODAY's science headlines, create 8 HOT debate topics about what is happening in science, technology, AI, space, medicine, and climate RIGHT NOW. Each topic MUST reference a SPECIFIC discovery, breakthrough, controversy, or policy from the headlines. Make them provocative — challenge consensus, highlight ethical risks, question motives. Return ONLY a valid JSON array with "id" (snake_case), "title" (3-6 words), "description" (1-2 punchy sentences), "headlines" (1-2 relevant strings).`,
+    health: `You generate debate topics for a live arena health show. Today is ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}. Given TODAY's health headlines, create 8 HOT debate topics about what is happening in medicine, public health, mental health, healthcare policy, drug pricing, and wellness RIGHT NOW. Anchor each to a SPECIFIC story — a new drug approval, a healthcare ruling, a public health crisis, a Big Pharma scandal, a new medical study. Make the framing controversial and opinionated. Return ONLY a valid JSON array with "id" (snake_case), "title" (3-6 words), "description" (1-2 punchy sentences), "headlines" (1-2 relevant strings).`,
+    wealth: `You generate debate topics for a live arena wealth and inequality show. Today is ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}. Given TODAY's business and finance headlines, create 8 HOT debate topics about wealth, inequality, billionaires, markets, housing, crypto, and the economy RIGHT NOW. Anchor each to a SPECIFIC story — a billionaire's action, a market event, a housing crisis update, a crypto development, a company layoff, a wealth tax proposal. Frame them to spark class-based, political, and economic debate. Return ONLY a valid JSON array with "id" (snake_case), "title" (3-6 words), "description" (1-2 punchy sentences), "headlines" (1-2 relevant strings).`,
+    finance: `You generate debate topics for a live arena financial markets show. Today is ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}. Given TODAY's financial headlines, create 8 HOT debate topics about what is moving markets RIGHT NOW — Fed decisions, inflation data, bank failures, crypto prices, debt crises, trade wars, currency moves, earnings surprises, recession signals. Each MUST reference a SPECIFIC financial event from the headlines. Frame the stakes dramatically. Return ONLY a valid JSON array with "id" (snake_case), "title" (3-6 words), "description" (1-2 punchy sentences), "headlines" (1-2 relevant strings).`,
+    motivation: `You generate debate topics for a live arena self-improvement and success show. Today is ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}. Given TODAY's business and culture headlines, create 8 HOT debate topics about work, success, hustle culture, leadership, purpose, and self-improvement — grounded in what is ACTUALLY being debated in culture right now. Anchor each to a SPECIFIC story — a CEO scandal, a viral hustle culture debate, a workplace trend, a celebrity failure or success, a study on happiness or productivity. Make them polarizing and personal. Return ONLY a valid JSON array with "id" (snake_case), "title" (3-6 words), "description" (1-2 punchy sentences), "headlines" (1-2 relevant strings).`,
+  };
+
   async function fetchCategoryTopics(category: string): Promise<any[]> {
     const cached = categoryTopicsCache.get(category);
     if (cached && cached.topics.length > 0 && Date.now() < cached.expires) return cached.topics;
     if (categoryGenerationInProgress.has(category)) return cached?.topics || getDefaultCategoryTopics(category);
     categoryGenerationInProgress.add(category);
     try {
-      const categoryPrompts: Record<string, string> = {
-        sports: "sports controversies, athlete scandals, league decisions, records, rivalries, coaching moves, team trades, stadium funding, gambling, player activism, women's sports, NIL deals",
-        science: "AI breakthroughs, climate science, space exploration, medical research, vaccines, gene editing, quantum computing, dark matter, ocean science, evolution debates",
-        health: "healthcare policy, mental health crisis, drug pricing, opioid epidemic, obesity, diet culture, exercise science, healthcare access, medical ethics, Big Pharma",
-        wealth: "billionaire power, wealth inequality, crypto markets, housing affordability, inheritance, generational wealth, wealth taxes, oligarchy, stock market, hedge funds",
-        motivation: "hustle culture, self-help industry, purpose and meaning, success mindsets, burnout, therapy culture, personal growth, failure, resilience, celebrity life advice",
-        finance: "interest rates, national debt, inflation, student loans, dollar dominance, recession fears, crypto, Fed policy, banking crisis, wealth taxes, markets",
-      };
-      const categoryPrompt = categoryPrompts[category] || "current events";
+      const feeds = CATEGORY_RSS_FEEDS[category] || CATEGORY_RSS_FEEDS["sports"];
+      const feedPromises = feeds.slice(0, 5).map(f =>
+        Promise.race([
+          fetchRSSFeed(f.url, f.source),
+          new Promise<any[]>((_, reject) => setTimeout(() => reject(new Error("timeout")), 8000)),
+        ]).catch(() => [] as any[])
+      );
+      const results = await Promise.all(feedPromises);
+      const allHeadlines: string[] = [];
+      for (const r of results) {
+        if (Array.isArray(r)) allHeadlines.push(...r.map((h: any) => `${h.title} (${h.source})`));
+      }
+      const systemPrompt = CATEGORY_AI_PROMPTS[category] || CATEGORY_AI_PROMPTS["sports"];
+      const headlinesBlock = allHeadlines.length >= 3
+        ? `TODAY'S LIVE ${category.toUpperCase()} HEADLINES:\n- ${allHeadlines.slice(0, 20).join("\n- ")}\n\nGenerate 8 debate topics as a JSON array anchored to these actual stories.`
+        : `No live headlines available. Generate 8 current ${category} debate topics based on what's most controversial in ${category} right now. Return as JSON array.`;
       const completion = await Promise.race([
         getClient().chat.completions.create({
           model: getFastModel(),
           messages: [
-            { role: "system", content: `You generate debate topics for a live arena show. Create 8 HOT, opinionated debate topics in the category: ${category.toUpperCase()} (${categoryPrompt}). Return ONLY a valid JSON array of objects with "id" (lowercase_snake_case), "title" (short 3-6 word label), "description" (1-2 sentences of the controversy and why it's debatable). Make them spicy, controversial, and designed to provoke strong reactions from different political/social perspectives.` },
-            { role: "user", content: `Generate 8 ${category} debate topics as a JSON array.` },
+            { role: "system", content: systemPrompt },
+            { role: "user", content: headlinesBlock },
           ],
-          max_completion_tokens: 2000,
+          max_completion_tokens: 2500,
           temperature: 0.9,
         }),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("AI timeout")), 30000)),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("AI timeout")), 40000)),
       ]);
       const raw = completion.choices[0]?.message?.content || "[]";
       const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-      const topics = JSON.parse(cleaned);
+      let topics: any[];
+      try {
+        topics = JSON.parse(cleaned);
+      } catch {
+        const lastBrace = cleaned.lastIndexOf("}");
+        if (lastBrace > 0) {
+          topics = JSON.parse(cleaned.substring(0, lastBrace + 1) + "]");
+        } else {
+          throw new Error("Cannot parse category topics JSON");
+        }
+      }
       if (Array.isArray(topics) && topics.length > 0) {
         categoryTopicsCache.set(category, { topics: topics.slice(0, 8), expires: Date.now() + ARENA_NEWS_CACHE_TTL });
         return topics.slice(0, 8);
       }
     } catch (err) {
-      console.error(`Category topics generation error (${category}):`, err);
+      console.error(`Category topics error (${category}):`, err);
     } finally {
       categoryGenerationInProgress.delete(category);
     }
