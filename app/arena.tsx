@@ -30,6 +30,7 @@ import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system/legacy";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getApiUrl } from "@/lib/query-client";
+import { fetch } from "expo/fetch";
 import { playTTS, playAudioFromUrl, prefetchTTSAudio, playPrefetchedAudio } from "@/lib/audio-helper";
 import { getPersonaVoiceVolume, shouldSkipPersonaVoice } from "@/lib/persona-voice";
 import { playPointAwardSound, playVoteClickSound, playVoteSound2, playBellSound, playCrowdCheer, playDrumroll, playWinnerChosenSound, playWinnerAfterSound, playBreakingNewsAlert } from "@/lib/arena-sfx";
@@ -2964,6 +2965,10 @@ export default function ArenaScreen() {
   const [fanName, setFanName] = useState("");
   const [showNameInput, setShowNameInput] = useState(false);
 
+  const [showVerdictModal, setShowVerdictModal] = useState(false);
+  const [verdictData, setVerdictData] = useState<any>(null);
+  const [verdictLoading, setVerdictLoading] = useState(false);
+
   const [personaPoints, setPersonaPoints] = useState<Record<string, number>>({});
   const [awardedMessages, setAwardedMessages] = useState<Set<string>>(new Set());
   const [showScoreboard, setShowScoreboard] = useState(false);
@@ -5124,6 +5129,39 @@ export default function ArenaScreen() {
     }
   }, [deviceId, currentTopic, addMessage, queueTTS]);
 
+  const fetchVerdict = useCallback(async () => {
+    if (verdictLoading) return;
+    if (messages.filter((m) => !m.isSystem).length < 4) {
+      Alert.alert("Not enough debate yet", "Keep the debate going — the AI judge needs more arguments to score.");
+      return;
+    }
+    setVerdictLoading(true);
+    setShowVerdictModal(true);
+    try {
+      const r = await fetch(new URL("/api/arena/verdict", getApiUrl()).toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          topic: currentTopic || "General debate",
+          messages: messages.map((m) => ({ speakerName: m.speakerName || m.speakerId, text: m.text, isSystem: m.isSystem })),
+          personas: selectedPersonas,
+        }),
+      });
+      if (r.ok) setVerdictData(await r.json());
+    } catch {}
+    finally { setVerdictLoading(false); }
+  }, [verdictLoading, messages, currentTopic, selectedPersonas]);
+
+  const shareVerdict = useCallback(async () => {
+    if (!verdictData) return;
+    const checks = (verdictData.factChecks || []).slice(0, 3).map((f: any) => `${f.verdict === "TRUE" ? "✅" : f.verdict === "FALSE" ? "❌" : "⚠️"} ${f.persona}: "${f.claim?.substring(0, 60)}…" → ${f.fact?.substring(0, 70)}`).join("\n");
+    const msg = `⚖️ AI VERDICT — Chat DJT\n\nTopic: "${currentTopic || "The Debate"}"\n\n🏆 WINNER: ${verdictData.winner}\n\n${verdictData.verdict}\n\n📊 FACT CHECKS:\n${checks}\n\n"${verdictData.summary}"\n\nWatch 20 AI personas debate LIVE 👇\nchatdjt.com`;
+    try {
+      if (Platform.OS === "web" && navigator.share) await navigator.share({ title: "AI Verdict", text: msg });
+      else await Share.share({ message: msg, title: "AI Verdict" });
+    } catch {}
+  }, [verdictData, currentTopic]);
+
   const shareDebate = useCallback(async () => {
     const topicName = currentTopic || "The Arena";
     const recentMessages = messages.filter((m) => !m.isSystem && m.speakerId !== "user").slice(-4);
@@ -5811,6 +5849,9 @@ export default function ArenaScreen() {
           {lieCount > 0 && (
             <Text style={{ color: "#ff4d4d", fontSize: 10, fontWeight: "900", marginLeft: 2 }}>{lieCount}</Text>
           )}
+        </Pressable>
+        <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); fetchVerdict(); }} style={[s.headerIconBtn, { borderColor: "rgba(255,215,0,0.4)" }]} testID="arena-verdict">
+          <Ionicons name="scale" size={16} color="#FFD700" />
         </Pressable>
         <Pressable onPress={shareDebate} style={s.headerIconBtn}>
           <Ionicons name="share-social" size={18} color="#fff" />
@@ -6861,6 +6902,89 @@ export default function ArenaScreen() {
         setVideoStates={setViralClipVideoStates}
         deviceId={deviceId}
       />
+
+      {/* AI Verdict Modal */}
+      <Modal visible={showVerdictModal} transparent animationType="fade" onRequestClose={() => setShowVerdictModal(false)}>
+        <Pressable style={s.paywallOverlay} onPress={() => !verdictLoading && setShowVerdictModal(false)}>
+          <Pressable style={s.verdictCard} onPress={(e) => e.stopPropagation()}>
+            <LinearGradient colors={["#1c1400", "#0a0a0a"]} style={StyleSheet.absoluteFill} borderRadius={20} />
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Ionicons name="scale" size={20} color="#FFD700" />
+                <Text style={{ color: "#FFD700", fontSize: 14, fontWeight: "900", letterSpacing: 1 }}>AI VERDICT</Text>
+              </View>
+              {!verdictLoading && <Pressable onPress={() => setShowVerdictModal(false)}><Ionicons name="close" size={22} color="rgba(255,255,255,0.4)" /></Pressable>}
+            </View>
+
+            {verdictLoading ? (
+              <View style={{ alignItems: "center", paddingVertical: 32 }}>
+                <ActivityIndicator color="#FFD700" size="large" />
+                <Text style={{ color: "#888", fontSize: 13, marginTop: 14 }}>The AI judge is reviewing the arguments…</Text>
+              </View>
+            ) : verdictData ? (
+              <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 480 }}>
+                <View style={{ backgroundColor: "rgba(255,215,0,0.08)", borderRadius: 12, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: "rgba(255,215,0,0.25)" }}>
+                  <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, fontWeight: "900", letterSpacing: 1, marginBottom: 4 }}>🏆 WINNER</Text>
+                  <Text style={{ color: "#FFD700", fontSize: 22, fontWeight: "900" }}>{verdictData.winner}</Text>
+                  <Text style={{ color: "rgba(255,255,255,0.75)", fontSize: 13, marginTop: 8, lineHeight: 19 }}>{verdictData.verdict}</Text>
+                </View>
+
+                {verdictData.scores && Object.keys(verdictData.scores).length > 0 && (
+                  <View style={{ marginBottom: 14 }}>
+                    <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, fontWeight: "900", letterSpacing: 1, marginBottom: 8 }}>📊 SCORES</Text>
+                    {Object.entries(verdictData.scores as Record<string, number>).map(([name, score]) => (
+                      <View key={name} style={{ marginBottom: 8 }}>
+                        <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
+                          <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700" }}>{name}</Text>
+                          <Text style={{ color: "#FFD700", fontSize: 12, fontWeight: "900" }}>{score}/100</Text>
+                        </View>
+                        <View style={{ height: 6, borderRadius: 3, backgroundColor: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
+                          <View style={{ height: "100%", width: `${score}%` as any, backgroundColor: score >= 70 ? "#4ADE80" : score >= 45 ? "#FFD700" : "#ff4d4d", borderRadius: 3 }} />
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {verdictData.factChecks?.length > 0 && (
+                  <View style={{ marginBottom: 14 }}>
+                    <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, fontWeight: "900", letterSpacing: 1, marginBottom: 8 }}>🔍 FACT CHECKS</Text>
+                    {(verdictData.factChecks as any[]).map((fc: any, i: number) => (
+                      <View key={i} style={{ backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 10, padding: 10, marginBottom: 6, borderLeftWidth: 3, borderLeftColor: fc.verdict === "TRUE" ? "#4ADE80" : fc.verdict === "FALSE" ? "#ff4d4d" : "#facc15" }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                          <Text style={{ color: fc.verdict === "TRUE" ? "#4ADE80" : fc.verdict === "FALSE" ? "#ff4d4d" : "#facc15", fontSize: 10, fontWeight: "900" }}>{fc.verdict}</Text>
+                          <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 10 }}>— {fc.persona}</Text>
+                        </View>
+                        <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 11, fontStyle: "italic", marginBottom: 3 }}>"{fc.claim}"</Text>
+                        <Text style={{ color: "#fff", fontSize: 11, lineHeight: 16 }}>{fc.fact}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {verdictData.summary && (
+                  <View style={{ borderTopWidth: 1, borderTopColor: "rgba(255,215,0,0.15)", paddingTop: 12, marginBottom: 8 }}>
+                    <Text style={{ color: "#FFD700", fontSize: 13, fontStyle: "italic", textAlign: "center", lineHeight: 18 }}>"{verdictData.summary}"</Text>
+                  </View>
+                )}
+
+                <Pressable onPress={shareVerdict} style={{ marginTop: 10, backgroundColor: "#FFD700", borderRadius: 12, padding: 13, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                  <Ionicons name="share-social" size={16} color="#000" />
+                  <Text style={{ color: "#000", fontSize: 13, fontWeight: "900" }}>SHARE VERDICT</Text>
+                </Pressable>
+                <View style={{ height: 12 }} />
+              </ScrollView>
+            ) : (
+              <View style={{ alignItems: "center", paddingVertical: 24 }}>
+                <Text style={{ color: "#ff4d4d", fontSize: 13 }}>Failed to generate verdict. Try again.</Text>
+                <Pressable onPress={fetchVerdict} style={{ marginTop: 12, backgroundColor: "rgba(255,215,0,0.12)", borderRadius: 10, padding: 10, borderWidth: 1, borderColor: "rgba(255,215,0,0.3)" }}>
+                  <Text style={{ color: "#FFD700", fontWeight: "900" }}>RETRY</Text>
+                </Pressable>
+              </View>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <Modal visible={showPaywall} transparent animationType="fade">
         <View style={s.paywallOverlay}>
@@ -8012,6 +8136,18 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     padding: 24,
+  },
+  verdictCard: {
+    margin: 20,
+    backgroundColor: "#15151A",
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "rgba(255,215,0,0.3)",
+    overflow: "hidden" as const,
+    maxWidth: 420,
+    width: "100%",
+    alignSelf: "center",
   },
   paywallCard: {
     backgroundColor: "#1a1a1a",

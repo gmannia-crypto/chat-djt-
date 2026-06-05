@@ -1816,6 +1816,24 @@ export default function HomeScreen() {
             </View>
             <Feather name="chevron-right" size={18} color={Colors.gold} />
           </Pressable>
+
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              router.push("/tiktok-live");
+            }}
+            style={({ pressed }) => [styles.personasTrophyEntry, { borderColor: "rgba(255,68,68,0.35)", borderTopWidth: 1, borderTopColor: "rgba(255,68,68,0.35)" }, pressed && { opacity: 0.85 }]}
+            testID="tiktok-live-entry"
+          >
+            <View style={[styles.personasTrophyIconWrap, { backgroundColor: "rgba(255,68,68,0.12)" }]}>
+              <Ionicons name="logo-tiktok" size={18} color="#ff4d4d" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.personasTrophyTitle, { color: "#ff4d4d" }]}>TIKTOK LIVE POLLS</Text>
+              <Text style={styles.personasTrophySub}>Viral debate polls for your live streams</Text>
+            </View>
+            <Feather name="chevron-right" size={18} color="#ff4d4d" />
+          </Pressable>
         </Animated.View>
 
         {hotTake && (

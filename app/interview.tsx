@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   View, Text, Pressable, ScrollView, StyleSheet, Modal, ActivityIndicator,
-  Platform, Image, FlatList, TextInput, KeyboardAvoidingView, Alert,
+  Platform, Image, FlatList, TextInput, KeyboardAvoidingView, Alert, Share,
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -171,6 +171,16 @@ export default function InterviewScreen() {
   const [topicIdx, setTopicIdx] = useState(0);
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
   const [completedTopics, setCompletedTopics] = useState<Set<string>>(new Set());
+
+  const [customTopicText, setCustomTopicText] = useState("");
+  const [showCustomInput, setShowCustomInput] = useState(false);
+
+  const [showPollModal, setShowPollModal] = useState(false);
+  const [pollQuestion, setPollQuestion] = useState<{ question: string; optionA: string; optionB: string; hashtags: string[] } | null>(null);
+  const [pollVoteA, setPollVoteA] = useState(0);
+  const [pollVoteB, setPollVoteB] = useState(0);
+  const [myPollVote, setMyPollVote] = useState<"A" | "B" | null>(null);
+  const [pollLoading, setPollLoading] = useState(false);
 
   const [phase, setPhase] = useState<"setup" | "live" | "ended">("setup");
   const [messages, setMessages] = useState<Msg[]>([]);
@@ -705,6 +715,49 @@ export default function InterviewScreen() {
   const currentTopic = topics[topicIdx] || null;
   const currentTopicRef = useRef(currentTopic);
   useEffect(() => { currentTopicRef.current = currentTopic; }, [currentTopic]);
+
+  const openInterviewPoll = useCallback(async () => {
+    const currentT = topics[topicIdx];
+    setShowPollModal(true);
+    if (pollQuestion) return;
+    setPollLoading(true);
+    try {
+      const r = await fetch(new URL("/api/arena/poll-question", getApiUrl()).toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          topic: currentT?.title || "This interview",
+          personas: [interviewer?.name, interviewee?.name].filter(Boolean),
+        }),
+      });
+      if (r.ok) {
+        const data = await r.json();
+        setPollQuestion(data);
+        setPollVoteA(0); setPollVoteB(0); setMyPollVote(null);
+      }
+    } catch {}
+    finally { setPollLoading(false); }
+  }, [topics, topicIdx, pollQuestion, interviewer, interviewee]);
+
+  const castInterviewVote = useCallback(async (side: "A" | "B") => {
+    if (myPollVote) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setMyPollVote(side);
+    if (side === "A") setPollVoteA((p) => p + 1); else setPollVoteB((p) => p + 1);
+  }, [myPollVote]);
+
+  const shareInterviewPoll = useCallback(async () => {
+    if (!pollQuestion) return;
+    const totalVotes = pollVoteA + pollVoteB;
+    const pctA = totalVotes > 0 ? Math.round((pollVoteA / totalVotes) * 100) : 50;
+    const pctB = 100 - pctA;
+    const tags = pollQuestion.hashtags?.map((h: string) => `#${h}`).join(" ") || "#ChatDJT #Poll";
+    const msg = `🗳️ LIVE POLL — Chat DJT\n\n"${pollQuestion.question}"\n\n🅰️ ${pollQuestion.optionA} — ${pctA}%\n🅱️ ${pollQuestion.optionB} — ${pctB}%\n\n${tags}\n\nVote live on Chat DJT 👇\nchatdjt.com`;
+    try {
+      if (Platform.OS === "web" && navigator.share) await navigator.share({ title: "Live Poll", text: msg });
+      else await Share.share({ message: msg, title: "Live Poll" });
+    } catch {}
+  }, [pollQuestion, pollVoteA, pollVoteB]);
 
   const generateTopics = useCallback(async () => {
     if (!interviewerId || !intervieweeId) return;
@@ -1360,6 +1413,61 @@ export default function InterviewScreen() {
             )}
           </View>
 
+          {/* Custom topic creator */}
+          <View style={[s.topicsCard, { marginTop: 12, borderColor: "rgba(74,222,128,0.25)" }]}>
+            <View style={s.topicsHeader}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Ionicons name="create-outline" size={16} color="#4ADE80" />
+                <Text style={[s.topicsTitle, { color: "#4ADE80" }]}>YOUR TOPIC</Text>
+              </View>
+              <Pressable onPress={() => setShowCustomInput((p) => !p)} style={[s.refreshTopicsBtn, { borderColor: "rgba(74,222,128,0.4)" }]}>
+                <Ionicons name={showCustomInput ? "chevron-up" : "add"} size={14} color="#4ADE80" />
+                <Text style={[s.refreshTopicsText, { color: "#4ADE80" }]}>{showCustomInput ? "Close" : "Add Topic"}</Text>
+              </Pressable>
+            </View>
+            {showCustomInput ? (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 }}>
+                <TextInput
+                  value={customTopicText}
+                  onChangeText={setCustomTopicText}
+                  placeholder="Type your own topic or question…"
+                  placeholderTextColor="rgba(255,255,255,0.3)"
+                  style={{ flex: 1, color: "#fff", fontSize: 13, padding: 10, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.06)", borderWidth: 1, borderColor: "rgba(74,222,128,0.25)" }}
+                  maxLength={120}
+                  returnKeyType="done"
+                  onSubmitEditing={() => {
+                    const t = customTopicText.trim();
+                    if (!t) return;
+                    const newTopic: Topic = { id: `custom_${Date.now()}`, title: t, description: "Your custom angle", era: "current" };
+                    setTopics((prev) => [newTopic, ...prev]);
+                    setSelectedTopicId(newTopic.id);
+                    setCustomTopicText("");
+                    setShowCustomInput(false);
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                  }}
+                />
+                <Pressable
+                  onPress={() => {
+                    const t = customTopicText.trim();
+                    if (!t) return;
+                    const newTopic: Topic = { id: `custom_${Date.now()}`, title: t, description: "Your custom angle", era: "current" };
+                    setTopics((prev) => [newTopic, ...prev]);
+                    setSelectedTopicId(newTopic.id);
+                    setCustomTopicText("");
+                    setShowCustomInput(false);
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                  }}
+                  disabled={!customTopicText.trim()}
+                  style={{ backgroundColor: "#4ADE80", borderRadius: 10, padding: 10, opacity: customTopicText.trim() ? 1 : 0.4 }}
+                >
+                  <Ionicons name="checkmark" size={18} color="#000" />
+                </Pressable>
+              </View>
+            ) : (
+              <Text style={{ color: "rgba(255,255,255,0.38)", fontSize: 11 }}>Set your own angle — bypass the generated questions</Text>
+            )}
+          </View>
+
           <Pressable
             onPress={startInterview}
             disabled={isStarting || !interviewerId || !intervieweeId || topics.length === 0}
@@ -1431,6 +1539,9 @@ export default function InterviewScreen() {
         </Pressable>
         <Pressable onPress={togglePause} style={s.iconBtnSm}>
           <Ionicons name={isPaused ? "play" : "pause"} size={16} color="#FFD700" />
+        </Pressable>
+        <Pressable onPress={openInterviewPoll} style={s.iconBtnSm} testID="interview-poll">
+          <Ionicons name="bar-chart" size={16} color="#FFD700" />
         </Pressable>
       </View>
 
@@ -1600,6 +1711,10 @@ export default function InterviewScreen() {
               <Text style={{ color: "#000", fontSize: 12, fontWeight: "900" }}>VIEW TRANSCRIPT</Text>
             </Pressable>
             <ShareAppButton variant="pill" area="arena" />
+            <Pressable onPress={openInterviewPoll} style={[s.endedBtnSecondary, { borderColor: "rgba(255,215,0,0.4)" }]}>
+              <Ionicons name="bar-chart" size={14} color="#FFD700" />
+              <Text style={{ color: "#FFD700", fontSize: 12, fontWeight: "800" }}>POLL</Text>
+            </Pressable>
           </View>
         </Animated.View>
       )}
@@ -1709,6 +1824,88 @@ export default function InterviewScreen() {
             </ScrollView>
           </View>
         </View>
+      </Modal>
+
+      {/* Interview Poll Modal */}
+      <Modal visible={showPollModal} transparent animationType="fade" onRequestClose={() => setShowPollModal(false)}>
+        <Pressable style={s.modalOverlay} onPress={() => setShowPollModal(false)}>
+          <Pressable style={s.pollCard} onPress={(e) => e.stopPropagation()}>
+            <LinearGradient colors={["#1a1a0a", "#0a0a0a"]} style={StyleSheet.absoluteFill} borderRadius={20} />
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#ff4d4d" }} />
+                <Text style={{ color: "#fff", fontSize: 12, fontWeight: "900", letterSpacing: 1 }}>LIVE POLL</Text>
+              </View>
+              <Pressable onPress={() => setShowPollModal(false)}><Ionicons name="close" size={20} color="rgba(255,255,255,0.4)" /></Pressable>
+            </View>
+
+            {pollLoading && !pollQuestion ? (
+              <View style={{ alignItems: "center", padding: 24 }}>
+                <ActivityIndicator color="#FFD700" />
+                <Text style={{ color: "#888", fontSize: 12, marginTop: 10 }}>Generating viral poll…</Text>
+              </View>
+            ) : pollQuestion ? (
+              <>
+                <Text style={{ color: "#FFD700", fontSize: 16, fontWeight: "900", textAlign: "center", marginBottom: 18, lineHeight: 22 }}>
+                  {pollQuestion.question}
+                </Text>
+
+                <View style={{ gap: 10, marginBottom: 16 }}>
+                  {(["A", "B"] as const).map((side) => {
+                    const isA = side === "A";
+                    const opt = isA ? pollQuestion.optionA : pollQuestion.optionB;
+                    const votes = isA ? pollVoteA : pollVoteB;
+                    const total = pollVoteA + pollVoteB;
+                    const pct = total > 0 ? Math.round((votes / total) * 100) : 0;
+                    const voted = myPollVote === side;
+                    const anyVote = myPollVote !== null;
+                    return (
+                      <Pressable
+                        key={side}
+                        onPress={() => castInterviewVote(side)}
+                        disabled={anyVote}
+                        style={{ borderRadius: 12, borderWidth: 1.5, borderColor: voted ? "#FFD700" : "rgba(255,255,255,0.12)", overflow: "hidden" }}
+                      >
+                        {anyVote && (
+                          <View style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${pct}%` as any, backgroundColor: voted ? "rgba(255,215,0,0.2)" : "rgba(255,255,255,0.06)", borderRadius: 10 }} />
+                        )}
+                        <View style={{ flexDirection: "row", alignItems: "center", padding: 14, gap: 10 }}>
+                          <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: voted ? "#FFD700" : "rgba(255,255,255,0.1)", alignItems: "center", justifyContent: "center" }}>
+                            <Text style={{ color: voted ? "#000" : "#fff", fontSize: 12, fontWeight: "900" }}>{side}</Text>
+                          </View>
+                          <Text style={{ flex: 1, color: voted ? "#FFD700" : "#fff", fontSize: 14, fontWeight: "700" }}>{opt}</Text>
+                          {anyVote && <Text style={{ color: voted ? "#FFD700" : "rgba(255,255,255,0.5)", fontSize: 13, fontWeight: "900" }}>{pct}%</Text>}
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                {myPollVote && (
+                  <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, textAlign: "center", marginBottom: 12 }}>
+                    {pollVoteA + pollVoteB} vote{pollVoteA + pollVoteB !== 1 ? "s" : ""} cast
+                  </Text>
+                )}
+
+                <View style={{ flexDirection: "row", gap: 10 }}>
+                  <Pressable onPress={() => { setPollQuestion(null); openInterviewPoll(); }} style={{ flex: 1, padding: 12, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.06)", alignItems: "center" }}>
+                    <Ionicons name="refresh" size={16} color="#888" />
+                  </Pressable>
+                  <Pressable onPress={shareInterviewPoll} style={{ flex: 3, padding: 12, borderRadius: 10, backgroundColor: "#FFD700", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                    <Ionicons name="share-social" size={16} color="#000" />
+                    <Text style={{ color: "#000", fontSize: 13, fontWeight: "900" }}>SHARE POLL</Text>
+                  </Pressable>
+                </View>
+
+                {pollQuestion.hashtags?.length > 0 && (
+                  <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, textAlign: "center", marginTop: 10 }}>
+                    {pollQuestion.hashtags.map((h: string) => `#${h}`).join(" ")}
+                  </Text>
+                )}
+              </>
+            ) : null}
+          </Pressable>
+        </Pressable>
       </Modal>
 
       {renderPaywall()}
@@ -1864,6 +2061,8 @@ const s = StyleSheet.create({
   lightning: { ...StyleSheet.absoluteFillObject, backgroundColor: "#ff2a2a" },
   lieFlashOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(255,77,77,0.18)", justifyContent: "center", alignItems: "center", zIndex: 999 },
   lieFlashWord: { color: "#ff4d4d", fontSize: 72, fontWeight: "900", letterSpacing: 8, opacity: 0.85, textShadowColor: "#ff0000", textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 24 },
+
+  pollCard: { margin: 24, backgroundColor: "#15151A", borderRadius: 20, padding: 20, borderWidth: 1, borderColor: "rgba(255,215,0,0.3)", overflow: "hidden" as const },
 
   callinBar: { backgroundColor: "rgba(15,15,18,0.95)", borderTopWidth: 1, borderColor: "rgba(96,165,250,0.25)", paddingHorizontal: 10, paddingTop: 8, gap: 6 },
   callinNameRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, height: 28, borderRadius: 14, backgroundColor: "rgba(96,165,250,0.08)", borderWidth: 1, borderColor: "rgba(96,165,250,0.2)" },

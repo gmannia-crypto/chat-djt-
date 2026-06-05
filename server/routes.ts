@@ -6931,6 +6931,68 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
     }
   });
 
+  // POST /api/arena/verdict — AI fact-based debate judge
+  app.post("/api/arena/verdict", async (req, res) => {
+    try {
+      const { topic, messages, personas } = req.body || {};
+      if (!topic || !Array.isArray(messages) || messages.length < 4) {
+        return res.status(400).json({ error: "Need a topic and at least 4 messages" });
+      }
+      const transcript = (messages as any[])
+        .filter((m: any) => !m.isSystem && m.speakerName && m.text)
+        .slice(-30)
+        .map((m: any) => `${m.speakerName}: "${m.text}"`)
+        .join("\n");
+      const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+      const completion = await Promise.race([
+        getClient().chat.completions.create({
+          model: getFastModel(),
+          messages: [
+            { role: "system", content: `You are an impartial AI debate judge and fact-checker. Today is ${todayStr}. Analyze debate transcripts and render fact-based verdicts. Be specific — name actual claims, cite real verifiable facts. Score each persona 0-100 on accuracy, logic, evidence quality, and persuasion. Pick a winner decisively. Do NOT be vague.` },
+            { role: "user", content: `DEBATE TOPIC: "${topic}"\n\nTRANSCRIPT:\n${transcript}\n\nReturn ONLY valid JSON:\n{\n  "winner": "Full persona name",\n  "winnerId": "persona_id",\n  "verdict": "2-3 sentences on exactly why they won — cite their best argument",\n  "factChecks": [\n    { "persona": "name", "claim": "specific claim they made", "verdict": "TRUE/FALSE/MISLEADING", "fact": "the verified real fact" }\n  ],\n  "scores": { "PersonaName": score_0_to_100 },\n  "summary": "One punchy sentence summarizing the whole debate"\n}` },
+          ],
+          max_completion_tokens: 1000,
+          temperature: 0.7,
+        }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 35000)),
+      ]);
+      const raw = completion.choices[0]?.message?.content || "{}";
+      const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      res.json(JSON.parse(cleaned));
+    } catch (err: any) {
+      console.error("Verdict error:", err.message);
+      res.status(500).json({ error: "Failed to generate verdict" });
+    }
+  });
+
+  // POST /api/arena/poll-question — generate a shareable viral poll
+  app.post("/api/arena/poll-question", async (req, res) => {
+    try {
+      const { topic, personas, category } = req.body || {};
+      const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+      const contextStr = topic ? `Debate topic: "${topic}"` : `Category: ${category || "current events"}`;
+      const personaStr = Array.isArray(personas) && personas.length > 0 ? `Participants: ${personas.join(", ")}` : "";
+      const completion = await Promise.race([
+        getClient().chat.completions.create({
+          model: getFastModel(),
+          messages: [
+            { role: "system", content: `You create viral, shareable poll questions for TikTok Live, Twitter, and Instagram. Today is ${todayStr}. Questions must be edgy, opinionated, provocative — make people NEED to vote and share. Tie each question to real current events. Keep options ultra short, maximum contrast between A and B.` },
+            { role: "user", content: `${contextStr}\n${personaStr}\n\nCreate one viral poll question. Return ONLY valid JSON:\n{\n  "question": "The poll question (max 100 chars, punchy and provocative)",\n  "optionA": "Option A (max 35 chars, strong take)",\n  "optionB": "Option B (max 35 chars, opposite take)",\n  "hashtags": ["tag1", "tag2", "tag3", "tag4"]\n}` },
+          ],
+          max_completion_tokens: 200,
+          temperature: 0.95,
+        }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 15000)),
+      ]);
+      const raw = completion.choices[0]?.message?.content || "{}";
+      const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      res.json(JSON.parse(cleaned));
+    } catch (err: any) {
+      console.error("Poll question error:", err.message);
+      res.status(500).json({ error: "Failed to generate poll" });
+    }
+  });
+
   app.get("/api/arena/interview-history", async (req, res) => {
     try {
       const deviceId = req.headers["x-device-id"] as string;
