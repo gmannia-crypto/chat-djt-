@@ -65,6 +65,9 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   loomer: require("@/assets/images/persona-loomer.png"),
   leavitt: require("@/assets/images/persona-leavitt.png"),
   bannon: require("@/assets/images/persona-bannon.png"),
+  stephena: require("@/assets/images/persona-stephena.jpg"),
+  hannity: require("@/assets/images/persona-hannity.jpg"),
+  malema: require("@/assets/images/persona-malema.jpg"),
 };
 
 const FX_KEY = "interview_fx_enabled_v1";
