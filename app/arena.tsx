@@ -5132,7 +5132,7 @@ export default function ArenaScreen() {
     const winnerName = winnerPersona?.name || null;
     const winnerPts = winner ? winner[1] : 0;
 
-    let shareText = `🏛️ POLITICAL ARENA — Chat DJT\n`;
+    let shareText = `🏛️ THE ARENA — Chat DJT\n`;
     shareText += `📰 Topic: "${topicName}"\n\n`;
     if (recentMessages.length > 0) {
       shareText += `🔥 Highlights:\n`;
@@ -5783,7 +5783,7 @@ export default function ArenaScreen() {
           </Pressable>
         )}
         <View style={s.headerCenter}>
-          <Text style={s.headerTitle}>POLITICAL ARENA</Text>
+          <Text style={s.headerTitle}>THE ARENA</Text>
           <Animated.View entering={ZoomIn.duration(500).delay(300)} style={s.liveBadge}>
             <View style={s.liveDot} />
             <Text style={s.liveText}>LIVE</Text>

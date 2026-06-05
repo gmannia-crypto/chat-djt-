@@ -94,7 +94,7 @@ const FEATURE_OF_DAY = [
 
 const ONBOARDING_STEPS = [
   { emoji: "👋", title: "Welcome to Chat DJT", body: "The most tremendous AI chat app ever built. Voice-cloned personas, live debates, and zero filter. Believe me." },
-  { emoji: "🏛️", title: "Political Arena", body: "Pick up to 20 AI personas and watch them debate live news headlines. Award points, trigger breaking news, and declare a winner." },
+  { emoji: "🏛️", title: "The Arena", body: "Pick up to 28 AI personas and watch them debate live news headlines. Award points, trigger breaking news, and declare a winner." },
   { emoji: "🛋️", title: "Dynamic Therapy", body: "Choose from 5 therapist personas — each with a unique style. Deep sessions, PHQ-9 assessments, and shareable diagnosis plans." },
   { emoji: "🪙", title: "D.C. Lightning Tokens", body: "Premium features cost tokens. Earn free ones via daily streaks, the Mystery Box, and the Arena. You can always buy more." },
   { emoji: "🎁", title: "Daily Mystery Box", body: "Open your free Mystery Box every 24 hours for rewards: roasts, collectible cards, persona unlocks, and more." },
@@ -118,7 +118,7 @@ const MYSTERY_REWARDS = [
   { label: "VIP Fortune", icon: "star", description: "A rare PREMIUM fortune reading. Only winners get this." },
   { label: "Collectible Card", icon: "cards", description: "A DJT Collectible card has been added to your collection!" },
   { label: "Collectible Card", icon: "cards", description: "A DJT Collectible card has been added to your collection!" },
-  { label: "Arena Persona Unlock", icon: "person-add", description: "A mystery arena debater has been unlocked! Check the Political Arena." },
+  { label: "Arena Persona Unlock", icon: "person-add", description: "A mystery arena debater has been unlocked! Check The Arena." },
 ];
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -963,7 +963,7 @@ export default function HomeScreen() {
             setMysteryPrize({
               ...prize,
               label: `Persona Unlocked: ${ARENA_MYSTERY_PERSONA_NAMES[personaId] || personaId}`,
-              description: `${ARENA_MYSTERY_PERSONA_NAMES[personaId] || personaId} has joined the Political Arena! Head to the arena to debate them.`,
+              description: `${ARENA_MYSTERY_PERSONA_NAMES[personaId] || personaId} has joined The Arena! Head in to debate them.`,
             });
           }
         } else {
@@ -1411,7 +1411,7 @@ export default function HomeScreen() {
         <Animated.View entering={FadeInDown.delay(200).duration(600)} style={arenaFeaturedStyle}>
           <Pressable
             onPress={() => {
-              playNavVoice("Political Arena. The greatest debate you've ever seen. Believe me.");
+              playNavVoice("The Arena. The greatest debate you've ever seen. Believe me.");
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
               router.push("/arena");
             }}
@@ -1430,8 +1430,8 @@ export default function HomeScreen() {
                   <View style={styles.arenaFeaturedLiveDot} />
                   <Text style={styles.arenaFeaturedLiveText}>LIVE</Text>
                 </View>
-                <Text style={styles.arenaFeaturedTitle}>POLITICAL ARENA</Text>
-                <Text style={styles.arenaFeaturedSubtitle}>11 AI Personas. Real News. Live Debate.</Text>
+                <Text style={styles.arenaFeaturedTitle}>THE ARENA</Text>
+                <Text style={styles.arenaFeaturedSubtitle}>28 AI Personas. Real News. Live Debate.</Text>
               </View>
               <View style={styles.arenaFeaturedPersonas}>
                 <Text style={styles.arenaFeaturedEmojis}>Trump  Biden  Maddow  Ruckus  Omar  Galloway</Text>

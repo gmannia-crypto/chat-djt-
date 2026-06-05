@@ -70,7 +70,7 @@ export function generateShareText(recording: ArenaRecording): string {
   const personaNames = recording.personas.slice(0, 4).join(", ");
   const highlight = recording.highlightQuote || pickHighlightQuote(recording.messages);
   const interruptions = recording.messages.filter((m) => m.isInterruption).length;
-  let text = `🔥 POLITICAL ARENA: "${recording.topic}"\n`;
+  let text = `🔥 THE ARENA: "${recording.topic}"\n`;
   text += `🎙️ ${personaNames}\n`;
   if (highlight) text += `\n💬 "${highlight}"\n`;
   if (interruptions > 0) text += `⚡ ${interruptions} interruptions!\n`;
