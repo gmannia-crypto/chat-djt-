@@ -6993,6 +6993,36 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
     }
   });
 
+  // POST /api/arena/broadcast-snippets — rapid-fire debate snippets for TikTok Live broadcast
+  app.post("/api/arena/broadcast-snippets", async (req, res) => {
+    try {
+      const { topic, category, personas } = req.body || {};
+      const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+      const topicStr = topic ? `"${topic}"` : `${category || "current events"} and politics`;
+      const personaList = Array.isArray(personas) && personas.length >= 2
+        ? personas.slice(0, 4).join(", ")
+        : "Donald Trump, Barack Obama, Elon Musk, AOC";
+      const completion = await Promise.race([
+        getClient().chat.completions.create({
+          model: getFastModel(),
+          messages: [
+            { role: "system", content: `You write rapid-fire, entertaining political debate dialogue for a TikTok Live stream. Today is ${todayStr}. Lines should be punchy, opinionated, and funny. Each speaker sounds exactly like their real-life persona. Keep each line under 120 characters. Include interruptions, zingers, and counter-attacks. This is satire/parody for entertainment.` },
+            { role: "user", content: `Generate a rapid-fire 6-line live debate on: ${topicStr}\nSpeakers: ${personaList}\n\nReturn ONLY valid JSON array:\n[\n  { "speaker": "Name", "speakerId": "id_lowercase_nospace", "text": "What they say", "color": "#hexcolor" },\n  ...\n]\nAssign distinct hex colors per speaker. Make it spicy and viral. Alternate speakers. End on a cliffhanger.` },
+          ],
+          max_completion_tokens: 600,
+          temperature: 1.0,
+        }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 18000)),
+      ]);
+      const raw = completion.choices[0]?.message?.content || "[]";
+      const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      res.json(JSON.parse(cleaned));
+    } catch (err: any) {
+      console.error("Broadcast snippets error:", err.message);
+      res.status(500).json({ error: "Failed to generate debate feed" });
+    }
+  });
+
   app.get("/api/arena/interview-history", async (req, res) => {
     try {
       const deviceId = req.headers["x-device-id"] as string;

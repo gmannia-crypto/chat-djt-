@@ -305,6 +305,28 @@ export default function TikTokLiveScreen() {
                   <Text style={{ color: "#fff", fontSize: 13, fontWeight: "900" }}>SHARE ON TIKTOK</Text>
                 </Pressable>
               </View>
+
+              {/* GO LIVE button */}
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                  const params: Record<string, string> = { category };
+                  if (category === "custom" && customTopic.trim()) params.topic = customTopic.trim();
+                  router.push({ pathname: "/tiktok-broadcast", params });
+                }}
+                style={s.goLiveBtn}
+              >
+                <LinearGradient
+                  colors={["#ff1a1a", "#cc0000"]}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                  style={s.goLiveGradient}
+                >
+                  <View style={s.goLiveDot} />
+                  <Ionicons name="radio" size={20} color="#fff" />
+                  <Text style={s.goLiveText}>GO LIVE — SCREEN SHARE MODE</Text>
+                  <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.7)" />
+                </LinearGradient>
+              </Pressable>
             </Animated.View>
           ) : null}
         </View>
@@ -389,6 +411,11 @@ const s = StyleSheet.create({
   hashTagText: { color: "rgba(255,255,255,0.45)", fontSize: 11, fontWeight: "600" },
 
   actionBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 13, borderRadius: 12 },
+
+  goLiveBtn: { marginTop: 10, borderRadius: 14, overflow: "hidden", borderWidth: 2, borderColor: "#ff1a1a" },
+  goLiveGradient: { flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 15, paddingHorizontal: 16, gap: 10 },
+  goLiveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#fff", opacity: 0.9 },
+  goLiveText: { flex: 1, color: "#fff", fontSize: 14, fontWeight: "900", letterSpacing: 1 },
 
   historySection: { marginHorizontal: 16, marginBottom: 16 },
   historyTitle: { color: "rgba(255,255,255,0.3)", fontSize: 10, fontWeight: "900", letterSpacing: 1, marginBottom: 8 },
