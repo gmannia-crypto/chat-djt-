@@ -1699,7 +1699,7 @@ function detectTrumpAttack(text: string, speakerId: string): boolean {
   const lower = text.toLowerCase();
   const trumpMentions = /(?:trump|donald|mr\.?\s*president)/i.test(lower);
   if (!trumpMentions) return false;
-  const hostilePatterns = /(?:epstein war|your fault|you started|you caused|your war|felon|convicted|criminal|diaper|stench|dementia|corrupt(?:ion)?|liar|lying|racist|fascist|dictator|brain.?dead|anti-?christ|cover.?up|war criminal|impeach|lock(?:ed)?\s*(?:him|you)\s*up|prison|jail|indicted|guilty)/i;
+  const hostilePatterns = /(?:epstein war|your fault|you started|you caused|your war|felon|convicted|criminal|diaper|stench|dementia|corrupt(?:ion)?|liar|lying|racist|fascist|dictator|brain.?dead|anti-?christ|cover.?up|war criminal|impeach|lock(?:ed)?\s*(?:him|you)\s*up|prison|jail|indicted|guilty|stupid policy|terrible policy|failed policy|bad policy|your policy|wrong about|bad judgment|terrible judgment|poor judgment|incompetent|you don.t know|you have no idea|you.re an idiot|you.re stupid|stupid person|stupid decision|idiotic|you caused this|your bad deal|bad deal|terrible deal|wrong decision|terrible decision|you.re wrong|you were wrong|you made a mistake|doesn.t know what)/i;
   return hostilePatterns.test(lower);
 }
 
@@ -3155,6 +3155,8 @@ export default function ArenaScreen() {
   const [sessionExpiresAt, setSessionExpiresAt] = useState<number | null>(null);
   const [showPaywall, setShowPaywall] = useState(false);
   const [sessionTimer, setSessionTimer] = useState<number>(0);
+  const [roomTemperature, setRoomTemperature] = useState<number>(0);
+  const roomTempRef = useRef<number>(0);
   const [isUnlocking, setIsUnlocking] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
 
@@ -3181,6 +3183,17 @@ export default function ArenaScreen() {
 
   useEffect(() => { messagesRef.current = messages; }, [messages]);
   useEffect(() => { currentSpeakerRef.current = currentSpeaker; }, [currentSpeaker]);
+  useEffect(() => {
+    if (roomTemperature <= 0) return;
+    const cooldownTimer = setInterval(() => {
+      setRoomTemperature((prev) => {
+        const next = Math.max(0, prev - 5);
+        roomTempRef.current = next;
+        return next;
+      });
+    }, 30000);
+    return () => clearInterval(cooldownTimer);
+  }, [roomTemperature]);
   useEffect(() => { currentTopicRef.current = currentTopic; }, [currentTopic]);
   useEffect(() => { selectedTopicIdRef.current = selectedTopicId; }, [selectedTopicId]);
   useEffect(() => { customTopicTextRef.current = customTopicText; }, [customTopicText]);
@@ -3652,7 +3665,7 @@ export default function ArenaScreen() {
       sound.setOnPlaybackStatusUpdate((status: any) => {
         if (status.didJustFinish || status.error) cleanup();
       });
-      setTimeout(cleanup, 3000);
+      setTimeout(cleanup, 15000);
     } catch {}
   }, []);
 
@@ -4415,7 +4428,7 @@ export default function ArenaScreen() {
     if (!mountedRef.current || isInterruptingRef.current) return;
     isInterruptingRef.current = true;
     const active = selectedPersonasRef.current;
-    const availableInterrupters = INTERRUPTERS.filter((id) => active.includes(id));
+    const availableInterrupters = INTERRUPTERS.filter((id) => active.includes(id) && id !== currentSpeakerRef.current);
     if (availableInterrupters.length === 0) { isInterruptingRef.current = false; return; }
 
     const interrupter = availableInterrupters[Math.floor(Math.random() * availableInterrupters.length)];
@@ -4507,6 +4520,9 @@ export default function ArenaScreen() {
       }
     } catch {} finally {
       isInterruptingRef.current = false;
+      const newTemp = Math.min(100, roomTempRef.current + 10);
+      roomTempRef.current = newTemp;
+      setRoomTemperature(newTemp);
     }
   }, [deviceId, addMessage, showInterruptionBanner, playInterruptionAudio, queueTTS]);
 
@@ -4563,6 +4579,9 @@ export default function ArenaScreen() {
       }
     } catch {} finally {
       isInterruptingRef.current = false;
+      const newTemp = Math.min(100, roomTempRef.current + 15);
+      roomTempRef.current = newTemp;
+      setRoomTemperature(newTemp);
     }
   }, [deviceId, addMessage, showInterruptionBanner, playInterruptionAudio]);
 
@@ -5915,6 +5934,22 @@ export default function ArenaScreen() {
             <Text style={s.sessionPillText}>
               {Math.floor(sessionTimer / 60)}:{(sessionTimer % 60).toString().padStart(2, "0")}
             </Text>
+          </View>
+        )}
+        {roomTemperature > 0 && (
+          <View style={s.heatMeterContainer}>
+            <Text style={s.heatLabel}>
+              {roomTemperature >= 80 ? "🔥" : roomTemperature >= 50 ? "⚡" : "🌡️"}
+            </Text>
+            <View style={s.heatBarOuter}>
+              <View style={[
+                s.heatBarInner,
+                {
+                  width: `${roomTemperature}%` as any,
+                  backgroundColor: roomTemperature >= 80 ? "#FF3B30" : roomTemperature >= 50 ? "#FF9500" : "#FFD700",
+                },
+              ]} />
+            </View>
           </View>
         )}
         {!hasSession && freeRemaining > 0 && freeRemaining < 5 && (
@@ -8301,6 +8336,31 @@ const s = StyleSheet.create({
     fontWeight: "800" as const,
     letterSpacing: 1.5,
     flex: 1,
+  },
+  heatMeterContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255,160,0,0.3)",
+  },
+  heatLabel: {
+    fontSize: 10,
+  },
+  heatBarOuter: {
+    width: 44,
+    height: 5,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderRadius: 3,
+    overflow: "hidden",
+  },
+  heatBarInner: {
+    height: "100%",
+    borderRadius: 3,
   },
   interruptBody: {
     flexDirection: "row",

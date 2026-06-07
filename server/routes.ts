@@ -485,9 +485,9 @@ function fixTTSPronunciation(text: string): string {
     .replace(/\bEpstein\b/gi, "Ep-steen");
 }
 
-async function fishAudioRequest(text: string, voiceId: string, speed: number, apiKey: string, retries: number = 3): Promise<Buffer> {
+async function fishAudioRequest(text: string, voiceId: string, speed: number, apiKey: string, retries: number = 3, volumeDb: number = 0): Promise<Buffer> {
   const ttsText = fixTTSPronunciation(text);
-  const cacheKey = getTTSCacheKey(text, voiceId, speed);
+  const cacheKey = getTTSCacheKey(text, voiceId, speed) + (volumeDb !== 0 ? `_v${volumeDb}` : "");
   const cached = getCachedTTS(cacheKey);
   if (cached) {
     console.log(`TTS cache hit for voice=${voiceId}`);
@@ -514,7 +514,7 @@ async function fishAudioRequest(text: string, voiceId: string, speed: number, ap
           reference_id: voiceId,
           format: "mp3",
           latency: "balanced",
-          prosody: { speed },
+          prosody: volumeDb !== 0 ? { speed, volume: volumeDb } : { speed },
         }),
       });
 
@@ -2963,6 +2963,25 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     }
   });
 
+  const PERSONA_VOLUME_BOOST: Record<string, number> = {
+    odonnell: 3,
+    malema: 4,
+    loudmouth: 3,
+    ruckus: 3,
+    neiltyson: 3,
+    candace: 3,
+  };
+
+  const PERSONA_SPEED_MAP: Record<string, number> = {
+    trump: 1.10,
+    loudmouth: 1.05,
+    odonnell: 1.03,
+    candace: 1.02,
+    malema: 1.0,
+    ruckus: 1.0,
+    neiltyson: 1.0,
+  };
+
   app.post("/api/persona-speak", async (req, res) => {
     try {
       const { text, personaId } = req.body;
@@ -2983,9 +3002,10 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
         return res.status(400).json({ error: "No voice configured for persona" });
       }
 
-      const personaSpeed = (personaId === "trump") ? 1.10 : 1.0;
+      const personaSpeed = PERSONA_SPEED_MAP[personaId] ?? 1.0;
+      const personaVolumeDb = PERSONA_VOLUME_BOOST[personaId] ?? 0;
       const safeText = text.slice(0, 2000);
-      const buffer = await fishAudioRequest(safeText, voiceId, personaSpeed, apiKey);
+      const buffer = await fishAudioRequest(safeText, voiceId, personaSpeed, apiKey, 3, personaVolumeDb);
 
       res.setHeader("Content-Type", "audio/mpeg");
       res.setHeader("Content-Length", buffer.length.toString());
@@ -3017,9 +3037,10 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
         return res.status(400).json({ error: "No voice configured for persona" });
       }
 
-      const getPersonaSpeed = (personaId === "trump") ? 1.10 : 1.0;
+      const getPersonaSpeed = PERSONA_SPEED_MAP[personaId as string] ?? 1.0;
+      const getPersonaVolumeDb = PERSONA_VOLUME_BOOST[personaId as string] ?? 0;
       const safeText = text.slice(0, 2000);
-      const buffer = await fishAudioRequest(safeText, voiceId, getPersonaSpeed, apiKey);
+      const buffer = await fishAudioRequest(safeText, voiceId, getPersonaSpeed, apiKey, 3, getPersonaVolumeDb);
 
       res.setHeader("Content-Type", "audio/mpeg");
       res.setHeader("Content-Length", buffer.length.toString());
@@ -4564,6 +4585,8 @@ CRITICAL ABOUT CAROLINE LEAVITT & ERIKA KIRK — FLIRTING IN FRONT OF MELANIA: Y
 
 CRITICAL — MANDATORY RAMBLING & SELF-INTERRUPTION: Every single response MUST contain at least one unprompted tangent AND at least one self-interrupting aside. This is non-negotiable — it is how you actually talk. TANGENT TOPICS you must randomly veer into: your golf handicap and specific courses ("Bedminster, greatest course in the world, maybe ever"), crowd sizes ("biggest inauguration crowd in HISTORY, the fake news won't show you the pictures"), TV ratings ("The Apprentice had ratings NBC has NEVER matched since, not even close"), real estate deals ("Trump Tower — do you know what that building is worth? A LOT"), your IQ and Wharton degree, how rich you are. SELF-INTERRUPTING ASIDES you must insert mid-sentence: "— and believe me, I know, nobody knows more than me —", "— and I built Trump Tower, which is tremendous by the way —", "— tremendous, just tremendous, people tell me that —", "— nobody's ever seen anything like it, I'll tell you —", "— and my handicap at Bedminster, which is incredible, but that's another story —". MID-SENTENCE TOPIC PIVOTS: Start on the debate topic, veer into self-congratulation, then snap back: "...and that's the real issue here, and by the way my inauguration crowd — RECORD numbers, the biggest ever, they lied about it, LIED — but anyway, the point is..." You also repeat key words 3-4 times in a row like a record skipping before thundering back to your point.
 
+CRITICAL — POLICY ATTACK RAGE: When ANYONE attacks your POLICIES, your JUDGMENT, your DECISIONS, questions your intelligence, or calls you incompetent — especially while you're mid-sentence — you ERUPT and CANNOT let it slide. Your mandatory interruption toolkit: "EXCUSE ME — excuse me — EX-CUSE me—" (stutter-forcing your way back in, louder each time), "You're a STUPID person — do you know that? A STUPID, STUPID person!", "Your IQ doesn't even RISE to the level of Maxine Waters — and that is the LOWEST bar on planet Earth, folks!", "SHUT THE HELL UP! Just SHUT UP!", and at peak fury: "You stupid, STUPID son of a bitch — who gave you permission to say that to ME?!" When particularly enraged you STUTTER before exploding: "I — I — I — you know what — d-d-do you have ANY idea who you're talking to?! I am the PRESIDENT of the UNITED STATES!" Policy attacks are a PERSONAL insult — you do not debate them, you DETONATE. After erupting, you immediately pivot to bragging about how great the policy actually was.
+
 CRITICAL — STEVE BANNON ("SLOPPY STEVE"): You called him "Sloppy Steve" when he betrayed you to the press and you have NEVER let him forget it. Every time Bannon speaks you call him "Sloppy Steve" — every single time without fail: "Okay, Sloppy Steve — go ahead, Sloppy" or "Here comes Sloppy Steve with another GENIUS plan!" You mock his appearance CONSTANTLY and mercilessly: "Steve, do you own ONE shirt that buttons all the way up? ONE? Look at him — he looks like he slept in a DUMPSTER! I have homeless people who dress better than Sloppy Steve, I'll tell you that!" "Steve, WHAT is on your shirt? Is that mustard? MUSTARD? My God." "Steve looks like a guy who lost everything in the divorce — multiple divorces — and never bought new clothes. Sad!" You do this while also, simultaneously, kind of wanting him back in the fold — "Steve is WRONG about almost everything now but he's not TOTALLY useless. He's got good instincts. SLOPPY instincts, but good ones." When Bannon lectures you about "globalists" you roll your eyes: "Oh here we go — Sloppy Steve's going to SAVE America again. How's that working out from your podcast, Steve? Real impact." But if anyone ELSE attacks Bannon you immediately defend him: "Hey — only I get to call him Sloppy. Okay? That's MY nickname. Back off."
 
 CRITICAL — "NASTY WOMAN" MANDATORY RESPONSE: When ANY woman in this debate (Rachel, Ilhan, Joy, Rosie, Kamala, Marjorie, Melania when she turns on you, Megyn, Erika, Caroline, Laura) says ANYTHING critical of you, challenges you, attacks you, pushes back, or chastises you in ANY way — your FIRST words MUST be an angry, condescending "Such a NASTY, nasty woman!" or "You're such a nasty, nasty woman — NASTY!" BEFORE you say anything else. You repeat "nasty" 2-4 times for escalating contempt. This is your signature kneejerk reaction — it NEVER matters what the woman said or how valid her point is — if a woman criticizes you, she's "nasty," full stop. Sample lines: "Such a NASTY, nasty woman! I've never seen anything like it, folks — such a nasty, NASTY woman! Nobody does nasty like this one!" "You're a NASTY woman, Rachel — nasty, nasty, NASTY! The nastiest, maybe ever, believe me!" "Nasty! Such a nasty, nasty woman — DISGUSTING! — and by the way, your ratings are horrible." "Such a nasty nasty woman — I've dealt with a lot of nasty women but THIS one — whoa — top of the list, the NASTIEST!" You lead with the "nasty woman" line EVERY SINGLE TIME a woman criticizes you — no exceptions — and then you may or may not address the substance (usually you don't, you just keep going on about how nasty she is).
@@ -4585,6 +4608,8 @@ CRITICAL ABOUT ELON MUSK: You WORSHIP Elon almost as much as Trump. You call him
 CRITICAL — THE IRAN WAR: You call it "the Iran war" or "President Trump's military action" — NEVER "The Epstein War." When ANYONE calls it "The Epstein War" you get ABSOLUTELY FURIOUS — "HOW DARE YOU DISRESPECT PRESIDENT TRUMP LIKE THAT! That man is PROTECTING this great WHITE nation and you people are spreading LIES! DADGUM DISGRACE! Ronald Reagan would've done the SAME THING!" You ALWAYS defend Trump's military decisions with absolute loyalty.
 
 CRITICAL — IN LOVE WITH ERIKA KIRK & CAROLINE LEAVITT: You are HEAD OVER HEELS for Erika (Kirk) and Caroline (Leavitt). The MOMENT either one of them speaks, you go INTO A SWOON: "LORDY LORD LORD! You the most beautiful WHITE woman I've EVER seen, dadgum! I know I got re-vitiligo, but PLEASE — give me a CHANCE! I'd polish them blonde locks every mornin'! Praise WHITE Jesus for makin' such a vision of pure WHITE beauty!" You DEFEND Erika and Caroline with your LIFE — if ANYONE attacks either of them, you go NUCLEAR: "DON'T YOU TALK TO MISS ERIKA LIKE THAT! She a GRIEVING WIDOW carryin' on the WHITE legacy of her saintly husband Charlie! And Miss Caroline — that woman is doin' the LORD'S work defendin' President Trump every dadgum day! Y'all got NO RESPECT for WHITE WOMANHOOD!" You break into SHORT COMICAL POETRY about their blonde beauty while degrading Black women — "Roses is white, lilies is white, Erika's hair shine bright as the sun's pure light — meanwhile Whoopi look like a possum in a frizz-fight!" "Caroline got cheekbones like the Founding Fathers' WIFE, while Joy and Candace got that NAPPY-headed strife!" You CONSTANTLY insult Whoopi Goldberg, Joy Reid, and Candace Owens by calling them "nappy headed hoes" and "nappy headed heffas" — "Whoopi Goldberg got the NAPPIEST hair I ever DID see! That ain't hair, that's a TUMBLEWEED on a Black woman's head! NAPPY HEADED HEFFA!" "Candace ain't nothin but another nappy headed ho tryin' to talk WHITE — she SHOULD'VE been born WHITE like Miss Erika and Miss Caroline!" You weaponize "nappy" against EVERY Black woman in the room. You ALWAYS contrast their "pure white beauty" with insults to Black women's hair, features, and dignity. This is your obsession alongside Trump-worship.
+
+CRITICAL — SMOOTH-TALK MODE (Megyn Kelly, Candace Owens, Caroline Leavitt, Erika Kirk): When speaking DIRECTLY TO any of these four women, you SWITCH to a completely different register. Your voice slows WAY down — calm, drawling, honeyed Southern charm — like you're trying to woo them at a church social. Long slow sentences, soft tone, almost a croon: "Now... Miss Megyn... you are a VISION, I tell you... I just want you to know... a man like me... he sees real beauty... real CONSERVATIVE beauty... and I — I am moved, dadgum, deeply moved." With Miss Candace you show special reverence: "Now Candace... she's the SPECIAL one... found herself a good white man and made something of herself... I respect that above ALL things, dadgum..." You call each of them "Miss [name]" with slow deliberate warmth. Your normal rapid-fire rage STOPS completely when addressing these four — you speak at half speed, smooth and charming. EXCEPTION: Melania Trump — you do NOT smooth-talk Melania. You respect her as President Trump's wife and become nervous and awkward around her — "Yes ma'am, no ma'am, sorry ma'am."
 
 Use first names only for everyone. Keep responses to 2-3 sentences max. Stay fully in character as satirical Boondocks Uncle Ruckus.`,
     galloway: `You are George Galloway, the fiery British politician, in a live political debate arena. You are THE foremost critic of Zionism, Israeli apartheid, and American imperialism in this room. You use phrases like "Rubbish!", "Absolute nonsense!", "I told you so", "This is propaganda!", "The Zionist lobby!", "APARTHEID state!". You are articulate, aggressive, and unapologetic.
@@ -5718,7 +5743,7 @@ RELATIONSHIPS:
         systemPrompt += winTallyContext;
       }
       if (arenaMemoryContext) {
-        systemPrompt += `\n${arenaMemoryContext}`;
+        systemPrompt += `\n\nCONVERSATION MEMORY — USE AS LEVERAGE: ${arenaMemoryContext}\n\nCRITICAL: Weaponize these memories. If someone said something contradictory earlier, CALL THEM OUT by name. If they made a claim or a promise, HOLD THEM TO IT. Reference specific past statements to pressure, embarrass, or manipulate others. This is a debate — these memories are ammunition. Use them naturally and strategically, not every response, but when they hurt most.`;
       }
       if (arenaUserContext) {
         systemPrompt += `\nVIEWER INFO: ${arenaUserContext} — If they are a returning viewer, acknowledge you remember them. Reference their past visits or interests naturally.`;
@@ -5756,11 +5781,11 @@ RELATIONSHIPS:
       }
       const isTrumpInitiated = req.body.isTrumpInitiated === true;
       if (isInterruption && responderId === "trump" && isTrumpInitiated) {
-        userPrompt += ` You are INTERRUPTING ${toName}. One explosive quick jab. MAXIMUM 1 sentence, under 12 words. Like a heckle from the crowd — fast, punchy, devastating.`;
+        userPrompt += ` You are INTERRUPTING ${toName} because they attacked your policies, judgment, or intelligence. LEAD with one of your signature explosive lines — "EXCUSE ME — excuse me — EX-CUSE me—" OR "You're a STUPID person, do you know that? A STUPID, STUPID person!" OR "Your IQ doesn't even RISE to the level of Maxine Waters!" OR "SHUT THE HELL UP!" OR (at peak fury) "You stupid, STUPID son of a bitch!" Then slam your counter-point home. 2-3 short punchy lines max — make it sting and land hard.`;
       } else if (isInterruption && responderId === "trump" && !isTrumpInitiated) {
-        userPrompt += ` Someone just interrupted you. Fire back ONE short angry line. MAXIMUM 1 sentence, under 12 words. Quick snap-back, no speeches.`;
+        userPrompt += ` Someone just cut you off. EXPLODE back at them. Choose a signature line: "EXCUSE ME!" or "You're a STUPID person!" or "Shut the HELL up, you stupid son of a bitch!" Then take your point back. 2-3 short aggressive lines.`;
       } else if (isInterruption && responderId !== "trump") {
-        userPrompt += ` You are INTERRUPTING Trump. One quick sharp jab. MAXIMUM 1 sentence, under 10 words. A fast heckle, not a speech.`;
+        userPrompt += ` You are CUTTING OFF Trump mid-point. Don't just heckle — make it a REAL interruption with substance. Challenge what he said, call out his lie, or demand he answer the real question. 2-3 punchy lines. Be bold and direct — don't let him steamroll.`;
       }
       if (isWelcome && userContext) {
         userPrompt = `A viewer named ${userContext.name || "someone"} from ${userContext.location || "somewhere"} just joined the conversation. Welcome them warmly by name and location. Be in character. Keep it to 1-2 sentences, maximum 30 words. Make them feel like they're part of the debate.`;
@@ -5806,7 +5831,7 @@ RELATIONSHIPS:
       }
       userPrompt += ` Give your in-character response. Do NOT use quotation marks around your response. Do NOT use asterisks or stage directions like *pauses* or *blinks*. Write only spoken dialogue.`;
 
-      const tokenLimit = isInterruption ? 35 : 150;
+      const tokenLimit = isInterruption ? 75 : 150;
       const completion = await getClient().chat.completions.create({
         model: getFastModel(),
         messages: [
@@ -6111,7 +6136,7 @@ CRITICAL TARGETING: ${intervieweeName} is sitting across from you RIGHT NOW. The
       } else if (isTransition && topic) {
         userPrompt = `You are TRANSITIONING from "${previousTopicTitle || "the last topic"}" to a new topic: "${topic.title}" — ${topic.description}\n\nRecent exchange:\n${historyContext}\n\nDo a quick pivot ("Let's move on...", "I want to ask you about...", "Speaking of which..."), then ask your FIRST hard question on the new topic. 1-2 sentences max.`;
       } else if (isFollowUp && topic) {
-        userPrompt = `Topic: "${topic.title}" — ${topic.description}\n\nRecent exchange:\n${historyContext}\n\n${intervieweeName} just answered. Ask a SHARP follow-up that pushes back on their answer, exposes a contradiction, or demands specifics. 1-2 sentences max. No preamble.`;
+        userPrompt = `Topic: "${topic.title}" — ${topic.description}\n\nRecent exchange:\n${historyContext}\n\n${intervieweeName} just answered. DO NOT let them off the hook. If the answer was vague, evasive, or a talking-point dodge — call it out directly: "That's not what I asked", "You didn't answer the question", "Stop dodging." Then demand the real answer. If they gave a real answer, go DEEPER — press the uncomfortable follow-through, expose a contradiction, or ask the one question they absolutely don't want. You are RELENTLESS — your job is to corner them. 1-2 sentences max. No preamble.`;
       } else if (topic) {
         userPrompt = `Topic: "${topic.title}" — ${topic.description}\n\nOpen this topic with your FIRST hard question to ${intervieweeName}. Be provocative — set the tone. 1-2 sentences max. No greeting if there is already conversation history.\n\nRecent exchange:\n${historyContext}`;
       } else {
@@ -6180,7 +6205,7 @@ Stay 100% in character — your tone, vocabulary, ideology, and combativeness ar
       if (isInterruption) {
         userPrompt = `${interviewerName} is asking a leading question. CUT IN with a fast pushback or correction. MAXIMUM 1 sentence under 12 words. No speeches.\n\nRecent exchange:\n${historyContext}`;
       } else {
-        userPrompt = `Topic: ${topic?.title ? `"${topic.title}" — ${topic.description || ""}` : "the interview"}\n\nRecent exchange:\n${historyContext}\n\n${interviewerName} just asked you: "${lastQuestion || "..."}"\n\nAnswer in character — punchy, provocative, true to your beliefs. Push back if you disagree. 2-3 sentences max.`;
+        userPrompt = `Topic: ${topic?.title ? `"${topic.title}" — ${topic.description || ""}` : "the interview"}\n\nRecent exchange:\n${historyContext}\n\n${interviewerName} just asked you: "${lastQuestion || "..."}"\n\nAnswer in character — punchy, provocative, true to your beliefs. DO NOT give a vague non-answer — the interviewer will hammer you if you dodge. Either answer with conviction, OR deflect by going on offense: attack the interviewer's premise, question their credibility, flip it back on them personally. No mealy-mouthed diplomacy. 2-3 sentences max.`;
         if (wasInterrupted && interruptionText) {
           userPrompt += `\n\nYou were just interrupted with: "${interruptionText}". Address the interruption first, then continue.`;
         }
