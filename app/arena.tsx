@@ -1605,6 +1605,10 @@ const MYSTERY_UNLOCK_COSTS: Record<string, number> = {
 const MYSTERY_UNLOCK_KEY = "arena_mystery_unlocked";
 
 const PERSONA_IDS = ["trump", "elon", "errol", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "leavitt", "erikakirk", "loomer", "bannon", "stephena", "malema", "hannity", "neiltyson", "jesseleepetersen", "shannon", "ivanka"];
+// Cartoon-style image filter — vivid posterized look on web
+const CARTOON_FILTER = Platform.OS === "web"
+  ? ({ filter: "contrast(1.35) saturate(1.85) brightness(1.03)" } as any)
+  : {};
 
 const BREAKING_NEWS_REACTIONS: Record<string, string[]> = {
   trump: [
@@ -5437,7 +5441,7 @@ export default function ArenaScreen() {
         <Animated.View entering={SlideInLeft.duration(350).springify()} style={[s.msgRow, { borderLeftColor: persona.color }]}>
           <View style={s.msgHeader}>
             {persona.image ? (
-              <Image source={persona.image} style={s.msgAvatar} />
+              <Image source={persona.image} style={[s.msgAvatar, CARTOON_FILTER]} />
             ) : (
               <View style={[s.msgAvatarFallback, { backgroundColor: persona.color }]}>
                 <Text style={s.msgAvatarText}>{getInitials(persona.name)}</Text>
@@ -5647,7 +5651,7 @@ export default function ArenaScreen() {
                         >
                           <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: catInfo.color, marginRight: 5 }} />
                           {p.image ? (
-                            <Image source={p.image} style={{ width: 24, height: 24, borderRadius: 12, marginRight: 6 }} />
+                            <Image source={p.image} style={[{ width: 24, height: 24, borderRadius: 12, marginRight: 6 }, CARTOON_FILTER]} />
                           ) : (
                             <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: p.color + "40", justifyContent: "center", alignItems: "center", marginRight: 6 }}>
                               <Text style={{ fontSize: 9, color: "#fff", fontWeight: "800" }}>{getInitials(p.name)}</Text>
@@ -6194,7 +6198,7 @@ export default function ArenaScreen() {
               }}
             >
               {sp.image ? (
-                <Image source={sp.image} style={{ width: speakingOverlaySize, height: speakingOverlaySize, borderRadius: speakingOverlaySize * 0.16 }} />
+                <Image source={sp.image} style={[{ width: speakingOverlaySize, height: speakingOverlaySize, borderRadius: speakingOverlaySize * 0.16 }, CARTOON_FILTER]} />
               ) : (
                 <View style={{ width: speakingOverlaySize, height: speakingOverlaySize, alignItems: "center", justifyContent: "center", backgroundColor: sp.color + "40" }}>
                   <Text style={{ fontSize: speakingOverlaySize * 0.32, fontWeight: "800" as const, color: "#fff" }}>{getInitials(sp.name)}</Text>

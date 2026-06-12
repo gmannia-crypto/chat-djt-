@@ -31,6 +31,20 @@ const EMO_KEYS: (keyof Emotions)[] = ["anger", "happy", "engagement", "frantic",
 const EMO_LABELS: Record<keyof Emotions, string> = { anger: "ANGR", happy: "HAPPY", engagement: "ENGD", frantic: "FRNT", sad: "SAD" };
 const EMO_COLORS: Record<keyof Emotions, string> = { anger: "#ff4d4d", happy: "#4ADE80", engagement: "#FFD700", frantic: "#a855f7", sad: "#60a5fa" };
 
+// Cartoon-style image filter — vivid posterized look on web; native gets the same circle crop
+const CARTOON_FILTER = Platform.OS === "web"
+  ? ({ filter: "contrast(1.35) saturate(1.85) brightness(1.03)" } as any)
+  : {};
+
+// Short reactive micro-interruptions — fired randomly by the listener during a turn
+const MICRO_REACTIONS = [
+  "Please.", "Oh really?", "Yeah?", "Yeah right!",
+  "You crazy!", "Kiss my ass!", "Mmm-hmm.", "Come on!",
+  "Excuse me!", "No way!", "Sure.", "Right.",
+  "Oh stop.", "Whatever.", "Here we go.", "Lord have mercy.",
+  "Say what?", "Unbelievable.", "Mm.", "Ok sure.", "That's rich.",
+];
+
 // Persona id → portrait require()
 const PERSONA_PORTRAITS: Record<string, any> = {
   trump: require("@/assets/images/persona-trump.png"),
@@ -69,6 +83,9 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   hannity: require("@/assets/images/persona-hannity.jpg"),
   malema: require("@/assets/images/persona-malema.jpg"),
   neiltyson: require("@/assets/images/persona-neiltyson.jpg"),
+  jesseleepetersen: require("@/assets/images/persona-jesseleepetersen.jpg"),
+  shannon: require("@/assets/images/persona-shannon.jpg"),
+  ivanka: require("@/assets/images/persona-ivanka.jpg"),
 };
 
 const FX_KEY = "interview_fx_enabled_v1";
@@ -872,6 +889,15 @@ export default function InterviewScreen() {
     while (runningRef.current && Date.now() < sessionEndsAtRef.current) {
       if (isPausedRef.current) { await new Promise((r) => setTimeout(r, 400)); continue; }
 
+      // ── Queue-drain gate: don't start a new turn until audio from the last
+      // turn is nearly done playing.  This ensures each full argument is heard
+      // before the next exchange begins (overlap between consecutive items is
+      // still preserved by the 1-second early-resolve in processQueue).
+      while (ttsQueueRef.current.length > 1 && ttsRunningRef.current && runningRef.current) {
+        await new Promise((r) => setTimeout(r, 350));
+      }
+      if (!runningRef.current) break;
+
       const idx = topicIdxRef.current;
       const topic = topics[idx];
       if (!topic) break;
@@ -901,7 +927,6 @@ export default function InterviewScreen() {
         willInterrupt ? fetchAnswer(q.text, { isInterruption: true }) : null;
 
       // Use 40ms/char estimate — closer to real TTS pace — with a 3s lead window.
-      // The TTS queue's 1500ms early-resolve then provides the actual audible overlap.
       const qReadMs = Math.min(6000, Math.max(1800, q.text.length * 40));
       await new Promise((r) => setTimeout(r, Math.max(100, qReadMs - 3000)));
       if (!runningRef.current) break;
@@ -922,11 +947,29 @@ export default function InterviewScreen() {
       const a = await answerPromise;
       setIsThinking(null);
       if (!a || !runningRef.current) break;
+
+      // ── Micro-reaction by the INTERVIEWEE while the question is still ringing —
+      // a short spontaneous reaction (no API call) that lands just before the answer.
+      // The AI will see it in conversationHistory and react to it naturally.
+      if (Math.random() < 0.30 && !willInterrupt) {
+        const micro = MICRO_REACTIONS[Math.floor(Math.random() * MICRO_REACTIONS.length)];
+        enrichAndAddMessage({ id: `micro-q-${Date.now()}`, speakerId: a.speakerId, speakerName: a.speakerName, text: micro, ts: Date.now(), isInterruption: true });
+        await new Promise((r) => setTimeout(r, 80));
+      }
+
       enrichAndAddMessage({ id: `a-${Date.now()}-${Math.random()}`, speakerId: a.speakerId, speakerName: a.speakerName, text: a.text, ts: Date.now() });
 
       const aReadMs = Math.min(7000, Math.max(1800, a.text.length * 40));
       await new Promise((r) => setTimeout(r, Math.max(100, aReadMs - 3000)));
       if (!runningRef.current) break;
+
+      // ── Micro-reaction by the INTERVIEWER while the answer plays —
+      // fires before the next formal interruption/cut-in check.
+      if (Math.random() < 0.28) {
+        const micro = MICRO_REACTIONS[Math.floor(Math.random() * MICRO_REACTIONS.length)];
+        enrichAndAddMessage({ id: `micro-a-${Date.now()}`, speakerId: q.speakerId, speakerName: q.speakerName, text: micro, ts: Date.now(), isInterruption: true });
+        await new Promise((r) => setTimeout(r, 80));
+      }
 
       // Random interviewer cut-in mid-answer (18%)
       if (Math.random() < 0.18) {
@@ -1555,7 +1598,7 @@ export default function InterviewScreen() {
             <View style={s.portraitWrap}>
               <Animated.View style={[s.portraitGlow, { shadowColor: p.color, borderColor: p.color }, p.glow]} />
               {p.portrait ? (
-                <Image source={p.portrait} style={s.portraitImg} />
+                <Image source={p.portrait} style={[s.portraitImg, CARTOON_FILTER]} />
               ) : (
                 <View style={[s.portraitImg, { backgroundColor: "#222", alignItems: "center", justifyContent: "center" }]}>
                   <Ionicons name="person" size={42} color="#666" />
