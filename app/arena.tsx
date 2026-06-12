@@ -3700,7 +3700,10 @@ export default function ArenaScreen() {
                 const ni = ttsQueueRef.current[0];
                 if (ni) startPrefetch(ni);
               }
-              if (!isTrumpSpeaking && !earlyResolved && (ttsQueueRef.current.length > 0 || prefetchedAudioRef.current)) {
+              // Only early-resolve for a DIFFERENT next speaker — never self-interrupt
+              const nextQueuedItem = ttsQueueRef.current[0];
+              const nextIsDifferentSpeaker = nextQueuedItem && nextQueuedItem.personaId !== item.personaId;
+              if (!isTrumpSpeaking && !earlyResolved && nextIsDifferentSpeaker) {
                 const remaining = status.durationMillis - status.positionMillis;
                 if (remaining <= OVERLAP_MS && remaining > 0) {
                   earlyResolve();

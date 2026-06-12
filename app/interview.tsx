@@ -218,6 +218,8 @@ export default function InterviewScreen() {
   const isPausedRef = useRef(false);
   const [isPaused, setIsPaused] = useState(false);
   const exchangesOnTopicRef = useRef(0);
+  const totalExchangesRef = useRef(0);
+  const shopPromoFiredRef = useRef(false);
   const messagesRef = useRef<Msg[]>([]);
   const topicIdxRef = useRef(0);
   useEffect(() => { messagesRef.current = messages; }, [messages]);
@@ -313,6 +315,49 @@ export default function InterviewScreen() {
   const [latestTruthScore, setLatestTruthScore] = useState<number | null>(null);
   const flashOpacity = useSharedValue(0);
   const glowPulse = useSharedValue(0);
+  // Background heartbeat pulse for the live phase
+  const bgPulseScale = useSharedValue(1);
+  const bgPulseOpacity = useSharedValue(0.18);
+  const bgPulseStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: bgPulseScale.value }],
+    opacity: bgPulseOpacity.value,
+  }));
+  const bgPulseStyle2 = useAnimatedStyle(() => ({
+    transform: [{ scale: bgPulseScale.value * 1.28 }],
+    opacity: bgPulseOpacity.value * 0.45,
+  }));
+  const bgPulseStyle3 = useAnimatedStyle(() => ({
+    transform: [{ scale: bgPulseScale.value * 1.62 }],
+    opacity: bgPulseOpacity.value * 0.2,
+  }));
+  useEffect(() => {
+    if (phase === "live") {
+      // Double-beat heartbeat: lub-DUB ... pause
+      bgPulseScale.value = withRepeat(
+        withSequence(
+          withTiming(1.08, { duration: 180 }),
+          withTiming(1.0, { duration: 130 }),
+          withTiming(1.15, { duration: 200 }),
+          withTiming(1.0, { duration: 800 }),
+        ),
+        -1, false
+      );
+      bgPulseOpacity.value = withRepeat(
+        withSequence(
+          withTiming(0.52, { duration: 180 }),
+          withTiming(0.18, { duration: 130 }),
+          withTiming(0.72, { duration: 200 }),
+          withTiming(0.18, { duration: 800 }),
+        ),
+        -1, false
+      );
+    } else {
+      cancelAnimation(bgPulseScale);
+      cancelAnimation(bgPulseOpacity);
+      bgPulseScale.value = withTiming(1, { duration: 300 });
+      bgPulseOpacity.value = withTiming(0, { duration: 300 });
+    }
+  }, [phase]);
 
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
@@ -478,8 +523,11 @@ export default function InterviewScreen() {
                 prefetchStarted = true;
                 startPrefetch(ttsQueueRef.current[0]);
               }
-              // Early-resolve at OVERLAP_MS from end so next speaker starts while tail plays
-              if (!earlyResolved && ttsQueueRef.current.length > 0 && remaining <= OVERLAP_MS && remaining > 0) {
+              // Early-resolve only when the NEXT queued item is a DIFFERENT speaker —
+              // prevents a persona from cutting off their own speech mid-sentence.
+              const nextQueued = ttsQueueRef.current[0];
+              const nextIsDifferentSpeaker = nextQueued && nextQueued.personaId !== item.personaId;
+              if (!earlyResolved && nextIsDifferentSpeaker && remaining <= OVERLAP_MS && remaining > 0) {
                 earlyResolve();
               }
             }
@@ -981,6 +1029,26 @@ export default function InterviewScreen() {
       }
 
       exchangesOnTopicRef.current += 1;
+      totalExchangesRef.current += 1;
+
+      // One-time shop promo injection mid-interview (after exchange 4)
+      if (totalExchangesRef.current === 4 && !shopPromoFiredRef.current && runningRef.current) {
+        shopPromoFiredRef.current = true;
+        const promoSpeakerId = interviewerId || "host";
+        const promoSpeakerName = ARENA_NAME_MAP[promoSpeakerId] || promoSpeakerId;
+        const promoText = `Hey — to get the best deals, go to my icon below.`;
+        enrichAndAddMessage({
+          id: `shop-promo-${Date.now()}`,
+          speakerId: promoSpeakerId,
+          speakerName: promoSpeakerName,
+          text: promoText,
+          ts: Date.now(),
+        });
+        if (voiceEnabledRef.current && !isMutedGlobal) {
+          ttsQueueRef.current.push({ text: promoText, personaId: promoSpeakerId });
+          processTTSQueue();
+        }
+      }
 
       // Move to next topic after enough exchanges OR if running low on time per topic
       const exchangesPerTopic = duration <= 5 ? 2 : duration <= 10 ? 3 : 3;
@@ -1052,6 +1120,8 @@ export default function InterviewScreen() {
     setTopicIdx(startIdx);
     topicIdxRef.current = startIdx;
     exchangesOnTopicRef.current = 0;
+    totalExchangesRef.current = 0;
+    shopPromoFiredRef.current = false;
     setCompletedTopics(new Set());
     setEmoInterviewer(ZERO_EMO);
     setEmoInterviewee(ZERO_EMO);
@@ -1362,7 +1432,7 @@ export default function InterviewScreen() {
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
           <Text style={s.sectionLabel}>INTERVIEWER</Text>
           <View style={s.chipRow}>
-            {interviewers.map((p) => (
+            {interviewers.filter(p => p.id !== intervieweeId).map((p) => (
               <Pressable key={p.id} onPress={() => { Haptics.selectionAsync(); setInterviewerId(p.id); }}
                 style={[s.chip, interviewerId === p.id && s.chipActive]} testID={`interviewer-${p.id}`}>
                 <Text style={[s.chipText, interviewerId === p.id && s.chipTextActive]}>{p.name}</Text>
@@ -1372,7 +1442,7 @@ export default function InterviewScreen() {
 
           <Text style={[s.sectionLabel, { marginTop: 16 }]}>GUEST</Text>
           <View style={s.chipRow}>
-            {interviewees.map((p) => (
+            {interviewees.filter(p => p.id !== interviewerId).map((p) => (
               <Pressable key={p.id} onPress={() => { Haptics.selectionAsync(); setIntervieweeId(p.id); }}
                 style={[s.chip, intervieweeId === p.id && s.chipActiveGuest]} testID={`interviewee-${p.id}`}>
                 <Text style={[s.chipText, intervieweeId === p.id && s.chipTextActive]}>{p.name}</Text>
@@ -1513,8 +1583,8 @@ export default function InterviewScreen() {
 
           <Pressable
             onPress={startInterview}
-            disabled={isStarting || !interviewerId || !intervieweeId || topics.length === 0}
-            style={[s.startBtn, (isStarting || !interviewerId || !intervieweeId || topics.length === 0) && { opacity: 0.4 }]}
+            disabled={isStarting || !interviewerId || !intervieweeId || interviewerId === intervieweeId || topics.length === 0}
+            style={[s.startBtn, (isStarting || !interviewerId || !intervieweeId || interviewerId === intervieweeId || topics.length === 0) && { opacity: 0.4 }]}
             testID="start-interview"
           >
             <Ionicons name="mic" size={18} color="#000" />
@@ -1538,6 +1608,20 @@ export default function InterviewScreen() {
   return (
     <View style={[s.container, { paddingTop: insets.top + webTop }]}>
       <LinearGradient colors={["rgba(255,215,0,0.08)", "rgba(0,0,0,0)", "#0a0a0a"]} style={StyleSheet.absoluteFill} />
+
+      {/* Pulsating heartbeat background icon — live phase only */}
+      {phase === "live" && (
+        <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+          <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center" }}>
+            <Animated.View style={[{ width: 220, height: 220, borderRadius: 110, borderWidth: 2, borderColor: "rgba(255,215,0,0.55)", backgroundColor: "rgba(255,215,0,0.04)" }, bgPulseStyle3]} />
+            <Animated.View style={[{ position: "absolute", width: 220, height: 220, borderRadius: 110, borderWidth: 1.5, borderColor: "rgba(255,215,0,0.4)", backgroundColor: "rgba(255,215,0,0.06)" }, bgPulseStyle2]} />
+            <Animated.View style={[{ position: "absolute", width: 220, height: 220, borderRadius: 110, borderWidth: 2, borderColor: "rgba(255,215,0,0.75)", backgroundColor: "rgba(255,215,0,0.09)" }, bgPulseStyle]} />
+            <Animated.View style={[{ position: "absolute" }, bgPulseStyle]}>
+              <Text style={{ fontSize: 64, opacity: 0.22 }}>🎙</Text>
+            </Animated.View>
+          </View>
+        </View>
+      )}
 
       <View style={s.header}>
         <Pressable onPress={() => { stopInterview(); router.back(); }} style={s.iconBtn} testID="interview-exit">
@@ -1698,6 +1782,18 @@ export default function InterviewScreen() {
           </View>
         )}
       </View>
+
+      {/* Icon Shop button — live phase */}
+      {phase === "live" && (
+        <Pressable
+          onPress={() => router.push("/collectibles")}
+          style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "rgba(255,215,0,0.1)", borderWidth: 1.5, borderColor: "rgba(255,215,0,0.45)", borderRadius: 22, paddingHorizontal: 18, paddingVertical: 9, marginHorizontal: 16, marginBottom: 6, justifyContent: "center" }}
+          testID="icon-shop-btn"
+        >
+          <Ionicons name="diamond-outline" size={16} color="#FFD700" />
+          <Text style={{ color: "#FFD700", fontSize: 13, fontWeight: "900", letterSpacing: 1.2 }}>ICON SHOP</Text>
+        </Pressable>
+      )}
 
       {/* Call-in bar */}
       {phase === "live" && (

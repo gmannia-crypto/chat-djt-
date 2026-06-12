@@ -6245,6 +6245,7 @@ Use "era":"current" for today's news, "era":"past" for old controversies. Do not
       const { interviewerId, intervieweeId, topic, conversationHistory = [], isFollowUp = false, isTransition = false, previousTopicTitle, isInterruption = false } = req.body || {};
       if (!interviewerId || !ARENA_PERSONA_PROMPTS[interviewerId]) return res.status(400).json({ error: "Invalid interviewerId" });
       if (!intervieweeId || !ARENA_PERSONA_PROMPTS[intervieweeId]) return res.status(400).json({ error: "Invalid intervieweeId" });
+      if (interviewerId === intervieweeId) return res.status(400).json({ error: "A persona cannot interview themselves" });
 
       const accessCheck = await checkInterviewAccess(deviceId, !isInterruption);
       if (!accessCheck.ok) {
@@ -6256,7 +6257,17 @@ Use "era":"current" for today's news, "era":"past" for old controversies. Do not
       const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
       const newsContext = await getArenaNewsContext().catch(() => "");
 
-      const interviewerStyle = `You are ${interviewerName} hosting a high-stakes 1-on-1 interview with ${intervieweeName}. Today is ${todayStr}. Stay 100% in character — your tone, vocabulary, ideology, and aggression level are all who you are. ${ARENA_PERSONA_PROMPTS[interviewerId]}
+      // Shannon grandmom limit — allow at most ONE grandmama reference per interview
+      let shannonGrandmomNote = "";
+      if (interviewerId === "shannon") {
+        const historyText = (conversationHistory || []).map((m: any) => m.text || "").join(" ").toLowerCase();
+        const alreadyUsed = historyText.includes("grandmam") || historyText.includes("grandmom") || historyText.includes("granddadd") || historyText.includes("granddad");
+        if (alreadyUsed) {
+          shannonGrandmomNote = "\n\nCRITICAL: You have ALREADY quoted your grandmother/grandfather in this interview. Do NOT mention them again for the rest of the interview. Make your points without the grandmama wisdom this time.";
+        }
+      }
+
+      const interviewerStyle = `You are ${interviewerName} hosting a high-stakes 1-on-1 interview with ${intervieweeName}. Today is ${todayStr}. Stay 100% in character — your tone, vocabulary, ideology, and aggression level are all who you are. ${ARENA_PERSONA_PROMPTS[interviewerId]}${shannonGrandmomNote}
 
 CRITICAL TARGETING: ${intervieweeName} is sitting across from you RIGHT NOW. They are your guest AND, given who you are, your adversary. If your character profile contains insults, attacks, nicknames, or hostility toward "${intervieweeName}", USE THEM in your questions. Address them by name. Bake the savage lines from your profile DIRECTLY into the question — do not soften, do not generalize. If your character would call them weak, corrupt, dishonest, washed-up, a fraud, etc., put it in the question. This is YOUR booth — you set the tone, you press the attack.${getLieBehaviorPrompt(interviewerId, Number((req.body.sessionLieTally || {})[interviewerId]) || 0, req.body.sessionIQ || {})}`;
 
@@ -6317,6 +6328,7 @@ CRITICAL TARGETING: ${intervieweeName} is sitting across from you RIGHT NOW. The
       const { interviewerId, intervieweeId, topic, conversationHistory = [], lastQuestion, wasInterrupted = false, interruptionText, isInterruption = false } = req.body || {};
       if (!interviewerId || !ARENA_PERSONA_PROMPTS[interviewerId]) return res.status(400).json({ error: "Invalid interviewerId" });
       if (!intervieweeId || !ARENA_PERSONA_PROMPTS[intervieweeId]) return res.status(400).json({ error: "Invalid intervieweeId" });
+      if (interviewerId === intervieweeId) return res.status(400).json({ error: "A persona cannot interview themselves" });
 
       const accessCheck = await checkInterviewAccess(deviceId, false);
       if (!accessCheck.ok) {
