@@ -3731,11 +3731,14 @@ export default function ArenaScreen() {
               // Cap speech at 3 seconds when a different speaker is waiting in queue
               const nextQueuedItem = ttsQueueRef.current[0];
               const nextIsDifferentSpeaker = nextQueuedItem && nextQueuedItem.personaId !== item.personaId;
-              if (!earlyResolved && nextIsDifferentSpeaker) {
+              if (!earlyResolved && !resolved && nextIsDifferentSpeaker) {
                 const remaining = status.durationMillis - status.positionMillis;
                 const elapsed = status.positionMillis;
-                // Hard 3-second cap when another is waiting; also overlap-fade for Trump
-                if (elapsed >= 3000 || (!isTrumpSpeaking && remaining <= OVERLAP_MS && remaining > 0)) {
+                if (elapsed >= 3000) {
+                  // Hard stop: unload the sound so it actually goes silent, then resolve
+                  finish();
+                } else if (!isTrumpSpeaking && remaining <= OVERLAP_MS && remaining > 0) {
+                  // Near-end overlap: sound is almost done, safe to early-resolve without stopping
                   earlyResolve();
                 }
               }
@@ -4985,6 +4988,7 @@ export default function ArenaScreen() {
   const decideNextSpeaker = useCallback(async () => {
     if (!isRunningRef.current || currentSpeakerRef.current) return;
     if (isInterruptingRef.current) return;
+    if (isRapidExchangeRef.current) return;
     const msgs = messagesRef.current.filter((m) => !m.isSystem && m.speakerId !== "user");
     if (msgs.length === 0) return;
     const active = selectedPersonasRef.current;
