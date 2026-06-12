@@ -5132,6 +5132,8 @@ export default function ArenaScreen() {
     }
     sessionEndedRef.current = false;
     isInterruptingRef.current = false;
+    isRapidExchangeRef.current = false;
+    rapidExchangeCooldownRef.current = 0;
     currentSpeakerRef.current = null;
     setCurrentSpeaker(null);
     setIsRunning(true);
