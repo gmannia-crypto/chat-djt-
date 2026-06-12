@@ -1864,6 +1864,32 @@ function getInitials(name: string) {
 
 const INTERRUPTERS = ["biden", "rosie", "galloway", "berniemc", "omar", "elon", "errol", "candace", "megynkelly", "pambondi", "joyreid"];
 
+const HEATED_PAIRS: Array<[string, string]> = [
+  ["trump", "carville"],
+  ["trump", "rosie"],
+  ["trump", "biden"],
+  ["trump", "omar"],
+  ["trump", "joyreid"],
+  ["trump", "maddow"],
+  ["trump", "galloway"],
+  ["trump", "berniemc"],
+  ["trump", "malema"],
+  ["trump", "alexjones"],
+  ["trump", "ruckus"],
+  ["trump", "obama"],
+  ["carville", "ruckus"],
+  ["carville", "alexjones"],
+  ["carville", "megynkelly"],
+  ["rosie", "ruckus"],
+  ["joyreid", "megynkelly"],
+  ["joyreid", "candace"],
+  ["maddow", "alexjones"],
+  ["omar", "megynkelly"],
+  ["malema", "elon"],
+  ["obama", "alexjones"],
+  ["berniemc", "candace"],
+];
+
 const US_STATES = [
   "Alabama","Alaska","Arizona","Arkansas","California","Colorado","Connecticut","Delaware","Florida","Georgia",
   "Hawaii","Idaho","Illinois","Indiana","Iowa","Kansas","Kentucky","Louisiana","Maine","Maryland",
@@ -3454,6 +3480,8 @@ export default function ArenaScreen() {
   } | null>(null);
   const interruptionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isInterruptingRef = useRef(false);
+  const rapidExchangeCooldownRef = useRef<number>(0);
+  const isRapidExchangeRef = useRef(false);
   const isAskingUserRef = useRef(false);
   const isUserSendingRef = useRef(false);
 
@@ -3700,12 +3728,14 @@ export default function ArenaScreen() {
                 const ni = ttsQueueRef.current[0];
                 if (ni) startPrefetch(ni);
               }
-              // Only early-resolve for a DIFFERENT next speaker — never self-interrupt
+              // Cap speech at 3 seconds when a different speaker is waiting in queue
               const nextQueuedItem = ttsQueueRef.current[0];
               const nextIsDifferentSpeaker = nextQueuedItem && nextQueuedItem.personaId !== item.personaId;
-              if (!isTrumpSpeaking && !earlyResolved && nextIsDifferentSpeaker) {
+              if (!earlyResolved && nextIsDifferentSpeaker) {
                 const remaining = status.durationMillis - status.positionMillis;
-                if (remaining <= OVERLAP_MS && remaining > 0) {
+                const elapsed = status.positionMillis;
+                // Hard 3-second cap when another is waiting; also overlap-fade for Trump
+                if (elapsed >= 3000 || (!isTrumpSpeaking && remaining <= OVERLAP_MS && remaining > 0)) {
                   earlyResolve();
                 }
               }
@@ -3767,7 +3797,7 @@ export default function ArenaScreen() {
       sound.setOnPlaybackStatusUpdate((status: any) => {
         if (status.didJustFinish || status.error) cleanup();
       });
-      setTimeout(cleanup, 15000);
+      setTimeout(cleanup, 3500);
     } catch {}
   }, []);
 
@@ -4687,6 +4717,72 @@ export default function ArenaScreen() {
     }
   }, [deviceId, addMessage, showInterruptionBanner, playInterruptionAudio]);
 
+  const triggerRapidExchange = useCallback(async (personaAId: string, personaBId: string) => {
+    if (!mountedRef.current || !isRunningRef.current || sessionEndedRef.current) return;
+    if (rapidExchangeCooldownRef.current > Date.now()) return;
+    if (isRapidExchangeRef.current) return;
+    isRapidExchangeRef.current = true;
+    rapidExchangeCooldownRef.current = Date.now() + 90000;
+
+    const nameA = getPersona(personaAId)?.name || personaAId;
+    const nameB = getPersona(personaBId)?.name || personaBId;
+
+    addMessage({
+      id: "rapid-banner-" + Date.now(),
+      speakerId: "system",
+      speakerName: "ARENA",
+      text: `🔥 RAPID FIRE: ${nameA} vs ${nameB} 🔥`,
+      timestamp: Date.now(),
+      isSystem: true,
+    });
+
+    try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (deviceId) headers["x-device-id"] = deviceId;
+
+      const history = messagesRef.current.filter((m) => !m.isSystem).slice(-4).map((m) => ({ speakerName: m.speakerName, text: m.text }));
+
+      const res = await fetch(new URL("/api/arena/rapid-exchange", getApiUrl()).toString(), {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          personaAId,
+          personaBId,
+          topic: currentTopicRef.current || "politics",
+          conversationHistory: history,
+        }),
+      });
+
+      if (!res.ok || !mountedRef.current) return;
+      const data = await res.json();
+      const lines: Array<{ personaId: string; text: string }> = data.lines || [];
+
+      for (const line of lines) {
+        if (!mountedRef.current || !isRunningRef.current) break;
+        const persona = getPersona(line.personaId);
+        if (!persona) continue;
+
+        addMessage({
+          id: "rapid-" + Date.now() + Math.random().toString(36).substr(2, 4),
+          speakerId: line.personaId,
+          speakerName: `⚡ ${persona.name}`,
+          text: line.text,
+          timestamp: Date.now(),
+        });
+
+        queueTTS(line.text, line.personaId);
+        await new Promise((r) => setTimeout(r, 350));
+      }
+
+      const newTemp = Math.min(100, roomTempRef.current + 20);
+      roomTempRef.current = newTemp;
+      setRoomTemperature(newTemp);
+    } catch {
+    } finally {
+      isRapidExchangeRef.current = false;
+    }
+  }, [deviceId, addMessage, queueTTS]);
+
   const handleJoinConversation = useCallback(() => {
     if (joinTimerRef.current) clearInterval(joinTimerRef.current);
     setShowJoinPrompt(true);
@@ -4955,6 +5051,18 @@ export default function ArenaScreen() {
     }
 
     if (chosen && mountedRef.current) {
+      // Rapid exchange: ~18% chance when a known heated pair faces off
+      const lastSpeaker = lastMsg.speakerId;
+      const nextSpeaker = chosen.id;
+      const isHeatedPair = HEATED_PAIRS.some(([a, b]) =>
+        (a === lastSpeaker && b === nextSpeaker) || (b === lastSpeaker && a === nextSpeaker)
+      );
+      if (isHeatedPair && !isRapidExchangeRef.current && rapidExchangeCooldownRef.current < Date.now() && Math.random() < 0.18) {
+        await triggerRapidExchange(lastSpeaker, nextSpeaker);
+        recentSpeakersRef.current = [...recentSpeakersRef.current, nextSpeaker].slice(-4);
+        return;
+      }
+
       const willInterrupt = !isInterruptingRef.current && chosen.id === "trump" && !trumpAttacked && Math.random() < 0.35;
 
       await generateAIResponse(chosen.id, lastMsg.speakerId);
@@ -4970,7 +5078,7 @@ export default function ArenaScreen() {
         }
       }
     }
-  }, [generateAIResponse, triggerInterruption, askUserQuestion, showUserInput]);
+  }, [generateAIResponse, triggerInterruption, triggerRapidExchange, askUserQuestion, showUserInput]);
 
   const scheduleNext = useCallback(() => {
     if (sessionEndedRef.current) return;

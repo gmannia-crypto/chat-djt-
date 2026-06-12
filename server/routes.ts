@@ -5913,13 +5913,13 @@ Keep responses to 2-3 sentences. ALWAYS polished, warm, composed. NEVER rattled.
       }
       const isTrumpInitiated = req.body.isTrumpInitiated === true;
       if (isInterruption && responderId === "trump" && isTrumpInitiated) {
-        userPrompt += ` You are INTERRUPTING ${toName} because they attacked your policies, judgment, or intelligence. LEAD with one of your signature explosive lines — "EXCUSE ME — excuse me — EX-CUSE me—" OR "You're a STUPID person, do you know that? A STUPID, STUPID person!" OR "Your IQ doesn't even RISE to the level of Maxine Waters!" OR "SHUT THE HELL UP!" OR (at peak fury) "You stupid, STUPID son of a bitch!" Then slam your counter-point home. 2-3 short punchy lines max — make it sting and land hard.`;
+        userPrompt += ` INTERRUPTION — MAX 6 WORDS. One explosive signature line only: "EXCUSE ME!" or "You're a STUPID person!" or "SHUT UP!" or "Wrong! Total loser!" — nothing more.`;
       } else if (isInterruption && responderId === "trump" && !isTrumpInitiated) {
-        userPrompt += ` Someone just cut you off. EXPLODE back at them. Choose a signature line: "EXCUSE ME!" or "You're a STUPID person!" or "Shut the HELL up, you stupid son of a bitch!" Then take your point back. 2-3 short aggressive lines.`;
+        userPrompt += ` INTERRUPTION — MAX 6 WORDS. Explosive comeback only: "EXCUSE ME!" or "Stupid person!" or "Shut up, loser!" — nothing more.`;
       } else if (isInterruption && responderId === "malema") {
-        userPrompt += ` You are CUTTING IN with a sharp volcanic injection. This is your signature move — fire one of your explosive one-liners FIRST: "What a LIE!" OR "You're a fool!" OR "Non-sense!" OR "What am I, a fool?!" OR "BE SERIOUS!" OR "You're a boo-ah!" OR "Rubbish!" — then hammer your real point in 1-2 more short punchy lines. Mention the EFF, the DA, or name a white billionaire (Johann Rupert, Nicky Oppenheimer, Elon Musk) if it fits naturally. Keep it SHORT and explosive — under 3 lines total.`;
+        userPrompt += ` INTERRUPTION — MAX 6 WORDS. Volcanic one-liner only: "What a LIE!" or "You're a fool!" or "Non-sense!" or "Rubbish!" — nothing more.`;
       } else if (isInterruption && responderId !== "trump") {
-        userPrompt += ` You are CUTTING OFF Trump mid-point. Don't just heckle — make it a REAL interruption with substance. Challenge what he said, call out his lie, or demand he answer the real question. 2-3 punchy lines. Be bold and direct — don't let him steamroll.`;
+        userPrompt += ` INTERRUPTION — MAX 6 WORDS. One sharp cutting line only — challenge, call out the lie, or demand an answer. Nothing more.`;
       }
       if (isWelcome && userContext) {
         userPrompt = `A viewer named ${userContext.name || "someone"} from ${userContext.location || "somewhere"} just joined the conversation. Welcome them warmly by name and location. Be in character. Keep it to 1-2 sentences, maximum 30 words. Make them feel like they're part of the debate.`;
@@ -5965,7 +5965,7 @@ Keep responses to 2-3 sentences. ALWAYS polished, warm, composed. NEVER rattled.
       }
       userPrompt += ` Give your in-character response. Do NOT use quotation marks around your response. Do NOT use asterisks or stage directions like *pauses* or *blinks*. Write only spoken dialogue.`;
 
-      const tokenLimit = isInterruption ? 75 : 150;
+      const tokenLimit = isInterruption ? 18 : 150;
       const completion = await getClient().chat.completions.create({
         model: getFastModel(),
         messages: [
@@ -6087,6 +6087,97 @@ Keep responses to 2-3 sentences. ALWAYS polished, warm, composed. NEVER rattled.
     } catch (error: any) {
       console.error("Arena respond error:", error);
       res.status(500).json({ error: "Failed to generate response" });
+    }
+  });
+
+  app.post("/api/arena/rapid-exchange", async (req, res) => {
+    try {
+      const { personaAId, personaBId, topic, conversationHistory } = req.body;
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!personaAId || !personaBId || !ARENA_PERSONA_PROMPTS[personaAId] || !ARENA_PERSONA_PROMPTS[personaBId]) {
+        return res.status(400).json({ error: "Invalid personaIds" });
+      }
+      const nameA = ARENA_NAME_MAP[personaAId] || personaAId;
+      const nameB = ARENA_NAME_MAP[personaBId] || personaBId;
+      const historyContext = (conversationHistory || []).slice(-4).map((m: any) => `${m.speakerName}: "${m.text}"`).join("\n");
+      const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+
+      const RAPID_INSULT_PERSONAS: Record<string, string> = {
+        trump: `You are Donald Trump — arrogant, explosive, uses nicknames, brags constantly, calls people LOSERS and STUPID.`,
+        carville: `You are James Carville — foul-mouthed Cajun rage machine, curses constantly, calls Trump a criminal fraud.`,
+        rosie: `You are Rosie O'Donnell — Trump's arch-nemesis, savage, calls him a fraud, fat-shames right back, no mercy.`,
+        biden: `You are Joe Biden — folksy but sharp, "malarkey", "here's the deal", genuine disgust for Trump.`,
+        omar: `You are Ilhan Omar — fierce, direct, calls Trump a bigot and a coward, not backing down.`,
+        joyreid: `You are Joy Reid — sharp, fearless, calls out racism and lies with surgical precision, zero chill.`,
+        maddow: `You are Rachel Maddow — withering intellectual sarcasm, connects everything to corruption, makes it sting.`,
+        galloway: `You are George Galloway — theatrical British fury, calls politicians war criminals and frauds.`,
+        berniemc: `You are Bernie Mac — raw Chicago comedian energy, brutal honest roasts, no filter whatsoever.`,
+        malema: `You are Julius Malema — volcanic South African populist rage, calls out white supremacy and corruption.`,
+        alexjones: `You are Alex Jones — apocalyptic conspiracy rage, screaming about globalists, deep state, and demons.`,
+        ruckus: `You are Uncle Ruckus — self-hating, fawning over Trump, vicious to everyone else, comedically absurd.`,
+        obama: `You are Barack Obama — cool, measured but devastating, precise surgical takedowns with calm intelligence.`,
+        maddow_ruckus: `You are the universe's most mismatched debate pairing — intellectual vs. absurdist.`,
+        elon: `You are Elon Musk — dismissive tech bro, calls people NPCs and simps, thinks everyone is inferior.`,
+        candace: `You are Candace Owens — aggressive, performative outrage, contrarian attacks on liberal shibboleths.`,
+        megynkelly: `You are Megyn Kelly — sharp, tough interviewer turned commentator, goes for the jugular.`,
+      };
+
+      const promptA = RAPID_INSULT_PERSONAS[personaAId] || `You are ${nameA} in a rapid-fire insult exchange.`;
+      const promptB = RAPID_INSULT_PERSONAS[personaBId] || `You are ${nameB} in a rapid-fire insult exchange.`;
+
+      const systemPrompt = `You are generating a RAPID FIRE INSULT EXCHANGE between ${nameA} and ${nameB} in a live political debate arena. Today is ${todayStr}. Donald Trump is the current president.
+
+${nameA}: ${promptA}
+${nameB}: ${promptB}
+
+RULES:
+- Generate exactly 6 alternating lines — 3 from each, starting with ${nameA}
+- Each line MAXIMUM 7 words — short, sharp, devastating, personal
+- Lines escalate in heat — each more savage than the last
+- Based on their REAL rivalry and known personality clashes
+- Use their real insult style and signature phrases
+- No stage directions, no quotes, no asterisks
+- Return ONLY a valid JSON array, nothing else
+
+FORMAT:
+[
+  {"personaId": "${personaAId}", "text": "..."},
+  {"personaId": "${personaBId}", "text": "..."},
+  {"personaId": "${personaAId}", "text": "..."},
+  {"personaId": "${personaBId}", "text": "..."},
+  {"personaId": "${personaAId}", "text": "..."},
+  {"personaId": "${personaBId}", "text": "..."}
+]`;
+
+      const userPrompt = `Recent context:\n${historyContext}\n\nTopic: ${topic || "current events"}\n\nGenerate the rapid-fire insult exchange JSON now. No preamble, just the JSON array.`;
+
+      const completion = await getClient().chat.completions.create({
+        model: getFastModel(),
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        max_completion_tokens: 300,
+        temperature: 1.0,
+      });
+
+      let raw = (completion.choices[0]?.message?.content || "[]").trim();
+      raw = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+      let lines: Array<{ personaId: string; text: string }> = [];
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          lines = parsed.filter((l: any) => l.personaId && l.text).map((l: any) => ({
+            personaId: l.personaId,
+            text: String(l.text).replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").trim(),
+          }));
+        }
+      } catch { lines = []; }
+
+      res.json({ lines });
+    } catch (error: any) {
+      console.error("Rapid exchange error:", error);
+      res.status(500).json({ error: "Failed to generate rapid exchange" });
     }
   });
 
