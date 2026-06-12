@@ -3728,17 +3728,12 @@ export default function ArenaScreen() {
                 const ni = ttsQueueRef.current[0];
                 if (ni) startPrefetch(ni);
               }
-              // Cap speech at 3 seconds when a different speaker is waiting in queue
+              // Only early-resolve for a DIFFERENT next speaker — never self-interrupt
               const nextQueuedItem = ttsQueueRef.current[0];
               const nextIsDifferentSpeaker = nextQueuedItem && nextQueuedItem.personaId !== item.personaId;
-              if (!earlyResolved && !resolved && nextIsDifferentSpeaker) {
+              if (!isTrumpSpeaking && !earlyResolved && nextIsDifferentSpeaker) {
                 const remaining = status.durationMillis - status.positionMillis;
-                const elapsed = status.positionMillis;
-                if (elapsed >= 3000) {
-                  // Hard stop: unload the sound so it actually goes silent, then resolve
-                  finish();
-                } else if (!isTrumpSpeaking && remaining <= OVERLAP_MS && remaining > 0) {
-                  // Near-end overlap: sound is almost done, safe to early-resolve without stopping
+                if (remaining <= OVERLAP_MS && remaining > 0) {
                   earlyResolve();
                 }
               }
