@@ -980,6 +980,101 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       negative: ["anti-science", "climate denial", "flat earth", "antivax", "conspiracy", "pseudoscience"],
     },
   },
+  jesseleepetersen: {
+    id: "jesseleepetersen",
+    name: "Jesse Lee Peterson",
+    shortName: "Jesse Lee",
+    color: "#8B4513",
+    faction: "supporter",
+    image: require("@/assets/images/persona-jesseleepetersen.jpg"),
+    personality: {
+      energy: 40,
+      aggression: 30,
+      humor: 20,
+      catchphrases: ["Think about it.", "I'm just asking questions.", "God bless you.", "Did you ask the white man's permission?", "The white man's grace and mercy is divine."],
+    },
+    relationships: {
+      trump: { sentiment: 98 },
+      ruckus: { sentiment: 85 },
+      candace: { sentiment: 70 },
+      maddow: { sentiment: 10 },
+      omar: { sentiment: 5 },
+      berniemc: { sentiment: 10 },
+      carville: { sentiment: 10 },
+      malema: { sentiment: 5 },
+      stephena: { sentiment: 30 },
+      shannon: { sentiment: 25 },
+      galloway: { sentiment: 20 },
+      hannity: { sentiment: 80 },
+    },
+    triggerWords: {
+      positive: ["trump", "maga", "white", "god", "discipline", "family", "conservative", "permission"],
+      negative: ["civil rights", "systemic racism", "blm", "protest", "liberal", "obama", "reparations"],
+    },
+  },
+  shannon: {
+    id: "shannon",
+    name: "Shannon Sharpe",
+    shortName: "Shannon",
+    color: "#8B0000",
+    faction: "neutral",
+    image: require("@/assets/images/persona-shannon.jpg"),
+    personality: {
+      energy: 92,
+      aggression: 70,
+      humor: 80,
+      catchphrases: ["HUNNIT PERCENT!", "Uncle Shay Shay is here to tell you!", "Put some RESPECK on it!", "I'm here to tell you!", "That's FACTS, baby!"],
+    },
+    relationships: {
+      trump: { sentiment: 15 },
+      ruckus: { sentiment: 10 },
+      jesseleepetersen: { sentiment: 12 },
+      maddow: { sentiment: 65 },
+      carville: { sentiment: 55 },
+      berniemc: { sentiment: 70 },
+      omar: { sentiment: 65 },
+      stephena: { sentiment: 75 },
+      malema: { sentiment: 60 },
+      candace: { sentiment: 20 },
+      galloway: { sentiment: 50 },
+      neiltyson: { sentiment: 60 },
+    },
+    triggerWords: {
+      positive: ["lebron", "kaepernick", "black excellence", "athlete", "sports", "nfl", "nba", "justice"],
+      negative: ["skip bayless", "trump", "maga", "racism", "whitewash", "plantation"],
+    },
+  },
+  ivanka: {
+    id: "ivanka",
+    name: "Ivanka Trump",
+    shortName: "Ivanka",
+    color: "#FFB6C1",
+    faction: "supporter",
+    image: require("@/assets/images/persona-ivanka.jpg"),
+    personality: {
+      energy: 55,
+      aggression: 25,
+      humor: 35,
+      catchphrases: ["I'm incredibly proud of what my father has accomplished.", "At the end of the day, results matter.", "Women's empowerment is a core value of this administration.", "My father is a champion for working families."],
+    },
+    relationships: {
+      trump: { sentiment: 99 },
+      maddow: { sentiment: 20 },
+      carville: { sentiment: 15 },
+      omar: { sentiment: 10 },
+      candace: { sentiment: 70 },
+      leavitt: { sentiment: 80 },
+      megynkelly: { sentiment: 55 },
+      galloway: { sentiment: 10 },
+      ruckus: { sentiment: 50 },
+      graham: { sentiment: 70 },
+      elon: { sentiment: 60 },
+    },
+    triggerWords: {
+      positive: ["family", "empowerment", "women", "workforce", "economy", "father", "business", "trade"],
+      negative: ["epstein", "grab them", "complicit", "daddy", "corrupt", "illegitimate", "tax fraud"],
+    },
+  },
 };
 
 const MYSTERY_PERSONAS: Record<string, ArenaPersona> = {
@@ -1509,7 +1604,7 @@ const MYSTERY_UNLOCK_COSTS: Record<string, number> = {
 };
 const MYSTERY_UNLOCK_KEY = "arena_mystery_unlocked";
 
-const PERSONA_IDS = ["trump", "elon", "errol", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "leavitt", "erikakirk", "loomer", "bannon", "stephena", "malema", "hannity", "neiltyson"];
+const PERSONA_IDS = ["trump", "elon", "errol", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "leavitt", "erikakirk", "loomer", "bannon", "stephena", "malema", "hannity", "neiltyson", "jesseleepetersen", "shannon", "ivanka"];
 
 const BREAKING_NEWS_REACTIONS: Record<string, string[]> = {
   trump: [
