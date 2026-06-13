@@ -960,7 +960,8 @@ export default function InterviewScreen() {
         currentTopicArg: topic,
       });
       setIsThinking(null);
-      if (!q || !runningRef.current) break;
+      if (!runningRef.current) break;
+      if (!q) { await new Promise((r) => setTimeout(r, 1500)); continue; }
       enrichAndAddMessage({ id: `q-${Date.now()}-${Math.random()}`, speakerId: q.speakerId, speakerName: q.speakerName, text: q.text, ts: Date.now() });
 
       // Decide up-front whether to interrupt — needed so we can pre-fetch correctly
@@ -994,7 +995,8 @@ export default function InterviewScreen() {
       setIsThinking("interviewee");
       const a = await answerPromise;
       setIsThinking(null);
-      if (!a || !runningRef.current) break;
+      if (!runningRef.current) break;
+      if (!a) { await new Promise((r) => setTimeout(r, 1500)); continue; }
 
       // ── Micro-reaction by the INTERVIEWEE while the question is still ringing —
       // a short spontaneous reaction (no API call) that lands just before the answer.
@@ -1046,7 +1048,7 @@ export default function InterviewScreen() {
         });
         if (voiceEnabledRef.current && !isMutedGlobal) {
           ttsQueueRef.current.push({ text: promoText, personaId: promoSpeakerId });
-          processTTSQueue();
+          processQueue();
         }
       }
 
