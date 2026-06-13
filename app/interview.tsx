@@ -1037,7 +1037,7 @@ export default function InterviewScreen() {
       if (totalExchangesRef.current === 4 && !shopPromoFiredRef.current && runningRef.current) {
         shopPromoFiredRef.current = true;
         const promoSpeakerId = interviewerId || "host";
-        const promoSpeakerName = ARENA_NAME_MAP[promoSpeakerId] || promoSpeakerId;
+        const promoSpeakerName = interviewer?.name || promoSpeakerId;
         const promoText = `Hey — to get the best deals, go to my icon below.`;
         enrichAndAddMessage({
           id: `shop-promo-${Date.now()}`,
