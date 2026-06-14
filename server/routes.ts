@@ -6317,7 +6317,10 @@ Use "era":"current" for today's news, "era":"past" for old controversies. Do not
 
   async function checkInterviewAccess(deviceId: string, consume: boolean): Promise<{ ok: boolean; reason?: string; access?: any }> {
     const access = await getArenaAccess(deviceId);
-    const hasActiveSession = access.sessionExpiry && Date.now() < access.sessionExpiry;
+    // 3-minute grace period: allow calls up to 3 min after session expiry to
+    // prevent mid-interview 403s caused by clock skew or request timing jitter.
+    const GRACE_MS = 3 * 60 * 1000;
+    const hasActiveSession = access.sessionExpiry && Date.now() < (access.sessionExpiry + GRACE_MS);
     if (!hasActiveSession && access.freeUsed >= ARENA_FREE_LIMIT) {
       return { ok: false, reason: "arena_locked", access };
     }

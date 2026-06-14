@@ -893,9 +893,9 @@ export default function InterviewScreen() {
       });
       if (!res.ok) {
         if (res.status === 403) {
+          // Session expired mid-interview — end gracefully, don't show paywall
           runningRef.current = false;
-          setShowPaywall(true);
-          setPhase("setup");
+          setPhase("ended");
         }
         return null;
       }
@@ -922,9 +922,9 @@ export default function InterviewScreen() {
       });
       if (!res.ok) {
         if (res.status === 403) {
+          // Session expired mid-interview — end gracefully, don't show paywall
           runningRef.current = false;
-          setShowPaywall(true);
-          setPhase("setup");
+          setPhase("ended");
         }
         return null;
       }
@@ -1088,11 +1088,13 @@ export default function InterviewScreen() {
 
     // Check / acquire arena access
     let hasSession = false;
+    let serverExpiresAt: number | null = null;
     try {
       const sres = await fetch(new URL("/api/arena/status", getApiUrl()).toString(), { headers: { "x-device-id": deviceId } });
       if (sres.ok) {
         const sdata = await sres.json();
         hasSession = !!sdata.hasSession;
+        if (hasSession && sdata.sessionExpiresAt) serverExpiresAt = sdata.sessionExpiresAt;
       }
     } catch {}
 
@@ -1104,7 +1106,10 @@ export default function InterviewScreen() {
         });
         if (tr.ok) {
           const td = await tr.json();
-          if (td.granted) hasSession = true;
+          if (td.granted) {
+            hasSession = true;
+            if (td.expiresAt) serverExpiresAt = td.expiresAt;
+          }
         }
       } catch {}
     }
@@ -1114,9 +1119,15 @@ export default function InterviewScreen() {
       return;
     }
 
+    // Use server's authoritative expiry — prevents mismatch between client timer
+    // and the DB session that the backend validates on every question/answer call.
+    // Fall back to duration * 60 s only if server didn't return an expiry.
+    const endsAt = serverExpiresAt && serverExpiresAt > Date.now()
+      ? serverExpiresAt
+      : Date.now() + duration * 60 * 1000;
     sessionStartedAtRef.current = Date.now();
-    sessionEndsAtRef.current = Date.now() + duration * 60 * 1000;
-    setSecondsLeft(duration * 60);
+    sessionEndsAtRef.current = endsAt;
+    setSecondsLeft(Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)));
     setMessages([]);
     const startIdx = selectedTopicId ? Math.max(0, topics.findIndex(t => t.id === selectedTopicId)) : 0;
     setTopicIdx(startIdx);
@@ -1178,9 +1189,13 @@ export default function InterviewScreen() {
         setShowPaywall(false);
         await refreshBalance();
         // Auto-start
+        // Use server's authoritative expiry so client timer matches DB session
+        const endsAtU = data.expiresAt && data.expiresAt > Date.now()
+          ? data.expiresAt
+          : Date.now() + duration * 60 * 1000;
         sessionStartedAtRef.current = Date.now();
-        sessionEndsAtRef.current = Date.now() + duration * 60 * 1000;
-        setSecondsLeft(duration * 60);
+        sessionEndsAtRef.current = endsAtU;
+        setSecondsLeft(Math.max(0, Math.ceil((endsAtU - Date.now()) / 1000)));
         setMessages([]);
         const startIdx2 = selectedTopicId ? Math.max(0, topics.findIndex(t => t.id === selectedTopicId)) : 0;
         setTopicIdx(startIdx2);
