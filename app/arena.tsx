@@ -3276,7 +3276,7 @@ export default function ArenaScreen() {
   const topicTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const TOPIC_DURATION = 5 * 60;
 
-  const [freeRemaining, setFreeRemaining] = useState(5);
+  const [freeRemaining, setFreeRemaining] = useState(15);
   const [hasSession, setHasSession] = useState(false);
   const [sessionExpiresAt, setSessionExpiresAt] = useState<number | null>(null);
   const [showPaywall, setShowPaywall] = useState(false);
@@ -5938,68 +5938,73 @@ export default function ArenaScreen() {
               setIsStarting(true);
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
 
-              let liveFreeRemaining = freeRemaining;
-              let liveHasSession = hasSession;
+              // Safety net: if anything throws unexpectedly, always unlock the button
+              try {
+                let liveFreeRemaining = freeRemaining;
+                let liveHasSession = hasSession;
 
-              {
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 5000);
-                try {
-                  const res = await fetch(new URL("/api/arena/status", getApiUrl()).toString(), {
-                    headers: { "x-device-id": deviceId! },
-                    signal: controller.signal,
-                  });
-                  if (res.ok) {
-                    const data = await res.json();
-                    liveFreeRemaining = data.freeRemaining ?? 0;
-                    liveHasSession = data.hasSession ?? false;
-                    setFreeRemaining(liveFreeRemaining);
-                    setHasSession(liveHasSession);
-                    if (data.sessionExpiresAt) setSessionExpiresAt(data.sessionExpiresAt);
-                  }
-                } catch {} finally {
-                  clearTimeout(timeoutId);
-                }
-              }
-
-              if (!liveHasSession && liveFreeRemaining <= 0) {
-                try {
-                  const trialRes = await fetch(new URL("/api/arena/free-trial", getApiUrl()).toString(), {
-                    method: "POST",
-                    headers: { "x-device-id": deviceId!, "Content-Type": "application/json" },
-                  });
-                  if (trialRes.ok) {
-                    const trialData = await trialRes.json();
-                    if (trialData.granted && trialData.expiresAt) {
-                      liveHasSession = true;
-                      setHasSession(true);
-                      setSessionExpiresAt(trialData.expiresAt);
+                {
+                  const controller = new AbortController();
+                  const timeoutId = setTimeout(() => controller.abort(), 5000);
+                  try {
+                    const res = await fetch(new URL("/api/arena/status", getApiUrl()).toString(), {
+                      headers: { "x-device-id": deviceId! },
+                      signal: controller.signal,
+                    });
+                    if (res.ok) {
+                      const data = await res.json();
+                      liveFreeRemaining = data.freeRemaining ?? liveFreeRemaining;
+                      liveHasSession = data.hasSession ?? liveHasSession;
+                      setFreeRemaining(liveFreeRemaining);
+                      setHasSession(liveHasSession);
+                      if (data.sessionExpiresAt) setSessionExpiresAt(data.sessionExpiresAt);
                     }
+                  } catch {} finally {
+                    clearTimeout(timeoutId);
                   }
-                } catch {}
-                if (!liveHasSession) {
-                  setShowPaywall(true);
-                  setIsStarting(false);
-                  return;
                 }
-              }
 
-              sessionEndedRef.current = false;
-              isInterruptingRef.current = false;
-
-              if (useCustomTopic && customTopicText.trim()) {
-                setCurrentTopic(customTopicText.trim());
-                currentTopicRef.current = customTopicText.trim();
-              } else if (selectedTopicId) {
-                const topic = dynamicTopics.find((t) => t.id === selectedTopicId);
-                if (topic) {
-                  setCurrentTopic(topic.title);
-                  currentTopicRef.current = topic.title;
+                if (!liveHasSession && liveFreeRemaining <= 0) {
+                  try {
+                    const trialRes = await fetch(new URL("/api/arena/free-trial", getApiUrl()).toString(), {
+                      method: "POST",
+                      headers: { "x-device-id": deviceId!, "Content-Type": "application/json" },
+                    });
+                    if (trialRes.ok) {
+                      const trialData = await trialRes.json();
+                      if (trialData.granted && trialData.expiresAt) {
+                        liveHasSession = true;
+                        setHasSession(true);
+                        setSessionExpiresAt(trialData.expiresAt);
+                      }
+                    }
+                  } catch {}
+                  if (!liveHasSession) {
+                    setShowPaywall(true);
+                    return; // finally will reset isStarting
+                  }
                 }
+
+                sessionEndedRef.current = false;
+                isInterruptingRef.current = false;
+
+                if (useCustomTopic && customTopicText.trim()) {
+                  setCurrentTopic(customTopicText.trim());
+                  currentTopicRef.current = customTopicText.trim();
+                } else if (selectedTopicId) {
+                  const topic = dynamicTopics.find((t) => t.id === selectedTopicId);
+                  if (topic) {
+                    setCurrentTopic(topic.title);
+                    currentTopicRef.current = topic.title;
+                  }
+                }
+                setShowPreDebateSetup(false);
+                setShowIntro(true);
+              } catch (err) {
+                // Swallow unexpected errors — button will be unlocked by finally
+              } finally {
+                setIsStarting(false);
               }
-              setShowPreDebateSetup(false);
-              setShowIntro(true);
-              setIsStarting(false);
             }}
             disabled={isStarting}
             style={{

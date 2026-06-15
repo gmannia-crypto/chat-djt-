@@ -4334,10 +4334,8 @@ Your personality quirks:
       if (access.sessionExpiry && now < access.sessionExpiry) {
         return res.json({ granted: true, expiresAt: access.sessionExpiry, alreadyActive: true });
       }
-      if (access.lastTrialAt && (now - access.lastTrialAt) < ARENA_DAILY_TRIAL_COOLDOWN) {
-        const nextAvailable = access.lastTrialAt + ARENA_DAILY_TRIAL_COOLDOWN;
-        return res.status(403).json({ error: "trial_cooldown", nextAvailableAt: nextAvailable });
-      }
+      // No cooldown — always grant a fresh 2-min trial when users are out of free turns.
+      // Paying for a session remains the path to longer debates.
       const expiry = now + ARENA_DAILY_TRIAL_MS;
       await setArenaAccess(deviceId, { ...access, sessionExpiry: expiry, lastTrialAt: now });
       res.json({ granted: true, expiresAt: expiry, durationMinutes: Math.round(ARENA_DAILY_TRIAL_MS / 60000) });
