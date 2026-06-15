@@ -568,12 +568,27 @@ export default function InterviewScreen() {
             if (!earlyResolved) resolve();
             fullCleanup();
           };
+          // Two-phase safety timeout:
+          //  Phase 1 — short window (10 s) to abort if audio never starts loading.
+          //  Phase 2 — once playback begins, switch to a generous cap based on
+          //            actual audio duration so long speeches are never cut short.
+          let playbackStarted = false;
+          let safetyTimer: ReturnType<typeof setTimeout> = setTimeout(finish, 10000);
+
           sound.setOnPlaybackStatusUpdate((status: any) => {
             if (!status.isLoaded || status.didJustFinish || status.error) {
+              clearTimeout(safetyTimer);
               finish();
               return;
             }
             if (status.isPlaying && status.durationMillis && status.positionMillis) {
+              // Switch to a duration-aware cap the first time we see playback
+              if (!playbackStarted) {
+                playbackStarted = true;
+                clearTimeout(safetyTimer);
+                // Allow the full clip duration + 6 s buffer before force-finishing
+                safetyTimer = setTimeout(finish, status.durationMillis + 6000);
+              }
               const remaining = status.durationMillis - status.positionMillis;
               // Kick off audio prefetch for the next item as soon as possible
               if (!prefetchStarted && ttsQueueRef.current.length > 0) {
@@ -589,7 +604,6 @@ export default function InterviewScreen() {
               }
             }
           });
-          setTimeout(finish, 8000);
         });
       } catch (e) {
         // ignore TTS error and continue
