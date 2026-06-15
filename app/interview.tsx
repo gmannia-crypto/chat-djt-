@@ -1046,7 +1046,7 @@ export default function InterviewScreen() {
           text: promoText,
           ts: Date.now(),
         });
-        if (voiceEnabledRef.current && !isMutedGlobal) {
+        if (voiceEnabledRef.current) {
           ttsQueueRef.current.push({ text: promoText, personaId: promoSpeakerId });
           processQueue();
         }
