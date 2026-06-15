@@ -589,7 +589,7 @@ export default function InterviewScreen() {
               }
             }
           });
-          setTimeout(finish, 30000);
+          setTimeout(finish, 8000);
         });
       } catch (e) {
         // ignore TTS error and continue
@@ -1176,12 +1176,16 @@ export default function InterviewScreen() {
       return;
     }
 
-    // Use server's authoritative expiry — prevents mismatch between client timer
-    // and the DB session that the backend validates on every question/answer call.
-    // Fall back to duration * 60 s only if server didn't return an expiry.
-    const endsAt = serverExpiresAt && serverExpiresAt > Date.now()
-      ? serverExpiresAt
-      : Date.now() + duration * 60 * 1000;
+    // Only reuse server's expiresAt if it covers at least 80% of the selected
+    // duration — an old session with little time left would make the interview
+    // end immediately. Otherwise use the full selected duration; the backend
+    // grace period + graceful 403 handler ensures a clean end if server-side
+    // access expires first.
+    const selectedMs = duration * 60 * 1000;
+    const serverRemaining = serverExpiresAt ? serverExpiresAt - Date.now() : 0;
+    const endsAt = serverRemaining >= selectedMs * 0.80
+      ? serverExpiresAt!
+      : Date.now() + selectedMs;
     sessionStartedAtRef.current = Date.now();
     sessionEndsAtRef.current = endsAt;
     setSecondsLeft(Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)));
@@ -1246,13 +1250,11 @@ export default function InterviewScreen() {
         setShowPaywall(false);
         await refreshBalance();
         // Auto-start
-        // Use server's authoritative expiry so client timer matches DB session
-        const endsAtU = data.expiresAt && data.expiresAt > Date.now()
-          ? data.expiresAt
-          : Date.now() + duration * 60 * 1000;
+        // Fresh purchase always covers the full duration
+        const endsAtU = Date.now() + duration * 60 * 1000;
         sessionStartedAtRef.current = Date.now();
         sessionEndsAtRef.current = endsAtU;
-        setSecondsLeft(Math.max(0, Math.ceil((endsAtU - Date.now()) / 1000)));
+        setSecondsLeft(duration * 60);
         setMessages([]);
         const startIdx2 = selectedTopicId ? Math.max(0, topics.findIndex(t => t.id === selectedTopicId)) : 0;
         setTopicIdx(startIdx2);
@@ -1691,7 +1693,11 @@ export default function InterviewScreen() {
             <Animated.View style={[{ position: "absolute", width: 220, height: 220, borderRadius: 110, borderWidth: 1.5, borderColor: "rgba(255,215,0,0.4)", backgroundColor: "rgba(255,215,0,0.06)" }, bgPulseStyle2]} />
             <Animated.View style={[{ position: "absolute", width: 220, height: 220, borderRadius: 110, borderWidth: 2, borderColor: "rgba(255,215,0,0.75)", backgroundColor: "rgba(255,215,0,0.09)" }, bgPulseStyle]} />
             <Animated.View style={[{ position: "absolute" }, bgPulseStyle]}>
-              <Text style={{ fontSize: 64, opacity: 0.22 }}>🎙</Text>
+              <Image
+                source={require("../assets/images/dynamic-creations-logo.jpg")}
+                style={{ width: 160, height: 160, borderRadius: 24, opacity: 0.18 }}
+                resizeMode="contain"
+              />
             </Animated.View>
           </View>
         </View>
