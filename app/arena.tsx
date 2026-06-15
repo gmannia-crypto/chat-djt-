@@ -19,6 +19,7 @@ import {
   Alert,
   BackHandler,
   useWindowDimensions,
+  ImageBackground,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -5630,8 +5631,12 @@ export default function ArenaScreen() {
 
   if (showPreDebateSetup) {
     return (
-      <View style={[s.container, { paddingTop: insets.top + webTopInset }]}>
-        <LinearGradient colors={["rgba(255,77,77,0.15)", "rgba(0,0,0,0)", Colors.background]} style={StyleSheet.absoluteFill} />
+      <ImageBackground
+        source={require("../assets/images/dynamic-creations-arena-bg.jpg")}
+        style={[s.container, { paddingTop: insets.top + webTopInset }]}
+        imageStyle={{ opacity: 0.28, resizeMode: "cover" }}
+      >
+        <LinearGradient colors={["rgba(0,0,0,0.72)", "rgba(0,0,0,0.55)", "rgba(0,0,0,0.78)"]} style={StyleSheet.absoluteFill} />
         <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
           <View style={{ alignItems: "center", marginBottom: 16 }}>
             <Text style={{
@@ -6011,7 +6016,7 @@ export default function ArenaScreen() {
             </Text>
           </Pressable>
         </ScrollView>
-      </View>
+      </ImageBackground>
     );
   }
 
@@ -6028,9 +6033,13 @@ export default function ArenaScreen() {
   }
 
   return (
-    <View style={[s.container, { paddingTop: insets.top + webTopInset }]}>
+    <ImageBackground
+      source={require("../assets/images/dynamic-creations-arena-bg.jpg")}
+      style={[s.container, { paddingTop: insets.top + webTopInset }]}
+      imageStyle={{ opacity: 0.22, resizeMode: "cover" }}
+    >
       <LinearGradient
-        colors={["rgba(255,77,77,0.08)", "rgba(0,0,0,0)", Colors.background]}
+        colors={["rgba(0,0,0,0.68)", "rgba(0,0,0,0.45)", "rgba(0,0,0,0.72)"]}
         style={StyleSheet.absoluteFill}
       />
 
@@ -7711,7 +7720,7 @@ export default function ArenaScreen() {
         amount={tokenWinAmount}
         source={tokenWinSource}
       />
-    </View>
+    </ImageBackground>
   );
 }
 
