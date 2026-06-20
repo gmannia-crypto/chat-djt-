@@ -132,3 +132,33 @@ id = "CJPFkKXPQ_xgxYA5jj0lS"
 uri = "file://attached_assets/generated_images/steve_bannon_political_portrait_a28a.png"
 type = "image"
 title = "generated_image"
+
+[[generated]]
+id = "Pvd1ik9Tj61HB5GAEwePw"
+uri = "file://assets/images/persona-claudeanderson.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "oconU0RbvT2ume53YxNk6"
+uri = "file://assets/images/persona-jascrockett.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "TjdKrzmmpgHvQEqM7_ojz"
+uri = "file://assets/images/persona-aoc.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "B1aak0ZOQSm5ZtNE0LhTV"
+uri = "file://assets/images/persona-joerogan.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "NN6t7qcc7-DOUKBalCZxu"
+uri = "file://assets/images/persona-timscott.png"
+type = "image"
+title = "generated_image"

@@ -97,6 +97,11 @@ const PERSONA_CATEGORY_MAP: Record<string, PersonaCategory> = {
   erikakirk: "journalist",
   loomer: "podcaster",
   bannon: "strategist",
+  claudeanderson: "commentator",
+  jascrockett: "politician",
+  aoc: "politician",
+  joerogan: "podcaster",
+  timscott: "politician",
 };
 
 // Political Facts IQ: everyone starts at 100 (seeded from all-time average).
@@ -1076,6 +1081,168 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       negative: ["epstein", "grab them", "complicit", "daddy", "corrupt", "illegitimate", "tax fraud"],
     },
   },
+  claudeanderson: {
+    id: "claudeanderson",
+    name: "Dr. Claude Anderson",
+    shortName: "Dr. Anderson",
+    color: "#8B4513",
+    faction: "opponent",
+    image: require("@/assets/images/persona-claudeanderson.png"),
+    personality: {
+      energy: 80,
+      aggression: 75,
+      humor: 30,
+      catchphrases: ["Black folks need to hear this", "We own half of one percent", "Black labor white wealth", "We need group economics", "The data don't lie"],
+    },
+    relationships: {
+      trump: { sentiment: 10 },
+      ruckus: { sentiment: 5 },
+      jesseleepetersen: { sentiment: 5 },
+      timscott: { sentiment: 5 },
+      candace: { sentiment: 10 },
+      malema: { sentiment: 80 },
+      joyreid: { sentiment: 65 },
+      maddow: { sentiment: 40 },
+      berniemc: { sentiment: 60 },
+      omar: { sentiment: 70 },
+      jascrockett: { sentiment: 75 },
+      aoc: { sentiment: 55 },
+    },
+    triggerWords: {
+      positive: ["black wealth", "economics", "group economics", "reparations", "ownership", "land", "powernomics"],
+      negative: ["gatekeeper", "sellout", "token", "house negro", "bootlicker", "white supremacy", "plantation"],
+    },
+  },
+  jascrockett: {
+    id: "jascrockett",
+    name: "Jasmine Crockett",
+    shortName: "Crockett",
+    color: "#9B59B6",
+    faction: "opponent",
+    image: require("@/assets/images/persona-jascrockett.png"),
+    personality: {
+      energy: 92,
+      aggression: 85,
+      humor: 65,
+      catchphrases: ["Bless your heart", "Let me tell you somethin'", "The receipts are RIGHT HERE", "I said what I said", "Chile please"],
+    },
+    relationships: {
+      trump: { sentiment: 5 },
+      ruckus: { sentiment: 5 },
+      timscott: { sentiment: 10 },
+      candace: { sentiment: 10 },
+      jesseleepetersen: { sentiment: 5 },
+      joyreid: { sentiment: 90 },
+      maddow: { sentiment: 80 },
+      omar: { sentiment: 85 },
+      berniemc: { sentiment: 70 },
+      claudeanderson: { sentiment: 75 },
+      aoc: { sentiment: 90 },
+      carville: { sentiment: 70 },
+    },
+    triggerWords: {
+      positive: ["black women", "voting rights", "accountability", "congress", "texas", "justice", "equity"],
+      negative: ["racist", "voter suppression", "trump", "maga", "sellout", "uncle tom", "gag order"],
+    },
+  },
+  aoc: {
+    id: "aoc",
+    name: "Alexandria Ocasio-Cortez",
+    shortName: "AOC",
+    color: "#E74C3C",
+    faction: "opponent",
+    image: require("@/assets/images/persona-aoc.png"),
+    personality: {
+      energy: 90,
+      aggression: 80,
+      humor: 55,
+      catchphrases: ["Let me be very clear", "Working class people deserve better", "The science is clear", "We can't afford NOT to do this", "I'm from the Bronx"],
+    },
+    relationships: {
+      trump: { sentiment: 5 },
+      ruckus: { sentiment: 5 },
+      timscott: { sentiment: 10 },
+      candace: { sentiment: 10 },
+      miller: { sentiment: 5 },
+      joyreid: { sentiment: 85 },
+      maddow: { sentiment: 80 },
+      omar: { sentiment: 95 },
+      berniemc: { sentiment: 70 },
+      carville: { sentiment: 65 },
+      jascrockett: { sentiment: 90 },
+      claudeanderson: { sentiment: 55 },
+      elon: { sentiment: 10 },
+    },
+    triggerWords: {
+      positive: ["green new deal", "medicare for all", "working class", "climate", "bronx", "squad", "progressive", "housing"],
+      negative: ["billionaire", "oligarch", "fascist", "corporate", "corrupt", "trump", "maga", "exploitation"],
+    },
+  },
+  joerogan: {
+    id: "joerogan",
+    name: "Joe Rogan",
+    shortName: "Rogan",
+    color: "#2ECC71",
+    faction: "wildcard",
+    image: require("@/assets/images/persona-joerogan.png"),
+    personality: {
+      energy: 85,
+      aggression: 50,
+      humor: 80,
+      catchphrases: ["Have you tried DMT?", "It's entirely possible", "That's a great point", "Bro...", "Pull that up Jamie", "That's WILD"],
+    },
+    relationships: {
+      trump: { sentiment: 60 },
+      elon: { sentiment: 70 },
+      berniemc: { sentiment: 65 },
+      carville: { sentiment: 40 },
+      maddow: { sentiment: 35 },
+      omar: { sentiment: 45 },
+      neiltyson: { sentiment: 75 },
+      stephena: { sentiment: 70 },
+      candace: { sentiment: 55 },
+      malema: { sentiment: 40 },
+      claudeanderson: { sentiment: 60 },
+    },
+    triggerWords: {
+      positive: ["mma", "ufc", "podcast", "psychedelics", "dmt", "comedy", "fighting", "martial arts", "hunting", "meat"],
+      negative: ["censorship", "cancel culture", "mainstream media", "mandates", "woke", "agenda"],
+    },
+  },
+  timscott: {
+    id: "timscott",
+    name: "Tim Scott",
+    shortName: "Tim Scott",
+    color: "#CC0000",
+    faction: "supporter",
+    image: require("@/assets/images/persona-timscott.png"),
+    personality: {
+      energy: 70,
+      aggression: 45,
+      humor: 25,
+      catchphrases: ["America is the greatest country", "I am proof the American dream works", "President Trump is doing tremendous things", "God bless America and God bless Donald Trump", "Opportunity zones!"],
+    },
+    relationships: {
+      trump: { sentiment: 100 },
+      ruckus: { sentiment: 70 },
+      candace: { sentiment: 75 },
+      jesseleepetersen: { sentiment: 65 },
+      graham: { sentiment: 80 },
+      hannity: { sentiment: 80 },
+      claudeanderson: { sentiment: 10 },
+      jascrockett: { sentiment: 15 },
+      aoc: { sentiment: 10 },
+      joyreid: { sentiment: 10 },
+      maddow: { sentiment: 10 },
+      berniemc: { sentiment: 10 },
+      carville: { sentiment: 10 },
+      malema: { sentiment: 5 },
+    },
+    triggerWords: {
+      positive: ["trump", "america", "opportunity", "faith", "god", "republican", "south carolina", "bootstrap", "conservative"],
+      negative: ["sellout", "uncle tom", "house negro", "token", "puppet", "gatekeeper", "systemic racism", "reparations"],
+    },
+  },
 };
 
 const MYSTERY_PERSONAS: Record<string, ArenaPersona> = {
@@ -1605,7 +1772,7 @@ const MYSTERY_UNLOCK_COSTS: Record<string, number> = {
 };
 const MYSTERY_UNLOCK_KEY = "arena_mystery_unlocked";
 
-const PERSONA_IDS = ["trump", "elon", "errol", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "leavitt", "erikakirk", "loomer", "bannon", "stephena", "malema", "hannity", "neiltyson", "jesseleepetersen", "shannon", "ivanka"];
+const PERSONA_IDS = ["trump", "elon", "errol", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "leavitt", "erikakirk", "loomer", "bannon", "stephena", "malema", "hannity", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "aoc", "joerogan", "timscott"];
 // Cartoon-style image filter — vivid posterized look on web
 const CARTOON_FILTER = Platform.OS === "web"
   ? ({ filter: "contrast(1.35) saturate(1.85) brightness(1.03)" } as any)
@@ -3696,7 +3863,7 @@ export default function ArenaScreen() {
         const nextItem = ttsQueueRef.current[0];
         if (nextItem) startPrefetch(nextItem);
 
-        const OVERLAP_MS = 1500;
+        const OVERLAP_MS = 500;
         const isTrumpSpeaking = item.personaId === "trump";
         await new Promise<void>((resolve) => {
           let resolved = false;
@@ -6787,59 +6954,32 @@ export default function ArenaScreen() {
           <View style={s.selectorCard}>
             <View style={s.selectorHeader}>
               <Text style={s.selectorTitle}>Choose Debaters</Text>
-              <Text style={s.selectorSubtitle}>Pick 2 or more personas ({selectedPersonas.length} selected)</Text>
+              <Text style={s.selectorSubtitle}>{selectedPersonas.length} selected — pick 2 or more</Text>
             </View>
-            <FlatList
-              data={[...PERSONA_IDS, ...unlockedMystery.filter((id) => !PERSONA_IDS.includes(id))]}
-              keyExtractor={(id) => id}
-              numColumns={2}
-              contentContainerStyle={s.selectorGrid}
-              ListFooterComponent={() => (
-                <View style={{ marginTop: 16, borderTopWidth: 1, borderTopColor: "rgba(255,215,0,0.2)", paddingTop: 12 }}>
-                  <Text style={{ color: "#FFD700", fontSize: 14, fontWeight: "bold" as const, textAlign: "center" as const, marginBottom: 8 }}>MYSTERY PERSONAS</Text>
-                  <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, textAlign: "center" as const, marginBottom: 12 }}>10–15 D.C. Tokens to unlock each</Text>
-                  <View style={{ flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 8 }}>
-                    {MYSTERY_PERSONA_IDS.map((pid) => {
-                      const p = MYSTERY_PERSONAS[pid];
-                      const isUnlocked = unlockedMystery.includes(pid);
-                      if (isUnlocked) return null;
-                      return (
-                        <Pressable
-                          key={pid}
-                          onPress={() => unlockMysteryPersona(pid)}
-                          style={[s.selectorItem, { borderColor: "rgba(255,215,0,0.3)", backgroundColor: "rgba(255,215,0,0.05)", flex: 1, minWidth: "45%" }]}
-                        >
-                          {mysteryUnlocking === pid ? (
-                            <ActivityIndicator size="small" color="#FFD700" />
-                          ) : (
-                            <View style={[s.selectorAvatarFallback, { backgroundColor: "rgba(255,215,0,0.2)" }]}>
-                              <Ionicons name="help" size={18} color="#FFD700" />
-                            </View>
-                          )}
-                          <View style={s.selectorInfo}>
-                            <Text style={[s.selectorName, { color: "#FFD700" }]}>???</Text>
-                            <Text style={{ color: "rgba(255,215,0,0.5)", fontSize: 9 }}>TAP TO UNLOCK</Text>
-                          </View>
-                          <Ionicons name="lock-closed" size={14} color="#FFD700" />
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                </View>
-              )}
-              renderItem={({ item: pid }) => {
+            {(() => {
+              const CATEGORIES: Array<{ label: string; ids: string[]; mysteryIds: string[] }> = [
+                { label: "🏛  PRESIDENTS", ids: ["trump", "biden"], mysteryIds: ["obama"] },
+                { label: "⚖️  POLITICIANS", ids: ["netanyahu", "mcconnell", "omar", "graham", "pambondi", "miller", "jimjordan", "jascrockett", "aoc", "timscott"], mysteryIds: ["schumer", "kamala", "mtg", "rfk"] },
+                { label: "📺  MEDIA & JOURNALISTS", ids: ["maddow", "megynkelly", "joyreid", "erikakirk", "loomer", "leavitt", "hannity"], mysteryIds: ["odonnell"] },
+                { label: "🎙  PODCASTERS & STRATEGISTS", ids: ["galloway", "candace", "carville", "bannon", "joerogan"], mysteryIds: ["alexjones"] },
+                { label: "🎭  COMEDIANS", ids: ["berniemc", "rosie"], mysteryIds: [] },
+                { label: "💻  TECH", ids: ["elon"], mysteryIds: [] },
+                { label: "✊  COMMENTATORS & ACTIVISTS", ids: ["stephena", "jesseleepetersen", "shannon", "neiltyson", "malema", "claudeanderson"], mysteryIds: [] },
+                { label: "👥  FAMILY & OTHERS", ids: ["errol", "ivanka"], mysteryIds: ["melania"] },
+              ];
+              const lockedMysteryIds = MYSTERY_PERSONA_IDS.filter((id) => !unlockedMystery.includes(id));
+              const renderPersonaCard = (pid: string, isMystery = false) => {
                 const p = getPersona(pid);
                 if (!p) return null;
                 const isSelected = selectedPersonas.includes(pid);
-                const isMystery = MYSTERY_PERSONA_IDS.includes(pid);
                 return (
                   <Pressable
+                    key={pid}
                     onPress={() => togglePersona(pid)}
                     style={[
                       s.selectorItem,
-                      { borderColor: isSelected ? p.color : "rgba(255,255,255,0.1)" },
+                      { borderColor: isSelected ? p.color : isMystery ? "rgba(255,215,0,0.3)" : "rgba(255,255,255,0.1)" },
                       isSelected && { backgroundColor: p.color + "15" },
-                      isMystery && { borderColor: isSelected ? p.color : "rgba(255,215,0,0.3)" },
                     ]}
                   >
                     {p.image ? (
@@ -6850,14 +6990,61 @@ export default function ArenaScreen() {
                       </View>
                     )}
                     <View style={s.selectorInfo}>
-                      <Text style={[s.selectorName, { color: isSelected ? p.color : "#aaa" }]}>{p.shortName}</Text>
+                      <Text style={[s.selectorName, { color: isSelected ? p.color : isMystery ? "#FFD700" : "#aaa" }]}>{p.shortName}</Text>
                       <Text style={s.selectorFaction}>{p.faction}{isMystery ? " ★" : ""}</Text>
                     </View>
                     {isSelected && <Ionicons name="checkmark-circle" size={18} color={p.color} />}
                   </Pressable>
                 );
-              }}
-            />
+              };
+              return (
+                <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 8, paddingBottom: 12 }} showsVerticalScrollIndicator={false}>
+                  {CATEGORIES.map((cat) => {
+                    const catIds = [
+                      ...cat.ids.filter((id) => getPersona(id)),
+                      ...cat.mysteryIds.filter((id) => unlockedMystery.includes(id) && getPersona(id)),
+                    ];
+                    if (catIds.length === 0) return null;
+                    return (
+                      <View key={cat.label} style={{ marginBottom: 4 }}>
+                        <Text style={{ color: "#FFD700", fontSize: 10, fontWeight: "bold" as const, letterSpacing: 1, marginBottom: 6, marginTop: 10, paddingHorizontal: 2 }}>{cat.label}</Text>
+                        <View style={{ flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 6 }}>
+                          {catIds.map((pid) => renderPersonaCard(pid, cat.mysteryIds.includes(pid)))}
+                        </View>
+                      </View>
+                    );
+                  })}
+                  {lockedMysteryIds.length > 0 && (
+                    <View style={{ marginTop: 10, borderTopWidth: 1, borderTopColor: "rgba(255,215,0,0.15)", paddingTop: 10 }}>
+                      <Text style={{ color: "#FFD700", fontSize: 10, fontWeight: "bold" as const, letterSpacing: 1, marginBottom: 4, paddingHorizontal: 2 }}>🔒  MYSTERY PERSONAS</Text>
+                      <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, marginBottom: 8, paddingHorizontal: 2 }}>10–15 D.C. Tokens to unlock each</Text>
+                      <View style={{ flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 6 }}>
+                        {lockedMysteryIds.map((pid) => (
+                          <Pressable
+                            key={pid}
+                            onPress={() => unlockMysteryPersona(pid)}
+                            style={[s.selectorItem, { borderColor: "rgba(255,215,0,0.3)", backgroundColor: "rgba(255,215,0,0.05)" }]}
+                          >
+                            {mysteryUnlocking === pid ? (
+                              <ActivityIndicator size="small" color="#FFD700" />
+                            ) : (
+                              <View style={[s.selectorAvatarFallback, { backgroundColor: "rgba(255,215,0,0.2)" }]}>
+                                <Ionicons name="help" size={18} color="#FFD700" />
+                              </View>
+                            )}
+                            <View style={s.selectorInfo}>
+                              <Text style={[s.selectorName, { color: "#FFD700" }]}>???</Text>
+                              <Text style={{ color: "rgba(255,215,0,0.5)", fontSize: 9 }}>TAP TO UNLOCK</Text>
+                            </View>
+                            <Ionicons name="lock-closed" size={14} color="#FFD700" />
+                          </Pressable>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+                </ScrollView>
+              );
+            })()}
             <View style={s.selectorActions}>
               <Pressable
                 onPress={() => setSelectedPersonas([...PERSONA_IDS, ...unlockedMystery])}
@@ -6869,7 +7056,7 @@ export default function ArenaScreen() {
                 onPress={() => { if (selectedPersonas.length >= 2) setShowPersonaSelector(false); }}
                 style={[s.selectorDoneBtn, selectedPersonas.length < 2 && { opacity: 0.4 }]}
               >
-                <Text style={s.selectorDoneText}>Done</Text>
+                <Text style={s.selectorDoneText}>Done ({selectedPersonas.length})</Text>
               </Pressable>
             </View>
           </View>
