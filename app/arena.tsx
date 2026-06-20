@@ -1092,7 +1092,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       energy: 80,
       aggression: 75,
       humor: 30,
-      catchphrases: ["Black folks need to hear this", "We own half of one percent", "Black labor white wealth", "We need group economics", "The data don't lie"],
+      catchphrases: ["Black folks need to hear this", "We own ONE HALF of one percent", "Black labor white wealth", "We need group economics", "The data don't lie"],
     },
     relationships: {
       trump: { sentiment: 10 },

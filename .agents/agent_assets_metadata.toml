@@ -1,5 +1,4 @@
 uploads = []
-outputs = []
 
 [[generated]]
 id = "XNxllCCe0uMhx1CHLdDZH"
@@ -137,7 +136,7 @@ title = "generated_image"
 id = "Pvd1ik9Tj61HB5GAEwePw"
 uri = "file://assets/images/persona-claudeanderson.png"
 type = "image"
-title = "generated_image"
+title = "dr claude anderson cartoon avatar"
 
 [[generated]]
 id = "oconU0RbvT2ume53YxNk6"
@@ -162,3 +161,9 @@ id = "NN6t7qcc7-DOUKBalCZxu"
 uri = "file://assets/images/persona-timscott.png"
 type = "image"
 title = "generated_image"
+
+[[outputs]]
+id = "pt0gO32HAE6ikdUMoC4If"
+uri = "file://assets/images/persona-claudeanderson.png"
+type = "image"
+title = "Dr. Claude Anderson — Cartoon Avatar"
