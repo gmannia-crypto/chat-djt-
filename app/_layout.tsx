@@ -389,6 +389,10 @@ export default function RootLayout() {
     ...Ionicons.font,
     ...MaterialCommunityIcons.font,
   });
+  // Safety net: if fonts haven't resolved in 3 s (before fontfaceobserver's
+  // 6 s uncaught-error fires on slow/offline connections), force the app to
+  // render anyway using system fonts so we never show the crash dialog.
+  const [forceReady, setForceReady] = useState(false);
   const [disclaimerVisible, setDisclaimerVisible] = useState(false);
   const [disclaimerChecked, setDisclaimerChecked] = useState(false);
   const notificationListener = useRef<Notifications.EventSubscription | null>(null);
@@ -425,12 +429,17 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    if ((fontsLoaded || fontError) && disclaimerChecked) {
+    const t = setTimeout(() => setForceReady(true), 3000);
+    return () => clearTimeout(t);
+  }, []);
+
+  useEffect(() => {
+    if ((fontsLoaded || fontError || forceReady) && disclaimerChecked) {
       SplashScreen.hideAsync();
     }
-  }, [fontsLoaded, fontError, disclaimerChecked]);
+  }, [fontsLoaded, fontError, forceReady, disclaimerChecked]);
 
-  if (!fontsLoaded && !fontError) return null;
+  if (!fontsLoaded && !fontError && !forceReady) return null;
 
   function handleAcceptDisclaimer() {
     AsyncStorage.setItem(DISCLAIMER_KEY, "true");
