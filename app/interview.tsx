@@ -289,8 +289,10 @@ export default function InterviewScreen() {
   const shopPromoFiredRef = useRef(false);
   const messagesRef = useRef<Msg[]>([]);
   const topicIdxRef = useRef(0);
+  const topicsRef = useRef<Topic[]>([]);
   useEffect(() => { messagesRef.current = messages; }, [messages]);
   useEffect(() => { topicIdxRef.current = topicIdx; }, [topicIdx]);
+  useEffect(() => { topicsRef.current = topics; }, [topics]);
 
   // ── Pro mode state ───────────────────────────────────────────────────────
   const [voiceEnabled, setVoiceEnabled] = useState(true);
@@ -974,9 +976,12 @@ export default function InterviewScreen() {
       });
       if (!res.ok) {
         if (res.status === 403) {
-          // Session expired mid-interview — end gracefully, don't show paywall
-          runningRef.current = false;
-          setPhase("ended");
+          // Only end the interview if client-side time has genuinely expired.
+          // A transient server 403 mid-session should not cut the interview short.
+          if (Date.now() >= sessionEndsAtRef.current) {
+            runningRef.current = false;
+            setPhase("ended");
+          }
         }
         return null;
       }
@@ -1003,9 +1008,11 @@ export default function InterviewScreen() {
       });
       if (!res.ok) {
         if (res.status === 403) {
-          // Session expired mid-interview — end gracefully, don't show paywall
-          runningRef.current = false;
-          setPhase("ended");
+          // Only end if client-side time is also up — don't let a server blip kill the session
+          if (Date.now() >= sessionEndsAtRef.current) {
+            runningRef.current = false;
+            setPhase("ended");
+          }
         }
         return null;
       }
@@ -1027,9 +1034,16 @@ export default function InterviewScreen() {
       }
       if (!runningRef.current) break;
 
-      const idx = topicIdxRef.current;
-      const topic = topics[idx];
-      if (!topic) break;
+      // Always read from the ref so we see the latest topic list even if it was
+      // fetched after runLoop started. If the list is empty, wait and retry.
+      const liveTopics = topicsRef.current;
+      if (liveTopics.length === 0) { await new Promise((r) => setTimeout(r, 800)); continue; }
+
+      // Clamp idx in case the topic list shrank (shouldn't happen, but safe).
+      const rawIdx = topicIdxRef.current;
+      const idx = rawIdx < liveTopics.length ? rawIdx : 0;
+      if (idx !== rawIdx) { topicIdxRef.current = 0; setTopicIdx(0); }
+      const topic = liveTopics[idx];
 
       const isFirstQuestionOnTopic = exchangesOnTopicRef.current === 0;
       const isFollowUp = !isFirstQuestionOnTopic;
@@ -1138,10 +1152,11 @@ export default function InterviewScreen() {
       const shouldAdvance = exchangesOnTopicRef.current >= exchangesPerTopic;
       if (shouldAdvance) {
         setCompletedTopics((prev) => new Set(prev).add(topic.id));
-        // Cycle back to topic 0 when we exhaust the list — keep going until time runs out
-        const nextIdx = idx + 1 < topics.length ? idx + 1 : 0;
+        // Use the live ref so newly-appended topics are included in the cycle
+        const latestTopics = topicsRef.current;
+        const nextIdx = idx + 1 < latestTopics.length ? idx + 1 : 0;
         // Transition message
-        const nextTopic = topics[nextIdx];
+        const nextTopic = latestTopics[nextIdx];
         setIsThinking("interviewer");
         const trans = await fetchQuestion({
           isTransition: true,

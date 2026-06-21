@@ -6346,7 +6346,7 @@ FORMAT:
       }
       const interviewerName = ARENA_NAME_MAP[interviewerId] || interviewerId;
       const intervieweeName = ARENA_NAME_MAP[intervieweeId] || intervieweeId;
-      const topicCount = durationMinutes <= 5 ? 4 : durationMinutes <= 10 ? 6 : 8;
+      const topicCount = durationMinutes <= 5 ? 6 : durationMinutes <= 10 ? 10 : 14;
       const newsContext = await getArenaNewsContext().catch(() => "");
       const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
 
