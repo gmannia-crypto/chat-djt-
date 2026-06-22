@@ -3714,12 +3714,12 @@ Your personality quirks:
   };
 
   const CATEGORY_AI_PROMPTS: Record<string, string> = {
-    sports: `You generate debate topics for a live arena sports show. Today is ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}. Given TODAY's sports headlines, create 8 HOT debate topics about what is happening in sports RIGHT NOW. Each topic MUST be anchored to a SPECIFIC story from the headlines — player trades, coaching decisions, scandals, controversial calls, athlete statements, contract disputes, rivalry matchups, or league policy. Make them spicy and designed to provoke strong opinions. Return ONLY a valid JSON array with "id" (snake_case), "title" (3-6 words), "description" (1-2 punchy sentences naming the specific players/teams/events), "headlines" (array of 1-2 relevant headline strings).`,
-    science: `You generate debate topics for a live arena science and technology show. Today is ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}. Given TODAY's science headlines, create 8 HOT debate topics about what is happening in science, technology, AI, space, medicine, and climate RIGHT NOW. Each topic MUST reference a SPECIFIC discovery, breakthrough, controversy, or policy from the headlines. Make them provocative — challenge consensus, highlight ethical risks, question motives. Return ONLY a valid JSON array with "id" (snake_case), "title" (3-6 words), "description" (1-2 punchy sentences), "headlines" (1-2 relevant strings).`,
-    health: `You generate debate topics for a live arena health show. Today is ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}. Given TODAY's health headlines, create 8 HOT debate topics about what is happening in medicine, public health, mental health, healthcare policy, drug pricing, and wellness RIGHT NOW. Anchor each to a SPECIFIC story — a new drug approval, a healthcare ruling, a public health crisis, a Big Pharma scandal, a new medical study. Make the framing controversial and opinionated. Return ONLY a valid JSON array with "id" (snake_case), "title" (3-6 words), "description" (1-2 punchy sentences), "headlines" (1-2 relevant strings).`,
-    wealth: `You generate debate topics for a live arena wealth and inequality show. Today is ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}. Given TODAY's business and finance headlines, create 8 HOT debate topics about wealth, inequality, billionaires, markets, housing, crypto, and the economy RIGHT NOW. Anchor each to a SPECIFIC story — a billionaire's action, a market event, a housing crisis update, a crypto development, a company layoff, a wealth tax proposal. Frame them to spark class-based, political, and economic debate. Return ONLY a valid JSON array with "id" (snake_case), "title" (3-6 words), "description" (1-2 punchy sentences), "headlines" (1-2 relevant strings).`,
-    finance: `You generate debate topics for a live arena financial markets show. Today is ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}. Given TODAY's financial headlines, create 8 HOT debate topics about what is moving markets RIGHT NOW — Fed decisions, inflation data, bank failures, crypto prices, debt crises, trade wars, currency moves, earnings surprises, recession signals. Each MUST reference a SPECIFIC financial event from the headlines. Frame the stakes dramatically. Return ONLY a valid JSON array with "id" (snake_case), "title" (3-6 words), "description" (1-2 punchy sentences), "headlines" (1-2 relevant strings).`,
-    motivation: `You generate debate topics for a live arena self-improvement and success show. Today is ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}. Given TODAY's business and culture headlines, create 8 HOT debate topics about work, success, hustle culture, leadership, purpose, and self-improvement — grounded in what is ACTUALLY being debated in culture right now. Anchor each to a SPECIFIC story — a CEO scandal, a viral hustle culture debate, a workplace trend, a celebrity failure or success, a study on happiness or productivity. Make them polarizing and personal. Return ONLY a valid JSON array with "id" (snake_case), "title" (3-6 words), "description" (1-2 punchy sentences), "headlines" (1-2 relevant strings).`,
+    sports: `You are a viral content engineer for a live AI sports debate show. Today is ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}. Your job: generate 8 MAXIMUM-VIRAL sports debate topics that will blow up on TikTok, YouTube Shorts, Instagram Reels, and X/Twitter. Use both the live headlines AND the viral social media signals. RULES: Every topic must name a specific player, coach, team, or league — no vague questions. Frame topics as CONTROVERSIES: betrayals, disrespect, scandals, snubs, goat debates, money disputes, or shocking decisions. The title must be a PUNCHY take that triggers immediate emotional response. Prioritize topics that are currently exploding on social media. Return ONLY a valid JSON array: [{"id":"snake_case","title":"3-6 PUNCHY words","description":"2 sharp sentences naming the villain/hero/scandal and exactly why it's blowing up right now","headlines":["headline 1"]}]`,
+    science: `You are a viral content engineer for a live AI science debate show. Today is ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}. Your job: generate 8 MAXIMUM-VIRAL science and tech debate topics that will explode on TikTok, YouTube, Instagram, and X. Use both the live headlines AND the viral social media signals. RULES: Every topic must name a SPECIFIC technology, discovery, company, or scientist. Frame topics as EXISTENTIAL THREATS or SHOCKING BREAKTHROUGHS — AI taking over, gene editing gone wrong, billionaires buying science, government cover-ups. Make every title feel like a horror movie premise or a conspiracy that's actually real. Return ONLY a valid JSON array: [{"id":"snake_case","title":"3-6 PUNCHY words","description":"2 sharp sentences with the specific threat or breakthrough and why people are freaking out about it","headlines":["headline 1"]}]`,
+    health: `You are a viral content engineer for a live AI health debate show. Today is ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}. Your job: generate 8 MAXIMUM-VIRAL health debate topics that will blow up on TikTok, YouTube, Instagram, and Facebook. Use both the live headlines AND the viral social media signals. RULES: Name the specific drug, company, policy, or health crisis. Frame topics as SYSTEMS FAILING PEOPLE: Big Pharma poisoning America, insurance companies killing patients, RFK Jr vindication moments, Ozempic side-effects everyone is scared of, food industry lies. People share health content when they feel betrayed or endangered. Return ONLY a valid JSON array: [{"id":"snake_case","title":"3-6 PUNCHY words","description":"2 sharp sentences naming the specific scandal, danger, or health bombshell going viral right now","headlines":["headline 1"]}]`,
+    wealth: `You are a viral content engineer for a live AI wealth debate show. Today is ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}. Your job: generate 8 MAXIMUM-VIRAL wealth and inequality debate topics that will detonate on TikTok, YouTube, X/Twitter, and Reddit. Use both the live headlines AND the viral social media signals. RULES: Name the specific billionaire, corporation, or policy. Frame topics as CLASS WAR moments: billionaires buying politicians, hedge funds evicting families, crypto whales crashing markets, corporate greed in plain sight. Economic outrage goes the most viral — people screenshot "billionaire did WHAT?" moments constantly. Return ONLY a valid JSON array: [{"id":"snake_case","title":"3-6 PUNCHY words","description":"2 sharp sentences — who's the villain, who's the victim, exactly what outrages people RIGHT NOW","headlines":["headline 1"]}]`,
+    finance: `You are a viral content engineer for a live AI financial markets debate show. Today is ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}. Your job: generate 8 MAXIMUM-VIRAL finance debate topics that will explode on X/Twitter, YouTube, TikTok, and Reddit. Use both the live headlines AND the viral social media signals. RULES: Reference the specific market move, Fed decision, crypto crash, bank failure, or economic indicator. Frame topics as IMPENDING CRASHES, HIDDEN MANIPULATION, or WEALTH TRANSFER moments. Finance content goes viral when it makes regular people feel cheated or endangered. Every title should make someone think "wait, WHAT is happening to my money?" Return ONLY a valid JSON array: [{"id":"snake_case","title":"3-6 PUNCHY words","description":"2 sharp sentences naming the specific financial event and why it's making people panic or rage","headlines":["headline 1"]}]`,
+    motivation: `You are a viral content engineer for a live AI self-improvement debate show. Today is ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}. Your job: generate 8 MAXIMUM-VIRAL motivation and success debate topics that will blow up on TikTok, Instagram, YouTube, and Facebook. Use both the live headlines AND the viral social media signals. RULES: Name the specific CEO, influencer, study, or cultural moment. Frame topics as CULTURE WAR flashpoints: hustle culture gurus exposed as frauds, corporate layoffs proving the system is rigged, viral "quiet quitting" vs "loud laborers" debates, Gen Z vs Boomer work ethic battles, celebrity "rags to riches" stories debunked. Self-improvement content goes viral when it validates people's frustrations or destroys their idols. Return ONLY a valid JSON array: [{"id":"snake_case","title":"3-6 PUNCHY words","description":"2 sharp sentences — name the specific person/trend/study and why it's dividing everyone on social media","headlines":["headline 1"]}]`,
   };
 
   async function fetchCategoryTopics(category: string): Promise<any[]> {
@@ -3741,9 +3741,13 @@ Your personality quirks:
         if (Array.isArray(r)) allHeadlines.push(...r.map((h: any) => `${h.title} (${h.source})`));
       }
       const systemPrompt = CATEGORY_AI_PROMPTS[category] || CATEGORY_AI_PROMPTS["sports"];
+      const viralSignals = await fetchViralTrends().catch(() => [] as string[]);
+      const viralBlock = viralSignals.length > 0
+        ? `\n\nREAL-TIME VIRAL SOCIAL MEDIA SIGNALS (TikTok, X/Twitter, YouTube, Instagram, Facebook) — use these to pick topics that are ALREADY blowing up:\n${viralSignals.slice(0, 18).map(s => `- ${s}`).join("\n")}`
+        : "";
       const headlinesBlock = allHeadlines.length >= 3
-        ? `TODAY'S LIVE ${category.toUpperCase()} HEADLINES:\n- ${allHeadlines.slice(0, 20).join("\n- ")}\n\nGenerate 8 debate topics as a JSON array anchored to these actual stories.`
-        : `No live headlines available. Generate 8 current ${category} debate topics based on what's most controversial in ${category} right now. Return as JSON array.`;
+        ? `TODAY'S LIVE ${category.toUpperCase()} HEADLINES:\n- ${allHeadlines.slice(0, 20).join("\n- ")}${viralBlock}\n\nGenerate 8 maximum-viral debate topics as a JSON array anchored to these actual stories and social media signals.`
+        : `No live headlines available.${viralBlock}\n\nGenerate 8 maximum-viral current ${category} debate topics based on what's most controversial and viral right now. Return as JSON array.`;
       const completion = await Promise.race([
         getClient().chat.completions.create({
           model: getFastModel(),
@@ -3809,16 +3813,36 @@ Your personality quirks:
         topicGenerationInProgress = false;
         return getDefaultArenaTopics();
       }
-      const topHeadlines = allHeadlines.slice(0, 20).join("\n- ");
+      const viralSignals = await fetchViralTrends().catch(() => [] as string[]);
+      const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+      const topHeadlines = allHeadlines.slice(0, 24).join("\n- ");
+      const viralBlock = viralSignals.length > 0
+        ? `\n\nREAL-TIME SOCIAL MEDIA VIRAL SIGNALS — what people are actually sharing on TikTok, Instagram, X/Twitter, YouTube, and Facebook RIGHT NOW:\n${viralSignals.slice(0, 20).map(s => `- ${s}`).join("\n")}`
+        : "";
       const completion = await Promise.race([
         getClient().chat.completions.create({
           model: getFastModel(),
           messages: [
-            { role: "system", content: `You generate debate topics for a live political arena show. Today is ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}. Given today's headlines, create 12 HOT debate topics. Each topic MUST reference a specific current event from the headlines. Return ONLY a valid JSON array of objects with "id" (lowercase_snake_case), "title" (short 3-6 word label), "description" (1-2 sentences on what happened and why it's controversial), and "headlines" (array of 1-2 relevant headline strings). Include at least ONE topic about Palestine/Gaza and ONE about Epstein files. Mix: geopolitics, US politics, economy, culture wars, tech/AI, military. Each must be anchored to a SPECIFIC headline.` },
-            { role: "user", content: `TODAY'S HEADLINES:\n- ${topHeadlines}\n\nGenerate 12 debate topics as a JSON array.` },
+            { role: "system", content: `You are a viral content strategist for a live political debate show with 28 AI personas. Today is ${todayStr}.
+
+MISSION: Generate 12 MAXIMUM VIRAL debate topics that will explode across TikTok, Instagram Reels, X/Twitter, YouTube, and Facebook. These topics must be engineered to be shared, screenshot, and argued about for days.
+
+VIRAL ENGINEERING RULES:
+- Every topic needs a VILLAIN, a BOMBSHELL, or an OUTRAGE — not a bland "should we discuss X" question
+- Frame topics at the MOST CONTROVERSIAL possible angle — specific allegations, betrayals, scandals, or shocking revelations
+- Each topic must be CLIP-WORTHY: a viewer scrolling TikTok must immediately want to share it
+- Use the real names of real people, real events, real dates — vagueness kills virality
+- Prioritize topics that will DIVIDE the room most sharply — the more personas disagree, the better
+- Include at least ONE Gaza/Palestine topic and ONE Epstein/deep-state topic — these always go viral
+- Mix: explosive political scandals, billionaire villain moments, celebrity political crossovers, culture war flashpoints, economic rage, military whistleblowers, AI dystopia, race/gender culture wars
+
+Use BOTH the viral social media signals AND the live news headlines to choose the hottest, most share-worthy possible topics.
+
+Return ONLY a valid JSON array: [{"id":"snake_case","title":"3-6 PUNCHY words","description":"2 sharp sentences — name the villain, the victim, the specific outrage or scandal, and why it matters RIGHT NOW","headlines":["headline 1","headline 2"]}]` },
+            { role: "user", content: `TODAY'S LIVE NEWS HEADLINES:\n- ${topHeadlines}${viralBlock}\n\nGenerate 12 maximum-viral debate topics as a JSON array.` },
           ],
           max_completion_tokens: 3000,
-          temperature: 0.9,
+          temperature: 0.95,
         }),
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error("AI timeout")), 45000)),
       ]);
@@ -3872,23 +3896,138 @@ Your personality quirks:
 
   let arenaHeadlinesCache: { headlines: string[]; expires: number } = { headlines: [], expires: 0 };
 
+  // ── VIRAL TRENDS ── Real-time social media signals (Google Trends, Reddit, YouTube) ──────────
+  let viralTrendsCache: { signals: string[]; expires: number } = { signals: [], expires: 0 };
+  const VIRAL_TRENDS_TTL = 10 * 60 * 1000; // 10 minutes
+
+  async function fetchViralTrends(): Promise<string[]> {
+    if (viralTrendsCache.signals.length > 0 && Date.now() < viralTrendsCache.expires) {
+      return viralTrendsCache.signals;
+    }
+    const signals: string[] = [];
+
+    // 1. Google Trends Daily RSS (US) — covers what's being searched right now
+    const googleMain = (async () => {
+      try {
+        const resp = await fetch("https://trends.google.com/trends/trendingsearches/daily/rss?geo=US", {
+          headers: { "User-Agent": "Mozilla/5.0 (compatible; ChatDJT/1.0)" },
+          signal: AbortSignal.timeout(7000),
+        });
+        if (!resp.ok) return;
+        const xml = await resp.text();
+        const parsed = xmlParser.parse(xml);
+        const channel = parsed?.rss?.channel;
+        const items: any[] = Array.isArray(channel?.item) ? channel.item : (channel?.item ? [channel.item] : []);
+        for (const item of items.slice(0, 15)) {
+          const title = (item.title || "").replace(/<[^>]*>/g, "").replace(/&amp;/g, "&").trim();
+          const traffic = item["ht:approx_traffic"] || "";
+          if (title) signals.push(`🔥 Google/X/TikTok Trending: "${title}"${traffic ? ` — ${traffic} searches today` : ""}`);
+        }
+      } catch {}
+    })();
+
+    // 2. Google Trends Entertainment category — TikTok & Instagram proxy
+    const googleEnt = (async () => {
+      try {
+        const resp = await fetch("https://trends.google.com/trends/trendingsearches/daily/rss?geo=US&category=e", {
+          headers: { "User-Agent": "Mozilla/5.0 (compatible; ChatDJT/1.0)" },
+          signal: AbortSignal.timeout(6000),
+        });
+        if (!resp.ok) return;
+        const xml = await resp.text();
+        const parsed = xmlParser.parse(xml);
+        const channel = parsed?.rss?.channel;
+        const items: any[] = Array.isArray(channel?.item) ? channel.item : (channel?.item ? [channel.item] : []);
+        for (const item of items.slice(0, 8)) {
+          const title = (item.title || "").replace(/<[^>]*>/g, "").replace(/&amp;/g, "&").trim();
+          const traffic = item["ht:approx_traffic"] || "";
+          if (title) signals.push(`🎵 TikTok/Instagram Trending: "${title}"${traffic ? ` — ${traffic} searches` : ""}`);
+        }
+      } catch {}
+    })();
+
+    // 3. Reddit /r/all hot — strongest real-time viral signal across all social platforms
+    const reddit = (async () => {
+      try {
+        const resp = await fetch("https://www.reddit.com/r/all/hot.json?limit=25&raw_json=1", {
+          headers: { "User-Agent": "ChatDJT/1.0 arena app" },
+          signal: AbortSignal.timeout(6000),
+        });
+        if (!resp.ok) return;
+        const data = await resp.json() as any;
+        const posts: any[] = data?.data?.children || [];
+        for (const p of posts.slice(0, 15)) {
+          const post = p.data;
+          const score = post.score || 0;
+          const comments = post.num_comments || 0;
+          const title = String(post.title || "").slice(0, 120);
+          const sub = post.subreddit || "";
+          if (title && score > 1000) {
+            signals.push(`📱 Reddit/Facebook Viral [r/${sub}] — ${score >= 10000 ? `${(score/1000).toFixed(0)}K` : score} upvotes, ${comments} comments: "${title}"`);
+          }
+        }
+      } catch {}
+    })();
+
+    // 4. YouTube trending via Piped public API
+    const youtube = (async () => {
+      try {
+        const resp = await fetch("https://pipedapi.kavin.rocks/trending?region=US", {
+          headers: { "User-Agent": "Mozilla/5.0" },
+          signal: AbortSignal.timeout(7000),
+        });
+        if (!resp.ok) return;
+        const videos = await resp.json() as any[];
+        if (!Array.isArray(videos)) return;
+        for (const v of videos.slice(0, 8)) {
+          const title = String(v.title || "").slice(0, 100);
+          const uploader = v.uploaderName || "";
+          const views = v.views || 0;
+          if (title) {
+            const viewStr = views >= 1000000 ? `${(views / 1000000).toFixed(1)}M` : `${Math.round(views / 1000)}K`;
+            signals.push(`▶️ YouTube Trending: "${title}" by ${uploader} — ${viewStr} views`);
+          }
+        }
+      } catch {}
+    })();
+
+    await Promise.all([googleMain, googleEnt, reddit, youtube]);
+
+    if (signals.length > 0) {
+      viralTrendsCache = { signals, expires: Date.now() + VIRAL_TRENDS_TTL };
+    }
+    return signals;
+  }
+  // ────────────────────────────────────────────────────────────────────────────────────────────
+
   async function getArenaNewsContext(): Promise<string> {
     if (arenaHeadlinesCache.headlines.length > 0 && Date.now() < arenaHeadlinesCache.expires) {
-      return arenaHeadlinesCache.headlines.slice(0, 5).map(h => `- ${h}`).join("\n");
+      // Also grab fresh viral trends in the background
+      const viral = await fetchViralTrends().catch(() => [] as string[]);
+      const base = arenaHeadlinesCache.headlines.slice(0, 8).map(h => `- ${h}`).join("\n");
+      return viral.length > 0
+        ? `${base}\n\nREAL-TIME VIRAL SOCIAL MEDIA SIGNALS (TikTok, X/Twitter, YouTube, Instagram, Facebook):\n${viral.slice(0, 10).map(s => `- ${s}`).join("\n")}`
+        : base;
     }
     try {
-      const feedPromises = NEWS_FEEDS.slice(0, 8).map(f => fetchRSSFeed(f.url, f.source));
-      const results = await Promise.allSettled(feedPromises);
+      const [feedResults, viralSignals] = await Promise.all([
+        Promise.allSettled(NEWS_FEEDS.slice(0, 8).map(f => fetchRSSFeed(f.url, f.source))),
+        fetchViralTrends().catch(() => [] as string[]),
+      ]);
       const headlines: string[] = [];
-      for (const r of results) {
+      for (const r of feedResults) {
         if (r.status === "fulfilled") {
           headlines.push(...r.value.map((h: any) => `${h.title} (${h.source})`));
         }
       }
       if (headlines.length > 0) {
-        arenaHeadlinesCache = { headlines: headlines.slice(0, 10), expires: Date.now() + 2 * 60 * 1000 };
-        return headlines.slice(0, 5).map(h => `- ${h}`).join("\n");
+        arenaHeadlinesCache = { headlines: headlines.slice(0, 12), expires: Date.now() + 2 * 60 * 1000 };
       }
+      const newsLines = headlines.slice(0, 8).map(h => `- ${h}`).join("\n");
+      const viralLines = viralSignals.length > 0
+        ? `\n\nREAL-TIME VIRAL SOCIAL MEDIA SIGNALS (TikTok, X/Twitter, YouTube, Instagram, Facebook):\n${viralSignals.slice(0, 10).map(s => `- ${s}`).join("\n")}`
+        : "";
+      return newsLines + viralLines;
     } catch {}
     return "";
   }
@@ -6358,28 +6497,31 @@ FORMAT:
 
       const eraDirective =
         topicMix === "current"
-          ? "ALL topics must be drawn from CURRENT 2026 news headlines and live political flashpoints happening right now."
+          ? "ALL topics must be drawn from CURRENT 2026 news headlines and live viral social media flashpoints happening right now."
           : topicMix === "past"
-          ? "ALL topics must be drawn from PAST controversies, scandals, embarrassing moments, or historic decisions involving the interviewee."
-          : "Mix half topics from CURRENT 2026 headlines and half from PAST scandals, controversies, or career-defining decisions involving the interviewee.";
+          ? "ALL topics must be drawn from PAST controversies, scandals, embarrassing moments, or historic decisions involving the interviewee — the kind of receipts that go viral when dug up."
+          : "Mix half topics from CURRENT 2026 viral headlines and half from PAST scandals, controversies, or career-defining decisions involving the interviewee that would still blow up on social media today.";
 
-      const systemPrompt = `You are a sharp, ruthless booking producer setting up a televised 1-on-1 interview between ${interviewerName} (the interviewer) and ${intervieweeName} (the guest). Today is ${todayStr}.
+      const systemPrompt = `You are the most ruthless, ratings-obsessed booking producer in television — setting up a MUST-WATCH 1-on-1 interview between ${interviewerName} (the interviewer) and ${intervieweeName} (the guest). Today is ${todayStr}.
 
-Generate exactly ${topicCount} interview topics that ${interviewerName} would absolutely grill ${intervieweeName} about — based on their political beliefs, history, public clashes, and the actual headlines below.
+MISSION: Generate exactly ${topicCount} interview topics that are engineered to go VIRAL on TikTok, Instagram, X/Twitter, YouTube, and Facebook. Every topic must be so explosive that clips get shared millions of times.
 
 ${eraDirective}
 
-Each topic must be:
-- Provocative and engaging — designed to make the guest squirm or fire back
-- Specific (not vague). Reference real events, real names, real dates, real claims.
-- Tailored to the unique tension between THIS interviewer and THIS guest.
+VIRAL INTERVIEW TOPIC RULES:
+- Every topic must put ${intervieweeName} on the DEFENSIVE — expose hypocrisy, demand accountability, or reveal a contradiction
+- Be SPECIFIC: real dates, real quotes, real decisions, real money amounts, real body counts (political, not literal)
+- Frame each topic as the MOST DAMAGING possible angle ${interviewerName} would use given their known ideological clashes with ${intervieweeName}
+- Topics that make the guest say "that's a great question, but—" or interrupt and deny = GOLD
+- Prioritize: financial corruption, secret alliances, flip-flops caught on camera, statements that aged badly, personal hypocrisy, power abuse
+- Include topics anchored to what is CURRENTLY TRENDING on social media and in the news right now
 
-LIVE HEADLINES (use these for "current" topics):
-${newsContext || "No live headlines available — rely on general knowledge of 2026 events."}
+LIVE NEWS + VIRAL SOCIAL SIGNALS:
+${newsContext || "No live headlines available — rely on general knowledge of 2026 events and the most damaging known controversies."}
 
 Return ONLY valid JSON in this exact shape:
-{"topics":[{"title":"Short punchy headline","description":"1-sentence framing of the angle the interviewer takes","era":"current"}]}
-Use "era":"current" for today's news, "era":"past" for old controversies. Do not include any text outside the JSON.`;
+{"topics":[{"title":"Punchy accusatory headline","description":"1 sentence — the exact angle ${interviewerName} attacks from, naming the specific receipt, quote, or scandal","era":"current"}]}
+Use "era":"current" for today's news/viral moments, "era":"past" for old scandals being resurfaced. No text outside the JSON.`;
 
       const completion = await getClient().chat.completions.create({
         model: getFastModel(),
