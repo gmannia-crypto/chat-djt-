@@ -287,6 +287,8 @@ export default function InterviewScreen() {
   const exchangesOnTopicRef = useRef(0);
   const totalExchangesRef = useRef(0);
   const shopPromoFiredRef = useRef(false);
+  // Pre-fetched next question — eliminates dead air between turns
+  const nextQPromiseRef = useRef<Promise<any> | null>(null);
   const messagesRef = useRef<Msg[]>([]);
   const topicIdxRef = useRef(0);
   const topicsRef = useRef<Topic[]>([]);
@@ -1048,15 +1050,17 @@ export default function InterviewScreen() {
       const isFirstQuestionOnTopic = exchangesOnTopicRef.current === 0;
       const isFollowUp = !isFirstQuestionOnTopic;
 
+      // Use pre-fetched question if available (eliminates dead air between turns)
       setIsThinking("interviewer");
-      const q = await fetchQuestion({
+      const q = await (nextQPromiseRef.current || fetchQuestion({
         isFollowUp,
         isTransition: false,
         currentTopicArg: topic,
-      });
+      }));
+      nextQPromiseRef.current = null;
       setIsThinking(null);
       if (!runningRef.current) break;
-      if (!q) { await new Promise((r) => setTimeout(r, 1500)); continue; }
+      if (!q) { await new Promise((r) => setTimeout(r, 600)); continue; }
       enrichAndAddMessage({ id: `q-${Date.now()}-${Math.random()}`, speakerId: q.speakerId, speakerName: q.speakerName, text: q.text, ts: Date.now() });
 
       // Decide up-front whether to interrupt — needed so we can pre-fetch correctly
@@ -1091,7 +1095,7 @@ export default function InterviewScreen() {
       const a = await answerPromise;
       setIsThinking(null);
       if (!runningRef.current) break;
-      if (!a) { await new Promise((r) => setTimeout(r, 1500)); continue; }
+      if (!a) { await new Promise((r) => setTimeout(r, 600)); continue; }
 
       // ── Micro-reaction by the INTERVIEWEE while the question is still ringing —
       // a short spontaneous reaction (no API call) that lands just before the answer.
@@ -1133,7 +1137,7 @@ export default function InterviewScreen() {
         shopPromoFiredRef.current = true;
         const promoSpeakerId = interviewerId || "host";
         const promoSpeakerName = interviewer?.name || promoSpeakerId;
-        const promoText = `Hey — to get the best deals, go to my icon below.`;
+        const promoText = `Check out the exclusive product links below my photo — deals picked just for you.`;
         enrichAndAddMessage({
           id: `shop-promo-${Date.now()}`,
           speakerId: promoSpeakerId,
@@ -1157,6 +1161,8 @@ export default function InterviewScreen() {
         const nextIdx = idx + 1 < latestTopics.length ? idx + 1 : 0;
         // Transition message
         const nextTopic = latestTopics[nextIdx];
+        // Discard any stale pre-fetch — topic changed
+        nextQPromiseRef.current = null;
         setIsThinking("interviewer");
         const trans = await fetchQuestion({
           isTransition: true,
@@ -1170,7 +1176,16 @@ export default function InterviewScreen() {
         setTopicIdx(nextIdx);
         topicIdxRef.current = nextIdx;
         exchangesOnTopicRef.current = 1; // transition counts as first question
+        // Pre-fetch the first follow-up for the new topic in parallel with queue drain
+        if (runningRef.current && Date.now() < sessionEndsAtRef.current) {
+          nextQPromiseRef.current = fetchQuestion({ isFollowUp: true, isTransition: false, currentTopicArg: nextTopic });
+        }
         await new Promise((r) => setTimeout(r, 250));
+      } else {
+        // Pre-fetch next question in background while queue drains — eliminates gap
+        if (runningRef.current && Date.now() < sessionEndsAtRef.current) {
+          nextQPromiseRef.current = fetchQuestion({ isFollowUp: true, isTransition: false, currentTopicArg: topic });
+        }
       }
     }
     runningRef.current = false;
@@ -1234,7 +1249,8 @@ export default function InterviewScreen() {
     topicIdxRef.current = startIdx;
     exchangesOnTopicRef.current = 0;
     totalExchangesRef.current = 0;
-    shopPromoFiredRef.current = false;
+    // shopPromoFiredRef is intentionally NOT reset — it fires once per component
+    // mount only, so restarting the interview doesn't double-announce the promo.
     setCompletedTopics(new Set());
     setEmoInterviewer(ZERO_EMO);
     setEmoInterviewee(ZERO_EMO);
@@ -1886,8 +1902,9 @@ export default function InterviewScreen() {
           ListFooterComponent={
             isThinking ? (
               <Animated.View entering={FadeIn} exiting={FadeOut} style={[s.bubbleRow, isThinking === "interviewer" ? { justifyContent: "flex-start" } : { justifyContent: "flex-end" }]}>
-                <View style={[s.bubble, isThinking === "interviewer" ? s.bubbleInterviewer : s.bubbleInterviewee, { paddingVertical: 10 }]}>
+                <View style={[s.bubble, isThinking === "interviewer" ? s.bubbleInterviewer : s.bubbleInterviewee, { paddingVertical: 8, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", gap: 8 }]}>
                   <ActivityIndicator size="small" color={isThinking === "interviewer" ? "#FFD700" : "#4ADE80"} />
+                  <Text style={{ color: isThinking === "interviewer" ? "#FFD700" : "#4ADE80", fontSize: 13, fontStyle: "italic", opacity: 0.9 }}>Loading...</Text>
                 </View>
               </Animated.View>
             ) : null
