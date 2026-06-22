@@ -225,6 +225,8 @@ export default function CollectiblesScreen() {
             </Animated.View>
           );
         })}
+
+        <CashAppDonate />
       </ScrollView>
 
       <Modal visible={!!selectedCard} transparent animationType="fade" statusBarTranslucent>

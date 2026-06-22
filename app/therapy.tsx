@@ -27,6 +27,7 @@ import { playTTS, playTrumpTTS, isTrumpCurrentlySpeaking } from "@/lib/audio-hel
 import { getPersonaVoiceVolume, shouldSkipPersonaVoice } from "@/lib/persona-voice";
 import { SoundToggle } from "@/components/SoundToggle";
 import { ShareAppButton } from "@/components/ShareAppButton";
+import { CashAppDonate } from "@/components/CashAppDonate";
 import { useSound } from "@/lib/sound-context";
 import { useScreenTracker, useTrackEvent } from "@/lib/use-analytics";
 import { recordTherapySession, getTherapyContext } from "@/lib/persona-memory";
@@ -2454,6 +2455,8 @@ export default function TherapyScreen() {
             </View>
           </Animated.View>
         )}
+
+        <CashAppDonate />
       </ScrollView>
 
       <Modal

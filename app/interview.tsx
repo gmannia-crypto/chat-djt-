@@ -16,6 +16,7 @@ import { getApiUrl } from "@/lib/query-client";
 import { useTokens } from "@/lib/token-context";
 import Colors from "@/constants/colors";
 import { ShareAppButton } from "@/components/ShareAppButton";
+import { CashAppDonate } from "@/components/CashAppDonate";
 import { playTTS, prefetchTTSAudio, playPrefetchedAudio } from "@/lib/audio-helper";
 import { getPersonaVoiceVolume, shouldSkipPersonaVoice } from "@/lib/persona-voice";
 
@@ -1727,6 +1728,8 @@ export default function InterviewScreen() {
           <Text style={s.startSub}>
             {interviewer?.name || "—"} grills {interviewee?.name || "—"} · {selectedTopicId ? `starting on "${topics.find(t => t.id === selectedTopicId)?.title}"` : `${topics.length} topic${topics.length === 1 ? "" : "s"}`}
           </Text>
+
+          <CashAppDonate />
         </ScrollView>
 
         {renderPaywall()}

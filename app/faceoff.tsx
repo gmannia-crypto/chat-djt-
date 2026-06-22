@@ -34,6 +34,7 @@ import { recordInteraction, getHeadToHead, generateTrashTalk, getPersonaRecord }
 import { StatsPanel } from "@/components/StatsPanel";
 import { ViralShareCard } from "@/components/ViralShareCard";
 import { getFaceoffStats, recordDebateResult, type FaceoffStats } from "@/lib/viral-stats";
+import { CashAppDonate } from "@/components/CashAppDonate";
 
 interface Persona {
   id: string;
@@ -1279,6 +1280,8 @@ export default function FaceoffScreen() {
             }}
           />
         )}
+
+        <CashAppDonate />
 
         <Text style={styles.legalDisclaimer}>
           Not affiliated with any financial persona depicted. For entertainment purposes only. Not financial advice. Affiliate links generate commissions.

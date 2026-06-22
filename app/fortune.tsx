@@ -36,6 +36,7 @@ import Colors from "@/constants/colors";
 import { ShareAppButton } from "@/components/ShareAppButton";
 import { getApiUrl } from "@/lib/query-client";
 import { useTokens } from "@/lib/token-context";
+import { CashAppDonate } from "@/components/CashAppDonate";
 
 function getZodiacSign(month: number, day: number): string {
   if ((month === 3 && day >= 21) || (month === 4 && day <= 19)) return "Aries";
@@ -422,6 +423,8 @@ export default function FortuneScreen() {
             </View>
           </Animated.View>
         )}
+
+        <CashAppDonate />
       </ScrollView>
     </View>
   );

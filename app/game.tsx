@@ -44,6 +44,7 @@ import { ShareAppButton } from "@/components/ShareAppButton";
 import { getGameStats, recordGameResult as recordGameResultStats, type GameStats as ViralGameStats } from "@/lib/viral-stats";
 import { getOrCreateDeviceId } from "@/lib/token-context";
 import { FlatList } from "react-native";
+import { CashAppDonate } from "@/components/CashAppDonate";
 
 interface LeaderboardEntry {
   rank: number;
@@ -1469,6 +1470,8 @@ export default function GameScreen() {
             </LinearGradient>
           </Animated.View>
         )}
+
+        <CashAppDonate />
       </ScrollView>
     </View>
   );

@@ -38,6 +38,7 @@ import { playPointAwardSound, playVoteClickSound, playVoteSound2, playBellSound,
 import { useTokens } from "@/lib/token-context";
 import { TokenWinVideo } from "@/components/TokenWinVideo";
 import { ShareAppButton } from "@/components/ShareAppButton";
+import { CashAppDonate } from "@/components/CashAppDonate";
 import {
   saveRecording,
   RecordedMessage,
@@ -6194,6 +6195,8 @@ export default function ArenaScreen() {
               {selectedPersonas.length} debaters{useCustomTopic && customTopicText.trim() ? " • Custom topic" : selectedTopicId ? " • Topic selected" : " • Random topic"}
             </Text>
           </Pressable>
+
+          <CashAppDonate />
         </ScrollView>
       </ImageBackground>
     );

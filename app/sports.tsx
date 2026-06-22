@@ -62,6 +62,7 @@ import { ShareAppButton } from "@/components/ShareAppButton";
 import { shareContent } from "@/lib/track-share";
 import { getSportsStats, recordSportsPick, type SportsStats } from "@/lib/viral-stats";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { CashAppDonate } from "@/components/CashAppDonate";
 
 interface PlayerLeader {
   category: string;
@@ -3600,6 +3601,8 @@ export default function SportsScreen() {
             <Text style={styles.emptyText}>No debates available right now. Check back when games are live!</Text>
           </View>
         )}
+
+        <CashAppDonate />
       </ScrollView>
 
       <Modal visible={showAllTimeBoard} transparent animationType="fade">

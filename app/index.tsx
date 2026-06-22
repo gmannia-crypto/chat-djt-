@@ -75,6 +75,7 @@ import {
   useUnseenMysteryCount,
   type MysteryTeaserPalette,
 } from "@/lib/persona-unlocks";
+import { CashAppDonate } from "@/components/CashAppDonate";
 
 const FEEDBACK_SHOWN_KEY = "chatdjt_feedback_shown";
 const FEEDBACK_CONV_COUNT_KEY = "chatdjt_conv_count";
@@ -2096,6 +2097,8 @@ export default function HomeScreen() {
             </View>
           </Animated.View>
         )}
+
+        <CashAppDonate />
 
         <Text style={styles.legalDisclaimer}>
           Not affiliated with Donald J. Trump, The Trump Organization, or any political entity. For entertainment purposes only. Affiliate links generate commissions.

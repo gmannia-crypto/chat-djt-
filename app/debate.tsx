@@ -31,6 +31,7 @@ import Animated, {
 import Colors from "@/constants/colors";
 import { getApiUrl } from "@/lib/query-client";
 import { fetch as expoFetch } from "expo/fetch";
+import { CashAppDonate } from "@/components/CashAppDonate";
 
 const DEBATE_TOPICS = [
   {
@@ -501,6 +502,8 @@ export default function DebateScreen() {
             </View>
           </Animated.View>
         )}
+
+        <CashAppDonate />
       </ScrollView>
     </View>
   );

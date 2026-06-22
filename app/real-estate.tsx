@@ -37,6 +37,7 @@ import { ViralShareCard } from "@/components/ViralShareCard";
 import { ShareAppButton } from "@/components/ShareAppButton";
 import { shareContent } from "@/lib/track-share";
 import { getRealEstateStats, addToWatchlist, removeFromWatchlist, recordDealShare, type RealEstateStats } from "@/lib/viral-stats";
+import { CashAppDonate } from "@/components/CashAppDonate";
 
 interface Zone {
   id: string;
@@ -1515,6 +1516,8 @@ export default function RealEstateScreen() {
             }}
           />
         )}
+
+        <CashAppDonate />
       </ScrollView>
       <ViralShareCard
         visible={viralShareVisible}
