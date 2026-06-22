@@ -1744,6 +1744,14 @@ export default function InterviewScreen() {
     <View style={[s.container, { paddingTop: insets.top + webTop }]}>
       <LinearGradient colors={["rgba(255,215,0,0.08)", "rgba(0,0,0,0)", "#0a0a0a"]} style={StyleSheet.absoluteFill} />
 
+      {/* TikTok demo QR overlay — visible in screen recordings */}
+      <View pointerEvents="none" style={{ position: "absolute", bottom: insets.bottom + 18, right: 14, zIndex: 9999, alignItems: "center" }}>
+        <View style={{ backgroundColor: "rgba(0,0,0,0.72)", borderRadius: 10, padding: 6, borderWidth: 1, borderColor: "rgba(255,215,0,0.45)" }}>
+          <Image source={require("../assets/images/qr-download.jpg")} style={{ width: 72, height: 72, borderRadius: 6 }} resizeMode="contain" />
+          <Text style={{ color: "#FFD700", fontSize: 8, fontWeight: "700", textAlign: "center", marginTop: 3, letterSpacing: 0.5 }}>SCAN TO TRY</Text>
+        </View>
+      </View>
+
       {/* Pulsating heartbeat background icon — live phase only */}
       {phase === "live" && (
         <View pointerEvents="none" style={StyleSheet.absoluteFill}>
