@@ -21,7 +21,7 @@ import { getPersonaVoiceVolume, shouldSkipPersonaVoice } from "@/lib/persona-voi
 
 type PersonaLite = { id: string; name: string };
 type Topic = { id: string; title: string; description: string; era: "current" | "past" };
-type Msg = { id: string; speakerId: string; speakerName: string; text: string; ts: number; isInterruption?: boolean; isCallIn?: boolean; callerName?: string };
+type Msg = { id: string; speakerId: string; speakerName: string; text: string; ts: number; isInterruption?: boolean; isCallIn?: boolean; callerName?: string; isSystem?: boolean };
 
 type Emotions = { anger: number; happy: number; engagement: number; frantic: number; sad: number };
 type LieEntry = { id: string; speakerId: string; speakerName: string; text: string; score: number; reason: string; fact: string; ts: number; userFlagged?: boolean; pending?: boolean };
@@ -969,7 +969,7 @@ export default function InterviewScreen() {
         body: JSON.stringify({
           interviewerId, intervieweeId,
           topic: topicArg,
-          conversationHistory: messagesRef.current.slice(-6),
+          conversationHistory: messagesRef.current.filter((m) => !m.isSystem).slice(-6),
           isFollowUp: !!opts.isFollowUp,
           isTransition: !!opts.isTransition,
           previousTopicTitle: opts.previousTopicTitle,
@@ -1001,7 +1001,7 @@ export default function InterviewScreen() {
         body: JSON.stringify({
           interviewerId, intervieweeId,
           topic: currentTopic,
-          conversationHistory: messagesRef.current.slice(-6),
+          conversationHistory: messagesRef.current.filter((m) => !m.isSystem).slice(-6),
           lastQuestion,
           wasInterrupted: !!opts.wasInterrupted,
           interruptionText: opts.interruptionText,
@@ -1144,6 +1144,7 @@ export default function InterviewScreen() {
           speakerName: promoSpeakerName,
           text: promoText,
           ts: Date.now(),
+          isSystem: true,
         });
         if (voiceEnabledRef.current) {
           ttsQueueRef.current.push({ text: promoText, personaId: promoSpeakerId });
@@ -1456,7 +1457,7 @@ export default function InterviewScreen() {
         headers: { "Content-Type": "application/json", "x-device-id": deviceId },
         body: JSON.stringify({
           interviewerId, intervieweeId, userQuestion: q, userName: callerName.trim(),
-          conversationHistory: messagesRef.current.slice(-4), topic: currentTopic,
+          conversationHistory: messagesRef.current.filter((m) => !m.isSystem).slice(-4), topic: currentTopic,
         }),
       });
       if (res.status === 403) {
