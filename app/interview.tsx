@@ -108,6 +108,37 @@ const MICRO_REACTIONS = [
   "Say what?", "Unbelievable.", "Mm.", "Ok sure.", "That's rich.",
 ];
 
+// ── OFFENSE DETECTION ─────────────────────────────────────────────────────────
+// Persona-specific triggers that guarantee an immediate interruption.
+// Keep patterns targeted — avoid common words that appear in normal speech.
+const PERSONA_OFFENSE_TRIGGERS: Record<string, RegExp> = {
+  // Dr. Claude Anderson — he is a MAN. Any female pronoun/title = instant fury.
+  claudeanderson: /\b(she|her|ma'am|maam|woman|lady|madam|miss|ms\.)\b/i,
+  // Male personas — female pronouns directed at them
+  trump:    /\bshe's|she is|her presidency|madam president\b/i,
+  obama:    /\bshe's|she is|her presidency|madam president\b/i,
+  biden:    /\bshe's|she is|her presidency|madam president\b/i,
+  // Female personas — male pronouns directed at them
+  kamala:   /\bhe is president|his presidency|mr\. harris\b/i,
+  omar:     /\bhe voted|his religion|mr\. omar\b/i,
+  // Universal dignity triggers — being called a traitor/sellout to their face
+  timscott: /\bsambo|uncle tom|sellout|house negro\b/i,
+  candace:  /\btraitor|sellout|uncle tom|house negro\b/i,
+  ruckus:   /\btraitor|sellout|house negro\b/i,
+};
+
+/**
+ * Returns true if `text` contains an offense trigger for `personaId`
+ * and `personaId` is NOT the speaker of that text (no self-interruption).
+ */
+function detectOffense(text: string, personaId: string, speakerId: string): boolean {
+  if (personaId === speakerId) return false; // never self-interrupt
+  const pattern = PERSONA_OFFENSE_TRIGGERS[personaId];
+  if (!pattern) return false;
+  return pattern.test(text);
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Persona id → portrait require()
 const PERSONA_PORTRAITS: Record<string, any> = {
   trump: require("@/assets/images/persona-trump.png"),
@@ -1064,8 +1095,10 @@ export default function InterviewScreen() {
       if (!q) { await new Promise((r) => setTimeout(r, 600)); continue; }
       enrichAndAddMessage({ id: `q-${Date.now()}-${Math.random()}`, speakerId: q.speakerId, speakerName: q.speakerName, text: q.text, ts: Date.now() });
 
-      // Decide up-front whether to interrupt — needed so we can pre-fetch correctly
-      const willInterrupt = Math.random() < 0.20;
+      // Offense check: does the question offend the interviewee? (guaranteed interrupt, no self-interrupt)
+      const qOffendsInterviewee = intervieweeId ? detectOffense(q.text, intervieweeId, q.speakerId) : false;
+      // Decide up-front whether to interrupt — offense = always; otherwise 20% random
+      const willInterrupt = qOffendsInterviewee || Math.random() < 0.20;
 
       // PIPELINE: kick off the answer fetch immediately in parallel with question TTS.
       // When interrupting, pre-fetch BOTH the jab AND the full answer in parallel so
@@ -1080,7 +1113,7 @@ export default function InterviewScreen() {
       await new Promise((r) => setTimeout(r, Math.max(100, qReadMs - 3000)));
       if (!runningRef.current) break;
 
-      // Random interruption from interviewee on the question (20%)
+      // Interruption from interviewee (offense = guaranteed; otherwise random 20%)
       let interruptionText: string | undefined;
       if (willInterrupt && interruptPromise) {
         const intr = await interruptPromise;
@@ -1113,18 +1146,23 @@ export default function InterviewScreen() {
       await new Promise((r) => setTimeout(r, Math.max(100, aReadMs - 3000)));
       if (!runningRef.current) break;
 
+      // Offense check: does the answer offend the interviewer? (guaranteed interrupt, no self-interrupt)
+      const aOffendsInterviewer = interviewerId ? detectOffense(a.text, interviewerId, a.speakerId) : false;
+
       // ── Micro-reaction by the INTERVIEWER while the answer plays —
       // fires before the next formal interruption/cut-in check.
-      if (Math.random() < 0.28) {
+      if (Math.random() < 0.28 && !aOffendsInterviewer) {
         const micro = MICRO_REACTIONS[Math.floor(Math.random() * MICRO_REACTIONS.length)];
         enrichAndAddMessage({ id: `micro-a-${Date.now()}`, speakerId: q.speakerId, speakerName: q.speakerName, text: micro, ts: Date.now(), isInterruption: true });
         await new Promise((r) => setTimeout(r, 80));
       }
 
-      // Random interviewer cut-in mid-answer (18%)
-      if (Math.random() < 0.18) {
+      // Interviewer cut-in: offense = guaranteed; otherwise random 18%
+      // No self-interruption: q.speakerId is the interviewer, a.speakerId is the interviewee.
+      if (aOffendsInterviewer || Math.random() < 0.18) {
         const cut = await fetchQuestion({ isInterruption: true, currentTopicArg: topic });
-        if (cut && cut.text && runningRef.current) {
+        // Guard: cut speaker must differ from the answer speaker (no self-interrupt)
+        if (cut && cut.text && runningRef.current && cut.speakerId !== a.speakerId) {
           enrichAndAddMessage({ id: `cut-${Date.now()}-${Math.random()}`, speakerId: cut.speakerId, speakerName: cut.speakerName, text: cut.text, ts: Date.now(), isInterruption: true });
           await new Promise((r) => setTimeout(r, 200));
         }
