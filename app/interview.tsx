@@ -1058,14 +1058,6 @@ export default function InterviewScreen() {
   const runLoop = useCallback(async () => {
     while (runningRef.current && Date.now() < sessionEndsAtRef.current) {
       if (isPausedRef.current) { await new Promise((r) => setTimeout(r, 400)); continue; }
-
-      // ── Queue-drain gate: don't start a new turn until audio from the last
-      // turn is nearly done playing.  This ensures each full argument is heard
-      // before the next exchange begins (overlap between consecutive items is
-      // still preserved by the 1-second early-resolve in processQueue).
-      while (ttsQueueRef.current.length > 1 && ttsRunningRef.current && runningRef.current) {
-        await new Promise((r) => setTimeout(r, 350));
-      }
       if (!runningRef.current) break;
 
       // Always read from the ref so we see the latest topic list even if it was
@@ -1150,6 +1142,12 @@ export default function InterviewScreen() {
       const cutInPromise: Promise<{ speakerId: string; speakerName: string; text: string } | null> | null =
         willCutIn ? fetchQuestion({ isInterruption: true, currentTopicArg: topic }) : null;
 
+      // PRE-FETCH next question in parallel with the answer read delay — gives it the
+      // maximum runway so the next turn starts with zero thinking-indicator wait.
+      if (runningRef.current && Date.now() < sessionEndsAtRef.current) {
+        nextQPromiseRef.current = fetchQuestion({ isFollowUp: true, isTransition: false, currentTopicArg: topic });
+      }
+
       const aReadMs = Math.min(7000, Math.max(1800, a.text.length * 40));
       await new Promise((r) => setTimeout(r, Math.max(100, aReadMs - 3000)));
       if (!runningRef.current) break;
@@ -1225,12 +1223,9 @@ export default function InterviewScreen() {
           nextQPromiseRef.current = fetchQuestion({ isFollowUp: true, isTransition: false, currentTopicArg: nextTopic });
         }
         await new Promise((r) => setTimeout(r, 250));
-      } else {
-        // Pre-fetch next question in background while queue drains — eliminates gap
-        if (runningRef.current && Date.now() < sessionEndsAtRef.current) {
-          nextQPromiseRef.current = fetchQuestion({ isFollowUp: true, isTransition: false, currentTopicArg: topic });
-        }
       }
+      // Note: nextQPromiseRef is already pre-fetched above (right after answer is displayed)
+      // so no duplicate fetch needed here for the non-transition case.
     }
     runningRef.current = false;
     if (Date.now() >= sessionEndsAtRef.current) setPhase("ended");
