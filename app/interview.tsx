@@ -1142,26 +1142,30 @@ export default function InterviewScreen() {
 
       enrichAndAddMessage({ id: `a-${Date.now()}-${Math.random()}`, speakerId: a.speakerId, speakerName: a.speakerName, text: a.text, ts: Date.now() });
 
+      // Offense check: does the answer offend the interviewer? (now that we have a.text)
+      const aOffendsInterviewer = interviewerId ? detectOffense(a.text, interviewerId, a.speakerId) : false;
+      // Decide cut-in immediately and PRE-FETCH in parallel with the answer read delay —
+      // same pipeline pattern as interviewee interrupt, so it's ready when read time expires.
+      const willCutIn = aOffendsInterviewer || Math.random() < 0.18;
+      const cutInPromise: Promise<{ speakerId: string; speakerName: string; text: string } | null> | null =
+        willCutIn ? fetchQuestion({ isInterruption: true, currentTopicArg: topic }) : null;
+
       const aReadMs = Math.min(7000, Math.max(1800, a.text.length * 40));
       await new Promise((r) => setTimeout(r, Math.max(100, aReadMs - 3000)));
       if (!runningRef.current) break;
 
-      // Offense check: does the answer offend the interviewer? (guaranteed interrupt, no self-interrupt)
-      const aOffendsInterviewer = interviewerId ? detectOffense(a.text, interviewerId, a.speakerId) : false;
-
       // ── Micro-reaction by the INTERVIEWER while the answer plays —
-      // fires before the next formal interruption/cut-in check.
-      if (Math.random() < 0.28 && !aOffendsInterviewer) {
+      // skip if we're about to fire a real cut-in (avoid double-reaction).
+      if (Math.random() < 0.28 && !willCutIn) {
         const micro = MICRO_REACTIONS[Math.floor(Math.random() * MICRO_REACTIONS.length)];
         enrichAndAddMessage({ id: `micro-a-${Date.now()}`, speakerId: q.speakerId, speakerName: q.speakerName, text: micro, ts: Date.now(), isInterruption: true });
         await new Promise((r) => setTimeout(r, 80));
       }
 
-      // Interviewer cut-in: offense = guaranteed; otherwise random 18%
-      // No self-interruption: q.speakerId is the interviewer, a.speakerId is the interviewee.
-      if (aOffendsInterviewer || Math.random() < 0.18) {
-        const cut = await fetchQuestion({ isInterruption: true, currentTopicArg: topic });
-        // Guard: cut speaker must differ from the answer speaker (no self-interrupt)
+      // Interviewer cut-in — should already be resolved since it was pre-fetched above.
+      // Guard: cut speaker must differ from answer speaker (no self-interrupt).
+      if (willCutIn && cutInPromise) {
+        const cut = await cutInPromise;
         if (cut && cut.text && runningRef.current && cut.speakerId !== a.speakerId) {
           enrichAndAddMessage({ id: `cut-${Date.now()}-${Math.random()}`, speakerId: cut.speakerId, speakerName: cut.speakerName, text: cut.text, ts: Date.now(), isInterruption: true });
           await new Promise((r) => setTimeout(r, 200));
