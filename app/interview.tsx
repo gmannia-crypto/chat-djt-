@@ -1100,9 +1100,9 @@ export default function InterviewScreen() {
       const interruptPromise: Promise<{ speakerId: string; speakerName: string; text: string } | null> | null =
         willInterrupt ? fetchAnswer(q.text, { isInterruption: true }) : null;
 
-      // Use 40ms/char estimate — closer to real TTS pace — with a 3s lead window.
-      const qReadMs = Math.min(6000, Math.max(1800, q.text.length * 40));
-      await new Promise((r) => setTimeout(r, Math.max(100, qReadMs - 3000)));
+      // 10ms/char for text-chat pacing (40ms was audio-only). Cap at 2s, floor at 400ms.
+      const qReadMs = Math.min(2000, Math.max(400, q.text.length * 10));
+      await new Promise((r) => setTimeout(r, Math.max(100, qReadMs - 1000)));
       if (!runningRef.current) break;
 
       // Interruption from interviewee (offense = guaranteed; otherwise random 20%)
@@ -1148,8 +1148,9 @@ export default function InterviewScreen() {
         nextQPromiseRef.current = fetchQuestion({ isFollowUp: true, isTransition: false, currentTopicArg: topic });
       }
 
-      const aReadMs = Math.min(7000, Math.max(1800, a.text.length * 40));
-      await new Promise((r) => setTimeout(r, Math.max(100, aReadMs - 3000)));
+      // 10ms/char for text-chat pacing. Cap at 2.5s, floor at 400ms.
+      const aReadMs = Math.min(2500, Math.max(400, a.text.length * 10));
+      await new Promise((r) => setTimeout(r, Math.max(100, aReadMs - 1000)));
       if (!runningRef.current) break;
 
       // ── Micro-reaction by the INTERVIEWER while the answer plays —
