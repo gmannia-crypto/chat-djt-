@@ -314,10 +314,7 @@ export default function InterviewScreen() {
   const [savedSessionId, setSavedSessionId] = useState<string | null>(null);
 
   const flatListRef = useRef<FlatList>(null);
-  const scrollOffsetRef = useRef(0);
-  const contentHeightRef = useRef(0);
-  const listHeightRef = useRef(0);
-  const scrollRafRef = useRef<number | null>(null);
+  const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const runningRef = useRef(false);
   const isPausedRef = useRef(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -331,32 +328,15 @@ export default function InterviewScreen() {
   const topicsRef = useRef<Topic[]>([]);
   useEffect(() => { messagesRef.current = messages; }, [messages]);
 
-  // ── Speech-paced auto-scroll ──────────────────────────────────────────────
-  // When a new message appears, scroll down smoothly at ~130 wpm reading pace
-  // so the dialog moves in step with the TTS voice, not faster.
+  // ── Auto-scroll: one smooth scroll per new message, after layout settles ─────
   useEffect(() => {
-    const last = [...messages].reverse().find((m) => !m.isSystem);
-    if (!last) return;
-    const words = last.text.trim().split(/\s+/).length;
-    // 130 wpm → ms per word ~461ms; clamp between 2s and 12s
-    const duration = Math.min(12000, Math.max(2000, words * 461));
-    const startOffset = scrollOffsetRef.current;
-    const targetOffset = Math.max(0, contentHeightRef.current - listHeightRef.current);
-    if (targetOffset <= startOffset + 4) return; // already at bottom
-    const startTime = performance.now();
-    if (scrollRafRef.current !== null) cancelAnimationFrame(scrollRafRef.current);
-    const step = (now: number) => {
-      const t = Math.min((now - startTime) / duration, 1);
-      // ease-in-out cubic
-      const ease = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-      const offset = startOffset + (targetOffset - startOffset) * ease;
-      flatListRef.current?.scrollToOffset({ offset, animated: false });
-      if (t < 1) scrollRafRef.current = requestAnimationFrame(step);
-      else scrollRafRef.current = null;
-    };
-    scrollRafRef.current = requestAnimationFrame(step);
-    return () => { if (scrollRafRef.current !== null) cancelAnimationFrame(scrollRafRef.current); };
-  }, [messages]);
+    if (messages.length === 0) return;
+    if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+    scrollTimerRef.current = setTimeout(() => {
+      flatListRef.current?.scrollToEnd({ animated: true });
+    }, 250);
+    return () => { if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current); };
+  }, [messages.length]);
   // ─────────────────────────────────────────────────────────────────────────────
 
   useEffect(() => { topicIdxRef.current = topicIdx; }, [topicIdx]);
@@ -1944,10 +1924,6 @@ export default function InterviewScreen() {
         <FlatList
           ref={flatListRef}
           data={messages}
-          onScroll={(e) => { scrollOffsetRef.current = e.nativeEvent.contentOffset.y; }}
-          onContentSizeChange={(_w, h) => { contentHeightRef.current = h; }}
-          onLayout={(e) => { listHeightRef.current = e.nativeEvent.layout.height; }}
-          scrollEventThrottle={16}
           keyExtractor={(m) => m.id}
           contentContainerStyle={{ padding: 14, paddingBottom: 12 }}
           renderItem={({ item }) => {
