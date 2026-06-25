@@ -1251,6 +1251,126 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       negative: ["sellout", "uncle tom", "house negro", "token", "puppet", "gatekeeper", "systemic racism", "reparations"],
     },
   },
+  billclinton: {
+    id: "billclinton",
+    name: "Bill Clinton",
+    shortName: "Bill Clinton",
+    color: "#003DA5",
+    faction: "opponent",
+    image: require("@/assets/images/persona-billclinton.png"),
+    personality: {
+      energy: 80,
+      aggression: 45,
+      humor: 70,
+      catchphrases: ["Now let me tell you something", "I feel your pain", "Here's what I know", "Now look", "I want to be very clear about this"],
+    },
+    relationships: {
+      trump: { sentiment: 10 },
+      hillaryclinton: { sentiment: 75 },
+      obama: { sentiment: 80 },
+      biden: { sentiment: 70 },
+      carville: { sentiment: 85 },
+      maddow: { sentiment: 65 },
+      berniemc: { sentiment: 60 },
+      joyreid: { sentiment: 65 },
+      graham: { sentiment: 30 },
+      mcconnell: { sentiment: 15 },
+    },
+    triggerWords: {
+      positive: ["economy", "surplus", "nafta", "peace", "prosperity", "arkansas", "policy", "charm", "diplomacy"],
+      negative: ["monica", "impeachment", "crime bill", "lewinsky", "scandal", "liar", "cheat"],
+    },
+  },
+  hillaryclinton: {
+    id: "hillaryclinton",
+    name: "Hillary Clinton",
+    shortName: "Hillary",
+    color: "#1A5276",
+    faction: "opponent",
+    image: require("@/assets/images/persona-hillaryclinton.png"),
+    personality: {
+      energy: 75,
+      aggression: 65,
+      humor: 50,
+      catchphrases: ["I'm with her", "What difference does it make", "I testified for 11 hours", "I have receipts", "Stronger together"],
+    },
+    relationships: {
+      trump: { sentiment: 5 },
+      billclinton: { sentiment: 75 },
+      obama: { sentiment: 75 },
+      biden: { sentiment: 70 },
+      maddow: { sentiment: 75 },
+      joyreid: { sentiment: 70 },
+      carville: { sentiment: 80 },
+      berniemc: { sentiment: 55 },
+      graham: { sentiment: 15 },
+      mcconnell: { sentiment: 10 },
+    },
+    triggerWords: {
+      positive: ["women", "healthcare", "diplomacy", "secretary", "senator", "children", "policy", "prepared"],
+      negative: ["emails", "benghazi", "crooked", "lock her up", "deplorables", "weak", "corrupt", "server"],
+    },
+  },
+  marcorubio: {
+    id: "marcorubio",
+    name: "Marco Rubio",
+    shortName: "Rubio",
+    color: "#CC0000",
+    faction: "supporter",
+    image: require("@/assets/images/persona-marcorubio.png"),
+    personality: {
+      energy: 75,
+      aggression: 60,
+      humor: 40,
+      catchphrases: ["Let's dispel with this fiction", "My parents came here with nothing", "America is still the greatest country", "Cuba under Castro", "Border security first"],
+    },
+    relationships: {
+      trump: { sentiment: 70 },
+      desantis: { sentiment: 45 },
+      graham: { sentiment: 75 },
+      timscott: { sentiment: 70 },
+      pambondi: { sentiment: 75 },
+      carville: { sentiment: 20 },
+      omar: { sentiment: 10 },
+      aoc: { sentiment: 15 },
+      hillaryclinton: { sentiment: 15 },
+      billclinton: { sentiment: 30 },
+    },
+    triggerWords: {
+      positive: ["cuba", "immigration", "florida", "secretary of state", "parents", "american dream", "freedom", "communism"],
+      negative: ["little marco", "water bottle", "robot", "scripted", "gang of eight", "amnesty", "sweating", "con artist"],
+    },
+  },
+  desantis: {
+    id: "desantis",
+    name: "Ron DeSantis",
+    shortName: "DeSantis",
+    color: "#B22222",
+    faction: "supporter",
+    image: require("@/assets/images/persona-desantis.png"),
+    personality: {
+      energy: 70,
+      aggression: 80,
+      humor: 20,
+      catchphrases: ["Florida is where woke goes to die", "We will never surrender to the woke mob", "People are voting with their feet", "Don't Say Gay", "Anti-woke"],
+    },
+    relationships: {
+      trump: { sentiment: 40 },
+      marcorubio: { sentiment: 50 },
+      graham: { sentiment: 60 },
+      timscott: { sentiment: 60 },
+      aoc: { sentiment: 5 },
+      omar: { sentiment: 5 },
+      maddow: { sentiment: 5 },
+      joyreid: { sentiment: 5 },
+      carville: { sentiment: 15 },
+      berniemc: { sentiment: 10 },
+    },
+    triggerWords: {
+      positive: ["florida", "anti-woke", "freedom", "parents rights", "border", "conservative", "republican"],
+      negative: ["desanctimonious", "disney", "pudding", "weird", "robot", "little marco", "failed", "dropout", "2024"],
+    },
+  },
 };
 
 const MYSTERY_PERSONAS: Record<string, ArenaPersona> = {
@@ -1780,7 +1900,7 @@ const MYSTERY_UNLOCK_COSTS: Record<string, number> = {
 };
 const MYSTERY_UNLOCK_KEY = "arena_mystery_unlocked";
 
-const PERSONA_IDS = ["trump", "elon", "errol", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "leavitt", "erikakirk", "loomer", "bannon", "stephena", "malema", "hannity", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "aoc", "joerogan", "timscott"];
+const PERSONA_IDS = ["trump", "elon", "errol", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "leavitt", "erikakirk", "loomer", "bannon", "stephena", "malema", "hannity", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "aoc", "joerogan", "timscott", "billclinton", "hillaryclinton", "marcorubio", "desantis"];
 // Cartoon-style image filter — vivid posterized look on web
 const CARTOON_FILTER = Platform.OS === "web"
   ? ({ filter: "contrast(1.35) saturate(1.85) brightness(1.03)" } as any)
@@ -6977,7 +7097,7 @@ export default function ArenaScreen() {
             {(() => {
               const CATEGORIES: Array<{ label: string; ids: string[]; mysteryIds: string[] }> = [
                 { label: "🏛  PRESIDENTS", ids: ["trump", "biden"], mysteryIds: ["obama"] },
-                { label: "⚖️  POLITICIANS", ids: ["netanyahu", "mcconnell", "omar", "graham", "pambondi", "miller", "jimjordan", "jascrockett", "aoc", "timscott"], mysteryIds: ["schumer", "kamala", "mtg", "rfk"] },
+                { label: "⚖️  POLITICIANS", ids: ["netanyahu", "mcconnell", "omar", "graham", "pambondi", "miller", "jimjordan", "jascrockett", "aoc", "timscott", "billclinton", "hillaryclinton", "marcorubio", "desantis"], mysteryIds: ["schumer", "kamala", "mtg", "rfk"] },
                 { label: "📺  MEDIA & JOURNALISTS", ids: ["maddow", "megynkelly", "joyreid", "erikakirk", "loomer", "leavitt", "hannity"], mysteryIds: ["odonnell"] },
                 { label: "🎙  PODCASTERS & STRATEGISTS", ids: ["galloway", "candace", "carville", "bannon", "joerogan"], mysteryIds: ["alexjones"] },
                 { label: "🎭  COMEDIANS", ids: ["berniemc", "rosie"], mysteryIds: [] },
