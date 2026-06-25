@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import {
   View, Text, Pressable, ScrollView, StyleSheet, Modal, ActivityIndicator,
   Platform, Image, FlatList, TextInput, KeyboardAvoidingView, Alert, Share, Linking,
+  useWindowDimensions,
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -325,6 +326,27 @@ export default function InterviewScreen() {
   const topicIdxRef = useRef(0);
   const topicsRef = useRef<Topic[]>([]);
   useEffect(() => { messagesRef.current = messages; }, [messages]);
+
+  // ── Crawl: update text + color on every new message ─────────────────────────
+  useEffect(() => {
+    const last = [...messages].reverse().find((m) => !m.isSystem);
+    if (!last) return;
+    const label = `${last.speakerName}:  ${last.text}`;
+    const color = last.speakerId === interviewerId ? "#FFD700" : last.speakerId === intervieweeId ? "#4ADE80" : "#60a5fa";
+    setCrawlText(label);
+    setCrawlSpeakerColor(color);
+  }, [messages, interviewerId, intervieweeId]);
+
+  // ── Crawl: animate left whenever text updates ─────────────────────────────
+  useEffect(() => {
+    if (!crawlText || !screenWidth) return;
+    const charWidth = 8; // conservative px-per-char estimate
+    const textPx = crawlText.length * charWidth;
+    crawlTranslateX.value = screenWidth; // start off right edge
+    crawlTranslateX.value = withTiming(-(textPx + 60), {
+      duration: Math.max(6000, crawlText.length * 75),
+    });
+  }, [crawlText, screenWidth]);
   useEffect(() => { topicIdxRef.current = topicIdx; }, [topicIdx]);
   useEffect(() => { topicsRef.current = topics; }, [topics]);
 
@@ -416,6 +438,15 @@ export default function InterviewScreen() {
       .catch(() => {});
   }, [liesSheetOpen, deviceId, lies]);
   const [latestTruthScore, setLatestTruthScore] = useState<number | null>(null);
+  // ── Live speech crawl ────────────────────────────────────────────────────────
+  const [crawlText, setCrawlText] = useState("");
+  const [crawlSpeakerColor, setCrawlSpeakerColor] = useState("#FFD700");
+  const crawlTranslateX = useSharedValue(0);
+  const { width: screenWidth } = useWindowDimensions();
+  const crawlStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: crawlTranslateX.value }],
+  }));
+  // ─────────────────────────────────────────────────────────────────────────────
   const flashOpacity = useSharedValue(0);
   const glowPulse = useSharedValue(0);
   // Background heartbeat pulse for the live phase
@@ -1783,7 +1814,7 @@ export default function InterviewScreen() {
       <LinearGradient colors={["rgba(255,215,0,0.08)", "rgba(0,0,0,0)", "#0a0a0a"]} style={StyleSheet.absoluteFill} />
 
       {/* TikTok demo QR overlay — visible in screen recordings */}
-      <View pointerEvents="none" style={{ position: "absolute", bottom: insets.bottom + 18, right: 14, zIndex: 9999, alignItems: "center" }}>
+      <View pointerEvents="none" style={{ position: "absolute", bottom: insets.bottom + 175, right: 14, zIndex: 9999, alignItems: "center" }}>
         <View style={{ backgroundColor: "rgba(0,0,0,0.72)", borderRadius: 10, padding: 6, borderWidth: 1, borderColor: "rgba(255,215,0,0.45)" }}>
           <Image source={require("../assets/images/qr-download.jpg")} style={{ width: 72, height: 72, borderRadius: 6 }} resizeMode="contain" />
           <Text style={{ color: "#FFD700", fontSize: 8, fontWeight: "700", textAlign: "center", marginTop: 3, letterSpacing: 0.5 }}>SCAN TO TRY</Text>
@@ -1905,6 +1936,23 @@ export default function InterviewScreen() {
         </Pressable>
         <Ionicons name="list" size={18} color="#FFD700" style={{ marginLeft: 10 }} />
       </Pressable>
+
+      {/* Live speech crawl — synced to each new message, scrolls right→left */}
+      {phase === "live" && (
+        <View style={{ height: 30, overflow: "hidden", backgroundColor: "rgba(0,0,0,0.88)", borderTopWidth: 1, borderBottomWidth: 1, borderColor: "rgba(255,215,0,0.18)", flexDirection: "row", alignItems: "center" }}>
+          <View style={{ width: 42, backgroundColor: "rgba(220,38,38,0.9)", alignItems: "center", justifyContent: "center", height: "100%", flexShrink: 0 }}>
+            <Text style={{ color: "#fff", fontSize: 9, fontWeight: "900", letterSpacing: 0.8 }}>LIVE</Text>
+          </View>
+          <View style={{ flex: 1, overflow: "hidden" }}>
+            <Animated.Text
+              numberOfLines={1}
+              style={[{ fontSize: 13, fontWeight: "700", paddingLeft: 10, color: crawlSpeakerColor }, crawlStyle]}
+            >
+              {crawlText}
+            </Animated.Text>
+          </View>
+        </View>
+      )}
 
       <View style={{ flex: 1 }}>
         <FlatList
