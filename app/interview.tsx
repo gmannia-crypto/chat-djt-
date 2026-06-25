@@ -314,6 +314,10 @@ export default function InterviewScreen() {
   const [savedSessionId, setSavedSessionId] = useState<string | null>(null);
 
   const flatListRef = useRef<FlatList>(null);
+  const scrollOffsetRef = useRef(0);
+  const contentHeightRef = useRef(0);
+  const listHeightRef = useRef(0);
+  const scrollRafRef = useRef<number | null>(null);
   const runningRef = useRef(false);
   const isPausedRef = useRef(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -326,6 +330,34 @@ export default function InterviewScreen() {
   const topicIdxRef = useRef(0);
   const topicsRef = useRef<Topic[]>([]);
   useEffect(() => { messagesRef.current = messages; }, [messages]);
+
+  // ── Speech-paced auto-scroll ──────────────────────────────────────────────
+  // When a new message appears, scroll down smoothly at ~130 wpm reading pace
+  // so the dialog moves in step with the TTS voice, not faster.
+  useEffect(() => {
+    const last = [...messages].reverse().find((m) => !m.isSystem);
+    if (!last) return;
+    const words = last.text.trim().split(/\s+/).length;
+    // 130 wpm → ms per word ~461ms; clamp between 2s and 12s
+    const duration = Math.min(12000, Math.max(2000, words * 461));
+    const startOffset = scrollOffsetRef.current;
+    const targetOffset = Math.max(0, contentHeightRef.current - listHeightRef.current);
+    if (targetOffset <= startOffset + 4) return; // already at bottom
+    const startTime = performance.now();
+    if (scrollRafRef.current !== null) cancelAnimationFrame(scrollRafRef.current);
+    const step = (now: number) => {
+      const t = Math.min((now - startTime) / duration, 1);
+      // ease-in-out cubic
+      const ease = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+      const offset = startOffset + (targetOffset - startOffset) * ease;
+      flatListRef.current?.scrollToOffset({ offset, animated: false });
+      if (t < 1) scrollRafRef.current = requestAnimationFrame(step);
+      else scrollRafRef.current = null;
+    };
+    scrollRafRef.current = requestAnimationFrame(step);
+    return () => { if (scrollRafRef.current !== null) cancelAnimationFrame(scrollRafRef.current); };
+  }, [messages]);
+  // ─────────────────────────────────────────────────────────────────────────────
 
   useEffect(() => { topicIdxRef.current = topicIdx; }, [topicIdx]);
   useEffect(() => { topicsRef.current = topics; }, [topics]);
@@ -1784,13 +1816,6 @@ export default function InterviewScreen() {
     <View style={[s.container, { paddingTop: insets.top + webTop }]}>
       <LinearGradient colors={["rgba(255,215,0,0.08)", "rgba(0,0,0,0)", "#0a0a0a"]} style={StyleSheet.absoluteFill} />
 
-      {/* TikTok demo QR overlay — top-right, away from all controls */}
-      <View pointerEvents="none" style={{ position: "absolute", top: insets.top + webTop + 8, right: 14, zIndex: 9999, alignItems: "center" }}>
-        <View style={{ backgroundColor: "rgba(0,0,0,0.72)", borderRadius: 10, padding: 6, borderWidth: 1, borderColor: "rgba(255,215,0,0.45)" }}>
-          <Image source={require("../assets/images/qr-download.jpg")} style={{ width: 72, height: 72, borderRadius: 6 }} resizeMode="contain" />
-          <Text style={{ color: "#FFD700", fontSize: 8, fontWeight: "700", textAlign: "center", marginTop: 3, letterSpacing: 0.5 }}>SCAN TO TRY</Text>
-        </View>
-      </View>
 
       {/* Pulsating heartbeat background icon — live phase only */}
       {phase === "live" && (
@@ -1861,6 +1886,13 @@ export default function InterviewScreen() {
 
       {/* Portrait stage with mood meters */}
       <View style={s.stage}>
+        {/* QR code — centered between the two portraits, screen-recording visible */}
+        <View pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, top: 0, alignItems: "center", justifyContent: "center", zIndex: 10 }}>
+          <View style={{ backgroundColor: "rgba(0,0,0,0.72)", borderRadius: 8, padding: 5, borderWidth: 1, borderColor: "rgba(255,215,0,0.45)" }}>
+            <Image source={require("../assets/images/qr-download.jpg")} style={{ width: 56, height: 56, borderRadius: 5 }} resizeMode="contain" />
+            <Text style={{ color: "#FFD700", fontSize: 7, fontWeight: "700", textAlign: "center", marginTop: 2, letterSpacing: 0.5 }}>SCAN TO TRY</Text>
+          </View>
+        </View>
         {[
           { id: interviewerId, name: interviewer?.name, portrait: interviewerPortrait, glow: interviewerGlowStyle, emo: emoInterviewer, role: "INTERVIEWER", color: "#FFD700" },
           { id: intervieweeId, name: interviewee?.name, portrait: intervieweePortrait, glow: intervieweeGlowStyle, emo: emoInterviewee, role: "GUEST", color: "#4ADE80" },
@@ -1912,8 +1944,10 @@ export default function InterviewScreen() {
         <FlatList
           ref={flatListRef}
           data={messages}
-          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-          onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
+          onScroll={(e) => { scrollOffsetRef.current = e.nativeEvent.contentOffset.y; }}
+          onContentSizeChange={(_w, h) => { contentHeightRef.current = h; }}
+          onLayout={(e) => { listHeightRef.current = e.nativeEvent.layout.height; }}
+          scrollEventThrottle={16}
           keyExtractor={(m) => m.id}
           contentContainerStyle={{ padding: 14, paddingBottom: 12 }}
           renderItem={({ item }) => {
