@@ -340,15 +340,6 @@ export default function InterviewScreen() {
   const beepEnabledRef = useRef(true);
   const [activeSpeaker, setActiveSpeaker] = useState<string | null>(null);
   const activeSpeakerRef = useRef<string | null>(null);
-  // ── Karaoke scroll: fires the instant TTS starts (right before playTTS) ───
-  useEffect(() => {
-    if (!activeSpeaker) return;
-    if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
-    scrollTimerRef.current = setTimeout(() => {
-      flatListRef.current?.scrollToEnd({ animated: true });
-    }, 80);
-    return () => { if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current); };
-  }, [activeSpeaker]);
   const ttsQueueRef = useRef<Array<{ text: string; personaId: string }>>([]);
   const ttsRunningRef = useRef(false);
   const currentSoundRef = useRef<Audio.Sound | null>(null);
@@ -646,6 +637,8 @@ export default function InterviewScreen() {
                 clearTimeout(safetyTimer);
                 // Allow the full clip duration + 6 s buffer before force-finishing
                 safetyTimer = setTimeout(finish, status.durationMillis + 6000);
+                // ── Karaoke scroll: fires the instant audio is confirmed playing ──
+                flatListRef.current?.scrollToEnd({ animated: true });
               }
               const remaining = status.durationMillis - status.positionMillis;
               // Kick off audio prefetch for the next item as soon as possible
