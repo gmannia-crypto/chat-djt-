@@ -340,7 +340,7 @@ export default function InterviewScreen() {
   const beepEnabledRef = useRef(true);
   const [activeSpeaker, setActiveSpeaker] = useState<string | null>(null);
   const activeSpeakerRef = useRef<string | null>(null);
-  const ttsQueueRef = useRef<Array<{ text: string; personaId: string }>>([]);
+  const ttsQueueRef = useRef<Array<{ text: string; personaId: string; msgId?: string }>>([]);
   const ttsRunningRef = useRef(false);
   const currentSoundRef = useRef<Audio.Sound | null>(null);
   const prefetchedAudioRef = useRef<{ personaId: string; text: string; audioUri: string } | null>(null);
@@ -637,8 +637,21 @@ export default function InterviewScreen() {
                 clearTimeout(safetyTimer);
                 // Allow the full clip duration + 6 s buffer before force-finishing
                 safetyTimer = setTimeout(finish, status.durationMillis + 6000);
-                // ── Karaoke scroll: fires the instant audio is confirmed playing ──
-                flatListRef.current?.scrollToEnd({ animated: true });
+                // ── Karaoke scroll: scroll to THIS message when it starts playing ──
+                // Use msgId to find the exact index so we don't jump ahead
+                // to messages that were added later but not yet spoken.
+                const msgIdx = item.msgId
+                  ? messagesRef.current.findIndex((m) => m.id === item.msgId)
+                  : -1;
+                if (msgIdx >= 0) {
+                  try {
+                    flatListRef.current?.scrollToIndex({ index: msgIdx, animated: true, viewPosition: 0.8 });
+                  } catch {
+                    flatListRef.current?.scrollToEnd({ animated: true });
+                  }
+                } else {
+                  flatListRef.current?.scrollToEnd({ animated: true });
+                }
               }
               const remaining = status.durationMillis - status.positionMillis;
               // Kick off audio prefetch for the next item as soon as possible
@@ -667,9 +680,9 @@ export default function InterviewScreen() {
     }
   }, [startPrefetch]);
 
-  const enqueueTTS = useCallback((text: string, personaId: string) => {
+  const enqueueTTS = useCallback((text: string, personaId: string, msgId?: string) => {
     if (!voiceEnabledRef.current) return;
-    ttsQueueRef.current.push({ text, personaId });
+    ttsQueueRef.current.push({ text, personaId, msgId });
     processQueue();
   }, [processQueue]);
 
@@ -861,7 +874,7 @@ export default function InterviewScreen() {
   // Wrap addMessage to also drive emotions, TTS, fact-check
   const enrichAndAddMessage = useCallback((m: Msg) => {
     setMessages((prev) => [...prev, m]);
-    enqueueTTS(m.text, m.speakerId);
+    enqueueTTS(m.text, m.speakerId, m.id);
     const delta = computeEmotionDelta(m.text);
     if (interviewerId && m.speakerId === interviewerId) setEmoInterviewer((p) => applyEmotionDelta(p, delta));
     else if (intervieweeId && m.speakerId === intervieweeId) setEmoInterviewee((p) => applyEmotionDelta(p, delta));
