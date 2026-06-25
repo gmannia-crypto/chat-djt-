@@ -328,15 +328,17 @@ export default function InterviewScreen() {
   const topicsRef = useRef<Topic[]>([]);
   useEffect(() => { messagesRef.current = messages; }, [messages]);
 
-  // ── Auto-scroll: one smooth scroll per new message, after layout settles ─────
+  // ── Karaoke scroll: fires the instant TTS audio starts (activeSpeaker fires
+  //    right before playTTS), so the visible text is perfectly in step with
+  //    the voice — not before, not after. ────────────────────────────────────
   useEffect(() => {
-    if (messages.length === 0) return;
+    if (!activeSpeaker) return;
     if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
     scrollTimerRef.current = setTimeout(() => {
       flatListRef.current?.scrollToEnd({ animated: true });
-    }, 250);
+    }, 80);
     return () => { if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current); };
-  }, [messages.length]);
+  }, [activeSpeaker]);
   // ─────────────────────────────────────────────────────────────────────────────
 
   useEffect(() => { topicIdxRef.current = topicIdx; }, [topicIdx]);
