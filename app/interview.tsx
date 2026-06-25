@@ -185,10 +185,10 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   aoc: require("@/assets/images/persona-aoc.png"),
   joerogan: require("@/assets/images/persona-joerogan.png"),
   timscott: require("@/assets/images/persona-timscott.png"),
-  billclinton: require("@/assets/images/persona-billclinton.png"),
-  hillaryclinton: require("@/assets/images/persona-hillaryclinton.png"),
-  marcorubio: require("@/assets/images/persona-marcorubio.png"),
-  desantis: require("@/assets/images/persona-desantis.png"),
+  billclinton: require("@/assets/images/persona-billclinton.jpg"),
+  hillaryclinton: require("@/assets/images/persona-hillaryclinton.jpg"),
+  marcorubio: require("@/assets/images/persona-marcorubio.jpg"),
+  desantis: require("@/assets/images/persona-desantis.jpg"),
 };
 
 const FX_KEY = "interview_fx_enabled_v1";

@@ -1257,7 +1257,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
     shortName: "Bill Clinton",
     color: "#003DA5",
     faction: "opponent",
-    image: require("@/assets/images/persona-billclinton.png"),
+    image: require("@/assets/images/persona-billclinton.jpg"),
     personality: {
       energy: 80,
       aggression: 45,
@@ -1287,7 +1287,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
     shortName: "Hillary",
     color: "#1A5276",
     faction: "opponent",
-    image: require("@/assets/images/persona-hillaryclinton.png"),
+    image: require("@/assets/images/persona-hillaryclinton.jpg"),
     personality: {
       energy: 75,
       aggression: 65,
@@ -1317,7 +1317,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
     shortName: "Rubio",
     color: "#CC0000",
     faction: "supporter",
-    image: require("@/assets/images/persona-marcorubio.png"),
+    image: require("@/assets/images/persona-marcorubio.jpg"),
     personality: {
       energy: 75,
       aggression: 60,
@@ -1347,7 +1347,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
     shortName: "DeSantis",
     color: "#B22222",
     faction: "supporter",
-    image: require("@/assets/images/persona-desantis.png"),
+    image: require("@/assets/images/persona-desantis.jpg"),
     personality: {
       energy: 70,
       aggression: 80,
