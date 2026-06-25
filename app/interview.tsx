@@ -328,19 +328,6 @@ export default function InterviewScreen() {
   const topicsRef = useRef<Topic[]>([]);
   useEffect(() => { messagesRef.current = messages; }, [messages]);
 
-  // ── Karaoke scroll: fires the instant TTS audio starts (activeSpeaker fires
-  //    right before playTTS), so the visible text is perfectly in step with
-  //    the voice — not before, not after. ────────────────────────────────────
-  useEffect(() => {
-    if (!activeSpeaker) return;
-    if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
-    scrollTimerRef.current = setTimeout(() => {
-      flatListRef.current?.scrollToEnd({ animated: true });
-    }, 80);
-    return () => { if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current); };
-  }, [activeSpeaker]);
-  // ─────────────────────────────────────────────────────────────────────────────
-
   useEffect(() => { topicIdxRef.current = topicIdx; }, [topicIdx]);
   useEffect(() => { topicsRef.current = topics; }, [topics]);
 
@@ -353,6 +340,15 @@ export default function InterviewScreen() {
   const beepEnabledRef = useRef(true);
   const [activeSpeaker, setActiveSpeaker] = useState<string | null>(null);
   const activeSpeakerRef = useRef<string | null>(null);
+  // ── Karaoke scroll: fires the instant TTS starts (right before playTTS) ───
+  useEffect(() => {
+    if (!activeSpeaker) return;
+    if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+    scrollTimerRef.current = setTimeout(() => {
+      flatListRef.current?.scrollToEnd({ animated: true });
+    }, 80);
+    return () => { if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current); };
+  }, [activeSpeaker]);
   const ttsQueueRef = useRef<Array<{ text: string; personaId: string }>>([]);
   const ttsRunningRef = useRef(false);
   const currentSoundRef = useRef<Audio.Sound | null>(null);

@@ -1,0 +1,1 @@
+- [React Compiler TDZ rule](react-compiler-tdz.md) — hooks must be declared AFTER every variable they reference; React Compiler enforces strict TDZ unlike plain React.
