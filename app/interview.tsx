@@ -327,6 +327,16 @@ export default function InterviewScreen() {
   const topicsRef = useRef<Topic[]>([]);
   useEffect(() => { messagesRef.current = messages; }, [messages]);
 
+  // ── Live speech crawl — declared before the effects that reference them ───────
+  const [crawlText, setCrawlText] = useState("");
+  const [crawlSpeakerColor, setCrawlSpeakerColor] = useState("#FFD700");
+  const crawlTranslateX = useSharedValue(0);
+  const { width: screenWidth } = useWindowDimensions();
+  const crawlStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: crawlTranslateX.value }],
+  }));
+  // ─────────────────────────────────────────────────────────────────────────────
+
   // ── Crawl: update text + color on every new message ─────────────────────────
   useEffect(() => {
     const last = [...messages].reverse().find((m) => !m.isSystem);
@@ -438,15 +448,6 @@ export default function InterviewScreen() {
       .catch(() => {});
   }, [liesSheetOpen, deviceId, lies]);
   const [latestTruthScore, setLatestTruthScore] = useState<number | null>(null);
-  // ── Live speech crawl ────────────────────────────────────────────────────────
-  const [crawlText, setCrawlText] = useState("");
-  const [crawlSpeakerColor, setCrawlSpeakerColor] = useState("#FFD700");
-  const crawlTranslateX = useSharedValue(0);
-  const { width: screenWidth } = useWindowDimensions();
-  const crawlStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: crawlTranslateX.value }],
-  }));
-  // ─────────────────────────────────────────────────────────────────────────────
   const flashOpacity = useSharedValue(0);
   const glowPulse = useSharedValue(0);
   // Background heartbeat pulse for the live phase
