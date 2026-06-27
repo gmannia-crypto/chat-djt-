@@ -20,8 +20,29 @@ function getPool(): Pool {
   return pool;
 }
 
-export async function getOrCreateAccount(deviceId: string) {
+interface AccountContext {
+  ipAddress?: string;
+  fingerprint?: string;
+}
+
+const LOCALHOST_IPS = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1", "localhost"]);
+
+let _columnsEnsured = false;
+async function ensureColumns(db: Pool) {
+  if (_columnsEnsured) return;
+  try {
+    await db.query(`ALTER TABLE token_accounts ADD COLUMN IF NOT EXISTS ip_address TEXT`);
+    await db.query(`ALTER TABLE token_accounts ADD COLUMN IF NOT EXISTS browser_fingerprint TEXT`);
+    _columnsEnsured = true;
+  } catch {}
+}
+
+export async function getOrCreateAccount(deviceId: string, ctx?: AccountContext) {
   const db = getPool();
+
+  // Ensure ip_address + browser_fingerprint columns exist (idempotent, cached)
+  await ensureColumns(db);
+
   let result = await db.query(
     `SELECT * FROM token_accounts WHERE device_id = $1`,
     [deviceId]
@@ -30,25 +51,73 @@ export async function getOrCreateAccount(deviceId: string) {
   if (result.rows.length === 0) {
     const WELCOME_BONUS_TOKENS = 25;
     const isDev = process.env.NODE_ENV === "development";
-    const startingTokens = isDev ? 100 : WELCOME_BONUS_TOKENS;
+    let startingTokens = isDev ? 100 : WELCOME_BONUS_TOKENS;
+
+    // — Abuse detection: same fingerprint or same IP already has welcome tokens —
+    if (!isDev && ctx && (ctx.fingerprint || (ctx.ipAddress && !LOCALHOST_IPS.has(ctx.ipAddress)))) {
+      try {
+        const orClauses: string[] = [];
+        const params: any[] = [deviceId];
+
+        if (ctx.fingerprint) {
+          params.push(ctx.fingerprint);
+          orClauses.push(`browser_fingerprint = $${params.length}`);
+        }
+
+        if (ctx.ipAddress && !LOCALHOST_IPS.has(ctx.ipAddress)) {
+          params.push(ctx.ipAddress);
+          // Only flag IPs that have created another account in the last 60 minutes
+          orClauses.push(`(ip_address = $${params.length} AND created_at > NOW() - INTERVAL '60 minutes')`);
+        }
+
+        if (orClauses.length > 0) {
+          const dupCheck = await db.query(
+            `SELECT id FROM token_accounts WHERE device_id != $1 AND (${orClauses.join(" OR ")}) LIMIT 1`,
+            params
+          );
+          if (dupCheck.rows.length > 0) {
+            startingTokens = 0; // Already claimed welcome bonus from same browser/IP
+          }
+        }
+      } catch { /* non-fatal — don't block account creation */ }
+    }
+
     result = await db.query(
-      `INSERT INTO token_accounts (device_id, tokens, free_prompts_used, subscription_active, subscription_tokens_granted, created_at, updated_at)
-       VALUES ($1, $2, 0, false, false, NOW(), NOW())
+      `INSERT INTO token_accounts (device_id, tokens, free_prompts_used, subscription_active, subscription_tokens_granted, ip_address, browser_fingerprint, created_at, updated_at)
+       VALUES ($1, $2, 0, false, false, $3, $4, NOW(), NOW())
+       ON CONFLICT (device_id) DO UPDATE SET updated_at = NOW()
        RETURNING *`,
-      [deviceId, startingTokens]
+      [deviceId, startingTokens, ctx?.ipAddress || null, ctx?.fingerprint || null]
     );
-    await db.query(
-      `INSERT INTO token_transactions (account_id, type, amount, description, created_at)
-       VALUES ($1, 'reward', $2, $3, NOW())`,
-      [result.rows[0].id, startingTokens, isDev ? 'Development mode starting tokens' : 'Welcome bonus - 25 free tokens to explore the app']
-    );
+
+    if (startingTokens > 0) {
+      await db.query(
+        `INSERT INTO token_transactions (account_id, type, amount, description, created_at)
+         VALUES ($1, 'reward', $2, $3, NOW())`,
+        [result.rows[0].id, startingTokens, isDev ? 'Development mode starting tokens' : 'Welcome bonus - 25 free tokens to explore the app']
+      );
+    }
+  } else {
+    // Account exists — opportunistically update IP/fingerprint if missing
+    if (ctx?.ipAddress || ctx?.fingerprint) {
+      try {
+        await db.query(
+          `UPDATE token_accounts SET
+             ip_address = COALESCE(ip_address, $2),
+             browser_fingerprint = COALESCE(browser_fingerprint, $3),
+             updated_at = NOW()
+           WHERE device_id = $1`,
+          [deviceId, ctx.ipAddress || null, ctx.fingerprint || null]
+        );
+      } catch {}
+    }
   }
 
   return result.rows[0];
 }
 
-export async function getTokenBalance(deviceId: string) {
-  const account = await getOrCreateAccount(deviceId);
+export async function getTokenBalance(deviceId: string, ctx?: AccountContext) {
+  const account = await getOrCreateAccount(deviceId, ctx);
 
   const freeRemaining = Math.max(0, FREE_PROMPT_LIMIT - account.free_prompts_used);
   const isSubscribed = account.subscription_active &&

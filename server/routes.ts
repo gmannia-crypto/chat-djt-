@@ -4163,9 +4163,14 @@ Return ONLY a valid JSON array: [{"id":"snake_case","title":"3-6 PUNCHY words","
     console.error("Failed to create arena_access table:", e.message);
   }
 
-  async function getArenaAccess(deviceId: string): Promise<{ freeUsed: number; sessionExpiry: number | null; freeTrialExpiry: number | null; lastTrialAt: number | null }> {
+  const ARENA_LOCALHOST_IPS = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1", "localhost"]);
+
+  async function getArenaAccess(deviceId: string, ipAddress?: string): Promise<{ freeUsed: number; sessionExpiry: number | null; freeTrialExpiry: number | null; lastTrialAt: number | null }> {
     const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
     try {
+      // Ensure ip_address column exists on arena_access table
+      await db.query(`ALTER TABLE arena_access ADD COLUMN IF NOT EXISTS ip_address TEXT`).catch(() => {});
+
       const result = await db.query(`SELECT free_used, session_expiry, free_trial_expiry, last_trial_at FROM arena_access WHERE device_id = $1`, [deviceId]);
       if (result.rows.length > 0) {
         const row = result.rows[0];
@@ -4176,6 +4181,26 @@ Return ONLY a valid JSON array: [{"id":"snake_case","title":"3-6 PUNCHY words","
           lastTrialAt: row.last_trial_at ? parseInt(row.last_trial_at) : null,
         };
       }
+
+      // New device — check if same IP already burned through free arena calls
+      if (ipAddress && !ARENA_LOCALHOST_IPS.has(ipAddress)) {
+        try {
+          const ipCheck = await db.query(
+            `SELECT free_used FROM arena_access WHERE ip_address = $1 AND device_id != $2 AND free_used >= $3 ORDER BY updated_at DESC LIMIT 1`,
+            [ipAddress, deviceId, ARENA_FREE_LIMIT]
+          );
+          if (ipCheck.rows.length > 0) {
+            // Same IP already exhausted free calls — pre-fill this new device as exhausted too
+            await db.query(
+              `INSERT INTO arena_access (device_id, free_used, ip_address, updated_at)
+               VALUES ($1, $2, $3, NOW())
+               ON CONFLICT (device_id) DO NOTHING`,
+              [deviceId, ARENA_FREE_LIMIT, ipAddress]
+            );
+            return { freeUsed: ARENA_FREE_LIMIT, sessionExpiry: null, freeTrialExpiry: null, lastTrialAt: null };
+          }
+        } catch {}
+      }
     } catch (e: any) {
       console.error("getArenaAccess error:", e.message);
     } finally {
@@ -4184,15 +4209,18 @@ Return ONLY a valid JSON array: [{"id":"snake_case","title":"3-6 PUNCHY words","
     return { freeUsed: 0, sessionExpiry: null, freeTrialExpiry: null, lastTrialAt: null };
   }
 
-  async function setArenaAccess(deviceId: string, access: { freeUsed: number; sessionExpiry: number | null; freeTrialExpiry: number | null; lastTrialAt?: number | null }): Promise<void> {
+  async function setArenaAccess(deviceId: string, access: { freeUsed: number; sessionExpiry: number | null; freeTrialExpiry: number | null; lastTrialAt?: number | null }, ipAddress?: string): Promise<void> {
     const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
     try {
       await db.query(
-        `INSERT INTO arena_access (device_id, free_used, session_expiry, free_trial_expiry, last_trial_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, NOW())
+        `INSERT INTO arena_access (device_id, free_used, session_expiry, free_trial_expiry, last_trial_at, ip_address, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, NOW())
          ON CONFLICT (device_id) DO UPDATE SET
-           free_used = $2, session_expiry = $3, free_trial_expiry = $4, last_trial_at = COALESCE($5, arena_access.last_trial_at), updated_at = NOW()`,
-        [deviceId, access.freeUsed, access.sessionExpiry, access.freeTrialExpiry, access.lastTrialAt ?? null]
+           free_used = $2, session_expiry = $3, free_trial_expiry = $4,
+           last_trial_at = COALESCE($5, arena_access.last_trial_at),
+           ip_address = COALESCE($6, arena_access.ip_address),
+           updated_at = NOW()`,
+        [deviceId, access.freeUsed, access.sessionExpiry, access.freeTrialExpiry, access.lastTrialAt ?? null, ipAddress || null]
       );
     } catch (e: any) {
       console.error("setArenaAccess error:", e.message);
@@ -4404,7 +4432,8 @@ Return ONLY a valid JSON array: [{"id":"snake_case","title":"3-6 PUNCHY words","
       if (!deviceId) {
         return res.status(400).json({ error: "Device ID required" });
       }
-      const access = await getArenaAccess(deviceId);
+      const ipAddress = ((req.headers["x-forwarded-for"] as string || req.socket.remoteAddress || "").split(",")[0].trim()) || undefined;
+      const access = await getArenaAccess(deviceId, ipAddress);
       if (access.sessionExpiry && Date.now() < access.sessionExpiry) {
         return res.json({ granted: true, expiresAt: access.sessionExpiry, freeRemaining: Math.max(0, ARENA_FREE_LIMIT - access.freeUsed) });
       }
@@ -4436,7 +4465,7 @@ Return ONLY a valid JSON array: [{"id":"snake_case","title":"3-6 PUNCHY words","
         });
       }
       const expiry = Date.now() + sessionMs;
-      await setArenaAccess(deviceId, { ...access, sessionExpiry: expiry });
+      await setArenaAccess(deviceId, { ...access, sessionExpiry: expiry }, ipAddress);
       const balance = await getTokenBalance(deviceId);
       const grantedMinutes = Object.keys(ARENA_SESSION_DURATIONS).find(k => ARENA_SESSION_DURATIONS[Number(k)].ms === sessionMs);
       res.json({ granted: true, expiresAt: expiry, balance, tokensCharged: sessionCost, durationMinutes: Number(grantedMinutes) || 5 });
@@ -4449,7 +4478,8 @@ Return ONLY a valid JSON array: [{"id":"snake_case","title":"3-6 PUNCHY words","
   app.get("/api/arena/status", async (req, res) => {
     const deviceId = req.headers["x-device-id"] as string;
     if (!deviceId) return res.json({ freeRemaining: ARENA_FREE_LIMIT, hasSession: false, hasFreeTrial: true, isNewUser: true, dailyTrialAvailable: true });
-    const access = await getArenaAccess(deviceId);
+    const ipAddress = ((req.headers["x-forwarded-for"] as string || req.socket.remoteAddress || "").split(",")[0].trim()) || undefined;
+    const access = await getArenaAccess(deviceId, ipAddress);
     const now = Date.now();
     const hasSession = !!(access.sessionExpiry && now < access.sessionExpiry);
     const hasFreeTrial = !!(access.freeTrialExpiry && now < access.freeTrialExpiry);
@@ -4478,7 +4508,8 @@ Return ONLY a valid JSON array: [{"id":"snake_case","title":"3-6 PUNCHY words","
     try {
       const deviceId = req.headers["x-device-id"] as string;
       if (!deviceId) return res.status(400).json({ error: "Device ID required" });
-      const access = await getArenaAccess(deviceId);
+      const ipAddress = ((req.headers["x-forwarded-for"] as string || req.socket.remoteAddress || "").split(",")[0].trim()) || undefined;
+      const access = await getArenaAccess(deviceId, ipAddress);
       const now = Date.now();
       if (access.sessionExpiry && now < access.sessionExpiry) {
         return res.json({ granted: true, expiresAt: access.sessionExpiry, alreadyActive: true });
@@ -4486,7 +4517,7 @@ Return ONLY a valid JSON array: [{"id":"snake_case","title":"3-6 PUNCHY words","
       // No cooldown — always grant a fresh 2-min trial when users are out of free turns.
       // Paying for a session remains the path to longer debates.
       const expiry = now + ARENA_DAILY_TRIAL_MS;
-      await setArenaAccess(deviceId, { ...access, sessionExpiry: expiry, lastTrialAt: now });
+      await setArenaAccess(deviceId, { ...access, sessionExpiry: expiry, lastTrialAt: now }, ipAddress);
       res.json({ granted: true, expiresAt: expiry, durationMinutes: Math.round(ARENA_DAILY_TRIAL_MS / 60000) });
     } catch (error: any) {
       console.error("Arena free-trial error:", error);
@@ -6157,7 +6188,8 @@ Address everyone by their last name or title. Keep responses to 2-3 sentences ma
         return res.status(400).json({ error: "Device ID required" });
       }
 
-      const access = await getArenaAccess(deviceId);
+      const ipAddress = ((req.headers["x-forwarded-for"] as string || req.socket.remoteAddress || "").split(",")[0].trim()) || undefined;
+      const access = await getArenaAccess(deviceId, ipAddress);
       const hasActiveSession = access.sessionExpiry && Date.now() < access.sessionExpiry;
       if (!hasActiveSession && access.freeUsed >= ARENA_FREE_LIMIT) {
         return res.status(403).json({
@@ -6171,7 +6203,7 @@ Address everyone by their last name or title. Keep responses to 2-3 sentences ma
           access.freeTrialExpiry = Date.now() + ARENA_FREE_TRIAL_DURATION;
         }
         access.freeUsed = (access.freeUsed || 0) + 1;
-        await setArenaAccess(deviceId, access);
+        await setArenaAccess(deviceId, access, ipAddress);
       }
 
       let winTallyContext = "";
@@ -6664,8 +6696,8 @@ Use "era":"current" for today's news/viral moments, "era":"past" for old scandal
     }
   });
 
-  async function checkInterviewAccess(deviceId: string, consume: boolean): Promise<{ ok: boolean; reason?: string; access?: any }> {
-    const access = await getArenaAccess(deviceId);
+  async function checkInterviewAccess(deviceId: string, consume: boolean, ipAddress?: string): Promise<{ ok: boolean; reason?: string; access?: any }> {
+    const access = await getArenaAccess(deviceId, ipAddress);
     // 3-minute grace period: allow calls up to 3 min after session expiry to
     // prevent mid-interview 403s caused by clock skew or request timing jitter.
     const GRACE_MS = 3 * 60 * 1000;
@@ -6676,7 +6708,7 @@ Use "era":"current" for today's news/viral moments, "era":"past" for old scandal
     if (!hasActiveSession && consume) {
       if (access.freeUsed === 0) access.freeTrialExpiry = Date.now() + ARENA_FREE_TRIAL_DURATION;
       access.freeUsed = (access.freeUsed || 0) + 1;
-      await setArenaAccess(deviceId, access);
+      await setArenaAccess(deviceId, access, ipAddress);
     }
     return { ok: true, access };
   }
@@ -6690,7 +6722,8 @@ Use "era":"current" for today's news/viral moments, "era":"past" for old scandal
       if (!intervieweeId || !ARENA_PERSONA_PROMPTS[intervieweeId]) return res.status(400).json({ error: "Invalid intervieweeId" });
       if (interviewerId === intervieweeId) return res.status(400).json({ error: "A persona cannot interview themselves" });
 
-      const accessCheck = await checkInterviewAccess(deviceId, !isInterruption);
+      const ipAddress = ((req.headers["x-forwarded-for"] as string || req.socket.remoteAddress || "").split(",")[0].trim()) || undefined;
+      const accessCheck = await checkInterviewAccess(deviceId, !isInterruption, ipAddress);
       if (!accessCheck.ok) {
         return res.status(403).json({ error: accessCheck.reason || "arena_locked", freeRemaining: 0, sessionCost: ARENA_SESSION_COST });
       }
@@ -6773,7 +6806,8 @@ CRITICAL TARGETING: ${intervieweeName} is sitting across from you RIGHT NOW. The
       if (!intervieweeId || !ARENA_PERSONA_PROMPTS[intervieweeId]) return res.status(400).json({ error: "Invalid intervieweeId" });
       if (interviewerId === intervieweeId) return res.status(400).json({ error: "A persona cannot interview themselves" });
 
-      const accessCheck = await checkInterviewAccess(deviceId, false);
+      const ipAddress = ((req.headers["x-forwarded-for"] as string || req.socket.remoteAddress || "").split(",")[0].trim()) || undefined;
+      const accessCheck = await checkInterviewAccess(deviceId, false, ipAddress);
       if (!accessCheck.ok) {
         return res.status(403).json({ error: accessCheck.reason || "arena_locked", freeRemaining: 0, sessionCost: ARENA_SESSION_COST });
       }
@@ -6849,7 +6883,8 @@ Stay 100% in character — your tone, vocabulary, ideology, and combativeness ar
       const cleanQ = String(userQuestion || "").trim().slice(0, 400);
       if (!cleanQ) return res.status(400).json({ error: "userQuestion required" });
 
-      const accessCheck = await checkInterviewAccess(deviceId, true);
+      const ipAddress = ((req.headers["x-forwarded-for"] as string || req.socket.remoteAddress || "").split(",")[0].trim()) || undefined;
+      const accessCheck = await checkInterviewAccess(deviceId, true, ipAddress);
       if (!accessCheck.ok) {
         return res.status(403).json({ error: accessCheck.reason || "arena_locked", freeRemaining: 0, sessionCost: ARENA_SESSION_COST });
       }
@@ -6926,7 +6961,8 @@ ${ARENA_PERSONA_PROMPTS[intervieweeId]}${getLieBehaviorPrompt(intervieweeId, Num
       if (!claim) return res.status(400).json({ error: "text required" });
 
       // Require an active interview session (does not consume — fact checks fire continuously)
-      const accessCheck = await checkInterviewAccess(deviceId, false);
+      const ipAddress = ((req.headers["x-forwarded-for"] as string || req.socket.remoteAddress || "").split(",")[0].trim()) || undefined;
+      const accessCheck = await checkInterviewAccess(deviceId, false, ipAddress);
       if (!accessCheck.ok) return res.status(403).json({ error: accessCheck.error || "No active interview session" });
 
       const intervieweeName = ARENA_NAME_MAP[intervieweeId] || intervieweeId;
@@ -7095,7 +7131,8 @@ Return ONLY valid JSON: {"score": 0-100, "isLie": boolean (true if score<40), "r
       const claim = String(text || "").trim().slice(0, 800);
       if (!claim) return res.status(400).json({ error: "text required" });
 
-      const accessCheck = await checkInterviewAccess(deviceId, false);
+      const ipAddress = ((req.headers["x-forwarded-for"] as string || req.socket.remoteAddress || "").split(",")[0].trim()) || undefined;
+      const accessCheck = await checkInterviewAccess(deviceId, false, ipAddress);
       if (!accessCheck.ok) {
         return res.status(403).json({ error: accessCheck.error || "No active interview session" });
       }
@@ -8356,28 +8393,12 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
       if (!deviceId) {
         return res.status(400).json({ error: "Device ID required" });
       }
-      const fingerprint = req.headers["x-browser-fp"] as string;
-      if (fingerprint) {
-        try {
-          const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
-          const existing = await db.query(
-            `SELECT device_id FROM token_accounts WHERE browser_fingerprint = $1 AND device_id != $2 AND free_prompts_used < 10 LIMIT 1`,
-            [fingerprint, deviceId]
-          );
-          if (existing.rows.length > 0) {
-            await db.query(
-              `UPDATE token_accounts SET free_prompts_used = GREATEST(free_prompts_used, 10) WHERE device_id = $1`,
-              [deviceId]
-            );
-          }
-          await db.query(
-            `UPDATE token_accounts SET browser_fingerprint = $2, last_seen = NOW() WHERE device_id = $1`,
-            [deviceId, fingerprint]
-          );
-          await db.end();
-        } catch {}
-      }
-      const balance = await getTokenBalance(deviceId);
+      const fingerprint = (req.headers["x-browser-fp"] as string) || undefined;
+      const ipAddress = ((req.headers["x-forwarded-for"] as string || req.socket.remoteAddress || "").split(",")[0].trim()) || undefined;
+
+      // Pass IP + fingerprint as context — getOrCreateAccount will use them to
+      // detect duplicate welcome-bonus claims from the same browser / IP window
+      const balance = await getTokenBalance(deviceId, { fingerprint, ipAddress });
       res.json(balance);
     } catch (error) {
       console.error("Token balance error:", error);
