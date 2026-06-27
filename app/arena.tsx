@@ -6346,7 +6346,7 @@ export default function ArenaScreen() {
       />
 
       {/* TikTok demo QR overlay — visible in screen recordings */}
-      <View pointerEvents="none" style={{ position: "absolute", bottom: insets.bottom + 18, right: 14, zIndex: 9999, alignItems: "center" }}>
+      <View pointerEvents="none" style={{ position: "absolute", bottom: insets.bottom + 175, right: 14, zIndex: 9999, alignItems: "center" }}>
         <View style={{ backgroundColor: "rgba(0,0,0,0.72)", borderRadius: 10, padding: 6, borderWidth: 1, borderColor: "rgba(255,215,0,0.45)" }}>
           <Image source={require("../assets/images/qr-download.jpg")} style={{ width: 72, height: 72, borderRadius: 6 }} resizeMode="contain" />
           <Text style={{ color: "#FFD700", fontSize: 8, fontWeight: "700", textAlign: "center", marginTop: 3, letterSpacing: 0.5 }}>SCAN TO TRY</Text>
