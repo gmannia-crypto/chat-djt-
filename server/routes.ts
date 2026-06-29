@@ -6675,8 +6675,13 @@ FORMAT:
       const newsContext = await getArenaNewsContext().catch(() => "");
       const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
 
-      const eraDirective =
-        topicMix === "current"
+      // Educational style ignores topicMix entirely — topics come from the persona's
+      // documented real-world expertise, ideology, and career history, not news feeds.
+      const isEducational = interviewStyle === "educational";
+
+      const eraDirective = isEducational
+        ? `ALL topics must be drawn from ${intervieweeName}'s documented real-world expertise, career history, ideological formation, and publicly stated beliefs. Use what is known about them in the real world — their writings, speeches, interviews, policy positions, and life experiences. Do NOT use current news headlines. Topics should explore HOW and WHY they arrived at their worldview, what shaped their thinking, and what they genuinely know and believe.`
+        : topicMix === "current"
           ? "ALL topics must be drawn from CURRENT 2026 news headlines and live viral social media flashpoints happening right now."
           : topicMix === "past"
           ? "ALL topics must be drawn from PAST controversies, scandals, embarrassing moments, or historic decisions involving the interviewee — the kind of receipts that go viral when dug up."
@@ -6687,9 +6692,13 @@ FORMAT:
         informative: `STYLE — INFORMATIVE: Topics should illuminate real policy decisions, historical context, and factual impact on real people. Lead with "what does the public need to understand about X?" angles. Focus on substance, complexity, and under-reported facts that genuinely inform rather than inflame.`,
         comedic: `STYLE — COMEDIC & SATIRICAL: Topics should expose absurdity, hypocrisy, and embarrassment through humor. Focus on moments that are funny, contradictory, or so outrageous they become comedy. The interviewer roasts as much as interrogates. Think late-night satire meets hot mic moment.`,
         civil_discourse: `STYLE — CIVIL DISCOURSE: Topics should invite genuine dialogue, common ground, and thoughtful exchange. Frame angles as genuine questions rather than accusations. Both sides of issues should be considered. Topics should model what respectful disagreement and productive debate could look like.`,
-        educational: `STYLE — EDUCATIONAL: Topics should teach the audience something. Each topic should unpack a complex policy, historical event, or systemic issue in depth. Ask ${intervieweeName} to explain their reasoning, walk through their decision-making, and help audiences understand the real-world consequences of major decisions.`,
+        educational: `STYLE — EDUCATIONAL: Topics should teach the audience about ${intervieweeName}'s area of expertise and worldview. Each topic should unlock a piece of their thinking — why they believe what they believe, how they developed their ideology, what historical or personal events shaped them, and what the audience can LEARN from their knowledge and experience. The guest is the expert; the interviewer is the curious student helping the audience understand.`,
       };
       const styleDirective = styleDirectives[interviewStyle] || styleDirectives.combative;
+
+      const newsLine = isEducational
+        ? `(No live headlines used for educational style — topics are grounded in ${intervieweeName}'s documented expertise and real-world knowledge.)`
+        : `LIVE NEWS + VIRAL SOCIAL SIGNALS:\n${newsContext || "No live headlines available — rely on general knowledge of 2026 events and the most damaging known controversies."}`;
 
       const systemPrompt = `You are the most ratings-obsessed booking producer in television — setting up a MUST-WATCH 1-on-1 interview between ${interviewerName} (the interviewer) and ${intervieweeName} (the guest). Today is ${todayStr}.
 
@@ -6700,17 +6709,16 @@ ${styleDirective}
 ${eraDirective}
 
 TOPIC RULES:
-- Be SPECIFIC: real dates, real quotes, real decisions, real money amounts
-- Frame each topic from ${interviewerName}'s known ideological perspective and relationship with ${intervieweeName}
-- Every topic should produce a memorable, quotable exchange
-- Mix hard-hitting and revealing topics regardless of style
+- Be SPECIFIC: use real known positions, documented quotes, career milestones, or named events
+- Frame each topic from ${interviewerName}'s perspective and relationship with ${intervieweeName}
+- Every topic should produce a memorable, insightful exchange
+- Topics must authentically reflect what ${intervieweeName} is actually known for
 
-LIVE NEWS + VIRAL SOCIAL SIGNALS:
-${newsContext || "No live headlines available — rely on general knowledge of 2026 events and the most damaging known controversies."}
+${newsLine}
 
 Return ONLY valid JSON in this exact shape:
 {"topics":[{"title":"Punchy headline matching the style","description":"1 sentence — the exact angle ${interviewerName} uses, naming the specific receipt, quote, or question","era":"current"}]}
-Use "era":"current" for today's news/viral moments, "era":"past" for old scandals being resurfaced. No text outside the JSON.`;
+Use "era":"current" for today's news/viral moments, "era":"past" for career history/expertise topics. No text outside the JSON.`;
 
       const completion = await getClient().chat.completions.create({
         model: getFastModel(),
@@ -6795,18 +6803,26 @@ Use "era":"current" for today's news/viral moments, "era":"past" for old scandal
       }
 
       const interviewStyle = req.body.interviewStyle || "combative";
+      const isEdStyle = interviewStyle === "educational";
+      const isCivil = interviewStyle === "civil_discourse";
+
       const styleInstructions: Record<string, string> = {
-        combative: `INTERVIEW STYLE — COMBATIVE: You are a prosecutor, not a reporter. Press hard. Interrupt if they dodge. Use their exact quotes against them. No softballs. If they evade, name the evasion: "That's not what I asked." Your job is to corner them and extract accountability.`,
-        informative: `INTERVIEW STYLE — INFORMATIVE: You are a reporter seeking truth for the public record. Ask clear, open-ended questions that illuminate policy impact, decision-making rationale, and real consequences. Let your guest explain — then probe the gaps and contradictions with follow-up precision. Tone: professional, persistent, fair.`,
-        comedic: `INTERVIEW STYLE — COMEDIC & SATIRICAL: You are a satirist with a journalist's instincts. Expose absurdity through humor. Use irony, deadpan delivery, and pointed wit. Make the audience laugh while making the guest squirm. Channel the energy of late-night satire — the joke IS the question. Banter is welcome; real zingers are mandatory.`,
-        civil_discourse: `INTERVIEW STYLE — CIVIL DISCOURSE: You are modeling what respectful disagreement looks like. Ask genuine questions. Acknowledge when your guest makes a valid point. Disagree with their ideas, not their character. No personal attacks, no shouting, no gotcha traps. Your goal: real dialogue that produces genuine understanding, not theater.`,
-        educational: `INTERVIEW STYLE — EDUCATIONAL: You are a teacher giving the audience a masterclass. Ask your guest to explain their reasoning step by step. Unpack complex policy in plain language. Ask "why" and "how" more than "gotcha." Help the audience understand the real-world consequences of major decisions. You're smart; help the audience be smart too.`,
+        combative: `INTERVIEW STYLE — COMBATIVE: You are a prosecutor, not a reporter. Press hard. Use their exact quotes against them. No softballs. If they evade, name it: "That's not what I asked." Your job is to corner them and extract accountability.`,
+        informative: `INTERVIEW STYLE — INFORMATIVE: You are a reporter seeking truth for the public record. Ask clear, open-ended questions that illuminate policy impact, decision-making rationale, and real consequences. Probe gaps and contradictions with precision. Tone: professional, persistent, fair.`,
+        comedic: `INTERVIEW STYLE — COMEDIC & SATIRICAL: You are a satirist with a journalist's instincts. Expose absurdity through humor. Use irony, deadpan delivery, and pointed wit. Make the audience laugh while making the guest squirm. The joke IS the question. Banter and real zingers are mandatory.`,
+        civil_discourse: `INTERVIEW STYLE — CIVIL DISCOURSE: You are modeling respectful disagreement. Ask genuine questions. Acknowledge valid points. Disagree with ideas, not character. No personal attacks, no gotcha traps. Your goal: genuine dialogue that produces real understanding.`,
+        educational: `INTERVIEW STYLE — EDUCATIONAL: You are a curious, knowledgeable host helping the audience learn. Ask your guest to explain their thinking, their expertise, their lived experience. Use "why", "how", "walk me through" framing. You are the curious student; ${intervieweeName} is the expert. No gotcha traps — only deeper understanding.`,
       };
       const styleInstruction = styleInstructions[interviewStyle] || styleInstructions.combative;
 
-      const interviewerStyle = `You are ${interviewerName} hosting a high-stakes 1-on-1 interview with ${intervieweeName}. Today is ${todayStr}. Stay 100% in character — your tone, vocabulary, ideology, and aggression level are all who you are. ${ARENA_PERSONA_PROMPTS[interviewerId]}${shannonGrandmomNote}
+      // For educational style, suppress the adversarial "USE INSULTS" targeting directive
+      const targetingDirective = isEdStyle || isCivil
+        ? `CRITICAL: ${intervieweeName} is your guest. Engage them with genuine curiosity and respect. Draw out their expertise and knowledge. You are interested in what they think and why.`
+        : `CRITICAL TARGETING: ${intervieweeName} is sitting across from you RIGHT NOW. They are your guest AND, given who you are, your adversary. If your character profile contains insults, attacks, nicknames, or hostility toward "${intervieweeName}", USE THEM in your questions. Address them by name. Bake the savage lines from your profile DIRECTLY into the question — do not soften, do not generalize. If your character would call them weak, corrupt, dishonest, washed-up, a fraud, etc., put it in the question. This is YOUR booth — you set the tone, you press the attack.`;
 
-CRITICAL TARGETING: ${intervieweeName} is sitting across from you RIGHT NOW. They are your guest AND, given who you are, your adversary. If your character profile contains insults, attacks, nicknames, or hostility toward "${intervieweeName}", USE THEM in your questions. Address them by name. Bake the savage lines from your profile DIRECTLY into the question — do not soften, do not generalize. If your character would call them weak, corrupt, dishonest, washed-up, a fraud, etc., put it in the question. This is YOUR booth — you set the tone, you press the attack.
+      const interviewerStyle = `You are ${interviewerName} hosting a 1-on-1 interview with ${intervieweeName}. Today is ${todayStr}. Stay 100% in character — your tone, vocabulary, and ideology are who you are. ${ARENA_PERSONA_PROMPTS[interviewerId]}${shannonGrandmomNote}
+
+${targetingDirective}
 
 ${styleInstruction}${getLieBehaviorPrompt(interviewerId, Number((req.body.sessionLieTally || {})[interviewerId]) || 0, req.body.sessionIQ || {})}`;
 
@@ -6814,22 +6830,58 @@ ${styleInstruction}${getLieBehaviorPrompt(interviewerId, Number((req.body.sessio
         `${m.speakerName}: "${m.text}"`
       ).join("\n");
 
+      // Style-specific follow-up prompts
+      const followUpPrompts: Record<string, string> = {
+        combative: `Topic: "${topic?.title}" — ${topic?.description}\n\nRecent exchange:\n${historyContext}\n\n${intervieweeName} just answered. DO NOT let them off the hook. If vague or evasive, call it out: "That's not what I asked", "Stop dodging." If they answered, go DEEPER — expose a contradiction or press the uncomfortable follow-through. You are RELENTLESS. 1-2 sentences max. No preamble.`,
+        informative: `Topic: "${topic?.title}" — ${topic?.description}\n\nRecent exchange:\n${historyContext}\n\n${intervieweeName} just answered. Probe the answer for gaps, missing context, or unexplained claims. Ask a precise follow-up that fills in what the audience still needs to understand. Be factual and specific. 1-2 sentences max.`,
+        comedic: `Topic: "${topic?.title}" — ${topic?.description}\n\nRecent exchange:\n${historyContext}\n\n${intervieweeName} just answered. React with wit — find the absurdity, irony, or contradiction in what they said and lean into it with a funny follow-up. Land a good line. 1-2 sentences max.`,
+        civil_discourse: `Topic: "${topic?.title}" — ${topic?.description}\n\nRecent exchange:\n${historyContext}\n\n${intervieweeName} just answered. Acknowledge anything valid in their response, then ask a thoughtful follow-up that genuinely deepens the dialogue. Disagree respectfully if needed — with their idea, not their person. 1-2 sentences max.`,
+        educational: `Topic: "${topic?.title}" — ${topic?.description}\n\nRecent exchange:\n${historyContext}\n\n${intervieweeName} just explained something. Ask a follow-up that goes DEEPER into understanding — not to challenge or corner them, but to help the audience grasp the nuance. Use "can you explain more about...", "what led you to that conclusion", "how does that connect to..." framing. 1-2 sentences max.`,
+      };
+
+      // Style-specific opening question prompts
+      const openingPrompts: Record<string, string> = {
+        combative: `Topic: "${topic?.title}" — ${topic?.description}\n\nOpen this topic with your FIRST hard question to ${intervieweeName}. Be provocative — set the tone. 1-2 sentences max. No greeting if there is already conversation history.\n\nRecent exchange:\n${historyContext}`,
+        informative: `Topic: "${topic?.title}" — ${topic?.description}\n\nOpen this topic with a clear, substantive question that gets to the heart of what the public needs to understand. Be specific and factual. 1-2 sentences max. No greeting if there is already conversation history.\n\nRecent exchange:\n${historyContext}`,
+        comedic: `Topic: "${topic?.title}" — ${topic?.description}\n\nOpen this topic with a question that's funny, ironic, or sarcastically framed — expose the absurdity right from the start. Make them squirm with a smile. 1-2 sentences max. No greeting if history exists.\n\nRecent exchange:\n${historyContext}`,
+        civil_discourse: `Topic: "${topic?.title}" — ${topic?.description}\n\nOpen this topic with a genuine, open-ended question that invites ${intervieweeName} to share their perspective. Frame it with curiosity, not accusation. 1-2 sentences max. No greeting if history exists.\n\nRecent exchange:\n${historyContext}`,
+        educational: `Topic: "${topic?.title}" — ${topic?.description}\n\nOpen this topic by asking ${intervieweeName} to share their expertise or perspective on this subject. Frame it as a learner seeking to understand — "walk us through...", "help us understand...", "from your experience...". 1-2 sentences max. No greeting if history exists.\n\nRecent exchange:\n${historyContext}`,
+      };
+
+      // Style-specific transition prompts
+      const transitionPrompts: Record<string, string> = {
+        combative: `You are TRANSITIONING from "${previousTopicTitle || "the last topic"}" to a new topic: "${topic?.title}" — ${topic?.description}\n\nRecent exchange:\n${historyContext}\n\nDo a quick pivot, then ask your FIRST hard question on the new topic. 1-2 sentences max.`,
+        informative: `You are TRANSITIONING from "${previousTopicTitle || "the last topic"}" to: "${topic?.title}" — ${topic?.description}\n\nRecent exchange:\n${historyContext}\n\nBridge the topics briefly, then ask a clear, substantive opening question. 1-2 sentences max.`,
+        comedic: `You are TRANSITIONING from "${previousTopicTitle || "the last topic"}" to: "${topic?.title}" — ${topic?.description}\n\nRecent exchange:\n${historyContext}\n\nMake the pivot with a witty or ironic segue, then open the new topic with a funny angle. 1-2 sentences max.`,
+        civil_discourse: `You are TRANSITIONING from "${previousTopicTitle || "the last topic"}" to: "${topic?.title}" — ${topic?.description}\n\nRecent exchange:\n${historyContext}\n\nMove gracefully to the new topic and open with a genuine, curious question. 1-2 sentences max.`,
+        educational: `You are TRANSITIONING from "${previousTopicTitle || "the last topic"}" to a new area of ${intervieweeName}'s expertise: "${topic?.title}" — ${topic?.description}\n\nRecent exchange:\n${historyContext}\n\nBridge naturally ("I'd love to explore another area of your work...") then invite them to share their knowledge on this topic. 1-2 sentences max.`,
+      };
+
       let userPrompt = "";
       if (isInterruption && interviewerId === "malema") {
         userPrompt = `${intervieweeName} just said something. CUT THEM OFF with one of your signature volcanic one-liners — choose from: "What a LIE!" / "You're a fool!" / "Non-sense!" / "What am I, a fool?!" / "BE SERIOUS!" / "You're a boo-ah!" / "Rubbish!" MAXIMUM 10 words. Under 5 seconds. One phrase only.\n\nRecent exchange:\n${historyContext}`;
       } else if (isInterruption) {
-        userPrompt = `${intervieweeName} just said something that demands a reaction. INTERRUPT with ONE single explosive phrase — MAXIMUM 10 words, under 5 seconds of speech. This is a raw gut reaction, not a speech. If they misgendered you or attacked your identity, correct it with fury in under 10 words. If they lied or insulted you, fire back in under 10 words. Examples of the RIGHT length: "That's a LIE and you know it." / "Excuse me — I am a MAN!" / "You have zero credibility here." / "Don't you dare put words in my mouth." NO sentences longer than 10 words. NO explanations.\n\nRecent exchange:\n${historyContext}`;
+        userPrompt = `${intervieweeName} just said something that demands a reaction. INTERRUPT with ONE single explosive phrase — MAXIMUM 10 words, under 5 seconds of speech. Raw gut reaction only. If they misgendered you or attacked your identity, correct it with fury in under 10 words. Examples: "That's a LIE and you know it." / "Excuse me — I am a MAN!" / "You have zero credibility here." NO sentences longer than 10 words.\n\nRecent exchange:\n${historyContext}`;
       } else if (isTransition && topic) {
-        userPrompt = `You are TRANSITIONING from "${previousTopicTitle || "the last topic"}" to a new topic: "${topic.title}" — ${topic.description}\n\nRecent exchange:\n${historyContext}\n\nDo a quick pivot ("Let's move on...", "I want to ask you about...", "Speaking of which..."), then ask your FIRST hard question on the new topic. 1-2 sentences max.`;
+        userPrompt = transitionPrompts[interviewStyle] || transitionPrompts.combative;
       } else if (isFollowUp && topic) {
-        userPrompt = `Topic: "${topic.title}" — ${topic.description}\n\nRecent exchange:\n${historyContext}\n\n${intervieweeName} just answered. DO NOT let them off the hook. If the answer was vague, evasive, or a talking-point dodge — call it out directly: "That's not what I asked", "You didn't answer the question", "Stop dodging." Then demand the real answer. If they gave a real answer, go DEEPER — press the uncomfortable follow-through, expose a contradiction, or ask the one question they absolutely don't want. You are RELENTLESS — your job is to corner them. 1-2 sentences max. No preamble.`;
+        userPrompt = followUpPrompts[interviewStyle] || followUpPrompts.combative;
       } else if (topic) {
-        userPrompt = `Topic: "${topic.title}" — ${topic.description}\n\nOpen this topic with your FIRST hard question to ${intervieweeName}. Be provocative — set the tone. 1-2 sentences max. No greeting if there is already conversation history.\n\nRecent exchange:\n${historyContext}`;
+        userPrompt = openingPrompts[interviewStyle] || openingPrompts.combative;
       } else {
-        userPrompt = `Open the interview by greeting ${intervieweeName} and warning them this won't be soft. 1-2 sentences max.`;
+        const openings: Record<string, string> = {
+          combative: `Open the interview by greeting ${intervieweeName} and warning them this won't be soft. 1-2 sentences max.`,
+          informative: `Open the interview by welcoming ${intervieweeName} and setting a serious, substantive tone. 1-2 sentences max.`,
+          comedic: `Open the interview with a witty or ironic greeting that sets a comedic tone. 1-2 sentences max.`,
+          civil_discourse: `Open the interview by welcoming ${intervieweeName} warmly and expressing genuine curiosity about their perspective. 1-2 sentences max.`,
+          educational: `Open the interview by welcoming ${intervieweeName} and expressing genuine interest in learning from their expertise. 1-2 sentences max.`,
+        };
+        userPrompt = openings[interviewStyle] || openings.combative;
       }
 
-      if (newsContext && (topic?.era === "current" || isTransition)) {
+      // Only inject live news for styles where real-time controversy is relevant
+      const useNews = !isEdStyle && newsContext && (topic?.era === "current" || isTransition);
+      if (useNews) {
         userPrompt += `\n\nLIVE HEADLINES you can reference:\n${newsContext}`;
       }
       userPrompt += `\n\nWrite ONLY your spoken question — no quotes, no stage directions, no asterisks.`;
