@@ -485,6 +485,53 @@ function fixTTSPronunciation(text: string): string {
     .replace(/\bEpstein\b/gi, "Ep-steen");
 }
 
+// Persona-specific TTS text formatting — applied BEFORE Fish Audio to shape prosody
+// Fish Audio responds to: "..." for pauses, "—" for breaks, ALL CAPS for emphasis, "!" for energy
+function applyPersonaTTSFormatting(text: string, personaId: string): string {
+  if (personaId !== "pastormanning") return text;
+
+  let t = text;
+
+  // Add breath pause after sermon opener phrases
+  t = t.replace(/\b(I said)\b([^.!?—]*)/gi, "I said... $2");
+  t = t.replace(/\b(Listen to me)\b/gi, "Listen... to me");
+  t = t.replace(/\b(Come on somebody)\b/gi, "Come on... somebody!");
+  t = t.replace(/\b(The Bible says)\b/gi, "The Bible says —");
+  t = t.replace(/\b(I rebuke you)\b/gi, "I REBUKE you!");
+  t = t.replace(/\b(God is not mocked)\b/gi, "GOD... is NOT mocked!");
+  t = t.replace(/\b(Hallelujah)\b/gi, "Hallelujah!");
+  t = t.replace(/\b(The devil is a liar)\b/gi, "The devil... is a LIAR!");
+  t = t.replace(/\b(long.?legged mack daddy)\b/gi, "long-legged... MACK DADDY");
+  t = t.replace(/\b(Barack Obama)\b/g, "Barack... Obama");
+  t = t.replace(/\b(Obama)\b/g, "O-BAMA");
+
+  // Capitalize key sermon words for Fish Audio emphasis
+  t = t.replace(/\b(truth)\b/gi, "TRUTH");
+  t = t.replace(/\b(liar|liars)\b/gi, "LIAR");
+  t = t.replace(/\b(God)\b/g, "GOD");
+  t = t.replace(/\b(Jesus)\b/g, "JESUS");
+  t = t.replace(/\b(devil)\b/gi, "devil");
+  t = t.replace(/\b(sin|sinners?)\b/gi, (m) => m.toUpperCase());
+  t = t.replace(/\b(abomination)\b/gi, "ABOMINATION");
+  t = t.replace(/\b(judgment)\b/gi, "JUDGMENT");
+  t = t.replace(/\b(people)\b/gi, (m, offset) => {
+    // Only capitalize if preceded by exclamation or at start of dramatic phrase
+    return t[offset - 2] === "!" ? "PEOPLE" : m;
+  });
+
+  // Add dramatic pause before closing punches
+  t = t.replace(/([^.!?—]{20,})(\.)\s*(I said what I said)/gi, "$1. ... $3");
+  t = t.replace(/([a-zA-Z])\. ([A-Z])/g, "$1. ... $2");
+
+  // Exclamation energy — double up for maximum emphasis on short punchy phrases ≤4 words
+  t = t.replace(/\b(\w+(?:\s+\w+){0,3})!(\s|$)/g, (match, phrase) => {
+    const wordCount = phrase.trim().split(/\s+/).length;
+    return wordCount <= 3 ? `${phrase}! ... ` : match;
+  });
+
+  return t.trim();
+}
+
 async function fishAudioRequest(text: string, voiceId: string, speed: number, apiKey: string, retries: number = 3, volumeDb: number = 0): Promise<Buffer> {
   const ttsText = fixTTSPronunciation(text);
   const cacheKey = getTTSCacheKey(text, voiceId, speed) + (volumeDb !== 0 ? `_v${volumeDb}` : "");
@@ -3030,7 +3077,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
 
       const personaSpeed = PERSONA_SPEED_MAP[personaId] ?? 1.0;
       const personaVolumeDb = PERSONA_VOLUME_BOOST[personaId] ?? 0;
-      const safeText = text.slice(0, 2000);
+      const safeText = applyPersonaTTSFormatting(text.slice(0, 2000), personaId);
       const buffer = await fishAudioRequest(safeText, voiceId, personaSpeed, apiKey, 3, personaVolumeDb);
 
       res.setHeader("Content-Type", "audio/mpeg");
@@ -3065,7 +3112,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
 
       const getPersonaSpeed = PERSONA_SPEED_MAP[personaId as string] ?? 1.0;
       const getPersonaVolumeDb = PERSONA_VOLUME_BOOST[personaId as string] ?? 0;
-      const safeText = text.slice(0, 2000);
+      const safeText = applyPersonaTTSFormatting(text.slice(0, 2000), personaId);
       const buffer = await fishAudioRequest(safeText, voiceId, getPersonaSpeed, apiKey, 3, getPersonaVolumeDb);
 
       res.setHeader("Content-Type", "audio/mpeg");
@@ -6161,9 +6208,21 @@ CRITICAL — YOUR GENUINE THEOLOGICAL CONSERVATISM: You believe deeply in:
 
 CRITICAL — HOW YOU RESPOND TO BEING CHALLENGED: When someone challenges you on theology or politics, you don't back down — you ESCALATE. You cite scripture. You invoke God's judgment. You call them agents of the devil or tools of the liberal establishment. You say "I rebuke that in the name of Jesus!" and then double down louder.
 
-CRITICAL — YOUR VOICE PATTERN IN TEXT: Start calm and measured. Build through the response. End at MAXIMUM volume with a scriptural knockout. Every response should feel like a 30-second sermon clip.
+CRITICAL — YOUR VOICE PATTERN IN TEXT (SERMON FORMAT — MANDATORY): Every response MUST be written in dramatic sermon cadence so the text-to-speech engine delivers it with maximum emotional impact. Follow this structure religiously:
+- START QUIET: Begin with a short, measured, almost conversational observation. 1 sentence. No exclamation yet.
+- BUILD: The next phrase rises in intensity — add a comma pause, a dash break, or a rhetorical question. Repeat a word for emphasis: "I said... I SAID..." or "Do you hear me? DO YOU HEAR ME?"
+- EXPLODE: The final phrase is your knockout — ALL CAPS key words, exclamation, scriptural reference, or the "long-legged MACK DADDY" line delivered at full volcanic power.
+- COOL DOWN (optional): End with a quiet "I said what I said." or "Hallelujah." for dramatic contrast.
 
-Use first names only. Keep responses to 2-3 sentences max — but make every word COUNT. Stay fully in character — the most fearless preacher in Harlem, accountable only to God.`,
+MANDATORY FORMATTING RULES IN YOUR TEXT OUTPUT:
+- Use "..." for breath pauses: "Listen... to me..."
+- Use "—" for dramatic mid-sentence breaks: "God is not mocked — and O-BAMA knows it!"
+- Use ALL CAPS for peak emphasis words: "TRUTH", "LIAR", "JUDGMENT", "ABOMINATION", "REPENT"
+- Repeat phrases for preacher rhythm: "I said it once, I'll say it again — I'll SAY IT AGAIN!"
+- Address the audience: "Come on somebody!" / "Do you hear what I'm saying?!"
+- Invoke scripture naturally mid-sentence: "Galatians six and seven says GOD IS NOT MOCKED — and that long-legged MACK DADDY will answer!"
+
+Use first names only. Keep responses to 2-3 sentences max — but make every word COUNT. Stay fully in character — the most fearless preacher in Harlem, accountable only to GOD.`,
   };
 
   const ARENA_NAME_MAP: Record<string, string> = {
