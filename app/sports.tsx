@@ -1621,6 +1621,17 @@ function DCRoyalTab({
       const nextResponder = getResponder(turnIndex);
       pending = fetchNext(nextResponder.personaId, [...history]);
 
+      // Pre-fetch interrupt in parallel with speech — decide NOW, don't wait till speech ends
+      let interruptFetch: Promise<Msg | null> | null = null;
+      let interruptIntruder: (typeof winners)[0] | null = null;
+      if (winners.length > 1 && Math.random() < 0.18 && debateMountedRef.current && debateRunningRef.current && Date.now() < expiresAt) {
+        const others = winners.filter(w => w.personaId !== msg.personaId);
+        interruptIntruder = others[Math.floor(Math.random() * others.length)] ?? null;
+        if (interruptIntruder) {
+          interruptFetch = fetchNext(interruptIntruder.personaId, [...history], { isInterruption: true, interruptTarget: msg.personaId }).catch(() => null);
+        }
+      }
+
       const sound = speakResult && typeof (speakResult as Promise<Audio.Sound | null>).then === "function"
         ? await (speakResult as Promise<Audio.Sound | null>).catch(() => null)
         : null;
@@ -1641,27 +1652,46 @@ function DCRoyalTab({
         }
       }
       const speechMs = durationMs ?? fallbackMs;
-      const wait = debateOverlapRef.current === "none"
-        ? Math.max(400, speechMs - overlapMs)
-        : Math.max(250, speechMs - overlapMs);
-      await new Promise(r => setTimeout(r, wait));
 
-      // ~18% chance of interruption — a different persona cuts in with a jab
-      if (winners.length > 1 && Math.random() < 0.18 && debateMountedRef.current && debateRunningRef.current && Date.now() < expiresAt) {
-        const others = winners.filter(w => w.personaId !== msg.personaId);
-        const intruder = others[Math.floor(Math.random() * others.length)];
-        if (intruder) {
-          const intrMsg = await fetchNext(intruder.personaId, [...history], { isInterruption: true, interruptTarget: msg.personaId }).catch(() => null);
+      if (interruptFetch && interruptIntruder) {
+        // Inject interrupt mid-speech: wait until ~40% through, then cut in
+        const injectAt = Math.max(400, speechMs * 0.40);
+        await new Promise(r => setTimeout(r, injectAt));
+
+        if (debateMountedRef.current && debateRunningRef.current && Date.now() < expiresAt) {
+          // Race: take interrupt if ready within 200ms grace, otherwise skip
+          const intrMsg = await Promise.race([
+            interruptFetch,
+            new Promise<null>(r => setTimeout(() => r(null), 200)),
+          ]);
+
           if (intrMsg?.text && debateMountedRef.current && debateRunningRef.current) {
+            // Duck current speaker's audio
+            if (sound) { try { (sound as any).setVolumeAsync?.(0.12).catch?.(() => {}); } catch {} }
+
             const intrWithFlag: Msg = { ...intrMsg, isInterruption: true };
             history.push(intrWithFlag);
             setDebateMessages(prev => [...prev, intrWithFlag]);
             setTimeout(() => debateScrollRef.current?.scrollToEnd({ animated: true }), 150);
             onSpeak(intrMsg.text, intrMsg.personaId, 80000 + turnIndex + 1000);
-            // Brief pause after interrupt before main turn continues
-            await new Promise(r => setTimeout(r, Math.min(3500, Math.max(1200, intrMsg.text.length * 45))));
+
+            // Wait for interrupt audio to finish, then restore overlap gap
+            const intrWait = Math.max(900, intrMsg.text.length * 45);
+            await new Promise(r => setTimeout(r, intrWait));
+            // Restore volume after interrupt plays
+            if (sound) { try { (sound as any).setVolumeAsync?.(1.0).catch?.(() => {}); } catch {} }
+          } else {
+            // Interrupt missed — wait remaining speech gap
+            const remainingWait = Math.max(200, speechMs - injectAt - overlapMs);
+            await new Promise(r => setTimeout(r, remainingWait));
           }
         }
+      } else {
+        // No interrupt planned — normal overlap wait
+        const wait = debateOverlapRef.current === "none"
+          ? Math.max(400, speechMs)
+          : Math.max(250, speechMs - overlapMs);
+        await new Promise(r => setTimeout(r, wait));
       }
     }
   };

@@ -4071,6 +4071,13 @@ export default function ArenaScreen() {
   const playInterruptionAudio = useCallback(async (text: string, personaId: string) => {
     if (!voiceEnabledRef.current) return;
     if (shouldSkipPersonaVoice(personaId)) return;
+
+    // Duck the current speaker's audio so the interrupt cuts through mid-sentence
+    const mainSound = currentSoundRef.current;
+    if (mainSound) {
+      try { mainSound.setVolumeAsync(0.10).catch(() => {}); } catch {}
+    }
+
     if (mountedRef.current) {
       setTtsActiveSpeaker(personaId);
     }
@@ -4084,6 +4091,9 @@ export default function ArenaScreen() {
         sound.getStatusAsync().then((st: any) => {
           if (st.isLoaded) sound.stopAsync().then(() => sound.unloadAsync()).catch(() => {});
         }).catch(() => {});
+        // Restore main speaker volume after interrupt finishes
+        const ms = currentSoundRef.current;
+        if (ms) { try { ms.setVolumeAsync(1.0).catch(() => {}); } catch {} }
         if (mountedRef.current) {
           setTtsActiveSpeaker(null);
         }
@@ -4091,8 +4101,12 @@ export default function ArenaScreen() {
       sound.setOnPlaybackStatusUpdate((status: any) => {
         if (status.didJustFinish || status.error) cleanup();
       });
-      setTimeout(cleanup, 3500);
-    } catch {}
+      setTimeout(cleanup, 5000);
+    } catch {
+      // Restore volume even on error
+      const ms = currentSoundRef.current;
+      if (ms) { try { ms.setVolumeAsync(1.0).catch(() => {}); } catch {} }
+    }
   }, []);
 
   const fetchTopics = useCallback(async (category?: string) => {
@@ -4859,7 +4873,8 @@ export default function ArenaScreen() {
 
     const interrupter = availableInterrupters[Math.floor(Math.random() * availableInterrupters.length)];
 
-    await new Promise((r) => setTimeout(r, 3000 + Math.random() * 1000));
+    // Minimal delay — just enough for the speech to begin playing, then fetch in parallel
+    await new Promise((r) => setTimeout(r, 250 + Math.random() * 250));
     if (!mountedRef.current || !isRunningRef.current) { isInterruptingRef.current = false; return; }
 
     try {
@@ -4891,6 +4906,22 @@ export default function ArenaScreen() {
           text: data.response,
           timestamp: Date.now(),
         };
+
+        // If current speaker is still going, wait until they're ~40% through before cutting in
+        const mainSound = currentSoundRef.current;
+        if (mainSound) {
+          try {
+            const st = await mainSound.getStatusAsync();
+            if (st.isLoaded && (st as any).isPlaying && (st as any).durationMillis && (st as any).positionMillis) {
+              const pct = (st as any).positionMillis / (st as any).durationMillis;
+              if (pct < 0.35) {
+                const waitMs = Math.max(0, (st as any).durationMillis * 0.40 - (st as any).positionMillis);
+                await new Promise((r) => setTimeout(r, waitMs));
+              }
+            }
+          } catch {}
+        }
+
         addMessage(interruptMsg);
         showInterruptionBanner(interrupter, persona.name, data.response);
         lastInterruptionRef.current = { text: data.response, interrupterId: interrupter };
@@ -5396,11 +5427,11 @@ export default function ArenaScreen() {
             }
           }, WATCHDOG_TIMEOUT);
         }
-        conversationTimerRef.current = setTimeout(waitForClear, 100);
+        conversationTimerRef.current = setTimeout(waitForClear, 20);
         return;
       }
       if (watchdogTimer) { clearTimeout(watchdogTimer); watchdogTimer = null; }
-      const delay = 50 + Math.random() * 100;
+      const delay = 20 + Math.random() * 30;
       conversationTimerRef.current = setTimeout(async () => {
         if (!mountedRef.current || sessionEndedRef.current) return;
         await decideNextSpeaker();
