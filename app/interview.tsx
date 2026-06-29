@@ -272,6 +272,15 @@ const TOPIC_MIXES = [
   { id: "mixed", label: "Both", icon: "shuffle" as const },
 ];
 
+type InterviewStyleId = "combative" | "informative" | "comedic" | "civil_discourse" | "educational";
+const INTERVIEW_STYLES: Array<{ id: InterviewStyleId; label: string; icon: "flame" | "information-circle" | "happy" | "handshake" | "school" }> = [
+  { id: "combative",      label: "Combative",       icon: "flame" },
+  { id: "informative",    label: "Informative",     icon: "information-circle" },
+  { id: "comedic",        label: "Comedic",         icon: "happy" },
+  { id: "civil_discourse",label: "Civil Discourse", icon: "handshake" },
+  { id: "educational",    label: "Educational",     icon: "school" },
+];
+
 const webTop = Platform.OS === "web" ? 67 : 0;
 const webBottom = Platform.OS === "web" ? 34 : 0;
 
@@ -285,6 +294,7 @@ export default function InterviewScreen() {
   const [intervieweeId, setIntervieweeId] = useState<string | null>(null);
   const [duration, setDuration] = useState<5 | 10 | 15>(10);
   const [topicMix, setTopicMix] = useState<"current" | "past" | "mixed">("mixed");
+  const [interviewStyle, setInterviewStyle] = useState<InterviewStyleId>("combative");
 
   const [topics, setTopics] = useState<Topic[]>([]);
   const [topicsLoading, setTopicsLoading] = useState(false);
@@ -974,7 +984,7 @@ export default function InterviewScreen() {
       const res = await fetch(new URL("/api/arena/interview-topics", getApiUrl()).toString(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ interviewerId, intervieweeId, topicMix, durationMinutes: duration }),
+        body: JSON.stringify({ interviewerId, intervieweeId, topicMix, durationMinutes: duration, interviewStyle }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -983,15 +993,15 @@ export default function InterviewScreen() {
     } catch {} finally {
       setTopicsLoading(false);
     }
-  }, [interviewerId, intervieweeId, topicMix, duration]);
+  }, [interviewerId, intervieweeId, topicMix, duration, interviewStyle]);
 
-  // Auto-generate when pairing/duration changes
+  // Auto-generate when pairing/duration/style changes
   useEffect(() => {
     if (interviewerId && intervieweeId && phase === "setup") {
       generateTopics();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [interviewerId, intervieweeId, topicMix, duration]);
+  }, [interviewerId, intervieweeId, topicMix, duration, interviewStyle]);
 
   // Countdown
   useEffect(() => {
@@ -1028,6 +1038,7 @@ export default function InterviewScreen() {
           isTransition: !!opts.isTransition,
           previousTopicTitle: opts.previousTopicTitle,
           isInterruption: !!opts.isInterruption,
+          interviewStyle,
         }),
       });
       if (!res.ok) {
@@ -1060,6 +1071,7 @@ export default function InterviewScreen() {
           wasInterrupted: !!opts.wasInterrupted,
           interruptionText: opts.interruptionText,
           isInterruption: !!opts.isInterruption,
+          interviewStyle,
         }),
       });
       if (!res.ok) {
@@ -1074,7 +1086,7 @@ export default function InterviewScreen() {
       }
       return await res.json();
     } catch { return null; }
-  }, [deviceId, interviewerId, intervieweeId, currentTopic]);
+  }, [deviceId, interviewerId, intervieweeId, currentTopic, interviewStyle]);
 
   // Main turn loop
   const runLoop = useCallback(async () => {
@@ -1662,6 +1674,17 @@ export default function InterviewScreen() {
                 style={[s.mixCard, topicMix === m.id && s.mixCardActive]} testID={`mix-${m.id}`}>
                 <Ionicons name={m.icon} size={18} color={topicMix === m.id ? "#000" : "#FFD700"} />
                 <Text style={[s.mixText, topicMix === m.id && s.mixTextActive]}>{m.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Text style={[s.sectionLabel, { marginTop: 16 }]}>INTERVIEW STYLE</Text>
+          <View style={s.styleRow}>
+            {INTERVIEW_STYLES.map((st) => (
+              <Pressable key={st.id} onPress={() => { Haptics.selectionAsync(); setInterviewStyle(st.id); }}
+                style={[s.styleCard, interviewStyle === st.id && s.styleCardActive]} testID={`style-${st.id}`}>
+                <Ionicons name={st.icon} size={16} color={interviewStyle === st.id ? "#000" : "#FFD700"} />
+                <Text style={[s.styleText, interviewStyle === st.id && s.styleTextActive]}>{st.label}</Text>
               </Pressable>
             ))}
           </View>
@@ -2334,6 +2357,11 @@ const s = StyleSheet.create({
   mixCardActive: { backgroundColor: "#FFD700", borderColor: "#FFD700" },
   mixText: { color: "#fff", fontSize: 11, fontWeight: "700" },
   mixTextActive: { color: "#000" },
+  styleRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  styleCard: { paddingVertical: 9, paddingHorizontal: 12, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.05)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)", alignItems: "center", flexDirection: "row", gap: 5 },
+  styleCardActive: { backgroundColor: "#FFD700", borderColor: "#FFD700" },
+  styleText: { color: "#fff", fontSize: 11, fontWeight: "700" },
+  styleTextActive: { color: "#000" },
 
   topicsCard: { backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 14, padding: 12, borderWidth: 1, borderColor: "rgba(255,215,0,0.15)" },
   topicsHeader: { flexDirection: "row", alignItems: "center", marginBottom: 10 },
