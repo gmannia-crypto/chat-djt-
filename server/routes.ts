@@ -2920,7 +2920,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     desantis: "2d689da192114a948ada21c099cecc5c",
     hillaryclinton: "9b340130a64648a6b2bca86dbed3baa2",
     professorjiang: "f6797aa5cfdb48e7a93c277d0761aa2b",
-    shahidbolson: "f6797aa5cfdb48e7a93c277d0761aa2b",
+    shahidbolson: "5ff0ab1cf9d147f4ab44c70fe7a7744b",
   };
 
   app.post("/api/nav-speak", async (req, res) => {
