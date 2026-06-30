@@ -189,6 +189,8 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   hillaryclinton: require("@/assets/images/persona-hillaryclinton.jpg"),
   marcorubio: require("@/assets/images/persona-marcorubio.jpg"),
   desantis: require("@/assets/images/persona-desantis.jpg"),
+  pastormanning: require("@/assets/images/persona-pastormanning.jpg"),
+  shahidbolson: require("@/assets/images/persona-shahid.png"),
 };
 
 const FX_KEY = "interview_fx_enabled_v1";

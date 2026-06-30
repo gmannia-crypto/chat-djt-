@@ -89,6 +89,8 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   kamala: require("@/assets/images/persona-kamala.png"),
   mtg: require("@/assets/images/persona-mtg.png"),
   rfk: require("@/assets/images/persona-rfk.png"),
+  pastormanning: require("@/assets/images/persona-pastormanning.jpg"),
+  shahidbolson: require("@/assets/images/persona-shahid.png"),
 };
 
 const webTop = Platform.OS === "web" ? 67 : 0;

@@ -529,6 +529,9 @@ function applyPersonaTTSFormatting(text: string, personaId: string): string {
     return wordCount <= 3 ? `${phrase}! ... ` : match;
   });
 
+  // Every sentence that ends with a period gets an exclamation — Manning YELLS everything
+  t = t.replace(/([a-zA-Z])\.(\s|$)/g, "$1! ");
+
   return t.trim();
 }
 
