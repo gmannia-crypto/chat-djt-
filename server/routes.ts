@@ -537,9 +537,9 @@ function applyPersonaTTSFormatting(text: string, personaId: string): string {
   return t.trim();
 }
 
-async function fishAudioRequest(text: string, voiceId: string, speed: number, apiKey: string, retries: number = 3, volumeDb: number = 0): Promise<Buffer> {
+async function fishAudioRequest(text: string, voiceId: string, speed: number, apiKey: string, retries: number = 3, volumeDb: number = 0, emotion?: string): Promise<Buffer> {
   const ttsText = fixTTSPronunciation(text);
-  const cacheKey = getTTSCacheKey(text, voiceId, speed) + (volumeDb !== 0 ? `_v${volumeDb}` : "");
+  const cacheKey = getTTSCacheKey(text, voiceId, speed) + (volumeDb !== 0 ? `_v${volumeDb}` : "") + (emotion ? `_e${emotion}` : "");
   const cached = getCachedTTS(cacheKey);
   if (cached) {
     console.log(`TTS cache hit for voice=${voiceId}`);
@@ -555,6 +555,10 @@ async function fishAudioRequest(text: string, voiceId: string, speed: number, ap
     }
 
     try {
+      const prosody: Record<string, any> = { speed };
+      if (volumeDb !== 0) prosody.volume = volumeDb;
+      if (emotion) prosody.emotion = emotion;
+
       const response = await fetch("https://api.fish.audio/v1/tts", {
         method: "POST",
         headers: {
@@ -566,7 +570,7 @@ async function fishAudioRequest(text: string, voiceId: string, speed: number, ap
           reference_id: voiceId,
           format: "mp3",
           latency: "balanced",
-          prosody: volumeDb !== 0 ? { speed, volume: volumeDb } : { speed },
+          prosody,
         }),
       });
 
@@ -3066,6 +3070,12 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     jascrockett: 1.18,
   };
 
+  const PERSONA_EMOTION_MAP: Record<string, string> = {
+    miller: "angry",
+    timscott: "excited",
+    jascrockett: "angry",
+  };
+
   app.post("/api/persona-speak", async (req, res) => {
     try {
       const { text, personaId } = req.body;
@@ -3088,8 +3098,9 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
 
       const personaSpeed = PERSONA_SPEED_MAP[personaId] ?? 1.0;
       const personaVolumeDb = PERSONA_VOLUME_BOOST[personaId] ?? 0;
+      const personaEmotion = PERSONA_EMOTION_MAP[personaId];
       const safeText = applyPersonaTTSFormatting(text.slice(0, 2000), personaId);
-      const buffer = await fishAudioRequest(safeText, voiceId, personaSpeed, apiKey, 3, personaVolumeDb);
+      const buffer = await fishAudioRequest(safeText, voiceId, personaSpeed, apiKey, 3, personaVolumeDb, personaEmotion);
 
       res.setHeader("Content-Type", "audio/mpeg");
       res.setHeader("Content-Length", buffer.length.toString());

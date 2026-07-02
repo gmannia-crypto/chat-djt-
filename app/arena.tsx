@@ -4056,7 +4056,7 @@ export default function ArenaScreen() {
       setTtsActiveSpeaker(null);
     }
     if (hasMoreItems && forcePlayRef.current) {
-      setTimeout(() => processTTSQueue(), 50);
+      processTTSQueue();
     } else if (hasMoreItems && !forcePlayRef.current) {
       ttsQueueRef.current = [];
     }
