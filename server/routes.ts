@@ -11100,23 +11100,127 @@ p{color:#999;font-size:16px;margin-bottom:24px}
       return res.status(403).json({ error: "Invalid admin key" });
     }
     try {
-      // ── Cost model constants ──────────────────────────────────────────────
-      const FISH_AUDIO_PER_K_CHARS = 0.015;   // $0.015 per 1,000 characters
-      const AVG_TTS_CHARS = 250;              // avg chars per TTS call in the app
+      // ── API cost model ────────────────────────────────────────────────────
+      const FISH_AUDIO_PER_K_CHARS = 0.015;
+      const AVG_TTS_CHARS = 250;
       const fishAudioCostPerCall = (AVG_TTS_CHARS / 1000) * FISH_AUDIO_PER_K_CHARS;
 
       const LLM = {
-        premium: { model: "GPT-5.2", inputPer1k: 0.01,     outputPer1k: 0.03,    avgIn: 500, avgOut: 350 },
-        budget:  { model: "DeepSeek V3", inputPer1k: 0.00014, outputPer1k: 0.00028, avgIn: 500, avgOut: 350 },
+        premium: { model: "GPT-5.2",     inputPer1k: 0.01,     outputPer1k: 0.03,    avgIn: 500, avgOut: 350 },
+        budget:  { model: "DeepSeek V3", inputPer1k: 0.00014,  outputPer1k: 0.00028, avgIn: 500, avgOut: 350 },
       };
-
-      const llmCostPremium = (LLM.premium.avgIn / 1000) * LLM.premium.inputPer1k +
-                             (LLM.premium.avgOut / 1000) * LLM.premium.outputPer1k;
-      const llmCostBudget  = (LLM.budget.avgIn  / 1000) * LLM.budget.inputPer1k  +
-                             (LLM.budget.avgOut  / 1000) * LLM.budget.outputPer1k;
-
+      const llmCostPremium = (LLM.premium.avgIn / 1000) * LLM.premium.inputPer1k + (LLM.premium.avgOut / 1000) * LLM.premium.outputPer1k;
+      const llmCostBudget  = (LLM.budget.avgIn  / 1000) * LLM.budget.inputPer1k  + (LLM.budget.avgOut  / 1000) * LLM.budget.outputPer1k;
       const totalCostPremium = llmCostPremium + fishAudioCostPerCall;
       const totalCostBudget  = llmCostBudget  + fishAudioCostPerCall;
+      const activeCostPerToken = activeModelTier === "premium" ? totalCostPremium : totalCostBudget;
+
+      // ── Replit hosting tiers ──────────────────────────────────────────────
+      // Pricing: Core plan $20/mo + Reserved VM per tier (as of 2025)
+      const REPLIT_CORE = 20;
+      const hostingTiers = [
+        { id: "dev",        label: "Dev",        vm: "Micro (0.5 vCPU / 512 MB)", vmCost: 6,  total: 26, mauRange: "0–500",    recommended: true  },
+        { id: "growth",     label: "Growth",     vm: "Small (1 vCPU / 1 GB)",     vmCost: 12, total: 32, mauRange: "500–2K",   recommended: false },
+        { id: "scale",      label: "Scale",      vm: "Medium (2 vCPU / 2 GB)",    vmCost: 24, total: 44, mauRange: "2K–10K",   recommended: false },
+        { id: "enterprise", label: "Enterprise", vm: "Large (4 vCPU / 4 GB)",     vmCost: 48, total: 68, mauRange: "10K+",     recommended: false },
+      ];
+
+      // Egress estimate: ~10 MB/user/month at low scale, ~5 MB at high scale (cached)
+      // First 100 GB free, then $0.04/GB
+      const EGRESS_PER_USER_MB = 10;
+      const EGRESS_FREE_GB = 100;
+      const EGRESS_RATE = 0.04; // $/GB after free
+
+      // ── Real DB actuals (last 30 days) ────────────────────────────────────
+      const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      const [usageRes, userRes, txRes] = await Promise.all([
+        db.query(`
+          SELECT
+            COALESCE(ABS(SUM(amount)), 0)::int  AS tokens_consumed,
+            COUNT(*)::int                        AS usage_events
+          FROM token_transactions
+          WHERE type IN ('use_token', 'use_free')
+            AND created_at > NOW() - INTERVAL '30 days'
+        `),
+        db.query(`
+          SELECT
+            COUNT(*)::int                                                         AS total_users,
+            COUNT(*) FILTER (WHERE updated_at > NOW() - INTERVAL '30 days')::int AS mau,
+            COUNT(*) FILTER (WHERE subscription_active = true)::int               AS active_subs,
+            COUNT(*) FILTER (WHERE subscription_tier = 'vip')::int                AS vip_subs
+          FROM token_accounts
+        `),
+        db.query(`
+          SELECT
+            COUNT(*) FILTER (WHERE type = 'subscription' AND created_at > NOW() - INTERVAL '30 days')::int AS new_subs_30d,
+            COUNT(*) FILTER (WHERE type = 'token_pack'   AND created_at > NOW() - INTERVAL '30 days')::int AS new_packs_30d,
+            COUNT(*) FILTER (WHERE type = 'subscription')::int AS total_subs_ever,
+            COUNT(*) FILTER (WHERE type = 'token_pack')::int   AS total_packs_ever
+          FROM token_transactions
+        `),
+      ]);
+      await db.end();
+
+      const tokensConsumed30d = usageRes.rows[0].tokens_consumed;
+      const usageEvents30d    = usageRes.rows[0].usage_events;
+      const totalUsers        = userRes.rows[0].total_users;
+      const mau               = userRes.rows[0].mau;
+      const activeSubs        = userRes.rows[0].active_subs;
+      const vipSubs           = userRes.rows[0].vip_subs;
+      const standardSubs      = activeSubs - vipSubs;
+      const newSubs30d        = txRes.rows[0].new_subs_30d;
+      const newPacks30d       = txRes.rows[0].new_packs_30d;
+
+      // Derived real metrics
+      const avgTokensPerMAU    = mau > 0 ? tokensConsumed30d / mau : 20;
+      const conversionRate     = totalUsers > 0 ? activeSubs / totalUsers : 0.08;
+      const actual30dApiCost   = tokensConsumed30d * activeCostPerToken;
+      const actual30dRevenue   = (standardSubs * 2.99) + (vipSubs * 9.99) + (newPacks30d * 4.99);
+      const actual30dHosting   = 26; // dev tier (current)
+      const actual30dEgressGB  = (mau * EGRESS_PER_USER_MB) / 1024;
+      const actual30dEgressCost = Math.max(0, actual30dEgressGB - EGRESS_FREE_GB) * EGRESS_RATE;
+      const actual30dTotalCost = actual30dApiCost + actual30dHosting + actual30dEgressCost;
+      const actual30dProfit    = actual30dRevenue - actual30dTotalCost;
+
+      // ── Projections at scale ──────────────────────────────────────────────
+      // Avg revenue per paying user: weighted mix of sub/pack purchasers
+      const AVG_REV_PER_PAYING_USER = 3.74; // $2.99 * 0.7 + $5.49 * 0.3
+      const SCALE_POINTS = [100, 500, 1_000, 5_000, 10_000];
+
+      const projections = SCALE_POINTS.map(scaleMAU => {
+        const tokensConsumed   = scaleMAU * avgTokensPerMAU;
+        const apiCost          = tokensConsumed * activeCostPerToken;
+        const payingUsers      = Math.round(scaleMAU * Math.max(conversionRate, 0.05));
+        const revenue          = payingUsers * AVG_REV_PER_PAYING_USER;
+        const egressGB         = (scaleMAU * EGRESS_PER_USER_MB) / 1024;
+        const egressCost       = Math.max(0, egressGB - EGRESS_FREE_GB) * EGRESS_RATE;
+
+        // Pick appropriate hosting tier
+        let hosting = hostingTiers[0];
+        if      (scaleMAU > 10_000) hosting = hostingTiers[3];
+        else if (scaleMAU > 2_000)  hosting = hostingTiers[2];
+        else if (scaleMAU > 500)    hosting = hostingTiers[1];
+
+        const totalCost   = apiCost + hosting.total + egressCost;
+        const profit      = revenue - totalCost;
+        const margin      = revenue > 0 ? (profit / revenue) * 100 : 0;
+        const breakEvenUsers = hosting.total / (AVG_REV_PER_PAYING_USER * Math.max(conversionRate, 0.05));
+
+        return {
+          mau: scaleMAU,
+          tokensConsumed: Math.round(tokensConsumed),
+          payingUsers,
+          revenue:    parseFloat(revenue.toFixed(2)),
+          apiCost:    parseFloat(apiCost.toFixed(4)),
+          hosting:    hosting.total,
+          hostingTier: hosting.label,
+          egressCost: parseFloat(egressCost.toFixed(4)),
+          totalCost:  parseFloat(totalCost.toFixed(2)),
+          profit:     parseFloat(profit.toFixed(2)),
+          marginPct:  parseFloat(margin.toFixed(1)),
+          breakEvenUsers: Math.ceil(breakEvenUsers),
+        };
+      });
 
       // ── Live Stripe prices ────────────────────────────────────────────────
       let liveStripe: Record<string, { amount: number; currency: string; priceId: string }> = {};
@@ -11127,7 +11231,7 @@ p{color:#999;font-size:16px;margin-bottom:24px}
           stripeClient.products.list({ active: true, limit: 50 }),
         ]);
         for (const price of pricesList.data) {
-          if (!price.unit_amount || price.recurring) continue; // one-time only
+          if (!price.unit_amount || price.recurring) continue;
           const product = productsList.data.find(p => p.id === price.product);
           const matched = TOKEN_PACKS.find(p =>
             price.unit_amount === p.price ||
@@ -11137,16 +11241,16 @@ p{color:#999;font-size:16px;margin-bottom:24px}
             liveStripe[matched.id] = { amount: price.unit_amount!, currency: price.currency, priceId: price.id };
           }
         }
-      } catch (_) { /* Stripe unavailable — fall back to static prices */ }
+      } catch (_) {}
 
-      // ── Pack analysis ─────────────────────────────────────────────────────
+      // ── Pack & subscription analysis ──────────────────────────────────────
       const packs = TOKEN_PACKS.map(pack => {
         const live = liveStripe[pack.id] || null;
-        const revenueCents = live ? live.amount : pack.price;
+        const revenueCents   = live ? live.amount : pack.price;
         const revenuePerToken = revenueCents / 100 / pack.tokens;
         return {
           ...pack,
-          liveStripePriceCents: live?.amount ?? null,
+          liveStripePriceCents:   live?.amount ?? null,
           liveStripePriceDisplay: live ? `$${(live.amount / 100).toFixed(2)}` : null,
           revenuePerToken,
           costPerTokenPremium: totalCostPremium,
@@ -11158,10 +11262,9 @@ p{color:#999;font-size:16px;margin-bottom:24px}
         };
       });
 
-      // ── Subscription analysis ─────────────────────────────────────────────
       const SUBS = [
-        { name: "Standard", tokensPerMonth: 50,  priceMonthly: 299,  priceDisplay: "$2.99/mo" },
-        { name: "VIP",      tokensPerMonth: 150, priceMonthly: 999,  priceDisplay: "$9.99/mo" },
+        { name: "Standard", tokensPerMonth: 50,  priceMonthly: 299, priceDisplay: "$2.99/mo" },
+        { name: "VIP",      tokensPerMonth: 150, priceMonthly: 999, priceDisplay: "$9.99/mo" },
       ];
       const subscriptions = SUBS.map(sub => {
         const revenuePerToken = sub.priceMonthly / 100 / sub.tokensPerMonth;
@@ -11176,21 +11279,36 @@ p{color:#999;font-size:16px;margin-bottom:24px}
       res.json({
         activeMode: activeModelMode,
         activeTier: activeModelTier,
+        liveStripeConnected: Object.keys(liveStripe).length > 0,
         costModel: {
-          fishAudio: {
-            ratePerKChars: FISH_AUDIO_PER_K_CHARS,
-            avgCharsPerCall: AVG_TTS_CHARS,
-            costPerCall: fishAudioCostPerCall,
-          },
+          fishAudio: { ratePerKChars: FISH_AUDIO_PER_K_CHARS, avgCharsPerCall: AVG_TTS_CHARS, costPerCall: fishAudioCostPerCall },
           llm: {
             premium: { ...LLM.premium, costPerDCToken: llmCostPremium },
             budget:  { ...LLM.budget,  costPerDCToken: llmCostBudget  },
           },
           totalPerDCToken: { premium: totalCostPremium, budget: totalCostBudget },
         },
+        actuals: {
+          mau, totalUsers, activeSubs, vipSubs, standardSubs,
+          tokensConsumed30d, usageEvents30d, newSubs30d, newPacks30d,
+          avgTokensPerMAU: parseFloat(avgTokensPerMAU.toFixed(1)),
+          conversionRate: parseFloat((conversionRate * 100).toFixed(1)),
+          revenue30d:   parseFloat(actual30dRevenue.toFixed(2)),
+          apiCost30d:   parseFloat(actual30dApiCost.toFixed(4)),
+          hosting30d:   actual30dHosting,
+          egressCost30d: parseFloat(actual30dEgressCost.toFixed(4)),
+          totalCost30d: parseFloat(actual30dTotalCost.toFixed(2)),
+          profit30d:    parseFloat(actual30dProfit.toFixed(2)),
+        },
+        hosting: {
+          corePlanMonthly: REPLIT_CORE,
+          egressRatePerGB: EGRESS_RATE,
+          egressFreeGB: EGRESS_FREE_GB,
+          tiers: hostingTiers,
+        },
+        projections,
         packs,
         subscriptions,
-        liveStripeConnected: Object.keys(liveStripe).length > 0,
       });
     } catch (e: any) {
       res.status(500).json({ error: e.message });

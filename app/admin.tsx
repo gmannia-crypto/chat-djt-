@@ -299,6 +299,14 @@ const toggleStyles = StyleSheet.create({
 
 // ── Token Economics Section ────────────────────────────────────────────────────
 
+interface HostingTier {
+  id: string; label: string; vm: string; vmCost: number; total: number; mauRange: string; recommended: boolean;
+}
+interface Projection {
+  mau: number; tokensConsumed: number; payingUsers: number;
+  revenue: number; apiCost: number; hosting: number; hostingTier: string;
+  egressCost: number; totalCost: number; profit: number; marginPct: number; breakEvenUsers: number;
+}
 interface TokenEconomicsData {
   activeMode: string;
   activeTier: string;
@@ -311,6 +319,17 @@ interface TokenEconomicsData {
     };
     totalPerDCToken: { premium: number; budget: number };
   };
+  actuals: {
+    mau: number; totalUsers: number; activeSubs: number; vipSubs: number; standardSubs: number;
+    tokensConsumed30d: number; usageEvents30d: number; newSubs30d: number; newPacks30d: number;
+    avgTokensPerMAU: number; conversionRate: number;
+    revenue30d: number; apiCost30d: number; hosting30d: number; egressCost30d: number;
+    totalCost30d: number; profit30d: number;
+  };
+  hosting: {
+    corePlanMonthly: number; egressRatePerGB: number; egressFreeGB: number; tiers: HostingTier[];
+  };
+  projections: Projection[];
   packs: {
     id: string; name: string; tokens: number; price: number; priceDisplay: string;
     liveStripePriceCents: number | null; liveStripePriceDisplay: string | null;
@@ -348,30 +367,33 @@ function TokenEconomicsSection({ adminKey }: { adminKey: string }) {
 
   useEffect(() => { fetchEconomics(); }, []);
 
-  const fmt = (n: number) => `$${n.toFixed(4)}`;
+  const fmt2  = (n: number) => `$${n.toFixed(2)}`;
+  const fmt4  = (n: number) => `$${n.toFixed(4)}`;
   const fmtPct = (n: number) => `${n.toFixed(1)}%`;
+  const fmtK  = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(0)}K` : `${n}`;
 
   const tierLabel = data?.activeTier === "budget" ? "DeepSeek" : data?.activeTier === "split" ? "Split" : "GPT-5.2";
   const tierColor = data?.activeTier === "budget" ? "#4ADE80" : data?.activeTier === "split" ? "#60A5FA" : "#FFD700";
 
+  const profitColor = (v: number) => v >= 0 ? "#4ADE80" : "#EF4444";
+  const marginColor = (v: number) => v > 70 ? "#4ADE80" : v > 40 ? "#F59E0B" : "#EF4444";
+
   return (
     <Animated.View entering={FadeInDown.delay(175).duration(400)} style={ecoStyles.container}>
+      {/* ── Header ── */}
       <View style={ecoStyles.header}>
         <View style={ecoStyles.headerLeft}>
           <MaterialCommunityIcons name="lightning-bolt" size={18} color={Colors.gold} />
-          <Text style={ecoStyles.title}>DC Token Economics</Text>
+          <Text style={ecoStyles.title}>Full Cost Breakdown</Text>
         </View>
         <View style={ecoStyles.headerRight}>
           {data && (
-            <View style={[ecoStyles.modeBadge, { backgroundColor: tierColor + "22", borderColor: tierColor + "55" }]}>
-              <Text style={[ecoStyles.modeBadgeText, { color: tierColor }]}>{tierLabel}</Text>
+            <View style={[ecoStyles.badge, { backgroundColor: tierColor + "22", borderColor: tierColor + "55" }]}>
+              <Text style={[ecoStyles.badgeText, { color: tierColor }]}>{tierLabel}</Text>
             </View>
           )}
           <Pressable onPress={fetchEconomics} disabled={loading} style={ecoStyles.refreshBtn}>
-            {loading
-              ? <ActivityIndicator size="small" color={Colors.gold} />
-              : <Feather name="refresh-cw" size={14} color={Colors.gold} />
-            }
+            {loading ? <ActivityIndicator size="small" color={Colors.gold} /> : <Feather name="refresh-cw" size={14} color={Colors.gold} />}
           </Pressable>
         </View>
       </View>
@@ -380,23 +402,61 @@ function TokenEconomicsSection({ adminKey }: { adminKey: string }) {
 
       {data && (
         <>
-          {/* Live Stripe indicator */}
-          <View style={ecoStyles.stripeRow}>
-            <View style={[ecoStyles.dot, { backgroundColor: data.liveStripeConnected ? "#4ADE80" : "#F59E0B" }]} />
-            <Text style={ecoStyles.stripeLabel}>
-              {data.liveStripeConnected ? "Live Stripe prices" : "Static prices (Stripe fallback)"}
-            </Text>
+          {/* ── Status row ── */}
+          <View style={ecoStyles.statusRow}>
+            <View style={ecoStyles.statusItem}>
+              <View style={[ecoStyles.dot, { backgroundColor: data.liveStripeConnected ? "#4ADE80" : "#F59E0B" }]} />
+              <Text style={ecoStyles.statusText}>{data.liveStripeConnected ? "Live Stripe" : "Static prices"}</Text>
+            </View>
+            <View style={ecoStyles.statusItem}>
+              <View style={[ecoStyles.dot, { backgroundColor: "#60A5FA" }]} />
+              <Text style={ecoStyles.statusText}>{data.actuals.mau} MAU · {data.actuals.totalUsers} total users</Text>
+            </View>
+            <View style={ecoStyles.statusItem}>
+              <View style={[ecoStyles.dot, { backgroundColor: "#A78BFA" }]} />
+              <Text style={ecoStyles.statusText}>{data.actuals.conversionRate}% paid</Text>
+            </View>
           </View>
 
-          {/* Cost model breakdown */}
-          <Text style={ecoStyles.subhead}>Cost per DC Token (API)</Text>
+          {/* ── 30-Day Actuals P&L ── */}
+          <Text style={ecoStyles.subhead}>30-Day Actuals</Text>
+          <View style={ecoStyles.plBox}>
+            <View style={ecoStyles.plRow}>
+              <Text style={ecoStyles.plLabel}>Revenue (subs + packs)</Text>
+              <Text style={[ecoStyles.plVal, { color: Colors.gold }]}>{fmt2(data.actuals.revenue30d)}</Text>
+            </View>
+            <View style={[ecoStyles.plRow, ecoStyles.plRowBorder]}>
+              <Text style={ecoStyles.plLabel}>  API costs (LLM + TTS)</Text>
+              <Text style={[ecoStyles.plVal, { color: "#EF4444" }]}>–{fmt4(data.actuals.apiCost30d)}</Text>
+            </View>
+            <View style={[ecoStyles.plRow, ecoStyles.plRowBorder]}>
+              <Text style={ecoStyles.plLabel}>  Replit hosting (Dev tier)</Text>
+              <Text style={[ecoStyles.plVal, { color: "#EF4444" }]}>–${data.actuals.hosting30d.toFixed(2)}</Text>
+            </View>
+            <View style={[ecoStyles.plRow, ecoStyles.plRowBorder]}>
+              <Text style={ecoStyles.plLabel}>  Egress ({data.actuals.mau > 0 ? ((data.actuals.mau * 10) / 1024).toFixed(1) : "0"} GB)</Text>
+              <Text style={[ecoStyles.plVal, { color: "#EF4444" }]}>–{fmt4(data.actuals.egressCost30d)}</Text>
+            </View>
+            <View style={[ecoStyles.plRow, ecoStyles.plRowBorder, { backgroundColor: "rgba(255,255,255,0.04)" }]}>
+              <Text style={[ecoStyles.plLabel, { fontWeight: "700" as const, color: "#ddd" }]}>Net Profit / Loss</Text>
+              <Text style={[ecoStyles.plVal, { color: profitColor(data.actuals.profit30d), fontWeight: "800" as const }]}>
+                {data.actuals.profit30d >= 0 ? "+" : ""}{fmt2(data.actuals.profit30d)}
+              </Text>
+            </View>
+            <View style={ecoStyles.plMeta}>
+              <Text style={ecoStyles.plMetaText}>{data.actuals.tokensConsumed30d} tokens consumed · {data.actuals.usageEvents30d} usage events · {data.actuals.avgTokensPerMAU} avg/user</Text>
+            </View>
+          </View>
+
+          {/* ── API Cost Per DC Token ── */}
+          <Text style={ecoStyles.subhead}>API Cost Per DC Token</Text>
           <View style={ecoStyles.costBox}>
             <View style={ecoStyles.costRow}>
               <View style={ecoStyles.costLabelRow}>
                 <MaterialCommunityIcons name="microphone" size={13} color="#60A5FA" />
                 <Text style={ecoStyles.costLabel}>Fish Audio TTS</Text>
               </View>
-              <Text style={ecoStyles.costVal}>{fmt(data.costModel.fishAudio.costPerCall)}</Text>
+              <Text style={ecoStyles.costVal}>{fmt4(data.costModel.fishAudio.costPerCall)}</Text>
               <Text style={ecoStyles.costNote}>{data.costModel.fishAudio.avgCharsPerCall} chars @ ${data.costModel.fishAudio.ratePerKChars}/K</Text>
             </View>
             <View style={[ecoStyles.costRow, ecoStyles.costRowBorder]}>
@@ -404,7 +464,7 @@ function TokenEconomicsSection({ adminKey }: { adminKey: string }) {
                 <MaterialCommunityIcons name="star" size={13} color="#FFD700" />
                 <Text style={ecoStyles.costLabel}>LLM Premium (GPT-5.2)</Text>
               </View>
-              <Text style={ecoStyles.costVal}>{fmt(data.costModel.llm.premium.costPerDCToken)}</Text>
+              <Text style={ecoStyles.costVal}>{fmt4(data.costModel.llm.premium.costPerDCToken)}</Text>
               <Text style={ecoStyles.costNote}>${data.costModel.llm.premium.inputPer1k}/K in · ${data.costModel.llm.premium.outputPer1k}/K out</Text>
             </View>
             <View style={[ecoStyles.costRow, ecoStyles.costRowBorder]}>
@@ -412,35 +472,96 @@ function TokenEconomicsSection({ adminKey }: { adminKey: string }) {
                 <MaterialCommunityIcons name="leaf" size={13} color="#4ADE80" />
                 <Text style={ecoStyles.costLabel}>LLM Budget (DeepSeek V3)</Text>
               </View>
-              <Text style={ecoStyles.costVal}>{fmt(data.costModel.llm.budget.costPerDCToken)}</Text>
+              <Text style={ecoStyles.costVal}>{fmt4(data.costModel.llm.budget.costPerDCToken)}</Text>
               <Text style={ecoStyles.costNote}>${data.costModel.llm.budget.inputPer1k}/K in · ${data.costModel.llm.budget.outputPer1k}/K out</Text>
             </View>
-            <View style={[ecoStyles.totalRow]}>
-              <Text style={ecoStyles.totalLabel}>Total / token (Premium)</Text>
-              <Text style={[ecoStyles.totalVal, { color: "#EF4444" }]}>{fmt(data.costModel.totalPerDCToken.premium)}</Text>
+            <View style={[ecoStyles.costRow, ecoStyles.costRowBorder, { backgroundColor: "rgba(255,255,255,0.02)" }]}>
+              <View style={ecoStyles.costLabelRow}>
+                <MaterialCommunityIcons name="sigma" size={13} color="#FFD700" />
+                <Text style={[ecoStyles.costLabel, { color: "#ddd" }]}>Total (Premium mode)</Text>
+              </View>
+              <Text style={[ecoStyles.costVal, { color: "#F59E0B" }]}>{fmt4(data.costModel.totalPerDCToken.premium)}</Text>
+              <Text style={ecoStyles.costNote}> </Text>
             </View>
-            <View style={ecoStyles.totalRow}>
-              <Text style={ecoStyles.totalLabel}>Total / token (Budget)</Text>
-              <Text style={[ecoStyles.totalVal, { color: "#EF4444" }]}>{fmt(data.costModel.totalPerDCToken.budget)}</Text>
+            <View style={[ecoStyles.costRow, ecoStyles.costRowBorder, { backgroundColor: "rgba(255,255,255,0.02)" }]}>
+              <View style={ecoStyles.costLabelRow}>
+                <MaterialCommunityIcons name="sigma" size={13} color="#4ADE80" />
+                <Text style={[ecoStyles.costLabel, { color: "#ddd" }]}>Total (Budget mode)</Text>
+              </View>
+              <Text style={[ecoStyles.costVal, { color: "#4ADE80" }]}>{fmt4(data.costModel.totalPerDCToken.budget)}</Text>
+              <Text style={ecoStyles.costNote}> </Text>
             </View>
           </View>
 
-          {/* Pack margins */}
-          <Text style={ecoStyles.subhead}>Token Packs — Margin Analysis</Text>
+          {/* ── Replit Hosting Tiers ── */}
+          <Text style={ecoStyles.subhead}>Replit Hosting Tiers</Text>
+          <View style={ecoStyles.tierNote}>
+            <MaterialCommunityIcons name="information-outline" size={12} color="#666" />
+            <Text style={ecoStyles.tierNoteText}>Core plan ${data.hosting.corePlanMonthly}/mo included in all tiers · Egress free up to {data.hosting.egressFreeGB} GB then ${data.hosting.egressRatePerGB}/GB</Text>
+          </View>
+          <View style={ecoStyles.tiersGrid}>
+            {data.hosting.tiers.map(tier => (
+              <View key={tier.id} style={[ecoStyles.tierCard, tier.recommended && ecoStyles.tierCardActive]}>
+                <View style={ecoStyles.tierCardTop}>
+                  <Text style={[ecoStyles.tierLabel, tier.recommended && { color: Colors.gold }]}>{tier.label}</Text>
+                  {tier.recommended && (
+                    <View style={ecoStyles.currentBadge}><Text style={ecoStyles.currentBadgeText}>NOW</Text></View>
+                  )}
+                </View>
+                <Text style={ecoStyles.tierPrice}>${tier.total}<Text style={ecoStyles.tierPriceMo}>/mo</Text></Text>
+                <Text style={ecoStyles.tierVm}>{tier.vm}</Text>
+                <Text style={ecoStyles.tierRange}>{tier.mauRange} MAU</Text>
+              </View>
+            ))}
+          </View>
+
+          {/* ── Scale Projections ── */}
+          <Text style={ecoStyles.subhead}>Projected P&L at Scale</Text>
+          <View style={ecoStyles.projNote}>
+            <Text style={ecoStyles.projNoteText}>Based on {data.actuals.avgTokensPerMAU} tokens/user/mo · {data.actuals.conversionRate}% paid conversion · ${(3.74).toFixed(2)} avg rev/paying user</Text>
+          </View>
+
+          {/* Header row */}
+          <View style={ecoStyles.projTable}>
+            <View style={ecoStyles.projHeader}>
+              <Text style={[ecoStyles.projCell, ecoStyles.projCellMAU, ecoStyles.projHeaderText]}>MAU</Text>
+              <Text style={[ecoStyles.projCell, ecoStyles.projCellNum, ecoStyles.projHeaderText]}>Rev</Text>
+              <Text style={[ecoStyles.projCell, ecoStyles.projCellNum, ecoStyles.projHeaderText]}>API</Text>
+              <Text style={[ecoStyles.projCell, ecoStyles.projCellNum, ecoStyles.projHeaderText]}>Host</Text>
+              <Text style={[ecoStyles.projCell, ecoStyles.projCellNum, ecoStyles.projHeaderText]}>Profit</Text>
+              <Text style={[ecoStyles.projCell, ecoStyles.projCellPct, ecoStyles.projHeaderText]}>Margin</Text>
+            </View>
+            {data.projections.map((p, i) => {
+              const mc = marginColor(p.marginPct);
+              const pc = profitColor(p.profit);
+              return (
+                <View key={p.mau} style={[ecoStyles.projRow, i % 2 === 0 && ecoStyles.projRowAlt]}>
+                  <Text style={[ecoStyles.projCell, ecoStyles.projCellMAU, ecoStyles.projMAUText]}>{fmtK(p.mau)}</Text>
+                  <Text style={[ecoStyles.projCell, ecoStyles.projCellNum, { color: Colors.gold }]}>{fmt2(p.revenue)}</Text>
+                  <Text style={[ecoStyles.projCell, ecoStyles.projCellNum, { color: "#EF4444" }]}>{fmt2(p.apiCost)}</Text>
+                  <Text style={[ecoStyles.projCell, ecoStyles.projCellNum, { color: "#EF4444" }]}>${p.hosting}</Text>
+                  <Text style={[ecoStyles.projCell, ecoStyles.projCellNum, { color: pc, fontWeight: "700" as const }]}>
+                    {p.profit >= 0 ? "+" : ""}{fmt2(p.profit)}
+                  </Text>
+                  <Text style={[ecoStyles.projCell, ecoStyles.projCellPct, { color: mc, fontWeight: "800" as const }]}>{fmtPct(p.marginPct)}</Text>
+                </View>
+              );
+            })}
+          </View>
+
+          {/* ── Pack margins ── */}
+          <Text style={[ecoStyles.subhead, { marginTop: 16 }]}>Token Packs — Margin</Text>
           {data.packs.map((pack, i) => {
-            const isActive = data.activeTier === "budget";
-            const margin = isActive ? pack.marginPctBudget : pack.marginPctPremium;
-            const profit = isActive ? pack.profitPerTokenBudget : pack.profitPerTokenPremium;
-            const marginColor = margin > 80 ? "#4ADE80" : margin > 50 ? "#F59E0B" : "#EF4444";
+            const isBudget = data.activeTier === "budget";
+            const margin = isBudget ? pack.marginPctBudget : pack.marginPctPremium;
+            const profit = isBudget ? pack.profitPerTokenBudget : pack.profitPerTokenPremium;
             return (
-              <Animated.View key={pack.id} entering={FadeInDown.delay(200 + i * 60).duration(300)} style={ecoStyles.packCard}>
+              <View key={pack.id} style={ecoStyles.packCard}>
                 <View style={ecoStyles.packTop}>
                   <Text style={ecoStyles.packName}>{pack.tokens} DC Tokens</Text>
                   <View style={ecoStyles.packPriceRow}>
                     {pack.liveStripePriceDisplay && (
-                      <View style={ecoStyles.liveBadge}>
-                        <Text style={ecoStyles.liveBadgeText}>LIVE</Text>
-                      </View>
+                      <View style={ecoStyles.liveBadge}><Text style={ecoStyles.liveBadgeText}>LIVE</Text></View>
                     )}
                     <Text style={ecoStyles.packPrice}>{pack.liveStripePriceDisplay || pack.priceDisplay}</Text>
                   </View>
@@ -448,38 +569,37 @@ function TokenEconomicsSection({ adminKey }: { adminKey: string }) {
                 <View style={ecoStyles.packMetrics}>
                   <View style={ecoStyles.packMetric}>
                     <Text style={ecoStyles.packMetricLabel}>Rev/token</Text>
-                    <Text style={[ecoStyles.packMetricVal, { color: Colors.gold }]}>{fmt(pack.revenuePerToken)}</Text>
+                    <Text style={[ecoStyles.packMetricVal, { color: Colors.gold }]}>{fmt4(pack.revenuePerToken)}</Text>
                   </View>
                   <View style={ecoStyles.packMetric}>
                     <Text style={ecoStyles.packMetricLabel}>Cost/token</Text>
-                    <Text style={[ecoStyles.packMetricVal, { color: "#EF4444" }]}>{fmt(isActive ? pack.costPerTokenBudget : pack.costPerTokenPremium)}</Text>
+                    <Text style={[ecoStyles.packMetricVal, { color: "#EF4444" }]}>{fmt4(isBudget ? pack.costPerTokenBudget : pack.costPerTokenPremium)}</Text>
                   </View>
                   <View style={ecoStyles.packMetric}>
                     <Text style={ecoStyles.packMetricLabel}>Profit/token</Text>
-                    <Text style={[ecoStyles.packMetricVal, { color: "#4ADE80" }]}>{fmt(profit)}</Text>
+                    <Text style={[ecoStyles.packMetricVal, { color: "#4ADE80" }]}>{fmt4(profit)}</Text>
                   </View>
                   <View style={ecoStyles.packMetric}>
                     <Text style={ecoStyles.packMetricLabel}>Margin</Text>
-                    <Text style={[ecoStyles.packMetricVal, { color: marginColor, fontWeight: "800" as const }]}>{fmtPct(margin)}</Text>
+                    <Text style={[ecoStyles.packMetricVal, { color: marginColor(margin), fontWeight: "800" as const }]}>{fmtPct(margin)}</Text>
                   </View>
                 </View>
-                <View style={ecoStyles.modeMargins}>
-                  <Text style={[ecoStyles.modeMarginsText, { color: "#FFD700" }]}>GPT: {fmtPct(pack.marginPctPremium)}</Text>
-                  <Text style={ecoStyles.modeMarginsText}> · </Text>
-                  <Text style={[ecoStyles.modeMarginsText, { color: "#4ADE80" }]}>DeepSeek: {fmtPct(pack.marginPctBudget)}</Text>
+                <View style={ecoStyles.modeRow}>
+                  <Text style={[ecoStyles.modeText, { color: "#FFD700" }]}>GPT: {fmtPct(pack.marginPctPremium)}</Text>
+                  <Text style={ecoStyles.modeSep}> · </Text>
+                  <Text style={[ecoStyles.modeText, { color: "#4ADE80" }]}>DeepSeek: {fmtPct(pack.marginPctBudget)}</Text>
                 </View>
-              </Animated.View>
+              </View>
             );
           })}
 
-          {/* Subscription margins */}
-          <Text style={ecoStyles.subhead}>Subscriptions — Margin Analysis</Text>
-          {data.subscriptions.map((sub, i) => {
-            const isActive = data.activeTier === "budget";
-            const margin = isActive ? sub.marginPctBudget : sub.marginPctPremium;
-            const marginColor = margin > 80 ? "#4ADE80" : margin > 50 ? "#F59E0B" : "#EF4444";
+          {/* ── Subscription margins ── */}
+          <Text style={ecoStyles.subhead}>Subscriptions — Margin</Text>
+          {data.subscriptions.map((sub) => {
+            const isBudget = data.activeTier === "budget";
+            const margin = isBudget ? sub.marginPctBudget : sub.marginPctPremium;
             return (
-              <Animated.View key={sub.name} entering={FadeInDown.delay(400 + i * 60).duration(300)} style={ecoStyles.packCard}>
+              <View key={sub.name} style={ecoStyles.packCard}>
                 <View style={ecoStyles.packTop}>
                   <Text style={ecoStyles.packName}>{sub.name} — {sub.tokensPerMonth} tokens/mo</Text>
                   <Text style={ecoStyles.packPrice}>{sub.priceDisplay}</Text>
@@ -487,19 +607,19 @@ function TokenEconomicsSection({ adminKey }: { adminKey: string }) {
                 <View style={ecoStyles.packMetrics}>
                   <View style={ecoStyles.packMetric}>
                     <Text style={ecoStyles.packMetricLabel}>Rev/token</Text>
-                    <Text style={[ecoStyles.packMetricVal, { color: Colors.gold }]}>{fmt(sub.revenuePerToken)}</Text>
+                    <Text style={[ecoStyles.packMetricVal, { color: Colors.gold }]}>{fmt4(sub.revenuePerToken)}</Text>
                   </View>
                   <View style={ecoStyles.packMetric}>
                     <Text style={ecoStyles.packMetricLabel}>Margin</Text>
-                    <Text style={[ecoStyles.packMetricVal, { color: marginColor, fontWeight: "800" as const }]}>{fmtPct(margin)}</Text>
+                    <Text style={[ecoStyles.packMetricVal, { color: marginColor(margin), fontWeight: "800" as const }]}>{fmtPct(margin)}</Text>
                   </View>
                 </View>
-                <View style={ecoStyles.modeMargins}>
-                  <Text style={[ecoStyles.modeMarginsText, { color: "#FFD700" }]}>GPT: {fmtPct(sub.marginPctPremium)}</Text>
-                  <Text style={ecoStyles.modeMarginsText}> · </Text>
-                  <Text style={[ecoStyles.modeMarginsText, { color: "#4ADE80" }]}>DeepSeek: {fmtPct(sub.marginPctBudget)}</Text>
+                <View style={ecoStyles.modeRow}>
+                  <Text style={[ecoStyles.modeText, { color: "#FFD700" }]}>GPT: {fmtPct(sub.marginPctPremium)}</Text>
+                  <Text style={ecoStyles.modeSep}> · </Text>
+                  <Text style={[ecoStyles.modeText, { color: "#4ADE80" }]}>DeepSeek: {fmtPct(sub.marginPctBudget)}</Text>
                 </View>
-              </Animated.View>
+              </View>
             );
           })}
         </>
@@ -510,77 +630,93 @@ function TokenEconomicsSection({ adminKey }: { adminKey: string }) {
 
 const ecoStyles = StyleSheet.create({
   container: {
-    marginHorizontal: 16,
-    marginBottom: 16,
+    marginHorizontal: 16, marginBottom: 16,
     backgroundColor: "rgba(255,255,255,0.03)",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "rgba(212,164,32,0.18)",
-    padding: 14,
+    borderRadius: 16, borderWidth: 1,
+    borderColor: "rgba(212,164,32,0.18)", padding: 14,
   },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 10,
-  },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 6 },
   headerRight: { flexDirection: "row", alignItems: "center", gap: 8 },
   title: { fontSize: 14, fontWeight: "700" as const, color: Colors.gold, letterSpacing: 0.3 },
-  modeBadge: { borderRadius: 6, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 3 },
-  modeBadgeText: { fontSize: 10, fontWeight: "800" as const, letterSpacing: 0.5 },
+  badge: { borderRadius: 6, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 3 },
+  badgeText: { fontSize: 10, fontWeight: "800" as const, letterSpacing: 0.5 },
   refreshBtn: { padding: 4 },
   error: { color: "#EF4444", fontSize: 12, marginBottom: 8 },
-  stripeRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 12 },
+
+  statusRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 12 },
+  statusItem: { flexDirection: "row", alignItems: "center", gap: 5 },
   dot: { width: 7, height: 7, borderRadius: 3.5 },
-  stripeLabel: { fontSize: 11, color: "#999" },
-  subhead: { fontSize: 11, fontWeight: "700" as const, color: "#888", letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 8, marginTop: 4 },
-  costBox: {
-    backgroundColor: "rgba(0,0,0,0.25)",
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
-    marginBottom: 14,
-    overflow: "hidden",
-  },
+  statusText: { fontSize: 11, color: "#999" },
+
+  subhead: { fontSize: 11, fontWeight: "700" as const, color: "#888", letterSpacing: 0.8, textTransform: "uppercase" as const, marginBottom: 8, marginTop: 4 },
+
+  // 30-day P&L
+  plBox: { backgroundColor: "rgba(0,0,0,0.25)", borderRadius: 10, borderWidth: 1, borderColor: "rgba(255,255,255,0.06)", marginBottom: 14, overflow: "hidden" as const },
+  plRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 9, paddingHorizontal: 12 },
+  plRowBorder: { borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.05)" },
+  plLabel: { fontSize: 12, color: "#999", flex: 1 },
+  plVal: { fontSize: 13, fontWeight: "700" as const },
+  plMeta: { paddingVertical: 7, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.05)" },
+  plMetaText: { fontSize: 10, color: "#555", textAlign: "center" as const },
+
+  // API cost table
+  costBox: { backgroundColor: "rgba(0,0,0,0.25)", borderRadius: 10, borderWidth: 1, borderColor: "rgba(255,255,255,0.06)", marginBottom: 14, overflow: "hidden" as const },
   costRow: { flexDirection: "row", alignItems: "center", paddingVertical: 9, paddingHorizontal: 12, gap: 6 },
   costRowBorder: { borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.05)" },
   costLabelRow: { flex: 1, flexDirection: "row", alignItems: "center", gap: 5 },
   costLabel: { fontSize: 12, color: "#ccc" },
-  costVal: { fontSize: 12, fontWeight: "700" as const, color: "#EF4444", width: 70, textAlign: "right" as const },
-  costNote: { fontSize: 10, color: "#666", width: 130, textAlign: "right" as const },
-  totalRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 9,
-    paddingHorizontal: 12,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.08)",
-    backgroundColor: "rgba(255,255,255,0.02)",
+  costVal: { fontSize: 12, fontWeight: "700" as const, color: "#EF4444", width: 68, textAlign: "right" as const },
+  costNote: { fontSize: 10, color: "#555", width: 128, textAlign: "right" as const },
+
+  // Hosting tiers
+  tierNote: { flexDirection: "row", alignItems: "flex-start", gap: 5, marginBottom: 8 },
+  tierNoteText: { fontSize: 10, color: "#666", flex: 1, lineHeight: 15 },
+  tiersGrid: { flexDirection: "row", gap: 6, marginBottom: 14, flexWrap: "wrap" as const },
+  tierCard: {
+    flex: 1, minWidth: "44%" as any,
+    backgroundColor: "rgba(0,0,0,0.2)", borderRadius: 10,
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.06)", padding: 10,
   },
-  totalLabel: { fontSize: 12, fontWeight: "600" as const, color: "#bbb" },
-  totalVal: { fontSize: 13, fontWeight: "800" as const },
-  packCard: {
-    backgroundColor: "rgba(0,0,0,0.2)",
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
-    padding: 12,
-    marginBottom: 8,
-  },
+  tierCardActive: { borderColor: "rgba(212,164,32,0.4)", backgroundColor: "rgba(212,164,32,0.06)" },
+  tierCardTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
+  tierLabel: { fontSize: 12, fontWeight: "700" as const, color: "#bbb" },
+  tierPrice: { fontSize: 18, fontWeight: "800" as const, color: "#fff", marginBottom: 2 },
+  tierPriceMo: { fontSize: 11, fontWeight: "400" as const, color: "#777" },
+  tierVm: { fontSize: 10, color: "#666", marginBottom: 2 },
+  tierRange: { fontSize: 10, color: "#4ADE80" },
+  currentBadge: { backgroundColor: "rgba(212,164,32,0.2)", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 },
+  currentBadgeText: { fontSize: 8, fontWeight: "800" as const, color: Colors.gold, letterSpacing: 0.5 },
+
+  // Projections table
+  projNote: { marginBottom: 8 },
+  projNoteText: { fontSize: 10, color: "#666" },
+  projTable: { backgroundColor: "rgba(0,0,0,0.25)", borderRadius: 10, borderWidth: 1, borderColor: "rgba(255,255,255,0.06)", marginBottom: 14, overflow: "hidden" as const },
+  projHeader: { flexDirection: "row", paddingVertical: 8, paddingHorizontal: 8, backgroundColor: "rgba(255,255,255,0.04)", borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.07)" },
+  projHeaderText: { fontSize: 9, fontWeight: "800" as const, color: "#777", textTransform: "uppercase" as const, letterSpacing: 0.5 },
+  projRow: { flexDirection: "row", paddingVertical: 9, paddingHorizontal: 8 },
+  projRowAlt: { backgroundColor: "rgba(255,255,255,0.015)" },
+  projCell: { textAlign: "center" as const, fontSize: 11 },
+  projCellMAU: { flex: 1.1, textAlign: "left" as const },
+  projCellNum: { flex: 1.4 },
+  projCellPct: { flex: 1.1, textAlign: "right" as const },
+  projMAUText: { color: "#ccc", fontWeight: "600" as const },
+
+  // Pack / sub cards
+  packCard: { backgroundColor: "rgba(0,0,0,0.2)", borderRadius: 10, borderWidth: 1, borderColor: "rgba(255,255,255,0.06)", padding: 12, marginBottom: 8 },
   packTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
   packName: { fontSize: 13, fontWeight: "700" as const, color: "#ddd" },
   packPriceRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   packPrice: { fontSize: 13, fontWeight: "800" as const, color: Colors.gold },
   liveBadge: { backgroundColor: "#4ADE8022", borderRadius: 4, borderWidth: 1, borderColor: "#4ADE8055", paddingHorizontal: 5, paddingVertical: 2 },
   liveBadgeText: { fontSize: 9, fontWeight: "800" as const, color: "#4ADE80", letterSpacing: 0.5 },
-  packMetrics: { flexDirection: "row", gap: 0 },
+  packMetrics: { flexDirection: "row" },
   packMetric: { flex: 1, alignItems: "center" as const },
   packMetricLabel: { fontSize: 9, color: "#666", marginBottom: 2, textAlign: "center" as const },
   packMetricVal: { fontSize: 12, fontWeight: "700" as const, textAlign: "center" as const },
-  modeMargins: { flexDirection: "row", alignItems: "center", justifyContent: "center", marginTop: 8 },
-  modeMarginsText: { fontSize: 10, color: "#666" },
+  modeRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", marginTop: 8 },
+  modeText: { fontSize: 10 },
+  modeSep: { fontSize: 10, color: "#555" },
 });
 
 
