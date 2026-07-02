@@ -297,6 +297,293 @@ const toggleStyles = StyleSheet.create({
   },
 });
 
+// ── Token Economics Section ────────────────────────────────────────────────────
+
+interface TokenEconomicsData {
+  activeMode: string;
+  activeTier: string;
+  liveStripeConnected: boolean;
+  costModel: {
+    fishAudio: { ratePerKChars: number; avgCharsPerCall: number; costPerCall: number };
+    llm: {
+      premium: { model: string; inputPer1k: number; outputPer1k: number; avgIn: number; avgOut: number; costPerDCToken: number };
+      budget:  { model: string; inputPer1k: number; outputPer1k: number; avgIn: number; avgOut: number; costPerDCToken: number };
+    };
+    totalPerDCToken: { premium: number; budget: number };
+  };
+  packs: {
+    id: string; name: string; tokens: number; price: number; priceDisplay: string;
+    liveStripePriceCents: number | null; liveStripePriceDisplay: string | null;
+    revenuePerToken: number; costPerTokenPremium: number; costPerTokenBudget: number;
+    profitPerTokenPremium: number; profitPerTokenBudget: number;
+    marginPctPremium: number; marginPctBudget: number;
+  }[];
+  subscriptions: {
+    name: string; tokensPerMonth: number; priceMonthly: number; priceDisplay: string;
+    revenuePerToken: number; marginPctPremium: number; marginPctBudget: number;
+  }[];
+}
+
+function TokenEconomicsSection({ adminKey }: { adminKey: string }) {
+  const [data, setData] = useState<TokenEconomicsData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function fetchEconomics() {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        new URL("/api/admin/token-economics", getApiUrl()).toString(),
+        { headers: adminHeaders(adminKey) }
+      );
+      if (!res.ok) throw new Error("Failed to fetch");
+      setData(await res.json());
+    } catch (e: any) {
+      setError(e.message || "Error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { fetchEconomics(); }, []);
+
+  const fmt = (n: number) => `$${n.toFixed(4)}`;
+  const fmtPct = (n: number) => `${n.toFixed(1)}%`;
+
+  const tierLabel = data?.activeTier === "budget" ? "DeepSeek" : data?.activeTier === "split" ? "Split" : "GPT-5.2";
+  const tierColor = data?.activeTier === "budget" ? "#4ADE80" : data?.activeTier === "split" ? "#60A5FA" : "#FFD700";
+
+  return (
+    <Animated.View entering={FadeInDown.delay(175).duration(400)} style={ecoStyles.container}>
+      <View style={ecoStyles.header}>
+        <View style={ecoStyles.headerLeft}>
+          <MaterialCommunityIcons name="lightning-bolt" size={18} color={Colors.gold} />
+          <Text style={ecoStyles.title}>DC Token Economics</Text>
+        </View>
+        <View style={ecoStyles.headerRight}>
+          {data && (
+            <View style={[ecoStyles.modeBadge, { backgroundColor: tierColor + "22", borderColor: tierColor + "55" }]}>
+              <Text style={[ecoStyles.modeBadgeText, { color: tierColor }]}>{tierLabel}</Text>
+            </View>
+          )}
+          <Pressable onPress={fetchEconomics} disabled={loading} style={ecoStyles.refreshBtn}>
+            {loading
+              ? <ActivityIndicator size="small" color={Colors.gold} />
+              : <Feather name="refresh-cw" size={14} color={Colors.gold} />
+            }
+          </Pressable>
+        </View>
+      </View>
+
+      {error && <Text style={ecoStyles.error}>{error}</Text>}
+
+      {data && (
+        <>
+          {/* Live Stripe indicator */}
+          <View style={ecoStyles.stripeRow}>
+            <View style={[ecoStyles.dot, { backgroundColor: data.liveStripeConnected ? "#4ADE80" : "#F59E0B" }]} />
+            <Text style={ecoStyles.stripeLabel}>
+              {data.liveStripeConnected ? "Live Stripe prices" : "Static prices (Stripe fallback)"}
+            </Text>
+          </View>
+
+          {/* Cost model breakdown */}
+          <Text style={ecoStyles.subhead}>Cost per DC Token (API)</Text>
+          <View style={ecoStyles.costBox}>
+            <View style={ecoStyles.costRow}>
+              <View style={ecoStyles.costLabelRow}>
+                <MaterialCommunityIcons name="microphone" size={13} color="#60A5FA" />
+                <Text style={ecoStyles.costLabel}>Fish Audio TTS</Text>
+              </View>
+              <Text style={ecoStyles.costVal}>{fmt(data.costModel.fishAudio.costPerCall)}</Text>
+              <Text style={ecoStyles.costNote}>{data.costModel.fishAudio.avgCharsPerCall} chars @ ${data.costModel.fishAudio.ratePerKChars}/K</Text>
+            </View>
+            <View style={[ecoStyles.costRow, ecoStyles.costRowBorder]}>
+              <View style={ecoStyles.costLabelRow}>
+                <MaterialCommunityIcons name="star" size={13} color="#FFD700" />
+                <Text style={ecoStyles.costLabel}>LLM Premium (GPT-5.2)</Text>
+              </View>
+              <Text style={ecoStyles.costVal}>{fmt(data.costModel.llm.premium.costPerDCToken)}</Text>
+              <Text style={ecoStyles.costNote}>${data.costModel.llm.premium.inputPer1k}/K in · ${data.costModel.llm.premium.outputPer1k}/K out</Text>
+            </View>
+            <View style={[ecoStyles.costRow, ecoStyles.costRowBorder]}>
+              <View style={ecoStyles.costLabelRow}>
+                <MaterialCommunityIcons name="leaf" size={13} color="#4ADE80" />
+                <Text style={ecoStyles.costLabel}>LLM Budget (DeepSeek V3)</Text>
+              </View>
+              <Text style={ecoStyles.costVal}>{fmt(data.costModel.llm.budget.costPerDCToken)}</Text>
+              <Text style={ecoStyles.costNote}>${data.costModel.llm.budget.inputPer1k}/K in · ${data.costModel.llm.budget.outputPer1k}/K out</Text>
+            </View>
+            <View style={[ecoStyles.totalRow]}>
+              <Text style={ecoStyles.totalLabel}>Total / token (Premium)</Text>
+              <Text style={[ecoStyles.totalVal, { color: "#EF4444" }]}>{fmt(data.costModel.totalPerDCToken.premium)}</Text>
+            </View>
+            <View style={ecoStyles.totalRow}>
+              <Text style={ecoStyles.totalLabel}>Total / token (Budget)</Text>
+              <Text style={[ecoStyles.totalVal, { color: "#EF4444" }]}>{fmt(data.costModel.totalPerDCToken.budget)}</Text>
+            </View>
+          </View>
+
+          {/* Pack margins */}
+          <Text style={ecoStyles.subhead}>Token Packs — Margin Analysis</Text>
+          {data.packs.map((pack, i) => {
+            const isActive = data.activeTier === "budget";
+            const margin = isActive ? pack.marginPctBudget : pack.marginPctPremium;
+            const profit = isActive ? pack.profitPerTokenBudget : pack.profitPerTokenPremium;
+            const marginColor = margin > 80 ? "#4ADE80" : margin > 50 ? "#F59E0B" : "#EF4444";
+            return (
+              <Animated.View key={pack.id} entering={FadeInDown.delay(200 + i * 60).duration(300)} style={ecoStyles.packCard}>
+                <View style={ecoStyles.packTop}>
+                  <Text style={ecoStyles.packName}>{pack.tokens} DC Tokens</Text>
+                  <View style={ecoStyles.packPriceRow}>
+                    {pack.liveStripePriceDisplay && (
+                      <View style={ecoStyles.liveBadge}>
+                        <Text style={ecoStyles.liveBadgeText}>LIVE</Text>
+                      </View>
+                    )}
+                    <Text style={ecoStyles.packPrice}>{pack.liveStripePriceDisplay || pack.priceDisplay}</Text>
+                  </View>
+                </View>
+                <View style={ecoStyles.packMetrics}>
+                  <View style={ecoStyles.packMetric}>
+                    <Text style={ecoStyles.packMetricLabel}>Rev/token</Text>
+                    <Text style={[ecoStyles.packMetricVal, { color: Colors.gold }]}>{fmt(pack.revenuePerToken)}</Text>
+                  </View>
+                  <View style={ecoStyles.packMetric}>
+                    <Text style={ecoStyles.packMetricLabel}>Cost/token</Text>
+                    <Text style={[ecoStyles.packMetricVal, { color: "#EF4444" }]}>{fmt(isActive ? pack.costPerTokenBudget : pack.costPerTokenPremium)}</Text>
+                  </View>
+                  <View style={ecoStyles.packMetric}>
+                    <Text style={ecoStyles.packMetricLabel}>Profit/token</Text>
+                    <Text style={[ecoStyles.packMetricVal, { color: "#4ADE80" }]}>{fmt(profit)}</Text>
+                  </View>
+                  <View style={ecoStyles.packMetric}>
+                    <Text style={ecoStyles.packMetricLabel}>Margin</Text>
+                    <Text style={[ecoStyles.packMetricVal, { color: marginColor, fontWeight: "800" as const }]}>{fmtPct(margin)}</Text>
+                  </View>
+                </View>
+                <View style={ecoStyles.modeMargins}>
+                  <Text style={[ecoStyles.modeMarginsText, { color: "#FFD700" }]}>GPT: {fmtPct(pack.marginPctPremium)}</Text>
+                  <Text style={ecoStyles.modeMarginsText}> · </Text>
+                  <Text style={[ecoStyles.modeMarginsText, { color: "#4ADE80" }]}>DeepSeek: {fmtPct(pack.marginPctBudget)}</Text>
+                </View>
+              </Animated.View>
+            );
+          })}
+
+          {/* Subscription margins */}
+          <Text style={ecoStyles.subhead}>Subscriptions — Margin Analysis</Text>
+          {data.subscriptions.map((sub, i) => {
+            const isActive = data.activeTier === "budget";
+            const margin = isActive ? sub.marginPctBudget : sub.marginPctPremium;
+            const marginColor = margin > 80 ? "#4ADE80" : margin > 50 ? "#F59E0B" : "#EF4444";
+            return (
+              <Animated.View key={sub.name} entering={FadeInDown.delay(400 + i * 60).duration(300)} style={ecoStyles.packCard}>
+                <View style={ecoStyles.packTop}>
+                  <Text style={ecoStyles.packName}>{sub.name} — {sub.tokensPerMonth} tokens/mo</Text>
+                  <Text style={ecoStyles.packPrice}>{sub.priceDisplay}</Text>
+                </View>
+                <View style={ecoStyles.packMetrics}>
+                  <View style={ecoStyles.packMetric}>
+                    <Text style={ecoStyles.packMetricLabel}>Rev/token</Text>
+                    <Text style={[ecoStyles.packMetricVal, { color: Colors.gold }]}>{fmt(sub.revenuePerToken)}</Text>
+                  </View>
+                  <View style={ecoStyles.packMetric}>
+                    <Text style={ecoStyles.packMetricLabel}>Margin</Text>
+                    <Text style={[ecoStyles.packMetricVal, { color: marginColor, fontWeight: "800" as const }]}>{fmtPct(margin)}</Text>
+                  </View>
+                </View>
+                <View style={ecoStyles.modeMargins}>
+                  <Text style={[ecoStyles.modeMarginsText, { color: "#FFD700" }]}>GPT: {fmtPct(sub.marginPctPremium)}</Text>
+                  <Text style={ecoStyles.modeMarginsText}> · </Text>
+                  <Text style={[ecoStyles.modeMarginsText, { color: "#4ADE80" }]}>DeepSeek: {fmtPct(sub.marginPctBudget)}</Text>
+                </View>
+              </Animated.View>
+            );
+          })}
+        </>
+      )}
+    </Animated.View>
+  );
+}
+
+const ecoStyles = StyleSheet.create({
+  container: {
+    marginHorizontal: 16,
+    marginBottom: 16,
+    backgroundColor: "rgba(255,255,255,0.03)",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(212,164,32,0.18)",
+    padding: 14,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  headerLeft: { flexDirection: "row", alignItems: "center", gap: 6 },
+  headerRight: { flexDirection: "row", alignItems: "center", gap: 8 },
+  title: { fontSize: 14, fontWeight: "700" as const, color: Colors.gold, letterSpacing: 0.3 },
+  modeBadge: { borderRadius: 6, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 3 },
+  modeBadgeText: { fontSize: 10, fontWeight: "800" as const, letterSpacing: 0.5 },
+  refreshBtn: { padding: 4 },
+  error: { color: "#EF4444", fontSize: 12, marginBottom: 8 },
+  stripeRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 12 },
+  dot: { width: 7, height: 7, borderRadius: 3.5 },
+  stripeLabel: { fontSize: 11, color: "#999" },
+  subhead: { fontSize: 11, fontWeight: "700" as const, color: "#888", letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 8, marginTop: 4 },
+  costBox: {
+    backgroundColor: "rgba(0,0,0,0.25)",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+    marginBottom: 14,
+    overflow: "hidden",
+  },
+  costRow: { flexDirection: "row", alignItems: "center", paddingVertical: 9, paddingHorizontal: 12, gap: 6 },
+  costRowBorder: { borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.05)" },
+  costLabelRow: { flex: 1, flexDirection: "row", alignItems: "center", gap: 5 },
+  costLabel: { fontSize: 12, color: "#ccc" },
+  costVal: { fontSize: 12, fontWeight: "700" as const, color: "#EF4444", width: 70, textAlign: "right" as const },
+  costNote: { fontSize: 10, color: "#666", width: 130, textAlign: "right" as const },
+  totalRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.08)",
+    backgroundColor: "rgba(255,255,255,0.02)",
+  },
+  totalLabel: { fontSize: 12, fontWeight: "600" as const, color: "#bbb" },
+  totalVal: { fontSize: 13, fontWeight: "800" as const },
+  packCard: {
+    backgroundColor: "rgba(0,0,0,0.2)",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+    padding: 12,
+    marginBottom: 8,
+  },
+  packTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
+  packName: { fontSize: 13, fontWeight: "700" as const, color: "#ddd" },
+  packPriceRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  packPrice: { fontSize: 13, fontWeight: "800" as const, color: Colors.gold },
+  liveBadge: { backgroundColor: "#4ADE8022", borderRadius: 4, borderWidth: 1, borderColor: "#4ADE8055", paddingHorizontal: 5, paddingVertical: 2 },
+  liveBadgeText: { fontSize: 9, fontWeight: "800" as const, color: "#4ADE80", letterSpacing: 0.5 },
+  packMetrics: { flexDirection: "row", gap: 0 },
+  packMetric: { flex: 1, alignItems: "center" as const },
+  packMetricLabel: { fontSize: 9, color: "#666", marginBottom: 2, textAlign: "center" as const },
+  packMetricVal: { fontSize: 12, fontWeight: "700" as const, textAlign: "center" as const },
+  modeMargins: { flexDirection: "row", alignItems: "center", justifyContent: "center", marginTop: 8 },
+  modeMarginsText: { fontSize: 10, color: "#666" },
+});
+
+
 function ModelSettingsSection({ onModelChange }: { onModelChange?: () => void }) {
   const [modelData, setModelData] = useState<any>(null);
   const [testResults, setTestResults] = useState<any>(null);
@@ -1020,6 +1307,8 @@ function AdminDashboard({ adminKey, onLogout }: { adminKey: string; onLogout: ()
                 </View>
               </View>
             </Animated.View>
+
+            <TokenEconomicsSection adminKey={adminKey} />
 
             {stats.apiUsage && (
               <Animated.View entering={FadeInDown.delay(150).duration(400)} style={styles.apiUsageSection}>

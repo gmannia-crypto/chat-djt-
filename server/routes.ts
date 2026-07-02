@@ -11095,6 +11095,108 @@ p{color:#999;font-size:16px;margin-bottom:24px}
     }
   });
 
+  app.get("/api/admin/token-economics", async (req, res) => {
+    if (!checkAdminKey(req)) {
+      return res.status(403).json({ error: "Invalid admin key" });
+    }
+    try {
+      // ── Cost model constants ──────────────────────────────────────────────
+      const FISH_AUDIO_PER_K_CHARS = 0.015;   // $0.015 per 1,000 characters
+      const AVG_TTS_CHARS = 250;              // avg chars per TTS call in the app
+      const fishAudioCostPerCall = (AVG_TTS_CHARS / 1000) * FISH_AUDIO_PER_K_CHARS;
+
+      const LLM = {
+        premium: { model: "GPT-5.2", inputPer1k: 0.01,     outputPer1k: 0.03,    avgIn: 500, avgOut: 350 },
+        budget:  { model: "DeepSeek V3", inputPer1k: 0.00014, outputPer1k: 0.00028, avgIn: 500, avgOut: 350 },
+      };
+
+      const llmCostPremium = (LLM.premium.avgIn / 1000) * LLM.premium.inputPer1k +
+                             (LLM.premium.avgOut / 1000) * LLM.premium.outputPer1k;
+      const llmCostBudget  = (LLM.budget.avgIn  / 1000) * LLM.budget.inputPer1k  +
+                             (LLM.budget.avgOut  / 1000) * LLM.budget.outputPer1k;
+
+      const totalCostPremium = llmCostPremium + fishAudioCostPerCall;
+      const totalCostBudget  = llmCostBudget  + fishAudioCostPerCall;
+
+      // ── Live Stripe prices ────────────────────────────────────────────────
+      let liveStripe: Record<string, { amount: number; currency: string; priceId: string }> = {};
+      try {
+        const stripeClient = getUncachableStripeClient();
+        const [pricesList, productsList] = await Promise.all([
+          stripeClient.prices.list({ active: true, limit: 50 }),
+          stripeClient.products.list({ active: true, limit: 50 }),
+        ]);
+        for (const price of pricesList.data) {
+          if (!price.unit_amount || price.recurring) continue; // one-time only
+          const product = productsList.data.find(p => p.id === price.product);
+          const matched = TOKEN_PACKS.find(p =>
+            price.unit_amount === p.price ||
+            product?.name?.toLowerCase().includes(p.tokens.toString())
+          );
+          if (matched) {
+            liveStripe[matched.id] = { amount: price.unit_amount!, currency: price.currency, priceId: price.id };
+          }
+        }
+      } catch (_) { /* Stripe unavailable — fall back to static prices */ }
+
+      // ── Pack analysis ─────────────────────────────────────────────────────
+      const packs = TOKEN_PACKS.map(pack => {
+        const live = liveStripe[pack.id] || null;
+        const revenueCents = live ? live.amount : pack.price;
+        const revenuePerToken = revenueCents / 100 / pack.tokens;
+        return {
+          ...pack,
+          liveStripePriceCents: live?.amount ?? null,
+          liveStripePriceDisplay: live ? `$${(live.amount / 100).toFixed(2)}` : null,
+          revenuePerToken,
+          costPerTokenPremium: totalCostPremium,
+          costPerTokenBudget:  totalCostBudget,
+          profitPerTokenPremium: revenuePerToken - totalCostPremium,
+          profitPerTokenBudget:  revenuePerToken - totalCostBudget,
+          marginPctPremium: ((revenuePerToken - totalCostPremium) / revenuePerToken) * 100,
+          marginPctBudget:  ((revenuePerToken - totalCostBudget)  / revenuePerToken) * 100,
+        };
+      });
+
+      // ── Subscription analysis ─────────────────────────────────────────────
+      const SUBS = [
+        { name: "Standard", tokensPerMonth: 50,  priceMonthly: 299,  priceDisplay: "$2.99/mo" },
+        { name: "VIP",      tokensPerMonth: 150, priceMonthly: 999,  priceDisplay: "$9.99/mo" },
+      ];
+      const subscriptions = SUBS.map(sub => {
+        const revenuePerToken = sub.priceMonthly / 100 / sub.tokensPerMonth;
+        return {
+          ...sub,
+          revenuePerToken,
+          marginPctPremium: ((revenuePerToken - totalCostPremium) / revenuePerToken) * 100,
+          marginPctBudget:  ((revenuePerToken - totalCostBudget)  / revenuePerToken) * 100,
+        };
+      });
+
+      res.json({
+        activeMode: activeModelMode,
+        activeTier: activeModelTier,
+        costModel: {
+          fishAudio: {
+            ratePerKChars: FISH_AUDIO_PER_K_CHARS,
+            avgCharsPerCall: AVG_TTS_CHARS,
+            costPerCall: fishAudioCostPerCall,
+          },
+          llm: {
+            premium: { ...LLM.premium, costPerDCToken: llmCostPremium },
+            budget:  { ...LLM.budget,  costPerDCToken: llmCostBudget  },
+          },
+          totalPerDCToken: { premium: totalCostPremium, budget: totalCostBudget },
+        },
+        packs,
+        subscriptions,
+        liveStripeConnected: Object.keys(liveStripe).length > 0,
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   app.get("/api/hot-take", async (req, res) => {
     try {
       const headline = req.query.headline as string;
