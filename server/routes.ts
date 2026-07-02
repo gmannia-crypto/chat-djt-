@@ -21,6 +21,8 @@ import {
   cancelSubscription,
   TOKEN_PACKS,
   getOrCreateAccount,
+  linkDeviceToEmail,
+  getLinkedAccount,
 } from "./tokens";
 import {
   initAnalyticsTables,
@@ -8657,6 +8659,32 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
     } catch (error: any) {
       console.error("Interview bookmark delete-by-msg error:", error);
       res.status(500).json({ error: "Failed to delete bookmark" });
+    }
+  });
+
+  // ── Auth: Email signup / account linking ────────────────────────────────────
+  app.post("/api/auth/register-email", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      const { name, email } = req.body as { name?: string; email?: string };
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      if (!email || !email.includes("@")) return res.status(400).json({ error: "Valid email required" });
+      const result = await linkDeviceToEmail(deviceId, email, name || "");
+      res.json(result);
+    } catch (e: any) {
+      console.error("Auth register-email error:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get("/api/auth/me", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const user = await getLinkedAccount(deviceId);
+      res.json({ user });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
     }
   });
 

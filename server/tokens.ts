@@ -51,7 +51,7 @@ export async function getOrCreateAccount(deviceId: string, ctx?: AccountContext)
   if (result.rows.length === 0) {
     const WELCOME_BONUS_TOKENS = 25;
     const isDev = process.env.NODE_ENV === "development";
-    let startingTokens = isDev ? 100 : WELCOME_BONUS_TOKENS;
+    let startingTokens = isDev ? 100 : 15; // 15 free welcome tokens
 
     // — Abuse detection: same fingerprint or same IP already has welcome tokens —
     if (!isDev && ctx && (ctx.fingerprint || (ctx.ipAddress && !LOCALHOST_IPS.has(ctx.ipAddress)))) {
@@ -397,6 +397,115 @@ export async function cancelSubscription(stripeSubscriptionId: string) {
      WHERE stripe_subscription_id = $1`,
     [stripeSubscriptionId]
   );
+}
+
+// ── Linked Account Auth ───────────────────────────────────────────────────────
+
+const EMAIL_BONUS_TOKENS = 5;
+let _authTablesEnsured = false;
+
+async function ensureAuthTables(db: Pool) {
+  if (_authTablesEnsured) return;
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS linked_accounts (
+        id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        email TEXT UNIQUE NOT NULL,
+        name TEXT,
+        google_id TEXT,
+        apple_id TEXT,
+        twitter_id TEXT,
+        avatar_url TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    await db.query(`ALTER TABLE token_accounts ADD COLUMN IF NOT EXISTS linked_account_id TEXT`);
+    await db.query(`ALTER TABLE token_accounts ADD COLUMN IF NOT EXISTS email_bonus_granted BOOLEAN DEFAULT FALSE`);
+    _authTablesEnsured = true;
+  } catch {}
+}
+
+export interface LinkedAccount {
+  id: string;
+  email: string;
+  name: string | null;
+}
+
+export async function linkDeviceToEmail(
+  deviceId: string,
+  email: string,
+  name: string
+): Promise<{ user: LinkedAccount; bonusGranted: boolean }> {
+  const db = getPool();
+  await ensureAuthTables(db);
+
+  // Upsert the linked_accounts row
+  const upsert = await db.query<LinkedAccount & { id: string }>(
+    `INSERT INTO linked_accounts (email, name, updated_at)
+     VALUES ($1, $2, NOW())
+     ON CONFLICT (email) DO UPDATE SET
+       name = COALESCE(EXCLUDED.name, linked_accounts.name),
+       updated_at = NOW()
+     RETURNING id, email, name`,
+    [email.toLowerCase().trim(), name.trim() || null]
+  );
+  const user = upsert.rows[0];
+
+  // Ensure device has a token_accounts row (idempotent — balance endpoint normally creates it first)
+  await db.query(
+    `INSERT INTO token_accounts (device_id, tokens, free_prompts_used, subscription_active, subscription_tokens_granted, created_at, updated_at)
+     VALUES ($1, 0, 0, false, false, NOW(), NOW())
+     ON CONFLICT (device_id) DO NOTHING`,
+    [deviceId]
+  );
+
+  // Check if this device already got the bonus
+  const existing = await db.query(
+    `SELECT email_bonus_granted FROM token_accounts WHERE device_id = $1`,
+    [deviceId]
+  );
+  const alreadyBonused = existing.rows[0]?.email_bonus_granted ?? false;
+
+  // Link device → account
+  await db.query(
+    `UPDATE token_accounts
+     SET linked_account_id = $1,
+         email_bonus_granted = true,
+         updated_at = NOW()
+     WHERE device_id = $2`,
+    [user.id, deviceId]
+  );
+
+  let bonusGranted = false;
+  if (!alreadyBonused) {
+    await db.query(
+      `UPDATE token_accounts SET tokens = tokens + $1, updated_at = NOW() WHERE device_id = $2`,
+      [EMAIL_BONUS_TOKENS, deviceId]
+    );
+    await db.query(
+      `INSERT INTO token_transactions (account_id, type, amount, description, created_at)
+       SELECT id, 'reward', $1, 'Email signup bonus — 5 tokens', NOW()
+       FROM token_accounts WHERE device_id = $2`,
+      [EMAIL_BONUS_TOKENS, deviceId]
+    );
+    bonusGranted = true;
+  }
+
+  return { user: { id: user.id, email: user.email, name: user.name }, bonusGranted };
+}
+
+export async function getLinkedAccount(deviceId: string): Promise<LinkedAccount | null> {
+  const db = getPool();
+  await ensureAuthTables(db);
+  const res = await db.query(
+    `SELECT la.id, la.email, la.name
+     FROM token_accounts ta
+     JOIN linked_accounts la ON la.id = ta.linked_account_id
+     WHERE ta.device_id = $1`,
+    [deviceId]
+  );
+  return res.rows[0] ?? null;
 }
 
 export { FREE_PROMPT_LIMIT, SUBSCRIPTION_TOKENS, STANDARD_SUBSCRIPTION_TOKENS, VIP_SUBSCRIPTION_TOKENS };

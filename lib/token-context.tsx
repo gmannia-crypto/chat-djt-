@@ -5,6 +5,7 @@ import { getApiUrl } from "@/lib/query-client";
 import { fetch } from "expo/fetch";
 
 const DEVICE_ID_KEY = "chatdjt_device_id";
+const SAVE_MODAL_DISMISSED_KEY = "chatdjt_save_modal_dismissed";
 
 interface TokenBalance {
   tokens: number;
@@ -15,12 +16,22 @@ interface TokenBalance {
   subscriptionTier: string | null;
 }
 
+export interface LinkedUser {
+  id: string;
+  email: string;
+  name: string | null;
+}
+
 interface TokenContextValue {
   deviceId: string | null;
   balance: TokenBalance | null;
   isLoading: boolean;
   refreshBalance: () => Promise<void>;
   hasTokens: boolean;
+  linkedUser: LinkedUser | null;
+  linkAccount: (name: string, email: string) => Promise<{ bonusGranted: boolean }>;
+  showSaveModal: boolean;
+  dismissSaveModal: () => void;
 }
 
 const TokenContext = createContext<TokenContextValue | null>(null);
@@ -65,15 +76,34 @@ export function TokenProvider({ children }: { children: ReactNode }) {
   const [deviceId, setDeviceId] = useState<string | null>(null);
   const [balance, setBalance] = useState<TokenBalance | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [linkedUser, setLinkedUser] = useState<LinkedUser | null>(null);
+  const [showSaveModal, setShowSaveModal] = useState(false);
   const fingerprint = useRef(generateBrowserFingerprint());
   const timeTrackerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastTrackRef = useRef(Date.now());
+  const modalShownRef = useRef(false);
 
   useEffect(() => {
     getOrCreateDeviceId().then((id) => {
       setDeviceId(id);
     });
   }, []);
+
+  // Fetch linked user on init
+  useEffect(() => {
+    if (!deviceId) return;
+    (async () => {
+      try {
+        const res = await fetch(new URL("/api/auth/me", getApiUrl()).toString(), {
+          headers: { "x-device-id": deviceId },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.user) setLinkedUser(data.user);
+        }
+      } catch {}
+    })();
+  }, [deviceId]);
 
   const refreshBalance = useCallback(async () => {
     if (!deviceId) return;
@@ -87,9 +117,7 @@ export function TokenProvider({ children }: { children: ReactNode }) {
       const res = await fetch(url.toString(), { headers });
       if (res.ok) {
         const contentType = res.headers.get("content-type") || "";
-        if (!contentType.includes("application/json")) {
-          return;
-        }
+        if (!contentType.includes("application/json")) return;
         const data = await res.json();
         setBalance(data);
       }
@@ -106,6 +134,19 @@ export function TokenProvider({ children }: { children: ReactNode }) {
     }
   }, [deviceId, refreshBalance]);
 
+  // Show "Save Your Chats" modal when tokens first hit zero and no account linked
+  useEffect(() => {
+    if (!balance || isLoading || linkedUser || modalShownRef.current) return;
+    if (balance.totalAvailable === 0) {
+      AsyncStorage.getItem(SAVE_MODAL_DISMISSED_KEY).then((dismissed) => {
+        if (!dismissed) {
+          modalShownRef.current = true;
+          setShowSaveModal(true);
+        }
+      });
+    }
+  }, [balance, isLoading, linkedUser]);
+
   useEffect(() => {
     if (!deviceId) return;
     lastTrackRef.current = Date.now();
@@ -120,10 +161,7 @@ export function TokenProvider({ children }: { children: ReactNode }) {
         const url = new URL("/api/track-time", baseUrl);
         await fetch(url.toString(), {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-device-id": deviceId,
-          },
+          headers: { "Content-Type": "application/json", "x-device-id": deviceId },
           body: JSON.stringify({ seconds: elapsed }),
         });
       } catch {}
@@ -160,13 +198,40 @@ export function TokenProvider({ children }: { children: ReactNode }) {
     return balance.totalAvailable > 0;
   }, [balance]);
 
+  const linkAccount = useCallback(async (name: string, email: string): Promise<{ bonusGranted: boolean }> => {
+    if (!deviceId) throw new Error("No device ID");
+    const res = await fetch(new URL("/api/auth/register-email", getApiUrl()).toString(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+      body: JSON.stringify({ name, email }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || "Registration failed");
+    }
+    const data = await res.json();
+    setLinkedUser(data.user);
+    setShowSaveModal(false);
+    await refreshBalance();
+    return { bonusGranted: data.bonusGranted };
+  }, [deviceId, refreshBalance]);
+
+  const dismissSaveModal = useCallback(() => {
+    setShowSaveModal(false);
+    AsyncStorage.setItem(SAVE_MODAL_DISMISSED_KEY, "1");
+  }, []);
+
   const value = useMemo(() => ({
     deviceId,
     balance,
     isLoading,
     refreshBalance,
     hasTokens,
-  }), [deviceId, balance, isLoading, refreshBalance, hasTokens]);
+    linkedUser,
+    linkAccount,
+    showSaveModal,
+    dismissSaveModal,
+  }), [deviceId, balance, isLoading, refreshBalance, hasTokens, linkedUser, linkAccount, showSaveModal, dismissSaveModal]);
 
   return (
     <TokenContext.Provider value={value}>

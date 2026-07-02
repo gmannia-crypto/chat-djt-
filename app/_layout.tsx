@@ -22,6 +22,7 @@ import { EngagementProvider } from "@/lib/engagement-context";
 import { LiveActivityProvider } from "@/lib/live-activity-context";
 import { ShareCard } from "@/components/ShareCard";
 import { StreakToast } from "@/components/StreakToast";
+import { SaveChatsModal } from "@/components/SaveChatsModal";
 import { StatusBar } from "expo-status-bar";
 import {
   useFonts,
@@ -463,6 +464,7 @@ export default function RootLayout() {
                     <RootLayoutNav />
                     <ShareCard />
                     <StreakToast />
+                    <SaveChatsModal />
                   </KeyboardProvider>
                 </GestureHandlerRootView>
               </LiveActivityProvider>
