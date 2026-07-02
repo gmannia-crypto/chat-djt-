@@ -26,7 +26,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useNavigation, useFocusEffect } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Animated, { FadeInDown, FadeInUp, FadeIn, FadeOut, SlideInLeft, SlideInRight, SlideInUp, SlideOutUp, ZoomIn, ZoomOut, BounceIn } from "react-native-reanimated";
+import Animated, { FadeInDown, FadeInUp, FadeIn, FadeOut, SlideInLeft, SlideInRight, SlideInUp, SlideOutUp, ZoomIn, ZoomOut, BounceIn, useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming } from "react-native-reanimated";
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system/legacy";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -3575,6 +3575,8 @@ export default function ArenaScreen() {
   const [hasSession, setHasSession] = useState(false);
   const [sessionExpiresAt, setSessionExpiresAt] = useState<number | null>(null);
   const [showPaywall, setShowPaywall] = useState(false);
+  const [paywallSpeechPaused, setPaywallSpeechPaused] = useState(false);
+  const paywallPulse = useSharedValue(1);
   const [sessionTimer, setSessionTimer] = useState<number>(0);
   const [roomTemperature, setRoomTemperature] = useState<number>(0);
   const roomTempRef = useRef<number>(0);
@@ -4208,6 +4210,29 @@ export default function ArenaScreen() {
     }
     setIsUnlocking(false);
   }, [deviceId, refreshBalance, selectedDuration, showPreDebateSetup, dynamicTopics]);
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    if (showPaywall) {
+      timer = setTimeout(() => {
+        setPaywallSpeechPaused(true);
+        paywallPulse.value = withRepeat(
+          withSequence(withTiming(1.25, { duration: 600 }), withTiming(1.0, { duration: 600 })),
+          -1,
+          false
+        );
+      }, 2000);
+    } else {
+      setPaywallSpeechPaused(false);
+      paywallPulse.value = 1;
+    }
+    return () => { if (timer) clearTimeout(timer); };
+  }, [showPaywall]);
+
+  const paywallPulseStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: paywallPulse.value }],
+    opacity: paywallPulse.value > 1.1 ? 1 : 0.7,
+  }));
 
   const addSystemMessage = useCallback((text: string) => {
     const msg: ConversationMessage = {
@@ -6924,6 +6949,9 @@ export default function ArenaScreen() {
           style={s.streamList}
           contentContainerStyle={s.streamContent}
           showsVerticalScrollIndicator={false}
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={8}
+          windowSize={5}
           onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
           ListFooterComponent={currentTopic && pollCandidates.length >= 2 ? (
             <View style={s.pollSection}>
@@ -7605,7 +7633,18 @@ export default function ArenaScreen() {
       <Modal visible={showPaywall} transparent animationType="fade">
         <View style={s.paywallOverlay}>
           <View style={s.paywallCard}>
-            <Ionicons name="lock-closed" size={36} color="#FFD700" />
+            {paywallSpeechPaused ? (
+              <Animated.View style={[{ marginBottom: 6 }, paywallPulseStyle]}>
+                <Ionicons name="volume-high" size={36} color="#FFD700" />
+              </Animated.View>
+            ) : (
+              <Ionicons name="lock-closed" size={36} color="#FFD700" />
+            )}
+            {paywallSpeechPaused && (
+              <Text style={{ color: "#FFD70099", fontSize: 11, marginBottom: 4, textAlign: "center" }}>
+                Audio paused — resume when ready
+              </Text>
+            )}
             <Text style={s.paywallTitle}>Arena Access Required</Text>
             <Text style={s.paywallSubtitle}>
               Choose your debate duration. 1 token per minute.

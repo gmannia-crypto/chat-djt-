@@ -320,6 +320,12 @@ export default function InterviewScreen() {
   const [isThinking, setIsThinking] = useState<"interviewer" | "interviewee" | null>(null);
   const [topicsPanelOpen, setTopicsPanelOpen] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
+  const [paywallSpeechPaused, setPaywallSpeechPaused] = useState(false);
+  const paywallPulse = useSharedValue(1);
+  const paywallPulseStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: paywallPulse.value }],
+    opacity: paywallPulse.value > 1.1 ? 1 : 0.7,
+  }));
   const [isUnlocking, setIsUnlocking] = useState(false);
 
   const [secondsLeft, setSecondsLeft] = useState(0);
@@ -487,6 +493,24 @@ export default function InterviewScreen() {
     try { recognitionRef.current?.stop?.(); } catch {}
     recognitionRef.current = null;
   }, []);
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    if (showPaywall) {
+      timer = setTimeout(() => {
+        setPaywallSpeechPaused(true);
+        paywallPulse.value = withRepeat(
+          withSequence(withTiming(1.25, { duration: 600 }), withTiming(1.0, { duration: 600 })),
+          -1,
+          false
+        );
+      }, 2000);
+    } else {
+      setPaywallSpeechPaused(false);
+      paywallPulse.value = 1;
+    }
+    return () => { if (timer) clearTimeout(timer); };
+  }, [showPaywall]);
   const [callerName, setCallerName] = useState("");
   const [callinText, setCallinText] = useState("");
   const [isCallinSending, setIsCallinSending] = useState(false);
@@ -1959,6 +1983,9 @@ export default function InterviewScreen() {
           data={messages}
           keyExtractor={(m) => m.id}
           contentContainerStyle={{ padding: 14, paddingBottom: 12 }}
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={8}
+          windowSize={5}
           renderItem={({ item }) => {
             const isInterviewer = item.speakerId === interviewerId;
             const isCallIn = !!item.isCallIn;
@@ -2303,7 +2330,18 @@ export default function InterviewScreen() {
       <Modal visible={showPaywall} transparent animationType="fade" onRequestClose={() => setShowPaywall(false)}>
         <View style={s.modalOverlay}>
           <View style={s.paywallCard}>
-            <Ionicons name="lock-closed" size={32} color="#FFD700" />
+            {paywallSpeechPaused ? (
+              <Animated.View style={[{ marginBottom: 4 }, paywallPulseStyle]}>
+                <Ionicons name="volume-high" size={32} color="#FFD700" />
+              </Animated.View>
+            ) : (
+              <Ionicons name="lock-closed" size={32} color="#FFD700" />
+            )}
+            {paywallSpeechPaused && (
+              <Text style={{ color: "#FFD70099", fontSize: 11, marginBottom: 2, textAlign: "center" }}>
+                Audio paused — resume when ready
+              </Text>
+            )}
             <Text style={s.paywallTitle}>Unlock Interview</Text>
             <Text style={s.paywallSub}>1 token per minute. Use a {duration}-minute session?</Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 }}>

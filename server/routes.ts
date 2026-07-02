@@ -3044,6 +3044,9 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     shahidbolson: 6,
     ronaldreagan: 5,
     pastormanning: 6,
+    miller: 4,
+    timscott: 3,
+    jascrockett: 5,
   };
 
   const PERSONA_SPEED_MAP: Record<string, number> = {
@@ -3058,6 +3061,9 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     shahidbolson: 1.08,
     ronaldreagan: 0.93,
     pastormanning: 1.06,
+    miller: 1.15,
+    timscott: 1.14,
+    jascrockett: 1.18,
   };
 
   app.post("/api/persona-speak", async (req, res) => {
