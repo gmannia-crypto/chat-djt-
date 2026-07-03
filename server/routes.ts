@@ -454,6 +454,10 @@ async function overlayBleeps(audioBuffer: Buffer, text: string): Promise<Buffer>
 const ttsCache = new Map<string, { buffer: Buffer; timestamp: number }>();
 const TTS_CACHE_MAX = 100;
 const TTS_CACHE_TTL = 30 * 60 * 1000;
+// Bump this version whenever PERSONA_EMOTION_MAP changes so that
+// emotion-tagged cache keys are immediately invalidated across all
+// personas rather than waiting for the 30-minute TTL to expire.
+const PERSONA_EMOTION_MAP_VERSION = 1;
 
 function getTTSCacheKey(text: string, voiceId: string, speed: number): string {
   const shortText = text.slice(0, 200);
@@ -539,7 +543,7 @@ function applyPersonaTTSFormatting(text: string, personaId: string): string {
 
 async function fishAudioRequest(text: string, voiceId: string, speed: number, apiKey: string, retries: number = 3, volumeDb: number = 0, emotion?: string): Promise<Buffer> {
   const ttsText = fixTTSPronunciation(text);
-  const cacheKey = getTTSCacheKey(text, voiceId, speed) + (volumeDb !== 0 ? `_v${volumeDb}` : "") + (emotion ? `_e${emotion}` : "");
+  const cacheKey = getTTSCacheKey(text, voiceId, speed) + (volumeDb !== 0 ? `_v${volumeDb}` : "") + (emotion ? `_e${emotion}_ev${PERSONA_EMOTION_MAP_VERSION}` : "");
   const cached = getCachedTTS(cacheKey);
   if (cached) {
     console.log(`TTS cache hit for voice=${voiceId}`);
@@ -3070,6 +3074,9 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     jascrockett: 1.18,
   };
 
+  // IMPORTANT: when you add, remove, or change any entry here you MUST
+  // also increment PERSONA_EMOTION_MAP_VERSION (near the top of this file)
+  // so that stale emotion-tagged TTS cache keys are busted immediately.
   const PERSONA_EMOTION_MAP: Record<string, string> = {
     miller: "angry",
     timscott: "excited",
