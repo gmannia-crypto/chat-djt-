@@ -457,7 +457,7 @@ const TTS_CACHE_TTL = 30 * 60 * 1000;
 // Bump this version whenever PERSONA_EMOTION_MAP changes so that
 // emotion-tagged cache keys are immediately invalidated across all
 // personas rather than waiting for the 30-minute TTL to expire.
-const PERSONA_EMOTION_MAP_VERSION = 3;
+const PERSONA_EMOTION_MAP_VERSION = 4;
 
 function getTTSCacheKey(text: string, voiceId: string, speed: number): string {
   const shortText = text.slice(0, 200);
@@ -3055,6 +3055,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     miller: 4,
     timscott: 3,
     jascrockett: 5,
+    claudeanderson: 5,
   };
 
   const PERSONA_SPEED_MAP: Record<string, number> = {
@@ -3072,6 +3073,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     miller: 1.15,
     timscott: 1.14,
     jascrockett: 1.18,
+    claudeanderson: 0.96,
   };
 
   // IMPORTANT: when you add, remove, or change any entry here you MUST
@@ -3088,6 +3090,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     pastormanning: "excited",
     loudmouth: "angry",
     shahidbolson: "angry",
+    claudeanderson: "angry",
   };
 
   app.post("/api/persona-speak", async (req, res) => {

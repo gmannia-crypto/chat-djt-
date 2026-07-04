@@ -4889,30 +4889,108 @@ export default function ArenaScreen() {
     [addMessage, updateEmotions, deviceId, queueTTS, startPrefetch]
   );
 
-  const triggerInterruption = useCallback(async (trumpMessageText: string) => {
-    if (!mountedRef.current || isInterruptingRef.current) return;
-    isInterruptingRef.current = true;
-    const active = selectedPersonasRef.current;
-    const availableInterrupters = INTERRUPTERS.filter((id) => active.includes(id) && id !== currentSpeakerRef.current);
-    if (availableInterrupters.length === 0) { isInterruptingRef.current = false; return; }
+  const triggerInterruption = useCallback(async (trumpMessageText: string, prefetchedInterrupter?: string, prefetchedData?: any) => {
+    if (!mountedRef.current) return;
 
-    const interrupter = availableInterrupters[Math.floor(Math.random() * availableInterrupters.length)];
+    let interrupter: string;
+    let data: any;
 
-    // Minimal delay — just enough for the speech to begin playing, then fetch in parallel
-    await new Promise((r) => setTimeout(r, 250 + Math.random() * 250));
-    if (!mountedRef.current || !isRunningRef.current) { isInterruptingRef.current = false; return; }
+    if (prefetchedInterrupter && prefetchedData) {
+      // Fast path — caller pre-fetched the response in parallel with generateAIResponse.
+      // isInterruptingRef is already set true by the caller; no extra delay needed.
+      interrupter = prefetchedInterrupter;
+      data = prefetchedData;
+    } else {
+      // Fallback path — fetch on-demand (used when called without prefetch).
+      if (isInterruptingRef.current) return;
+      isInterruptingRef.current = true;
+      const active = selectedPersonasRef.current;
+      const availableInterrupters = INTERRUPTERS.filter((id) => active.includes(id) && id !== currentSpeakerRef.current);
+      if (availableInterrupters.length === 0) { isInterruptingRef.current = false; return; }
+      interrupter = availableInterrupters[Math.floor(Math.random() * availableInterrupters.length)];
+      await new Promise((r) => setTimeout(r, 300));
+      if (!mountedRef.current || !isRunningRef.current) { isInterruptingRef.current = false; return; }
+      try {
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (deviceId) headers["x-device-id"] = deviceId;
+        const res = await fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            responderId: interrupter,
+            toSpeakerId: "trump",
+            conversationHistory: [{ speakerName: "Donald Trump", text: trumpMessageText }],
+            topic: currentTopicRef.current || "debate",
+            isInterruption: true,
+            sessionIQ: personaSessionIQRef.current,
+            sessionLieTally: sessionLieTallyRef.current,
+            sessionAltFactTally: sessionAltFactTallyRef.current,
+          }),
+        });
+        if (!res.ok || !mountedRef.current) { isInterruptingRef.current = false; return; }
+        data = await res.json();
+      } catch { isInterruptingRef.current = false; return; }
+    }
 
     try {
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (deviceId) headers["x-device-id"] = deviceId;
+      const persona = getPersona(interrupter);
+      const interruptMsg: ConversationMessage = {
+        id: "interrupt-" + Date.now() + Math.random().toString(36).substr(2, 5),
+        speakerId: interrupter,
+        speakerName: `⚡ ${persona.name}`,
+        text: data.response,
+        timestamp: Date.now(),
+      };
 
-      const res = await fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
+      // Wait until the main speaker is ~40% through before cutting in.
+      // With prefetch this check now actually fires mid-sentence instead of at the end.
+      const mainSound = currentSoundRef.current;
+      if (mainSound) {
+        try {
+          const st = await mainSound.getStatusAsync();
+          if (st.isLoaded && (st as any).isPlaying && (st as any).durationMillis && (st as any).positionMillis) {
+            const pct = (st as any).positionMillis / (st as any).durationMillis;
+            if (pct < 0.35) {
+              const waitMs = Math.max(0, (st as any).durationMillis * 0.40 - (st as any).positionMillis);
+              await new Promise((r) => setTimeout(r, waitMs));
+            }
+          }
+        } catch {}
+      }
+
+      if (!mountedRef.current || !isRunningRef.current) return;
+
+      addMessage(interruptMsg);
+      showInterruptionBanner(interrupter, persona.name, data.response);
+      lastInterruptionRef.current = { text: data.response, interrupterId: interrupter };
+      playInterruptionAudio(data.response, interrupter);
+      if (typeof data.currentIQ === "number") {
+        setPersonaSessionIQ((prev) => { const u = { ...prev, [interrupter]: data.currentIQ }; personaSessionIQRef.current = u; return u; });
+      } else if (typeof data.iqDelta === "number" && data.iqDelta !== 0) adjustPersonaIQ(interrupter, data.iqDelta);
+      if (typeof data.altTruthCount === "number") {
+        setPersonaAltTruths((prev) => ({ ...prev, [interrupter]: data.altTruthCount }));
+        sessionAltFactTallyRef.current = { ...sessionAltFactTallyRef.current, [interrupter]: data.altTruthCount };
+      } else if (data.altTruthIncrement) setPersonaAltTruths((prev) => ({ ...prev, [interrupter]: (prev[interrupter] || 0) + 1 }));
+
+      await new Promise((r) => setTimeout(r, 500 + Math.random() * 500));
+      if (!mountedRef.current || !isRunningRef.current) return;
+
+      // Clapback: Trump fires back at the interrupter
+      const clapHeaders: Record<string, string> = { "Content-Type": "application/json" };
+      if (deviceId) clapHeaders["x-device-id"] = deviceId;
+      // Use the last Trump message we have (or fall back to empty context)
+      const lastTrumpMsg = messagesRef.current.filter((m) => !m.isSystem && m.speakerId === "trump").slice(-1)[0];
+      const trumpCtxText = lastTrumpMsg?.text || trumpMessageText || "";
+      const clap = await fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
         method: "POST",
-        headers,
+        headers: clapHeaders,
         body: JSON.stringify({
-          responderId: interrupter,
-          toSpeakerId: "trump",
-          conversationHistory: [{ speakerName: "Donald Trump", text: trumpMessageText }],
+          responderId: "trump",
+          toSpeakerId: interrupter,
+          conversationHistory: [
+            ...(trumpCtxText ? [{ speakerName: "Donald Trump", text: trumpCtxText }] : []),
+            { speakerName: persona.name, text: data.response },
+          ],
           topic: currentTopicRef.current || "debate",
           isInterruption: true,
           sessionIQ: personaSessionIQRef.current,
@@ -4921,84 +4999,24 @@ export default function ArenaScreen() {
         }),
       });
 
-      if (res.ok && mountedRef.current) {
-        const data = await res.json();
-        const persona = getPersona(interrupter);
-        const interruptMsg: ConversationMessage = {
-          id: "interrupt-" + Date.now() + Math.random().toString(36).substr(2, 5),
-          speakerId: interrupter,
-          speakerName: `⚡ ${persona.name}`,
-          text: data.response,
+      if (clap.ok && mountedRef.current) {
+        const clapData = await clap.json();
+        addMessage({
+          id: "clapback-" + Date.now() + Math.random().toString(36).substr(2, 5),
+          speakerId: "trump",
+          speakerName: "Donald Trump",
+          text: clapData.response,
           timestamp: Date.now(),
-        };
-
-        // If current speaker is still going, wait until they're ~40% through before cutting in
-        const mainSound = currentSoundRef.current;
-        if (mainSound) {
-          try {
-            const st = await mainSound.getStatusAsync();
-            if (st.isLoaded && (st as any).isPlaying && (st as any).durationMillis && (st as any).positionMillis) {
-              const pct = (st as any).positionMillis / (st as any).durationMillis;
-              if (pct < 0.35) {
-                const waitMs = Math.max(0, (st as any).durationMillis * 0.40 - (st as any).positionMillis);
-                await new Promise((r) => setTimeout(r, waitMs));
-              }
-            }
-          } catch {}
-        }
-
-        addMessage(interruptMsg);
-        showInterruptionBanner(interrupter, persona.name, data.response);
-        lastInterruptionRef.current = { text: data.response, interrupterId: interrupter };
-        playInterruptionAudio(data.response, interrupter);
-        if (typeof data.currentIQ === "number") {
-          setPersonaSessionIQ((prev) => { const u = { ...prev, [interrupter]: data.currentIQ }; personaSessionIQRef.current = u; return u; });
-        } else if (typeof data.iqDelta === "number" && data.iqDelta !== 0) adjustPersonaIQ(interrupter, data.iqDelta);
-        if (typeof data.altTruthCount === "number") {
-          setPersonaAltTruths((prev) => ({ ...prev, [interrupter]: data.altTruthCount }));
-          sessionAltFactTallyRef.current = { ...sessionAltFactTallyRef.current, [interrupter]: data.altTruthCount };
-        } else if (data.altTruthIncrement) setPersonaAltTruths((prev) => ({ ...prev, [interrupter]: (prev[interrupter] || 0) + 1 }));
-
-        await new Promise((r) => setTimeout(r, 500 + Math.random() * 500));
-        if (!mountedRef.current || !isRunningRef.current) return;
-
-        const clap = await fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
-          method: "POST",
-          headers,
-          body: JSON.stringify({
-            responderId: "trump",
-            toSpeakerId: interrupter,
-            conversationHistory: [
-              { speakerName: "Donald Trump", text: trumpMessageText },
-              { speakerName: persona.name, text: data.response },
-            ],
-            topic: currentTopicRef.current || "debate",
-            isInterruption: true,
-            sessionIQ: personaSessionIQRef.current,
-            sessionLieTally: sessionLieTallyRef.current,
-            sessionAltFactTally: sessionAltFactTallyRef.current,
-          }),
         });
-
-        if (clap.ok && mountedRef.current) {
-          const clapData = await clap.json();
-          addMessage({
-            id: "clapback-" + Date.now() + Math.random().toString(36).substr(2, 5),
-            speakerId: "trump",
-            speakerName: "Donald Trump",
-            text: clapData.response,
-            timestamp: Date.now(),
-          });
-          queueTTS(clapData.response, "trump");
-          if (typeof clapData.currentIQ === "number") {
-            setPersonaSessionIQ((prev) => { const u = { ...prev, trump: clapData.currentIQ }; personaSessionIQRef.current = u; return u; });
-          } else if (typeof clapData.iqDelta === "number" && clapData.iqDelta !== 0) adjustPersonaIQ("trump", clapData.iqDelta);
-          if (typeof clapData.altTruthCount === "number") {
-            setPersonaAltTruths((prev) => ({ ...prev, trump: clapData.altTruthCount }));
-            sessionAltFactTallyRef.current = { ...sessionAltFactTallyRef.current, trump: clapData.altTruthCount };
-          } else if (clapData.altTruthIncrement) setPersonaAltTruths((prev) => ({ ...prev, trump: (prev.trump || 0) + 1 }));
-          await new Promise((r) => setTimeout(r, 500));
-        }
+        queueTTS(clapData.response, "trump");
+        if (typeof clapData.currentIQ === "number") {
+          setPersonaSessionIQ((prev) => { const u = { ...prev, trump: clapData.currentIQ }; personaSessionIQRef.current = u; return u; });
+        } else if (typeof clapData.iqDelta === "number" && clapData.iqDelta !== 0) adjustPersonaIQ("trump", clapData.iqDelta);
+        if (typeof clapData.altTruthCount === "number") {
+          setPersonaAltTruths((prev) => ({ ...prev, trump: clapData.altTruthCount }));
+          sessionAltFactTallyRef.current = { ...sessionAltFactTallyRef.current, trump: clapData.altTruthCount };
+        } else if (clapData.altTruthIncrement) setPersonaAltTruths((prev) => ({ ...prev, trump: (prev.trump || 0) + 1 }));
+        await new Promise((r) => setTimeout(r, 500));
       }
     } catch {} finally {
       isInterruptingRef.current = false;
@@ -5416,16 +5434,44 @@ export default function ArenaScreen() {
 
       const willInterrupt = !isInterruptingRef.current && chosen.id === "trump" && !trumpAttacked && Math.random() < 0.35;
 
+      // Pre-fetch the interrupter's response in parallel with generateAIResponse so it is
+      // ready the moment Trump's TTS starts — eliminates the 5-10 s sequential lag.
+      let interruptPrefetch: Promise<{ interrupter: string; data: any } | null> | null = null;
+      if (willInterrupt && !isInterruptingRef.current) {
+        const available = INTERRUPTERS.filter((id) => selectedPersonasRef.current.includes(id) && id !== "trump");
+        if (available.length > 0) {
+          isInterruptingRef.current = true;
+          const preInterrupter = available[Math.floor(Math.random() * available.length)];
+          const preHistory = messagesRef.current.filter((m) => !m.isSystem).slice(-4).map((m) => ({ speakerName: m.speakerName, text: m.text }));
+          const preHeaders: Record<string, string> = { "Content-Type": "application/json" };
+          if (deviceId) preHeaders["x-device-id"] = deviceId;
+          interruptPrefetch = fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
+            method: "POST",
+            headers: preHeaders,
+            body: JSON.stringify({
+              responderId: preInterrupter,
+              toSpeakerId: "trump",
+              conversationHistory: preHistory,
+              topic: currentTopicRef.current || "debate",
+              isInterruption: true,
+              sessionIQ: personaSessionIQRef.current,
+              sessionLieTally: sessionLieTallyRef.current,
+              sessionAltFactTally: sessionAltFactTallyRef.current,
+            }),
+          }).then(async (r) => r.ok ? { interrupter: preInterrupter, data: await r.json() } : null)
+            .catch(() => null);
+        }
+      }
+
       await generateAIResponse(chosen.id, lastMsg.speakerId);
       recentSpeakersRef.current = [...recentSpeakersRef.current, chosen.id].slice(-4);
 
-      if (willInterrupt && mountedRef.current && isRunningRef.current && !isInterruptingRef.current) {
-        await new Promise((r) => setTimeout(r, 500 + Math.random() * 500));
-        if (!mountedRef.current || !isRunningRef.current) return;
-
-        const trumpMsg = messagesRef.current.filter((m) => !m.isSystem && m.speakerId !== "user").slice(-1)[0];
-        if (trumpMsg && trumpMsg.speakerId === "trump") {
-          await triggerInterruption(trumpMsg.text);
+      if (interruptPrefetch && mountedRef.current && isRunningRef.current) {
+        const prefetched = await interruptPrefetch;
+        if (prefetched) {
+          await triggerInterruption("", prefetched.interrupter, prefetched.data);
+        } else {
+          isInterruptingRef.current = false;
         }
       }
     }
