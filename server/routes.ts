@@ -3088,8 +3088,8 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     ruckus: "angry",
     candace: "excited",
     pastormanning: "excited",
-    loudmouth: "angry",
-    shahidbolson: "angry",
+    loudmouth: "excited",
+    shahidbolson: "excited",
     claudeanderson: "angry",
   };
 
