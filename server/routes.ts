@@ -457,7 +457,7 @@ const TTS_CACHE_TTL = 30 * 60 * 1000;
 // Bump this version whenever PERSONA_EMOTION_MAP changes so that
 // emotion-tagged cache keys are immediately invalidated across all
 // personas rather than waiting for the 30-minute TTL to expire.
-const PERSONA_EMOTION_MAP_VERSION = 4;
+const PERSONA_EMOTION_MAP_VERSION = 5;
 
 function getTTSCacheKey(text: string, voiceId: string, speed: number): string {
   const shortText = text.slice(0, 200);
@@ -3082,10 +3082,10 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
   const PERSONA_EMOTION_MAP: Record<string, string> = {
     miller: "angry",
     timscott: "excited",
-    jascrockett: "angry",
+    jascrockett: "excited",
     odonnell: "angry",
-    malema: "angry",
-    ruckus: "angry",
+    malema: "excited",
+    ruckus: "sad",
     candace: "excited",
     pastormanning: "excited",
     loudmouth: "excited",
