@@ -3086,6 +3086,24 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
   //        - "excited" can sound manic on slow/deliberate speakers
   //        - "sad" works well for measured, grievance-focused tones
   //      If in doubt, default to omitting the tag (neutral baseline).
+  //
+  // ─── AUDITION TEMPLATE ───────────────────────────────────────────────────────
+  // Copy this block into a comment above the entry you are adding or changing.
+  // Fill in every field before merging. Incomplete entries must not ship.
+  //
+  //   Persona ID  : <persona key, e.g. "miller">
+  //   Date        : <YYYY-MM-DD>
+  //   Tag tested  : <"excited" | "sad" | "angry" | none>
+  //   Sample lines: 1. "<first line played back>"
+  //                 2. "<second line played back>"
+  //                 3. "<third line played back>"
+  //   Result      : <PASS | FAIL — one sentence on how it sounded>
+  //   Reviewer    : <your name / handle>
+  //   Decision    : <KEEP tag | REMOVE tag | SWITCH to "___">
+  //
+  // A PASS requires: prosody matches persona tone, no manic or hostile bleed,
+  // and the tag still sounds correct at the persona's configured speed setting.
+  // ─────────────────────────────────────────────────────────────────────────────
   const PERSONA_EMOTION_MAP: Record<string, string> = {
     // miller: re-auditioned 2026-07-05 (initial) + 2026-07-05 (follow-up) — neutral confirmed.
     // "angry" was already removed; no lighter tag ("sad") fits his robotic, zero-empathy
