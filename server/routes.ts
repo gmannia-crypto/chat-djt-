@@ -11091,6 +11091,57 @@ p{color:#999;font-size:16px;margin-bottom:24px}
     res.json({ secretConfigured: hasSecret, keyProvided, valid });
   });
 
+  // Admin endpoint: preview how a persona sounds with a given emotion tag.
+  // Usage:
+  //   curl -X POST https://<host>/api/admin/tts-preview \
+  //     -H "x-admin-key: <ADMIN_PASSCODE>" \
+  //     -H "Content-Type: application/json" \
+  //     -d '{"personaId":"miller","emotion":"angry","text":"This is a test."}' \
+  //     --output preview.mp3
+  //
+  // personaId  — any key from PERSONA_VOICE_IDS (required)
+  // emotion    — Fish Audio emotion tag, e.g. "angry","excited","sad","calm" (required)
+  // text       — sample text to synthesise (required, max 500 chars)
+  // speed      — optional playback speed multiplier (default: persona default or 1.0)
+  app.post("/api/admin/tts-preview", async (req, res) => {
+    if (!checkAdminKey(req)) {
+      return res.status(403).json({ error: "Invalid admin key" });
+    }
+    try {
+      const { personaId, emotion, text, speed } = req.body;
+      if (!personaId || !emotion || !text) {
+        return res.status(400).json({ error: "personaId, emotion, and text are required" });
+      }
+
+      const apiKey = process.env.FISH_AUDIO_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ error: "FISH_AUDIO_API_KEY not configured" });
+      }
+
+      const voiceId = PERSONA_VOICE_IDS[personaId as string];
+      if (!voiceId) {
+        return res.status(400).json({
+          error: `Unknown personaId '${personaId}'. Known personas: ${Object.keys(PERSONA_VOICE_IDS).join(", ")}`,
+        });
+      }
+
+      const personaSpeed: number = typeof speed === "number" ? speed : (PERSONA_SPEED_MAP[personaId as string] ?? 1.0);
+      const personaVolumeDb: number = PERSONA_VOLUME_BOOST[personaId as string] ?? 0;
+      const safeText = applyPersonaTTSFormatting((text as string).slice(0, 500), personaId as string);
+
+      console.log(`Admin TTS preview: persona=${personaId}, emotion=${emotion}, speed=${personaSpeed}`);
+      const buffer = await fishAudioRequest(safeText, voiceId, personaSpeed, apiKey, 3, personaVolumeDb, emotion as string);
+
+      res.setHeader("Content-Type", "audio/mpeg");
+      res.setHeader("Content-Length", buffer.length.toString());
+      res.setHeader("Content-Disposition", `attachment; filename="${personaId}-${emotion}.mp3"`);
+      res.send(buffer);
+    } catch (error: any) {
+      console.error("Admin TTS preview error:", error);
+      res.status(500).json({ error: "TTS generation failed", details: error.message });
+    }
+  });
+
   app.post("/api/admin/reset-arena", async (req, res) => {
     if (!checkAdminKey(req)) {
       return res.status(403).json({ error: "Invalid admin key" });
