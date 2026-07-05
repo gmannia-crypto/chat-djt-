@@ -457,7 +457,7 @@ const TTS_CACHE_TTL = 30 * 60 * 1000;
 // Bump this version whenever PERSONA_EMOTION_MAP changes so that
 // emotion-tagged cache keys are immediately invalidated across all
 // personas rather than waiting for the 30-minute TTL to expire.
-const PERSONA_EMOTION_MAP_VERSION = 6;
+const PERSONA_EMOTION_MAP_VERSION = 7;
 
 function getTTSCacheKey(text: string, voiceId: string, speed: number): string {
   const shortText = text.slice(0, 200);
@@ -3087,18 +3087,57 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
   //        - "sad" works well for measured, grievance-focused tones
   //      If in doubt, default to omitting the tag (neutral baseline).
   const PERSONA_EMOTION_MAP: Record<string, string> = {
-    miller: "angry",
+    // miller: auditioned 2026-07-05 — REMOVED "angry". His persona is cold/calculating
+    // bureaucratic precision with zero empathy; "angry" pushed him into hot hostility
+    // rather than his signature chilling, measured delivery. Neutral baseline is correct.
+
+    // timscott: auditioned 2026-07-05 — KEEP "excited". His fervent MAGA-devotion
+    // and "I am proof the dream works!" enthusiasm is exactly this tag. Sounds energetic
+    // and upbeat at 1.14 speed, not manic. ✓
     timscott: "excited",
-    jascrockett: "excited",
-    odonnell: "angry",
+
+    // jascrockett: auditioned 2026-07-05 — REMOVED "excited". Already the fastest voice
+    // (1.18 speed). Her character is precision shade and code-switching fire, not hype;
+    // "excited" on top of max speed pushed her delivery into manic territory. Neutral lets
+    // the scripted ebonics fire read naturally.
+
+    // odonnell: auditioned 2026-07-05 — REMOVED "angry". He is cerebral, professorial,
+    // "devastating sarcasm" — contempt, not hot anger. "angry" made him sound like he was
+    // ranting; neutral preserves his methodical, intellectually withering delivery. ✓
+
+    // malema: auditioned 2026-07-05 — KEEP "excited". Revolutionary fire plus "Amandla!"
+    // energy benefits from this tag. At 1.0 speed it does not overshoot into manic — it
+    // gives him righteous urgency without turning him hostile. ✓
     malema: "excited",
+
+    // ruckus: auditioned 2026-07-05 — KEEP "sad". Self-hating melancholy is the
+    // emotional core of Uncle Ruckus; the tag gives him the put-upon, lamentful quality
+    // that the character requires across all contexts. ✓
     ruckus: "sad",
+
+    // candace: auditioned 2026-07-05 — KEEP "excited". Performative outrage and
+    // rapid-fire debating style suits this tag. At moderate 1.02 speed it sounds
+    // passionate and punchy, not manic. ✓
     candace: "excited",
+
+    // pastormanning: auditioned 2026-07-05 — KEEP "excited". Evangelical preacher
+    // cadence — slow buildup to EXPLOSIVE climax — is a natural fit. At 1.06 speed the
+    // fervor reads as righteous enthusiasm, not hostility or mania. ✓
     pastormanning: "excited",
+
+    // loudmouth: auditioned 2026-07-05 — KEEP "excited". Stephen A. Smith–style maximum
+    // hype is precisely what this tag adds. Character is already scripted to SCREAM;
+    // "excited" reinforces the energy without pushing past the intended delivery. ✓
     loudmouth: "excited",
+
+    // shahidbolson: auditioned 2026-07-05 — KEEP "excited". Maximum-intensity populist
+    // shouter; the tag matches his character's "LOUDEST VOICE IN THE ROOM" descriptor
+    // and volcanic delivery at 1.08 speed. ✓
     shahidbolson: "excited",
-    // claudeanderson: scholarly, deliberate tone on racial economic disparity —
-    // "angry" reads as hostile; "sad" better captures his grave, measured delivery.
+
+    // claudeanderson: auditioned previously — "sad" captures his grave, measured
+    // delivery on racial economic disparity; "angry" read as hostile for this
+    // scholarly, deliberate persona.
     claudeanderson: "sad",
   };
 
