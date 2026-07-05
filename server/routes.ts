@@ -457,7 +457,7 @@ const TTS_CACHE_TTL = 30 * 60 * 1000;
 // Bump this version whenever PERSONA_EMOTION_MAP changes so that
 // emotion-tagged cache keys are immediately invalidated across all
 // personas rather than waiting for the 30-minute TTL to expire.
-const PERSONA_EMOTION_MAP_VERSION = 5;
+const PERSONA_EMOTION_MAP_VERSION = 6;
 
 function getTTSCacheKey(text: string, voiceId: string, speed: number): string {
   const shortText = text.slice(0, 200);
@@ -3076,9 +3076,16 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     claudeanderson: 0.96,
   };
 
-  // IMPORTANT: when you add, remove, or change any entry here you MUST
-  // also increment PERSONA_EMOTION_MAP_VERSION (near the top of this file)
-  // so that stale emotion-tagged TTS cache keys are busted immediately.
+  // IMPORTANT: when you add, remove, or change any entry here you MUST:
+  //   1. Increment PERSONA_EMOTION_MAP_VERSION (near the top of this file)
+  //      so that stale emotion-tagged TTS cache keys are busted immediately.
+  //   2. Audition the new/changed tag via a real TTS call before committing.
+  //      Play back at least 2–3 sample lines in character and confirm the
+  //      prosody matches the persona's on-screen tone. Common pitfalls:
+  //        - "angry" adds aggression that reads as hostile, not passionate
+  //        - "excited" can sound manic on slow/deliberate speakers
+  //        - "sad" works well for measured, grievance-focused tones
+  //      If in doubt, default to omitting the tag (neutral baseline).
   const PERSONA_EMOTION_MAP: Record<string, string> = {
     miller: "angry",
     timscott: "excited",
@@ -3090,7 +3097,9 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     pastormanning: "excited",
     loudmouth: "excited",
     shahidbolson: "excited",
-    claudeanderson: "angry",
+    // claudeanderson: scholarly, deliberate tone on racial economic disparity —
+    // "angry" reads as hostile; "sad" better captures his grave, measured delivery.
+    claudeanderson: "sad",
   };
 
   app.post("/api/persona-speak", async (req, res) => {
