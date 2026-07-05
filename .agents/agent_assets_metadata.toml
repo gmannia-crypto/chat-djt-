@@ -167,3 +167,27 @@ id = "pt0gO32HAE6ikdUMoC4If"
 uri = "file://assets/images/persona-claudeanderson.png"
 type = "image"
 title = "Dr. Claude Anderson — Cartoon Avatar"
+
+[[outputs]]
+id = "UKRGTjMUgx4hRn3ufIC7n"
+uri = "file://tmp_tts_audit/claude_anderson_line1.mp3"
+type = "audio"
+title = "SAD emotion — Line 1 (systematic exclusion)"
+
+[[outputs]]
+id = "h40cHi-puKaLMWA9pVJxi"
+uri = "file://tmp_tts_audit/claude_anderson_line2.mp3"
+type = "audio"
+title = "SAD emotion — Line 2 (wealth gap data)"
+
+[[outputs]]
+id = "LwXrgrp2UqdQpWZmA49iX"
+uri = "file://tmp_tts_audit/claude_anderson_line3.mp3"
+type = "audio"
+title = "SAD emotion — Line 3 (Powernomics)"
+
+[[outputs]]
+id = "76_hqhMipm3OWkTWg3VT-"
+uri = "file://tmp_tts_audit/claude_anderson_neutral_line1.mp3"
+type = "audio"
+title = "NEUTRAL (no tag) — Line 1 (for comparison)"
