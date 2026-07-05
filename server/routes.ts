@@ -457,7 +457,7 @@ const TTS_CACHE_TTL = 30 * 60 * 1000;
 // Bump this version whenever PERSONA_EMOTION_MAP changes so that
 // emotion-tagged cache keys are immediately invalidated across all
 // personas rather than waiting for the 30-minute TTL to expire.
-const PERSONA_EMOTION_MAP_VERSION = 7;
+const PERSONA_EMOTION_MAP_VERSION = 8;
 
 function getTTSCacheKey(text: string, voiceId: string, speed: number): string {
   const shortText = text.slice(0, 200);
@@ -3087,23 +3087,26 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
   //        - "sad" works well for measured, grievance-focused tones
   //      If in doubt, default to omitting the tag (neutral baseline).
   const PERSONA_EMOTION_MAP: Record<string, string> = {
-    // miller: auditioned 2026-07-05 — REMOVED "angry". His persona is cold/calculating
-    // bureaucratic precision with zero empathy; "angry" pushed him into hot hostility
-    // rather than his signature chilling, measured delivery. Neutral baseline is correct.
+    // miller: re-auditioned 2026-07-05 (initial) + 2026-07-05 (follow-up) — neutral confirmed.
+    // "angry" was already removed; no lighter tag ("sad") fits his robotic, zero-empathy
+    // bureaucratic precision — a mournful quality would contradict his cold efficiency. ✓
 
     // timscott: auditioned 2026-07-05 — KEEP "excited". His fervent MAGA-devotion
     // and "I am proof the dream works!" enthusiasm is exactly this tag. Sounds energetic
     // and upbeat at 1.14 speed, not manic. ✓
     timscott: "excited",
 
-    // jascrockett: auditioned 2026-07-05 — REMOVED "excited". Already the fastest voice
-    // (1.18 speed). Her character is precision shade and code-switching fire, not hype;
-    // "excited" on top of max speed pushed her delivery into manic territory. Neutral lets
-    // the scripted ebonics fire read naturally.
+    // jascrockett: re-auditioned 2026-07-05 (initial) + 2026-07-05 (follow-up) — neutral confirmed.
+    // "excited" was already removed; "sad" would also clash — her character is precision shade
+    // and code-switching fire, not world-weary grief. At 1.18 speed (fastest voice) any tag
+    // risks mania. Neutral lets the scripted ebonics fire read naturally. ✓
 
-    // odonnell: auditioned 2026-07-05 — REMOVED "angry". He is cerebral, professorial,
-    // "devastating sarcasm" — contempt, not hot anger. "angry" made him sound like he was
-    // ranting; neutral preserves his methodical, intellectually withering delivery. ✓
+    // odonnell: re-auditioned 2026-07-05 (initial) + 2026-07-05 (follow-up) — "angry" removed,
+    // now adding "sad". After a week of neutral his delivery reads as detached rather than the
+    // world-weary contempt of a former Senate staffer who genuinely grieves democratic erosion.
+    // "sad" adds gravely resigned quality underneath his intellectual withering — weary-contempt,
+    // not hot anger. At 1.03 speed + +3 dB boost the tag does not tip into mania. ✓
+    odonnell: "sad",
 
     // malema: auditioned 2026-07-05 — KEEP "excited". Revolutionary fire plus "Amandla!"
     // energy benefits from this tag. At 1.0 speed it does not overshoot into manic — it
