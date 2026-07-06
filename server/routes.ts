@@ -3088,20 +3088,20 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
   // and the speed still sounds correct alongside the persona's emotion tag (if any).
   // ─────────────────────────────────────────────────────────────────────────────
   const PERSONA_SPEED_MAP: Record<string, number> = {
-    trump: 1.10,
+    trump: 1.10, // high-speed — audition any new emotion tag carefully
     loudmouth: 1.05,
     odonnell: 1.03,
     candace: 1.02,
     malema: 1.0,
     ruckus: 1.0,
     neiltyson: 1.0,
-    marcorubio: 1.18,
+    marcorubio: 1.18, // high-speed — audition any new emotion tag carefully
     shahidbolson: 1.08,
     ronaldreagan: 0.93,
     pastormanning: 1.06,
-    miller: 1.15,
-    timscott: 1.14,
-    jascrockett: 1.18,
+    miller: 1.15, // high-speed — audition any new emotion tag carefully
+    timscott: 1.14, // high-speed — audition any new emotion tag carefully
+    jascrockett: 1.18, // high-speed — audition any new emotion tag carefully
     claudeanderson: 0.96,
   };
 
