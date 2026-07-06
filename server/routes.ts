@@ -3058,6 +3058,35 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     claudeanderson: 5,
   };
 
+  // IMPORTANT: when you add, remove, or change any entry here you MUST:
+  //   1. Re-audition the persona at the new speed via a real TTS call.
+  //      Play back at least 2–3 sample lines in character and confirm the
+  //      prosody still matches the persona's on-screen tone. Common pitfalls:
+  //        - Speed > 1.10 can make deliberate speakers sound nervous or manic
+  //        - Speed < 0.95 can make energetic speakers sound sluggish or flat
+  //      If the persona also has an entry in PERSONA_EMOTION_MAP, you MUST
+  //      re-audition the emotion tag at the new speed — a tag that passes at
+  //      1.0x can sound wrong at 1.18x (e.g. "excited" reads as manic).
+  //      If in doubt, move the speed closer to 1.0 and re-test.
+  //
+  // ─── AUDITION TEMPLATE ───────────────────────────────────────────────────────
+  // Copy this block into a comment above the entry you are adding or changing.
+  // Fill in every field before merging. Incomplete entries must not ship.
+  //
+  //   Persona ID   : <persona key, e.g. "marcorubio">
+  //   Date         : <YYYY-MM-DD>
+  //   Speed tested : <new numeric value, e.g. 1.18>
+  //   Emotion tag  : <tag from PERSONA_EMOTION_MAP, or "none">
+  //   Sample lines : 1. "<first line played back>"
+  //                  2. "<second line played back>"
+  //                  3. "<third line played back>"
+  //   Result       : <PASS | FAIL — one sentence on how it sounded>
+  //   Reviewer     : <your name / handle>
+  //   Decision     : <KEEP speed | LOWER to ___ | RAISE to ___ | REVERT>
+  //
+  // A PASS requires: prosody matches persona tone, no manic or hostile bleed,
+  // and the speed still sounds correct alongside the persona's emotion tag (if any).
+  // ─────────────────────────────────────────────────────────────────────────────
   const PERSONA_SPEED_MAP: Record<string, number> = {
     trump: 1.10,
     loudmouth: 1.05,
