@@ -3162,6 +3162,61 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     claudeanderson: "sad",
   };
 
+  // ─── Startup audit: warn if any PERSONA_EMOTION_MAP entry is missing an
+  // audition comment above it. Does not throw — warn only. ─────────────────
+  (() => {
+    try {
+      const srcPath = __filename.endsWith(".ts")
+        ? __filename
+        : __filename.replace(/\.js$/, ".ts");
+      const src = existsSync(srcPath)
+        ? readFileSync(srcPath, "utf8").split("\n")
+        : null;
+      if (!src) return;
+
+      // Locate the PERSONA_EMOTION_MAP block so we only inspect lines within it,
+      // not earlier maps (PERSONA_VOICE_IDS, PERSONA_SPEED_MAP, etc.) that also
+      // have `personaKey:` entries.
+      const mapStartIdx = src.findIndex((line) =>
+        /const PERSONA_EMOTION_MAP\b/.test(line)
+      );
+      if (mapStartIdx === -1) return;
+
+      // Find the closing `};` that ends the map (first such line after mapStart)
+      let mapEndIdx = mapStartIdx + 1;
+      while (mapEndIdx < src.length && !/^\s*\};/.test(src[mapEndIdx])) {
+        mapEndIdx++;
+      }
+
+      const mapBlock = src.slice(mapStartIdx, mapEndIdx + 1);
+      const AUDIT_WINDOW = 20;
+      const auditPattern = /auditioned|re-auditioned/i;
+
+      for (const personaKey of Object.keys(PERSONA_EMOTION_MAP)) {
+        // Find the property line within the map block only
+        const relIdx = mapBlock.findIndex((line) =>
+          new RegExp(`^\\s+${personaKey}\\s*:`).test(line)
+        );
+        if (relIdx === -1) continue;
+
+        const windowStart = Math.max(0, relIdx - AUDIT_WINDOW);
+        const nearbyLines = mapBlock.slice(windowStart, relIdx);
+        const hasAuditComment = nearbyLines.some(
+          (line) => line.trimStart().startsWith("//") && auditPattern.test(line)
+        );
+
+        if (!hasAuditComment) {
+          console.warn(
+            `[PERSONA_EMOTION_MAP] WARNING: "${personaKey}" has no audition comment within ${AUDIT_WINDOW} lines above its entry. Add an audition block before merging.`
+          );
+        }
+      }
+    } catch {
+      // Non-fatal — source file may be unavailable in some build environments
+    }
+  })();
+  // ─────────────────────────────────────────────────────────────────────────
+
   app.post("/api/persona-speak", async (req, res) => {
     try {
       const { text, personaId } = req.body;
