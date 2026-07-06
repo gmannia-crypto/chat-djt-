@@ -3246,6 +3246,23 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
   })();
   // ─────────────────────────────────────────────────────────────────────────
 
+  // ─── Startup audit: warn if a high-speed persona also carries an emotion
+  // tag — the combination risks a manic or hostile delivery. ───────────────
+  (() => {
+    const HIGH_SPEED_THRESHOLD = 1.10;
+    for (const [personaId, tag] of Object.entries(PERSONA_EMOTION_MAP)) {
+      const speed = PERSONA_SPEED_MAP[personaId];
+      if (speed !== undefined && speed >= HIGH_SPEED_THRESHOLD) {
+        console.warn(
+          `[PERSONA_SPEED+EMOTION] WARNING: "${personaId}" has speed ${speed} (≥ ${HIGH_SPEED_THRESHOLD}) AND emotion tag "${tag}". ` +
+          `Audition carefully — high-speed + emotion tag combinations risk manic or hostile bleed. ` +
+          `If the combination was deliberately approved, add an audition comment above the PERSONA_EMOTION_MAP entry.`
+        );
+      }
+    }
+  })();
+  // ─────────────────────────────────────────────────────────────────────────
+
   app.post("/api/persona-speak", async (req, res) => {
     try {
       const { text, personaId } = req.body;
