@@ -141,6 +141,8 @@ const PERSONA_IMAGES: Record<string, ImageSourcePropType> = {
   theUltra: require("@/assets/images/persona-theUltra.png"),
   dickyV: require("@/assets/images/persona-dickyV.png"),
   skipbayless: require("@/assets/images/persona-skipbayless.png"),
+  davidwellington: require("@/assets/images/persona-davidwellington.png"),
+  sirdameon: require("@/assets/images/persona-sirdameon.png"),
 };
 
 interface PersonaInfo {
@@ -184,6 +186,8 @@ const SOCCER_PERSONAS: PersonaInfo[] = [
   { id: "trump", name: "Dynamic", fullName: "Donald J. Trump", color: "#ff4d4d", image: PERSONA_IMAGES.trump },
   { id: "phantomZZ", name: "Phantom ZZ", fullName: "Phantom ZZ", color: "#7E57C2", image: PERSONA_IMAGES.phantomZZ },
   { id: "theUltra", name: "The Ultra", fullName: "The Ultra", color: "#FF9800", image: PERSONA_IMAGES.theUltra },
+  { id: "davidwellington", name: "David Wellington", fullName: "David Wellington", color: "#37474F", image: PERSONA_IMAGES.davidwellington },
+  { id: "sirdameon", name: "Sir Dameon", fullName: "Sir Dameon Addely", color: "#6D4C41", image: PERSONA_IMAGES.sirdameon },
 ];
 
 const LEAGUE_COLORS: Record<string, string> = {

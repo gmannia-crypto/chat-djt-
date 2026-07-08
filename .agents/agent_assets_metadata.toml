@@ -162,6 +162,18 @@ uri = "file://assets/images/persona-timscott.png"
 type = "image"
 title = "generated_image"
 
+[[generated]]
+id = "TK1rjTBjHu3MHFCFsSRRd"
+uri = "file://assets/images/persona-davidwellington.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "v6KtBfaqGURNnFIag0N0t"
+uri = "file://assets/images/persona-sirdameon.png"
+type = "image"
+title = "generated_image"
+
 [[outputs]]
 id = "pt0gO32HAE6ikdUMoC4If"
 uri = "file://assets/images/persona-claudeanderson.png"
