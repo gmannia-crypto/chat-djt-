@@ -15,14 +15,18 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.chatdjt"
+      "bundleIdentifier": "com.chatdjt",
+      "infoPlist": {
+        "UIBackgroundModes": ["audio"]
+      }
     },
     "android": {
       "package": "com.chatdjt",
       "adaptiveIcon": {
         "backgroundColor": "#000000",
         "foregroundImage": "./assets/images/icon.png"
-      }
+      },
+      "permissions": ["WAKE_LOCK", "FOREGROUND_SERVICE"]
     },
     "web": {
       "favicon": "./assets/images/favicon.png",

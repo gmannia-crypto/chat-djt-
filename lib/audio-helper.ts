@@ -1,5 +1,5 @@
 import { Platform } from "react-native";
-import { Audio } from "expo-av";
+import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from "expo-av";
 import { getApiUrl } from "@/lib/query-client";
 
 export async function playAudioFromUrl(
@@ -11,7 +11,11 @@ export async function playAudioFromUrl(
 
   await Audio.setAudioModeAsync({
     playsInSilentModeIOS: true,
-    staysActiveInBackground: false,
+    staysActiveInBackground: true,
+    interruptionModeIOS: InterruptionModeIOS.DoNotMix,
+    interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+    shouldDuckAndroid: false,
+    playThroughEarpieceAndroid: false,
   });
 
   if (Platform.OS === "web") {
@@ -106,7 +110,11 @@ export async function prefetchTTSAudio(
 
   await Audio.setAudioModeAsync({
     playsInSilentModeIOS: true,
-    staysActiveInBackground: false,
+    staysActiveInBackground: true,
+    interruptionModeIOS: InterruptionModeIOS.DoNotMix,
+    interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+    shouldDuckAndroid: false,
+    playThroughEarpieceAndroid: false,
   });
 
   if (Platform.OS === "web") {
@@ -137,7 +145,11 @@ export async function playPrefetchedAudio(
 
   await Audio.setAudioModeAsync({
     playsInSilentModeIOS: true,
-    staysActiveInBackground: false,
+    staysActiveInBackground: true,
+    interruptionModeIOS: InterruptionModeIOS.DoNotMix,
+    interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+    shouldDuckAndroid: false,
+    playThroughEarpieceAndroid: false,
   });
 
   const { sound } = await Audio.Sound.createAsync(
