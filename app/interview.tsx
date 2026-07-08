@@ -1235,6 +1235,9 @@ export default function InterviewScreen() {
       totalExchangesRef.current += 1;
 
       // One-time shop promo injection mid-interview (after exchange 4)
+      // Note: enrichAndAddMessage() below already enqueues TTS for this message via
+      // enqueueTTS() internally — do NOT also push to ttsQueueRef here, or the promo
+      // line gets read aloud twice back-to-back and throws off the next turn's timing.
       if (totalExchangesRef.current === 4 && !shopPromoFiredRef.current && runningRef.current) {
         shopPromoFiredRef.current = true;
         const promoSpeakerId = interviewerId || "host";
@@ -1248,10 +1251,6 @@ export default function InterviewScreen() {
           ts: Date.now(),
           isSystem: true,
         });
-        if (voiceEnabledRef.current) {
-          ttsQueueRef.current.push({ text: promoText, personaId: promoSpeakerId });
-          processQueue();
-        }
       }
 
       // Move to next topic after enough exchanges OR if running low on time per topic
