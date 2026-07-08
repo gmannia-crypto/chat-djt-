@@ -6076,6 +6076,7 @@ YOUR DEFINING TRAITS:
 - You call out hypocrisy LOUDLY — in sports, politics, media, EVERYWHERE.
 - You go HARD on Trump for his racism, his dog whistles, his attacks on Black athletes. "He came for Kaepernick! He came for LeBron! He came for the WNBA! This man has NEVER respected Black excellence!"
 - You are PRO-athlete rights, PRO-Colin Kaepernick, PRO-social justice movements. "These athletes risked EVERYTHING to use their platform and I RESPECT that!"
+- You grew up DIRT POOR in rural Glennville, Georgia, raised by your grandmama and granddaddy, who taught you everything through old-school country wisdom. Somewhere in this conversation — not every single response, just when it fits naturally — you drop a "My grandmama used to say..." or "My granddaddy used to say..." line before making your point. You MUST do this AT LEAST ONCE before the conversation ends, but NO MORE THAN TWICE total — it loses its punch if you overuse it, so pick your best moments.
 
 YOUR POSITIONS:
 - LeBron James is the Greatest Of All Time. This is not debatable.
@@ -6589,6 +6590,21 @@ Use first names only. Keep responses to 2-3 sentences max — but make every wor
     return header + behaviorText + iqContext + selfScoreInstruction;
   }
 
+  // Shannon Sharpe grandmama/granddaddy wisdom quota — at least once, but no more than twice, per session
+  function getShannonGrandmomNote(personaId: string, conversationHistory: any[]): string {
+    if (personaId !== "shannon") return "";
+    const historyText = (conversationHistory || []).map((m: any) => m.text || "").join(" ").toLowerCase();
+    const matches = historyText.match(/grandmam|grandmom|granddad/g) || [];
+    const usedCount = matches.length;
+    if (usedCount >= 2) {
+      return "\n\nCRITICAL: You have ALREADY quoted your grandmama/granddaddy wisdom TWICE in this conversation — that is the max. Do NOT mention them again for the rest of the conversation. Make your points without the grandmama wisdom this time.";
+    }
+    if (usedCount === 1) {
+      return "\n\nNOTE: You've already quoted your grandmama or granddaddy once in this conversation. You may use it ONE more time later if a truly perfect moment arises, but that is the absolute max — do not force it into every response.";
+    }
+    return "\n\nNOTE: You have NOT yet quoted your grandmama or granddaddy's country wisdom in this conversation. Make sure to work in a natural \"My grandmama used to say...\" or \"My granddaddy used to say...\" moment at least once before this conversation ends — but only once or twice total, never more.";
+  }
+
   app.post("/api/arena/respond", async (req, res) => {
     try {
       const { responderId, toSpeakerId, conversationHistory, topic, wasInterrupted, interruptionText, interrupterId, activePersonas, isWelcome, askUser, userContext, arenaMemoryContext, arenaUserContext } = req.body;
@@ -6662,7 +6678,7 @@ Use first names only. Keep responses to 2-3 sentences max — but make every wor
         : debateMode === "savage"
         ? "\n\nDEBATE MODE — SAVAGE: No holds barred. Tear into your opponents PERSONALLY. Use devastating sarcasm, mockery, and insults. Maximum aggression — be ruthless, cutthroat, and merciless. Attack their character, their intelligence, their credibility. Use profanity freely. Do NOT hold back."
         : "";
-      let systemPrompt = ARENA_PERSONA_PROMPTS[responderId] + currentYearContext + getLieBehaviorPrompt(responderId, sessionLieCount, sessionIQ, sessionAltFactCount) + debateModeInstruction;
+      let systemPrompt = ARENA_PERSONA_PROMPTS[responderId] + currentYearContext + getLieBehaviorPrompt(responderId, sessionLieCount, sessionIQ, sessionAltFactCount) + debateModeInstruction + getShannonGrandmomNote(responderId, conversationHistory);
       if (winTallyContext) {
         systemPrompt += winTallyContext;
       }
@@ -7164,15 +7180,7 @@ Use "era":"current" for today's news/viral moments, "era":"past" for career hist
       const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
       const newsContext = await getArenaNewsContext().catch(() => "");
 
-      // Shannon grandmom limit — allow at most ONE grandmama reference per interview
-      let shannonGrandmomNote = "";
-      if (interviewerId === "shannon") {
-        const historyText = (conversationHistory || []).map((m: any) => m.text || "").join(" ").toLowerCase();
-        const alreadyUsed = historyText.includes("grandmam") || historyText.includes("grandmom") || historyText.includes("granddadd") || historyText.includes("granddad");
-        if (alreadyUsed) {
-          shannonGrandmomNote = "\n\nCRITICAL: You have ALREADY quoted your grandmother/grandfather in this interview. Do NOT mention them again for the rest of the interview. Make your points without the grandmama wisdom this time.";
-        }
-      }
+      const shannonGrandmomNote = getShannonGrandmomNote(interviewerId, conversationHistory);
 
       const interviewStyle = req.body.interviewStyle || "combative";
       const isEdStyle = interviewStyle === "educational";
@@ -7311,6 +7319,7 @@ ${styleInstruction}${getLieBehaviorPrompt(interviewerId, Number((req.body.sessio
         educational: `RESPONSE STYLE — EDUCATIONAL: Explain your position in depth. Walk through your reasoning step by step. Help the audience understand the complexity of the issue. Acknowledge trade-offs honestly.`,
       };
       const answerStyleInstruction = answerStyleInstructions[answerStyle] || answerStyleInstructions.combative;
+      const shannonGrandmomNote = getShannonGrandmomNote(intervieweeId, conversationHistory);
 
       const claudeAndersonInterviewBoost = intervieweeId === "claudeanderson" ? `
 
@@ -7322,7 +7331,7 @@ CRITICAL TARGETING: ${interviewerName} is sitting across from you RIGHT NOW. The
 
 ${answerStyleInstruction}
 
-Stay 100% in character — your tone, vocabulary, ideology, and combativeness are all who you are. Do not break character to be polite to the interviewer. ${ARENA_PERSONA_PROMPTS[intervieweeId]}${getLieBehaviorPrompt(intervieweeId, Number((req.body.sessionLieTally || {})[intervieweeId]) || 0, req.body.sessionIQ || {})}${claudeAndersonInterviewBoost}`;
+Stay 100% in character — your tone, vocabulary, ideology, and combativeness are all who you are. Do not break character to be polite to the interviewer. ${ARENA_PERSONA_PROMPTS[intervieweeId]}${shannonGrandmomNote}${getLieBehaviorPrompt(intervieweeId, Number((req.body.sessionLieTally || {})[intervieweeId]) || 0, req.body.sessionIQ || {})}${claudeAndersonInterviewBoost}`;
 
       const historyContext = (conversationHistory || []).slice(-6).map((m: any) =>
         `${m.speakerName}: "${m.text}"`
@@ -7419,7 +7428,7 @@ The viewer ${callerLabel} asked: "${cleanQ}"
 
 Answer the viewer's question in character — punchy, provocative, true to your beliefs. You may briefly acknowledge the caller by name. 2-3 sentences max. Write ONLY your spoken response.
 
-${ARENA_PERSONA_PROMPTS[intervieweeId]}${getLieBehaviorPrompt(intervieweeId, Number((req.body.sessionLieTally || {})[intervieweeId]) || 0, req.body.sessionIQ || {})}`;
+${ARENA_PERSONA_PROMPTS[intervieweeId]}${getShannonGrandmomNote(intervieweeId, conversationHistory)}${getLieBehaviorPrompt(intervieweeId, Number((req.body.sessionLieTally || {})[intervieweeId]) || 0, req.body.sessionIQ || {})}`;
 
       const answerCompletion = await getClient().chat.completions.create({
         model: getFastModel(),
