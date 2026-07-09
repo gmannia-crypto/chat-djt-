@@ -90,6 +90,7 @@ const FEATURE_OF_DAY = [
   { emoji: "🔮", title: "Fortune Parlor", sub: "Trump predicts your future. Might even be accurate.", route: "/fortune", color: "#f97316" },
   { emoji: "🗞️", title: "Cabinet Hot Seat", sub: "Grill the cabinet. Watch them sweat under pressure.", route: "/cabinet", color: "#ef4444" },
   { emoji: "🎤", title: "1-on-1 Interview", sub: "You're the reporter. Get exclusive quotes from any persona.", route: "/interview", color: "#06b6d4" },
+  { emoji: "🥊", title: "1-on-1 Debate", sub: "Two personas, one moderator, zero mercy. Cut mics if things get ugly.", route: "/debate-stage", color: "#f43f5e" },
   { emoji: "🏆", title: "Trump Billionaires", sub: "Make ethical choices to reach $1 billion. Trump coaches you.", route: "/billionaires", color: "#FFD700" },
 ];
 
