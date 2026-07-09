@@ -976,8 +976,18 @@ export default function DebateStage() {
 
   useEffect(() => { fetchLieTally(); }, [fetchLieTally]);
 
-  const interviewer = useMemo(() => interviewers.find((p) => p.id === interviewerId) || null, [interviewers, interviewerId]);
-  const interviewee = useMemo(() => interviewees.find((p) => p.id === intervieweeId) || null, [interviewees, intervieweeId]);
+  const interviewer = useMemo(() => interviewers.find((p) => p.id === interviewerId) || interviewees.find((p) => p.id === interviewerId) || null, [interviewers, interviewees, interviewerId]);
+  const interviewee = useMemo(() => interviewees.find((p) => p.id === intervieweeId) || interviewers.find((p) => p.id === intervieweeId) || null, [interviewees, interviewers, intervieweeId]);
+  // Debate Stage is a symmetric 1-on-1 debate: both slots draw from the same combined
+  // persona pool, unlike the Interview screen where interviewer/guest are distinct roles.
+  const debaterPool = useMemo(() => {
+    const seen = new Set<string>();
+    const combined: PersonaLite[] = [];
+    for (const p of [...interviewers, ...interviewees]) {
+      if (!seen.has(p.id)) { seen.add(p.id); combined.push(p); }
+    }
+    return combined;
+  }, [interviewers, interviewees]);
   const currentTopic = topics[topicIdx] || null;
   const currentTopicRef = useRef(currentTopic);
   useEffect(() => { currentTopicRef.current = currentTopic; }, [currentTopic]);
@@ -1655,8 +1665,8 @@ export default function DebateStage() {
             <Ionicons name="arrow-back" size={22} color="#fff" />
           </Pressable>
           <View style={s.headerCenter}>
-            <Text style={s.headerTitle}>1-ON-1 INTERVIEWS</Text>
-            <Text style={s.headerSub}>Provocative · Live · Unscripted</Text>
+            <Text style={s.headerTitle}>1-ON-1 DEBATE</Text>
+            <Text style={s.headerSub}>Pick a moderator · cut mics · timed rounds</Text>
           </View>
           <Pressable
             onPress={() => router.push("/lie-leaderboard")}
@@ -1699,9 +1709,9 @@ export default function DebateStage() {
         )}
 
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
-          <Text style={s.sectionLabel}>INTERVIEWER</Text>
+          <Text style={s.sectionLabel}>DEBATER A</Text>
           <View style={s.chipRow}>
-            {interviewers.filter(p => p.id !== intervieweeId).map((p) => (
+            {debaterPool.filter(p => p.id !== intervieweeId).map((p) => (
               <Pressable key={p.id} onPress={() => { Haptics.selectionAsync(); setInterviewerId(p.id); }}
                 style={[s.chip, interviewerId === p.id && s.chipActive]} testID={`interviewer-${p.id}`}>
                 <Text style={[s.chipText, interviewerId === p.id && s.chipTextActive]}>{p.name}</Text>
@@ -1709,9 +1719,9 @@ export default function DebateStage() {
             ))}
           </View>
 
-          <Text style={[s.sectionLabel, { marginTop: 16 }]}>GUEST</Text>
+          <Text style={[s.sectionLabel, { marginTop: 16 }]}>DEBATER B</Text>
           <View style={s.chipRow}>
-            {interviewees.filter(p => p.id !== interviewerId).map((p) => (
+            {debaterPool.filter(p => p.id !== interviewerId).map((p) => (
               <Pressable key={p.id} onPress={() => { Haptics.selectionAsync(); setIntervieweeId(p.id); }}
                 style={[s.chip, intervieweeId === p.id && s.chipActiveGuest]} testID={`interviewee-${p.id}`}>
                 <Text style={[s.chipText, intervieweeId === p.id && s.chipTextActive]}>{p.name}</Text>
@@ -2012,8 +2022,8 @@ export default function DebateStage() {
           </View>
         </View>
         {[
-          { id: interviewerId, name: interviewer?.name, portrait: interviewerPortrait, glow: interviewerGlowStyle, emo: emoInterviewer, role: "INTERVIEWER", color: "#FFD700" },
-          { id: intervieweeId, name: interviewee?.name, portrait: intervieweePortrait, glow: intervieweeGlowStyle, emo: emoInterviewee, role: "GUEST", color: "#4ADE80" },
+          { id: interviewerId, name: interviewer?.name, portrait: interviewerPortrait, glow: interviewerGlowStyle, emo: emoInterviewer, role: "DEBATER A", color: "#FFD700" },
+          { id: intervieweeId, name: interviewee?.name, portrait: intervieweePortrait, glow: intervieweeGlowStyle, emo: emoInterviewee, role: "DEBATER B", color: "#4ADE80" },
         ].map((p, idx) => (
           <View key={`${p.id}-${idx}`} style={s.stageCol}>
             <View style={s.portraitWrap}>
