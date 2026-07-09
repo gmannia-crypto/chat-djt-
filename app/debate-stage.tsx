@@ -312,7 +312,7 @@ export default function DebateStage() {
   const [interviewStyle, setInterviewStyle] = useState<InterviewStyleId>("combative");
 
   const [category, setCategory] = useState<"Political" | "Sports" | "History" | "Finance" | "Science">("Political");
-  const [moderatorStyle, setModeratorStyle] = useState<ModeratorStyle>("rogan");
+  const [moderatorStyle, setModeratorStyle] = useState<ModeratorStyle>("hannity");
   const [micCut, setMicCut] = useState<{ iv: boolean; ivee: boolean }>({ iv: false, ivee: false });
   const interruptCtl = useRef(makeInterruptController()).current;
   const [moderatorSpeaking, setModeratorSpeaking] = useState(false);

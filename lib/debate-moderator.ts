@@ -13,13 +13,13 @@ import { getApiUrl } from "@/lib/query-client";
 import { prefetchTTSAudio, playPrefetchedAudio, playTTS } from "@/lib/audio-helper";
 import { playCrowdCheer, playDingSound } from "@/lib/arena-sfx";
 
-export type ModeratorStyle = "hannity" | "maddow" | "rogan" | "judy";
+export type ModeratorStyle = "hannity" | "maddow" | "megynkelly" | "odonnell";
 
 export const MODERATORS: Record<ModeratorStyle, { name: string; personaId: string; bias: string }> = {
-  hannity: { name: "Sean Hannity", personaId: "hannity", bias: "right" },
-  maddow:  { name: "Rachel Maddow", personaId: "maddow", bias: "left" },
-  rogan:   { name: "Joe Rogan",     personaId: "rogan",  bias: "neutral" },
-  judy:    { name: "Judge Judy",    personaId: "judy",   bias: "chaos" },
+  hannity:    { name: "Sean Hannity",     personaId: "hannity",    bias: "right" },
+  maddow:     { name: "Rachel Maddow",    personaId: "maddow",     bias: "left" },
+  megynkelly: { name: "Megyn Kelly",      personaId: "megynkelly", bias: "right" },
+  odonnell:   { name: "Lawrence O'Donnell", personaId: "odonnell", bias: "left" },
 };
 
 // Short, in-character moderator jabs (~5-6s of speech). Keep them punchy.
