@@ -6105,6 +6105,24 @@ export default function ArenaScreen() {
             <Ionicons name="chevron-forward" size={20} color="#FFD700" />
           </Pressable>
 
+          <Pressable
+            onPress={() => router.push("/debate-stage")}
+            style={{
+              flexDirection: "row", alignItems: "center", padding: 14, borderRadius: 14, marginBottom: 14,
+              backgroundColor: "rgba(244,63,94,0.12)", borderWidth: 1, borderColor: "#f43f5e",
+            }}
+            testID="open-debate-stage-mode"
+          >
+            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(244,63,94,0.25)", alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+              <Ionicons name="megaphone" size={20} color="#f43f5e" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: "#f43f5e", fontSize: 14, fontWeight: "900", letterSpacing: 1 }}>1-ON-1 DEBATE</Text>
+              <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 11, marginTop: 2 }}>Pick a moderator · cut mics · timed rounds</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#f43f5e" />
+          </Pressable>
+
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
             <Text style={{ color: "#FFD700", fontSize: 14, fontWeight: "800" }}>{selectedPersonas.length} DEBATERS SELECTED</Text>
             <View style={{ flexDirection: "row", gap: 12 }}>

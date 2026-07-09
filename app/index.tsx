@@ -1742,21 +1742,6 @@ export default function HomeScreen() {
           </Pressable>
         </Animated.View>
 
-        <Animated.View entering={FadeInDown.delay(780).duration(500)} style={styles.modeButtons}>
-          <Pressable
-            onPress={() => {
-              playNavVoice("The Debate Stage. Two personas, one moderator, no mercy.");
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-              router.push("/debate-stage");
-            }}
-            style={({ pressed }) => [styles.modeButton, styles.faceoffButton, { flex: 1 }, pressed && { opacity: 0.7 }]}
-            testID="debate-stage-button"
-          >
-            <MaterialCommunityIcons name="podium" size={16} color="#f43f5e" />
-            <Text style={styles.modeButtonText}>1-ON-1 DEBATE</Text>
-          </Pressable>
-        </Animated.View>
-
         {streak > 0 && (
           <Animated.View entering={FadeIn.delay(800).duration(500)} style={styles.streakRow}>
             <View style={styles.streakBadge}>
