@@ -13,13 +13,15 @@ import { getApiUrl } from "@/lib/query-client";
 import { prefetchTTSAudio, playPrefetchedAudio, playTTS } from "@/lib/audio-helper";
 import { playCrowdCheer, playDingSound } from "@/lib/arena-sfx";
 
-export type ModeratorStyle = "hannity" | "maddow" | "megynkelly" | "odonnell";
+export type ModeratorStyle = "hannity" | "maddow" | "megynkelly" | "odonnell" | "maxkellerman" | "stephena";
 
 export const MODERATORS: Record<ModeratorStyle, { name: string; personaId: string; bias: string }> = {
   hannity:    { name: "Sean Hannity",     personaId: "hannity",    bias: "right" },
   maddow:     { name: "Rachel Maddow",    personaId: "maddow",     bias: "left" },
   megynkelly: { name: "Megyn Kelly",      personaId: "megynkelly", bias: "right" },
   odonnell:   { name: "Lawrence O'Donnell", personaId: "odonnell", bias: "left" },
+  maxkellerman: { name: "Max Kellerman",  personaId: "maxkellerman", bias: "sports" },
+  stephena:     { name: "Stephen A. Smith", personaId: "stephena",    bias: "sports" },
 };
 
 // Which personas each moderator is friendly to ("favor" — softball questions, quick to defend
@@ -42,6 +44,9 @@ export const MODERATOR_LEANINGS: Record<ModeratorStyle, { favor: string[]; targe
     favor: ["obama", "biden", "kamala", "schumer", "aoc", "omar", "joyreid", "carville", "berniemc", "jascrockett"],
     target: ["trump", "melania", "ivanka", "bannon", "miller", "leavitt", "erikakirk", "pambondi", "jimjordan", "mtg", "loomer", "alexjones"],
   },
+  // Sports moderators are not politically aligned — no favor/target lists, always neutral/fact-based.
+  maxkellerman: { favor: [], target: [] },
+  stephena: { favor: [], target: [] },
 };
 
 export type ModeratorLeaning = "favor" | "target" | "neutral";

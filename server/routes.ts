@@ -3303,7 +3303,8 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
       const personaVolumeDb = PERSONA_VOLUME_BOOST[personaId] ?? 0;
       const personaEmotion = PERSONA_EMOTION_MAP[personaId];
       const safeText = applyPersonaTTSFormatting(text.slice(0, 2000), personaId);
-      const buffer = await fishAudioRequest(safeText, voiceId, personaSpeed, apiKey, 3, personaVolumeDb, personaEmotion);
+      const rawBuffer = await fishAudioRequest(safeText, voiceId, personaSpeed, apiKey, 3, personaVolumeDb, personaEmotion);
+      const buffer = await overlayBleeps(rawBuffer, safeText);
 
       res.setHeader("Content-Type", "audio/mpeg");
       res.setHeader("Content-Length", buffer.length.toString());
@@ -3338,7 +3339,8 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
       const getPersonaSpeed = PERSONA_SPEED_MAP[personaId as string] ?? 1.0;
       const getPersonaVolumeDb = PERSONA_VOLUME_BOOST[personaId as string] ?? 0;
       const safeText = applyPersonaTTSFormatting(text.slice(0, 2000), personaId);
-      const buffer = await fishAudioRequest(safeText, voiceId, getPersonaSpeed, apiKey, 3, getPersonaVolumeDb);
+      const rawBuffer = await fishAudioRequest(safeText, voiceId, getPersonaSpeed, apiKey, 3, getPersonaVolumeDb);
+      const buffer = await overlayBleeps(rawBuffer, safeText);
 
       res.setHeader("Content-Type", "audio/mpeg");
       res.setHeader("Content-Length", buffer.length.toString());

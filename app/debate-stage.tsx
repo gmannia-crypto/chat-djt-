@@ -692,8 +692,8 @@ export default function DebateStage() {
           sound.setOnPlaybackStatusUpdate((status: any) => {
             interruptCtl.maybeFire(
               status, sound,
-              () => setModeratorSpeaking(true),
-              () => setModeratorSpeaking(false)
+              () => { setModeratorSpeaking(true); setActiveSpeaker(MODERATORS[moderatorStyle]?.personaId || null); },
+              () => { setModeratorSpeaking(false); setActiveSpeaker(item.personaId); }
             );
             if (status.didJustFinish || status.error) {
               clearTimeout(safetyTimer);
@@ -781,6 +781,19 @@ export default function DebateStage() {
     intervieweeActiveSV.value = activeSpeaker && intervieweeId && activeSpeaker === intervieweeId ? 1 : 0;
   }, [activeSpeaker, glowPulse, interviewerId, intervieweeId, interviewerActiveSV, intervieweeActiveSV]);
 
+  // Ground truth for the moderator portrait overlay: whenever the ACTUAL audio
+  // queue is playing the moderator's voice, show the picture. Whenever a debater's
+  // voice takes over, hide it. (Manual setModeratorSpeaking(true) calls elsewhere give
+  // instant feedback while a line is being generated/fetched; this effect keeps the
+  // overlay honest once real playback starts/stops, including moderator cut-ins that
+  // route through activeSpeaker via the interrupt controller below.)
+  useEffect(() => {
+    const mod = MODERATORS[moderatorStyle];
+    if (!mod) return;
+    if (activeSpeaker === mod.personaId) setModeratorSpeaking(true);
+    else if (activeSpeaker !== null) setModeratorSpeaking(false);
+  }, [activeSpeaker, moderatorStyle]);
+
   const interviewerGlowStyle = useAnimatedStyle(() => ({
     opacity: interviewerActiveSV.value ? 0.45 + glowPulse.value * 0.55 : 0,
   }));
@@ -858,17 +871,27 @@ export default function DebateStage() {
           setTimeout(() => setLieFlashOn(false), 450);
         }
         // Bias-aware moderator reaction — defends favored personas, chastises targeted ones.
+        // This is a CUT-IN: the moderator jumps in over whoever is still talking, so we
+        // arm the overlap controller (prefetches audio + ducks the outgoing voice) rather
+        // than queuing sequentially behind it.
         const reactionKind = moderatorLieReaction(moderatorStyle, msg.speakerId, isLie);
         if (reactionKind && deviceId) {
           const mod = MODERATORS[moderatorStyle];
           generateModeratorLine({
             deviceId, moderatorId: mod.personaId, kind: reactionKind,
             topic: currentTopicRef.current?.title, lastSpeakerText: msg.text, moderatorStyle,
-          }).then((line) => {
-            setModeratorSpeaking(true);
+          }).then(async (line) => {
             setModeratorLastLine(line);
-            enqueueTTS(line, mod.personaId, `mod-lie-${msg.id}`);
-            setTimeout(() => setModeratorSpeaking(false), Math.min(6000, Math.max(1500, line.length * 60)));
+            if (activeSpeakerRef.current && activeSpeakerRef.current !== mod.personaId) {
+              // Someone is actively talking — cut in over them with overlapping audio.
+              await interruptCtl.arm(line, mod.personaId);
+              playDingSound().catch(() => {});
+            } else {
+              // Nobody's speaking right now — just speak normally.
+              setModeratorSpeaking(true);
+              enqueueTTS(line, mod.personaId, `mod-lie-${msg.id}`);
+              setTimeout(() => setModeratorSpeaking(false), Math.min(6000, Math.max(1500, line.length * 60)));
+            }
           }).catch(() => {});
         }
       })
@@ -2114,14 +2137,18 @@ export default function DebateStage() {
           </View>
         </View>
 
-        {/* Moderator overlay — appears only while the moderator is speaking */}
+        {/* Moderator overlay — appears only while the moderator is actually speaking */}
         {moderatorSpeaking && (
           <View pointerEvents="none" style={s.moderatorOverlay}>
             <View style={s.moderatorPortraitWrap}>
-              <Image
-                source={{ uri: `https://api.dicebear.com/7.x/initials/png?seed=${encodeURIComponent(MODERATORS[moderatorStyle].name)}&backgroundColor=FFD700` }}
-                style={s.moderatorPortraitImg}
-              />
+              {PERSONA_PORTRAITS[MODERATORS[moderatorStyle].personaId] ? (
+                <Image source={PERSONA_PORTRAITS[MODERATORS[moderatorStyle].personaId]} style={s.moderatorPortraitImg} />
+              ) : (
+                <Image
+                  source={{ uri: `https://api.dicebear.com/7.x/initials/png?seed=${encodeURIComponent(MODERATORS[moderatorStyle].name)}&backgroundColor=FFD700` }}
+                  style={s.moderatorPortraitImg}
+                />
+              )}
               <View style={s.moderatorPulseDot} />
             </View>
             <Text style={s.moderatorName} numberOfLines={1}>{MODERATORS[moderatorStyle].name}</Text>
