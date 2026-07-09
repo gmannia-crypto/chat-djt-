@@ -93,6 +93,22 @@ const JAB_LIBRARY: Record<string, string[]> = {
 function pick(arr: string[]) { return arr[Math.floor(Math.random() * arr.length)]; }
 
 /**
+ * Truncate to at most `max` characters WITHOUT cutting a sentence in half —
+ * hard slice(0, N) was chopping moderator lines mid-word/mid-sentence, which
+ * sounded like the moderator "not finishing his sentences" when spoken via
+ * TTS. Prefers the last sentence-ending punctuation before the limit; falls
+ * back to the last word boundary if no punctuation is found.
+ */
+function truncateAtSentence(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const slice = text.slice(0, max);
+  const lastEnd = Math.max(slice.lastIndexOf("."), slice.lastIndexOf("!"), slice.lastIndexOf("?"));
+  if (lastEnd > max * 0.4) return slice.slice(0, lastEnd + 1);
+  const lastSpace = slice.lastIndexOf(" ");
+  return (lastSpace > 0 ? slice.slice(0, lastSpace) : slice).trimEnd() + "…";
+}
+
+/**
  * Ask the AI to generate a moderator line in-character for the current context.
  * Falls back to the local jab library if the API is unavailable so the debate
  * never stalls.
@@ -125,7 +141,7 @@ export async function generateModeratorLine(opts: {
     });
     if (res.ok) {
       const data = await res.json();
-      if (data?.text) return String(data.text).slice(0, 240);
+      if (data?.text) return truncateAtSentence(String(data.text), 240);
     }
   } catch { /* fall through to local */ }
   return pick(JAB_LIBRARY[opts.kind]);
@@ -148,7 +164,7 @@ export function makeInterruptController() {
   return {
     isArmed: () => armed,
     async arm(text: string, moderatorId: string) {
-      const trimmed = text.slice(0, 240);
+      const trimmed = truncateAtSentence(text, 240);
       pendingUri = await prefetchTTSAudio("/api/persona-speak", { text: trimmed, personaId: moderatorId });
       pendingModeratorId = moderatorId;
       armed = true;
@@ -187,7 +203,7 @@ export function makeInterruptController() {
 
 /** Simple immediate moderator line (non-overlap) — for the opening + warnings. */
 export async function speakModeratorNow(text: string, moderatorId: string, onDone?: () => void) {
-  const s = await playTTS("/api/persona-speak", { text: text.slice(0, 240), personaId: moderatorId });
+  const s = await playTTS("/api/persona-speak", { text: truncateAtSentence(text, 240), personaId: moderatorId });
   s.setOnPlaybackStatusUpdate((st: any) => {
     if (st?.isLoaded && st.didJustFinish) { try { s.unloadAsync(); } catch {} onDone?.(); }
   });
@@ -230,7 +246,7 @@ export async function generateModeratorQuestion(opts: {
     });
     if (res.ok) {
       const data = await res.json();
-      if (data?.text) return String(data.text).slice(0, 260);
+      if (data?.text) return truncateAtSentence(String(data.text), 260);
     }
   } catch { /* fall through */ }
   return leaning === "favor"
