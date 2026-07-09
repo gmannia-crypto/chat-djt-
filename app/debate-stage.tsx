@@ -707,7 +707,8 @@ export default function DebateStage() {
             interruptCtl.maybeFire(
               status, sound,
               () => { setModeratorSpeaking(true); setActiveSpeaker(MODERATORS[moderatorStyle]?.personaId || null); },
-              () => { setModeratorSpeaking(false); setActiveSpeaker(item.personaId); }
+              () => { setModeratorSpeaking(false); setActiveSpeaker(item.personaId); },
+              activeSpeakerRef.current
             );
             if (status.didJustFinish || status.error) {
               clearTimeout(safetyTimer);
@@ -1263,21 +1264,21 @@ export default function DebateStage() {
     setIsThinking(null);
     if (runningRef.current && modQuestionText) {
       enrichAndAddMessage({ id: `modopen-q-${Date.now()}`, speakerId: mod.personaId, speakerName: mod.name, text: modQuestionText, ts: Date.now() });
-      await new Promise((r) => setTimeout(r, Math.max(500, Math.min(2500, modQuestionText.length * 20))));
+      await new Promise((r) => setTimeout(r, Math.max(150, Math.min(500, modQuestionText.length * 4))));
       if (runningRef.current) {
         setIsThinking("interviewee");
         const aAnswer = await fetchAnswerFrom(mod.personaId, interviewerId, modQuestionText);
         setIsThinking(null);
         if (aAnswer?.text && runningRef.current) {
           enrichAndAddMessage({ id: `modopen-a-${Date.now()}`, speakerId: aAnswer.speakerId, speakerName: aAnswer.speakerName, text: aAnswer.text, ts: Date.now() });
-          await new Promise((r) => setTimeout(r, Math.max(500, Math.min(3000, aAnswer.text.length * 25))));
+          await new Promise((r) => setTimeout(r, Math.max(150, Math.min(500, aAnswer.text.length * 4))));
           if (runningRef.current) {
             setIsThinking("interviewer");
             const bFollowUp = await fetchAnswerFrom(interviewerId, intervieweeId, aAnswer.text);
             setIsThinking(null);
             if (bFollowUp?.text && runningRef.current) {
               enrichAndAddMessage({ id: `modopen-b-${Date.now()}`, speakerId: bFollowUp.speakerId, speakerName: bFollowUp.speakerName, text: bFollowUp.text, ts: Date.now() });
-              await new Promise((r) => setTimeout(r, Math.max(500, Math.min(3000, bFollowUp.text.length * 25))));
+              await new Promise((r) => setTimeout(r, Math.max(150, Math.min(500, bFollowUp.text.length * 4))));
             }
           }
         }
@@ -1351,9 +1352,11 @@ export default function DebateStage() {
       const interruptPromise: Promise<{ speakerId: string; speakerName: string; text: string } | null> | null =
         willInterrupt ? fetchAnswer(q.text, { isInterruption: true }) : null;
 
-      // 10ms/char for text-chat pacing (40ms was audio-only). Cap at 2s, floor at 400ms.
-      const qReadMs = Math.min(2000, Math.max(400, q.text.length * 10));
-      await new Promise((r) => setTimeout(r, Math.max(100, qReadMs - 1000)));
+      // Text-pacing delay before advancing the loop — kept short since the TTS queue
+      // already paces actual speech by real audio duration; this just avoids racing
+      // the fetch ahead of the question bubble rendering. Floor 150ms, cap 500ms.
+      const qReadMs = Math.min(500, Math.max(150, q.text.length * 4));
+      await new Promise((r) => setTimeout(r, qReadMs));
       if (!runningRef.current) break;
 
       // Interruption from interviewee (offense = guaranteed; otherwise random 20%)
@@ -1363,7 +1366,7 @@ export default function DebateStage() {
         if (intr && intr.text && runningRef.current) {
           interruptionText = intr.text;
           enrichAndAddMessage({ id: `intr-${Date.now()}-${Math.random()}`, speakerId: intr.speakerId, speakerName: intr.speakerName, text: intr.text, ts: Date.now(), isInterruption: true });
-          await new Promise((r) => setTimeout(r, 100));
+          await new Promise((r) => setTimeout(r, 60));
         }
       }
       if (!runningRef.current) break;
@@ -1372,7 +1375,7 @@ export default function DebateStage() {
       const a = await answerPromise;
       setIsThinking(null);
       if (!runningRef.current) break;
-      if (!a) { await new Promise((r) => setTimeout(r, 600)); continue; }
+      if (!a) { await new Promise((r) => setTimeout(r, 300)); continue; }
 
       // ── Micro-reaction by the INTERVIEWEE while the question is still ringing —
       // a short spontaneous reaction (no API call) that lands just before the answer.
@@ -1380,7 +1383,7 @@ export default function DebateStage() {
       if (Math.random() < 0.30 && !willInterrupt) {
         const micro = MICRO_REACTIONS[Math.floor(Math.random() * MICRO_REACTIONS.length)];
         enrichAndAddMessage({ id: `micro-q-${Date.now()}`, speakerId: a.speakerId, speakerName: a.speakerName, text: micro, ts: Date.now(), isInterruption: true });
-        await new Promise((r) => setTimeout(r, 80));
+        await new Promise((r) => setTimeout(r, 50));
       }
 
       enrichAndAddMessage({ id: `a-${Date.now()}-${Math.random()}`, speakerId: a.speakerId, speakerName: a.speakerName, text: a.text, ts: Date.now() });
@@ -1399,9 +1402,10 @@ export default function DebateStage() {
         nextQPromiseRef.current = fetchQuestion({ isFollowUp: true, isTransition: false, currentTopicArg: topic });
       }
 
-      // 10ms/char for text-chat pacing. Cap at 2.5s, floor at 400ms.
-      const aReadMs = Math.min(2500, Math.max(400, a.text.length * 10));
-      await new Promise((r) => setTimeout(r, Math.max(100, aReadMs - 1000)));
+      // Same short pacing delay as the question side — real speech timing comes
+      // from the TTS queue, this just keeps text and fetches from racing ahead.
+      const aReadMs = Math.min(500, Math.max(150, a.text.length * 4));
+      await new Promise((r) => setTimeout(r, aReadMs));
       if (!runningRef.current) break;
 
       // ── Micro-reaction by the INTERVIEWER while the answer plays —
@@ -1409,7 +1413,7 @@ export default function DebateStage() {
       if (Math.random() < 0.28 && !willCutIn) {
         const micro = MICRO_REACTIONS[Math.floor(Math.random() * MICRO_REACTIONS.length)];
         enrichAndAddMessage({ id: `micro-a-${Date.now()}`, speakerId: q.speakerId, speakerName: q.speakerName, text: micro, ts: Date.now(), isInterruption: true });
-        await new Promise((r) => setTimeout(r, 80));
+        await new Promise((r) => setTimeout(r, 50));
       }
 
       // Interviewer cut-in — should already be resolved since it was pre-fetched above.
@@ -1418,7 +1422,7 @@ export default function DebateStage() {
         const cut = await cutInPromise;
         if (cut && cut.text && runningRef.current && cut.speakerId !== a.speakerId) {
           enrichAndAddMessage({ id: `cut-${Date.now()}-${Math.random()}`, speakerId: cut.speakerId, speakerName: cut.speakerName, text: cut.text, ts: Date.now(), isInterruption: true });
-          await new Promise((r) => setTimeout(r, 200));
+          await new Promise((r) => setTimeout(r, 100));
         }
       }
 
@@ -1476,7 +1480,7 @@ export default function DebateStage() {
           setIsThinking(null);
           if (runningRef.current) {
             enrichAndAddMessage({ id: `modq-${Date.now()}-${Math.random()}`, speakerId: mod.personaId, speakerName: mod.name, text: modQuestionText, ts: Date.now() });
-            await new Promise((r) => setTimeout(r, Math.max(500, Math.min(2000, modQuestionText.length * 20))));
+            await new Promise((r) => setTimeout(r, Math.max(150, Math.min(500, modQuestionText.length * 4))));
             setIsThinking("interviewee");
             const modAnswer = await fetchAnswerFrom(mod.personaId, targetId, modQuestionText);
             setIsThinking(null);

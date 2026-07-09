@@ -143,19 +143,35 @@ export const OVERLAP_MS = 500;
 export function makeInterruptController() {
   let armed = false;
   let pendingUri: string | null = null;
+  let pendingModeratorId: string | null = null;
 
   return {
     isArmed: () => armed,
     async arm(text: string, moderatorId: string) {
       const trimmed = text.slice(0, 240);
       pendingUri = await prefetchTTSAudio("/api/persona-speak", { text: trimmed, personaId: moderatorId });
+      pendingModeratorId = moderatorId;
       armed = true;
     },
-    /** call from the speaking sound's status update */
-    async maybeFire(status: any, outgoingSound: any, onModeratorSpeaking: () => void, onDone: () => void) {
+    /**
+     * call from the speaking sound's status update. `currentSpeakerId` is whoever
+     * is ACTUALLY speaking right now (may differ from who was speaking when arm()
+     * was called) — if it's the same moderator as the pending jab, skip firing so
+     * the moderator never overlaps/cuts in over himself.
+     */
+    async maybeFire(status: any, outgoingSound: any, onModeratorSpeaking: () => void, onDone: () => void, currentSpeakerId?: string | null) {
       if (!armed || !status?.isLoaded || !status.durationMillis) return;
+      if (currentSpeakerId && pendingModeratorId && currentSpeakerId === pendingModeratorId) {
+        // The moderator is already the one talking — drop the queued jab instead
+        // of letting him cut in over his own voice.
+        armed = false;
+        pendingUri = null;
+        pendingModeratorId = null;
+        return;
+      }
       if (status.positionMillis >= status.durationMillis - OVERLAP_MS) {
         armed = false;
+        pendingModeratorId = null;
         try { outgoingSound?.setVolumeAsync?.(0.3); } catch {}   // duck
         const s = await playPrefetchedAudio(pendingUri!, { volume: 1.0 });
         onModeratorSpeaking();
@@ -165,7 +181,7 @@ export function makeInterruptController() {
         });
       }
     },
-    reset() { armed = false; pendingUri = null; },
+    reset() { armed = false; pendingUri = null; pendingModeratorId = null; },
   };
 }
 
