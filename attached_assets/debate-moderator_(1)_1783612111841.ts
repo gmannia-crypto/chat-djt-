@@ -1,13 +1,13 @@
 /**
  * debate-moderator.ts  —  drop-in moderator layer for the debate stage
  * --------------------------------------------------------------------
- * interview.tsx already has a full 2-person interrupting turn engine
+ * Your interview.tsx already has a full 2-person interrupting turn engine
  * (fetchAnswer with wasInterrupted / isInterruption, detectOffense, the
  * parallel-prefetch pipeline). This module adds the THIRD participant — the
  * MODERATOR — on top of it, plus the user-controllable actions, WITHOUT
- * touching the working loop.
+ * touching your working loop.
  *
- * It reuses the existing endpoint the same way fetchAnswer does.
+ * It reuses your existing endpoint the same way fetchAnswer does.
  */
 import { getApiUrl } from "@/lib/query-client";
 import { prefetchTTSAudio, playPrefetchedAudio, playTTS } from "@/lib/audio-helper";
@@ -84,9 +84,9 @@ export async function generateModeratorLine(opts: {
 }
 
 /**
- * The OVERLAP INTERRUPTION (0.5s model):
- * Call arm() to prefetch a jab, then the interview loop's
- * setOnPlaybackStatusUpdate calls maybeFire() every tick — when the
+ * The OVERLAP INTERRUPTION (your 0.5s model):
+ * Call armModeratorInterrupt() to prefetch a jab, then the interview loop's
+ * setOnPlaybackStatusUpdate calls maybeFireInterrupt() every tick — when the
  * current line is within OVERLAP_MS of ending, the jab fires over the top and
  * the outgoing voice is ducked.
  */
@@ -94,13 +94,13 @@ export const OVERLAP_MS = 500;
 
 export function makeInterruptController() {
   let armed = false;
-  let pendingUri: string | null = null;
+  let pendingText: string | null = null;
 
   return {
     isArmed: () => armed,
     async arm(text: string, moderatorId: string) {
-      const trimmed = text.slice(0, 240);
-      pendingUri = await prefetchTTSAudio("/api/persona-speak", { text: trimmed, personaId: moderatorId });
+      pendingText = text.slice(0, 240);
+      await prefetchTTSAudio("/api/persona-speak", { text: pendingText, personaId: moderatorId });
       armed = true;
     },
     /** call from the speaking sound's status update */
@@ -109,7 +109,7 @@ export function makeInterruptController() {
       if (status.positionMillis >= status.durationMillis - OVERLAP_MS) {
         armed = false;
         try { outgoingSound?.setVolumeAsync?.(0.3); } catch {}   // duck
-        const s = await playPrefetchedAudio(pendingUri!, { volume: 1.0 });
+        const s = await playPrefetchedAudio("/api/persona-speak", { text: pendingText! }, { volume: 1.0 });
         onModeratorSpeaking();
         playCrowdCheer(); // the "ooooh"
         s.setOnPlaybackStatusUpdate((st: any) => {
@@ -117,7 +117,7 @@ export function makeInterruptController() {
         });
       }
     },
-    reset() { armed = false; pendingUri = null; },
+    reset() { armed = false; pendingText = null; },
   };
 }
 

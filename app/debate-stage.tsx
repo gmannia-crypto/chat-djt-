@@ -358,6 +358,8 @@ export default function DebateStage() {
   const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const runningRef = useRef(false);
   const isPausedRef = useRef(false);
+  const micCutRef = useRef({ iv: false, ivee: false });
+  useEffect(() => { micCutRef.current = micCut; }, [micCut]);
   const [isPaused, setIsPaused] = useState(false);
   const exchangesOnTopicRef = useRef(0);
   const totalExchangesRef = useRef(0);
@@ -684,6 +686,11 @@ export default function DebateStage() {
           let safetyTimer: ReturnType<typeof setTimeout> = setTimeout(finish, 10000);
 
           sound.setOnPlaybackStatusUpdate((status: any) => {
+            interruptCtl.maybeFire(
+              status, sound,
+              () => setModeratorSpeaking(true),
+              () => setModeratorSpeaking(false)
+            );
             if (status.didJustFinish || status.error) {
               clearTimeout(safetyTimer);
               finish();
@@ -1139,6 +1146,12 @@ export default function DebateStage() {
       if (isPausedRef.current) { await new Promise((r) => setTimeout(r, 400)); continue; }
       if (!runningRef.current) break;
 
+      // Respect cut-mic controls — skip this turn entirely if either speaker's mic is cut.
+      if ((interviewerId && micCutRef.current.iv) || (intervieweeId && micCutRef.current.ivee)) {
+        await new Promise((r) => setTimeout(r, 500));
+        continue;
+      }
+
       // Always read from the ref so we see the latest topic list even if it was
       // fetched after runLoop started. If the list is empty, wait and retry.
       const liveTopics = topicsRef.current;
@@ -1381,6 +1394,13 @@ export default function DebateStage() {
     ttsQueueRef.current = [];
     setPhase("live");
     runningRef.current = true;
+    {
+      const mod = MODERATORS[moderatorStyle];
+      speakModeratorNow(
+        `Welcome to the ${category} debate. Two enter. One leaves with their dignity — maybe. Begin.`,
+        mod.personaId
+      ).catch(() => {});
+    }
     isPausedRef.current = false;
     setIsPaused(false);
     setIsStarting(false);
@@ -1407,7 +1427,7 @@ export default function DebateStage() {
       } catch {}
       if (runningRef.current) runLoop();
     })();
-  }, [deviceId, interviewerId, intervieweeId, topics, isStarting, duration, runLoop, enrichAndAddMessage, selectedTopicId]);
+  }, [deviceId, interviewerId, intervieweeId, topics, isStarting, duration, runLoop, enrichAndAddMessage, selectedTopicId, moderatorStyle, category]);
 
   const unlockSession = useCallback(async () => {
     if (!deviceId || isUnlocking) return;
@@ -1711,6 +1731,26 @@ export default function DebateStage() {
             ))}
           </View>
 
+          <Text style={[s.sectionLabel, { marginTop: 16 }]}>CATEGORY</Text>
+          <View style={s.mixRow}>
+            {(["Political", "Sports", "History", "Finance", "Science"] as const).map((c) => (
+              <Pressable key={c} onPress={() => { Haptics.selectionAsync(); setCategory(c); }}
+                style={[s.mixCard, category === c && s.mixCardActive]} testID={`category-${c}`}>
+                <Text style={[s.mixText, category === c && s.mixTextActive]}>{c}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Text style={[s.sectionLabel, { marginTop: 16 }]}>MODERATOR</Text>
+          <View style={s.mixRow}>
+            {(Object.keys(MODERATORS) as ModeratorStyle[]).map((ms) => (
+              <Pressable key={ms} onPress={() => { Haptics.selectionAsync(); setModeratorStyle(ms); }}
+                style={[s.mixCard, moderatorStyle === ms && s.mixCardActive]} testID={`moderator-${ms}`}>
+                <Text style={[s.mixText, moderatorStyle === ms && s.mixTextActive]}>{MODERATORS[ms].name}</Text>
+              </Pressable>
+            ))}
+          </View>
+
           <Text style={[s.sectionLabel, { marginTop: 16 }]}>TOPIC MIX</Text>
           <View style={s.mixRow}>
             {TOPIC_MIXES.map((m) => (
@@ -1924,6 +1964,29 @@ export default function DebateStage() {
         </Pressable>
         <Pressable onPress={toggleVoice} style={s.iconBtnSm} testID="toggle-voice">
           <Ionicons name={voiceEnabled ? "volume-high" : "volume-mute"} size={16} color={voiceEnabled ? "#FFD700" : "rgba(255,255,255,0.4)"} />
+        </Pressable>
+        <Pressable
+          onPress={async () => {
+            Haptics.selectionAsync();
+            const mod = MODERATORS[moderatorStyle];
+            const lastMsg = messagesRef.current[messagesRef.current.length - 1];
+            const line = await generateModeratorLine({
+              deviceId: deviceId || "",
+              moderatorId: mod.personaId,
+              kind: "interrupt",
+              topic: typeof currentTopic === "string" ? currentTopic : (currentTopic as any)?.title,
+              lastSpeakerText: lastMsg?.text,
+              moderatorStyle,
+            });
+            if (line) {
+              await interruptCtl.arm(line, mod.personaId);
+              playDingSound().catch(() => {});
+            }
+          }}
+          style={[s.iconBtnSm, moderatorSpeaking && { backgroundColor: "rgba(255,215,0,0.25)" }]}
+          testID="moderator-trigger"
+        >
+          <Ionicons name="megaphone" size={16} color={moderatorSpeaking ? "#FFD700" : "rgba(255,255,255,0.6)"} />
         </Pressable>
         <Pressable onPress={toggleFx} style={s.iconBtnSm} testID="toggle-fx">
           <Ionicons name={fxEnabled ? "flash" : "flash-off"} size={16} color={fxEnabled ? "#FFD700" : "rgba(255,255,255,0.4)"} />
