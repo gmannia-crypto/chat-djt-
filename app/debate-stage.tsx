@@ -22,7 +22,7 @@ import { getPersonaVoiceVolume, shouldSkipPersonaVoice } from "@/lib/persona-voi
 import AnimatedDebateFace, { EXPRESSION_SOURCES, Mood } from "@/components/AnimatedDebateFace";
 import {
   MODERATORS, ModeratorStyle, generateModeratorLine, makeInterruptController,
-  speakModeratorNow, localJab,
+  speakModeratorNow, localJab, moderatorLieReaction, generateModeratorQuestion, getModeratorLeaning,
 } from "@/lib/debate-moderator";
 import { playDingSound } from "@/lib/arena-sfx";
 
@@ -316,6 +316,10 @@ export default function DebateStage() {
   const [micCut, setMicCut] = useState<{ iv: boolean; ivee: boolean }>({ iv: false, ivee: false });
   const interruptCtl = useRef(makeInterruptController()).current;
   const [moderatorSpeaking, setModeratorSpeaking] = useState(false);
+  const [moderatorLastLine, setModeratorLastLine] = useState<string | null>(null);
+  // Independent lie-detector toggles per debater — switchable pre-debate only.
+  const [lieDetectorA, setLieDetectorA] = useState(true);
+  const [lieDetectorB, setLieDetectorB] = useState(true);
 
   const [topics, setTopics] = useState<Topic[]>([]);
   const [topicsLoading, setTopicsLoading] = useState(false);
@@ -815,22 +819,28 @@ export default function DebateStage() {
     }
   }, []);
 
-  // Fire-and-forget fact-check on each non-trivial interviewee statement
+  // Fire-and-forget fact-check on each non-trivial statement from EITHER debater —
+  // gated independently per-speaker by their own lie-detector toggle.
   const runFactCheck = useCallback((msg: Msg) => {
-    if (!intervieweeId || msg.speakerId !== intervieweeId) return;
+    const isA = interviewerId && msg.speakerId === interviewerId;
+    const isB = intervieweeId && msg.speakerId === intervieweeId;
+    if (!isA && !isB) return;
+    if (isA && !lieDetectorA) return;
+    if (isB && !lieDetectorB) return;
     if (msg.text.length < 25) return;
     if (!deviceId) return;
     fetch(new URL("/api/arena/interview-factcheck", getApiUrl()).toString(), {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-device-id": deviceId },
-      body: JSON.stringify({ intervieweeId, text: msg.text, topic: currentTopicRef.current }),
+      body: JSON.stringify({ intervieweeId: msg.speakerId, text: msg.text, topic: currentTopicRef.current }),
     })
       .then((r) => r.ok ? r.json() : null)
       .then((data: any) => {
         if (!data) return;
         const score = Math.max(0, Math.min(100, Number(data.score) || 70));
         setLatestTruthScore(score);
-        if (score < 40 || data.isLie) {
+        const isLie = score < 40 || data.isLie;
+        if (isLie) {
           setLieCount((c) => c + 1);
           setLies((prev) => [...prev, {
             id: `lie-${msg.id}`,
@@ -847,9 +857,23 @@ export default function DebateStage() {
           setLieFlashOn(true);
           setTimeout(() => setLieFlashOn(false), 450);
         }
+        // Bias-aware moderator reaction — defends favored personas, chastises targeted ones.
+        const reactionKind = moderatorLieReaction(moderatorStyle, msg.speakerId, isLie);
+        if (reactionKind && deviceId) {
+          const mod = MODERATORS[moderatorStyle];
+          generateModeratorLine({
+            deviceId, moderatorId: mod.personaId, kind: reactionKind,
+            topic: currentTopicRef.current?.title, lastSpeakerText: msg.text, moderatorStyle,
+          }).then((line) => {
+            setModeratorSpeaking(true);
+            setModeratorLastLine(line);
+            enqueueTTS(line, mod.personaId, `mod-lie-${msg.id}`);
+            setTimeout(() => setModeratorSpeaking(false), Math.min(6000, Math.max(1500, line.length * 60)));
+          }).catch(() => {});
+        }
       })
       .catch(() => {});
-  }, [intervieweeId, deviceId, triggerLightning, playLieAlert]);
+  }, [interviewerId, intervieweeId, lieDetectorA, lieDetectorB, deviceId, triggerLightning, playLieAlert, moderatorStyle, enqueueTTS]);
 
   // Viewer manually flags an interviewee message as a suspected lie the AI missed.
   // The server re-runs fact-check scoring; the entry is always inserted with a
@@ -944,7 +968,7 @@ export default function DebateStage() {
     const delta = computeEmotionDelta(m.text);
     if (interviewerId && m.speakerId === interviewerId) setEmoInterviewer((p) => applyEmotionDelta(p, delta));
     else if (intervieweeId && m.speakerId === intervieweeId) setEmoInterviewee((p) => applyEmotionDelta(p, delta));
-    if (intervieweeId && m.speakerId === intervieweeId && !m.isInterruption) runFactCheck(m);
+    if (!m.isInterruption && (m.speakerId === interviewerId || m.speakerId === intervieweeId)) runFactCheck(m);
   }, [enqueueTTS, interviewerId, intervieweeId, runFactCheck]);
 
   // Load persona lists
@@ -1150,6 +1174,31 @@ export default function DebateStage() {
     } catch { return null; }
   }, [deviceId, interviewerId, intervieweeId, currentTopic, interviewStyle]);
 
+  // Generic answer fetch — used when the MODERATOR (not the other debater) is the questioner,
+  // e.g. topic-opening questions that alternate between Debater A and Debater B.
+  const fetchAnswerFrom = useCallback(async (questionerId: string, answererId: string, lastQuestion: string) => {
+    if (!deviceId) return null;
+    try {
+      const res = await fetch(new URL("/api/arena/interview-answer", getApiUrl()).toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+        body: JSON.stringify({
+          interviewerId: questionerId, intervieweeId: answererId,
+          topic: currentTopicRef.current,
+          conversationHistory: messagesRef.current.filter((m) => !m.isSystem).slice(-6),
+          lastQuestion,
+          interviewStyle,
+        }),
+      });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch { return null; }
+  }, [deviceId, interviewStyle]);
+
+  // Alternates which debater the MODERATOR addresses at each new topic — 'A' or 'B' — so
+  // both sides get equal question time from the moderator over the course of the debate.
+  const moderatorTargetRef = useRef<"A" | "B">("A");
+
   // Main turn loop
   const runLoop = useCallback(async () => {
     while (runningRef.current && Date.now() < sessionEndsAtRef.current) {
@@ -1307,19 +1356,48 @@ export default function DebateStage() {
         const nextTopic = latestTopics[nextIdx];
         // Discard any stale pre-fetch — topic changed
         nextQPromiseRef.current = null;
-        setIsThinking("interviewer");
-        const trans = await fetchQuestion({
-          isTransition: true,
-          previousTopicTitle: topic.title,
-          currentTopicArg: nextTopic,
-        });
-        setIsThinking(null);
-        if (trans && trans.text && runningRef.current) {
-          enrichAndAddMessage({ id: `trans-${Date.now()}-${Math.random()}`, speakerId: trans.speakerId, speakerName: trans.speakerName, text: trans.text, ts: Date.now() });
+
+        // The MODERATOR opens each new topic — alternating which debater gets addressed
+        // so both sides get equal question airtime (not just Debater A quizzing Debater B).
+        const targetSide = moderatorTargetRef.current;
+        moderatorTargetRef.current = targetSide === "A" ? "B" : "A";
+        const targetId = targetSide === "A" ? interviewerId : intervieweeId;
+        const mod = MODERATORS[moderatorStyle];
+
+        if (deviceId && targetId && mod) {
+          setIsThinking("interviewer");
+          setModeratorSpeaking(true);
+          const modQuestionText = await generateModeratorQuestion({
+            deviceId, moderatorStyle, targetId, topic: nextTopic,
+            isTransition: true, previousTopicTitle: topic.title,
+            conversationHistory: messagesRef.current.filter((m) => !m.isSystem).slice(-6),
+          });
+          setModeratorLastLine(modQuestionText);
+          setIsThinking(null);
+          if (runningRef.current) {
+            enrichAndAddMessage({ id: `modq-${Date.now()}-${Math.random()}`, speakerId: mod.personaId, speakerName: mod.name, text: modQuestionText, ts: Date.now() });
+            await new Promise((r) => setTimeout(r, Math.max(500, Math.min(2000, modQuestionText.length * 20))));
+            setIsThinking("interviewee");
+            const modAnswer = await fetchAnswerFrom(mod.personaId, targetId, modQuestionText);
+            setIsThinking(null);
+            if (modAnswer?.text && runningRef.current) {
+              enrichAndAddMessage({ id: `moda-${Date.now()}-${Math.random()}`, speakerId: modAnswer.speakerId, speakerName: modAnswer.speakerName, text: modAnswer.text, ts: Date.now() });
+            }
+          }
+          setModeratorSpeaking(false);
+        } else {
+          // Fallback: old behavior if moderator/target unavailable.
+          setIsThinking("interviewer");
+          const trans = await fetchQuestion({ isTransition: true, previousTopicTitle: topic.title, currentTopicArg: nextTopic });
+          setIsThinking(null);
+          if (trans && trans.text && runningRef.current) {
+            enrichAndAddMessage({ id: `trans-${Date.now()}-${Math.random()}`, speakerId: trans.speakerId, speakerName: trans.speakerName, text: trans.text, ts: Date.now() });
+          }
         }
+
         setTopicIdx(nextIdx);
         topicIdxRef.current = nextIdx;
-        exchangesOnTopicRef.current = 1; // transition counts as first question
+        exchangesOnTopicRef.current = 1; // moderator opening counts as first question
         // Pre-fetch the first follow-up for the new topic in parallel with queue drain
         if (runningRef.current && Date.now() < sessionEndsAtRef.current) {
           nextQPromiseRef.current = fetchQuestion({ isFollowUp: true, isTransition: false, currentTopicArg: nextTopic });
@@ -1331,7 +1409,7 @@ export default function DebateStage() {
     }
     runningRef.current = false;
     if (Date.now() >= sessionEndsAtRef.current) setPhase("ended");
-  }, [topics, fetchQuestion, fetchAnswer, enrichAndAddMessage, duration]);
+  }, [topics, fetchQuestion, fetchAnswer, fetchAnswerFrom, enrichAndAddMessage, duration, moderatorStyle, deviceId, interviewerId, intervieweeId]);
 
   const startInterview = useCallback(async () => {
     if (!deviceId || !interviewerId || !intervieweeId || topics.length === 0 || isStarting) return;
@@ -1761,6 +1839,20 @@ export default function DebateStage() {
             ))}
           </View>
 
+          <Text style={[s.sectionLabel, { marginTop: 16 }]}>LIE DETECTOR</Text>
+          <View style={s.mixRow}>
+            <Pressable onPress={() => { Haptics.selectionAsync(); setLieDetectorA((v) => !v); }}
+              style={[s.mixCard, lieDetectorA && s.mixCardActive]} testID="lie-detector-a">
+              <Ionicons name={lieDetectorA ? "eye" : "eye-off"} size={16} color={lieDetectorA ? "#000" : "#FFD700"} />
+              <Text style={[s.mixText, lieDetectorA && s.mixTextActive]}>Debater A {lieDetectorA ? "ON" : "OFF"}</Text>
+            </Pressable>
+            <Pressable onPress={() => { Haptics.selectionAsync(); setLieDetectorB((v) => !v); }}
+              style={[s.mixCard, lieDetectorB && s.mixCardActive]} testID="lie-detector-b">
+              <Ionicons name={lieDetectorB ? "eye" : "eye-off"} size={16} color={lieDetectorB ? "#000" : "#FFD700"} />
+              <Text style={[s.mixText, lieDetectorB && s.mixTextActive]}>Debater B {lieDetectorB ? "ON" : "OFF"}</Text>
+            </Pressable>
+          </View>
+
           <Text style={[s.sectionLabel, { marginTop: 16 }]}>TOPIC MIX</Text>
           <View style={s.mixRow}>
             {TOPIC_MIXES.map((m) => (
@@ -2021,6 +2113,24 @@ export default function DebateStage() {
             <Text style={{ color: "#FFD700", fontSize: 7, fontWeight: "700", textAlign: "center", marginTop: 2, letterSpacing: 0.5 }}>SCAN TO TRY</Text>
           </View>
         </View>
+
+        {/* Moderator overlay — appears only while the moderator is speaking */}
+        {moderatorSpeaking && (
+          <View pointerEvents="none" style={s.moderatorOverlay}>
+            <View style={s.moderatorPortraitWrap}>
+              <Image
+                source={{ uri: `https://api.dicebear.com/7.x/initials/png?seed=${encodeURIComponent(MODERATORS[moderatorStyle].name)}&backgroundColor=FFD700` }}
+                style={s.moderatorPortraitImg}
+              />
+              <View style={s.moderatorPulseDot} />
+            </View>
+            <Text style={s.moderatorName} numberOfLines={1}>{MODERATORS[moderatorStyle].name}</Text>
+            {moderatorLastLine ? (
+              <Text style={s.moderatorLine} numberOfLines={2}>{moderatorLastLine}</Text>
+            ) : null}
+          </View>
+        )}
+
         {[
           { id: interviewerId, name: interviewer?.name, portrait: interviewerPortrait, glow: interviewerGlowStyle, emo: emoInterviewer, role: "DEBATER A", color: "#FFD700" },
           { id: intervieweeId, name: interviewee?.name, portrait: intervieweePortrait, glow: intervieweeGlowStyle, emo: emoInterviewee, role: "DEBATER B", color: "#4ADE80" },
@@ -2583,6 +2693,12 @@ const s = StyleSheet.create({
   liePillText: { color: "rgba(255,255,255,0.4)", fontSize: 12, fontWeight: "900" },
 
   stage: { flexDirection: "row", paddingHorizontal: 12, paddingTop: 6, paddingBottom: 8, gap: 10 },
+  moderatorOverlay: { position: "absolute", left: 0, right: 0, top: 62, alignItems: "center", justifyContent: "center", zIndex: 12 },
+  moderatorPortraitWrap: { width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center" },
+  moderatorPortraitImg: { width: 52, height: 52, borderRadius: 26, borderWidth: 2, borderColor: "#FFD700" },
+  moderatorPulseDot: { position: "absolute", bottom: -2, right: -2, width: 16, height: 16, borderRadius: 8, backgroundColor: "#FFD700", borderWidth: 2, borderColor: "#000" },
+  moderatorName: { color: "#FFD700", fontSize: 11, fontWeight: "900", letterSpacing: 0.5, marginTop: 3 },
+  moderatorLine: { color: "rgba(255,255,255,0.85)", fontSize: 10, fontWeight: "600", textAlign: "center", maxWidth: 200, marginTop: 2, backgroundColor: "rgba(0,0,0,0.72)", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   stageCol: { flex: 1, alignItems: "center" },
   portraitWrap: { width: 96, height: 96, borderRadius: 48, alignItems: "center", justifyContent: "center" },
   portraitGlow: { position: "absolute", width: 110, height: 110, borderRadius: 55, borderWidth: 2, shadowOpacity: 0.9, shadowRadius: 18, shadowOffset: { width: 0, height: 0 }, elevation: 8 },

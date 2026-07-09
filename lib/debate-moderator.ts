@@ -22,6 +22,39 @@ export const MODERATORS: Record<ModeratorStyle, { name: string; personaId: strin
   odonnell:   { name: "Lawrence O'Donnell", personaId: "odonnell", bias: "left" },
 };
 
+// Which personas each moderator is friendly to ("favor" — softball questions, quick to defend
+// against fact-check hits) vs. adversarial to ("target" — hard questions, quick to chastise).
+// Anyone not listed is treated as neutral (balanced questions, fact-based reactions only).
+export const MODERATOR_LEANINGS: Record<ModeratorStyle, { favor: string[]; target: string[] }> = {
+  hannity: {
+    favor: ["trump", "melania", "ivanka", "bannon", "miller", "leavitt", "erikakirk", "pambondi", "jimjordan", "graham", "candace", "mtg", "loomer", "netanyahu", "timscott"],
+    target: ["obama", "biden", "kamala", "schumer", "aoc", "omar", "maddow", "joyreid", "carville", "berniemc", "jascrockett"],
+  },
+  megynkelly: {
+    favor: ["trump", "melania", "ivanka", "bannon", "miller", "leavitt", "graham", "candace", "mtg", "netanyahu", "timscott"],
+    target: ["obama", "biden", "kamala", "schumer", "aoc", "omar", "joyreid", "carville", "berniemc"],
+  },
+  maddow: {
+    favor: ["obama", "biden", "kamala", "schumer", "aoc", "omar", "joyreid", "carville", "berniemc", "jascrockett"],
+    target: ["trump", "melania", "ivanka", "bannon", "miller", "leavitt", "erikakirk", "pambondi", "jimjordan", "mtg", "loomer", "alexjones"],
+  },
+  odonnell: {
+    favor: ["obama", "biden", "kamala", "schumer", "aoc", "omar", "joyreid", "carville", "berniemc", "jascrockett"],
+    target: ["trump", "melania", "ivanka", "bannon", "miller", "leavitt", "erikakirk", "pambondi", "jimjordan", "mtg", "loomer", "alexjones"],
+  },
+};
+
+export type ModeratorLeaning = "favor" | "target" | "neutral";
+
+/** How this moderator personally feels about a given debater persona. */
+export function getModeratorLeaning(moderatorStyle: ModeratorStyle, personaId: string): ModeratorLeaning {
+  const cfg = MODERATOR_LEANINGS[moderatorStyle];
+  if (!cfg) return "neutral";
+  if (cfg.favor.includes(personaId)) return "favor";
+  if (cfg.target.includes(personaId)) return "target";
+  return "neutral";
+}
+
 // Short, in-character moderator jabs (~5-6s of speech). Keep them punchy.
 const JAB_LIBRARY: Record<string, string[]> = {
   warn: [
@@ -39,6 +72,16 @@ const JAB_LIBRARY: Record<string, string[]> = {
   interrupt: [
     "Hold on — hold on. You cannot just say that and move on. Explain it.",
     "Stop right there. That's not what you said last week and you know it.",
+  ],
+  // Fires when the fact-checker flags a lie from someone this moderator is BIASED AGAINST.
+  chastiseLie: [
+    "And there it is — the lie detector just caught you red-handed. That's on the record now.",
+    "That's not spin, that's a flat-out lie, and everyone watching just heard it.",
+  ],
+  // Fires when the fact-checker flags a lie from someone this moderator FAVORS.
+  defendLie: [
+    "Okay, okay — that's more of an exaggeration than a lie. Let's not pile on.",
+    "I'll give a little grace there, that's a stretch, not a straight-up lie.",
   ],
 };
 
@@ -131,4 +174,60 @@ export async function speakModeratorNow(text: string, moderatorId: string, onDon
 }
 
 export function localJab(kind: keyof typeof JAB_LIBRARY) { return pick(JAB_LIBRARY[kind]); }
+
+/**
+ * The moderator opens a new topic by putting a question to ONE of the two debaters
+ * (alternated by the caller so both sides get equal airtime). If the moderator is
+ * biased toward/against the target persona, the question is skewed accordingly —
+ * softballs for a favored persona, prosecutorial questions for a targeted one.
+ */
+export async function generateModeratorQuestion(opts: {
+  deviceId: string;
+  moderatorStyle: ModeratorStyle;
+  targetId: string;
+  topic: { title: string; description: string };
+  isTransition?: boolean;
+  previousTopicTitle?: string;
+  conversationHistory?: Array<{ speakerName: string; text: string }>;
+}): Promise<string> {
+  const mod = MODERATORS[opts.moderatorStyle];
+  const leaning = getModeratorLeaning(opts.moderatorStyle, opts.targetId);
+  try {
+    const res = await fetch(new URL("/api/arena/interview-question", getApiUrl()).toString(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-device-id": opts.deviceId },
+      body: JSON.stringify({
+        interviewerId: mod.personaId,
+        intervieweeId: opts.targetId,
+        topic: opts.topic,
+        conversationHistory: opts.conversationHistory || [],
+        isTransition: !!opts.isTransition,
+        previousTopicTitle: opts.previousTopicTitle,
+        interviewStyle: leaning === "favor" ? "civil_discourse" : leaning === "target" ? "combative" : "informative",
+        moderatorLeaning: leaning,
+      }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.text) return String(data.text).slice(0, 260);
+    }
+  } catch { /* fall through */ }
+  return leaning === "favor"
+    ? `So tell us in your own words — what's the real story on ${opts.topic.title}?`
+    : `Let's not dance around it — explain yourself on ${opts.topic.title}.`;
+}
+
+/**
+ * Reacts to a fact-check result for a debater's statement, factoring in the
+ * moderator's bias toward that persona. Returns null if the moderator has no
+ * strong reaction (neutral persona, or the statement checked out as true).
+ */
+export function moderatorLieReaction(moderatorStyle: ModeratorStyle, speakerId: string, isLie: boolean): keyof typeof JAB_LIBRARY | null {
+  if (!isLie) return null;
+  const leaning = getModeratorLeaning(moderatorStyle, speakerId);
+  if (leaning === "favor") return "defendLie";
+  if (leaning === "target") return "chastiseLie";
+  return "chastise";
+}
+
 export { playDingSound };

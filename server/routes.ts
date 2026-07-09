@@ -7164,7 +7164,7 @@ Use "era":"current" for today's news/viral moments, "era":"past" for career hist
     try {
       const deviceId = req.headers["x-device-id"] as string;
       if (!deviceId) return res.status(400).json({ error: "Device ID required" });
-      const { interviewerId, intervieweeId, topic, conversationHistory = [], isFollowUp = false, isTransition = false, previousTopicTitle, isInterruption = false } = req.body || {};
+      const { interviewerId, intervieweeId, topic, conversationHistory = [], isFollowUp = false, isTransition = false, previousTopicTitle, isInterruption = false, moderatorLeaning } = req.body || {};
       if (!interviewerId || !ARENA_PERSONA_PROMPTS[interviewerId]) return res.status(400).json({ error: "Invalid interviewerId" });
       if (!intervieweeId || !ARENA_PERSONA_PROMPTS[intervieweeId]) return res.status(400).json({ error: "Invalid intervieweeId" });
       if (interviewerId === intervieweeId) return res.status(400).json({ error: "A persona cannot interview themselves" });
@@ -7204,7 +7204,13 @@ Use "era":"current" for today's news/viral moments, "era":"past" for career hist
 
 ${targetingDirective}
 
-${styleInstruction}${getLieBehaviorPrompt(interviewerId, Number((req.body.sessionLieTally || {})[interviewerId]) || 0, req.body.sessionIQ || {})}`;
+${styleInstruction}${getLieBehaviorPrompt(interviewerId, Number((req.body.sessionLieTally || {})[interviewerId]) || 0, req.body.sessionIQ || {})}${
+  moderatorLeaning === "favor"
+    ? `\n\nMODERATOR BIAS — YOU FAVOR ${intervieweeName}: You personally like and agree with ${intervieweeName}'s politics. Ask a fair, even SOFTBALL question that lets them shine. Do not be adversarial. Give them room to make their case.`
+    : moderatorLeaning === "target"
+    ? `\n\nMODERATOR BIAS — YOU ARE ADVERSARIAL TOWARD ${intervieweeName}: You personally distrust and disagree with ${intervieweeName}'s politics. Ask a genuinely HARD, prosecutorial question. Press them on a real weakness or contradiction. Skeptical tone, but keep it grounded in facts — not personal insults.`
+    : ""
+}`;
 
       const historyContext = (conversationHistory || []).slice(-6).map((m: any) =>
         `${m.speakerName}: "${m.text}"`
