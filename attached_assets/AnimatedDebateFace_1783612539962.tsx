@@ -112,15 +112,30 @@ const styles = StyleSheet.create({
 
 /**
  * ── EXPRESSION SOURCES ──
- * Save variant images in assets/images/ with these exact names, then add
- * their `require()` entries below. No expression art has been provided yet
- * for this project, so this map is intentionally empty — every persona
- * currently falls back to its single base portrait (glow + pulse still work).
+ * Save variant images in assets/images/ with these exact names.
+ * Personas not listed here simply use their single base portrait.
  *
- * Expected naming convention once art is supplied:
- *   persona-<id>-neutral.png / persona-<id>-angry.png / persona-<id>-shocked.png / etc.
+ * Trump : neutral default; reactions = angry, shocked
+ * Ruckus: neutral default; reactions = angry, smug
+ * Elon  : neutral default; reactions = flustered, smug
  */
-export const EXPRESSION_SOURCES: Record<string, Partial<Record<Mood, any>>> = {};
+export const EXPRESSION_SOURCES: Record<string, Partial<Record<Mood, any>>> = {
+  trump: {
+    neutral: require("@/assets/images/persona-trump-neutral.png"),
+    angry:   require("@/assets/images/persona-trump-angry.png"),
+    shocked: require("@/assets/images/persona-trump-shocked.png"),
+  },
+  ruckus: {
+    neutral: require("@/assets/images/persona-ruckus-neutral.png"),
+    angry:   require("@/assets/images/persona-ruckus-angry.png"),
+    smug:    require("@/assets/images/persona-ruckus-smug.png"),
+  },
+  elon: {
+    neutral:   require("@/assets/images/persona-elon-neutral.png"),
+    flustered: require("@/assets/images/persona-elon-flustered.png"),
+    smug:      require("@/assets/images/persona-elon-smug.png"),
+  },
+};
 
 /**
  * ── USAGE ──
