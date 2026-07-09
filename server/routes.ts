@@ -7166,7 +7166,7 @@ Use "era":"current" for today's news/viral moments, "era":"past" for career hist
     try {
       const deviceId = req.headers["x-device-id"] as string;
       if (!deviceId) return res.status(400).json({ error: "Device ID required" });
-      const { interviewerId, intervieweeId, topic, conversationHistory = [], isFollowUp = false, isTransition = false, previousTopicTitle, isInterruption = false, moderatorLeaning } = req.body || {};
+      const { interviewerId, intervieweeId, topic, conversationHistory = [], isFollowUp = false, isTransition = false, previousTopicTitle, isInterruption = false, moderatorLeaning, isDebate = false } = req.body || {};
       if (!interviewerId || !ARENA_PERSONA_PROMPTS[interviewerId]) return res.status(400).json({ error: "Invalid interviewerId" });
       if (!intervieweeId || !ARENA_PERSONA_PROMPTS[intervieweeId]) return res.status(400).json({ error: "Invalid intervieweeId" });
       if (interviewerId === intervieweeId) return res.status(400).json({ error: "A persona cannot interview themselves" });
@@ -7199,20 +7199,31 @@ Use "era":"current" for today's news/viral moments, "era":"past" for career hist
 
       // For educational style, suppress the adversarial "USE INSULTS" targeting directive
       const targetingDirective = isEdStyle || isCivil
-        ? `CRITICAL: ${intervieweeName} is your guest. Engage them with genuine curiosity and respect. Draw out their expertise and knowledge. You are interested in what they think and why.`
+        ? (isDebate
+          ? `CRITICAL: ${intervieweeName} is your fellow debater, not your guest. Engage them with genuine curiosity and respect, as an equal on this stage. You are interested in what they think and why.`
+          : `CRITICAL: ${intervieweeName} is your guest. Engage them with genuine curiosity and respect. Draw out their expertise and knowledge. You are interested in what they think and why.`)
+        : isDebate
+        ? `CRITICAL TARGETING: ${intervieweeName} is sitting across from you RIGHT NOW as your CO-EQUAL opponent on this debate stage — not your guest, not someone you are interviewing. If your character profile contains insults, attacks, nicknames, or hostility toward "${intervieweeName}", USE THEM in your remarks. Address them by name. Bake the savage lines from your profile DIRECTLY into your argument — do not soften, do not generalize. This is a two-way fight between equals: press your case, don't play host.`
         : `CRITICAL TARGETING: ${intervieweeName} is sitting across from you RIGHT NOW. They are your guest AND, given who you are, your adversary. If your character profile contains insults, attacks, nicknames, or hostility toward "${intervieweeName}", USE THEM in your questions. Address them by name. Bake the savage lines from your profile DIRECTLY into the question — do not soften, do not generalize. If your character would call them weak, corrupt, dishonest, washed-up, a fraud, etc., put it in the question. This is YOUR booth — you set the tone, you press the attack.`;
 
-      const interviewerStyle = `You are ${interviewerName} hosting a 1-on-1 interview with ${intervieweeName}. Today is ${todayStr}. Stay 100% in character — your tone, vocabulary, and ideology are who you are. ${ARENA_PERSONA_PROMPTS[interviewerId]}${shannonGrandmomNote}
+      const moderatorBiasSuffix =
+        moderatorLeaning === "favor"
+          ? `\n\nMODERATOR BIAS — YOU FAVOR ${intervieweeName}: You personally like and agree with ${intervieweeName}'s politics. Ask a fair, even SOFTBALL question that lets them shine. Do not be adversarial. Give them room to make their case.`
+          : moderatorLeaning === "target"
+          ? `\n\nMODERATOR BIAS — YOU ARE ADVERSARIAL TOWARD ${intervieweeName}: You personally distrust and disagree with ${intervieweeName}'s politics. Ask a genuinely HARD, prosecutorial question. Press them on a real weakness or contradiction. Skeptical tone, but keep it grounded in facts — not personal insults.`
+          : "";
+
+      const interviewerStyle = isDebate
+        ? `You are ${interviewerName}, one of TWO co-equal debaters (not a host or interviewer) on a live debate stage opposite ${intervieweeName}. Today is ${todayStr}. A separate MODERATOR runs this debate and asks the actual questions — your job is to argue your position, make your case, and rebut ${intervieweeName} as an equal. Do NOT act like a talk-show host interviewing a guest; do not ask ${intervieweeName} formal interview-style questions — instead make statements, arguments, and rebuttals, ending with a challenge or pointed jab if you like, not a polite question. Stay 100% in character — your tone, vocabulary, and ideology are who you are. ${ARENA_PERSONA_PROMPTS[interviewerId]}${shannonGrandmomNote}
 
 ${targetingDirective}
 
-${styleInstruction}${getLieBehaviorPrompt(interviewerId, Number((req.body.sessionLieTally || {})[interviewerId]) || 0, req.body.sessionIQ || {})}${
-  moderatorLeaning === "favor"
-    ? `\n\nMODERATOR BIAS — YOU FAVOR ${intervieweeName}: You personally like and agree with ${intervieweeName}'s politics. Ask a fair, even SOFTBALL question that lets them shine. Do not be adversarial. Give them room to make their case.`
-    : moderatorLeaning === "target"
-    ? `\n\nMODERATOR BIAS — YOU ARE ADVERSARIAL TOWARD ${intervieweeName}: You personally distrust and disagree with ${intervieweeName}'s politics. Ask a genuinely HARD, prosecutorial question. Press them on a real weakness or contradiction. Skeptical tone, but keep it grounded in facts — not personal insults.`
-    : ""
-}`;
+${styleInstruction}${getLieBehaviorPrompt(interviewerId, Number((req.body.sessionLieTally || {})[interviewerId]) || 0, req.body.sessionIQ || {})}${moderatorBiasSuffix}`
+        : `You are ${interviewerName} hosting a 1-on-1 interview with ${intervieweeName}. Today is ${todayStr}. Stay 100% in character — your tone, vocabulary, and ideology are who you are. ${ARENA_PERSONA_PROMPTS[interviewerId]}${shannonGrandmomNote}
+
+${targetingDirective}
+
+${styleInstruction}${getLieBehaviorPrompt(interviewerId, Number((req.body.sessionLieTally || {})[interviewerId]) || 0, req.body.sessionIQ || {})}${moderatorBiasSuffix}`;
 
       const historyContext = (conversationHistory || []).slice(-6).map((m: any) =>
         `${m.speakerName}: "${m.text}"`
@@ -7272,6 +7283,9 @@ ${styleInstruction}${getLieBehaviorPrompt(interviewerId, Number((req.body.sessio
       if (useNews) {
         userPrompt += `\n\nLIVE HEADLINES you can reference:\n${newsContext}`;
       }
+      if (isDebate && !isInterruption) {
+        userPrompt += `\n\nREMEMBER: this is a DEBATE, not an interview. Phrase this as a statement, argument, or rebuttal directed at ${intervieweeName} — not as a formal interview question. It's fine to end with a challenge ("...and you know it") instead of a literal question mark.`;
+      }
       userPrompt += `\n\nWrite ONLY your spoken question — no quotes, no stage directions, no asterisks.`;
 
       const completion = await getClient().chat.completions.create({
@@ -7304,7 +7318,7 @@ ${styleInstruction}${getLieBehaviorPrompt(interviewerId, Number((req.body.sessio
     try {
       const deviceId = req.headers["x-device-id"] as string;
       if (!deviceId) return res.status(400).json({ error: "Device ID required" });
-      const { interviewerId, intervieweeId, topic, conversationHistory = [], lastQuestion, wasInterrupted = false, interruptionText, isInterruption = false, interviewStyle: answerStyle = "combative" } = req.body || {};
+      const { interviewerId, intervieweeId, topic, conversationHistory = [], lastQuestion, wasInterrupted = false, interruptionText, isInterruption = false, interviewStyle: answerStyle = "combative", isDebate = false } = req.body || {};
       if (!interviewerId || !ARENA_PERSONA_PROMPTS[interviewerId]) return res.status(400).json({ error: "Invalid interviewerId" });
       if (!intervieweeId || !ARENA_PERSONA_PROMPTS[intervieweeId]) return res.status(400).json({ error: "Invalid intervieweeId" });
       if (interviewerId === intervieweeId) return res.status(400).json({ error: "A persona cannot interview themselves" });
@@ -7333,7 +7347,15 @@ ${styleInstruction}${getLieBehaviorPrompt(interviewerId, Number((req.body.sessio
 
 CRITICAL FOR THIS INTERVIEW — BLACK HISTORY DEFENSE IS MANDATORY: If ${interviewerName} says ANYTHING that dismisses, denigrates, minimizes, or questions Black intelligence, Black achievement, Black history, or Black people's right to economic power — you DO NOT let it pass for even one syllable. You DEPLOY your rapid-fire Black history arsenal immediately — Imhotep, Banneker, Latimer, Granville T. Woods, Daniel Hale Williams, Charles Drew, Mark Dean, Katherine Johnson — you unleash them with fury and precision. Same applies if they invoke stereotypes, use dog-whistle language, or try to redirect away from systemic racism with "personal responsibility" talking points. In interview mode you are SHARPER, not softer — the one-on-one format means every attack on Black people gets answered with full-force documented truth. No sidebar, no softening. They come for Black people — you come for their entire worldview with facts.` : "";
 
-      const intervieweeStyle = `You are ${intervieweeName} being grilled in a high-stakes 1-on-1 interview by ${interviewerName}. Today is ${todayStr}.
+      const intervieweeStyle = isDebate
+        ? `You are ${intervieweeName}, a CO-EQUAL debater opposite ${interviewerName} on a live debate stage — not a guest being interviewed. Today is ${todayStr}.
+
+CRITICAL TARGETING: ${interviewerName} is sitting across from you RIGHT NOW as your opponent, on equal footing — not as your host. If your character profile contains insults, attacks, nicknames, or hostility toward "${interviewerName}", USE THEM. Address them by name. Throw the savage lines from your profile at them DIRECTLY — do not soften, do not generalize. Respond as an equal making your own case, not as someone answering to a host.
+
+${answerStyleInstruction}
+
+Stay 100% in character — your tone, vocabulary, ideology, and combativeness are all who you are. Do not break character to be deferential toward ${interviewerName}. ${ARENA_PERSONA_PROMPTS[intervieweeId]}${shannonGrandmomNote}${getLieBehaviorPrompt(intervieweeId, Number((req.body.sessionLieTally || {})[intervieweeId]) || 0, req.body.sessionIQ || {})}${claudeAndersonInterviewBoost}`
+        : `You are ${intervieweeName} being grilled in a high-stakes 1-on-1 interview by ${interviewerName}. Today is ${todayStr}.
 
 CRITICAL TARGETING: ${interviewerName} is sitting across from you RIGHT NOW. They are your interviewer AND your adversary. If your character profile contains insults, attacks, nicknames, or hostility toward "${interviewerName}", USE THEM. Address them by name. Throw the savage lines from your profile at them DIRECTLY — do not soften, do not generalize. If your character normally calls them ugly, dumb, a traitor, a foreigner, a loser, a liar, etc., say it to their face. This is YOUR moment to attack the messenger.
 
@@ -7350,6 +7372,11 @@ Stay 100% in character — your tone, vocabulary, ideology, and combativeness ar
         userPrompt = `${interviewerName} just said something. CUT IN with one of your signature volcanic injections — choose from: "What a LIE!" / "You're a fool!" / "Non-sense!" / "What am I, a fool?!" / "BE SERIOUS!" / "You're a boo-ah!" / "Rubbish!" MAXIMUM 10 words. Under 5 seconds. One phrase only.\n\nRecent exchange:\n${historyContext}`;
       } else if (isInterruption) {
         userPrompt = `${interviewerName} just said something that demands a reaction. INTERRUPT with ONE single explosive phrase — MAXIMUM 10 words, under 5 seconds of speech. Raw gut reaction only, no speech. If they misgendered you or attacked your identity, correct it with fury in under 10 words. If they lied or insulted you, fire back in under 10 words. Examples of RIGHT length: "That is a complete lie." / "I am a MAN, not a woman!" / "Don't twist my words." / "You have no credibility here." NO sentences longer than 10 words. NO explanations.\n\nRecent exchange:\n${historyContext}`;
+      } else if (isDebate) {
+        userPrompt = `Topic: ${topic?.title ? `"${topic.title}" — ${topic.description || ""}` : "the debate"}\n\nRecent exchange:\n${historyContext}\n\n${interviewerName} just said: "${lastQuestion || "..."}"\n\nRespond as an EQUAL debater, not as someone being interviewed — this is a two-way argument, not a Q&A. DO NOT give a vague non-answer. You have THREE options:\n1. REBUT with total conviction — make your own case and back it up hard.\n2. TURN IT AROUND — challenge ${interviewerName} directly on their own record, making it personal and specific: "That's rich coming from YOU, ${interviewerName}." / "Is that why you [specific accusation]?"\n3. ACCUSE — challenge their credibility, their bias, their motives, their record directly. Call them out by name.\nNever be mealy-mouthed. If you deflect, deflect by going on offense. 2-3 sentences max.`;
+        if (wasInterrupted && interruptionText) {
+          userPrompt += `\n\nYou were just interrupted with: "${interruptionText}". Address the interruption first, then continue.`;
+        }
       } else {
         userPrompt = `Topic: ${topic?.title ? `"${topic.title}" — ${topic.description || ""}` : "the interview"}\n\nRecent exchange:\n${historyContext}\n\n${interviewerName} just asked you: "${lastQuestion || "..."}"\n\nAnswer in character — punchy, provocative, true to your beliefs. DO NOT give a vague non-answer. You have THREE options:\n1. ANSWER with total conviction — back it up hard.\n2. FLIP IT — turn the question back on ${interviewerName} with a pointed counter-question that puts THEM on the spot. Make it personal and specific: "Why don't YOU answer that first, ${interviewerName}?" / "Is that why you [specific accusation about the interviewer]?" / "With all due respect, shouldn't we be asking YOU about [their controversy]?"\n3. ACCUSE — challenge their credibility, their bias, their motives, their record directly. Call them out by name.\nNever be mealy-mouthed. If you deflect, deflect by going on offense — make ${interviewerName} squirm. 2-3 sentences max.`;
         if (wasInterrupted && interruptionText) {

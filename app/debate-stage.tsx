@@ -875,7 +875,9 @@ export default function DebateStage() {
         // arm the overlap controller (prefetches audio + ducks the outgoing voice) rather
         // than queuing sequentially behind it.
         const reactionKind = moderatorLieReaction(moderatorStyle, msg.speakerId, isLie);
-        if (reactionKind && deviceId) {
+        const modCooldownOk = Date.now() - lastModReactionAtRef.current >= MOD_REACTION_COOLDOWN_MS;
+        if (reactionKind && deviceId && modCooldownOk && Math.random() < MOD_REACTION_CHANCE) {
+          lastModReactionAtRef.current = Date.now();
           const mod = MODERATORS[moderatorStyle];
           generateModeratorLine({
             deviceId, moderatorId: mod.personaId, kind: reactionKind,
@@ -1148,6 +1150,10 @@ export default function DebateStage() {
           previousTopicTitle: opts.previousTopicTitle,
           isInterruption: !!opts.isInterruption,
           interviewStyle,
+          // Debate stage: A and B are equal debaters, not host/guest — only the
+          // moderator should be posing genuine "questions". See isDebate handling
+          // in server/routes.ts.
+          isDebate: true,
         }),
       });
       if (!res.ok) {
@@ -1181,6 +1187,7 @@ export default function DebateStage() {
           interruptionText: opts.interruptionText,
           isInterruption: !!opts.isInterruption,
           interviewStyle,
+          isDebate: true,
         }),
       });
       if (!res.ok) {
@@ -1221,6 +1228,13 @@ export default function DebateStage() {
   // Alternates which debater the MODERATOR addresses at each new topic — 'A' or 'B' — so
   // both sides get equal question time from the moderator over the course of the debate.
   const moderatorTargetRef = useRef<"A" | "B">("A");
+  // Throttle for moderator opinion injections (chastise/defend lie reactions) —
+  // keeps the moderator from piling on every single lie flag, and enforces a
+  // minimum gap between reactions so cut-ins land at natural pauses instead of
+  // back-to-back on top of each other.
+  const lastModReactionAtRef = useRef<number>(0);
+  const MOD_REACTION_COOLDOWN_MS = 45000;
+  const MOD_REACTION_CHANCE = 0.35;
 
   // Main turn loop
   const runLoop = useCallback(async () => {
