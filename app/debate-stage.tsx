@@ -12,6 +12,7 @@ import { fetch } from "expo/fetch";
 import Animated, { FadeIn, FadeInDown, FadeInUp, FadeOut, useSharedValue, useAnimatedStyle, withTiming, withRepeat, withSequence, cancelAnimation } from "react-native-reanimated";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Audio } from "expo-av";
+import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import { getApiUrl } from "@/lib/query-client";
 import { useTokens } from "@/lib/token-context";
 import Colors from "@/constants/colors";
@@ -510,6 +511,18 @@ export default function DebateStage() {
       bgPulseScale.value = withTiming(1, { duration: 300 });
       bgPulseOpacity.value = withTiming(0, { duration: 300 });
     }
+  }, [phase]);
+
+  // Keep the screen awake while a debate is live — without this, the OS dims/locks
+  // the screen after its idle timeout, which throttles JS timers driving the turn
+  // loop and silences speech mid-session even though native background audio would
+  // otherwise keep going. Released as soon as the debate is not live.
+  useEffect(() => {
+    if (phase === "live") {
+      activateKeepAwakeAsync("debate-stage").catch(() => {});
+      return () => { deactivateKeepAwake("debate-stage"); };
+    }
+    return undefined;
   }, [phase]);
 
   const [isListening, setIsListening] = useState(false);
@@ -1218,6 +1231,7 @@ export default function DebateStage() {
           conversationHistory: messagesRef.current.filter((m) => !m.isSystem).slice(-6),
           lastQuestion,
           interviewStyle,
+          isDebate: true,
         }),
       });
       if (!res.ok) return null;
@@ -1228,6 +1242,54 @@ export default function DebateStage() {
   // Alternates which debater the MODERATOR addresses at each new topic — 'A' or 'B' — so
   // both sides get equal question time from the moderator over the course of the debate.
   const moderatorTargetRef = useRef<"A" | "B">("A");
+
+  // Opens the debate: the MODERATOR asks Debater A one specific, pointed question about
+  // the first topic; A answers; then Debater B is prompted to follow up directly on A's
+  // answer (agree/rebut/challenge) rather than the moderator asking B a separate question.
+  // This replaces the old /api/arena/interview-greeting flow, which let A "host" B —
+  // exactly the interviewer/interviewee framing we don't want in a debate.
+  const runModeratorOpening = useCallback(async (openTopic: Topic | undefined) => {
+    const mod = MODERATORS[moderatorStyle];
+    if (!deviceId || !interviewerId || !intervieweeId || !mod || !openTopic) return;
+    setIsThinking("interviewer");
+    setModeratorSpeaking(true);
+    const modQuestionText = await generateModeratorQuestion({
+      deviceId, moderatorStyle, targetId: interviewerId, topic: openTopic,
+      isTransition: false,
+      conversationHistory: [],
+    });
+    setModeratorLastLine(modQuestionText);
+    setIsThinking(null);
+    if (runningRef.current && modQuestionText) {
+      enrichAndAddMessage({ id: `modopen-q-${Date.now()}`, speakerId: mod.personaId, speakerName: mod.name, text: modQuestionText, ts: Date.now() });
+      await new Promise((r) => setTimeout(r, Math.max(500, Math.min(2500, modQuestionText.length * 20))));
+      if (runningRef.current) {
+        setIsThinking("interviewee");
+        const aAnswer = await fetchAnswerFrom(mod.personaId, interviewerId, modQuestionText);
+        setIsThinking(null);
+        if (aAnswer?.text && runningRef.current) {
+          enrichAndAddMessage({ id: `modopen-a-${Date.now()}`, speakerId: aAnswer.speakerId, speakerName: aAnswer.speakerName, text: aAnswer.text, ts: Date.now() });
+          await new Promise((r) => setTimeout(r, Math.max(500, Math.min(3000, aAnswer.text.length * 25))));
+          if (runningRef.current) {
+            setIsThinking("interviewer");
+            const bFollowUp = await fetchAnswerFrom(interviewerId, intervieweeId, aAnswer.text);
+            setIsThinking(null);
+            if (bFollowUp?.text && runningRef.current) {
+              enrichAndAddMessage({ id: `modopen-b-${Date.now()}`, speakerId: bFollowUp.speakerId, speakerName: bFollowUp.speakerName, text: bFollowUp.text, ts: Date.now() });
+              await new Promise((r) => setTimeout(r, Math.max(500, Math.min(3000, bFollowUp.text.length * 25))));
+            }
+          }
+        }
+      }
+    }
+    setModeratorSpeaking(false);
+    // Next topic-transition should target B first since A already got the moderator's
+    // opening question — keeps question airtime even between the two debaters.
+    moderatorTargetRef.current = "B";
+    // Two exchanges already consumed on this topic (moderator->A, A->B follow-up).
+    exchangesOnTopicRef.current = 2;
+  }, [deviceId, interviewerId, intervieweeId, moderatorStyle, enrichAndAddMessage, fetchAnswerFrom]);
+
   // Throttle for moderator opinion injections (chastise/defend lie reactions) —
   // keeps the moderator from piling on every single lie flag, and enforces a
   // minimum gap between reactions so cut-ins land at natural pauses instead of
@@ -1529,30 +1591,17 @@ export default function DebateStage() {
     isPausedRef.current = false;
     setIsPaused(false);
     setIsStarting(false);
-    // Fetch greeting in parallel, show it, then start the main loop
+    // The MODERATOR opens the debate: asks Debater A a specific question about the
+    // first topic, then Debater B follows up directly on A's answer — no A-hosts-B
+    // greeting exchange.
     (async () => {
       try {
-        const gRes = await fetch(new URL("/api/arena/interview-greeting", getApiUrl()).toString(), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ interviewerId, intervieweeId }),
-        });
-        if (gRes.ok && runningRef.current) {
-          const gData = await gRes.json();
-          if (gData?.interviewer?.text) {
-            enrichAndAddMessage({ id: `greet-iv-${Date.now()}`, speakerId: gData.interviewer.speakerId, speakerName: gData.interviewer.speakerName, text: gData.interviewer.text, ts: Date.now() });
-            // Small gap so interviewee response feels natural after interviewer
-            await new Promise((r) => setTimeout(r, Math.min(6000, Math.max(1800, gData.interviewer.text.length * 50))));
-          }
-          if (gData?.interviewee?.text && runningRef.current) {
-            enrichAndAddMessage({ id: `greet-ivee-${Date.now()}`, speakerId: gData.interviewee.speakerId, speakerName: gData.interviewee.speakerName, text: gData.interviewee.text, ts: Date.now() });
-            await new Promise((r) => setTimeout(r, Math.min(5000, Math.max(1500, gData.interviewee.text.length * 50))));
-          }
-        }
+        const startIdxForOpening = selectedTopicId ? Math.max(0, topics.findIndex(t => t.id === selectedTopicId)) : 0;
+        await runModeratorOpening(topics[startIdxForOpening]);
       } catch {}
       if (runningRef.current) runLoop();
     })();
-  }, [deviceId, interviewerId, intervieweeId, topics, isStarting, duration, runLoop, enrichAndAddMessage, selectedTopicId, moderatorStyle, category]);
+  }, [deviceId, interviewerId, intervieweeId, topics, isStarting, duration, runLoop, runModeratorOpening, selectedTopicId, moderatorStyle, category]);
 
   const unlockSession = useCallback(async () => {
     if (!deviceId || isUnlocking) return;
@@ -1594,22 +1643,7 @@ export default function DebateStage() {
         setIsPaused(false);
         (async () => {
           try {
-            const gRes = await fetch(new URL("/api/arena/interview-greeting", getApiUrl()).toString(), {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ interviewerId, intervieweeId }),
-            });
-            if (gRes.ok && runningRef.current) {
-              const gData = await gRes.json();
-              if (gData?.interviewer?.text) {
-                enrichAndAddMessage({ id: `greet-iv-${Date.now()}`, speakerId: gData.interviewer.speakerId, speakerName: gData.interviewer.speakerName, text: gData.interviewer.text, ts: Date.now() });
-                await new Promise((r) => setTimeout(r, Math.min(6000, Math.max(1800, gData.interviewer.text.length * 50))));
-              }
-              if (gData?.interviewee?.text && runningRef.current) {
-                enrichAndAddMessage({ id: `greet-ivee-${Date.now()}`, speakerId: gData.interviewee.speakerId, speakerName: gData.interviewee.speakerName, text: gData.interviewee.text, ts: Date.now() });
-                await new Promise((r) => setTimeout(r, Math.min(5000, Math.max(1500, gData.interviewee.text.length * 50))));
-              }
-            }
+            await runModeratorOpening(topics[startIdx2]);
           } catch {}
           if (runningRef.current) runLoop();
         })();
@@ -1617,7 +1651,7 @@ export default function DebateStage() {
     } catch {} finally {
       setIsUnlocking(false);
     }
-  }, [deviceId, duration, isUnlocking, refreshBalance, runLoop, interviewerId, intervieweeId, enrichAndAddMessage, selectedTopicId, topics]);
+  }, [deviceId, duration, isUnlocking, refreshBalance, runLoop, runModeratorOpening, selectedTopicId, topics]);
 
   const stopInterview = useCallback(() => {
     runningRef.current = false;
