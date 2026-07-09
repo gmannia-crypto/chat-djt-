@@ -400,6 +400,8 @@ export default function DebateStage() {
   const [lieTally, setLieTally] = useState<{ totalLies: number; totalSessions: number; bestSession: number; topLiarName: string | null; topLiarCount: number } | null>(null);
 
   const [lieCount, setLieCount] = useState(0);
+  const [lieCountA, setLieCountA] = useState(0);
+  const [lieCountB, setLieCountB] = useState(0);
   const [lies, setLies] = useState<LieEntry[]>([]);
   const [liesSheetOpen, setLiesSheetOpen] = useState(false);
   const [lieFlashOn, setLieFlashOn] = useState(false);
@@ -870,6 +872,8 @@ export default function DebateStage() {
         const isLie = score < 40 || data.isLie;
         if (isLie) {
           setLieCount((c) => c + 1);
+          if (isA) setLieCountA((c) => c + 1);
+          if (isB) setLieCountB((c) => c + 1);
           setLies((prev) => [...prev, {
             id: `lie-${msg.id}`,
             speakerId: msg.speakerId,
@@ -1578,6 +1582,8 @@ export default function DebateStage() {
     setEmoInterviewer(ZERO_EMO);
     setEmoInterviewee(ZERO_EMO);
     setLieCount(0);
+    setLieCountA(0);
+    setLieCountB(0);
     setLies([]);
     setFlaggedMsgIds(new Set());
     setLatestTruthScore(null);
@@ -1636,6 +1642,8 @@ export default function DebateStage() {
         setEmoInterviewer(ZERO_EMO);
         setEmoInterviewee(ZERO_EMO);
         setLieCount(0);
+        setLieCountA(0);
+        setLieCountB(0);
         setLies([]);
         setFlaggedMsgIds(new Set());
         setLatestTruthScore(null);
@@ -2179,6 +2187,22 @@ export default function DebateStage() {
           <Ionicons name="bar-chart" size={16} color="#FFD700" />
         </Pressable>
       </View>
+
+      {(lieCountA > 0 || lieCountB > 0) && (
+        <View style={s.lieCompareStrip} testID="lie-compare-strip">
+          <View style={[s.lieCompareSide, lieCountA >= lieCountB && lieCountA > 0 && s.lieCompareSideLeading]}>
+            <Text style={s.lieCompareName} numberOfLines={1}>{interviewer?.name ?? "A"}</Text>
+            <Text style={[s.lieCompareNum, lieCountA > 0 && { color: "#ff4d4d" }]}>{lieCountA}</Text>
+          </View>
+          <View style={s.lieCompareVs}>
+            <Ionicons name="flash" size={12} color="rgba(255,255,255,0.35)" />
+          </View>
+          <View style={[s.lieCompareSide, lieCountB >= lieCountA && lieCountB > 0 && s.lieCompareSideLeading]}>
+            <Text style={[s.lieCompareNum, lieCountB > 0 && { color: "#ff4d4d" }]}>{lieCountB}</Text>
+            <Text style={s.lieCompareName} numberOfLines={1}>{interviewee?.name ?? "B"}</Text>
+          </View>
+        </View>
+      )}
 
       {/* Portrait stage with mood meters */}
       <View style={s.stage}>
@@ -2771,6 +2795,13 @@ const s = StyleSheet.create({
   liePill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, height: 28, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.05)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
   liePillActive: { backgroundColor: "rgba(255,77,77,0.12)", borderColor: "rgba(255,77,77,0.5)" },
   liePillText: { color: "rgba(255,255,255,0.4)", fontSize: 12, fontWeight: "900" },
+
+  lieCompareStrip: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, marginHorizontal: 12, marginTop: 4, marginBottom: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12, backgroundColor: "rgba(0,0,0,0.25)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" },
+  lieCompareSide: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
+  lieCompareSideLeading: { backgroundColor: "rgba(255,77,77,0.1)" },
+  lieCompareName: { color: "rgba(255,255,255,0.65)", fontSize: 11, fontWeight: "700", maxWidth: 110 },
+  lieCompareNum: { color: "rgba(255,255,255,0.4)", fontSize: 16, fontWeight: "900" },
+  lieCompareVs: { paddingHorizontal: 2 },
 
   stage: { flexDirection: "row", paddingHorizontal: 12, paddingTop: 6, paddingBottom: 8, gap: 10 },
   moderatorOverlay: { position: "absolute", left: 0, right: 0, top: 62, alignItems: "center", justifyContent: "center", zIndex: 12 },
