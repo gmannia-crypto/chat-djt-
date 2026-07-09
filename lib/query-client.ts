@@ -16,11 +16,14 @@ export function getApiUrl(): string {
     const manifest = Constants.expoConfig || Constants.manifest2 || Constants.manifest;
     const debuggerHost = manifest?.hostUri || Constants.manifest2?.extra?.expoGo?.debuggerHost;
     if (debuggerHost) {
-      if (debuggerHost.includes("exp.direct") || debuggerHost.includes("ngrok")) {
-        const host = debuggerHost.split(":")[0];
+      const host = debuggerHost.split(":")[0];
+      // Public tunnel/proxy domains (Replit dev domain, exp.direct, ngrok, etc.) are
+      // only reachable over https on the default port — never append :8081 to these,
+      // that port is only bound on the local container's LAN interface.
+      const isRawLanIp = /^\d+\.\d+\.\d+\.\d+$/.test(host) || host === "localhost";
+      if (!isRawLanIp) {
         return `https://${host}/`;
       }
-      const host = debuggerHost.split(":")[0];
       return `http://${host}:8081/`;
     }
   }
