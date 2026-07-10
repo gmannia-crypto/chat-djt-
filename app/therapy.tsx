@@ -164,7 +164,7 @@ const THERAPIST_CONFIGS: Record<TherapistVoice, TherapistConfig> = {
   trump: {
     voice: "trump",
     name: "Dr. Dynamic",
-    title: "DYNAMIC THERAPY",
+    title: "TRUMP THERAPY",
     image: trumpTherapistImage,
     accent: "#ff4d4d",
     accentLight: "rgba(255,77,77,0.15)",
@@ -293,7 +293,7 @@ export default function TherapyScreen() {
   React.useEffect(() => { logEvent("therapy_start"); }, []);
   const trackEvent = useTrackEvent();
 
-  const [selectedTherapist, setSelectedTherapist] = useState<TherapistVoice>("patricia");
+  const [selectedTherapist, setSelectedTherapist] = useState<TherapistVoice>("trump");
   const [questionPrompt, setQuestionPrompt] = useState<string | null>(null);
   const [showIntro, setShowIntro] = useState(true);
   const [firstName, setFirstName] = useState("");

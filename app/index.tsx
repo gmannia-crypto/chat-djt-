@@ -84,7 +84,7 @@ const ONBOARDING_DONE_KEY = "chatdjt_onboarding_done";
 
 const FEATURE_OF_DAY = [
   { emoji: "🏛️", title: "The Arena", sub: "Watch 28 AI personas debate live news — and award points!", route: "/arena", color: "#D4A420" },
-  { emoji: "🛋️", title: "Dynamic Therapy", sub: "Trump-themed therapists help you work through it. Bigly.", route: "/therapy", color: "#a855f7" },
+  { emoji: "🛋️", title: "Trump Therapy", sub: "Trump-themed therapists help you work through it. Bigly.", route: "/therapy", color: "#a855f7" },
   { emoji: "💰", title: "Financial Face-Off", sub: "Debate stocks, crypto & real estate with AI billionaires.", route: "/faceoff", color: "#22c55e" },
   { emoji: "🏈", title: "Trump's Sports Book", sub: "AI persona picks, live commentary & trash talk.", route: "/sports", color: "#3b82f6" },
   { emoji: "🔮", title: "Fortune Parlor", sub: "Trump predicts your future. Might even be accurate.", route: "/fortune", color: "#f97316" },
@@ -97,7 +97,7 @@ const FEATURE_OF_DAY = [
 const ONBOARDING_STEPS = [
   { emoji: "👋", title: "Welcome to Chat DJT", body: "The most tremendous AI chat app ever built. Voice-cloned personas, live debates, and zero filter. Believe me." },
   { emoji: "🏛️", title: "The Arena", body: "Pick up to 28 AI personas and watch them debate live news headlines. Award points, trigger breaking news, and declare a winner." },
-  { emoji: "🛋️", title: "Dynamic Therapy", body: "Choose from 5 therapist personas — each with a unique style. Deep sessions, PHQ-9 assessments, and shareable diagnosis plans." },
+  { emoji: "🛋️", title: "Trump Therapy", body: "Choose from 5 therapist personas — each with a unique style. Deep sessions, PHQ-9 assessments, and shareable diagnosis plans." },
   { emoji: "🪙", title: "D.C. Lightning Tokens", body: "Premium features cost tokens. Earn free ones via daily streaks, the Mystery Box, and the Arena. You can always buy more." },
   { emoji: "🎁", title: "Daily Mystery Box", body: "Open your free Mystery Box every 24 hours for rewards: roasts, collectible cards, persona unlocks, and more." },
 ];
@@ -116,7 +116,7 @@ const MYSTERY_REWARDS = [
   { label: "Property Discount", icon: "home", description: "VIP access to Dynamic Realty's top pick of the day. TREMENDOUS." },
   { label: "Cabinet Roast", icon: "people", description: "Unlock a bonus Cabinet Hot Seat roast. Savage and FREE." },
   { label: "Golden Tweet", icon: "logo-twitter", description: "Generate a viral Trump tweet on ANY topic. Pure gold." },
-  { label: "Therapy Session", icon: "medical", description: "A free therapy session with Dynamic Therapy. Healing through WINNING." },
+  { label: "Therapy Session", icon: "medical", description: "A free therapy session with Trump Therapy. Healing through WINNING." },
   { label: "VIP Fortune", icon: "star", description: "A rare PREMIUM fortune reading. Only winners get this." },
   { label: "Collectible Card", icon: "cards", description: "A DJT Collectible card has been added to your collection!" },
   { label: "Collectible Card", icon: "cards", description: "A DJT Collectible card has been added to your collection!" },
@@ -1484,7 +1484,7 @@ export default function HomeScreen() {
             <Pressable
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-                playNavVoice("Dynamic Therapy. Let's work through your issues, big league.");
+                playNavVoice("Trump Therapy. Let's work through your issues, big league.");
                 router.push("/therapy");
               }}
               style={({ pressed }) => [styles.viralCtaButton, styles.viralTherapy, pressed && { opacity: 0.85 }]}
@@ -1497,7 +1497,7 @@ export default function HomeScreen() {
                 style={styles.viralCtaGradient}
               >
                 <MaterialCommunityIcons name="brain" size={22} color="#fff" />
-                <Text style={styles.viralCtaText}>DYNAMIC THERAPY</Text>
+                <Text style={styles.viralCtaText}>TRUMP THERAPY</Text>
                 <View style={styles.viralCtaBadge}>
                   <Text style={styles.viralCtaBadgeText}>FREE</Text>
                 </View>
