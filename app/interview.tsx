@@ -191,12 +191,35 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   desantis: require("@/assets/images/persona-desantis.jpg"),
   pastormanning: require("@/assets/images/persona-pastormanning.jpg"),
   shahidbolson: require("@/assets/images/persona-shahid.png"),
+  mlk: require("@/assets/images/persona-mlk.jpg"),
+  malcolmx: require("@/assets/images/persona-malcolmx.jpg"),
 };
 
 const FX_KEY = "interview_fx_enabled_v1";
 const VOICE_KEY = "interview_voice_enabled_v1";
 const BEEP_KEY = "interview_beep_enabled_v1";
 const NAME_KEY = "interview_caller_name_v1";
+
+type GuestCategory = "All" | "Political" | "History" | "Science" | "Finance" | "Entertainment";
+const GUEST_CATEGORY_LIST: GuestCategory[] = ["All", "Political", "History", "Science", "Finance", "Entertainment"];
+
+const GUEST_CATEGORIES: Record<string, GuestCategory> = {
+  trump: "Political", biden: "Political", obama: "Political", kamala: "Political",
+  berniemc: "Political", mcconnell: "Political", schumer: "Political", graham: "Political",
+  rfk: "Political", melania: "Political", omar: "Political", mtg: "Political",
+  miller: "Political", jimjordan: "Political", pambondi: "Political", erikakirk: "Political",
+  loomer: "Political", leavitt: "Political", aoc: "Political", jascrockett: "Political",
+  timscott: "Political", ivanka: "Political", billclinton: "Political", hillaryclinton: "Political",
+  marcorubio: "Political", desantis: "Political", netanyahu: "Political", malema: "Political",
+  shahidbolson: "Political", errol: "Political", galloway: "Political", carville: "Political",
+  mlk: "History", malcolmx: "History", ronaldreagan: "History",
+  pastormanning: "History", claudeanderson: "History",
+  neiltyson: "Science", professorjiang: "Science",
+  elon: "Finance",
+  rosie: "Entertainment", ruckus: "Entertainment", samjackson: "Entertainment",
+  stephena: "Entertainment", hannity: "Entertainment", megynkelly: "Entertainment",
+  shannon: "Entertainment", jesseleepetersen: "Entertainment", joerogan: "Entertainment",
+};
 
 // Lightweight emotion delta from text heuristics
 function computeEmotionDelta(text: string): Partial<Emotions> {
@@ -297,6 +320,7 @@ export default function InterviewScreen() {
   const [duration, setDuration] = useState<5 | 10 | 15>(10);
   const [topicMix, setTopicMix] = useState<"current" | "past" | "mixed">("mixed");
   const [interviewStyle, setInterviewStyle] = useState<InterviewStyleId>("combative");
+  const [guestCategory, setGuestCategory] = useState<GuestCategory>("All");
 
   const [topics, setTopics] = useState<Topic[]>([]);
   const [topicsLoading, setTopicsLoading] = useState(false);
@@ -1670,14 +1694,27 @@ export default function InterviewScreen() {
             ))}
           </View>
 
-          <Text style={[s.sectionLabel, { marginTop: 16 }]}>GUEST</Text>
-          <View style={s.chipRow}>
-            {interviewees.filter(p => p.id !== interviewerId).map((p) => (
-              <Pressable key={p.id} onPress={() => { Haptics.selectionAsync(); setIntervieweeId(p.id); }}
-                style={[s.chip, intervieweeId === p.id && s.chipActiveGuest]} testID={`interviewee-${p.id}`}>
-                <Text style={[s.chipText, intervieweeId === p.id && s.chipTextActive]}>{p.name}</Text>
+          <Text style={[s.sectionLabel, { marginTop: 16 }]}>GUEST CATEGORY</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }} contentContainerStyle={{ paddingHorizontal: 0, gap: 6, flexDirection: "row" }}>
+            {GUEST_CATEGORY_LIST.map((c) => (
+              <Pressable key={c} onPress={() => { Haptics.selectionAsync(); setGuestCategory(c); }}
+                style={[s.mixCard, guestCategory === c && s.mixCardActive]} testID={`guest-cat-${c}`}>
+                <Text style={[s.mixText, guestCategory === c && s.mixTextActive]}>{c}</Text>
               </Pressable>
             ))}
+          </ScrollView>
+
+          <Text style={[s.sectionLabel, { marginTop: 4 }]}>GUEST</Text>
+          <View style={s.chipRow}>
+            {interviewees
+              .filter(p => p.id !== interviewerId)
+              .filter(p => guestCategory === "All" || (GUEST_CATEGORIES[p.id] ?? "Political") === guestCategory)
+              .map((p) => (
+                <Pressable key={p.id} onPress={() => { Haptics.selectionAsync(); setIntervieweeId(p.id); }}
+                  style={[s.chip, intervieweeId === p.id && s.chipActiveGuest]} testID={`interviewee-${p.id}`}>
+                  <Text style={[s.chipText, intervieweeId === p.id && s.chipTextActive]}>{p.name}</Text>
+                </Pressable>
+              ))}
           </View>
 
           <Text style={[s.sectionLabel, { marginTop: 16 }]}>SEGMENT LENGTH</Text>
