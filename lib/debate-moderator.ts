@@ -207,13 +207,33 @@ export function makeInterruptController() {
   };
 }
 
-/** Simple immediate moderator line (non-overlap) — for the opening + warnings. */
-export async function speakModeratorNow(text: string, moderatorId: string, onDone?: () => void) {
+/**
+ * Simple immediate moderator line (non-overlap) — for the opening + warnings.
+ * Pass { wait: true } to await full audio completion before the promise resolves.
+ * Default (no wait) resolves immediately after playback starts so callers can
+ * fire-and-forget when they don't need to gate the next step on audio.
+ */
+export async function speakModeratorNow(
+  text: string,
+  moderatorId: string,
+  opts?: { onDone?: () => void; wait?: boolean },
+): Promise<void> {
   const s = await playTTS("/api/persona-speak", { text: truncateAtSentence(text, 240), personaId: moderatorId });
-  s.setOnPlaybackStatusUpdate((st: any) => {
-    if (st?.isLoaded && st.didJustFinish) { try { s.unloadAsync(); } catch {} onDone?.(); }
+  return new Promise<void>((resolve) => {
+    // Safety timeout: if audio never fires didJustFinish (network/codec issue) resolve after 30s
+    const timeout = setTimeout(() => { try { s.unloadAsync(); } catch {} opts?.onDone?.(); resolve(); }, 30000);
+    s.setOnPlaybackStatusUpdate((st: any) => {
+      if (st?.isLoaded && st.didJustFinish) {
+        clearTimeout(timeout);
+        try { s.unloadAsync(); } catch {}
+        opts?.onDone?.();
+        resolve();
+      }
+      if (st?.error) { clearTimeout(timeout); opts?.onDone?.(); resolve(); }
+    });
+    // Non-blocking mode: resolve as soon as playback is set up
+    if (!opts?.wait) { clearTimeout(timeout); resolve(); }
   });
-  return s;
 }
 
 export function localJab(kind: keyof typeof JAB_LIBRARY) { return pick(JAB_LIBRARY[kind]); }

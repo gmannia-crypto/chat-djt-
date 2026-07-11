@@ -317,6 +317,13 @@ export default function DebateStage() {
 
   const [category, setCategory] = useState<"Political" | "Sports" | "History" | "Finance" | "Science">("Political");
   const [moderatorStyle, setModeratorStyle] = useState<ModeratorStyle>("hannity");
+  // For history/science categories, override to civil_discourse / informative so personas
+  // skip the insult-heavy combative register and focus on substance instead.
+  const effectiveInterviewStyle = useMemo<InterviewStyleId>(() => {
+    if (category === "History") return "civil_discourse";
+    if (category === "Science") return "informative";
+    return interviewStyle;
+  }, [category, interviewStyle]);
   const [micCut, setMicCut] = useState<{ iv: boolean; ivee: boolean }>({ iv: false, ivee: false });
   const interruptCtl = useRef(makeInterruptController()).current;
   const [moderatorSpeaking, setModeratorSpeaking] = useState(false);
@@ -391,7 +398,7 @@ export default function DebateStage() {
   const beepEnabledRef = useRef(true);
   const [activeSpeaker, setActiveSpeaker] = useState<string | null>(null);
   const activeSpeakerRef = useRef<string | null>(null);
-  const ttsQueueRef = useRef<Array<{ text: string; personaId: string; msgId?: string }>>([]);
+  const ttsQueueRef = useRef<Array<{ text: string; personaId: string; msgId?: string; blockEarlyResolve?: boolean; onComplete?: () => void }>>([]);
   const ttsRunningRef = useRef(false);
   const currentSoundRef = useRef<Audio.Sound | null>(null);
   const prefetchedAudioRef = useRef<{ personaId: string; text: string; audioUri: string } | null>(null);
@@ -717,6 +724,7 @@ export default function DebateStage() {
             );
             if (status.didJustFinish || status.error) {
               clearTimeout(safetyTimer);
+              item.onComplete?.();
               finish();
               return;
             }
@@ -751,9 +759,12 @@ export default function DebateStage() {
               }
               // Early-resolve only when the NEXT queued item is a DIFFERENT speaker —
               // prevents a persona from cutting off their own speech mid-sentence.
+              // blockEarlyResolve = true means the item must fully finish before the
+              // next speaker can start (used for moderator lines so personas can't
+              // overlap the moderator).
               const nextQueued = ttsQueueRef.current[0];
               const nextIsDifferentSpeaker = nextQueued && nextQueued.personaId !== item.personaId;
-              if (!earlyResolved && nextIsDifferentSpeaker && remaining <= OVERLAP_MS && remaining > 0) {
+              if (!earlyResolved && nextIsDifferentSpeaker && !item.blockEarlyResolve && remaining <= OVERLAP_MS && remaining > 0) {
                 earlyResolve();
               }
             }
@@ -770,10 +781,20 @@ export default function DebateStage() {
     }
   }, [startPrefetch]);
 
-  const enqueueTTS = useCallback((text: string, personaId: string, msgId?: string) => {
+  const enqueueTTS = useCallback((text: string, personaId: string, msgId?: string, opts?: { blockEarlyResolve?: boolean; onComplete?: () => void }) => {
     if (!voiceEnabledRef.current) return;
-    ttsQueueRef.current.push({ text, personaId, msgId });
+    ttsQueueRef.current.push({ text, personaId, msgId, ...opts });
     processQueue();
+  }, [processQueue]);
+
+  /** Enqueue a TTS item and return a promise that resolves when audio playback completes. */
+  const enqueueTTSAndWait = useCallback((text: string, personaId: string, msgId?: string): Promise<void> => {
+    return new Promise<void>((resolve) => {
+      // Safety: if voice is off, resolve immediately so flow doesn't stall
+      if (!voiceEnabledRef.current) { resolve(); return; }
+      ttsQueueRef.current.push({ text, personaId, msgId, blockEarlyResolve: true, onComplete: resolve });
+      processQueue();
+    });
   }, [processQueue]);
 
   const stopAllAudio = useCallback(() => {
@@ -1214,7 +1235,7 @@ export default function DebateStage() {
           wasInterrupted: !!opts.wasInterrupted,
           interruptionText: opts.interruptionText,
           isInterruption: !!opts.isInterruption,
-          interviewStyle,
+          interviewStyle: effectiveInterviewStyle,
           isDebate: true,
         }),
       });
@@ -1230,7 +1251,7 @@ export default function DebateStage() {
       }
       return await res.json();
     } catch { return null; }
-  }, [deviceId, interviewerId, intervieweeId, currentTopic, interviewStyle]);
+  }, [deviceId, interviewerId, intervieweeId, currentTopic, effectiveInterviewStyle]);
 
   // Generic answer fetch — used when the MODERATOR (not the other debater) is the questioner,
   // e.g. topic-opening questions that alternate between Debater A and Debater B.
@@ -1245,14 +1266,14 @@ export default function DebateStage() {
           topic: currentTopicRef.current,
           conversationHistory: messagesRef.current.filter((m) => !m.isSystem).slice(-6),
           lastQuestion,
-          interviewStyle,
+          interviewStyle: effectiveInterviewStyle,
           isDebate: true,
         }),
       });
       if (!res.ok) return null;
       return await res.json();
     } catch { return null; }
-  }, [deviceId, interviewStyle]);
+  }, [deviceId, effectiveInterviewStyle]);
 
   // Alternates which debater the MODERATOR addresses at each new topic — 'A' or 'B' — so
   // both sides get equal question time from the moderator over the course of the debate.
@@ -1270,40 +1291,45 @@ export default function DebateStage() {
     setModeratorSpeaking(true);
     const modQuestionText = await generateModeratorQuestion({
       deviceId, moderatorStyle, targetId: interviewerId, topic: openTopic,
-      isTransition: false,
-      conversationHistory: [],
+      isTransition: false, conversationHistory: [],
     });
     setModeratorLastLine(modQuestionText);
     setIsThinking(null);
     if (runningRef.current && modQuestionText) {
-      enrichAndAddMessage({ id: `modopen-q-${Date.now()}`, speakerId: mod.personaId, speakerName: mod.name, text: modQuestionText, ts: Date.now() });
-      await new Promise((r) => setTimeout(r, Math.max(150, Math.min(500, modQuestionText.length * 4))));
-      if (runningRef.current) {
-        setIsThinking("interviewee");
-        const aAnswer = await fetchAnswerFrom(mod.personaId, interviewerId, modQuestionText);
-        setIsThinking(null);
-        if (aAnswer?.text && runningRef.current) {
-          enrichAndAddMessage({ id: `modopen-a-${Date.now()}`, speakerId: aAnswer.speakerId, speakerName: aAnswer.speakerName, text: aAnswer.text, ts: Date.now() });
-          await new Promise((r) => setTimeout(r, Math.max(150, Math.min(500, aAnswer.text.length * 4))));
-          if (runningRef.current) {
-            setIsThinking("interviewer");
-            const bFollowUp = await fetchAnswerFrom(interviewerId, intervieweeId, aAnswer.text);
-            setIsThinking(null);
-            if (bFollowUp?.text && runningRef.current) {
-              enrichAndAddMessage({ id: `modopen-b-${Date.now()}`, speakerId: bFollowUp.speakerId, speakerName: bFollowUp.speakerName, text: bFollowUp.text, ts: Date.now() });
-              await new Promise((r) => setTimeout(r, Math.max(150, Math.min(500, bFollowUp.text.length * 4))));
-            }
+      // Show the moderator message immediately in the chat bubble
+      const modMsgId = `modopen-q-${Date.now()}`;
+      setMessages((prev) => [...prev, { id: modMsgId, speakerId: mod.personaId, speakerName: mod.name, text: modQuestionText, ts: Date.now() }]);
+      // Fetch persona A's answer in parallel with the moderator speaking —
+      // but don't ADD it to the queue until the moderator is fully done talking.
+      setIsThinking("interviewee");
+      const [aAnswer] = await Promise.all([
+        fetchAnswerFrom(mod.personaId, interviewerId, modQuestionText),
+        enqueueTTSAndWait(modQuestionText, mod.personaId, modMsgId),
+      ]);
+      setIsThinking(null);
+      setModeratorSpeaking(false);
+      if (aAnswer?.text && runningRef.current) {
+        // Moderator is done — now persona A can speak
+        enrichAndAddMessage({ id: `modopen-a-${Date.now()}`, speakerId: aAnswer.speakerId, speakerName: aAnswer.speakerName, text: aAnswer.text, ts: Date.now() });
+        await new Promise((r) => setTimeout(r, Math.max(150, Math.min(400, aAnswer.text.length * 3))));
+        if (runningRef.current) {
+          setIsThinking("interviewer");
+          const bFollowUp = await fetchAnswerFrom(interviewerId, intervieweeId, aAnswer.text);
+          setIsThinking(null);
+          if (bFollowUp?.text && runningRef.current) {
+            enrichAndAddMessage({ id: `modopen-b-${Date.now()}`, speakerId: bFollowUp.speakerId, speakerName: bFollowUp.speakerName, text: bFollowUp.text, ts: Date.now() });
           }
         }
       }
+    } else {
+      setModeratorSpeaking(false);
     }
-    setModeratorSpeaking(false);
     // Next topic-transition should target B first since A already got the moderator's
     // opening question — keeps question airtime even between the two debaters.
     moderatorTargetRef.current = "B";
     // Two exchanges already consumed on this topic (moderator->A, A->B follow-up).
     exchangesOnTopicRef.current = 2;
-  }, [deviceId, interviewerId, intervieweeId, moderatorStyle, enrichAndAddMessage, fetchAnswerFrom]);
+  }, [deviceId, interviewerId, intervieweeId, moderatorStyle, enrichAndAddMessage, fetchAnswerFrom, enqueueTTSAndWait]);
 
   // Throttle for moderator opinion injections (chastise/defend lie reactions) —
   // keeps the moderator from piling on every single lie flag, and enforces a
@@ -1492,10 +1518,15 @@ export default function DebateStage() {
           setModeratorLastLine(modQuestionText);
           setIsThinking(null);
           if (runningRef.current) {
-            enrichAndAddMessage({ id: `modq-${Date.now()}-${Math.random()}`, speakerId: mod.personaId, speakerName: mod.name, text: modQuestionText, ts: Date.now() });
-            await new Promise((r) => setTimeout(r, Math.max(150, Math.min(500, modQuestionText.length * 4))));
+            // Show moderator message immediately; fetch persona answer in parallel
+            // with moderator TTS — but block the persona's audio until mod is done.
+            const modMsgId = `modq-${Date.now()}-${Math.random()}`;
+            setMessages((prev) => [...prev, { id: modMsgId, speakerId: mod.personaId, speakerName: mod.name, text: modQuestionText, ts: Date.now() }]);
             setIsThinking("interviewee");
-            const modAnswer = await fetchAnswerFrom(mod.personaId, targetId, modQuestionText);
+            const [modAnswer] = await Promise.all([
+              fetchAnswerFrom(mod.personaId, targetId, modQuestionText),
+              enqueueTTSAndWait(modQuestionText, mod.personaId, modMsgId),
+            ]);
             setIsThinking(null);
             if (modAnswer?.text && runningRef.current) {
               enrichAndAddMessage({ id: `moda-${Date.now()}-${Math.random()}`, speakerId: modAnswer.speakerId, speakerName: modAnswer.speakerName, text: modAnswer.text, ts: Date.now() });
@@ -1526,7 +1557,7 @@ export default function DebateStage() {
     }
     runningRef.current = false;
     if (Date.now() >= sessionEndsAtRef.current) setPhase("ended");
-  }, [topics, fetchQuestion, fetchAnswer, fetchAnswerFrom, enrichAndAddMessage, duration, moderatorStyle, deviceId, interviewerId, intervieweeId]);
+  }, [topics, fetchQuestion, fetchAnswer, fetchAnswerFrom, enrichAndAddMessage, enqueueTTSAndWait, duration, moderatorStyle, deviceId, interviewerId, intervieweeId]);
 
   const startInterview = useCallback(async () => {
     if (!deviceId || !interviewerId || !intervieweeId || topics.length === 0 || isStarting) return;
@@ -1601,21 +1632,19 @@ export default function DebateStage() {
     ttsQueueRef.current = [];
     setPhase("live");
     runningRef.current = true;
-    {
-      const mod = MODERATORS[moderatorStyle];
-      speakModeratorNow(
-        `Welcome to the ${category} debate. Two enter. One leaves with their dignity — maybe. Begin.`,
-        mod.personaId
-      ).catch(() => {});
-    }
     isPausedRef.current = false;
     setIsPaused(false);
     setIsStarting(false);
-    // The MODERATOR opens the debate: asks Debater A a specific question about the
-    // first topic, then Debater B follows up directly on A's answer — no A-hosts-B
-    // greeting exchange.
+    // The MODERATOR opens the debate: welcome line first (awaited so it fully
+    // plays before the opening question begins), then the structured opening exchange.
     (async () => {
       try {
+        const mod = MODERATORS[moderatorStyle];
+        await speakModeratorNow(
+          `Welcome to the ${category} debate. Two enter. One leaves with their dignity — maybe. Begin.`,
+          mod.personaId,
+          { wait: true },
+        ).catch(() => {});
         const startIdxForOpening = selectedTopicId ? Math.max(0, topics.findIndex(t => t.id === selectedTopicId)) : 0;
         await runModeratorOpening(topics[startIdxForOpening]);
       } catch {}
