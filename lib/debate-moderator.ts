@@ -164,7 +164,8 @@ export function makeInterruptController() {
   return {
     isArmed: () => armed,
     async arm(text: string, moderatorId: string) {
-      const trimmed = truncateAtSentence(text, 240);
+      if (armed) return; // already armed — prevent self-overlap / double-fire
+      const trimmed = truncateAtSentence(text, 75); // ~5 s of TTS — caps overlap window
       pendingUri = await prefetchTTSAudio("/api/persona-speak", { text: trimmed, personaId: moderatorId });
       pendingModeratorId = moderatorId;
       armed = true;
