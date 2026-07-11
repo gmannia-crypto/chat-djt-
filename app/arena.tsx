@@ -4497,6 +4497,16 @@ export default function ArenaScreen() {
           }]);
           triggerLieFlash();
           playLieAlert();
+          if (data.moderatorLine) {
+            addMessage({
+              id: `mod-correction-${msg.id}`,
+              speakerId: "moderator",
+              speakerName: "🎤 MODERATOR",
+              text: data.moderatorLine,
+              timestamp: Date.now(),
+              isSystem: true,
+            });
+          }
         } else if (score >= 40 && score < 70) {
           sessionAltFactTallyRef.current = { ...sessionAltFactTallyRef.current, [msg.speakerId]: (sessionAltFactTallyRef.current[msg.speakerId] || 0) + 1 };
           setAltFactCount((c) => c + 1);

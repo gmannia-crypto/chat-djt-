@@ -890,6 +890,8 @@ export default function DebateStage() {
           setTimeout(() => setLieFlashOn(false), 450);
         }
         // Bias-aware moderator reaction — defends favored personas, chastises targeted ones.
+        // When the fact-check returns a specific moderatorLine (science/history correction),
+        // use that directly; otherwise fall back to a generic jab from generateModeratorLine.
         // This is a CUT-IN: the moderator jumps in over whoever is still talking, so we
         // arm the overlap controller (prefetches audio + ducks the outgoing voice) rather
         // than queuing sequentially behind it.
@@ -898,10 +900,14 @@ export default function DebateStage() {
         if (reactionKind && deviceId && modCooldownOk && Math.random() < MOD_REACTION_CHANCE) {
           lastModReactionAtRef.current = Date.now();
           const mod = MODERATORS[moderatorStyle];
-          generateModeratorLine({
-            deviceId, moderatorId: mod.personaId, kind: reactionKind,
-            topic: currentTopicRef.current?.title, lastSpeakerText: msg.text, moderatorStyle,
-          }).then(async (line) => {
+          const factLine = isLie && data.moderatorLine ? String(data.moderatorLine) : null;
+          const linePromise: Promise<string> = factLine
+            ? Promise.resolve(factLine)
+            : generateModeratorLine({
+                deviceId, moderatorId: mod.personaId, kind: reactionKind,
+                topic: currentTopicRef.current?.title, lastSpeakerText: msg.text, moderatorStyle,
+              });
+          linePromise.then(async (line) => {
             setModeratorLastLine(line);
             if (activeSpeakerRef.current && activeSpeakerRef.current !== mod.personaId) {
               // Someone is actively talking — cut in over them with overlapping audio.

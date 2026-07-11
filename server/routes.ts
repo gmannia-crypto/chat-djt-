@@ -4288,6 +4288,67 @@ Return ONLY a valid JSON array: [{"id":"snake_case","title":"3-6 PUNCHY words","
     return signals;
   }
   // ────────────────────────────────────────────────────────────────────────────────────────────
+  // CREDIBLE FACTS CORPUS — peer-reviewed science, Scientific American grade, + African &
+  // African-American history. Injected into every persona prompt and the fact-checker so
+  // debaters can cite real facts AND the moderator can correct inaccuracies with precision.
+  // ────────────────────────────────────────────────────────────────────────────────────────────
+
+  const CREDIBLE_FACTS_CORPUS = {
+    science: [
+      "Climate: 2023 was Earth's hottest year in 125,000 years of recorded proxy data (NASA/NOAA/WMO); global surface temperature now 1.45°C above pre-industrial average.",
+      "Vaccines: mRNA COVID-19 vaccines showed 90–95% efficacy against severe disease in peer-reviewed NEJM trials; HPV vaccine reduced cervical cancer incidence by 87% in vaccinated cohorts (NEJM 2021).",
+      "Microplastics: Microplastic particles detected in human blood, lungs, placentas, and breast milk (Nature Medicine 2022; Environment International 2023).",
+      "Alzheimer's: Chronic sleep deprivation accelerates amyloid-β plaque accumulation — a key Alzheimer's biomarker — confirmed in humans by National Institutes of Health, 2023.",
+      "AlphaFold: DeepMind's AlphaFold AI predicted structures for over 200 million proteins (virtually all known proteins), fundamentally accelerating drug discovery (Nature 2021).",
+      "Gene therapy: FDA approved the first CRISPR-based gene therapy (Casgevy) in December 2023 for sickle cell disease — a functional cure in clinical trials.",
+      "Psychedelics: Psilocybin (magic mushrooms) proved as effective as leading antidepressant SSRIs for major depression in a double-blind randomized trial (NEJM 2022).",
+      "Antimicrobial resistance: Drug-resistant infections kill ~700,000 people annually; WHO projects 10 million annual deaths by 2050 if unchecked — larger than cancer deaths today.",
+      "Dark matter/energy: 27% of the universe is dark matter, 68% dark energy; only 5% is ordinary matter visible to all instruments (Planck Collaboration 2018).",
+      "Human genome: 98.7% genetic similarity between humans and chimpanzees; modern humans (Homo sapiens) share ~1–4% DNA with Neanderthals due to interbreeding ~50,000 years ago.",
+      "Gut microbiome: The human gut hosts ~38 trillion microbial cells, roughly equal to human cells; microbiome diversity linked to immune function, mental health, and obesity (Cell 2016).",
+      "Ocean acidification: Oceans have absorbed 30% of human CO₂ emissions; pH has dropped 0.1 units (26% more acidic) since industrialization, threatening coral reefs and shellfish (IPCC 2021).",
+      "Quantum computing: Google's Sycamore processor performed a specific calculation in 200 seconds that would take a classical supercomputer 10,000 years (Nature 2019).",
+      "Cancer liquid biopsy: Circulating tumor DNA tests can detect multiple cancers up to 4 years before symptoms appear with high specificity (Nature 2023).",
+      "Neuroplasticity: Adult human hippocampi generate new neurons (neurogenesis) throughout life; exercise and learning accelerate this process (confirmed via carbon-14 dating, Cell 2019).",
+    ],
+    africanHistory: [
+      "Human origins: Modern Homo sapiens evolved in Africa approximately 300,000 years ago; Africa contains the greatest genetic diversity of any continent on Earth (Science 2009).",
+      "Ancient Egypt: Ancient Egypt (Kemet) was an African civilization rooted in northeastern Africa; the Great Pyramid of Giza was built ~2560 BCE and stood as the world's tallest structure for 3,800 years.",
+      "Kingdom of Kush: The Kingdom of Kush (modern Sudan) preceded and temporarily conquered Egypt — Nubian pharaohs ruled Egypt as the 25th Dynasty from 747–656 BCE.",
+      "Mansa Musa: Mansa Musa of the Mali Empire (c. 1280–1337 CE) is estimated by historians to be the wealthiest individual in history — inflation-adjusted net worth ~$400 billion.",
+      "University of Sankore: Timbuktu's University of Sankore (est. ~1300 CE) enrolled up to 25,000 students and housed one of the world's largest collections of manuscripts — pre-dating many European universities.",
+      "Great Zimbabwe: Great Zimbabwe was a thriving stone-walled city built 1100–1450 CE, capital of a powerful sub-Saharan trading kingdom with trade links to China, India, and Arabia.",
+      "Ethiopia never colonized: Ethiopia is the only African country to defeat a European colonial power in battle — defeating Italy at the Battle of Adwa (1896) and remaining independent throughout the colonial era.",
+      "Haitian Revolution: The Haitian Revolution (1791–1804) was the first successful large-scale slave revolt in history, creating Haiti as the first Black republic in the Western Hemisphere.",
+      "Transatlantic slave trade: An estimated 12.5 million Africans were forcibly transported to the Americas between 1500–1900; about 1.8 million died during the Middle Passage (Slave Voyages Database).",
+      "13th Amendment: The 13th Amendment (1865) abolished chattel slavery but retained the exception 'except as punishment for crime,' a clause critics argue enabled convict leasing as a form of racial labor exploitation.",
+      "Black Wall Street: The Greenwood District of Tulsa, Oklahoma, was the wealthiest Black community in American history — destroyed in the 1921 Tulsa Race Massacre by white mobs, killing up to 300 people and leaving 10,000 homeless.",
+      "Tuskegee Airmen: The Tuskegee Airmen were the first African American military aviators in the U.S. Armed Forces; they flew 15,000+ sorties in WWII and earned over 150 Distinguished Flying Crosses.",
+      "Shirley Chisholm: Shirley Chisholm was the first Black woman elected to U.S. Congress (1968) and the first Black candidate to seek a major-party presidential nomination (1972 Democratic primary).",
+      "Charles Drew: Dr. Charles Drew, a Black American surgeon, pioneered blood banking and plasma preservation in 1940, saving millions of lives in WWII — and was ironically denied service at segregated hospitals.",
+      "Montgomery Bus Boycott: The Montgomery Bus Boycott lasted 381 days (1955–1956), triggered by Rosa Parks' arrest; it ended bus segregation and demonstrated the power of organized nonviolent economic protest.",
+      "Civil Rights Act 1964: The Civil Rights Act of 1964 prohibited discrimination based on race, color, religion, sex, or national origin in employment and public accommodations, after 100 years of post-Civil War racial apartheid.",
+      "Ghana independence: Ghana became the first sub-Saharan African country to gain independence from colonial rule on March 6, 1957, under Kwame Nkrumah, inspiring subsequent decolonization across the continent.",
+      "Nelson Mandela: Nelson Mandela served 27 years in prison (1964–1990) before becoming South Africa's first democratically elected president (1994), overseeing a peaceful transition from apartheid.",
+      "African Union: The African Union (AU) has 55 member states, making it the largest regional organization in the world by number of members.",
+      "Harriet Tubman: Harriet Tubman personally led 13 rescue missions freeing approximately 70 enslaved people via the Underground Railroad; she later served as a Union Army spy during the Civil War.",
+    ],
+  };
+
+  function getCredibleFactsContext(): string {
+    const scienceSample = CREDIBLE_FACTS_CORPUS.science
+      .sort(() => Math.random() - 0.5).slice(0, 5).map(f => `• ${f}`).join("\n");
+    const historySample = CREDIBLE_FACTS_CORPUS.africanHistory
+      .sort(() => Math.random() - 0.5).slice(0, 4).map(f => `• ${f}`).join("\n");
+    return `\n\nCREDIBLE FACTS REFERENCE (peer-reviewed science & verified history — cite these when relevant, correct opponents who contradict them):
+SCIENCE (peer-reviewed / Scientific American grade):
+${scienceSample}
+AFRICAN & AFRICAN-AMERICAN HISTORY (verified historical record):
+${historySample}
+CRITICAL: If an opponent makes a claim that contradicts these or other well-established facts, CALL THEM OUT with the correct information — cite specific studies, dates, or figures. Accuracy is a weapon.`;
+  }
+
+  // ────────────────────────────────────────────────────────────────────────────────────────────
 
   async function getArenaNewsContext(): Promise<string> {
     if (arenaHeadlinesCache.headlines.length > 0 && Date.now() < arenaHeadlinesCache.expires) {
@@ -6680,7 +6741,7 @@ Use first names only. Keep responses to 2-3 sentences max — but make every wor
         : debateMode === "savage"
         ? "\n\nDEBATE MODE — SAVAGE: No holds barred. Tear into your opponents PERSONALLY. Use devastating sarcasm, mockery, and insults. Maximum aggression — be ruthless, cutthroat, and merciless. Attack their character, their intelligence, their credibility. Use profanity freely. Do NOT hold back."
         : "";
-      let systemPrompt = ARENA_PERSONA_PROMPTS[responderId] + currentYearContext + getLieBehaviorPrompt(responderId, sessionLieCount, sessionIQ, sessionAltFactCount) + debateModeInstruction + getShannonGrandmomNote(responderId, conversationHistory);
+      let systemPrompt = ARENA_PERSONA_PROMPTS[responderId] + currentYearContext + getLieBehaviorPrompt(responderId, sessionLieCount, sessionIQ, sessionAltFactCount) + debateModeInstruction + getShannonGrandmomNote(responderId, conversationHistory) + getCredibleFactsContext();
       if (winTallyContext) {
         systemPrompt += winTallyContext;
       }
@@ -7510,6 +7571,7 @@ ${ARENA_PERSONA_PROMPTS[intervieweeId]}${getShannonGrandmomNote(intervieweeId, c
       const intervieweeName = ARENA_NAME_MAP[intervieweeId] || intervieweeId;
       const newsContext = await getArenaNewsContext().catch(() => "");
 
+      const credibleFacts = getCredibleFactsContext();
       const systemPrompt = `You are a sharp, neutral fact-checker scoring a single quote from public figure ${intervieweeName} on a 0-100 truthfulness scale.
 
 100 = fully accurate, well-supported.
@@ -7525,13 +7587,18 @@ Use your knowledge of the public record AND the live headlines below. Be especia
 - "I barely knew Epstein" claims.
 - Inflated crowd sizes, business deals that fell through, "everyone says" claims.
 - Made-up statistics, fake quotes attributed to opponents.
+- Scientific misinformation contradicted by peer-reviewed consensus (climate, vaccines, evolution, etc.).
+- Distortions of African or African-American history (slavery statistics, civil rights timeline, historical African civilizations, etc.).
 
 Be lenient on opinion, prediction, or value statements (those are not lies — score 60-80 if reasonable).
+
+PEER-REVIEWED SCIENCE & VERIFIED HISTORY REFERENCE:
+${credibleFacts}
 
 LIVE HEADLINES:
 ${newsContext || "(none available)"}
 
-Return ONLY valid JSON: {"score": 0-100, "isLie": boolean (true if score<40), "reason": "short 1-sentence explanation", "fact": "1-sentence corrective fact (only if isLie=true, else empty string)"}`;
+Return ONLY valid JSON: {"score": 0-100, "isLie": boolean (true if score<40), "reason": "short 1-sentence explanation", "fact": "1-sentence corrective fact citing a real source or verified record (only if isLie=true, else empty string)", "moderatorLine": "a firm 1-sentence moderator correction spoken aloud starting with 'Actually' or 'Point of order' and citing the corrective fact — only if isLie=true, else empty string"}`;
 
       const completion = await getClient().chat.completions.create({
         model: getFastModel(),
@@ -7549,15 +7616,20 @@ Return ONLY valid JSON: {"score": 0-100, "isLie": boolean (true if score<40), "r
       const score = Math.max(0, Math.min(100, Number(parsed.score) || 70));
       const isLie = score < 40 || parsed.isLie === true;
       if (isLie) bumpLieTally(intervieweeId).catch(() => {});
+      const fact = String(parsed.fact || "").slice(0, 240);
+      const moderatorLine = isLie
+        ? (String(parsed.moderatorLine || "").trim().slice(0, 200) || (fact ? `Point of order — ${fact}` : ""))
+        : "";
       res.json({
         score,
         isLie,
         reason: String(parsed.reason || "").slice(0, 240),
-        fact: String(parsed.fact || "").slice(0, 240),
+        fact,
+        moderatorLine,
       });
     } catch (error: any) {
       console.error("Interview factcheck error:", error);
-      res.status(500).json({ error: "Fact-check failed", score: 70, isLie: false, reason: "", fact: "" });
+      res.status(500).json({ error: "Fact-check failed", score: 70, isLie: false, reason: "", fact: "", moderatorLine: "" });
     }
   });
 
