@@ -193,6 +193,7 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   shahidbolson: require("@/assets/images/persona-shahid.png"),
   mlk: require("@/assets/images/persona-mlk.jpg"),
   malcolmx: require("@/assets/images/persona-malcolmx.jpg"),
+  samjackson: require("@/assets/images/persona-samjackson.jpg"),
 };
 
 const FX_KEY = "interview_fx_enabled_v1";
