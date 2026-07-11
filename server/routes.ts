@@ -482,8 +482,21 @@ function setCachedTTS(key: string, buffer: Buffer): void {
   ttsCache.set(key, { buffer, timestamp: Date.now() });
 }
 
-function fixTTSPronunciation(text: string): string {
+function stripMarkdownForTTS(text: string): string {
   return text
+    .replace(/\*{1,3}([^*\n]+)\*{1,3}/g, "$1")  // **bold**, *italic*, ***both***
+    .replace(/\*+/g, "")                           // lone asterisks (bullets, etc.)
+    .replace(/_{1,2}([^_\n]+)_{1,2}/g, "$1")      // __bold__, _italic_
+    .replace(/`{1,3}[^`]*`{1,3}/g, "")            // `code` / ```blocks```
+    .replace(/^#{1,6}\s+/gm, "")                  // # headings
+    .replace(/^[-•]\s+/gm, "")                    // - bullet / • bullet
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")      // [link](url) → link text only
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+function fixTTSPronunciation(text: string): string {
+  return stripMarkdownForTTS(text)
     .replace(/\bEpstein War\b/gi, "Ep-steen War")
     .replace(/\bEpstein's\b/gi, "Ep-steen's")
     .replace(/\bEpstein files\b/gi, "Ep-steen files")
