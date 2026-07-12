@@ -931,36 +931,37 @@ export default function DebateStage() {
           setLieFlashOn(true);
           setTimeout(() => setLieFlashOn(false), 450);
         }
-        // Bias-aware moderator reaction — defends favored personas, chastises targeted ones.
-        // When the fact-check returns a specific moderatorLine (science/history correction),
-        // use that directly; otherwise fall back to a generic jab from generateModeratorLine.
-        // This is a CUT-IN: the moderator jumps in over whoever is still talking, so we
-        // arm the overlap controller (prefetches audio + ducks the outgoing voice) rather
-        // than queuing sequentially behind it.
-        const reactionKind = moderatorLieReaction(moderatorStyle, msg.speakerId, isLie);
+        // Moderator ONLY corrects when an actual factual lie is detected.
+        // No random opinion reactions — corrections are sequential (queue),
+        // never overlapping. Hard-capped at 75 chars ≈ 5 s of speech so the
+        // next persona's turn is barely delayed.
         const modCooldownOk = Date.now() - lastModReactionAtRef.current >= MOD_REACTION_COOLDOWN_MS;
-        if (reactionKind && deviceId && modCooldownOk && Math.random() < MOD_REACTION_CHANCE) {
+        if (isLie && deviceId && modCooldownOk) {
           lastModReactionAtRef.current = Date.now();
           const mod = MODERATORS[moderatorStyle];
-          const factLine = isLie && data.moderatorLine ? String(data.moderatorLine) : null;
+          const reactionKind = moderatorLieReaction(moderatorStyle, msg.speakerId, true);
+          const factLine = data.moderatorLine ? String(data.moderatorLine) : null;
           const linePromise: Promise<string> = factLine
             ? Promise.resolve(factLine)
-            : generateModeratorLine({
-                deviceId, moderatorId: mod.personaId, kind: reactionKind,
-                topic: currentTopicRef.current?.title, lastSpeakerText: msg.text, moderatorStyle,
-              });
-          linePromise.then(async (line) => {
-            setModeratorLastLine(line);
-            if (activeSpeakerRef.current && activeSpeakerRef.current !== mod.personaId) {
-              // Someone is actively talking — cut in over them with overlapping audio.
-              await interruptCtl.arm(line, mod.personaId);
-              playDingSound().catch(() => {});
-            } else {
-              // Nobody's speaking right now — just speak normally.
-              setModeratorSpeaking(true);
-              enqueueTTS(line, mod.personaId, `mod-lie-${msg.id}`);
-              setTimeout(() => setModeratorSpeaking(false), Math.min(6000, Math.max(1500, line.length * 60)));
-            }
+            : reactionKind
+              ? generateModeratorLine({
+                  deviceId, moderatorId: mod.personaId, kind: reactionKind,
+                  topic: currentTopicRef.current?.title, lastSpeakerText: msg.text, moderatorStyle,
+                })
+              : Promise.resolve("");
+          linePromise.then((line) => {
+            if (!line || !runningRef.current) return;
+            // Hard-cap to ~75 chars ≈ 5 s — always cut at a word boundary
+            const shortLine = line.length <= 75 ? line : (() => {
+              const cut = line.lastIndexOf(" ", 75);
+              return (cut > 20 ? line.slice(0, cut) : line.slice(0, 75)).trimEnd() + ".";
+            })();
+            setModeratorLastLine(shortLine);
+            // Enqueue sequentially: plays after current persona finishes,
+            // before the next one starts — no overlap in either direction.
+            setModeratorSpeaking(true);
+            enqueueTTS(shortLine, mod.personaId, `mod-lie-${msg.id}`);
+            setTimeout(() => setModeratorSpeaking(false), Math.min(5000, Math.max(1500, shortLine.length * 65)));
           }).catch(() => {});
         }
       })
