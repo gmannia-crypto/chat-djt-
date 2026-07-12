@@ -1401,7 +1401,9 @@ export default function InterviewScreen() {
         const _d = _now.getDate();
         const _sfx = _d === 1 || _d === 21 || _d === 31 ? "st" : _d === 2 || _d === 22 ? "nd" : _d === 3 || _d === 23 ? "rd" : "th";
         const _dateStr = `${_months[_now.getMonth()]} ${_d}${_sfx}, ${_now.getFullYear()}`;
-        const _ivName = interviewer?.name || "Your host";
+        // TTS-safe name map — avoids Roman-numeral misreads (e.g. "Malcolm X" → "the tenth")
+        const TTS_NAME_OVERRIDES: Record<string, string> = { malcolmx: "Brother Malcolm" };
+        const _ivName = (interviewerId && TTS_NAME_OVERRIDES[interviewerId]) || interviewer?.name || "Your host";
         const introText = `Today is ${_dateStr}. This exclusive interview is brought to you by Dynamic Creations. I'm ${_ivName}, and we're getting started.`;
         if (runningRef.current && interviewerId) {
           enrichAndAddMessage({ id: `intro-${Date.now()}`, speakerId: interviewerId, speakerName: _ivName, text: introText, ts: Date.now() });

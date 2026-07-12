@@ -128,6 +128,13 @@ const REBUTTAL_BRIDGE_TEMPLATES = [
 const getRebuttalBridge = (name: string) =>
   REBUTTAL_BRIDGE_TEMPLATES[Math.floor(Math.random() * REBUTTAL_BRIDGE_TEMPLATES.length)](name || "Debater");
 
+// Maps persona IDs to a TTS-safe spoken name (avoids Roman-numeral misreads, etc.)
+const TTS_NAME_OVERRIDES: Record<string, string> = {
+  malcolmx: "Brother Malcolm",
+};
+const spokenName = (id: string | undefined, displayName: string): string =>
+  (id && TTS_NAME_OVERRIDES[id]) || displayName;
+
 // ── OFFENSE DETECTION ─────────────────────────────────────────────────────────
 // Persona-specific triggers that guarantee an immediate interruption.
 // Keep patterns targeted — avoid common words that appear in normal speech.
@@ -1396,9 +1403,13 @@ export default function DebateStage() {
       const primaryId = side === "A" ? interviewerId : intervieweeId;
       const secondaryId = side === "A" ? intervieweeId : interviewerId;
 
-      // Resolve display names for both debaters (used in bridge + question prefix)
-      const primaryName = primaryId === interviewerId ? (interviewer?.name ?? "") : (interviewee?.name ?? "");
-      const secondaryName = secondaryId === interviewerId ? (interviewer?.name ?? "") : (interviewee?.name ?? "");
+      // Resolve TTS-safe spoken names for both debaters (used in bridge + question prefix)
+      const primaryName = primaryId === interviewerId
+        ? spokenName(interviewerId, interviewer?.name ?? "")
+        : spokenName(intervieweeId, interviewee?.name ?? "");
+      const secondaryName = secondaryId === interviewerId
+        ? spokenName(interviewerId, interviewer?.name ?? "")
+        : spokenName(intervieweeId, interviewee?.name ?? "");
 
       // ── STEP 1: Moderator asks a question ──────────────────────────────────
       // Reuse pre-fetched question from previous round's transition (zero dead air).
@@ -1497,7 +1508,9 @@ export default function DebateStage() {
       const nextTopic = latestTopics[nextIdx];
       const nextSide = moderatorTargetRef.current; // already flipped for next round
       const nextPrimaryId = nextSide === "A" ? interviewerId : intervieweeId;
-      const nextPrimaryName = nextPrimaryId === interviewerId ? (interviewer?.name ?? "") : (interviewee?.name ?? "");
+      const nextPrimaryName = nextPrimaryId === interviewerId
+        ? spokenName(interviewerId, interviewer?.name ?? "")
+        : spokenName(intervieweeId, interviewee?.name ?? "");
 
       // Short transition line (template, no API) — debater named first, then topic
       const TRANS = nextPrimaryName ? [
