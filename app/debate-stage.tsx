@@ -115,6 +115,17 @@ const MICRO_REACTIONS = [
   "Say what?", "Unbelievable.", "Mm.", "Ok sure.", "That's rich.",
 ];
 
+const REBUTTAL_BRIDGES = [
+  "Any rebuttal to that statement?",
+  "How do you respond to that?",
+  "What's your response to that claim?",
+  "Would you care to respond to that?",
+  "Your rebuttal?",
+  "Do you have a response to that?",
+  "Care to weigh in on that?",
+  "What do you say to that?",
+];
+
 // ── OFFENSE DETECTION ─────────────────────────────────────────────────────────
 // Persona-specific triggers that guarantee an immediate interruption.
 // Keep patterns targeted — avoid common words that appear in normal speech.
@@ -381,6 +392,8 @@ export default function DebateStage() {
   const shopPromoFiredRef = useRef(false);
   // Pre-fetched next question — eliminates dead air between turns
   const nextQPromiseRef = useRef<Promise<any> | null>(null);
+  // Carries a pre-generated question from one round's transition into the next round's open
+  const prefetchedOpeningRef = useRef<string>("");
   const messagesRef = useRef<Msg[]>([]);
   const topicIdxRef = useRef(0);
   const topicsRef = useRef<Topic[]>([]);
@@ -1298,67 +1311,33 @@ export default function DebateStage() {
   // both sides get equal question time from the moderator over the course of the debate.
   const moderatorTargetRef = useRef<"A" | "B">("A");
 
-  // Opens the debate: the MODERATOR asks Debater A one specific, pointed question about
-  // the first topic; A answers; then Debater B is prompted to follow up directly on A's
-  // answer (agree/rebut/challenge) rather than the moderator asking B a separate question.
-  // This replaces the old /api/arena/interview-greeting flow, which let A "host" B —
-  // exactly the interviewer/interviewee framing we don't want in a debate.
-  const runModeratorOpening = useCallback(async (openTopic: Topic | undefined, prefetchedQuestion?: string) => {
+  // Drain queue → speak moderator line directly → wait for completion → reset state.
+  // This is the ONLY path moderator audio should travel — never through enqueueTTS.
+  const speakMod = useCallback(async (text: string, msgId: string) => {
     const mod = MODERATORS[moderatorStyle];
-    if (!deviceId || !interviewerId || !intervieweeId || !mod || !openTopic) return;
-    setIsThinking("interviewer");
+    if (!mod || !text || !runningRef.current) return;
     setModeratorSpeaking(true);
-    // Use pre-fetched question if provided (avoids dead air gap after welcome line)
-    const modQuestionText = prefetchedQuestion ?? await generateModeratorQuestion({
-      deviceId, moderatorStyle, targetId: interviewerId, topic: openTopic,
-      isTransition: false, conversationHistory: [],
-    });
-    setModeratorLastLine(modQuestionText);
-    setIsThinking(null);
-    if (runningRef.current && modQuestionText) {
-      // Show the moderator message immediately in the chat bubble
-      setMessages((prev) => [...prev, {
-        id: `modopen-q-${Date.now()}`, speakerId: mod.personaId,
-        speakerName: mod.name, text: modQuestionText, ts: Date.now(),
-      }]);
-      // Fetch persona A's answer in parallel with the moderator speaking.
-      // Moderator audio goes through speakModeratorNow (bypasses queue entirely)
-      // so queue bleed-through is impossible.
-      setIsThinking("interviewee");
-      const [aAnswer] = await Promise.all([
-        fetchAnswerFrom(mod.personaId, interviewerId, modQuestionText),
-        waitForQueueDrain().then(() => {
-          setActiveSpeaker(mod.personaId);
-          activeSpeakerRef.current = mod.personaId;
-          return speakModeratorNow(modQuestionText, mod.personaId, { wait: true }).catch(() => {});
-        }),
-      ]);
-      setIsThinking(null);
-      setActiveSpeaker(null);
-      activeSpeakerRef.current = null;
-      setModeratorSpeaking(false);
-      if (aAnswer?.text && runningRef.current) {
-        // Moderator fully done — now persona A can speak
-        enrichAndAddMessage({ id: `modopen-a-${Date.now()}`, speakerId: aAnswer.speakerId, speakerName: aAnswer.speakerName, text: aAnswer.text, ts: Date.now() });
-        await new Promise((r) => setTimeout(r, Math.max(150, Math.min(400, aAnswer.text.length * 3))));
-        if (runningRef.current) {
-          setIsThinking("interviewer");
-          const bFollowUp = await fetchAnswerFrom(interviewerId, intervieweeId, aAnswer.text);
-          setIsThinking(null);
-          if (bFollowUp?.text && runningRef.current) {
-            enrichAndAddMessage({ id: `modopen-b-${Date.now()}`, speakerId: bFollowUp.speakerId, speakerName: bFollowUp.speakerName, text: bFollowUp.text, ts: Date.now() });
-          }
-        }
-      }
-    } else {
-      setModeratorSpeaking(false);
-    }
-    // Next topic-transition should target B first since A already got the moderator's
-    // opening question — keeps question airtime even between the two debaters.
-    moderatorTargetRef.current = "B";
-    // Two exchanges already consumed on this topic (moderator->A, A->B follow-up).
-    exchangesOnTopicRef.current = 2;
-  }, [deviceId, interviewerId, intervieweeId, moderatorStyle, enrichAndAddMessage, fetchAnswerFrom, waitForQueueDrain]);
+    setModeratorLastLine(text);
+    setMessages((prev) => [...prev, {
+      id: msgId, speakerId: mod.personaId, speakerName: mod.name, text, ts: Date.now(),
+    }]);
+    await waitForQueueDrain();
+    if (!runningRef.current) { setModeratorSpeaking(false); return; }
+    setActiveSpeaker(mod.personaId);
+    activeSpeakerRef.current = mod.personaId;
+    await speakModeratorNow(text, mod.personaId, { wait: true }).catch(() => {});
+    setActiveSpeaker(null);
+    activeSpeakerRef.current = null;
+    setModeratorSpeaking(false);
+  }, [moderatorStyle, waitForQueueDrain]);
+
+  // Thin shim kept so startInterview / unlockSession don't need refactoring.
+  // runLoop now handles the full structured debate flow including the first round.
+  const runModeratorOpening = useCallback(async (_openTopic?: Topic | undefined, prefetchedQuestion?: string) => {
+    moderatorTargetRef.current = "A";
+    exchangesOnTopicRef.current = 0;
+    prefetchedOpeningRef.current = prefetchedQuestion || "";
+  }, []);
 
   // Throttle for moderator opinion injections (chastise/defend lie reactions) —
   // keeps the moderator from piling on every single lie flag, and enforces a
@@ -1368,234 +1347,149 @@ export default function DebateStage() {
   const MOD_REACTION_COOLDOWN_MS = 45000;
   const MOD_REACTION_CHANCE = 0.35;
 
-  // Main turn loop
+  // Structured debate loop.
+  // Each round: (1) moderator asks → (2) primary answers → (3) moderator "any rebuttal?" →
+  // (4) secondary rebuts → (5) moderator short transition → pre-fetch next question → repeat.
+  // speakMod drains the TTS queue before every moderator line, so persona audio ALWAYS
+  // finishes before the moderator begins — the core guarantee that fixes turn ordering.
   const runLoop = useCallback(async () => {
+    const mod = MODERATORS[moderatorStyle];
+    if (!mod || !deviceId || !interviewerId || !intervieweeId) return;
+
     while (runningRef.current && Date.now() < sessionEndsAtRef.current) {
       if (isPausedRef.current) { await new Promise((r) => setTimeout(r, 400)); continue; }
       if (!runningRef.current) break;
 
-      // Respect cut-mic controls — skip this turn entirely if either speaker's mic is cut.
-      if ((interviewerId && micCutRef.current.iv) || (intervieweeId && micCutRef.current.ivee)) {
-        await new Promise((r) => setTimeout(r, 500));
-        continue;
-      }
-
-      // Always read from the ref so we see the latest topic list even if it was
-      // fetched after runLoop started. If the list is empty, wait and retry.
       const liveTopics = topicsRef.current;
       if (liveTopics.length === 0) { await new Promise((r) => setTimeout(r, 800)); continue; }
 
-      // Clamp idx in case the topic list shrank (shouldn't happen, but safe).
       const rawIdx = topicIdxRef.current;
       const idx = rawIdx < liveTopics.length ? rawIdx : 0;
-      if (idx !== rawIdx) { topicIdxRef.current = 0; setTopicIdx(0); }
       const topic = liveTopics[idx];
 
-      const isFirstQuestionOnTopic = exchangesOnTopicRef.current === 0;
-      const isFollowUp = !isFirstQuestionOnTopic;
+      // Alternate which debater the moderator addresses
+      const side = moderatorTargetRef.current;
+      moderatorTargetRef.current = side === "A" ? "B" : "A";
+      const primaryId = side === "A" ? interviewerId : intervieweeId;
+      const secondaryId = side === "A" ? intervieweeId : interviewerId;
 
-      // Use pre-fetched question if available (eliminates dead air between turns)
-      setIsThinking("interviewer");
-      const q = await (nextQPromiseRef.current || fetchQuestion({
-        isFollowUp,
-        isTransition: false,
-        currentTopicArg: topic,
-      }));
-      nextQPromiseRef.current = null;
-      setIsThinking(null);
-      if (!runningRef.current) break;
-      if (!q) { await new Promise((r) => setTimeout(r, 600)); continue; }
-      enrichAndAddMessage({ id: `q-${Date.now()}-${Math.random()}`, speakerId: q.speakerId, speakerName: q.speakerName, text: q.text, ts: Date.now() });
-
-      // Offense check: does the question offend the interviewee? (guaranteed interrupt, no self-interrupt)
-      const qOffendsInterviewee = intervieweeId ? detectOffense(q.text, intervieweeId, q.speakerId) : false;
-      // Decide up-front whether to interrupt — offense = always; otherwise 20% random
-      const willInterrupt = qOffendsInterviewee || Math.random() < 0.20;
-
-      // PIPELINE: kick off the answer fetch immediately in parallel with question TTS.
-      // When interrupting, pre-fetch BOTH the jab AND the full answer in parallel so
-      // there's no dead air after the interruption.
-      const answerPromise: Promise<{ speakerId: string; speakerName: string; text: string } | null> =
-        fetchAnswer(q.text, { wasInterrupted: willInterrupt });
-      const interruptPromise: Promise<{ speakerId: string; speakerName: string; text: string } | null> | null =
-        willInterrupt ? fetchAnswer(q.text, { isInterruption: true }) : null;
-
-      // Text-pacing delay before advancing the loop — kept short since the TTS queue
-      // already paces actual speech by real audio duration; this just avoids racing
-      // the fetch ahead of the question bubble rendering. Floor 150ms, cap 500ms.
-      const qReadMs = Math.min(500, Math.max(150, q.text.length * 4));
-      await new Promise((r) => setTimeout(r, qReadMs));
-      if (!runningRef.current) break;
-
-      // Interruption from interviewee (offense = guaranteed; otherwise random 20%)
-      let interruptionText: string | undefined;
-      if (willInterrupt && interruptPromise) {
-        const intr = await interruptPromise;
-        if (intr && intr.text && runningRef.current) {
-          interruptionText = intr.text;
-          enrichAndAddMessage({ id: `intr-${Date.now()}-${Math.random()}`, speakerId: intr.speakerId, speakerName: intr.speakerName, text: intr.text, ts: Date.now(), isInterruption: true });
-          await new Promise((r) => setTimeout(r, 60));
-        }
+      // ── STEP 1: Moderator asks a question ──────────────────────────────────
+      // Reuse pre-fetched question from previous round's transition (zero dead air).
+      const prefetched = prefetchedOpeningRef.current;
+      prefetchedOpeningRef.current = "";
+      let modQuestion: string;
+      if (prefetched) {
+        modQuestion = prefetched;
+      } else {
+        setIsThinking("interviewer");
+        modQuestion = await generateModeratorQuestion({
+          deviceId, moderatorStyle, targetId: primaryId, topic,
+          isTransition: false,
+          conversationHistory: messagesRef.current.filter((m) => !m.isSystem).slice(-6),
+        });
+        setIsThinking(null);
       }
       if (!runningRef.current) break;
+      if (!modQuestion) { await new Promise((r) => setTimeout(r, 600)); continue; }
 
+      // speakMod: drain queue → speak → wait for finish. Fetch primary answer in parallel.
       setIsThinking("interviewee");
-      const a = await answerPromise;
+      const [primaryAnswer] = await Promise.all([
+        fetchAnswerFrom(mod.personaId, primaryId, modQuestion),
+        speakMod(modQuestion, `modq-${Date.now()}-${Math.random()}`),
+      ]);
       setIsThinking(null);
       if (!runningRef.current) break;
-      if (!a) { await new Promise((r) => setTimeout(r, 300)); continue; }
 
-      // ── Micro-reaction by the INTERVIEWEE while the question is still ringing —
-      // a short spontaneous reaction (no API call) that lands just before the answer.
-      // The AI will see it in conversationHistory and react to it naturally.
-      if (Math.random() < 0.30 && !willInterrupt) {
-        const micro = MICRO_REACTIONS[Math.floor(Math.random() * MICRO_REACTIONS.length)];
-        enrichAndAddMessage({ id: `micro-q-${Date.now()}`, speakerId: a.speakerId, speakerName: a.speakerName, text: micro, ts: Date.now(), isInterruption: true });
-        await new Promise((r) => setTimeout(r, 50));
+      // ── STEP 2: Primary debater answers ────────────────────────────────────
+      if (primaryAnswer?.text) {
+        enrichAndAddMessage({
+          id: `pa-${Date.now()}-${Math.random()}`,
+          speakerId: primaryAnswer.speakerId, speakerName: primaryAnswer.speakerName,
+          text: primaryAnswer.text, ts: Date.now(),
+        });
       }
+      if (!runningRef.current || Date.now() >= sessionEndsAtRef.current) break;
 
-      enrichAndAddMessage({ id: `a-${Date.now()}-${Math.random()}`, speakerId: a.speakerId, speakerName: a.speakerName, text: a.text, ts: Date.now() });
-
-      // Offense check: does the answer offend the interviewer? (now that we have a.text)
-      const aOffendsInterviewer = interviewerId ? detectOffense(a.text, interviewerId, a.speakerId) : false;
-      // Decide cut-in immediately and PRE-FETCH in parallel with the answer read delay —
-      // same pipeline pattern as interviewee interrupt, so it's ready when read time expires.
-      const willCutIn = aOffendsInterviewer || Math.random() < 0.18;
-      const cutInPromise: Promise<{ speakerId: string; speakerName: string; text: string } | null> | null =
-        willCutIn ? fetchQuestion({ isInterruption: true, currentTopicArg: topic }) : null;
-
-      // PRE-FETCH next question in parallel with the answer read delay — gives it the
-      // maximum runway so the next turn starts with zero thinking-indicator wait.
-      if (runningRef.current && Date.now() < sessionEndsAtRef.current) {
-        nextQPromiseRef.current = fetchQuestion({ isFollowUp: true, isTransition: false, currentTopicArg: topic });
-      }
-
-      // Same short pacing delay as the question side — real speech timing comes
-      // from the TTS queue, this just keeps text and fetches from racing ahead.
-      const aReadMs = Math.min(500, Math.max(150, a.text.length * 4));
-      await new Promise((r) => setTimeout(r, aReadMs));
+      // ── STEP 3: Moderator bridge + fetch rebuttal in parallel ──────────────
+      const bridgeText = REBUTTAL_BRIDGES[Math.floor(Math.random() * REBUTTAL_BRIDGES.length)];
+      setIsThinking("interviewee");
+      const [rebuttal] = await Promise.all([
+        primaryAnswer?.text
+          ? fetchAnswerFrom(primaryId, secondaryId, primaryAnswer.text)
+          : Promise.resolve(null),
+        speakMod(bridgeText, `modbr-${Date.now()}-${Math.random()}`),
+      ]);
+      setIsThinking(null);
       if (!runningRef.current) break;
 
-      // ── Micro-reaction by the INTERVIEWER while the answer plays —
-      // skip if we're about to fire a real cut-in (avoid double-reaction).
-      if (Math.random() < 0.28 && !willCutIn) {
-        const micro = MICRO_REACTIONS[Math.floor(Math.random() * MICRO_REACTIONS.length)];
-        enrichAndAddMessage({ id: `micro-a-${Date.now()}`, speakerId: q.speakerId, speakerName: q.speakerName, text: micro, ts: Date.now(), isInterruption: true });
-        await new Promise((r) => setTimeout(r, 50));
+      // ── STEP 4: Secondary debater rebuts ───────────────────────────────────
+      if (rebuttal?.text) {
+        enrichAndAddMessage({
+          id: `rb-${Date.now()}-${Math.random()}`,
+          speakerId: rebuttal.speakerId, speakerName: rebuttal.speakerName,
+          text: rebuttal.text, ts: Date.now(),
+        });
       }
+      if (!runningRef.current || Date.now() >= sessionEndsAtRef.current) break;
 
-      // Interviewer cut-in — should already be resolved since it was pre-fetched above.
-      // Guard: cut speaker must differ from answer speaker (no self-interrupt).
-      if (willCutIn && cutInPromise) {
-        const cut = await cutInPromise;
-        if (cut && cut.text && runningRef.current && cut.speakerId !== a.speakerId) {
-          enrichAndAddMessage({ id: `cut-${Date.now()}-${Math.random()}`, speakerId: cut.speakerId, speakerName: cut.speakerName, text: cut.text, ts: Date.now(), isInterruption: true });
-          await new Promise((r) => setTimeout(r, 100));
-        }
-      }
-
-      exchangesOnTopicRef.current += 1;
       totalExchangesRef.current += 1;
 
-      // One-time shop promo injection mid-interview (after exchange 4)
-      // Note: enrichAndAddMessage() below already enqueues TTS for this message via
-      // enqueueTTS() internally — do NOT also push to ttsQueueRef here, or the promo
-      // line gets read aloud twice back-to-back and throws off the next turn's timing.
+      // One-time shop promo after exchange 4
       if (totalExchangesRef.current === 4 && !shopPromoFiredRef.current && runningRef.current) {
         shopPromoFiredRef.current = true;
-        const promoSpeakerId = interviewerId || "host";
-        const promoSpeakerName = interviewer?.name || promoSpeakerId;
-        const promoText = `Check out the exclusive product links below my photo — deals picked just for you.`;
         enrichAndAddMessage({
           id: `shop-promo-${Date.now()}`,
-          speakerId: promoSpeakerId,
-          speakerName: promoSpeakerName,
-          text: promoText,
-          ts: Date.now(),
-          isSystem: true,
+          speakerId: mod.personaId, speakerName: mod.name,
+          text: "Check out the exclusive product links below — deals picked just for you.",
+          ts: Date.now(), isSystem: true,
         });
       }
 
-      // Move to next topic after enough exchanges OR if running low on time per topic
-      const exchangesPerTopic = duration <= 5 ? 2 : duration <= 10 ? 3 : 3;
-      const shouldAdvance = exchangesOnTopicRef.current >= exchangesPerTopic;
-      if (shouldAdvance) {
-        setCompletedTopics((prev) => new Set(prev).add(topic.id));
-        // Use the live ref so newly-appended topics are included in the cycle
-        const latestTopics = topicsRef.current;
-        const nextIdx = idx + 1 < latestTopics.length ? idx + 1 : 0;
-        // Transition message
-        const nextTopic = latestTopics[nextIdx];
-        // Discard any stale pre-fetch — topic changed
-        nextQPromiseRef.current = null;
+      // ── STEP 5: Advance topic + short transition + pre-fetch next question ──
+      setCompletedTopics((prev) => new Set(prev).add(topic.id));
+      const latestTopics = topicsRef.current;
+      const nextIdx = idx + 1 < latestTopics.length ? idx + 1 : 0;
+      setTopicIdx(nextIdx);
+      topicIdxRef.current = nextIdx;
 
-        // The MODERATOR opens each new topic — alternating which debater gets addressed
-        // so both sides get equal question airtime (not just Debater A quizzing Debater B).
-        const targetSide = moderatorTargetRef.current;
-        moderatorTargetRef.current = targetSide === "A" ? "B" : "A";
-        const targetId = targetSide === "A" ? interviewerId : intervieweeId;
-        const mod = MODERATORS[moderatorStyle];
+      if (!runningRef.current || Date.now() >= sessionEndsAtRef.current) break;
 
-        if (deviceId && targetId && mod) {
-          setIsThinking("interviewer");
-          setModeratorSpeaking(true);
-          const modQuestionText = await generateModeratorQuestion({
-            deviceId, moderatorStyle, targetId, topic: nextTopic,
-            isTransition: true, previousTopicTitle: topic.title,
-            conversationHistory: messagesRef.current.filter((m) => !m.isSystem).slice(-6),
-          });
-          setModeratorLastLine(modQuestionText);
-          setIsThinking(null);
-          if (runningRef.current) {
-            // Show moderator message immediately; fetch persona answer in parallel.
-            // Moderator audio uses speakModeratorNow (bypasses queue) — guaranteed
-            // no bleed-through from previous persona audio in the queue.
-            setMessages((prev) => [...prev, {
-              id: `modq-${Date.now()}-${Math.random()}`, speakerId: mod.personaId,
-              speakerName: mod.name, text: modQuestionText, ts: Date.now(),
-            }]);
-            setIsThinking("interviewee");
-            const [modAnswer] = await Promise.all([
-              fetchAnswerFrom(mod.personaId, targetId, modQuestionText),
-              waitForQueueDrain().then(() => {
-                setActiveSpeaker(mod.personaId);
-                activeSpeakerRef.current = mod.personaId;
-                return speakModeratorNow(modQuestionText, mod.personaId, { wait: true }).catch(() => {});
-              }),
-            ]);
-            setIsThinking(null);
-            setActiveSpeaker(null);
-            activeSpeakerRef.current = null;
-            if (modAnswer?.text && runningRef.current) {
-              enrichAndAddMessage({ id: `moda-${Date.now()}-${Math.random()}`, speakerId: modAnswer.speakerId, speakerName: modAnswer.speakerName, text: modAnswer.text, ts: Date.now() });
-            }
-          }
-          setModeratorSpeaking(false);
-        } else {
-          // Fallback: old behavior if moderator/target unavailable.
-          setIsThinking("interviewer");
-          const trans = await fetchQuestion({ isTransition: true, previousTopicTitle: topic.title, currentTopicArg: nextTopic });
-          setIsThinking(null);
-          if (trans && trans.text && runningRef.current) {
-            enrichAndAddMessage({ id: `trans-${Date.now()}-${Math.random()}`, speakerId: trans.speakerId, speakerName: trans.speakerName, text: trans.text, ts: Date.now() });
-          }
-        }
+      const nextTopic = latestTopics[nextIdx];
+      const nextSide = moderatorTargetRef.current; // already flipped for next round
+      const nextPrimaryId = nextSide === "A" ? interviewerId : intervieweeId;
 
-        setTopicIdx(nextIdx);
-        topicIdxRef.current = nextIdx;
-        exchangesOnTopicRef.current = 1; // moderator opening counts as first question
-        // Pre-fetch the first follow-up for the new topic in parallel with queue drain
-        if (runningRef.current && Date.now() < sessionEndsAtRef.current) {
-          nextQPromiseRef.current = fetchQuestion({ isFollowUp: true, isTransition: false, currentTopicArg: nextTopic });
-        }
-        await new Promise((r) => setTimeout(r, 250));
+      // Short transition line (template, no API) so there's no extra loading gap
+      const TRANS = [
+        `Now let's move on to ${nextTopic.title}.`,
+        `Let's shift our focus to ${nextTopic.title}.`,
+        `Moving on — let's discuss ${nextTopic.title}.`,
+        `Next topic: ${nextTopic.title}.`,
+      ];
+      const transText = TRANS[Math.floor(Math.random() * TRANS.length)];
+
+      // Speak transition + pre-fetch next question in parallel → zero dead air next round
+      setIsThinking("interviewer");
+      const [nextQuestion] = await Promise.all([
+        generateModeratorQuestion({
+          deviceId, moderatorStyle, targetId: nextPrimaryId, topic: nextTopic,
+          isTransition: false,
+          conversationHistory: messagesRef.current.filter((m) => !m.isSystem).slice(-4),
+        }).catch(() => ""),
+        speakMod(transText, `modtrans-${Date.now()}-${Math.random()}`),
+      ]);
+      setIsThinking(null);
+
+      if (nextQuestion && runningRef.current) {
+        prefetchedOpeningRef.current = nextQuestion;
       }
-      // Note: nextQPromiseRef is already pre-fetched above (right after answer is displayed)
-      // so no duplicate fetch needed here for the non-transition case.
+
+      await new Promise((r) => setTimeout(r, 200));
+
     }
     runningRef.current = false;
     if (Date.now() >= sessionEndsAtRef.current) setPhase("ended");
-  }, [topics, fetchQuestion, fetchAnswer, fetchAnswerFrom, enrichAndAddMessage, waitForQueueDrain, duration, moderatorStyle, deviceId, interviewerId, intervieweeId]);
+  }, [topics, fetchAnswerFrom, enrichAndAddMessage, speakMod, moderatorStyle, deviceId, interviewerId, intervieweeId]);
 
   const startInterview = useCallback(async () => {
     if (!deviceId || !interviewerId || !intervieweeId || topics.length === 0 || isStarting) return;
