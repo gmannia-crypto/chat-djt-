@@ -1284,12 +1284,13 @@ export default function DebateStage() {
   // answer (agree/rebut/challenge) rather than the moderator asking B a separate question.
   // This replaces the old /api/arena/interview-greeting flow, which let A "host" B —
   // exactly the interviewer/interviewee framing we don't want in a debate.
-  const runModeratorOpening = useCallback(async (openTopic: Topic | undefined) => {
+  const runModeratorOpening = useCallback(async (openTopic: Topic | undefined, prefetchedQuestion?: string) => {
     const mod = MODERATORS[moderatorStyle];
     if (!deviceId || !interviewerId || !intervieweeId || !mod || !openTopic) return;
     setIsThinking("interviewer");
     setModeratorSpeaking(true);
-    const modQuestionText = await generateModeratorQuestion({
+    // Use pre-fetched question if provided (avoids dead air gap after welcome line)
+    const modQuestionText = prefetchedQuestion ?? await generateModeratorQuestion({
       deviceId, moderatorStyle, targetId: interviewerId, topic: openTopic,
       isTransition: false, conversationHistory: [],
     });
@@ -1635,18 +1636,28 @@ export default function DebateStage() {
     isPausedRef.current = false;
     setIsPaused(false);
     setIsStarting(false);
-    // The MODERATOR opens the debate: welcome line first (awaited so it fully
-    // plays before the opening question begins), then the structured opening exchange.
+    // The MODERATOR opens the debate: welcome line (with date + sponsor) plays
+    // while the opening question is pre-fetched in parallel — zero dead air.
     (async () => {
       try {
         const mod = MODERATORS[moderatorStyle];
-        await speakModeratorNow(
-          `Welcome to the ${category} debate. Two enter. One leaves with their dignity — maybe. Begin.`,
-          mod.personaId,
-          { wait: true },
-        ).catch(() => {});
         const startIdxForOpening = selectedTopicId ? Math.max(0, topics.findIndex(t => t.id === selectedTopicId)) : 0;
-        await runModeratorOpening(topics[startIdxForOpening]);
+        const openTopic = topics[startIdxForOpening];
+        // Format today's date for the moderator intro
+        const now = new Date();
+        const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+        const d = now.getDate();
+        const daySuffix = d === 1 || d === 21 || d === 31 ? "st" : d === 2 || d === 22 ? "nd" : d === 3 || d === 23 ? "rd" : "th";
+        const dateStr = `${months[now.getMonth()]} ${d}${daySuffix}, ${now.getFullYear()}`;
+        const welcomeText = `Today is ${dateStr}. This ${category} debate is brought to you by Dynamic Creations. I'm ${mod.name}, and we are getting right into it.`;
+        // Welcome TTS and opening question fetch run in parallel — no gap between them
+        const [, prefetchedQuestion] = await Promise.all([
+          speakModeratorNow(welcomeText, mod.personaId, { wait: true }).catch(() => {}),
+          openTopic && deviceId
+            ? generateModeratorQuestion({ deviceId, moderatorStyle, targetId: interviewerId ?? "", topic: openTopic, isTransition: false, conversationHistory: [] })
+            : Promise.resolve(""),
+        ]);
+        await runModeratorOpening(openTopic, prefetchedQuestion || undefined);
       } catch {}
       if (runningRef.current) runLoop();
     })();

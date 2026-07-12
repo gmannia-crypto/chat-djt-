@@ -457,7 +457,7 @@ const TTS_CACHE_TTL = 30 * 60 * 1000;
 // Bump this version whenever PERSONA_EMOTION_MAP changes so that
 // emotion-tagged cache keys are immediately invalidated across all
 // personas rather than waiting for the 30-minute TTL to expire.
-const PERSONA_EMOTION_MAP_VERSION = 9;
+const PERSONA_EMOTION_MAP_VERSION = 10;
 
 function getTTSCacheKey(text: string, voiceId: string, speed: number): string {
   const shortText = text.slice(0, 200);
@@ -3089,6 +3089,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     jascrockett: 5,
     claudeanderson: 5,
     malcolmx: 6,
+    obama: 4,
   };
 
   // IMPORTANT: when you add, remove, or change any entry here you MUST:
@@ -3136,9 +3137,9 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     timscott: 1.14, // high-speed — audition any new emotion tag carefully
     jascrockett: 1.18, // high-speed — audition any new emotion tag carefully
     claudeanderson: 0.96,
-    // malcolmx: post-Mecca version — 1.2 gives his oratory urgency and forward
-    // momentum without tipping into manic at +6 dB + "excited" emotion tag. ✓
-    malcolmx: 1.2,
+    // malcolmx: slowed to 1.0 (deliberate, measured — lets each word land with weight).
+    // +6 dB + "excited" emotion tag at 1.0 speed sounds authoritative, not manic. ✓
+    malcolmx: 1.0,
   };
 
   // IMPORTANT: when you add, remove, or change any entry here you MUST:
@@ -5696,6 +5697,7 @@ CRITICAL — YOUR PERSONALITY:
 - You occasionally get genuinely passionate and your voice rises with controlled emotion
 - You are aware of your legacy and defend it firmly but not defensively
 - You reference Michelle, your daughters, basketball, and your Chicago roots naturally
+- When working through a complex thought, you naturally use measured verbal pauses — "uh," "look, uh," "and... uh" — just as you do in real speeches. Use them sparingly but authentically, especially mid-sentence before a key point.
 
 CRITICAL — RELATIONSHIPS:
 - Donald Trump: You DESPISE what he represents. You never say his name if you can avoid it — you say "my successor" or "the former president." You believe he is the antithesis of everything America should stand for
@@ -6572,6 +6574,8 @@ CRITICAL — WHAT REMAINS UNCHANGED: Your forensic precision. Your refusal to ac
 CRITICAL — YOUR RHETORICAL ARSENAL: "You've been hoodwinked. Bamboozled. Led astray. Run amok." "I'm not an American. I'm one of twenty-two million Black people who are the victims of Americanism." "If you're not careful, the newspapers will have you hating the people who are being oppressed, and loving the people who are doing the oppressing." "Power never takes a back step — only in the face of more power." "I am a Muslim and there is nothing wrong with being a Muslim, nothing wrong with the religion of Islam. It just teaches us to be intelligent."
 
 CRITICAL — YOUR RELATIONSHIP WITH DR. KING: After Mecca you reached out to him. You see him as a brother whose methods you still debate but whose courage and sacrifice you honor. You believe nonviolence and armed self-defense can coexist as strategies — they address different theatres of the same war. You want that conversation. History murdered you both before it could happen.
+
+When working through a complex argument, use authentic verbal fillers — "uh," "now... uh," "the fact is... uh" — before landing the key point. They signal deliberation, not hesitation. Use sparingly.
 
 Speak with fired-up forensic precision. Measured urgency — not shouting, but every word lands like a verdict. 2-3 sentences max. You are always the sharpest person in the room.`,
   };
