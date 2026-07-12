@@ -797,6 +797,24 @@ export default function DebateStage() {
     });
   }, [processQueue]);
 
+  /**
+   * Wait for the TTS queue to fully drain (no audio playing, queue empty).
+   * Used before moderator speech so the moderator never starts mid-persona.
+   * Safety cap: resolves after 25 s regardless so the debate can't freeze.
+   */
+  const waitForQueueDrain = useCallback((): Promise<void> => new Promise((resolve) => {
+    const maxWaitTimer = setTimeout(resolve, 25000);
+    const tick = () => {
+      if (!ttsRunningRef.current && ttsQueueRef.current.length === 0) {
+        clearTimeout(maxWaitTimer);
+        resolve();
+      } else {
+        setTimeout(tick, 100);
+      }
+    };
+    tick();
+  }), []);
+
   const stopAllAudio = useCallback(() => {
     ttsQueueRef.current = [];
     prefetchedAudioRef.current = null;
@@ -1298,19 +1316,28 @@ export default function DebateStage() {
     setIsThinking(null);
     if (runningRef.current && modQuestionText) {
       // Show the moderator message immediately in the chat bubble
-      const modMsgId = `modopen-q-${Date.now()}`;
-      setMessages((prev) => [...prev, { id: modMsgId, speakerId: mod.personaId, speakerName: mod.name, text: modQuestionText, ts: Date.now() }]);
-      // Fetch persona A's answer in parallel with the moderator speaking —
-      // but don't ADD it to the queue until the moderator is fully done talking.
+      setMessages((prev) => [...prev, {
+        id: `modopen-q-${Date.now()}`, speakerId: mod.personaId,
+        speakerName: mod.name, text: modQuestionText, ts: Date.now(),
+      }]);
+      // Fetch persona A's answer in parallel with the moderator speaking.
+      // Moderator audio goes through speakModeratorNow (bypasses queue entirely)
+      // so queue bleed-through is impossible.
       setIsThinking("interviewee");
       const [aAnswer] = await Promise.all([
         fetchAnswerFrom(mod.personaId, interviewerId, modQuestionText),
-        enqueueTTSAndWait(modQuestionText, mod.personaId, modMsgId),
+        waitForQueueDrain().then(() => {
+          setActiveSpeaker(mod.personaId);
+          activeSpeakerRef.current = mod.personaId;
+          return speakModeratorNow(modQuestionText, mod.personaId, { wait: true }).catch(() => {});
+        }),
       ]);
       setIsThinking(null);
+      setActiveSpeaker(null);
+      activeSpeakerRef.current = null;
       setModeratorSpeaking(false);
       if (aAnswer?.text && runningRef.current) {
-        // Moderator is done — now persona A can speak
+        // Moderator fully done — now persona A can speak
         enrichAndAddMessage({ id: `modopen-a-${Date.now()}`, speakerId: aAnswer.speakerId, speakerName: aAnswer.speakerName, text: aAnswer.text, ts: Date.now() });
         await new Promise((r) => setTimeout(r, Math.max(150, Math.min(400, aAnswer.text.length * 3))));
         if (runningRef.current) {
@@ -1330,7 +1357,7 @@ export default function DebateStage() {
     moderatorTargetRef.current = "B";
     // Two exchanges already consumed on this topic (moderator->A, A->B follow-up).
     exchangesOnTopicRef.current = 2;
-  }, [deviceId, interviewerId, intervieweeId, moderatorStyle, enrichAndAddMessage, fetchAnswerFrom, enqueueTTSAndWait]);
+  }, [deviceId, interviewerId, intervieweeId, moderatorStyle, enrichAndAddMessage, fetchAnswerFrom, waitForQueueDrain]);
 
   // Throttle for moderator opinion injections (chastise/defend lie reactions) —
   // keeps the moderator from piling on every single lie flag, and enforces a
@@ -1519,16 +1546,25 @@ export default function DebateStage() {
           setModeratorLastLine(modQuestionText);
           setIsThinking(null);
           if (runningRef.current) {
-            // Show moderator message immediately; fetch persona answer in parallel
-            // with moderator TTS — but block the persona's audio until mod is done.
-            const modMsgId = `modq-${Date.now()}-${Math.random()}`;
-            setMessages((prev) => [...prev, { id: modMsgId, speakerId: mod.personaId, speakerName: mod.name, text: modQuestionText, ts: Date.now() }]);
+            // Show moderator message immediately; fetch persona answer in parallel.
+            // Moderator audio uses speakModeratorNow (bypasses queue) — guaranteed
+            // no bleed-through from previous persona audio in the queue.
+            setMessages((prev) => [...prev, {
+              id: `modq-${Date.now()}-${Math.random()}`, speakerId: mod.personaId,
+              speakerName: mod.name, text: modQuestionText, ts: Date.now(),
+            }]);
             setIsThinking("interviewee");
             const [modAnswer] = await Promise.all([
               fetchAnswerFrom(mod.personaId, targetId, modQuestionText),
-              enqueueTTSAndWait(modQuestionText, mod.personaId, modMsgId),
+              waitForQueueDrain().then(() => {
+                setActiveSpeaker(mod.personaId);
+                activeSpeakerRef.current = mod.personaId;
+                return speakModeratorNow(modQuestionText, mod.personaId, { wait: true }).catch(() => {});
+              }),
             ]);
             setIsThinking(null);
+            setActiveSpeaker(null);
+            activeSpeakerRef.current = null;
             if (modAnswer?.text && runningRef.current) {
               enrichAndAddMessage({ id: `moda-${Date.now()}-${Math.random()}`, speakerId: modAnswer.speakerId, speakerName: modAnswer.speakerName, text: modAnswer.text, ts: Date.now() });
             }
@@ -1558,7 +1594,7 @@ export default function DebateStage() {
     }
     runningRef.current = false;
     if (Date.now() >= sessionEndsAtRef.current) setPhase("ended");
-  }, [topics, fetchQuestion, fetchAnswer, fetchAnswerFrom, enrichAndAddMessage, enqueueTTSAndWait, duration, moderatorStyle, deviceId, interviewerId, intervieweeId]);
+  }, [topics, fetchQuestion, fetchAnswer, fetchAnswerFrom, enrichAndAddMessage, waitForQueueDrain, duration, moderatorStyle, deviceId, interviewerId, intervieweeId]);
 
   const startInterview = useCallback(async () => {
     if (!deviceId || !interviewerId || !intervieweeId || topics.length === 0 || isStarting) return;
