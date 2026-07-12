@@ -1323,8 +1323,9 @@ export default function DebateStage() {
   // both sides get equal question time from the moderator over the course of the debate.
   const moderatorTargetRef = useRef<"A" | "B">("A");
 
-  // Drain queue → speak moderator line directly → wait for completion → reset state.
-  // This is the ONLY path moderator audio should travel — never through enqueueTTS.
+  // Queue moderator audio → wait for full playback → reset state.
+  // Routes through enqueueTTSAndWait so the queue's natural ordering guarantees
+  // the current speaker always finishes before the moderator starts.
   const speakMod = useCallback(async (text: string, msgId: string) => {
     const mod = MODERATORS[moderatorStyle];
     if (!mod || !text || !runningRef.current) return;
@@ -1333,15 +1334,14 @@ export default function DebateStage() {
     setMessages((prev) => [...prev, {
       id: msgId, speakerId: mod.personaId, speakerName: mod.name, text, ts: Date.now(),
     }]);
-    await waitForQueueDrain();
+    // Route moderator audio through the TTS queue (blockEarlyResolve=true so no
+    // persona can overlap the moderator). The queue's natural sequential ordering
+    // guarantees the current speaker fully finishes before the moderator starts —
+    // no polling, no race, no bypass-channel timing hole.
+    await enqueueTTSAndWait(text, mod.personaId, msgId);
     if (!runningRef.current) { setModeratorSpeaking(false); return; }
-    setActiveSpeaker(mod.personaId);
-    activeSpeakerRef.current = mod.personaId;
-    await speakModeratorNow(text, mod.personaId, { wait: true }).catch(() => {});
-    setActiveSpeaker(null);
-    activeSpeakerRef.current = null;
     setModeratorSpeaking(false);
-  }, [moderatorStyle, waitForQueueDrain]);
+  }, [moderatorStyle, enqueueTTSAndWait]);
 
   // Thin shim kept so startInterview / unlockSession don't need refactoring.
   // runLoop now handles the full structured debate flow including the first round.
