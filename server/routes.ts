@@ -3014,8 +3014,11 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     sirdameon: "fdeaeb07ccac446d8b3ae07e49270b88",
     mlk: "2e32105354084e8cb509c6fdd4c3bb95",
     samjackson: "b5b08431971f45ceb70baf388e57bb6a",
-    malcolmx: "f4882bfbd2a04e61861d658cc91392a6",
+    malcolmx: "78e58f7e943042e5a001e8d6a23559c0",
   };
+
+  // Malcolm X — high-anger voice (anger meter >= 50)
+  const MALCOLMX_ANGRY_VOICE_ID = "a2392edff0cf4422b2cb52d065381eb9";
 
   app.post("/api/nav-speak", async (req, res) => {
     try {
@@ -3089,6 +3092,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     jascrockett: 5,
     claudeanderson: 5,
     obama: 4,
+    malcolmx: 5,
   };
 
   // IMPORTANT: when you add, remove, or change any entry here you MUST:
@@ -3317,6 +3321,10 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
       }
 
       let voiceId = PERSONA_VOICE_IDS[personaId];
+      if (personaId === "malcolmx") {
+        const angerLevel = Number(req.body.angerLevel ?? 10);
+        voiceId = angerLevel >= 50 ? MALCOLMX_ANGRY_VOICE_ID : PERSONA_VOICE_IDS.malcolmx;
+      }
       if (!voiceId) {
         voiceId = process.env.FISH_AUDIO_VOICE_ID || "";
       }
@@ -3354,6 +3362,10 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
       }
 
       let voiceId = (req.query.voiceId as string) || PERSONA_VOICE_IDS[personaId];
+      if (personaId === "malcolmx" && !req.query.voiceId) {
+        const angerLevel = Number(req.query.angerLevel ?? 10);
+        voiceId = angerLevel >= 50 ? MALCOLMX_ANGRY_VOICE_ID : PERSONA_VOICE_IDS.malcolmx;
+      }
       if (!voiceId) {
         voiceId = process.env.FISH_AUDIO_VOICE_ID || "";
       }

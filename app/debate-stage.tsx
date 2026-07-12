@@ -419,6 +419,14 @@ export default function DebateStage() {
 
   const [emoInterviewer, setEmoInterviewer] = useState<Emotions>(ZERO_EMO);
   const [emoInterviewee, setEmoInterviewee] = useState<Emotions>(ZERO_EMO);
+  const malcolmxAngerRef = useRef<number>(10);
+  useEffect(() => {
+    if (interviewerId === "malcolmx") {
+      malcolmxAngerRef.current = emoInterviewer.anger;
+    } else if (intervieweeId === "malcolmx") {
+      malcolmxAngerRef.current = emoInterviewee.anger;
+    }
+  }, [interviewerId, intervieweeId, emoInterviewer.anger, emoInterviewee.anger]);
 
   const [lieTally, setLieTally] = useState<{ totalLies: number; totalSessions: number; bestSession: number; topLiarName: string | null; topLiarCount: number } | null>(null);
 
@@ -667,7 +675,9 @@ export default function DebateStage() {
     const cached = prefetchedAudioRef.current;
     if (cached && cached.text === item.text && cached.personaId === item.personaId) return;
     prefetchingRef.current = true;
-    prefetchTTSAudio("/api/persona-speak", { text: item.text, personaId: item.personaId })
+    const prefetchBody: Record<string, any> = { text: item.text, personaId: item.personaId };
+    if (item.personaId === "malcolmx") prefetchBody.angerLevel = malcolmxAngerRef.current;
+    prefetchTTSAudio("/api/persona-speak", prefetchBody)
       .then((audioUri) => {
         prefetchedAudioRef.current = { personaId: item.personaId, text: item.text, audioUri };
         prefetchingRef.current = false;
@@ -695,7 +705,9 @@ export default function DebateStage() {
           prefetchedAudioRef.current = null;
           sound = await playPrefetchedAudio(cached.audioUri, { volume: getPersonaVoiceVolume(item.personaId) });
         } else {
-          sound = await playTTS("/api/persona-speak", { text: item.text, personaId: item.personaId }, { volume: getPersonaVoiceVolume(item.personaId) });
+          const ttsBody: Record<string, any> = { text: item.text, personaId: item.personaId };
+          if (item.personaId === "malcolmx") ttsBody.angerLevel = malcolmxAngerRef.current;
+          sound = await playTTS("/api/persona-speak", ttsBody, { volume: getPersonaVoiceVolume(item.personaId) });
         }
         currentSoundRef.current = sound;
         // Overlap matched to arena: next speaker starts 500ms before current finishes,
