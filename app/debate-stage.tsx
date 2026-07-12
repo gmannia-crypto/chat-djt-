@@ -1317,10 +1317,16 @@ export default function DebateStage() {
           isDebate: true,
         }),
       });
+      if (res.status === 403) {
+        // Session expired / free trial exhausted — stop loop and show paywall
+        runningRef.current = false;
+        setShowPaywall(true);
+        return null;
+      }
       if (!res.ok) return null;
       return await res.json();
     } catch { return null; }
-  }, [deviceId, effectiveInterviewStyle]);
+  }, [deviceId, effectiveInterviewStyle, setShowPaywall]);
 
   // Alternates which debater the MODERATOR addresses at each new topic — 'A' or 'B' — so
   // both sides get equal question time from the moderator over the course of the debate.
