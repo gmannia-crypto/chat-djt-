@@ -3092,7 +3092,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     jascrockett: 5,
     claudeanderson: 5,
     obama: 4,
-    malcolmx: 5,
+    malcolmx: 12,
   };
 
   // IMPORTANT: when you add, remove, or change any entry here you MUST:
@@ -3140,9 +3140,8 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     timscott: 1.14, // high-speed — audition any new emotion tag carefully
     jascrockett: 1.18, // high-speed — audition any new emotion tag carefully
     claudeanderson: 0.96,
-    // malcolmx: slowed to 1.0 (deliberate, measured — lets each word land with weight).
-    // +6 dB + "excited" emotion tag at 1.0 speed sounds authoritative, not manic. ✓
-    malcolmx: 1.0,
+    // malcolmx: 1.1 — energetic but still deliberate; user-requested.
+    malcolmx: 1.1,
   };
 
   // IMPORTANT: when you add, remove, or change any entry here you MUST:
