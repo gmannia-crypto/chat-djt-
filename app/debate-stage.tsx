@@ -730,6 +730,10 @@ export default function DebateStage() {
           const finish = () => {
             if (resolved) return;
             resolved = true;
+            // Always fire onComplete regardless of exit path (didJustFinish, error,
+            // OR safety-timeout). Without this, enqueueTTSAndWait hangs forever
+            // when audio fails to load — blocking the entire runLoop.
+            item.onComplete?.();
             if (!earlyResolved) resolve();
             fullCleanup();
           };
@@ -749,7 +753,6 @@ export default function DebateStage() {
             );
             if (status.didJustFinish || status.error) {
               clearTimeout(safetyTimer);
-              item.onComplete?.();
               finish();
               return;
             }
@@ -1404,45 +1407,52 @@ export default function DebateStage() {
       if (!runningRef.current) break;
       if (!modQuestion) { await new Promise((r) => setTimeout(r, 600)); continue; }
 
-      // speakMod: drain queue → speak → wait for finish. Fetch primary answer in parallel.
+      // ── STEP 1+2: Moderator asks + primary debater fetches answer in parallel ─
+      // Enqueue the primary answer the INSTANT fetchAnswerFrom resolves — even
+      // while the moderator is still speaking — so the TTS prefetch system can
+      // start fetching the persona audio during the tail of the moderator's clip.
+      // The queue's natural ordering guarantees it only plays after the moderator.
       setIsThinking("interviewee");
-      const [primaryAnswer] = await Promise.all([
-        fetchAnswerFrom(mod.personaId, primaryId, modQuestion),
+      let primaryAnswer: Awaited<ReturnType<typeof fetchAnswerFrom>> = null;
+      await Promise.all([
+        fetchAnswerFrom(mod.personaId, primaryId, modQuestion).then((ans) => {
+          primaryAnswer = ans;
+          setIsThinking(null);
+          if (ans?.text && runningRef.current) {
+            enrichAndAddMessage({
+              id: `pa-${Date.now()}-${Math.random()}`,
+              speakerId: ans.speakerId, speakerName: ans.speakerName,
+              text: ans.text, ts: Date.now(),
+            });
+          }
+        }),
         speakMod(modQuestion, `modq-${Date.now()}-${Math.random()}`),
       ]);
-      setIsThinking(null);
-      if (!runningRef.current) break;
-
-      // ── STEP 2: Primary debater answers ────────────────────────────────────
-      if (primaryAnswer?.text) {
-        enrichAndAddMessage({
-          id: `pa-${Date.now()}-${Math.random()}`,
-          speakerId: primaryAnswer.speakerId, speakerName: primaryAnswer.speakerName,
-          text: primaryAnswer.text, ts: Date.now(),
-        });
-      }
       if (!runningRef.current || Date.now() >= sessionEndsAtRef.current) break;
 
-      // ── STEP 3: Moderator bridge + fetch rebuttal in parallel ──────────────
+      // ── STEP 3+4: Bridge + fetch rebuttal in parallel ──────────────────────
+      // Same pattern: enqueue the rebuttal text the moment it arrives so its TTS
+      // audio can be pre-fetched while the bridge line is playing.
       const bridgeText = REBUTTAL_BRIDGES[Math.floor(Math.random() * REBUTTAL_BRIDGES.length)];
       setIsThinking("interviewee");
-      const [rebuttal] = await Promise.all([
+      let rebuttal: Awaited<ReturnType<typeof fetchAnswerFrom>> = null;
+      await Promise.all([
         primaryAnswer?.text
-          ? fetchAnswerFrom(primaryId, secondaryId, primaryAnswer.text)
-          : Promise.resolve(null),
+          ? fetchAnswerFrom(primaryId, secondaryId, (primaryAnswer as NonNullable<typeof primaryAnswer>).text).then((ans) => {
+              rebuttal = ans;
+              setIsThinking(null);
+              if (ans?.text && runningRef.current) {
+                enrichAndAddMessage({
+                  id: `rb-${Date.now()}-${Math.random()}`,
+                  speakerId: ans.speakerId, speakerName: ans.speakerName,
+                  text: ans.text, ts: Date.now(),
+                });
+              }
+            })
+          : Promise.resolve(),
         speakMod(bridgeText, `modbr-${Date.now()}-${Math.random()}`),
       ]);
       setIsThinking(null);
-      if (!runningRef.current) break;
-
-      // ── STEP 4: Secondary debater rebuts ───────────────────────────────────
-      if (rebuttal?.text) {
-        enrichAndAddMessage({
-          id: `rb-${Date.now()}-${Math.random()}`,
-          speakerId: rebuttal.speakerId, speakerName: rebuttal.speakerName,
-          text: rebuttal.text, ts: Date.now(),
-        });
-      }
       if (!runningRef.current || Date.now() >= sessionEndsAtRef.current) break;
 
       totalExchangesRef.current += 1;
