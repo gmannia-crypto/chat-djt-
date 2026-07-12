@@ -1393,6 +1393,22 @@ export default function InterviewScreen() {
     // Fetch greeting in parallel, show it, then start the main loop
     (async () => {
       try {
+        // ── Sponsor/date intro ─────────────────────────────────────────────
+        // Announce the date and "brought to you by Dynamic Creations" before
+        // the interview greeting, mirroring the debate-stage welcome.
+        const _now = new Date();
+        const _months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+        const _d = _now.getDate();
+        const _sfx = _d === 1 || _d === 21 || _d === 31 ? "st" : _d === 2 || _d === 22 ? "nd" : _d === 3 || _d === 23 ? "rd" : "th";
+        const _dateStr = `${_months[_now.getMonth()]} ${_d}${_sfx}, ${_now.getFullYear()}`;
+        const _ivName = interviewer?.name || "Your host";
+        const introText = `Today is ${_dateStr}. This exclusive interview is brought to you by Dynamic Creations. I'm ${_ivName}, and we're getting started.`;
+        if (runningRef.current && interviewerId) {
+          enrichAndAddMessage({ id: `intro-${Date.now()}`, speakerId: interviewerId, speakerName: _ivName, text: introText, ts: Date.now() });
+          // Wait for intro TTS to play before the API greeting begins
+          await new Promise((r) => setTimeout(r, Math.min(9000, Math.max(3500, introText.length * 65))));
+        }
+        // ── API greeting ───────────────────────────────────────────────────
         const gRes = await fetch(new URL("/api/arena/interview-greeting", getApiUrl()).toString(), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1413,7 +1429,7 @@ export default function InterviewScreen() {
       } catch {}
       if (runningRef.current) runLoop();
     })();
-  }, [deviceId, interviewerId, intervieweeId, topics, isStarting, duration, runLoop, enrichAndAddMessage, selectedTopicId]);
+  }, [deviceId, interviewerId, intervieweeId, topics, isStarting, duration, runLoop, enrichAndAddMessage, selectedTopicId, interviewer]);
 
   const unlockSession = useCallback(async () => {
     if (!deviceId || isUnlocking) return;

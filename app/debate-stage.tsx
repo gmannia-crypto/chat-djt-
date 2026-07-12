@@ -115,16 +115,18 @@ const MICRO_REACTIONS = [
   "Say what?", "Unbelievable.", "Mm.", "Ok sure.", "That's rich.",
 ];
 
-const REBUTTAL_BRIDGES = [
-  "Any rebuttal to that statement?",
-  "How do you respond to that?",
-  "What's your response to that claim?",
-  "Would you care to respond to that?",
-  "Your rebuttal?",
-  "Do you have a response to that?",
-  "Care to weigh in on that?",
-  "What do you say to that?",
+const REBUTTAL_BRIDGE_TEMPLATES = [
+  (n: string) => `${n}, any rebuttal to that?`,
+  (n: string) => `${n}, how do you respond to that?`,
+  (n: string) => `${n}, what's your take on that claim?`,
+  (n: string) => `${n}, care to weigh in?`,
+  (n: string) => `${n}, your response?`,
+  (n: string) => `${n}, what do you say to that?`,
+  (n: string) => `${n}, do you have a rebuttal?`,
+  (n: string) => `${n}, I'd like to hear your thoughts on that.`,
 ];
+const getRebuttalBridge = (name: string) =>
+  REBUTTAL_BRIDGE_TEMPLATES[Math.floor(Math.random() * REBUTTAL_BRIDGE_TEMPLATES.length)](name || "Debater");
 
 // ── OFFENSE DETECTION ─────────────────────────────────────────────────────────
 // Persona-specific triggers that guarantee an immediate interruption.
@@ -1394,6 +1396,10 @@ export default function DebateStage() {
       const primaryId = side === "A" ? interviewerId : intervieweeId;
       const secondaryId = side === "A" ? intervieweeId : interviewerId;
 
+      // Resolve display names for both debaters (used in bridge + question prefix)
+      const primaryName = primaryId === interviewerId ? (interviewer?.name ?? "") : (interviewee?.name ?? "");
+      const secondaryName = secondaryId === interviewerId ? (interviewer?.name ?? "") : (interviewee?.name ?? "");
+
       // ── STEP 1: Moderator asks a question ──────────────────────────────────
       // Reuse pre-fetched question from previous round's transition (zero dead air).
       const prefetched = prefetchedOpeningRef.current;
@@ -1412,6 +1418,11 @@ export default function DebateStage() {
       }
       if (!runningRef.current) break;
       if (!modQuestion) { await new Promise((r) => setTimeout(r, 600)); continue; }
+
+      // Prefix the question with the addressed debater's name if not already present
+      if (primaryName && !modQuestion.startsWith(primaryName)) {
+        modQuestion = `${primaryName} — ${modQuestion.charAt(0).toLowerCase()}${modQuestion.slice(1)}`;
+      }
 
       // ── STEP 1+2: Moderator asks + primary debater fetches answer in parallel ─
       // Enqueue the primary answer the INSTANT fetchAnswerFrom resolves — even
@@ -1439,7 +1450,7 @@ export default function DebateStage() {
       // ── STEP 3+4: Bridge + fetch rebuttal in parallel ──────────────────────
       // Same pattern: enqueue the rebuttal text the moment it arrives so its TTS
       // audio can be pre-fetched while the bridge line is playing.
-      const bridgeText = REBUTTAL_BRIDGES[Math.floor(Math.random() * REBUTTAL_BRIDGES.length)];
+      const bridgeText = getRebuttalBridge(secondaryName);
       setIsThinking("interviewee");
       let rebuttal: Awaited<ReturnType<typeof fetchAnswerFrom>> = null;
       await Promise.all([
@@ -1486,9 +1497,15 @@ export default function DebateStage() {
       const nextTopic = latestTopics[nextIdx];
       const nextSide = moderatorTargetRef.current; // already flipped for next round
       const nextPrimaryId = nextSide === "A" ? interviewerId : intervieweeId;
+      const nextPrimaryName = nextPrimaryId === interviewerId ? (interviewer?.name ?? "") : (interviewee?.name ?? "");
 
-      // Short transition line (template, no API) so there's no extra loading gap
-      const TRANS = [
+      // Short transition line (template, no API) — debater named first, then topic
+      const TRANS = nextPrimaryName ? [
+        `${nextPrimaryName}, let's move on to ${nextTopic.title}.`,
+        `${nextPrimaryName} — let's shift our focus to ${nextTopic.title}.`,
+        `Moving on. ${nextPrimaryName}, let's discuss ${nextTopic.title}.`,
+        `Next topic: ${nextTopic.title}. ${nextPrimaryName}, I'll come to you first.`,
+      ] : [
         `Now let's move on to ${nextTopic.title}.`,
         `Let's shift our focus to ${nextTopic.title}.`,
         `Moving on — let's discuss ${nextTopic.title}.`,
@@ -1517,7 +1534,7 @@ export default function DebateStage() {
     }
     runningRef.current = false;
     if (Date.now() >= sessionEndsAtRef.current) setPhase("ended");
-  }, [topics, fetchAnswerFrom, enrichAndAddMessage, speakMod, moderatorStyle, deviceId, interviewerId, intervieweeId]);
+  }, [topics, fetchAnswerFrom, enrichAndAddMessage, speakMod, moderatorStyle, deviceId, interviewerId, intervieweeId, interviewer, interviewee]);
 
   const startInterview = useCallback(async () => {
     if (!deviceId || !interviewerId || !intervieweeId || topics.length === 0 || isStarting) return;
