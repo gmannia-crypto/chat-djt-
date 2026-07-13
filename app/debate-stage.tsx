@@ -128,12 +128,31 @@ const REBUTTAL_BRIDGE_TEMPLATES = [
 const getRebuttalBridge = (name: string) =>
   REBUTTAL_BRIDGE_TEMPLATES[Math.floor(Math.random() * REBUTTAL_BRIDGE_TEMPLATES.length)](name || "Debater");
 
-// Maps persona IDs to a TTS-safe spoken name (avoids Roman-numeral misreads, etc.)
-const TTS_NAME_OVERRIDES: Record<string, string> = {
-  malcolmx: "Brother Malcolm",
+// Maps persona IDs to TTS-safe spoken names.
+// Values can be a plain string (universal) or a per-speaker map with a "default" fallback.
+// The speakerId argument is the moderator/speaker who is addressing the target.
+type TtsNameEntry = string | Record<string, string>;
+const TTS_NAME_OVERRIDES: Record<string, TtsNameEntry> = {
+  // Malcolm X: moderator decides the register
+  //   Joy Reid / progressive moderators  → "Brother Malcolm" (solidarity)
+  //   Hannity / Megyn Kelly (right-wing) → "Mr. Shabazz"   (formal-hostile)
+  //   Everyone else                      → "Mr. Malcolm"   (avoids "X = the tenth" TTS misread)
+  malcolmx: {
+    joyreid:    "Brother Malcolm",
+    maddow:     "Brother Malcolm",
+    odonnell:   "Brother Malcolm",
+    hannity:    "Mr. Shabazz",
+    megynkelly: "Mr. Shabazz",
+    default:    "Mr. Malcolm",
+  },
 };
-const spokenName = (id: string | undefined, displayName: string): string =>
-  (id && TTS_NAME_OVERRIDES[id]) || displayName;
+const spokenName = (id: string | undefined, displayName: string, speakerId?: string): string => {
+  if (!id) return displayName;
+  const entry = TTS_NAME_OVERRIDES[id];
+  if (!entry) return displayName;
+  if (typeof entry === "string") return entry;
+  return entry[speakerId ?? ""] ?? entry.default ?? displayName;
+};
 
 // ── OFFENSE DETECTION ─────────────────────────────────────────────────────────
 // Persona-specific triggers that guarantee an immediate interruption.
@@ -1403,13 +1422,14 @@ export default function DebateStage() {
       const primaryId = side === "A" ? interviewerId : intervieweeId;
       const secondaryId = side === "A" ? intervieweeId : interviewerId;
 
-      // Resolve TTS-safe spoken names for both debaters (used in bridge + question prefix)
+      // Resolve TTS-safe spoken names for both debaters (used in bridge + question prefix).
+      // Pass mod.personaId so context-aware overrides (e.g. Malcolm X) vary by moderator.
       const primaryName = primaryId === interviewerId
-        ? spokenName(interviewerId, interviewer?.name ?? "")
-        : spokenName(intervieweeId, interviewee?.name ?? "");
+        ? spokenName(interviewerId, interviewer?.name ?? "", mod.personaId)
+        : spokenName(intervieweeId, interviewee?.name ?? "", mod.personaId);
       const secondaryName = secondaryId === interviewerId
-        ? spokenName(interviewerId, interviewer?.name ?? "")
-        : spokenName(intervieweeId, interviewee?.name ?? "");
+        ? spokenName(interviewerId, interviewer?.name ?? "", mod.personaId)
+        : spokenName(intervieweeId, interviewee?.name ?? "", mod.personaId);
 
       // ── STEP 1: Moderator asks a question ──────────────────────────────────
       // Reuse pre-fetched question from previous round's transition (zero dead air).
@@ -1440,8 +1460,15 @@ export default function DebateStage() {
       // while the moderator is still speaking — so the TTS prefetch system can
       // start fetching the persona audio during the tail of the moderator's clip.
       // The queue's natural ordering guarantees it only plays after the moderator.
+      //
+      // Dead-air reduction: the moment the primary answer text arrives we ALSO
+      // kick off the rebuttal fetch. The rebuttal runs while primary TTS plays,
+      // so by the time the bridge line finishes the rebuttal audio is already
+      // buffering — eliminating the gap between bridge-end and rebuttal-start.
       setIsThinking("interviewee");
       let primaryAnswer: Awaited<ReturnType<typeof fetchAnswerFrom>> = null;
+      // Will hold the in-flight rebuttal fetch started during primary TTS playback
+      let rebuttalFetchPromise: ReturnType<typeof fetchAnswerFrom> | null = null;
       await Promise.all([
         fetchAnswerFrom(mod.personaId, primaryId, modQuestion).then((ans) => {
           primaryAnswer = ans;
@@ -1452,32 +1479,39 @@ export default function DebateStage() {
               speakerId: ans.speakerId, speakerName: ans.speakerName,
               text: ans.text, ts: Date.now(),
             });
+            // Pre-kick rebuttal fetch while primary TTS is playing.
+            // By the time bridge ends, the server response (and TTS audio) will
+            // already be in-flight or fully buffered → no gap after bridge.
+            rebuttalFetchPromise = fetchAnswerFrom(primaryId, secondaryId, ans.text);
           }
         }),
         speakMod(modQuestion, `modq-${Date.now()}-${Math.random()}`),
       ]);
       if (!runningRef.current || Date.now() >= sessionEndsAtRef.current) break;
 
-      // ── STEP 3+4: Bridge + fetch rebuttal in parallel ──────────────────────
-      // Same pattern: enqueue the rebuttal text the moment it arrives so its TTS
-      // audio can be pre-fetched while the bridge line is playing.
+      // ── STEP 3+4: Bridge + await pre-fetched rebuttal in parallel ──────────
+      // Use the already-in-flight rebuttalFetchPromise if available; otherwise
+      // start a fresh fetch as a fallback (e.g. primary answer arrived very late).
       const bridgeText = getRebuttalBridge(secondaryName);
       setIsThinking("interviewee");
       let rebuttal: Awaited<ReturnType<typeof fetchAnswerFrom>> = null;
+      const rebuttalPromise: ReturnType<typeof fetchAnswerFrom> =
+        rebuttalFetchPromise ??
+        (primaryAnswer?.text
+          ? fetchAnswerFrom(primaryId, secondaryId, (primaryAnswer as NonNullable<typeof primaryAnswer>).text)
+          : Promise.resolve(null));
       await Promise.all([
-        primaryAnswer?.text
-          ? fetchAnswerFrom(primaryId, secondaryId, (primaryAnswer as NonNullable<typeof primaryAnswer>).text).then((ans) => {
-              rebuttal = ans;
-              setIsThinking(null);
-              if (ans?.text && runningRef.current) {
-                enrichAndAddMessage({
-                  id: `rb-${Date.now()}-${Math.random()}`,
-                  speakerId: ans.speakerId, speakerName: ans.speakerName,
-                  text: ans.text, ts: Date.now(),
-                });
-              }
-            })
-          : Promise.resolve(),
+        rebuttalPromise.then((ans) => {
+          rebuttal = ans;
+          setIsThinking(null);
+          if (ans?.text && runningRef.current) {
+            enrichAndAddMessage({
+              id: `rb-${Date.now()}-${Math.random()}`,
+              speakerId: ans.speakerId, speakerName: ans.speakerName,
+              text: ans.text, ts: Date.now(),
+            });
+          }
+        }),
         speakMod(bridgeText, `modbr-${Date.now()}-${Math.random()}`),
       ]);
       setIsThinking(null);
@@ -1509,8 +1543,8 @@ export default function DebateStage() {
       const nextSide = moderatorTargetRef.current; // already flipped for next round
       const nextPrimaryId = nextSide === "A" ? interviewerId : intervieweeId;
       const nextPrimaryName = nextPrimaryId === interviewerId
-        ? spokenName(interviewerId, interviewer?.name ?? "")
-        : spokenName(intervieweeId, interviewee?.name ?? "");
+        ? spokenName(interviewerId, interviewer?.name ?? "", mod.personaId)
+        : spokenName(intervieweeId, interviewee?.name ?? "", mod.personaId);
 
       // Short transition line (template, no API) — debater named first, then topic
       const TRANS = nextPrimaryName ? [
