@@ -439,7 +439,7 @@ export default function DebateStage() {
   const beepEnabledRef = useRef(true);
   const [activeSpeaker, setActiveSpeaker] = useState<string | null>(null);
   const activeSpeakerRef = useRef<string | null>(null);
-  const ttsQueueRef = useRef<Array<{ text: string; personaId: string; msgId?: string; blockEarlyResolve?: boolean; onComplete?: () => void }>>([]);
+  const ttsQueueRef = useRef<Array<{ text: string; personaId: string; msgId?: string; blockEarlyResolve?: boolean; overlapMs?: number; onComplete?: () => void }>>([]);
   const ttsRunningRef = useRef(false);
   const currentSoundRef = useRef<Audio.Sound | null>(null);
   const prefetchedAudioRef = useRef<{ personaId: string; text: string; audioUri: string } | null>(null);
@@ -820,7 +820,7 @@ export default function DebateStage() {
               // overlap the moderator).
               const nextQueued = ttsQueueRef.current[0];
               const nextIsDifferentSpeaker = nextQueued && nextQueued.personaId !== item.personaId;
-              if (!earlyResolved && nextIsDifferentSpeaker && !item.blockEarlyResolve && remaining <= OVERLAP_MS && remaining > 0) {
+              if (!earlyResolved && nextIsDifferentSpeaker && !item.blockEarlyResolve && remaining <= (item.overlapMs ?? OVERLAP_MS) && remaining > 0) {
                 earlyResolve();
               }
             }
@@ -848,7 +848,9 @@ export default function DebateStage() {
     return new Promise<void>((resolve) => {
       // Safety: if voice is off, resolve immediately so flow doesn't stall
       if (!voiceEnabledRef.current) { resolve(); return; }
-      ttsQueueRef.current.push({ text, personaId, msgId, blockEarlyResolve: true, onComplete: resolve });
+      // overlapMs: 50 — persona may start 50 ms before moderator finishes,
+      // keeping conversation flow tight without a harsh cut-off.
+      ttsQueueRef.current.push({ text, personaId, msgId, overlapMs: 50, onComplete: resolve });
       processQueue();
     });
   }, [processQueue]);
