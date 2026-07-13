@@ -738,9 +738,9 @@ export default function DebateStage() {
           sound = await playTTS("/api/persona-speak", ttsBody, { volume: getPersonaVoiceVolume(item.personaId) });
         }
         currentSoundRef.current = sound;
-        // Overlap matched to arena: next speaker starts 500ms before current finishes,
-        // voices cross-fade so turns feel fluid instead of leaving dead air.
-        const OVERLAP_MS = 500;
+        // 50 ms crossfade: next speaker starts 50 ms before the current clip ends
+        // so every turn transition — persona→moderator and persona→persona — is tight.
+        const OVERLAP_MS = 50;
         let prefetchStarted = false;
         await new Promise<void>((resolve) => {
           let resolved = false;
