@@ -422,6 +422,9 @@ export default function DebateStage() {
   const nextQPromiseRef = useRef<Promise<any> | null>(null);
   // Carries a pre-generated question from one round's transition into the next round's open
   const prefetchedOpeningRef = useRef<string>("");
+  // Holds the in-flight fetch for the next round's PRIMARY ANSWER, started during the
+  // current round's transition so it's ready (or close) before the moderator finishes speaking.
+  const prefetchedPrimaryAnswerRef = useRef<Promise<any> | null>(null);
   const messagesRef = useRef<Msg[]>([]);
   const topicIdxRef = useRef(0);
   const topicsRef = useRef<Topic[]>([]);
@@ -1471,8 +1474,13 @@ export default function DebateStage() {
       let primaryAnswer: Awaited<ReturnType<typeof fetchAnswerFrom>> = null;
       // Will hold the in-flight rebuttal fetch started during primary TTS playback
       let rebuttalFetchPromise: ReturnType<typeof fetchAnswerFrom> | null = null;
+      // Use pre-fetched primary answer if it was started during the previous transition —
+      // it has had an extra round's worth of time to resolve, eliminating dead air.
+      const primaryAnswerPromise: Promise<any> =
+        prefetchedPrimaryAnswerRef.current ?? fetchAnswerFrom(mod.personaId, primaryId, modQuestion);
+      prefetchedPrimaryAnswerRef.current = null; // consume
       await Promise.all([
-        fetchAnswerFrom(mod.personaId, primaryId, modQuestion).then((ans) => {
+        primaryAnswerPromise.then((ans) => {
           primaryAnswer = ans;
           setIsThinking(null);
           if (ans?.text && runningRef.current) {
@@ -1576,9 +1584,13 @@ export default function DebateStage() {
 
       if (nextQuestion && runningRef.current) {
         prefetchedOpeningRef.current = nextQuestion;
+        // Pre-fetch the PRIMARY ANSWER for the next round while rebuttal TTS is still
+        // playing. By the time the next moderator question finishes speaking the answer
+        // is already in-flight or fully resolved — no dead air after the question.
+        // Update the topic ref first so the fetch uses the correct topic context.
+        currentTopicRef.current = nextTopic;
+        prefetchedPrimaryAnswerRef.current = fetchAnswerFrom(mod.personaId, nextPrimaryId, nextQuestion);
       }
-
-      await new Promise((r) => setTimeout(r, 200));
 
     }
     runningRef.current = false;

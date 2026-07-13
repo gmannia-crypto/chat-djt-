@@ -751,6 +751,24 @@ export default function InterviewScreen() {
     processQueue();
   }, [processQueue]);
 
+  /** Wait for the TTS queue to fully drain before continuing.
+   *  Audio-aware pacing: replaces fixed text-timing delays so turns are driven
+   *  by actual playback length rather than character-count estimates.
+   *  Safety cap: resolves after 25 s regardless so the interview can't freeze. */
+  const waitForQueueDrain = useCallback((): Promise<void> => new Promise((resolve) => {
+    const maxWait = setTimeout(resolve, 25000);
+    // Small initial delay so processQueue() can set ttsRunningRef before first check
+    const tick = () => {
+      if (!ttsRunningRef.current && ttsQueueRef.current.length === 0) {
+        clearTimeout(maxWait);
+        resolve();
+      } else {
+        setTimeout(tick, 80);
+      }
+    };
+    setTimeout(tick, 60);
+  }), []);
+
   const stopAllAudio = useCallback(() => {
     ttsQueueRef.current = [];
     prefetchedAudioRef.current = null;
@@ -1185,9 +1203,9 @@ export default function InterviewScreen() {
       const interruptPromise: Promise<{ speakerId: string; speakerName: string; text: string } | null> | null =
         willInterrupt ? fetchAnswer(q.text, { isInterruption: true }) : null;
 
-      // 10ms/char for text-chat pacing (40ms was audio-only). Cap at 2s, floor at 400ms.
-      const qReadMs = Math.min(2000, Math.max(400, q.text.length * 10));
-      await new Promise((r) => setTimeout(r, Math.max(100, qReadMs - 1000)));
+      // Wait for the question TTS to finish playing before the interviewee reacts.
+      // Audio-driven pacing: replaces the old character-count estimate delay.
+      await waitForQueueDrain();
       if (!runningRef.current) break;
 
       // Interruption from interviewee (offense = guaranteed; otherwise random 20%)
@@ -1197,7 +1215,6 @@ export default function InterviewScreen() {
         if (intr && intr.text && runningRef.current) {
           interruptionText = intr.text;
           enrichAndAddMessage({ id: `intr-${Date.now()}-${Math.random()}`, speakerId: intr.speakerId, speakerName: intr.speakerName, text: intr.text, ts: Date.now(), isInterruption: true });
-          await new Promise((r) => setTimeout(r, 100));
         }
       }
       if (!runningRef.current) break;
@@ -1227,15 +1244,26 @@ export default function InterviewScreen() {
       const cutInPromise: Promise<{ speakerId: string; speakerName: string; text: string } | null> | null =
         willCutIn ? fetchQuestion({ isInterruption: true, currentTopicArg: topic }) : null;
 
-      // PRE-FETCH next question in parallel with the answer read delay — gives it the
-      // maximum runway so the next turn starts with zero thinking-indicator wait.
+      // Predict whether the NEXT exchange will need a topic transition so we can
+      // pre-fetch the right question type in parallel with the answer TTS — no blocking wait.
+      exchangesOnTopicRef.current += 1;
+      totalExchangesRef.current += 1;
+      const exchangesPerTopic = duration <= 5 ? 2 : duration <= 10 ? 3 : 3;
+      const shouldAdvance = exchangesOnTopicRef.current >= exchangesPerTopic;
+      const latestTopicsNow = topicsRef.current;
+      const nextIdxNow = idx + 1 < latestTopicsNow.length ? idx + 1 : 0;
+      const nextTopicNow = latestTopicsNow[nextIdxNow];
+
       if (runningRef.current && Date.now() < sessionEndsAtRef.current) {
-        nextQPromiseRef.current = fetchQuestion({ isFollowUp: true, isTransition: false, currentTopicArg: topic });
+        // Pre-fetch the CORRECT next question type while answer TTS plays —
+        // transition if we're about to change topics, follow-up if staying on topic.
+        nextQPromiseRef.current = shouldAdvance
+          ? fetchQuestion({ isTransition: true, previousTopicTitle: topic.title, currentTopicArg: nextTopicNow })
+          : fetchQuestion({ isFollowUp: true, isTransition: false, currentTopicArg: topic });
       }
 
-      // 10ms/char for text-chat pacing. Cap at 2.5s, floor at 400ms.
-      const aReadMs = Math.min(2500, Math.max(400, a.text.length * 10));
-      await new Promise((r) => setTimeout(r, Math.max(100, aReadMs - 1000)));
+      // Wait for the answer TTS to finish playing (audio-driven pacing).
+      await waitForQueueDrain();
       if (!runningRef.current) break;
 
       // ── Micro-reaction by the INTERVIEWER while the answer plays —
@@ -1243,7 +1271,6 @@ export default function InterviewScreen() {
       if (Math.random() < 0.28 && !willCutIn) {
         const micro = MICRO_REACTIONS[Math.floor(Math.random() * MICRO_REACTIONS.length)];
         enrichAndAddMessage({ id: `micro-a-${Date.now()}`, speakerId: q.speakerId, speakerName: q.speakerName, text: micro, ts: Date.now(), isInterruption: true });
-        await new Promise((r) => setTimeout(r, 80));
       }
 
       // Interviewer cut-in — should already be resolved since it was pre-fetched above.
@@ -1252,12 +1279,8 @@ export default function InterviewScreen() {
         const cut = await cutInPromise;
         if (cut && cut.text && runningRef.current && cut.speakerId !== a.speakerId) {
           enrichAndAddMessage({ id: `cut-${Date.now()}-${Math.random()}`, speakerId: cut.speakerId, speakerName: cut.speakerName, text: cut.text, ts: Date.now(), isInterruption: true });
-          await new Promise((r) => setTimeout(r, 200));
         }
       }
-
-      exchangesOnTopicRef.current += 1;
-      totalExchangesRef.current += 1;
 
       // One-time shop promo injection mid-interview (after exchange 4)
       // Note: enrichAndAddMessage() below already enqueues TTS for this message via
@@ -1278,24 +1301,19 @@ export default function InterviewScreen() {
         });
       }
 
-      // Move to next topic after enough exchanges OR if running low on time per topic
-      const exchangesPerTopic = duration <= 5 ? 2 : duration <= 10 ? 3 : 3;
-      const shouldAdvance = exchangesOnTopicRef.current >= exchangesPerTopic;
       if (shouldAdvance) {
         setCompletedTopics((prev) => new Set(prev).add(topic.id));
-        // Use the live ref so newly-appended topics are included in the cycle
-        const latestTopics = topicsRef.current;
-        const nextIdx = idx + 1 < latestTopics.length ? idx + 1 : 0;
-        // Transition message
-        const nextTopic = latestTopics[nextIdx];
-        // Discard any stale pre-fetch — topic changed
-        nextQPromiseRef.current = null;
+        const nextIdx = nextIdxNow;
+        const nextTopic = nextTopicNow;
+        // Use the pre-fetched transition question (started in parallel with answer TTS above).
+        // If it's not ready yet, await it now — still faster than starting fresh here.
         setIsThinking("interviewer");
-        const trans = await fetchQuestion({
+        const trans = await (nextQPromiseRef.current || fetchQuestion({
           isTransition: true,
           previousTopicTitle: topic.title,
           currentTopicArg: nextTopic,
-        });
+        }));
+        nextQPromiseRef.current = null;
         setIsThinking(null);
         if (trans && trans.text && runningRef.current) {
           enrichAndAddMessage({ id: `trans-${Date.now()}-${Math.random()}`, speakerId: trans.speakerId, speakerName: trans.speakerName, text: trans.text, ts: Date.now() });
@@ -1303,18 +1321,16 @@ export default function InterviewScreen() {
         setTopicIdx(nextIdx);
         topicIdxRef.current = nextIdx;
         exchangesOnTopicRef.current = 1; // transition counts as first question
-        // Pre-fetch the first follow-up for the new topic in parallel with queue drain
+        // Pre-fetch the first follow-up for the new topic while transition TTS plays.
         if (runningRef.current && Date.now() < sessionEndsAtRef.current) {
           nextQPromiseRef.current = fetchQuestion({ isFollowUp: true, isTransition: false, currentTopicArg: nextTopic });
         }
-        await new Promise((r) => setTimeout(r, 250));
       }
-      // Note: nextQPromiseRef is already pre-fetched above (right after answer is displayed)
-      // so no duplicate fetch needed here for the non-transition case.
+      // nextQPromiseRef already holds the pre-fetched follow-up for the non-transition case.
     }
     runningRef.current = false;
     if (Date.now() >= sessionEndsAtRef.current) setPhase("ended");
-  }, [topics, fetchQuestion, fetchAnswer, enrichAndAddMessage, duration]);
+  }, [topics, fetchQuestion, fetchAnswer, enrichAndAddMessage, duration, waitForQueueDrain]);
 
   const startInterview = useCallback(async () => {
     if (!deviceId || !interviewerId || !intervieweeId || topics.length === 0 || isStarting) return;
