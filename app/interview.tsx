@@ -660,8 +660,8 @@ export default function InterviewScreen() {
           sound = await playTTS("/api/persona-speak", { text: item.text, personaId: item.personaId }, { volume: getPersonaVoiceVolume(item.personaId) });
         }
         currentSoundRef.current = sound;
-        // 1s overlap: next speaker starts 1000ms before current finishes, voices cross-fade
-        const OVERLAP_MS = 1000;
+        // 50ms crossfade: next speaker starts 50ms before current clip ends — tight flow
+        const OVERLAP_MS = 50;
         let prefetchStarted = false;
         await new Promise<void>((resolve) => {
           let resolved = false;
