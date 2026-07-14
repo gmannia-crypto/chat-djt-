@@ -650,6 +650,15 @@ export default function InterviewScreen() {
       setActiveSpeaker(item.personaId);
       activeSpeakerRef.current = item.personaId;
       try {
+        // If a prefetch is in flight for this item, wait up to 1.5 s for it to land
+        // before falling back to a fresh playTTS call — eliminates the dead-air gap
+        // that occurred when startPrefetch was called early but processQueue didn't wait.
+        if (prefetchingRef.current) {
+          const prefetchDeadline = Date.now() + 1500;
+          while (prefetchingRef.current && Date.now() < prefetchDeadline) {
+            await new Promise<void>((r) => setTimeout(r, 40));
+          }
+        }
         // Use prefetched audio if it matches this item — eliminates fetch latency gap
         const cached = prefetchedAudioRef.current;
         let sound: Audio.Sound;
@@ -660,7 +669,7 @@ export default function InterviewScreen() {
           sound = await playTTS("/api/persona-speak", { text: item.text, personaId: item.personaId }, { volume: getPersonaVoiceVolume(item.personaId) });
         }
         currentSoundRef.current = sound;
-        // 50ms crossfade: next speaker starts 50ms before current clip ends — tight flow
+        // 800ms overlap: next speaker starts 800ms before current clip ends — audible handoff
         const OVERLAP_MS = 800;
         let prefetchStarted = false;
         await new Promise<void>((resolve) => {
@@ -1424,8 +1433,8 @@ export default function InterviewScreen() {
         const introText = `Today is ${_dateStr}. This exclusive interview is brought to you by Dynamic Creations. I'm ${_ivName}, and we're getting started.`;
         if (runningRef.current && interviewerId) {
           enrichAndAddMessage({ id: `intro-${Date.now()}`, speakerId: interviewerId, speakerName: _ivName, text: introText, ts: Date.now() });
-          // Wait for intro TTS to play before the API greeting begins
-          await new Promise((r) => setTimeout(r, Math.min(9000, Math.max(3500, introText.length * 65))));
+          // Wait for intro TTS to finish before the API greeting begins
+          await waitForQueueDrain();
         }
         // ── API greeting ───────────────────────────────────────────────────
         const gRes = await fetch(new URL("/api/arena/interview-greeting", getApiUrl()).toString(), {
@@ -1437,18 +1446,17 @@ export default function InterviewScreen() {
           const gData = await gRes.json();
           if (gData?.interviewer?.text) {
             enrichAndAddMessage({ id: `greet-iv-${Date.now()}`, speakerId: gData.interviewer.speakerId, speakerName: gData.interviewer.speakerName, text: gData.interviewer.text, ts: Date.now() });
-            // Small gap so interviewee response feels natural after interviewer
-            await new Promise((r) => setTimeout(r, Math.min(6000, Math.max(1800, gData.interviewer.text.length * 50))));
+            await waitForQueueDrain();
           }
           if (gData?.interviewee?.text && runningRef.current) {
             enrichAndAddMessage({ id: `greet-ivee-${Date.now()}`, speakerId: gData.interviewee.speakerId, speakerName: gData.interviewee.speakerName, text: gData.interviewee.text, ts: Date.now() });
-            await new Promise((r) => setTimeout(r, Math.min(5000, Math.max(1500, gData.interviewee.text.length * 50))));
+            await waitForQueueDrain();
           }
         }
       } catch {}
       if (runningRef.current) runLoop();
     })();
-  }, [deviceId, interviewerId, intervieweeId, topics, isStarting, duration, runLoop, enrichAndAddMessage, selectedTopicId, interviewer]);
+  }, [deviceId, interviewerId, intervieweeId, topics, isStarting, duration, runLoop, enrichAndAddMessage, selectedTopicId, interviewer, waitForQueueDrain]);
 
   const unlockSession = useCallback(async () => {
     if (!deviceId || isUnlocking) return;
@@ -1499,11 +1507,11 @@ export default function InterviewScreen() {
               const gData = await gRes.json();
               if (gData?.interviewer?.text) {
                 enrichAndAddMessage({ id: `greet-iv-${Date.now()}`, speakerId: gData.interviewer.speakerId, speakerName: gData.interviewer.speakerName, text: gData.interviewer.text, ts: Date.now() });
-                await new Promise((r) => setTimeout(r, Math.min(6000, Math.max(1800, gData.interviewer.text.length * 50))));
+                await waitForQueueDrain();
               }
               if (gData?.interviewee?.text && runningRef.current) {
                 enrichAndAddMessage({ id: `greet-ivee-${Date.now()}`, speakerId: gData.interviewee.speakerId, speakerName: gData.interviewee.speakerName, text: gData.interviewee.text, ts: Date.now() });
-                await new Promise((r) => setTimeout(r, Math.min(5000, Math.max(1500, gData.interviewee.text.length * 50))));
+                await waitForQueueDrain();
               }
             }
           } catch {}
@@ -1513,7 +1521,7 @@ export default function InterviewScreen() {
     } catch {} finally {
       setIsUnlocking(false);
     }
-  }, [deviceId, duration, isUnlocking, refreshBalance, runLoop, interviewerId, intervieweeId, enrichAndAddMessage, selectedTopicId, topics]);
+  }, [deviceId, duration, isUnlocking, refreshBalance, runLoop, interviewerId, intervieweeId, enrichAndAddMessage, selectedTopicId, topics, waitForQueueDrain]);
 
   const stopInterview = useCallback(() => {
     runningRef.current = false;
@@ -1631,9 +1639,8 @@ export default function InterviewScreen() {
             ts: Date.now(),
           });
         }
-        // Wait for interviewer audio before pushing answer so playback stays sequential
-        const readMs = Math.min(7000, Math.max(2200, (data?.interviewer?.text?.length || 80) * 55));
-        await new Promise((r) => setTimeout(r, Math.max(900, readMs - 800)));
+        // Wait for interviewer audio before pushing interviewee answer
+        await waitForQueueDrain();
         if (data?.interviewee?.text) {
           enrichAndAddMessage({
             id: `ca-${Date.now()}-${Math.random()}`,
@@ -1652,7 +1659,7 @@ export default function InterviewScreen() {
         if (wasRunning) { isPausedRef.current = false; setIsPaused(false); }
       }, 1200);
     }
-  }, [callinText, deviceId, interviewerId, intervieweeId, callerName, currentTopic, isCallinSending, enrichAndAddMessage]);
+  }, [callinText, deviceId, interviewerId, intervieweeId, callerName, currentTopic, isCallinSending, enrichAndAddMessage, waitForQueueDrain]);
 
   const skipTopic = useCallback(() => {
     if (topicIdx + 1 >= topics.length) return;

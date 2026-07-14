@@ -729,6 +729,15 @@ export default function DebateStage() {
       setActiveSpeaker(item.personaId);
       activeSpeakerRef.current = item.personaId;
       try {
+        // If a prefetch is in flight for this item, wait up to 1.5 s for it to land
+        // before falling back to a fresh playTTS call — eliminates the dead-air gap
+        // that occurred when startPrefetch was called early but processQueue didn't wait.
+        if (prefetchingRef.current) {
+          const prefetchDeadline = Date.now() + 1500;
+          while (prefetchingRef.current && Date.now() < prefetchDeadline) {
+            await new Promise<void>((r) => setTimeout(r, 40));
+          }
+        }
         // Use prefetched audio if it matches this item — eliminates fetch latency gap
         const cached = prefetchedAudioRef.current;
         let sound: Audio.Sound;
@@ -851,9 +860,9 @@ export default function DebateStage() {
     return new Promise<void>((resolve) => {
       // Safety: if voice is off, resolve immediately so flow doesn't stall
       if (!voiceEnabledRef.current) { resolve(); return; }
-      // overlapMs: 50 — persona may start 50 ms before moderator finishes,
-      // keeping conversation flow tight without a harsh cut-off.
-      ttsQueueRef.current.push({ text, personaId, msgId, overlapMs: 50, onComplete: resolve });
+      // overlapMs: 800 — next speaker starts 800 ms before moderator finishes,
+      // creating audible conversational overlap and eliminating dead air.
+      ttsQueueRef.current.push({ text, personaId, msgId, overlapMs: 800, onComplete: resolve });
       processQueue();
     });
   }, [processQueue]);
@@ -1869,9 +1878,8 @@ export default function DebateStage() {
             ts: Date.now(),
           });
         }
-        // Wait for interviewer audio before pushing answer so playback stays sequential
-        const readMs = Math.min(7000, Math.max(2200, (data?.interviewer?.text?.length || 80) * 55));
-        await new Promise((r) => setTimeout(r, Math.max(900, readMs - 800)));
+        // Wait for interviewer audio before pushing interviewee answer
+        await waitForQueueDrain();
         if (data?.interviewee?.text) {
           enrichAndAddMessage({
             id: `ca-${Date.now()}-${Math.random()}`,
@@ -1890,7 +1898,7 @@ export default function DebateStage() {
         if (wasRunning) { isPausedRef.current = false; setIsPaused(false); }
       }, 1200);
     }
-  }, [callinText, deviceId, interviewerId, intervieweeId, callerName, currentTopic, isCallinSending, enrichAndAddMessage]);
+  }, [callinText, deviceId, interviewerId, intervieweeId, callerName, currentTopic, isCallinSending, enrichAndAddMessage, waitForQueueDrain]);
 
   const skipTopic = useCallback(() => {
     if (topicIdx + 1 >= topics.length) return;
