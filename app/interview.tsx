@@ -661,7 +661,7 @@ export default function InterviewScreen() {
         }
         currentSoundRef.current = sound;
         // 50ms crossfade: next speaker starts 50ms before current clip ends — tight flow
-        const OVERLAP_MS = 50;
+        const OVERLAP_MS = 800;
         let prefetchStarted = false;
         await new Promise<void>((resolve) => {
           let resolved = false;
@@ -1203,10 +1203,9 @@ export default function InterviewScreen() {
       const interruptPromise: Promise<{ speakerId: string; speakerName: string; text: string } | null> | null =
         willInterrupt ? fetchAnswer(q.text, { isInterruption: true }) : null;
 
-      // Wait for the question TTS to finish playing before the interviewee reacts.
-      // Audio-driven pacing: replaces the old character-count estimate delay.
-      await waitForQueueDrain();
-      if (!runningRef.current) break;
+      // ── Pipeline: while question audio plays, race to enqueue the response. ──
+      // No waitForQueueDrain here — we let the interrupt/answer enqueue while question
+      // is still playing so OVERLAP_MS (800 ms) fires and creates true conversational overlap.
 
       // Interruption from interviewee (offense = guaranteed; otherwise random 20%)
       let interruptionText: string | undefined;
@@ -1223,15 +1222,17 @@ export default function InterviewScreen() {
       const a = await answerPromise;
       setIsThinking(null);
       if (!runningRef.current) break;
-      if (!a) { await new Promise((r) => setTimeout(r, 600)); continue; }
+      if (!a) { await waitForQueueDrain(); continue; }
+
+      // Pre-fetch TTS audio immediately when text arrives — starts downloading while
+      // question/interrupt audio may still be playing → audio ready when answer is dequeued.
+      if (voiceEnabledRef.current) startPrefetch({ text: a.text, personaId: a.speakerId });
 
       // ── Micro-reaction by the INTERVIEWEE while the question is still ringing —
       // a short spontaneous reaction (no API call) that lands just before the answer.
-      // The AI will see it in conversationHistory and react to it naturally.
       if (Math.random() < 0.30 && !willInterrupt) {
         const micro = MICRO_REACTIONS[Math.floor(Math.random() * MICRO_REACTIONS.length)];
         enrichAndAddMessage({ id: `micro-q-${Date.now()}`, speakerId: a.speakerId, speakerName: a.speakerName, text: micro, ts: Date.now(), isInterruption: true });
-        await new Promise((r) => setTimeout(r, 80));
       }
 
       enrichAndAddMessage({ id: `a-${Date.now()}-${Math.random()}`, speakerId: a.speakerId, speakerName: a.speakerName, text: a.text, ts: Date.now() });

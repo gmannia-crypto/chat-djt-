@@ -743,7 +743,7 @@ export default function DebateStage() {
         currentSoundRef.current = sound;
         // 50 ms crossfade: next speaker starts 50 ms before the current clip ends
         // so every turn transition — persona→moderator and persona→persona — is tight.
-        const OVERLAP_MS = 50;
+        const OVERLAP_MS = 800;
         let prefetchStarted = false;
         await new Promise<void>((resolve) => {
           let resolved = false;
@@ -1489,9 +1489,10 @@ export default function DebateStage() {
               speakerId: ans.speakerId, speakerName: ans.speakerName,
               text: ans.text, ts: Date.now(),
             });
+            // Pre-fetch TTS AUDIO immediately when text arrives — runs while moderator
+            // audio is still playing so audio is ready the moment the moderator finishes.
+            startPrefetch({ text: ans.text, personaId: primaryId });
             // Pre-kick rebuttal fetch while primary TTS is playing.
-            // By the time bridge ends, the server response (and TTS audio) will
-            // already be in-flight or fully buffered → no gap after bridge.
             rebuttalFetchPromise = fetchAnswerFrom(primaryId, secondaryId, ans.text);
           }
         }),
