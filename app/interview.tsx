@@ -22,7 +22,7 @@ import { getPersonaVoiceVolume, shouldSkipPersonaVoice } from "@/lib/persona-voi
 
 type PersonaLite = { id: string; name: string };
 type Topic = { id: string; title: string; description: string; era: "current" | "past" };
-type Msg = { id: string; speakerId: string; speakerName: string; text: string; ts: number; isInterruption?: boolean; isCallIn?: boolean; callerName?: string; isSystem?: boolean };
+type Msg = { id: string; speakerId: string; speakerName: string; text: string; ts: number; isInterruption?: boolean; isCallIn?: boolean; callerName?: string; isSystem?: boolean; skipTTS?: boolean };
 
 type Emotions = { anger: number; happy: number; engagement: number; frantic: number; sad: number };
 type LieEntry = { id: string; speakerId: string; speakerName: string; text: string; score: number; reason: string; fact: string; ts: number; userFlagged?: boolean; pending?: boolean };
@@ -669,8 +669,8 @@ export default function InterviewScreen() {
           sound = await playTTS("/api/persona-speak", { text: item.text, personaId: item.personaId }, { volume: getPersonaVoiceVolume(item.personaId) });
         }
         currentSoundRef.current = sound;
-        // 800ms overlap: next speaker starts 800ms before current clip ends — audible handoff
-        const OVERLAP_MS = 800;
+        // 1s overlap: next speaker starts 1 second before current clip ends — conversational handoff
+        const OVERLAP_MS = 1000;
         let prefetchStarted = false;
         await new Promise<void>((resolve) => {
           let resolved = false;
@@ -966,12 +966,41 @@ export default function InterviewScreen() {
   // Wrap addMessage to also drive emotions, TTS, fact-check
   const enrichAndAddMessage = useCallback((m: Msg) => {
     setMessages((prev) => [...prev, m]);
-    enqueueTTS(m.text, m.speakerId, m.id);
+    if (!m.skipTTS) enqueueTTS(m.text, m.speakerId, m.id);
     const delta = computeEmotionDelta(m.text);
     if (interviewerId && m.speakerId === interviewerId) setEmoInterviewer((p) => applyEmotionDelta(p, delta));
     else if (intervieweeId && m.speakerId === intervieweeId) setEmoInterviewee((p) => applyEmotionDelta(p, delta));
     if (intervieweeId && m.speakerId === intervieweeId && !m.isInterruption) runFactCheck(m);
   }, [enqueueTTS, interviewerId, intervieweeId, runFactCheck]);
+
+  /** Arena-style interruption audio: ducks the current speaker to 10%, plays the
+   *  interrupt at full persona volume, then restores the main speaker to 100%.
+   *  Does NOT go through the TTS queue — fires concurrently with whatever is playing. */
+  const playInterruptionAudio = useCallback(async (text: string, personaId: string) => {
+    if (!voiceEnabledRef.current) return;
+    if (shouldSkipPersonaVoice(personaId)) return;
+    const mainSound = currentSoundRef.current;
+    if (mainSound) { try { mainSound.setVolumeAsync(0.10).catch(() => {}); } catch {} }
+    setActiveSpeaker(personaId);
+    activeSpeakerRef.current = personaId;
+    try {
+      const sound = await playTTS("/api/persona-speak", { text, personaId }, { volume: getPersonaVoiceVolume(personaId) });
+      let cleaned = false;
+      const cleanup = () => {
+        if (cleaned) return; cleaned = true;
+        sound.setOnPlaybackStatusUpdate(null);
+        sound.getStatusAsync().then((st: any) => { if (st.isLoaded) sound.stopAsync().then(() => sound.unloadAsync()).catch(() => {}); }).catch(() => {});
+        const ms = currentSoundRef.current;
+        if (ms) { try { ms.setVolumeAsync(1.0).catch(() => {}); } catch {} }
+        setActiveSpeaker(activeSpeakerRef.current);
+      };
+      sound.setOnPlaybackStatusUpdate((status: any) => { if (status.didJustFinish || status.error) cleanup(); });
+      setTimeout(cleanup, 8000);
+    } catch {
+      const ms = currentSoundRef.current;
+      if (ms) { try { ms.setVolumeAsync(1.0).catch(() => {}); } catch {} }
+    }
+  }, []);
 
   // Load persona lists
   useEffect(() => {
@@ -1214,15 +1243,20 @@ export default function InterviewScreen() {
 
       // ── Pipeline: while question audio plays, race to enqueue the response. ──
       // No waitForQueueDrain here — we let the interrupt/answer enqueue while question
-      // is still playing so OVERLAP_MS (800 ms) fires and creates true conversational overlap.
+      // is still playing so OVERLAP_MS (1000 ms) fires and creates true conversational overlap.
 
       // Interruption from interviewee (offense = guaranteed; otherwise random 20%)
+      // Uses arena-style playInterruptionAudio: ducks the question audio to 10%,
+      // plays the jab at full volume, then restores the question audio to 100%.
       let interruptionText: string | undefined;
       if (willInterrupt && interruptPromise) {
         const intr = await interruptPromise;
         if (intr && intr.text && runningRef.current) {
           interruptionText = intr.text;
-          enrichAndAddMessage({ id: `intr-${Date.now()}-${Math.random()}`, speakerId: intr.speakerId, speakerName: intr.speakerName, text: intr.text, ts: Date.now(), isInterruption: true });
+          // Show in chat (skipTTS so it doesn't also go into the regular queue)
+          enrichAndAddMessage({ id: `intr-${Date.now()}-${Math.random()}`, speakerId: intr.speakerId, speakerName: intr.speakerName, text: intr.text, ts: Date.now(), isInterruption: true, skipTTS: true });
+          // Fire concurrently with whatever is playing — ducks main speaker
+          playInterruptionAudio(intr.text, intr.speakerId);
         }
       }
       if (!runningRef.current) break;
@@ -1248,11 +1282,23 @@ export default function InterviewScreen() {
 
       // Offense check: does the answer offend the interviewer? (now that we have a.text)
       const aOffendsInterviewer = interviewerId ? detectOffense(a.text, interviewerId, a.speakerId) : false;
-      // Decide cut-in immediately and PRE-FETCH in parallel with the answer read delay —
-      // same pipeline pattern as interviewee interrupt, so it's ready when read time expires.
+      // Decide cut-in immediately and PRE-FETCH in parallel with the answer TTS.
       const willCutIn = aOffendsInterviewer || Math.random() < 0.18;
       const cutInPromise: Promise<{ speakerId: string; speakerName: string; text: string } | null> | null =
         willCutIn ? fetchQuestion({ isInterruption: true, currentTopicArg: topic }) : null;
+
+      // ── Arena-style interviewer cut-in: fire as background race so it can duck
+      // the ANSWER audio mid-sentence if the text arrives while the answer is still playing.
+      let cutFired = false;
+      if (cutInPromise) {
+        cutInPromise.then((cut) => {
+          if (!cutFired && cut && cut.text && runningRef.current && cut.speakerId !== a.speakerId) {
+            cutFired = true;
+            enrichAndAddMessage({ id: `cut-${Date.now()}-${Math.random()}`, speakerId: cut.speakerId, speakerName: cut.speakerName, text: cut.text, ts: Date.now(), isInterruption: true, skipTTS: true });
+            playInterruptionAudio(cut.text, cut.speakerId);
+          }
+        });
+      }
 
       // Predict whether the NEXT exchange will need a topic transition so we can
       // pre-fetch the right question type in parallel with the answer TTS — no blocking wait.
@@ -1277,19 +1323,10 @@ export default function InterviewScreen() {
       if (!runningRef.current) break;
 
       // ── Micro-reaction by the INTERVIEWER while the answer plays —
-      // skip if we're about to fire a real cut-in (avoid double-reaction).
+      // skip if cut-in already fired or is pending (avoid double-reaction).
       if (Math.random() < 0.28 && !willCutIn) {
         const micro = MICRO_REACTIONS[Math.floor(Math.random() * MICRO_REACTIONS.length)];
         enrichAndAddMessage({ id: `micro-a-${Date.now()}`, speakerId: q.speakerId, speakerName: q.speakerName, text: micro, ts: Date.now(), isInterruption: true });
-      }
-
-      // Interviewer cut-in — should already be resolved since it was pre-fetched above.
-      // Guard: cut speaker must differ from answer speaker (no self-interrupt).
-      if (willCutIn && cutInPromise) {
-        const cut = await cutInPromise;
-        if (cut && cut.text && runningRef.current && cut.speakerId !== a.speakerId) {
-          enrichAndAddMessage({ id: `cut-${Date.now()}-${Math.random()}`, speakerId: cut.speakerId, speakerName: cut.speakerName, text: cut.text, ts: Date.now(), isInterruption: true });
-        }
       }
 
       // One-time shop promo injection mid-interview (after exchange 4)
@@ -1340,7 +1377,7 @@ export default function InterviewScreen() {
     }
     runningRef.current = false;
     if (Date.now() >= sessionEndsAtRef.current) setPhase("ended");
-  }, [topics, fetchQuestion, fetchAnswer, enrichAndAddMessage, duration, waitForQueueDrain]);
+  }, [topics, fetchQuestion, fetchAnswer, enrichAndAddMessage, duration, waitForQueueDrain, playInterruptionAudio]);
 
   const startInterview = useCallback(async () => {
     if (!deviceId || !interviewerId || !intervieweeId || topics.length === 0 || isStarting) return;
@@ -1659,7 +1696,7 @@ export default function InterviewScreen() {
         if (wasRunning) { isPausedRef.current = false; setIsPaused(false); }
       }, 1200);
     }
-  }, [callinText, deviceId, interviewerId, intervieweeId, callerName, currentTopic, isCallinSending, enrichAndAddMessage, waitForQueueDrain]);
+  }, [callinText, deviceId, interviewerId, intervieweeId, callerName, currentTopic, isCallinSending, enrichAndAddMessage, waitForQueueDrain, playInterruptionAudio]);
 
   const skipTopic = useCallback(() => {
     if (topicIdx + 1 >= topics.length) return;

@@ -29,7 +29,7 @@ import { playDingSound } from "@/lib/arena-sfx";
 
 type PersonaLite = { id: string; name: string };
 type Topic = { id: string; title: string; description: string; era: "current" | "past" };
-type Msg = { id: string; speakerId: string; speakerName: string; text: string; ts: number; isInterruption?: boolean; isCallIn?: boolean; callerName?: string; isSystem?: boolean };
+type Msg = { id: string; speakerId: string; speakerName: string; text: string; ts: number; isInterruption?: boolean; isCallIn?: boolean; callerName?: string; isSystem?: boolean; skipTTS?: boolean };
 
 type Emotions = { anger: number; happy: number; engagement: number; frantic: number; sad: number };
 type LieEntry = { id: string; speakerId: string; speakerName: string; text: string; score: number; reason: string; fact: string; ts: number; userFlagged?: boolean; pending?: boolean };
@@ -750,9 +750,8 @@ export default function DebateStage() {
           sound = await playTTS("/api/persona-speak", ttsBody, { volume: getPersonaVoiceVolume(item.personaId) });
         }
         currentSoundRef.current = sound;
-        // 50 ms crossfade: next speaker starts 50 ms before the current clip ends
-        // so every turn transition — persona→moderator and persona→persona — is tight.
-        const OVERLAP_MS = 800;
+        // 1s overlap: next speaker starts 1 second before current clip ends — conversational handoff
+        const OVERLAP_MS = 1000;
         let prefetchStarted = false;
         await new Promise<void>((resolve) => {
           let resolved = false;
@@ -1127,12 +1126,41 @@ export default function DebateStage() {
   // Wrap addMessage to also drive emotions, TTS, fact-check
   const enrichAndAddMessage = useCallback((m: Msg) => {
     setMessages((prev) => [...prev, m]);
-    enqueueTTS(m.text, m.speakerId, m.id);
+    if (!m.skipTTS) enqueueTTS(m.text, m.speakerId, m.id);
     const delta = computeEmotionDelta(m.text);
     if (interviewerId && m.speakerId === interviewerId) setEmoInterviewer((p) => applyEmotionDelta(p, delta));
     else if (intervieweeId && m.speakerId === intervieweeId) setEmoInterviewee((p) => applyEmotionDelta(p, delta));
     if (!m.isInterruption && (m.speakerId === interviewerId || m.speakerId === intervieweeId)) runFactCheck(m);
   }, [enqueueTTS, interviewerId, intervieweeId, runFactCheck]);
+
+  /** Arena-style interruption audio: ducks the current speaker to 10%, plays the
+   *  interrupt at full persona volume, then restores the main speaker to 100%.
+   *  Does NOT go through the TTS queue — fires concurrently with whatever is playing. */
+  const playInterruptionAudio = useCallback(async (text: string, personaId: string) => {
+    if (!voiceEnabledRef.current) return;
+    if (shouldSkipPersonaVoice(personaId)) return;
+    const mainSound = currentSoundRef.current;
+    if (mainSound) { try { mainSound.setVolumeAsync(0.10).catch(() => {}); } catch {} }
+    setActiveSpeaker(personaId);
+    activeSpeakerRef.current = personaId;
+    try {
+      const sound = await playTTS("/api/persona-speak", { text, personaId }, { volume: getPersonaVoiceVolume(personaId) });
+      let cleaned = false;
+      const cleanup = () => {
+        if (cleaned) return; cleaned = true;
+        sound.setOnPlaybackStatusUpdate(null);
+        sound.getStatusAsync().then((st: any) => { if (st.isLoaded) sound.stopAsync().then(() => sound.unloadAsync()).catch(() => {}); }).catch(() => {});
+        const ms = currentSoundRef.current;
+        if (ms) { try { ms.setVolumeAsync(1.0).catch(() => {}); } catch {} }
+        setActiveSpeaker(activeSpeakerRef.current);
+      };
+      sound.setOnPlaybackStatusUpdate((status: any) => { if (status.didJustFinish || status.error) cleanup(); });
+      setTimeout(cleanup, 8000);
+    } catch {
+      const ms = currentSoundRef.current;
+      if (ms) { try { ms.setVolumeAsync(1.0).catch(() => {}); } catch {} }
+    }
+  }, []);
 
   // Load persona lists
   useEffect(() => {
@@ -1898,7 +1926,7 @@ export default function DebateStage() {
         if (wasRunning) { isPausedRef.current = false; setIsPaused(false); }
       }, 1200);
     }
-  }, [callinText, deviceId, interviewerId, intervieweeId, callerName, currentTopic, isCallinSending, enrichAndAddMessage, waitForQueueDrain]);
+  }, [callinText, deviceId, interviewerId, intervieweeId, callerName, currentTopic, isCallinSending, enrichAndAddMessage, waitForQueueDrain, playInterruptionAudio]);
 
   const skipTopic = useCallback(() => {
     if (topicIdx + 1 >= topics.length) return;
