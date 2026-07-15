@@ -201,7 +201,7 @@ function getTitle(netWorth: number): { label: string; emoji: string } {
 
 async function playBase64Audio(base64: string): Promise<Audio.Sound | null> {
   try {
-    await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: false });
+    await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: true });
     if (Platform.OS === "web") {
       const audio = new window.Audio(`data:audio/mpeg;base64,${base64}`);
       audio.volume = 1.0;

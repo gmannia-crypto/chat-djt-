@@ -2922,7 +2922,7 @@ export default function SportsScreen() {
       setMusicPlaying(false);
     } else {
       try {
-        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: false, shouldDuckAndroid: true });
+        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: true, shouldDuckAndroid: true });
         musicTrackIndexRef.current = 0;
         musicPlayingRef.current = true;
         setMusicPlaying(true);

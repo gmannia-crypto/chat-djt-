@@ -47,7 +47,7 @@ export function useSoundEffects() {
 
     Audio.setAudioModeAsync({
       playsInSilentModeIOS: true,
-      staysActiveInBackground: false,
+      staysActiveInBackground: true,
     }).catch(() => {});
 
     load();
