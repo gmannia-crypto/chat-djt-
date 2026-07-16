@@ -758,6 +758,8 @@ export default function DebateStage() {
       const item = ttsQueueRef.current.shift();
       if (!item) break;
       if (shouldSkipPersonaVoice(item.personaId)) {
+        // Must call onComplete so enqueueTTSAndWait doesn't hang forever on skipped personas
+        item.onComplete?.();
         continue;
       }
       setActiveSpeaker(item.personaId);
@@ -872,10 +874,14 @@ export default function DebateStage() {
           });
         });
       } catch (e) {
-        // ignore TTS error and continue
+        // TTS error — must call onComplete or enqueueTTSAndWait hangs permanently
+        item.onComplete?.();
       }
     }
     ttsRunningRef.current = false;
+    // Safety: reset prefetchingRef in case a failed prefetch left it stuck at true
+    prefetchingRef.current = false;
+    pendingPrefetchRef.current = null;
     if (ttsQueueRef.current.length === 0) {
       setActiveSpeaker(null);
       activeSpeakerRef.current = null;

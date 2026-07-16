@@ -682,6 +682,8 @@ export default function InterviewScreen() {
       const item = ttsQueueRef.current.shift();
       if (!item) break;
       if (shouldSkipPersonaVoice(item.personaId)) {
+        // Must call onComplete so enqueueTTSAndWait doesn't hang forever on skipped personas
+        item.onComplete?.();
         continue;
       }
       setActiveSpeaker(item.personaId);
@@ -781,10 +783,14 @@ export default function InterviewScreen() {
           });
         });
       } catch (e) {
-        // ignore TTS error and continue
+        // TTS error — must call onComplete or enqueueTTSAndWait hangs permanently
+        item.onComplete?.();
       }
     }
     ttsRunningRef.current = false;
+    // Safety: reset prefetchingRef in case a failed prefetch left it stuck at true
+    prefetchingRef.current = false;
+    pendingPrefetchRef.current = null;
     // If the session ended while processing, clear any leftover queued items so
     // waitForQueueDrain can resolve promptly instead of hanging for 25 s.
     if (!runningRef.current && ttsQueueRef.current.length > 0) {
