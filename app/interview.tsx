@@ -194,6 +194,14 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   mlk: require("@/assets/images/persona-mlk.jpg"),
   malcolmx: require("@/assets/images/persona-malcolmx.jpg"),
   samjackson: require("@/assets/images/persona-samjackson.jpg"),
+  louisfarrakhan: require("@/assets/images/persona-louisfarrakhan.png"),
+  carlsagan: require("@/assets/images/persona-carlsagan.png"),
+  larrycableguy: require("@/assets/images/persona-larrycableguy.png"),
+  jdvance: require("@/assets/images/persona-jdvance.png"),
+  kaitlyncollins: require("@/assets/images/persona-kaitlyncollins.png"),
+  tedcruz: require("@/assets/images/persona-tedcruz.png"),
+  georgewbush: require("@/assets/images/persona-georgewbush.png"),
+  gilbertgottfried: require("@/assets/images/persona-gilbertgottfried.png"),
 };
 
 const FX_KEY = "interview_fx_enabled_v1";
@@ -215,11 +223,14 @@ const GUEST_CATEGORIES: Record<string, GuestCategory> = {
   shahidbolson: "Political", errol: "Political", galloway: "Political", carville: "Political",
   mlk: "History", malcolmx: "History", ronaldreagan: "History",
   pastormanning: "History", claudeanderson: "History",
-  neiltyson: "Science", professorjiang: "Science",
+  louisfarrakhan: "History", georgewbush: "History",
+  jdvance: "Political", tedcruz: "Political", kaitlyncollins: "Political",
+  neiltyson: "Science", professorjiang: "Science", carlsagan: "Science",
   elon: "Finance",
   rosie: "Entertainment", ruckus: "Entertainment", samjackson: "Entertainment",
   stephena: "Entertainment", hannity: "Entertainment", megynkelly: "Entertainment",
   shannon: "Entertainment", jesseleepetersen: "Entertainment", joerogan: "Entertainment",
+  larrycableguy: "Entertainment", gilbertgottfried: "Entertainment",
 };
 
 // Lightweight emotion delta from text heuristics
