@@ -765,16 +765,8 @@ export default function DebateStage() {
       setActiveSpeaker(item.personaId);
       activeSpeakerRef.current = item.personaId;
       try {
-        // If a prefetch is in flight for this item, wait up to 6 s for it to land.
-        // 6 s covers worst-case Fish Audio latency; the prefetch was started early
-        // (during the previous clip) so it has usually finished well before this.
-        if (prefetchingRef.current) {
-          const prefetchDeadline = Date.now() + 6000;
-          while (prefetchingRef.current && Date.now() < prefetchDeadline) {
-            await new Promise<void>((r) => setTimeout(r, 40));
-          }
-        }
-        // Use prefetched audio if it matches this item — eliminates fetch latency gap
+        // Use prefetched audio if it matches this item — eliminates fetch latency gap.
+        // No blocking wait: if the prefetch isn't ready yet, fall through to cold fetch.
         const cached = prefetchedAudioRef.current;
         let sound: Audio.Sound;
         if (cached && cached.text === item.text && cached.personaId === item.personaId) {
@@ -879,9 +871,6 @@ export default function DebateStage() {
       }
     }
     ttsRunningRef.current = false;
-    // Safety: reset prefetchingRef in case a failed prefetch left it stuck at true
-    prefetchingRef.current = false;
-    pendingPrefetchRef.current = null;
     if (ttsQueueRef.current.length === 0) {
       setActiveSpeaker(null);
       activeSpeakerRef.current = null;
@@ -1752,6 +1741,10 @@ export default function DebateStage() {
     savedSessionRef.current = false;
     setSavedSessionId(null);
     ttsQueueRef.current = [];
+    ttsRunningRef.current = false;
+    prefetchingRef.current = false;
+    pendingPrefetchRef.current = null;
+    prefetchedAudioRef.current = null;
     setPhase("live");
     runningRef.current = true;
     isPausedRef.current = false;
