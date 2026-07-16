@@ -748,6 +748,11 @@ export default function InterviewScreen() {
       }
     }
     ttsRunningRef.current = false;
+    // If the session ended while processing, clear any leftover queued items so
+    // waitForQueueDrain can resolve promptly instead of hanging for 25 s.
+    if (!runningRef.current && ttsQueueRef.current.length > 0) {
+      ttsQueueRef.current = [];
+    }
     if (ttsQueueRef.current.length === 0) {
       setActiveSpeaker(null);
       activeSpeakerRef.current = null;
@@ -768,7 +773,9 @@ export default function InterviewScreen() {
     const maxWait = setTimeout(resolve, 25000);
     // Small initial delay so processQueue() can set ttsRunningRef before first check
     const tick = () => {
-      if (!ttsRunningRef.current && ttsQueueRef.current.length === 0) {
+      // Resolve immediately if the session ended — processQueue exits without draining
+      // the queue when runningRef.current is false, so length > 0 would hang forever.
+      if (!ttsRunningRef.current && (ttsQueueRef.current.length === 0 || !runningRef.current)) {
         clearTimeout(maxWait);
         resolve();
       } else {
@@ -1318,6 +1325,9 @@ export default function InterviewScreen() {
           : fetchQuestion({ isFollowUp: true, isTransition: false, currentTopicArg: topic });
       }
 
+      // Seal off the cut-in promise — any late-arriving cut from the server
+      // must not bleed into the next turn and talk over the interviewer's own question.
+      cutFired = true;
       // Wait for the answer TTS to finish playing (audio-driven pacing).
       await waitForQueueDrain();
       if (!runningRef.current) break;
