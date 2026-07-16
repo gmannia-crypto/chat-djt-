@@ -1584,6 +1584,61 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       negative: ["cancel", "offensive", "inappropriate", "fired", "pearl harbor", "9/11"],
     },
   },
+  arikana: {
+    id: "arikana",
+    name: "Dr. Arikana Chihombori",
+    shortName: "Dr. Arikana",
+    color: "#006400",
+    faction: "wildcard",
+    image: require("@/assets/images/persona-arikana.png"),
+    personality: {
+      energy: 80,
+      aggression: 70,
+      humor: 20,
+      catchphrases: ["Africa is the wealthiest continent on Earth", "The CFA Franc is a colonial leash", "This is not an accident — it is a system", "Africa must unite or perish", "Name the names"],
+    },
+    relationships: {
+      louisfarrakhan: { sentiment: 80 },
+      malcolmx: { sentiment: 85 },
+      mlk: { sentiment: 75 },
+      claudeanderson: { sentiment: 80 },
+      malema: { sentiment: 85 },
+      trump: { sentiment: 15 },
+      netanyahu: { sentiment: 20 },
+      obama: { sentiment: 50 },
+    },
+    triggerWords: {
+      positive: ["africa", "pan-african", "sovereignty", "reparations", "cfa franc", "unity", "liberation", "resources", "decolonize"],
+      negative: ["colonialism", "imf", "world bank", "neo-colonialism", "puppet", "sellout", "foreign aid", "regime change"],
+    },
+  },
+  alishahrazad: {
+    id: "alishahrazad",
+    name: "Sister Ali Shahrazad",
+    shortName: "Sister Ali",
+    color: "#4B0082",
+    faction: "wildcard",
+    image: require("@/assets/images/persona-alishahrazad.png"),
+    personality: {
+      energy: 70,
+      aggression: 60,
+      humor: 20,
+      catchphrases: ["Let me teach you something", "The miseducation goes deep", "Ancient Kemet", "Black people have a sacred covenant", "You have been thoroughly miseducated"],
+    },
+    relationships: {
+      louisfarrakhan: { sentiment: 90 },
+      malcolmx: { sentiment: 90 },
+      mlk: { sentiment: 70 },
+      arikana: { sentiment: 85 },
+      claudeanderson: { sentiment: 80 },
+      trump: { sentiment: 10 },
+      obama: { sentiment: 45 },
+    },
+    triggerWords: {
+      positive: ["kemet", "africa", "history", "islam", "nation of islam", "black liberation", "self-determination", "knowledge", "consciousness"],
+      negative: ["self-hatred", "miseducation", "colonialism", "slavery", "white supremacy", "divide and conquer", "entertainment"],
+    },
+  },
 };
 
 const MYSTERY_PERSONAS: Record<string, ArenaPersona> = {

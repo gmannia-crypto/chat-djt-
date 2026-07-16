@@ -202,6 +202,8 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   tedcruz: require("@/assets/images/persona-tedcruz.png"),
   georgewbush: require("@/assets/images/persona-georgewbush.png"),
   gilbertgottfried: require("@/assets/images/persona-gilbertgottfried.jpg"),
+  arikana: require("@/assets/images/persona-arikana.png"),
+  alishahrazad: require("@/assets/images/persona-alishahrazad.png"),
 };
 
 const FX_KEY = "interview_fx_enabled_v1";
@@ -224,6 +226,7 @@ const GUEST_CATEGORIES: Record<string, GuestCategory> = {
   mlk: "History", malcolmx: "History", ronaldreagan: "History",
   pastormanning: "History", claudeanderson: "History",
   louisfarrakhan: "History", georgewbush: "History",
+  arikana: "History", alishahrazad: "History",
   jdvance: "Political", tedcruz: "Political", kaitlyncollins: "Political",
   neiltyson: "Science", professorjiang: "Science", carlsagan: "Science",
   elon: "Finance",
