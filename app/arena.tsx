@@ -1565,7 +1565,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
     shortName: "Gilbert",
     color: "#FF6600",
     faction: "wildcard",
-    image: require("@/assets/images/persona-gilbertgottfried.png"),
+    image: require("@/assets/images/persona-gilbertgottfried.jpg"),
     personality: {
       energy: 100,
       aggression: 50,

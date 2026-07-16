@@ -201,7 +201,7 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   kaitlyncollins: require("@/assets/images/persona-kaitlyncollins.png"),
   tedcruz: require("@/assets/images/persona-tedcruz.png"),
   georgewbush: require("@/assets/images/persona-georgewbush.png"),
-  gilbertgottfried: require("@/assets/images/persona-gilbertgottfried.png"),
+  gilbertgottfried: require("@/assets/images/persona-gilbertgottfried.jpg"),
 };
 
 const FX_KEY = "interview_fx_enabled_v1";
