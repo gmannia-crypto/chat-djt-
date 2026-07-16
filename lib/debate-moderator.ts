@@ -13,16 +13,18 @@ import { getApiUrl } from "@/lib/query-client";
 import { prefetchTTSAudio, playPrefetchedAudio, playTTS } from "@/lib/audio-helper";
 import { playCrowdCheer, playDingSound } from "@/lib/arena-sfx";
 
-export type ModeratorStyle = "hannity" | "maddow" | "megynkelly" | "odonnell" | "joyreid" | "maxkellerman" | "stephena";
+export type ModeratorStyle = "hannity" | "maddow" | "megynkelly" | "odonnell" | "joyreid" | "maxkellerman" | "stephena" | "kaitlyncollins" | "gilbertgottfried";
 
 export const MODERATORS: Record<ModeratorStyle, { name: string; personaId: string; bias: string }> = {
-  hannity:    { name: "Sean Hannity",     personaId: "hannity",    bias: "right" },
-  maddow:     { name: "Rachel Maddow",    personaId: "maddow",     bias: "left" },
-  megynkelly: { name: "Megyn Kelly",      personaId: "megynkelly", bias: "right" },
-  odonnell:   { name: "Lawrence O'Donnell", personaId: "odonnell", bias: "left" },
-  joyreid:    { name: "Joy Reid",         personaId: "joyreid",    bias: "left" },
-  maxkellerman: { name: "Max Kellerman",  personaId: "maxkellerman", bias: "sports" },
-  stephena:     { name: "Stephen A. Smith", personaId: "stephena",    bias: "sports" },
+  hannity:          { name: "Sean Hannity",       personaId: "hannity",          bias: "right" },
+  maddow:           { name: "Rachel Maddow",      personaId: "maddow",           bias: "left" },
+  megynkelly:       { name: "Megyn Kelly",         personaId: "megynkelly",       bias: "right" },
+  odonnell:         { name: "Lawrence O'Donnell",  personaId: "odonnell",         bias: "left" },
+  joyreid:          { name: "Joy Reid",            personaId: "joyreid",          bias: "left" },
+  maxkellerman:     { name: "Max Kellerman",       personaId: "maxkellerman",     bias: "sports" },
+  stephena:         { name: "Stephen A. Smith",    personaId: "stephena",         bias: "sports" },
+  kaitlyncollins:   { name: "Kaitlan Collins",     personaId: "kaitlyncollins",   bias: "neutral" },
+  gilbertgottfried: { name: "Gilbert Gottfried",   personaId: "gilbertgottfried", bias: "chaos" },
 };
 
 // Which personas each moderator is friendly to ("favor" — softball questions, quick to defend
@@ -52,6 +54,13 @@ export const MODERATOR_LEANINGS: Record<ModeratorStyle, { favor: string[]; targe
   // Sports moderators are not politically aligned — no favor/target lists, always neutral/fact-based.
   maxkellerman: { favor: [], target: [] },
   stephena: { favor: [], target: [] },
+  // Collins: CNN journalist — presses MAGA harder but also holds Democrats accountable.
+  kaitlyncollins: {
+    favor: ["obama", "biden", "kamala", "maddow", "joyreid", "carville", "berniemc"],
+    target: ["trump", "bannon", "miller", "leavitt", "alexjones", "mtg", "loomer", "jimjordan"],
+  },
+  // Gilbert: pure chaos — no favorites, no targets, just comedy carnage.
+  gilbertgottfried: { favor: [], target: [] },
 };
 
 export type ModeratorLeaning = "favor" | "target" | "neutral";
