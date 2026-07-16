@@ -18,7 +18,7 @@ import { useTokens } from "@/lib/token-context";
 import Colors from "@/constants/colors";
 import { ShareAppButton } from "@/components/ShareAppButton";
 import { CashAppDonate } from "@/components/CashAppDonate";
-import { playTTS, prefetchTTSAudio, playPrefetchedAudio } from "@/lib/audio-helper";
+import { playTTS, prefetchTTSAudio, playPrefetchedAudio, warmupAudio } from "@/lib/audio-helper";
 import { getPersonaVoiceVolume, shouldSkipPersonaVoice } from "@/lib/persona-voice";
 import AnimatedDebateFace, { EXPRESSION_SOURCES, Mood } from "@/components/AnimatedDebateFace";
 import {
@@ -247,6 +247,12 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   mlk: require("@/assets/images/persona-mlk.jpg"),
   malcolmx: require("@/assets/images/persona-malcolmx.jpg"),
   samjackson: require("@/assets/images/persona-samjackson.jpg"),
+  louisfarrakhan: require("@/assets/images/persona-louisfarrakhan.png"),
+  carlsagan: require("@/assets/images/persona-carlsagan.png"),
+  larrycableguy: require("@/assets/images/persona-larrycableguy.png"),
+  jdvance: require("@/assets/images/persona-jdvance.png"),
+  tedcruz: require("@/assets/images/persona-tedcruz.png"),
+  georgewbush: require("@/assets/images/persona-georgewbush.png"),
   kaitlyncollins: require("@/assets/images/persona-kaitlyncollins.png"),
   gilbertgottfried: require("@/assets/images/persona-gilbertgottfried.jpg"),
   arikana: require("@/assets/images/persona-arikana.png"),
@@ -422,6 +428,10 @@ export default function DebateStage() {
   const isPausedRef = useRef(false);
   const micCutRef = useRef({ iv: false, ivee: false });
   useEffect(() => { micCutRef.current = micCut; }, [micCut]);
+
+  // Warm up the audio session on mount so the first clip plays without cold-start lag
+  useEffect(() => { warmupAudio().catch(() => {}); }, []);
+
   const [isPaused, setIsPaused] = useState(false);
   const exchangesOnTopicRef = useRef(0);
   const totalExchangesRef = useRef(0);

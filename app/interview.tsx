@@ -17,7 +17,7 @@ import { useTokens } from "@/lib/token-context";
 import Colors from "@/constants/colors";
 import { ShareAppButton } from "@/components/ShareAppButton";
 import { CashAppDonate } from "@/components/CashAppDonate";
-import { playTTS, prefetchTTSAudio, playPrefetchedAudio } from "@/lib/audio-helper";
+import { playTTS, prefetchTTSAudio, playPrefetchedAudio, warmupAudio } from "@/lib/audio-helper";
 import { getPersonaVoiceVolume, shouldSkipPersonaVoice } from "@/lib/persona-voice";
 
 type PersonaLite = { id: string; name: string };
@@ -393,6 +393,9 @@ export default function InterviewScreen() {
 
   useEffect(() => { topicIdxRef.current = topicIdx; }, [topicIdx]);
   useEffect(() => { topicsRef.current = topics; }, [topics]);
+
+  // Warm up the audio session on mount so the first clip plays without cold-start lag
+  useEffect(() => { warmupAudio().catch(() => {}); }, []);
 
   // ── Pro mode state ───────────────────────────────────────────────────────
   const [voiceEnabled, setVoiceEnabled] = useState(true);

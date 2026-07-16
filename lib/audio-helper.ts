@@ -2,13 +2,13 @@ import { Platform } from "react-native";
 import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from "expo-av";
 import { getApiUrl } from "@/lib/query-client";
 
-export async function playAudioFromUrl(
-  url: string,
-  options?: { method?: string; body?: any; headers?: Record<string, string>; volume?: number; rate?: number }
-): Promise<Audio.Sound> {
-  const vol = options?.volume ?? 1.0;
-  const rate = options?.rate ?? 1.0;
-
+// Audio mode is set once for the lifetime of the app — calling setAudioModeAsync
+// on every play causes audio session churn that produces lag and interference,
+// especially when clips play in rapid succession.
+let _audioModeSet = false;
+async function ensureAudioMode() {
+  if (_audioModeSet) return;
+  _audioModeSet = true;
   await Audio.setAudioModeAsync({
     playsInSilentModeIOS: true,
     staysActiveInBackground: true,
@@ -17,6 +17,22 @@ export async function playAudioFromUrl(
     shouldDuckAndroid: false,
     playThroughEarpieceAndroid: false,
   });
+}
+
+// Call this early (e.g. on screen mount) to pre-initialize the audio session
+// before the first clip plays, avoiding the cold-start lag on the first TTS call.
+export async function warmupAudio(): Promise<void> {
+  await ensureAudioMode().catch(() => {});
+}
+
+export async function playAudioFromUrl(
+  url: string,
+  options?: { method?: string; body?: any; headers?: Record<string, string>; volume?: number; rate?: number }
+): Promise<Audio.Sound> {
+  const vol = options?.volume ?? 1.0;
+  const rate = options?.rate ?? 1.0;
+
+  await ensureAudioMode();
 
   if (Platform.OS === "web") {
     if (!options?.method || options.method === "GET") {
@@ -108,14 +124,7 @@ export async function prefetchTTSAudio(
 ): Promise<string> {
   const url = buildTTSUrl(endpoint, body);
 
-  await Audio.setAudioModeAsync({
-    playsInSilentModeIOS: true,
-    staysActiveInBackground: true,
-    interruptionModeIOS: InterruptionModeIOS.DoNotMix,
-    interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
-    shouldDuckAndroid: false,
-    playThroughEarpieceAndroid: false,
-  });
+  await ensureAudioMode();
 
   if (Platform.OS === "web") {
     const res = await globalThis.fetch(url);
@@ -143,14 +152,7 @@ export async function playPrefetchedAudio(
 ): Promise<Audio.Sound> {
   const vol = options?.volume ?? 1.0;
 
-  await Audio.setAudioModeAsync({
-    playsInSilentModeIOS: true,
-    staysActiveInBackground: true,
-    interruptionModeIOS: InterruptionModeIOS.DoNotMix,
-    interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
-    shouldDuckAndroid: false,
-    playThroughEarpieceAndroid: false,
-  });
+  await ensureAudioMode();
 
   const { sound } = await Audio.Sound.createAsync(
     { uri: audioUri },
