@@ -313,13 +313,14 @@ const TOPIC_MIXES = [
   { id: "mixed", label: "Both", icon: "shuffle" as const },
 ];
 
-type InterviewStyleId = "combative" | "informative" | "comedic" | "civil_discourse" | "educational";
-const INTERVIEW_STYLES: Array<{ id: InterviewStyleId; label: string; icon: "flame" | "information-circle" | "happy" | "handshake" | "school" }> = [
+type InterviewStyleId = "combative" | "informative" | "comedic" | "civil_discourse" | "educational" | "roast";
+const INTERVIEW_STYLES: Array<{ id: InterviewStyleId; label: string; icon: "flame" | "information-circle" | "happy" | "handshake" | "school" | "mic" }> = [
   { id: "combative",      label: "Combative",       icon: "flame" },
   { id: "informative",    label: "Informative",     icon: "information-circle" },
   { id: "comedic",        label: "Comedic",         icon: "happy" },
   { id: "civil_discourse",label: "Civil Discourse", icon: "handshake" },
   { id: "educational",    label: "Educational",     icon: "school" },
+  { id: "roast",          label: "Comedy Roast",    icon: "mic" },
 ];
 
 const webTop = Platform.OS === "web" ? 67 : 0;
