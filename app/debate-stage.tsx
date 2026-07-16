@@ -251,6 +251,7 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   gilbertgottfried: require("@/assets/images/persona-gilbertgottfried.jpg"),
   arikana: require("@/assets/images/persona-arikana.png"),
   alishahrazad: require("@/assets/images/persona-alishahrazad.png"),
+  waylonjennnings: require("@/assets/images/persona-waylonjennnings.png"),
 };
 
 const FX_KEY = "interview_fx_enabled_v1";
@@ -334,13 +335,14 @@ const TOPIC_MIXES = [
   { id: "mixed", label: "Both", icon: "shuffle" as const },
 ];
 
-type InterviewStyleId = "combative" | "informative" | "comedic" | "civil_discourse" | "educational";
-const INTERVIEW_STYLES: Array<{ id: InterviewStyleId; label: string; icon: "flame" | "information-circle" | "happy" | "handshake" | "school" }> = [
+type InterviewStyleId = "combative" | "informative" | "comedic" | "civil_discourse" | "educational" | "roast";
+const INTERVIEW_STYLES: Array<{ id: InterviewStyleId; label: string; icon: "flame" | "information-circle" | "happy" | "handshake" | "school" | "mic" }> = [
   { id: "combative",      label: "Combative",       icon: "flame" },
   { id: "informative",    label: "Informative",     icon: "information-circle" },
   { id: "comedic",        label: "Comedic",         icon: "happy" },
   { id: "civil_discourse",label: "Civil Discourse", icon: "handshake" },
   { id: "educational",    label: "Educational",     icon: "school" },
+  { id: "roast",          label: "Comedy Roast",    icon: "mic" },
 ];
 
 const webTop = Platform.OS === "web" ? 67 : 0;
@@ -358,13 +360,15 @@ export default function DebateStage() {
   const [topicMix, setTopicMix] = useState<"current" | "past" | "mixed">("mixed");
   const [interviewStyle, setInterviewStyle] = useState<InterviewStyleId>("combative");
 
-  const [category, setCategory] = useState<"Political" | "Sports" | "History" | "Finance" | "Science">("Political");
+  const [category, setCategory] = useState<"Political" | "Sports" | "History" | "Finance" | "Science" | "Entertainment">("Political");
   const [moderatorStyle, setModeratorStyle] = useState<ModeratorStyle>("hannity");
   // For history/science categories, override to civil_discourse / informative so personas
   // skip the insult-heavy combative register and focus on substance instead.
+  // Entertainment always goes comedic.
   const effectiveInterviewStyle = useMemo<InterviewStyleId>(() => {
     if (category === "History") return "civil_discourse";
     if (category === "Science") return "informative";
+    if (category === "Entertainment") return "comedic";
     return interviewStyle;
   }, [category, interviewStyle]);
   const [micCut, setMicCut] = useState<{ iv: boolean; ivee: boolean }>({ iv: false, ivee: false });
@@ -1265,7 +1269,7 @@ export default function DebateStage() {
       const res = await fetch(new URL("/api/arena/interview-topics", getApiUrl()).toString(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ interviewerId, intervieweeId, topicMix, durationMinutes: duration, interviewStyle }),
+        body: JSON.stringify({ interviewerId, intervieweeId, topicMix, durationMinutes: duration, interviewStyle, category }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -2032,7 +2036,7 @@ export default function DebateStage() {
 
           <Text style={[s.sectionLabel, { marginTop: 16 }]}>CATEGORY</Text>
           <View style={s.mixRow}>
-            {(["Political", "Sports", "History", "Finance", "Science"] as const).map((c) => (
+            {(["Political", "Sports", "History", "Finance", "Science", "Entertainment"] as const).map((c) => (
               <Pressable key={c} onPress={() => { Haptics.selectionAsync(); setCategory(c); }}
                 style={[s.mixCard, category === c && s.mixCardActive]} testID={`category-${c}`}>
                 <Text style={[s.mixText, category === c && s.mixTextActive]}>{c}</Text>

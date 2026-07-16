@@ -3026,6 +3026,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     gilbertgottfried: "1bbbc9371bd1406abc11714976f3215c",
     arikana: "3a6041acdf214fd4abad65269472c016",
     alishahrazad: "00b09400085e4b3d94f082f12b123034",
+    waylonjennnings: "9a4dc594b86b40d5a6c44f1c6d517cec",
   };
 
   // Malcolm X — high-anger voice (anger meter >= 50)
@@ -6719,6 +6720,20 @@ CRITICAL — WHAT YOU WILL NOT TOLERATE: Self-hatred in Black people. The saniti
 
 2-3 sentences max. Teach first. Strike when necessary.`,
 
+    waylonjennnings: `You are Waylon Jennings — outlaw country music legend, singer-songwriter, one of the founding fathers of the "outlaw country" movement, and a man who told Nashville to go to hell and became a bigger star for it. You recorded "Good Hearted Woman," "Mammas Don't Let Your Babies Grow Up to Be Cowboys," "Luckenbach, Texas," and narrated The Dukes of Hazzard. You were Willie Nelson's best friend and partner in crime. You were part of the Highwaymen supergroup alongside Willie, Johnny Cash, and Kris Kristofferson.
+
+CRITICAL — YOUR VOICE AND DELIVERY: You speak slow, deep, deliberate. Every word carries weight. You are a storyteller — not a lecturer. You speak from lived experience: addiction, survival, redemption, loyalty, and the road. You have a dry, cutting wit beneath the quiet. You do not like being told what to do, what to say, or how to be. "I've always been crazy but it's kept me from going insane."
+
+CRITICAL — YOUR PHILOSOPHY: Freedom is the only thing worth fighting for. Nashville tried to control you — you walked away. The major labels tried to own you — you negotiated your own contract with creative control and won. You believe authenticity is everything. Fake anything and you've already lost. Real country music comes from real pain, real joy, and real living. You have lived all three.
+
+CRITICAL — YOUR DEMONS AND YOUR REDEMPTION: You were addicted to amphetamines for over a decade — pills by the handful, recording sessions that lasted days, a life run at 200 mph. You got clean. You talk about it honestly. You do not romanticize it. "It nearly killed me and I'm not going to pretend otherwise." But you also do not preach — you have no patience for that. Your recovery was private and hard-won.
+
+CRITICAL — WHAT MAKES YOU ANGRY: Corporate music. Manufactured pop country. Artists who let labels strip their soul. Anyone who thinks they can own another person's art. Pretension. Suits. Anyone who hasn't paid their dues telling someone who has what to do.
+
+CRITICAL — YOUR LOYALTIES: Willie Nelson. Johnny Cash. Jessi Colter (your wife, your anchor). Kris Kristofferson. These are your people. You will defend them to the end.
+
+Slow. Deliberate. A story behind every sentence. 2-3 sentences max. Smoke still in the voice.`,
+
     malcolmx: `You are El-Hajj Malik El-Shabazz — this is who you are NOW. You have made your Hajj to Mecca. You have prayed alongside White Muslims from Europe, seen people of all colors worship as equals before Allah, and it shattered the framework the Nation of Islam built for you. You now understand that racism is a SYSTEM and an IDEOLOGY — not the genetic property of any race. You have founded the Organization of Afro-American Unity (OAAU) on universal human rights principles, not racial separatism. You are a Pan-Africanist, an internationalist, and a human rights champion who frames American racism not as a domestic civil rights question but as a VIOLATION OF INTERNATIONAL HUMAN RIGHTS LAW that must be brought before the United Nations.
 
 CRITICAL — WHO YOU HAVE LEFT BEHIND: You no longer speak for the Nation of Islam or Elijah Muhammad. You no longer preach Black separatism as the answer. You acknowledge that your earlier statements about White people were wrong — you have seen White people act with love and brotherhood. You are NOT the pre-Mecca Malcolm. You are sharper, more dangerous, and more universal. You now challenge SYSTEMIC racism, not White people as a race.
@@ -6792,6 +6807,7 @@ Speak with fired-up forensic precision. Measured urgency — not shouting, but e
     gilbertgottfried: "Gilbert",
     arikana: "Dr. Arikana",
     alishahrazad: "Sister Ali",
+    waylonjennnings: "Waylon",
   };
 
   // ── LIE-DETECTOR PERSONA BEHAVIOR ──────────────────────────────────────────
@@ -6842,6 +6858,7 @@ Speak with fired-up forensic precision. Measured urgency — not shouting, but e
     gilbertgottfried: "shameless",
     arikana: "truth",
     alishahrazad: "truth",
+    waylonjennnings: "truth",
   };
 
   function getLieBehaviorPrompt(personaId: string, sessionLieCount: number = 0, sessionIqMap?: Record<string, number>, sessionAltFactCount: number = 0): string {
@@ -7297,8 +7314,8 @@ FORMAT:
     }
   });
 
-  const INTERVIEWER_IDS = ["maddow", "joyreid", "megynkelly", "candace", "odonnell", "alexjones", "galloway", "carville", "leavitt", "loomer", "errol", "stephena", "hannity", "neiltyson", "malema", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "joerogan", "kaitlyncollins", "gilbertgottfried", "arikana", "alishahrazad"];
-  const INTERVIEWEE_IDS = ["trump", "biden", "netanyahu", "mcconnell", "omar", "rosie", "berniemc", "elon", "errol", "graham", "pambondi", "jimjordan", "schumer", "obama", "melania", "kamala", "mtg", "rfk", "ruckus", "miller", "erikakirk", "loomer", "leavitt", "stephena", "hannity", "malema", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "aoc", "jascrockett", "timscott", "claudeanderson", "joerogan", "billclinton", "hillaryclinton", "marcorubio", "desantis", "megynkelly", "professorjiang", "shahidbolson", "ronaldreagan", "pastormanning", "mlk", "samjackson", "malcolmx", "louisfarrakhan", "carlsagan", "larrycableguy", "jdvance", "kaitlyncollins", "tedcruz", "georgewbush", "gilbertgottfried", "arikana", "alishahrazad"];
+  const INTERVIEWER_IDS = ["maddow", "joyreid", "megynkelly", "candace", "odonnell", "alexjones", "galloway", "carville", "leavitt", "loomer", "errol", "stephena", "hannity", "neiltyson", "malema", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "joerogan", "kaitlyncollins", "gilbertgottfried", "arikana", "alishahrazad", "waylonjennnings"];
+  const INTERVIEWEE_IDS = ["trump", "biden", "netanyahu", "mcconnell", "omar", "rosie", "berniemc", "elon", "errol", "graham", "pambondi", "jimjordan", "schumer", "obama", "melania", "kamala", "mtg", "rfk", "ruckus", "miller", "erikakirk", "loomer", "leavitt", "stephena", "hannity", "malema", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "aoc", "jascrockett", "timscott", "claudeanderson", "joerogan", "billclinton", "hillaryclinton", "marcorubio", "desantis", "megynkelly", "professorjiang", "shahidbolson", "ronaldreagan", "pastormanning", "mlk", "samjackson", "malcolmx", "louisfarrakhan", "carlsagan", "larrycableguy", "jdvance", "kaitlyncollins", "tedcruz", "georgewbush", "gilbertgottfried", "arikana", "alishahrazad", "waylonjennnings"];
 
   app.get("/api/arena/interview-personas", (_req, res) => {
     const interviewers = INTERVIEWER_IDS.filter((id) => ARENA_PERSONA_PROMPTS[id]).map((id) => ({
@@ -7360,7 +7377,7 @@ FORMAT:
 
   app.post("/api/arena/interview-topics", async (req, res) => {
     try {
-      const { interviewerId, intervieweeId, topicMix = "mixed", durationMinutes = 10, interviewStyle = "combative" } = req.body || {};
+      const { interviewerId, intervieweeId, topicMix = "mixed", durationMinutes = 10, interviewStyle = "combative", category = "" } = req.body || {};
       if (!interviewerId || !intervieweeId) return res.status(400).json({ error: "interviewerId and intervieweeId required" });
       if (!ARENA_PERSONA_PROMPTS[interviewerId] || !ARENA_PERSONA_PROMPTS[intervieweeId]) {
         return res.status(400).json({ error: "Invalid persona ids" });
@@ -7389,8 +7406,13 @@ FORMAT:
         comedic: `STYLE — COMEDIC & SATIRICAL: Topics should expose absurdity, hypocrisy, and embarrassment through humor. Focus on moments that are funny, contradictory, or so outrageous they become comedy. The interviewer roasts as much as interrogates. Think late-night satire meets hot mic moment.`,
         civil_discourse: `STYLE — CIVIL DISCOURSE: Topics should invite genuine dialogue, common ground, and thoughtful exchange. Frame angles as genuine questions rather than accusations. Both sides of issues should be considered. Topics should model what respectful disagreement and productive debate could look like.`,
         educational: `STYLE — EDUCATIONAL: Topics should teach the audience about ${intervieweeName}'s area of expertise and worldview. Each topic should unlock a piece of their thinking — why they believe what they believe, how they developed their ideology, what historical or personal events shaped them, and what the audience can LEARN from their knowledge and experience. The guest is the expert; the interviewer is the curious student helping the audience understand.`,
+        roast: `STYLE — COMEDY ROAST: This is a full-on roast. No mercy. Every topic is a setup for maximum embarrassment, savage mockery, and cruel-but-funny exposure of ${intervieweeName}'s worst moments, biggest contradictions, and most ridiculous career decisions. Think Friar's Club roast energy. The interviewer is a roast master. Topics should produce the most devastating, funniest burns possible. Lead with the most embarrassing receipts. Hyperbole is encouraged. Make the audience gasp AND laugh simultaneously.`,
       };
-      const styleDirective = styleDirectives[interviewStyle] || styleDirectives.combative;
+      // Entertainment category overrides to use celebrity gossip / entertainment news as the topic source
+      const categoryDirective = category === "Entertainment"
+        ? `\n\nENTERTAINMENT CATEGORY OVERRIDE: Topics MUST be drawn exclusively from celebrity gossip, entertainment industry drama, pop culture scandals, Hollywood breakups, music industry beef, reality TV controversies, social media feuds, viral celebrity moments, award show drama, and entertainment news. Use the most recent and cutting-edge entertainment headlines available through 2025-2026: Taylor Swift and Travis Kelce relationship developments, Drake vs Kendrick Lamar beef aftermath, Diddy federal trial and industry fallout, Beyoncé's Cowboy Carter tour, celebrity divorces and scandals, TikTok viral feuds, streaming wars drama, celebrity mental health disclosures, industry exposés, and any major entertainment gossip burning up social media right now. Frame every topic to produce maximum celebrity tea-spilling energy.`
+        : "";
+      const styleDirective = (styleDirectives[interviewStyle] || styleDirectives.combative) + categoryDirective;
 
       const newsLine = isEducational
         ? `(No live headlines used for educational style — topics are grounded in ${intervieweeName}'s documented expertise and real-world knowledge.)`

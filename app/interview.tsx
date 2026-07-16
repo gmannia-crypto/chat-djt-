@@ -204,6 +204,7 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   gilbertgottfried: require("@/assets/images/persona-gilbertgottfried.jpg"),
   arikana: require("@/assets/images/persona-arikana.png"),
   alishahrazad: require("@/assets/images/persona-alishahrazad.png"),
+  waylonjennnings: require("@/assets/images/persona-waylonjennnings.png"),
 };
 
 const FX_KEY = "interview_fx_enabled_v1";
@@ -231,9 +232,9 @@ const GUEST_CATEGORIES: Record<string, GuestCategory> = {
   neiltyson: "Science", professorjiang: "Science", carlsagan: "Science",
   elon: "Finance",
   rosie: "Entertainment", ruckus: "Entertainment", samjackson: "Entertainment",
+  waylonjennnings: "Entertainment", gilbertgottfried: "Entertainment", larrycableguy: "Entertainment",
   stephena: "Entertainment", hannity: "Entertainment", megynkelly: "Entertainment",
   shannon: "Entertainment", jesseleepetersen: "Entertainment", joerogan: "Entertainment",
-  larrycableguy: "Entertainment", gilbertgottfried: "Entertainment",
 };
 
 // Lightweight emotion delta from text heuristics
