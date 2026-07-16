@@ -465,6 +465,9 @@ export default function DebateStage() {
   const currentSoundRef = useRef<Audio.Sound | null>(null);
   const prefetchedAudioRef = useRef<{ personaId: string; text: string; audioUri: string } | null>(null);
   const prefetchingRef = useRef(false);
+  // Pending slot: if a prefetch is in flight and a new one arrives, it queues here
+  // and fires automatically when the current one completes — prevents dropped prefetches.
+  const pendingPrefetchRef = useRef<{ text: string; personaId: string } | null>(null);
 
   const [emoInterviewer, setEmoInterviewer] = useState<Emotions>(ZERO_EMO);
   const [emoInterviewee, setEmoInterviewee] = useState<Emotions>(ZERO_EMO);
@@ -718,11 +721,16 @@ export default function DebateStage() {
   }, []);
 
   // ── Audio prefetch — fetch next clip's audio while current clip is playing ──
+  // Supports a pending-slot: if a prefetch is in flight, the new item is queued
+  // and fires automatically when the current one completes, preventing drops.
   const startPrefetch = useCallback((item: { text: string; personaId: string }) => {
-    if (prefetchingRef.current) return;
     if (shouldSkipPersonaVoice(item.personaId)) return;
     const cached = prefetchedAudioRef.current;
     if (cached && cached.text === item.text && cached.personaId === item.personaId) return;
+    if (prefetchingRef.current) {
+      pendingPrefetchRef.current = item;
+      return;
+    }
     prefetchingRef.current = true;
     const prefetchBody: Record<string, any> = { text: item.text, personaId: item.personaId };
     if (item.personaId === "malcolmx") prefetchBody.angerLevel = malcolmxAngerRef.current;
@@ -730,8 +738,16 @@ export default function DebateStage() {
       .then((audioUri) => {
         prefetchedAudioRef.current = { personaId: item.personaId, text: item.text, audioUri };
         prefetchingRef.current = false;
+        const pending = pendingPrefetchRef.current;
+        pendingPrefetchRef.current = null;
+        if (pending) startPrefetch(pending);
       })
-      .catch(() => { prefetchingRef.current = false; });
+      .catch(() => {
+        prefetchingRef.current = false;
+        const pending = pendingPrefetchRef.current;
+        pendingPrefetchRef.current = null;
+        if (pending) startPrefetch(pending);
+      });
   }, []);
 
   // ── TTS queue: sequential playback with 1s overlap + audio prefetch ────────
@@ -747,11 +763,11 @@ export default function DebateStage() {
       setActiveSpeaker(item.personaId);
       activeSpeakerRef.current = item.personaId;
       try {
-        // If a prefetch is in flight for this item, wait up to 1.5 s for it to land
-        // before falling back to a fresh playTTS call — eliminates the dead-air gap
-        // that occurred when startPrefetch was called early but processQueue didn't wait.
+        // If a prefetch is in flight for this item, wait up to 6 s for it to land.
+        // 6 s covers worst-case Fish Audio latency; the prefetch was started early
+        // (during the previous clip) so it has usually finished well before this.
         if (prefetchingRef.current) {
-          const prefetchDeadline = Date.now() + 1500;
+          const prefetchDeadline = Date.now() + 6000;
           while (prefetchingRef.current && Date.now() < prefetchDeadline) {
             await new Promise<void>((r) => setTimeout(r, 40));
           }
@@ -906,6 +922,7 @@ export default function DebateStage() {
     ttsQueueRef.current = [];
     prefetchedAudioRef.current = null;
     prefetchingRef.current = false;
+    pendingPrefetchRef.current = null;
     const snd = currentSoundRef.current;
     currentSoundRef.current = null;
     setActiveSpeaker(null);
@@ -1576,6 +1593,8 @@ export default function DebateStage() {
               speakerId: ans.speakerId, speakerName: ans.speakerName,
               text: ans.text, ts: Date.now(),
             });
+            // Pre-fetch rebuttal audio while bridge TTS plays — ready before bridge finishes
+            if (voiceEnabledRef.current) startPrefetch({ text: ans.text, personaId: secondaryId });
           }
         }),
         speakMod(bridgeText, `modbr-${Date.now()}-${Math.random()}`),
@@ -1640,6 +1659,9 @@ export default function DebateStage() {
 
       if (nextQuestion && runningRef.current) {
         prefetchedOpeningRef.current = nextQuestion;
+        // Pre-fetch the MODERATOR AUDIO for the next question while transition TTS plays —
+        // by the time the next round starts the moderator audio is already buffered.
+        if (voiceEnabledRef.current) startPrefetch({ text: nextQuestion, personaId: mod.personaId });
         // Pre-fetch the PRIMARY ANSWER for the next round while rebuttal TTS is still
         // playing. By the time the next moderator question finishes speaking the answer
         // is already in-flight or fully resolved — no dead air after the question.
