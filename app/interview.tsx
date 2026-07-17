@@ -733,6 +733,10 @@ export default function InterviewScreen() {
           const finish = () => {
             if (resolved) return;
             resolved = true;
+            // Always fire onComplete regardless of exit path (didJustFinish, error,
+            // OR safety-timeout). Without this, enqueueTTSAndWait hangs forever
+            // when audio finishes — blocking the entire runLoop.
+            item.onComplete?.();
             if (!earlyResolved) resolve();
             fullCleanup();
           };
