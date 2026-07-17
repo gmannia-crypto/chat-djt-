@@ -1235,6 +1235,31 @@ export default function DebateStage() {
     }
     return combined;
   }, [interviewers, interviewees]);
+
+  // If a debater is selected that matches the moderator, auto-pick a different moderator.
+  // If the moderator is later selected as a debater, clear that debater slot.
+  useEffect(() => {
+    const modPersonaId = MODERATORS[moderatorStyle]?.personaId;
+    if (modPersonaId && interviewerId === modPersonaId) setInterviewerId(null);
+    if (modPersonaId && intervieweeId === modPersonaId) setIntervieweeId(null);
+  }, [moderatorStyle]);
+
+  useEffect(() => {
+    const modPersonaId = MODERATORS[moderatorStyle]?.personaId;
+    if (interviewerId && interviewerId === modPersonaId) {
+      const fallback = (Object.keys(MODERATORS) as ModeratorStyle[]).find(
+        ms => MODERATORS[ms].personaId !== interviewerId && MODERATORS[ms].personaId !== intervieweeId
+      );
+      if (fallback) setModeratorStyle(fallback);
+    }
+    if (intervieweeId && intervieweeId === modPersonaId) {
+      const fallback = (Object.keys(MODERATORS) as ModeratorStyle[]).find(
+        ms => MODERATORS[ms].personaId !== interviewerId && MODERATORS[ms].personaId !== intervieweeId
+      );
+      if (fallback) setModeratorStyle(fallback);
+    }
+  }, [interviewerId, intervieweeId]);
+
   const currentTopic = topics[topicIdx] || null;
   const currentTopicRef = useRef(currentTopic);
   useEffect(() => { currentTopicRef.current = currentTopic; }, [currentTopic]);
@@ -2037,7 +2062,7 @@ export default function DebateStage() {
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
           <Text style={s.sectionLabel}>DEBATER A</Text>
           <View style={s.chipRow}>
-            {debaterPool.filter(p => p.id !== intervieweeId).map((p) => (
+            {debaterPool.filter(p => p.id !== intervieweeId && p.id !== MODERATORS[moderatorStyle].personaId).map((p) => (
               <Pressable key={p.id} onPress={() => { Haptics.selectionAsync(); setInterviewerId(p.id); }}
                 style={[s.chip, interviewerId === p.id && s.chipActive]} testID={`interviewer-${p.id}`}>
                 <Text style={[s.chipText, interviewerId === p.id && s.chipTextActive]}>{p.name}</Text>
@@ -2047,7 +2072,7 @@ export default function DebateStage() {
 
           <Text style={[s.sectionLabel, { marginTop: 16 }]}>DEBATER B</Text>
           <View style={s.chipRow}>
-            {debaterPool.filter(p => p.id !== interviewerId).map((p) => (
+            {debaterPool.filter(p => p.id !== interviewerId && p.id !== MODERATORS[moderatorStyle].personaId).map((p) => (
               <Pressable key={p.id} onPress={() => { Haptics.selectionAsync(); setIntervieweeId(p.id); }}
                 style={[s.chip, intervieweeId === p.id && s.chipActiveGuest]} testID={`interviewee-${p.id}`}>
                 <Text style={[s.chipText, intervieweeId === p.id && s.chipTextActive]}>{p.name}</Text>
@@ -2079,7 +2104,9 @@ export default function DebateStage() {
 
           <Text style={[s.sectionLabel, { marginTop: 16 }]}>MODERATOR</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.personaCardRow}>
-            {(Object.keys(MODERATORS) as ModeratorStyle[]).map((ms) => {
+            {(Object.keys(MODERATORS) as ModeratorStyle[]).filter(ms =>
+              MODERATORS[ms].personaId !== interviewerId && MODERATORS[ms].personaId !== intervieweeId
+            ).map((ms) => {
               const mod = MODERATORS[ms];
               const portrait = PERSONA_PORTRAITS[mod.personaId];
               const isSelected = moderatorStyle === ms;
