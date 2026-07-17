@@ -205,6 +205,8 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   arikana: require("@/assets/images/persona-arikana.png"),
   alishahrazad: require("@/assets/images/persona-alishahrazad.png"),
   waylonjennnings: require("@/assets/images/persona-waylonjennnings.png"),
+  galloway: require("@/assets/images/persona-galloway.png"),
+  skipbayless: require("@/assets/images/persona-skipbayless.png"),
 };
 
 const FX_KEY = "interview_fx_enabled_v1";
@@ -235,6 +237,8 @@ const GUEST_CATEGORIES: Record<string, GuestCategory> = {
   waylonjennnings: "Entertainment", gilbertgottfried: "Entertainment", larrycableguy: "Entertainment",
   stephena: "Entertainment", hannity: "Entertainment", megynkelly: "Entertainment",
   shannon: "Entertainment", jesseleepetersen: "Entertainment", joerogan: "Entertainment",
+  skipbayless: "Entertainment", howardcosell: "Entertainment",
+  cenk: "Political",
 };
 
 // Lightweight emotion delta from text heuristics
@@ -1825,14 +1829,25 @@ export default function InterviewScreen() {
 
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
           <Text style={s.sectionLabel}>INTERVIEWER</Text>
-          <View style={s.chipRow}>
-            {interviewers.filter(p => p.id !== intervieweeId).map((p) => (
-              <Pressable key={p.id} onPress={() => { Haptics.selectionAsync(); setInterviewerId(p.id); }}
-                style={[s.chip, interviewerId === p.id && s.chipActive]} testID={`interviewer-${p.id}`}>
-                <Text style={[s.chipText, interviewerId === p.id && s.chipTextActive]}>{p.name}</Text>
-              </Pressable>
-            ))}
-          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.personaCardRow}>
+            {interviewers.filter(p => p.id !== intervieweeId).map((p) => {
+              const portrait = PERSONA_PORTRAITS[p.id];
+              const isSelected = interviewerId === p.id;
+              const initials = p.name.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
+              return (
+                <Pressable key={p.id} onPress={() => { Haptics.selectionAsync(); setInterviewerId(p.id); }}
+                  style={s.personaCard} testID={`interviewer-${p.id}`}>
+                  <View style={[s.personaAvatarWrap, isSelected && s.personaAvatarWrapActive]}>
+                    {portrait
+                      ? <Image source={portrait} style={s.personaAvatar} />
+                      : <View style={s.personaAvatarFallback}><Text style={s.personaAvatarInitials}>{initials}</Text></View>
+                    }
+                  </View>
+                  <Text style={[s.personaCardName, isSelected && s.personaCardNameActive]} numberOfLines={1}>{p.name}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
 
           <Text style={[s.sectionLabel, { marginTop: 16 }]}>GUEST CATEGORY</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }} contentContainerStyle={{ paddingHorizontal: 0, gap: 6, flexDirection: "row" }}>
@@ -2557,6 +2572,16 @@ const s = StyleSheet.create({
   chipActiveGuest: { backgroundColor: "rgba(74,222,128,0.18)", borderColor: "#4ADE80" },
   chipText: { color: "rgba(255,255,255,0.7)", fontSize: 12, fontWeight: "700" },
   chipTextActive: { color: "#fff" },
+
+  personaCardRow: { flexDirection: "row", gap: 10, paddingVertical: 4 },
+  personaCard: { width: 72, alignItems: "center" },
+  personaAvatarWrap: { width: 60, height: 60, borderRadius: 30, overflow: "hidden", borderWidth: 2, borderColor: "rgba(255,255,255,0.1)" },
+  personaAvatarWrapActive: { borderColor: "#FFD700", borderWidth: 2.5 },
+  personaAvatar: { width: "100%", height: "100%" },
+  personaAvatarFallback: { width: "100%", height: "100%", backgroundColor: "rgba(255,215,0,0.12)", alignItems: "center", justifyContent: "center" },
+  personaAvatarInitials: { color: "#FFD700", fontSize: 18, fontWeight: "800" },
+  personaCardName: { color: "rgba(255,255,255,0.6)", fontSize: 10, fontWeight: "700", marginTop: 5, textAlign: "center" },
+  personaCardNameActive: { color: "#FFD700" },
 
   durationRow: { flexDirection: "row", gap: 8 },
   durationCard: { flex: 1, padding: 14, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.05)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)", alignItems: "center" },

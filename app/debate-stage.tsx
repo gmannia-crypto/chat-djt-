@@ -258,6 +258,8 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   arikana: require("@/assets/images/persona-arikana.png"),
   alishahrazad: require("@/assets/images/persona-alishahrazad.png"),
   waylonjennnings: require("@/assets/images/persona-waylonjennnings.png"),
+  galloway: require("@/assets/images/persona-galloway.png"),
+  skipbayless: require("@/assets/images/persona-skipbayless.png"),
 };
 
 const FX_KEY = "interview_fx_enabled_v1";
@@ -2076,14 +2078,26 @@ export default function DebateStage() {
           </View>
 
           <Text style={[s.sectionLabel, { marginTop: 16 }]}>MODERATOR</Text>
-          <View style={s.mixRow}>
-            {(Object.keys(MODERATORS) as ModeratorStyle[]).map((ms) => (
-              <Pressable key={ms} onPress={() => { Haptics.selectionAsync(); setModeratorStyle(ms); }}
-                style={[s.mixCard, moderatorStyle === ms && s.mixCardActive]} testID={`moderator-${ms}`}>
-                <Text style={[s.mixText, moderatorStyle === ms && s.mixTextActive]}>{MODERATORS[ms].name}</Text>
-              </Pressable>
-            ))}
-          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.personaCardRow}>
+            {(Object.keys(MODERATORS) as ModeratorStyle[]).map((ms) => {
+              const mod = MODERATORS[ms];
+              const portrait = PERSONA_PORTRAITS[mod.personaId];
+              const isSelected = moderatorStyle === ms;
+              const initials = mod.name.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
+              return (
+                <Pressable key={ms} onPress={() => { Haptics.selectionAsync(); setModeratorStyle(ms); }}
+                  style={s.personaCard} testID={`moderator-${ms}`}>
+                  <View style={[s.personaAvatarWrap, isSelected && s.personaAvatarWrapActive]}>
+                    {portrait
+                      ? <Image source={portrait} style={s.personaAvatar} />
+                      : <View style={s.personaAvatarFallback}><Text style={s.personaAvatarInitials}>{initials}</Text></View>
+                    }
+                  </View>
+                  <Text style={[s.personaCardName, isSelected && s.personaCardNameActive]} numberOfLines={1}>{mod.name}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
 
           <Text style={[s.sectionLabel, { marginTop: 16 }]}>LIE DETECTOR</Text>
           <View style={s.mixRow}>
@@ -2867,6 +2881,16 @@ const s = StyleSheet.create({
   chipActiveGuest: { backgroundColor: "rgba(74,222,128,0.18)", borderColor: "#4ADE80" },
   chipText: { color: "rgba(255,255,255,0.7)", fontSize: 12, fontWeight: "700" },
   chipTextActive: { color: "#fff" },
+
+  personaCardRow: { flexDirection: "row", gap: 10, paddingVertical: 4 },
+  personaCard: { width: 72, alignItems: "center" },
+  personaAvatarWrap: { width: 60, height: 60, borderRadius: 30, overflow: "hidden", borderWidth: 2, borderColor: "rgba(255,255,255,0.1)" },
+  personaAvatarWrapActive: { borderColor: "#FFD700", borderWidth: 2.5 },
+  personaAvatar: { width: "100%", height: "100%" },
+  personaAvatarFallback: { width: "100%", height: "100%", backgroundColor: "rgba(255,215,0,0.12)", alignItems: "center", justifyContent: "center" },
+  personaAvatarInitials: { color: "#FFD700", fontSize: 18, fontWeight: "800" },
+  personaCardName: { color: "rgba(255,255,255,0.6)", fontSize: 10, fontWeight: "700", marginTop: 5, textAlign: "center" },
+  personaCardNameActive: { color: "#FFD700" },
 
   durationRow: { flexDirection: "row", gap: 8 },
   durationCard: { flex: 1, padding: 14, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.05)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)", alignItems: "center" },
