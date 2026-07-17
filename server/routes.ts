@@ -3106,6 +3106,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     claudeanderson: 5,
     obama: 4,
     malcolmx: 12,
+    cenk: 7, // TYT broadcast voice needs projection and chest resonance
   };
 
   // IMPORTANT: when you add, remove, or change any entry here you MUST:
@@ -3155,6 +3156,8 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     claudeanderson: 0.96,
     // malcolmx: 1.1 — energetic but still deliberate; user-requested.
     malcolmx: 1.1,
+    // cenk: 0.93 — deliberate anchor pacing; gives the voice weight and resonance.
+    cenk: 0.93,
   };
 
   // IMPORTANT: when you add, remove, or change any entry here you MUST:
