@@ -1299,7 +1299,7 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
     name: "George Carlin",
     shortName: "Carlin",
     color: "#4A4A4A",
-    faction: "wildcard",
+    faction: "opponent",
     image: require("@/assets/images/persona-carlin.jpg"),
     personality: {
       energy: 85,
