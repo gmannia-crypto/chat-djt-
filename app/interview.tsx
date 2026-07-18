@@ -216,8 +216,8 @@ const VOICE_KEY = "interview_voice_enabled_v1";
 const BEEP_KEY = "interview_beep_enabled_v1";
 const NAME_KEY = "interview_caller_name_v1";
 
-type GuestCategory = "All" | "Political" | "History" | "Science" | "Finance" | "Entertainment";
-const GUEST_CATEGORY_LIST: GuestCategory[] = ["All", "Political", "History", "Science", "Finance", "Entertainment"];
+type GuestCategory = "All" | "Political" | "History" | "Science" | "Finance" | "Entertainment" | "Sports";
+const GUEST_CATEGORY_LIST: GuestCategory[] = ["All", "Political", "History", "Science", "Finance", "Entertainment", "Sports"];
 
 const GUEST_CATEGORIES: Record<string, GuestCategory> = {
   trump: "Political", biden: "Political", obama: "Political", kamala: "Political",
@@ -239,7 +239,7 @@ const GUEST_CATEGORIES: Record<string, GuestCategory> = {
   waylonjennnings: "Entertainment", gilbertgottfried: "Entertainment", larrycableguy: "Entertainment",
   stephena: "Entertainment", hannity: "Entertainment", megynkelly: "Entertainment",
   shannon: "Entertainment", jesseleepetersen: "Entertainment", joerogan: "Entertainment",
-  skipbayless: "Entertainment", howardcosell: "Entertainment",
+  skipbayless: "Sports", howardcosell: "Sports",
   cenk: "Political",
 };
 
