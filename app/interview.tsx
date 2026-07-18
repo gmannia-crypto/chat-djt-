@@ -209,6 +209,9 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   skipbayless: require("@/assets/images/persona-skipbayless.png"),
   cenk: require("@/assets/images/persona-cenk.jpg"),
   howardcosell: require("@/assets/images/persona-howardcosell.jpg"),
+  carlin: require("@/assets/images/persona-carlin.jpg"),
+  pressley: require("@/assets/images/persona-pressley.png"),
+  drbenj: require("@/assets/images/persona-drbenj.jpg"),
 };
 
 const FX_KEY = "interview_fx_enabled_v1";
@@ -241,6 +244,9 @@ const GUEST_CATEGORIES: Record<string, GuestCategory> = {
   shannon: "Entertainment", jesseleepetersen: "Entertainment", joerogan: "Entertainment",
   skipbayless: "Sports", howardcosell: "Sports",
   cenk: "Political",
+  pressley: "Political",
+  drbenj: "History",
+  carlin: "Entertainment",
 };
 
 // Lightweight emotion delta from text heuristics
@@ -1839,16 +1845,27 @@ export default function InterviewScreen() {
           </ScrollView>
 
           <Text style={[s.sectionLabel, { marginTop: 4 }]}>GUEST</Text>
-          <View style={s.chipRow}>
+          <View style={s.guestCardGrid}>
             {interviewees
               .filter(p => p.id !== interviewerId)
               .filter(p => guestCategory === "All" || (GUEST_CATEGORIES[p.id] ?? "Political") === guestCategory)
-              .map((p) => (
-                <Pressable key={p.id} onPress={() => { Haptics.selectionAsync(); setIntervieweeId(p.id); }}
-                  style={[s.chip, intervieweeId === p.id && s.chipActiveGuest]} testID={`interviewee-${p.id}`}>
-                  <Text style={[s.chipText, intervieweeId === p.id && s.chipTextActive]}>{p.name}</Text>
-                </Pressable>
-              ))}
+              .map((p) => {
+                const portrait = PERSONA_PORTRAITS[p.id];
+                const isSelected = intervieweeId === p.id;
+                const initials = p.name.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
+                return (
+                  <Pressable key={p.id} onPress={() => { Haptics.selectionAsync(); setIntervieweeId(p.id); }}
+                    style={s.guestCard} testID={`interviewee-${p.id}`}>
+                    <View style={[s.personaAvatarWrap, isSelected && s.personaAvatarWrapActiveGuest]}>
+                      {portrait
+                        ? <Image source={portrait} style={s.personaAvatar} />
+                        : <View style={s.personaAvatarFallback}><Text style={s.personaAvatarInitials}>{initials}</Text></View>
+                      }
+                    </View>
+                    <Text style={[s.personaCardName, isSelected && s.guestCardNameActive]} numberOfLines={1}>{p.name}</Text>
+                  </Pressable>
+                );
+              })}
           </View>
 
           <Text style={[s.sectionLabel, { marginTop: 16 }]}>SEGMENT LENGTH</Text>
@@ -2550,6 +2567,10 @@ const s = StyleSheet.create({
   chipActive: { backgroundColor: "rgba(255,215,0,0.18)", borderColor: "#FFD700" },
   chipActiveGuest: { backgroundColor: "rgba(74,222,128,0.18)", borderColor: "#4ADE80" },
   chipText: { color: "rgba(255,255,255,0.7)", fontSize: 12, fontWeight: "700" },
+  guestCardGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 4 },
+  guestCard: { width: 72, alignItems: "center" },
+  personaAvatarWrapActiveGuest: { borderColor: "#4ADE80", borderWidth: 2.5 },
+  guestCardNameActive: { color: "#4ADE80" },
   chipTextActive: { color: "#fff" },
 
   personaCardRow: { flexDirection: "row", gap: 10, paddingVertical: 4 },
