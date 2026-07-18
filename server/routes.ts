@@ -10063,6 +10063,12 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
           total_wins INTEGER NOT NULL DEFAULT 0,
           updated_at TIMESTAMP DEFAULT NOW()
         )`);
+        await db.query(`CREATE TABLE IF NOT EXISTS arena_win_token_rewards (
+          device_id TEXT NOT NULL,
+          reward_date DATE NOT NULL,
+          count INTEGER NOT NULL DEFAULT 0,
+          PRIMARY KEY (device_id, reward_date)
+        )`);
         await db.query(
           `INSERT INTO arena_wins (device_id, persona_id, wins, updated_at)
            VALUES ($1, $2, 1, NOW())
@@ -10077,10 +10083,33 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
         );
         const userRow = await db.query(`SELECT wins FROM arena_wins WHERE device_id = $1 AND persona_id = $2`, [deviceId, personaId]);
         const globalRow = await db.query(`SELECT total_wins FROM arena_wins_global WHERE persona_id = $1`, [personaId]);
+
+        const today = new Date().toISOString().slice(0, 10);
+        const dailyRow = await db.query(
+          `SELECT count FROM arena_win_token_rewards WHERE device_id = $1 AND reward_date = $2`,
+          [deviceId, today]
+        );
+        const dailyCount = dailyRow.rows[0]?.count || 0;
+        const MAX_DAILY_WIN_REWARDS = 5;
+        let tokensEarned = 0;
+        if (dailyCount < MAX_DAILY_WIN_REWARDS) {
+          tokensEarned = Math.floor(Math.random() * 3) + 3;
+          await db.query(
+            `INSERT INTO arena_win_token_rewards (device_id, reward_date, count)
+             VALUES ($1, $2, 1)
+             ON CONFLICT (device_id, reward_date) DO UPDATE SET count = arena_win_token_rewards.count + 1`,
+            [deviceId, today]
+          );
+          await grantRewardTokens(deviceId, tokensEarned, `Arena win reward — ${personaId} victory`);
+        }
+
         res.json({
           success: true,
           userWins: userRow.rows[0]?.wins || 1,
           globalWins: globalRow.rows[0]?.total_wins || 1,
+          tokensEarned,
+          dailyWinEarnings: dailyCount + (tokensEarned > 0 ? 1 : 0),
+          maxDailyWinRewards: MAX_DAILY_WIN_REWARDS,
         });
       } finally {
         await db.end();
@@ -10088,6 +10117,70 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
     } catch (error: any) {
       console.error("Arena record-win error:", error);
       res.status(500).json({ error: "Failed to record win" });
+    }
+  });
+
+  app.get("/api/arena/winners-stats", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      try {
+        await db.query(`CREATE TABLE IF NOT EXISTS arena_wins_global (
+          persona_id TEXT PRIMARY KEY,
+          total_wins INTEGER NOT NULL DEFAULT 0,
+          updated_at TIMESTAMP DEFAULT NOW()
+        )`);
+        await db.query(`CREATE TABLE IF NOT EXISTS arena_wins (
+          id SERIAL PRIMARY KEY,
+          device_id TEXT NOT NULL,
+          persona_id TEXT NOT NULL,
+          wins INTEGER NOT NULL DEFAULT 0,
+          updated_at TIMESTAMP DEFAULT NOW(),
+          UNIQUE(device_id, persona_id)
+        )`);
+        const globalRows = await db.query(
+          `SELECT persona_id, total_wins FROM arena_wins_global ORDER BY total_wins DESC LIMIT 20`
+        );
+        const totalWinsRow = await db.query(`SELECT COALESCE(SUM(total_wins), 0) as total FROM arena_wins_global`);
+        const totalVotersRow = await db.query(`SELECT COUNT(DISTINCT device_id) as total FROM arena_wins`);
+        let userWins: Record<string, number> = {};
+        let userTotalWins = 0;
+        if (deviceId) {
+          const userRows = await db.query(
+            `SELECT persona_id, wins FROM arena_wins WHERE device_id = $1 ORDER BY wins DESC`,
+            [deviceId]
+          );
+          for (const row of userRows.rows) {
+            userWins[row.persona_id] = row.wins;
+            userTotalWins += row.wins;
+          }
+        }
+        const today = new Date().toISOString().slice(0, 10);
+        let dailyWinEarnings = 0;
+        if (deviceId) {
+          try {
+            const dailyRow = await db.query(
+              `SELECT count FROM arena_win_token_rewards WHERE device_id = $1 AND reward_date = $2`,
+              [deviceId, today]
+            );
+            dailyWinEarnings = dailyRow.rows[0]?.count || 0;
+          } catch {}
+        }
+        res.json({
+          topPersonas: globalRows.rows.map((r: any) => ({ personaId: r.persona_id, totalWins: parseInt(r.total_wins) })),
+          totalWinsAllTime: parseInt(totalWinsRow.rows[0]?.total || "0"),
+          totalUniquePlayers: parseInt(totalVotersRow.rows[0]?.total || "0"),
+          userWins,
+          userTotalWins,
+          dailyWinEarnings,
+          maxDailyWinRewards: 5,
+        });
+      } finally {
+        await db.end();
+      }
+    } catch (error: any) {
+      console.error("Arena winners-stats error:", error);
+      res.json({ topPersonas: [], totalWinsAllTime: 0, totalUniquePlayers: 0, userWins: {}, userTotalWins: 0, dailyWinEarnings: 0, maxDailyWinRewards: 5 });
     }
   });
 

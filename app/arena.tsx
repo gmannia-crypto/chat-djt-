@@ -3560,6 +3560,9 @@ export default function ArenaScreen() {
   const [showGlobalLeaderboard, setShowGlobalLeaderboard] = useState(false);
   const [showArenaRules, setShowArenaRules] = useState(false);
   const [globalLeaderboardData, setGlobalLeaderboardData] = useState<{ topUsers: any[]; topPersonas: any[] }>({ topUsers: [], topPersonas: [] });
+  const [showWinnersStats, setShowWinnersStats] = useState(false);
+  const [winnersStatsData, setWinnersStatsData] = useState<{ topPersonas: any[]; totalWinsAllTime: number; totalUniquePlayers: number; userWins: Record<string, number>; userTotalWins: number; dailyWinEarnings: number; maxDailyWinRewards: number } | null>(null);
+  const [winTokenToast, setWinTokenToast] = useState<{ tokens: number; personaName: string } | null>(null);
   const [breakingNewsBanner, setBreakingNewsBanner] = useState<{ headline: string; source: string } | null>(null);
   const breakingNewsBannerRef = useRef<{ headline: string; source: string } | null>(null);
   const lastBreakingNewsIdRef = useRef<string>("");
@@ -3888,9 +3891,15 @@ export default function ArenaScreen() {
           global: { ...winTallyRef.current.global, [personaId]: data.globalWins },
           user: { ...winTallyRef.current.user, [personaId]: data.userWins },
         };
+        if (data.tokensEarned > 0) {
+          const personaName = getPersona(personaId)?.shortName || personaId;
+          setWinTokenToast({ tokens: data.tokensEarned, personaName });
+          refreshBalance();
+          setTimeout(() => setWinTokenToast(null), 3500);
+        }
       }
     } catch {}
-  }, [deviceId]);
+  }, [deviceId, refreshBalance]);
 
   const loadAllTimeScores = useCallback(async () => {
     try {
@@ -7198,6 +7207,19 @@ export default function ArenaScreen() {
           <Ionicons name="trophy-outline" size={14} color="#D4A420" />
           <Text style={s.arenaActionBtnText}>GLOBAL</Text>
         </Pressable>
+        <Pressable onPress={async () => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          try {
+            const headers: Record<string, string> = {};
+            if (deviceId) headers["x-device-id"] = deviceId;
+            const res = await fetch(new URL("/api/arena/winners-stats", getApiUrl()).toString(), { headers });
+            if (res.ok) setWinnersStatsData(await res.json());
+          } catch {}
+          setShowWinnersStats(true);
+        }} style={s.arenaActionBtn} hitSlop={8}>
+          <Ionicons name="podium-outline" size={14} color="#D4A420" />
+          <Text style={s.arenaActionBtnText}>WINNERS</Text>
+        </Pressable>
       </Animated.View>
 
       {breakingNewsBanner && (
@@ -7720,6 +7742,127 @@ export default function ArenaScreen() {
           }}
         />
       </Animated.View>
+
+      {winTokenToast && (
+        <Animated.View entering={SlideInUp.duration(350)} exiting={SlideOutUp.duration(300)} style={{
+          position: "absolute", top: 80, left: 20, right: 20, zIndex: 9999,
+          backgroundColor: "#14532d", borderRadius: 14, paddingVertical: 12, paddingHorizontal: 16,
+          borderWidth: 1.5, borderColor: "#4ADE80",
+          flexDirection: "row", alignItems: "center", gap: 10,
+          shadowColor: "#4ADE80", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 12,
+        }}>
+          <Text style={{ fontSize: 22 }}>🏆</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: "#4ADE80", fontSize: 14, fontWeight: "900" }}>{winTokenToast.personaName} WIN BONUS</Text>
+            <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 12 }}>+{winTokenToast.tokens} DC tokens earned</Text>
+          </View>
+          <Text style={{ fontSize: 20 }}>🪙</Text>
+        </Animated.View>
+      )}
+
+      <Modal visible={showWinnersStats} transparent animationType="slide">
+        <View style={s.selectorOverlay}>
+          <View style={[s.selectorCard, { maxHeight: "88%" }]}>
+            <View style={s.selectorHeader}>
+              <Text style={s.selectorTitle}>🏆 WINNERS HALL OF FAME</Text>
+              <Pressable onPress={() => setShowWinnersStats(false)}>
+                <Ionicons name="close" size={24} color="#fff" />
+              </Pressable>
+            </View>
+            {winnersStatsData && (
+              <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+                <View style={{ flexDirection: "row", gap: 8, marginBottom: 16 }}>
+                  <View style={{ flex: 1, backgroundColor: "rgba(255,215,0,0.08)", borderRadius: 10, padding: 12, borderWidth: 1, borderColor: "rgba(255,215,0,0.2)", alignItems: "center" }}>
+                    <Text style={{ color: "#FFD700", fontSize: 22, fontWeight: "900" }}>{winnersStatsData.totalWinsAllTime}</Text>
+                    <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, marginTop: 2 }}>TOTAL WINS</Text>
+                  </View>
+                  <View style={{ flex: 1, backgroundColor: "rgba(74,222,128,0.08)", borderRadius: 10, padding: 12, borderWidth: 1, borderColor: "rgba(74,222,128,0.2)", alignItems: "center" }}>
+                    <Text style={{ color: "#4ADE80", fontSize: 22, fontWeight: "900" }}>{winnersStatsData.totalUniquePlayers}</Text>
+                    <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, marginTop: 2 }}>PLAYERS</Text>
+                  </View>
+                  <View style={{ flex: 1, backgroundColor: "rgba(147,197,253,0.08)", borderRadius: 10, padding: 12, borderWidth: 1, borderColor: "rgba(147,197,253,0.2)", alignItems: "center" }}>
+                    <Text style={{ color: "#93c5fd", fontSize: 22, fontWeight: "900" }}>{winnersStatsData.userTotalWins}</Text>
+                    <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, marginTop: 2 }}>YOUR WINS</Text>
+                  </View>
+                </View>
+
+                <View style={{ backgroundColor: "rgba(74,222,128,0.08)", borderRadius: 10, padding: 12, borderWidth: 1, borderColor: "rgba(74,222,128,0.2)", marginBottom: 16 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 6 }}>
+                    <Ionicons name="flash" size={14} color="#4ADE80" style={{ marginRight: 6 }} />
+                    <Text style={{ color: "#4ADE80", fontSize: 13, fontWeight: "800" }}>WIN TOKEN REWARDS</Text>
+                  </View>
+                  <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, lineHeight: 18 }}>
+                    Earn 3–5 DC tokens for each arena win{"\n"}
+                    Up to {winnersStatsData.maxDailyWinRewards} wins rewarded per day
+                  </Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", marginTop: 8, gap: 6 }}>
+                    {Array.from({ length: winnersStatsData.maxDailyWinRewards }).map((_, i) => (
+                      <View key={i} style={{
+                        width: 28, height: 28, borderRadius: 14,
+                        backgroundColor: i < winnersStatsData.dailyWinEarnings ? "#4ADE80" : "rgba(255,255,255,0.1)",
+                        alignItems: "center", justifyContent: "center",
+                        borderWidth: 1.5, borderColor: i < winnersStatsData.dailyWinEarnings ? "#4ADE80" : "rgba(255,255,255,0.2)",
+                      }}>
+                        <Text style={{ fontSize: 10 }}>{i < winnersStatsData.dailyWinEarnings ? "✓" : "🪙"}</Text>
+                      </View>
+                    ))}
+                    <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, marginLeft: 4 }}>
+                      {winnersStatsData.dailyWinEarnings}/{winnersStatsData.maxDailyWinRewards} today
+                    </Text>
+                  </View>
+                </View>
+
+                <Text style={{ color: "#FFD700", fontSize: 13, fontWeight: "900", letterSpacing: 1, marginBottom: 10 }}>🏅 TOP WINNING PERSONAS</Text>
+                {winnersStatsData.topPersonas.length === 0 && (
+                  <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, marginBottom: 16 }}>No wins recorded yet — start a debate!</Text>
+                )}
+                {winnersStatsData.topPersonas.map((item, i) => {
+                  const p = getPersona(item.personaId);
+                  const myWins = winnersStatsData.userWins[item.personaId] || 0;
+                  const medalColor = i === 0 ? "#FFD700" : i === 1 ? "#C0C0C0" : i === 2 ? "#CD7F32" : "#555";
+                  return (
+                    <View key={item.personaId} style={{
+                      flexDirection: "row", alignItems: "center", paddingVertical: 10,
+                      borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)",
+                    }}>
+                      <View style={{
+                        width: 28, height: 28, borderRadius: 14,
+                        backgroundColor: medalColor + "22", borderWidth: 1.5, borderColor: medalColor,
+                        alignItems: "center", justifyContent: "center", marginRight: 10,
+                      }}>
+                        <Text style={{ color: medalColor, fontSize: 12, fontWeight: "900" }}>
+                          {i === 0 ? "👑" : i === 1 ? "2" : i === 2 ? "3" : `${i + 1}`}
+                        </Text>
+                      </View>
+                      {p?.image ? (
+                        <Image source={p.image} style={{ width: 32, height: 32, borderRadius: 16, marginRight: 10 }} />
+                      ) : (
+                        <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: (p?.color || "#555") + "40", alignItems: "center", justifyContent: "center", marginRight: 10 }}>
+                          <Text style={{ color: "#fff", fontSize: 12, fontWeight: "800" }}>{(p?.name || item.personaId)[0]}</Text>
+                        </View>
+                      )}
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: p?.color || "#fff", fontSize: 14, fontWeight: "700" }}>{p?.name || item.personaId}</Text>
+                        {myWins > 0 && <Text style={{ color: "#93c5fd", fontSize: 10 }}>You backed them {myWins}×</Text>}
+                      </View>
+                      <View style={{ alignItems: "flex-end" }}>
+                        <Text style={{ color: "#4ADE80", fontSize: 16, fontWeight: "900" }}>{item.totalWins}</Text>
+                        <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 10 }}>{item.totalWins === 1 ? "win" : "wins"}</Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </ScrollView>
+            )}
+            {!winnersStatsData && (
+              <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+                <ActivityIndicator color="#4ADE80" />
+                <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, marginTop: 10 }}>Loading winners…</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
 
       <Modal visible={showGlobalLeaderboard} transparent animationType="slide">
         <View style={s.selectorOverlay}>
