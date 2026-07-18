@@ -62,6 +62,10 @@ args = "Start Frontend"
 task = "workflow.run"
 args = "stale-dist"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "check-persona-images"
+
 [[workflows.workflow]]
 name = "Start App"
 author = "agent"
@@ -105,6 +109,17 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "npm run test:stale-dist"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "check-persona-images"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "node scripts/check-persona-images.js"
 
 [workflows.workflow.metadata]
 isValidation = true
