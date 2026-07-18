@@ -16,17 +16,6 @@ export interface PremiumPersonaConfig {
 }
 
 export const PREMIUM_PERSONA_CONFIGS: Record<string, PremiumPersonaConfig> = {
-  carlin: {
-    name: "George Carlin",
-    tier: "legend",
-    tokenPrice: 25,
-    timeMinutes: 180,
-    challengeWins: 5,
-    hidden: true,
-    badge: "COMEDY LEGEND",
-    badgeColor: "#FF6B00",
-    description: "The original truth-teller. No sacred cows, no safe topics.",
-  },
   drbenj: {
     name: "Dr. Ben Jochannan",
     tier: "scholar",
