@@ -3160,8 +3160,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     claudeanderson: 0.96,
     // malcolmx: 1.1 — energetic but still deliberate; user-requested.
     malcolmx: 1.1,
-    // cenk: 1.1 — user-requested faster pacing.
-    cenk: 1.1,
+    cenk: 1.0,
   };
 
   // IMPORTANT: when you add, remove, or change any entry here you MUST:
