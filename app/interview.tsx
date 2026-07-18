@@ -1519,6 +1519,13 @@ export default function InterviewScreen() {
           const gData = await gRes.json();
           if (gData?.interviewer?.text) {
             enrichAndAddMessage({ id: `greet-iv-${Date.now()}`, speakerId: gData.interviewer.speakerId, speakerName: gData.interviewer.speakerName, text: gData.interviewer.text, ts: Date.now() });
+            // Pre-fetch the first question while the greeting TTS plays — eliminates
+            // the cold-start dead air gap at the top of the first runLoop beat.
+            nextQPromiseRef.current = fetchQuestion({
+              isFollowUp: false,
+              isTransition: false,
+              currentTopicArg: topicsRef.current[topicIdxRef.current] ?? null,
+            });
             await waitForQueueDrain();
           }
           if (gData?.interviewee?.text && runningRef.current) {
