@@ -16,7 +16,7 @@ import { getApiUrl } from "@/lib/query-client";
 import { useTokens } from "@/lib/token-context";
 import { usePersonaLocks, PREMIUM_PERSONA_CONFIGS } from "@/lib/persona-locks";
 import {
-  placeInterviewBet, clearInterviewBet,
+  placeInterviewBet, clearInterviewBet, getInterviewBet,
   awardBetWin, resolveInterviewWinnerBet,
 } from "@/lib/debate-bets";
 import Colors from "@/constants/colors";
