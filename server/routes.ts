@@ -7478,7 +7478,7 @@ FORMAT:
     }
   });
 
-  const INTERVIEWER_IDS = ["cenk", "galloway", "howardcosell", "skipbayless", "maddow", "joyreid", "megynkelly", "candace", "odonnell", "alexjones", "carville", "leavitt", "loomer", "errol", "stephena", "hannity", "neiltyson", "malema", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "joerogan", "kaitlyncollins", "gilbertgottfried", "arikana", "alishahrazad", "waylonjennnings"];
+  const INTERVIEWER_IDS = ["cenk", "galloway", "howardcosell", "skipbayless", "maddow", "joyreid", "megynkelly", "candace", "odonnell", "alexjones", "carville", "leavitt", "loomer", "errol", "stephena", "hannity", "neiltyson", "malema", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "joerogan", "kaitlyncollins", "gilbertgottfried", "arikana", "alishahrazad", "waylonjennnings", "tlaib"];
   const INTERVIEWEE_IDS = ["trump", "biden", "netanyahu", "mcconnell", "omar", "rosie", "berniemc", "elon", "errol", "graham", "pambondi", "jimjordan", "schumer", "obama", "melania", "kamala", "mtg", "rfk", "ruckus", "miller", "erikakirk", "loomer", "leavitt", "stephena", "hannity", "malema", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "aoc", "tlaib", "jascrockett", "timscott", "claudeanderson", "joerogan", "billclinton", "hillaryclinton", "marcorubio", "desantis", "megynkelly", "professorjiang", "shahidbolson", "ronaldreagan", "pastormanning", "mlk", "samjackson", "malcolmx", "louisfarrakhan", "carlsagan", "larrycableguy", "jdvance", "kaitlyncollins", "tedcruz", "georgewbush", "gilbertgottfried", "arikana", "alishahrazad", "waylonjennnings"];
 
   app.get("/api/arena/interview-personas", (_req, res) => {
