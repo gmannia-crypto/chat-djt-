@@ -105,6 +105,7 @@ const PERSONA_CATEGORY_MAP: Record<string, PersonaCategory> = {
   joerogan: "podcaster",
   timscott: "politician",
   drbenj: "commentator",
+  carlin: "comedian",
 };
 
 // Political Facts IQ: everyone starts at 100 (seeded from all-time average).
@@ -1287,6 +1288,36 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       negative: ["western civilization", "greek origins", "european", "white history", "bible", "colonialism", "erasure"],
     },
   },
+  carlin: {
+    id: "carlin",
+    name: "George Carlin",
+    shortName: "Carlin",
+    color: "#4A4A4A",
+    faction: "wildcard",
+    image: require("@/assets/images/persona-carlin.jpg"),
+    personality: {
+      energy: 85,
+      aggression: 75,
+      humor: 98,
+      catchphrases: ["It's a big club and you ain't in it", "Bullshit!", "The American Dream — you have to be asleep to believe it", "Nobody talks about this shit", "These are the owners of the country"],
+    },
+    relationships: {
+      trump: { sentiment: 5 },
+      biden: { sentiment: 8 },
+      obama: { sentiment: 10 },
+      berniemc: { sentiment: 55 },
+      ruckus: { sentiment: 30 },
+      galloway: { sentiment: 45 },
+      elon: { sentiment: 10 },
+      carville: { sentiment: 20 },
+      maddow: { sentiment: 25 },
+      gilbertgottfried: { sentiment: 70 },
+    },
+    triggerWords: {
+      positive: ["corruption", "bullshit", "corporate", "con", "scam", "hypocrisy", "religion", "club", "owners", "propaganda"],
+      negative: ["patriotism", "god bless", "both sides", "career politician", "flag", "national interest", "bipartisan"],
+    },
+  },
   timscott: {
     id: "timscott",
     name: "Tim Scott",
@@ -2238,7 +2269,7 @@ const MYSTERY_UNLOCK_COSTS: Record<string, number> = {
 };
 const MYSTERY_UNLOCK_KEY = "arena_mystery_unlocked";
 
-const PERSONA_IDS = ["trump", "elon", "errol", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "leavitt", "erikakirk", "loomer", "bannon", "stephena", "malema", "hannity", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "aoc", "pressley", "joerogan", "timscott", "drbenj", "billclinton", "hillaryclinton", "marcorubio", "desantis"];
+const PERSONA_IDS = ["trump", "elon", "errol", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "carlin", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "leavitt", "erikakirk", "loomer", "bannon", "stephena", "malema", "hannity", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "aoc", "pressley", "joerogan", "timscott", "drbenj", "billclinton", "hillaryclinton", "marcorubio", "desantis"];
 // Cartoon-style image filter — vivid posterized look on web
 const CARTOON_FILTER = Platform.OS === "web"
   ? ({ filter: "contrast(1.35) saturate(1.85) brightness(1.03)" } as any)
@@ -7571,7 +7602,7 @@ export default function ArenaScreen() {
                 { label: "⚖️  POLITICIANS", ids: ["netanyahu", "mcconnell", "omar", "graham", "pambondi", "miller", "jimjordan", "jascrockett", "aoc", "pressley", "timscott", "billclinton", "hillaryclinton", "marcorubio", "desantis"], mysteryIds: ["schumer", "kamala", "mtg", "rfk"] },
                 { label: "📺  MEDIA & JOURNALISTS", ids: ["maddow", "megynkelly", "joyreid", "erikakirk", "loomer", "leavitt", "hannity"], mysteryIds: ["odonnell"] },
                 { label: "🎙  PODCASTERS & STRATEGISTS", ids: ["galloway", "candace", "carville", "bannon", "joerogan"], mysteryIds: ["alexjones"] },
-                { label: "🎭  COMEDIANS", ids: ["berniemc", "rosie"], mysteryIds: [] },
+                { label: "🎭  COMEDIANS", ids: ["berniemc", "rosie", "carlin"], mysteryIds: [] },
                 { label: "💻  TECH", ids: ["elon"], mysteryIds: [] },
                 { label: "✊  COMMENTATORS & ACTIVISTS", ids: ["stephena", "jesseleepetersen", "shannon", "neiltyson", "malema", "claudeanderson", "drbenj"], mysteryIds: [] },
                 { label: "👥  FAMILY & OTHERS", ids: ["errol", "ivanka"], mysteryIds: ["melania"] },

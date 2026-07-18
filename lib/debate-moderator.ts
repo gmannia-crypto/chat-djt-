@@ -13,7 +13,7 @@ import { getApiUrl } from "@/lib/query-client";
 import { prefetchTTSAudio, playPrefetchedAudio, playTTS } from "@/lib/audio-helper";
 import { playCrowdCheer, playDingSound } from "@/lib/arena-sfx";
 
-export type ModeratorStyle = "cenk" | "galloway" | "hannity" | "maddow" | "megynkelly" | "odonnell" | "joyreid" | "maxkellerman" | "stephena" | "kaitlyncollins" | "gilbertgottfried";
+export type ModeratorStyle = "cenk" | "galloway" | "hannity" | "maddow" | "megynkelly" | "odonnell" | "joyreid" | "maxkellerman" | "stephena" | "kaitlyncollins" | "gilbertgottfried" | "carlin";
 
 export const MODERATORS: Record<ModeratorStyle, { name: string; personaId: string; bias: string }> = {
   cenk:             { name: "Cenk Uygur",          personaId: "cenk",             bias: "progressive" },
@@ -27,6 +27,7 @@ export const MODERATORS: Record<ModeratorStyle, { name: string; personaId: strin
   stephena:         { name: "Stephen A. Smith",     personaId: "stephena",         bias: "sports" },
   kaitlyncollins:   { name: "Kaitlan Collins",      personaId: "kaitlyncollins",   bias: "neutral" },
   gilbertgottfried: { name: "Gilbert Gottfried",    personaId: "gilbertgottfried", bias: "chaos" },
+  carlin:           { name: "George Carlin",        personaId: "carlin",           bias: "anti-establishment" },
 };
 
 // Which personas each moderator is friendly to ("favor" — softball questions, quick to defend
@@ -71,6 +72,8 @@ export const MODERATOR_LEANINGS: Record<ModeratorStyle, { favor: string[]; targe
   },
   // Gilbert: pure chaos — no favorites, no targets, just comedy carnage.
   gilbertgottfried: { favor: [], target: [] },
+  // Carlin: equal-opportunity savage — no favorites anywhere on the political spectrum.
+  carlin: { favor: [], target: [] },
 };
 
 export type ModeratorLeaning = "favor" | "target" | "neutral";
