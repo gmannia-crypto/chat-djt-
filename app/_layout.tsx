@@ -18,6 +18,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { queryClient, getApiUrl } from "@/lib/query-client";
 import { TokenProvider } from "@/lib/token-context";
 import { SoundProvider } from "@/lib/sound-context";
+import { PersonaLocksProvider } from "@/lib/persona-locks";
 import { EngagementProvider } from "@/lib/engagement-context";
 import { LiveActivityProvider } from "@/lib/live-activity-context";
 import { ShareCard } from "@/components/ShareCard";
@@ -480,6 +481,7 @@ export default function RootLayout() {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <TokenProvider>
+          <PersonaLocksProvider>
           <SoundProvider>
             <EngagementProvider>
               <LiveActivityProvider>
@@ -499,6 +501,7 @@ export default function RootLayout() {
               </LiveActivityProvider>
             </EngagementProvider>
           </SoundProvider>
+          </PersonaLocksProvider>
         </TokenProvider>
       </QueryClientProvider>
     </ErrorBoundary>

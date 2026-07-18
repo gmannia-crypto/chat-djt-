@@ -36,6 +36,12 @@ import { playTTS, playAudioFromUrl, prefetchTTSAudio, playPrefetchedAudio } from
 import { getPersonaVoiceVolume, shouldSkipPersonaVoice } from "@/lib/persona-voice";
 import { playPointAwardSound, playVoteClickSound, playVoteSound2, playBellSound, playCrowdCheer, playDrumroll, playWinnerChosenSound, playWinnerAfterSound, playBreakingNewsAlert } from "@/lib/arena-sfx";
 import { useTokens } from "@/lib/token-context";
+import { usePersonaLocks, PREMIUM_PERSONA_CONFIGS } from "@/lib/persona-locks";
+import {
+  placeArenaBet, getArenaBet, clearArenaBet,
+  awardBetWin, makeArenaSessionKey, resolveIQRaceBet,
+  type ArenaBet,
+} from "@/lib/debate-bets";
 import { TokenWinVideo } from "@/components/TokenWinVideo";
 import { ShareAppButton } from "@/components/ShareAppButton";
 import { CashAppDonate } from "@/components/CashAppDonate";
@@ -3532,6 +3538,11 @@ export default function ArenaScreen() {
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
   const { deviceId, balance, refreshBalance } = useTokens();
+  const { isLocked, isHidden, unlockWithTokens, isUnlocking: premiumUnlocking, addArenaWin, unlockedPremium } = usePersonaLocks();
+  const [arenaBet, setArenaBet] = useState<ArenaBet | null>(null);
+  const [betWagerInput, setBetWagerInput] = useState(3);
+  const [betPickId, setBetPickId] = useState<string | null>(null);
+  const [betResult, setBetResult] = useState<{ won: boolean; payout: number; lowestId: string } | null>(null);
   const { showShareCard, awardBadge } = useEngagement();
   const { logEvent: logLiveEvent } = useLiveActivity();
   useScreenTracker("arena");
@@ -4718,6 +4729,39 @@ export default function ArenaScreen() {
               }
             }
           } catch {}
+          // Resolve IQ Race bet
+          try {
+            const savedBet = await getArenaBet();
+            if (savedBet && savedBet.sessionKey === makeArenaSessionKey(selectedPersonasRef.current)) {
+              const iqSnap = personaSessionIQRef.current;
+              const { won, lowestId, lowestIQ } = resolveIQRaceBet(savedBet.targetPersonaId, iqSnap);
+              const payout = won ? Math.round(savedBet.wager * 2.5) : 0;
+              if (won && deviceId) {
+                await awardBetWin(deviceId, payout, `IQ Race bet win`);
+                await refreshBalance();
+              }
+              await clearArenaBet();
+              setArenaBet(null);
+              setBetResult({ won, payout, lowestId });
+              const targetName = getPersona(savedBet.targetPersonaId)?.shortName || savedBet.targetPersonaId;
+              const lowestName = getPersona(lowestId)?.shortName || lowestId;
+              if (won) {
+                setTimeout(() => { addSystemMessage(`🎰 BET WON: ${targetName} had the lowest IQ — +${payout} tokens!`); }, 1500);
+              } else {
+                setTimeout(() => { addSystemMessage(`🎰 BET LOST. Lowest IQ: ${lowestName} (${Math.round(lowestIQ)}). Better luck next time.`); }, 1500);
+              }
+            }
+          } catch {}
+          // Track arena win for premium persona challenge
+          if (deviceId) {
+            const newlyUnlocked = await addArenaWin();
+            if (newlyUnlocked.length > 0) {
+              setTimeout(() => {
+                addSystemMessage(`🔓 PERSONA UNLOCKED: ${newlyUnlocked.map(id => PREMIUM_PERSONA_CONFIGS[id]?.name || id).join(", ")} is now available in your debater roster!`);
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              }, 2500);
+            }
+          }
         })();
         setTimeout(() => {
           setShowContinuePrompt(true);
@@ -5902,6 +5946,7 @@ export default function ArenaScreen() {
       setShowIntro(false);
       return;
     }
+    setBetResult(null);
     sessionEndedRef.current = false;
     isInterruptingRef.current = false;
     isRapidExchangeRef.current = false;
@@ -6524,7 +6569,10 @@ export default function ArenaScreen() {
           </View>
 
           {(() => {
-            const allIds = [...PERSONA_IDS, ...unlockedMystery.filter((id) => !PERSONA_IDS.includes(id))];
+            const allIds = [
+              ...PERSONA_IDS.filter(id => !isHidden(id)),
+              ...unlockedMystery.filter((id) => !PERSONA_IDS.includes(id)),
+            ];
             const grouped: Record<string, string[]> = {};
             const categoryOrder: PersonaCategory[] = ["president", "politician", "journalist", "commentator", "strategist", "podcaster", "comedian", "tech", "firstlady", "activist", "scientist"];
             for (const pid of allIds) {
@@ -6546,18 +6594,27 @@ export default function ArenaScreen() {
                       if (!p) return null;
                       const isSelected = selectedPersonas.includes(pid);
                       const isMystery = MYSTERY_PERSONA_IDS.includes(pid);
+                      const isPremiumLocked = isLocked(pid);
+                      const premiumCfg = PREMIUM_PERSONA_CONFIGS[pid];
                       const totalEntries = allTimeScores[pid]?.totalEntries || 0;
                       const wins = winTallyGlobal[pid] || 0;
                       const winPct = totalEntries > 0 ? Math.round((wins / totalEntries) * 100) : 0;
                       return (
                         <Pressable
                           key={pid}
-                          onPress={() => togglePersona(pid)}
+                          onPress={() => {
+                            if (isPremiumLocked && premiumCfg && deviceId) {
+                              unlockWithTokens(pid, deviceId, refreshBalance);
+                              return;
+                            }
+                            togglePersona(pid);
+                          }}
                           style={{
                             flexDirection: "row", alignItems: "center", paddingHorizontal: 10, paddingVertical: 6,
                             borderRadius: 20, borderWidth: 1.5,
-                            borderColor: isSelected ? p.color : isMystery ? "rgba(255,215,0,0.3)" : "rgba(255,255,255,0.15)",
-                            backgroundColor: isSelected ? p.color + "20" : "rgba(255,255,255,0.05)",
+                            borderColor: isPremiumLocked ? (premiumCfg?.badgeColor || "#FFD700") + "60" : isSelected ? p.color : isMystery ? "rgba(255,215,0,0.3)" : "rgba(255,255,255,0.15)",
+                            backgroundColor: isPremiumLocked ? (premiumCfg?.badgeColor || "#FFD700") + "10" : isSelected ? p.color + "20" : "rgba(255,255,255,0.05)",
+                            opacity: isPremiumLocked ? 0.8 : 1,
                           }}
                         >
                           <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: catInfo.color, marginRight: 5 }} />
@@ -6568,7 +6625,10 @@ export default function ArenaScreen() {
                               <Text style={{ fontSize: 9, color: "#fff", fontWeight: "800" }}>{getInitials(p.name)}</Text>
                             </View>
                           )}
-                          <Text style={{ color: isSelected ? p.color : "#888", fontSize: 12, fontWeight: "700" }}>{p.shortName}{isMystery ? " ★" : ""}</Text>
+                          {isPremiumLocked
+                            ? <Text style={{ color: premiumCfg?.badgeColor || "#FFD700", fontSize: 12, fontWeight: "700" }}>{p.shortName} 🔒{premiumCfg ? ` ${premiumCfg.tokenPrice}🪙` : ""}</Text>
+                            : <Text style={{ color: isSelected ? p.color : "#888", fontSize: 12, fontWeight: "700" }}>{p.shortName}{isMystery ? " ★" : ""}</Text>
+                          }
                           {wins > 0 && (
                             <View style={{ marginLeft: 4, backgroundColor: "rgba(74,222,128,0.2)", borderRadius: 8, paddingHorizontal: 4, paddingVertical: 1 }}>
                               <Text style={{ color: "#4ADE80", fontSize: 9, fontWeight: "800" }}>{wins}W{winPct > 0 ? ` ${winPct}%` : ""}</Text>
@@ -6614,6 +6674,141 @@ export default function ArenaScreen() {
                   </Pressable>
                 ))}
               </View>
+            </View>
+          )}
+
+          {/* ── PREMIUM LOCKED PERSONAS ────────────────────── */}
+          {Object.entries(PREMIUM_PERSONA_CONFIGS).filter(([id]) => isHidden(id)).length > 0 && (
+            <View style={{ marginBottom: 16, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: "rgba(255,107,0,0.3)", backgroundColor: "rgba(255,107,0,0.05)" }}>
+              <Text style={{ color: "#FF6B00", fontSize: 13, fontWeight: "800", textAlign: "center", marginBottom: 4 }}>🔓 PREMIUM PERSONAS</Text>
+              <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, textAlign: "center", marginBottom: 10 }}>Unlock with tokens, 3h+ play time, or debate wins</Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
+                {Object.entries(PREMIUM_PERSONA_CONFIGS).filter(([id]) => isHidden(id)).map(([pid, cfg]) => (
+                  <Pressable
+                    key={pid}
+                    onPress={() => deviceId && unlockWithTokens(pid, deviceId, refreshBalance)}
+                    style={{
+                      flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 8,
+                      borderRadius: 20, borderWidth: 1.5, borderColor: cfg.badgeColor + "60",
+                      backgroundColor: cfg.badgeColor + "10",
+                    }}
+                  >
+                    {premiumUnlocking === pid ? (
+                      <ActivityIndicator size="small" color={cfg.badgeColor} style={{ marginRight: 6 }} />
+                    ) : (
+                      <Ionicons name="lock-closed" size={14} color={cfg.badgeColor} style={{ marginRight: 6 }} />
+                    )}
+                    <Text style={{ color: cfg.badgeColor, fontSize: 12, fontWeight: "700" }}>{cfg.name} ({cfg.tokenPrice}🪙)</Text>
+                  </Pressable>
+                ))}
+              </View>
+              <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, textAlign: "center", marginTop: 8 }}>
+                Or earn free: {Object.values(PREMIUM_PERSONA_CONFIGS).map(c => `${c.timeMinutes/60}h play / ${c.challengeWins} arena wins`)[0]}+
+              </Text>
+            </View>
+          )}
+
+          {/* ── VISIBLE-LOCKED PERSONAS ─────────────────────── */}
+          {Object.entries(PREMIUM_PERSONA_CONFIGS).filter(([id]) => !isHidden(id) && isLocked(id)).map(([pid, cfg]) => (
+            <Pressable
+              key={pid}
+              onPress={() => deviceId && unlockWithTokens(pid, deviceId, refreshBalance)}
+              style={{
+                flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 10,
+                borderRadius: 12, borderWidth: 1.5, borderColor: cfg.badgeColor + "50",
+                backgroundColor: cfg.badgeColor + "08", marginBottom: 10,
+              }}
+            >
+              <Ionicons name="lock-closed" size={16} color={cfg.badgeColor} style={{ marginRight: 10 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: cfg.badgeColor, fontSize: 13, fontWeight: "800" }}>{cfg.name} <Text style={{ fontSize: 10, fontWeight: "600" }}>({cfg.badge})</Text></Text>
+                <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, marginTop: 2 }}>{cfg.description}</Text>
+                <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, marginTop: 3 }}>Unlock: {cfg.tokenPrice}🪙 · {cfg.timeMinutes/60}h play · {cfg.challengeWins} arena win{cfg.challengeWins > 1 ? "s" : ""}</Text>
+              </View>
+              {premiumUnlocking === pid
+                ? <ActivityIndicator size="small" color={cfg.badgeColor} />
+                : <Text style={{ color: cfg.badgeColor, fontSize: 12, fontWeight: "900" }}>{cfg.tokenPrice}🪙</Text>
+              }
+            </Pressable>
+          ))}
+
+          {/* ── IQ RACE BET ──────────────────────────────────── */}
+          {selectedPersonas.length >= 2 && !arenaBet && (
+            <View style={{ marginBottom: 16, padding: 14, borderRadius: 14, borderWidth: 1.5, borderColor: "rgba(251,191,36,0.35)", backgroundColor: "rgba(251,191,36,0.06)" }}>
+              <Text style={{ color: "#FBBF24", fontSize: 13, fontWeight: "900", marginBottom: 4 }}>🎰 IQ RACE BET</Text>
+              <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, marginBottom: 10 }}>Pick who ends with the LOWEST IQ — win 2.5× your bet</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }} contentContainerStyle={{ gap: 6 }}>
+                {selectedPersonas.map((pid) => {
+                  const p = getPersona(pid);
+                  if (!p) return null;
+                  const picked = betPickId === pid;
+                  return (
+                    <Pressable key={pid} onPress={() => { Haptics.selectionAsync(); setBetPickId(pid); }}
+                      style={{
+                        paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5,
+                        borderColor: picked ? "#FBBF24" : "rgba(255,255,255,0.15)",
+                        backgroundColor: picked ? "rgba(251,191,36,0.15)" : "rgba(255,255,255,0.04)",
+                      }}>
+                      <Text style={{ color: picked ? "#FBBF24" : "#888", fontSize: 12, fontWeight: "700" }}>{p.shortName}</Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 11 }}>Wager:</Text>
+                {[1, 2, 3, 5, 10].map((v) => (
+                  <Pressable key={v} onPress={() => setBetWagerInput(v)}
+                    style={{
+                      paddingHorizontal: 10, paddingVertical: 5, borderRadius: 16, borderWidth: 1,
+                      borderColor: betWagerInput === v ? "#FBBF24" : "rgba(255,255,255,0.15)",
+                      backgroundColor: betWagerInput === v ? "rgba(251,191,36,0.15)" : "transparent",
+                    }}>
+                    <Text style={{ color: betWagerInput === v ? "#FBBF24" : "#888", fontSize: 11, fontWeight: "700" }}>{v}🪙</Text>
+                  </Pressable>
+                ))}
+              </View>
+              <Pressable
+                onPress={async () => {
+                  if (!betPickId || !deviceId) return;
+                  const res = await fetch(new URL("/api/use-token", getApiUrl()).toString(), {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+                    body: JSON.stringify({ amount: betWagerInput, reason: "IQ Race bet" }),
+                  });
+                  if (!res.ok) { Alert.alert("Not enough tokens", `Need ${betWagerInput} tokens to place this bet.`); return; }
+                  await refreshBalance();
+                  const bet: ArenaBet = { targetPersonaId: betPickId, wager: betWagerInput, placedAt: Date.now(), sessionKey: makeArenaSessionKey(selectedPersonas) };
+                  await placeArenaBet(bet);
+                  setArenaBet(bet);
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                }}
+                disabled={!betPickId}
+                style={{ backgroundColor: betPickId ? "#FBBF24" : "rgba(255,255,255,0.1)", borderRadius: 10, paddingVertical: 10, alignItems: "center", opacity: betPickId ? 1 : 0.5 }}
+              >
+                <Text style={{ color: betPickId ? "#000" : "#666", fontSize: 13, fontWeight: "900" }}>PLACE BET ({betWagerInput}🪙)</Text>
+              </Pressable>
+            </View>
+          )}
+
+          {arenaBet && !betResult && (
+            <View style={{ marginBottom: 16, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: "rgba(251,191,36,0.3)", backgroundColor: "rgba(251,191,36,0.06)", flexDirection: "row", alignItems: "center" }}>
+              <Ionicons name="checkmark-circle" size={18} color="#FBBF24" style={{ marginRight: 8 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: "#FBBF24", fontSize: 12, fontWeight: "800" }}>BET PLACED: {getPersona(arenaBet.targetPersonaId)?.shortName || arenaBet.targetPersonaId} loses IQ</Text>
+                <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 10 }}>Wagered {arenaBet.wager}🪙 · Win {Math.round(arenaBet.wager * 2.5)}🪙</Text>
+              </View>
+              <Pressable onPress={async () => { await clearArenaBet(); setArenaBet(null); }}>
+                <Ionicons name="close-circle" size={18} color="rgba(255,255,255,0.3)" />
+              </Pressable>
+            </View>
+          )}
+
+          {betResult && (
+            <View style={{ marginBottom: 16, padding: 14, borderRadius: 12, borderWidth: 1.5, borderColor: betResult.won ? "#4ADE80" : "#FF4D4D", backgroundColor: betResult.won ? "rgba(74,222,128,0.08)" : "rgba(255,77,77,0.08)" }}>
+              <Text style={{ color: betResult.won ? "#4ADE80" : "#FF4D4D", fontSize: 14, fontWeight: "900", textAlign: "center" }}>
+                {betResult.won ? `🎉 BET WON! +${betResult.payout}🪙` : "❌ BET LOST"}
+              </Text>
+              {!betResult.won && <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, textAlign: "center", marginTop: 4 }}>Lowest IQ: {getPersona(betResult.lowestId)?.shortName || betResult.lowestId}</Text>}
             </View>
           )}
 
@@ -7602,38 +7797,51 @@ export default function ArenaScreen() {
                 { label: "⚖️  POLITICIANS", ids: ["netanyahu", "mcconnell", "omar", "graham", "pambondi", "miller", "jimjordan", "jascrockett", "aoc", "pressley", "timscott", "billclinton", "hillaryclinton", "marcorubio", "desantis"], mysteryIds: ["schumer", "kamala", "mtg", "rfk"] },
                 { label: "📺  MEDIA & JOURNALISTS", ids: ["maddow", "megynkelly", "joyreid", "erikakirk", "loomer", "leavitt", "hannity"], mysteryIds: ["odonnell"] },
                 { label: "🎙  PODCASTERS & STRATEGISTS", ids: ["galloway", "candace", "carville", "bannon", "joerogan"], mysteryIds: ["alexjones"] },
-                { label: "🎭  COMEDIANS", ids: ["berniemc", "rosie", "carlin"], mysteryIds: [] },
+                { label: "🎭  COMEDIANS", ids: ["berniemc", "rosie", ...(!isHidden("carlin") ? ["carlin"] : [])], mysteryIds: [] },
                 { label: "💻  TECH", ids: ["elon"], mysteryIds: [] },
-                { label: "✊  COMMENTATORS & ACTIVISTS", ids: ["stephena", "jesseleepetersen", "shannon", "neiltyson", "malema", "claudeanderson", "drbenj"], mysteryIds: [] },
+                { label: "✊  COMMENTATORS & ACTIVISTS", ids: ["stephena", "jesseleepetersen", "shannon", "neiltyson", "malema", "claudeanderson", ...(!isHidden("drbenj") ? ["drbenj"] : [])], mysteryIds: [] },
                 { label: "👥  FAMILY & OTHERS", ids: ["errol", "ivanka"], mysteryIds: ["melania"] },
               ];
               const lockedMysteryIds = MYSTERY_PERSONA_IDS.filter((id) => !unlockedMystery.includes(id));
               const renderPersonaCard = (pid: string, isMystery = false) => {
                 const p = getPersona(pid);
                 if (!p) return null;
+                if (isHidden(pid)) return null;
                 const isSelected = selectedPersonas.includes(pid);
+                const isPremiumLocked = isLocked(pid);
+                const premiumCfg = PREMIUM_PERSONA_CONFIGS[pid];
+                const accentColor = isPremiumLocked ? (premiumCfg?.badgeColor || "#FFD700") : isSelected ? p.color : isMystery ? "#FFD700" : "rgba(255,255,255,0.1)";
                 return (
                   <Pressable
                     key={pid}
-                    onPress={() => togglePersona(pid)}
+                    onPress={() => {
+                      if (isPremiumLocked && premiumCfg && deviceId) {
+                        unlockWithTokens(pid, deviceId, refreshBalance);
+                        return;
+                      }
+                      togglePersona(pid);
+                    }}
                     style={[
                       s.selectorItem,
-                      { borderColor: isSelected ? p.color : isMystery ? "rgba(255,215,0,0.3)" : "rgba(255,255,255,0.1)" },
+                      { borderColor: accentColor },
                       isSelected && { backgroundColor: p.color + "15" },
+                      isPremiumLocked && { borderColor: (premiumCfg?.badgeColor || "#FFD700") + "60", backgroundColor: (premiumCfg?.badgeColor || "#FFD700") + "08" },
                     ]}
                   >
                     {p.image ? (
-                      <Image source={p.image} style={s.selectorAvatar} />
+                      <Image source={p.image} style={[s.selectorAvatar, isPremiumLocked && { opacity: 0.6 }]} />
                     ) : (
                       <View style={[s.selectorAvatarFallback, { backgroundColor: p.color + "40" }]}>
                         <Text style={s.selectorAvatarInitials}>{getInitials(p.name)}</Text>
                       </View>
                     )}
                     <View style={s.selectorInfo}>
-                      <Text style={[s.selectorName, { color: isSelected ? p.color : isMystery ? "#FFD700" : "#aaa" }]}>{p.shortName}</Text>
-                      <Text style={s.selectorFaction}>{p.faction}{isMystery ? " ★" : ""}</Text>
+                      <Text style={[s.selectorName, { color: isPremiumLocked ? (premiumCfg?.badgeColor || "#FFD700") : isSelected ? p.color : isMystery ? "#FFD700" : "#aaa" }]}>
+                        {p.shortName}{isPremiumLocked ? " 🔒" : isMystery ? " ★" : ""}
+                      </Text>
+                      <Text style={s.selectorFaction}>{isPremiumLocked && premiumCfg ? `${premiumCfg.tokenPrice} tokens to unlock` : p.faction}</Text>
                     </View>
-                    {isSelected && <Ionicons name="checkmark-circle" size={18} color={p.color} />}
+                    {isSelected && !isPremiumLocked && <Ionicons name="checkmark-circle" size={18} color={p.color} />}
                   </Pressable>
                 );
               };
@@ -7682,12 +7890,34 @@ export default function ArenaScreen() {
                       </View>
                     </View>
                   )}
+                {Object.entries(PREMIUM_PERSONA_CONFIGS).filter(([id]) => isHidden(id)).length > 0 && (
+                  <View style={{ marginTop: 10, borderTopWidth: 1, borderTopColor: "rgba(255,107,0,0.2)", paddingTop: 10 }}>
+                    <Text style={{ color: "#FF6B00", fontSize: 10, fontWeight: "bold" as const, letterSpacing: 1, marginBottom: 4, paddingHorizontal: 2 }}>🔓  PREMIUM (LOCKED)</Text>
+                    <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, marginBottom: 8, paddingHorizontal: 2 }}>Tap to unlock with tokens</Text>
+                    <View style={{ flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 6 }}>
+                      {Object.entries(PREMIUM_PERSONA_CONFIGS).filter(([id]) => isHidden(id)).map(([pid, cfg]) => (
+                        <Pressable
+                          key={pid}
+                          onPress={() => deviceId && unlockWithTokens(pid, deviceId, refreshBalance)}
+                          style={[{ flexDirection: "row" as const, alignItems: "center" as const, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5, borderColor: cfg.badgeColor + "60", backgroundColor: cfg.badgeColor + "10" }]}
+                        >
+                          {premiumUnlocking === pid ? (
+                            <ActivityIndicator size="small" color={cfg.badgeColor} style={{ marginRight: 6 }} />
+                          ) : (
+                            <Ionicons name="lock-closed" size={12} color={cfg.badgeColor} style={{ marginRight: 5 }} />
+                          )}
+                          <Text style={{ color: cfg.badgeColor, fontSize: 11, fontWeight: "700" as const }}>{cfg.name} ({cfg.tokenPrice}🪙)</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </View>
+                )}
                 </ScrollView>
               );
             })()}
             <View style={s.selectorActions}>
               <Pressable
-                onPress={() => setSelectedPersonas([...PERSONA_IDS, ...unlockedMystery])}
+                onPress={() => setSelectedPersonas([...PERSONA_IDS, ...unlockedMystery, ...unlockedPremium.filter(id => !PERSONA_IDS.includes(id))])}
                 style={s.selectorSelectAll}
               >
                 <Text style={s.selectorSelectAllText}>Select All</Text>

@@ -14,6 +14,11 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Audio } from "expo-av";
 import { getApiUrl } from "@/lib/query-client";
 import { useTokens } from "@/lib/token-context";
+import { usePersonaLocks, PREMIUM_PERSONA_CONFIGS } from "@/lib/persona-locks";
+import {
+  placeInterviewBet, clearInterviewBet,
+  awardBetWin, resolveInterviewWinnerBet,
+} from "@/lib/debate-bets";
 import Colors from "@/constants/colors";
 import { ShareAppButton } from "@/components/ShareAppButton";
 import { CashAppDonate } from "@/components/CashAppDonate";
@@ -341,6 +346,10 @@ const webBottom = Platform.OS === "web" ? 34 : 0;
 export default function InterviewScreen() {
   const insets = useSafeAreaInsets();
   const { deviceId, balance, refreshBalance } = useTokens();
+  const { isLocked, isHidden, unlockWithTokens, isUnlocking: premiumUnlocking, unlockedPremium } = usePersonaLocks();
+  const [interviewBetPick, setInterviewBetPick] = useState<"interviewer" | "interviewee" | null>(null);
+  const [interviewBetWager, setInterviewBetWager] = useState(2);
+  const [interviewBetResult, setInterviewBetResult] = useState<{ won: boolean; payout: number; winner: "interviewer" | "interviewee" } | null>(null);
 
   const [interviewers, setInterviewers] = useState<PersonaLite[]>([]);
   const [interviewees, setInterviewees] = useState<PersonaLite[]>([]);
@@ -1615,6 +1624,32 @@ export default function InterviewScreen() {
     setPhase("ended");
   }, [stopAllAudio]);
 
+  // Resolve winner bet when interview ends
+  useEffect(() => {
+    if (phase !== "ended") return;
+    if (!interviewerId || !intervieweeId || !deviceId) return;
+    (async () => {
+      try {
+        const savedBet = await getInterviewBet();
+        if (!savedBet || savedBet.interviewerId !== interviewerId || savedBet.intervieweeId !== intervieweeId) return;
+        const msgs = messagesRef.current || [];
+        const { won, winner } = resolveInterviewWinnerBet(
+          savedBet.pick,
+          msgs.map((m: any) => ({ speakerId: m.speakerId || m.role || "", text: m.text || m.content || "" })),
+          interviewerId,
+          intervieweeId,
+        );
+        const payout = won ? savedBet.wager * 2 : 0;
+        if (won) {
+          await awardBetWin(deviceId, payout, "Interview winner bet");
+          await refreshBalance();
+        }
+        await clearInterviewBet();
+        setInterviewBetResult({ won, payout, winner });
+      } catch {}
+    })();
+  }, [phase, interviewerId, intervieweeId, deviceId]);
+
   // Persist transcript when an interview ends so viewers can re-read it
   useEffect(() => {
     if (phase !== "ended") return;
@@ -1853,16 +1888,36 @@ export default function InterviewScreen() {
                 const portrait = PERSONA_PORTRAITS[p.id];
                 const isSelected = intervieweeId === p.id;
                 const initials = p.name.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
+                const locked = isLocked(p.id);
+                const cfg = PREMIUM_PERSONA_CONFIGS[p.id];
                 return (
-                  <Pressable key={p.id} onPress={() => { Haptics.selectionAsync(); setIntervieweeId(p.id); }}
+                  <Pressable key={p.id}
+                    onPress={() => {
+                      if (locked && cfg && deviceId) {
+                        unlockWithTokens(p.id, deviceId, refreshBalance);
+                        return;
+                      }
+                      Haptics.selectionAsync();
+                      setIntervieweeId(p.id);
+                    }}
                     style={s.guestCard} testID={`interviewee-${p.id}`}>
-                    <View style={[s.personaAvatarWrap, isSelected && s.personaAvatarWrapActiveGuest]}>
+                    <View style={[s.personaAvatarWrap, isSelected && s.personaAvatarWrapActiveGuest, locked && { opacity: 0.55 }]}>
                       {portrait
                         ? <Image source={portrait} style={s.personaAvatar} />
                         : <View style={s.personaAvatarFallback}><Text style={s.personaAvatarInitials}>{initials}</Text></View>
                       }
+                      {locked && (
+                        <View style={{ position: "absolute", bottom: 0, right: 0, backgroundColor: cfg?.badgeColor || "#FFD700", borderRadius: 8, padding: 2 }}>
+                          {premiumUnlocking === p.id
+                            ? <ActivityIndicator size={10} color="#000" />
+                            : <Ionicons name="lock-closed" size={10} color="#000" />
+                          }
+                        </View>
+                      )}
                     </View>
-                    <Text style={[s.personaCardName, isSelected && s.guestCardNameActive]} numberOfLines={1}>{p.name}</Text>
+                    <Text style={[s.personaCardName, isSelected && s.guestCardNameActive, locked && { color: "rgba(255,255,255,0.4)" }]} numberOfLines={1}>
+                      {p.name}{locked && cfg ? ` ${cfg.tokenPrice}🪙` : ""}
+                    </Text>
                   </Pressable>
                 );
               })}
@@ -1901,6 +1956,83 @@ export default function InterviewScreen() {
               </Pressable>
             ))}
           </View>
+
+          {/* ── WINNER BET ───────────────────────────────────── */}
+          {interviewerId && intervieweeId && !interviewBetPick && !interviewBetResult && (
+            <View style={{ marginTop: 16, padding: 14, borderRadius: 14, borderWidth: 1.5, borderColor: "rgba(251,191,36,0.35)", backgroundColor: "rgba(251,191,36,0.06)" }}>
+              <Text style={{ color: "#FBBF24", fontSize: 13, fontWeight: "900", marginBottom: 4 }}>🎰 PREDICT THE WINNER</Text>
+              <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, marginBottom: 10 }}>Who dominates the interview? Win 2× your bet</Text>
+              <View style={{ flexDirection: "row", gap: 8, marginBottom: 10 }}>
+                {([
+                  { id: "interviewer" as const, label: interviewers.find(p => p.id === interviewerId)?.name?.split(" ")[0] || "Interviewer" },
+                  { id: "interviewee" as const, label: interviewees.find(p => p.id === intervieweeId)?.name?.split(" ")[0] || "Guest" },
+                ] as { id: "interviewer" | "interviewee"; label: string }[]).map((opt) => (
+                  <Pressable key={opt.id} onPress={() => { Haptics.selectionAsync(); setInterviewBetPick(opt.id); }}
+                    style={{
+                      flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center", borderWidth: 1.5,
+                      borderColor: "rgba(255,255,255,0.15)", backgroundColor: "rgba(255,255,255,0.04)",
+                    }}>
+                    <Text style={{ color: "#888", fontSize: 12, fontWeight: "700" }}>{opt.label}</Text>
+                    <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, marginTop: 2 }}>TAP TO PICK</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {interviewBetPick && !interviewBetResult && (() => {
+            const pickedName = interviewBetPick === "interviewer"
+              ? (interviewers.find(p => p.id === interviewerId)?.name?.split(" ")[0] || "Interviewer")
+              : (interviewees.find(p => p.id === intervieweeId)?.name?.split(" ")[0] || "Guest");
+            return (
+              <View style={{ marginTop: 12, padding: 12, borderRadius: 12, borderWidth: 1.5, borderColor: "rgba(251,191,36,0.35)", backgroundColor: "rgba(251,191,36,0.06)" }}>
+                <Text style={{ color: "#FBBF24", fontSize: 12, fontWeight: "900", marginBottom: 8 }}>🎰 WINNER BET — Picked: {pickedName}</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                  <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 11 }}>Wager:</Text>
+                  {[1, 2, 3, 5].map((v) => (
+                    <Pressable key={v} onPress={() => setInterviewBetWager(v)}
+                      style={{
+                        paddingHorizontal: 10, paddingVertical: 5, borderRadius: 16, borderWidth: 1,
+                        borderColor: interviewBetWager === v ? "#FBBF24" : "rgba(255,255,255,0.15)",
+                        backgroundColor: interviewBetWager === v ? "rgba(251,191,36,0.15)" : "transparent",
+                      }}>
+                      <Text style={{ color: interviewBetWager === v ? "#FBBF24" : "#888", fontSize: 11, fontWeight: "700" }}>{v}🪙</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <Pressable
+                    onPress={async () => {
+                      if (!interviewerId || !intervieweeId || !deviceId) return;
+                      const res = await fetch(new URL("/api/use-token", getApiUrl()).toString(), {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+                        body: JSON.stringify({ amount: interviewBetWager, reason: "Interview winner bet" }),
+                      });
+                      if (!res.ok) { Alert.alert("Not enough tokens", `Need ${interviewBetWager} tokens to place this bet.`); return; }
+                      await refreshBalance();
+                      await placeInterviewBet({ pick: interviewBetPick, interviewerId, intervieweeId, wager: interviewBetWager, placedAt: Date.now() });
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    }}
+                    style={{ flex: 1, backgroundColor: "#FBBF24", borderRadius: 10, paddingVertical: 10, alignItems: "center" }}>
+                    <Text style={{ color: "#000", fontSize: 13, fontWeight: "900" }}>LOCK IN ({interviewBetWager}🪙)</Text>
+                  </Pressable>
+                  <Pressable onPress={() => setInterviewBetPick(null)}
+                    style={{ paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: "rgba(255,255,255,0.15)", alignItems: "center" }}>
+                    <Text style={{ color: "#888", fontSize: 12 }}>Cancel</Text>
+                  </Pressable>
+                </View>
+              </View>
+            );
+          })()}
+
+          {interviewBetResult && (
+            <View style={{ marginTop: 12, padding: 14, borderRadius: 12, borderWidth: 1.5, borderColor: interviewBetResult.won ? "#4ADE80" : "#FF4D4D", backgroundColor: interviewBetResult.won ? "rgba(74,222,128,0.08)" : "rgba(255,77,77,0.08)" }}>
+              <Text style={{ color: interviewBetResult.won ? "#4ADE80" : "#FF4D4D", fontSize: 14, fontWeight: "900", textAlign: "center" }}>
+                {interviewBetResult.won ? `🎉 BET WON! +${interviewBetResult.payout}🪙` : `❌ BET LOST — ${interviewBetResult.winner === "interviewer" ? "Interviewer" : "Guest"} dominated`}
+              </Text>
+            </View>
+          )}
 
           <View style={[s.topicsCard, { marginTop: 18 }]}>
             <View style={s.topicsHeader}>
@@ -2298,7 +2430,7 @@ export default function InterviewScreen() {
         <Animated.View entering={FadeInDown.duration(300)} style={[s.endedBar, { paddingBottom: insets.bottom + webBottom + 12 }]}>
           <Text style={s.endedTitle}>INTERVIEW COMPLETE</Text>
           <View style={{ flexDirection: "row", gap: 8, marginTop: 8, flexWrap: "wrap", justifyContent: "center" }}>
-            <Pressable onPress={() => setPhase("setup")} style={s.endedBtnSecondary}>
+            <Pressable onPress={() => { setPhase("setup"); setInterviewBetPick(null); setInterviewBetResult(null); }} style={s.endedBtnSecondary}>
               <Ionicons name="arrow-back" size={14} color="#fff" />
               <Text style={{ color: "#fff", fontSize: 12, fontWeight: "800" }}>NEW BOOKING</Text>
             </Pressable>

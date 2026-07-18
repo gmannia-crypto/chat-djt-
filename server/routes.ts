@@ -10183,6 +10183,19 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
     res.json({ packs: TOKEN_PACKS });
   });
 
+  app.post("/api/tokens/bet-award", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Missing device ID" });
+      const { amount, description } = req.body;
+      if (!amount || amount < 1 || amount > 500) return res.status(400).json({ error: "Invalid amount" });
+      const balance = await grantRewardTokens(deviceId, Math.round(amount), description || "Bet winnings");
+      res.json({ success: true, balance });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || "Failed to award tokens" });
+    }
+  });
+
   app.post("/api/chat", async (req, res) => {
     req.setTimeout(120000);
     res.setTimeout(120000);
