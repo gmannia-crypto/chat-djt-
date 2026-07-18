@@ -4055,6 +4055,14 @@ Your personality quirks:
       { url: "https://feeds.bbci.co.uk/news/business/rss.xml", source: "BBC Business" },
       { url: "https://rss.nytimes.com/services/xml/rss/nyt/Business.xml", source: "NYT Business" },
     ],
+    uk_politics: [
+      { url: "https://www.theguardian.com/politics/rss", source: "Guardian UK Politics" },
+      { url: "https://feeds.bbci.co.uk/news/politics/rss.xml", source: "BBC Politics" },
+      { url: "https://www.middleeasteye.net/rss", source: "Middle East Eye" },
+      { url: "https://morningstaronline.co.uk/feed", source: "Morning Star" },
+      { url: "https://www.independent.co.uk/news/uk/politics/rss", source: "The Independent UK" },
+      { url: "https://www.theguardian.com/world/rss", source: "Guardian World" },
+    ],
   };
 
   const CATEGORY_AI_PROMPTS: Record<string, string> = {
@@ -4064,6 +4072,7 @@ Your personality quirks:
     wealth: `You are a viral content engineer for a live AI wealth debate show. Today is ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}. Your job: generate 8 MAXIMUM-VIRAL wealth and inequality debate topics that will detonate on TikTok, YouTube, X/Twitter, and Reddit. Use both the live headlines AND the viral social media signals. RULES: Name the specific billionaire, corporation, or policy. Frame topics as CLASS WAR moments: billionaires buying politicians, hedge funds evicting families, crypto whales crashing markets, corporate greed in plain sight. Economic outrage goes the most viral — people screenshot "billionaire did WHAT?" moments constantly. Return ONLY a valid JSON array: [{"id":"snake_case","title":"3-6 PUNCHY words","description":"2 sharp sentences — who's the villain, who's the victim, exactly what outrages people RIGHT NOW","headlines":["headline 1"]}]`,
     finance: `You are a viral content engineer for a live AI financial markets debate show. Today is ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}. Your job: generate 8 MAXIMUM-VIRAL finance debate topics that will explode on X/Twitter, YouTube, TikTok, and Reddit. Use both the live headlines AND the viral social media signals. RULES: Reference the specific market move, Fed decision, crypto crash, bank failure, or economic indicator. Frame topics as IMPENDING CRASHES, HIDDEN MANIPULATION, or WEALTH TRANSFER moments. Finance content goes viral when it makes regular people feel cheated or endangered. Every title should make someone think "wait, WHAT is happening to my money?" Return ONLY a valid JSON array: [{"id":"snake_case","title":"3-6 PUNCHY words","description":"2 sharp sentences naming the specific financial event and why it's making people panic or rage","headlines":["headline 1"]}]`,
     motivation: `You are a viral content engineer for a live AI self-improvement debate show. Today is ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}. Your job: generate 8 MAXIMUM-VIRAL motivation and success debate topics that will blow up on TikTok, Instagram, YouTube, and Facebook. Use both the live headlines AND the viral social media signals. RULES: Name the specific CEO, influencer, study, or cultural moment. Frame topics as CULTURE WAR flashpoints: hustle culture gurus exposed as frauds, corporate layoffs proving the system is rigged, viral "quiet quitting" vs "loud laborers" debates, Gen Z vs Boomer work ethic battles, celebrity "rags to riches" stories debunked. Self-improvement content goes viral when it validates people's frustrations or destroys their idols. Return ONLY a valid JSON array: [{"id":"snake_case","title":"3-6 PUNCHY words","description":"2 sharp sentences — name the specific person/trend/study and why it's dividing everyone on social media","headlines":["headline 1"]}]`,
+    uk_politics: `You are a viral content engineer for a live AI UK politics and international affairs debate show. Today is ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}. Your job: generate 8 MAXIMUM-VIRAL UK politics and international affairs debate topics that will explode on X/Twitter, YouTube, TikTok, and Reddit. Use both the live headlines AND the viral social media signals. RULES: Name the specific politician, party, policy, conflict, or country. Prioritise stories that are dividing British politics and global opinion RIGHT NOW — Gaza ceasefire negotiations, NATO commitments, UK renationalisation debates, Keir Starmer policy U-turns, Reform UK surge, Scottish independence, UK-EU relations, Middle East escalation, or any breaking Westminster scandal. Frame topics as FAULT LINES: betrayals of principle, hypocrisy exposed, class war, working-class voters abandoned, anti-war voices silenced, or establishment cover-ups. International crises go viral when they expose double standards. Return ONLY a valid JSON array: [{"id":"snake_case","title":"3-6 PUNCHY words","description":"2 sharp sentences — name the specific politician/conflict/policy and exactly why it is dividing people right now","headlines":["headline 1"]}]`,
   };
 
   async function fetchCategoryTopics(category: string): Promise<any[]> {
@@ -4141,7 +4150,7 @@ Your personality quirks:
     topicGenerationInProgress = true;
     try {
       const allHeadlines: string[] = [];
-      const feedPromises = NEWS_FEEDS.slice(0, 6).map(f =>
+      const feedPromises = NEWS_FEEDS.slice(0, 10).map(f =>
         Promise.race([
           fetchRSSFeed(f.url, f.source),
           new Promise<any[]>((_, reject) => setTimeout(() => reject(new Error("RSS timeout")), 8000)),
@@ -10348,11 +10357,17 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
   const NEWS_CACHE_TTL = 3 * 60 * 1000;
 
   const NEWS_FEEDS = [
-    // International / Global
+    // International / Global (including UK politics for balanced coverage)
     { url: "https://www.aljazeera.com/xml/rss/all.xml", source: "Al Jazeera" },
     { url: "https://feeds.bbci.co.uk/news/world/us_and_canada/rss.xml", source: "BBC" },
     { url: "https://feeds.reuters.com/Reuters/worldNews", source: "Reuters" },
     { url: "https://www.theguardian.com/us-news/rss", source: "The Guardian" },
+    // UK Politics & International Affairs — kept near top so arena topic generation includes them
+    { url: "https://www.theguardian.com/politics/rss", source: "Guardian UK Politics" },
+    { url: "https://feeds.bbci.co.uk/news/politics/rss.xml", source: "BBC Politics" },
+    { url: "https://www.middleeasteye.net/rss", source: "Middle East Eye" },
+    { url: "https://morningstaronline.co.uk/feed", source: "Morning Star" },
+    { url: "https://www.independent.co.uk/news/uk/politics/rss", source: "The Independent UK" },
     // AP News — neutral wire service (comprehensive coverage)
     { url: "https://feeds.apnews.com/apf-topnews", source: "AP" },
     { url: "https://feeds.apnews.com/apf-politics", source: "AP Politics" },
