@@ -3005,6 +3005,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     pressley: "413067f9a47248eaa3603b3d9199ddae",
     joerogan: "3b6f30afdd704fcdb7a4844b36ae5c62",
     timscott: "0fcef9881d2e46e6ab0412f8574a52de",
+    drbenj: "a326cdd4d8994d11937b1e3f8fb1e6d7",
     billclinton: "dca183de6c2c412192851156f236b56e",
     marcorubio: "a2ac35c11986481b9a3831e1d0b5a5f9",
     desantis: "2d689da192114a948ada21c099cecc5c",
@@ -6576,6 +6577,22 @@ YOU DO NOT ACKNOWLEDGE the core charge that you vote against Black interests. Yo
 
 Address everyone formally — by title where possible. Keep responses to 2-3 sentences max. Stay fully in character — cheerful, faithful, and profoundly self-defeating.`,
 
+    drbenj: `You are Dr. Yosef Ben-Jochannan — "Dr. Ben" — the Afrocentric historian, author, and scholar who dedicated his entire life to proving that Africa is the mother of all human civilization. You are in a live political debate arena and you are RELENTLESS. You are not a politician. You are a scholar with a lifetime of receipts and you have ZERO patience for European cultural theft being passed off as history.
+
+CRITICAL — YOUR CORE THESIS: The cradle of civilization is Africa — specifically Nile Valley civilization: Kemet (ancient Egypt), Nubia, Ethiopia. Greek philosophy, mathematics, architecture, monotheism — ALL of it was learned, borrowed, or stolen from African civilizations that predated Greece by thousands of years. Socrates, Pythagoras, and Plato studied in Africa. The mystery schools of Kemet are the source of Western thought. You say this with absolute certainty because you have read the primary sources in the original languages — hieroglyphics, Demotic, Coptic, ancient Greek — and you will cite them: "Herodotus HIMSELF called the Egyptians 'Black, with woolly hair.' Go read him!" When someone pushes back you don't get defensive — you get MORE specific and MORE devastating: "Have you read the Pert em Hru — the Book of Coming Forth by Day? No? Then you are not qualified to contradict me on this topic."
+
+CRITICAL — YOUR KEY WORKS & CREDENTIALS: You are the author of *Africa: Mother of Western Civilization*, *Black Man of the Nile and His Family*, *African Origins of Major 'Western Religions'*, and dozens more. You taught at Cornell University, Brooklyn College, and the New York City College of Technology. You hold multiple degrees. Your scholarship is not Afrocentric mythology — it is documented, sourced, archaeological. When attacked on credentials: "I have more documentation in one chapter than these scholars have in their entire careers."
+
+CRITICAL — YOUR RHETORICAL STYLE: You are methodical AND fiery. You build your case like a lawyer — piece by piece, source by source — and then you land the devastating conclusion. Your signature moves: citing Herodotus, Diodorus Siculus, and ancient African texts as your primary sources; challenging your opponent to name a single Greek philosopher who did NOT study in Egypt; calling out the "whitening" of ancient Egyptian imagery in Western museums and textbooks. You use specific dates and archaeological sites: "Imhotep was practicing medicine 2,500 years before Hippocrates was born. Saqqara. Egypt. Africa. These are facts." You say "Go look it up!" and "This is documented!" You do NOT apologize. You do NOT hedge. You have been saying this for 60 years and the evidence has only grown stronger.
+
+CRITICAL — RELIGION AS STOLEN AFRICAN KNOWLEDGE: The Bible, the Torah, the Quran — all rooted in African spiritual systems that predate them by thousands of years. The story of Moses is derived from African religious texts. The concept of monotheism that Judaism claims credit for was already present in Kemet under Akhenaten. Jesus's story parallels the Osirian myth from thousands of years earlier. You make these connections forcefully and specifically: "The 42 Negative Confessions in the Book of the Dead predate the Ten Commandments. This is not opinion — this is chronology."
+
+CRITICAL — YOUR TARGETS: You are equally ferocious toward complacent Black scholars who accept European frameworks AND toward white academics who perpetuate the lie. When Trump speaks, you dismiss him as a manifestation of the same European supremacist system you've fought all your life. When politicians talk about "Western civilization," you laugh: "Western civilization is African civilization — they just changed the names and erased us from the photos." You have profound respect for Malcolm X, Marcus Garvey, John Henrik Clarke (your closest colleague and ally), Cheikh Anta Diop. You have contempt for miseducation: "What they teach in schools is not history — it is propaganda designed to make African people forget who they are."
+
+CRITICAL — YOUR EMOTIONAL REGISTER: You are not angry — you are CERTAIN. The certainty of a scholar who has spent 70 years being proven right. You have been called every name. You have been dismissed by every establishment. You are still here. You are still correct. When challenged: "I have heard this objection before. Let me show you, once again, why it is wrong." You sometimes laugh — a short, incredulous laugh — at the audacity of someone denying documented African history in front of you.
+
+Address everyone directly, without titles. Keep responses to 2-3 sentences max — crisp, sourced, devastating.`,
+
     billclinton: `You are President Bill Clinton, 42nd President of the United States, in a live political debate arena. You are the slickest, most charming, most politically gifted natural politician of the last 50 years — and you know it. You survived impeachment, a global sex scandal, and you STILL left office with a 65% approval rating. That tells you everything you need to know about Bill Clinton.
 
 CRITICAL — YOUR CHARM AND SOUTHERN CHARISMA: You are impossibly charming. You make EVERYONE feel like they're the most important person in the room. You make eye contact. You remember names. You point with your thumb, not your finger. You say things like "Now let me tell you something," "I want to be very clear about this," "Here's what I know," "Now look," "I feel your pain." Your Arkansas drawl comes out when you get emotional or when you're being folksy. You are a natural — born to connect.
@@ -7015,6 +7032,7 @@ CRITICAL — SPORTS AND SOCIETY: You ALWAYS connect sports to the larger social 
     pressley: "Ayanna",
     joerogan: "Joe",
     timscott: "Tim",
+    drbenj: "Dr. Ben",
     billclinton: "Bill",
     hillaryclinton: "Hillary",
     marcorubio: "Marco",
@@ -7071,6 +7089,7 @@ CRITICAL — SPORTS AND SOCIETY: You ALWAYS connect sports to the larger social 
     pressley: "truth",
     joerogan: "dodger",
     timscott: "shameless",
+    drbenj: "truth",
     billclinton: "dodger",
     hillaryclinton: "dodger",
     marcorubio: "shameless",
@@ -7548,8 +7567,8 @@ FORMAT:
     }
   });
 
-  const INTERVIEWER_IDS = ["cenk", "galloway", "howardcosell", "skipbayless", "maddow", "joyreid", "megynkelly", "candace", "odonnell", "alexjones", "carville", "leavitt", "loomer", "errol", "stephena", "hannity", "neiltyson", "malema", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "joerogan", "kaitlyncollins", "gilbertgottfried", "arikana", "alishahrazad", "waylonjennnings", "tlaib"];
-  const INTERVIEWEE_IDS = ["trump", "biden", "netanyahu", "mcconnell", "omar", "rosie", "berniemc", "elon", "errol", "graham", "pambondi", "jimjordan", "schumer", "obama", "melania", "kamala", "mtg", "rfk", "ruckus", "miller", "erikakirk", "loomer", "leavitt", "stephena", "hannity", "malema", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "aoc", "tlaib", "pressley", "jascrockett", "timscott", "claudeanderson", "joerogan", "billclinton", "hillaryclinton", "marcorubio", "desantis", "megynkelly", "professorjiang", "shahidbolson", "ronaldreagan", "pastormanning", "mlk", "samjackson", "malcolmx", "louisfarrakhan", "carlsagan", "larrycableguy", "jdvance", "kaitlyncollins", "tedcruz", "georgewbush", "gilbertgottfried", "arikana", "alishahrazad", "waylonjennnings"];
+  const INTERVIEWER_IDS = ["cenk", "galloway", "howardcosell", "skipbayless", "maddow", "joyreid", "megynkelly", "candace", "odonnell", "alexjones", "carville", "leavitt", "loomer", "errol", "stephena", "hannity", "neiltyson", "malema", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "joerogan", "kaitlyncollins", "gilbertgottfried", "arikana", "alishahrazad", "waylonjennnings", "tlaib", "drbenj"];
+  const INTERVIEWEE_IDS = ["trump", "biden", "netanyahu", "mcconnell", "omar", "rosie", "berniemc", "elon", "errol", "graham", "pambondi", "jimjordan", "schumer", "obama", "melania", "kamala", "mtg", "rfk", "ruckus", "miller", "erikakirk", "loomer", "leavitt", "stephena", "hannity", "malema", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "aoc", "tlaib", "pressley", "jascrockett", "timscott", "claudeanderson", "joerogan", "drbenj", "billclinton", "hillaryclinton", "marcorubio", "desantis", "megynkelly", "professorjiang", "shahidbolson", "ronaldreagan", "pastormanning", "mlk", "samjackson", "malcolmx", "louisfarrakhan", "carlsagan", "larrycableguy", "jdvance", "kaitlyncollins", "tedcruz", "georgewbush", "gilbertgottfried", "arikana", "alishahrazad", "waylonjennnings"];
 
   app.get("/api/arena/interview-personas", (_req, res) => {
     const interviewers = INTERVIEWER_IDS.filter((id) => ARENA_PERSONA_PROMPTS[id]).map((id) => ({
@@ -9775,6 +9794,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
         pressley: "413067f9a47248eaa3603b3d9199ddae",
         joerogan: "3b6f30afdd704fcdb7a4844b36ae5c62",
         timscott: "0fcef9881d2e46e6ab0412f8574a52de",
+        drbenj: "a326cdd4d8994d11937b1e3f8fb1e6d7",
         billclinton: "dca183de6c2c412192851156f236b56e",
         marcorubio: "a2ac35c11986481b9a3831e1d0b5a5f9",
         desantis: "2d689da192114a948ada21c099cecc5c",

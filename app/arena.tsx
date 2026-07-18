@@ -104,6 +104,7 @@ const PERSONA_CATEGORY_MAP: Record<string, PersonaCategory> = {
   pressley: "politician",
   joerogan: "podcaster",
   timscott: "politician",
+  drbenj: "commentator",
 };
 
 // Political Facts IQ: everyone starts at 100 (seeded from all-time average).
@@ -1252,6 +1253,40 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       negative: ["censorship", "cancel culture", "mainstream media", "mandates", "woke", "agenda"],
     },
   },
+  drbenj: {
+    id: "drbenj",
+    name: "Dr. Ben Jochannan",
+    shortName: "Dr. Ben",
+    color: "#C8860A",
+    faction: "opponent",
+    image: require("@/assets/images/persona-drbenj.jpg"),
+    personality: {
+      energy: 80,
+      aggression: 70,
+      humor: 35,
+      catchphrases: ["Go look it up!", "This is documented!", "Herodotus himself said it", "Africa is the mother of civilization", "They stole everything from us"],
+    },
+    relationships: {
+      claudeanderson: { sentiment: 90 },
+      malema: { sentiment: 85 },
+      omar: { sentiment: 75 },
+      aoc: { sentiment: 65 },
+      tlaib: { sentiment: 65 },
+      pressley: { sentiment: 70 },
+      galloway: { sentiment: 55 },
+      trump: { sentiment: 5 },
+      ruckus: { sentiment: 10 },
+      timscott: { sentiment: 10 },
+      netanyahu: { sentiment: 20 },
+      carville: { sentiment: 30 },
+      maddow: { sentiment: 35 },
+      neiltyson: { sentiment: 80 },
+    },
+    triggerWords: {
+      positive: ["africa", "kemet", "egypt", "civilization", "history", "nubia", "pan-african", "black", "diop", "garvey"],
+      negative: ["western civilization", "greek origins", "european", "white history", "bible", "colonialism", "erasure"],
+    },
+  },
   timscott: {
     id: "timscott",
     name: "Tim Scott",
@@ -2203,7 +2238,7 @@ const MYSTERY_UNLOCK_COSTS: Record<string, number> = {
 };
 const MYSTERY_UNLOCK_KEY = "arena_mystery_unlocked";
 
-const PERSONA_IDS = ["trump", "elon", "errol", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "leavitt", "erikakirk", "loomer", "bannon", "stephena", "malema", "hannity", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "aoc", "pressley", "joerogan", "timscott", "billclinton", "hillaryclinton", "marcorubio", "desantis"];
+const PERSONA_IDS = ["trump", "elon", "errol", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "leavitt", "erikakirk", "loomer", "bannon", "stephena", "malema", "hannity", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "aoc", "pressley", "joerogan", "timscott", "drbenj", "billclinton", "hillaryclinton", "marcorubio", "desantis"];
 // Cartoon-style image filter — vivid posterized look on web
 const CARTOON_FILTER = Platform.OS === "web"
   ? ({ filter: "contrast(1.35) saturate(1.85) brightness(1.03)" } as any)
@@ -7538,7 +7573,7 @@ export default function ArenaScreen() {
                 { label: "🎙  PODCASTERS & STRATEGISTS", ids: ["galloway", "candace", "carville", "bannon", "joerogan"], mysteryIds: ["alexjones"] },
                 { label: "🎭  COMEDIANS", ids: ["berniemc", "rosie"], mysteryIds: [] },
                 { label: "💻  TECH", ids: ["elon"], mysteryIds: [] },
-                { label: "✊  COMMENTATORS & ACTIVISTS", ids: ["stephena", "jesseleepetersen", "shannon", "neiltyson", "malema", "claudeanderson"], mysteryIds: [] },
+                { label: "✊  COMMENTATORS & ACTIVISTS", ids: ["stephena", "jesseleepetersen", "shannon", "neiltyson", "malema", "claudeanderson", "drbenj"], mysteryIds: [] },
                 { label: "👥  FAMILY & OTHERS", ids: ["errol", "ivanka"], mysteryIds: ["melania"] },
               ];
               const lockedMysteryIds = MYSTERY_PERSONA_IDS.filter((id) => !unlockedMystery.includes(id));
