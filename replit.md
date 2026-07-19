@@ -57,6 +57,40 @@ A pre-commit hook in `.husky/pre-commit` runs `node scripts/check-persona-images
 
 **First-time setup**: The hook is wired automatically via the `prepare` npm script, so running `npm install` after cloning is all that's needed. No manual `git config` step required.
 
+**Manual verification procedure** (repeat whenever the hook setup changes):
+```bash
+# 1. Simulate a fresh-clone state — unset hooksPath
+git config --local --unset core.hooksPath 2>/dev/null || true
+git config --local core.hooksPath 2>/dev/null || echo "not-set"
+# Expected: "not-set"
+
+# 2. Run the npm lifecycle that `npm install` triggers automatically
+npm run prepare
+# Expected output:
+#   > expo-app@1.0.0 prepare
+#   > git config core.hooksPath .husky || true
+
+# 3. Confirm hooksPath is now wired
+git config --local core.hooksPath
+# Expected: .husky
+
+# 4. Confirm the hook file is executable
+ls -la .husky/pre-commit
+# Expected: -rwxr-xr-x ... .husky/pre-commit
+
+# 5. Trigger a bad commit — copy one persona image over another to create a duplicate
+cp assets/images/persona-alexjones.png assets/images/persona-bannon.png
+git add assets/images/persona-bannon.png
+git commit -m "test: duplicate persona image"
+# Expected: hook fires, prints ✗ MISMATCHED NAMES, exits with code 1 (commit blocked)
+
+# 6. Restore and verify cleanup
+git checkout -- assets/images/persona-bannon.png
+node scripts/check-persona-images.js assets/images/persona-bannon.png
+# Expected: ✓ All checks passed.
+```
+If step 5 does NOT block the commit, `core.hooksPath` is not pointing at `.husky` — re-run step 2 and check that `prepare` exits 0.
+
 **After an intentional portrait replacement**, re-bless the manifest so the hook passes:
 ```bash
 node scripts/check-persona-images.js --update
