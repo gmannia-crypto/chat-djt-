@@ -1,7 +1,8 @@
 #!/usr/bin/env sh
 #
 # Pre-commit hook: run the persona image integrity check before every commit.
-# Blocks the commit if any duplicate or mismatched portrait is detected.
+# Blocks the commit if any duplicate or mismatched portrait is detected,
+# OR if a persona portrait is being deleted.
 #
 # To skip in an emergency:  git commit --no-verify
 # To update the manifest after an intentional portrait change:
@@ -9,8 +10,25 @@
 #   git add scripts/persona-image-manifest.json
 #
 
-# Collect only staged persona portrait files
-STAGED=$(git diff --cached --name-only | grep '^assets/images/persona-.*\.png$')
+# Check for staged *deletions* of persona portrait files first.
+DELETED=$(git diff --cached --name-only --diff-filter=D | grep '^assets/images/persona-.*\.png$')
+
+if [ -n "$DELETED" ]; then
+  echo ""
+  echo "✗ BLOCKED: Staged deletion(s) of persona portrait file(s) detected:"
+  echo ""
+  for f in $DELETED; do
+    echo "    $f"
+  done
+  echo ""
+  echo "  Persona portraits must not be deleted — the app will crash at runtime."
+  echo "  If this was intentional, use:  git commit --no-verify"
+  echo ""
+  exit 1
+fi
+
+# Collect staged additions/modifications of persona portrait files.
+STAGED=$(git diff --cached --name-only --diff-filter=ACMR | grep '^assets/images/persona-.*\.png$')
 
 if [ -z "$STAGED" ]; then
   echo "⚡ No persona images staged — skipping portrait check."

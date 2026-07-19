@@ -88,8 +88,19 @@ git commit -m "test: duplicate persona image"
 git checkout -- assets/images/persona-bannon.png
 node scripts/check-persona-images.js assets/images/persona-bannon.png
 # Expected: ✓ All checks passed.
+
+# 7. Trigger a bad commit — stage a deletion of a persona portrait
+git rm --cached assets/images/persona-bannon.png
+git commit -m "test: delete persona portrait"
+# Expected: hook fires, prints ✗ BLOCKED: Staged deletion(s) of persona portrait file(s) detected,
+#           exits with code 1 (commit blocked)
+
+# 8. Restore the staged deletion
+git reset HEAD assets/images/persona-bannon.png
+# Expected: the file is unstaged; working tree is unchanged
 ```
 If step 5 does NOT block the commit, `core.hooksPath` is not pointing at `.husky` — re-run step 2 and check that `prepare` exits 0.
+If step 7 does NOT block the commit, the deletion guard is not working — confirm `.husky/pre-commit` contains the `--diff-filter=D` check.
 
 **After an intentional portrait replacement**, re-bless the manifest so the hook passes:
 ```bash
