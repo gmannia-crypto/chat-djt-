@@ -9,7 +9,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { fetch } from "expo/fetch";
-import Animated, { FadeIn, FadeInDown, FadeInUp, FadeOut, useSharedValue, useAnimatedStyle, withTiming, withRepeat, withSequence, cancelAnimation } from "react-native-reanimated";
+import Animated, { FadeIn, FadeInDown, FadeInUp, FadeOut, ZoomIn, ZoomOut, useSharedValue, useAnimatedStyle, withTiming, withRepeat, withSequence, cancelAnimation } from "react-native-reanimated";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Audio } from "expo-av";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
@@ -26,6 +26,7 @@ import {
   speakModeratorNow, localJab, moderatorLieReaction, generateModeratorQuestion, getModeratorLeaning,
 } from "@/lib/debate-moderator";
 import { playDingSound } from "@/lib/arena-sfx";
+import { TokenWinVideo } from "@/components/TokenWinVideo";
 
 type PersonaLite = { id: string; name: string };
 type Topic = { id: string; title: string; description: string; era: "current" | "past" };
@@ -90,6 +91,7 @@ const PERSONA_AMAZON_LINKS: Record<string, Array<{ title: string; url: string; i
   aoc:              [{ title: "AOC Books", url: "https://www.amazon.com/s?k=alexandria+ocasio+cortez+book&tag=trumpbot-20", icon: "book" }, { title: "Green New Deal", url: "https://www.amazon.com/s?k=green+new+deal+book&tag=trumpbot-20", icon: "leaf" }, { title: "Progressive Tee", url: "https://www.amazon.com/s?k=progressive+political+shirt&tag=trumpbot-20", icon: "shirt" }],
   joerogan:         [{ title: "Joe Rogan Podcast Books", url: "https://www.amazon.com/s?k=joe+rogan+recommended+books&tag=trumpbot-20", icon: "book" }, { title: "MMA Gear", url: "https://www.amazon.com/s?k=mma+training+gear&tag=trumpbot-20", icon: "fitness" }, { title: "Podcast Microphone", url: "https://www.amazon.com/s?k=podcast+microphone+kit&tag=trumpbot-20", icon: "mic" }],
   timscott:         [{ title: "Tim Scott Book", url: "https://www.amazon.com/s?k=tim+scott+book+america+a+redemption+story&tag=trumpbot-20", icon: "book" }, { title: "Republican Politics", url: "https://www.amazon.com/s?k=republican+conservative+books&tag=trumpbot-20", icon: "library" }, { title: "South Carolina Gear", url: "https://www.amazon.com/s?k=south+carolina+merchandise&tag=trumpbot-20", icon: "ribbon" }],
+  charliemurphy:    [{ title: "Charlie Murphy Book", url: "https://www.amazon.com/s?k=charlie+murphy+comedian+book&tag=trumpbot-20", icon: "book" }, { title: "Chappelle's Show DVD", url: "https://www.amazon.com/s?k=chappelles+show+dvd&tag=trumpbot-20", icon: "videocam" }, { title: "Comedy Stand-Up", url: "https://www.amazon.com/s?k=stand+up+comedy+dvd&tag=trumpbot-20", icon: "gift" }],
 };
 
 const DEFAULT_AMAZON_LINKS = [
@@ -262,6 +264,7 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   skipbayless: require("@/assets/images/persona-skipbayless.png"),
   cenk: require("@/assets/images/persona-cenk.jpg"),
   howardcosell: require("@/assets/images/persona-howardcosell.jpg"),
+  charliemurphy: require("@/assets/images/persona-charliemurphy.jpg"),
 };
 
 const FX_KEY = "interview_fx_enabled_v1";
@@ -406,6 +409,14 @@ export default function DebateStage() {
   const [pollLoading, setPollLoading] = useState(false);
 
   const [phase, setPhase] = useState<"setup" | "live" | "ended">("setup");
+  const [debatePoints, setDebatePoints] = useState<{ a: number; b: number }>({ a: 0, b: 0 });
+  const debatePointsRef = useRef<{ a: number; b: number }>({ a: 0, b: 0 });
+  useEffect(() => { debatePointsRef.current = debatePoints; }, [debatePoints]);
+  const [showDebateWinner, setShowDebateWinner] = useState(false);
+  const [debateWinner, setDebateWinner] = useState<{ id: string; name: string; portrait: any; points: number; opponentPoints: number } | null>(null);
+  const [debateTokenWinVisible, setDebateTokenWinVisible] = useState(false);
+  const [debateTokenWinAmount, setDebateTokenWinAmount] = useState<number | undefined>();
+  const winnerTriggeredRef = useRef(false);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [isStarting, setIsStarting] = useState(false);
   const [isThinking, setIsThinking] = useState<"interviewer" | "interviewee" | null>(null);
@@ -435,6 +446,92 @@ export default function DebateStage() {
 
   // Warm up the audio session on mount so the first clip plays without cold-start lag
   useEffect(() => { warmupAudio().catch(() => {}); }, []);
+
+  // Reset scoring state when returning to setup for a new debate
+  useEffect(() => {
+    if (phase === "setup") {
+      winnerTriggeredRef.current = false;
+      setDebatePoints({ a: 0, b: 0 });
+      debatePointsRef.current = { a: 0, b: 0 };
+      setShowDebateWinner(false);
+      setDebateWinner(null);
+      setDebateTokenWinVisible(false);
+      setDebateTokenWinAmount(undefined);
+    }
+  }, [phase]);
+
+  // ── DC DEBATE WINNER ────────────────────────────────────────────────────────
+  // Play a victory fanfare (Web Audio on web, haptics on native)
+  const playDebateCheer = useCallback(() => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy), 150);
+    setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy), 350);
+    if (Platform.OS === "web") {
+      try {
+        const AC: any = (globalThis as any).AudioContext || (globalThis as any).webkitAudioContext;
+        if (!AC) return;
+        const ctx = new AC();
+        const notes = [523, 659, 784, 1047]; // C E G C — ascending fanfare
+        notes.forEach((freq, i) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0.18, ctx.currentTime + i * 0.12);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.12 + 0.45);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(ctx.currentTime + i * 0.12);
+          osc.stop(ctx.currentTime + i * 0.12 + 0.5);
+        });
+        setTimeout(() => { try { ctx.close(); } catch {} }, 2500);
+      } catch {}
+    }
+  }, []);
+
+  useEffect(() => {
+    if (phase !== "ended" || winnerTriggeredRef.current) return;
+    winnerTriggeredRef.current = true;
+    const pts = debatePointsRef.current;
+    if (pts.a === 0 && pts.b === 0) return; // no points awarded — skip winner
+    const aId = interviewerId;
+    const bId = intervieweeId;
+    if (!aId || !bId) return;
+    const aWins = pts.a >= pts.b;
+    const winnerId = aWins ? aId : bId;
+    const winnerPersona = aWins
+      ? interviewers.find((p) => p.id === aId)
+      : interviewees.find((p) => p.id === bId);
+    const winnerName = winnerPersona?.name || (aWins ? (aId) : (bId));
+    const winnerPoints = aWins ? pts.a : pts.b;
+    const opponentPoints = aWins ? pts.b : pts.a;
+    setDebateWinner({ id: winnerId, name: winnerName, portrait: PERSONA_PORTRAITS[winnerId] || null, points: winnerPoints, opponentPoints });
+    setShowDebateWinner(true);
+    playDebateCheer();
+    // Record win to backend + award tokens
+    if (deviceId) {
+      fetch(new URL("/api/arena/record-win", getApiUrl()).toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+        body: JSON.stringify({ personaId: winnerId }),
+      }).then(async (res) => {
+        if (res.ok) {
+          const data = await res.json();
+          if (data.tokensEarned > 0) {
+            setDebateTokenWinAmount(data.tokensEarned);
+            setTimeout(() => setDebateTokenWinVisible(true), 2200);
+            refreshBalance();
+          }
+        }
+      }).catch(() => {});
+    }
+    // Store local win stats
+    const statsKey = `debate_wins_local_v1`;
+    AsyncStorage.getItem(statsKey).then((raw) => {
+      const prev = raw ? JSON.parse(raw) : {};
+      const next = { ...prev, [winnerId]: (prev[winnerId] || 0) + 1, _total: (prev._total || 0) + 1 };
+      AsyncStorage.setItem(statsKey, JSON.stringify(next)).catch(() => {});
+    }).catch(() => {});
+  }, [phase, interviewerId, intervieweeId, interviewers, interviewees, deviceId, refreshBalance, playDebateCheer]);
 
   const [isPaused, setIsPaused] = useState(false);
   const exchangesOnTopicRef = useRef(0);
@@ -2481,6 +2578,25 @@ export default function DebateStage() {
                 {(idx === 0 ? micCut.iv : micCut.ivee) ? "Restore mic" : "Cut mic"}
               </Text>
             </Pressable>
+            {/* DC Point Award Button — tap to score this debater */}
+            <Pressable
+              onPress={() => {
+                if (phase !== "live") return;
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                setDebatePoints((prev) => {
+                  const next = idx === 0 ? { ...prev, a: prev.a + 1 } : { ...prev, b: prev.b + 1 };
+                  debatePointsRef.current = next;
+                  return next;
+                });
+              }}
+              style={{ marginTop: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, flexDirection: "row" as const, alignItems: "center" as const, gap: 4, backgroundColor: "rgba(255,215,0,0.1)", borderWidth: 1, borderColor: "rgba(255,215,0,0.3)" }}
+              testID={idx === 0 ? "award-point-a" : "award-point-b"}
+            >
+              <Ionicons name="star" size={10} color="#FFD700" />
+              <Text style={{ color: "#FFD700", fontSize: 11, fontWeight: "900" as const }}>
+                {idx === 0 ? debatePoints.a : debatePoints.b} DC PT{(idx === 0 ? debatePoints.a : debatePoints.b) === 1 ? "" : "S"}
+              </Text>
+            </Pressable>
             <View style={s.emoBars}>
               {EMO_KEYS.map((k) => (
                 <View key={k} style={s.emoBarRow}>
@@ -2636,9 +2752,54 @@ export default function DebateStage() {
         </KeyboardAvoidingView>
       )}
 
+      {/* ── DC DEBATE WINNER MODAL ──────────────────────────────────────────── */}
+      <Modal visible={showDebateWinner} transparent animationType="fade" statusBarTranslucent>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.92)", alignItems: "center", justifyContent: "center" }}>
+          <Animated.View entering={ZoomIn.duration(380).springify()} style={{ alignItems: "center", padding: 28, backgroundColor: "#111", borderRadius: 28, borderWidth: 2, borderColor: "#FFD700", width: "88%", maxWidth: 400 }}>
+            <Ionicons name="trophy" size={52} color="#FFD700" />
+            <Text style={{ color: "#FFD700", fontSize: 13, fontWeight: "900", letterSpacing: 2.5, marginTop: 8 }}>DC DEBATE CHAMPION</Text>
+            {debateWinner?.portrait ? (
+              <Image source={debateWinner.portrait} style={{ width: 150, height: 150, borderRadius: 75, marginTop: 16, borderWidth: 3, borderColor: "#FFD700" }} />
+            ) : null}
+            <Text style={{ color: "#fff", fontSize: 30, fontWeight: "900", marginTop: 14, textAlign: "center" }}>{debateWinner?.name}</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 16, marginTop: 10 }}>
+              <View style={{ alignItems: "center" }}>
+                <Text style={{ color: "#FFD700", fontSize: 28, fontWeight: "900" }}>{debateWinner?.points ?? 0}</Text>
+                <Text style={{ color: "rgba(255,215,0,0.6)", fontSize: 9, fontWeight: "800", letterSpacing: 1 }}>WINNER</Text>
+              </View>
+              <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 18 }}>vs</Text>
+              <View style={{ alignItems: "center" }}>
+                <Text style={{ color: "rgba(255,255,255,0.55)", fontSize: 22, fontWeight: "800" }}>{debateWinner?.opponentPoints ?? 0}</Text>
+                <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: "800", letterSpacing: 1 }}>OPPONENT</Text>
+              </View>
+            </View>
+            {debateTokenWinAmount ? (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, paddingHorizontal: 14, paddingVertical: 6, backgroundColor: "rgba(255,215,0,0.12)", borderRadius: 14, borderWidth: 1, borderColor: "rgba(255,215,0,0.35)" }}>
+                <Ionicons name="logo-bitcoin" size={14} color="#FFD700" />
+                <Text style={{ color: "#FFD700", fontSize: 13, fontWeight: "900" }}>+{debateTokenWinAmount} DC TOKENS</Text>
+              </View>
+            ) : null}
+            <Pressable
+              onPress={() => setShowDebateWinner(false)}
+              style={{ marginTop: 22, paddingVertical: 13, paddingHorizontal: 32, backgroundColor: "#FFD700", borderRadius: 22 }}
+            >
+              <Text style={{ color: "#000", fontSize: 15, fontWeight: "900", letterSpacing: 1 }}>CHAMPION! 🏆</Text>
+            </Pressable>
+          </Animated.View>
+        </View>
+      </Modal>
+
+      {/* Coin animation on token award */}
+      <TokenWinVideo
+        visible={debateTokenWinVisible}
+        onClose={() => setDebateTokenWinVisible(false)}
+        amount={debateTokenWinAmount}
+        source="Debate Win"
+      />
+
       {phase === "ended" && (
         <Animated.View entering={FadeInDown.duration(300)} style={[s.endedBar, { paddingBottom: insets.bottom + webBottom + 12 }]}>
-          <Text style={s.endedTitle}>INTERVIEW COMPLETE</Text>
+          <Text style={s.endedTitle}>DEBATE COMPLETE</Text>
           <View style={{ flexDirection: "row", gap: 8, marginTop: 8, flexWrap: "wrap", justifyContent: "center" }}>
             <Pressable onPress={() => setPhase("setup")} style={s.endedBtnSecondary}>
               <Ionicons name="arrow-back" size={14} color="#fff" />
