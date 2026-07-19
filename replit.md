@@ -55,11 +55,7 @@ A pre-commit hook in `.husky/pre-commit` runs `node scripts/check-persona-images
 - Mismatched names (a portrait saved under the wrong persona filename)
 - Unexpected changes (a portrait replaced without updating the manifest)
 
-**First-time setup** (needed once per clone / new contributor):
-```bash
-git config core.hooksPath .husky
-```
-This is already applied in the repo's local config, so existing contributors don't need to run it again.
+**First-time setup**: The hook is wired automatically via the `prepare` npm script, so running `npm install` after cloning is all that's needed. No manual `git config` step required.
 
 **After an intentional portrait replacement**, re-bless the manifest so the hook passes:
 ```bash
