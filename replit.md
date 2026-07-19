@@ -98,9 +98,20 @@ git commit -m "test: delete persona portrait"
 # 8. Restore the staged deletion
 git reset HEAD assets/images/persona-bannon.png
 # Expected: the file is unstaged; working tree is unchanged
+
+# 9. Trigger a bad commit — rename a persona portrait to a non-persona filename
+git mv assets/images/persona-bannon.png assets/images/persona_bannon.png
+git commit -m "test: rename persona portrait to non-persona name"
+# Expected: hook fires, prints ✗ BLOCKED: Staged rename(s) of persona portrait file(s) detected,
+#           exits with code 1 (commit blocked)
+
+# 10. Restore the renamed file
+git mv assets/images/persona_bannon.png assets/images/persona-bannon.png
+# Expected: working tree restored; no staged changes
 ```
 If step 5 does NOT block the commit, `core.hooksPath` is not pointing at `.husky` — re-run step 2 and check that `prepare` exits 0.
 If step 7 does NOT block the commit, the deletion guard is not working — confirm `.husky/pre-commit` contains the `--diff-filter=D` check.
+If step 9 does NOT block the commit, the rename guard is not working — confirm `.husky/pre-commit` contains the `--diff-filter=R` check.
 
 **After an intentional portrait replacement**, re-bless the manifest so the hook passes:
 ```bash

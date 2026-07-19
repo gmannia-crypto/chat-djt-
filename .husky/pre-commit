@@ -27,6 +27,23 @@ if [ -n "$DELETED" ]; then
   exit 1
 fi
 
+# Check for staged *renames* of persona portrait files.
+# `git mv persona-bannon.png persona_bannon.png` is tracked as a rename (R),
+# not a deletion (D), so the deletion guard above won't catch it.
+RENAMED_SRC=$(git diff --cached --name-status --diff-filter=R | awk '{ print $2 }' | grep '^assets/images/persona-.*\.png$')
+
+if [ -n "$RENAMED_SRC" ]; then
+  echo ""
+  echo "✗ BLOCKED: Staged rename(s) of persona portrait file(s) detected:"
+  echo ""
+  git diff --cached --name-status --diff-filter=R | awk '{ if ($2 ~ /^assets\/images\/persona-.*\.png$/) print "    " $2 " → " $3 }'
+  echo ""
+  echo "  Persona portraits must not be renamed — the app will crash at runtime."
+  echo "  If this was intentional, use:  git commit --no-verify"
+  echo ""
+  exit 1
+fi
+
 # Collect staged additions/modifications of persona portrait files.
 STAGED=$(git diff --cached --name-only --diff-filter=ACMR | grep '^assets/images/persona-.*\.png$')
 
