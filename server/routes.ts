@@ -583,6 +583,7 @@ async function fishAudioRequest(text: string, voiceId: string, speed: number, ap
         headers: {
           "Authorization": `Bearer ${apiKey}`,
           "Content-Type": "application/json",
+          "model": "s2.1-pro-free",
         },
         body: JSON.stringify({
           text: ttsText,

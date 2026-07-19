@@ -1,0 +1,180 @@
+Jun 23, 2026
+·
+Research
+Fish Audio S2.1 Pro: Free Text-to-Speech API for Developers
+
+Fish Audio S2.1 Pro: Free Text-to-Speech API for Developers
+Quick summary:
+
+S2.1 Pro, Fish Audio's most advanced voice model, is now available as a free text-to-speech API
+
+83 languages, unlimited usage under Fair Use Policy
+
+Model string: s2.1-pro-free — drop it into your existing Fish API calls
+
+
+June 2026 | Fish Audio's S2.1 Pro model is now available as a free text-to-speech API with unlimited access under Fair Use.
+
+Why High-Quality Voice AI Has Always Been Expensive
+If you've spent any time evaluating text-to-speech APIs, you already know the pattern: the models that actually sound good cost money.
+
+ElevenLabs' free tier gives you 10,000 credits per month (approximately 6 - 10 minutes) before the paywall kicks in. OpenAI TTS is pay-per-use with no free tier at all. Google's latest Gemini TTS models — their most advanced — have zero free usage: you pay from the first token. The pattern is consistent across the industry: state-of-the-art voice quality has been a paid feature.
+
+This creates a real problem for developers.  — but the tooling to build voice-enabled products has stayed behind a paywall. You can't properly evaluate a model on 10,000 credits. You can't prototype a voice agent, test an audiobook pipeline, or experiment with  without either committing budget upfront or spending weeks wrestling with open-source alternatives that require your own GPU infrastructure.
+
+Fish Audio is changing that today.
+
+What Is S2.1 Pro?
+S2.1-Pro benchmark: throughput (tok/s) and TTFB p50 (ms) across concurrency levels from 1 to 512, showing 8,006 tok/s at c=64 and 73.2ms TTFB at c=1
+
+S2.1 Pro is Fish Audio's current state-of-the-art voice model — the best model we have, now available to every developer for free via API. It is a neural speech synthesis model designed for production-grade AI voice generation, with particular strengths in low-latency streaming, multilingual TTS, and voice cloning. It builds on the foundation of 
+
+Performance
+61% win rate against the previous generation S2 Pro in head-to-head listening evaluations — see our blind TTS provider comparison for context
+~70ms Time-to-First-Audio (TTFA) at single request — down from ~100ms in the prior generation
+2x+ throughput improvement under high-concurrency load
+For the full technical background, see our paper: 
+
+Language Coverage
+S2.1 Pro supports 83 languages, including English, Japanese, Chinese, Korean, Spanish, Arabic, French, German, Portuguese, Russian, and dozens more. The same model handles all languages — no separate endpoints, no per-language pricing.
+
+Latency
+S2.1-Pro delivers ~90ms TTFA (Time to First Audio) on the standard API, making it viable for live voice agents and turn-taking dialogue systems. If you need fine-grained control over prosody and delivery, see also .
+
+Why Fish Audio Can Offer This for Free Now
+Fish Audio S2.1-Pro inference infrastructure: NVIDIA H200 with FP8 GEMM and custom scheduler delivering 125 audio tok/s per request (RTF 0.17) and ~70ms TTFA
+
+The short version: we rebuilt the inference stack from the ground up, and the cost per request dropped significantly enough that we can absorb it.
+
+Custom GPU Kernels
+We developed , a production-grade FP8 GEMM and FlashAttention library targeting  and Blackwell (RTX 6000 PRO) architectures. On the decode shapes that matter for voice AI serving, our MXFP8 path outperforms the torch.compile-fused cuBLAS reference by 2.1–4.3×. You don't need to understand any of this to use the API — but it's why the free tier is sustainable.
+
+Higher Throughput
+On a single H200 with FP8 quantization, the system sustains over 8,000 tokens/second Output throughput at 64 concurrent requests. More throughput per GPU means more requests served per dollar, which is what makes unlimited free access economically viable.
+
+What "Free" Actually Means
+We'd rather be upfront about the constraints than bury them.
+
+What you get:
+
+Model string: s2.1-pro-free
+High-volume access with no hard character cap (subject to Fair Use Policy)
+Same API endpoint as paid plans — no separate integration
+Current limitations:
+
+Duration: Free access is available till July 24, 2026 Free access is available through the end of July 2026 — we'll communicate any changes with advance notice.
+Update (June 2026): We're extending the free window to cover all of July. We want developers to have a full, uninterrupted month to build, evaluate, and ship — not count down to a deadline.
+No SLA: No uptime/TTFA guarantees; built for experimentation and prototyping
+No latency guarantee: Best-effort, not contractual
+Data retention: Requests may be used to improve model quality — see our 
+Commercial use: Some commercial scenarios may have restrictions. Products generating more than $1M ARR should contact us before using S2.1 Pro Free. See  for details
+If you need production SLA and latency guarantees, paid plans are available. This tier is the right place to build, evaluate, and decide.
+
+How to Use the Free Text-to-Speech API: S2.1 Pro Quickstart
+Get your API key at , then make your first call. The Fish API accepts msgpack-encoded requests and returns audio in your chosen format. Full reference in the 
+
+JavaScript
+import { writeFile } from "fs/promises";
+
+const body = {
+  text: "Hello, world!",
+  reference_id: "your_model_id",
+  format: "mp3",
+};
+
+const res = await fetch("https://api.fish.audio/v1/tts", {
+  method: "POST",
+  headers: {
+    Authorization: "Bearer <YOUR_API_KEY>",
+    "Content-Type": "application/json",
+    model: "s2.1-pro-free",
+  },
+  body: JSON.stringify(body),
+});
+
+if (!res.ok) {
+  throw new Error(`TTS request failed: ${res.status} ${await res.text()}`);
+}
+
+const buffer = Buffer.from(await res.arrayBuffer());
+await writeFile("output.mp3", buffer);
+Python
+import httpx
+
+body = {
+    "text": "Hello, world!",
+    "reference_id": "your_model_id",
+    "format": "mp3",
+}
+
+with httpx.Client() as client:
+    res = client.post(
+        "https://api.fish.audio/v1/tts",
+        headers={
+            "Authorization": "Bearer <YOUR_API_KEY>",
+            "Content-Type": "application/json",
+            "model": "s2.1-pro-free",
+        },
+        json=body,
+    )
+
+res.raise_for_status()
+
+with open("output.mp3", "wb") as f:
+    f.write(res.content)
+The only change from any other Fish Audio API call: set model: "s2.1-pro-free" in the headers. That's it.
+
+
+S2.1 Pro vs ElevenLabs and the Best TTS APIs in 2026
+Competitor information below is based on publicly available documentation and pricing pages as of June 2026. Pricing and features may change — verify directly with each provider before making a production decision.
+
+Comparison of free TTS APIs in 2026: Fish Audio S2.1-Pro vs ElevenLabs vs OpenAI TTS vs Google Cloud TTS
+
+For a deeper independent analysis, see our 
+
+Bottom line: Among the major TTS API providers we evaluated, Fish Audio currently offers one of the most generous free access models — the only one where the free tier runs the same state-of-the-art model as the paid tier, with no hard usage cap. ElevenLabs' free tier is effectively a trial at 10,000 credits. Google's most advanced TTS (Gemini TTS) has no free tier at all.
+
+Looking for a free ElevenLabs alternative that doesn't compromise on model quality? S2.1 Pro is available now with no usage cap.
+
+Looking for a free OpenAI TTS alternative? OpenAI's TTS offering has no free tier — S2.1 Pro is a compelling option to evaluate first.
+
+
+What You Can Build With It
+The free tier is intentionally unrestricted on use cases. Here are the scenarios where S2.1 Pro's combination of low-latency AI voice generation, multilingual support, and voice cloning tend to make the most difference.
+
+Voice Agents
+Real-time conversational AI lives and dies by latency. At ~90ms TTFA for standard calls, S2.1 Pro is fast enough for natural turn-taking dialogue. Pair it with a speech-to-text layer and an LLM for a full voice pipeline without a per-character bill. You can also integrate S2.1 Pro into agent workflows via our 
+
+Audiobooks and Long-Form Narration
+83-language support and natural prosody make S2.1 Pro well-suited for audiobook production and long-form speech synthesis. Unlimited usage means you can process full manuscripts without watching a character counter or pre-purchasing credits.
+
+Voice Cloning
+S2.1 Pro supports  via API — pass a reference audio sample and the model synthesizes speech in that voice. Build personalized voice applications, localize content with consistent speaker identity, or generate character voices for games and animation. Voice cloning is available on the free tier, subject to the same Fair Use Policy.
+
+Multilingual Applications
+If your application serves users across multiple languages, 83-language coverage with a single consistent AI voice API is a meaningful simplification over alternatives that require separate model endpoints per language or charge premium rates for non-English speech synthesis.
+
+Game NPC Dialogue
+Game audio pipelines benefit from high throughput and predictable cost per request. Unlimited free usage makes it practical to generate large dialogue libraries and iterate freely during development before committing to a production budget.
+
+Available Through Our Partner Ecosystem
+S2.1 Pro is also available through a growing number of partner platforms, including , , , and others.
+
+If you're already building on one of these platforms, S2.1 Pro is accessible without additional integration or setup — just use what you already have.
+
+We're actively expanding the partner network. If you're a platform or infrastructure provider interested in integrating S2.1 Pro,  to explore what's possible.
+
+Fair Use & What Comes Next
+The free tier operates under a Fair Use Policy. We reserve the right to throttle or limit access for usage patterns that look like abuse rather than development — the goal is to protect access for the whole developer community, not to create arbitrary limits for legitimate use cases. See  for details.
+
+A few things to expect:
+
+Free access is available now for an initial period. We'll give advance notice before anything changes.
+Paid plans with SLA guarantees, latency commitments, and commercial licensing are available for production workloads.
+Infrastructure investment is ongoing — the engineering work that made this free tier possible is not a one-time event.
+Open-source infrastructure: We plan to open-source the infrastructure components behind S2.1 Pro — the same stack that makes the free tier sustainable.
+If you're evaluating Fish Audio for a production deployment, the free tier is the right place to start. Build something real, measure what matters for your application, and reach out when you're ready to discuss production requirements.
+
+No credit card. No waitlist. No limit on what you can try.
+
+
