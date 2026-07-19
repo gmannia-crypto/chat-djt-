@@ -1,0 +1,12 @@
+#!/usr/bin/env sh
+#
+# Post-merge hook: run the persona image integrity check after every merge.
+# Prints a reminder if any portrait was added or replaced without updating
+# the manifest, but does NOT block the merge itself.
+#
+# To update the manifest after an intentional portrait change:
+#   node scripts/check-persona-images.js --update
+#   git add scripts/persona-image-manifest.json
+#
+
+bash scripts/post-merge.sh
