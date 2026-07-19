@@ -1,0 +1,14 @@
+#!/usr/bin/env sh
+#
+# Pre-commit hook: run the persona image integrity check before every commit.
+# Blocks the commit if any duplicate or mismatched portrait is detected.
+#
+# To skip in an emergency:  git commit --no-verify
+# To update the manifest after an intentional portrait change:
+#   node scripts/check-persona-images.js --update
+#   git add scripts/persona-image-manifest.json
+#
+
+echo "🔍 Checking persona images..."
+node scripts/check-persona-images.js
+exit $?

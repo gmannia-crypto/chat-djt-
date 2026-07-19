@@ -48,6 +48,30 @@ The backend is an Express 5 API gateway responsible for AI interactions, content
 - **Share App Templates**: Reusable `<ShareAppButton />` provides a global share button with pre-written templates for various app sections.
 - **Interview History Tags**: Saved interviews can have user-defined tags (max 8 per interview, 24 chars each, case-insensitive dedup) stored in a JSONB `tags` column on `interview_history`. The Past Interviews screen shows a horizontal filter pill row aggregated from all tags, lets users tag/untag from the row's action sheet, and surfaces tag chips on each row. The PATCH `/api/arena/interview-history/:id` endpoint accepts `{ title?, tags? }`.
 
+## Git Hooks (Persona Image Check)
+
+A pre-commit hook in `.husky/pre-commit` runs `node scripts/check-persona-images.js` automatically before every commit. It will **block the commit and print the offending files** if it detects:
+- Duplicate portraits (two persona slots containing the same image)
+- Mismatched names (a portrait saved under the wrong persona filename)
+- Unexpected changes (a portrait replaced without updating the manifest)
+
+**First-time setup** (needed once per clone / new contributor):
+```bash
+git config core.hooksPath .husky
+```
+This is already applied in the repo's local config, so existing contributors don't need to run it again.
+
+**After an intentional portrait replacement**, re-bless the manifest so the hook passes:
+```bash
+node scripts/check-persona-images.js --update
+git add scripts/persona-image-manifest.json
+```
+
+**Emergency bypass** (use sparingly):
+```bash
+git commit --no-verify
+```
+
 ## External Dependencies
 - **OpenAI API**: AI chat, audio transcription, and analysis.
 - **ESPN API**: Live sports data.
