@@ -62,8 +62,8 @@ function loadManifest() {
   try {
     return JSON.parse(fs.readFileSync(MANIFEST_PATH, "utf8"));
   } catch {
-    console.error(`ERROR: Could not parse ${MANIFEST_PATH}`);
-    process.exit(1);
+    console.error(`  ✗ Manifest file is corrupted (invalid JSON): ${MANIFEST_PATH}`);
+    return null;
   }
 }
 
@@ -303,7 +303,7 @@ function main() {
   let layer2Pass = true;
   if (!manifest) {
     console.error(
-      "  ✗ Manifest file missing (scripts/persona-image-manifest.json).\n" +
+      "  ✗ Manifest file missing or corrupted (scripts/persona-image-manifest.json).\n" +
       "    Regenerate it with:  node scripts/check-persona-images.js --update\n" +
       "    Then stage the updated manifest:  git add scripts/persona-image-manifest.json"
     );
