@@ -12,6 +12,17 @@
 
 echo "Post-merge: nothing to do (dist/ is production-only; dev serves from Metro)"
 
+# ── Ensure pre-commit hook is wired ─────────────────────────────────────────
+#
+# The `prepare` npm script sets core.hooksPath = .husky, but it only runs on
+# `npm install`. After a Replit task-agent merge the git config can be in a
+# fresh state with core.hooksPath unset, which silently disables the persona
+# image pre-commit check. Re-wire it unconditionally here so every merge
+# leaves the repo in a correctly-hooked state.
+
+git config core.hooksPath .husky
+echo "✓ core.hooksPath set to .husky"
+
 # ── Persona image manifest check ────────────────────────────────────────────
 #
 # Run the integrity check so contributors are reminded to update the manifest
