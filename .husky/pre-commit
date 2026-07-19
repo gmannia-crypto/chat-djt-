@@ -9,6 +9,15 @@
 #   git add scripts/persona-image-manifest.json
 #
 
+# Collect only staged persona portrait files
+STAGED=$(git diff --cached --name-only | grep '^assets/images/persona-.*\.png$')
+
+if [ -z "$STAGED" ]; then
+  echo "⚡ No persona images staged — skipping portrait check."
+  exit 0
+fi
+
 echo "🔍 Checking persona images..."
-node scripts/check-persona-images.js
+# shellcheck disable=SC2086
+node scripts/check-persona-images.js $STAGED
 exit $?

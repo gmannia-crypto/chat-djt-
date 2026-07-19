@@ -22,8 +22,13 @@
  *         --update to bless the new portrait and silence this warning.
  *
  * Usage:
- *   node scripts/check-persona-images.js           # run all checks
- *   node scripts/check-persona-images.js --update  # regenerate manifest from current files
+ *   node scripts/check-persona-images.js                        # check all portrait files
+ *   node scripts/check-persona-images.js f1.png f2.png ...      # check only the listed files
+ *   node scripts/check-persona-images.js --update               # regenerate manifest from current files
+ *
+ * When file paths are supplied as positional arguments the script only checks
+ * those files (e.g. the ones staged by the pre-commit hook) instead of
+ * scanning the full assets/images/ folder.
  *
  * Exit codes:
  *   0  — all checks passed (or manifest successfully updated)
@@ -124,7 +129,7 @@ function checkDuplicates(files, hashes) {
 // Layer 2: manifest mismatch check
 // ---------------------------------------------------------------------------
 
-function checkManifest(files, hashes, manifest) {
+function checkManifest(files, hashes, manifest, { partial = false } = {}) {
   // Build reverse map: hash → persona name (from manifest)
   const hashToManifestName = {};
   for (const [name, hash] of Object.entries(manifest)) {
@@ -162,11 +167,13 @@ function checkManifest(files, hashes, manifest) {
     }
   }
 
-  // Check for personas that are in the manifest but missing from disk
+  // Check for personas that are in the manifest but missing from disk.
+  // Skip this when doing a partial (staged-files-only) scan — unstaged files
+  // are not "missing", they just weren't part of this commit.
   const diskNames = new Set(files.map(personaNameFromPath));
-  const missingFromDisk = Object.keys(manifest).filter(
-    (n) => !diskNames.has(n)
-  );
+  const missingFromDisk = partial
+    ? []
+    : Object.keys(manifest).filter((n) => !diskNames.has(n));
 
   let passed = true;
 
@@ -245,12 +252,28 @@ function main() {
   const args = process.argv.slice(2);
   const isUpdate = args.includes("--update");
 
-  const files = globSync(IMAGES_GLOB).sort();
+  // Positional args (non-flag) are treated as an explicit file list supplied
+  // by the pre-commit hook (only staged portrait files).
+  const explicitFiles = args.filter(
+    (a) => !a.startsWith("--") && a.endsWith(".png")
+  );
 
-  if (files.length === 0) {
+  // When --update is requested always scan the full folder so the manifest
+  // covers every portrait on disk, not just staged ones.
+  const files = isUpdate || explicitFiles.length === 0
+    ? globSync(IMAGES_GLOB).sort()
+    : explicitFiles.filter((f) => fs.existsSync(f)).sort();
+
+  if (files.length === 0 && explicitFiles.length === 0) {
     console.error(`ERROR: No files matched "${IMAGES_GLOB}"`);
     console.error("  Check that the script is run from the project root.");
     process.exit(2);
+  }
+
+  // Explicit list supplied but none of the paths exist on disk (e.g. deletions)
+  if (files.length === 0) {
+    console.log("⚡ None of the supplied portrait file(s) exist on disk — nothing to check.");
+    process.exit(0);
   }
 
   if (isUpdate) {
@@ -259,7 +282,10 @@ function main() {
     return;
   }
 
-  console.log(`Checking ${files.length} persona image(s)...\n`);
+  const scope = explicitFiles.length > 0
+    ? `${files.length} staged portrait(s)`
+    : `${files.length} persona image(s)`;
+  console.log(`Checking ${scope}...\n`);
 
   // Pre-compute all hashes once (used by both checks)
   const hashes = {};
@@ -280,7 +306,7 @@ function main() {
       "  ⚠ No manifest found. Run  node scripts/check-persona-images.js --update  to create one."
     );
   } else {
-    layer2Pass = checkManifest(files, hashes, manifest);
+    layer2Pass = checkManifest(files, hashes, manifest, { partial: explicitFiles.length > 0 });
   }
 
   console.log("\n───────────────────────────────────────────────────────────────");
