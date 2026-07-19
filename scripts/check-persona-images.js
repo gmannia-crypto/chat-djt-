@@ -302,9 +302,12 @@ function main() {
   const manifest = loadManifest();
   let layer2Pass = true;
   if (!manifest) {
-    console.log(
-      "  ⚠ No manifest found. Run  node scripts/check-persona-images.js --update  to create one."
+    console.error(
+      "  ✗ Manifest file missing (scripts/persona-image-manifest.json).\n" +
+      "    Regenerate it with:  node scripts/check-persona-images.js --update\n" +
+      "    Then stage the updated manifest:  git add scripts/persona-image-manifest.json"
     );
+    layer2Pass = false;
   } else {
     layer2Pass = checkManifest(files, hashes, manifest, { partial: explicitFiles.length > 0 });
   }
