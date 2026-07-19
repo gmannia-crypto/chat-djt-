@@ -59,12 +59,18 @@ function personaNameFromPath(filePath) {
 
 function loadManifest() {
   if (!fs.existsSync(MANIFEST_PATH)) return null;
+  let parsed;
   try {
-    return JSON.parse(fs.readFileSync(MANIFEST_PATH, "utf8"));
+    parsed = JSON.parse(fs.readFileSync(MANIFEST_PATH, "utf8"));
   } catch {
     console.error(`  ✗ Manifest file is corrupted (invalid JSON): ${MANIFEST_PATH}`);
     return null;
   }
+  if (!parsed || typeof parsed !== "object" || Object.keys(parsed).length === 0) {
+    console.error(`  ✗ Manifest file is empty or blank: ${MANIFEST_PATH}`);
+    return null;
+  }
+  return parsed;
 }
 
 // ---------------------------------------------------------------------------
