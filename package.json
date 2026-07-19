@@ -15,7 +15,8 @@
     "start": "npx expo start",
     "lint": "npx expo lint",
     "lint:fix": "npx expo lint --fix",
-    "test:stale-dist": "node scripts/check-dev-no-stale-dist.js"
+    "test:stale-dist": "node scripts/check-dev-no-stale-dist.js",
+    "test:persona-check": "node scripts/check-persona-images.test.js"
   },
   "dependencies": {
     "@expo-google-fonts/playfair-display": "^0.4.2",
