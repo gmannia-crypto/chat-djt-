@@ -173,6 +173,8 @@ const PERSONA_OFFENSE_TRIGGERS: Record<string, RegExp> = {
   timscott: /\bsambo|uncle tom|sellout|house negro\b/i,
   candace:  /\btraitor|sellout|uncle tom|house negro\b/i,
   ruckus:   /\btraitor|sellout|house negro\b/i,
+  // Charlie Murphy — DEI attacks, racial slurs, dismissive insults, or questioning his credibility
+  charliemurphy: /\bdei\b|affirmative action hire|diversity hire|quota|thug|boy\b|criminal|jigsaw|jiggsaw|hood rat|ghetto|monkey|ape|token|you people|your kind|go back|shut up|sit down|nobody|irrelevant|washed up|who are you/i,
 };
 
 function moodFor(anger: number, frantic: number, happy: number, speaking: boolean): Mood {
