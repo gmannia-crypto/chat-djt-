@@ -454,6 +454,7 @@ export default function DebateStage() {
   const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const runningRef = useRef(false);
   const isPausedRef = useRef(false);
+  const consecutiveNullRef = useRef(0);
   const micCutRef = useRef({ iv: false, ivee: false });
   useEffect(() => { micCutRef.current = micCut; }, [micCut]);
 
@@ -1705,6 +1706,24 @@ export default function DebateStage() {
         speakMod(modQuestion, `modq-${Date.now()}-${Math.random()}`),
       ]);
       if (!runningRef.current || Date.now() >= sessionEndsAtRef.current) break;
+
+      // ── NULL GUARD: primary answer failed to load ──────────────────────────
+      // Without this guard, the moderator plays the bridge ("What do you say to
+      // that?") into the void — then asks a fresh question next round — making it
+      // sound like the AI stopped talking while the moderator just keeps going.
+      // Instead: skip the bridge/rebuttal, back off, and retry the same topic.
+      if (!primaryAnswer?.text) {
+        consecutiveNullRef.current += 1;
+        if (consecutiveNullRef.current >= 3) {
+          // Persistent failure — end the debate gracefully rather than looping silently.
+          runningRef.current = false;
+          setPhase("ended");
+          break;
+        }
+        await new Promise((r) => setTimeout(r, 1500 * consecutiveNullRef.current));
+        continue; // retry this topic round with the same moderator target
+      }
+      consecutiveNullRef.current = 0;
 
       // ── STEP 3+4: Bridge + await pre-fetched rebuttal in parallel ──────────
       // Use the already-in-flight rebuttalFetchPromise if available; otherwise
