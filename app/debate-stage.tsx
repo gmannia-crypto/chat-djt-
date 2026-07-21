@@ -1922,16 +1922,25 @@ export default function DebateStage() {
         const daySuffix = d === 1 || d === 21 || d === 31 ? "st" : d === 2 || d === 22 ? "nd" : d === 3 || d === 23 ? "rd" : "th";
         const dateStr = `${months[now.getMonth()]} ${d}${daySuffix}, ${now.getFullYear()}`;
         const welcomeText = `Today is ${dateStr}. This ${category} debate is brought to you by Dynamic Creations. I'm ${mod.name}, and we are getting right into it.`;
-        // Welcome TTS and opening question fetch run in parallel — no gap between them
+        // Welcome TTS and opening question fetch run in parallel.
+        // As soon as the question text arrives, also pre-fetch its TTS audio so
+        // there is zero gap between the welcome line and the first question.
         const [, prefetchedQuestion] = await Promise.all([
           speakModeratorNow(welcomeText, mod.personaId, { wait: true }).catch(() => {}),
           openTopic && deviceId
             ? generateModeratorQuestion({ deviceId, moderatorStyle, targetId: interviewerId ?? "", topic: openTopic, isTransition: false, conversationHistory: [] })
+                .then((q) => { if (q && voiceEnabledRef.current) startPrefetch({ text: q, personaId: mod.personaId }); return q; })
             : Promise.resolve(""),
         ]);
         await runModeratorOpening(openTopic, prefetchedQuestion || undefined);
       } catch {}
-      if (runningRef.current) runLoop();
+      if (runningRef.current) {
+        // Reset the timer to start NOW — after the intro — so the user gets the
+        // full chosen duration of actual debate content, not debate + intro time.
+        sessionEndsAtRef.current = Date.now() + duration * 60 * 1000;
+        setSecondsLeft(duration * 60);
+        runLoop();
+      }
     })();
   }, [deviceId, interviewerId, intervieweeId, topics, isStarting, duration, runLoop, runModeratorOpening, selectedTopicId, moderatorStyle, category]);
 
@@ -1979,7 +1988,11 @@ export default function DebateStage() {
           try {
             await runModeratorOpening(topics[startIdx2]);
           } catch {}
-          if (runningRef.current) runLoop();
+          if (runningRef.current) {
+            sessionEndsAtRef.current = Date.now() + duration * 60 * 1000;
+            setSecondsLeft(duration * 60);
+            runLoop();
+          }
         })();
       }
     } catch {} finally {

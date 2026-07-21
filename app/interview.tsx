@@ -1550,37 +1550,45 @@ export default function InterviewScreen() {
         const TTS_NAME_OVERRIDES: Record<string, string> = { malcolmx: "Brother Malcolm" };
         const _ivName = (interviewerId && TTS_NAME_OVERRIDES[interviewerId]) || interviewer?.name || "Your host";
         const introText = `Today is ${_dateStr}. This exclusive interview is brought to you by Dynamic Creations. I'm ${_ivName}, and we're getting started.`;
+        // Run intro TTS and API greeting fetch concurrently — the greeting API
+        // call resolves while the intro is still speaking, eliminating the
+        // 1-3 s silence gap that previously existed between intro and greeting.
+        let _gData: any = null;
         if (runningRef.current && interviewerId) {
           enrichAndAddMessage({ id: `intro-${Date.now()}`, speakerId: interviewerId, speakerName: _ivName, text: introText, ts: Date.now() });
-          // Wait for intro TTS to finish before the API greeting begins
-          await waitForQueueDrain();
+          [, _gData] = await Promise.all([
+            waitForQueueDrain(),
+            fetch(new URL("/api/arena/interview-greeting", getApiUrl()).toString(), {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ interviewerId, intervieweeId }),
+            }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+          ]);
         }
         // ── API greeting ───────────────────────────────────────────────────
-        const gRes = await fetch(new URL("/api/arena/interview-greeting", getApiUrl()).toString(), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ interviewerId, intervieweeId }),
-        });
-        if (gRes.ok && runningRef.current) {
-          const gData = await gRes.json();
-          if (gData?.interviewer?.text) {
-            enrichAndAddMessage({ id: `greet-iv-${Date.now()}`, speakerId: gData.interviewer.speakerId, speakerName: gData.interviewer.speakerName, text: gData.interviewer.text, ts: Date.now() });
-            // Pre-fetch the first question while the greeting TTS plays — eliminates
-            // the cold-start dead air gap at the top of the first runLoop beat.
-            nextQPromiseRef.current = fetchQuestion({
-              isFollowUp: false,
-              isTransition: false,
-              currentTopicArg: topicsRef.current[topicIdxRef.current] ?? null,
-            });
-            await waitForQueueDrain();
-          }
-          if (gData?.interviewee?.text && runningRef.current) {
-            enrichAndAddMessage({ id: `greet-ivee-${Date.now()}`, speakerId: gData.interviewee.speakerId, speakerName: gData.interviewee.speakerName, text: gData.interviewee.text, ts: Date.now() });
-            await waitForQueueDrain();
-          }
+        if (_gData?.interviewer?.text && runningRef.current) {
+          enrichAndAddMessage({ id: `greet-iv-${Date.now()}`, speakerId: _gData.interviewer.speakerId, speakerName: _gData.interviewer.speakerName, text: _gData.interviewer.text, ts: Date.now() });
+          // Pre-fetch the first question while the greeting TTS plays — eliminates
+          // the cold-start dead air gap at the top of the first runLoop beat.
+          nextQPromiseRef.current = fetchQuestion({
+            isFollowUp: false,
+            isTransition: false,
+            currentTopicArg: topicsRef.current[topicIdxRef.current] ?? null,
+          });
+          await waitForQueueDrain();
+        }
+        if (_gData?.interviewee?.text && runningRef.current) {
+          enrichAndAddMessage({ id: `greet-ivee-${Date.now()}`, speakerId: _gData.interviewee.speakerId, speakerName: _gData.interviewee.speakerName, text: _gData.interviewee.text, ts: Date.now() });
+          await waitForQueueDrain();
         }
       } catch {}
-      if (runningRef.current) runLoop();
+      if (runningRef.current) {
+        // Reset the timer to start NOW — after the intro — so the user gets the
+        // full chosen duration of actual interview content, not interview + intro time.
+        sessionEndsAtRef.current = Date.now() + duration * 60 * 1000;
+        setSecondsLeft(duration * 60);
+        runLoop();
+      }
     })();
   }, [deviceId, interviewerId, intervieweeId, topics, isStarting, duration, runLoop, enrichAndAddMessage, selectedTopicId, interviewer, waitForQueueDrain]);
 
@@ -1641,7 +1649,11 @@ export default function InterviewScreen() {
               }
             }
           } catch {}
-          if (runningRef.current) runLoop();
+          if (runningRef.current) {
+            sessionEndsAtRef.current = Date.now() + duration * 60 * 1000;
+            setSecondsLeft(duration * 60);
+            runLoop();
+          }
         })();
       }
     } catch {} finally {
