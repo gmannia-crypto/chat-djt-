@@ -27,6 +27,10 @@ import {
 } from "@/lib/debate-moderator";
 import { playDingSound } from "@/lib/arena-sfx";
 import { TokenWinVideo } from "@/components/TokenWinVideo";
+import {
+  placeInterviewBet, clearInterviewBet, getInterviewBet,
+  awardBetWin, resolveInterviewWinnerBet,
+} from "@/lib/debate-bets";
 
 type PersonaLite = { id: string; name: string };
 type Topic = { id: string; title: string; description: string; era: "current" | "past" };
@@ -442,6 +446,9 @@ export default function DebateStage() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const savedSessionRef = useRef(false);
   const [savedSessionId, setSavedSessionId] = useState<string | null>(null);
+  const [debateBetPick, setDebateBetPick] = useState<"interviewer" | "interviewee" | null>(null);
+  const [debateBetWager, setDebateBetWager] = useState(2);
+  const [debateBetResult, setDebateBetResult] = useState<{ won: boolean; payout: number; winner: "interviewer" | "interviewee" } | null>(null);
 
   const flatListRef = useRef<FlatList>(null);
   const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -2012,6 +2019,32 @@ export default function DebateStage() {
       });
   }, [phase, deviceId, interviewerId, intervieweeId, duration, lies, emoInterviewer, emoInterviewee, topics, fetchLieTally]);
 
+  // Resolve winner bet when debate ends
+  useEffect(() => {
+    if (phase !== "ended") return;
+    if (!interviewerId || !intervieweeId || !deviceId) return;
+    (async () => {
+      try {
+        const savedBet = await getInterviewBet();
+        if (!savedBet || savedBet.interviewerId !== interviewerId || savedBet.intervieweeId !== intervieweeId) return;
+        const msgs = messagesRef.current || [];
+        const { won, winner } = resolveInterviewWinnerBet(
+          savedBet.pick,
+          msgs.map((m) => ({ speakerId: m.speakerId, text: m.text })),
+          interviewerId,
+          intervieweeId,
+        );
+        const payout = won ? savedBet.wager * 2 : 0;
+        if (won) {
+          await awardBetWin(deviceId, payout, "Debate winner bet");
+          await refreshBalance();
+        }
+        await clearInterviewBet();
+        setDebateBetResult({ won, payout, winner });
+      } catch {}
+    })();
+  }, [phase, interviewerId, intervieweeId, deviceId]);
+
   const togglePause = useCallback(() => {
     const next = !isPausedRef.current;
     isPausedRef.current = next;
@@ -2374,6 +2407,76 @@ export default function DebateStage() {
               <Text style={{ color: "rgba(255,255,255,0.38)", fontSize: 11 }}>Set your own angle — bypass the generated questions</Text>
             )}
           </View>
+
+          {/* ── WINNER BET ───────────────────────────────────── */}
+          {interviewerId && intervieweeId && !debateBetPick && !debateBetResult && (
+            <View style={{ marginTop: 16, padding: 14, borderRadius: 14, borderWidth: 1.5, borderColor: "rgba(251,191,36,0.35)", backgroundColor: "rgba(251,191,36,0.06)" }}>
+              <Text style={{ color: "#FBBF24", fontSize: 13, fontWeight: "900", marginBottom: 4 }}>🎰 PREDICT THE WINNER</Text>
+              <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, marginBottom: 10 }}>Who dominates the debate? Win 2× your bet</Text>
+              <View style={{ flexDirection: "row", gap: 8, marginBottom: 10 }}>
+                {([
+                  { id: "interviewer" as const, label: debaterPool.find(p => p.id === interviewerId)?.name?.split(" ")[0] || "Debater A" },
+                  { id: "interviewee" as const, label: debaterPool.find(p => p.id === intervieweeId)?.name?.split(" ")[0] || "Debater B" },
+                ] as { id: "interviewer" | "interviewee"; label: string }[]).map((opt) => (
+                  <Pressable key={opt.id} onPress={() => { Haptics.selectionAsync(); setDebateBetPick(opt.id); }}
+                    style={{ flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center", borderWidth: 1.5, borderColor: "rgba(255,255,255,0.15)", backgroundColor: "rgba(255,255,255,0.04)" }}>
+                    <Text style={{ color: "#888", fontSize: 12, fontWeight: "700" }}>{opt.label}</Text>
+                    <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, marginTop: 2 }}>TAP TO PICK</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {debateBetPick && !debateBetResult && (() => {
+            const pickedName = debateBetPick === "interviewer"
+              ? (debaterPool.find(p => p.id === interviewerId)?.name?.split(" ")[0] || "Debater A")
+              : (debaterPool.find(p => p.id === intervieweeId)?.name?.split(" ")[0] || "Debater B");
+            return (
+              <View style={{ marginTop: 12, padding: 12, borderRadius: 12, borderWidth: 1.5, borderColor: "rgba(251,191,36,0.35)", backgroundColor: "rgba(251,191,36,0.06)" }}>
+                <Text style={{ color: "#FBBF24", fontSize: 12, fontWeight: "900", marginBottom: 8 }}>🎰 WINNER BET — Picked: {pickedName}</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                  <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 11 }}>Wager:</Text>
+                  {[1, 2, 3, 5].map((v) => (
+                    <Pressable key={v} onPress={() => setDebateBetWager(v)}
+                      style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 16, borderWidth: 1, borderColor: debateBetWager === v ? "#FBBF24" : "rgba(255,255,255,0.15)", backgroundColor: debateBetWager === v ? "rgba(251,191,36,0.15)" : "transparent" }}>
+                      <Text style={{ color: debateBetWager === v ? "#FBBF24" : "#888", fontSize: 11, fontWeight: "700" }}>{v}🪙</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <Pressable
+                    onPress={async () => {
+                      if (!interviewerId || !intervieweeId || !deviceId) return;
+                      const res = await fetch(new URL("/api/use-token", getApiUrl()).toString(), {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+                        body: JSON.stringify({ amount: debateBetWager, reason: "Debate winner bet" }),
+                      });
+                      if (!res.ok) { Alert.alert("Not enough tokens", `Need ${debateBetWager} tokens to place this bet.`); return; }
+                      await refreshBalance();
+                      await placeInterviewBet({ pick: debateBetPick, interviewerId, intervieweeId, wager: debateBetWager, placedAt: Date.now() });
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    }}
+                    style={{ flex: 1, backgroundColor: "#FBBF24", borderRadius: 10, paddingVertical: 10, alignItems: "center" }}>
+                    <Text style={{ color: "#000", fontSize: 13, fontWeight: "900" }}>LOCK IN ({debateBetWager}🪙)</Text>
+                  </Pressable>
+                  <Pressable onPress={() => setDebateBetPick(null)}
+                    style={{ paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: "rgba(255,255,255,0.15)", alignItems: "center" }}>
+                    <Text style={{ color: "#888", fontSize: 12 }}>Cancel</Text>
+                  </Pressable>
+                </View>
+              </View>
+            );
+          })()}
+
+          {debateBetResult && (
+            <View style={{ marginTop: 12, padding: 14, borderRadius: 12, borderWidth: 1.5, borderColor: debateBetResult.won ? "#4ADE80" : "#FF4D4D", backgroundColor: debateBetResult.won ? "rgba(74,222,128,0.08)" : "rgba(255,77,77,0.08)" }}>
+              <Text style={{ color: debateBetResult.won ? "#4ADE80" : "#FF4D4D", fontSize: 14, fontWeight: "900", textAlign: "center" }}>
+                {debateBetResult.won ? `🎉 BET WON! +${debateBetResult.payout}🪙` : `❌ BET LOST — ${debateBetResult.winner === "interviewer" ? "Debater A" : "Debater B"} dominated`}
+              </Text>
+            </View>
+          )}
 
           <Pressable
             onPress={startInterview}
@@ -2807,7 +2910,7 @@ export default function DebateStage() {
         <Animated.View entering={FadeInDown.duration(300)} style={[s.endedBar, { paddingBottom: insets.bottom + webBottom + 12 }]}>
           <Text style={s.endedTitle}>DEBATE COMPLETE</Text>
           <View style={{ flexDirection: "row", gap: 8, marginTop: 8, flexWrap: "wrap", justifyContent: "center" }}>
-            <Pressable onPress={() => setPhase("setup")} style={s.endedBtnSecondary}>
+            <Pressable onPress={() => { setPhase("setup"); setDebateBetPick(null); setDebateBetResult(null); }} style={s.endedBtnSecondary}>
               <Ionicons name="arrow-back" size={14} color="#fff" />
               <Text style={{ color: "#fff", fontSize: 12, fontWeight: "800" }}>NEW BOOKING</Text>
             </Pressable>

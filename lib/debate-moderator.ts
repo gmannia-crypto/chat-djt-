@@ -77,8 +77,8 @@ export const MODERATOR_LEANINGS: Record<ModeratorStyle, { favor: string[]; targe
   carlin: { favor: [], target: [] },
   // Tucker: right-populist — openly favors MAGA/anti-establishment, openly hostile to corporate Dems and neocons.
   tuckercarlson: {
-    favor: ["trump", "bannon", "melania", "ivanka", "galloway", "elon", "rfk"],
-    target: ["obama", "biden", "kamala", "schumer", "maddow", "joyreid", "aoc", "omar", "carville"],
+    favor: ["galloway", "rfk", "omar", "berniemc", "bannon"],
+    target: ["trump", "netanyahu", "graham", "obama", "biden", "kamala", "schumer", "maddow", "joyreid", "aoc", "carville"],
   },
 };
 
