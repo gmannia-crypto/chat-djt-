@@ -175,6 +175,8 @@ const PERSONA_OFFENSE_TRIGGERS: Record<string, RegExp> = {
   ruckus:   /\btraitor|sellout|house negro\b/i,
   // Charlie Murphy — DEI attacks, racial slurs, dismissive insults, or questioning his credibility
   charliemurphy: /\bdei\b|affirmative action hire|diversity hire|quota|thug|boy\b|criminal|jigsaw|jiggsaw|hood rat|ghetto|monkey|ape|token|you people|your kind|go back|shut up|sit down|nobody|irrelevant|washed up|who are you/i,
+  // Tucker Carlson — Putin puppet, white nationalist, or propaganda accusations trigger immediate pushback
+  tuckercarlson: /\bputin puppet|russian agent|kremlin\b|white nationalist|white supremacist|racist\b|propaganda machine|fox propaganda|fascist\b/i,
 };
 
 function moodFor(anger: number, frantic: number, happy: number, speaking: boolean): Mood {
@@ -247,7 +249,7 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   marcorubio: require("@/assets/images/persona-marcorubio.jpg"),
   desantis: require("@/assets/images/persona-desantis.jpg"),
   pastormanning: require("@/assets/images/persona-pastormanning.jpg"),
-  shahidbolson: require("@/assets/images/persona-shahid.png"),
+  shahidbolson: require("@/assets/images/persona-shahid.jpg"),
   mlk: require("@/assets/images/persona-mlk.jpg"),
   malcolmx: require("@/assets/images/persona-malcolmx.jpg"),
   samjackson: require("@/assets/images/persona-samjackson.jpg"),
@@ -268,6 +270,7 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   howardcosell: require("@/assets/images/persona-howardcosell.jpg"),
   charliemurphy: require("@/assets/images/persona-charliemurphy.jpg"),
   carlin: require("@/assets/images/persona-carlin.jpg"),
+  tuckercarlson: require("@/assets/images/persona-tuckercarlson.jpg"),
 };
 
 const FX_KEY = "interview_fx_enabled_v1";

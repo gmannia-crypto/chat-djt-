@@ -13,7 +13,7 @@ import { getApiUrl } from "@/lib/query-client";
 import { prefetchTTSAudio, playPrefetchedAudio, playTTS } from "@/lib/audio-helper";
 import { playCrowdCheer, playDingSound } from "@/lib/arena-sfx";
 
-export type ModeratorStyle = "cenk" | "galloway" | "hannity" | "maddow" | "megynkelly" | "odonnell" | "joyreid" | "maxkellerman" | "stephena" | "kaitlyncollins" | "gilbertgottfried" | "carlin";
+export type ModeratorStyle = "cenk" | "galloway" | "hannity" | "maddow" | "megynkelly" | "odonnell" | "joyreid" | "maxkellerman" | "stephena" | "kaitlyncollins" | "gilbertgottfried" | "carlin" | "tuckercarlson";
 
 export const MODERATORS: Record<ModeratorStyle, { name: string; personaId: string; bias: string }> = {
   cenk:             { name: "Cenk Uygur",          personaId: "cenk",             bias: "progressive" },
@@ -28,6 +28,7 @@ export const MODERATORS: Record<ModeratorStyle, { name: string; personaId: strin
   kaitlyncollins:   { name: "Kaitlan Collins",      personaId: "kaitlyncollins",   bias: "neutral" },
   gilbertgottfried: { name: "Gilbert Gottfried",    personaId: "gilbertgottfried", bias: "chaos" },
   carlin:           { name: "George Carlin",        personaId: "carlin",           bias: "anti-establishment" },
+  tuckercarlson:    { name: "Tucker Carlson",        personaId: "tuckercarlson",    bias: "right-populist" },
 };
 
 // Which personas each moderator is friendly to ("favor" — softball questions, quick to defend
@@ -74,6 +75,11 @@ export const MODERATOR_LEANINGS: Record<ModeratorStyle, { favor: string[]; targe
   gilbertgottfried: { favor: [], target: [] },
   // Carlin: equal-opportunity savage — no favorites anywhere on the political spectrum.
   carlin: { favor: [], target: [] },
+  // Tucker: right-populist — openly favors MAGA/anti-establishment, openly hostile to corporate Dems and neocons.
+  tuckercarlson: {
+    favor: ["trump", "bannon", "melania", "ivanka", "galloway", "elon", "rfk"],
+    target: ["obama", "biden", "kamala", "schumer", "maddow", "joyreid", "aoc", "omar", "carville"],
+  },
 };
 
 export type ModeratorLeaning = "favor" | "target" | "neutral";

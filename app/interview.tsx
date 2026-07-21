@@ -12,6 +12,7 @@ import { fetch } from "expo/fetch";
 import Animated, { FadeIn, FadeInDown, FadeInUp, FadeOut, useSharedValue, useAnimatedStyle, withTiming, withRepeat, withSequence, cancelAnimation } from "react-native-reanimated";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Audio } from "expo-av";
+import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import { getApiUrl } from "@/lib/query-client";
 import { useTokens } from "@/lib/token-context";
 import { usePersonaLocks, PREMIUM_PERSONA_CONFIGS } from "@/lib/persona-locks";
@@ -130,6 +131,10 @@ const PERSONA_OFFENSE_TRIGGERS: Record<string, RegExp> = {
   timscott: /\bsambo|uncle tom|sellout|house negro\b/i,
   candace:  /\btraitor|sellout|uncle tom|house negro\b/i,
   ruckus:   /\btraitor|sellout|house negro\b/i,
+  // Tucker Carlson — Putin puppet, white nationalist, or propaganda accusations trigger immediate pushback
+  tuckercarlson: /\bputin puppet|russian agent|kremlin\b|white nationalist|white supremacist|racist\b|propaganda machine|fox propaganda|fascist\b/i,
+  // Charlie Murphy — DEI attacks, racial slurs, dismissive insults, or questioning credibility
+  charliemurphy: /\bdei\b|affirmative action hire|diversity hire|quota|thug|boy\b|hood rat|ghetto|monkey|ape|token|you people|your kind|go back|shut up|irrelevant|washed up|who are you/i,
 };
 
 /**
@@ -195,7 +200,7 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   marcorubio: require("@/assets/images/persona-marcorubio.jpg"),
   desantis: require("@/assets/images/persona-desantis.jpg"),
   pastormanning: require("@/assets/images/persona-pastormanning.jpg"),
-  shahidbolson: require("@/assets/images/persona-shahid.png"),
+  shahidbolson: require("@/assets/images/persona-shahid.jpg"),
   mlk: require("@/assets/images/persona-mlk.jpg"),
   malcolmx: require("@/assets/images/persona-malcolmx.jpg"),
   samjackson: require("@/assets/images/persona-samjackson.jpg"),
@@ -217,6 +222,8 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   carlin: require("@/assets/images/persona-carlin.jpg"),
   pressley: require("@/assets/images/persona-pressley.png"),
   drbenj: require("@/assets/images/persona-drbenj.jpg"),
+  charliemurphy: require("@/assets/images/persona-charliemurphy.jpg"),
+  tuckercarlson: require("@/assets/images/persona-tuckercarlson.jpg"),
 };
 
 const FX_KEY = "interview_fx_enabled_v1";
@@ -252,6 +259,8 @@ const GUEST_CATEGORIES: Record<string, GuestCategory> = {
   pressley: "Political",
   drbenj: "History",
   carlin: "Entertainment",
+  charliemurphy: "Entertainment",
+  tuckercarlson: "Political",
 };
 
 // Lightweight emotion delta from text heuristics
@@ -555,6 +564,15 @@ export default function InterviewScreen() {
     }
   }, [phase]);
 
+  // Keep screen and audio active during live interview sessions
+  useEffect(() => {
+    if (phase === "live") {
+      activateKeepAwakeAsync("interview").catch(() => {});
+      return () => { deactivateKeepAwake("interview"); };
+    }
+    deactivateKeepAwake("interview");
+  }, [phase]);
+
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
   useEffect(() => () => {
@@ -802,6 +820,8 @@ export default function InterviewScreen() {
               const nextQueued = ttsQueueRef.current[0];
               const nextIsDifferentSpeaker = nextQueued && nextQueued.personaId !== item.personaId;
               if (!earlyResolved && nextIsDifferentSpeaker && remaining <= OVERLAP_MS && remaining > 0) {
+                // Duck outgoing speaker during overlap window for a natural conversational handoff
+                try { sound.setVolumeAsync(0.28).catch(() => {}); } catch {}
                 earlyResolve();
               }
             }
@@ -1339,6 +1359,23 @@ export default function InterviewScreen() {
           if (ans?.text && runningRef.current) {
             enrichAndAddMessage({ id: `a-${Date.now()}-${Math.random()}`, speakerId: ans.speakerId, speakerName: ans.speakerName, text: ans.text, ts: Date.now() });
             if (voiceEnabledRef.current) startPrefetch({ text: ans.text, personaId: ans.speakerId });
+            // Anger-scaled interruption + moderator pushback when guest is hostile
+            const lower = ans.text.toLowerCase();
+            const angerKeywords = ["fake", "liar", "idiot", "stupid", "pathetic", "traitor", "moron", "coward", "disgusting", "fraud"];
+            const angerHits = angerKeywords.reduce((c, w) => c + (lower.includes(w) ? 1 : 0), 0);
+            const offended = detectOffense(ans.text, interviewerId, ans.speakerId);
+            if (offended || angerHits >= 2) {
+              const retaliations = offended
+                ? ["I'm going to stop you right there.", "That's not how this works. Answer the question.", "You don't talk to me like that.", "We're not doing that here.", "That tells me everything I need to know about your answer."]
+                : MICRO_REACTIONS;
+              const txt = retaliations[Math.floor(Math.random() * retaliations.length)];
+              if (Math.random() < (offended ? 0.78 : 0.45)) {
+                setTimeout(() => { if (runningRef.current) playInterruptionAudio(txt, interviewerId); }, 350);
+              }
+            } else if (angerHits >= 1 && Math.random() < 0.22) {
+              const reaction = MICRO_REACTIONS[Math.floor(Math.random() * MICRO_REACTIONS.length)];
+              setTimeout(() => { if (runningRef.current) playInterruptionAudio(reaction, interviewerId); }, 600);
+            }
           }
         }),
         qDone, // resolves when interviewer clip finishes → answer starts (OVERLAP_MS)

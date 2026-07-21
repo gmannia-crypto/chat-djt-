@@ -1324,6 +1324,41 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       negative: ["patriotism", "god bless", "both sides", "career politician", "flag", "national interest", "bipartisan"],
     },
   },
+  tuckercarlson: {
+    id: "tuckercarlson",
+    name: "Tucker Carlson",
+    shortName: "Tucker",
+    color: "#7A6248",
+    faction: "supporter",
+    image: require("@/assets/images/persona-tuckercarlson.jpg"),
+    personality: {
+      energy: 65,
+      aggression: 68,
+      humor: 52,
+      catchphrases: ["Isn't that interesting.", "Of course.", "Think about what you just said.", "Why is that?", "Nobody ever asks this question.", "Wait — hold on."],
+    },
+    relationships: {
+      trump: { sentiment: 80 },
+      bannon: { sentiment: 75 },
+      elon: { sentiment: 70 },
+      galloway: { sentiment: 65 },
+      rfk: { sentiment: 70 },
+      obama: { sentiment: 18 },
+      biden: { sentiment: 12 },
+      kamala: { sentiment: 10 },
+      schumer: { sentiment: 8 },
+      maddow: { sentiment: 5 },
+      joyreid: { sentiment: 5 },
+      carville: { sentiment: 20 },
+      netanyahu: { sentiment: 35 },
+      graham: { sentiment: 28 },
+      mcconnell: { sentiment: 22 },
+    },
+    triggerWords: {
+      positive: ["deep state", "ruling class", "globalist", "censorship", "border", "elite", "neocon", "Ukraine", "war", "surveillance", "corporate media"],
+      negative: ["racist", "Putin puppet", "conspiracy theory", "far right", "extremist", "fascist", "white nationalist"],
+    },
+  },
   timscott: {
     id: "timscott",
     name: "Tim Scott",
@@ -2275,7 +2310,7 @@ const MYSTERY_UNLOCK_COSTS: Record<string, number> = {
 };
 const MYSTERY_UNLOCK_KEY = "arena_mystery_unlocked";
 
-const PERSONA_IDS = ["trump", "elon", "errol", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "carlin", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "leavitt", "erikakirk", "loomer", "bannon", "stephena", "malema", "hannity", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "aoc", "pressley", "joerogan", "timscott", "drbenj", "billclinton", "hillaryclinton", "marcorubio", "desantis"];
+const PERSONA_IDS = ["trump", "elon", "errol", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "carlin", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "leavitt", "erikakirk", "loomer", "bannon", "stephena", "malema", "hannity", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "aoc", "pressley", "joerogan", "timscott", "drbenj", "billclinton", "hillaryclinton", "marcorubio", "desantis", "tuckercarlson"];
 // Cartoon-style image filter — vivid posterized look on web
 const CARTOON_FILTER = Platform.OS === "web"
   ? ({ filter: "contrast(1.35) saturate(1.85) brightness(1.03)" } as any)
