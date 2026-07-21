@@ -561,9 +561,9 @@ export default function InterviewScreen() {
   useEffect(() => {
     if (phase === "live") {
       activateKeepAwakeAsync("interview").catch(() => {});
-      return () => { deactivateKeepAwake("interview"); };
+      return () => { try { deactivateKeepAwake("interview"); } catch {} };
     }
-    deactivateKeepAwake("interview");
+    try { deactivateKeepAwake("interview"); } catch {}
   }, [phase]);
 
   const [isListening, setIsListening] = useState(false);
