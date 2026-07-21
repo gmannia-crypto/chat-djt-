@@ -557,13 +557,14 @@ export default function InterviewScreen() {
     }
   }, [phase]);
 
-  // Keep screen and audio active during live interview sessions
+  // Keep screen and audio active during live interview sessions.
+  // Only run when phase IS "live" — the cleanup handles deactivation when
+  // the phase changes away, so there is no need (and it would crash) to
+  // call deactivateKeepAwake from the non-live branch.
   useEffect(() => {
-    if (phase === "live") {
-      activateKeepAwakeAsync("interview").catch(() => {});
-      return () => { try { deactivateKeepAwake("interview"); } catch {} };
-    }
-    try { deactivateKeepAwake("interview"); } catch {}
+    if (phase !== "live") return;
+    activateKeepAwakeAsync("interview").catch(() => {});
+    return () => { deactivateKeepAwake("interview"); };
   }, [phase]);
 
   const [isListening, setIsListening] = useState(false);
