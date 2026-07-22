@@ -1825,7 +1825,11 @@ export default function DebateStage() {
 
     }
     runningRef.current = false;
-    if (Date.now() >= sessionEndsAtRef.current) setPhase("ended");
+    // Always transition to ended when the loop terminates — whether the client
+    // timer expired, the server returned 403, or the null guard fired.
+    // Previously gated on Date.now() >= sessionEndsAtRef, which left the UI in
+    // a zombie "live" state when the server session expired before the client timer.
+    setPhase("ended");
   }, [topics, fetchAnswerFrom, enrichAndAddMessage, speakMod, moderatorStyle, deviceId, interviewerId, intervieweeId, interviewer, interviewee]);
 
   const startInterview = useCallback(async () => {

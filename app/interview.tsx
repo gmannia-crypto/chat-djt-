@@ -1458,7 +1458,9 @@ export default function InterviewScreen() {
       }
     }
     runningRef.current = false;
-    if (Date.now() >= sessionEndsAtRef.current) setPhase("ended");
+    // Always transition to ended when the loop terminates — whether the client
+    // timer expired, the server returned 403, or the null guard fired.
+    setPhase("ended");
   }, [topics, fetchQuestion, fetchAnswer, enrichAndAddMessage, waitForQueueDrain, enqueueTTSAndWait]);
 
   const startInterview = useCallback(async () => {

@@ -4880,7 +4880,10 @@ CRITICAL: If an opponent makes a claim that contradicts these or other well-esta
           balance: 0,
         });
       }
-      const expiry = Date.now() + sessionMs;
+      // Add a 2-minute intro buffer so the server session covers the full chosen
+      // debate duration PLUS the opening intro (welcome TTS + first question).
+      const SESSION_INTRO_BUFFER_MS = 2 * 60 * 1000;
+      const expiry = Date.now() + sessionMs + SESSION_INTRO_BUFFER_MS;
       await setArenaAccess(deviceId, { ...access, sessionExpiry: expiry }, ipAddress);
       const balance = await getTokenBalance(deviceId);
       const grantedMinutes = Object.keys(ARENA_SESSION_DURATIONS).find(k => ARENA_SESSION_DURATIONS[Number(k)].ms === sessionMs);
@@ -4932,7 +4935,8 @@ CRITICAL: If an opponent makes a claim that contradicts these or other well-esta
       }
       // No cooldown — always grant a fresh 2-min trial when users are out of free turns.
       // Paying for a session remains the path to longer debates.
-      const expiry = now + ARENA_DAILY_TRIAL_MS;
+      const SESSION_INTRO_BUFFER_MS = 2 * 60 * 1000;
+      const expiry = now + ARENA_DAILY_TRIAL_MS + SESSION_INTRO_BUFFER_MS;
       await setArenaAccess(deviceId, { ...access, sessionExpiry: expiry, lastTrialAt: now }, ipAddress);
       res.json({ granted: true, expiresAt: expiry, durationMinutes: Math.round(ARENA_DAILY_TRIAL_MS / 60000) });
     } catch (error: any) {
