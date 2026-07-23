@@ -1339,9 +1339,16 @@ export default function InterviewScreen() {
       enrichAndAddMessage({ id: qId, speakerId: q.speakerId, speakerName: q.speakerName, text: q.text, ts: Date.now(), skipTTS: true });
       const qDone = enqueueTTSAndWait(q.text, q.speakerId, qId);
 
-      // Kick off answer AND follow-up fetches immediately — both race against Q+A audio
+      // Kick off answer AND follow-up fetches immediately — both race against Q+A audio.
+      // As soon as the follow-up text arrives, also prefetch its TTS audio so it's
+      // ready to play the moment waitForQueueDrain() resolves — eliminates the
+      // 1-2 s dead-air gap between the guest answer and the next interviewer question.
       const answerPromise = fetchAnswer(q.text, { wasInterrupted: false });
-      const followUpPromise = fetchQuestion({ isFollowUp: true, isTransition: false, currentTopicArg: topic });
+      const followUpPromise = fetchQuestion({ isFollowUp: true, isTransition: false, currentTopicArg: topic })
+        .then((fq) => {
+          if (fq?.text && voiceEnabledRef.current) startPrefetch({ text: fq.text, personaId: fq.speakerId });
+          return fq;
+        });
 
       // ── BEAT 2: Guest answers (while Q plays, answer is fetched & enqueued) ────
       setIsThinking("interviewee");
@@ -1363,12 +1370,22 @@ export default function InterviewScreen() {
                 ? ["I'm going to stop you right there.", "That's not how this works. Answer the question.", "You don't talk to me like that.", "We're not doing that here.", "That tells me everything I need to know about your answer."]
                 : MICRO_REACTIONS;
               const txt = retaliations[Math.floor(Math.random() * retaliations.length)];
-              if (Math.random() < (offended ? 0.78 : 0.45)) {
+              if (Math.random() < (offended ? 0.85 : 0.60)) {
                 setTimeout(() => { if (runningRef.current) playInterruptionAudio(txt, interviewerId); }, 350);
               }
-            } else if (angerHits >= 1 && Math.random() < 0.22) {
+            } else if (angerHits >= 1 && Math.random() < 0.45) {
               const reaction = MICRO_REACTIONS[Math.floor(Math.random() * MICRO_REACTIONS.length)];
               setTimeout(() => { if (runningRef.current) playInterruptionAudio(reaction, interviewerId); }, 600);
+            } else {
+              // Base-rate passive listener reaction — fires ~40% of the time even on calm
+              // answers so the interviewer sounds engaged throughout, not just on hostile answers.
+              // Delay is timed to hit 40-65% through the estimated audio clip.
+              if (interviewerId && Math.random() < 0.40) {
+                const estMs = Math.max(2500, (ans.text.length / 14) * 1000);
+                const delay = estMs * (0.40 + Math.random() * 0.25);
+                const reaction = MICRO_REACTIONS[Math.floor(Math.random() * MICRO_REACTIONS.length)];
+                setTimeout(() => { if (runningRef.current) playInterruptionAudio(reaction, interviewerId); }, delay);
+              }
             }
           }
         }),
@@ -1501,19 +1518,19 @@ export default function InterviewScreen() {
       return;
     }
 
-    // Only reuse server's expiresAt if it covers at least 80% of the selected
-    // duration — an old session with little time left would make the interview
-    // end immediately. Otherwise use the full selected duration; the backend
-    // grace period + graceful 403 handler ensures a clean end if server-side
-    // access expires first.
+    // Client timer always shows exactly the chosen duration.
+    // The server grants duration + 2 min buffer, so Math.min caps the display
+    // at selectedMs for new sessions while still honouring a shorter remaining
+    // window on an existing session (e.g. user has 2 min left on a 5-min pass).
     const selectedMs = duration * 60 * 1000;
     const serverRemaining = serverExpiresAt ? serverExpiresAt - Date.now() : 0;
-    const endsAt = serverRemaining >= selectedMs * 0.80
-      ? serverExpiresAt!
-      : Date.now() + selectedMs;
+    const clientMs = serverRemaining > 0
+      ? Math.min(serverRemaining, selectedMs)
+      : selectedMs;
+    const endsAt = Date.now() + clientMs;
     sessionStartedAtRef.current = Date.now();
     sessionEndsAtRef.current = endsAt;
-    setSecondsLeft(Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)));
+    setSecondsLeft(Math.ceil(clientMs / 1000));
     setMessages([]);
     const startIdx = selectedTopicId ? Math.max(0, topics.findIndex(t => t.id === selectedTopicId)) : 0;
     setTopicIdx(startIdx);

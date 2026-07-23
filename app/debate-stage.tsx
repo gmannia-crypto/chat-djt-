@@ -1870,19 +1870,19 @@ export default function DebateStage() {
       return;
     }
 
-    // Only reuse server's expiresAt if it covers at least 80% of the selected
-    // duration — an old session with little time left would make the interview
-    // end immediately. Otherwise use the full selected duration; the backend
-    // grace period + graceful 403 handler ensures a clean end if server-side
-    // access expires first.
+    // Client timer always shows exactly the chosen duration.
+    // The server grants duration + 2 min buffer, so Math.min caps the display
+    // at selectedMs for new sessions while still honouring a shorter remaining
+    // window on an existing session (e.g. user has 2 min left on a 5-min pass).
     const selectedMs = duration * 60 * 1000;
     const serverRemaining = serverExpiresAt ? serverExpiresAt - Date.now() : 0;
-    const endsAt = serverRemaining >= selectedMs * 0.80
-      ? serverExpiresAt!
-      : Date.now() + selectedMs;
+    const clientMs = serverRemaining > 0
+      ? Math.min(serverRemaining, selectedMs)
+      : selectedMs;
+    const endsAt = Date.now() + clientMs;
     sessionStartedAtRef.current = Date.now();
     sessionEndsAtRef.current = endsAt;
-    setSecondsLeft(Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)));
+    setSecondsLeft(Math.ceil(clientMs / 1000));
     setMessages([]);
     const startIdx = selectedTopicId ? Math.max(0, topics.findIndex(t => t.id === selectedTopicId)) : 0;
     setTopicIdx(startIdx);
