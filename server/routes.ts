@@ -74,8 +74,8 @@ const MODEL_CONFIG = {
     description: "Best quality responses, most natural persona voices. Higher cost.",
   },
   budget: {
-    chat: "deepseek-chat",
-    fast: "deepseek-chat",
+    chat: "deepseek-v4-pro",
+    fast: "deepseek-v4-flash",
     label: "DeepSeek V3 (Budget)",
     costPer1kTokens: { input: 0.00014, output: 0.00028 },
     description: "Very affordable, good quality. ~98% cheaper than GPT-5.2.",
