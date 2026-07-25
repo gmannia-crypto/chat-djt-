@@ -15619,6 +15619,7 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
   };
 
   const NEWS_ANCHOR_VOICE_IDS: Record<string, string> = {
+    gilbertgottfried: "1bbbc9371bd1406abc11714976f3215c",
     carville: "ce3ba02102a34819abd74838d220d68e",
     carlin: "e9b52eb5b13b4c47933ca28592230ff2",
     ruckus: "35cec18b290d4896b92644f2298330ab",
@@ -15661,7 +15662,6 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
       const stories = unique.slice(0, storyCount);
       if (stories.length === 0) return res.status(503).json({ error: "Could not fetch news headlines" });
 
-      const openai = new OpenAI();
       const segments = await Promise.all(stories.map(async (story: any, idx: number) => {
         try {
           const resp = await openai.chat.completions.create({
