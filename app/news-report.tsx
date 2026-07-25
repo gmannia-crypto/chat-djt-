@@ -37,6 +37,7 @@ type Segment = {
   source: string;
   url: string;
   commentary: string;
+  speakerText?: string; // GPT-generated text with transitions; falls back to commentary
   speakerId: string;
 };
 
@@ -105,11 +106,10 @@ export default function NewsReportScreen() {
 
   const speakSegment = useCallback(async (seg: Segment, themeColor: string) => {
     if (cancelRef.current) return;
-    setActiveSegment(seg.index - 1);
+    setActiveSegment(seg.index);
     setPlayingAudio(true);
 
-    const intro = seg.index === 1 ? `Welcome to ${report?.anchor.showName || "the news"}. ` : `Story ${seg.index}. `;
-    const fullText = intro + seg.commentary;
+    const fullText = seg.speakerText || seg.commentary;
 
     try {
       const apiUrl = getApiUrl();
@@ -312,7 +312,7 @@ export default function NewsReportScreen() {
                 <View style={styles.onAirInfo}>
                   <Text style={[styles.onAirShowName, { color: themeColor }]}>{report.anchor.showName}</Text>
                   <Text style={styles.onAirAnchorName}>{report.anchor.name}</Text>
-                  <Text style={styles.onAirDuration}>{report.segments.length} stories · {report.duration} min</Text>
+                  <Text style={styles.onAirDuration}>{report.segments.length - 1} stories · {report.duration} min</Text>
                 </View>
               </View>
               <View style={styles.onAirRight}>
@@ -333,11 +333,44 @@ export default function NewsReportScreen() {
               </View>
             </View>
 
-            {/* Story Cards */}
+            {/* Segment Cards */}
             {report.segments.map((seg, idx) => {
-              const isActive = activeSegment === idx;
+              const isActive = activeSegment === seg.index;
+              const isIntro = seg.index === 0;
+
+              if (isIntro) {
+                // Opening card — anchor intro
+                return (
+                  <Animated.View key="intro" entering={FadeInRight.delay(0).duration(400)}>
+                    <Pressable
+                      onPress={() => { if (!isAutoPlaying) { cancelRef.current = false; startAutoPlay(report.segments, report.anchor.themeColor); } }}
+                      style={[styles.introCard, isActive && { borderColor: themeColor, backgroundColor: themeColor + "11" }]}
+                    >
+                      <View style={styles.storyMeta}>
+                        <View style={[styles.storyNumBadge, { backgroundColor: isActive ? themeColor : "#222" }]}>
+                          {isActive && playingAudio
+                            ? <MaterialCommunityIcons name="waveform" size={12} color="#000" />
+                            : <Ionicons name="mic" size={12} color={isActive ? "#000" : themeColor} />
+                          }
+                        </View>
+                        <Text style={[styles.storySource, { color: themeColor + "cc" }]}>OPENING · {report.anchor.showName}</Text>
+                        {!isAutoPlaying && <Ionicons name="play-circle-outline" size={16} color="#444" style={{ marginLeft: "auto" }} />}
+                      </View>
+                      <View style={[styles.commentaryBox, isActive && { borderLeftColor: themeColor }]}>
+                        <Text style={[styles.commentaryText, { fontStyle: "normal", color: isActive ? "#ddd" : "#888" }]}>{seg.commentary}</Text>
+                      </View>
+                      {isActive && (
+                        <View style={[styles.chyron, { backgroundColor: themeColor }]}>
+                          <Text style={styles.chyronText}>GOOD EVENING · {report.anchor.name.toUpperCase()}</Text>
+                        </View>
+                      )}
+                    </Pressable>
+                  </Animated.View>
+                );
+              }
+
               return (
-                <Animated.View key={seg.index} entering={FadeInRight.delay(idx * 120).duration(400)}>
+                <Animated.View key={seg.index} entering={FadeInRight.delay(idx * 100).duration(400)}>
                   <Pressable
                     onPress={() => { if (!isAutoPlaying) { cancelRef.current = false; startAutoPlay(report.segments.slice(idx), report.anchor.themeColor); } }}
                     style={[styles.storyCard, isActive && { borderColor: themeColor, backgroundColor: themeColor + "11" }]}
@@ -445,6 +478,8 @@ const styles = StyleSheet.create({
   liveTagText: { fontSize: 10, fontWeight: "800", color: "#fff", letterSpacing: 1 },
   stopBtn: { marginTop: 2 },
 
+  // Intro card
+  introCard: { borderRadius: 12, borderWidth: 1, borderColor: "#1a1a2e", backgroundColor: "#0a0a12", padding: 14, marginTop: 10 },
   // Story cards
   storyCard: { borderRadius: 12, borderWidth: 1, borderColor: "#1a1a2e", backgroundColor: "#0d0d15", padding: 14, marginTop: 10 },
   storyMeta: { flexDirection: "row", alignItems: "center", marginBottom: 8, gap: 8 },

@@ -15697,28 +15697,82 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
       const stories = unique.slice(0, storyCount);
       if (stories.length === 0) return res.status(503).json({ error: "Could not fetch news headlines" });
 
-      const segments = await Promise.all(stories.map(async (story: any, idx: number) => {
-        try {
-          const resp = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
-            messages: [
-              { role: "system", content: anchor.system + `\n\nKeep your commentary to approximately ${commentaryWords} words. You are live on air. Be punchy and in character.` },
-              { role: "user", content: `Breaking news headline: "${story.title}" (source: ${story.source})\n\nGive your commentary.` },
-            ],
-            max_tokens: 250, temperature: 0.92,
-          });
-          return {
-            index: idx + 1,
-            headline: story.title,
-            source: story.source,
-            url: story.url,
-            commentary: resp.choices[0]?.message?.content?.trim() || "",
-            speakerId: anchorId,
-          };
-        } catch {
-          return { index: idx + 1, headline: story.title, source: story.source, url: story.url, commentary: `${anchor.name} has stepped away from the desk briefly.`, speakerId: anchorId };
-        }
-      }));
+      // Single GPT call — full broadcast script with intro + smooth transitions
+      const storyList = stories.map((s: any, i: number) => `Story ${i + 1}: "${s.title}" (source: ${s.source})`).join("\n");
+      const wordsPerStory = commentaryWords;
+
+      let scriptSegments: { type: string; index?: number; text: string }[] = [];
+      try {
+        const resp = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: anchor.system,
+            },
+            {
+              role: "user",
+              content: `You are going live on ${anchor.showName}. Write a complete broadcast script covering ${storyCount} stories.
+
+IMPORTANT — write this as ONE cohesive broadcast, not isolated blurbs:
+
+1. Open with a proper on-air introduction: say your name, welcome viewers to ${anchor.showName}, and tease what's coming up. Stay fully in character. (~30-40 words)
+
+2. Cover each story below in order. For story 2 onward, begin with a natural transition phrase before diving in — things like "Turning now to...", "Meanwhile...", "And in other news...", "Next tonight...", "Now moving to...", "Speaking of disasters...", etc. Each story commentary should be ~${wordsPerStory} words.
+
+Stories to cover:
+${storyList}
+
+Return ONLY valid JSON (no markdown, no code fences), exactly this shape:
+[
+  {"type":"intro","text":"...your opening introduction..."},
+  {"type":"story","index":1,"text":"...transition + commentary for story 1..."},
+  {"type":"story","index":2,"text":"...transition phrase + commentary for story 2..."},
+  ${stories.slice(2).map((_: any, i: number) => `{"type":"story","index":${i + 3},"text":"...transition + commentary..."}`).join(",\n  ")}
+]`,
+            },
+          ],
+          max_tokens: 1800,
+          temperature: 0.92,
+          response_format: { type: "json_object" },
+        });
+
+        const raw = resp.choices[0]?.message?.content?.trim() || "{}";
+        // GPT may wrap the array in an object key
+        const parsed = JSON.parse(raw);
+        const arr: any[] = Array.isArray(parsed) ? parsed : (parsed.segments || parsed.broadcast || parsed.script || Object.values(parsed)[0]);
+        if (Array.isArray(arr)) scriptSegments = arr;
+      } catch (e) {
+        console.error("news-report GPT error:", e);
+      }
+
+      // Build final segments — intro at index 0, stories follow
+      const introEntry = scriptSegments.find((s) => s.type === "intro");
+      const introSegment = {
+        index: 0,
+        headline: `${anchor.showName} — Opening`,
+        source: "LIVE BROADCAST",
+        url: "",
+        commentary: introEntry?.text || `Good evening. I'm ${anchor.name}. Welcome to ${anchor.showName}. Let's get into it.`,
+        speakerText: introEntry?.text || `Good evening. I'm ${anchor.name}. Welcome to ${anchor.showName}. Let's get into it.`,
+        speakerId: anchorId,
+      };
+
+      const storySegments = stories.map((story: any, idx: number) => {
+        const match = scriptSegments.find((s) => s.type === "story" && s.index === idx + 1);
+        const text = match?.text || `${anchor.name} is gathering more information on this story.`;
+        return {
+          index: idx + 1,
+          headline: story.title,
+          source: story.source,
+          url: story.url,
+          commentary: text,
+          speakerText: text,
+          speakerId: anchorId,
+        };
+      });
+
+      const segments = [introSegment, ...storySegments];
 
       res.json({
         anchor: { id: anchorId, name: anchor.name, showName: anchor.showName, bio: anchor.bio, themeColor: anchor.themeColor },
