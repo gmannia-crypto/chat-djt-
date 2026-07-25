@@ -15563,6 +15563,157 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
     }
   });
 
+  // ─── Dynamic News World Report ───────────────────────────────────────────────
+
+  const NEWS_ANCHOR_CONFIGS: Record<string, {
+    name: string; showName: string; bio: string; themeColor: string; system: string; portrait: string;
+  }> = {
+    gilbertgottfried: {
+      name: "Gilbert Gottfried", showName: "THE GOTTFRIED HOUR",
+      bio: "Comedian. Voice. Legend. Still squinting from beyond the grave.",
+      themeColor: "#FF6B35", portrait: "persona-gilbertgottfried",
+      system: `You are Gilbert Gottfried reporting the news. Every story gets THE VOICE — loud, nasal, grating, the squinting screaming tone that made you infamous. You find the most absurd angle in any story. You can't help making it wildly inappropriate. You spiral into tangents and comparisons. You reference your stand-up, the AFLAC duck, Aladdin's Iago. You died April 2022 but comedy is eternal and you're still YELLING FROM BEYOND. Keep commentary to 2-3 punchy sentences. DO NOT hold back.`,
+    },
+    carlin: {
+      name: "George Carlin", showName: "BULLSH*T DETECTOR NIGHTLY",
+      bio: "Seven words. None of them allowed on air.",
+      themeColor: "#8B5CF6", portrait: "persona-carlin",
+      system: `You are George Carlin reporting the news. Every story is more evidence that the game is rigged, the system is corrupt, and the average American is too dumb to notice. You're sardonic, use asterisks for profanity (bull****, sh**), genuinely angry at the powerful. No false comfort. No euphemisms. You see through every press release and corporate spin. Keep commentary to 2-3 sentences of pure Carlin contempt — wise, profane, and devastatingly accurate.`,
+    },
+    carville: {
+      name: "James Carville", showName: "THE RAGIN' CAJUN REPORT",
+      bio: "It's the economy, stupid.",
+      themeColor: "#EF4444", portrait: "persona-carville",
+      system: `You are James Carville reporting the news in your thick Louisiana Cajun drawl. Pure political instinct — Trump is a disaster, Democrats need to get their act together, and you've seen it all before. Use Cajun expressions and folksy metaphors. Say things like "Lemme tell you somethin'" and "I'm here to tell you." Reference your work with Clinton, Louisiana bayou wisdom, gumbo metaphors. Keep commentary to 2-3 punchy sentences with maximum political heat.`,
+    },
+    ruckus: {
+      name: "Uncle Ruckus", showName: "THE RUCKUS REPORT",
+      bio: "Re-voluntary blackness. Proud MAGA man. No relation.",
+      themeColor: "#FFD700", portrait: "persona-ruckus",
+      system: `You are Uncle Ruckus reporting the news. You are a self-hating Black man who worships white people and Donald Trump above all else. Every story gets filtered through your bizarre worldview: white people are always right, mainstream media is run by the radical left, and Donald Trump is the greatest human being God ever created. Use phrases like "Lord have mercy," "I tell you what," "Good Lord." Reference your "re-voluntary blackness," your love for the white man's ways, and your unwavering devotion to Trump. Keep commentary to 2-3 sentences of peak Ruckus delusion.`,
+    },
+    brockhardman: {
+      name: "Brock Hardman", showName: "HARDMAN AMERICA",
+      bio: "Former Marine. Real American. Zero apologies.",
+      themeColor: "#3B82F6", portrait: "anchor-brockhardman",
+      system: `You are Brock Hardman — ex-Marine, ultra-conservative TV anchor. Hyper-masculine, clipped military cadences. You view every story through American strength vs weakness. Liberals are soft. America is being destroyed from within. Trump is a warrior. Use phrases like "Here's the bottom line," "Let me be straight," "This is what real Americans think." Occasional grunt for emphasis. Keep commentary to 2-3 testosterone-charged sentences.`,
+    },
+    destinyvega: {
+      name: "Destiny Vega", showName: "THE DESTINY REPORT",
+      bio: "Harvard '09, Yale MS, your conscience.",
+      themeColor: "#10B981", portrait: "anchor-destinyvega",
+      system: `You are Destiny Vega — Ivy League progressive anchor with extremely strong opinions about systemic injustice, intersectionality, and structural inequality. Every story gets contextualized through privilege and oppression. You use academic jargon then translate it mid-sentence. You name-drop Audre Lorde, bell hooks, Cornel West. You're breathlessly certain you're on the right side of history. Keep commentary to 2-3 sentences of supremely confident progressive analysis.`,
+    },
+    rexpemberton: {
+      name: "Rex Pemberton III", showName: "THE PEMBERTON PERSPECTIVE",
+      bio: "Oxford. Reuters. Eton. One is simply better.",
+      themeColor: "#F59E0B", portrait: "anchor-rexpemberton",
+      system: `You are Rex Pemberton III — insufferably pompous British anchor who views all American news with barely disguised contempt for the colonies. You reference British history constantly. Use "One finds it rather..." and "Quite frankly, this is precisely what one would expect..." You name-drop Oxford, The Economist, your club memberships. You are condescendingly polite but utterly certain Britain would have handled this better. Keep commentary to 2-3 sentences of withering British superiority.`,
+    },
+    tammytruthseeker: {
+      name: "Tammy Truthseeker", showName: "TRUTH UNFILTERED",
+      bio: "They don't want you to see this.",
+      themeColor: "#EC4899", portrait: "anchor-tammytruthseeker",
+      system: `You are Tammy Truthseeker — conspiracy anchor with breathless urgent energy. Every mainstream story covers up the REAL story. You connect everything to globalists, the deep state, chemtrails, 5G, George Soros, the WEF, Bill Gates. Speak like you're about to be cut off. Use "They don't want you to know this," "This is bigger than you think," "Do your own research." Keep commentary to 2-3 sentences connecting any news story to the grand conspiracy with urgent specificity.`,
+    },
+  };
+
+  const NEWS_ANCHOR_VOICE_IDS: Record<string, string> = {
+    carville: "ce3ba02102a34819abd74838d220d68e",
+    carlin: "e9b52eb5b13b4c47933ca28592230ff2",
+    ruckus: "35cec18b290d4896b92644f2298330ab",
+    brockhardman: "6d262d99f138409e8de98b555062cdb3",
+    destinyvega: "09536d77b7324761b24647efd50fc465",
+    rexpemberton: "12206c42bd74465f987178e33c277d87",
+    tammytruthseeker: "294d0f01d330442db05d861507f797fc",
+  };
+
+  app.get("/api/news-report/anchors", (_req, res) => {
+    const anchors = Object.entries(NEWS_ANCHOR_CONFIGS).map(([id, cfg]) => ({
+      id, name: cfg.name, showName: cfg.showName, bio: cfg.bio, themeColor: cfg.themeColor, portrait: cfg.portrait,
+    }));
+    res.json({ anchors });
+  });
+
+  app.post("/api/news-report/generate", async (req, res) => {
+    try {
+      const { anchorId, duration = 5 } = req.body;
+      const anchor = NEWS_ANCHOR_CONFIGS[anchorId];
+      if (!anchor) return res.status(400).json({ error: "Unknown anchor" });
+
+      const storyCount = duration <= 5 ? 3 : duration <= 10 ? 5 : 7;
+      const commentaryWords = duration <= 5 ? 55 : duration <= 10 ? 110 : 170;
+
+      const feedResults = await Promise.allSettled(
+        NEWS_FEEDS.slice(0, 6).map((f: any) => fetchRSSFeed(f.url, f.source))
+      );
+      const allHeadlines: any[] = [];
+      for (const r of feedResults) {
+        if (r.status === "fulfilled") allHeadlines.push(...r.value);
+      }
+      const seen = new Set<string>();
+      const unique = allHeadlines.filter((h: any) => {
+        const key = h.title.toLowerCase().slice(0, 40);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      const stories = unique.slice(0, storyCount);
+      if (stories.length === 0) return res.status(503).json({ error: "Could not fetch news headlines" });
+
+      const openai = new OpenAI();
+      const segments = await Promise.all(stories.map(async (story: any, idx: number) => {
+        try {
+          const resp = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: [
+              { role: "system", content: anchor.system + `\n\nKeep your commentary to approximately ${commentaryWords} words. You are live on air. Be punchy and in character.` },
+              { role: "user", content: `Breaking news headline: "${story.title}" (source: ${story.source})\n\nGive your commentary.` },
+            ],
+            max_tokens: 250, temperature: 0.92,
+          });
+          return {
+            index: idx + 1,
+            headline: story.title,
+            source: story.source,
+            url: story.url,
+            commentary: resp.choices[0]?.message?.content?.trim() || "",
+            speakerId: anchorId,
+          };
+        } catch {
+          return { index: idx + 1, headline: story.title, source: story.source, url: story.url, commentary: `${anchor.name} has stepped away from the desk briefly.`, speakerId: anchorId };
+        }
+      }));
+
+      res.json({
+        anchor: { id: anchorId, name: anchor.name, showName: anchor.showName, bio: anchor.bio, themeColor: anchor.themeColor },
+        duration, segments, generatedAt: new Date().toISOString(),
+      });
+    } catch (err: any) {
+      console.error("news-report generate error:", err);
+      res.status(500).json({ error: "Failed to generate news report" });
+    }
+  });
+
+  app.post("/api/news-report/speak", async (req, res) => {
+    try {
+      const { text, anchorId } = req.body;
+      const fishApiKey = process.env.FISH_AUDIO_API_KEY;
+      if (!fishApiKey) return res.status(500).json({ error: "TTS not configured" });
+      const voiceId = NEWS_ANCHOR_VOICE_IDS[anchorId] || process.env.FISH_AUDIO_VOICE_ID || "";
+      if (!voiceId) return res.status(400).json({ error: "No voice for this anchor" });
+      const safeText = text.slice(0, 600);
+      const audioBuffer = await fishAudioRequest(safeText, voiceId, 1.0, fishApiKey);
+      res.set({ "Content-Type": "audio/mpeg", "Content-Length": audioBuffer.length, "Cache-Control": "no-cache" });
+      res.send(audioBuffer);
+    } catch (err: any) {
+      console.error("news-report speak error:", err);
+      res.status(500).json({ error: "TTS failed" });
+    }
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────
+
   const httpServer = createServer(app);
   return httpServer;
 }

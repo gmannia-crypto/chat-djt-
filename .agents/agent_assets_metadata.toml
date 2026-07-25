@@ -246,6 +246,30 @@ uri = "file://assets/images/persona-pressley.png"
 type = "image"
 title = "generated_image"
 
+[[generated]]
+id = "HGHyub2gtQIdBF2MMTB9D"
+uri = "file://assets/images/anchor-brockhardman.png"
+type = "image"
+title = "Brock Hardman anchor"
+
+[[generated]]
+id = "nQlDbuhXzAeYGPPHPlk7d"
+uri = "file://assets/images/anchor-destinyvega.png"
+type = "image"
+title = "Destiny Vega anchor"
+
+[[generated]]
+id = "Q875O-rfXj0qbyqodRDt0"
+uri = "file://assets/images/anchor-rexpemberton.png"
+type = "image"
+title = "Rex Pemberton anchor"
+
+[[generated]]
+id = "EUJ9mcgLK2GSz1PTgYb24"
+uri = "file://assets/images/anchor-tammytruthseeker.png"
+type = "image"
+title = "Tammy Truthseeker anchor"
+
 [[outputs]]
 id = "pt0gO32HAE6ikdUMoC4If"
 uri = "file://assets/images/persona-claudeanderson.png"

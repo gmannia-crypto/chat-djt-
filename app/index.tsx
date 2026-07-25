@@ -1725,11 +1725,23 @@ export default function HomeScreen() {
         <Animated.View entering={FadeInDown.delay(750).duration(500)} style={styles.modeButtons}>
           <Pressable
             onPress={() => {
+              playNavVoice("News World Report. Live. Biased. Unhinged.");
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+              router.push("/news-report");
+            }}
+            style={({ pressed }) => [styles.modeButton, styles.newsReportButton, pressed && { opacity: 0.7 }]}
+            testID="news-report-button"
+          >
+            <MaterialCommunityIcons name="broadcast" size={16} color="#FF4444" />
+            <Text style={styles.modeButtonText}>NEWS REPORT</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => {
               playNavVoice("Collectibles. The most beautiful cards you've ever seen.");
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
               router.push("/collectibles");
             }}
-            style={({ pressed }) => [styles.modeButton, styles.collectiblesButton, { flex: 1 }, pressed && { opacity: 0.7 }]}
+            style={({ pressed }) => [styles.modeButton, styles.collectiblesButton, pressed && { opacity: 0.7 }]}
             testID="collectibles-button"
           >
             <MaterialCommunityIcons name="cards" size={16} color="#FFD700" />
@@ -3174,6 +3186,11 @@ const styles = StyleSheet.create({
   debateButton: {
     backgroundColor: "rgba(255, 77, 77, 0.15)",
     borderColor: "rgba(255, 77, 77, 0.4)",
+  },
+  newsReportButton: {
+    backgroundColor: "rgba(255, 68, 68, 0.1)",
+    borderColor: "rgba(255, 68, 68, 0.35)",
+    flex: 1,
   },
   collectiblesButton: {
     backgroundColor: "rgba(255, 215, 0, 0.12)",
