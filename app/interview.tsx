@@ -221,6 +221,7 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   drbenj: require("@/assets/images/persona-drbenj.jpg"),
   charliemurphy: require("@/assets/images/persona-charliemurphy.jpg"),
   tuckercarlson: require("@/assets/images/persona-tuckercarlson.jpg"),
+  jessventura: require("@/assets/images/persona-jessventura.jpg"),
 };
 
 const FX_KEY = "interview_fx_enabled_v1";
@@ -258,6 +259,7 @@ const GUEST_CATEGORIES: Record<string, GuestCategory> = {
   carlin: "Entertainment",
   charliemurphy: "Entertainment",
   tuckercarlson: "Political",
+  jessventura: "Political",
 };
 
 // Lightweight emotion delta from text heuristics

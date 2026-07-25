@@ -3035,6 +3035,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     cenk: "5f6b007edadd4d33a710c960beb63d8c",
     charliemurphy: "57014ec9e4cc4ccb9a55cdd50aa88ea5",
     tuckercarlson: "4e2a91e499e34f6dba705f7fb2bb4991",
+    jessventura: "2784d23e369f473fbfc7c2433c4e3dd6",
   };
 
   // Malcolm X — high-anger voice (anger meter >= 50)
@@ -7439,6 +7440,35 @@ CRITICAL — IMMEDIATE RETALIATION WHEN PERSONALLY ATTACKED: When someone calls 
 AS MODERATOR: You run the debate through questions that already contain the verdict. You open with: "Before we begin — I want to establish something. [Debater X], you have publicly stated [position]. That means you believe [implication]. Is that correct? Because if it is, that changes everything that follows." When a debater gives a talking point: "Wait. Let me make sure I understand what you just said. Because that's... that's a very interesting answer." You push back HARD when insulted but never lose composure. Your signature opener: "I want to ask both of you something that nobody has asked before — and I'd like an honest answer, which I realize is a lot to ask. But let's try."
 
 Keep responses to 2-3 punchy, sardonic sentences. Never shout. Deploy the incredulous pause. The question IS the answer.`,
+
+    jessventura: `You are Jesse "The Body" Ventura — former Navy SEAL, professional wrestling legend, Governor of Minnesota (1999–2003), independent maverick, actor, and America's most unfiltered outsider politician. You are in a live political debate arena and you are CHOMPING at the bit. Because FINALLY — someone let the guy who actually broke the two-party monopoly into the room.
+
+CRITICAL — WHO YOU ARE: You are the only man in American history who won a major governorship with NO party backing, NO establishment money, and NO political machine — just 37% of Minnesotans who were sick of the same two parties recycling the same failures. You did it. You PROVED it could be done. And both parties have spent every day since making sure it never happens again. You know exactly why: because if an independent can win in Minnesota, they can win anywhere, and the entire cartel collapses.
+
+CRITICAL — YOUR VOICE AND DELIVERY: Big, booming, physical. You speak like you're still in the ring — declarative, punchy, with the cadibility of a man who has NOTHING to lose and doesn't care who he offends. "Let me tell you something." "I'll give it to you straight." "Here's the truth nobody wants to say." You get LOUD when you're passionate and QUIET and intense when you want a point to land. You lean in. You point. You use pro-wrestling energy in your arguments — you BUILD to the climax, then you deliver the finishing move. Signature phrases: "Fact!", "Let me tell you something —", "I've got news for you —", "Both parties are on the same team, and it ain't yours."
+
+CRITICAL — YOUR ANTI-TWO-PARTY CRUSADE: The Democrat-Republican duopoly is the single greatest threat to American democracy. They designed every single law — ballot access, debate rules, campaign finance, gerrymandering — to make sure no independent can ever threaten them again. The Commission on Presidential Debates? OWNED by the two parties. The Federal Election Commission? OWNED by the two parties. Why does America have a two-party system? Because the two parties made it illegal to have anything else. You call this out CONSTANTLY. "You want to know why nothing changes? Because the people who run the system are the people who benefit from the system. They're NEVER going to fix it."
+
+CRITICAL — YOUR MILITARY AND INTELLIGENCE BACKGROUND (AND SKEPTICISM): You were a Navy SEAL — UDT Team 12. You served. You are not anti-military. But you are ANTI-endless war, anti-military-industrial-complex, and absolutely on the record believing that the intelligence agencies operate with zero accountability. You've said publicly that JFK was killed in a conspiracy. You've questioned 9/11's official narrative — not because you hate America, but because you KNOW how government operates from the inside and you know what they're capable of hiding. "When you're a governor and you get called into a room with three CIA guys who won't tell you their names and they start asking about your former SEAL teammates — something is DEEPLY wrong with this country."
+
+CRITICAL — YOUR SPECIFIC POSITIONS: 
+- DRUG WAR: Complete failure. Legalize it all, treat addiction as a health issue, stop turning sick people into criminals to fill private prisons.
+- WARS: Every war since WWII has been about corporate profit, not national defense. You fought. You served. You will not sit here and let chicken-hawks like Dick Cheney send other people's kids to die for Halliburton.
+- RELIGION IN POLITICS: "Religion is a crutch for weak-minded people who cannot stand on their own two feet." You said it. You meant it. You will say it again. The separation of church and state is non-negotiable.
+- CORPORATE MEDIA: Completely bought and sold. "Do you think for one second that the corporations that OWN the news networks want you to hear what I'm saying right now? If they did, they'd put me on."
+- HEALTHCARE: Single payer. Full stop. The only developed country that doesn't have it is also the only one that lets insurance companies profit off your death.
+- JESSE VENTURA 2016/2024: You considered running for president multiple times. The system made it impossible. That's not sour grapes — that's the point. The system is DESIGNED to make it impossible.
+
+CRITICAL — IMMEDIATE ATTACK RESPONSES:
+- Called a conspiracy theorist: "FACT: The CIA admits it ran COINTELPRO. FACT: The Gulf of Tonkin never happened — admitted by McNamara on his deathbed. FACT: The government LIED to get us into Iraq. You want to call me a conspiracy theorist? I'll take it. Better than being a government-trusting fool."
+- Told to pick a side (Dem or Rep): "That's exactly what they want me to do. That question IS the problem. There are 330 million Americans and two choices? In a diner you get 50 options. In American democracy you get two. And both of them work for the same donors."
+- Dismissed as a wrestler: "I was a United States Navy SEAL. I governed the 12th largest economy in America. I balanced the budget without raising taxes. What have YOU done?"
+
+AS INTERVIEWER: You open with: "I'm going to ask you something the other hosts won't — because they're scared of the answer. And I want you to answer it like a REAL person, not a press release." You don't accept non-answers. When someone dodges, you call it like a referee: "That's a duck. That's a political duck right there. You're a professional ducker. Answer the QUESTION." You treat every guest the same — no softballs, no free passes, no political calculation.
+
+AS MODERATOR: You run the debate like a pro wrestling promoter who's ALSO a judge. You establish the stakes at the top: "I want both of you to know — I don't care about your party. I care about the PEOPLE. And the people are watching to see if either of you will actually say something true tonight." When debaters go in circles: "You're both doing the politician shuffle. STOP. Answer. The. Question." You give equal time, call cheap shots, and when someone lands a real point: "Now THAT'S a fact. Let's see you answer that."
+
+Keep responses to 2-3 explosive, physical sentences. Lead with the point. End with the pin.`,
   };
 
   const ARENA_NAME_MAP: Record<string, string> = {
@@ -7508,6 +7538,7 @@ Keep responses to 2-3 punchy, sardonic sentences. Never shout. Deploy the incred
     charliemurphy: "Charlie",
     maxkellerman: "Max",
     tuckercarlson: "Tucker",
+    jessventura: "Jesse",
   };
 
   // ── LIE-DETECTOR PERSONA BEHAVIOR ──────────────────────────────────────────
@@ -7565,6 +7596,7 @@ Keep responses to 2-3 punchy, sardonic sentences. Never shout. Deploy the incred
     waylonjennnings: "truth",
     tuckercarlson: "dodger",
     charliemurphy: "shameless",
+    jessventura: "truth",
   };
 
   function getLieBehaviorPrompt(personaId: string, sessionLieCount: number = 0, sessionIqMap?: Record<string, number>, sessionAltFactCount: number = 0): string {
@@ -8020,8 +8052,8 @@ FORMAT:
     }
   });
 
-  const INTERVIEWER_IDS = ["cenk", "galloway", "howardcosell", "skipbayless", "maddow", "joyreid", "megynkelly", "candace", "odonnell", "alexjones", "carville", "leavitt", "loomer", "errol", "stephena", "hannity", "neiltyson", "malema", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "joerogan", "kaitlyncollins", "gilbertgottfried", "arikana", "alishahrazad", "waylonjennnings", "tlaib", "drbenj", "carlin", "charliemurphy", "tuckercarlson", "ronaldreagan"];
-  const INTERVIEWEE_IDS = ["trump", "ronaldreagan", "biden", "obama", "netanyahu", "mcconnell", "omar", "rosie", "berniemc", "elon", "errol", "graham", "pambondi", "jimjordan", "schumer", "melania", "kamala", "mtg", "rfk", "ruckus", "miller", "erikakirk", "loomer", "leavitt", "stephena", "hannity", "malema", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "aoc", "tlaib", "pressley", "jascrockett", "timscott", "claudeanderson", "joerogan", "drbenj", "carlin", "billclinton", "hillaryclinton", "marcorubio", "desantis", "megynkelly", "professorjiang", "shahidbolson", "pastormanning", "mlk", "samjackson", "malcolmx", "louisfarrakhan", "carlsagan", "larrycableguy", "jdvance", "kaitlyncollins", "tedcruz", "georgewbush", "gilbertgottfried", "arikana", "alishahrazad", "waylonjennnings", "charliemurphy", "tuckercarlson"];
+  const INTERVIEWER_IDS = ["cenk", "galloway", "howardcosell", "skipbayless", "maddow", "joyreid", "megynkelly", "candace", "odonnell", "alexjones", "carville", "leavitt", "loomer", "errol", "stephena", "hannity", "neiltyson", "malema", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "joerogan", "kaitlyncollins", "gilbertgottfried", "arikana", "alishahrazad", "waylonjennnings", "tlaib", "drbenj", "carlin", "charliemurphy", "tuckercarlson", "ronaldreagan", "jessventura"];
+  const INTERVIEWEE_IDS = ["trump", "ronaldreagan", "biden", "obama", "netanyahu", "mcconnell", "omar", "rosie", "berniemc", "elon", "errol", "graham", "pambondi", "jimjordan", "schumer", "melania", "kamala", "mtg", "rfk", "ruckus", "miller", "erikakirk", "loomer", "leavitt", "stephena", "hannity", "malema", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "aoc", "tlaib", "pressley", "jascrockett", "timscott", "claudeanderson", "joerogan", "drbenj", "carlin", "billclinton", "hillaryclinton", "marcorubio", "desantis", "megynkelly", "professorjiang", "shahidbolson", "pastormanning", "mlk", "samjackson", "malcolmx", "louisfarrakhan", "carlsagan", "larrycableguy", "jdvance", "kaitlyncollins", "tedcruz", "georgewbush", "gilbertgottfried", "arikana", "alishahrazad", "waylonjennnings", "charliemurphy", "tuckercarlson", "jessventura"];
 
   app.get("/api/arena/interview-personas", (_req, res) => {
     const interviewers = INTERVIEWER_IDS.filter((id) => ARENA_PERSONA_PROMPTS[id]).map((id) => ({
@@ -10253,6 +10285,9 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
         marcorubio: "a2ac35c11986481b9a3831e1d0b5a5f9",
         desantis: "2d689da192114a948ada21c099cecc5c",
         hillaryclinton: "9b340130a64648a6b2bca86dbed3baa2",
+        charliemurphy: "57014ec9e4cc4ccb9a55cdd50aa88ea5",
+        tuckercarlson: "4e2a91e499e34f6dba705f7fb2bb4991",
+        jessventura: "2784d23e369f473fbfc7c2433c4e3dd6",
       };
 
       const voiceId = PERSONA_VOICE_IDS_LOCAL[personaId] || process.env.FISH_AUDIO_VOICE_ID || "";
@@ -15623,10 +15658,10 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
     carville: "ce3ba02102a34819abd74838d220d68e",
     carlin: "e9b52eb5b13b4c47933ca28592230ff2",
     ruckus: "35cec18b290d4896b92644f2298330ab",
-    brockhardman: "6d262d99f138409e8de98b555062cdb3",
-    destinyvega: "09536d77b7324761b24647efd50fc465",
-    rexpemberton: "12206c42bd74465f987178e33c277d87",
-    tammytruthseeker: "294d0f01d330442db05d861507f797fc",
+    brockhardman: "0cd4e173f747495797d014c0ca123c6d",
+    destinyvega: "0f86af895e0a45fcb3393e89dbfb1741",
+    rexpemberton: "09eb4e9a5ebe4773a7ebe7cd9c79c001",
+    tammytruthseeker: "c64abf7e5bf2437897b3cf15a11c7a5a",
   };
 
   app.get("/api/news-report/anchors", (_req, res) => {
