@@ -15714,34 +15714,39 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
               role: "user",
               content: `You are going live on ${anchor.showName}. Write a complete broadcast script covering ${storyCount} stories.
 
-IMPORTANT — write this as ONE cohesive broadcast, not isolated blurbs:
+Write this as ONE cohesive broadcast, not isolated blurbs:
 
 1. Open with a proper on-air introduction: say your name, welcome viewers to ${anchor.showName}, and tease what's coming up. Stay fully in character. (~30-40 words)
 
-2. Cover each story below in order. For story 2 onward, begin with a natural transition phrase before diving in — things like "Turning now to...", "Meanwhile...", "And in other news...", "Next tonight...", "Now moving to...", "Speaking of disasters...", etc. Each story commentary should be ~${wordsPerStory} words.
+2. Cover each story below in order. For story 2 onward, begin with a natural transition phrase in character — "Turning now to...", "Meanwhile...", "And in other news...", "Next tonight...", "Speaking of disasters...", etc. Each story commentary: ~${wordsPerStory} words.
 
-Stories to cover:
+Stories:
 ${storyList}
 
-Return ONLY valid JSON (no markdown, no code fences), exactly this shape:
-[
-  {"type":"intro","text":"...your opening introduction..."},
-  {"type":"story","index":1,"text":"...transition + commentary for story 1..."},
-  {"type":"story","index":2,"text":"...transition phrase + commentary for story 2..."},
-  ${stories.slice(2).map((_: any, i: number) => `{"type":"story","index":${i + 3},"text":"...transition + commentary..."}`).join(",\n  ")}
-]`,
+Respond with a JSON array only — no markdown, no code fences, no extra text before or after. Use this exact shape:
+[{"type":"intro","text":"..."},{"type":"story","index":1,"text":"..."},{"type":"story","index":2,"text":"..."}${stories.length > 2 ? stories.slice(2).map((_: any, i: number) => `,{"type":"story","index":${i + 3},"text":"..."}`).join("") : ""}]`,
             },
           ],
           max_tokens: 1800,
-          temperature: 0.92,
-          response_format: { type: "json_object" },
+          temperature: 0.88,
         });
 
-        const raw = resp.choices[0]?.message?.content?.trim() || "{}";
-        // GPT may wrap the array in an object key
-        const parsed = JSON.parse(raw);
-        const arr: any[] = Array.isArray(parsed) ? parsed : (parsed.segments || parsed.broadcast || parsed.script || Object.values(parsed)[0]);
-        if (Array.isArray(arr)) scriptSegments = arr;
+        const raw = (resp.choices[0]?.message?.content || "").trim();
+        // Strip markdown code fences if model added them anyway
+        const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+        // Extract first JSON array from response
+        const arrayMatch = cleaned.match(/\[[\s\S]*\]/);
+        if (arrayMatch) {
+          const parsed = JSON.parse(arrayMatch[0]);
+          if (Array.isArray(parsed)) scriptSegments = parsed;
+        } else {
+          // Try parsing full string as array or object containing array
+          const parsed = JSON.parse(cleaned);
+          const arr: any[] = Array.isArray(parsed)
+            ? parsed
+            : (parsed.segments || parsed.broadcast || parsed.script || parsed.items || Object.values(parsed).find((v) => Array.isArray(v)) as any[]);
+          if (Array.isArray(arr)) scriptSegments = arr;
+        }
       } catch (e) {
         console.error("news-report GPT error:", e);
       }
