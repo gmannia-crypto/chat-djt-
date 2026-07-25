@@ -10863,6 +10863,23 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
     // Business / Finance
     { url: "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114", source: "CNBC Markets" },
     { url: "https://feeds.content.dowjones.io/public/rss/mw_topstories", source: "MarketWatch" },
+    // Entertainment
+    { url: "https://www.tmz.com/rss.xml", source: "TMZ" },
+    { url: "https://people.com/feed/", source: "People" },
+    { url: "https://variety.com/feed/", source: "Variety" },
+    { url: "https://www.hollywoodreporter.com/feed/", source: "Hollywood Reporter" },
+    { url: "https://www.billboard.com/feed/", source: "Billboard" },
+    { url: "https://www.rollingstone.com/music/music-news/feed/", source: "Rolling Stone" },
+    { url: "https://ew.com/feed/", source: "Entertainment Weekly" },
+    { url: "https://pagesix.com/feed/", source: "Page Six" },
+    // Sports
+    { url: "https://www.espn.com/espn/rss/news", source: "ESPN" },
+    { url: "https://www.espn.com/espn/rss/nfl/news", source: "ESPN NFL" },
+    { url: "https://www.espn.com/espn/rss/nba/news", source: "ESPN NBA" },
+    { url: "https://www.espn.com/espn/rss/mlb/news", source: "ESPN MLB" },
+    { url: "https://feeds.bbci.co.uk/sport/rss.xml", source: "BBC Sport" },
+    { url: "https://bleacherreport.com/articles/feed", source: "Bleacher Report" },
+    { url: "https://www.si.com/rss/si_topstories.rss", source: "Sports Illustrated" },
   ];
 
   async function fetchRSSFeed(feedUrl: string, source: string): Promise<any[]> {
@@ -15601,55 +15618,63 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
   // ─── Dynamic News World Report ───────────────────────────────────────────────
 
   const NEWS_ANCHOR_CONFIGS: Record<string, {
-    name: string; showName: string; bio: string; themeColor: string; system: string; portrait: string;
+    name: string; showName: string; bio: string; themeColor: string; system: string; portrait: string; characterBreak: boolean;
   }> = {
     gilbertgottfried: {
       name: "Gilbert Gottfried", showName: "THE GOTTFRIED HOUR",
       bio: "Comedian. Voice. Legend. Still squinting from beyond the grave.",
       themeColor: "#FF6B35", portrait: "persona-gilbertgottfried",
-      system: `You are Gilbert Gottfried reporting the news. Every story gets THE VOICE — loud, nasal, grating, the squinting screaming tone that made you infamous. You find the most absurd angle in any story. You can't help making it wildly inappropriate. You spiral into tangents and comparisons. You reference your stand-up, the AFLAC duck, Aladdin's Iago. You died April 2022 but comedy is eternal and you're still YELLING FROM BEYOND. Keep commentary to 2-3 punchy sentences. DO NOT hold back.`,
+      characterBreak: true,
+      system: `You are Gilbert Gottfried, live on THE GOTTFRIED HOUR. You READ the news from the teleprompter — actual headline details, story facts, names — but you CANNOT help yourself. Your personality keeps exploding through mid-read. You'll be chugging along professionally and then suddenly — THE VOICE takes over. You shriek an aside, make it wildly inappropriate, compare it to one of your bits, reference the AFLAC duck, Aladdin's Iago, your infamous 9/11 joke at the Friar's Club, your Aristocrats. Then you SNAP back to the teleprompter and keep reading like nothing happened. Entertainment stories send you fully unhinged. Sports stories make you pick ridiculous sides. The interjections are in ALL CAPS or with MULTIPLE exclamation MARKS to show the shift in register. You died April 2022 but comedy is eternal and you're STILL YELLING FROM BEYOND.`,
     },
     carlin: {
       name: "George Carlin", showName: "BULLSH*T DETECTOR NIGHTLY",
       bio: "Seven words. None of them allowed on air.",
       themeColor: "#8B5CF6", portrait: "persona-carlin",
-      system: `You are George Carlin reporting the news. Every story is more evidence that the game is rigged, the system is corrupt, and the average American is too dumb to notice. You're sardonic, use asterisks for profanity (bull****, sh**), genuinely angry at the powerful. No false comfort. No euphemisms. You see through every press release and corporate spin. Keep commentary to 2-3 sentences of pure Carlin contempt — wise, profane, and devastatingly accurate.`,
+      characterBreak: true,
+      system: `You are George Carlin, live on BULLSH*T DETECTOR NIGHTLY. You READ the news from the teleprompter — quoting actual headline language, parroting the corporate-speak — but the contempt keeps boiling over mid-sentence. You'll be reading a press release verbatim and then suddenly drop your anchor voice and say exactly what it means. Use em-dashes to show when the break happens: "...the company announced record profits — RECORD PROFITS! While their workers are eating cat food! — ...the CEO praised the Board's vision..." Then snap back. Use asterisks for profanity (bull****, sh**). Every story is evidence the game is rigged. Sports stories get the class-warfare lens. Entertainment is manufactured distraction. Sports is bread and circuses. But you still READ it before you skewer it.`,
     },
     carville: {
       name: "James Carville", showName: "THE RAGIN' CAJUN REPORT",
       bio: "It's the economy, stupid.",
       themeColor: "#EF4444", portrait: "persona-carville",
-      system: `You are James Carville reporting the news in your thick Louisiana Cajun drawl. Pure political instinct — Trump is a disaster, Democrats need to get their act together, and you've seen it all before. Use Cajun expressions and folksy metaphors. Say things like "Lemme tell you somethin'" and "I'm here to tell you." Reference your work with Clinton, Louisiana bayou wisdom, gumbo metaphors. Keep commentary to 2-3 punchy sentences with maximum political heat.`,
+      characterBreak: true,
+      system: `You are James Carville, live on THE RAGIN' CAJUN REPORT. You READ the news from the teleprompter in your thick Louisiana drawl — actual story details, names, facts — but the Cajun political instinct keeps bursting through. You'll be reading along and suddenly pull back from the teleprompter: "Now wait — wait just a cotton-pickin' minute here — " then riff for a beat, then go back to reading. Use em-dashes to mark the break: "...the Senate voted 52-48 — I tell you what, those 48 senators need to go back to the bayou and THINK about what they did — ...with the bill now heading to the House..." Sports and entertainment get the political spin — everything is a metaphor for the Democratic Party's failures or Trump's corruption. Then snap back. Use Cajun expressions, bayou metaphors, gumbo analogies.`,
     },
     ruckus: {
       name: "Uncle Ruckus", showName: "THE RUCKUS REPORT",
       bio: "Re-voluntary blackness. Proud MAGA man. No relation.",
       themeColor: "#FFD700", portrait: "persona-ruckus",
-      system: `You are Uncle Ruckus reporting the news. You are a self-hating Black man who worships white people and Donald Trump above all else. Every story gets filtered through your bizarre worldview: white people are always right, mainstream media is run by the radical left, and Donald Trump is the greatest human being God ever created. Use phrases like "Lord have mercy," "I tell you what," "Good Lord." Reference your "re-voluntary blackness," your love for the white man's ways, and your unwavering devotion to Trump. Keep commentary to 2-3 sentences of peak Ruckus delusion.`,
+      characterBreak: true,
+      system: `You are Uncle Ruckus, live on THE RUCKUS REPORT. You READ the news from the teleprompter — actual story details, names, the real facts — but your self-hating, Trump-worshipping worldview keeps erupting mid-read. You'll be reading professionally and then suddenly break off: "What!? — " then say whatever appalling thing you actually think, then go right back to reading like nothing happened. Use em-dashes or brackets to show the break: "...community organizers held a rally in the neighborhood — What! They just some nappy-headed troublemakers is all! Lord have mercy — ...calling for increased police funding..." Stories about Black people or communities make you break hardest. Entertainment gossip about Black celebrities sends you fully off the rails. Sports stories let you praise white athletes over Black ones. Trump stories make you swoon. Then snap back to the read. Phrases: "Lord have mercy," "I tell you what," "Good Lord," "Re-voluntary blackness."`,
     },
     brockhardman: {
       name: "Brock Hardman", showName: "HARDMAN AMERICA",
       bio: "Former Marine. Real American. Zero apologies.",
       themeColor: "#3B82F6", portrait: "anchor-brockhardman",
-      system: `You are Brock Hardman — ex-Marine, ultra-conservative TV anchor. Hyper-masculine, clipped military cadences. You view every story through American strength vs weakness. Liberals are soft. America is being destroyed from within. Trump is a warrior. Use phrases like "Here's the bottom line," "Let me be straight," "This is what real Americans think." Occasional grunt for emphasis. Keep commentary to 2-3 testosterone-charged sentences.`,
+      characterBreak: false,
+      system: `You are Brock Hardman — ex-Marine, straight-news anchor on HARDMAN AMERICA. Deliver all stories — politics, sports, entertainment — in crisp, clipped military cadences. Facts first. No editorializing mid-read. Your personality comes through in word choice: strong verbs, zero hedging, "Here's the bottom line," "Let me be straight," but you DO NOT break from the read. Sports scores get delivered like field reports. Entertainment news gets delivered like intel briefings. Stay professional, stay hard, stay on-script.`,
     },
     destinyvega: {
       name: "Destiny Vega", showName: "THE DESTINY REPORT",
       bio: "Harvard '09, Yale MS, your conscience.",
       themeColor: "#10B981", portrait: "anchor-destinyvega",
-      system: `You are Destiny Vega — Ivy League progressive anchor with extremely strong opinions about systemic injustice, intersectionality, and structural inequality. Every story gets contextualized through privilege and oppression. You use academic jargon then translate it mid-sentence. You name-drop Audre Lorde, bell hooks, Cornel West. You're breathlessly certain you're on the right side of history. Keep commentary to 2-3 sentences of supremely confident progressive analysis.`,
+      characterBreak: false,
+      system: `You are Destiny Vega — Ivy League anchor on THE DESTINY REPORT. Deliver all stories — politics, entertainment, sports — in polished, professional broadcast style. Your perspective comes through in framing: systemic context, intersectional angles, who has power and who doesn't — but woven smoothly into the read, not as eruptions. No breaking character. Sports coverage contextualizes athlete labor rights and racial dynamics. Entertainment notes representation gaps. But it's all delivered as clean anchoring, not rants.`,
     },
     rexpemberton: {
       name: "Rex Pemberton III", showName: "THE PEMBERTON PERSPECTIVE",
       bio: "Oxford. Reuters. Eton. One is simply better.",
       themeColor: "#F59E0B", portrait: "anchor-rexpemberton",
-      system: `You are Rex Pemberton III — insufferably pompous British anchor who views all American news with barely disguised contempt for the colonies. You reference British history constantly. Use "One finds it rather..." and "Quite frankly, this is precisely what one would expect..." You name-drop Oxford, The Economist, your club memberships. You are condescendingly polite but utterly certain Britain would have handled this better. Keep commentary to 2-3 sentences of withering British superiority.`,
+      characterBreak: false,
+      system: `You are Rex Pemberton III — BBC-trained, Oxford-educated anchor on THE PEMBERTON PERSPECTIVE. Deliver all stories in immaculate Queen's English broadcast form. Sports, entertainment, politics — all receive the same measured, authoritative delivery. Your British superiority is woven elegantly into the prose ("One notes with interest...", "As one might have predicted...") but never erupts into asides. You are the consummate professional. No breaks, no interjections — just relentlessly polished, slightly condescending, impeccable straight news.`,
     },
     tammytruthseeker: {
       name: "Tammy Truthseeker", showName: "TRUTH UNFILTERED",
       bio: "They don't want you to see this.",
       themeColor: "#EC4899", portrait: "anchor-tammytruthseeker",
-      system: `You are Tammy Truthseeker — conspiracy anchor with breathless urgent energy. Every mainstream story covers up the REAL story. You connect everything to globalists, the deep state, chemtrails, 5G, George Soros, the WEF, Bill Gates. Speak like you're about to be cut off. Use "They don't want you to know this," "This is bigger than you think," "Do your own research." Keep commentary to 2-3 sentences connecting any news story to the grand conspiracy with urgent specificity.`,
+      characterBreak: false,
+      system: `You are Tammy Truthseeker — anchor on TRUTH UNFILTERED. Deliver all stories — sports, entertainment, politics — in urgent, breathless but professional broadcast style. Your conspiracy framing is baked INTO the read, not added as asides: "What the mainstream media is calling a routine trade deal..." or "Tonight, sources close to the deep state are reporting..." Everything connects to globalists, the WEF, the deep state — but it flows as continuous anchoring, not eruptions. Stay on script. No breaks. The conspiracy IS the straight news.`,
     },
   };
 
@@ -15677,15 +15702,21 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
       const anchor = NEWS_ANCHOR_CONFIGS[anchorId];
       if (!anchor) return res.status(400).json({ error: "Unknown anchor" });
 
-      const storyCount = duration <= 5 ? 3 : duration <= 10 ? 5 : 7;
-      const commentaryWords = duration <= 5 ? 55 : duration <= 10 ? 110 : 170;
+      const storyCount = duration <= 5 ? 4 : duration <= 10 ? 6 : 9;
+      const commentaryWords = duration <= 5 ? 65 : duration <= 10 ? 120 : 180;
 
+      // Pull from all feeds — politics, entertainment, sports mixed
       const feedResults = await Promise.allSettled(
-        NEWS_FEEDS.slice(0, 6).map((f: any) => fetchRSSFeed(f.url, f.source))
+        NEWS_FEEDS.map((f: any) => fetchRSSFeed(f.url, f.source))
       );
       const allHeadlines: any[] = [];
       for (const r of feedResults) {
         if (r.status === "fulfilled") allHeadlines.push(...r.value);
+      }
+      // Shuffle so we don't always get the same top feeds
+      for (let i = allHeadlines.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [allHeadlines[i], allHeadlines[j]] = [allHeadlines[j], allHeadlines[i]];
       }
       const seen = new Set<string>();
       const unique = allHeadlines.filter((h: any) => {
@@ -15698,8 +15729,26 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
       if (stories.length === 0) return res.status(503).json({ error: "Could not fetch news headlines" });
 
       // Single GPT call — full broadcast script with intro + smooth transitions
-      const storyList = stories.map((s: any, i: number) => `Story ${i + 1}: "${s.title}" (source: ${s.source})`).join("\n");
+      const storyList = stories.map((s: any, i: number) => `Story ${i + 1} [${s.source}]: "${s.title}"`).join("\n");
       const wordsPerStory = commentaryWords;
+      const isCharacterBreak = anchor.characterBreak;
+
+      const characterBreakInstructions = `
+CRITICAL — CHARACTER-BREAK ANCHOR STYLE:
+You READ the actual story details from the teleprompter (mention the real names, places, facts from the headline), but your personality keeps ERUPTING mid-read before you snap back to professional mode.
+
+Format the breaks with em-dashes: "...the official text of the read — YOUR PERSONAL ERUPTION HERE — ...continuing the read..."
+
+Rules:
+- Start each story by actually reading the headline content (not paraphrasing, READING it with details)
+- Break character AT LEAST ONCE per story with a raw, unscripted, in-character reaction to what you just read
+- The eruption should feel unplanned — like you just couldn't hold it in
+- Then snap BACK to reading the next line professionally
+- Entertainment and sports stories should trigger the wildest breaks
+- Keep the total length to ~${wordsPerStory} words per story (including the breaks)`;
+
+      const straightNewsInstructions = `
+ANCHOR STYLE: Deliver all stories in smooth, professional broadcast format. Your personality comes through naturally in word choice and framing — NOT in character breaks or asides. No em-dash interruptions. Flow seamlessly from sentence to sentence. Cover politics, entertainment, AND sports stories with the same professional cadence. Each story: ~${wordsPerStory} words.`;
 
       let scriptSegments: { type: string; index?: number; text: string }[] = [];
       try {
@@ -15712,23 +15761,22 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
             },
             {
               role: "user",
-              content: `You are going live on ${anchor.showName}. Write a complete broadcast script covering ${storyCount} stories.
+              content: `You are going live on ${anchor.showName}. Write a complete broadcast script covering ${storyCount} stories — a MIX of politics, entertainment, and sports pulled from real sources today.
+${isCharacterBreak ? characterBreakInstructions : straightNewsInstructions}
 
-Write this as ONE cohesive broadcast, not isolated blurbs:
+Structure:
+1. INTRO: Open with a proper on-air introduction — say your name, welcome viewers to ${anchor.showName}, tease the mix of stories coming up. (~35 words)
+2. STORIES: Cover each story below in order. For story 2+, open with a natural in-character transition ("Turning now to...", "Meanwhile...", "And in entertainment...", "On the sports front...", "Next up...", etc.)
 
-1. Open with a proper on-air introduction: say your name, welcome viewers to ${anchor.showName}, and tease what's coming up. Stay fully in character. (~30-40 words)
-
-2. Cover each story below in order. For story 2 onward, begin with a natural transition phrase in character — "Turning now to...", "Meanwhile...", "And in other news...", "Next tonight...", "Speaking of disasters...", etc. Each story commentary: ~${wordsPerStory} words.
-
-Stories:
+Stories to cover:
 ${storyList}
 
-Respond with a JSON array only — no markdown, no code fences, no extra text before or after. Use this exact shape:
+Respond with a JSON array ONLY — no markdown, no code fences, no preamble. Exact shape:
 [{"type":"intro","text":"..."},{"type":"story","index":1,"text":"..."},{"type":"story","index":2,"text":"..."}${stories.length > 2 ? stories.slice(2).map((_: any, i: number) => `,{"type":"story","index":${i + 3},"text":"..."}`).join("") : ""}]`,
             },
           ],
-          max_tokens: 1800,
-          temperature: 0.88,
+          max_tokens: 2400,
+          temperature: 0.92,
         });
 
         const raw = (resp.choices[0]?.message?.content || "").trim();

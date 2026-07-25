@@ -151,7 +151,7 @@ export default function NewsReportScreen() {
       if (cancelRef.current) break;
       await speakSegment(seg, themeColor);
       if (cancelRef.current) break;
-      await new Promise(r => setTimeout(r, 600));
+      await new Promise(r => setTimeout(r, 500));
     }
     if (!cancelRef.current) {
       setIsAutoPlaying(false);
