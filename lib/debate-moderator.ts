@@ -13,7 +13,7 @@ import { getApiUrl } from "@/lib/query-client";
 import { prefetchTTSAudio, playPrefetchedAudio, playTTS } from "@/lib/audio-helper";
 import { playCrowdCheer, playDingSound } from "@/lib/arena-sfx";
 
-export type ModeratorStyle = "cenk" | "galloway" | "hannity" | "maddow" | "megynkelly" | "odonnell" | "joyreid" | "maxkellerman" | "stephena" | "kaitlyncollins" | "gilbertgottfried" | "carlin" | "tuckercarlson";
+export type ModeratorStyle = "cenk" | "galloway" | "hannity" | "maddow" | "megynkelly" | "odonnell" | "joyreid" | "maxkellerman" | "stephena" | "kaitlyncollins" | "gilbertgottfried" | "carlin" | "tuckercarlson" | "wandasykes" | "trevornoah" | "janeelliott" | "francescresswelsing";
 
 export const MODERATORS: Record<ModeratorStyle, { name: string; personaId: string; bias: string }> = {
   cenk:             { name: "Cenk Uygur",          personaId: "cenk",             bias: "progressive" },
@@ -29,6 +29,10 @@ export const MODERATORS: Record<ModeratorStyle, { name: string; personaId: strin
   gilbertgottfried: { name: "Gilbert Gottfried",    personaId: "gilbertgottfried", bias: "chaos" },
   carlin:           { name: "George Carlin",        personaId: "carlin",           bias: "anti-establishment" },
   tuckercarlson:    { name: "Tucker Carlson",        personaId: "tuckercarlson",    bias: "right-populist" },
+  wandasykes:       { name: "Wanda Sykes",            personaId: "wandasykes",       bias: "progressive-comedy" },
+  trevornoah:       { name: "Trevor Noah",            personaId: "trevornoah",       bias: "outsider-progressive" },
+  janeelliott:      { name: "Jane Elliott",           personaId: "janeelliott",      bias: "anti-racist" },
+  francescresswelsing: { name: "Dr. Frances Cress Welsing", personaId: "francescresswelsing", bias: "Black-liberation" },
 };
 
 // Which personas each moderator is friendly to ("favor" — softball questions, quick to defend
@@ -79,6 +83,26 @@ export const MODERATOR_LEANINGS: Record<ModeratorStyle, { favor: string[]; targe
   tuckercarlson: {
     favor: ["galloway", "rfk", "omar", "berniemc", "bannon"],
     target: ["trump", "netanyahu", "graham", "obama", "biden", "kamala", "schumer", "maddow", "joyreid", "aoc", "carville"],
+  },
+  // Wanda: progressive comedy — tough on MAGA/racists, still roasts Democrats when they're being fools.
+  wandasykes: {
+    favor: ["obama", "kamala", "aoc", "omar", "jascrockett", "berniemc", "joyreid", "maddow", "carville"],
+    target: ["trump", "bannon", "miller", "leavitt", "mtg", "loomer", "alexjones", "candace", "timscott"],
+  },
+  // Trevor: outsider-progressive — presses everyone from his South African "why is America like this" lens.
+  trevornoah: {
+    favor: ["obama", "aoc", "berniemc", "omar", "kamala", "jascrockett", "malema"],
+    target: ["trump", "bannon", "miller", "leavitt", "alexjones", "mtg", "loomer"],
+  },
+  // Jane Elliott: zero patience for racism from any direction — targets anyone defending white privilege.
+  janeelliott: {
+    favor: ["mlk", "malcolmx", "claudeanderson", "arikana", "alishahrazad", "jascrockett", "omar", "aoc"],
+    target: ["trump", "bannon", "miller", "candace", "timscott", "alexjones", "mtg", "loomer", "leavitt"],
+  },
+  // Dr. Welsing: Black liberation lens — challenges ALL participants on white supremacy systemic analysis.
+  francescresswelsing: {
+    favor: ["malcolmx", "claudeanderson", "mlk", "louisfarrakhan", "arikana", "alishahrazad"],
+    target: ["trump", "bannon", "miller", "leavitt", "candace", "timscott", "alexjones"],
   },
 };
 

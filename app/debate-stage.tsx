@@ -275,6 +275,14 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   charliemurphy: require("@/assets/images/persona-charliemurphy.jpg"),
   carlin: require("@/assets/images/persona-carlin.jpg"),
   tuckercarlson: require("@/assets/images/persona-tuckercarlson.jpg"),
+  ronaldreagan: require("@/assets/images/persona-ronaldreagan.jpg"),
+  pressley: require("@/assets/images/persona-pressley.png"),
+  drbenj: require("@/assets/images/persona-drbenj.jpg"),
+  jessventura: require("@/assets/images/persona-jessventura.jpg"),
+  wandasykes: require("@/assets/images/persona-wandasykes.jpg"),
+  trevornoah: require("@/assets/images/persona-trevornoah.jpg"),
+  janeelliott: require("@/assets/images/persona-janeelliott.jpg"),
+  francescresswelsing: require("@/assets/images/persona-francescresswelsing.jpg"),
 };
 
 const FX_KEY = "interview_fx_enabled_v1";
