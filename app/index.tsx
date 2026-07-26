@@ -24,7 +24,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons, Feather, FontAwesome5 } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-import { Audio, Video, ResizeMode } from "expo-av";
+import { Audio } from "expo-av";
 import { playTTS } from "@/lib/audio-helper";
 import { useSoundEffects } from "@/lib/use-sound";
 import { SoundToggle } from "@/components/SoundToggle";
@@ -780,8 +780,6 @@ export default function HomeScreen() {
     };
   }, []);
 
-  const bgVideoUrl = `${getApiUrl().replace(/\/$/, "")}/server/assets/menu-bg-video-compressed.mp4`;
-
   async function checkWeeklyReminder() {
     try {
       const val = await AsyncStorage.getItem("chatdjt_weekly_reminder");
@@ -1286,37 +1284,6 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + webTopInset }]}>
-      <View style={styles.videoBgContainer} pointerEvents="none">
-        {Platform.OS === "web" ? (
-          <video
-            src={bgVideoUrl}
-            autoPlay
-            loop
-            muted
-            playsInline
-            style={{
-              width: "100%",
-              height: "auto",
-              aspectRatio: "16/9",
-              objectFit: "cover",
-              position: "absolute",
-              top: 0,
-              left: 0,
-            }}
-          />
-        ) : (
-          <Video
-            source={{ uri: bgVideoUrl }}
-            style={styles.videoBg}
-            resizeMode={ResizeMode.COVER}
-            shouldPlay
-            isLooping
-            isMuted
-            rate={0.015}
-            onError={(e: any) => console.warn("Video bg error:", e)}
-          />
-        )}
-      </View>
       <LinearGradient
         colors={["rgba(10, 10, 10, 0.15)", "rgba(10, 10, 10, 0.0)", "rgba(10, 10, 10, 0.25)"]}
         style={styles.backgroundOverlay}
@@ -2488,18 +2455,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
-  },
-  videoBgContainer: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    overflow: "hidden",
-  },
-  videoBg: {
-    width: "100%",
-    height: "100%",
   },
   backgroundOverlay: {
     position: "absolute",

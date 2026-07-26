@@ -1147,8 +1147,8 @@ export default function DebateStage() {
         }
         // Moderator ONLY corrects when an actual factual lie is detected.
         // No random opinion reactions — corrections are sequential (queue),
-        // never overlapping. Hard-capped at 75 chars ≈ 5 s of speech so the
-        // next persona's turn is barely delayed.
+        // never overlapping. blockEarlyResolve=true means debaters cannot
+        // start talking until the moderator fully finishes — no cutoffs.
         const modCooldownOk = Date.now() - lastModReactionAtRef.current >= MOD_REACTION_COOLDOWN_MS;
         if (isLie && deviceId && modCooldownOk) {
           lastModReactionAtRef.current = Date.now();
@@ -1165,17 +1165,14 @@ export default function DebateStage() {
               : Promise.resolve("");
           linePromise.then((line) => {
             if (!line || !runningRef.current) return;
-            // Hard-cap to ~75 chars ≈ 5 s — always cut at a word boundary
-            const shortLine = line.length <= 75 ? line : (() => {
-              const cut = line.lastIndexOf(" ", 75);
-              return (cut > 20 ? line.slice(0, cut) : line.slice(0, 75)).trimEnd() + ".";
-            })();
-            setModeratorLastLine(shortLine);
-            // Enqueue sequentially: plays after current persona finishes,
-            // before the next one starts — no overlap in either direction.
+            setModeratorLastLine(line);
             setModeratorSpeaking(true);
-            enqueueTTS(shortLine, mod.personaId, `mod-lie-${msg.id}`);
-            setTimeout(() => setModeratorSpeaking(false), Math.min(5000, Math.max(1500, shortLine.length * 65)));
+            // blockEarlyResolve=true: next debater waits for moderator to
+            // fully finish — no overlapping, no mid-sentence cutoffs.
+            enqueueTTS(line, mod.personaId, `mod-lie-${msg.id}`, {
+              blockEarlyResolve: true,
+              onComplete: () => setModeratorSpeaking(false),
+            });
           }).catch(() => {});
         }
       })
@@ -1583,11 +1580,13 @@ export default function DebateStage() {
     setMessages((prev) => [...prev, {
       id: msgId, speakerId: mod.personaId, speakerName: mod.name, text, ts: Date.now(),
     }]);
-    // Route moderator audio through the TTS queue (blockEarlyResolve=true so no
-    // persona can overlap the moderator). The queue's natural sequential ordering
-    // guarantees the current speaker fully finishes before the moderator starts —
-    // no polling, no race, no bypass-channel timing hole.
-    await enqueueTTSAndWait(text, mod.personaId, msgId);
+    // Route moderator audio through the TTS queue with blockEarlyResolve=true
+    // so NO debater can start talking until the moderator fully finishes.
+    // The queue's sequential ordering also guarantees the current speaker
+    // finishes before the moderator starts — no race, no cutoff in either direction.
+    await new Promise<void>((resolve) => {
+      enqueueTTS(text, mod.personaId, msgId, { blockEarlyResolve: true, onComplete: resolve });
+    });
     if (!runningRef.current) { setModeratorSpeaking(false); return; }
     setModeratorSpeaking(false);
   }, [moderatorStyle, enqueueTTSAndWait]);
@@ -2235,24 +2234,50 @@ export default function DebateStage() {
 
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
           <Text style={s.sectionLabel}>DEBATER A</Text>
-          <View style={s.chipRow}>
-            {debaterPool.filter(p => p.id !== intervieweeId && p.id !== MODERATORS[moderatorStyle].personaId).map((p) => (
-              <Pressable key={p.id} onPress={() => { Haptics.selectionAsync(); setInterviewerId(p.id); }}
-                style={[s.chip, interviewerId === p.id && s.chipActive]} testID={`interviewer-${p.id}`}>
-                <Text style={[s.chipText, interviewerId === p.id && s.chipTextActive]}>{p.name}</Text>
-              </Pressable>
-            ))}
-          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.personaCardRow}>
+            {debaterPool.filter(p => p.id !== intervieweeId && p.id !== MODERATORS[moderatorStyle].personaId).map((p) => {
+              const portrait = PERSONA_PORTRAITS[p.id];
+              const isSelected = interviewerId === p.id;
+              const initials = p.name.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
+              return (
+                <Pressable key={p.id} onPress={() => { Haptics.selectionAsync(); setInterviewerId(p.id); }}
+                  style={s.personaCard} testID={`interviewer-${p.id}`}>
+                  <View style={[s.personaAvatarWrap, isSelected && s.personaAvatarWrapActive]}>
+                    {portrait
+                      ? <Image source={portrait} style={s.personaAvatar} />
+                      : <View style={s.personaAvatarFallback}><Text style={s.personaAvatarInitials}>{initials}</Text></View>
+                    }
+                  </View>
+                  <Text style={[s.personaCardName, isSelected && s.personaCardNameActive]} numberOfLines={1}>
+                    {p.name.split(" ")[0]}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
 
           <Text style={[s.sectionLabel, { marginTop: 16 }]}>DEBATER B</Text>
-          <View style={s.chipRow}>
-            {debaterPool.filter(p => p.id !== interviewerId && p.id !== MODERATORS[moderatorStyle].personaId).map((p) => (
-              <Pressable key={p.id} onPress={() => { Haptics.selectionAsync(); setIntervieweeId(p.id); }}
-                style={[s.chip, intervieweeId === p.id && s.chipActiveGuest]} testID={`interviewee-${p.id}`}>
-                <Text style={[s.chipText, intervieweeId === p.id && s.chipTextActive]}>{p.name}</Text>
-              </Pressable>
-            ))}
-          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.personaCardRow}>
+            {debaterPool.filter(p => p.id !== interviewerId && p.id !== MODERATORS[moderatorStyle].personaId).map((p) => {
+              const portrait = PERSONA_PORTRAITS[p.id];
+              const isSelected = intervieweeId === p.id;
+              const initials = p.name.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
+              return (
+                <Pressable key={p.id} onPress={() => { Haptics.selectionAsync(); setIntervieweeId(p.id); }}
+                  style={s.personaCard} testID={`interviewee-${p.id}`}>
+                  <View style={[s.personaAvatarWrap, isSelected && s.personaAvatarWrapActiveGuest]}>
+                    {portrait
+                      ? <Image source={portrait} style={s.personaAvatar} />
+                      : <View style={s.personaAvatarFallback}><Text style={s.personaAvatarInitials}>{initials}</Text></View>
+                    }
+                  </View>
+                  <Text style={[s.personaCardName, isSelected && s.personaCardNameActiveGuest]} numberOfLines={1}>
+                    {p.name.split(" ")[0]}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
 
           <Text style={[s.sectionLabel, { marginTop: 16 }]}>SEGMENT LENGTH</Text>
           <View style={s.durationRow}>
@@ -3221,11 +3246,13 @@ const s = StyleSheet.create({
   personaCard: { width: 72, alignItems: "center" },
   personaAvatarWrap: { width: 60, height: 60, borderRadius: 30, overflow: "hidden", borderWidth: 2, borderColor: "rgba(255,255,255,0.1)" },
   personaAvatarWrapActive: { borderColor: "#FFD700", borderWidth: 2.5 },
+  personaAvatarWrapActiveGuest: { borderColor: "#4ADE80", borderWidth: 2.5 },
   personaAvatar: { width: "100%", height: "100%" },
   personaAvatarFallback: { width: "100%", height: "100%", backgroundColor: "rgba(255,215,0,0.12)", alignItems: "center", justifyContent: "center" },
   personaAvatarInitials: { color: "#FFD700", fontSize: 18, fontWeight: "800" },
   personaCardName: { color: "rgba(255,255,255,0.6)", fontSize: 10, fontWeight: "700", marginTop: 5, textAlign: "center" },
   personaCardNameActive: { color: "#FFD700" },
+  personaCardNameActiveGuest: { color: "#4ADE80" },
 
   durationRow: { flexDirection: "row", gap: 8 },
   durationCard: { flex: 1, padding: 14, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.05)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)", alignItems: "center" },
