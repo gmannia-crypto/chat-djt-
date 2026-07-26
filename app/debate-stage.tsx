@@ -901,8 +901,9 @@ export default function DebateStage() {
           sound = await playTTS("/api/persona-speak", ttsBody, { volume: getPersonaVoiceVolume(item.personaId) });
         }
         currentSoundRef.current = sound;
-        // 1s overlap: next speaker starts 1 second before current clip ends — conversational handoff
-        const OVERLAP_MS = 1000;
+        // 50 ms overlap: next speaker starts 50 ms before current clip ends — zero dead air,
+        // tight conversational handoff without audible cross-talk.
+        const OVERLAP_MS = 50;
         let prefetchStarted = false;
         await new Promise<void>((resolve) => {
           let resolved = false;
