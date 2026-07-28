@@ -945,7 +945,7 @@ export default function DebateStage() {
         currentSoundRef.current = sound;
         // 50 ms overlap: next speaker starts 50 ms before current clip ends — zero dead air,
         // tight conversational handoff without audible cross-talk.
-        const OVERLAP_MS = 50;
+        const OVERLAP_MS = 500;
         let prefetchStarted = false;
         await new Promise<void>((resolve) => {
           let resolved = false;
