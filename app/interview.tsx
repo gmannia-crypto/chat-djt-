@@ -15,6 +15,7 @@ import { Audio } from "expo-av";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import { getApiUrl } from "@/lib/query-client";
 import { useTokens } from "@/lib/token-context";
+import { saveRecording, generateShareText, pickHighlightQuote, type ArenaRecording, type RecordedMessage } from "@/lib/arena-recordings";
 import { usePersonaLocks, PREMIUM_PERSONA_CONFIGS } from "@/lib/persona-locks";
 import Colors from "@/constants/colors";
 import { ShareAppButton } from "@/components/ShareAppButton";
@@ -1178,6 +1179,32 @@ export default function InterviewScreen() {
     if (side === "A") setPollVoteA((p) => p + 1); else setPollVoteB((p) => p + 1);
   }, [myPollVote]);
 
+  const shareTranscript = useCallback(async () => {
+    const msgs = messagesRef.current.filter((m) => !m.isSystem);
+    if (msgs.length === 0) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const iName = interviewers.find((p) => p.id === interviewerId)?.name ?? interviewerId;
+    const eName = interviewees.find((p) => p.id === intervieweeId)?.name ?? intervieweeId;
+    const startedAt = sessionStartedAtRef.current || msgs[0]?.ts || Date.now();
+    const durationSec = Math.round((Date.now() - startedAt) / 1000);
+    const mins = Math.floor(durationSec / 60);
+    const highlight = pickHighlightQuote(msgs.map((m): RecordedMessage => ({
+      id: m.id, speakerId: m.speakerId, speakerName: m.speakerName,
+      text: m.text, timestamp: m.ts, relativeTime: 0,
+    })));
+    const interruptions = msgs.filter((m) => m.isInterruption).length;
+    let text = `🎙️ "${iName} vs ${eName}" — Chat DJT\n`;
+    if (highlight) text += `\n💬 "${highlight}"\n`;
+    if (interruptions > 0) text += `⚡ ${interruptions} interruption${interruptions > 1 ? "s" : ""}!\n`;
+    text += `\n${msgs.length} exchanges · ${mins}m\n`;
+    text += `#ChatDJT #AIDebate #${iName.replace(/\s+/g, "")} #${eName.replace(/\s+/g, "")}\n`;
+    text += `\n🏛️ Watch live debates on Chat DJT\nhttps://chatdjt.com`;
+    try {
+      if (Platform.OS === "web" && navigator.share) await navigator.share({ title: `${iName} vs ${eName}`, text });
+      else await Share.share({ message: text, title: `${iName} vs ${eName}` });
+    } catch {}
+  }, [interviewerId, intervieweeId, interviewers, interviewees]);
+
   const shareInterviewPoll = useCallback(async () => {
     if (!pollQuestion) return;
     const totalVotes = pollVoteA + pollVoteB;
@@ -1721,6 +1748,29 @@ export default function InterviewScreen() {
       startedAt,
       endedAt,
     };
+    // Save to local recordings for offline playback + social sharing
+    const startedAt = sessionStartedAtRef.current || msgs[0]?.ts || Date.now();
+    const localRecording: ArenaRecording = {
+      id: `iv-${startedAt}`,
+      topic: msgs.find((m) => !m.isSystem)?.speakerName
+        ? `${interviewers.find((p) => p.id === interviewerId)?.name ?? interviewerId} × ${interviewees.find((p) => p.id === intervieweeId)?.name ?? intervieweeId}`
+        : "Interview",
+      startTime: startedAt,
+      duration: Math.round((Date.now() - startedAt) / 1000),
+      personas: [interviewerId, intervieweeId].filter(Boolean) as string[],
+      messages: msgs.map((m, i): RecordedMessage => ({
+        id: m.id, speakerId: m.speakerId, speakerName: m.speakerName,
+        text: m.text, timestamp: m.ts, relativeTime: m.ts - startedAt,
+        isSystem: m.isSystem, isInterruption: m.isInterruption,
+      })),
+      messageCount: msgs.filter((m) => !m.isSystem).length,
+      highlightQuote: pickHighlightQuote(msgs.map((m): RecordedMessage => ({
+        id: m.id, speakerId: m.speakerId, speakerName: m.speakerName,
+        text: m.text, timestamp: m.ts, relativeTime: 0,
+      }))),
+    };
+    saveRecording(localRecording).catch(() => {});
+
     fetch(new URL("/api/arena/interview-save", getApiUrl()).toString(), {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-device-id": deviceId },
@@ -2413,6 +2463,10 @@ export default function InterviewScreen() {
               <Text style={{ color: "#000", fontSize: 12, fontWeight: "900" }}>VIEW TRANSCRIPT</Text>
             </Pressable>
             <ShareAppButton variant="pill" area="arena" />
+            <Pressable onPress={shareTranscript} style={[s.endedBtnSecondary, { borderColor: "rgba(74,222,128,0.5)", backgroundColor: "rgba(74,222,128,0.1)" }]}>
+              <Ionicons name="share-social" size={14} color="#4ADE80" />
+              <Text style={{ color: "#4ADE80", fontSize: 12, fontWeight: "800" }}>SHARE</Text>
+            </Pressable>
             <Pressable onPress={openInterviewPoll} style={[s.endedBtnSecondary, { borderColor: "rgba(255,215,0,0.4)" }]}>
               <Ionicons name="bar-chart" size={14} color="#FFD700" />
               <Text style={{ color: "#FFD700", fontSize: 12, fontWeight: "800" }}>POLL</Text>

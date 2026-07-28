@@ -431,7 +431,7 @@ export default function DebateStage() {
   const debatePointsRef = useRef<{ a: number; b: number }>({ a: 0, b: 0 });
   useEffect(() => { debatePointsRef.current = debatePoints; }, [debatePoints]);
   const [showDebateWinner, setShowDebateWinner] = useState(false);
-  const [debateWinner, setDebateWinner] = useState<{ id: string; name: string; portrait: any; points: number; opponentPoints: number } | null>(null);
+  const [debateWinner, setDebateWinner] = useState<{ id: string; name: string; portrait: any; points: number; opponentPoints: number; verdict?: string; aiJudged?: boolean } | null>(null);
   const [debateTokenWinVisible, setDebateTokenWinVisible] = useState(false);
   const [debateTokenWinAmount, setDebateTokenWinAmount] = useState<number | undefined>();
   const winnerTriggeredRef = useRef(false);
@@ -514,10 +514,52 @@ export default function DebateStage() {
     if (phase !== "ended" || winnerTriggeredRef.current) return;
     winnerTriggeredRef.current = true;
     const pts = debatePointsRef.current;
-    if (pts.a === 0 && pts.b === 0) return; // no points awarded — skip winner
     const aId = interviewerId;
     const bId = intervieweeId;
     if (!aId || !bId) return;
+
+    if (pts.a === 0 && pts.b === 0) {
+      // No votes cast — ask AI to judge by facts
+      const msgs = messagesRef.current.filter((m) => !m.isSystem);
+      if (msgs.length < 4) return;
+      const aPersona = interviewers.find((p) => p.id === aId);
+      const bPersona = interviewees.find((p) => p.id === bId);
+      const topicStr = typeof currentTopic === "string"
+        ? currentTopic
+        : (currentTopic as any)?.title || "Political Debate";
+      fetch(new URL("/api/arena/verdict", getApiUrl()).toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          topic: topicStr,
+          messages: msgs.map((m) => ({ speakerName: m.speakerName, text: m.text })),
+          personas: [aPersona?.name || aId, bPersona?.name || bId],
+        }),
+      }).then(async (res) => {
+        if (!res.ok) return;
+        const v = await res.json();
+        // Match winnerId — server returns persona name, match against both sides
+        const aName = (aPersona?.name || aId).toLowerCase();
+        const bName = (bPersona?.name || bId).toLowerCase();
+        const vWinner = (v.winner || "").toLowerCase();
+        const vId = (v.winnerId || "").toLowerCase();
+        const aWins = vId === aId || vWinner.includes(aName) || aName.includes(vWinner);
+        const winnerId = aWins ? aId : bId;
+        const winnerPersona = aWins ? aPersona : bPersona;
+        setDebateWinner({
+          id: winnerId,
+          name: winnerPersona?.name || v.winner || winnerId,
+          portrait: PERSONA_PORTRAITS[winnerId] || null,
+          points: 0, opponentPoints: 0,
+          verdict: v.verdict || v.summary || "",
+          aiJudged: true,
+        });
+        setShowDebateWinner(true);
+        playDebateCheer();
+      }).catch(() => {});
+      return;
+    }
+
     const aWins = pts.a >= pts.b;
     const winnerId = aWins ? aId : bId;
     const winnerPersona = aWins
@@ -936,12 +978,16 @@ export default function DebateStage() {
           let safetyTimer: ReturnType<typeof setTimeout> = setTimeout(finish, 10000);
 
           sound.setOnPlaybackStatusUpdate((status: any) => {
-            interruptCtl.maybeFire(
-              status, sound,
-              () => { setModeratorSpeaking(true); setActiveSpeaker(MODERATORS[moderatorStyle]?.personaId || null); },
-              () => { setModeratorSpeaking(false); setActiveSpeaker(item.personaId); },
-              activeSpeakerRef.current
-            );
+            // Never let an armed interrupt duck or fire over a moderator line —
+            // blockEarlyResolve items are moderator speech and must complete fully.
+            if (!item.blockEarlyResolve) {
+              interruptCtl.maybeFire(
+                status, sound,
+                () => { setModeratorSpeaking(true); setActiveSpeaker(MODERATORS[moderatorStyle]?.personaId || null); },
+                () => { setModeratorSpeaking(false); setActiveSpeaker(item.personaId); },
+                activeSpeakerRef.current
+              );
+            }
             if (status.didJustFinish || status.error) {
               clearTimeout(safetyTimer);
               finish();
@@ -951,6 +997,10 @@ export default function DebateStage() {
               // Switch to a duration-aware cap the first time we see playback
               if (!playbackStarted) {
                 playbackStarted = true;
+                // Sync-update activeSpeakerRef immediately so the interrupt controller
+                // sees the correct currentSpeakerId on its very next maybeFire call.
+                activeSpeakerRef.current = item.personaId;
+                setActiveSpeaker(item.personaId);
                 clearTimeout(safetyTimer);
                 // Allow the full clip duration + 6 s buffer before force-finishing
                 safetyTimer = setTimeout(finish, status.durationMillis + 6000);
@@ -2936,22 +2986,30 @@ export default function DebateStage() {
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.92)", alignItems: "center", justifyContent: "center" }}>
           <Animated.View entering={ZoomIn.duration(380).springify()} style={{ alignItems: "center", padding: 28, backgroundColor: "#111", borderRadius: 28, borderWidth: 2, borderColor: "#FFD700", width: "88%", maxWidth: 400 }}>
             <Ionicons name="trophy" size={52} color="#FFD700" />
-            <Text style={{ color: "#FFD700", fontSize: 13, fontWeight: "900", letterSpacing: 2.5, marginTop: 8 }}>DC DEBATE CHAMPION</Text>
+            <Text style={{ color: debateWinner?.aiJudged ? "#60A5FA" : "#FFD700", fontSize: 13, fontWeight: "900", letterSpacing: 2.5, marginTop: 8 }}>
+              {debateWinner?.aiJudged ? "⚖️ AI FACT VERDICT" : "DC DEBATE CHAMPION"}
+            </Text>
             {debateWinner?.portrait ? (
-              <Image source={debateWinner.portrait} style={{ width: 150, height: 150, borderRadius: 75, marginTop: 16, borderWidth: 3, borderColor: "#FFD700" }} />
+              <Image source={debateWinner.portrait} style={{ width: 130, height: 130, borderRadius: 65, marginTop: 14, borderWidth: 3, borderColor: debateWinner?.aiJudged ? "#60A5FA" : "#FFD700" }} />
             ) : null}
-            <Text style={{ color: "#fff", fontSize: 30, fontWeight: "900", marginTop: 14, textAlign: "center" }}>{debateWinner?.name}</Text>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 16, marginTop: 10 }}>
-              <View style={{ alignItems: "center" }}>
-                <Text style={{ color: "#FFD700", fontSize: 28, fontWeight: "900" }}>{debateWinner?.points ?? 0}</Text>
-                <Text style={{ color: "rgba(255,215,0,0.6)", fontSize: 9, fontWeight: "800", letterSpacing: 1 }}>WINNER</Text>
+            <Text style={{ color: "#fff", fontSize: 28, fontWeight: "900", marginTop: 12, textAlign: "center" }}>{debateWinner?.name}</Text>
+            {debateWinner?.aiJudged ? (
+              <View style={{ marginTop: 12, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "rgba(96,165,250,0.12)", borderRadius: 14, borderWidth: 1, borderColor: "rgba(96,165,250,0.35)", maxWidth: 320 }}>
+                <Text style={{ color: "rgba(255,255,255,0.9)", fontSize: 12, lineHeight: 18, textAlign: "center", fontStyle: "italic" }}>"{debateWinner.verdict}"</Text>
               </View>
-              <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 18 }}>vs</Text>
-              <View style={{ alignItems: "center" }}>
-                <Text style={{ color: "rgba(255,255,255,0.55)", fontSize: 22, fontWeight: "800" }}>{debateWinner?.opponentPoints ?? 0}</Text>
-                <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: "800", letterSpacing: 1 }}>OPPONENT</Text>
+            ) : (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 16, marginTop: 10 }}>
+                <View style={{ alignItems: "center" }}>
+                  <Text style={{ color: "#FFD700", fontSize: 28, fontWeight: "900" }}>{debateWinner?.points ?? 0}</Text>
+                  <Text style={{ color: "rgba(255,215,0,0.6)", fontSize: 9, fontWeight: "800", letterSpacing: 1 }}>WINNER</Text>
+                </View>
+                <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 18 }}>vs</Text>
+                <View style={{ alignItems: "center" }}>
+                  <Text style={{ color: "rgba(255,255,255,0.55)", fontSize: 22, fontWeight: "800" }}>{debateWinner?.opponentPoints ?? 0}</Text>
+                  <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: "800", letterSpacing: 1 }}>OPPONENT</Text>
+                </View>
               </View>
-            </View>
+            )}
             {debateTokenWinAmount ? (
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, paddingHorizontal: 14, paddingVertical: 6, backgroundColor: "rgba(255,215,0,0.12)", borderRadius: 14, borderWidth: 1, borderColor: "rgba(255,215,0,0.35)" }}>
                 <Ionicons name="logo-bitcoin" size={14} color="#FFD700" />
@@ -2993,6 +3051,27 @@ export default function DebateStage() {
               <Text style={{ color: "#000", fontSize: 12, fontWeight: "900" }}>VIEW TRANSCRIPT</Text>
             </Pressable>
             <ShareAppButton variant="pill" area="arena" />
+            <Pressable
+              onPress={async () => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                const msgs = messagesRef.current.filter((m) => !m.isSystem);
+                const aName = interviewers.find((p) => p.id === interviewerId)?.name ?? interviewerId ?? "Debater A";
+                const bName = interviewees.find((p) => p.id === intervieweeId)?.name ?? intervieweeId ?? "Debater B";
+                const topicStr = typeof currentTopic === "string" ? currentTopic : (currentTopic as any)?.title || "Political Debate";
+                const highlight = msgs.slice(-20).filter((m) => m.text.length > 30).sort((a, b) => b.text.length - a.text.length)[0]?.text?.slice(0, 120) || "";
+                let text = `🔥 "${aName} vs ${bName}" — Chat DJT\n📋 Topic: ${topicStr}\n`;
+                if (highlight) text += `\n💬 "${highlight}"\n`;
+                text += `\n${msgs.length} exchanges\n#ChatDJT #AIDebate\nhttps://chatdjt.com`;
+                try {
+                  if (Platform.OS === "web" && navigator.share) await navigator.share({ title: `${aName} vs ${bName}`, text });
+                  else await Share.share({ message: text, title: `${aName} vs ${bName}` });
+                } catch {}
+              }}
+              style={[s.endedBtnSecondary, { borderColor: "rgba(74,222,128,0.5)", backgroundColor: "rgba(74,222,128,0.1)" }]}
+            >
+              <Ionicons name="share-social" size={14} color="#4ADE80" />
+              <Text style={{ color: "#4ADE80", fontSize: 12, fontWeight: "800" }}>SHARE</Text>
+            </Pressable>
             <Pressable onPress={openInterviewPoll} style={[s.endedBtnSecondary, { borderColor: "rgba(255,215,0,0.4)" }]}>
               <Ionicons name="bar-chart" size={14} color="#FFD700" />
               <Text style={{ color: "#FFD700", fontSize: 12, fontWeight: "800" }}>POLL</Text>
