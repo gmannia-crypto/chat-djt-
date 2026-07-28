@@ -1749,7 +1749,6 @@ export default function InterviewScreen() {
       endedAt,
     };
     // Save to local recordings for offline playback + social sharing
-    const startedAt = sessionStartedAtRef.current || msgs[0]?.ts || Date.now();
     const localRecording: ArenaRecording = {
       id: `iv-${startedAt}`,
       topic: msgs.find((m) => !m.isSystem)?.speakerName
