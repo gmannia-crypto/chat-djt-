@@ -3691,6 +3691,8 @@ export default function ArenaScreen() {
   const [currentSpeaker, setCurrentSpeaker] = useState<string | null>(null);
   const [ttsActiveSpeaker, setTtsActiveSpeaker] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
+  const [firstAudioPlayed, setFirstAudioPlayed] = useState(false);
+  const firstAudioPlayedRef = useRef(false);
   const [currentTopic, setCurrentTopic] = useState<string | null>(null);
   const [focusedPersona, setFocusedPersona] = useState<string | null>(null);
 
@@ -4390,7 +4392,10 @@ export default function ArenaScreen() {
     if (isProcessingTTSRef.current || ttsQueueRef.current.length === 0) return;
     isProcessingTTSRef.current = true;
     const myGeneration = ttsGenerationRef.current;
-    if (mountedRef.current) setIsPlayingAudio(true);
+    if (mountedRef.current) {
+      setIsPlayingAudio(true);
+      if (!firstAudioPlayedRef.current) { firstAudioPlayedRef.current = true; setFirstAudioPlayed(true); }
+    }
     while (ttsQueueRef.current.length > 0) {
       if (myGeneration !== ttsGenerationRef.current) break;
       if (!forcePlayRef.current && sessionEndedRef.current) break;
@@ -4594,6 +4599,8 @@ export default function ArenaScreen() {
           setAwardedMessages(new Set());
           setTrumpRoastText("");
           setIsLoadingRoast(false);
+          firstAudioPlayedRef.current = false;
+          setFirstAudioPlayed(false);
         }
         setShowScoreboard(false);
         refreshBalance();
@@ -4617,6 +4624,8 @@ export default function ArenaScreen() {
           isInterruptingRef.current = false;
           currentSpeakerRef.current = null;
           setCurrentSpeaker(null);
+          firstAudioPlayedRef.current = false;
+          setFirstAudioPlayed(false);
           setIsRunning(true);
           isRunningRef.current = true;
           addSystemMessage(continueMode ? `Session extended! ${mins} more minutes — scores carry over. Keep going!` : `Session unlocked! ${mins} minutes of unlimited access.`);
@@ -8178,17 +8187,49 @@ export default function ArenaScreen() {
               )}
             </Pressable>
             <Pressable
-              onPress={() => {
+              onPress={async () => {
                 setShowContinuePrompt(false);
                 const totalPts = Object.values(personaPointsRef.current).reduce((a, b) => a + b, 0);
-                if (totalPts > 0) {
-                  playWinnerChosenSound();
-                  setShowEndSummary(true);
-                  clearSavedSession();
-                  awardBadge("arena_debut");
-                  setTimeout(() => { playWinnerAfterSound(); }, 4000);
-                } else {
-                  setShowPaywall(true);
+                playWinnerChosenSound();
+                setShowEndSummary(true);
+                clearSavedSession();
+                awardBadge("arena_debut");
+                setTimeout(() => { playWinnerAfterSound(); }, 4000);
+                if (totalPts === 0) {
+                  // Nobody voted — AI picks the winner, then auto-fires Trump roast + winner clapback
+                  setIsLoadingRoast(true);
+                  try {
+                    const r = await fetch(new URL("/api/arena/verdict", getApiUrl()).toString(), {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        topic: currentTopic || "General debate",
+                        messages: messagesRef.current
+                          .filter((m) => !m.isSystem && (m.text?.length ?? 0) > 5)
+                          .slice(-60)
+                          .map((m) => ({ speakerName: m.speakerName || m.speakerId, text: m.text })),
+                        personas: selectedPersonasRef.current,
+                      }),
+                    });
+                    if (r.ok) {
+                      const v = await r.json();
+                      const vWinner = (v.winner || "").toLowerCase();
+                      const winnerId = selectedPersonasRef.current.find((pid) => {
+                        const name = (getPersona(pid)?.name || "").toLowerCase();
+                        return name.includes(vWinner) || vWinner.includes(name);
+                      }) ?? selectedPersonasRef.current[0];
+                      if (winnerId) {
+                        // Set synthetic point so leaderboard renders the AI winner
+                        personaPointsRef.current = { [winnerId]: 1 };
+                        setPersonaPoints({ [winnerId]: 1 });
+                        fetchTrumpRoast();
+                      } else {
+                        setIsLoadingRoast(false);
+                      }
+                    } else {
+                      setIsLoadingRoast(false);
+                    }
+                  } catch { setIsLoadingRoast(false); }
                 }
               }}
               style={[s.summaryActionBtn, { backgroundColor: "transparent", borderWidth: 1, borderColor: "#ff4d4d", width: "100%" }]}
@@ -8399,6 +8440,15 @@ export default function ArenaScreen() {
         setVideoStates={setViralClipVideoStates}
         deviceId={deviceId}
       />
+
+      {/* Audio connecting overlay — shows from session start until first voice plays */}
+      {isRunning && !firstAudioPlayed && (
+        <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(600)} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.78)", alignItems: "center", justifyContent: "center", zIndex: 200, pointerEvents: "none" }}>
+          <ActivityIndicator size="large" color="#FFD700" />
+          <Text style={{ color: "#FFD700", fontSize: 15, fontWeight: "900", marginTop: 14, letterSpacing: 1.5 }}>🎙️ AUDIO CONNECTING</Text>
+          <Text style={{ color: "rgba(255,255,255,0.45)", fontSize: 12, marginTop: 6 }}>Voices loading — stay tuned!</Text>
+        </Animated.View>
+      )}
 
       {/* AI Verdict Modal */}
       <Modal visible={showVerdictModal} transparent animationType="fade" onRequestClose={() => setShowVerdictModal(false)}>

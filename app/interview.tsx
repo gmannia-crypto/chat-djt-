@@ -390,6 +390,8 @@ export default function InterviewScreen() {
   const [pollLoading, setPollLoading] = useState(false);
 
   const [phase, setPhase] = useState<"setup" | "live" | "ended">("setup");
+  const [firstAudioPlayed, setFirstAudioPlayed] = useState(false);
+  const firstAudioPlayedRef = useRef(false);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [isStarting, setIsStarting] = useState(false);
   const [isThinking, setIsThinking] = useState<"interviewer" | "interviewee" | null>(null);
@@ -752,6 +754,7 @@ export default function InterviewScreen() {
           sound = await playTTS("/api/persona-speak", { text: item.text, personaId: item.personaId }, { volume: getPersonaVoiceVolume(item.personaId) });
         }
         currentSoundRef.current = sound;
+        if (!firstAudioPlayedRef.current) { firstAudioPlayedRef.current = true; setFirstAudioPlayed(true); }
         // 1s overlap: next speaker starts 1 second before current clip ends — conversational handoff
         const OVERLAP_MS = 1000;
         let prefetchStarted = false;
@@ -1586,6 +1589,8 @@ export default function InterviewScreen() {
     savedSessionRef.current = false;
     setSavedSessionId(null);
     ttsQueueRef.current = [];
+    firstAudioPlayedRef.current = false;
+    setFirstAudioPlayed(false);
     setPhase("live");
     runningRef.current = true;
     isPausedRef.current = false;
@@ -1682,6 +1687,8 @@ export default function InterviewScreen() {
         savedSessionRef.current = false;
         setSavedSessionId(null);
         ttsQueueRef.current = [];
+        firstAudioPlayedRef.current = false;
+        setFirstAudioPlayed(false);
         setPhase("live");
         runningRef.current = true;
         isPausedRef.current = false;
@@ -2443,6 +2450,15 @@ export default function InterviewScreen() {
             </View>
           </View>
         </KeyboardAvoidingView>
+      )}
+
+      {/* Audio connecting overlay — shows until first voice plays */}
+      {phase === "live" && !firstAudioPlayed && (
+        <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(600)} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.78)", alignItems: "center", justifyContent: "center", zIndex: 200, pointerEvents: "none" }}>
+          <ActivityIndicator size="large" color="#FFD700" />
+          <Text style={{ color: "#FFD700", fontSize: 15, fontWeight: "900", marginTop: 14, letterSpacing: 1.5 }}>🎙️ AUDIO CONNECTING</Text>
+          <Text style={{ color: "rgba(255,255,255,0.45)", fontSize: 12, marginTop: 6 }}>Voices loading — stay tuned!</Text>
+        </Animated.View>
       )}
 
       {phase === "ended" && (
