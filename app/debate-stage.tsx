@@ -2294,7 +2294,7 @@ export default function DebateStage() {
     moderatorSpeakingRef.current = false;
     if (!runningRef.current) { setModeratorSpeaking(false); return; }
     setModeratorSpeaking(false);
-  }, [moderatorStyle, enqueueTTSAndWait]);
+  }, [moderatorStyle, enqueueTTS]);
 
   // Thin shim kept so startInterview / unlockSession don't need refactoring.
   // runLoop now handles the full structured debate flow including the first round.
