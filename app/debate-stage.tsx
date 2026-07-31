@@ -1871,7 +1871,63 @@ export default function DebateStage() {
                   [interviewerId!, intervieweeId!],
                   [interviewer?.name ?? interviewerId!, interviewee?.name ?? intervieweeId!],
                 );
-                await speakModQueued(bridgeLine);
+
+                // ── BRIDGE + FILLER: mirror rebuttal STEP 3+4 ───────────────────────────
+                // Kick off the next moderator question AI fetch while the bridge TTS
+                // plays. If the bridge finishes before the response arrives, filler
+                // lines hold the room rather than leaving dead air.
+                // Null guard: if the fetch settles immediately with nothing, the bridge
+                // is skipped rather than spoken into silence.
+                const nextTarget = moderatorTargetRef.current === "A" ? interviewerId! : intervieweeId!;
+                const nextTargetName = nextTarget === interviewerId
+                  ? spokenName(interviewerId ?? undefined, interviewer?.name ?? "", mod.personaId)
+                  : spokenName(intervieweeId ?? undefined, interviewee?.name ?? "", mod.personaId);
+                const nextTopic = topicsRef.current[nextIdx];
+
+                // Filler-safe wrapper: stops early if the debate is stopped.
+                const speakModQueuedFiller = (text: string): Promise<void> => {
+                  let ivId: ReturnType<typeof setInterval> | null = null;
+                  return Promise.race([
+                    speakModQueued(text),
+                    new Promise<void>((res) => {
+                      ivId = setInterval(() => {
+                        if (!runningRef.current) { clearInterval(ivId!); ivId = null; res(); }
+                      }, 50);
+                    }),
+                  ]).finally(() => { if (ivId !== null) clearInterval(ivId); });
+                };
+
+                let nextQuestionDone = false;
+                let nextQuestion: string | null = null;
+                const nextQuestionFetch = generateModeratorQuestion({
+                  deviceId,
+                  moderatorStyle,
+                  targetId: nextTarget,
+                  topic: nextTopic,
+                  isTransition: false,
+                  conversationHistory: messagesRef.current.filter((m) => !m.isSystem).slice(-4),
+                }).then((q) => { nextQuestion = q || null; nextQuestionDone = true; })
+                  .catch(() => { nextQuestionDone = true; });
+
+                await Promise.all([
+                  nextQuestionFetch,
+                  (async () => {
+                    // One microtask flush: if the fetch already settled (fast connection
+                    // or cache hit) and returned null, skip the bridge rather than
+                    // speaking into silence.
+                    await Promise.resolve();
+                    if (nextQuestionDone && !nextQuestion) return; // null guard
+                    if (!runningRef.current) return;
+                    await speakModQueued(bridgeLine);
+                    // Bridge finished — filler until the question AI response arrives.
+                    while (!nextQuestionDone && runningRef.current) {
+                      await speakModQueuedFiller(getWaitFiller(nextTargetName));
+                    }
+                  })(),
+                ]);
+                // Hand the pre-fetched question to the main loop so it plays immediately.
+                if (nextQuestion) prefetchedOpeningRef.current = nextQuestion;
+                // ────────────────────────────────────────────────────────────────────────
               } else {
                 // Already on the last topic — end the debate rather than limping
                 // along on an exhausted topic with a 90 s cooldown in effect.
