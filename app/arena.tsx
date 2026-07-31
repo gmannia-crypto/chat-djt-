@@ -4621,12 +4621,12 @@ export default function ArenaScreen() {
     if (!voiceEnabledRef.current) return;
     if (shouldSkipPersonaVoice(personaId)) return;
 
-    // Main speaker keeps playing at full volume — interrupter comes in underneath at reduced volume
+    // Interrupter plays at the same volume as any other speaker
     if (mountedRef.current) {
       setTtsActiveSpeaker(personaId);
     }
     try {
-      const interruptVolume = getPersonaVoiceVolume(personaId) * 0.45;
+      const interruptVolume = getPersonaVoiceVolume(personaId);
       const sound = await playTTS("/api/persona-speak", { text, personaId }, { volume: interruptVolume });
       let cleaned = false;
       const cleanup = () => {

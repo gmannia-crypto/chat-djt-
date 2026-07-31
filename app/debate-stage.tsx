@@ -1717,11 +1717,11 @@ export default function DebateStage() {
   const playInterruptionAudio = useCallback(async (text: string, personaId: string) => {
     if (!voiceEnabledRef.current) return;
     if (shouldSkipPersonaVoice(personaId)) return;
-    // Main speaker keeps playing at full volume — interrupter comes in underneath at reduced volume
+    // Interrupter plays at the same volume as any other speaker
     setActiveSpeaker(personaId);
     activeSpeakerRef.current = personaId;
     try {
-      const interruptVolume = getPersonaVoiceVolume(personaId) * 0.45;
+      const interruptVolume = getPersonaVoiceVolume(personaId);
       const sound = await playTTS("/api/persona-speak", { text, personaId }, { volume: interruptVolume });
       let cleaned = false;
       const cleanup = () => {
@@ -1788,12 +1788,38 @@ export default function DebateStage() {
         }]);
         await new Promise<void>((r) => setTimeout(r, 50));
         await playInterruptionAudio(threatLine, targetId);
-        // Moderator forcibly intervenes after the physical threat
+        // Moderator forcibly intervenes after the physical threat.
+        // Route through the TTS queue (blockEarlyResolve=true) so the moderator
+        // always finishes completely before any persona can speak again.
         if (runningRef.current) {
           const mod = MODERATORS[moderatorStyle];
           if (mod) {
+            // Helper: enqueue a moderator line, add it to the transcript, and wait
+            // for it to fully finish before proceeding — personas cannot cut in.
+            const speakModQueued = (text: string) => {
+              setModeratorSpeaking(true);
+              moderatorSpeakingRef.current = true;
+              setModeratorLastLine(text);
+              setMessages((prev) => [...prev, {
+                id: `sq-mod-${Date.now()}-${Math.random()}`,
+                speakerId: mod.personaId,
+                speakerName: mod.name,
+                text,
+                ts: Date.now(),
+              }]);
+              return new Promise<void>((resolve) => {
+                enqueueTTS(text, mod.personaId, `sq-mod-${Date.now()}`, {
+                  blockEarlyResolve: true,
+                  onComplete: () => {
+                    moderatorSpeakingRef.current = false;
+                    setModeratorSpeaking(false);
+                    resolve();
+                  },
+                });
+              });
+            };
             const modLine = localJab("squabble");
-            await speakModeratorNow(modLine, mod.personaId, { wait: true });
+            await speakModQueued(modLine);
             // ── SQUABBLE TOPIC ADVANCE: force a topic switch so the loop can't restart ──
             // Advance to the next topic (if one exists), reset exchange counter, then
             // speak a short "moving on" bridge so the transition feels intentional.
@@ -1811,12 +1837,12 @@ export default function DebateStage() {
                 timeoutBannerTimerRef.current = setTimeout(() => setShowTimeoutBanner(false), 3000);
                 // ─────────────────────────────────────────────────────────
                 const bridgeLine = getSquabbleBridge(moderatorStyle);
-                await speakModeratorNow(bridgeLine, mod.personaId, { wait: true });
+                await speakModQueued(bridgeLine);
               } else {
                 // Already on the last topic — end the debate rather than limping
                 // along on an exhausted topic with a 90 s cooldown in effect.
                 const closerLine = getSquabbleCloser(moderatorStyle);
-                await speakModeratorNow(closerLine, mod.personaId, { wait: true });
+                await speakModQueued(closerLine);
                 // Signal the run-loop to stop — it will call setPhase("ended") on exit.
                 sessionEndsAtRef.current = Date.now();
               }
@@ -1887,7 +1913,7 @@ export default function DebateStage() {
         setTimeout(() => { firebackChainRef.current = Math.max(0, firebackChainRef.current - 1); }, 18000);
       }
     } catch { /* never break the main debate loop */ }
-  }, [deviceId, interviewerId, intervieweeId, interviewers, interviewees, playInterruptionAudio]);
+  }, [deviceId, interviewerId, intervieweeId, interviewers, interviewees, moderatorStyle, enqueueTTS, playInterruptionAudio]);
 
   // Sync ref so the recursive chain call always uses the latest closure
   useEffect(() => { tryFirebackRef.current = tryFireback; }, [tryFireback]);
