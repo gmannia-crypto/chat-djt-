@@ -123,6 +123,7 @@ const MICRO_REACTIONS = [
   "Say what?", "Unbelievable.", "Mm.", "Ok sure.", "That's rich.",
 ];
 
+// Neutral — balanced, no editorial tilt
 const REBUTTAL_BRIDGE_TEMPLATES = [
   (n: string) => `${n}, any rebuttal to that?`,
   (n: string) => `${n}, how do you respond to that?`,
@@ -133,8 +134,45 @@ const REBUTTAL_BRIDGE_TEMPLATES = [
   (n: string) => `${n}, do you have a rebuttal?`,
   (n: string) => `${n}, I'd like to hear your thoughts on that.`,
 ];
-const getRebuttalBridge = (name: string) =>
-  REBUTTAL_BRIDGE_TEMPLATES[Math.floor(Math.random() * REBUTTAL_BRIDGE_TEMPLATES.length)](name || "Debater");
+
+// Softball — moderator is rooting for this debater; phrasing is gentle, even encouraging
+const REBUTTAL_BRIDGE_FAVOR = [
+  (n: string) => `${n}, I think you have something important to add here.`,
+  (n: string) => `${n}, please — set the record straight.`,
+  (n: string) => `${n}, I'd love to hear your perspective on this.`,
+  (n: string) => `${n}, go ahead — the floor is yours.`,
+  (n: string) => `${n}, you've been very patient. What's your response?`,
+  (n: string) => `${n}, I suspect you have a lot to say about that claim.`,
+  (n: string) => `${n}, that deserves a real answer — and I think you can give one.`,
+  (n: string) => `${n}, don't let that go unchallenged.`,
+];
+
+// Prosecutorial — moderator is hostile to this debater; phrasing is skeptical, pressing
+const REBUTTAL_BRIDGE_TARGET = [
+  (n: string) => `${n}, can you actually defend that? Because I'm not sure you can.`,
+  (n: string) => `${n} — your turn. And I'd appreciate a straight answer for once.`,
+  (n: string) => `${n}, let's see if you have anything credible to say here.`,
+  (n: string) => `${n}, you've been dodging this all night — address it now.`,
+  (n: string) => `${n}, the audience is waiting. What exactly is your rebuttal?`,
+  (n: string) => `${n}, go ahead — though I'll be listening very carefully.`,
+  (n: string) => `${n}, is there any part of that you can honestly dispute?`,
+  (n: string) => `${n}, respond to that — if you have a real answer.`,
+];
+
+/**
+ * Returns a rebuttal-bridge line for the given debater, shaped by how the
+ * moderator personally leans toward that persona (softballs for favored
+ * debaters, prosecutorial cues for targeted ones, neutral for everyone else).
+ */
+const getRebuttalBridge = (name: string, moderatorStyle?: ModeratorStyle, personaId?: string): string => {
+  let pool = REBUTTAL_BRIDGE_TEMPLATES;
+  if (moderatorStyle && personaId) {
+    const leaning = getModeratorLeaning(moderatorStyle, personaId);
+    if (leaning === "favor") pool = REBUTTAL_BRIDGE_FAVOR;
+    else if (leaning === "target") pool = REBUTTAL_BRIDGE_TARGET;
+  }
+  return pool[Math.floor(Math.random() * pool.length)](name || "Debater");
+};
 
 // Maps persona IDs to TTS-safe spoken names.
 // Values can be a plain string (universal) or a per-speaker map with a "default" fallback.
@@ -2321,7 +2359,7 @@ export default function DebateStage() {
       // ── STEP 3+4: Bridge + await pre-fetched rebuttal in parallel ──────────
       // Use the already-in-flight rebuttalFetchPromise if available; otherwise
       // start a fresh fetch as a fallback (e.g. primary answer arrived very late).
-      const bridgeText = getRebuttalBridge(secondaryName);
+      const bridgeText = getRebuttalBridge(secondaryName, moderatorStyle, secondaryId);
       setIsThinking("interviewee");
       let rebuttal: Awaited<ReturnType<typeof fetchAnswerFrom>> = null;
       const rebuttalPromise: ReturnType<typeof fetchAnswerFrom> =
