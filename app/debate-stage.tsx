@@ -202,6 +202,59 @@ function detectOffense(text: string, personaId: string, speakerId: string): bool
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ── PERSONA AGGRESSION LEVELS ─────────────────────────────────────────────────
+// aggression: 0–1, probability of firing a fireback when insulted
+// angerThresh: total insult-severity points needed to cross the trigger line
+// maxChain: consecutive back-and-forth exchanges before a cooldown kicks in
+const PERSONA_AGGRESSION: Record<string, { aggression: number; angerThresh: number; maxChain: number }> = {
+  // Hair-trigger — insult them and they WILL fire back, hard
+  carville:        { aggression: 0.97, angerThresh: 1, maxChain: 4 },
+  trump:           { aggression: 0.95, angerThresh: 1, maxChain: 5 },
+  charliemurphy:   { aggression: 0.92, angerThresh: 1, maxChain: 3 },
+  malema:          { aggression: 0.93, angerThresh: 1, maxChain: 3 },
+  claudeanderson:  { aggression: 0.90, angerThresh: 1, maxChain: 3 },
+  gilbertgottfried:{ aggression: 0.88, angerThresh: 1, maxChain: 3 },
+  biden:           { aggression: 0.82, angerThresh: 2, maxChain: 3 },
+  joyreid:         { aggression: 0.83, angerThresh: 2, maxChain: 2 },
+  // High aggression — provoke them enough and they escalate
+  netanyahu:       { aggression: 0.78, angerThresh: 2, maxChain: 2 },
+  omar:            { aggression: 0.76, angerThresh: 2, maxChain: 2 },
+  ruckus:          { aggression: 0.74, angerThresh: 2, maxChain: 2 },
+  candace:         { aggression: 0.72, angerThresh: 2, maxChain: 2 },
+  rfkjr:           { aggression: 0.65, angerThresh: 3, maxChain: 2 },
+  bernie:          { aggression: 0.68, angerThresh: 3, maxChain: 2 },
+  gaetz:           { aggression: 0.63, angerThresh: 3, maxChain: 2 },
+  gallowaygj:      { aggression: 0.70, angerThresh: 2, maxChain: 2 },
+  // Moderate — measured, but still have a breaking point
+  tuckercarlson:   { aggression: 0.60, angerThresh: 3, maxChain: 2 },
+  maddow:          { aggression: 0.55, angerThresh: 4, maxChain: 1 },
+  kamala:          { aggression: 0.55, angerThresh: 4, maxChain: 1 },
+  timscott:        { aggression: 0.40, angerThresh: 5, maxChain: 1 },
+  // Default for any unlisted persona
+  _default:        { aggression: 0.50, angerThresh: 4, maxChain: 2 },
+};
+function getAggression(id: string) { return PERSONA_AGGRESSION[id] ?? PERSONA_AGGRESSION["_default"]; }
+
+// ── INSULT DETECTION ──────────────────────────────────────────────────────────
+// Returns severity 0 (clean) → 3 (maximum provocation).
+// Drives how much heat accumulates for the target debater.
+const INSULT_PAT = {
+  direct: /(go fuck (your|him|her|them)self|fuck you|kiss my (ass|butt)|up yours|drop dead|you'?re (an )?(idiot|a fool|a clown|a fraud|worthless|pathetic|a liar|full of shit|out of (your )?mind)|you make me sick|you disgust me|screw you|get lost|get the hell out)/i,
+  profanity: /\b(fuck(ing)?|shit|ass(hole)?|bastard|son of a bitch|bitch(?!es (?:brew|cakes))|cunt|goddamn)\b/i,
+  attack: /\b(idiot|moron|stupid|dumb(ass)?|loser|pathetic|incompetent|fraud|liar|coward|scum(bag)?|disgrace|clown|corrupt|criminal|shut up|you never|you always lie|you failed|washed up|irrelevant|nobody believes|laughingstock)\b/i,
+  taunt: /\b(you can't win|you'll lose|everyone knows|no one (likes|trusts|believes) you|you're finished|you're done|sit down|get out|go home|you're a joke|what a joke)\b/i,
+};
+function detectInsult(text: string): number {
+  const l = text.toLowerCase();
+  let s = 0;
+  if (INSULT_PAT.direct.test(l))    s += 3;
+  if (INSULT_PAT.profanity.test(l)) s += 2;
+  if (INSULT_PAT.attack.test(l))    s += 1;
+  if (INSULT_PAT.taunt.test(l))     s += 1;
+  return Math.min(s, 3);
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Persona id → portrait require()
 const PERSONA_PORTRAITS: Record<string, any> = {
   trump: require("@/assets/images/persona-trump.png"),
@@ -635,6 +688,17 @@ export default function DebateStage() {
   // Pending slot: if a prefetch is in flight and a new one arrives, it queues here
   // and fires automatically when the current one completes — prevents dropped prefetches.
   const pendingPrefetchRef = useRef<{ text: string; personaId: string } | null>(null);
+
+  // ── FIREBACK HEAT SYSTEM ─────────────────────────────────────────────────
+  // heatRef accumulates when a debater is targeted by insults.
+  // firebackChainRef caps consecutive exchanges per cooldown window.
+  // tryFirebackRef / tryModeratorRetortRef break the useCallback ordering cycle.
+  const heatRef = useRef<Record<string, number>>({});
+  const firebackChainRef = useRef(0);
+  const lastFirebackAtRef = useRef(0);
+  const tryFirebackRef = useRef<null | ((attackerId: string, targetId: string, text: string, severity: number) => void)>(null);
+  const tryModeratorRetortRef = useRef<null | ((speakerId: string, text: string) => void)>(null);
+  // ────────────────────────────────────────────────────────────────────────
 
   const [emoInterviewer, setEmoInterviewer] = useState<Emotions>(ZERO_EMO);
   const [emoInterviewee, setEmoInterviewee] = useState<Emotions>(ZERO_EMO);
@@ -1327,7 +1391,7 @@ export default function DebateStage() {
       .finally(() => { flagPendingRef.current.delete(msg.id); });
   }, [deviceId, flaggedMsgIds, triggerLightning, playLieAlert]);
 
-  // Wrap addMessage to also drive emotions, TTS, fact-check
+  // Wrap addMessage to also drive emotions, TTS, fact-check, and fireback triggers
   const enrichAndAddMessage = useCallback((m: Msg) => {
     setMessages((prev) => [...prev, m]);
     if (!m.skipTTS) enqueueTTS(m.text, m.speakerId, m.id);
@@ -1335,6 +1399,20 @@ export default function DebateStage() {
     if (interviewerId && m.speakerId === interviewerId) setEmoInterviewer((p) => applyEmotionDelta(p, delta));
     else if (intervieweeId && m.speakerId === intervieweeId) setEmoInterviewee((p) => applyEmotionDelta(p, delta));
     if (!m.isInterruption && (m.speakerId === interviewerId || m.speakerId === intervieweeId)) runFactCheck(m);
+    // ── Fireback + moderator retort engine ────────────────────────────────
+    if (!m.isInterruption && (m.speakerId === interviewerId || m.speakerId === intervieweeId)) {
+      const severity = detectInsult(m.text);
+      if (severity >= 1) {
+        const targetId = m.speakerId === interviewerId ? intervieweeId : interviewerId;
+        if (targetId) {
+          // Small delay so main-speaker TTS gets queued first
+          setTimeout(() => { tryFirebackRef.current?.(m.speakerId, targetId, m.text, severity); }, 1200);
+        }
+        tryModeratorRetortRef.current?.(m.speakerId, m.text);
+      }
+      // Decay chain after 30 s of calm
+      if (Date.now() - lastFirebackAtRef.current > 30000) firebackChainRef.current = 0;
+    }
   }, [enqueueTTS, interviewerId, intervieweeId, runFactCheck]);
 
   /** Arena-style interruption audio: ducks the current speaker to 10%, plays the
@@ -1365,6 +1443,114 @@ export default function DebateStage() {
       if (ms) { try { ms.setVolumeAsync(1.0).catch(() => {}); } catch {} }
     }
   }, []);
+
+  // ── FIREBACK ENGINE ───────────────────────────────────────────────────────
+  // When a debater's line crosses the insult threshold for the opponent,
+  // this fires a concurrent AI-generated comeback at the 50ms overlap point —
+  // ducking the current speaker to 10% and playing the retort at full volume.
+  const tryFireback = useCallback(async (
+    attackerId: string,
+    targetId: string,
+    attackText: string,
+    severity: number,
+  ) => {
+    if (!runningRef.current || !deviceId) return;
+    const { aggression, angerThresh, maxChain } = getAggression(targetId);
+    heatRef.current[targetId] = (heatRef.current[targetId] ?? 0) + severity;
+    if (heatRef.current[targetId] < angerThresh) return;
+    if (firebackChainRef.current >= maxChain) return;
+    const now = Date.now();
+    if (now - lastFirebackAtRef.current < 7000) return;       // min 7 s gap
+    if (Math.random() > aggression) return;                    // probabilistic
+    // Commit
+    heatRef.current[targetId] = 0;
+    firebackChainRef.current += 1;
+    lastFirebackAtRef.current = now;
+    try {
+      const attackerName = attackerId === interviewerId ? interviewer?.name ?? attackerId : interviewee?.name ?? attackerId;
+      const targetName   = targetId   === interviewerId ? interviewer?.name ?? targetId   : interviewee?.name ?? targetId;
+      const res = await fetch(new URL("/api/arena/interview-answer", getApiUrl()).toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+        body: JSON.stringify({
+          interviewerId: attackerId,
+          intervieweeId: targetId,
+          topic: currentTopicRef.current,
+          conversationHistory: messagesRef.current.filter((m) => !m.isSystem).slice(-4),
+          lastQuestion: attackText,
+          isInterruption: true,
+          insultFireback: true,
+          insultSeverity: severity,
+          isDebate: true,
+        }),
+      });
+      if (!res.ok || !runningRef.current) return;
+      const data = await res.json();
+      const firebackText: string = (data.text || "").trim();
+      if (!firebackText) return;
+      // Add to transcript (skipTTS — audio plays via playInterruptionAudio)
+      setMessages((prev) => [...prev, {
+        id: `fb-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        speakerId: targetId,
+        speakerName: targetName,
+        text: firebackText,
+        ts: Date.now(),
+        isInterruption: true,
+        skipTTS: true,
+      }]);
+      // 50 ms overlap — duck current speaker, fire retort
+      await new Promise<void>((r) => setTimeout(r, 50));
+      await playInterruptionAudio(firebackText, targetId);
+      // Chain: if the fireback itself was insulting, the original attacker may fire back
+      const retalSeverity = detectInsult(firebackText);
+      if (retalSeverity >= 2 && runningRef.current) {
+        setTimeout(() => { tryFirebackRef.current?.(targetId, attackerId, firebackText, retalSeverity); }, 2000);
+      } else {
+        setTimeout(() => { firebackChainRef.current = Math.max(0, firebackChainRef.current - 1); }, 18000);
+      }
+    } catch { /* never break the main debate loop */ }
+  }, [deviceId, interviewerId, intervieweeId, interviewer, interviewee, playInterruptionAudio]);
+
+  // Sync ref so the recursive chain call always uses the latest closure
+  useEffect(() => { tryFirebackRef.current = tryFireback; }, [tryFireback]);
+
+  // Moderator retort — fires when a debater addresses / attacks the moderator directly
+  const tryModeratorRetort = useCallback((speakerId: string, text: string) => {
+    const mod = MODERATORS[moderatorStyle];
+    if (!mod || !runningRef.current) return;
+    const modFirstName = mod.name.split(" ")[0].toLowerCase();
+    const lower = text.toLowerCase();
+    if (!lower.includes(modFirstName) && !lower.includes("moderator") && !lower.includes("this host") && !lower.includes("you're biased") && !lower.includes("you are biased")) return;
+    const severity = detectInsult(text);
+    if (severity < 1) return;
+    const now = Date.now();
+    if (now - lastModReactionAtRef.current < 14000) return;
+    lastModReactionAtRef.current = now;
+    const retorts = [
+      "Excuse me — you do NOT get to attack me. I ask the questions. You answer them. That's the deal.",
+      "I'm going to stop you right there. You're attacking the moderator, which tells me you have no real answer.",
+      "Did you just come at ME? Sir, I will cut your microphone and we will sit here in silence. Show some respect.",
+      "I'm sorry — are you now attacking the host? Because that is a new low, even for you.",
+      "Back off. You're a guest in this debate, not a judge. One more crack like that and your mic goes dark.",
+      "I don't know who told you it was okay to talk to a moderator like that, but they were wrong. Move on.",
+    ];
+    const retort = retorts[Math.floor(Math.random() * retorts.length)];
+    setTimeout(() => {
+      if (!runningRef.current) return;
+      setModeratorLastLine(retort);
+      setMessages((prev) => [...prev, {
+        id: `modret-${Date.now()}`,
+        speakerId: mod.personaId,
+        speakerName: mod.name,
+        text: retort,
+        ts: Date.now(),
+      }]);
+      enqueueTTS(retort, mod.personaId, `modret-${Date.now()}`, { blockEarlyResolve: true });
+    }, 900);
+  }, [moderatorStyle, enqueueTTS]);
+
+  useEffect(() => { tryModeratorRetortRef.current = tryModeratorRetort; }, [tryModeratorRetort]);
+  // ─────────────────────────────────────────────────────────────────────────
 
   // Load persona lists
   useEffect(() => {

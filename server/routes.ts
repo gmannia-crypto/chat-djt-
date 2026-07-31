@@ -8467,7 +8467,7 @@ ${styleInstruction}${getLieBehaviorPrompt(interviewerId, Number((req.body.sessio
     try {
       const deviceId = req.headers["x-device-id"] as string;
       if (!deviceId) return res.status(400).json({ error: "Device ID required" });
-      const { interviewerId, intervieweeId, topic, conversationHistory = [], lastQuestion, wasInterrupted = false, interruptionText, isInterruption = false, interviewStyle: answerStyle = "combative", isDebate = false } = req.body || {};
+      const { interviewerId, intervieweeId, topic, conversationHistory = [], lastQuestion, wasInterrupted = false, interruptionText, isInterruption = false, interviewStyle: answerStyle = "combative", isDebate = false, insultFireback = false, insultSeverity = 1 } = req.body || {};
       if (!interviewerId || !ARENA_PERSONA_PROMPTS[interviewerId]) return res.status(400).json({ error: "Invalid interviewerId" });
       if (!intervieweeId || !ARENA_PERSONA_PROMPTS[intervieweeId]) return res.status(400).json({ error: "Invalid intervieweeId" });
       if (interviewerId === intervieweeId) return res.status(400).json({ error: "A persona cannot interview themselves" });
@@ -8520,7 +8520,12 @@ Stay 100% in character — your tone, vocabulary, ideology, and combativeness ar
       ).join("\n");
 
       let userPrompt = "";
-      if (isInterruption && intervieweeId === "malema") {
+      if (isInterruption && insultFireback) {
+        // Persona-driven insult fireback — fired when the opponent has crossed the heat threshold.
+        // Severity 1 = angry, 2 = furious, 3 = full nuclear.
+        const heatLabel = insultSeverity >= 3 ? "NUCLEAR RAGE" : insultSeverity === 2 ? "FURIOUS" : "FIRED UP";
+        userPrompt = `[FIREBACK — ${heatLabel}]\n${interviewerName} just personally attacked you with: "${lastQuestion}"\n\nYou are LIVID. React INSTANTLY with a savage, in-character personal comeback. Rules:\n- Under 20 words. ONE sentence. Raw gut reaction — no preamble, no "Well I think…"\n- Go personal: attack their record, their intelligence, their credibility, their character — whatever your persona would hit hardest\n- Match your character's full insult vocabulary. Carville: swear loudly and viciously. Trump: "EXCUSE ME — STUPID person!" Biden: "Come on, man, you're out of your mind!" Malema: "What a fool! Non-sense!" Charlie Murphy: keep it vicious and funny. Others: in-character maximum heat\n- If severity is NUCLEAR RAGE, use profanity freely — "go fuck yourself", "fuck you!", explicit threats to "settle this", etc.\n- DO NOT give a policy answer. DO NOT explain yourself. ATTACK.\n\nRecent exchange:\n${historyContext}`;
+      } else if (isInterruption && intervieweeId === "malema") {
         userPrompt = `${interviewerName} just said something. CUT IN with one of your signature volcanic injections — choose from: "What a LIE!" / "You're a fool!" / "Non-sense!" / "What am I, a fool?!" / "BE SERIOUS!" / "You're a boo-ah!" / "Rubbish!" MAXIMUM 10 words. Under 5 seconds. One phrase only.\n\nRecent exchange:\n${historyContext}`;
       } else if (isInterruption) {
         userPrompt = `${interviewerName} just said something that demands a reaction. INTERRUPT with ONE single explosive phrase — MAXIMUM 10 words, under 5 seconds of speech. Raw gut reaction only, no speech. If they misgendered you or attacked your identity, correct it with fury in under 10 words. If they lied or insulted you, fire back in under 10 words. Examples of RIGHT length: "That is a complete lie." / "I am a MAN, not a woman!" / "Don't twist my words." / "You have no credibility here." NO sentences longer than 10 words. NO explanations.\n\nRecent exchange:\n${historyContext}`;
@@ -8543,7 +8548,7 @@ Stay 100% in character — your tone, vocabulary, ideology, and combativeness ar
           { role: "system", content: intervieweeStyle },
           { role: "user", content: userPrompt },
         ],
-        max_completion_tokens: isInterruption ? 40 : 220,
+        max_completion_tokens: insultFireback ? 60 : (isInterruption ? 40 : 220),
         temperature: 0.95,
       });
       let text = completion.choices[0]?.message?.content || "...";
