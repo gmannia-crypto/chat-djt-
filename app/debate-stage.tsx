@@ -2464,12 +2464,16 @@ export default function DebateStage() {
         }
       }
 
-      // ── STEP 3+4: Await rebuttal first, then bridge + enqueue ──────────────
-      // We resolve the rebuttal promise BEFORE playing the bridge so we can
-      // skip the bridge entirely when the rebuttal is null — preventing the
-      // moderator from asking "any rebuttal?" into dead silence.
-      // rebuttalFetchPromise was pre-kicked during primary TTS (step 1+2), so
-      // in most cases it has already settled by the time we reach this point.
+      // ── STEP 3+4: Bridge + filler while rebuttal is in-flight, then enqueue ─
+      // Mirrors the primary-answer pattern: play the moderator bridge while
+      // waiting for the rebuttal AI response; if the bridge finishes first,
+      // filler lines hold the room until the response arrives.
+      //
+      // NULL GUARD is preserved via a fast-path check: rebuttalFetchPromise was
+      // pre-kicked during primary TTS (step 1+2), so in most cases it has
+      // already settled by the time we reach here.  A single microtask flush
+      // (await Promise.resolve()) lets us read that settled value before playing
+      // the bridge — so a pre-settled null still skips the bridge entirely.
       const rebuttalPromise: ReturnType<typeof fetchAnswerFrom> =
         rebuttalFetchPromise ??
         (primaryAnswer?.text
@@ -2477,17 +2481,43 @@ export default function DebateStage() {
           : Promise.resolve(null));
       setIsThinking("interviewee");
       let rebuttal: Awaited<ReturnType<typeof fetchAnswerFrom>> = null;
-      try {
-        rebuttal = await rebuttalPromise;
-      } catch {
-        rebuttal = null;
-      }
+      let rebuttalDone = false;
+
+      await Promise.all([
+        // Branch A: track when the rebuttal fetch settles and pre-fetch its audio.
+        rebuttalPromise
+          .then((r) => {
+            rebuttal = r;
+            rebuttalDone = true;
+            if (r?.text && runningRef.current) {
+              startPrefetch({ text: r.text, personaId: secondaryId });
+            }
+          })
+          .catch(() => { rebuttalDone = true; }),
+
+        // Branch B: play bridge then fillers while rebuttal is in-flight.
+        (async () => {
+          // One microtask flush — if the promise was already settled (common case
+          // after primary TTS), rebuttalDone is now true and we can null-guard
+          // before uttering a single word.
+          await Promise.resolve();
+          if (rebuttalDone && !rebuttal?.text) return; // null — skip bridge
+          if (!runningRef.current) return;
+
+          const bridgeText = getRebuttalBridge(secondaryName, moderatorStyle, secondaryId);
+          await speakMod(bridgeText, `modbr-${Date.now()}-${Math.random()}`);
+          // Bridge finished — play filler lines until the rebuttal AI response arrives.
+          while (!rebuttalDone && runningRef.current) {
+            await speakMod(getWaitFiller(secondaryName), `modfiller-${Date.now()}-${Math.random()}`);
+          }
+        })(),
+      ]);
       setIsThinking(null);
 
       // ── NULL GUARD: rebuttal failed to load ───────────────────────────────
-      // Skip the bridge entirely — no "What do you say to that?" into the void.
-      // Uses a dedicated counter so a bad rebuttal doesn't double-count against
-      // the primary-answer streak and trigger auto-shutdown prematurely.
+      // Skip enqueue — no content to play. Uses a dedicated counter so a bad
+      // rebuttal doesn't double-count against the primary-answer streak and
+      // trigger auto-shutdown prematurely.
       if (!rebuttal?.text) {
         consecutiveRebuttalNullRef.current += 1;
         if (consecutiveRebuttalNullRef.current >= 3) {
@@ -2500,13 +2530,9 @@ export default function DebateStage() {
       }
       consecutiveRebuttalNullRef.current = 0;
 
-      // Rebuttal has text — pre-fetch its audio, then play the bridge.
-      // Audio is pre-fetched here so it is ready by the time the bridge finishes.
-      if (voiceEnabledRef.current) startPrefetch({ text: rebuttal.text, personaId: secondaryId });
-      if (!runningRef.current) break;
-      const bridgeText = getRebuttalBridge(secondaryName, moderatorStyle, secondaryId);
-      await speakMod(bridgeText, `modbr-${Date.now()}-${Math.random()}`);
-      // speakMod (bridge) has fully resolved — safe to enqueue rebuttal TTS now.
+      // Bridge + fillers have fully resolved — safe to enqueue rebuttal TTS now.
+      // Audio was pre-fetched in Branch A the moment the text arrived, so
+      // playback starts immediately.
       if (rebuttal?.text && runningRef.current) {
         enrichAndAddMessage({
           id: `rb-${Date.now()}-${Math.random()}`,
