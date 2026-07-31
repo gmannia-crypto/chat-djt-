@@ -353,4 +353,111 @@ export function moderatorLieReaction(moderatorStyle: ModeratorStyle, speakerId: 
   return "chastise";
 }
 
+/**
+ * Per-moderator squabble bridge lines — spoken when the moderator forces a
+ * topic switch after a fireback chain hits its limit. Each style has 3 lines
+ * so repeat-listeners hear variety; lines are written in the moderator's voice.
+ */
+const SQUABBLE_BRIDGE_LINES: Record<string, string[]> = {
+  cenk: [
+    "Okay, BOTH of you — we are moving on! That exchange proved nothing and I'm not letting it continue.",
+    "I'm shutting this down right now. New topic. The progressive case demands better than what you just showed.",
+    "That's it! Topic closed. The people deserve a real debate, not a street fight — let's go.",
+  ],
+  galloway: [
+    "Enough of this pantomime. We are moving to the next topic — whether you like it or not.",
+    "This exchange is finished. History will not remember your bickering — let us discuss something that matters.",
+    "I'm invoking my authority as moderator. New subject. Compose yourselves, gentlemen.",
+  ],
+  hannity: [
+    "Alright, I'm calling it — we're moving on. Americans want answers, not a circus.",
+    "New topic, right now. The folks at home deserve substance, not this back-and-forth nonsense.",
+    "Topic switch. I've seen enough. Let's get back to the real issues facing this country.",
+  ],
+  maddow: [
+    "I need to stop you both — we're moving to the next topic. The record will reflect what just happened here.",
+    "Let me be clear: this exchange is over. We have more ground to cover and the facts demand it.",
+    "Stepping in here. New topic — because what just happened needs no further commentary from me.",
+  ],
+  megynkelly: [
+    "That is over. Moving on — and I'll remind both of you that this is a debate, not a sparring match.",
+    "New topic, right now. I have a lot of questions left and zero patience for more of that.",
+    "We're done with that subject. I'm taking us to the next topic whether you're ready or not.",
+  ],
+  odonnell: [
+    "I have to step in here — that exchange is finished. New topic, immediately.",
+    "Let me be very clear: we are moving on. That kind of discourse serves no one in this room.",
+    "Topic closed. I won't allow this debate to descend any further — next subject, now.",
+  ],
+  joyreid: [
+    "Okay! We are DONE with that. Moving on — because I refuse to let this become a spectacle.",
+    "New topic. Right now. I have been in rooms like this before and I know when it's time to cut bait.",
+    "That exchange is over. I'm not letting this go any further — next topic, let's go.",
+  ],
+  maxkellerman: [
+    "Clock's stopped. New topic — same rules apply, let's keep it clean.",
+    "Moving on. We've got more ground to cover and I'm not letting one bad round define this whole debate.",
+    "Topic switch. Shake it off and come out ready to debate — not brawl.",
+  ],
+  stephena: [
+    "HOLD ON! We are MOVING ON! I have seen better composure in a locker room at halftime — let's GO!",
+    "New topic — RIGHT NOW. I will NOT sit here and let this debate fall apart on my watch!",
+    "That is ENOUGH! Topic switch, and I expect BOTH of you to bring something better to the table!",
+  ],
+  kaitlyncollins: [
+    "I'm going to move us to the next topic — both of you had the chance to make your case and chose this instead.",
+    "New topic. My job is to get answers, not referee a fight, so let's try this again.",
+    "We're moving on. I'll note that neither of you exactly covered yourself in glory just now.",
+  ],
+  gilbertgottfried: [
+    "OH MY GOD, ENOUGH! NEW TOPIC! My EARS are BLEEDING! MOVE IT!",
+    "I AM SWITCHING TOPICS WHETHER YOU LIKE IT OR NOT! THIS IS MY SHOW NOW!",
+    "NEXT TOPIC! IMMEDIATELY! You're BOTH giving me a headache and I have a VERY sensitive head!",
+  ],
+  carlin: [
+    "Beautiful. Two more cogs proving the machine eats itself. Moving on — not that it'll be any different.",
+    "And there it is, folks — democracy in action. New topic. Try not to embarrass the species further.",
+    "Topic switch. Because apparently this is what passes for political discourse in the land of the free.",
+  ],
+  tuckercarlson: [
+    "Let me stop you both there — whoever controls the topic controls the debate, and I'm controlling it. Moving on.",
+    "New topic. And I'd encourage both of you to think about why that exchange happened the way it did.",
+    "That's enough. Nobody watching at home learned anything from that. Next subject.",
+  ],
+  wandasykes: [
+    "Oh no — no, no, no. We are NOT doing this. New topic, and I suggest y'all both take a breath.",
+    "Moving on! Because what I just witnessed was not a debate, it was a cry for help — from both of you.",
+    "Topic switch. And I say that with love — but also with very little patience left.",
+  ],
+  trevornoah: [
+    "Okay — and THIS is why the rest of the world watches American politics for entertainment. New topic.",
+    "Moving on! Because as an outsider I can tell you that what just happened makes no sense to anyone.",
+    "New topic. And maybe — just maybe — try to sound slightly more reasonable this time? For me?",
+  ],
+  janeelliott: [
+    "We are DONE with that exchange. New topic — and I expect both of you to do better.",
+    "Moving on. What you just displayed was not debate, it was ego. We can do better than that.",
+    "Topic switch. Right now. This room deserves more than what you two just gave it.",
+  ],
+  francescresswelsing: [
+    "That exchange is finished. We are moving to the next topic — the analysis demands it.",
+    "New topic. Because what just occurred reflects a pattern I have documented extensively, and it changes nothing.",
+    "Moving on. The system benefits when we fight each other instead of examining the structure. Next subject.",
+  ],
+  _default: [
+    "We're moving on — this topic is closed. Let's keep it professional.",
+    "That's enough on that. We are switching topics right now.",
+    "I'm calling a formal time-out. New topic — starting now.",
+  ],
+};
+
+/**
+ * Returns a random squabble-bridge line for the given moderator style.
+ * Falls back to the generic default if the style isn't found.
+ */
+export function getSquabbleBridge(style: ModeratorStyle): string {
+  const lines = SQUABBLE_BRIDGE_LINES[style] ?? SQUABBLE_BRIDGE_LINES["_default"];
+  return lines[Math.floor(Math.random() * lines.length)];
+}
+
 export { playDingSound };

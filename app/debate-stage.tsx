@@ -24,6 +24,7 @@ import AnimatedDebateFace, { EXPRESSION_SOURCES, Mood } from "@/components/Anima
 import {
   MODERATORS, ModeratorStyle, generateModeratorLine, makeInterruptController,
   speakModeratorNow, localJab, moderatorLieReaction, generateModeratorQuestion, getModeratorLeaning,
+  getSquabbleBridge,
 } from "@/lib/debate-moderator";
 import { playDingSound } from "@/lib/arena-sfx";
 import { TokenWinVideo } from "@/components/TokenWinVideo";
@@ -1756,14 +1757,7 @@ export default function DebateStage() {
                 setShowTimeoutBanner(true);
                 timeoutBannerTimerRef.current = setTimeout(() => setShowTimeoutBanner(false), 3000);
                 // ─────────────────────────────────────────────────────────
-                const SQUABBLE_BRIDGES = [
-                  "We're moving on — this topic is closed. Let's keep it professional.",
-                  "That's enough on that. We are switching topics right now.",
-                  "Time-out! This subject is finished. Let's move forward.",
-                  "I'm calling a formal time-out. New topic — starting now.",
-                  "Alright — new topic. That conversation is over.",
-                ];
-                const bridgeLine = SQUABBLE_BRIDGES[Math.floor(Math.random() * SQUABBLE_BRIDGES.length)];
+                const bridgeLine = getSquabbleBridge(moderatorStyle);
                 await speakModeratorNow(bridgeLine, mod.personaId, { wait: true });
               } else {
                 // Already on the last topic — end the debate rather than limping
