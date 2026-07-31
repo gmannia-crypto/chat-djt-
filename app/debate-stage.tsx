@@ -933,6 +933,7 @@ export default function DebateStage() {
     // (loser concession → winner response) before showing the modal.
     // partingShotDelay is captured from the synchronous block above.
     (async () => {
+      try {
       // Wait for any parting shot audio to finish first.
       if (partingShotDelay > 0) await new Promise<void>((r) => setTimeout(r, partingShotDelay));
 
@@ -1075,6 +1076,12 @@ export default function DebateStage() {
 
       setShowDebateWinner(true);
       playDebateCheer();
+      } catch {
+        // Any exception in the exchange or verdict path must not silently swallow
+        // the winner modal — always show it so the debate has a proper ending.
+        setShowDebateWinner(true);
+        playDebateCheer();
+      }
     })();
     // ─────────────────────────────────────────────────────────────────────────
   }, [phase, interviewerId, intervieweeId, interviewers, interviewees, deviceId, refreshBalance, playDebateCheer]);
