@@ -4100,6 +4100,11 @@ export default function ArenaScreen() {
   const clapBackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const messagesRef = useRef<ConversationMessage[]>([]);
   const currentSpeakerRef = useRef<string | null>(null);
+  // Monotonically-increasing token. Each generateAIResponse call captures its own
+  // token at the start. Before calling queueTTS it verifies the token is still
+  // current — if the watchdog fired and a newer fetch started, the stale call
+  // discards its response instead of jumping the TTS queue.
+  const speakTokenRef = useRef(0);
   const currentTopicRef = useRef<string | null>(null);
   const emotionalStatesRef = useRef(emotionalStates);
   const conversationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -5491,6 +5496,10 @@ export default function ArenaScreen() {
   const generateAIResponse = useCallback(
     async (responderId: string, toSpeakerId: string) => {
       if (!mountedRef.current || sessionEndedRef.current || !deviceId) return;
+      // Claim the speaker slot and stamp this call's generation token.
+      // If the watchdog fires mid-fetch and starts a newer call, myToken will
+      // no longer match speakTokenRef.current and this call drops its response.
+      const myToken = ++speakTokenRef.current;
       setCurrentSpeaker(responderId);
       currentSpeakerRef.current = responderId;
       ttsPendingMoreRef.current = true;
@@ -5596,6 +5605,19 @@ export default function ArenaScreen() {
 
         if (sessionEndedRef.current) return;
 
+        // ── Stale-response guard ───────────────────────────────────────────────
+        // The arena watchdog (8 s timeout) can clear currentSpeakerRef and start
+        // a NEW fetch while this one is still in-flight. Without this check both
+        // responses would call queueTTS and whichever arrived second would play
+        // out of turn, creating the "jumped the line / dual conversation" problem.
+        // By verifying the token we silently drop the late response so the queue
+        // always reflects the intended turn order.
+        if (speakTokenRef.current !== myToken) {
+          ttsPendingMoreRef.current = false;
+          return;
+        }
+        // ──────────────────────────────────────────────────────────────────────
+
         addMessage({
           id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
           speakerId: responderId,
@@ -5639,8 +5661,13 @@ export default function ArenaScreen() {
         ttsPendingMoreRef.current = false;
       } finally {
         if (mountedRef.current) {
-          setCurrentSpeaker(null);
-          currentSpeakerRef.current = null;
+          // Only release the speaker lock if it still belongs to THIS call.
+          // A stale finally (from a slow fetch that lost the token race) must
+          // not null out the lock that a newer, valid call already claimed.
+          if (currentSpeakerRef.current === responderId) {
+            setCurrentSpeaker(null);
+            currentSpeakerRef.current = null;
+          }
         }
       }
     },
