@@ -1717,27 +1717,22 @@ export default function DebateStage() {
   const playInterruptionAudio = useCallback(async (text: string, personaId: string) => {
     if (!voiceEnabledRef.current) return;
     if (shouldSkipPersonaVoice(personaId)) return;
-    const mainSound = currentSoundRef.current;
-    if (mainSound) { try { mainSound.setVolumeAsync(0.10).catch(() => {}); } catch {} }
+    // Main speaker keeps playing at full volume — interrupter comes in underneath at reduced volume
     setActiveSpeaker(personaId);
     activeSpeakerRef.current = personaId;
     try {
-      const sound = await playTTS("/api/persona-speak", { text, personaId }, { volume: getPersonaVoiceVolume(personaId) });
+      const interruptVolume = getPersonaVoiceVolume(personaId) * 0.45;
+      const sound = await playTTS("/api/persona-speak", { text, personaId }, { volume: interruptVolume });
       let cleaned = false;
       const cleanup = () => {
         if (cleaned) return; cleaned = true;
         sound.setOnPlaybackStatusUpdate(null);
         sound.getStatusAsync().then((st: any) => { if (st.isLoaded) sound.stopAsync().then(() => sound.unloadAsync()).catch(() => {}); }).catch(() => {});
-        const ms = currentSoundRef.current;
-        if (ms) { try { ms.setVolumeAsync(1.0).catch(() => {}); } catch {} }
         setActiveSpeaker(activeSpeakerRef.current);
       };
       sound.setOnPlaybackStatusUpdate((status: any) => { if (status.didJustFinish || status.error) cleanup(); });
       setTimeout(cleanup, 8000);
-    } catch {
-      const ms = currentSoundRef.current;
-      if (ms) { try { ms.setVolumeAsync(1.0).catch(() => {}); } catch {} }
-    }
+    } catch {}
   }, []);
 
   // ── FIREBACK ENGINE ───────────────────────────────────────────────────────

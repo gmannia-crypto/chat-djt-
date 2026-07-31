@@ -4621,17 +4621,13 @@ export default function ArenaScreen() {
     if (!voiceEnabledRef.current) return;
     if (shouldSkipPersonaVoice(personaId)) return;
 
-    // Duck the current speaker's audio so the interrupt cuts through mid-sentence
-    const mainSound = currentSoundRef.current;
-    if (mainSound) {
-      try { mainSound.setVolumeAsync(0.10).catch(() => {}); } catch {}
-    }
-
+    // Main speaker keeps playing at full volume — interrupter comes in underneath at reduced volume
     if (mountedRef.current) {
       setTtsActiveSpeaker(personaId);
     }
     try {
-      const sound = await playTTS("/api/persona-speak", { text, personaId }, { volume: getPersonaVoiceVolume(personaId) });
+      const interruptVolume = getPersonaVoiceVolume(personaId) * 0.45;
+      const sound = await playTTS("/api/persona-speak", { text, personaId }, { volume: interruptVolume });
       let cleaned = false;
       const cleanup = () => {
         if (cleaned) return;
@@ -4640,9 +4636,6 @@ export default function ArenaScreen() {
         sound.getStatusAsync().then((st: any) => {
           if (st.isLoaded) sound.stopAsync().then(() => sound.unloadAsync()).catch(() => {});
         }).catch(() => {});
-        // Restore main speaker volume after interrupt finishes
-        const ms = currentSoundRef.current;
-        if (ms) { try { ms.setVolumeAsync(1.0).catch(() => {}); } catch {} }
         if (mountedRef.current) {
           setTtsActiveSpeaker(null);
         }
@@ -4651,11 +4644,7 @@ export default function ArenaScreen() {
         if (status.didJustFinish || status.error) cleanup();
       });
       setTimeout(cleanup, 5000);
-    } catch {
-      // Restore volume even on error
-      const ms = currentSoundRef.current;
-      if (ms) { try { ms.setVolumeAsync(1.0).catch(() => {}); } catch {} }
-    }
+    } catch {}
   }, []);
 
   // ── ARENA FIREBACK ENGINE ─────────────────────────────────────────────────
