@@ -637,6 +637,7 @@ export default function DebateStage() {
   const runningRef = useRef(false);
   const isPausedRef = useRef(false);
   const consecutiveNullRef = useRef(0);
+  const consecutiveRebuttalNullRef = useRef(0);
   const micCutRef = useRef({ iv: false, ivee: false });
   useEffect(() => { micCutRef.current = micCut; }, [micCut]);
 
@@ -2485,17 +2486,19 @@ export default function DebateStage() {
 
       // ── NULL GUARD: rebuttal failed to load ───────────────────────────────
       // Skip the bridge entirely — no "What do you say to that?" into the void.
+      // Uses a dedicated counter so a bad rebuttal doesn't double-count against
+      // the primary-answer streak and trigger auto-shutdown prematurely.
       if (!rebuttal?.text) {
-        consecutiveNullRef.current += 1;
-        if (consecutiveNullRef.current >= 3) {
+        consecutiveRebuttalNullRef.current += 1;
+        if (consecutiveRebuttalNullRef.current >= 3) {
           runningRef.current = false;
           setPhase("ended");
           break;
         }
-        await new Promise((r) => setTimeout(r, 1500 * consecutiveNullRef.current));
+        await new Promise((r) => setTimeout(r, 1500 * consecutiveRebuttalNullRef.current));
         continue;
       }
-      consecutiveNullRef.current = 0;
+      consecutiveRebuttalNullRef.current = 0;
 
       // Rebuttal has text — pre-fetch its audio, then play the bridge.
       // Audio is pre-fetched here so it is ready by the time the bridge finishes.
