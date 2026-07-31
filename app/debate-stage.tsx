@@ -2367,15 +2367,15 @@ export default function DebateStage() {
       }
 
       // ── STEP 1+2: Moderator asks + primary debater fetches answer in parallel ─
-      // Enqueue the primary answer the INSTANT fetchAnswerFrom resolves — even
-      // while the moderator is still speaking — so the TTS prefetch system can
-      // start fetching the persona audio during the tail of the moderator's clip.
-      // The queue's natural ordering guarantees it only plays after the moderator.
+      // The primary answer fetch and audio prefetch run CONCURRENTLY with the
+      // moderator question — eliminating dead air — but the persona TTS is NOT
+      // enqueued until speakMod fully resolves. This prevents the prefetched
+      // persona audio from bleeding into the tail of the moderator question on
+      // slow connections, which was the same class of bug as the welcome overlap.
       //
       // Dead-air reduction: the moment the primary answer text arrives we ALSO
-      // kick off the rebuttal fetch. The rebuttal runs while primary TTS plays,
-      // so by the time the bridge line finishes the rebuttal audio is already
-      // buffering — eliminating the gap between bridge-end and rebuttal-start.
+      // kick off the rebuttal fetch AND pre-fetch the persona TTS audio. By the
+      // time speakMod resolves the audio is already buffered — zero gap.
       setIsThinking("interviewee");
       let primaryAnswer: Awaited<ReturnType<typeof fetchAnswerFrom>> = null;
       // Will hold the in-flight rebuttal fetch started during primary TTS playback
@@ -2385,32 +2385,46 @@ export default function DebateStage() {
       const primaryAnswerPromise: Promise<any> =
         prefetchedPrimaryAnswerRef.current ?? fetchAnswerFrom(mod.personaId, primaryId, modQuestion);
       prefetchedPrimaryAnswerRef.current = null; // consume
+      // primaryDone flips to true the moment the fetch settles — success OR failure.
+      // The filler loop watches this flag, not the answer value, so a null result
+      // (network error) still exits the loop instead of spinning forever.
+      let primaryDone = false;
       await Promise.all([
         primaryAnswerPromise.then((ans) => {
           primaryAnswer = ans;
+          primaryDone = true;
           setIsThinking(null);
           if (ans?.text && runningRef.current) {
-            enrichAndAddMessage({
-              id: `pa-${Date.now()}-${Math.random()}`,
-              speakerId: ans.speakerId, speakerName: ans.speakerName,
-              text: ans.text, ts: Date.now(),
-            });
             // Pre-fetch TTS AUDIO immediately when text arrives — runs while moderator
-            // audio is still playing so audio is ready the moment the moderator finishes.
+            // audio is still playing so audio is ready the moment speakMod resolves.
+            // NOTE: enrichAndAddMessage (which enqueues TTS) is called AFTER speakMod
+            // resolves below — this ensures the persona cannot start playing before
+            // the moderator question fully finishes, even on slow connections.
             startPrefetch({ text: ans.text, personaId: primaryId });
-            // Pre-kick rebuttal fetch while primary TTS is playing.
+            // Pre-kick rebuttal fetch while moderator TTS is playing.
             rebuttalFetchPromise = fetchAnswerFrom(primaryId, secondaryId, ans.text);
           }
-        }),
+        }).catch(() => { primaryDone = true; setIsThinking(null); }),
         // Play the moderator question, then loop short filler lines until the
         // primary answer arrives — prevents dead air on slow connections.
+        // Uses primaryDone (not primaryAnswer) so a null/failed fetch still exits.
         (async () => {
           await speakMod(modQuestion, `modq-${Date.now()}-${Math.random()}`);
-          while (!primaryAnswer && runningRef.current) {
+          while (!primaryDone && runningRef.current) {
             await speakMod(getWaitFiller(primaryName), `modfill-${Date.now()}-${Math.random()}`);
           }
         })(),
       ]);
+      // speakMod has fully resolved — safe to enqueue persona TTS now.
+      // The prefetched audio is already buffered, so playback starts immediately.
+      if (primaryAnswer?.text && runningRef.current) {
+        enrichAndAddMessage({
+          id: `pa-${Date.now()}-${Math.random()}`,
+          speakerId: (primaryAnswer as NonNullable<typeof primaryAnswer>).speakerId,
+          speakerName: (primaryAnswer as NonNullable<typeof primaryAnswer>).speakerName,
+          text: primaryAnswer.text, ts: Date.now(),
+        });
+      }
       if (!runningRef.current || Date.now() >= sessionEndsAtRef.current) break;
 
       // ── NULL GUARD: primary answer failed to load ──────────────────────────
@@ -2447,6 +2461,9 @@ export default function DebateStage() {
       // ── STEP 3+4: Bridge + await pre-fetched rebuttal in parallel ──────────
       // Use the already-in-flight rebuttalFetchPromise if available; otherwise
       // start a fresh fetch as a fallback (e.g. primary answer arrived very late).
+      // Same pattern as step 1+2: rebuttal audio is pre-fetched during the bridge
+      // but the TTS is only enqueued AFTER speakMod resolves — preventing the
+      // secondary persona from bleeding into the bridge line on slow connections.
       const bridgeText = getRebuttalBridge(secondaryName, moderatorStyle, secondaryId);
       setIsThinking("interviewee");
       let rebuttal: Awaited<ReturnType<typeof fetchAnswerFrom>> = null;
@@ -2455,30 +2472,40 @@ export default function DebateStage() {
         (primaryAnswer?.text
           ? fetchAnswerFrom(primaryId, secondaryId, (primaryAnswer as NonNullable<typeof primaryAnswer>).text)
           : Promise.resolve(null));
+      // rebuttalDone flips to true when the fetch settles — success OR failure —
+      // so a null result exits the filler loop instead of spinning forever.
+      let rebuttalDone = false;
       await Promise.all([
         rebuttalPromise.then((ans) => {
           rebuttal = ans;
+          rebuttalDone = true;
           setIsThinking(null);
           if (ans?.text && runningRef.current) {
-            enrichAndAddMessage({
-              id: `rb-${Date.now()}-${Math.random()}`,
-              speakerId: ans.speakerId, speakerName: ans.speakerName,
-              text: ans.text, ts: Date.now(),
-            });
-            // Pre-fetch rebuttal audio while bridge TTS plays — ready before bridge finishes
+            // Pre-fetch rebuttal audio while bridge TTS plays — ready before bridge finishes.
+            // enrichAndAddMessage (TTS enqueue) is deferred until after speakMod resolves below.
             if (voiceEnabledRef.current) startPrefetch({ text: ans.text, personaId: secondaryId });
           }
-        }),
+        }).catch(() => { rebuttalDone = true; setIsThinking(null); }),
         // Play bridge, then loop filler lines until the rebuttal text arrives —
         // prevents dead air when the rebuttal AI call outlasts the bridge TTS.
+        // Uses rebuttalDone (not rebuttal) so a null/failed fetch still exits.
         (async () => {
           await speakMod(bridgeText, `modbr-${Date.now()}-${Math.random()}`);
-          while (!rebuttal && runningRef.current) {
+          while (!rebuttalDone && runningRef.current) {
             await speakMod(getWaitFiller(secondaryName), `modfill2-${Date.now()}-${Math.random()}`);
           }
         })(),
       ]);
+      // speakMod (bridge) has fully resolved — safe to enqueue rebuttal TTS now.
       setIsThinking(null);
+      if (rebuttal?.text && runningRef.current) {
+        enrichAndAddMessage({
+          id: `rb-${Date.now()}-${Math.random()}`,
+          speakerId: (rebuttal as NonNullable<typeof rebuttal>).speakerId,
+          speakerName: (rebuttal as NonNullable<typeof rebuttal>).speakerName,
+          text: rebuttal.text, ts: Date.now(),
+        });
+      }
       if (!runningRef.current || Date.now() >= sessionEndsAtRef.current) break;
 
       totalExchangesRef.current += 1;
