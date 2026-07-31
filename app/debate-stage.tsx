@@ -254,6 +254,42 @@ const PERSONA_SQUABBLE_THREATS: Record<string, string[]> = {
   _default:        ["You come at me like that again and we'll settle this outside!", "Push me one more time and this debate becomes a very different conversation."],
 };
 
+// ── PARTING SHOTS ────────────────────────────────────────────────────────────
+// Fired when either persona's heat is still above PARTING_HEAT_THRESHOLD
+// at the moment the debate clock hits zero — giving the exit a sharp dramatic
+// punch before the winner screen appears.
+const PARTING_HEAT_THRESHOLD = 2;
+
+const PERSONA_PARTING_SHOTS: Record<string, string[]> = {
+  trump:           ["Total disaster. Everybody saw it. Frankly, it wasn't even close.", "You should be embarrassed. Honestly. Go back to wherever you came from."],
+  obama:           ["I've heard enough. History will not be kind to that argument, and you know it.", "That kind of thinking is exactly why we keep losing ground. We're done here."],
+  biden:           ["Here's the deal — you don't know what you're talking about. Not a joke.", "Not a joke — you ought to be ashamed of yourself. I mean it.", "Go home, pal. Just go home."],
+  carville:        ["I've been in this game forty years and you are the most intellectually empty debater I have ever shared a stage with.", "I hope you enjoyed your fifteen minutes, because that is all you will ever get."],
+  charliemurphy:   ["You know what? I actually feel sorry for you. And that's saying something.", "That was embarrassing. Not for me — for you. Everybody watching knows it."],
+  malema:          ["You came here to debate and you brought nothing. Nothing. Go think about that.", "You came to fight a revolutionary with the tools of the oppressor. That never ends well.", "History will record this as the moment you showed exactly who you are. Goodbye."],
+  claudeanderson:  ["You have been educated today whether you like it or not. Don't waste it.", "I don't argue with ignorance — I document it. And today I have a lot to document.", "Forty years of research standing right in front of you and you chose ignorance. Astounding."],
+  gilbertgottfried:["THIS ISN'T OVER! I WILL NEVER FORGIVE YOU FOR THIS! NEVER!", "I'm going to be angry about this for the REST OF MY LIFE!"],
+  joyreid:         ["I need everyone watching to understand what just happened here. This is what bad faith looks like.", "You embarrassed yourself. I almost feel bad. Almost."],
+  netanyahu:       ["I have faced adversaries far more formidable than you. This debate changed nothing for me.", "You stand there with your lectures while my people defend their lives. Goodbye."],
+  omar:            ["I came here in good faith and you showed me exactly who you are. We're done.", "The people who sent me here deserve better than what you just put on display."],
+  berniemc:        ["The billionaires love people like you. That's the whole problem in a nutshell.", "The working class sees right through that argument. Remember that when you go back to your donors."],
+  elon:            ["The data doesn't care about your feelings. Neither do I. Goodbye.", "In ten years nobody will remember your name. The work will speak for itself."],
+  maddow:          ["I have the receipts. I've always had the receipts. Good night.", "The audience just watched you contradict yourself three times. I have it all on tape."],
+  alexjones:       ["THE GLOBALISTS WIN TODAY BUT THEY WILL NOT WIN FOREVER! THIS ISN'T OVER!", "I am going to expose every single thing you just said on my show! MILLIONS will hear this!"],
+  hannity:         ["The American people saw right through that. They always do.", "That performance right there is exactly why nobody trusts the mainstream media anymore."],
+  candace:         ["You just proved every single point I've been making for years. Thank you for that.", "Go back and tell your handlers this didn't go the way they planned."],
+  ruckus:          ["Lord have mercy — the good Lord is watching and He is not impressed with you today.", "I have seen some things in my long life but that argument right there was truly something special. Specially bad."],
+  tuckercarlson:   ["The regime media will clip this out of context. They always do. The full tape tells a different story.", "Interesting how you never actually answered the question. People noticed."],
+  gallowaygj:      ["The imperialists always get the last word. But not the last laugh. History proves that.", "You represent a system that is already collapsing. I simply chose the right side earlier than you."],
+  timscott:        ["I came here with facts and faith and you came here with insults. The voters will decide who won.", "America is better than what you just showed. I believe that with everything I have."],
+  joerogan:        ["That was wild, man. Just wild. I'm going to need like three hours to process what I just heard.", "We gotta get you on the podcast. For real. Because what just happened here needs to be unpacked."],
+  rfk:             ["The media will bury this but the people will find it. They always do.", "The captured agencies and the captured press will spin this. But truth has a way of surviving."],
+  neiltyson:       ["The universe will outlast every bad argument made in this room today. Including yours.", "Facts are not democratic. They do not care about the outcome you preferred."],
+  aoc:             ["We are done here. But this fight is just getting started and you know it.", "The people you just dismissed are going to remember this moment at the ballot box."],
+  kamala:          ["I will not be lectured. Not today. Not by you.", "That was deeply revealing. Thank you for showing everyone exactly who you are."],
+  _default:        ["I hope you're proud of what you just put out there. I know I am.", "This conversation is over. What comes next is up to history."],
+};
+
 // ── INSULT DETECTION ──────────────────────────────────────────────────────────
 // Returns severity 0 (clean) → 3 (maximum provocation).
 // Drives how much heat accumulates for the target debater.
@@ -598,8 +634,30 @@ export default function DebateStage() {
     const bId = intervieweeId;
     if (!aId || !bId) return;
 
+    // ── PARTING SHOT ──────────────────────────────────────────────────────────
+    // If either persona's heat is still hot when the clock hits zero, the hotter
+    // one fires a sharp exit line before the winner screen appears.
+    const aHeat = heatRef.current[aId] ?? 0;
+    const bHeat = heatRef.current[bId] ?? 0;
+    const maxHeat = Math.max(aHeat, bHeat);
+    let partingShotDelay = 0;
+    if (maxHeat >= PARTING_HEAT_THRESHOLD && voiceEnabledRef.current) {
+      const hotId = aHeat >= bHeat ? aId : bId;
+      const shotPool = PERSONA_PARTING_SHOTS[hotId] ?? PERSONA_PARTING_SHOTS._default ?? [];
+      if (shotPool.length > 0) {
+        const line = shotPool[Math.floor(Math.random() * shotPool.length)];
+        // Play via playTTS directly — debate audio has already stopped so no
+        // main sound to duck, and we don't need the full playInterruptionAudio
+        // wrapper (which is defined later and would create a TDZ dependency).
+        playTTS("/api/persona-speak", { text: line, personaId: hotId }, { volume: getPersonaVoiceVolume(hotId) }).catch(() => {});
+        partingShotDelay = 4500;
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     if (pts.a === 0 && pts.b === 0) {
-      // No votes cast — ask AI to judge by facts
+      // No votes cast — ask AI to judge by facts.
+      // The network call provides its own delay so partingShotDelay isn't needed here.
       const msgs = messagesRef.current.filter((m) => !m.isSystem);
       if (msgs.length < 4) return;
       const aPersona = interviewers.find((p) => p.id === aId);
@@ -649,8 +707,11 @@ export default function DebateStage() {
     const winnerPoints = aWins ? pts.a : pts.b;
     const opponentPoints = aWins ? pts.b : pts.a;
     setDebateWinner({ id: winnerId, name: winnerName, portrait: PERSONA_PORTRAITS[winnerId] || null, points: winnerPoints, opponentPoints });
-    setShowDebateWinner(true);
-    playDebateCheer();
+    // Delay winner screen so the parting shot audio finishes first (if one fired)
+    setTimeout(() => {
+      setShowDebateWinner(true);
+      playDebateCheer();
+    }, partingShotDelay);
     // Record win to backend + award tokens
     if (deviceId) {
       fetch(new URL("/api/arena/record-win", getApiUrl()).toString(), {
