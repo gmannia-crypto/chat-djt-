@@ -3778,6 +3778,9 @@ export default function ArenaScreen() {
   const firstAudioPlayedRef = useRef(false);
   const [currentTopic, setCurrentTopic] = useState<string | null>(null);
   const [focusedPersona, setFocusedPersona] = useState<string | null>(null);
+  // Briefly holds the persona ID whose turn was silently dropped (token mismatch).
+  // Drives the "reconnecting…" badge; auto-clears after 2 s.
+  const [skippedPersonaId, setSkippedPersonaId] = useState<string | null>(null);
 
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
@@ -4108,6 +4111,10 @@ export default function ArenaScreen() {
   // current — if the watchdog fired and a newer fetch started, the stale call
   // discards its response instead of jumping the TTS queue.
   const speakTokenRef = useRef(0);
+  // Set to true when a response is discarded due to token mismatch.
+  // scheduleNext reads and clears this flag to halve the watchdog timeout,
+  // compensating for the dead turn and keeping the debate flowing.
+  const turnWasDroppedRef = useRef(false);
   const currentTopicRef = useRef<string | null>(null);
   const emotionalStatesRef = useRef(emotionalStates);
   const conversationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -5622,6 +5629,12 @@ export default function ArenaScreen() {
         // always reflects the intended turn order.
         if (speakTokenRef.current !== myToken) {
           ttsPendingMoreRef.current = false;
+          // Flag the dropped turn so scheduleNext can shorten its watchdog
+          // timeout for the following speaker, reducing the silence gap.
+          turnWasDroppedRef.current = true;
+          // Show a brief "reconnecting…" badge on the skipped persona's avatar.
+          setSkippedPersonaId(responderId);
+          setTimeout(() => setSkippedPersonaId(null), 2000);
           return;
         }
         // ──────────────────────────────────────────────────────────────────────
@@ -6279,7 +6292,10 @@ export default function ArenaScreen() {
   const scheduleNext = useCallback(() => {
     if (sessionEndedRef.current) return;
     if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
-    const WATCHDOG_TIMEOUT = 8000;
+    // Halve the watchdog timeout when the previous turn was silently dropped
+    // (token mismatch) so the debate recovers faster on slow connections.
+    const WATCHDOG_TIMEOUT = turnWasDroppedRef.current ? 4000 : 8000;
+    turnWasDroppedRef.current = false;
     let watchdogTimer: ReturnType<typeof setTimeout> | null = null;
     const waitForClear = () => {
       if (sessionEndedRef.current) return;
@@ -7857,6 +7873,15 @@ export default function ArenaScreen() {
                   <View style={s.speakingIndicator}>
                     <MaterialCommunityIcons name="volume-high" size={10} color="#FFD700" />
                   </View>
+                )}
+                {skippedPersonaId === pid && !isSpeaking && (
+                  <Animated.View
+                    entering={FadeIn.duration(150)}
+                    exiting={FadeOut.duration(400)}
+                    style={s.reconnectingBadge}
+                  >
+                    <Text style={s.reconnectingText}>reconnecting…</Text>
+                  </Animated.View>
                 )}
                 {voteAnim > 0 && (
                   <Animated.View entering={FadeIn.duration(200)} style={s.votePopup}>
@@ -9480,6 +9505,24 @@ const s = StyleSheet.create({
     backgroundColor: "rgba(255,215,0,0.3)",
     borderRadius: 8,
     padding: 2,
+  },
+  reconnectingBadge: {
+    position: "absolute",
+    bottom: 14,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reconnectingText: {
+    fontSize: 7,
+    fontWeight: "700" as const,
+    color: "#94a3b8",
+    backgroundColor: "rgba(0,0,0,0.72)",
+    borderRadius: 4,
+    paddingHorizontal: 3,
+    paddingVertical: 1,
+    overflow: "hidden",
   },
   personaLabel: {
     fontSize: 7,
