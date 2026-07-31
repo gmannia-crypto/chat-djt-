@@ -553,6 +553,12 @@ export default function DebateStage() {
       setDebateWinner(null);
       setDebateTokenWinVisible(false);
       setDebateTokenWinAmount(undefined);
+      // Reset heat meter
+      setHeatA(0);
+      setHeatB(0);
+      setFirebackFlashA(false);
+      setFirebackFlashB(false);
+      heatRef.current = {};
     }
   }, [phase]);
 
@@ -723,6 +729,15 @@ export default function DebateStage() {
 
   const [emoInterviewer, setEmoInterviewer] = useState<Emotions>(ZERO_EMO);
   const [emoInterviewee, setEmoInterviewee] = useState<Emotions>(ZERO_EMO);
+
+  // ── HEAT METER UI STATE ──────────────────────────────────────────────────
+  // heatA / heatB mirror heatRef so React can re-render the heat pill.
+  const [heatA, setHeatA] = useState(0);
+  const [heatB, setHeatB] = useState(0);
+  // firebackFlashA/B: true for 2 s whenever that debater actually fires back
+  const [firebackFlashA, setFirebackFlashA] = useState(false);
+  const [firebackFlashB, setFirebackFlashB] = useState(false);
+  // ────────────────────────────────────────────────────────────────────────
   const malcolmxAngerRef = useRef<number>(10);
   useEffect(() => {
     if (interviewerId === "malcolmx") {
@@ -1478,6 +1493,10 @@ export default function DebateStage() {
     if (!runningRef.current || !deviceId) return;
     const { aggression, angerThresh, maxChain } = getAggression(targetId);
     heatRef.current[targetId] = (heatRef.current[targetId] ?? 0) + severity;
+    // Mirror heat into React state so the heat pill re-renders
+    const newHeat = heatRef.current[targetId];
+    if (targetId === interviewerId) setHeatA(Math.min(newHeat, angerThresh));
+    else if (targetId === intervieweeId) setHeatB(Math.min(newHeat, angerThresh));
     if (heatRef.current[targetId] < angerThresh) return;
     // In squabble cooldown — block new fireback chains for 90 s after an escalation
     if (Date.now() < squabbleCooldownUntilRef.current) return;
@@ -1487,6 +1506,8 @@ export default function DebateStage() {
     // ── SQUABBLE ESCALATION: chain maxed out → physical threat + moderator intervention ──
     if (firebackChainRef.current >= maxChain) {
       heatRef.current[targetId] = 0;
+      if (targetId === interviewerId) setHeatA(0);
+      else if (targetId === intervieweeId) setHeatB(0);
       lastFirebackAtRef.current = now;
       squabbleCooldownUntilRef.current = now + 90000; // 90 s cooldown
       firebackChainRef.current = 0;
@@ -1519,8 +1540,17 @@ export default function DebateStage() {
     }
 
     if (Math.random() > aggression) return;                    // probabilistic
-    // Commit
+    // Commit — reset heat and trigger the "FIRING BACK" flash
     heatRef.current[targetId] = 0;
+    if (targetId === interviewerId) {
+      setHeatA(0);
+      setFirebackFlashA(true);
+      setTimeout(() => setFirebackFlashA(false), 2000);
+    } else if (targetId === intervieweeId) {
+      setHeatB(0);
+      setFirebackFlashB(true);
+      setTimeout(() => setFirebackFlashB(false), 2000);
+    }
     firebackChainRef.current += 1;
     lastFirebackAtRef.current = now;
     try {
@@ -3078,6 +3108,29 @@ export default function DebateStage() {
                 {idx === 0 ? debatePoints.a : debatePoints.b} DC PT{(idx === 0 ? debatePoints.a : debatePoints.b) === 1 ? "" : "S"}
               </Text>
             </Pressable>
+            {/* ── HEAT METER PILL ── */}
+            {(() => {
+              const isA = idx === 0;
+              const heat = isA ? heatA : heatB;
+              const flash = isA ? firebackFlashA : firebackFlashB;
+              const thresh = p.id ? getAggression(p.id).angerThresh : 4;
+              const pct = Math.min(100, Math.round((heat / Math.max(thresh, 1)) * 100));
+              const visible = flash || heat > 0;
+              return (
+                <View style={[s.heatPillWrap, { opacity: visible ? 1 : 0 }]} testID={isA ? "heat-pill-a" : "heat-pill-b"}>
+                  {flash ? (
+                    <Animated.View entering={ZoomIn.duration(180)} style={s.heatFlashPill}>
+                      <Text style={s.heatFlashText}>💥 FIRING BACK</Text>
+                    </Animated.View>
+                  ) : (
+                    <View style={s.heatBarOuter}>
+                      <View style={[s.heatBarFill, { width: `${pct}%` }]} />
+                      <Text style={s.heatBarLabel}>FIRED UP 🔥</Text>
+                    </View>
+                  )}
+                </View>
+              );
+            })()}
             <View style={s.emoBars}>
               {EMO_KEYS.map((k) => (
                 <View key={k} style={s.emoBarRow}>
@@ -3752,6 +3805,15 @@ const s = StyleSheet.create({
   voteBtnDownActive: { backgroundColor: "rgba(255,77,77,0.15)", borderColor: "rgba(255,77,77,0.5)" },
   voteBtnText: { color: "rgba(255,255,255,0.85)", fontSize: 12, fontWeight: "800" },
   voteTally: { color: "rgba(255,255,255,0.45)", fontSize: 11, fontWeight: "600", flex: 1, textAlign: "right" },
+
+  // ── Heat meter pill ──────────────────────────────────────────────────────
+  heatPillWrap: { width: "100%", marginTop: 5, marginBottom: 1, alignItems: "center" },
+  heatBarOuter: { width: "100%", height: 11, borderRadius: 6, backgroundColor: "rgba(255,80,0,0.12)", overflow: "hidden", justifyContent: "center", borderWidth: 1, borderColor: "rgba(255,80,0,0.3)" },
+  heatBarFill: { position: "absolute", left: 0, top: 0, bottom: 0, borderRadius: 6, backgroundColor: "#ff5500", opacity: 0.85 },
+  heatBarLabel: { color: "rgba(255,255,255,0.9)", fontSize: 7, fontWeight: "900", letterSpacing: 0.5, paddingLeft: 5, zIndex: 1 },
+  heatFlashPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: "rgba(255,30,30,0.28)", borderWidth: 1, borderColor: "#ff2a2a", alignItems: "center" },
+  heatFlashText: { color: "#ff4d4d", fontSize: 9, fontWeight: "900", letterSpacing: 0.6 },
+  // ─────────────────────────────────────────────────────────────────────────
 
   flagBtn: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", marginTop: 6, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.05)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
   flagBtnDone: { backgroundColor: "rgba(255,77,77,0.12)", borderColor: "rgba(255,77,77,0.4)" },
