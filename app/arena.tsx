@@ -4665,8 +4665,28 @@ export default function ArenaScreen() {
       })
       .sort((a, b) => b.hostility - a.hostility + (Math.random() - 0.5) * 15);
 
+    // Scale aggression to the current debate mode
+    const currentDebateMode = debateModeRef.current;
+
     for (const { id: targetId } of candidates) {
-      const { aggression, angerThresh, maxChain } = getArenaAggression(targetId);
+      const base = getArenaAggression(targetId);
+
+      // Civil: firebacks almost never happen; Savage: hair-trigger; Elevated: unchanged
+      let aggression: number;
+      let angerThresh: number;
+      if (currentDebateMode === "civil") {
+        // Disable firebacks entirely in Civil mode
+        continue;
+      } else if (currentDebateMode === "savage") {
+        aggression = Math.min(1, base.aggression * 1.4);
+        angerThresh = Math.max(1, base.angerThresh - 1);
+      } else {
+        // "elevated" — default behaviour
+        aggression = base.aggression;
+        angerThresh = base.angerThresh;
+      }
+      const maxChain = base.maxChain;
+
       arenaHeatRef.current[targetId] = (arenaHeatRef.current[targetId] ?? 0) + severity;
       if (arenaHeatRef.current[targetId] < angerThresh) continue;
 
