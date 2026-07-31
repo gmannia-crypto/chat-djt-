@@ -35,7 +35,7 @@ import {
 
 type PersonaLite = { id: string; name: string };
 type Topic = { id: string; title: string; description: string; era: "current" | "past" };
-type Msg = { id: string; speakerId: string; speakerName: string; text: string; ts: number; isInterruption?: boolean; isCallIn?: boolean; callerName?: string; isSystem?: boolean; skipTTS?: boolean };
+type Msg = { id: string; speakerId: string; speakerName: string; text: string; ts: number; isInterruption?: boolean; isCallIn?: boolean; callerName?: string; isSystem?: boolean; skipTTS?: boolean; isPartingShot?: boolean };
 
 type Emotions = { anger: number; happy: number; engagement: number; frantic: number; sad: number };
 type LieEntry = { id: string; speakerId: string; speakerName: string; text: string; score: number; reason: string; fact: string; ts: number; userFlagged?: boolean; pending?: boolean };
@@ -802,6 +802,23 @@ export default function DebateStage() {
         // wrapper (which is defined later and would create a TDZ dependency).
         playTTS("/api/persona-speak", { text: line, personaId: hotId }, { volume: getPersonaVoiceVolume(hotId) }).catch(() => {});
         partingShotDelay = 4500;
+        // Append parting shot to transcript so viewers who missed the audio can read it
+        const hotPersona = hotId === aId
+          ? interviewers.find((p) => p.id === hotId) || interviewees.find((p) => p.id === hotId)
+          : interviewees.find((p) => p.id === hotId) || interviewers.find((p) => p.id === hotId);
+        const hotName = hotPersona?.name ?? hotId;
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `parting-shot-${Date.now()}`,
+            speakerId: hotId,
+            speakerName: hotName,
+            text: line,
+            ts: Date.now(),
+            isPartingShot: true,
+            skipTTS: true,
+          },
+        ]);
         // Flash the heat pill AND portrait for ~2 s so viewers know who fired the parting shot
         if (hotId === aId) {
           setFirebackFlashA(true);
@@ -3455,8 +3472,21 @@ export default function DebateStage() {
           renderItem={({ item }) => {
             const isInterviewer = item.speakerId === interviewerId;
             const isCallIn = !!item.isCallIn;
-            const canFlag = !isInterviewer && !isCallIn && intervieweeId && item.speakerId === intervieweeId;
+            const isPartingShot = !!item.isPartingShot;
+            const canFlag = !isInterviewer && !isCallIn && !isPartingShot && intervieweeId && item.speakerId === intervieweeId;
             const alreadyFlagged = flaggedMsgIds.has(item.id);
+            if (isPartingShot) {
+              return (
+                <Animated.View entering={FadeInUp.duration(400)} style={[s.bubbleRow, { justifyContent: "center" }]}>
+                  <View style={[s.bubble, { backgroundColor: "rgba(255,80,0,0.18)", borderColor: "#ff6a00", borderWidth: 1, alignItems: "center" }]}>
+                    <Text style={[s.bubbleName, { color: "#ff6a00", textAlign: "center" }]}>
+                      🔥 {item.speakerName} · PARTING SHOT
+                    </Text>
+                    <Text style={[s.bubbleText, { fontStyle: "italic", textAlign: "center" }]}>{item.text}</Text>
+                  </View>
+                </Animated.View>
+              );
+            }
             return (
               <Animated.View entering={FadeInUp.duration(300)} style={[s.bubbleRow, isCallIn ? { justifyContent: "center" } : isInterviewer ? { justifyContent: "flex-start" } : { justifyContent: "flex-end" }]}>
                 <View style={[
