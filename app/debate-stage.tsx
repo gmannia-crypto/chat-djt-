@@ -513,6 +513,7 @@ export default function DebateStage() {
   const [micCut, setMicCut] = useState<{ iv: boolean; ivee: boolean }>({ iv: false, ivee: false });
   const interruptCtl = useRef(makeInterruptController()).current;
   const [moderatorSpeaking, setModeratorSpeaking] = useState(false);
+  const moderatorSpeakingRef = useRef(false);
   const [moderatorLastLine, setModeratorLastLine] = useState<string | null>(null);
   // Independent lie-detector toggles per debater — switchable pre-debate only.
   const [lieDetectorA, setLieDetectorA] = useState(true);
@@ -609,6 +610,10 @@ export default function DebateStage() {
   const [showTimeoutBanner, setShowTimeoutBanner] = useState(false);
   const timeoutBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // ────────────────────────────────────────────────────────────────────────
+
+  // Keep moderatorSpeakingRef in sync so async callbacks (tryFireback) can read it
+  // without relying on React state timing.
+  useEffect(() => { moderatorSpeakingRef.current = moderatorSpeaking; }, [moderatorSpeaking]);
 
   // Warm up the audio session on mount so the first clip plays without cold-start lag
   useEffect(() => { warmupAudio().catch(() => {}); }, []);
@@ -1687,6 +1692,12 @@ export default function DebateStage() {
     severity: number,
   ) => {
     if (!runningRef.current || !deviceId) return;
+    // A persona cannot fire at itself — happens when the target is already mid-turn.
+    if (!attackerId || !targetId || attackerId === targetId) return;
+    // Never duck or interrupt the moderator.
+    if (moderatorSpeakingRef.current) return;
+    // Target is currently speaking their own regular turn — don't self-interrupt them.
+    if (targetId === activeSpeakerRef.current) return;
     const { aggression, angerThresh, maxChain } = getAggression(targetId);
     heatRef.current[targetId] = (heatRef.current[targetId] ?? 0) + severity;
     // Mirror heat into React state so the heat pill re-renders
@@ -2150,6 +2161,7 @@ export default function DebateStage() {
   const speakMod = useCallback(async (text: string, msgId: string) => {
     const mod = MODERATORS[moderatorStyle];
     if (!mod || !text || !runningRef.current) return;
+    moderatorSpeakingRef.current = true;
     setModeratorSpeaking(true);
     setModeratorLastLine(text);
     setMessages((prev) => [...prev, {
@@ -2162,6 +2174,7 @@ export default function DebateStage() {
     await new Promise<void>((resolve) => {
       enqueueTTS(text, mod.personaId, msgId, { blockEarlyResolve: true, onComplete: resolve });
     });
+    moderatorSpeakingRef.current = false;
     if (!runningRef.current) { setModeratorSpeaking(false); return; }
     setModeratorSpeaking(false);
   }, [moderatorStyle, enqueueTTSAndWait]);
