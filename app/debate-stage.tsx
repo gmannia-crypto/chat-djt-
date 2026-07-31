@@ -1524,8 +1524,10 @@ export default function DebateStage() {
     firebackChainRef.current += 1;
     lastFirebackAtRef.current = now;
     try {
-      const attackerName = attackerId === interviewerId ? interviewer?.name ?? attackerId : interviewee?.name ?? attackerId;
-      const targetName   = targetId   === interviewerId ? interviewer?.name ?? targetId   : interviewee?.name ?? targetId;
+      const findDebaterName = (id: string) =>
+        [...interviewers, ...interviewees].find((p) => p.id === id)?.name ?? id;
+      const attackerName = findDebaterName(attackerId);
+      const targetName   = findDebaterName(targetId);
       const res = await fetch(new URL("/api/arena/interview-answer", getApiUrl()).toString(), {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-device-id": deviceId },
@@ -1566,7 +1568,7 @@ export default function DebateStage() {
         setTimeout(() => { firebackChainRef.current = Math.max(0, firebackChainRef.current - 1); }, 18000);
       }
     } catch { /* never break the main debate loop */ }
-  }, [deviceId, interviewerId, intervieweeId, interviewer, interviewee, moderatorStyle, playInterruptionAudio]);
+  }, [deviceId, interviewerId, intervieweeId, interviewers, interviewees, playInterruptionAudio]);
 
   // Sync ref so the recursive chain call always uses the latest closure
   useEffect(() => { tryFirebackRef.current = tryFireback; }, [tryFireback]);

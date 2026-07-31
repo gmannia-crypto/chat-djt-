@@ -1,4 +1,4 @@
-- [React Compiler TDZ rule](react-compiler-tdz.md) — hooks must be declared AFTER every variable they reference; React Compiler enforces strict TDZ unlike plain React.
+- [React Compiler TDZ rule](react-compiler-tdz.md) — hooks must be declared AFTER every variable they reference; React Compiler enforces strict TDZ unlike plain React. useCallback referencing a useMemo declared later = "Cannot access 'X' before initialization" crash at runtime.
 - [Debate moderator audio pattern](debate-moderator-audio.md) — use waitForQueueDrain+speakModeratorNow({wait:true}) NOT enqueueTTSAndWait for moderator questions; queue bleed-through causes perceived cut-off.
 - [Premium persona locks](premium-persona-locks.md) — carlin/drbenj/pressley locked via lib/persona-locks.tsx; 3 unlock paths each (tokens/time/wins); separate from mystery box system.
 - [routes.ts duplication risk](routes-duplication-risk.md) — task agents can quadruple server/routes.ts; check wc -l after merges and fix with head -n <cut> if registerRoutes appears more than once.
