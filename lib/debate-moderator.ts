@@ -471,4 +471,115 @@ export function getSquabbleBridge(style: ModeratorStyle): string {
   return lines[Math.floor(Math.random() * lines.length)];
 }
 
+/**
+ * Per-moderator squabble closer lines — spoken when the debate ends because a
+ * fireback chain exhausts the final topic. Each style has 2–3 in-character lines.
+ */
+const SQUABBLE_CLOSER_LINES: Record<string, string[]> = {
+  cenk: [
+    "That's it — debate's over. You both proved tonight that the progressive case needs better messengers. Good night.",
+    "We're done here. The people watching deserved better than what you gave them. Good night.",
+    "And that is where we leave it. The fight continues — just not on this stage, not tonight.",
+  ],
+  galloway: [
+    "And so it ends — not with enlightenment, but with noise. History will judge what happened here tonight. Good night.",
+    "This debate is finished. The empire of ideas collapses when its defenders resort to this. Good night.",
+    "We conclude. Whether anything was learned tonight is a question I leave to the viewers. Good night.",
+  ],
+  hannity: [
+    "And that's a wrap, folks. Americans saw everything they needed to see tonight. Good night.",
+    "We're done. The real winners tonight are the people at home who watched the truth emerge. Good night.",
+    "That's all she wrote. Thanks for watching — this has been one for the books. Good night.",
+  ],
+  maddow: [
+    "And with that, this debate is over. The record speaks for itself. Good night, everyone.",
+    "We're closing the books on tonight's debate. The facts, as always, will outlast the noise. Good night.",
+    "That is our final note. Thank you to everyone who watched — the truth is in the transcript. Good night.",
+  ],
+  megynkelly: [
+    "And we're done. I've hosted a lot of debates — this one will be remembered. Good night.",
+    "That's a close. Whatever you thought going in tonight, you saw something real. Good night.",
+    "This debate is over. I'll let the audience decide who won. Good night.",
+  ],
+  odonnell: [
+    "And that brings this debate to a close. I think the record is perfectly clear. Good night.",
+    "We're finished here tonight. The discourse may have broken down, but the facts did not. Good night.",
+    "This debate is adjourned. Thank you for watching — and for caring enough to stay. Good night.",
+  ],
+  joyreid: [
+    "Okay — we are DONE. This debate is over, and I have seen enough. Good night, everybody.",
+    "That's a close. I've been in this business a long time and tonight was something else. Good night.",
+    "And that is IT. Debate's over. You know what you saw. Good night.",
+  ],
+  maxkellerman: [
+    "Final bell. Debate's over — scorecards will vary but the tape doesn't lie. Good night.",
+    "And that's the final round. Thank you both — however it went, you left it all on the stage. Good night.",
+    "Clock hits zero. This debate is done. Good night, everyone.",
+  ],
+  stephena: [
+    "THAT IS IT! This debate is OVER! And I want BOTH of you to think about what happened here tonight! Good night!",
+    "FINAL WORD — this debate is FINISHED! The people at home saw EVERYTHING! Good night!",
+    "We are DONE HERE! Debate's closed! I have seen a LOT of debates and THIS was something else! Good night!",
+  ],
+  kaitlyncollins: [
+    "And that's where we end tonight's debate. Thank you both — and thank you for watching. Good night.",
+    "This debate is over. The questions were asked; the answers are for you to judge. Good night.",
+    "We're closing out tonight's debate. I'll let the record speak for itself. Good night.",
+  ],
+  gilbertgottfried: [
+    "IT'S OVER! THANK GOD IT'S OVER! MY NERVES CANNOT TAKE ANOTHER SECOND OF THIS! GOOD NIGHT!",
+    "THE DEBATE IS DONE! I AM GOING HOME! THIS WAS THE WORST AND BEST NIGHT OF MY LIFE! GOOD NIGHT!",
+    "FINISHED! DONE! KAPUT! YOU'RE ALL DISMISSED! GOOD NIGHT AND DON'T COME BACK!",
+  ],
+  carlin: [
+    "And there we have it — democracy's finest hour. Go home, folks. Nothing was solved. Good night.",
+    "The debate is over. The problems remain. Sleep tight. Good night.",
+    "That's all. Two people argued, nobody changed their mind, and the machine rolls on. Good night.",
+  ],
+  tuckercarlson: [
+    "That's our show. Ask yourself why this debate ended the way it did — and who benefits. Good night.",
+    "Debate's over. The establishment got what it wanted tonight — noise instead of answers. Good night.",
+    "And we're done. Make of that what you will. I know what I think. Good night.",
+  ],
+  wandasykes: [
+    "And that is a WRAP, baby. I cannot. I literally cannot with either of you. Good night, everybody.",
+    "Debate's over — and I need a drink. You all saw what happened. Good night.",
+    "Done! Finished! Closed! And I say that with a whole lot of love and zero patience. Good night.",
+  ],
+  trevornoah: [
+    "And that's it — the debate is over. As an outsider, I can confirm: this was very American. Good night.",
+    "We're done here. I moved thousands of miles away from chaos and somehow found more of it. Good night.",
+    "Debate's closed. Thank you both — and thank you all for watching the world's greatest reality show. Good night.",
+  ],
+  janeelliott: [
+    "This debate is over. And I hope every person watching tonight learned something about themselves. Good night.",
+    "We're done. The work of dismantling ignorance continues tomorrow — but tonight's session is closed. Good night.",
+    "Finished. This room saw what it needed to see. Now go do something with it. Good night.",
+  ],
+  francescresswelsing: [
+    "This debate is concluded. The analysis does not end here — it never ends. Good night.",
+    "We are finished for tonight. The system we discussed will still be operating when you wake up. Good night.",
+    "The debate closes. The struggle for understanding continues. Good night to all who were paying attention.",
+  ],
+  shannonsharp: [
+    "UNDISPUTED — this debate is OVER! Uncle Shay Shay has seen enough tonight! Good night, everybody!",
+    "That's a CLOSE! My granddaddy used to say — 'When it's done, it's DONE.' Good night!",
+    "We are FINISHED! And I want BOTH of y'all to think long and hard about tonight! GOOD NIGHT!",
+  ],
+  _default: [
+    "That's all the time we have. This debate is over — thank you both. Good night.",
+    "With that, we're done. This has been… quite a debate. Good night.",
+    "I'm calling this debate to a close. Thank you, and good night.",
+  ],
+};
+
+/**
+ * Returns a random squabble-closer line for the given moderator style.
+ * Falls back to the generic default if the style isn't found.
+ */
+export function getSquabbleCloser(style: ModeratorStyle): string {
+  const lines = SQUABBLE_CLOSER_LINES[style] ?? SQUABBLE_CLOSER_LINES["_default"];
+  return lines[Math.floor(Math.random() * lines.length)];
+}
+
 export { playDingSound };

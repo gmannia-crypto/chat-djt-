@@ -25,6 +25,7 @@ import {
   MODERATORS, ModeratorStyle, generateModeratorLine, makeInterruptController,
   speakModeratorNow, localJab, moderatorLieReaction, generateModeratorQuestion, getModeratorLeaning,
   getSquabbleBridge,
+  getSquabbleCloser,
 } from "@/lib/debate-moderator";
 import { playDingSound } from "@/lib/arena-sfx";
 import { TokenWinVideo } from "@/components/TokenWinVideo";
@@ -1780,14 +1781,7 @@ export default function DebateStage() {
               } else {
                 // Already on the last topic — end the debate rather than limping
                 // along on an exhausted topic with a 90 s cooldown in effect.
-                const SQUABBLE_CLOSERS = [
-                  "That's all the time we have. This debate is over — thank you both.",
-                  "With that, we're done. This has been… quite a debate. Good night.",
-                  "I'm calling this debate to a close. Thank you, and good night.",
-                  "That's our cue. The debate is finished. Thanks to everyone watching.",
-                  "On that note, we're wrapping up. This debate is officially over.",
-                ];
-                const closerLine = SQUABBLE_CLOSERS[Math.floor(Math.random() * SQUABBLE_CLOSERS.length)];
+                const closerLine = getSquabbleCloser(moderatorStyle);
                 await speakModeratorNow(closerLine, mod.personaId, { wait: true });
                 // Signal the run-loop to stop — it will call setPhase("ended") on exit.
                 sessionEndsAtRef.current = Date.now();
