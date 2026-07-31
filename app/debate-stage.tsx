@@ -352,6 +352,47 @@ const PERSONA_PARTING_SHOTS: Record<string, string[]> = {
   _default:        ["I hope you're proud of what you just put out there. I know I am.", "This conversation is over. What comes next is up to history."],
 };
 
+// ── ENDING EXCHANGE LINES ─────────────────────────────────────────────────────
+// Loser fires a bitter/gracious concession; winner follows with a victory line.
+// Plays before the winner modal appears so the debate has a proper send-off.
+const PERSONA_LOSER_LINES: Record<string, string[]> = {
+  trump:      ["Rigged. Totally rigged. You'll be hearing from my lawyers.", "This is a disgrace. But we'll be back — you can count on it."],
+  obama:      ["I disagree with the result. But I respect the process. The work continues.", "We don't win every argument. But we keep making them."],
+  biden:      ["Here's the deal — I'm not done. Not by a long shot.", "Look, I've been knocked down before. I always get back up."],
+  carville:   ["You got lucky today. Don't confuse luck with talent, because I never do.", "I've lost before. I'll come back with receipts you haven't seen yet."],
+  berniemc:   ["The billionaires win the room again. But not the streets.", "Today's result doesn't change the facts. The facts never change."],
+  aoc:        ["Fine. Today you win the argument. Tomorrow we win the policy.", "I'll take this. The movement doesn't stop because one debate room voted wrong."],
+  elon:       ["The metrics don't support that outcome but I accept it. I update my priors and move on.", "Fair enough. I've been wrong before. I iterate."],
+  maddow:     ["The receipts still exist. I still have them. This isn't the last word.", "I acknowledge the result. The tape doesn't lie though — and I have the tape."],
+  alexjones:  ["THEY RIGGED THIS! The globalists rigged this room! This is not over!", "You may have won today but the TRUTH is coming out and MILLIONS will know it!"],
+  hannity:    ["The American people will see this differently. They always do.", "I'll take this result. But this fight is far from over."],
+  gallowaygj: ["History will be kinder to my argument than this room was.", "The imperialists win the room. They do not win history. They never have."],
+  omar:       ["I came here with facts and I leave with my dignity. That is more than enough.", "Fine. But the people I represent are not going anywhere."],
+  malema:     ["You win the debate but not the argument of history. Come back in ten years.", "The revolution is not deterred by a single room's verdict."],
+  carlin:     ["Yeah yeah. Congratulations. The system wins again. Big surprise.", "You won. I'm still right. Those aren't always the same thing."],
+  neiltyson:  ["The data will eventually vindicate the correct side. It always does.", "I accept the result. The universe doesn't, but I do."],
+  _default:   ["You get today. But this conversation isn't finished.", "I'll accept that. But don't get comfortable."],
+};
+const PERSONA_WINNER_LINES: Record<string, string[]> = {
+  trump:      ["I won. Of course I won. Nobody is surprised. Nobody.", "That's what happens when you're the best. You just win. Naturally."],
+  obama:      ["Thank you. Now let's get back to the work that actually matters.", "The better argument won today. That's all I ever asked for."],
+  biden:      ["Not a joke — we got 'em. We always get 'em when we stick to the facts.", "That's what happens when you show up prepared. Every single time."],
+  carville:   ["That's forty years of knowing exactly what I'm talking about. You cannot fake that.", "I told you from the beginning. When do y'all start listening on the first try?"],
+  berniemc:   ["The people's argument wins again. Imagine if that happened in Congress.", "The facts win. They always win when you let them speak."],
+  aoc:        ["That's what happens when you show up with policy and not just talking points.", "We won this round. Now let's make sure the policy follows."],
+  elon:       ["Data wins. It always wins when you let it speak for itself.", "First principles. Every time. First principles."],
+  maddow:     ["I have the receipts. I've always had the receipts. Good night.", "The facts won today. They usually do when you bring all of them."],
+  alexjones:  ["THE TRUTH WINS! THE PEOPLE WIN! THE GLOBALISTS COULDN'T STOP IT!", "America First! The listeners already knew I was right! Millions knew!"],
+  hannity:    ["The American people saw it. They always see it. That's why they trust us.", "That's the truth winning. Plain and simple."],
+  gallowaygj: ["The anti-imperialist argument wins because it is correct. Simple as that.", "History is on our side. Today just confirmed what history already knew."],
+  omar:       ["The facts and the people win. That's what happens when someone actually speaks truth to power.", "That's what happens when you don't back down. Ever."],
+  malema:     ["The revolutionary argument wins. It always does. The oppressor just takes longer to see it.", "The people's case is made. Now the people must act on it."],
+  carlin:     ["Well look at that. Occasionally the truth gets through even in this system.", "Good. Now go do something with it. Don't just clap."],
+  neiltyson:  ["Science and evidence win again. As they should. As they always eventually do.", "The correct argument won. That's all that was ever going to happen here."],
+  _default:   ["I'll take that. Now let's get back to work.", "That's what I came here to do. Mission accomplished."],
+};
+// ─────────────────────────────────────────────────────────────────────────────
+
 // ── INSULT DETECTION ──────────────────────────────────────────────────────────
 // Returns severity 0 (clean) → 3 (maximum provocation).
 // Drives how much heat accumulates for the target debater.
@@ -860,9 +901,6 @@ export default function DebateStage() {
       if (shotPool.length > 0) {
         const line = shotPool[Math.floor(Math.random() * shotPool.length)];
         if (voiceEnabledRef.current) {
-          // Play via playTTS directly — debate audio has already stopped so no
-          // main sound to duck, and we don't need the full playInterruptionAudio
-          // wrapper (which is defined later and would create a TDZ dependency).
           playTTS("/api/persona-speak", { text: line, personaId: hotId }, { volume: getPersonaVoiceVolume(hotId) }).catch(() => {});
           partingShotDelay = 4500;
         }
@@ -874,17 +912,8 @@ export default function DebateStage() {
         const hotName = hotPersona?.name ?? hotId;
         setMessages((prev) => [
           ...prev,
-          {
-            id: `parting-shot-${Date.now()}`,
-            speakerId: hotId,
-            speakerName: hotName,
-            text: line,
-            ts: Date.now(),
-            isPartingShot: true,
-            skipTTS: true,
-          },
+          { id: `parting-shot-${Date.now()}`, speakerId: hotId, speakerName: hotName, text: line, ts: Date.now(), isPartingShot: true, skipTTS: true },
         ]);
-        // Flash the heat pill AND portrait for ~2 s so viewers know who fired the parting shot
         if (hotId === aId) {
           setFirebackFlashA(true);
           setTimeout(() => setFirebackFlashA(false), 2000);
@@ -900,88 +929,155 @@ export default function DebateStage() {
     }
     // ─────────────────────────────────────────────────────────────────────────
 
-    if (pts.a === 0 && pts.b === 0) {
-      // No votes cast — ask AI to judge by facts.
-      // The network call provides its own delay so partingShotDelay isn't needed here.
-      const msgs = messagesRef.current.filter((m) => !m.isSystem);
-      if (msgs.length < 4) return;
+    // ── WINNER DETERMINATION + ENDING EXCHANGE ────────────────────────────────
+    // Async IIFE so we can await the AI verdict call and the ending exchange
+    // (loser concession → winner response) before showing the modal.
+    // partingShotDelay is captured from the synchronous block above.
+    (async () => {
+      // Wait for any parting shot audio to finish first.
+      if (partingShotDelay > 0) await new Promise<void>((r) => setTimeout(r, partingShotDelay));
+
       const aPersona = interviewers.find((p) => p.id === aId);
       const bPersona = interviewees.find((p) => p.id === bId);
-      const topicStr = typeof currentTopic === "string"
-        ? currentTopic
-        : (currentTopic as any)?.title || "Political Debate";
-      fetch(new URL("/api/arena/verdict", getApiUrl()).toString(), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          topic: topicStr,
-          messages: msgs.map((m) => ({ speakerName: m.speakerName, text: m.text })),
-          personas: [aPersona?.name || aId, bPersona?.name || bId],
-        }),
-      }).then(async (res) => {
-        if (!res.ok) return;
-        const v = await res.json();
-        // Match winnerId — server returns persona name, match against both sides
-        const aName = (aPersona?.name || aId).toLowerCase();
-        const bName = (bPersona?.name || bId).toLowerCase();
-        const vWinner = (v.winner || "").toLowerCase();
-        const vId = (v.winnerId || "").toLowerCase();
-        const aWins = vId === aId || vWinner.includes(aName) || aName.includes(vWinner);
-        const winnerId = aWins ? aId : bId;
-        const winnerPersona = aWins ? aPersona : bPersona;
-        setDebateWinner({
-          id: winnerId,
-          name: winnerPersona?.name || v.winner || winnerId,
+
+      // Determine winner ─────────────────────────────────────────────────────
+      let winnerId: string;
+      let loserId: string;
+      let winnerName: string;
+      let loserName: string;
+      let debateWinnerObj: Parameters<typeof setDebateWinner>[0];
+
+      if (pts.a === 0 && pts.b === 0) {
+        // No votes cast — try AI verdict, fall back to message-count heuristic.
+        const msgs = messagesRef.current.filter((m) => !m.isSystem);
+        let aWins = false;
+        let verdict = "";
+        let aiJudged = false;
+
+        if (msgs.length >= 4) {
+          try {
+            const topicStr = typeof currentTopic === "string"
+              ? currentTopic
+              : (currentTopic as any)?.title || "Political Debate";
+            const res = await fetch(new URL("/api/arena/verdict", getApiUrl()).toString(), {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                topic: topicStr,
+                messages: msgs.map((m) => ({ speakerName: m.speakerName, text: m.text })),
+                personas: [aPersona?.name || aId, bPersona?.name || bId],
+              }),
+            });
+            if (res.ok) {
+              const v = await res.json();
+              const aName = (aPersona?.name || aId).toLowerCase();
+              const vWinner = (v.winner || "").toLowerCase();
+              const vId = (v.winnerId || "").toLowerCase();
+              aWins = vId === aId.toLowerCase() ||
+                      vId === (aPersona?.name || "").toLowerCase() ||
+                      vWinner.includes(aName) ||
+                      aName.includes(vWinner);
+              verdict = v.verdict || v.summary || "";
+              aiJudged = true;
+            }
+          } catch { /* fall through to heuristic */ }
+        }
+
+        if (!aiJudged) {
+          // Fallback: persona with more messages wins (they drove the conversation)
+          const aCount = msgs.filter((m) => m.speakerId === aId).length;
+          const bCount = msgs.filter((m) => m.speakerId === bId).length;
+          aWins = aCount >= bCount;
+        }
+
+        winnerId = aWins ? aId : bId;
+        loserId  = aWins ? bId : aId;
+        const winnerP = aWins ? aPersona : bPersona;
+        const loserP  = aWins ? bPersona : aPersona;
+        winnerName = winnerP?.name || winnerId;
+        loserName  = loserP?.name  || loserId;
+        debateWinnerObj = {
+          id: winnerId, name: winnerName,
           portrait: PERSONA_PORTRAITS[winnerId] || null,
           points: 0, opponentPoints: 0,
-          verdict: v.verdict || v.summary || "",
-          aiJudged: true,
-        });
-        setShowDebateWinner(true);
-        playDebateCheer();
-      }).catch(() => {});
-      return;
-    }
+          verdict, aiJudged,
+        };
+      } else {
+        const aWins = pts.a >= pts.b;
+        winnerId = aWins ? aId : bId;
+        loserId  = aWins ? bId : aId;
+        const winnerP = aWins ? aPersona : bPersona;
+        const loserP  = aWins ? bPersona : aPersona;
+        winnerName = winnerP?.name || winnerId;
+        loserName  = loserP?.name  || loserId;
+        debateWinnerObj = {
+          id: winnerId, name: winnerName,
+          portrait: PERSONA_PORTRAITS[winnerId] || null,
+          points: aWins ? pts.a : pts.b,
+          opponentPoints: aWins ? pts.b : pts.a,
+        };
 
-    const aWins = pts.a >= pts.b;
-    const winnerId = aWins ? aId : bId;
-    const winnerPersona = aWins
-      ? interviewers.find((p) => p.id === aId)
-      : interviewees.find((p) => p.id === bId);
-    const winnerName = winnerPersona?.name || (aWins ? (aId) : (bId));
-    const winnerPoints = aWins ? pts.a : pts.b;
-    const opponentPoints = aWins ? pts.b : pts.a;
-    setDebateWinner({ id: winnerId, name: winnerName, portrait: PERSONA_PORTRAITS[winnerId] || null, points: winnerPoints, opponentPoints });
-    // Delay winner screen so the parting shot audio finishes first (if one fired)
-    setTimeout(() => {
+        // Record win + award tokens (vote-based path only)
+        if (deviceId) {
+          fetch(new URL("/api/arena/record-win", getApiUrl()).toString(), {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+            body: JSON.stringify({ personaId: winnerId }),
+          }).then(async (res) => {
+            if (res.ok) {
+              const data = await res.json();
+              if (data.tokensEarned > 0) {
+                setDebateTokenWinAmount(data.tokensEarned);
+                setTimeout(() => setDebateTokenWinVisible(true), 2200);
+                refreshBalance();
+              }
+            }
+          }).catch(() => {});
+        }
+        const statsKey = `debate_wins_local_v1`;
+        AsyncStorage.getItem(statsKey).then((raw) => {
+          const prev = raw ? JSON.parse(raw) : {};
+          const next = { ...prev, [winnerId]: (prev[winnerId] || 0) + 1, _total: (prev._total || 0) + 1 };
+          AsyncStorage.setItem(statsKey, JSON.stringify(next)).catch(() => {});
+        }).catch(() => {});
+      }
+
+      setDebateWinner(debateWinnerObj);
+
+      // ── ENDING EXCHANGE: loser concession → winner response ─────────────────
+      const loserPool  = PERSONA_LOSER_LINES[loserId]  ?? PERSONA_LOSER_LINES._default  ?? [];
+      const winnerPool = PERSONA_WINNER_LINES[winnerId] ?? PERSONA_WINNER_LINES._default ?? [];
+      const loserLine  = loserPool[Math.floor(Math.random() * loserPool.length)];
+      const winnerLine = winnerPool[Math.floor(Math.random() * winnerPool.length)];
+
+      if (loserLine) {
+        setMessages((prev) => [...prev, {
+          id: `loser-concession-${Date.now()}`, speakerId: loserId, speakerName: loserName,
+          text: loserLine, ts: Date.now(), skipTTS: true,
+        }]);
+        if (voiceEnabledRef.current) {
+          playTTS("/api/persona-speak", { text: loserLine, personaId: loserId }, { volume: getPersonaVoiceVolume(loserId) }).catch(() => {});
+        }
+        await new Promise<void>((r) => setTimeout(r, 3800));
+      }
+
+      if (winnerLine) {
+        setMessages((prev) => [...prev, {
+          id: `winner-response-${Date.now()}`, speakerId: winnerId, speakerName: winnerName,
+          text: winnerLine, ts: Date.now(), skipTTS: true,
+        }]);
+        if (voiceEnabledRef.current) {
+          playTTS("/api/persona-speak", { text: winnerLine, personaId: winnerId }, { volume: getPersonaVoiceVolume(winnerId) }).catch(() => {});
+        }
+        await new Promise<void>((r) => setTimeout(r, 3800));
+      }
+      // ───────────────────────────────────────────────────────────────────────
+
       setShowDebateWinner(true);
       playDebateCheer();
-    }, partingShotDelay);
-    // Record win to backend + award tokens
-    if (deviceId) {
-      fetch(new URL("/api/arena/record-win", getApiUrl()).toString(), {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-device-id": deviceId },
-        body: JSON.stringify({ personaId: winnerId }),
-      }).then(async (res) => {
-        if (res.ok) {
-          const data = await res.json();
-          if (data.tokensEarned > 0) {
-            setDebateTokenWinAmount(data.tokensEarned);
-            setTimeout(() => setDebateTokenWinVisible(true), 2200);
-            refreshBalance();
-          }
-        }
-      }).catch(() => {});
-    }
-    // Store local win stats
-    const statsKey = `debate_wins_local_v1`;
-    AsyncStorage.getItem(statsKey).then((raw) => {
-      const prev = raw ? JSON.parse(raw) : {};
-      const next = { ...prev, [winnerId]: (prev[winnerId] || 0) + 1, _total: (prev._total || 0) + 1 };
-      AsyncStorage.setItem(statsKey, JSON.stringify(next)).catch(() => {});
-    }).catch(() => {});
-  }, [phase, interviewerId, intervieweeId, interviewers, interviewees, deviceId, refreshBalance, playDebateCheer]);
+    })();
+    // ─────────────────────────────────────────────────────────────────────────
+  }, [phase, interviewerId, intervieweeId, interviewers, interviewees, deviceId, refreshBalance, playDebateCheer, currentTopic]);
 
   const [isPaused, setIsPaused] = useState(false);
   const exchangesOnTopicRef = useRef(0);
@@ -1897,6 +1993,11 @@ export default function DebateStage() {
                   ]).finally(() => { if (ivId !== null) clearInterval(ivId); });
                 };
 
+                // Pre-fetch the first filler audio NOW, while the bridge TTS plays —
+                // same zero-gap pattern as the primary/rebuttal filler prefetch.
+                const firstSquabbleFiller = getWaitFiller(nextTargetName);
+                startPrefetch({ text: firstSquabbleFiller, personaId: mod.personaId });
+
                 let nextQuestionDone = false;
                 let nextQuestion: string | null = null;
                 const nextQuestionFetch = generateModeratorQuestion({
@@ -1920,8 +2021,12 @@ export default function DebateStage() {
                     if (!runningRef.current) return;
                     await speakModQueued(bridgeLine);
                     // Bridge finished — filler until the question AI response arrives.
+                    // First filler uses the pre-fetched text (cache hit = no gap).
+                    let firstSquabbleFill = true;
                     while (!nextQuestionDone && runningRef.current) {
-                      await speakModQueuedFiller(getWaitFiller(nextTargetName));
+                      const fillerText = firstSquabbleFill ? firstSquabbleFiller : getWaitFiller(nextTargetName);
+                      firstSquabbleFill = false;
+                      await speakModQueuedFiller(fillerText);
                     }
                   })(),
                 ]);
