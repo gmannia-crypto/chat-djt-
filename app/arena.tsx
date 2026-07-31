@@ -4085,6 +4085,8 @@ export default function ArenaScreen() {
   const [showPaywall, setShowPaywall] = useState(false);
   const [paywallSpeechPaused, setPaywallSpeechPaused] = useState(false);
   const paywallPulse = useSharedValue(1);
+  const heatSpike = useSharedValue(1);
+  const prevRoomTempRef = useRef<number>(0);
   const [sessionTimer, setSessionTimer] = useState<number>(0);
   const [roomTemperature, setRoomTemperature] = useState<number>(0);
   const roomTempRef = useRef<number>(0);
@@ -4147,6 +4149,17 @@ export default function ArenaScreen() {
       });
     }, 30000);
     return () => clearInterval(cooldownTimer);
+  }, [roomTemperature]);
+  // Pulse the heat meter when temperature spikes upward
+  useEffect(() => {
+    if (roomTemperature > prevRoomTempRef.current) {
+      heatSpike.value = withSequence(
+        withTiming(1.35, { duration: 120 }),
+        withTiming(0.9, { duration: 100 }),
+        withTiming(1.0, { duration: 120 }),
+      );
+    }
+    prevRoomTempRef.current = roomTemperature;
   }, [roomTemperature]);
   useEffect(() => { currentTopicRef.current = currentTopic; }, [currentTopic]);
   useEffect(() => { selectedTopicIdRef.current = selectedTopicId; }, [selectedTopicId]);
@@ -4928,6 +4941,10 @@ export default function ArenaScreen() {
   const paywallPulseStyle = useAnimatedStyle(() => ({
     transform: [{ scale: paywallPulse.value }],
     opacity: paywallPulse.value > 1.1 ? 1 : 0.7,
+  }));
+
+  const heatSpikeStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: heatSpike.value }],
   }));
 
   const addSystemMessage = useCallback((text: string) => {
@@ -7490,7 +7507,7 @@ export default function ArenaScreen() {
           </View>
         )}
         {roomTemperature > 0 && (
-          <View style={s.heatMeterContainer}>
+          <Animated.View style={[s.heatMeterContainer, heatSpikeStyle]}>
             <Text style={s.heatLabel}>
               {roomTemperature >= 80 ? "🔥" : roomTemperature >= 50 ? "⚡" : "🌡️"}
             </Text>
@@ -7503,7 +7520,7 @@ export default function ArenaScreen() {
                 },
               ]} />
             </View>
-          </View>
+          </Animated.View>
         )}
         {!hasSession && freeRemaining > 0 && freeRemaining < 5 && (
           <Text style={s.freeCountLabel}>{freeRemaining} free left</Text>
