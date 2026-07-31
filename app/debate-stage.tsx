@@ -2038,7 +2038,13 @@ export default function DebateStage() {
                   })(),
                 ]);
                 // Hand the pre-fetched question to the main loop so it plays immediately.
-                if (nextQuestion) prefetchedOpeningRef.current = nextQuestion;
+                if (nextQuestion) {
+                  prefetchedOpeningRef.current = nextQuestion;
+                  // Also pre-fetch the primary answer so the new round starts with
+                  // zero dead air — by the time the moderator finishes reading the
+                  // question aloud the answer will already be in-flight / resolved.
+                  prefetchedPrimaryAnswerRef.current = fetchAnswerFrom(mod.personaId, nextTarget, nextQuestion);
+                }
                 // ────────────────────────────────────────────────────────────────────────
               } else {
                 // Already on the last topic — end the debate rather than limping
