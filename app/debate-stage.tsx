@@ -2623,10 +2623,13 @@ export default function DebateStage() {
         const dateStr = `${months[now.getMonth()]} ${d}${daySuffix}, ${now.getFullYear()}`;
         const welcomeText = `Today is ${dateStr}. This ${category} debate is brought to you by Dynamic Creations. I'm ${mod.name}, and we are getting right into it.`;
         // Welcome TTS and opening question fetch run in parallel.
+        // speakMod routes through the TTS queue (blockEarlyResolve=true) so any
+        // persona audio that arrives while the welcome is playing is held until
+        // it fully finishes — no simultaneous overlap on slow loads.
         // As soon as the question text arrives, also pre-fetch its TTS audio so
         // there is zero gap between the welcome line and the first question.
         const [, prefetchedQuestion] = await Promise.all([
-          speakModeratorNow(welcomeText, mod.personaId, { wait: true }).catch(() => {}),
+          speakMod(welcomeText, `modwelcome-${Date.now()}`),
           openTopic && deviceId
             ? generateModeratorQuestion({ deviceId, moderatorStyle, targetId: interviewerId ?? "", topic: openTopic, isTransition: false, conversationHistory: [] })
                 .then((q) => { if (q && voiceEnabledRef.current) startPrefetch({ text: q, personaId: mod.personaId }); return q; })
