@@ -81,7 +81,7 @@ const PERSONA_AMAZON_LINKS: Record<string, Array<{ title: string; url: string; i
   miller:         [{ title: "Stephen Miller Book", url: "https://www.amazon.com/s?k=stephen+miller+book&tag=trumpbot-20", icon: "book" }, { title: "Immigration Policy", url: "https://www.amazon.com/s?k=immigration+policy+books&tag=trumpbot-20", icon: "library" }, { title: "MAGA Gear", url: "https://www.amazon.com/s?k=maga+gear&tag=trumpbot-20", icon: "shirt" }],
   carville:       [{ title: "James Carville Book", url: "https://www.amazon.com/s?k=james+carville+book&tag=trumpbot-20", icon: "book" }, { title: "Louisiana Hot Sauce", url: "https://www.amazon.com/s?k=louisiana+hot+sauce&tag=trumpbot-20", icon: "gift" }, { title: "Dem Strategy Books", url: "https://www.amazon.com/s?k=democratic+strategy+books&tag=trumpbot-20", icon: "library" }],
   graham:         [{ title: "Lindsey Graham Book", url: "https://www.amazon.com/s?k=lindsey+graham+book&tag=trumpbot-20", icon: "book" }, { title: "SC State Gear", url: "https://www.amazon.com/s?k=south+carolina+merchandise&tag=trumpbot-20", icon: "ribbon" }, { title: "Senate History", url: "https://www.amazon.com/s?k=us+senate+history&tag=trumpbot-20", icon: "library" }],
-  shannon:        [{ title: "Shannon Book", url: "https://www.amazon.com/s?k=political+commentary+books&tag=trumpbot-20", icon: "book" }, { title: "Media Anchor Style", url: "https://www.amazon.com/s?k=women+anchor+fashion&tag=trumpbot-20", icon: "shirt" }, { title: "News Mug", url: "https://www.amazon.com/s?k=news+coffee+mug&tag=trumpbot-20", icon: "cafe" }],
+  shannon:        [{ title: "Club Shay Shay Gear", url: "https://www.amazon.com/s?k=shannon+sharpe+club+shay+shay&tag=trumpbot-20", icon: "mic" }, { title: "NFL Hall of Fame Books", url: "https://www.amazon.com/s?k=nfl+hall+of+fame+football+books&tag=trumpbot-20", icon: "book" }, { title: "Sports Media Books", url: "https://www.amazon.com/s?k=sports+media+commentary+books&tag=trumpbot-20", icon: "library" }],
   ivanka:         [{ title: "Ivanka Trump Book", url: "https://www.amazon.com/s?k=ivanka+trump+book&tag=trumpbot-20", icon: "book" }, { title: "Luxury Handbag", url: "https://www.amazon.com/s?k=luxury+designer+handbag&tag=trumpbot-20", icon: "bag" }, { title: "Fashion Accessories", url: "https://www.amazon.com/s?k=luxury+fashion+accessories&tag=trumpbot-20", icon: "ribbon" }],
   stephena:       [{ title: "Stephen A. Smith Book", url: "https://www.amazon.com/s?k=stephen+a+smith+book&tag=trumpbot-20", icon: "book" }, { title: "ESPN Gear", url: "https://www.amazon.com/s?k=espn+sports+merchandise&tag=trumpbot-20", icon: "trophy" }, { title: "Sports Analysis", url: "https://www.amazon.com/s?k=sports+analysis+books&tag=trumpbot-20", icon: "library" }],
   odonnell:       [{ title: "Lawrence O'Donnell Book", url: "https://www.amazon.com/s?k=lawrence+odonnell+book&tag=trumpbot-20", icon: "book" }, { title: "MSNBC Mug", url: "https://www.amazon.com/s?k=msnbc+coffee+mug&tag=trumpbot-20", icon: "cafe" }, { title: "Political Memoir", url: "https://www.amazon.com/s?k=political+memoir&tag=trumpbot-20", icon: "library" }],
@@ -145,12 +145,13 @@ const TTS_NAME_OVERRIDES: Record<string, TtsNameEntry> = {
   //   Hannity / Megyn Kelly (right-wing) → "Mr. Shabazz"   (formal-hostile)
   //   Everyone else                      → "Mr. Malcolm"   (avoids "X = the tenth" TTS misread)
   malcolmx: {
-    joyreid:    "Brother Malcolm",
-    maddow:     "Brother Malcolm",
-    odonnell:   "Brother Malcolm",
-    hannity:    "Mr. Shabazz",
-    megynkelly: "Mr. Shabazz",
-    default:    "Mr. Malcolm",
+    joyreid:      "Brother Malcolm",
+    maddow:       "Brother Malcolm",
+    odonnell:     "Brother Malcolm",
+    shannonsharp: "Brother Malcolm",
+    hannity:      "Mr. Shabazz",
+    megynkelly:   "Mr. Shabazz",
+    default:      "Mr. Malcolm",
   },
 };
 const spokenName = (id: string | undefined, displayName: string, speakerId?: string): string => {

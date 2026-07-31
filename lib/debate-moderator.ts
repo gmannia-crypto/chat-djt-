@@ -13,7 +13,7 @@ import { getApiUrl } from "@/lib/query-client";
 import { prefetchTTSAudio, playPrefetchedAudio, playTTS } from "@/lib/audio-helper";
 import { playCrowdCheer, playDingSound } from "@/lib/arena-sfx";
 
-export type ModeratorStyle = "cenk" | "galloway" | "hannity" | "maddow" | "megynkelly" | "odonnell" | "joyreid" | "maxkellerman" | "stephena" | "kaitlyncollins" | "gilbertgottfried" | "carlin" | "tuckercarlson" | "wandasykes" | "trevornoah" | "janeelliott" | "francescresswelsing";
+export type ModeratorStyle = "cenk" | "galloway" | "hannity" | "maddow" | "megynkelly" | "odonnell" | "joyreid" | "maxkellerman" | "stephena" | "kaitlyncollins" | "gilbertgottfried" | "carlin" | "tuckercarlson" | "wandasykes" | "trevornoah" | "janeelliott" | "francescresswelsing" | "shannonsharp";
 
 export const MODERATORS: Record<ModeratorStyle, { name: string; personaId: string; bias: string }> = {
   cenk:             { name: "Cenk Uygur",          personaId: "cenk",             bias: "progressive" },
@@ -33,6 +33,7 @@ export const MODERATORS: Record<ModeratorStyle, { name: string; personaId: strin
   trevornoah:       { name: "Trevor Noah",            personaId: "trevornoah",       bias: "outsider-progressive" },
   janeelliott:      { name: "Jane Elliott",           personaId: "janeelliott",      bias: "anti-racist" },
   francescresswelsing: { name: "Dr. Frances Cress Welsing", personaId: "francescresswelsing", bias: "Black-liberation" },
+  shannonsharp:        { name: "Shannon Sharpe",            personaId: "shannon",              bias: "Black-progressive-sports" },
 };
 
 // Which personas each moderator is friendly to ("favor" — softball questions, quick to defend
@@ -103,6 +104,11 @@ export const MODERATOR_LEANINGS: Record<ModeratorStyle, { favor: string[]; targe
   francescresswelsing: {
     favor: ["malcolmx", "claudeanderson", "mlk", "louisfarrakhan", "arikana", "alishahrazad"],
     target: ["trump", "bannon", "miller", "leavitt", "candace", "timscott", "alexjones"],
+  },
+  // Shannon: fiercely pro-Black excellence, pro-athlete, anti-Trump; tough on "tokens" and MAGA.
+  shannonsharp: {
+    favor: ["obama", "kamala", "jascrockett", "omar", "aoc", "mlk", "malcolmx", "claudeanderson", "malema", "joyreid"],
+    target: ["trump", "bannon", "miller", "leavitt", "alexjones", "candace", "jesseleepetersen", "ruckus"],
   },
 };
 
@@ -443,6 +449,11 @@ const SQUABBLE_BRIDGE_LINES: Record<string, string[]> = {
     "That exchange is finished. We are moving to the next topic — the analysis demands it.",
     "New topic. Because what just occurred reflects a pattern I have documented extensively, and it changes nothing.",
     "Moving on. The system benefits when we fight each other instead of examining the structure. Next subject.",
+  ],
+  shannonsharp: [
+    "HOLD ON! We are MOVING ON! My granddaddy used to say — 'When two fools fight, the house burns down.' NEW TOPIC. Let's GO!",
+    "UNDISPUTED — that exchange is OVER! I'm calling a timeout right now. New topic, and I expect BETTER from both of you!",
+    "That is ENOUGH! Topic switch, IMMEDIATELY! Uncle Shay Shay is NOT having this on his stage — bring some RESPECK to this debate!",
   ],
   _default: [
     "We're moving on — this topic is closed. Let's keep it professional.",
