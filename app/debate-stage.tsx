@@ -590,6 +590,11 @@ export default function DebateStage() {
   const [heatB, setHeatB] = useState(0);
   const [firebackFlashA, setFirebackFlashA] = useState(false);
   const [firebackFlashB, setFirebackFlashB] = useState(false);
+  // ── HEAT PULSE ANIMATION ─────────────────────────────────────────────────
+  const heatPulseOpacityA = useSharedValue(0.85);
+  const heatPulseOpacityB = useSharedValue(0.85);
+  const heatPulseStyleA = useAnimatedStyle(() => ({ opacity: heatPulseOpacityA.value }));
+  const heatPulseStyleB = useAnimatedStyle(() => ({ opacity: heatPulseOpacityB.value }));
   // ────────────────────────────────────────────────────────────────────────
 
   // Warm up the audio session on mount so the first clip plays without cold-start lag
@@ -611,8 +616,54 @@ export default function DebateStage() {
       setFirebackFlashA(false);
       setFirebackFlashB(false);
       heatRef.current = {};
+      cancelAnimation(heatPulseOpacityA);
+      cancelAnimation(heatPulseOpacityB);
+      heatPulseOpacityA.value = 0.85;
+      heatPulseOpacityB.value = 0.85;
     }
   }, [phase]);
+
+  // ── HEAT PULSE DRIVER — speeds up as heat approaches angerThresh ─────────────
+  useEffect(() => {
+    const thresh = interviewerId ? getAggression(interviewerId).angerThresh : 4;
+    const pct = Math.min(100, Math.round((heatA / Math.max(thresh, 1)) * 100));
+    cancelAnimation(heatPulseOpacityA);
+    if (pct >= 80) {
+      // Rapid pulse — imminent fireback
+      heatPulseOpacityA.value = withRepeat(
+        withSequence(withTiming(1, { duration: 160 }), withTiming(0.3, { duration: 160 })),
+        -1, true,
+      );
+    } else if (pct >= 50) {
+      // Gentle pulse — building tension
+      heatPulseOpacityA.value = withRepeat(
+        withSequence(withTiming(1, { duration: 480 }), withTiming(0.55, { duration: 480 })),
+        -1, true,
+      );
+    } else {
+      heatPulseOpacityA.value = withTiming(0.85, { duration: 300 });
+    }
+  }, [heatA, interviewerId]);
+
+  useEffect(() => {
+    const thresh = intervieweeId ? getAggression(intervieweeId).angerThresh : 4;
+    const pct = Math.min(100, Math.round((heatB / Math.max(thresh, 1)) * 100));
+    cancelAnimation(heatPulseOpacityB);
+    if (pct >= 80) {
+      heatPulseOpacityB.value = withRepeat(
+        withSequence(withTiming(1, { duration: 160 }), withTiming(0.3, { duration: 160 })),
+        -1, true,
+      );
+    } else if (pct >= 50) {
+      heatPulseOpacityB.value = withRepeat(
+        withSequence(withTiming(1, { duration: 480 }), withTiming(0.55, { duration: 480 })),
+        -1, true,
+      );
+    } else {
+      heatPulseOpacityB.value = withTiming(0.85, { duration: 300 });
+    }
+  }, [heatB, intervieweeId]);
+  // ─────────────────────────────────────────────────────────────────────────────
 
   // ── DC DEBATE WINNER ────────────────────────────────────────────────────────
   // Play a victory fanfare (Web Audio on web, haptics on native)
@@ -3195,6 +3246,8 @@ export default function DebateStage() {
               const thresh = p.id ? getAggression(p.id).angerThresh : 4;
               const pct = Math.min(100, Math.round((heat / Math.max(thresh, 1)) * 100));
               const visible = flash || heat > 0;
+              const fillColor = pct >= 80 ? "#ff1a1a" : "#ff5500";
+              const pulseStyle = isA ? heatPulseStyleA : heatPulseStyleB;
               return (
                 <View style={[s.heatPillWrap, { opacity: visible ? 1 : 0 }]} testID={isA ? "heat-pill-a" : "heat-pill-b"}>
                   {flash ? (
@@ -3203,7 +3256,7 @@ export default function DebateStage() {
                     </Animated.View>
                   ) : (
                     <View style={s.heatBarOuter}>
-                      <View style={[s.heatBarFill, { width: `${pct}%` }]} />
+                      <Animated.View style={[s.heatBarFill, { width: `${pct}%`, backgroundColor: fillColor }, pulseStyle]} />
                       <Text style={s.heatBarLabel}>FIRED UP 🔥</Text>
                     </View>
                   )}
