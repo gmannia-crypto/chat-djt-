@@ -1090,6 +1090,9 @@ export default function DebateStage() {
   // Holds the in-flight fetch for the next round's PRIMARY ANSWER, started during the
   // current round's transition so it's ready (or close) before the moderator finishes speaking.
   const prefetchedPrimaryAnswerRef = useRef<Promise<any> | null>(null);
+  // Holds the in-flight fetch for the next round's REBUTTAL ANSWER, chained off the primary
+  // pre-fetch during the squabble bridge so the rebuttal is also in-flight before the new round starts.
+  const prefetchedRebuttalAnswerRef = useRef<Promise<any> | null>(null);
   const messagesRef = useRef<Msg[]>([]);
   const topicIdxRef = useRef(0);
   const topicsRef = useRef<Topic[]>([]);
@@ -2044,6 +2047,15 @@ export default function DebateStage() {
                   // zero dead air — by the time the moderator finishes reading the
                   // question aloud the answer will already be in-flight / resolved.
                   prefetchedPrimaryAnswerRef.current = fetchAnswerFrom(mod.personaId, nextTarget, nextQuestion);
+                  // Chain: once the primary answer text arrives, immediately kick off
+                  // the rebuttal fetch too — it runs while the moderator plays the
+                  // new round's question, eliminating the gap before the rebuttal speaks.
+                  const nextSecondary = nextTarget === interviewerId ? intervieweeId! : interviewerId!;
+                  prefetchedRebuttalAnswerRef.current = prefetchedPrimaryAnswerRef.current.then(
+                    (ans) => (ans?.text && runningRef.current
+                      ? fetchAnswerFrom(nextTarget, nextSecondary, ans.text)
+                      : null),
+                  ).catch(() => null);
                 }
                 // ────────────────────────────────────────────────────────────────────────
               } else {
@@ -2611,8 +2623,11 @@ export default function DebateStage() {
             // resolves below — this ensures the persona cannot start playing before
             // the moderator question fully finishes, even on slow connections.
             startPrefetch({ text: ans.text, personaId: primaryId });
-            // Pre-kick rebuttal fetch while moderator TTS is playing.
-            rebuttalFetchPromise = fetchAnswerFrom(primaryId, secondaryId, ans.text);
+            // Reuse the squabble-bridge rebuttal pre-fetch if one was started — it
+            // has had extra time to resolve and avoids duplicating the network call.
+            // Fall back to a fresh fetch when no pre-fetch is available.
+            rebuttalFetchPromise = prefetchedRebuttalAnswerRef.current ?? fetchAnswerFrom(primaryId, secondaryId, ans.text);
+            prefetchedRebuttalAnswerRef.current = null; // consume
           }
         }).catch(() => { primaryDone = true; setIsThinking(null); }),
         // Play the moderator question, then loop short filler lines until the
@@ -2912,6 +2927,7 @@ export default function DebateStage() {
     pendingPrefetchRef.current = null;
     prefetchedAudioRef.current = null;
     prefetchedPrimaryAnswerRef.current = null; // discard any stale pre-fetch from a prior session
+    prefetchedRebuttalAnswerRef.current = null; // discard any stale rebuttal pre-fetch from a prior session
     firstAudioPlayedRef.current = false;
     setFirstAudioPlayed(false);
     setPhase("live");
@@ -3003,6 +3019,7 @@ export default function DebateStage() {
         pendingPrefetchRef.current = null;
         prefetchedAudioRef.current = null;
         prefetchedPrimaryAnswerRef.current = null; // discard any stale pre-fetch from a prior session
+        prefetchedRebuttalAnswerRef.current = null; // discard any stale rebuttal pre-fetch from a prior session
         firstAudioPlayedRef.current = false;
         setFirstAudioPlayed(false);
         setPhase("live");
