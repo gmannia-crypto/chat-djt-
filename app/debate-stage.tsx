@@ -576,6 +576,22 @@ export default function DebateStage() {
   const micCutRef = useRef({ iv: false, ivee: false });
   useEffect(() => { micCutRef.current = micCut; }, [micCut]);
 
+  // ── FIREBACK HEAT SYSTEM ─────────────────────────────────────────────────
+  // Declared here (before any useEffect that references them) to satisfy
+  // React Compiler's strict TDZ enforcement.
+  const heatRef = useRef<Record<string, number>>({});
+  const firebackChainRef = useRef(0);
+  const lastFirebackAtRef = useRef(0);
+  const squabbleCooldownUntilRef = useRef(0);
+  const tryFirebackRef = useRef<null | ((attackerId: string, targetId: string, text: string, severity: number) => void)>(null);
+  const tryModeratorRetortRef = useRef<null | ((speakerId: string, text: string) => void)>(null);
+  // ── HEAT METER UI STATE ──────────────────────────────────────────────────
+  const [heatA, setHeatA] = useState(0);
+  const [heatB, setHeatB] = useState(0);
+  const [firebackFlashA, setFirebackFlashA] = useState(false);
+  const [firebackFlashB, setFirebackFlashB] = useState(false);
+  // ────────────────────────────────────────────────────────────────────────
+
   // Warm up the audio session on mount so the first clip plays without cold-start lag
   useEffect(() => { warmupAudio().catch(() => {}); }, []);
 
@@ -775,30 +791,9 @@ export default function DebateStage() {
   // and fires automatically when the current one completes — prevents dropped prefetches.
   const pendingPrefetchRef = useRef<{ text: string; personaId: string } | null>(null);
 
-  // ── FIREBACK HEAT SYSTEM ─────────────────────────────────────────────────
-  // heatRef accumulates when a debater is targeted by insults.
-  // firebackChainRef caps consecutive exchanges per cooldown window.
-  // tryFirebackRef / tryModeratorRetortRef break the useCallback ordering cycle.
-  const heatRef = useRef<Record<string, number>>({});
-  const firebackChainRef = useRef(0);
-  const lastFirebackAtRef = useRef(0);
-  // Squabble cooldown: after a maxChain physical-threat escalation, block new chains for 90 s
-  const squabbleCooldownUntilRef = useRef(0);
-  const tryFirebackRef = useRef<null | ((attackerId: string, targetId: string, text: string, severity: number) => void)>(null);
-  const tryModeratorRetortRef = useRef<null | ((speakerId: string, text: string) => void)>(null);
-  // ────────────────────────────────────────────────────────────────────────
-
   const [emoInterviewer, setEmoInterviewer] = useState<Emotions>(ZERO_EMO);
   const [emoInterviewee, setEmoInterviewee] = useState<Emotions>(ZERO_EMO);
 
-  // ── HEAT METER UI STATE ──────────────────────────────────────────────────
-  // heatA / heatB mirror heatRef so React can re-render the heat pill.
-  const [heatA, setHeatA] = useState(0);
-  const [heatB, setHeatB] = useState(0);
-  // firebackFlashA/B: true for 2 s whenever that debater actually fires back
-  const [firebackFlashA, setFirebackFlashA] = useState(false);
-  const [firebackFlashB, setFirebackFlashB] = useState(false);
-  // ────────────────────────────────────────────────────────────────────────
   const malcolmxAngerRef = useRef<number>(10);
   useEffect(() => {
     if (interviewerId === "malcolmx") {
