@@ -4720,6 +4720,12 @@ export default function ArenaScreen() {
         });
         await new Promise<void>((r) => setTimeout(r, 50));
         await playInterruptionAudio(threatLine, targetId);
+        // Squabble escalation — hard spike the room temperature
+        setRoomTemperature((prev) => {
+          const next = Math.min(100, prev + 25);
+          roomTempRef.current = next;
+          return next;
+        });
         return;
       }
 
@@ -4767,6 +4773,13 @@ export default function ArenaScreen() {
         });
         await new Promise<void>((r) => setTimeout(r, 50));
         await playInterruptionAudio(firebackText, targetId);
+        // Fireback — spike room temperature by 10–15 points
+        const firebackTempBoost = 10 + Math.floor(Math.random() * 6); // 10–15
+        setRoomTemperature((prev) => {
+          const next = Math.min(100, prev + firebackTempBoost);
+          roomTempRef.current = next;
+          return next;
+        });
 
         // Chain: if the fireback itself was insulting the original attacker may respond
         const retalSeverity = detectArenaInsult(firebackText);
