@@ -3770,6 +3770,9 @@ export default function ArenaScreen() {
   });
   const [currentSpeaker, setCurrentSpeaker] = useState<string | null>(null);
   const [ttsActiveSpeaker, setTtsActiveSpeaker] = useState<string | null>(null);
+  // Ref mirror of ttsActiveSpeaker for synchronous reads inside callbacks.
+  // currentSpeakerRef tracks the FETCH phase; ttsActiveSpeakerRef tracks actual AUDIO playback.
+  const ttsActiveSpeakerRef = useRef<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [firstAudioPlayed, setFirstAudioPlayed] = useState(false);
   const firstAudioPlayedRef = useRef(false);
@@ -4527,6 +4530,7 @@ export default function ArenaScreen() {
         // Skip this turn entirely so a muted persona still yields the floor.
         continue;
       }
+      ttsActiveSpeakerRef.current = item.personaId;
       if (mountedRef.current) {
         setTtsActiveSpeaker(item.personaId);
       }
@@ -4605,6 +4609,7 @@ export default function ArenaScreen() {
     currentSoundRef.current = null;
     if (mountedRef.current && !hasMoreItems) {
       setIsPlayingAudio(false);
+      ttsActiveSpeakerRef.current = null;
       setTtsActiveSpeaker(null);
     }
     if (hasMoreItems && forcePlayRef.current) {
@@ -4627,6 +4632,7 @@ export default function ArenaScreen() {
     if (shouldSkipPersonaVoice(personaId)) return;
 
     // Interrupter plays at the same volume as any other speaker
+    ttsActiveSpeakerRef.current = personaId;
     if (mountedRef.current) {
       setTtsActiveSpeaker(personaId);
     }
@@ -4641,6 +4647,7 @@ export default function ArenaScreen() {
         sound.getStatusAsync().then((st: any) => {
           if (st.isLoaded) sound.stopAsync().then(() => sound.unloadAsync()).catch(() => {});
         }).catch(() => {});
+        ttsActiveSpeakerRef.current = null;
         if (mountedRef.current) {
           setTtsActiveSpeaker(null);
         }
@@ -4675,7 +4682,7 @@ export default function ArenaScreen() {
 
     // Sort candidates by hostility toward the attacker (lowest sentiment = most provoked)
     const candidates = activePersonas
-      .filter((id) => id !== attackerId && id !== currentSpeakerRef.current)
+      .filter((id) => id !== attackerId && id !== currentSpeakerRef.current && id !== ttsActiveSpeakerRef.current)
       .map((id) => {
         const persona = getPersona(id);
         const rel = persona?.relationships?.[attackerId];
@@ -5013,6 +5020,7 @@ export default function ArenaScreen() {
         stopAllTTS();
         setCurrentSpeaker(null);
         currentSpeakerRef.current = null;
+        ttsActiveSpeakerRef.current = null;
         setTtsActiveSpeaker(null);
         if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
         conversationTimerRef.current = null;
@@ -6166,7 +6174,13 @@ export default function ArenaScreen() {
 
     const trumpAttacked = active.includes("trump") && lastMsg.speakerId !== "trump" && detectTrumpAttack(lastMsg.text, lastMsg.speakerId);
 
-    const pool = active.filter((pid) => pid !== lastMsg.speakerId);
+    // Exclude the last message's speaker AND whoever is currently playing audio —
+    // currentSpeakerRef is cleared after the fetch completes (not after TTS finishes),
+    // so ttsActiveSpeakerRef is the only reliable guard against scheduling a persona
+    // while their voice is still audible.
+    const pool = active.filter(
+      (pid) => pid !== lastMsg.speakerId && pid !== ttsActiveSpeakerRef.current
+    );
     if (pool.length === 0) return;
 
     let chosen: { id: string; weight: number };
@@ -6276,7 +6290,11 @@ export default function ArenaScreen() {
             isInterruptingRef.current = false;
             currentSpeakerRef.current = null;
             setCurrentSpeaker(null);
-            isProcessingTTSRef.current = false;
+            // Do NOT clear isProcessingTTSRef here — TTS audio may still be
+            // playing and clearing this flag would let a second processTTSQueue
+            // loop start concurrently, causing audible self-overlap.
+            // The TTS queue clears its own lock when it finishes (or hits its
+            // own 60 s safety timeout).
             if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
             if (mountedRef.current && isRunningRef.current && !sessionEndedRef.current) {
               scheduleNext();
