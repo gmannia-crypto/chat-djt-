@@ -4116,12 +4116,22 @@ export default function ArenaScreen() {
   // arenaHeatRef accumulates insult-severity points per target persona.
   // arenaFirebackChainRef caps consecutive retorts before a squabble cooldown.
   const arenaHeatRef = useRef<Record<string, number>>({});
+  // personaHeat mirrors arenaHeatRef as React state so the UI re-renders on change.
+  const [personaHeat, setPersonaHeat] = useState<Record<string, number>>({});
+  // heatPulseOn flips every 600 ms to drive the pulsing red ring.
+  const [heatPulseOn, setHeatPulseOn] = useState(false);
   const arenaFirebackChainRef = useRef(0);
   const arenaLastFirebackAtRef = useRef(0);
   const arenaSquabbleCooldownUntilRef = useRef(0);
   // Ref-forwarded so tryArenaFireback can call itself recursively via closure
   const tryArenaFirebackRef = useRef<null | ((attackerId: string, attackText: string, severity: number) => void)>(null);
   // ────────────────────────────────────────────────────────────────────────
+
+  // Pulse interval for the heat ring animation (600 ms on / 600 ms off)
+  useEffect(() => {
+    const id = setInterval(() => setHeatPulseOn((v) => !v), 600);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => { messagesRef.current = messages; }, [messages]);
   useEffect(() => { currentSpeakerRef.current = currentSpeaker; }, [currentSpeaker]);
@@ -4688,11 +4698,13 @@ export default function ArenaScreen() {
       const maxChain = base.maxChain;
 
       arenaHeatRef.current[targetId] = (arenaHeatRef.current[targetId] ?? 0) + severity;
+      setPersonaHeat((prev) => ({ ...prev, [targetId]: arenaHeatRef.current[targetId] }));
       if (arenaHeatRef.current[targetId] < angerThresh) continue;
 
       // ── SQUABBLE ESCALATION: chain maxed → physical threat + cooldown ──
       if (arenaFirebackChainRef.current >= maxChain) {
         arenaHeatRef.current[targetId] = 0;
+        setPersonaHeat((prev) => ({ ...prev, [targetId]: 0 }));
         arenaLastFirebackAtRef.current = now;
         arenaSquabbleCooldownUntilRef.current = now + 90000;
         arenaFirebackChainRef.current = 0;
@@ -4714,11 +4726,13 @@ export default function ArenaScreen() {
       if (Math.random() > aggression) {
         // Failed probability check — still clear heat so it builds fresh next time
         arenaHeatRef.current[targetId] = 0;
+        setPersonaHeat((prev) => ({ ...prev, [targetId]: 0 }));
         continue;
       }
 
       // ── Commit: generate and play the fireback ──
       arenaHeatRef.current[targetId] = 0;
+      setPersonaHeat((prev) => ({ ...prev, [targetId]: 0 }));
       arenaFirebackChainRef.current += 1;
       arenaLastFirebackAtRef.current = now;
 
@@ -7699,6 +7713,13 @@ export default function ArenaScreen() {
           const allTime = allTimeScores[pid];
           const sessionPts = personaPoints[pid] || 0;
           const isEnlarged = isSpeaking || isFocused;
+          // ── HEAT RING ─────────────────────────────────────────────────────
+          const rawHeat = personaHeat[pid] || 0;
+          const heatThresh = getArenaAggression(pid).angerThresh;
+          const heatPct = heatThresh > 0 ? rawHeat / heatThresh : 0;
+          const heatAmber = !isSpeaking && heatPct >= 0.5 && heatPct < 1.0;
+          const heatDanger = !isSpeaking && heatPct >= 1.0;
+          // ─────────────────────────────────────────────────────────────────
           return (
             <Animated.View
               key={pid}
@@ -7737,6 +7758,24 @@ export default function ArenaScreen() {
                     shadowOffset: { width: 0, height: 0 },
                     shadowOpacity: 0.8,
                     shadowRadius: 12,
+                  },
+                  // Amber glow: heat at 50–99% of threshold
+                  heatAmber && {
+                    borderColor: "#F59E0B",
+                    borderWidth: 2,
+                    shadowColor: "#F59E0B",
+                    shadowOffset: { width: 0, height: 0 },
+                    shadowOpacity: 0.55,
+                    shadowRadius: 8,
+                  },
+                  // Pulsing red ring: heat at or above threshold
+                  heatDanger && {
+                    borderColor: heatPulseOn ? "#FF3B30" : "#FF3B3070",
+                    borderWidth: heatPulseOn ? 3 : 2,
+                    shadowColor: "#FF3B30",
+                    shadowOffset: { width: 0, height: 0 },
+                    shadowOpacity: heatPulseOn ? 0.9 : 0.35,
+                    shadowRadius: heatPulseOn ? 18 : 7,
                   },
                 ]}
               >
