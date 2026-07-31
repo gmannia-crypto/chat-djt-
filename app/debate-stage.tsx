@@ -1589,6 +1589,29 @@ export default function DebateStage() {
           if (mod) {
             const modLine = localJab("squabble");
             await speakModeratorNow(modLine, mod.personaId, { wait: true });
+            // ── SQUABBLE TOPIC ADVANCE: force a topic switch so the loop can't restart ──
+            // Advance to the next topic (if one exists), reset exchange counter, then
+            // speak a short "moving on" bridge so the transition feels intentional.
+            if (runningRef.current) {
+              const liveTopics = topicsRef.current;
+              const currentIdx = topicIdxRef.current;
+              const nextIdx = currentIdx + 1 < liveTopics.length ? currentIdx + 1 : currentIdx;
+              if (nextIdx !== currentIdx) {
+                topicIdxRef.current = nextIdx;
+                setTopicIdx(nextIdx);
+                exchangesOnTopicRef.current = 0;
+                const SQUABBLE_BRIDGES = [
+                  "We're moving on — this topic is closed. Let's keep it professional.",
+                  "That's enough on that. We are switching topics right now.",
+                  "Time-out! This subject is finished. Let's move forward.",
+                  "I'm calling a formal time-out. New topic — starting now.",
+                  "Alright — new topic. That conversation is over.",
+                ];
+                const bridgeLine = SQUABBLE_BRIDGES[Math.floor(Math.random() * SQUABBLE_BRIDGES.length)];
+                await speakModeratorNow(bridgeLine, mod.personaId, { wait: true });
+              }
+            }
+            // ─────────────────────────────────────────────────────────────────────
           }
         }
       } catch { /* never break the debate loop */ }
