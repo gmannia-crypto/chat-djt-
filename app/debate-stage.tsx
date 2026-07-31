@@ -562,6 +562,7 @@ export default function DebateStage() {
 
   const [topics, setTopics] = useState<Topic[]>([]);
   const [topicsLoading, setTopicsLoading] = useState(false);
+  const [topicsAreFallback, setTopicsAreFallback] = useState(false);
   const [topicIdx, setTopicIdx] = useState(0);
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
   const [completedTopics, setCompletedTopics] = useState<Set<string>>(new Set());
@@ -2047,6 +2048,14 @@ export default function DebateStage() {
     } catch {}
   }, [pollQuestion, pollVoteA, pollVoteB]);
 
+  const FALLBACK_TOPICS: Topic[] = [
+    { id: "fb_1", title: "Economic inequality and who's responsible for fixing it", description: "Wages, wealth gaps, corporate power, and government's role", era: "current" },
+    { id: "fb_2", title: "Immigration — open borders vs. strict enforcement", description: "Border policy, asylum, undocumented workers, national identity", era: "current" },
+    { id: "fb_3", title: "The media — watchdog or propaganda machine?", description: "Bias, misinformation, corporate ownership, and press freedom", era: "current" },
+    { id: "fb_4", title: "Race in America — systemic problem or personal responsibility?", description: "Policing, opportunity gaps, reparations, and cultural narratives", era: "current" },
+    { id: "fb_5", title: "Foreign policy — America First or global leadership?", description: "NATO, wars, alliances, and the cost of intervention", era: "current" },
+  ];
+
   const generateTopics = useCallback(async () => {
     if (!interviewerId || !intervieweeId) return;
     setTopicsLoading(true);
@@ -2062,9 +2071,22 @@ export default function DebateStage() {
       });
       if (res.ok) {
         const data = await res.json();
-        setTopics(data.topics || []);
+        const loaded = data.topics || [];
+        if (loaded.length > 0) {
+          setTopics(loaded);
+          setTopicsAreFallback(false);
+        } else {
+          setTopics(FALLBACK_TOPICS);
+          setTopicsAreFallback(true);
+        }
+      } else {
+        setTopics(FALLBACK_TOPICS);
+        setTopicsAreFallback(true);
       }
-    } catch {} finally {
+    } catch {
+      setTopics(FALLBACK_TOPICS);
+      setTopicsAreFallback(true);
+    } finally {
       setTopicsLoading(false);
     }
   }, [interviewerId, intervieweeId, topicMix, duration, interviewStyle]);
@@ -3186,9 +3208,16 @@ export default function DebateStage() {
               {isStarting ? "STARTING…" : !deviceId ? "CONNECTING…" : `START ${duration}-MIN INTERVIEW`}
             </Text>
           </Pressable>
-          <Text style={s.startSub}>
-            {interviewer?.name || "—"} grills {interviewee?.name || "—"} · {selectedTopicId ? `starting on "${topics.find(t => t.id === selectedTopicId)?.title}"` : `${topics.length} topic${topics.length === 1 ? "" : "s"}`}
-          </Text>
+          {topicsAreFallback ? (
+            <Pressable onPress={generateTopics} style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 }}>
+              <Text style={[s.startSub, { color: "#FF9500" }]}>⚠️ Using generic topics — AI busy.</Text>
+              <Text style={[s.startSub, { color: "#FF9500", textDecorationLine: "underline" }]}>Retry</Text>
+            </Pressable>
+          ) : (
+            <Text style={s.startSub}>
+              {interviewer?.name || "—"} grills {interviewee?.name || "—"} · {selectedTopicId ? `starting on "${topics.find(t => t.id === selectedTopicId)?.title}"` : `${topics.length} topic${topics.length === 1 ? "" : "s"}`}
+            </Text>
+          )}
 
           <CashAppDonate />
         </ScrollView>
