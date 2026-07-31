@@ -26,6 +26,8 @@ import {
   speakModeratorNow, localJab, moderatorLieReaction, generateModeratorQuestion, getModeratorLeaning,
   getSquabbleBridge,
   getSquabbleCloser,
+  detectDodge,
+  getDodgePressLine,
 } from "@/lib/debate-moderator";
 import { playDingSound } from "@/lib/arena-sfx";
 import { TokenWinVideo } from "@/components/TokenWinVideo";
@@ -2402,6 +2404,19 @@ export default function DebateStage() {
         continue; // retry this topic round with the same moderator target
       }
       consecutiveNullRef.current = 0;
+
+      // ── DODGE PRESS (bias-aware) ───────────────────────────────────────────
+      // If the primary debater's answer looks evasive AND the moderator leans
+      // "target" toward them, fire a short follow-up press before the rebuttal
+      // bridge. Favored or neutral debaters are never pressed for dodging.
+      if (primaryAnswer?.text && detectDodge(primaryAnswer.text)) {
+        const dodgeLeaning = getModeratorLeaning(moderatorStyle, primaryId);
+        if (dodgeLeaning === "target" && runningRef.current) {
+          const pressLine = getDodgePressLine();
+          await speakMod(pressLine, `moddodge-${Date.now()}-${Math.random()}`);
+          if (!runningRef.current) break;
+        }
+      }
 
       // ── STEP 3+4: Bridge + await pre-fetched rebuttal in parallel ──────────
       // Use the already-in-flight rebuttalFetchPromise if available; otherwise

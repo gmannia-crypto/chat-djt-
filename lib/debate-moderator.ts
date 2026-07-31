@@ -359,6 +359,57 @@ export function moderatorLieReaction(moderatorStyle: ModeratorStyle, speakerId: 
   return "chastise";
 }
 
+// ── DODGE DETECTION ────────────────────────────────────────────────────────
+// Lightweight text-based signals that an answer is evasive rather than direct.
+const DODGE_SIGNALS: RegExp[] = [
+  /\bwhat('s| is) (really |truly )?(important|the issue|at stake|we need|we should)\b/i,
+  /\blet me be (very |crystal )?(clear|honest|direct)\b/i,
+  /\b(the real|the actual|the true) (question|issue|problem|story)\b/i,
+  /\b(look|listen|hear me out),?\s+(what|the)/i,
+  /\b(my|our) (record|history|track record) (shows|speaks|demonstrates)\b/i,
+  /\b(I've|I have) (always|consistently|repeatedly) (said|believed|stood)\b/i,
+  /\b(instead|rather),? (let's|we should|we need to) (focus|talk|discuss)\b/i,
+  /\bwhat (the American people|people|voters|everyone) (really |truly )?(want|need|care about)\b/i,
+  /\b(that's a) (great|fair|interesting|loaded) question\b/i,
+  /\bI (think|believe|feel) (the bigger|the larger|what's more important)\b/i,
+];
+
+/**
+ * Returns true if the answer text shows evasion signals — pivot-heavy
+ * non-answers, deflection openers, or answers that ignore the actual question.
+ * Intentionally conservative: false negatives are fine; false positives should
+ * be avoided so the moderator doesn't badger debaters who gave real answers.
+ */
+export function detectDodge(text: string): boolean {
+  if (!text) return false;
+  // Very short answers (< 25 words) that open with a pivot signal are likely dodges
+  const wordCount = text.trim().split(/\s+/).length;
+  if (wordCount < 25 && DODGE_SIGNALS.some((p) => p.test(text))) return true;
+  // Longer answers that are packed with multiple dodge signals
+  const signalCount = DODGE_SIGNALS.filter((p) => p.test(text)).length;
+  return signalCount >= 2;
+}
+
+// ── BIAS-AWARE DODGE FOLLOW-UP PRESS ──────────────────────────────────────
+// Fired only when: (1) the primary debater dodged the question AND
+// (2) the moderator's leaning toward that debater is "target".
+// Kept short (~1 sentence) so they land as a sharp cut-in, not a monologue.
+const DODGE_PRESS_LINES: string[] = [
+  "That didn't answer the question. Try again — and this time actually address what was asked.",
+  "You heard the question. I'd like an answer, not a speech.",
+  "That's a non-answer and we all know it. One more shot — what's your actual position?",
+  "I'm going to need you to be more direct. What is your answer?",
+  "You pivoted. I noticed. The question was specific — please respond to it.",
+  "That was impressive evasion, but I'm still waiting for the answer.",
+  "One more time, because I don't think you heard it: answer the question.",
+  "You didn't answer that. The audience deserves a real response.",
+];
+
+/** Returns a random dodge-press line for a targeted debater who just dodged. */
+export function getDodgePressLine(): string {
+  return DODGE_PRESS_LINES[Math.floor(Math.random() * DODGE_PRESS_LINES.length)];
+}
+
 /**
  * Per-moderator squabble bridge lines — spoken when the moderator forces a
  * topic switch after a fireback chain hits its limit. Each style has 3 lines
