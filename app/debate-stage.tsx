@@ -1335,7 +1335,12 @@ export default function DebateStage() {
           let earlyResolved = false;
           const fullCleanup = () => {
             sound.setOnPlaybackStatusUpdate(null);
-            sound.getStatusAsync().then((st: any) => { if (st.isLoaded) sound.unloadAsync().catch(() => {}); }).catch(() => {});
+            // Stop BEFORE unload — unloading a still-playing sound without stopping
+            // first flushes garbage data from the audio hardware buffer, producing the
+            // "jibber jabber" tail heard after normal dialog.
+            sound.getStatusAsync().then((st: any) => {
+              if (st.isLoaded) sound.stopAsync().then(() => sound.unloadAsync()).catch(() => {});
+            }).catch(() => {});
             if (currentSoundRef.current === sound) currentSoundRef.current = null;
           };
           const earlyResolve = () => {
