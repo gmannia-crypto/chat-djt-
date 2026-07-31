@@ -1836,7 +1836,11 @@ export default function DebateStage() {
                 setShowTimeoutBanner(true);
                 timeoutBannerTimerRef.current = setTimeout(() => setShowTimeoutBanner(false), 3000);
                 // ─────────────────────────────────────────────────────────
-                const bridgeLine = getSquabbleBridge(moderatorStyle);
+                const bridgeLine = getSquabbleBridge(
+                  moderatorStyle,
+                  [interviewerId!, intervieweeId!],
+                  [interviewer?.name ?? interviewerId!, interviewee?.name ?? intervieweeId!],
+                );
                 await speakModQueued(bridgeLine);
               } else {
                 // Already on the last topic — end the debate rather than limping

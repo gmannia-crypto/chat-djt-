@@ -463,10 +463,123 @@ const SQUABBLE_BRIDGE_LINES: Record<string, string[]> = {
 };
 
 /**
- * Returns a random squabble-bridge line for the given moderator style.
- * Falls back to the generic default if the style isn't found.
+ * Per-moderator biased squabble-bridge lines — spoken when one debater is
+ * clearly "the enemy" of this moderator. Use `{target}` as the placeholder
+ * for the blamed debater's display name; it is replaced at call time.
+ * Only defined for opinionated moderators; neutral/sports mods fall back to
+ * the regular SQUABBLE_BRIDGE_LINES pool.
  */
-export function getSquabbleBridge(style: ModeratorStyle): string {
+const SQUABBLE_BRIDGE_BIASED_LINES: Record<string, string[]> = {
+  cenk: [
+    "ENOUGH. {target} — you came here looking for a fight, and this is what that looks like. Moving on.",
+    "That's done. {target}, you have been the aggressor in this exchange and the audience can see it. New topic.",
+    "I'm shutting this down. {target}, if you can't debate ideas without threatening people, you have no business on this stage. We're moving on.",
+  ],
+  hannity: [
+    "That's enough — and {target}, this is exactly what the radical left does when they can't win on ideas. New topic.",
+    "Moving on. {target}, you just showed everyone watching exactly who you are. Americans deserve better. Next subject.",
+    "We are DONE. {target}, that kind of behavior is why people don't trust your side. Let's get back to real issues.",
+  ],
+  maddow: [
+    "We're moving on — and I want the record to show that {target} just demonstrated, live on this stage, exactly what we've been documenting. New topic.",
+    "That exchange is over. {target}, you came here to bully, not to debate, and I think everyone watching saw that. Moving on.",
+    "New topic. The facts will stand. {target}, that kind of behavior belongs in the past — and so do the ideas behind it.",
+  ],
+  megynkelly: [
+    "New topic — and {target}, I'll say this plainly: that outburst told us everything we need to know. Moving on.",
+    "That's done. {target}, I've covered a lot of debates and that was embarrassing. The audience deserves substance. Next subject.",
+    "Moving on. {target}, you can't bully your way through a debate. That's noted, and we're going to a new topic.",
+  ],
+  joyreid: [
+    "Oh, we are DONE with this. {target} — I have seen this playbook before and it doesn't work here. New topic, right now.",
+    "Moving on. {target}, let me be clear: coming in here with threats instead of arguments is not debate — it's intimidation. We're past it.",
+    "New topic. {target}, the people in this room can see exactly what you just tried to do. It didn't work. Let's move.",
+  ],
+  odonnell: [
+    "I'm stepping in — we are done here. {target}, that kind of escalation is exactly what I will not permit on this stage. New topic.",
+    "Moving on. {target}, this is not how civilized debate works. The record reflects what just happened. New subject.",
+    "Topic closed. {target}, the audience should note that you chose threats over argument. We're moving forward.",
+  ],
+  galloway: [
+    "Enough of this. {target} — you have behaved tonight exactly as I expected from your ideological tradition. We move on.",
+    "That exchange is finished. {target}, history has seen this kind of aggression before and it always loses. New topic.",
+    "I am invoking my authority. {target}, your conduct has been noted and will be remembered. Moving on.",
+  ],
+  tuckercarlson: [
+    "That's enough. {target} — the audience should ask themselves why you always resort to this when you're losing an argument. New topic.",
+    "Moving on. {target}, the establishment always reaches for intimidation when the facts don't cooperate. We all just saw it. Next subject.",
+    "New topic. And {target} — that reaction tells you more about their agenda than anything they could have said.",
+  ],
+  wandasykes: [
+    "Oh HELL no — we are NOT doing this. {target}, you need to sit all the way down right now. Moving on.",
+    "New topic. {target}, what you just pulled is not debate — it's exactly what I've been talking about. I have ZERO patience for it.",
+    "Moving on! {target}, what you just did was inexcusable. New subject.",
+  ],
+  trevornoah: [
+    "And THAT is why the rest of the world thinks American politics is broken. {target}, you just made my point for me. New topic.",
+    "Moving on. {target}, as an outsider looking in, I have to say — that was not a good look. At all. New subject.",
+    "New topic. {target}, I came here hoping to be proven wrong about how these debates go. You did not help. Moving on.",
+  ],
+  janeelliott: [
+    "We are DONE. {target} — I have spent fifty years watching this behavior and I will not sit here and validate it. New topic.",
+    "Moving on. {target}, what you just displayed is a textbook example of exactly what I teach people to recognize. We're past it.",
+    "Topic switch. {target}, this room expects better than what you just showed. New subject.",
+  ],
+  francescresswelsing: [
+    "That exchange is finished. {target} — your behavior tonight is consistent with a pattern I have documented for decades. We move on.",
+    "Moving on. {target}, the system benefits when we tear each other apart instead of examining the structure. New topic.",
+    "New topic. {target}, I want the audience to analyze what they just saw and ask: who benefits from that kind of disruption?",
+  ],
+  shannonsharp: [
+    "HOLD ON — we are MOVING ON. {target}, Uncle Shay Shay sees EXACTLY what you're doing and it is NOT it. New topic, immediately!",
+    "UNDISPUTED — {target} just showed out in the WRONG way on this stage. New topic. Let's GO!",
+    "That is ENOUGH from {target}! My granddaddy didn't raise me to sit here and watch that. MOVING ON — bring some RESPECK!",
+  ],
+  kaitlyncollins: [
+    "Moving on — and {target}, you just made this about yourself instead of the topic. New subject.",
+    "New topic. {target}, I ask hard questions because I expect real answers. What you just gave us was neither. Moving on.",
+    "That exchange is over. {target}, you chose to escalate rather than debate. The audience saw it. New topic.",
+  ],
+};
+
+/**
+ * Returns a squabble-bridge line for the given moderator style.
+ * When `debaterIds` and `debaterNames` are provided, checks whether one
+ * debater is clearly "the enemy" of this moderator and, if so, picks a line
+ * that implicitly assigns blame toward that debater. Falls back to the neutral
+ * per-moderator pool when both sides are neutral/equally disliked, or when
+ * no debater context is passed.
+ */
+export function getSquabbleBridge(
+  style: ModeratorStyle,
+  debaterIds?: [string, string],
+  debaterNames?: [string, string],
+): string {
+  if (debaterIds && debaterNames) {
+    const [idA, idB] = debaterIds;
+    const [nameA, nameB] = debaterNames;
+    const leaningA = getModeratorLeaning(style, idA);
+    const leaningB = getModeratorLeaning(style, idB);
+
+    // Only assign blame when exactly ONE side is the moderator's "target" — if
+    // both are targets (or both are neutral/favored) we stay neutral.
+    let targetName: string | null = null;
+    if (leaningA === "target" && leaningB !== "target") {
+      targetName = nameA;
+    } else if (leaningB === "target" && leaningA !== "target") {
+      targetName = nameB;
+    }
+
+    if (targetName) {
+      const biasedLines = SQUABBLE_BRIDGE_BIASED_LINES[style];
+      if (biasedLines?.length) {
+        const raw = biasedLines[Math.floor(Math.random() * biasedLines.length)];
+        return raw.replace("{target}", targetName);
+      }
+    }
+  }
+
+  // Neutral fallback — existing per-moderator lines
   const lines = SQUABBLE_BRIDGE_LINES[style] ?? SQUABBLE_BRIDGE_LINES["_default"];
   return lines[Math.floor(Math.random() * lines.length)];
 }
