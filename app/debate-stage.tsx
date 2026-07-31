@@ -590,6 +590,9 @@ export default function DebateStage() {
   const [heatB, setHeatB] = useState(0);
   const [firebackFlashA, setFirebackFlashA] = useState(false);
   const [firebackFlashB, setFirebackFlashB] = useState(false);
+  // Portrait-level flash — only for the parting shot at debate end
+  const [partingShotFlashA, setPartingShotFlashA] = useState(false);
+  const [partingShotFlashB, setPartingShotFlashB] = useState(false);
   // ── ROOM TEMPERATURE (combined A+B heat → single shared dial) ───────────
   const [roomTemperature, setRoomTemperature] = useState(0);
   const roomTempSpikedRef = useRef(false);
@@ -789,6 +792,18 @@ export default function DebateStage() {
         // wrapper (which is defined later and would create a TDZ dependency).
         playTTS("/api/persona-speak", { text: line, personaId: hotId }, { volume: getPersonaVoiceVolume(hotId) }).catch(() => {});
         partingShotDelay = 4500;
+        // Flash the heat pill AND portrait for ~2 s so viewers know who fired the parting shot
+        if (hotId === aId) {
+          setFirebackFlashA(true);
+          setTimeout(() => setFirebackFlashA(false), 2000);
+          setPartingShotFlashA(true);
+          setTimeout(() => setPartingShotFlashA(false), 2000);
+        } else {
+          setFirebackFlashB(true);
+          setTimeout(() => setFirebackFlashB(false), 2000);
+          setPartingShotFlashB(true);
+          setTimeout(() => setPartingShotFlashB(false), 2000);
+        }
       }
     }
     // ─────────────────────────────────────────────────────────────────────────
@@ -3269,6 +3284,21 @@ export default function DebateStage() {
                 <View style={[s.portraitImg, { backgroundColor: "#222", alignItems: "center", justifyContent: "center" }]}>
                   <Ionicons name="person" size={42} color="#666" />
                 </View>
+              )}
+              {/* Parting-shot portrait flash — briefly rings the face with fire-orange glow */}
+              {(idx === 0 ? partingShotFlashA : partingShotFlashB) && (
+                <Animated.View
+                  entering={ZoomIn.duration(180)}
+                  exiting={FadeOut.duration(400)}
+                  pointerEvents="none"
+                  style={{
+                    position: "absolute",
+                    width: 116, height: 116, borderRadius: 58,
+                    borderWidth: 4, borderColor: "#FF6B00",
+                    shadowColor: "#FF6B00", shadowOffset: { width: 0, height: 0 },
+                    shadowRadius: 16, shadowOpacity: 1,
+                  }}
+                />
               )}
               {isThinking === (idx === 0 ? "interviewer" : "interviewee") && (
                 <View style={s.thinkingDot}>
