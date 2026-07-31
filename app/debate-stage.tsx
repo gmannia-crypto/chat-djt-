@@ -2600,6 +2600,7 @@ export default function DebateStage() {
     prefetchingRef.current = false;
     pendingPrefetchRef.current = null;
     prefetchedAudioRef.current = null;
+    prefetchedPrimaryAnswerRef.current = null; // discard any stale pre-fetch from a prior session
     firstAudioPlayedRef.current = false;
     setFirstAudioPlayed(false);
     setPhase("live");
@@ -2679,6 +2680,11 @@ export default function DebateStage() {
         savedSessionRef.current = false;
         setSavedSessionId(null);
         ttsQueueRef.current = [];
+        ttsRunningRef.current = false;
+        prefetchingRef.current = false;
+        pendingPrefetchRef.current = null;
+        prefetchedAudioRef.current = null;
+        prefetchedPrimaryAnswerRef.current = null; // discard any stale pre-fetch from a prior session
         firstAudioPlayedRef.current = false;
         setFirstAudioPlayed(false);
         setPhase("live");
