@@ -2475,6 +2475,11 @@ export default function DebateStage() {
       // primaryDone flips to true the moment the fetch settles — success OR failure.
       // The filler loop watches this flag, not the answer value, so a null result
       // (network error) still exits the loop instead of spinning forever.
+      // Pre-fetch the first filler line's audio NOW, while the question is still
+      // loading/playing. By the time speakMod(modQuestion) resolves the filler audio
+      // is already cached — zero TTS network gap on the first filler call.
+      const firstPrimaryFiller = getWaitFiller(primaryName);
+      startPrefetch({ text: firstPrimaryFiller, personaId: mod.personaId });
       let primaryDone = false;
       await Promise.all([
         primaryAnswerPromise.then((ans) => {
@@ -2495,10 +2500,15 @@ export default function DebateStage() {
         // Play the moderator question, then loop short filler lines until the
         // primary answer arrives — prevents dead air on slow connections.
         // Uses primaryDone (not primaryAnswer) so a null/failed fetch still exits.
+        // The first filler uses the pre-fetched text so processQueue hits the audio
+        // cache — subsequent fillers generate fresh random lines.
         (async () => {
           await speakMod(modQuestion, `modq-${Date.now()}-${Math.random()}`);
+          let firstFiller = true;
           while (!primaryDone && runningRef.current) {
-            await speakModFiller(getWaitFiller(primaryName), `modfill-${Date.now()}-${Math.random()}`);
+            const fillerText = firstFiller ? firstPrimaryFiller : getWaitFiller(primaryName);
+            firstFiller = false;
+            await speakModFiller(fillerText, `modfill-${Date.now()}-${Math.random()}`);
           }
         })(),
       ]);
@@ -2586,10 +2596,17 @@ export default function DebateStage() {
           if (!runningRef.current) return;
 
           const bridgeText = getRebuttalBridge(secondaryName, moderatorStyle, secondaryId);
+          // Pre-fetch first rebuttal filler while the bridge plays — same zero-gap
+          // pattern as the primary filler above.
+          const firstRebuttalFiller = getWaitFiller(secondaryName);
+          startPrefetch({ text: firstRebuttalFiller, personaId: mod.personaId });
           await speakMod(bridgeText, `modbr-${Date.now()}-${Math.random()}`);
           // Bridge finished — play filler lines until the rebuttal AI response arrives.
+          let firstRebuttalFiller_ = true;
           while (!rebuttalDone && runningRef.current) {
-            await speakModFiller(getWaitFiller(secondaryName), `modfiller-${Date.now()}-${Math.random()}`);
+            const fillerText = firstRebuttalFiller_ ? firstRebuttalFiller : getWaitFiller(secondaryName);
+            firstRebuttalFiller_ = false;
+            await speakModFiller(fillerText, `modfiller-${Date.now()}-${Math.random()}`);
           }
         })(),
       ]);
