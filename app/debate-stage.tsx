@@ -590,15 +590,32 @@ export default function DebateStage() {
   const [heatB, setHeatB] = useState(0);
   const [firebackFlashA, setFirebackFlashA] = useState(false);
   const [firebackFlashB, setFirebackFlashB] = useState(false);
+  // ── ROOM TEMPERATURE (combined A+B heat → single shared dial) ───────────
+  const [roomTemperature, setRoomTemperature] = useState(0);
+  const roomTempSpikedRef = useRef(false);
+  const roomTempSettleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // ── HEAT PULSE ANIMATION ─────────────────────────────────────────────────
   const heatPulseOpacityA = useSharedValue(0.85);
   const heatPulseOpacityB = useSharedValue(0.85);
   const heatPulseStyleA = useAnimatedStyle(() => ({ opacity: heatPulseOpacityA.value }));
   const heatPulseStyleB = useAnimatedStyle(() => ({ opacity: heatPulseOpacityB.value }));
+  // ── ROOM TEMP BAR ANIMATION ──────────────────────────────────────────────
+  const roomTempBarWidth = useSharedValue(0);
+  const roomTempBarStyle = useAnimatedStyle(() => ({ width: `${roomTempBarWidth.value}%` as any }));
   // ────────────────────────────────────────────────────────────────────────
 
   // Warm up the audio session on mount so the first clip plays without cold-start lag
   useEffect(() => { warmupAudio().catch(() => {}); }, []);
+
+  // Clear the room-temp settle timer on unmount to avoid state updates on an unmounted component
+  useEffect(() => {
+    return () => {
+      if (roomTempSettleTimerRef.current) {
+        clearTimeout(roomTempSettleTimerRef.current);
+        roomTempSettleTimerRef.current = null;
+      }
+    };
+  }, []);
 
   // Reset scoring state when returning to setup for a new debate
   useEffect(() => {
@@ -620,6 +637,15 @@ export default function DebateStage() {
       cancelAnimation(heatPulseOpacityB);
       heatPulseOpacityA.value = 0.85;
       heatPulseOpacityB.value = 0.85;
+      // Reset room temperature
+      setRoomTemperature(0);
+      roomTempSpikedRef.current = false;
+      if (roomTempSettleTimerRef.current) {
+        clearTimeout(roomTempSettleTimerRef.current);
+        roomTempSettleTimerRef.current = null;
+      }
+      cancelAnimation(roomTempBarWidth);
+      roomTempBarWidth.value = 0;
     }
   }, [phase]);
 
@@ -663,6 +689,51 @@ export default function DebateStage() {
       heatPulseOpacityB.value = withTiming(0.85, { duration: 300 });
     }
   }, [heatB, intervieweeId]);
+
+  // ── ROOM TEMPERATURE DRIVER ───────────────────────────────────────────────
+  // Combines A and B heat percentages into a single shared dial (average of both pcts).
+  useEffect(() => {
+    if (roomTempSpikedRef.current) return; // fireback spike in progress — don't override
+    const threshA = interviewerId ? getAggression(interviewerId).angerThresh : 4;
+    const threshB = intervieweeId ? getAggression(intervieweeId).angerThresh : 4;
+    const pctA = Math.min(100, Math.round((heatA / Math.max(threshA, 1)) * 100));
+    const pctB = Math.min(100, Math.round((heatB / Math.max(threshB, 1)) * 100));
+    const combined = Math.min(100, Math.round((pctA + pctB) / 2));
+    setRoomTemperature(combined);
+    roomTempBarWidth.value = withTiming(combined, { duration: 400 });
+  }, [heatA, heatB, interviewerId, intervieweeId]);
+
+  // Fireback flash → spike room temperature to 100, then settle back.
+  // Timer stored in a ref so it is NOT canceled when the flash flag flips back to false.
+  // (A useEffect cleanup would fire when flashA/B→false, canceling the settle before it runs.)
+  useEffect(() => {
+    if (!firebackFlashA && !firebackFlashB) return;
+    // Cancel any pending settle from a previous spike before starting a new one
+    if (roomTempSettleTimerRef.current) {
+      clearTimeout(roomTempSettleTimerRef.current);
+      roomTempSettleTimerRef.current = null;
+    }
+    roomTempSpikedRef.current = true;
+    setRoomTemperature(100);
+    roomTempBarWidth.value = withTiming(100, { duration: 150 });
+    // Settle back after 2 s — read heatRef (always current) so the value is accurate
+    // even if heatA/heatB state has changed since this effect ran.
+    roomTempSettleTimerRef.current = setTimeout(() => {
+      roomTempSettleTimerRef.current = null;
+      roomTempSpikedRef.current = false;
+      const rawA = heatRef.current[interviewerId ?? ""] ?? 0;
+      const rawB = heatRef.current[intervieweeId ?? ""] ?? 0;
+      const threshA = interviewerId ? getAggression(interviewerId).angerThresh : 4;
+      const threshB = intervieweeId ? getAggression(intervieweeId).angerThresh : 4;
+      const pctA = Math.min(100, Math.round((rawA / Math.max(threshA, 1)) * 100));
+      const pctB = Math.min(100, Math.round((rawB / Math.max(threshB, 1)) * 100));
+      const combined = Math.min(100, Math.round((pctA + pctB) / 2));
+      setRoomTemperature(combined);
+      roomTempBarWidth.value = withTiming(combined, { duration: 800 });
+    }, 2000);
+    // No return cleanup — letting the settle run to completion is correct behavior.
+    // Phase reset and unmount clear roomTempSettleTimerRef.current explicitly.
+  }, [firebackFlashA, firebackFlashB]);
   // ─────────────────────────────────────────────────────────────────────────────
 
   // ── DC DEBATE WINNER ────────────────────────────────────────────────────────
@@ -3275,6 +3346,30 @@ export default function DebateStage() {
         ))}
       </View>
 
+      {/* ── ROOM TEMPERATURE METER ── */}
+      {phase === "live" && (
+        <View style={s.roomTempWrap} testID="room-temperature-meter">
+          <Text style={s.roomTempLabel}>🌡️ ROOM TEMP</Text>
+          <View style={s.roomTempBarOuter}>
+            <Animated.View
+              style={[
+                s.roomTempBarFill,
+                roomTempBarStyle,
+                {
+                  backgroundColor:
+                    roomTemperature >= 90 ? "#ff1a1a"
+                    : roomTemperature >= 60 ? "#ff5500"
+                    : "#ff8800",
+                },
+              ]}
+            />
+          </View>
+          <Text style={[s.roomTempPct, roomTemperature >= 90 && s.roomTempPctHot]}>
+            {roomTemperature}°
+          </Text>
+        </View>
+      )}
+
       {/* Topic strip */}
       <Pressable onPress={() => setTopicsPanelOpen(true)} style={s.topicStrip} testID="topic-strip">
         <View style={{ flex: 1 }}>
@@ -3937,6 +4032,15 @@ const s = StyleSheet.create({
   voteBtnDownActive: { backgroundColor: "rgba(255,77,77,0.15)", borderColor: "rgba(255,77,77,0.5)" },
   voteBtnText: { color: "rgba(255,255,255,0.85)", fontSize: 12, fontWeight: "800" },
   voteTally: { color: "rgba(255,255,255,0.45)", fontSize: 11, fontWeight: "600", flex: 1, textAlign: "right" },
+
+  // ── Room temperature meter ───────────────────────────────────────────────
+  roomTempWrap: { flexDirection: "row", alignItems: "center", gap: 7, marginHorizontal: 14, marginVertical: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, backgroundColor: "rgba(255,80,0,0.07)", borderWidth: 1, borderColor: "rgba(255,80,0,0.2)" },
+  roomTempLabel: { color: "rgba(255,255,255,0.55)", fontSize: 8, fontWeight: "900", letterSpacing: 0.6, minWidth: 68 },
+  roomTempBarOuter: { flex: 1, height: 7, borderRadius: 4, backgroundColor: "rgba(255,80,0,0.14)", overflow: "hidden" },
+  roomTempBarFill: { position: "absolute", left: 0, top: 0, bottom: 0, borderRadius: 4 },
+  roomTempPct: { color: "rgba(255,140,60,0.85)", fontSize: 10, fontWeight: "900", minWidth: 26, textAlign: "right" },
+  roomTempPctHot: { color: "#ff2222" },
+  // ─────────────────────────────────────────────────────────────────────────
 
   // ── Heat meter pill ──────────────────────────────────────────────────────
   heatPillWrap: { width: "100%", marginTop: 5, marginBottom: 1, alignItems: "center" },
