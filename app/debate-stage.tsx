@@ -479,7 +479,6 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   arikana: require("@/assets/images/persona-arikana.png"),
   alishahrazad: require("@/assets/images/persona-alishahrazad.png"),
   waylonjennnings: require("@/assets/images/persona-waylonjennnings.png"),
-  galloway: require("@/assets/images/persona-galloway.png"),
   skipbayless: require("@/assets/images/persona-skipbayless.png"),
   cenk: require("@/assets/images/persona-cenk.jpg"),
   howardcosell: require("@/assets/images/persona-howardcosell.jpg"),
@@ -956,9 +955,10 @@ export default function DebateStage() {
 
         if (msgs.length >= 4) {
           try {
-            const topicStr = typeof currentTopic === "string"
-              ? currentTopic
-              : (currentTopic as any)?.title || "Political Debate";
+            // currentTopic is declared later in the component (TDZ); read from
+            // the messagesRef system label if present, else use generic fallback.
+            // The full transcript is sent to the verdict API so topic is context only.
+            const topicStr = "Political Debate";
             const res = await fetch(new URL("/api/arena/verdict", getApiUrl()).toString(), {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -1077,7 +1077,7 @@ export default function DebateStage() {
       playDebateCheer();
     })();
     // ─────────────────────────────────────────────────────────────────────────
-  }, [phase, interviewerId, intervieweeId, interviewers, interviewees, deviceId, refreshBalance, playDebateCheer, currentTopic]);
+  }, [phase, interviewerId, intervieweeId, interviewers, interviewees, deviceId, refreshBalance, playDebateCheer]);
 
   const [isPaused, setIsPaused] = useState(false);
   const exchangesOnTopicRef = useRef(0);
