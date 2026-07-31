@@ -854,17 +854,20 @@ export default function DebateStage() {
     const bHeat = heatRef.current[bId] ?? 0;
     const maxHeat = Math.max(aHeat, bHeat);
     let partingShotDelay = 0;
-    if (maxHeat >= PARTING_HEAT_THRESHOLD && voiceEnabledRef.current) {
+    if (maxHeat >= PARTING_HEAT_THRESHOLD) {
       const hotId = aHeat >= bHeat ? aId : bId;
       const shotPool = PERSONA_PARTING_SHOTS[hotId] ?? PERSONA_PARTING_SHOTS._default ?? [];
       if (shotPool.length > 0) {
         const line = shotPool[Math.floor(Math.random() * shotPool.length)];
-        // Play via playTTS directly — debate audio has already stopped so no
-        // main sound to duck, and we don't need the full playInterruptionAudio
-        // wrapper (which is defined later and would create a TDZ dependency).
-        playTTS("/api/persona-speak", { text: line, personaId: hotId }, { volume: getPersonaVoiceVolume(hotId) }).catch(() => {});
-        partingShotDelay = 4500;
-        // Append parting shot to transcript so viewers who missed the audio can read it
+        if (voiceEnabledRef.current) {
+          // Play via playTTS directly — debate audio has already stopped so no
+          // main sound to duck, and we don't need the full playInterruptionAudio
+          // wrapper (which is defined later and would create a TDZ dependency).
+          playTTS("/api/persona-speak", { text: line, personaId: hotId }, { volume: getPersonaVoiceVolume(hotId) }).catch(() => {});
+          partingShotDelay = 4500;
+        }
+        // Always append parting shot to transcript — voice-disabled viewers
+        // would otherwise miss the exit line entirely (#296).
         const hotPersona = hotId === aId
           ? interviewers.find((p) => p.id === hotId) || interviewees.find((p) => p.id === hotId)
           : interviewees.find((p) => p.id === hotId) || interviewers.find((p) => p.id === hotId);
@@ -2703,6 +2706,10 @@ export default function DebateStage() {
     isPausedRef.current = false;
     setIsPaused(false);
     setIsStarting(false);
+    // Reset null-streak counters so a mid-run restart doesn't inherit a count
+    // from the previous session and trigger an early auto-shutdown (#316).
+    consecutiveNullRef.current = 0;
+    consecutiveRebuttalNullRef.current = 0;
     // The MODERATOR opens the debate: welcome line (with date + sponsor) plays
     // while the opening question is pre-fetched in parallel — zero dead air.
     (async () => {

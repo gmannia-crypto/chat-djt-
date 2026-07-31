@@ -6356,6 +6356,15 @@ export default function ArenaScreen() {
     setCurrentSpeaker(null);
     setIsRunning(true);
     isRunningRef.current = true;
+    // Reset heat and room temperature so a new debate never inherits red rings
+    // or a spiked room-temp bar from the previous session (#279).
+    arenaHeatRef.current = {};
+    setPersonaHeat({});
+    setRoomTemperature(0);
+    roomTempRef.current = 0;
+    arenaFirebackChainRef.current = 0;
+    arenaLastFirebackAtRef.current = 0;
+    arenaSquabbleCooldownUntilRef.current = 0;
     sessionLieTallyRef.current = {};
     sessionAltFactTallyRef.current = {};
     setAltFactCount(0);
