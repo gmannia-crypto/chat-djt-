@@ -235,6 +235,25 @@ const PERSONA_AGGRESSION: Record<string, { aggression: number; angerThresh: numb
 };
 function getAggression(id: string) { return PERSONA_AGGRESSION[id] ?? PERSONA_AGGRESSION["_default"]; }
 
+// ── SQUABBLE THREAT LINES ─────────────────────────────────────────────────────
+// Fired when a persona's fireback chain hits maxChain — the last-gasp physical threat
+// before the moderator is forced to step in and restore order.
+const PERSONA_SQUABBLE_THREATS: Record<string, string[]> = {
+  carville:        ["You keep talking like that and I will drag you out of this chair, you son of a bitch!", "Say that one more time and we will finish this in the parking lot, I promise you that!"],
+  trump:           ["I've dealt with tougher guys than you in Atlantic City — you want to go? Let's go!", "Keep it up and I'll have security remove you. Personally. With my hands."],
+  charliemurphy:   ["You really want to do this? Because I have been waiting ALL night for an excuse.", "Say that again and I will physically remove you from this stage — I'm not joking."],
+  malema:          ["You think this is a game?! I will flip this table and we sort this out right here!", "Step to me like that again and you will regret every word that came out of your mouth."],
+  claudeanderson:  ["I don't argue — I educate. But if you come at me like that again, I will handle you differently.", "You come at me sideways one more time and this debate becomes a very different kind of conversation."],
+  gilbertgottfried:["OH YEAH?! You want a piece of me?! I AM COMING OVER THERE!", "I will SCREAM at you from two inches away until your ears bleed — don't test me!"],
+  biden:           ["Listen, pal — I've been in this game fifty years. You push me again and I'll show you what old-fashioned means.", "Come at me like that one more time and I'll remind you how we handled things in Scranton."],
+  joyreid:         ["You need to back WAY up before I lose my composure on national television.", "One more word like that and I will come across this table — and I mean that."],
+  netanyahu:       ["You threaten me?! I have faced worse than you on three continents. Do not test me.", "Push me one more time and this debate turns into something your security detail will regret."],
+  omar:            ["You keep this up and I will walk over there and handle this myself — try me.", "I survived things you can't imagine. Your words don't scare me — but mine should scare you."],
+  alexjones:       ["YOU WANT TO FIGHT?! BRING IT! I AM PHYSICALLY SUPERIOR AND CHEMICALLY ENHANCED!", "I will gorilla-press you over my head and THROW you out of this building!"],
+  ruckus:          ["Lord have mercy — you push me one more time and I will beat the sense into you myself!", "I may be old but I will still snatch you out that chair if you don't shut your mouth!"],
+  _default:        ["You come at me like that again and we'll settle this outside!", "Push me one more time and this debate becomes a very different conversation."],
+};
+
 // ── INSULT DETECTION ──────────────────────────────────────────────────────────
 // Returns severity 0 (clean) → 3 (maximum provocation).
 // Drives how much heat accumulates for the target debater.
@@ -696,6 +715,8 @@ export default function DebateStage() {
   const heatRef = useRef<Record<string, number>>({});
   const firebackChainRef = useRef(0);
   const lastFirebackAtRef = useRef(0);
+  // Squabble cooldown: after a maxChain physical-threat escalation, block new chains for 90 s
+  const squabbleCooldownUntilRef = useRef(0);
   const tryFirebackRef = useRef<null | ((attackerId: string, targetId: string, text: string, severity: number) => void)>(null);
   const tryModeratorRetortRef = useRef<null | ((speakerId: string, text: string) => void)>(null);
   // ────────────────────────────────────────────────────────────────────────
@@ -1458,9 +1479,45 @@ export default function DebateStage() {
     const { aggression, angerThresh, maxChain } = getAggression(targetId);
     heatRef.current[targetId] = (heatRef.current[targetId] ?? 0) + severity;
     if (heatRef.current[targetId] < angerThresh) return;
-    if (firebackChainRef.current >= maxChain) return;
+    // In squabble cooldown — block new fireback chains for 90 s after an escalation
+    if (Date.now() < squabbleCooldownUntilRef.current) return;
     const now = Date.now();
     if (now - lastFirebackAtRef.current < 7000) return;       // min 7 s gap
+
+    // ── SQUABBLE ESCALATION: chain maxed out → physical threat + moderator intervention ──
+    if (firebackChainRef.current >= maxChain) {
+      heatRef.current[targetId] = 0;
+      lastFirebackAtRef.current = now;
+      squabbleCooldownUntilRef.current = now + 90000; // 90 s cooldown
+      firebackChainRef.current = 0;
+      try {
+        const targetName = targetId === interviewerId ? interviewer?.name ?? targetId : interviewee?.name ?? targetId;
+        const threats = PERSONA_SQUABBLE_THREATS[targetId] ?? PERSONA_SQUABBLE_THREATS["_default"];
+        const threatLine = threats[Math.floor(Math.random() * threats.length)];
+        // Add threat to transcript (audio via playInterruptionAudio)
+        setMessages((prev) => [...prev, {
+          id: `sq-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          speakerId: targetId,
+          speakerName: targetName,
+          text: threatLine,
+          ts: Date.now(),
+          isInterruption: true,
+          skipTTS: true,
+        }]);
+        await new Promise<void>((r) => setTimeout(r, 50));
+        await playInterruptionAudio(threatLine, targetId);
+        // Moderator forcibly intervenes after the physical threat
+        if (runningRef.current) {
+          const mod = MODERATORS[moderatorStyle];
+          if (mod) {
+            const modLine = localJab("squabble");
+            await speakModeratorNow(modLine, mod.personaId, { wait: true });
+          }
+        }
+      } catch { /* never break the debate loop */ }
+      return;
+    }
+
     if (Math.random() > aggression) return;                    // probabilistic
     // Commit
     heatRef.current[targetId] = 0;
@@ -1509,7 +1566,7 @@ export default function DebateStage() {
         setTimeout(() => { firebackChainRef.current = Math.max(0, firebackChainRef.current - 1); }, 18000);
       }
     } catch { /* never break the main debate loop */ }
-  }, [deviceId, interviewerId, intervieweeId, interviewer, interviewee, playInterruptionAudio]);
+  }, [deviceId, interviewerId, intervieweeId, interviewer, interviewee, moderatorStyle, playInterruptionAudio]);
 
   // Sync ref so the recursive chain call always uses the latest closure
   useEffect(() => { tryFirebackRef.current = tryFireback; }, [tryFireback]);

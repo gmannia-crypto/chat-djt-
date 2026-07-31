@@ -145,6 +145,14 @@ const JAB_LIBRARY: Record<string, string[]> = {
     "Okay, okay — that's more of an exaggeration than a lie. Let's not pile on.",
     "I'll give a little grace there, that's a stretch, not a straight-up lie.",
   ],
+  // Fires when a maxed-out chain tips into physical-threat territory — moderator forcibly intervenes.
+  squabble: [
+    "ALRIGHT — ENOUGH. Both of you step back. This is a debate, not a brawl.",
+    "HEY. I said ENOUGH. Sit down, cool off, or I will clear this stage. I am not playing.",
+    "STOP. Right now. We are done with the theatrics. The next person who escalates gets their mic cut — permanently.",
+    "That is IT. I will not have physical threats on this stage. Everyone take a breath or we are done here.",
+    "HOLD IT. I don't care who started it — if anyone takes one step forward this debate is OVER. Back off.",
+  ],
 };
 
 function pick(arr: string[]) { return arr[Math.floor(Math.random() * arr.length)]; }
