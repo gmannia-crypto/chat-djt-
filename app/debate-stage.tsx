@@ -176,6 +176,25 @@ const getRebuttalBridge = (name: string, moderatorStyle?: ModeratorStyle, person
   return pool[Math.floor(Math.random() * pool.length)](name || "Debater");
 };
 
+// Short moderator filler lines played when an AI response is still loading
+// after the moderator's question or bridge has finished. Prevents dead air on
+// slow connections by keeping the moderator's voice in the room while waiting.
+const WAIT_FILLER_TEMPLATES: Array<(name: string) => string> = [
+  (n) => `${n}, the floor is yours.`,
+  (n) => `Go ahead, ${n}.`,
+  (n) => `${n}, whenever you're ready.`,
+  (n) => `Take your time, ${n}.`,
+  (n) => `We're waiting on your response, ${n}.`,
+  (n) => `${n}, please go ahead.`,
+  (n) => `Your response, ${n}.`,
+];
+let _waitFillerIdx = 0;
+const getWaitFiller = (name: string): string => {
+  const fn = WAIT_FILLER_TEMPLATES[_waitFillerIdx % WAIT_FILLER_TEMPLATES.length];
+  _waitFillerIdx++;
+  return fn(name || "Debater");
+};
+
 // Maps persona IDs to TTS-safe spoken names.
 // Values can be a plain string (universal) or a per-speaker map with a "default" fallback.
 // The speakerId argument is the moderator/speaker who is addressing the target.
@@ -2383,7 +2402,14 @@ export default function DebateStage() {
             rebuttalFetchPromise = fetchAnswerFrom(primaryId, secondaryId, ans.text);
           }
         }),
-        speakMod(modQuestion, `modq-${Date.now()}-${Math.random()}`),
+        // Play the moderator question, then loop short filler lines until the
+        // primary answer arrives — prevents dead air on slow connections.
+        (async () => {
+          await speakMod(modQuestion, `modq-${Date.now()}-${Math.random()}`);
+          while (!primaryAnswer && runningRef.current) {
+            await speakMod(getWaitFiller(primaryName), `modfill-${Date.now()}-${Math.random()}`);
+          }
+        })(),
       ]);
       if (!runningRef.current || Date.now() >= sessionEndsAtRef.current) break;
 
@@ -2443,7 +2469,14 @@ export default function DebateStage() {
             if (voiceEnabledRef.current) startPrefetch({ text: ans.text, personaId: secondaryId });
           }
         }),
-        speakMod(bridgeText, `modbr-${Date.now()}-${Math.random()}`),
+        // Play bridge, then loop filler lines until the rebuttal text arrives —
+        // prevents dead air when the rebuttal AI call outlasts the bridge TTS.
+        (async () => {
+          await speakMod(bridgeText, `modbr-${Date.now()}-${Math.random()}`);
+          while (!rebuttal && runningRef.current) {
+            await speakMod(getWaitFiller(secondaryName), `modfill2-${Date.now()}-${Math.random()}`);
+          }
+        })(),
       ]);
       setIsThinking(null);
       if (!runningRef.current || Date.now() >= sessionEndsAtRef.current) break;

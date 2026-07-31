@@ -3164,7 +3164,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     pastormanning: 1.06,
     miller: 1.15, // high-speed — audition any new emotion tag carefully
     timscott: 1.14, // high-speed — audition any new emotion tag carefully
-    jascrockett: 1.18, // high-speed — audition any new emotion tag carefully
+    jascrockett: 1.0,
     claudeanderson: 0.96,
     // malcolmx: 1.1 — energetic but still deliberate; user-requested.
     malcolmx: 1.1,
