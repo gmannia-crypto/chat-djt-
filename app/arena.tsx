@@ -2501,6 +2501,86 @@ const PERSONA_ALIASES: Record<string, string[]> = {
   leavitt: ["caroline", "leavitt", "caroline leavitt", "press secretary"],
 };
 
+// ── ARENA FIREBACK HEAT SYSTEM ────────────────────────────────────────────────
+// Insult detection, aggression profiles, and squabble threats — ported from
+// debate-stage.tsx so multi-person Arena personas can snap at each other.
+
+const ARENA_INSULT_PAT = {
+  direct: /(go fuck (your|him|her|them)self|fuck you|kiss my (ass|butt)|up yours|drop dead|you'?re (an )?(idiot|a fool|a clown|a fraud|worthless|pathetic|a liar|full of shit|out of (your )?mind)|you make me sick|you disgust me|screw you|get lost|get the hell out)/i,
+  profanity: /\b(fuck(ing)?|shit|ass(hole)?|bastard|son of a bitch|bitch(?!es (?:brew|cakes))|cunt|goddamn)\b/i,
+  attack: /\b(idiot|moron|stupid|dumb(ass)?|loser|pathetic|incompetent|fraud|liar|coward|scum(bag)?|disgrace|clown|corrupt|criminal|shut up|you never|you always lie|you failed|washed up|irrelevant|nobody believes|laughingstock)\b/i,
+  taunt: /\b(you can't win|you'll lose|everyone knows|no one (likes|trusts|believes) you|you're finished|you're done|sit down|get out|go home|you're a joke|what a joke)\b/i,
+};
+function detectArenaInsult(text: string): number {
+  const l = text.toLowerCase();
+  let s = 0;
+  if (ARENA_INSULT_PAT.direct.test(l))    s += 3;
+  if (ARENA_INSULT_PAT.profanity.test(l)) s += 2;
+  if (ARENA_INSULT_PAT.attack.test(l))    s += 1;
+  if (ARENA_INSULT_PAT.taunt.test(l))     s += 1;
+  return Math.min(s, 3);
+}
+
+// aggression: 0–1 probability of firing a fireback when insulted
+// angerThresh: insult-severity points needed before triggering
+// maxChain: consecutive exchanges before squabble cooldown
+const ARENA_PERSONA_AGGRESSION: Record<string, { aggression: number; angerThresh: number; maxChain: number }> = {
+  carville:        { aggression: 0.97, angerThresh: 1, maxChain: 4 },
+  trump:           { aggression: 0.95, angerThresh: 1, maxChain: 5 },
+  malema:          { aggression: 0.93, angerThresh: 1, maxChain: 3 },
+  claudeanderson:  { aggression: 0.90, angerThresh: 1, maxChain: 3 },
+  biden:           { aggression: 0.82, angerThresh: 2, maxChain: 3 },
+  joyreid:         { aggression: 0.83, angerThresh: 2, maxChain: 2 },
+  netanyahu:       { aggression: 0.78, angerThresh: 2, maxChain: 2 },
+  omar:            { aggression: 0.76, angerThresh: 2, maxChain: 2 },
+  ruckus:          { aggression: 0.74, angerThresh: 2, maxChain: 2 },
+  candace:         { aggression: 0.72, angerThresh: 2, maxChain: 2 },
+  rfk:             { aggression: 0.65, angerThresh: 3, maxChain: 2 },
+  galloway:        { aggression: 0.70, angerThresh: 2, maxChain: 2 },
+  tuckercarlson:   { aggression: 0.60, angerThresh: 3, maxChain: 2 },
+  maddow:          { aggression: 0.55, angerThresh: 4, maxChain: 1 },
+  kamala:          { aggression: 0.55, angerThresh: 4, maxChain: 1 },
+  timscott:        { aggression: 0.40, angerThresh: 5, maxChain: 1 },
+  bannon:          { aggression: 0.88, angerThresh: 1, maxChain: 3 },
+  alexjones:       { aggression: 0.90, angerThresh: 1, maxChain: 3 },
+  jimjordan:       { aggression: 0.85, angerThresh: 1, maxChain: 3 },
+  pambondi:        { aggression: 0.78, angerThresh: 2, maxChain: 2 },
+  megynkelly:      { aggression: 0.75, angerThresh: 2, maxChain: 2 },
+  rosie:           { aggression: 0.82, angerThresh: 1, maxChain: 3 },
+  berniemc:        { aggression: 0.85, angerThresh: 1, maxChain: 3 },
+  jascrockett:     { aggression: 0.80, angerThresh: 2, maxChain: 2 },
+  aoc:             { aggression: 0.75, angerThresh: 2, maxChain: 2 },
+  loomer:          { aggression: 0.88, angerThresh: 1, maxChain: 3 },
+  stephena:        { aggression: 0.80, angerThresh: 2, maxChain: 2 },
+  hannity:         { aggression: 0.80, angerThresh: 2, maxChain: 2 },
+  carlin:          { aggression: 0.72, angerThresh: 2, maxChain: 2 },
+  _default:        { aggression: 0.50, angerThresh: 4, maxChain: 2 },
+};
+function getArenaAggression(id: string) {
+  return ARENA_PERSONA_AGGRESSION[id] ?? ARENA_PERSONA_AGGRESSION["_default"];
+}
+
+// Physical-threat escalation lines fired when a persona's chain hits maxChain
+const ARENA_SQUABBLE_THREATS: Record<string, string[]> = {
+  carville:        ["You keep talking like that and I will drag you out of this chair, you son of a bitch!", "Say that one more time and we will finish this in the parking lot, I promise you that!"],
+  trump:           ["I've dealt with tougher guys than you in Atlantic City — you want to go? Let's go!", "Keep it up and I'll have security remove you. Personally. With my hands."],
+  malema:          ["You think this is a game?! I will flip this table and we sort this out right here!", "Step to me like that again and you will regret every word that came out of your mouth."],
+  claudeanderson:  ["I don't argue — I educate. But if you come at me like that again, I will handle you differently.", "You come at me sideways one more time and this debate becomes a very different kind of conversation."],
+  biden:           ["Listen, pal — I've been in this game fifty years. You push me again and I'll show you what old-fashioned means.", "Come at me like that one more time and I'll remind you how we handled things in Scranton."],
+  joyreid:         ["You need to back WAY up before I lose my composure on national television.", "One more word like that and I will come across this table — and I mean that."],
+  netanyahu:       ["You threaten me?! I have faced worse than you on three continents. Do not test me.", "Push me one more time and this debate turns into something your security detail will regret."],
+  omar:            ["You keep this up and I will walk over there and handle this myself — try me.", "I survived things you can't imagine. Your words don't scare me — but mine should scare you."],
+  alexjones:       ["YOU WANT TO FIGHT?! BRING IT! I AM PHYSICALLY SUPERIOR AND CHEMICALLY ENHANCED!", "I will gorilla-press you over my head and THROW you out of this building!"],
+  ruckus:          ["Lord have mercy — you push me one more time and I will beat the sense into you myself!", "I may be old but I will still snatch you out that chair if you don't shut your mouth!"],
+  rosie:           ["Oh you really want to DO this?! Come on! I have been waiting for this ALL NIGHT!", "You push me one more time and I will absolutely lose it in front of everyone — and I am NOT joking!"],
+  berniemc:        ["You really want to do this? Because I have been waiting ALL night for an excuse.", "Say that again and I will physically remove you from this stage — I'm not joking."],
+  bannon:          ["You come at me like that again and the forgotten man of this country will not forget what you just said!", "One more crack like that and I will make sure everyone knows exactly who you are — and it ain't pretty."],
+  loomer:          ["Oh PLEASE — you think you can talk to ME like that?! Try it one more time, sweetie, just TRY it!", "Keep going and I will personally make sure the whole world knows what a fraud you are."],
+  jascrockett:     ["I said what I said — now you got something to say to my FACE? Because I am RIGHT HERE.", "One more time — go ahead, one more time — and see what happens when a Texas woman has had enough."],
+  _default:        ["You come at me like that again and we'll settle this outside!", "Push me one more time and this debate becomes a very different conversation."],
+};
+// ─────────────────────────────────────────────────────────────────────────────
+
 function detectTrumpAttack(text: string, speakerId: string): boolean {
   if (speakerId === "trump" || speakerId === "ruckus" || speakerId === "netanyahu" || speakerId === "graham" || speakerId === "megynkelly" || speakerId === "pambondi" || speakerId === "miller" || speakerId === "jimjordan") return false;
   const lower = text.toLowerCase();
@@ -4032,6 +4112,17 @@ export default function ArenaScreen() {
   const arenaMessageCountRef = useRef(0);
   const arenaUserContextRef = useRef<string>("");
 
+  // ── FIREBACK HEAT SYSTEM ─────────────────────────────────────────────────
+  // arenaHeatRef accumulates insult-severity points per target persona.
+  // arenaFirebackChainRef caps consecutive retorts before a squabble cooldown.
+  const arenaHeatRef = useRef<Record<string, number>>({});
+  const arenaFirebackChainRef = useRef(0);
+  const arenaLastFirebackAtRef = useRef(0);
+  const arenaSquabbleCooldownUntilRef = useRef(0);
+  // Ref-forwarded so tryArenaFireback can call itself recursively via closure
+  const tryArenaFirebackRef = useRef<null | ((attackerId: string, attackText: string, severity: number) => void)>(null);
+  // ────────────────────────────────────────────────────────────────────────
+
   useEffect(() => { messagesRef.current = messages; }, [messages]);
   useEffect(() => { currentSpeakerRef.current = currentSpeaker; }, [currentSpeaker]);
   useEffect(() => {
@@ -4541,6 +4632,127 @@ export default function ArenaScreen() {
       if (ms) { try { ms.setVolumeAsync(1.0).catch(() => {}); } catch {} }
     }
   }, []);
+
+  // ── ARENA FIREBACK ENGINE ─────────────────────────────────────────────────
+  // When a persona's message crosses the insult threshold, this picks the most
+  // provoked other persona in the room and fires a concurrent AI comeback —
+  // ducking the current speaker and playing the retort at full volume.
+  const tryArenaFireback = useCallback(async (
+    attackerId: string,
+    attackText: string,
+    severity: number,
+  ) => {
+    if (!mountedRef.current || sessionEndedRef.current || !deviceId) return;
+    const activePersonas = selectedPersonasRef.current;
+    if (activePersonas.length < 2) return;
+
+    // In squabble cooldown — block for 90 s after an escalation
+    if (Date.now() < arenaSquabbleCooldownUntilRef.current) return;
+    const now = Date.now();
+    // Minimum 7 s gap between consecutive firebacks
+    if (now - arenaLastFirebackAtRef.current < 7000) return;
+    // Decay chain after 30 s of calm
+    if (now - arenaLastFirebackAtRef.current > 30000) arenaFirebackChainRef.current = 0;
+
+    // Sort candidates by hostility toward the attacker (lowest sentiment = most provoked)
+    const candidates = activePersonas
+      .filter((id) => id !== attackerId)
+      .map((id) => {
+        const persona = getPersona(id);
+        const rel = persona?.relationships?.[attackerId];
+        const hostility = rel !== undefined ? (100 - rel.sentiment) : 50;
+        return { id, hostility };
+      })
+      .sort((a, b) => b.hostility - a.hostility + (Math.random() - 0.5) * 15);
+
+    for (const { id: targetId } of candidates) {
+      const { aggression, angerThresh, maxChain } = getArenaAggression(targetId);
+      arenaHeatRef.current[targetId] = (arenaHeatRef.current[targetId] ?? 0) + severity;
+      if (arenaHeatRef.current[targetId] < angerThresh) continue;
+
+      // ── SQUABBLE ESCALATION: chain maxed → physical threat + cooldown ──
+      if (arenaFirebackChainRef.current >= maxChain) {
+        arenaHeatRef.current[targetId] = 0;
+        arenaLastFirebackAtRef.current = now;
+        arenaSquabbleCooldownUntilRef.current = now + 90000;
+        arenaFirebackChainRef.current = 0;
+        const targetPersona = getPersona(targetId);
+        const threats = ARENA_SQUABBLE_THREATS[targetId] ?? ARENA_SQUABBLE_THREATS["_default"];
+        const threatLine = threats[Math.floor(Math.random() * threats.length)];
+        addMessage({
+          id: `sq-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          speakerId: targetId,
+          speakerName: targetPersona?.name || targetId,
+          text: threatLine,
+          timestamp: Date.now(),
+        });
+        await new Promise<void>((r) => setTimeout(r, 50));
+        await playInterruptionAudio(threatLine, targetId);
+        return;
+      }
+
+      if (Math.random() > aggression) {
+        // Failed probability check — still clear heat so it builds fresh next time
+        arenaHeatRef.current[targetId] = 0;
+        continue;
+      }
+
+      // ── Commit: generate and play the fireback ──
+      arenaHeatRef.current[targetId] = 0;
+      arenaFirebackChainRef.current += 1;
+      arenaLastFirebackAtRef.current = now;
+
+      try {
+        const targetPersona = getPersona(targetId);
+        const res = await fetch(new URL("/api/arena/interview-answer", getApiUrl()).toString(), {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+          body: JSON.stringify({
+            interviewerId: attackerId,
+            intervieweeId: targetId,
+            topic: currentTopicRef.current,
+            conversationHistory: messagesRef.current.filter((m) => !m.isSystem).slice(-4),
+            lastQuestion: attackText,
+            isInterruption: true,
+            insultFireback: true,
+            insultSeverity: severity,
+            isDebate: true,
+          }),
+        });
+        if (!res.ok || !mountedRef.current || sessionEndedRef.current) return;
+        const data = await res.json();
+        const firebackText: string = (data.text || data.response || "").trim();
+        if (!firebackText) return;
+
+        addMessage({
+          id: `fb-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          speakerId: targetId,
+          speakerName: targetPersona?.name || targetId,
+          text: firebackText,
+          timestamp: Date.now(),
+        });
+        await new Promise<void>((r) => setTimeout(r, 50));
+        await playInterruptionAudio(firebackText, targetId);
+
+        // Chain: if the fireback itself was insulting the original attacker may respond
+        const retalSeverity = detectArenaInsult(firebackText);
+        if (retalSeverity >= 2 && mountedRef.current && !sessionEndedRef.current) {
+          setTimeout(() => {
+            tryArenaFirebackRef.current?.(targetId, firebackText, retalSeverity);
+          }, 2000);
+        } else {
+          setTimeout(() => {
+            arenaFirebackChainRef.current = Math.max(0, arenaFirebackChainRef.current - 1);
+          }, 18000);
+        }
+      } catch { /* never break the arena loop */ }
+      return; // only one fireback persona per message
+    }
+  }, [deviceId, addMessage, playInterruptionAudio]);
+
+  // Keep ref in sync so recursive chain calls always use the latest closure
+  useEffect(() => { tryArenaFirebackRef.current = tryArenaFireback; }, [tryArenaFireback]);
+  // ─────────────────────────────────────────────────────────────────────────
 
   const fetchTopics = useCallback(async (category?: string) => {
     try {
@@ -5344,6 +5556,18 @@ export default function ArenaScreen() {
           queueTTS(data.response, responderId);
         }
         ttsPendingMoreRef.current = false;
+
+        // ── Fireback trigger: check if this message provokes another persona ──
+        if (data.response && !sessionEndedRef.current) {
+          const fbSeverity = detectArenaInsult(data.response);
+          if (fbSeverity >= 1) {
+            // Small delay so the main speaker's TTS gets queued first
+            setTimeout(() => {
+              tryArenaFirebackRef.current?.(responderId, data.response, fbSeverity);
+            }, 1200);
+          }
+        }
+        // ────────────────────────────────────────────────────────────────────
 
         if (data.response && data.response.length > 30) {
           recordArenaMoment(responderId, toSpeakerId, data.response, currentTopicRef.current || "debate").catch(() => {});
