@@ -4681,7 +4681,7 @@ export default function ArenaScreen() {
 
     // Sort candidates by hostility toward the attacker (lowest sentiment = most provoked)
     const candidates = activePersonas
-      .filter((id) => id !== attackerId)
+      .filter((id) => id !== attackerId && id !== currentSpeakerRef.current)
       .map((id) => {
         const persona = getPersona(id);
         const rel = persona?.relationships?.[attackerId];
