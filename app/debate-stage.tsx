@@ -2325,6 +2325,28 @@ export default function DebateStage() {
     const mod = MODERATORS[moderatorStyle];
     if (!mod || !deviceId || !interviewerId || !intervieweeId) return;
 
+    // Filler-safe wrapper: resolves as soon as speakMod finishes OR the debate
+    // is stopped, whichever comes first.  Without this race, a long filler line
+    // would play to completion even after the user hits Stop, because speakMod's
+    // Promise only resolves via the TTS onComplete callback.
+    const speakModFiller = (text: string, msgId: string): Promise<void> => {
+      let intervalId: ReturnType<typeof setInterval> | null = null;
+      return Promise.race([
+        speakMod(text, msgId),
+        new Promise<void>((resolve) => {
+          intervalId = setInterval(() => {
+            if (!runningRef.current) {
+              clearInterval(intervalId!);
+              intervalId = null;
+              resolve();
+            }
+          }, 50);
+        }),
+      ]).finally(() => {
+        if (intervalId !== null) clearInterval(intervalId);
+      });
+    };
+
     while (runningRef.current && Date.now() < sessionEndsAtRef.current) {
       if (isPausedRef.current) { await new Promise((r) => setTimeout(r, 400)); continue; }
       if (!runningRef.current) break;
@@ -2420,7 +2442,7 @@ export default function DebateStage() {
         (async () => {
           await speakMod(modQuestion, `modq-${Date.now()}-${Math.random()}`);
           while (!primaryDone && runningRef.current) {
-            await speakMod(getWaitFiller(primaryName), `modfill-${Date.now()}-${Math.random()}`);
+            await speakModFiller(getWaitFiller(primaryName), `modfill-${Date.now()}-${Math.random()}`);
           }
         })(),
       ]);
@@ -2511,7 +2533,7 @@ export default function DebateStage() {
           await speakMod(bridgeText, `modbr-${Date.now()}-${Math.random()}`);
           // Bridge finished — play filler lines until the rebuttal AI response arrives.
           while (!rebuttalDone && runningRef.current) {
-            await speakMod(getWaitFiller(secondaryName), `modfiller-${Date.now()}-${Math.random()}`);
+            await speakModFiller(getWaitFiller(secondaryName), `modfiller-${Date.now()}-${Math.random()}`);
           }
         })(),
       ]);
