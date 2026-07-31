@@ -2019,6 +2019,13 @@ export default function DebateStage() {
                     await Promise.resolve();
                     if (nextQuestionDone && !nextQuestion) return; // null guard
                     if (!runningRef.current) return;
+                    // ── FILLER between jab and bridge (STEP 2.5) ─────────────────
+                    // On slow connections the bridge TTS may not have started
+                    // streaming yet; one filler line prevents dead air here —
+                    // mirrors the post-bridge filler at STEP 3+4.
+                    await speakModQueuedFiller(getWaitFiller(nextTargetName));
+                    // ─────────────────────────────────────────────────────────────
+                    if (!runningRef.current) return;
                     await speakModQueued(bridgeLine);
                     // Bridge finished — filler until the question AI response arrives.
                     // First filler uses the pre-fetched text (cache hit = no gap).
