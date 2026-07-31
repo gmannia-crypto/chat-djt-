@@ -4125,6 +4125,8 @@ export default function ArenaScreen() {
   const arenaSquabbleCooldownUntilRef = useRef(0);
   // Ref-forwarded so tryArenaFireback can call itself recursively via closure
   const tryArenaFirebackRef = useRef<null | ((attackerId: string, attackText: string, severity: number) => void)>(null);
+  // addMessage is declared later (depends on runFactCheck); ref breaks the TDZ cycle
+  const addMessageRef = useRef<null | ((msg: ConversationMessage) => void)>(null);
   // ────────────────────────────────────────────────────────────────────────
 
   // Pulse interval for the heat ring animation (600 ms on / 600 ms off)
@@ -4711,7 +4713,7 @@ export default function ArenaScreen() {
         const targetPersona = getPersona(targetId);
         const threats = ARENA_SQUABBLE_THREATS[targetId] ?? ARENA_SQUABBLE_THREATS["_default"];
         const threatLine = threats[Math.floor(Math.random() * threats.length)];
-        addMessage({
+        addMessageRef.current?.({
           id: `sq-${Date.now()}-${Math.random().toString(36).slice(2)}`,
           speakerId: targetId,
           speakerName: targetPersona?.name || targetId,
@@ -4764,7 +4766,7 @@ export default function ArenaScreen() {
         const firebackText: string = (data.text || data.response || "").trim();
         if (!firebackText) return;
 
-        addMessage({
+        addMessageRef.current?.({
           id: `fb-${Date.now()}-${Math.random().toString(36).slice(2)}`,
           speakerId: targetId,
           speakerName: targetPersona?.name || targetId,
@@ -4795,7 +4797,7 @@ export default function ArenaScreen() {
       } catch { /* never break the arena loop */ }
       return; // only one fireback persona per message
     }
-  }, [deviceId, addMessage, playInterruptionAudio]);
+  }, [deviceId, playInterruptionAudio]);
 
   // Keep ref in sync so recursive chain calls always use the latest closure
   useEffect(() => { tryArenaFirebackRef.current = tryArenaFireback; }, [tryArenaFireback]);
@@ -5445,6 +5447,7 @@ export default function ArenaScreen() {
       flatListRef.current?.scrollToEnd({ animated: true });
     }, 100);
   }, [runFactCheck]);
+  useEffect(() => { addMessageRef.current = addMessage; }, [addMessage]);
 
   const updateEmotions = useCallback(
     (responderId: string, toSpeakerId: string) => {
