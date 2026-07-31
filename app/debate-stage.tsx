@@ -605,6 +605,9 @@ export default function DebateStage() {
   // ── ROOM TEMP BAR ANIMATION ──────────────────────────────────────────────
   const roomTempBarWidth = useSharedValue(0);
   const roomTempBarStyle = useAnimatedStyle(() => ({ width: `${roomTempBarWidth.value}%` as any }));
+  // ── MODERATOR TIME-OUT BANNER ─────────────────────────────────────────────
+  const [showTimeoutBanner, setShowTimeoutBanner] = useState(false);
+  const timeoutBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // ────────────────────────────────────────────────────────────────────────
 
   // Warm up the audio session on mount so the first clip plays without cold-start lag
@@ -1737,6 +1740,11 @@ export default function DebateStage() {
                 topicIdxRef.current = nextIdx;
                 setTopicIdx(nextIdx);
                 exchangesOnTopicRef.current = 0;
+                // ── Show TIME-OUT banner ──────────────────────────────────
+                if (timeoutBannerTimerRef.current) clearTimeout(timeoutBannerTimerRef.current);
+                setShowTimeoutBanner(true);
+                timeoutBannerTimerRef.current = setTimeout(() => setShowTimeoutBanner(false), 3000);
+                // ─────────────────────────────────────────────────────────
                 const SQUABBLE_BRIDGES = [
                   "We're moving on — this topic is closed. Let's keep it professional.",
                   "That's enough on that. We are switching topics right now.",
@@ -3487,6 +3495,16 @@ export default function DebateStage() {
           scrollEnabled={messages.length > 0}
         />
         <Animated.View pointerEvents="none" style={[s.lightning, flashStyle]} />
+        {showTimeoutBanner && (
+          <Animated.View
+            entering={FadeInDown.duration(280)}
+            exiting={FadeOut.duration(400)}
+            pointerEvents="none"
+            style={s.timeoutBanner}
+          >
+            <Text style={s.timeoutBannerText}>🚨 TIME-OUT — Moving to next topic</Text>
+          </Animated.View>
+        )}
         {lieFlashOn && (
           <View pointerEvents="none" style={s.lieFlashOverlay}>
             <Text style={s.lieFlashWord}>LIE</Text>
@@ -4048,6 +4066,8 @@ const s = StyleSheet.create({
   lightning: { ...StyleSheet.absoluteFillObject, backgroundColor: "#ff2a2a" },
   lieFlashOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(255,77,77,0.18)", justifyContent: "center", alignItems: "center", zIndex: 999 },
   lieFlashWord: { color: "#ff4d4d", fontSize: 72, fontWeight: "900", letterSpacing: 8, opacity: 0.85, textShadowColor: "#ff0000", textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 24 },
+  timeoutBanner: { position: "absolute", top: 60, left: 20, right: 20, backgroundColor: "rgba(220,38,38,0.92)", borderRadius: 14, paddingVertical: 12, paddingHorizontal: 18, alignItems: "center", zIndex: 5000, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.5, shadowRadius: 10, elevation: 20 },
+  timeoutBannerText: { color: "#fff", fontWeight: "900" as const, fontSize: 15, letterSpacing: 0.5, textAlign: "center" },
 
   pollCard: { margin: 24, backgroundColor: "#15151A", borderRadius: 20, padding: 20, borderWidth: 1, borderColor: "rgba(255,215,0,0.3)", overflow: "hidden" as const },
 
