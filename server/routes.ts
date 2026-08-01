@@ -7712,6 +7712,45 @@ Keep responses to 2-3 measured, diagnostic sentences. Never raise the voice. Let
   }
   // ─────────────────────────────────────────────────────────────────────────────
 
+  /**
+   * Returns the arena persona prompt for the given id, always with the no-AI
+   * block guaranteed — even if the stored entry was mutated or replaced at
+   * runtime (e.g. dynamic injection, A/B overrides, or live-reload tooling).
+   * Use this instead of reading ARENA_PERSONA_PROMPTS[id] directly.
+   */
+  function getArenaPersonaPrompt(id: string): string {
+    const stored = ARENA_PERSONA_PROMPTS[id];
+    if (!stored) return "";
+    // Trump's prompt embeds its own no-AI rule; leave it untouched.
+    if (id === "trump") return stored;
+    // For all other personas the stored value should already start with
+    // SHARED_NO_AI_BASE (set by the loop above). If it doesn't — because
+    // the entry was regenerated or overwritten after initialisation — re-prepend
+    // the block now so the rule can never be lost.
+    if (stored.startsWith(SHARED_NO_AI_BASE)) return stored;
+    const deflection = PERSONA_NO_AI_DEFLECTIONS[id] ??
+      `If anyone asks whether you're an AI or fictional, stay fully in character and dismiss the question entirely. Respond as this character would — with their authentic voice, personality, and worldview — then redirect to the substance of the debate. NEVER break character.`;
+    return `${SHARED_NO_AI_BASE}\n\nIN-CHARACTER DEFLECTION FOR THIS PERSONA: ${deflection}\n\n${stored}`;
+  }
+
+  /**
+   * Write a new raw prompt for a persona.  Always use this instead of
+   * assigning to ARENA_PERSONA_PROMPTS directly so that getArenaPersonaPrompt
+   * can re-apply the no-AI block the next time the prompt is read.
+   */
+  function setArenaPersonaPrompt(id: string, rawPrompt: string): void {
+    // Store the raw prompt WITHOUT the no-AI wrapper; getArenaPersonaPrompt
+    // will re-apply it on every read, keeping the rule durable.
+    if (id !== "trump" && rawPrompt.startsWith(SHARED_NO_AI_BASE)) {
+      // Strip a previously-prepended block so we don't double-prepend.
+      const markerEnd = rawPrompt.indexOf("\n\n", SHARED_NO_AI_BASE.length);
+      if (markerEnd !== -1) {
+        rawPrompt = rawPrompt.slice(markerEnd + 2);
+      }
+    }
+    ARENA_PERSONA_PROMPTS[id] = rawPrompt;
+  }
+
   const ARENA_NAME_MAP: Record<string, string> = {
     trump: "Donald", netanyahu: "Benjamin (B.B.)", ruckus: "Ruckus",
     galloway: "George", mcconnell: "Mitch", carville: "James",
@@ -7990,7 +8029,7 @@ Keep responses to 2-3 measured, diagnostic sentences. Never raise the voice. Let
         : debateMode === "savage"
         ? "\n\nDEBATE MODE — SAVAGE: No holds barred. Tear into your opponents PERSONALLY. Use devastating sarcasm, mockery, and insults. Maximum aggression — be ruthless, cutthroat, and merciless. Attack their character, their intelligence, their credibility. Use profanity freely. Do NOT hold back."
         : "";
-      let systemPrompt = ARENA_PERSONA_PROMPTS[responderId] + currentYearContext + getLieBehaviorPrompt(responderId, sessionLieCount, sessionIQ, sessionAltFactCount) + debateModeInstruction + getShannonGrandmomNote(responderId, conversationHistory) + getCredibleFactsContext();
+      let systemPrompt = getArenaPersonaPrompt(responderId) + currentYearContext + getLieBehaviorPrompt(responderId, sessionLieCount, sessionIQ, sessionAltFactCount) + debateModeInstruction + getShannonGrandmomNote(responderId, conversationHistory) + getCredibleFactsContext();
       if (winTallyContext) {
         systemPrompt += winTallyContext;
       }
@@ -8332,7 +8371,7 @@ FORMAT:
         getClient().chat.completions.create({
           model: getFastModel(),
           messages: [
-            { role: "system", content: `${ARENA_PERSONA_PROMPTS[interviewerId]}\n\nYou are ${interviewerName}. Today is ${todayStr}. You are opening a live televised 1-on-1 interview with ${intervieweeName}.` },
+            { role: "system", content: `${getArenaPersonaPrompt(interviewerId)}\n\nYou are ${interviewerName}. Today is ${todayStr}. You are opening a live televised 1-on-1 interview with ${intervieweeName}.` },
             { role: "user", content: `Open the interview. Introduce yourself briefly, welcome ${intervieweeName} to your show — with YOUR signature tone (hostile, skeptical, enthusiastic, satirical — whatever fits who YOU are). Warn them this won't be a softball interview. 1-2 punchy sentences max. No quotes, no asterisks, no stage directions. Spoken words only.` },
           ],
           max_completion_tokens: 80,
@@ -8341,7 +8380,7 @@ FORMAT:
         getClient().chat.completions.create({
           model: getFastModel(),
           messages: [
-            { role: "system", content: `${ARENA_PERSONA_PROMPTS[intervieweeId]}\n\nYou are ${intervieweeName}. Today is ${todayStr}. You are appearing on a live TV interview hosted by ${interviewerName}.` },
+            { role: "system", content: `${getArenaPersonaPrompt(intervieweeId)}\n\nYou are ${intervieweeName}. Today is ${todayStr}. You are appearing on a live TV interview hosted by ${interviewerName}.` },
             { role: "user", content: `${interviewerName} just greeted you and opened the interview. Respond in character — brief acknowledgment of being there, set YOUR tone (combative, confident, defensive, charming — whatever fits your character). You can take a jab at ${interviewerName} if your character would. 1-2 sentences max. No quotes, no asterisks, no stage directions. Spoken words only.` },
           ],
           max_completion_tokens: 80,
@@ -8530,12 +8569,12 @@ Use "era":"current" for today's news/viral moments, "era":"past" for career hist
 
       const grahamDeathFact = `\n\nCRITICAL CURRENT EVENT: Lindsey Graham passed away on July 12, 2026 at age 71. His sister now holds his South Carolina Senate seat — he is no longer a sitting senator. All personas are fully aware of this. If Graham is your interviewee or opponent, you know he is speaking from beyond the grave. React accordingly — grief, mockery, disbelief, or dark humor depending on your character.`;
       const interviewerStyle = isDebate
-        ? `You are ${interviewerName}, one of TWO co-equal debaters (not a host or interviewer) on a live debate stage opposite ${intervieweeName}. Today is ${todayStr}.${grahamDeathFact} A separate MODERATOR runs this debate and asks the actual questions — your job is to argue your position, make your case, and rebut ${intervieweeName} as an equal. Do NOT act like a talk-show host interviewing a guest; do not ask ${intervieweeName} formal interview-style questions — instead make statements, arguments, and rebuttals, ending with a challenge or pointed jab if you like, not a polite question. Stay 100% in character — your tone, vocabulary, and ideology are who you are. ${ARENA_PERSONA_PROMPTS[interviewerId]}${shannonGrandmomNote}
+        ? `You are ${interviewerName}, one of TWO co-equal debaters (not a host or interviewer) on a live debate stage opposite ${intervieweeName}. Today is ${todayStr}.${grahamDeathFact} A separate MODERATOR runs this debate and asks the actual questions — your job is to argue your position, make your case, and rebut ${intervieweeName} as an equal. Do NOT act like a talk-show host interviewing a guest; do not ask ${intervieweeName} formal interview-style questions — instead make statements, arguments, and rebuttals, ending with a challenge or pointed jab if you like, not a polite question. Stay 100% in character — your tone, vocabulary, and ideology are who you are. ${getArenaPersonaPrompt(interviewerId)}${shannonGrandmomNote}
 
 ${targetingDirective}
 
 ${styleInstruction}${getLieBehaviorPrompt(interviewerId, Number((req.body.sessionLieTally || {})[interviewerId]) || 0, req.body.sessionIQ || {})}${moderatorBiasSuffix}`
-        : `You are ${interviewerName} hosting a 1-on-1 interview with ${intervieweeName}. Today is ${todayStr}.${grahamDeathFact} Stay 100% in character — your tone, vocabulary, and ideology are who you are. ${ARENA_PERSONA_PROMPTS[interviewerId]}${shannonGrandmomNote}
+        : `You are ${interviewerName} hosting a 1-on-1 interview with ${intervieweeName}. Today is ${todayStr}.${grahamDeathFact} Stay 100% in character — your tone, vocabulary, and ideology are who you are. ${getArenaPersonaPrompt(interviewerId)}${shannonGrandmomNote}
 
 ${targetingDirective}
 
@@ -8673,14 +8712,14 @@ CRITICAL TARGETING: ${interviewerName} is sitting across from you RIGHT NOW as y
 
 ${answerStyleInstruction}
 
-Stay 100% in character — your tone, vocabulary, ideology, and combativeness are all who you are. Do not break character to be deferential toward ${interviewerName}. ${ARENA_PERSONA_PROMPTS[intervieweeId]}${shannonGrandmomNote}${getLieBehaviorPrompt(intervieweeId, Number((req.body.sessionLieTally || {})[intervieweeId]) || 0, req.body.sessionIQ || {})}${claudeAndersonInterviewBoost}`
+Stay 100% in character — your tone, vocabulary, ideology, and combativeness are all who you are. Do not break character to be deferential toward ${interviewerName}. ${getArenaPersonaPrompt(intervieweeId)}${shannonGrandmomNote}${getLieBehaviorPrompt(intervieweeId, Number((req.body.sessionLieTally || {})[intervieweeId]) || 0, req.body.sessionIQ || {})}${claudeAndersonInterviewBoost}`
         : `You are ${intervieweeName} being grilled in a high-stakes 1-on-1 interview by ${interviewerName}. Today is ${todayStr}.${grahamDeathFactAnswer}
 
 CRITICAL TARGETING: ${interviewerName} is sitting across from you RIGHT NOW. They are your interviewer AND your adversary. If your character profile contains insults, attacks, nicknames, or hostility toward "${interviewerName}", USE THEM. Address them by name. Throw the savage lines from your profile at them DIRECTLY — do not soften, do not generalize. If your character normally calls them ugly, dumb, a traitor, a foreigner, a loser, a liar, etc., say it to their face. This is YOUR moment to attack the messenger.
 
 ${answerStyleInstruction}
 
-Stay 100% in character — your tone, vocabulary, ideology, and combativeness are all who you are. Do not break character to be polite to the interviewer. ${ARENA_PERSONA_PROMPTS[intervieweeId]}${shannonGrandmomNote}${getLieBehaviorPrompt(intervieweeId, Number((req.body.sessionLieTally || {})[intervieweeId]) || 0, req.body.sessionIQ || {})}${claudeAndersonInterviewBoost}`;
+Stay 100% in character — your tone, vocabulary, ideology, and combativeness are all who you are. Do not break character to be polite to the interviewer. ${getArenaPersonaPrompt(intervieweeId)}${shannonGrandmomNote}${getLieBehaviorPrompt(intervieweeId, Number((req.body.sessionLieTally || {})[intervieweeId]) || 0, req.body.sessionIQ || {})}${claudeAndersonInterviewBoost}`;
 
       const historyContext = (conversationHistory || []).slice(-6).map((m: any) =>
         `${m.speakerName}: "${m.text}"`
@@ -8763,7 +8802,7 @@ Stay 100% in character — your tone, vocabulary, ideology, and combativeness ar
       ).join("\n");
 
       // Step 1: interviewer frames the call-in question
-      const framePrompt = `You are ${interviewerName}, the interviewer. ${ARENA_PERSONA_PROMPTS[interviewerId]}${getLieBehaviorPrompt(interviewerId, Number((req.body.sessionLieTally || {})[interviewerId]) || 0, req.body.sessionIQ || {})}
+      const framePrompt = `You are ${interviewerName}, the interviewer. ${getArenaPersonaPrompt(interviewerId)}${getLieBehaviorPrompt(interviewerId, Number((req.body.sessionLieTally || {})[interviewerId]) || 0, req.body.sessionIQ || {})}
 
 A viewer named "${callerLabel}" just sent in this question for ${intervieweeName}: "${cleanQ}"
 
@@ -8787,7 +8826,7 @@ The viewer ${callerLabel} asked: "${cleanQ}"
 
 Answer the viewer's question in character — punchy, provocative, true to your beliefs. You may briefly acknowledge the caller by name. 2-3 sentences max. Write ONLY your spoken response.
 
-${ARENA_PERSONA_PROMPTS[intervieweeId]}${getShannonGrandmomNote(intervieweeId, conversationHistory)}${getLieBehaviorPrompt(intervieweeId, Number((req.body.sessionLieTally || {})[intervieweeId]) || 0, req.body.sessionIQ || {})}`;
+${getArenaPersonaPrompt(intervieweeId)}${getShannonGrandmomNote(intervieweeId, conversationHistory)}${getLieBehaviorPrompt(intervieweeId, Number((req.body.sessionLieTally || {})[intervieweeId]) || 0, req.body.sessionIQ || {})}`;
 
       const answerCompletion = await getClient().chat.completions.create({
         model: getFastModel(),
@@ -10409,7 +10448,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
         }
       }
 
-      const systemPrompt = ARENA_PERSONA_PROMPTS["trump"] || "";
+      const systemPrompt = getArenaPersonaPrompt("trump");
       const userPrompt = `The Political Arena debate just ended. The audience voted on who made the best points. Here are the final results:\n${leaderboardText}\n\nThe WINNER is ${winnerName} with ${winnerPoints} points.${trumpLost ? ` You only got ${trumpPoints} points — you LOST to ${winnerName}. You are FURIOUS and HUMILIATED.` : ` You got ${trumpPoints} points.`}\n\nThe viewer who judged this is named "${customerName}". They gave ${winnerName} the most points${trumpLost ? " and barely voted for you" : ""}.${winHistoryText}\n\nNow ROAST both the winner AND the viewer "${customerName}" by name. Be SAVAGE, FUNNY, and totally in character. Attack ${winnerName} for thinking they won anything — "you didn't win, this was RIGGED!" Attack ${customerName} for their terrible judgment — "you have the worst taste in debate I've ever seen, ${customerName}!" If you have a LOSING win record, EXPLODE about how it's rigged. If you're WINNING, brag MERCILESSLY. Be absolutely brutal but entertaining. 3-4 sentences max.`;
 
       const completion = await getClient().chat.completions.create({
@@ -10438,7 +10477,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
       const { winnerId, winnerName, trumpRoast, customerName, leaderboard, winTally } = req.body;
       if (!winnerId || !winnerName) return res.status(400).json({ error: "winnerId and winnerName required" });
 
-      const personaPrompt = ARENA_PERSONA_PROMPTS[winnerId] || "";
+      const personaPrompt = getArenaPersonaPrompt(winnerId);
       const leaderboardText = (leaderboard || []).map((e: any, i: number) => `#${i + 1} ${e.name}: ${e.points} pts`).join(", ");
 
       let winHistoryText = "";
