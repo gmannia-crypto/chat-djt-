@@ -2472,7 +2472,7 @@ export default function DebateStage() {
   // Queue moderator audio → wait for full playback → reset state.
   // Routes through enqueueTTSAndWait so the queue's natural ordering guarantees
   // the current speaker always finishes before the moderator starts.
-  const speakMod = useCallback(async (text: string, msgId: string) => {
+  const speakMod = useCallback(async (text: string, msgId: string, opts?: { blockEarlyResolve?: boolean }) => {
     const mod = MODERATORS[moderatorStyle];
     if (!mod || !text || !runningRef.current) return;
     moderatorSpeakingRef.current = true;
@@ -2481,12 +2481,10 @@ export default function DebateStage() {
     setMessages((prev) => [...prev, {
       id: msgId, speakerId: mod.personaId, speakerName: mod.name, text, ts: Date.now(),
     }]);
-    // Route moderator audio through the TTS queue with blockEarlyResolve=true
-    // so NO debater can start talking until the moderator fully finishes.
-    // The queue's sequential ordering also guarantees the current speaker
-    // finishes before the moderator starts — no race, no cutoff in either direction.
+    // blockEarlyResolve: true (default) = moderator must finish fully before next item starts.
+    // Pass { blockEarlyResolve: false } for question/bridge lines where 500ms persona overlap is desired.
     await new Promise<void>((resolve) => {
-      enqueueTTS(text, mod.personaId, msgId, { blockEarlyResolve: true, onComplete: resolve });
+      enqueueTTS(text, mod.personaId, msgId, { blockEarlyResolve: opts?.blockEarlyResolve ?? true, onComplete: resolve });
     });
     moderatorSpeakingRef.current = false;
     if (!runningRef.current) { setModeratorSpeaking(false); return; }
@@ -2625,14 +2623,14 @@ export default function DebateStage() {
           setIsThinking(null);
           if (ans?.text && runningRef.current) {
             // Pre-fetch TTS AUDIO immediately when text arrives — runs while moderator
-            // audio is still playing so audio is ready the moment speakMod resolves.
-            // NOTE: enrichAndAddMessage (which enqueues TTS) is called AFTER speakMod
-            // resolves below — this ensures the persona cannot start playing before
-            // the moderator question fully finishes, even on slow connections.
+            // audio is still playing so audio is ready the moment the question ends.
             startPrefetch({ text: ans.text, personaId: primaryId });
-            // Reuse the squabble-bridge rebuttal pre-fetch if one was started — it
-            // has had extra time to resolve and avoids duplicating the network call.
-            // Fall back to a fresh fetch when no pre-fetch is available.
+            // PRE-PUSH into the TTS queue right now so processQueue has the item
+            // ready the instant the moderator question clip ends — zero dead air.
+            // enrichAndAddMessage below (called after speakMod resolves) uses
+            // skipTTS: true so the queue item is not double-enqueued.
+            ttsQueueRef.current.push({ text: ans.text, personaId: primaryId });
+            // Kick off rebuttal fetch early so it's settling while primary TTS plays.
             rebuttalFetchPromise = prefetchedRebuttalAnswerRef.current ?? fetchAnswerFrom(primaryId, secondaryId, ans.text);
             prefetchedRebuttalAnswerRef.current = null; // consume
           }
@@ -2643,7 +2641,9 @@ export default function DebateStage() {
         // The first filler uses the pre-fetched text so processQueue hits the audio
         // cache — subsequent fillers generate fresh random lines.
         (async () => {
-          await speakMod(modQuestion, `modq-${Date.now()}-${Math.random()}`);
+          // blockEarlyResolve: false — persona TTS is pre-queued, so 500ms overlap fires
+          // at the tail of the question for a natural conversational handoff.
+          await speakMod(modQuestion, `modq-${Date.now()}-${Math.random()}`, { blockEarlyResolve: false });
           let firstFiller = true;
           while (!primaryDone && runningRef.current) {
             const fillerText = firstFiller ? firstPrimaryFiller : getWaitFiller(primaryName);
@@ -2652,14 +2652,17 @@ export default function DebateStage() {
           }
         })(),
       ]);
-      // speakMod has fully resolved — safe to enqueue persona TTS now.
-      // The prefetched audio is already buffered, so playback starts immediately.
+      // speakMod has fully resolved. The persona TTS was pre-queued above so audio
+      // is already playing (or started at the 500ms overlap point). Call
+      // enrichAndAddMessage with skipTTS: true — adds the message to the transcript
+      // and triggers emotion/factcheck/fireback, but does NOT double-enqueue TTS.
       if (primaryAnswer?.text && runningRef.current) {
         enrichAndAddMessage({
           id: `pa-${Date.now()}-${Math.random()}`,
           speakerId: (primaryAnswer as NonNullable<typeof primaryAnswer>).speakerId,
           speakerName: (primaryAnswer as NonNullable<typeof primaryAnswer>).speakerName,
           text: primaryAnswer.text, ts: Date.now(),
+          skipTTS: true,
         });
       }
       if (!runningRef.current || Date.now() >= sessionEndsAtRef.current) break;
@@ -2722,6 +2725,11 @@ export default function DebateStage() {
             rebuttalDone = true;
             if (r?.text && runningRef.current) {
               startPrefetch({ text: r.text, personaId: secondaryId });
+              // PRE-PUSH rebuttal TTS now — processQueue will pick it up the instant
+              // the bridge (or last filler) finishes, with 500ms overlap if bridge
+              // uses blockEarlyResolve: false. enrichAndAddMessage below uses
+              // skipTTS: true so the queue item is not double-enqueued.
+              ttsQueueRef.current.push({ text: r.text, personaId: secondaryId });
             }
           })
           .catch(() => { rebuttalDone = true; }),
@@ -2740,7 +2748,8 @@ export default function DebateStage() {
           // pattern as the primary filler above.
           const firstRebuttalFiller = getWaitFiller(secondaryName);
           startPrefetch({ text: firstRebuttalFiller, personaId: mod.personaId });
-          await speakMod(bridgeText, `modbr-${Date.now()}-${Math.random()}`);
+          // blockEarlyResolve: false — rebuttal TTS is pre-queued, enabling 500ms overlap.
+          await speakMod(bridgeText, `modbr-${Date.now()}-${Math.random()}`, { blockEarlyResolve: false });
           // Bridge finished — play filler lines until the rebuttal AI response arrives.
           let firstRebuttalFiller_ = true;
           while (!rebuttalDone && runningRef.current) {
@@ -2768,15 +2777,16 @@ export default function DebateStage() {
       }
       consecutiveRebuttalNullRef.current = 0;
 
-      // Bridge + fillers have fully resolved — safe to enqueue rebuttal TTS now.
-      // Audio was pre-fetched in Branch A the moment the text arrived, so
-      // playback starts immediately.
+      // Bridge + fillers have fully resolved. Rebuttal TTS was pre-queued in Branch A
+      // so audio is already playing (or started at the 500ms overlap point).
+      // skipTTS: true prevents double-enqueueing.
       if (rebuttal?.text && runningRef.current) {
         enrichAndAddMessage({
           id: `rb-${Date.now()}-${Math.random()}`,
           speakerId: (rebuttal as NonNullable<typeof rebuttal>).speakerId,
           speakerName: (rebuttal as NonNullable<typeof rebuttal>).speakerName,
           text: rebuttal.text, ts: Date.now(),
+          skipTTS: true,
         });
       }
       if (!runningRef.current || Date.now() >= sessionEndsAtRef.current) break;
