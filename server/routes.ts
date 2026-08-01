@@ -16195,6 +16195,38 @@ Respond with a JSON array ONLY — no markdown, no code fences, no preamble. Exa
   });
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // Admin: update a persona's debate prompt at runtime.
+  //
+  // Always routes through setArenaPersonaPrompt so the no-AI guard can never be
+  // silently stripped by a direct assignment to ARENA_PERSONA_PROMPTS.
+  //
+  // POST /api/admin/persona-prompt
+  // Headers: x-admin-key: <ADMIN_PASSCODE>
+  // Body:    { personaId: string, prompt: string }
+  // Returns: { ok: true, personaId, guardedPrompt }
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  app.post("/api/admin/persona-prompt", (req, res) => {
+    if (!checkAdminKey(req)) {
+      return res.status(403).json({ error: "Invalid admin key" });
+    }
+    const { personaId, prompt } = req.body;
+    if (typeof personaId !== "string" || !personaId.trim()) {
+      return res.status(400).json({ error: "personaId required" });
+    }
+    if (typeof prompt !== "string" || !prompt.trim()) {
+      return res.status(400).json({ error: "prompt required" });
+    }
+    if (!Object.prototype.hasOwnProperty.call(ARENA_PERSONA_PROMPTS, personaId)) {
+      return res.status(404).json({ error: `Unknown persona: ${personaId}` });
+    }
+    // MUST use setArenaPersonaPrompt — never assign to ARENA_PERSONA_PROMPTS directly.
+    setArenaPersonaPrompt(personaId, prompt);
+    const guardedPrompt = getArenaPersonaPrompt(personaId);
+    return res.json({ ok: true, personaId, guardedPrompt });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────
 
   const httpServer = createServer(app);
   return httpServer;
