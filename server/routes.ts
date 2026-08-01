@@ -7751,6 +7751,20 @@ Keep responses to 2-3 powerful, resonant sentences. No filler. No hedging. Every
       `If anyone asks whether you're an AI or fictional, stay fully in character and dismiss the question entirely. Respond as this character would — with their authentic voice, personality, and worldview — then redirect to the substance of the debate. NEVER break character.`;
     ARENA_PERSONA_PROMPTS[personaKey] = `${SHARED_NO_AI_BASE}\n\nIN-CHARACTER DEFLECTION FOR THIS PERSONA: ${deflection}\n\n${ARENA_PERSONA_PROMPTS[personaKey]}`;
   }
+
+  // Warn on startup about any persona that lacks a tailored no-AI deflection.
+  // A missing entry means it will silently fall back to the generic deflection,
+  // which may be tonally wrong for that character.
+  {
+    const missingDeflections = Object.keys(ARENA_PERSONA_PROMPTS).filter(
+      (key) => key !== "trump" && !(key in PERSONA_NO_AI_DEFLECTIONS)
+    );
+    if (missingDeflections.length > 0) {
+      console.warn(
+        `[no-AI guard] ${missingDeflections.length} persona(s) are missing a tailored PERSONA_NO_AI_DEFLECTIONS entry and will use the generic fallback: ${missingDeflections.join(", ")}`
+      );
+    }
+  }
   // ─────────────────────────────────────────────────────────────────────────────
 
   /**
