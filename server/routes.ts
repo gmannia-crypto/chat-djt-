@@ -2111,7 +2111,9 @@ KEY DYNAMICS — these MUST show up in the conversation:
         .map((p: string) => `${personaNames[p] || p}: ${PERSONA_SPORTS_PROMPTS[p]}`)
         .join("\n\n");
 
-      const systemPrompt = `You are generating a sports roundtable discussion between these personas:
+      const systemPrompt = `${SPORTS_NO_AI_RULE}
+
+You are generating a sports roundtable discussion between these personas:
 ${activePersonaPrompts}
 
 ${personaRelationships}
