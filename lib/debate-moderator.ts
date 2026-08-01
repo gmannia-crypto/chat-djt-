@@ -13,7 +13,7 @@ import { getApiUrl } from "@/lib/query-client";
 import { prefetchTTSAudio, playPrefetchedAudio, playTTS } from "@/lib/audio-helper";
 import { playCrowdCheer, playDingSound } from "@/lib/arena-sfx";
 
-export type ModeratorStyle = "cenk" | "galloway" | "hannity" | "maddow" | "megynkelly" | "odonnell" | "joyreid" | "maxkellerman" | "stephena" | "kaitlyncollins" | "gilbertgottfried" | "carlin" | "tuckercarlson" | "wandasykes" | "trevornoah" | "janeelliott" | "francescresswelsing" | "shannonsharp";
+export type ModeratorStyle = "cenk" | "galloway" | "hannity" | "maddow" | "megynkelly" | "odonnell" | "joyreid" | "maxkellerman" | "stephena" | "kaitlyncollins" | "gilbertgottfried" | "carlin" | "tuckercarlson" | "wandasykes" | "trevornoah" | "janeelliott" | "francescresswelsing" | "shannonsharp" | "dc";
 
 export const MODERATORS: Record<ModeratorStyle, { name: string; personaId: string; bias: string }> = {
   cenk:             { name: "Cenk Uygur",          personaId: "cenk",             bias: "progressive" },
@@ -34,6 +34,7 @@ export const MODERATORS: Record<ModeratorStyle, { name: string; personaId: strin
   janeelliott:      { name: "Jane Elliott",           personaId: "janeelliott",      bias: "anti-racist" },
   francescresswelsing: { name: "Dr. Frances Cress Welsing", personaId: "francescresswelsing", bias: "Black-liberation" },
   shannonsharp:        { name: "Shannon Sharpe",            personaId: "shannon",              bias: "Black-progressive-sports" },
+  dc:                  { name: "DC",                         personaId: "dc",                   bias: "truth-seeking" },
 };
 
 // Which personas each moderator is friendly to ("favor" — softball questions, quick to defend
@@ -110,6 +111,8 @@ export const MODERATOR_LEANINGS: Record<ModeratorStyle, { favor: string[]; targe
     favor: ["obama", "kamala", "jascrockett", "omar", "aoc", "mlk", "malcolmx", "claudeanderson", "malema", "joyreid"],
     target: ["trump", "bannon", "miller", "leavitt", "alexjones", "candace", "jesseleepetersen", "ruckus"],
   },
+  // DC: pure truth-seeker — fiercely independent, no political alignment.
+  dc: { favor: [], target: [] },
 };
 
 export type ModeratorLeaning = "favor" | "target" | "neutral";
@@ -505,6 +508,11 @@ const SQUABBLE_BRIDGE_LINES: Record<string, string[]> = {
     "HOLD ON! We are MOVING ON! My granddaddy used to say — 'When two fools fight, the house burns down.' NEW TOPIC. Let's GO!",
     "UNDISPUTED — that exchange is OVER! I'm calling a timeout right now. New topic, and I expect BETTER from both of you!",
     "That is ENOUGH! Topic switch, IMMEDIATELY! Uncle Shay Shay is NOT having this on his stage — bring some RESPECK to this debate!",
+  ],
+  dc: [
+    "That exchange is over. We came here for truth — not theatre. New topic.",
+    "I'm bringing this to a close. What you just witnessed was heat without light. Moving on.",
+    "Enough. The room deserves better than what you two just gave it. New subject — right now.",
   ],
   _default: [
     "We're moving on — this topic is closed. Let's keep it professional.",
