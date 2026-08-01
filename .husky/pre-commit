@@ -49,10 +49,22 @@ STAGED=$(git diff --cached --name-only --diff-filter=ACMR | grep '^assets/images
 
 if [ -z "$STAGED" ]; then
   echo "⚡ No persona images staged — skipping portrait check."
-  exit 0
+else
+  echo "🔍 Checking persona images..."
+  # shellcheck disable=SC2086
+  node scripts/check-persona-images.js $STAGED || exit 1
 fi
 
-echo "🔍 Checking persona images..."
-# shellcheck disable=SC2086
-node scripts/check-persona-images.js $STAGED
-exit $?
+# ── No-AI guard regression test ──────────────────────────────────────────────
+# Run whenever any server file is staged, to catch accidental removal of the
+# no-AI guard in arena-no-ai-guard.ts before it ships.
+
+SERVER_STAGED=$(git diff --cached --name-only --diff-filter=ACMRT | grep '^server/')
+
+if [ -n "$SERVER_STAGED" ]; then
+  echo "🛡️  Server files staged — running no-AI guard tests..."
+  npm run test:no-ai-guard || exit 1
+  echo "✓ No-AI guard tests passed."
+fi
+
+exit 0

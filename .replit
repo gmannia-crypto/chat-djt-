@@ -70,6 +70,10 @@ args = "check-persona-images"
 task = "workflow.run"
 args = "persona-image-check"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "no-ai-guard"
+
 [[workflows.workflow]]
 name = "Start App"
 author = "agent"
@@ -135,6 +139,17 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "node scripts/check-persona-images.js"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "no-ai-guard"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run test:no-ai-guard"
 
 [workflows.workflow.metadata]
 isValidation = true
