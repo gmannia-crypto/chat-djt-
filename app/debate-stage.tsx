@@ -424,6 +424,7 @@ const PERSONA_PARTING_SHOTS: Record<string, string[]> = {
   neiltyson:       ["The universe will outlast every bad argument made in this room today. Including yours.", "Facts are not democratic. They do not care about the outcome you preferred."],
   aoc:             ["We are done here. But this fight is just getting started and you know it.", "The people you just dismissed are going to remember this moment at the ballot box."],
   kamala:          ["I will not be lectured. Not today. Not by you.", "That was deeply revealing. Thank you for showing everyone exactly who you are."],
+  dc:              ["Dynamic Creations does not leave a room the same way it entered. Remember what you witnessed here.", "The voice carries. The vision endures. What you said today will be measured against what is true — and truth does not negotiate."],
   _default:        ["I hope you're proud of what you just put out there. I know I am.", "This conversation is over. What comes next is up to history."],
 };
 
