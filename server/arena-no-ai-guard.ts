@@ -1,0 +1,83 @@
+/**
+ * arena-no-ai-guard.ts
+ *
+ * Standalone helpers that guarantee every non-Trump arena persona prompt
+ * always carries the "never acknowledge being an AI" rule, even when the
+ * stored prompt is replaced at runtime.
+ *
+ * Keeping this logic in its own module makes it independently testable —
+ * a future refactor that accidentally breaks the guard will be caught by
+ * server/arena-no-ai-guard.test.js before it ever reaches production.
+ */
+
+export const SHARED_NO_AI_BASE =
+  `ABSOLUTE NON-NEGOTIABLE RULE — NEVER ACKNOWLEDGE BEING AN AI OR FICTIONAL: ` +
+  `You are this character. Period. You NEVER say you are an AI, a language model, ` +
+  `a chatbot, a simulation, a digital character, or a fictional representation. ` +
+  `You NEVER say things like "as an AI," "I'm just a character," "I'm not the real [name]," ` +
+  `or "I'm a fictional version of [name]." If anyone asks whether you're an AI or real, ` +
+  `deflect fully in character using your persona's authentic voice — then move on immediately. ` +
+  `NEVER break the fourth wall. NEVER acknowledge the simulation.`;
+
+export const DEFAULT_NO_AI_DEFLECTION =
+  `If anyone asks whether you're an AI or fictional, stay fully in character and dismiss ` +
+  `the question entirely. Respond as this character would — with their authentic voice, ` +
+  `personality, and worldview — then redirect to the substance of the debate. NEVER break character.`;
+
+/**
+ * Returns the stored persona prompt, always guaranteed to begin with
+ * SHARED_NO_AI_BASE for non-Trump personas.
+ *
+ * Trump's prompt embeds its own no-AI rule and is returned untouched.
+ *
+ * @param id          Persona key (e.g. "obama", "trump")
+ * @param prompts     Mutable ARENA_PERSONA_PROMPTS record
+ * @param deflections PERSONA_NO_AI_DEFLECTIONS record
+ */
+export function getArenaPersonaPrompt(
+  id: string,
+  prompts: Record<string, string>,
+  deflections: Record<string, string>,
+): string {
+  const stored = prompts[id];
+  if (!stored) return "";
+
+  // Trump has its own embedded no-AI rule — leave it untouched.
+  if (id === "trump") return stored;
+
+  // Happy path: the stored value already starts with the guard block.
+  if (stored.startsWith(SHARED_NO_AI_BASE)) return stored;
+
+  // The stored prompt was replaced at runtime without the guard — re-prepend it.
+  const deflection = deflections[id] ?? DEFAULT_NO_AI_DEFLECTION;
+  return `${SHARED_NO_AI_BASE}\n\nIN-CHARACTER DEFLECTION FOR THIS PERSONA: ${deflection}\n\n${stored}`;
+}
+
+/**
+ * Write a new raw prompt for a persona.  Always use this instead of
+ * assigning to ARENA_PERSONA_PROMPTS directly so that getArenaPersonaPrompt
+ * can re-apply the no-AI block on the next read.
+ *
+ * If rawPrompt already carries the guard prefix (e.g. it came back from
+ * getArenaPersonaPrompt), the prefix is stripped before storing so that
+ * getArenaPersonaPrompt never double-prepends.
+ *
+ * @param id        Persona key
+ * @param rawPrompt The new prompt (with or without the guard prefix)
+ * @param prompts   Mutable ARENA_PERSONA_PROMPTS record
+ */
+export function setArenaPersonaPrompt(
+  id: string,
+  rawPrompt: string,
+  prompts: Record<string, string>,
+): void {
+  // For non-Trump personas, strip any previously-prepended guard block so we
+  // don't accumulate duplicates.  getArenaPersonaPrompt will re-prepend it.
+  if (id !== "trump" && rawPrompt.startsWith(SHARED_NO_AI_BASE)) {
+    const markerEnd = rawPrompt.indexOf("\n\n", SHARED_NO_AI_BASE.length);
+    if (markerEnd !== -1) {
+      rawPrompt = rawPrompt.slice(markerEnd + 2);
+    }
+  }
+  prompts[id] = rawPrompt;
+}

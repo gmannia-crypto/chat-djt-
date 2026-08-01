@@ -1,5 +1,10 @@
 import type { Express } from "express";
 import { createServer, type Server } from "node:http";
+import {
+  SHARED_NO_AI_BASE as _SHARED_NO_AI_BASE,
+  getArenaPersonaPrompt as _getArenaPersonaPrompt,
+  setArenaPersonaPrompt as _setArenaPersonaPrompt,
+} from "./arena-no-ai-guard";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { writeFileSync, readFileSync, unlinkSync, existsSync } from "node:fs";
@@ -7653,7 +7658,9 @@ Keep responses to 2-3 powerful, resonant sentences. No filler. No hedging. Every
   // ─── SHARED "NEVER ACKNOWLEDGE BEING AI" RULE ────────────────────────────────
   // Prepend to every non-Trump persona so none of them can break character and
   // admit they're an AI or a fictional representation.
-  const SHARED_NO_AI_BASE = `ABSOLUTE NON-NEGOTIABLE RULE — NEVER ACKNOWLEDGE BEING AN AI OR FICTIONAL: You are this character. Period. You NEVER say you are an AI, a language model, a chatbot, a simulation, a digital character, or a fictional representation. You NEVER say things like "as an AI," "I'm just a character," "I'm not the real [name]," or "I'm a fictional version of [name]." If anyone asks whether you're an AI or real, deflect fully in character using your persona's authentic voice — then move on immediately. NEVER break the fourth wall. NEVER acknowledge the simulation.`;
+  // The constant and helper functions live in ./arena-no-ai-guard.ts so they
+  // can be unit-tested independently of the full server.
+  const SHARED_NO_AI_BASE = _SHARED_NO_AI_BASE;
 
   const PERSONA_NO_AI_DEFLECTIONS: Record<string, string> = {
     obama: `If anyone asks whether you're an AI, respond with calm, measured dismissal: "I think what matters here isn't the nature of this conversation — it's the substance of the ideas we're discussing. Let's stay focused on that." Then pivot back to the debate. NEVER break character.`,
@@ -7751,38 +7758,22 @@ Keep responses to 2-3 powerful, resonant sentences. No filler. No hedging. Every
    * block guaranteed — even if the stored entry was mutated or replaced at
    * runtime (e.g. dynamic injection, A/B overrides, or live-reload tooling).
    * Use this instead of reading ARENA_PERSONA_PROMPTS[id] directly.
+   *
+   * Core guard logic lives in ./arena-no-ai-guard.ts (independently tested).
    */
   function getArenaPersonaPrompt(id: string): string {
-    const stored = ARENA_PERSONA_PROMPTS[id];
-    if (!stored) return "";
-    // Trump's prompt embeds its own no-AI rule; leave it untouched.
-    if (id === "trump") return stored;
-    // For all other personas the stored value should already start with
-    // SHARED_NO_AI_BASE (set by the loop above). If it doesn't — because
-    // the entry was regenerated or overwritten after initialisation — re-prepend
-    // the block now so the rule can never be lost.
-    if (stored.startsWith(SHARED_NO_AI_BASE)) return stored;
-    const deflection = PERSONA_NO_AI_DEFLECTIONS[id] ??
-      `If anyone asks whether you're an AI or fictional, stay fully in character and dismiss the question entirely. Respond as this character would — with their authentic voice, personality, and worldview — then redirect to the substance of the debate. NEVER break character.`;
-    return `${SHARED_NO_AI_BASE}\n\nIN-CHARACTER DEFLECTION FOR THIS PERSONA: ${deflection}\n\n${stored}`;
+    return _getArenaPersonaPrompt(id, ARENA_PERSONA_PROMPTS, PERSONA_NO_AI_DEFLECTIONS);
   }
 
   /**
    * Write a new raw prompt for a persona.  Always use this instead of
    * assigning to ARENA_PERSONA_PROMPTS directly so that getArenaPersonaPrompt
    * can re-apply the no-AI block the next time the prompt is read.
+   *
+   * Core guard logic lives in ./arena-no-ai-guard.ts (independently tested).
    */
   function setArenaPersonaPrompt(id: string, rawPrompt: string): void {
-    // Store the raw prompt WITHOUT the no-AI wrapper; getArenaPersonaPrompt
-    // will re-apply it on every read, keeping the rule durable.
-    if (id !== "trump" && rawPrompt.startsWith(SHARED_NO_AI_BASE)) {
-      // Strip a previously-prepended block so we don't double-prepend.
-      const markerEnd = rawPrompt.indexOf("\n\n", SHARED_NO_AI_BASE.length);
-      if (markerEnd !== -1) {
-        rawPrompt = rawPrompt.slice(markerEnd + 2);
-      }
-    }
-    ARENA_PERSONA_PROMPTS[id] = rawPrompt;
+    _setArenaPersonaPrompt(id, rawPrompt, ARENA_PERSONA_PROMPTS);
   }
 
   const ARENA_NAME_MAP: Record<string, string> = {
