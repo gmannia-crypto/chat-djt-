@@ -2744,6 +2744,10 @@ export default function DebateStage() {
           if (!runningRef.current) return;
 
           const bridgeText = getRebuttalBridge(secondaryName, moderatorStyle, secondaryId);
+          // Pre-fetch BRIDGE audio immediately — primary TTS is still playing so
+          // the bridge audio fetch runs in parallel. By the time waitForQueueDrain
+          // resolves (primary done) the bridge clip is already buffered → zero gap.
+          startPrefetch({ text: bridgeText, personaId: mod.personaId });
           // Pre-fetch first rebuttal filler while the bridge plays — same zero-gap
           // pattern as the primary filler above.
           const firstRebuttalFiller = getWaitFiller(secondaryName);
@@ -2833,6 +2837,10 @@ export default function DebateStage() {
         `Next topic: ${nextTopic.title}.`,
       ];
       const transText = TRANS[Math.floor(Math.random() * TRANS.length)];
+      // Pre-fetch TRANSITION audio now — rebuttal TTS is still playing so this
+      // runs concurrently. When speakMod(transText) calls waitForQueueDrain
+      // (waiting for rebuttal to finish) the transition clip is already buffered.
+      if (voiceEnabledRef.current) startPrefetch({ text: transText, personaId: mod.personaId });
 
       // Speak transition + pre-fetch next question in parallel → zero dead air next round
       setIsThinking("interviewer");
