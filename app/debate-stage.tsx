@@ -441,7 +441,7 @@ const PERSONA_LOSER_LINES: Record<string, string[]> = {
   maddow:           ["The receipts still exist. I still have them. This isn't the last word.", "I acknowledge the result. The tape doesn't lie though — and I have the tape."],
   alexjones:        ["THEY RIGGED THIS! The globalists rigged this room! This is not over!", "You may have won today but the TRUTH is coming out and MILLIONS will know it!"],
   hannity:          ["The American people will see this differently. They always do.", "I'll take this result. But this fight is far from over."],
-  gallowaygj:       ["History will be kinder to my argument than this room was.", "The imperialists win the room. They do not win history. They never have."],
+  galloway:         ["History will be kinder to my argument than this room was.", "The imperialists win the room. They do not win history. They never have."],
   omar:             ["I came here with facts and I leave with my dignity. That is more than enough.", "Fine. But the people I represent are not going anywhere."],
   malema:           ["You win the debate but not the argument of history. Come back in ten years.", "The revolution is not deterred by a single room's verdict."],
   carlin:           ["Yeah yeah. Congratulations. The system wins again. Big surprise.", "You won. I'm still right. Those aren't always the same thing."],
@@ -509,6 +509,7 @@ const PERSONA_LOSER_LINES: Record<string, string[]> = {
   trevornoah:       ["Fair enough. I usually have a full writing staff. Today I was alone.", "You won. And now I have to go explain to millions of South Africans how this happened."],
   janeelliott:      ["I've been teaching people to reckon with uncomfortable truths for sixty years. Today is a lesson.", "You win the vote. I win the history. Those of us who've been here know the difference."],
   francescresswelsing: ["The pigmentation principle transcends this room's verdict. The work continues.", "My scholarship speaks for itself regardless of what this panel concludes."],
+  charliemurphy:    ["Man, I've been knocked around before. But I'll be back, and it'll be worse for you.", "You know what? I lost today. I respect it. Don't expect that to happen again."],
   dc:               ["The voice carries further than this room. Dynamic Creations will be heard again.", "One room's verdict changes nothing about what's true. And what's true is still what it was."],
   _default:         ["You get today. But this conversation isn't finished.", "I'll accept that. But don't get comfortable."],
 };
@@ -523,7 +524,7 @@ const PERSONA_WINNER_LINES: Record<string, string[]> = {
   maddow:           ["I have the receipts. I've always had the receipts. Good night.", "The facts won today. They usually do when you bring all of them."],
   alexjones:        ["THE TRUTH WINS! THE PEOPLE WIN! THE GLOBALISTS COULDN'T STOP IT!", "America First! The listeners already knew I was right! Millions knew!"],
   hannity:          ["The American people saw it. They always see it. That's why they trust us.", "That's the truth winning. Plain and simple."],
-  gallowaygj:       ["The anti-imperialist argument wins because it is correct. Simple as that.", "History is on our side. Today just confirmed what history already knew."],
+  galloway:         ["The anti-imperialist argument wins because it is correct. Simple as that.", "History is on our side. Today just confirmed what history already knew."],
   omar:             ["The facts and the people win. That's what happens when someone actually speaks truth to power.", "That's what happens when you don't back down. Ever."],
   malema:           ["The revolutionary argument wins. It always does. The oppressor just takes longer to see it.", "The people's case is made. Now the people must act on it."],
   carlin:           ["Well look at that. Occasionally the truth gets through even in this system.", "Good. Now go do something with it. Don't just clap."],
@@ -591,6 +592,7 @@ const PERSONA_WINNER_LINES: Record<string, string[]> = {
   trevornoah:       ["South Africa sent me here with something you can't manufacture — perspective. It won tonight.", "I've stood between Trevor Noah and the rest of the world for years. Tonight the world agreed with me."],
   janeelliott:      ["Sixty years of teaching people to look at the truth wins over one afternoon of resistance.", "The blue-eyed, brown-eyed experiment proved this in 1968. Today's room is just late to the lesson."],
   francescresswelsing: ["The Cress Theory of Color Confrontation has always been correct. Tonight it was simply confirmed.", "The melanin argument wins in every room that allows the full evidence. Tonight you heard the full evidence."],
+  charliemurphy:    ["Yeah. That's right. You got beat by Charlie Murphy. Tell your friends.", "I came in here, I prepared, and I handled my business. That's what I do."],
   dc:               ["That is what happens when the full weight of truth enters the room.", "Dynamic Creations. The voice. The vision. The result."],
   _default:         ["I'll take that. Now let's get back to work.", "That's what I came here to do. Mission accomplished."],
 };
