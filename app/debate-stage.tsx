@@ -2755,7 +2755,11 @@ export default function DebateStage() {
             // ready the instant the moderator question clip ends — zero dead air.
             // enrichAndAddMessage below (called after speakMod resolves) uses
             // skipTTS: true so the queue item is not double-enqueued.
+            // processQueue() must be called after the push — if processQueue exited
+            // between the last filler finishing and this .then() callback firing,
+            // the item would sit in the queue forever with nothing to drain it.
             ttsQueueRef.current.push({ text: ans.text, personaId: primaryId });
+            processQueue();
             // Kick off rebuttal fetch early so it's settling while primary TTS plays.
             rebuttalFetchPromise = prefetchedRebuttalAnswerRef.current ?? fetchAnswerFrom(primaryId, secondaryId, ans.text);
             prefetchedRebuttalAnswerRef.current = null; // consume
@@ -2855,7 +2859,11 @@ export default function DebateStage() {
               // the bridge (or last filler) finishes, with 500ms overlap if bridge
               // uses blockEarlyResolve: false. enrichAndAddMessage below uses
               // skipTTS: true so the queue item is not double-enqueued.
+              // Wake processQueue after the push — if it exited the loop between
+              // the last filler finishing and this .then() firing, the item would
+              // sit in the queue unprocessed (dead silence bug).
               ttsQueueRef.current.push({ text: r.text, personaId: secondaryId });
+              processQueue();
             }
           })
           .catch(() => { rebuttalDone = true; }),
