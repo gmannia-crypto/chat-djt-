@@ -2952,7 +2952,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
 
   const VALID_BATTLE_PERSONAS = ["trump", "buffett", "musk", "suze", "dave", "grandma", "genie", "loudmouth", "jordan", "bernie", "ruckus", "maxkellerman", "snoop", "barkley", "rogan", "shannon"];
 
-  const NAV_VOICE_ID = "121b31844d2f451a9838b15e6a329002";
+  const NAV_VOICE_ID = "fc37c3f3b37245c4b1c86846c9939b06"; // Paul Robeson — deep resonant baritone
 
   const PERSONA_VOICE_IDS: Record<string, string> = {
     trump: "7379b5f7cf9a4337b54a8fa819ae8502",

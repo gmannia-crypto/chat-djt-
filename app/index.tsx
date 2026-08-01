@@ -1380,7 +1380,7 @@ export default function HomeScreen() {
         <Animated.View entering={FadeInDown.delay(200).duration(600)} style={arenaFeaturedStyle}>
           <Pressable
             onPress={() => {
-              playNavVoice("The Arena. The greatest debate you've ever seen. Believe me.");
+              playNavVoice("The Arena. Where minds clash and reputations are made.");
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
               router.push("/arena");
             }}
@@ -1451,7 +1451,7 @@ export default function HomeScreen() {
             <Pressable
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-                playNavVoice("Trump Therapy. Let's work through your issues, big league.");
+                playNavVoice("Trump Therapy. Confront your issues with the man himself.");
                 router.push("/therapy");
               }}
               style={({ pressed }) => [styles.viralCtaButton, styles.viralTherapy, pressed && { opacity: 0.85 }]}
@@ -1475,7 +1475,7 @@ export default function HomeScreen() {
             <Pressable
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-                playNavVoice("Fortune Parlor. Let me predict your future, believe me.");
+                playNavVoice("Fortune Parlor. The cards know what you don't.");
                 router.push("/fortune");
               }}
               style={({ pressed }) => [styles.viralCtaButton, styles.viralFortune, pressed && { opacity: 0.85 }]}
@@ -1501,7 +1501,7 @@ export default function HomeScreen() {
           <Pressable
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-              playNavVoice("Sports Book. Live picks, live games, tremendous action.");
+              playNavVoice("Sports Book. Live picks. Live games. The action is real.");
               router.push("/sports");
             }}
             style={({ pressed }) => [styles.sportsTopButton, pressed && { opacity: 0.8 }]}
@@ -1530,7 +1530,7 @@ export default function HomeScreen() {
             <Text style={styles.modeButtonText}>ROAST ME</Text>
           </Pressable>
           <Pressable
-            onPress={() => { playNavVoice("Debate Mode. Let's go, I never lose a debate."); handleDebateMode(); }}
+            onPress={() => { playNavVoice("Debate Mode. Step into the ring."); handleDebateMode(); }}
             style={({ pressed }) => [styles.modeButton, styles.debateButton, pressed && { opacity: 0.7 }]}
           >
             <MaterialCommunityIcons name="podium" size={18} color={Colors.gold} />
@@ -1588,7 +1588,7 @@ export default function HomeScreen() {
         <Animated.View entering={FadeInDown.delay(550).duration(500)} style={styles.modeButtons}>
           <Pressable
             onPress={() => {
-              playNavVoice("Dashboard. The numbers, tremendous numbers.");
+              playNavVoice("Dashboard. The full picture. Every number.");
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               router.push("/dashboard");
             }}
@@ -1614,7 +1614,7 @@ export default function HomeScreen() {
         <Animated.View entering={FadeInDown.delay(600).duration(500)} style={styles.modeButtons}>
           <Pressable
             onPress={() => {
-              playNavVoice("Fortune. The future is looking tremendous.");
+              playNavVoice("Fortune. The future has a voice. Listen.");
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
               router.push("/fortune");
             }}
@@ -1640,7 +1640,7 @@ export default function HomeScreen() {
         <Animated.View entering={FadeInDown.delay(650).duration(500)} style={styles.modeButtons}>
           <Pressable
             onPress={() => {
-              playNavVoice("Realty. The best properties, I know real estate.");
+              playNavVoice("Realty. Premier properties. Real opportunities.");
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
               router.push("/real-estate");
             }}
@@ -1704,7 +1704,7 @@ export default function HomeScreen() {
           </Pressable>
           <Pressable
             onPress={() => {
-              playNavVoice("Collectibles. The most beautiful cards you've ever seen.");
+              playNavVoice("Collectibles. Rare. Historic. Yours to own.");
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
               router.push("/collectibles");
             }}
