@@ -8681,6 +8681,17 @@ export default function ArenaScreen() {
                   );
                 })}
             </View>
+            {isDCChampion && (
+              <Animated.View entering={ZoomIn.duration(400)} style={{ alignItems: "center", marginVertical: 10 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: "rgba(167,139,250,0.15)", borderWidth: 1.5, borderColor: "#a78bfa", borderRadius: 10, paddingHorizontal: 16, paddingVertical: 8, gap: 8 }}>
+                  <Ionicons name="scale" size={22} color="#a78bfa" />
+                  <View>
+                    <Text style={{ color: "#a78bfa", fontSize: 13, fontWeight: "800" as const, letterSpacing: 2 }}>⚖️ DC CHAMPION</Text>
+                    <Text style={{ color: "rgba(167,139,250,0.75)", fontSize: 10, fontWeight: "600" as const, letterSpacing: 1, marginTop: 1 }}>AI VERDICT</Text>
+                  </View>
+                </View>
+              </Animated.View>
+            )}
             {trumpRoastText ? (
               <Animated.View entering={FadeIn.delay(800).duration(500)} style={s.roastContainer}>
                 <View style={s.roastHeader}>
