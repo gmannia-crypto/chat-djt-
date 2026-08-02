@@ -8697,10 +8697,49 @@ export default function ArenaScreen() {
               </View>
             ) : (
               <Pressable
-                onPress={() => {
+                onPress={async () => {
                   playCrowdCheer();
                   playDrumroll();
-                  fetchTrumpRoast();
+                  const pts = personaPointsRef.current;
+                  const totalPts = Object.values(pts).reduce((a, b) => a + b, 0);
+                  if (totalPts === 0) {
+                    // No votes cast — ask AI to pick the winner first, then roast
+                    setIsLoadingRoast(true);
+                    try {
+                      const r = await fetch(new URL("/api/arena/verdict", getApiUrl()).toString(), {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          topic: currentTopic || "General debate",
+                          messages: messagesRef.current
+                            .filter((m) => !m.isSystem && (m.text?.length ?? 0) > 5)
+                            .slice(-60)
+                            .map((m) => ({ speakerName: m.speakerName || m.speakerId, text: m.text })),
+                          personas: selectedPersonasRef.current,
+                        }),
+                      });
+                      if (r.ok) {
+                        const v = await r.json();
+                        const vWinner = (v.winner || "").toLowerCase();
+                        const winnerId = selectedPersonasRef.current.find((pid) => {
+                          const name = (getPersona(pid)?.name || "").toLowerCase();
+                          return name.includes(vWinner) || vWinner.includes(name);
+                        }) ?? selectedPersonasRef.current[0];
+                        if (winnerId) {
+                          personaPointsRef.current = { [winnerId]: 1 };
+                          setPersonaPoints({ [winnerId]: 1 });
+                          setIsDCChampion(true);
+                          fetchTrumpRoast();
+                        } else {
+                          setIsLoadingRoast(false);
+                        }
+                      } else {
+                        setIsLoadingRoast(false);
+                      }
+                    } catch { setIsLoadingRoast(false); }
+                  } else {
+                    fetchTrumpRoast();
+                  }
                 }}
                 style={s.roastTriggerBtn}
               >
