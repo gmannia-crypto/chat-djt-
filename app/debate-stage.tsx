@@ -4339,6 +4339,17 @@ export default function DebateStage() {
                 </View>
               </View>
             )}
+            {(() => {
+              const ps = messages.find((m) => m.isPartingShot);
+              if (!ps) return null;
+              return (
+                <View style={{ marginTop: 14, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: "rgba(255,80,80,0.10)", borderRadius: 14, borderWidth: 1, borderColor: "rgba(255,80,80,0.40)", maxWidth: 320, width: "100%" }}>
+                  <Text style={{ color: "#FF6B6B", fontSize: 10, fontWeight: "900", letterSpacing: 1.5, marginBottom: 5, textAlign: "center" }}>🔥 PARTING SHOT</Text>
+                  <Text style={{ color: "rgba(255,255,255,0.92)", fontSize: 12, lineHeight: 18, textAlign: "center", fontStyle: "italic" }}>"{ps.text}"</Text>
+                  <Text style={{ color: "rgba(255,107,107,0.65)", fontSize: 10, fontWeight: "700", textAlign: "center", marginTop: 5 }}>— {ps.speakerName}</Text>
+                </View>
+              );
+            })()}
             {debateTokenWinAmount ? (
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, paddingHorizontal: 14, paddingVertical: 6, backgroundColor: "rgba(255,215,0,0.12)", borderRadius: 14, borderWidth: 1, borderColor: "rgba(255,215,0,0.35)" }}>
                 <Ionicons name="logo-bitcoin" size={14} color="#FFD700" />
