@@ -1132,6 +1132,21 @@ export default function DebateStage() {
           setTimeout(() => setPartingShotFlashB(false), 2000);
         }
       }
+    } else {
+      // No parting shot — heat never reached the threshold.
+      // Append a neutral closing system message so the transcript doesn't end abruptly.
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `debate-ended-${Date.now()}`,
+          speakerId: "system",
+          speakerName: "System",
+          text: "— Debate ended —",
+          ts: Date.now(),
+          isSystem: true,
+          skipTTS: true,
+        },
+      ]);
     }
     // ─────────────────────────────────────────────────────────────────────────
 
