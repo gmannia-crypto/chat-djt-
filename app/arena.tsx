@@ -3919,6 +3919,18 @@ export default function ArenaScreen() {
   useEffect(() => {
     if (isDCChampion) {
       endSummaryScrollRef.current?.scrollTo({ y: 0, animated: true });
+      // Start glow pulse after the BounceIn entrance finishes (~1400ms delay + 800ms anim)
+      const timer = setTimeout(() => {
+        dcChampionGlow.value = withRepeat(
+          withSequence(
+            withTiming(0.4, { duration: 700 }),
+            withTiming(1, { duration: 700 }),
+          ),
+          -1,
+          false,
+        );
+      }, 1400);
+      return () => clearTimeout(timer);
     }
   }, [isDCChampion]);
   const [thankYouPlayed, setThankYouPlayed] = useState(false);
@@ -4099,6 +4111,7 @@ export default function ArenaScreen() {
   const [paywallSpeechPaused, setPaywallSpeechPaused] = useState(false);
   const paywallPulse = useSharedValue(1);
   const heatSpike = useSharedValue(1);
+  const dcChampionGlow = useSharedValue(1);
   const prevRoomTempRef = useRef<number>(0);
   const [sessionTimer, setSessionTimer] = useState<number>(0);
   const [roomTemperature, setRoomTemperature] = useState<number>(0);
@@ -4965,6 +4978,14 @@ export default function ArenaScreen() {
 
   const heatSpikeStyle = useAnimatedStyle(() => ({
     transform: [{ scale: heatSpike.value }],
+  }));
+
+  const dcChampionGlowStyle = useAnimatedStyle(() => ({
+    borderColor: `rgba(167,139,250,${dcChampionGlow.value})`,
+    shadowOpacity: dcChampionGlow.value * 0.8,
+    shadowRadius: 8 + dcChampionGlow.value * 8,
+    shadowColor: "#a78bfa",
+    shadowOffset: { width: 0, height: 0 },
   }));
 
   const addSystemMessage = useCallback((text: string) => {
@@ -8688,14 +8709,14 @@ export default function ArenaScreen() {
                 })}
             </View>
             {isDCChampion && (
-              <Animated.View entering={ZoomIn.duration(400)} style={{ alignItems: "center", marginVertical: 10 }}>
-                <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: "rgba(167,139,250,0.15)", borderWidth: 1.5, borderColor: "#a78bfa", borderRadius: 10, paddingHorizontal: 16, paddingVertical: 8, gap: 8 }}>
+              <Animated.View entering={BounceIn.delay(600).duration(800)} style={{ alignItems: "center", marginVertical: 10 }}>
+                <Animated.View style={[{ flexDirection: "row", alignItems: "center", backgroundColor: "rgba(167,139,250,0.15)", borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 8, gap: 8 }, dcChampionGlowStyle]}>
                   <Ionicons name="scale" size={22} color="#a78bfa" />
                   <View>
                     <Text style={{ color: "#a78bfa", fontSize: 13, fontWeight: "800" as const, letterSpacing: 2 }}>⚖️ DC CHAMPION</Text>
                     <Text style={{ color: "rgba(167,139,250,0.75)", fontSize: 10, fontWeight: "600" as const, letterSpacing: 1, marginTop: 1 }}>AI VERDICT</Text>
                   </View>
-                </View>
+                </Animated.View>
               </Animated.View>
             )}
             {trumpRoastText ? (
