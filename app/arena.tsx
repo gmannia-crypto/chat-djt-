@@ -8627,6 +8627,13 @@ export default function ArenaScreen() {
                 if (totalPts === 0) {
                   // Nobody voted — AI picks the winner, then auto-fires Trump roast + winner clapback
                   setIsLoadingRoast(true);
+                  const applyDCChampion = (winnerId: string) => {
+                    personaPointsRef.current = { [winnerId]: 1 };
+                    setPersonaPoints({ [winnerId]: 1 });
+                    setIsDCChampion(true);
+                    fetchTrumpRoast();
+                  };
+                  const fallbackWinnerId = selectedPersonasRef.current[0];
                   try {
                     const r = await fetch(new URL("/api/arena/verdict", getApiUrl()).toString(), {
                       method: "POST",
@@ -8646,20 +8653,18 @@ export default function ArenaScreen() {
                       const winnerId = selectedPersonasRef.current.find((pid) => {
                         const name = (getPersona(pid)?.name || "").toLowerCase();
                         return name.includes(vWinner) || vWinner.includes(name);
-                      }) ?? selectedPersonasRef.current[0];
-                      if (winnerId) {
-                        // Set synthetic point so leaderboard renders the AI winner
-                        personaPointsRef.current = { [winnerId]: 1 };
-                        setPersonaPoints({ [winnerId]: 1 });
-                        setIsDCChampion(true);
-                        fetchTrumpRoast();
-                      } else {
-                        setIsLoadingRoast(false);
-                      }
+                      }) ?? fallbackWinnerId;
+                      applyDCChampion(winnerId ?? fallbackWinnerId);
                     } else {
-                      setIsLoadingRoast(false);
+                      // API error — fall back to first persona so the flow always fires
+                      if (fallbackWinnerId) applyDCChampion(fallbackWinnerId);
+                      else setIsLoadingRoast(false);
                     }
-                  } catch { setIsLoadingRoast(false); }
+                  } catch {
+                    // Network error — same fallback
+                    if (fallbackWinnerId) applyDCChampion(fallbackWinnerId);
+                    else setIsLoadingRoast(false);
+                  }
                 }
               }}
               style={[s.summaryActionBtn, { backgroundColor: "transparent", borderWidth: 1, borderColor: "#ff4d4d", width: "100%" }]}
@@ -8750,6 +8755,13 @@ export default function ArenaScreen() {
                   if (totalPts === 0) {
                     // No votes cast — ask AI to pick the winner first, then roast
                     setIsLoadingRoast(true);
+                    const applyDCChampion = (winnerId: string) => {
+                      personaPointsRef.current = { [winnerId]: 1 };
+                      setPersonaPoints({ [winnerId]: 1 });
+                      setIsDCChampion(true);
+                      fetchTrumpRoast();
+                    };
+                    const fallbackWinnerId = selectedPersonasRef.current[0];
                     try {
                       const r = await fetch(new URL("/api/arena/verdict", getApiUrl()).toString(), {
                         method: "POST",
@@ -8769,19 +8781,16 @@ export default function ArenaScreen() {
                         const winnerId = selectedPersonasRef.current.find((pid) => {
                           const name = (getPersona(pid)?.name || "").toLowerCase();
                           return name.includes(vWinner) || vWinner.includes(name);
-                        }) ?? selectedPersonasRef.current[0];
-                        if (winnerId) {
-                          personaPointsRef.current = { [winnerId]: 1 };
-                          setPersonaPoints({ [winnerId]: 1 });
-                          setIsDCChampion(true);
-                          fetchTrumpRoast();
-                        } else {
-                          setIsLoadingRoast(false);
-                        }
+                        }) ?? fallbackWinnerId;
+                        applyDCChampion(winnerId ?? fallbackWinnerId);
                       } else {
-                        setIsLoadingRoast(false);
+                        if (fallbackWinnerId) applyDCChampion(fallbackWinnerId);
+                        else setIsLoadingRoast(false);
                       }
-                    } catch { setIsLoadingRoast(false); }
+                    } catch {
+                      if (fallbackWinnerId) applyDCChampion(fallbackWinnerId);
+                      else setIsLoadingRoast(false);
+                    }
                   } else {
                     fetchTrumpRoast();
                   }

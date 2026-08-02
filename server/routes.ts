@@ -9561,8 +9561,8 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
   app.post("/api/arena/verdict", async (req, res) => {
     try {
       const { topic, messages, personas } = req.body || {};
-      if (!topic || !Array.isArray(messages) || messages.length < 4) {
-        return res.status(400).json({ error: "Need a topic and at least 4 messages" });
+      if (!topic || !Array.isArray(messages) || messages.length < 2) {
+        return res.status(400).json({ error: "Need a topic and at least 2 messages" });
       }
       const transcript = (messages as any[])
         .filter((m: any) => !m.isSystem && m.speakerName && m.text)
