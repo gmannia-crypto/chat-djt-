@@ -57,10 +57,18 @@ export default function ArenaReplayScreen() {
   const [sliderWidth, setSliderWidth] = useState(300);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const currentSoundRef = useRef<Audio.Sound | null>(null);
-  const lastSpokenIdRef = useRef<string | null>(null);
   const voiceEnabledRef = useRef(true);
+  const playingRef = useRef(false);
+
+  // TTS sequential queue — each clip waits for the previous to finish
+  type TTSQueueItem =
+    | { id: string; kind: "tts"; text: string; personaId: string }
+    | { id: string; kind: "audio"; audioUri: string };
+  const ttsQueueRef = useRef<TTSQueueItem[]>([]);
+  const ttsProcessingRef = useRef(false);
 
   useEffect(() => { voiceEnabledRef.current = voiceEnabled; }, [voiceEnabled]);
+  useEffect(() => { playingRef.current = playing; }, [playing]);
 
   const stopReplayAudio = useCallback(() => {
     if (currentSoundRef.current) {
@@ -72,52 +80,73 @@ export default function ArenaReplayScreen() {
     }
   }, []);
 
-  const playReplayTTS = useCallback(async (text: string, personaId: string) => {
+  /** Play TTS and await completion (resolves when audio finishes or errors). */
+  const playReplayTTSAwait = useCallback(async (text: string, personaId: string): Promise<void> => {
     if (!voiceEnabledRef.current) return;
     if (shouldSkipPersonaVoice(personaId)) return;
-    stopReplayAudio();
-    try {
-      const sound = await playTTS("/api/persona-speak", { text, personaId }, { volume: getPersonaVoiceVolume(personaId) });
-      currentSoundRef.current = sound;
-      let cleaned = false;
-      const cleanup = () => {
-        if (cleaned) return;
-        cleaned = true;
-        sound.setOnPlaybackStatusUpdate(null);
-        if (currentSoundRef.current === sound) currentSoundRef.current = null;
-        sound.getStatusAsync().then((st: any) => {
-          if (st.isLoaded) sound.unloadAsync().catch(() => {});
-        }).catch(() => {});
-      };
-      sound.setOnPlaybackStatusUpdate((status: any) => {
-        if (status.didJustFinish || status.error) cleanup();
-      });
-      setTimeout(cleanup, 30000);
-    } catch {}
-  }, [stopReplayAudio]);
+    return new Promise<void>(async (resolve) => {
+      try {
+        const sound = await playTTS("/api/persona-speak", { text, personaId }, { volume: getPersonaVoiceVolume(personaId) });
+        currentSoundRef.current = sound;
+        let done = false;
+        const finish = () => {
+          if (done) return;
+          done = true;
+          sound.setOnPlaybackStatusUpdate(null);
+          if (currentSoundRef.current === sound) currentSoundRef.current = null;
+          sound.getStatusAsync().then((st: any) => {
+            if (st.isLoaded) sound.unloadAsync().catch(() => {});
+          }).catch(() => {});
+          resolve();
+        };
+        sound.setOnPlaybackStatusUpdate((status: any) => {
+          if (status.didJustFinish || status.error) finish();
+        });
+        setTimeout(finish, 30000);
+      } catch { resolve(); }
+    });
+  }, []);
 
-  const playUserAudio = useCallback(async (audioUri: string) => {
+  /** Play a stored audio URI and await completion. */
+  const playUserAudioAwait = useCallback(async (audioUri: string): Promise<void> => {
     if (!voiceEnabledRef.current) return;
-    stopReplayAudio();
-    try {
-      const sound = await playAudioFromUrl(audioUri, { volume: 1.0 });
-      currentSoundRef.current = sound;
-      let cleaned = false;
-      const cleanup = () => {
-        if (cleaned) return;
-        cleaned = true;
-        sound.setOnPlaybackStatusUpdate(null);
-        if (currentSoundRef.current === sound) currentSoundRef.current = null;
-        sound.getStatusAsync().then((st: any) => {
-          if (st.isLoaded) sound.unloadAsync().catch(() => {});
-        }).catch(() => {});
-      };
-      sound.setOnPlaybackStatusUpdate((status: any) => {
-        if (status.didJustFinish || status.error) cleanup();
-      });
-      setTimeout(cleanup, 30000);
-    } catch {}
-  }, [stopReplayAudio]);
+    return new Promise<void>(async (resolve) => {
+      try {
+        const sound = await playAudioFromUrl(audioUri, { volume: 1.0 });
+        currentSoundRef.current = sound;
+        let done = false;
+        const finish = () => {
+          if (done) return;
+          done = true;
+          sound.setOnPlaybackStatusUpdate(null);
+          if (currentSoundRef.current === sound) currentSoundRef.current = null;
+          sound.getStatusAsync().then((st: any) => {
+            if (st.isLoaded) sound.unloadAsync().catch(() => {});
+          }).catch(() => {});
+          resolve();
+        };
+        sound.setOnPlaybackStatusUpdate((status: any) => {
+          if (status.didJustFinish || status.error) finish();
+        });
+        setTimeout(finish, 30000);
+      } catch { resolve(); }
+    });
+  }, []);
+
+  /** Drain the TTS queue sequentially — each item plays in full before the next starts. */
+  const drainTTSQueue = useCallback(async () => {
+    if (ttsProcessingRef.current) return;
+    ttsProcessingRef.current = true;
+    while (ttsQueueRef.current.length > 0 && playingRef.current) {
+      const item = ttsQueueRef.current.shift()!;
+      if (item.kind === "audio") {
+        await playUserAudioAwait(item.audioUri);
+      } else {
+        await playReplayTTSAwait(item.text, item.personaId);
+      }
+    }
+    ttsProcessingRef.current = false;
+  }, [playReplayTTSAwait, playUserAudioAwait]);
 
   useEffect(() => {
     return () => { stopReplayAudio(); };
@@ -144,17 +173,18 @@ export default function ArenaReplayScreen() {
     const prevCount = visibleMessages.length;
     setVisibleMessages(msgs);
     if (playing && msgs.length > prevCount) {
-      const firstNew = msgs[prevCount];
-      if (firstNew && firstNew.id !== lastSpokenIdRef.current) {
-        lastSpokenIdRef.current = firstNew.id;
-        if (firstNew.speakerId === "user" && firstNew.audioUri) {
-          playUserAudio(firstNew.audioUri);
-        } else if (!firstNew.isSystem) {
-          playReplayTTS(firstNew.text, firstNew.speakerId);
+      // Enqueue ALL new messages — not just the first one
+      const newMsgs = msgs.slice(prevCount);
+      for (const msg of newMsgs) {
+        if (msg.speakerId === "user" && msg.audioUri) {
+          ttsQueueRef.current.push({ id: msg.id, kind: "audio", audioUri: msg.audioUri });
+        } else if (!msg.isSystem) {
+          ttsQueueRef.current.push({ id: msg.id, kind: "tts", text: msg.text, personaId: msg.speakerId });
         }
       }
+      drainTTSQueue();
     }
-  }, [playbackTime, selected, playing, playReplayTTS, playUserAudio]);
+  }, [playbackTime, selected, playing, drainTTSQueue]);
 
   useEffect(() => {
     if (playing && selected) {
@@ -163,7 +193,8 @@ export default function ArenaReplayScreen() {
           const next = prev + 0.1 * speed;
           if (next >= selected.duration) {
             setPlaying(false);
-            stopReplayAudio();
+            // Don't stop audio — let the last clip finish naturally; just stop adding new ones
+            ttsQueueRef.current = [];
             if (timerRef.current) clearInterval(timerRef.current);
             return selected.duration;
           }
@@ -191,10 +222,13 @@ export default function ArenaReplayScreen() {
     if (playbackTime >= selected.duration) {
       setPlaybackTime(0);
       setVisibleMessages([]);
-      lastSpokenIdRef.current = null;
+      ttsQueueRef.current = [];
     }
     setPlaying((p) => {
-      if (p) stopReplayAudio();
+      if (p) {
+        ttsQueueRef.current = [];
+        stopReplayAudio();
+      }
       return !p;
     });
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -205,9 +239,9 @@ export default function ArenaReplayScreen() {
     const x = evt.nativeEvent.locationX;
     const ratio = Math.max(0, Math.min(1, x / sliderWidth));
     const newTime = ratio * selected.duration;
-    setPlaybackTime(newTime);
-    lastSpokenIdRef.current = null;
+    ttsQueueRef.current = [];
     stopReplayAudio();
+    setPlaybackTime(newTime);
     Haptics.selectionAsync();
   };
 

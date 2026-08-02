@@ -498,6 +498,7 @@ function stripMarkdownForTTS(text: string): string {
     .replace(/^#{1,6}\s+/gm, "")                  // # headings
     .replace(/^[-•]\s+/gm, "")                    // - bullet / • bullet
     .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")      // [link](url) → link text only
+    .replace(/(\s*\[[^\[\]\n]{1,60}\])+\s*$/, "") // trailing [tag] stage directions (e.g. [laughs], [IQ:7,ALT:0])
     .replace(/\s{2,}/g, " ")
     .trim();
 }
@@ -8232,13 +8233,17 @@ Keep responses to 2-3 powerful, resonant sentences. No filler. No hedging. Every
       // --- Parse AI self-annotation [IQ:X,ALT:Y] ---
       let coherenceScore = 5; // default mid-range
       let aiAltTruthFlag = 0;
-      const selfScoreMatch = response.match(/\[IQ:(\d+),ALT:([01])\]\s*$/);
+      // Allow optional spaces around punctuation in case the LLM drifts from the exact format
+      const selfScoreMatch = response.match(/\[IQ\s*:\s*(\d+)\s*,\s*ALT\s*:\s*([01])\s*\]\s*$/);
       if (selfScoreMatch) {
         coherenceScore = Math.max(1, Math.min(10, parseInt(selfScoreMatch[1], 10)));
         aiAltTruthFlag = parseInt(selfScoreMatch[2], 10) === 1 ? 1 : 0;
         // Strip the tag from the displayed response
-        response = response.replace(/\s*\[IQ:\d+,ALT:[01]\]\s*$/, "").trim();
+        response = response.replace(/\s*\[IQ\s*:\s*\d+\s*,\s*ALT\s*:\s*[01]\s*\]\s*$/, "").trim();
       }
+      // Strip any remaining trailing [tag] annotations (e.g. [laughs], [pause], [excited])
+      // that the LLM sometimes appends as stage directions — they should never be shown or spoken.
+      response = response.replace(/(\s*\[[^\[\]\n]{1,60}\])+\s*$/, "").trim();
 
       // --- Alt-Truth detection: AI flag + phrase fallback ---
       const responseLower = response.toLowerCase();
