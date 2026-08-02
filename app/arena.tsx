@@ -3903,6 +3903,7 @@ export default function ArenaScreen() {
   const [showScoreboard, setShowScoreboard] = useState(false);
   const [showEndSummary, setShowEndSummary] = useState(false);
   const [isDCChampion, setIsDCChampion] = useState(false);
+  const endSummaryScrollRef = useRef<ScrollView>(null);
   const [showViralClips, setShowViralClips] = useState(false);
   const [viralClipVideoStates, setViralClipVideoStates] = useState<Record<number, { loading: boolean; videoUrl: string | null; error: string | null }>>({});
   const [showContinuePrompt, setShowContinuePrompt] = useState(false);
@@ -3915,6 +3916,11 @@ export default function ArenaScreen() {
   const [isLoadingClapBack, setIsLoadingClapBack] = useState(false);
   const personaPointsRef = useRef<Record<string, number>>({});
   useEffect(() => { personaPointsRef.current = personaPoints; }, [personaPoints]);
+  useEffect(() => {
+    if (isDCChampion) {
+      endSummaryScrollRef.current?.scrollTo({ y: 0, animated: true });
+    }
+  }, [isDCChampion]);
   const [thankYouPlayed, setThankYouPlayed] = useState(false);
 
   const [winTallyGlobal, setWinTallyGlobal] = useState<Record<string, number>>({});
@@ -8643,7 +8649,7 @@ export default function ArenaScreen() {
       <Modal visible={showEndSummary} transparent animationType="fade">
         <View style={s.paywallOverlay}>
           <Animated.View entering={ZoomIn.duration(500)} style={[s.summaryCard, { maxHeight: "85%" }]}>
-          <ScrollView showsVerticalScrollIndicator={false}>
+          <ScrollView ref={endSummaryScrollRef} showsVerticalScrollIndicator={false}>
             <View style={{ alignItems: "center" }}>
             {isDCChampion ? (
               <Ionicons name="scale" size={40} color="#a78bfa" />
