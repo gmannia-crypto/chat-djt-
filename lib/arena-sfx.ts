@@ -235,3 +235,33 @@ export async function playDrumroll() {
     }
   }
 }
+
+// Ascending fanfare chime for the DC CHAMPION badge entrance.
+// Distinct from playBellSound (triple bell) and playCrowdCheer (crowd noise).
+export async function playChampionChime() {
+  if (Platform.OS === "web") {
+    try {
+      // Triumphant ascending arpeggio: C5 → E5 → G5 → C6, then a sustained chord
+      const notes = [523, 659, 784, 1047];
+      notes.forEach((freq, i) => {
+        setTimeout(() => {
+          playWebTone(freq, 0.55, "sine", 0.35);
+          // subtle harmonic shimmer
+          playWebTone(freq * 2, 0.3, "sine", 0.1);
+        }, i * 110);
+      });
+      // Final sustained chord hit
+      setTimeout(() => {
+        playWebTone(1047, 0.9, "sine", 0.3);
+        playWebTone(784, 0.9, "sine", 0.2);
+        playWebTone(523, 0.9, "sine", 0.15);
+      }, notes.length * 110 + 40);
+    } catch {}
+  } else {
+    try {
+      await playNativeSound("/public/winner-after.m4a", 0.85);
+    } catch (e) {
+      console.warn("SFX champion-chime failed:", e);
+    }
+  }
+}

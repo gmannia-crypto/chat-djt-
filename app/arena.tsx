@@ -34,7 +34,7 @@ import { getApiUrl } from "@/lib/query-client";
 import { fetch } from "expo/fetch";
 import { playTTS, playAudioFromUrl, prefetchTTSAudio, playPrefetchedAudio } from "@/lib/audio-helper";
 import { getPersonaVoiceVolume, shouldSkipPersonaVoice } from "@/lib/persona-voice";
-import { playPointAwardSound, playVoteClickSound, playVoteSound2, playBellSound, playCrowdCheer, playDrumroll, playWinnerChosenSound, playWinnerAfterSound, playBreakingNewsAlert } from "@/lib/arena-sfx";
+import { playPointAwardSound, playVoteClickSound, playVoteSound2, playBellSound, playCrowdCheer, playDrumroll, playWinnerChosenSound, playWinnerAfterSound, playBreakingNewsAlert, playChampionChime } from "@/lib/arena-sfx";
 import { useTokens } from "@/lib/token-context";
 import { usePersonaLocks, PREMIUM_PERSONA_CONFIGS } from "@/lib/persona-locks";
 import {
@@ -3919,8 +3919,12 @@ export default function ArenaScreen() {
   useEffect(() => {
     if (isDCChampion) {
       endSummaryScrollRef.current?.scrollTo({ y: 0, animated: true });
+      // Fire chime when the BounceIn badge entrance begins (~600ms delay)
+      const chimeTimer = voiceEnabled
+        ? setTimeout(() => { playChampionChime(); }, 600)
+        : null;
       // Start glow pulse after the BounceIn entrance finishes (~1400ms delay + 800ms anim)
-      const timer = setTimeout(() => {
+      const glowTimer = setTimeout(() => {
         dcChampionGlow.value = withRepeat(
           withSequence(
             withTiming(0.4, { duration: 700 }),
@@ -3930,9 +3934,12 @@ export default function ArenaScreen() {
           false,
         );
       }, 1400);
-      return () => clearTimeout(timer);
+      return () => {
+        if (chimeTimer) clearTimeout(chimeTimer);
+        clearTimeout(glowTimer);
+      };
     }
-  }, [isDCChampion]);
+  }, [isDCChampion, voiceEnabled]);
   const [thankYouPlayed, setThankYouPlayed] = useState(false);
 
   const [winTallyGlobal, setWinTallyGlobal] = useState<Record<string, number>>({});
