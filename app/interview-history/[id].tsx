@@ -22,7 +22,7 @@ import TagEditorModal, {
 
 const SHARE_URL = "https://trumpbot.rip";
 
-type Msg = { id: string; speakerId: string; speakerName: string; text: string; ts: number; isInterruption?: boolean; isCallIn?: boolean; callerName?: string };
+type Msg = { id: string; speakerId: string; speakerName: string; text: string; ts: number; isInterruption?: boolean; isCallIn?: boolean; callerName?: string; isPartingShot?: boolean };
 type LieEntry = { id: string; speakerId: string; speakerName: string; text: string; score: number; reason: string; fact: string; ts: number; userFlagged?: boolean };
 
 type Detail = {
@@ -465,6 +465,11 @@ export default function InterviewTranscriptScreen() {
   const userLieCount = lies.reduce((n, l) => n + (l.userFlagged ? 1 : 0), 0);
   const aiLieCount = lies.length - userLieCount;
 
+  const partingShot = useMemo(() => {
+    if (!data) return null;
+    return data.messages.find((m) => m.isPartingShot) ?? null;
+  }, [data]);
+
   const renderHeader = useMemo(() => {
     if (!data) return null;
     return (
@@ -526,10 +531,17 @@ export default function InterviewTranscriptScreen() {
           </View>
         ) : null}
 
+        {partingShot ? (
+          <View style={s.partingShotBanner} testID="transcript-parting-shot">
+            <Text style={s.partingShotLabel}>🔥 PARTING SHOT · {partingShot.speakerName}</Text>
+            <Text style={s.partingShotText}>"{partingShot.text}"</Text>
+          </View>
+        ) : null}
+
         <Text style={s.transcriptLabel}>TRANSCRIPT</Text>
       </View>
     );
-  }, [data, interviewerPortrait, intervieweePortrait, lies.length, tags]);
+  }, [data, interviewerPortrait, intervieweePortrait, lies.length, tags, partingShot]);
 
   return (
     <View style={[s.container, { paddingTop: insets.top + webTop }]}>
@@ -580,6 +592,23 @@ export default function InterviewTranscriptScreen() {
           renderItem={({ item }) => {
             const isInterviewer = item.speakerId === data.interviewerId;
             const isCallIn = !!item.isCallIn;
+            const isPartingShot = !!item.isPartingShot;
+            if (isPartingShot) {
+              return (
+                <View style={[s.bubbleRow, { justifyContent: "center" }]}>
+                  <Pressable
+                    onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {}); setCopied(false); setShareMsg(item); }}
+                    onPress={() => { setCopied(false); setShareMsg(item); }}
+                    delayLongPress={300}
+                    testID={`bubble-${item.id}`}
+                    style={s.bubblePartingShot}
+                  >
+                    <Text style={s.bubblePartingShotName}>🔥 {item.speakerName} · PARTING SHOT</Text>
+                    <Text style={[s.bubbleText, { fontStyle: "italic", textAlign: "center" }]}>{item.text}</Text>
+                  </Pressable>
+                </View>
+              );
+            }
             return (
               <View style={[s.bubbleRow, isCallIn ? { justifyContent: "center" } : isInterviewer ? { justifyContent: "flex-start" } : { justifyContent: "flex-end" }]}>
                 <Pressable
@@ -924,6 +953,12 @@ const s = StyleSheet.create({
   bubbleInterrupt: { borderStyle: "dashed" },
   bubbleName: { fontSize: 10, fontWeight: "900", letterSpacing: 0.5, marginBottom: 3 },
   bubbleText: { color: "#fff", fontSize: 14, lineHeight: 19 },
+  bubblePartingShot: { maxWidth: "90%", borderRadius: 14, paddingHorizontal: 14, paddingVertical: 11, borderWidth: 1, backgroundColor: "rgba(255,80,0,0.18)", borderColor: "#ff6a00", alignItems: "center" },
+  bubblePartingShotName: { fontSize: 10, fontWeight: "900" as const, letterSpacing: 0.5, marginBottom: 4, color: "#ff6a00", textAlign: "center" },
+
+  partingShotBanner: { marginTop: 14, padding: 12, borderRadius: 12, backgroundColor: "rgba(255,80,0,0.13)", borderWidth: 1, borderColor: "rgba(255,106,0,0.55)" },
+  partingShotLabel: { color: "#ff6a00", fontSize: 10, fontWeight: "900" as const, letterSpacing: 0.8, marginBottom: 5 },
+  partingShotText: { color: "#fff", fontSize: 13, fontStyle: "italic" as const, lineHeight: 18 },
 
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.75)", justifyContent: "flex-end" },
   sheet: { backgroundColor: "#0F0F12", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 18, borderTopWidth: 1, borderColor: "rgba(255,215,0,0.2)" },
