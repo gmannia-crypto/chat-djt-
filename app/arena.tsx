@@ -3902,6 +3902,7 @@ export default function ArenaScreen() {
   const [awardedMessages, setAwardedMessages] = useState<Set<string>>(new Set());
   const [showScoreboard, setShowScoreboard] = useState(false);
   const [showEndSummary, setShowEndSummary] = useState(false);
+  const [isDCChampion, setIsDCChampion] = useState(false);
   const [showViralClips, setShowViralClips] = useState(false);
   const [viralClipVideoStates, setViralClipVideoStates] = useState<Record<number, { loading: boolean; videoUrl: string | null; error: string | null }>>({});
   const [showContinuePrompt, setShowContinuePrompt] = useState(false);
@@ -5786,7 +5787,11 @@ export default function ArenaScreen() {
       await new Promise((r) => setTimeout(r, 500 + Math.random() * 500));
       if (!mountedRef.current || !isRunningRef.current) return;
 
-      // Clapback: Trump fires back at the interrupter
+      // Clapback: Trump fires back at the interrupter — but skip if Trump's own
+      // speech is already queued (prevents Trump from talking over himself).
+      const trumpAlreadyQueued = ttsQueueRef.current.some((item: any) => item.personaId === "trump");
+      if (trumpAlreadyQueued) return;
+
       const clapHeaders: Record<string, string> = { "Content-Type": "application/json" };
       if (deviceId) clapHeaders["x-device-id"] = deviceId;
       // Use the last Trump message we have (or fall back to empty context)
@@ -7386,6 +7391,7 @@ export default function ArenaScreen() {
 
                 sessionEndedRef.current = false;
                 isInterruptingRef.current = false;
+                setIsDCChampion(false);
 
                 if (useCustomTopic && customTopicText.trim()) {
                   setCurrentTopic(customTopicText.trim());
@@ -8611,6 +8617,7 @@ export default function ArenaScreen() {
                         // Set synthetic point so leaderboard renders the AI winner
                         personaPointsRef.current = { [winnerId]: 1 };
                         setPersonaPoints({ [winnerId]: 1 });
+                        setIsDCChampion(true);
                         fetchTrumpRoast();
                       } else {
                         setIsLoadingRoast(false);
@@ -8638,18 +8645,28 @@ export default function ArenaScreen() {
           <Animated.View entering={ZoomIn.duration(500)} style={[s.summaryCard, { maxHeight: "85%" }]}>
           <ScrollView showsVerticalScrollIndicator={false}>
             <View style={{ alignItems: "center" }}>
-            <Ionicons name="trophy" size={40} color="#FFD700" />
+            {isDCChampion ? (
+              <Ionicons name="scale" size={40} color="#a78bfa" />
+            ) : (
+              <Ionicons name="trophy" size={40} color="#FFD700" />
+            )}
             <Text style={s.summaryTitle}>SESSION RESULTS</Text>
+            {isDCChampion && (
+              <Text style={{ color: "#a78bfa", fontSize: 11, fontWeight: "800" as const, letterSpacing: 2, marginBottom: 6, marginTop: -4 }}>
+                ⚖️ DC CHAMPION — AI VERDICT
+              </Text>
+            )}
             <View style={s.summaryLeaderboard}>
               {Object.entries(personaPoints)
                 .sort(([, a], [, b]) => b - a)
                 .map(([pid, pts], idx) => {
                   const p = getPersona(pid);
                   if (!p) return null;
+                  const isDCWinner = isDCChampion && idx === 0;
                   return (
                     <Animated.View key={pid} entering={FadeInDown.delay(idx * 150).duration(300)} style={[s.summaryRow, idx === 0 && s.summaryRowWinner]}>
-                      <Text style={[s.summaryRank, idx === 0 && { color: "#FFD700", fontSize: 18 }]}>
-                        {idx === 0 ? "👑" : `#${idx + 1}`}
+                      <Text style={[s.summaryRank, idx === 0 && { color: isDCWinner ? "#a78bfa" : "#FFD700", fontSize: 18 }]}>
+                        {idx === 0 ? (isDCWinner ? "⚖️" : "👑") : `#${idx + 1}`}
                       </Text>
                       {p.image ? (
                         <Image source={p.image} style={s.summaryAvatar} />
@@ -8659,7 +8676,7 @@ export default function ArenaScreen() {
                         </View>
                       )}
                       <Text style={[s.summaryName, { color: p.color }]}>{p.name}</Text>
-                      <Text style={s.summaryPoints}>{pts}</Text>
+                      <Text style={[s.summaryPoints, isDCWinner && { color: "#a78bfa" }]}>{isDCWinner ? "AI" : pts}</Text>
                     </Animated.View>
                   );
                 })}
