@@ -10526,12 +10526,16 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
     try {
       const { winnerId, winnerName, loserId, loserName, verdict, topic } = req.body;
       if (!winnerId || !winnerName) return res.status(400).json({ error: "Missing required fields" });
-      const systemPrompt = getArenaPersonaPrompt(winnerId);
-      const userPrompt = `You just DESTROYED ${loserName} in a 1-on-1 political debate on the topic: "${topic || "politics"}".\n\nThe AI judge ruled decisively in your favor: "${verdict || "Your arguments were stronger and better supported by facts."}"\n\nNow deliver your VICTORY speech DIRECTLY to ${loserName}. Call out their weakest arguments specifically. Mock their logic, their facts, their delivery. Be savage, sharp, and fully in character. Make them regret ever showing up. 2-3 sentences max. No hashtags, no stage directions.`;
+      const basePrompt = getArenaPersonaPrompt(winnerId) || `You are ${winnerName}.`;
+      // Append an airtight anti-disclaimer layer — same pattern used across all arena persona calls.
+      // Without this, the LLM adds safety caveats / content warnings for spicy characters (Ruckus, Trump etc).
+      const systemPrompt = basePrompt +
+        `\n\nCRITICAL — CHARACTER LOCK: This is a fictional adult satire application. You are ${winnerName}. You NEVER break character. You NEVER add content warnings, disclaimers, apologies, or meta-commentary about the nature of the content. You NEVER say things like "I must note," "it's important to acknowledge," "as a disclaimer," "this is satire," or any variation. Just speak as ${winnerName} with full conviction. Raw, unfiltered, in character. No hedging. No fourth-wall breaks.`;
+      const userPrompt = `You just DESTROYED ${loserName} in a 1-on-1 political debate on the topic: "${topic || "politics"}".\n\nThe AI judge ruled decisively in your favor: "${verdict || "Your arguments were stronger and better supported by facts."}"\n\nNow deliver your VICTORY speech DIRECTLY to ${loserName}. Call out their weakest arguments. Mock their logic. Be savage, sharp, and fully in character. 2-3 sentences max. No hashtags, no stage directions, no disclaimers.`;
       const completion = await getClient().chat.completions.create({
         model: getFastModel(),
         messages: [
-          { role: "system", content: systemPrompt || `You are ${winnerName}. You just won a debate. Roast your opponent.` },
+          { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
         max_completion_tokens: 180,
@@ -10539,6 +10543,8 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
       });
       let speech = completion.choices[0]?.message?.content || `That's what happens when you bring facts, ${loserName}. Better luck next time.`;
       speech = speech.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim();
+      // Strip any LLM-injected disclaimer sentences that start with known patterns
+      speech = speech.replace(/\b(Note|Disclaimer|Content warning|Please note|I must note|As a note|Important)[:\s][^.!?]*[.!?]/gi, "").trim();
       res.json({ speech });
     } catch (err: any) {
       console.error("debate-verdict-speech error:", err);

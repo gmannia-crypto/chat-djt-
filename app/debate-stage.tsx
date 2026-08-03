@@ -1296,74 +1296,80 @@ export default function DebateStage() {
       // ───────────────────────────────────────────────────────────────────────
 
       // ── TRUMP'S REACTION + WINNER'S TAUNT AT THE LOSER ───────────────────
-      // Mirrors the arena flow: Trump fires a roast at the debate result,
-      // then the winner delivers an AI-generated taunt directly at the loser.
-      if (deviceId) {
-        setIsLoadingDebateRoast(true);
+      // Trump fires a roast (requires deviceId for rate-limiting).
+      // Winner's taunt fires independently — no deviceId required.
+      setIsLoadingDebateRoast(true);
+      try {
+        // Trump roast (fire-and-forget if no deviceId)
+        let trumpRoastText = "";
+        if (deviceId) {
+          try {
+            const roastRes = await fetch(new URL("/api/arena/roast", getApiUrl()).toString(), {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+              body: JSON.stringify({
+                winnerId,
+                winnerName,
+                winnerPoints: debateWinnerObj?.points ?? 1,
+                trumpPoints: 0,
+                customerName: "the audience",
+                leaderboard: [
+                  { name: winnerName, points: debateWinnerObj?.points ?? 1 },
+                  { name: loserName,  points: debateWinnerObj?.opponentPoints ?? 0 },
+                ],
+                winTally: null,
+              }),
+            });
+            // Accept both 200 (fresh roast) and 429 (rate-limit fallback — still returns roast text)
+            const roastData = await roastRes.json();
+            if (roastData.roast) {
+              trumpRoastText = roastData.roast;
+              setDebateTrumpRoast(trumpRoastText);
+              if (voiceEnabledRef.current) {
+                playTTS("/api/persona-speak", { text: trumpRoastText, personaId: "trump" }, { volume: getPersonaVoiceVolume("trump") }).catch(() => {});
+              }
+              setMessages((prev) => [...prev, {
+                id: `trump-roast-${Date.now()}`,
+                speakerId: "trump", speakerName: "Donald Trump",
+                text: trumpRoastText, ts: Date.now(), skipTTS: true,
+              }]);
+              await new Promise<void>((r) => setTimeout(r, 5000));
+            }
+          } catch { /* Trump roast failure is non-fatal */ }
+        }
+
+        // Winner's taunt — always fires (no deviceId needed)
         try {
-          const roastRes = await fetch(new URL("/api/arena/roast", getApiUrl()).toString(), {
+          const speechRes = await fetch(new URL("/api/arena/debate-verdict-speech", getApiUrl()).toString(), {
             method: "POST",
-            headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               winnerId,
               winnerName,
-              winnerPoints: debateWinnerObj?.points ?? 1,
-              trumpPoints: 0,
-              customerName: "the audience",
-              leaderboard: [
-                { name: winnerName, points: debateWinnerObj?.points ?? 1 },
-                { name: loserName,  points: debateWinnerObj?.opponentPoints ?? 0 },
-              ],
-              winTally: null,
+              loserId,
+              loserName,
+              verdict: aiVerdictText,
+              topic: topicForVerdict,
             }),
           });
-          if (roastRes.ok) {
-            const roastData = await roastRes.json();
-            setDebateTrumpRoast(roastData.roast);
-            if (voiceEnabledRef.current) {
-              playTTS("/api/persona-speak", { text: roastData.roast, personaId: "trump" }, { volume: getPersonaVoiceVolume("trump") }).catch(() => {});
-            }
-            // Add Trump's reaction to the chat transcript
-            setMessages((prev) => [...prev, {
-              id: `trump-roast-${Date.now()}`,
-              speakerId: "trump", speakerName: "Donald Trump",
-              text: roastData.roast, ts: Date.now(), skipTTS: true,
-            }]);
-            await new Promise<void>((r) => setTimeout(r, 5000));
-
-            // Winner's AI-generated taunt at the loser
-            if (winnerId !== "trump") {
-              const speechRes = await fetch(new URL("/api/arena/debate-verdict-speech", getApiUrl()).toString(), {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  winnerId,
-                  winnerName,
-                  loserId,
-                  loserName,
-                  verdict: aiVerdictText,
-                  topic: topicForVerdict,
-                }),
-              });
-              if (speechRes.ok) {
-                const speechData = await speechRes.json();
-                setDebateWinnerSpeech(speechData.speech);
-                if (voiceEnabledRef.current) {
-                  playTTS("/api/persona-speak", { text: speechData.speech, personaId: winnerId }, { volume: getPersonaVoiceVolume(winnerId) }).catch(() => {});
-                }
-                // Add winner's taunt to the chat transcript
-                setMessages((prev) => [...prev, {
-                  id: `winner-taunt-${Date.now()}`,
-                  speakerId: winnerId, speakerName: winnerName,
-                  text: speechData.speech, ts: Date.now(), skipTTS: true,
-                }]);
-                await new Promise<void>((r) => setTimeout(r, 4500));
+          if (speechRes.ok) {
+            const speechData = await speechRes.json();
+            if (speechData.speech) {
+              setDebateWinnerSpeech(speechData.speech);
+              if (voiceEnabledRef.current) {
+                playTTS("/api/persona-speak", { text: speechData.speech, personaId: winnerId }, { volume: getPersonaVoiceVolume(winnerId) }).catch(() => {});
               }
+              setMessages((prev) => [...prev, {
+                id: `winner-taunt-${Date.now()}`,
+                speakerId: winnerId, speakerName: winnerName,
+                text: speechData.speech, ts: Date.now(), skipTTS: true,
+              }]);
+              await new Promise<void>((r) => setTimeout(r, 4500));
             }
           }
-        } catch { /* roast/speech failures are non-fatal */ } finally {
-          setIsLoadingDebateRoast(false);
-        }
+        } catch { /* winner speech failure is non-fatal */ }
+      } finally {
+        setIsLoadingDebateRoast(false);
       }
       // ─────────────────────────────────────────────────────────────────────
 
