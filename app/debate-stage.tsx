@@ -2944,27 +2944,26 @@ export default function DebateStage() {
       let rebuttalDone = false;
 
       await Promise.all([
-        // Branch A: track when the rebuttal fetch settles and pre-fetch its audio.
+        // Branch A: track when the rebuttal fetch settles and pre-fetch its AUDIO only.
+        // We deliberately do NOT push to ttsQueueRef here — doing so creates a race
+        // condition when the rebuttal was pre-fetched (already resolved): the .then()
+        // fires as a microtask BEFORE Branch B's speakMod call can enqueue the bridge,
+        // producing the wrong order [primaryAnswer, rebuttal, bridge] instead of the
+        // correct [primaryAnswer, bridge, rebuttal]. Branch B pushes the rebuttal TTS
+        // after bridge+fillers complete, guaranteeing correct order in all cases.
+        // Audio is still pre-fetched here so the clip is cached and plays instantly.
         rebuttalPromise
           .then((r) => {
             rebuttal = r;
             rebuttalDone = true;
             if (r?.text && runningRef.current) {
               startPrefetch({ text: r.text, personaId: secondaryId });
-              // PRE-PUSH rebuttal TTS now — processQueue will pick it up the instant
-              // the bridge (or last filler) finishes, with 500ms overlap if bridge
-              // uses blockEarlyResolve: false. enrichAndAddMessage below uses
-              // skipTTS: true so the queue item is not double-enqueued.
-              // Wake processQueue after the push — if it exited the loop between
-              // the last filler finishing and this .then() firing, the item would
-              // sit in the queue unprocessed (dead silence bug).
-              ttsQueueRef.current.push({ text: r.text, personaId: secondaryId });
-              processQueue();
             }
           })
           .catch(() => { rebuttalDone = true; }),
 
-        // Branch B: play bridge then fillers while rebuttal is in-flight.
+        // Branch B: play bridge then fillers while rebuttal is in-flight, then enqueue
+        // rebuttal TTS so it always follows the bridge — correct order guaranteed.
         (async () => {
           // One microtask flush — if the promise was already settled (common case
           // after primary TTS), rebuttalDone is now true and we can null-guard
@@ -2982,14 +2981,21 @@ export default function DebateStage() {
           // pattern as the primary filler above.
           const firstRebuttalFiller = getWaitFiller(secondaryName);
           startPrefetch({ text: firstRebuttalFiller, personaId: mod.personaId });
-          // blockEarlyResolve: false — rebuttal TTS is pre-queued, enabling 500ms overlap.
-          await speakMod(bridgeText, `modbr-${Date.now()}-${Math.random()}`, { blockEarlyResolve: false });
+          // blockEarlyResolve: true — bridge must finish fully before rebuttal starts
+          // (rebuttal is enqueued below, after fillers, so no early-resolve needed).
+          await speakMod(bridgeText, `modbr-${Date.now()}-${Math.random()}`, { blockEarlyResolve: true });
           // Bridge finished — play filler lines until the rebuttal AI response arrives.
           let firstRebuttalFiller_ = true;
           while (!rebuttalDone && runningRef.current) {
             const fillerText = firstRebuttalFiller_ ? firstRebuttalFiller : getWaitFiller(secondaryName);
             firstRebuttalFiller_ = false;
             await speakModFiller(fillerText, `modfiller-${Date.now()}-${Math.random()}`);
+          }
+          // Enqueue rebuttal TTS here — bridge+fillers are guaranteed done so order
+          // is always correct. Audio was pre-fetched in Branch A → zero dead air.
+          if (rebuttal?.text && runningRef.current) {
+            ttsQueueRef.current.push({ text: rebuttal.text, personaId: secondaryId });
+            processQueue();
           }
         })(),
       ]);
