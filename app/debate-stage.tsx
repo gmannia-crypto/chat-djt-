@@ -875,6 +875,8 @@ export default function DebateStage() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const savedSessionRef = useRef(false);
   const [savedSessionId, setSavedSessionId] = useState<string | null>(null);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareTab, setShareTab] = useState<"viral" | "transcript">("viral");
   const [debateBetPick, setDebateBetPick] = useState<"interviewer" | "interviewee" | null>(null);
   const [debateBetWager, setDebateBetWager] = useState(2);
   const [debateBetResult, setDebateBetResult] = useState<{ won: boolean; payout: number; winner: "interviewer" | "interviewee" } | null>(null);
@@ -2088,8 +2090,19 @@ export default function DebateStage() {
         sound.getStatusAsync().then((st: any) => { if (st.isLoaded) sound.stopAsync().then(() => sound.unloadAsync()).catch(() => {}); }).catch(() => {});
         setActiveSpeaker(activeSpeakerRef.current);
       };
-      sound.setOnPlaybackStatusUpdate((status: any) => { if (status.didJustFinish || status.error) cleanup(); });
-      setTimeout(cleanup, 8000);
+      // Dynamic safety timeout: start at 12 s to cover slow TTS fetches.
+      // Once the clip is playing and duration is known, reset to duration + 4 s
+      // so short one-liners (< 1 s) are never silenced by the flat safety window.
+      let safetyTimer: ReturnType<typeof setTimeout> = setTimeout(cleanup, 12000);
+      sound.setOnPlaybackStatusUpdate((status: any) => {
+        if (status.didJustFinish || status.error) {
+          clearTimeout(safetyTimer);
+          cleanup();
+        } else if (status.isPlaying && (status as any).durationMillis && !cleaned) {
+          clearTimeout(safetyTimer);
+          safetyTimer = setTimeout(cleanup, (status as any).durationMillis + 4000);
+        }
+      });
     } catch {}
   }, []);
 
@@ -3354,6 +3367,58 @@ export default function DebateStage() {
       });
   }, [phase, deviceId, interviewerId, intervieweeId, duration, lies, emoInterviewer, emoInterviewee, topics, fetchLieTally]);
 
+  // Build share content for the viral transcript modal
+  const generateShareContent = useCallback(() => {
+    const msgs = messagesRef.current.filter((m) => !m.isSystem);
+    const aName = interviewers.find((p) => p.id === interviewerId)?.name ?? "Debater A";
+    const bName = interviewees.find((p) => p.id === intervieweeId)?.name ?? "Debater B";
+    const topicStr = typeof currentTopic === "string" ? currentTopic : (currentTopic as any)?.title || "Political Debate";
+
+    // Topic → CamelCase hashtag, max 28 chars
+    const topicHashtag = "#" + topicStr
+      .replace(/[^a-zA-Z0-9\s]/g, "")
+      .split(/\s+/).filter(Boolean).slice(0, 4)
+      .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+      .join("").slice(0, 28);
+
+    // Pick up to 2 best quotes from each side (longest non-trivial lines)
+    const pick = (speakerId: string) =>
+      msgs.filter((m) => m.speakerId === speakerId && m.text.length > 50)
+        .sort((a, b) => b.text.length - a.text.length).slice(0, 2);
+    const aQuotes = pick(interviewerId ?? "");
+    const bQuotes = pick(intervieweeId ?? "");
+    const bestQuotes: typeof msgs = [];
+    const maxQ = Math.max(aQuotes.length, bQuotes.length);
+    for (let i = 0; i < maxQ; i++) {
+      if (aQuotes[i]) bestQuotes.push(aQuotes[i]);
+      if (bQuotes[i]) bestQuotes.push(bQuotes[i]);
+    }
+
+    // ── Viral social post ────────────────────────────────────────────────────
+    let viralText = `🔥 AI DEBATE: ${aName} vs ${bName}\n`;
+    viralText += `📢 Topic: "${topicStr}"\n\n`;
+    bestQuotes.slice(0, 4).forEach((m) => {
+      const name = m.speakerId === interviewerId ? aName : bName;
+      const snippet = m.text.length > 130 ? m.text.slice(0, 127) + "…" : m.text;
+      viralText += `${name}: "${snippet}"\n\n`;
+    });
+    viralText += `${msgs.length} exchanges 🎙️\n\n`;
+    viralText += `Watch AI personas debate LIVE 👇\nchatdjt.com\n\n`;
+    viralText += `#AIDebate #ChatDJT ${topicHashtag} @ChatDJT`;
+
+    // ── Full transcript ──────────────────────────────────────────────────────
+    let fullTranscript = `=== ${aName} vs ${bName} ===\n📢 ${topicStr}\n`;
+    fullTranscript += `${"─".repeat(40)}\n\n`;
+    msgs.forEach((m) => {
+      const ts = new Date(m.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      fullTranscript += `[${ts}] ${m.speakerName}: ${m.text}\n\n`;
+    });
+    fullTranscript += `${"─".repeat(40)}\n`;
+    fullTranscript += `chatdjt.com  |  #AIDebate #ChatDJT ${topicHashtag}`;
+
+    return { viralText, fullTranscript, aName, bName, topicStr, topicHashtag, msgCount: msgs.length };
+  }, [interviewerId, intervieweeId, interviewers, interviewees, currentTopic]);
+
   // Resolve winner bet when debate ends
   useEffect(() => {
     if (phase !== "ended") return;
@@ -4407,20 +4472,10 @@ export default function DebateStage() {
             </Pressable>
             <ShareAppButton variant="pill" area="arena" />
             <Pressable
-              onPress={async () => {
+              onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                const msgs = messagesRef.current.filter((m) => !m.isSystem);
-                const aName = interviewers.find((p) => p.id === interviewerId)?.name ?? interviewerId ?? "Debater A";
-                const bName = interviewees.find((p) => p.id === intervieweeId)?.name ?? intervieweeId ?? "Debater B";
-                const topicStr = typeof currentTopic === "string" ? currentTopic : (currentTopic as any)?.title || "Political Debate";
-                const highlight = msgs.slice(-20).filter((m) => m.text.length > 30).sort((a, b) => b.text.length - a.text.length)[0]?.text?.slice(0, 120) || "";
-                let text = `🔥 "${aName} vs ${bName}" — Chat DJT\n📋 Topic: ${topicStr}\n`;
-                if (highlight) text += `\n💬 "${highlight}"\n`;
-                text += `\n${msgs.length} exchanges\n#ChatDJT #AIDebate\nhttps://chatdjt.com`;
-                try {
-                  if (Platform.OS === "web" && navigator.share) await navigator.share({ title: `${aName} vs ${bName}`, text });
-                  else await Share.share({ message: text, title: `${aName} vs ${bName}` });
-                } catch {}
+                setShareTab("viral");
+                setShowShareModal(true);
               }}
               style={[s.endedBtnSecondary, { borderColor: "rgba(74,222,128,0.5)", backgroundColor: "rgba(74,222,128,0.1)" }]}
             >
@@ -4625,6 +4680,110 @@ export default function DebateStage() {
       </Modal>
 
       {renderPaywall()}
+
+      {/* ── Share / Transcript Modal ─────────────────────────────────────── */}
+      <Modal visible={showShareModal} transparent animationType="slide" onRequestClose={() => setShowShareModal(false)}>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.82)", justifyContent: "flex-end" }}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowShareModal(false)} />
+          <View style={{ backgroundColor: "#0F0F14", borderTopLeftRadius: 26, borderTopRightRadius: 26, borderTopWidth: 1, borderColor: "rgba(74,222,128,0.3)", padding: 18, maxHeight: "88%" }}>
+            {/* Handle */}
+            <View style={{ alignSelf: "center", width: 44, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.18)", marginBottom: 14 }} />
+
+            {/* Header */}
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 14 }}>
+              <Ionicons name="share-social" size={18} color="#4ADE80" />
+              <Text style={{ flex: 1, color: "#fff", fontSize: 16, fontWeight: "900", marginLeft: 8, letterSpacing: 0.5 }}>SHARE DEBATE</Text>
+              <Pressable onPress={() => setShowShareModal(false)}>
+                <Ionicons name="close" size={22} color="rgba(255,255,255,0.5)" />
+              </Pressable>
+            </View>
+
+            {/* Tab bar */}
+            <View style={{ flexDirection: "row", marginBottom: 14, backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 12, padding: 3 }}>
+              {(["viral", "transcript"] as const).map((tab) => (
+                <Pressable
+                  key={tab}
+                  onPress={() => setShareTab(tab)}
+                  style={{ flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: "center",
+                    backgroundColor: shareTab === tab ? "rgba(74,222,128,0.15)" : "transparent",
+                    borderWidth: shareTab === tab ? 1 : 0,
+                    borderColor: "rgba(74,222,128,0.4)" }}
+                >
+                  <Text style={{ color: shareTab === tab ? "#4ADE80" : "rgba(255,255,255,0.45)", fontSize: 11, fontWeight: "900", letterSpacing: 0.5 }}>
+                    {tab === "viral" ? "🔥 VIRAL POST" : "📋 FULL TRANSCRIPT"}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            {/* Content preview */}
+            {(() => {
+              const { viralText, fullTranscript, aName, bName } = generateShareContent();
+              const displayText = shareTab === "viral" ? viralText : fullTranscript;
+              return (
+                <>
+                  <ScrollView
+                    style={{ maxHeight: 340, backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 14, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)", marginBottom: 14 }}
+                    contentContainerStyle={{ padding: 14 }}
+                    showsVerticalScrollIndicator={true}
+                  >
+                    <Text style={{ color: "rgba(255,255,255,0.88)", fontSize: 13, lineHeight: 20, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" }}>
+                      {displayText}
+                    </Text>
+                  </ScrollView>
+
+                  {/* Action buttons */}
+                  <View style={{ flexDirection: "row", gap: 10 }}>
+                    <Pressable
+                      onPress={async () => {
+                        try {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          const Clipboard = await import("expo-clipboard");
+                          await Clipboard.setStringAsync(displayText);
+                        } catch {}
+                      }}
+                      style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingVertical: 13, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.07)", borderWidth: 1, borderColor: "rgba(255,255,255,0.15)" }}
+                    >
+                      <Ionicons name="copy-outline" size={16} color="#fff" />
+                      <Text style={{ color: "#fff", fontSize: 13, fontWeight: "800" }}>COPY</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={async () => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                        try {
+                          if (Platform.OS === "web" && navigator.share) {
+                            await navigator.share({ title: `${aName} vs ${bName} — AI Debate`, text: displayText, url: "https://chatdjt.com" });
+                          } else {
+                            await Share.share({ message: displayText, title: `${aName} vs ${bName}` });
+                          }
+                        } catch {}
+                      }}
+                      style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingVertical: 13, borderRadius: 14, backgroundColor: "rgba(74,222,128,0.15)", borderWidth: 1, borderColor: "rgba(74,222,128,0.45)" }}
+                    >
+                      <Ionicons name="share-social" size={16} color="#4ADE80" />
+                      <Text style={{ color: "#4ADE80", fontSize: 13, fontWeight: "800" }}>SHARE</Text>
+                    </Pressable>
+                    {Platform.OS === "web" && (
+                      <Pressable
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(
+                            shareTab === "viral" ? viralText.slice(0, 280) : `AI Debate: ${aName} vs ${bName}\n\nchatdjt.com\n\n#AIDebate #ChatDJT`
+                          )}`;
+                          Linking.openURL(twitterUrl);
+                        }}
+                        style={{ width: 48, alignItems: "center", justifyContent: "center", paddingVertical: 13, borderRadius: 14, backgroundColor: "rgba(29,155,240,0.12)", borderWidth: 1, borderColor: "rgba(29,155,240,0.4)" }}
+                      >
+                        <Text style={{ color: "#1D9BF0", fontSize: 16, fontWeight: "900" }}>𝕏</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                </>
+              );
+            })()}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 

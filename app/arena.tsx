@@ -4691,10 +4691,20 @@ export default function ArenaScreen() {
           setTtsActiveSpeaker(null);
         }
       };
+      // Dynamic safety timeout: start at 12 s (covers slow-network TTS fetch).
+      // The moment the clip starts playing and durationMillis is known, reset
+      // the timer to duration + 4 s so a short statement (< 1 s) is never
+      // killed by the flat 5 s window that was firing before playback started.
+      let safetyTimer: ReturnType<typeof setTimeout> = setTimeout(cleanup, 12000);
       sound.setOnPlaybackStatusUpdate((status: any) => {
-        if (status.didJustFinish || status.error) cleanup();
+        if (status.didJustFinish || status.error) {
+          clearTimeout(safetyTimer);
+          cleanup();
+        } else if (status.isPlaying && (status as any).durationMillis && !cleaned) {
+          clearTimeout(safetyTimer);
+          safetyTimer = setTimeout(cleanup, (status as any).durationMillis + 4000);
+        }
       });
-      setTimeout(cleanup, 5000);
     } catch {}
   }, []);
 
