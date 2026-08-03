@@ -1169,56 +1169,83 @@ export default function DebateStage() {
     // (loser concession → winner response) before showing the modal.
     // partingShotDelay is captured from the synchronous block above.
     (async () => {
-      try {
-      // Wait for any parting shot audio to finish first.
-      if (partingShotDelay > 0) await new Promise<void>((r) => setTimeout(r, partingShotDelay));
+      // ── Sequential audio helper ──────────────────────────────────────────────
+      // Awaits full sound completion before resolving — no blind timers.
+      // Safe to call after runningRef is false because it bypasses the TTS queue
+      // and drives the sound object directly.
+      const playAndAwait = async (text: string, personaId: string): Promise<void> => {
+        if (!voiceEnabledRef.current) return;
+        try {
+          const sound = await playTTS(
+            "/api/persona-speak",
+            { text, personaId },
+            { volume: getPersonaVoiceVolume(personaId) }
+          );
+          currentSoundRef.current = sound;
+          await new Promise<void>((res) => {
+            // Safety cap: fetch latency + clip duration + generous buffer
+            const safetyTimer = setTimeout(() => {
+              sound.setOnPlaybackStatusUpdate(null);
+              res();
+            }, 15000);
+            sound.setOnPlaybackStatusUpdate((s: any) => {
+              if (s.didJustFinish || s.error) {
+                clearTimeout(safetyTimer);
+                sound.setOnPlaybackStatusUpdate(null);
+                res();
+              }
+            });
+          });
+          if (currentSoundRef.current === sound) currentSoundRef.current = null;
+          sound.unloadAsync().catch(() => {});
+        } catch { /* ignore — ending exchange is best-effort */ }
+      };
 
+      try {
       const aPersona = interviewers.find((p) => p.id === aId);
       const bPersona = interviewees.find((p) => p.id === bId);
 
-      // Determine winner ─────────────────────────────────────────────────────
-      let winnerId: string;
-      let loserId: string;
-      let winnerName: string;
-      let loserName: string;
-      let debateWinnerObj: Parameters<typeof setDebateWinner>[0];
-
-      // ── AI VERDICT (always) ──────────────────────────────────────────────────
-      // The DC AI always judges based on argument merit and facts — vote counts
-      // (if any) become supplementary info displayed alongside the verdict rather
-      // than the primary decision. Fallback to votes → message count if AI fails.
+      // ── AI VERDICT — fired immediately, overlaps parting-shot delay ──────────
+      // Start the fetch NOW so it runs in parallel with the parting-shot audio
+      // instead of creating 10 s of dead air after it finishes.
       const msgs = messagesRef.current.filter((m) => !m.isSystem);
-      // topics prop is available via closure; topic[0] is a safe proxy for the
-      // session topic. currentTopic/currentTopicRef are declared later (TDZ).
       const topicForVerdict = (topics && topics.length > 0) ? topics[0].title : "Political Debate";
       let aiVerdictText = "";
       let aiWinnerId = "";
 
-      if (msgs.length >= 2) {
-        try {
-          const vRes = await fetch(new URL("/api/arena/verdict", getApiUrl()).toString(), {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              topic: topicForVerdict,
-              messages: msgs.map((m) => ({ speakerName: m.speakerName, text: m.text })),
-              personas: [aPersona?.name || aId, bPersona?.name || bId],
-            }),
-          });
-          if (vRes.ok) {
-            const v = await vRes.json();
-            aiVerdictText = v.verdict || v.summary || "";
-            const aNameLc = (aPersona?.name || aId).toLowerCase();
-            const vWinner  = (v.winner   || "").toLowerCase();
-            const vId      = (v.winnerId || "").toLowerCase();
-            const aWinsAI  = vId === aId.toLowerCase() ||
-                             vId === (aPersona?.name || "").toLowerCase() ||
-                             vWinner.includes(aNameLc) ||
-                             aNameLc.includes(vWinner);
-            aiWinnerId = aWinsAI ? aId : bId;
-          }
-        } catch { /* fall through */ }
-      }
+      const verdictPromise = msgs.length >= 2
+        ? (async () => {
+            try {
+              const vRes = await fetch(new URL("/api/arena/verdict", getApiUrl()).toString(), {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  topic: topicForVerdict,
+                  messages: msgs.map((m) => ({ speakerName: m.speakerName, text: m.text })),
+                  personas: [aPersona?.name || aId, bPersona?.name || bId],
+                }),
+              });
+              if (vRes.ok) {
+                const v = await vRes.json();
+                aiVerdictText = v.verdict || v.summary || "";
+                const aNameLc = (aPersona?.name || aId).toLowerCase();
+                const vWinner  = (v.winner   || "").toLowerCase();
+                const vId      = (v.winnerId || "").toLowerCase();
+                const aWinsAI  = vId === aId.toLowerCase() ||
+                                 vId === (aPersona?.name || "").toLowerCase() ||
+                                 vWinner.includes(aNameLc) ||
+                                 aNameLc.includes(vWinner);
+                aiWinnerId = aWinsAI ? aId : bId;
+              }
+            } catch { /* fall through to fallback */ }
+          })()
+        : Promise.resolve();
+
+      // Wait for parting shot to finish — verdict fetch is running in parallel
+      if (partingShotDelay > 0) await new Promise<void>((r) => setTimeout(r, partingShotDelay));
+
+      // Now await verdict (likely already done or close to done)
+      await verdictPromise;
 
       // Fallback: votes (if cast) → message count
       if (!aiWinnerId) {
@@ -1231,13 +1258,13 @@ export default function DebateStage() {
         }
       }
 
-      winnerId = aiWinnerId;
-      loserId  = winnerId === aId ? bId : aId;
+      const winnerId = aiWinnerId;
+      const loserId  = winnerId === aId ? bId : aId;
       const winnerP = winnerId === aId ? aPersona : bPersona;
       const loserP  = loserId  === aId ? aPersona : bPersona;
-      winnerName = winnerP?.name || winnerId;
-      loserName  = loserP?.name  || loserId;
-      debateWinnerObj = {
+      const winnerName = winnerP?.name || winnerId;
+      const loserName  = loserP?.name  || loserId;
+      const debateWinnerObj = {
         id: winnerId, name: winnerName,
         portrait: PERSONA_PORTRAITS[winnerId] || null,
         points: pts.a > 0 || pts.b > 0 ? (winnerId === aId ? pts.a : pts.b) : 0,
@@ -1274,6 +1301,8 @@ export default function DebateStage() {
       setDebateLoser({ id: loserId, name: loserName });
 
       // ── ENDING EXCHANGE: loser concession → winner response ─────────────────
+      // Each line waits for full audio playback before the next one starts —
+      // no blind timers, no clips fighting each other.
       const loserPool  = PERSONA_LOSER_LINES[loserId]  ?? PERSONA_LOSER_LINES._default  ?? [];
       const winnerPool = PERSONA_WINNER_LINES[winnerId] ?? PERSONA_WINNER_LINES._default ?? [];
       const loserLine  = loserPool[Math.floor(Math.random() * loserPool.length)];
@@ -1284,10 +1313,7 @@ export default function DebateStage() {
           id: `loser-concession-${Date.now()}`, speakerId: loserId, speakerName: loserName,
           text: loserLine, ts: Date.now(), skipTTS: true,
         }]);
-        if (voiceEnabledRef.current) {
-          playTTS("/api/persona-speak", { text: loserLine, personaId: loserId }, { volume: getPersonaVoiceVolume(loserId) }).catch(() => {});
-        }
-        await new Promise<void>((r) => setTimeout(r, 3800));
+        await playAndAwait(loserLine, loserId);
       }
 
       if (winnerLine) {
@@ -1295,18 +1321,11 @@ export default function DebateStage() {
           id: `winner-response-${Date.now()}`, speakerId: winnerId, speakerName: winnerName,
           text: winnerLine, ts: Date.now(), skipTTS: true,
         }]);
-        if (voiceEnabledRef.current) {
-          playTTS("/api/persona-speak", { text: winnerLine, personaId: winnerId }, { volume: getPersonaVoiceVolume(winnerId) }).catch(() => {});
-        }
-        await new Promise<void>((r) => setTimeout(r, 3800));
+        await playAndAwait(winnerLine, winnerId);
       }
       // ───────────────────────────────────────────────────────────────────────
 
-      // ── SHOW MODAL NOW — roast + speech load in-place ────────────────────
-      // Open the winner screen immediately after the ending exchange so the
-      // user isn't staring at nothing for 10-15 s while fetches run. The
-      // loading spinner plays while Trump and the winner fetch their lines,
-      // then the modal updates in-place when they arrive.
+      // ── SHOW MODAL NOW — reaction + speech load in-place ─────────────────
       setIsLoadingDebateRoast(true);
       setShowDebateWinner(true);
       playDebateCheer();
@@ -1320,7 +1339,8 @@ export default function DebateStage() {
       // ── REACTION + WINNER'S TAUNT (background, updates modal) ───────────────
       // Trump roasts the result when he's in the debate; otherwise the loser
       // fumes in character. Both run after the modal is already visible so
-      // results appear in-place. Fetch both in parallel — play sequentially.
+      // results appear in-place. Fetch both in parallel — play sequentially
+      // using playAndAwait so they never overlap.
       const trumpInDebate = aId === "trump" || bId === "trump";
       ;(async () => {
         try {
@@ -1356,7 +1376,7 @@ export default function DebateStage() {
             body: JSON.stringify({ winnerId, winnerName, loserId, loserName, verdict: aiVerdictText, topic: topicForVerdict }),
           }).then((r) => r.ok ? r.json() : null).catch(() => null);
 
-          // Wait for both, then render sequentially
+          // Wait for both fetches, then play sequentially
           const [roastData, speechData] = await Promise.all([roastPromise, speechPromise]);
 
           // roastData.roast for Trump; roastData.reaction for loser
@@ -1371,11 +1391,7 @@ export default function DebateStage() {
               speakerId: reactionSpeakerId, speakerName: reactionSpeakerName,
               text: reactionText, ts: Date.now(), skipTTS: true,
             }]);
-            if (voiceEnabledRef.current) {
-              playTTS("/api/persona-speak", { text: reactionText, personaId: reactionSpeakerId }, { volume: getPersonaVoiceVolume(reactionSpeakerId) }).catch(() => {});
-            }
-            // Brief pause so reaction voice lands before winner fires back
-            await new Promise<void>((r) => setTimeout(r, 4000));
+            await playAndAwait(reactionText, reactionSpeakerId);
           }
 
           if (speechData?.speech) {
@@ -1385,9 +1401,7 @@ export default function DebateStage() {
               speakerId: winnerId, speakerName: winnerName,
               text: speechData.speech, ts: Date.now(), skipTTS: true,
             }]);
-            if (voiceEnabledRef.current) {
-              playTTS("/api/persona-speak", { text: speechData.speech, personaId: winnerId }, { volume: getPersonaVoiceVolume(winnerId) }).catch(() => {});
-            }
+            await playAndAwait(speechData.speech, winnerId);
           }
         } catch { /* non-fatal — modal already showing */ } finally {
           setIsLoadingDebateRoast(false);
