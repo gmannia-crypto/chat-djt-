@@ -1299,92 +1299,85 @@ export default function DebateStage() {
       }
       // ───────────────────────────────────────────────────────────────────────
 
-      // ── TRUMP'S REACTION + WINNER'S TAUNT AT THE LOSER ───────────────────
-      // Trump fires a roast (requires deviceId for rate-limiting).
-      // Winner's taunt fires independently — no deviceId required.
+      // ── SHOW MODAL NOW — roast + speech load in-place ────────────────────
+      // Open the winner screen immediately after the ending exchange so the
+      // user isn't staring at nothing for 10-15 s while fetches run. The
+      // loading spinner plays while Trump and the winner fetch their lines,
+      // then the modal updates in-place when they arrive.
       setIsLoadingDebateRoast(true);
-      try {
-        // Trump roast (fire-and-forget if no deviceId)
-        let trumpRoastText = "";
-        if (deviceId) {
-          try {
-            const roastRes = await fetch(new URL("/api/arena/roast", getApiUrl()).toString(), {
-              method: "POST",
-              headers: { "Content-Type": "application/json", "x-device-id": deviceId },
-              body: JSON.stringify({
-                winnerId,
-                winnerName,
-                winnerPoints: debateWinnerObj?.points ?? 1,
-                trumpPoints: 0,
-                customerName: "the audience",
-                leaderboard: [
-                  { name: winnerName, points: debateWinnerObj?.points ?? 1 },
-                  { name: loserName,  points: debateWinnerObj?.opponentPoints ?? 0 },
-                ],
-                winTally: null,
-              }),
-            });
-            // Accept both 200 (fresh roast) and 429 (rate-limit fallback — still returns roast text)
-            const roastData = await roastRes.json();
-            if (roastData.roast) {
-              trumpRoastText = roastData.roast;
-              setDebateTrumpRoast(trumpRoastText);
-              if (voiceEnabledRef.current) {
-                playTTS("/api/persona-speak", { text: trumpRoastText, personaId: "trump" }, { volume: getPersonaVoiceVolume("trump") }).catch(() => {});
-              }
-              setMessages((prev) => [...prev, {
-                id: `trump-roast-${Date.now()}`,
-                speakerId: "trump", speakerName: "Donald Trump",
-                text: trumpRoastText, ts: Date.now(), skipTTS: true,
-              }]);
-              await new Promise<void>((r) => setTimeout(r, 5000));
-            }
-          } catch { /* Trump roast failure is non-fatal */ }
-        }
-
-        // Winner's taunt — always fires (no deviceId needed)
-        try {
-          const speechRes = await fetch(new URL("/api/arena/debate-verdict-speech", getApiUrl()).toString(), {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              winnerId,
-              winnerName,
-              loserId,
-              loserName,
-              verdict: aiVerdictText,
-              topic: topicForVerdict,
-            }),
-          });
-          if (speechRes.ok) {
-            const speechData = await speechRes.json();
-            if (speechData.speech) {
-              setDebateWinnerSpeech(speechData.speech);
-              if (voiceEnabledRef.current) {
-                playTTS("/api/persona-speak", { text: speechData.speech, personaId: winnerId }, { volume: getPersonaVoiceVolume(winnerId) }).catch(() => {});
-              }
-              setMessages((prev) => [...prev, {
-                id: `winner-taunt-${Date.now()}`,
-                speakerId: winnerId, speakerName: winnerName,
-                text: speechData.speech, ts: Date.now(), skipTTS: true,
-              }]);
-              await new Promise<void>((r) => setTimeout(r, 4500));
-            }
-          }
-        } catch { /* winner speech failure is non-fatal */ }
-      } finally {
-        setIsLoadingDebateRoast(false);
-      }
-      // ─────────────────────────────────────────────────────────────────────
-
       setShowDebateWinner(true);
       playDebateCheer();
       } catch {
-        // Any exception in the exchange or verdict path must not silently swallow
-        // the winner modal — always show it so the debate has a proper ending.
+        // Any exception before the modal must never silently swallow the ending.
+        setIsLoadingDebateRoast(false);
         setShowDebateWinner(true);
         playDebateCheer();
       }
+
+      // ── TRUMP'S REACTION + WINNER'S TAUNT (background, updates modal) ────
+      // These run after the modal is already visible so the user sees results
+      // appear in-place. Fetch both in parallel — play audio sequentially.
+      ;(async () => {
+        try {
+          // Kick off both fetches at the same time
+          const roastPromise = deviceId
+            ? fetch(new URL("/api/arena/roast", getApiUrl()).toString(), {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+                body: JSON.stringify({
+                  winnerId,
+                  winnerName,
+                  winnerPoints: debateWinnerObj?.points ?? 1,
+                  trumpPoints: 0,
+                  customerName: "the audience",
+                  leaderboard: [
+                    { name: winnerName, points: debateWinnerObj?.points ?? 1 },
+                    { name: loserName,  points: debateWinnerObj?.opponentPoints ?? 0 },
+                  ],
+                  winTally: null,
+                }),
+              }).then((r) => r.json()).catch(() => null)
+            : Promise.resolve(null);
+
+          const speechPromise = fetch(new URL("/api/arena/debate-verdict-speech", getApiUrl()).toString(), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ winnerId, winnerName, loserId, loserName, verdict: aiVerdictText, topic: topicForVerdict }),
+          }).then((r) => r.ok ? r.json() : null).catch(() => null);
+
+          // Wait for both, then render sequentially
+          const [roastData, speechData] = await Promise.all([roastPromise, speechPromise]);
+
+          if (roastData?.roast) {
+            setDebateTrumpRoast(roastData.roast);
+            setMessages((prev) => [...prev, {
+              id: `trump-roast-${Date.now()}`,
+              speakerId: "trump", speakerName: "Donald Trump",
+              text: roastData.roast, ts: Date.now(), skipTTS: true,
+            }]);
+            if (voiceEnabledRef.current) {
+              playTTS("/api/persona-speak", { text: roastData.roast, personaId: "trump" }, { volume: getPersonaVoiceVolume("trump") }).catch(() => {});
+            }
+            // Brief pause so Trump's voice lands before winner fires back
+            await new Promise<void>((r) => setTimeout(r, 4000));
+          }
+
+          if (speechData?.speech) {
+            setDebateWinnerSpeech(speechData.speech);
+            setMessages((prev) => [...prev, {
+              id: `winner-taunt-${Date.now()}`,
+              speakerId: winnerId, speakerName: winnerName,
+              text: speechData.speech, ts: Date.now(), skipTTS: true,
+            }]);
+            if (voiceEnabledRef.current) {
+              playTTS("/api/persona-speak", { text: speechData.speech, personaId: winnerId }, { volume: getPersonaVoiceVolume(winnerId) }).catch(() => {});
+            }
+          }
+        } catch { /* non-fatal — modal already showing */ } finally {
+          setIsLoadingDebateRoast(false);
+        }
+      })();
+      // ─────────────────────────────────────────────────────────────────────
     })();
     // ─────────────────────────────────────────────────────────────────────────
   }, [phase, interviewerId, intervieweeId, interviewers, interviewees, deviceId, refreshBalance, playDebateCheer]);
