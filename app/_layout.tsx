@@ -39,6 +39,22 @@ import { getOrCreateDeviceId } from "@/lib/token-context";
 
 const DISCLAIMER_KEY = "chatdjt_disclaimer_accepted";
 
+// Suppress fontfaceobserver's "6000ms timeout exceeded" uncaught error/rejection
+// at module-load time (before useFonts starts) so Metro's dev overlay never
+// intercepts it. The app already falls back gracefully via forceReady/fontError.
+if (Platform.OS === "web" && typeof window !== "undefined") {
+  const isFontTimeout = (msg: unknown) =>
+    typeof msg === "string" && msg.includes("ms timeout exceeded");
+  window.addEventListener("unhandledrejection", (event: PromiseRejectionEvent) => {
+    const reason = event.reason;
+    const message = reason instanceof Error ? reason.message : String(reason);
+    if (isFontTimeout(message)) event.preventDefault();
+  });
+  window.addEventListener("error", (event: ErrorEvent) => {
+    if (isFontTimeout(event.message)) event.preventDefault();
+  });
+}
+
 SplashScreen.preventAutoHideAsync();
 
 Notifications.setNotificationHandler({
@@ -437,35 +453,6 @@ export default function RootLayout() {
   useEffect(() => {
     const t = setTimeout(() => setForceReady(true), 3000);
     return () => clearTimeout(t);
-  }, []);
-
-  // On web, expo-font's underlying FontFaceObserver throws an unhandled
-  // rejection ("6000ms timeout exceeded") on slow/offline connections. We
-  // already fall back gracefully via forceReady/fontError above, so this
-  // rejection is harmless — but left unhandled it surfaces as a red
-  // "Uncaught Error" crash overlay to the user. Swallow just that error.
-  useEffect(() => {
-    if (Platform.OS !== "web") return;
-    const isFontTimeout = (msg: unknown) =>
-      typeof msg === "string" && msg.includes("ms timeout exceeded");
-    const onRejection = (event: PromiseRejectionEvent) => {
-      const reason = event.reason;
-      const message = reason instanceof Error ? reason.message : String(reason);
-      if (isFontTimeout(message)) {
-        event.preventDefault();
-      }
-    };
-    const onError = (event: ErrorEvent) => {
-      if (isFontTimeout(event.message)) {
-        event.preventDefault();
-      }
-    };
-    window.addEventListener("unhandledrejection", onRejection);
-    window.addEventListener("error", onError);
-    return () => {
-      window.removeEventListener("unhandledrejection", onRejection);
-      window.removeEventListener("error", onError);
-    };
   }, []);
 
   useEffect(() => {
