@@ -853,6 +853,9 @@ export default function DebateStage() {
   useEffect(() => { debatePointsRef.current = debatePoints; }, [debatePoints]);
   const [showDebateWinner, setShowDebateWinner] = useState(false);
   const [debateWinner, setDebateWinner] = useState<{ id: string; name: string; portrait: any; points: number; opponentPoints: number; verdict?: string; aiJudged?: boolean } | null>(null);
+  const [debateTrumpRoast, setDebateTrumpRoast] = useState<string | null>(null);
+  const [debateWinnerSpeech, setDebateWinnerSpeech] = useState<string | null>(null);
+  const [isLoadingDebateRoast, setIsLoadingDebateRoast] = useState(false);
   const [debateTokenWinVisible, setDebateTokenWinVisible] = useState(false);
   const [debateTokenWinAmount, setDebateTokenWinAmount] = useState<number | undefined>();
   const winnerTriggeredRef = useRef(false);
@@ -949,6 +952,9 @@ export default function DebateStage() {
       debatePointsRef.current = { a: 0, b: 0 };
       setShowDebateWinner(false);
       setDebateWinner(null);
+      setDebateTrumpRoast(null);
+      setDebateWinnerSpeech(null);
+      setIsLoadingDebateRoast(false);
       setDebateTokenWinVisible(false);
       setDebateTokenWinAmount(undefined);
       // Reset heat meter
@@ -1171,101 +1177,92 @@ export default function DebateStage() {
       let loserName: string;
       let debateWinnerObj: Parameters<typeof setDebateWinner>[0];
 
-      if (pts.a === 0 && pts.b === 0) {
-        // No votes cast — try AI verdict, fall back to message-count heuristic.
-        const msgs = messagesRef.current.filter((m) => !m.isSystem);
-        let aWins = false;
-        let verdict = "";
-        let aiJudged = false;
+      // ── AI VERDICT (always) ──────────────────────────────────────────────────
+      // The DC AI always judges based on argument merit and facts — vote counts
+      // (if any) become supplementary info displayed alongside the verdict rather
+      // than the primary decision. Fallback to votes → message count if AI fails.
+      const msgs = messagesRef.current.filter((m) => !m.isSystem);
+      // topics prop is available via closure; topic[0] is a safe proxy for the
+      // session topic. currentTopic/currentTopicRef are declared later (TDZ).
+      const topicForVerdict = (topics && topics.length > 0) ? topics[0].title : "Political Debate";
+      let aiVerdictText = "";
+      let aiWinnerId = "";
 
-        if (msgs.length >= 4) {
-          try {
-            // currentTopic is declared later in the component (TDZ); read from
-            // the messagesRef system label if present, else use generic fallback.
-            // The full transcript is sent to the verdict API so topic is context only.
-            const topicStr = "Political Debate";
-            const res = await fetch(new URL("/api/arena/verdict", getApiUrl()).toString(), {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                topic: topicStr,
-                messages: msgs.map((m) => ({ speakerName: m.speakerName, text: m.text })),
-                personas: [aPersona?.name || aId, bPersona?.name || bId],
-              }),
-            });
-            if (res.ok) {
-              const v = await res.json();
-              const aName = (aPersona?.name || aId).toLowerCase();
-              const vWinner = (v.winner || "").toLowerCase();
-              const vId = (v.winnerId || "").toLowerCase();
-              aWins = vId === aId.toLowerCase() ||
-                      vId === (aPersona?.name || "").toLowerCase() ||
-                      vWinner.includes(aName) ||
-                      aName.includes(vWinner);
-              verdict = v.verdict || v.summary || "";
-              aiJudged = true;
-            }
-          } catch { /* fall through to heuristic */ }
-        }
-
-        if (!aiJudged) {
-          // Fallback: persona with more messages wins (they drove the conversation)
-          const aCount = msgs.filter((m) => m.speakerId === aId).length;
-          const bCount = msgs.filter((m) => m.speakerId === bId).length;
-          aWins = aCount >= bCount;
-        }
-
-        winnerId = aWins ? aId : bId;
-        loserId  = aWins ? bId : aId;
-        const winnerP = aWins ? aPersona : bPersona;
-        const loserP  = aWins ? bPersona : aPersona;
-        winnerName = winnerP?.name || winnerId;
-        loserName  = loserP?.name  || loserId;
-        debateWinnerObj = {
-          id: winnerId, name: winnerName,
-          portrait: PERSONA_PORTRAITS[winnerId] || null,
-          points: 0, opponentPoints: 0,
-          verdict, aiJudged,
-        };
-      } else {
-        const aWins = pts.a >= pts.b;
-        winnerId = aWins ? aId : bId;
-        loserId  = aWins ? bId : aId;
-        const winnerP = aWins ? aPersona : bPersona;
-        const loserP  = aWins ? bPersona : aPersona;
-        winnerName = winnerP?.name || winnerId;
-        loserName  = loserP?.name  || loserId;
-        debateWinnerObj = {
-          id: winnerId, name: winnerName,
-          portrait: PERSONA_PORTRAITS[winnerId] || null,
-          points: aWins ? pts.a : pts.b,
-          opponentPoints: aWins ? pts.b : pts.a,
-        };
-
-        // Record win + award tokens (vote-based path only)
-        if (deviceId) {
-          fetch(new URL("/api/arena/record-win", getApiUrl()).toString(), {
+      if (msgs.length >= 2) {
+        try {
+          const vRes = await fetch(new URL("/api/arena/verdict", getApiUrl()).toString(), {
             method: "POST",
-            headers: { "Content-Type": "application/json", "x-device-id": deviceId },
-            body: JSON.stringify({ personaId: winnerId }),
-          }).then(async (res) => {
-            if (res.ok) {
-              const data = await res.json();
-              if (data.tokensEarned > 0) {
-                setDebateTokenWinAmount(data.tokensEarned);
-                setTimeout(() => setDebateTokenWinVisible(true), 2200);
-                refreshBalance();
-              }
-            }
-          }).catch(() => {});
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              topic: topicForVerdict,
+              messages: msgs.map((m) => ({ speakerName: m.speakerName, text: m.text })),
+              personas: [aPersona?.name || aId, bPersona?.name || bId],
+            }),
+          });
+          if (vRes.ok) {
+            const v = await vRes.json();
+            aiVerdictText = v.verdict || v.summary || "";
+            const aNameLc = (aPersona?.name || aId).toLowerCase();
+            const vWinner  = (v.winner   || "").toLowerCase();
+            const vId      = (v.winnerId || "").toLowerCase();
+            const aWinsAI  = vId === aId.toLowerCase() ||
+                             vId === (aPersona?.name || "").toLowerCase() ||
+                             vWinner.includes(aNameLc) ||
+                             aNameLc.includes(vWinner);
+            aiWinnerId = aWinsAI ? aId : bId;
+          }
+        } catch { /* fall through */ }
+      }
+
+      // Fallback: votes (if cast) → message count
+      if (!aiWinnerId) {
+        if (pts.a > 0 || pts.b > 0) {
+          aiWinnerId = pts.a >= pts.b ? aId : bId;
+        } else {
+          const aC = msgs.filter((m) => m.speakerId === aId).length;
+          const bC = msgs.filter((m) => m.speakerId === bId).length;
+          aiWinnerId = aC >= bC ? aId : bId;
         }
-        const statsKey = `debate_wins_local_v1`;
-        AsyncStorage.getItem(statsKey).then((raw) => {
-          const prev = raw ? JSON.parse(raw) : {};
-          const next = { ...prev, [winnerId]: (prev[winnerId] || 0) + 1, _total: (prev._total || 0) + 1 };
-          AsyncStorage.setItem(statsKey, JSON.stringify(next)).catch(() => {});
+      }
+
+      winnerId = aiWinnerId;
+      loserId  = winnerId === aId ? bId : aId;
+      const winnerP = winnerId === aId ? aPersona : bPersona;
+      const loserP  = loserId  === aId ? aPersona : bPersona;
+      winnerName = winnerP?.name || winnerId;
+      loserName  = loserP?.name  || loserId;
+      debateWinnerObj = {
+        id: winnerId, name: winnerName,
+        portrait: PERSONA_PORTRAITS[winnerId] || null,
+        points: pts.a > 0 || pts.b > 0 ? (winnerId === aId ? pts.a : pts.b) : 0,
+        opponentPoints: pts.a > 0 || pts.b > 0 ? (winnerId === aId ? pts.b : pts.a) : 0,
+        verdict: aiVerdictText,
+        aiJudged: !!aiVerdictText,
+      };
+
+      // Record win + award tokens (vote-based OR AI-judged path)
+      if (deviceId) {
+        fetch(new URL("/api/arena/record-win", getApiUrl()).toString(), {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+          body: JSON.stringify({ personaId: winnerId }),
+        }).then(async (r) => {
+          if (r.ok) {
+            const data = await r.json();
+            if (data.tokensEarned > 0) {
+              setDebateTokenWinAmount(data.tokensEarned);
+              setTimeout(() => setDebateTokenWinVisible(true), 2200);
+              refreshBalance();
+            }
+          }
         }).catch(() => {});
       }
+      const statsKey = `debate_wins_local_v1`;
+      AsyncStorage.getItem(statsKey).then((raw) => {
+        const prev = raw ? JSON.parse(raw) : {};
+        const next = { ...prev, [winnerId]: (prev[winnerId] || 0) + 1, _total: (prev._total || 0) + 1 };
+        AsyncStorage.setItem(statsKey, JSON.stringify(next)).catch(() => {});
+      }).catch(() => {});
 
       setDebateWinner(debateWinnerObj);
 
@@ -1297,6 +1294,78 @@ export default function DebateStage() {
         await new Promise<void>((r) => setTimeout(r, 3800));
       }
       // ───────────────────────────────────────────────────────────────────────
+
+      // ── TRUMP'S REACTION + WINNER'S TAUNT AT THE LOSER ───────────────────
+      // Mirrors the arena flow: Trump fires a roast at the debate result,
+      // then the winner delivers an AI-generated taunt directly at the loser.
+      if (deviceId) {
+        setIsLoadingDebateRoast(true);
+        try {
+          const roastRes = await fetch(new URL("/api/arena/roast", getApiUrl()).toString(), {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+            body: JSON.stringify({
+              winnerId,
+              winnerName,
+              winnerPoints: debateWinnerObj?.points ?? 1,
+              trumpPoints: 0,
+              customerName: "the audience",
+              leaderboard: [
+                { name: winnerName, points: debateWinnerObj?.points ?? 1 },
+                { name: loserName,  points: debateWinnerObj?.opponentPoints ?? 0 },
+              ],
+              winTally: null,
+            }),
+          });
+          if (roastRes.ok) {
+            const roastData = await roastRes.json();
+            setDebateTrumpRoast(roastData.roast);
+            if (voiceEnabledRef.current) {
+              playTTS("/api/persona-speak", { text: roastData.roast, personaId: "trump" }, { volume: getPersonaVoiceVolume("trump") }).catch(() => {});
+            }
+            // Add Trump's reaction to the chat transcript
+            setMessages((prev) => [...prev, {
+              id: `trump-roast-${Date.now()}`,
+              speakerId: "trump", speakerName: "Donald Trump",
+              text: roastData.roast, ts: Date.now(), skipTTS: true,
+            }]);
+            await new Promise<void>((r) => setTimeout(r, 5000));
+
+            // Winner's AI-generated taunt at the loser
+            if (winnerId !== "trump") {
+              const speechRes = await fetch(new URL("/api/arena/debate-verdict-speech", getApiUrl()).toString(), {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  winnerId,
+                  winnerName,
+                  loserId,
+                  loserName,
+                  verdict: aiVerdictText,
+                  topic: topicForVerdict,
+                }),
+              });
+              if (speechRes.ok) {
+                const speechData = await speechRes.json();
+                setDebateWinnerSpeech(speechData.speech);
+                if (voiceEnabledRef.current) {
+                  playTTS("/api/persona-speak", { text: speechData.speech, personaId: winnerId }, { volume: getPersonaVoiceVolume(winnerId) }).catch(() => {});
+                }
+                // Add winner's taunt to the chat transcript
+                setMessages((prev) => [...prev, {
+                  id: `winner-taunt-${Date.now()}`,
+                  speakerId: winnerId, speakerName: winnerName,
+                  text: speechData.speech, ts: Date.now(), skipTTS: true,
+                }]);
+                await new Promise<void>((r) => setTimeout(r, 4500));
+              }
+            }
+          }
+        } catch { /* roast/speech failures are non-fatal */ } finally {
+          setIsLoadingDebateRoast(false);
+        }
+      }
+      // ─────────────────────────────────────────────────────────────────────
 
       setShowDebateWinner(true);
       playDebateCheer();
@@ -4384,20 +4453,28 @@ export default function DebateStage() {
       {/* ── DC DEBATE WINNER MODAL ──────────────────────────────────────────── */}
       <Modal visible={showDebateWinner} transparent animationType="fade" statusBarTranslucent>
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.92)", alignItems: "center", justifyContent: "center" }}>
-          <Animated.View entering={ZoomIn.duration(380).springify()} style={{ alignItems: "center", padding: 28, backgroundColor: "#111", borderRadius: 28, borderWidth: 2, borderColor: "#FFD700", width: "88%", maxWidth: 400 }}>
+          <ScrollView
+            contentContainerStyle={{ alignItems: "center", justifyContent: "center", paddingVertical: 32, paddingHorizontal: 16 }}
+            style={{ width: "100%" }}
+            showsVerticalScrollIndicator={false}
+          >
+          <Animated.View entering={ZoomIn.duration(380).springify()} style={{ alignItems: "center", padding: 28, backgroundColor: "#111", borderRadius: 28, borderWidth: 2, borderColor: "#FFD700", width: "100%", maxWidth: 400 }}>
             <Ionicons name="trophy" size={52} color="#FFD700" />
             <Text style={{ color: debateWinner?.aiJudged ? "#60A5FA" : "#FFD700", fontSize: 13, fontWeight: "900", letterSpacing: 2.5, marginTop: 8 }}>
-              {debateWinner?.aiJudged ? "⚖️ AI FACT VERDICT" : "DC DEBATE CHAMPION"}
+              {debateWinner?.aiJudged ? "⚖️ DC AI VERDICT" : "DC DEBATE CHAMPION"}
             </Text>
             {debateWinner?.portrait ? (
               <Image source={debateWinner.portrait} style={{ width: 130, height: 130, borderRadius: 65, marginTop: 14, borderWidth: 3, borderColor: debateWinner?.aiJudged ? "#60A5FA" : "#FFD700" }} />
             ) : null}
             <Text style={{ color: "#fff", fontSize: 28, fontWeight: "900", marginTop: 12, textAlign: "center" }}>{debateWinner?.name}</Text>
-            {debateWinner?.aiJudged ? (
-              <View style={{ marginTop: 12, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "rgba(96,165,250,0.12)", borderRadius: 14, borderWidth: 1, borderColor: "rgba(96,165,250,0.35)", maxWidth: 320 }}>
+
+            {/* AI verdict summary */}
+            {debateWinner?.verdict ? (
+              <View style={{ marginTop: 12, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "rgba(96,165,250,0.12)", borderRadius: 14, borderWidth: 1, borderColor: "rgba(96,165,250,0.35)", maxWidth: 320, width: "100%" }}>
+                <Text style={{ color: "#60A5FA", fontSize: 10, fontWeight: "900", letterSpacing: 1.5, marginBottom: 5, textAlign: "center" }}>⚖️ AI JUDGMENT</Text>
                 <Text style={{ color: "rgba(255,255,255,0.9)", fontSize: 12, lineHeight: 18, textAlign: "center", fontStyle: "italic" }}>"{debateWinner.verdict}"</Text>
               </View>
-            ) : (
+            ) : (debateWinner?.points ?? 0) > 0 ? (
               <View style={{ flexDirection: "row", alignItems: "center", gap: 16, marginTop: 10 }}>
                 <View style={{ alignItems: "center" }}>
                   <Text style={{ color: "#FFD700", fontSize: 28, fontWeight: "900" }}>{debateWinner?.points ?? 0}</Text>
@@ -4409,7 +4486,9 @@ export default function DebateStage() {
                   <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: "800", letterSpacing: 1 }}>OPPONENT</Text>
                 </View>
               </View>
-            )}
+            ) : null}
+
+            {/* Parting shot */}
             {(() => {
               const ps = messages.find((m) => m.isPartingShot);
               if (!ps) return null;
@@ -4421,12 +4500,41 @@ export default function DebateStage() {
                 </View>
               );
             })()}
+
+            {/* Trump's reaction */}
+            {debateTrumpRoast ? (
+              <Animated.View entering={FadeIn.delay(200).duration(500)} style={{ marginTop: 14, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "rgba(255,107,53,0.12)", borderRadius: 14, borderWidth: 1, borderColor: "rgba(255,107,53,0.40)", maxWidth: 320, width: "100%" }}>
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginBottom: 6 }}>
+                  <Ionicons name="flame" size={13} color="#FF6B35" />
+                  <Text style={{ color: "#FF6B35", fontSize: 10, fontWeight: "900", letterSpacing: 1.5 }}>TRUMP'S REACTION</Text>
+                  <Ionicons name="flame" size={13} color="#FF6B35" />
+                </View>
+                <Text style={{ color: "rgba(255,255,255,0.92)", fontSize: 12, lineHeight: 18, textAlign: "center", fontStyle: "italic" }}>"{debateTrumpRoast}"</Text>
+              </Animated.View>
+            ) : isLoadingDebateRoast ? (
+              <View style={{ marginTop: 14, flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <ActivityIndicator size="small" color="#FF6B35" />
+                <Text style={{ color: "rgba(255,107,53,0.75)", fontSize: 12, fontWeight: "700" }}>Trump is fuming...</Text>
+              </View>
+            ) : null}
+
+            {/* Winner's taunt at the loser */}
+            {debateWinnerSpeech ? (
+              <Animated.View entering={FadeIn.delay(400).duration(500)} style={{ marginTop: 14, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "rgba(255,215,0,0.08)", borderRadius: 14, borderWidth: 1, borderColor: "rgba(255,215,0,0.35)", maxWidth: 320, width: "100%" }}>
+                <Text style={{ color: "#FFD700", fontSize: 10, fontWeight: "900", letterSpacing: 1.5, marginBottom: 6, textAlign: "center" }}>🏆 WINNER'S REBUTTAL</Text>
+                <Text style={{ color: "rgba(255,255,255,0.92)", fontSize: 12, lineHeight: 18, textAlign: "center", fontStyle: "italic" }}>"{debateWinnerSpeech}"</Text>
+                <Text style={{ color: "rgba(255,215,0,0.6)", fontSize: 10, fontWeight: "700", textAlign: "center", marginTop: 5 }}>— {debateWinner?.name}</Text>
+              </Animated.View>
+            ) : null}
+
+            {/* Tokens */}
             {debateTokenWinAmount ? (
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, paddingHorizontal: 14, paddingVertical: 6, backgroundColor: "rgba(255,215,0,0.12)", borderRadius: 14, borderWidth: 1, borderColor: "rgba(255,215,0,0.35)" }}>
                 <Ionicons name="logo-bitcoin" size={14} color="#FFD700" />
                 <Text style={{ color: "#FFD700", fontSize: 13, fontWeight: "900" }}>+{debateTokenWinAmount} DC TOKENS</Text>
               </View>
             ) : null}
+
             <Pressable
               onPress={() => setShowDebateWinner(false)}
               style={{ marginTop: 22, paddingVertical: 13, paddingHorizontal: 32, backgroundColor: "#FFD700", borderRadius: 22 }}
@@ -4434,6 +4542,7 @@ export default function DebateStage() {
               <Text style={{ color: "#000", fontSize: 15, fontWeight: "900", letterSpacing: 1 }}>CHAMPION! 🏆</Text>
             </Pressable>
           </Animated.View>
+          </ScrollView>
         </View>
       </Modal>
 

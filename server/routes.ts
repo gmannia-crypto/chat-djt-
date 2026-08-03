@@ -10521,6 +10521,31 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
     }
   });
 
+  // Winner's in-character taunt directed at the debate loser (1-on-1 debate only)
+  app.post("/api/arena/debate-verdict-speech", async (req, res) => {
+    try {
+      const { winnerId, winnerName, loserId, loserName, verdict, topic } = req.body;
+      if (!winnerId || !winnerName) return res.status(400).json({ error: "Missing required fields" });
+      const systemPrompt = getArenaPersonaPrompt(winnerId);
+      const userPrompt = `You just DESTROYED ${loserName} in a 1-on-1 political debate on the topic: "${topic || "politics"}".\n\nThe AI judge ruled decisively in your favor: "${verdict || "Your arguments were stronger and better supported by facts."}"\n\nNow deliver your VICTORY speech DIRECTLY to ${loserName}. Call out their weakest arguments specifically. Mock their logic, their facts, their delivery. Be savage, sharp, and fully in character. Make them regret ever showing up. 2-3 sentences max. No hashtags, no stage directions.`;
+      const completion = await getClient().chat.completions.create({
+        model: getFastModel(),
+        messages: [
+          { role: "system", content: systemPrompt || `You are ${winnerName}. You just won a debate. Roast your opponent.` },
+          { role: "user", content: userPrompt },
+        ],
+        max_completion_tokens: 180,
+        temperature: 1.0,
+      });
+      let speech = completion.choices[0]?.message?.content || `That's what happens when you bring facts, ${loserName}. Better luck next time.`;
+      speech = speech.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim();
+      res.json({ speech });
+    } catch (err: any) {
+      console.error("debate-verdict-speech error:", err);
+      res.json({ speech: "The facts don't care about your feelings. I won, you lost, end of story." });
+    }
+  });
+
   app.post("/api/arena/clap-back", async (req, res) => {
     try {
       const deviceId = req.headers["x-device-id"] as string;
