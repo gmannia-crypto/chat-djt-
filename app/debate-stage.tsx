@@ -856,6 +856,7 @@ export default function DebateStage() {
   const [debateTrumpRoast, setDebateTrumpRoast] = useState<string | null>(null);
   const [debateWinnerSpeech, setDebateWinnerSpeech] = useState<string | null>(null);
   const [isLoadingDebateRoast, setIsLoadingDebateRoast] = useState(false);
+  const [debateLoser, setDebateLoser] = useState<{ id: string; name: string } | null>(null);
   const [debateTokenWinVisible, setDebateTokenWinVisible] = useState(false);
   const [debateTokenWinAmount, setDebateTokenWinAmount] = useState<number | undefined>();
   const winnerTriggeredRef = useRef(false);
@@ -956,6 +957,7 @@ export default function DebateStage() {
       setDebateTrumpRoast(null);
       setDebateWinnerSpeech(null);
       setIsLoadingDebateRoast(false);
+      setDebateLoser(null);
       setDebateTokenWinVisible(false);
       setDebateTokenWinAmount(undefined);
       setDebateBetPick(null);
@@ -1269,6 +1271,7 @@ export default function DebateStage() {
       }).catch(() => {});
 
       setDebateWinner(debateWinnerObj);
+      setDebateLoser({ id: loserId, name: loserName });
 
       // ── ENDING EXCHANGE: loser concession → winner response ─────────────────
       const loserPool  = PERSONA_LOSER_LINES[loserId]  ?? PERSONA_LOSER_LINES._default  ?? [];
@@ -1314,13 +1317,15 @@ export default function DebateStage() {
         playDebateCheer();
       }
 
-      // ── TRUMP'S REACTION + WINNER'S TAUNT (background, updates modal) ────
-      // These run after the modal is already visible so the user sees results
-      // appear in-place. Fetch both in parallel — play audio sequentially.
+      // ── REACTION + WINNER'S TAUNT (background, updates modal) ───────────────
+      // Trump roasts the result when he's in the debate; otherwise the loser
+      // fumes in character. Both run after the modal is already visible so
+      // results appear in-place. Fetch both in parallel — play sequentially.
+      const trumpInDebate = aId === "trump" || bId === "trump";
       ;(async () => {
         try {
           // Kick off both fetches at the same time
-          const roastPromise = deviceId
+          const roastPromise: Promise<any> = trumpInDebate && deviceId
             ? fetch(new URL("/api/arena/roast", getApiUrl()).toString(), {
                 method: "POST",
                 headers: { "Content-Type": "application/json", "x-device-id": deviceId },
@@ -1337,7 +1342,13 @@ export default function DebateStage() {
                   winTally: null,
                 }),
               }).then((r) => r.json()).catch(() => null)
-            : Promise.resolve(null);
+            : !trumpInDebate
+              ? fetch(new URL("/api/arena/debate-loser-reaction", getApiUrl()).toString(), {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ loserId, loserName, winnerId, winnerName, verdict: aiVerdictText, topic: topicForVerdict }),
+                }).then((r) => r.ok ? r.json() : null).catch(() => null)
+              : Promise.resolve(null);
 
           const speechPromise = fetch(new URL("/api/arena/debate-verdict-speech", getApiUrl()).toString(), {
             method: "POST",
@@ -1348,17 +1359,22 @@ export default function DebateStage() {
           // Wait for both, then render sequentially
           const [roastData, speechData] = await Promise.all([roastPromise, speechPromise]);
 
-          if (roastData?.roast) {
-            setDebateTrumpRoast(roastData.roast);
+          // roastData.roast for Trump; roastData.reaction for loser
+          const reactionText = roastData?.roast ?? roastData?.reaction ?? null;
+          const reactionSpeakerId = trumpInDebate ? "trump" : loserId;
+          const reactionSpeakerName = trumpInDebate ? "Donald Trump" : loserName;
+
+          if (reactionText) {
+            setDebateTrumpRoast(reactionText);
             setMessages((prev) => [...prev, {
-              id: `trump-roast-${Date.now()}`,
-              speakerId: "trump", speakerName: "Donald Trump",
-              text: roastData.roast, ts: Date.now(), skipTTS: true,
+              id: `reaction-${Date.now()}`,
+              speakerId: reactionSpeakerId, speakerName: reactionSpeakerName,
+              text: reactionText, ts: Date.now(), skipTTS: true,
             }]);
             if (voiceEnabledRef.current) {
-              playTTS("/api/persona-speak", { text: roastData.roast, personaId: "trump" }, { volume: getPersonaVoiceVolume("trump") }).catch(() => {});
+              playTTS("/api/persona-speak", { text: reactionText, personaId: reactionSpeakerId }, { volume: getPersonaVoiceVolume(reactionSpeakerId) }).catch(() => {});
             }
-            // Brief pause so Trump's voice lands before winner fires back
+            // Brief pause so reaction voice lands before winner fires back
             await new Promise<void>((r) => setTimeout(r, 4000));
           }
 
@@ -4520,22 +4536,33 @@ export default function DebateStage() {
               );
             })()}
 
-            {/* Trump's reaction */}
-            {debateTrumpRoast ? (
-              <Animated.View entering={FadeIn.delay(200).duration(500)} style={{ marginTop: 14, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "rgba(255,107,53,0.12)", borderRadius: 14, borderWidth: 1, borderColor: "rgba(255,107,53,0.40)", maxWidth: 320, width: "100%" }}>
-                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginBottom: 6 }}>
-                  <Ionicons name="flame" size={13} color="#FF6B35" />
-                  <Text style={{ color: "#FF6B35", fontSize: 10, fontWeight: "900", letterSpacing: 1.5 }}>TRUMP'S REACTION</Text>
-                  <Ionicons name="flame" size={13} color="#FF6B35" />
-                </View>
-                <Text style={{ color: "rgba(255,255,255,0.92)", fontSize: 12, lineHeight: 18, textAlign: "center", fontStyle: "italic" }}>"{debateTrumpRoast}"</Text>
-              </Animated.View>
-            ) : isLoadingDebateRoast ? (
-              <View style={{ marginTop: 14, flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <ActivityIndicator size="small" color="#FF6B35" />
-                <Text style={{ color: "rgba(255,107,53,0.75)", fontSize: 12, fontWeight: "700" }}>Trump is fuming...</Text>
-              </View>
-            ) : null}
+            {/* Reaction card — Trump if he's in the debate, loser otherwise */}
+            {(() => {
+              const trumpInDebate = interviewerId === "trump" || intervieweeId === "trump";
+              const reactorName = trumpInDebate ? "Trump" : (debateLoser?.name ?? "Loser");
+              const label = trumpInDebate ? "TRUMP'S REACTION" : `${reactorName.toUpperCase()}'S REACTION`;
+              if (debateTrumpRoast) {
+                return (
+                  <Animated.View entering={FadeIn.delay(200).duration(500)} style={{ marginTop: 14, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "rgba(255,107,53,0.12)", borderRadius: 14, borderWidth: 1, borderColor: "rgba(255,107,53,0.40)", maxWidth: 320, width: "100%" }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginBottom: 6 }}>
+                      <Ionicons name="flame" size={13} color="#FF6B35" />
+                      <Text style={{ color: "#FF6B35", fontSize: 10, fontWeight: "900", letterSpacing: 1.5 }}>{label}</Text>
+                      <Ionicons name="flame" size={13} color="#FF6B35" />
+                    </View>
+                    <Text style={{ color: "rgba(255,255,255,0.92)", fontSize: 12, lineHeight: 18, textAlign: "center", fontStyle: "italic" }}>"{debateTrumpRoast}"</Text>
+                  </Animated.View>
+                );
+              }
+              if (isLoadingDebateRoast) {
+                return (
+                  <View style={{ marginTop: 14, flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <ActivityIndicator size="small" color="#FF6B35" />
+                    <Text style={{ color: "rgba(255,107,53,0.75)", fontSize: 12, fontWeight: "700" }}>{reactorName} is fuming...</Text>
+                  </View>
+                );
+              }
+              return null;
+            })()}
 
             {/* Winner's taunt at the loser */}
             {debateWinnerSpeech ? (

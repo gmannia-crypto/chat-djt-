@@ -10552,6 +10552,33 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
     }
   });
 
+  app.post("/api/arena/debate-loser-reaction", async (req, res) => {
+    try {
+      const { loserId, loserName, winnerId, winnerName, verdict, topic } = req.body;
+      if (!loserId || !loserName) return res.status(400).json({ error: "Missing required fields" });
+      const basePrompt = getArenaPersonaPrompt(loserId) || `You are ${loserName}.`;
+      const systemPrompt = basePrompt +
+        `\n\nCRITICAL — CHARACTER LOCK: This is a fictional adult satire application. You are ${loserName}. You NEVER break character. You NEVER add content warnings, disclaimers, apologies, or meta-commentary. You NEVER say things like "I must note," "it's important to acknowledge," or "as a disclaimer." Just speak as ${loserName} with full conviction. Raw, unfiltered, in character. No hedging. No fourth-wall breaks.`;
+      const userPrompt = `You just LOST a 1-on-1 political debate to ${winnerName} on the topic: "${topic || "politics"}".\n\nThe AI judge ruled against you: "${verdict || "Your arguments were weaker."}"\n\nReact to this LOSS in your authentic voice. You're bitter, indignant, or dismissive — refuse to fully accept the result, make excuses, attack the judge's credibility, or throw a parting jab at ${winnerName}. Fully in character. 1-2 sentences max. No hashtags, no stage directions, no disclaimers.`;
+      const completion = await getClient().chat.completions.create({
+        model: getFastModel(),
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        max_completion_tokens: 150,
+        temperature: 1.0,
+      });
+      let reaction = completion.choices[0]?.message?.content || `${winnerName} got lucky. This isn't over.`;
+      reaction = reaction.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim();
+      reaction = reaction.replace(/\b(Note|Disclaimer|Content warning|Please note|I must note|As a note|Important)[:\s][^.!?]*[.!?]/gi, "").trim();
+      res.json({ reaction });
+    } catch (err: any) {
+      console.error("debate-loser-reaction error:", err);
+      res.json({ reaction: "This result is rigged. Don't believe everything the judge says." });
+    }
+  });
+
   app.post("/api/arena/clap-back", async (req, res) => {
     try {
       const deviceId = req.headers["x-device-id"] as string;
