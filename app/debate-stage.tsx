@@ -882,6 +882,7 @@ export default function DebateStage() {
   const [shareTab, setShareTab] = useState<"viral" | "transcript">("viral");
   const [debateBetPick, setDebateBetPick] = useState<"interviewer" | "interviewee" | null>(null);
   const [debateBetWager, setDebateBetWager] = useState(2);
+  const [debateBetLocked, setDebateBetLocked] = useState(false);
   const [debateBetResult, setDebateBetResult] = useState<{ won: boolean; payout: number; winner: "interviewer" | "interviewee" } | null>(null);
 
   const flatListRef = useRef<FlatList>(null);
@@ -957,6 +958,9 @@ export default function DebateStage() {
       setIsLoadingDebateRoast(false);
       setDebateTokenWinVisible(false);
       setDebateTokenWinAmount(undefined);
+      setDebateBetPick(null);
+      setDebateBetLocked(false);
+      setDebateBetResult(null);
       // Reset heat meter
       setHeatA(0);
       setHeatB(0);
@@ -3929,7 +3933,22 @@ export default function DebateStage() {
             </View>
           )}
 
-          {debateBetPick && !debateBetResult && (() => {
+          {debateBetPick && debateBetLocked && !debateBetResult && (() => {
+            const lockedName = debateBetPick === "interviewer"
+              ? (debaterPool.find(p => p.id === interviewerId)?.name?.split(" ")[0] || "Debater A")
+              : (debaterPool.find(p => p.id === intervieweeId)?.name?.split(" ")[0] || "Debater B");
+            return (
+              <View style={{ marginTop: 12, padding: 14, borderRadius: 12, borderWidth: 1.5, borderColor: "rgba(251,191,36,0.5)", backgroundColor: "rgba(251,191,36,0.08)", flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <Ionicons name="lock-closed" size={18} color="#FBBF24" />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: "#FBBF24", fontSize: 13, fontWeight: "900" }}>BET LOCKED IN ✓</Text>
+                  <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 11, marginTop: 2 }}>{lockedName} to win · {debateBetWager}🪙 at stake</Text>
+                </View>
+              </View>
+            );
+          })()}
+
+          {debateBetPick && !debateBetLocked && !debateBetResult && (() => {
             const pickedName = debateBetPick === "interviewer"
               ? (debaterPool.find(p => p.id === interviewerId)?.name?.split(" ")[0] || "Debater A")
               : (debaterPool.find(p => p.id === intervieweeId)?.name?.split(" ")[0] || "Debater B");
@@ -3957,6 +3976,7 @@ export default function DebateStage() {
                       if (!res.ok) { Alert.alert("Not enough tokens", `Need ${debateBetWager} tokens to place this bet.`); return; }
                       await refreshBalance();
                       await placeInterviewBet({ pick: debateBetPick, interviewerId, intervieweeId, wager: debateBetWager, placedAt: Date.now() });
+                      setDebateBetLocked(true);
                       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                     }}
                     style={{ flex: 1, backgroundColor: "#FBBF24", borderRadius: 10, paddingVertical: 10, alignItems: "center" }}>
