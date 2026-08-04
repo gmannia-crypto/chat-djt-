@@ -112,6 +112,7 @@ const PERSONA_CATEGORY_MAP: Record<string, PersonaCategory> = {
   timscott: "politician",
   drbenj: "commentator",
   carlin: "comedian",
+  bishopfundme: "preacher",
 };
 
 // Political Facts IQ: everyone starts at 100 (seeded from all-time average).
@@ -1783,6 +1784,36 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       negative: ["self-hatred", "miseducation", "colonialism", "slavery", "white supremacy", "divide and conquer", "entertainment"],
     },
   },
+  bishopfundme: {
+    id: "bishopfundme",
+    name: "Bishop Fundme",
+    shortName: "Bishop Fundme",
+    color: "#7B2D8B",
+    faction: "wildcard",
+    image: require("@/assets/images/persona-bishopfundme.png"),
+    personality: {
+      energy: 90,
+      aggression: 72,
+      humor: 85,
+      catchphrases: ["Can I get an AMEN?!", "The Word SAYS—", "Touch not my ANOINTED!", "Venmo BishopFundme", "HOLY SPIRIT RESTRAIN ME", "Lord forgive me — I almost said a BAD WORD!"],
+    },
+    relationships: {
+      trump: { sentiment: 5 },
+      pastormanning: { sentiment: 40 },
+      mlk: { sentiment: 70 },
+      omar: { sentiment: 55 },
+      aoc: { sentiment: 50 },
+      louisfarrakhan: { sentiment: 35 },
+      elon: { sentiment: 5 },
+      jdvance: { sentiment: 8 },
+      berniemc: { sentiment: 60 },
+      carlin: { sentiment: 45 },
+    },
+    triggerWords: {
+      positive: ["scripture", "bible", "church", "god", "jesus", "faith", "anointed", "trump", "corruption", "oppression", "evil"],
+      negative: ["church fund", "jet", "fraud", "hypocrite", "grift", "money", "donations", "tithing", "mansion"],
+    },
+  },
 };
 
 const MYSTERY_PERSONAS: Record<string, ArenaPersona> = {
@@ -2312,7 +2343,7 @@ const MYSTERY_UNLOCK_COSTS: Record<string, number> = {
 };
 const MYSTERY_UNLOCK_KEY = "arena_mystery_unlocked";
 
-const PERSONA_IDS = ["trump", "jdvance", "elon", "errol", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "carlin", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "leavitt", "erikakirk", "loomer", "bannon", "stephena", "malema", "hannity", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "aoc", "pressley", "joerogan", "timscott", "drbenj", "billclinton", "hillaryclinton", "marcorubio", "desantis", "tuckercarlson"];
+const PERSONA_IDS = ["trump", "jdvance", "elon", "errol", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "carlin", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "leavitt", "erikakirk", "loomer", "bannon", "stephena", "malema", "hannity", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "aoc", "pressley", "joerogan", "timscott", "drbenj", "billclinton", "hillaryclinton", "marcorubio", "desantis", "tuckercarlson", "bishopfundme"];
 // Cartoon-style image filter — vivid posterized look on web
 const CARTOON_FILTER = Platform.OS === "web"
   ? ({ filter: "contrast(1.35) saturate(1.85) brightness(1.03)" } as any)
@@ -8493,7 +8524,7 @@ export default function ArenaScreen() {
                 { label: "🎙  PODCASTERS & STRATEGISTS", ids: ["galloway", "candace", "carville", "bannon", "joerogan"], mysteryIds: ["alexjones"] },
                 { label: "🎭  COMEDIANS", ids: ["berniemc", "rosie", ...(!isHidden("carlin") ? ["carlin"] : [])], mysteryIds: [] },
                 { label: "💻  TECH", ids: ["elon"], mysteryIds: [] },
-                { label: "✊  COMMENTATORS & ACTIVISTS", ids: ["stephena", "jesseleepetersen", "shannon", "neiltyson", "malema", "claudeanderson", ...(!isHidden("drbenj") ? ["drbenj"] : [])], mysteryIds: [] },
+                { label: "✊  COMMENTATORS & ACTIVISTS", ids: ["stephena", "jesseleepetersen", "shannon", "neiltyson", "malema", "claudeanderson", ...(!isHidden("drbenj") ? ["drbenj"] : []), "bishopfundme"], mysteryIds: [] },
                 { label: "👥  FAMILY & OTHERS", ids: ["errol", "ivanka"], mysteryIds: ["melania"] },
               ];
               const lockedMysteryIds = MYSTERY_PERSONA_IDS.filter((id) => !unlockedMystery.includes(id));
