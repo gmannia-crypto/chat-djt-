@@ -884,7 +884,7 @@ export default function DebateStage() {
   const [debateBetPick, setDebateBetPick] = useState<"interviewer" | "interviewee" | null>(null);
   const [debateBetWager, setDebateBetWager] = useState(2);
   const [debateBetLocked, setDebateBetLocked] = useState(false);
-  const [debateBetResult, setDebateBetResult] = useState<{ won: boolean; payout: number; winner: "interviewer" | "interviewee" } | null>(null);
+  const [debateBetResult, setDebateBetResult] = useState<{ won: boolean; payout: number; winner: "interviewer" | "interviewee"; refunded?: boolean } | null>(null);
 
   const flatListRef = useRef<FlatList>(null);
   const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -3568,15 +3568,26 @@ export default function DebateStage() {
         const savedBet = await getInterviewBet();
         if (!savedBet || savedBet.interviewerId !== interviewerId || savedBet.intervieweeId !== intervieweeId) return;
         const msgs = messagesRef.current || [];
-        // Prefer the AI judge's verdict (debateWinner.id) over the word-count heuristic
-        const aiWinnerId = debateWinner?.id || undefined;
-        const { won, winner } = resolveInterviewWinnerBet(
+        // Only treat debateWinner.id as a real AI verdict when aiJudged is true.
+        // When the AI verdict failed, debateWinner.id is still set via fallback heuristics
+        // on the debate-end flow — passing it here would silently resolve bets via those
+        // heuristics. Setting aiWinnerId to undefined triggers a refund instead.
+        const aiWinnerId = debateWinner?.aiJudged ? debateWinner.id : undefined;
+        const { won, winner, refunded } = resolveInterviewWinnerBet(
           savedBet.pick,
           msgs.map((m) => ({ speakerId: m.speakerId, text: m.text })),
           interviewerId,
           intervieweeId,
           aiWinnerId,
         );
+        if (refunded) {
+          // AI verdict unavailable — return the wager so the user isn't penalised
+          await awardBetWin(deviceId, savedBet.wager, "Bet refund — judge unavailable");
+          await refreshBalance();
+          await clearInterviewBet();
+          setDebateBetResult({ won: false, payout: savedBet.wager, winner, refunded: true });
+          return;
+        }
         const payout = won ? savedBet.wager * 2 : 0;
         if (won) {
           await awardBetWin(deviceId, payout, "Debate winner bet");
@@ -4056,9 +4067,13 @@ export default function DebateStage() {
           })()}
 
           {debateBetResult && (
-            <View style={{ marginTop: 12, padding: 14, borderRadius: 12, borderWidth: 1.5, borderColor: debateBetResult.won ? "#4ADE80" : "#FF4D4D", backgroundColor: debateBetResult.won ? "rgba(74,222,128,0.08)" : "rgba(255,77,77,0.08)" }}>
-              <Text style={{ color: debateBetResult.won ? "#4ADE80" : "#FF4D4D", fontSize: 14, fontWeight: "900", textAlign: "center" }}>
-                {debateBetResult.won ? `🎉 BET WON! +${debateBetResult.payout}🪙` : `❌ BET LOST — ${debateBetResult.winner === "interviewer" ? "Debater A" : "Debater B"} dominated`}
+            <View style={{ marginTop: 12, padding: 14, borderRadius: 12, borderWidth: 1.5, borderColor: debateBetResult.refunded ? "#FFD700" : debateBetResult.won ? "#4ADE80" : "#FF4D4D", backgroundColor: debateBetResult.refunded ? "rgba(255,215,0,0.08)" : debateBetResult.won ? "rgba(74,222,128,0.08)" : "rgba(255,77,77,0.08)" }}>
+              <Text style={{ color: debateBetResult.refunded ? "#FFD700" : debateBetResult.won ? "#4ADE80" : "#FF4D4D", fontSize: 14, fontWeight: "900", textAlign: "center" }}>
+                {debateBetResult.refunded
+                  ? `↩️ BET REFUNDED +${debateBetResult.payout}🪙 — judge unavailable`
+                  : debateBetResult.won
+                    ? `🎉 BET WON! +${debateBetResult.payout}🪙`
+                    : `❌ BET LOST — ${debateBetResult.winner === "interviewer" ? "Debater A" : "Debater B"} dominated`}
               </Text>
             </View>
           )}
