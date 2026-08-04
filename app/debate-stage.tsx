@@ -1265,8 +1265,13 @@ export default function DebateStage() {
       // Wait for parting shot to finish — verdict fetch is running in parallel
       if (partingShotDelay > 0) await new Promise<void>((r) => setTimeout(r, partingShotDelay));
 
-      // Now await verdict (likely already done or close to done)
-      await verdictPromise;
+      // Now await verdict (likely already done or close to done).
+      // A 15-second hard timeout prevents the deliberating spinner from
+      // hanging forever on a slow or hung connection.
+      await Promise.race([
+        verdictPromise,
+        new Promise<void>((resolve) => setTimeout(() => { verdictFailed = true; resolve(); }, 15000)),
+      ]);
 
       // Remove deliberating indicator; replace with a neutral note if the fetch failed
       // or if the server returned 200 but with an empty verdict field.
