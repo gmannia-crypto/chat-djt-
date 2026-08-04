@@ -3898,6 +3898,7 @@ export default function ArenaScreen() {
   const [verdictData, setVerdictData] = useState<any>(null);
   const [verdictLoading, setVerdictLoading] = useState(false);
   const [verdictTimedOut, setVerdictTimedOut] = useState(false);
+  const [debateFinished, setDebateFinished] = useState(false);
 
   const [personaPoints, setPersonaPoints] = useState<Record<string, number>>({});
   const [awardedMessages, setAwardedMessages] = useState<Set<string>>(new Set());
@@ -5075,6 +5076,7 @@ export default function ArenaScreen() {
         setIsRunning(false);
         isRunningRef.current = false;
         sessionEndedRef.current = true;
+        setDebateFinished(true);
         isInterruptingRef.current = false;
         if (breakingNewsTimerRef.current) { clearInterval(breakingNewsTimerRef.current); breakingNewsTimerRef.current = null; }
         setBreakingNewsBanner(null);
@@ -6410,6 +6412,7 @@ export default function ArenaScreen() {
     setCurrentSpeaker(null);
     setIsRunning(true);
     isRunningRef.current = true;
+    setDebateFinished(false);
     // Clear stale verdict so a new debate always starts from a blank state (#383).
     setVerdictData(null);
     setVerdictTimedOut(false);
@@ -7576,9 +7579,11 @@ export default function ArenaScreen() {
             <Text style={{ color: "#ff4d4d", fontSize: 10, fontWeight: "900", marginLeft: 2 }}>{lieCount}</Text>
           )}
         </Pressable>
-        <Pressable onPress={() => { if (verdictLoading) return; Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); fetchVerdict(); }} disabled={verdictLoading} style={[s.headerIconBtn, { borderColor: "rgba(255,215,0,0.4)", opacity: verdictLoading ? 0.4 : 1 }]} testID="arena-verdict">
-          <Ionicons name="scale" size={16} color="#FFD700" />
-        </Pressable>
+        {debateFinished && (
+          <Pressable onPress={() => { if (verdictLoading) return; Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); fetchVerdict(); }} disabled={verdictLoading} style={[s.headerIconBtn, { borderColor: "rgba(255,215,0,0.4)", opacity: verdictLoading ? 0.4 : 1 }]} testID="arena-verdict">
+            <Ionicons name="scale" size={16} color="#FFD700" />
+          </Pressable>
+        )}
         <Pressable onPress={shareDebate} style={s.headerIconBtn}>
           <Ionicons name="share-social" size={18} color="#fff" />
         </Pressable>
