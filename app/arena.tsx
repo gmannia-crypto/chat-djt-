@@ -7576,7 +7576,7 @@ export default function ArenaScreen() {
             <Text style={{ color: "#ff4d4d", fontSize: 10, fontWeight: "900", marginLeft: 2 }}>{lieCount}</Text>
           )}
         </Pressable>
-        <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); fetchVerdict(); }} style={[s.headerIconBtn, { borderColor: "rgba(255,215,0,0.4)" }]} testID="arena-verdict">
+        <Pressable onPress={() => { if (verdictLoading) return; Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); fetchVerdict(); }} disabled={verdictLoading} style={[s.headerIconBtn, { borderColor: "rgba(255,215,0,0.4)", opacity: verdictLoading ? 0.4 : 1 }]} testID="arena-verdict">
           <Ionicons name="scale" size={16} color="#FFD700" />
         </Pressable>
         <Pressable onPress={shareDebate} style={s.headerIconBtn}>
