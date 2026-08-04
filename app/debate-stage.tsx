@@ -1213,6 +1213,8 @@ export default function DebateStage() {
       let aiVerdictText = "";
       let aiWinnerId = "";
 
+      const deliberatingMsgId = `deliberating-${Date.now()}`;
+
       const verdictPromise = msgs.length >= 2
         ? (async () => {
             try {
@@ -1241,11 +1243,30 @@ export default function DebateStage() {
           })()
         : Promise.resolve();
 
+      // Show deliberating indicator while verdict is being fetched
+      if (msgs.length >= 2) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: deliberatingMsgId,
+            speakerId: "system",
+            speakerName: "System",
+            text: "⚖️ DC AI is deliberating...",
+            ts: Date.now(),
+            isSystem: true,
+            skipTTS: true,
+          },
+        ]);
+      }
+
       // Wait for parting shot to finish — verdict fetch is running in parallel
       if (partingShotDelay > 0) await new Promise<void>((r) => setTimeout(r, partingShotDelay));
 
       // Now await verdict (likely already done or close to done)
       await verdictPromise;
+
+      // Remove deliberating indicator now that the verdict has arrived
+      setMessages((prev) => prev.filter((m) => m.id !== deliberatingMsgId));
 
       // Fallback: votes (if cast) → message count
       if (!aiWinnerId) {
