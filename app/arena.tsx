@@ -3898,6 +3898,8 @@ export default function ArenaScreen() {
   const [verdictData, setVerdictData] = useState<any>(null);
   const [verdictLoading, setVerdictLoading] = useState(false);
   const [verdictTimedOut, setVerdictTimedOut] = useState(false);
+  const [factCheckLoading, setFactCheckLoading] = useState(false);
+  const factCheckInFlightRef = useRef(0);
   const [debateFinished, setDebateFinished] = useState(false);
 
   const [personaPoints, setPersonaPoints] = useState<Record<string, number>>({});
@@ -5283,6 +5285,19 @@ export default function ArenaScreen() {
     if (!deviceId) return;
     if (msg.isSystem || msg.speakerId === "user") return;
     if (!msg.text || msg.text.length < 25) return;
+    factCheckInFlightRef.current += 1;
+    setFactCheckLoading(true);
+    const loadingStart = Date.now();
+    const finishLoading = () => {
+      const elapsed = Date.now() - loadingStart;
+      const remaining = 500 - elapsed;
+      const cleanup = () => {
+        factCheckInFlightRef.current -= 1;
+        if (factCheckInFlightRef.current === 0) setFactCheckLoading(false);
+      };
+      if (remaining > 0) setTimeout(cleanup, remaining);
+      else cleanup();
+    };
     fetch(new URL("/api/arena/interview-factcheck", getApiUrl()).toString(), {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-device-id": deviceId },
@@ -5290,7 +5305,7 @@ export default function ArenaScreen() {
     })
       .then((r) => r.ok ? r.json() : null)
       .then((data: any) => {
-        if (!data) return;
+        if (!data) { finishLoading(); return; }
         const score = Math.max(0, Math.min(100, Number(data.score) || 70));
         setLatestTruthScore(score);
         if (score < 40 || data.isLie) {
@@ -5331,8 +5346,9 @@ export default function ArenaScreen() {
         } else {
           adjustPersonaIQ(msg.speakerId, 2);
         }
+        finishLoading();
       })
-      .catch(() => {});
+      .catch(() => { finishLoading(); });
   }, [deviceId, triggerLieFlash, playLieAlert, adjustPersonaIQ]);
 
   const flagMessageAsLie = useCallback((msg: ConversationMessage) => {
@@ -7581,8 +7597,11 @@ export default function ArenaScreen() {
           style={[s.headerIconBtn, lieCount > 0 && { backgroundColor: "rgba(255,77,77,0.15)", borderColor: "rgba(255,77,77,0.5)" }]}
           testID="arena-lie-counter"
         >
-          <Ionicons name="flash" size={16} color={lieCount > 0 ? "#ff4d4d" : "rgba(255,255,255,0.6)"} />
-          {lieCount > 0 && (
+          {factCheckLoading
+            ? <ActivityIndicator size="small" color="#ff4d4d" />
+            : <Ionicons name="flash" size={16} color={lieCount > 0 ? "#ff4d4d" : "rgba(255,255,255,0.6)"} />
+          }
+          {lieCount > 0 && !factCheckLoading && (
             <Text style={{ color: "#ff4d4d", fontSize: 10, fontWeight: "900", marginLeft: 2 }}>{lieCount}</Text>
           )}
         </Pressable>
