@@ -7579,14 +7579,23 @@ export default function ArenaScreen() {
             <Text style={{ color: "#ff4d4d", fontSize: 10, fontWeight: "900", marginLeft: 2 }}>{lieCount}</Text>
           )}
         </Pressable>
-        {debateFinished && (
+        {debateFinished ? (
           <Pressable onPress={() => { if (verdictLoading) return; Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); fetchVerdict(); }} disabled={verdictLoading} style={[s.headerIconBtn, { borderColor: "rgba(255,215,0,0.4)", opacity: verdictLoading ? 0.6 : 1 }]} testID="arena-verdict">
             {verdictLoading
               ? <ActivityIndicator size="small" color="#FFD700" />
               : <Ionicons name="scale" size={16} color="#FFD700" />
             }
           </Pressable>
-        )}
+        ) : isRunning ? (
+          <Pressable
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); Alert.alert("Verdict Locked", "The verdict unlocks once the debate ends."); }}
+            style={[s.headerIconBtn, { borderColor: "rgba(255,215,0,0.15)", opacity: 0.45, flexDirection: "column", paddingHorizontal: 6, minWidth: 40 }]}
+            testID="arena-verdict-pending"
+          >
+            <Ionicons name="scale" size={14} color="#FFD700" />
+            <Text style={{ color: "#FFD700", fontSize: 8, fontWeight: "700", marginTop: 1, letterSpacing: 0.3 }}>AFTER</Text>
+          </Pressable>
+        ) : null}
         <Pressable onPress={shareDebate} style={s.headerIconBtn}>
           <Ionicons name="share-social" size={18} color="#fff" />
         </Pressable>
