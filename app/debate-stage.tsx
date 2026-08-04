@@ -1269,7 +1269,8 @@ export default function DebateStage() {
       await verdictPromise;
 
       // Remove deliberating indicator; replace with a neutral note if the fetch failed
-      if (verdictFailed) {
+      // or if the server returned 200 but with an empty verdict field.
+      if (verdictFailed || !aiVerdictText) {
         setMessages((prev) =>
           prev.map((m) =>
             m.id === deliberatingMsgId
