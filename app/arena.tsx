@@ -4291,6 +4291,10 @@ export default function ArenaScreen() {
     setIsRunning(false);
     isRunningRef.current = false;
     if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
+    // Clear stale verdict state so it doesn't bleed into the next session (#383).
+    setVerdictData(null);
+    setVerdictTimedOut(false);
+    setShowVerdictModal(false);
     confirmedExitRef.current = true;
     doNav();
   }, [hasSession, sessionExpiresAt, saveSessionState]);
@@ -6406,6 +6410,10 @@ export default function ArenaScreen() {
     setCurrentSpeaker(null);
     setIsRunning(true);
     isRunningRef.current = true;
+    // Clear stale verdict so a new debate always starts from a blank state (#383).
+    setVerdictData(null);
+    setVerdictTimedOut(false);
+    setShowVerdictModal(false);
     // Reset heat and room temperature so a new debate never inherits red rings
     // or a spiked room-temp bar from the previous session (#279).
     arenaHeatRef.current = {};
