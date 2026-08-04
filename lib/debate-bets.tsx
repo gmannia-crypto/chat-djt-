@@ -90,14 +90,25 @@ export function resolveInterviewWinnerBet(
   messages: Array<{ speakerId: string; text?: string }>,
   interviewerId: string,
   intervieweeId: string,
+  /** AI-determined winner persona ID — when provided, skips the word-count heuristic */
+  aiWinnerId?: string,
 ): { won: boolean; winner: "interviewer" | "interviewee" } {
-  let interviewerWords = 0;
-  let intervieweeWords = 0;
-  for (const msg of messages) {
-    const words = (msg.text || "").split(/\s+/).filter(Boolean).length;
-    if (msg.speakerId === interviewerId) interviewerWords += words;
-    else if (msg.speakerId === intervieweeId) intervieweeWords += words;
+  let winner: "interviewer" | "interviewee";
+
+  if (aiWinnerId) {
+    // Use the AI judge's verdict directly
+    winner = aiWinnerId === interviewerId ? "interviewer" : "interviewee";
+  } else {
+    // Fallback: word-count heuristic
+    let interviewerWords = 0;
+    let intervieweeWords = 0;
+    for (const msg of messages) {
+      const words = (msg.text || "").split(/\s+/).filter(Boolean).length;
+      if (msg.speakerId === interviewerId) interviewerWords += words;
+      else if (msg.speakerId === intervieweeId) intervieweeWords += words;
+    }
+    winner = interviewerWords >= intervieweeWords ? "interviewer" : "interviewee";
   }
-  const winner: "interviewer" | "interviewee" = interviewerWords >= intervieweeWords ? "interviewer" : "interviewee";
+
   return { won: pick === winner, winner };
 }

@@ -3551,11 +3551,14 @@ export default function DebateStage() {
         const savedBet = await getInterviewBet();
         if (!savedBet || savedBet.interviewerId !== interviewerId || savedBet.intervieweeId !== intervieweeId) return;
         const msgs = messagesRef.current || [];
+        // Prefer the AI judge's verdict (debateWinner.id) over the word-count heuristic
+        const aiWinnerId = debateWinner?.id || undefined;
         const { won, winner } = resolveInterviewWinnerBet(
           savedBet.pick,
           msgs.map((m) => ({ speakerId: m.speakerId, text: m.text })),
           interviewerId,
           intervieweeId,
+          aiWinnerId,
         );
         const payout = won ? savedBet.wager * 2 : 0;
         if (won) {
@@ -3566,7 +3569,7 @@ export default function DebateStage() {
         setDebateBetResult({ won, payout, winner });
       } catch {}
     })();
-  }, [phase, interviewerId, intervieweeId, deviceId]);
+  }, [phase, interviewerId, intervieweeId, deviceId, debateWinner]);
 
   const togglePause = useCallback(() => {
     const next = !isPausedRef.current;
