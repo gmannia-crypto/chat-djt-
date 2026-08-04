@@ -1212,6 +1212,7 @@ export default function DebateStage() {
       const topicForVerdict = (topics && topics.length > 0) ? topics[0].title : "Political Debate";
       let aiVerdictText = "";
       let aiWinnerId = "";
+      let verdictFailed = false;
 
       const deliberatingMsgId = `deliberating-${Date.now()}`;
 
@@ -1238,8 +1239,10 @@ export default function DebateStage() {
                                  vWinner.includes(aNameLc) ||
                                  aNameLc.includes(vWinner);
                 aiWinnerId = aWinsAI ? aId : bId;
+              } else {
+                verdictFailed = true;
               }
-            } catch { /* fall through to fallback */ }
+            } catch { verdictFailed = true; /* fall through to fallback */ }
           })()
         : Promise.resolve();
 
@@ -1265,8 +1268,22 @@ export default function DebateStage() {
       // Now await verdict (likely already done or close to done)
       await verdictPromise;
 
-      // Remove deliberating indicator now that the verdict has arrived
-      setMessages((prev) => prev.filter((m) => m.id !== deliberatingMsgId));
+      // Remove deliberating indicator; replace with a neutral note if the fetch failed
+      if (verdictFailed) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === deliberatingMsgId
+              ? {
+                  ...m,
+                  id: `verdict-unavailable-${Date.now()}`,
+                  text: "⚖️ Verdict unavailable",
+                }
+              : m,
+          ),
+        );
+      } else {
+        setMessages((prev) => prev.filter((m) => m.id !== deliberatingMsgId));
+      }
 
       // Fallback: votes (if cast) → message count
       if (!aiWinnerId) {
