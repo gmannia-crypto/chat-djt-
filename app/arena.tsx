@@ -7580,8 +7580,11 @@ export default function ArenaScreen() {
           )}
         </Pressable>
         {debateFinished && (
-          <Pressable onPress={() => { if (verdictLoading) return; Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); fetchVerdict(); }} disabled={verdictLoading} style={[s.headerIconBtn, { borderColor: "rgba(255,215,0,0.4)", opacity: verdictLoading ? 0.4 : 1 }]} testID="arena-verdict">
-            <Ionicons name="scale" size={16} color="#FFD700" />
+          <Pressable onPress={() => { if (verdictLoading) return; Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); fetchVerdict(); }} disabled={verdictLoading} style={[s.headerIconBtn, { borderColor: "rgba(255,215,0,0.4)", opacity: verdictLoading ? 0.6 : 1 }]} testID="arena-verdict">
+            {verdictLoading
+              ? <ActivityIndicator size="small" color="#FFD700" />
+              : <Ionicons name="scale" size={16} color="#FFD700" />
+            }
           </Pressable>
         )}
         <Pressable onPress={shareDebate} style={s.headerIconBtn}>
