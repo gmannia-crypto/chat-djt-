@@ -6662,6 +6662,7 @@ export default function ArenaScreen() {
     setShowVerdictModal(true);
     setVerdictData(null);
     setVerdictTimedOut(false);
+    const loadingStart = Date.now();
     try {
       const timeout = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error("timeout")), 15_000)
@@ -6685,8 +6686,14 @@ export default function ArenaScreen() {
       }
     } catch (err: any) {
       setVerdictTimedOut(err?.message === "timeout");
+    } finally {
+      const elapsed = Date.now() - loadingStart;
+      const remaining = 500 - elapsed;
+      if (remaining > 0) {
+        await new Promise<void>((resolve) => setTimeout(resolve, remaining));
+      }
+      setVerdictLoading(false);
     }
-    finally { setVerdictLoading(false); }
   }, [verdictLoading, messages, currentTopic, selectedPersonas]);
 
   const shareVerdict = useCallback(async () => {
