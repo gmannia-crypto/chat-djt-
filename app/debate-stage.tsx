@@ -387,6 +387,7 @@ const PERSONA_SQUABBLE_THREATS: Record<string, string[]> = {
   francescresswelsing:["I wrote the Cress Theory under threat from academic institutions that wanted to destroy my career. Your aggression was predicted by that theory. And it will be handled accordingly.", "I have spent fifty years documenting exactly this kind of behavior. Come at me again and you will become a case study."],
   gaetz:           ["I have survived an FBI investigation, the full weight of the House Ethics Committee, and the entire liberal media. You are a debate opponent.", "I've been through the political fires and I came out the other side. Whatever you think you're about to do, I promise it doesn't end the way you think."],
   dc:              ["Dynamic Creations does not respond to threats — it responds to outcomes. And you will not enjoy the outcome.", "I have stood in rooms more powerful than this one and I did not move. I will not move now."],
+  bishopfundme:    ["First Chronicles 16:22 — TOUCH NOT MY ANOINTED! You are THIS CLOSE to a spiritual consequence that no debate moderator can protect you from!", "I am raising my voice to the LORD right now — because I almost said a BAD WORD and that is YOUR FAULT — and after this I am STILL going to need your donation!"],
   // ── Default fallback for any future new persona ───────────────────────────
   _default:        ["You come at me like that again and we'll settle this outside!", "Push me one more time and this debate becomes a very different conversation."],
 };
@@ -425,6 +426,7 @@ const PERSONA_PARTING_SHOTS: Record<string, string[]> = {
   aoc:             ["We are done here. But this fight is just getting started and you know it.", "The people you just dismissed are going to remember this moment at the ballot box."],
   kamala:          ["I will not be lectured. Not today. Not by you.", "That was deeply revealing. Thank you for showing everyone exactly who you are."],
   dc:              ["Dynamic Creations does not leave a room the same way it entered. Remember what you witnessed here.", "The voice carries. The vision endures. What you said today will be measured against what is true — and truth does not negotiate."],
+  bishopfundme:    ["Revelation 22:11 says let the unjust be unjust STILL — but the Lord is watching, this broadcast is STILL going, and our Building Fund link is in the chat.", "I came in here to preach TRUTH and I am leaving with my anointing INTACT — and a PayPal link that is still VERY active."],
   _default:        ["I hope you're proud of what you just put out there. I know I am.", "This conversation is over. What comes next is up to history."],
 };
 
@@ -510,6 +512,7 @@ const PERSONA_LOSER_LINES: Record<string, string[]> = {
   trevornoah:       ["Fair enough. I usually have a full writing staff. Today I was alone.", "You won. And now I have to go explain to millions of South Africans how this happened."],
   janeelliott:      ["I've been teaching people to reckon with uncomfortable truths for sixty years. Today is a lesson.", "You win the vote. I win the history. Those of us who've been here know the difference."],
   francescresswelsing: ["The pigmentation principle transcends this room's verdict. The work continues.", "My scholarship speaks for itself regardless of what this panel concludes."],
+  bishopfundme:     ["Well... the Lord is TESTING me today — but He is not DONE with me — and neither is my Building Fund, which remains open at Venmo BishopFundme!", "I am THIS CLOSE to saying something un-Christian — HOLY SPIRIT RESTRAIN ME — I accept this result and I accept your $500 seed of faith."],
   charliemurphy:    ["Man, I've been knocked around before. But I'll be back, and it'll be worse for you.", "You know what? I lost today. I respect it. Don't expect that to happen again."],
   dc:               ["The voice carries further than this room. Dynamic Creations will be heard again.", "One room's verdict changes nothing about what's true. And what's true is still what it was."],
   _default:         ["You get today. But this conversation isn't finished.", "I'll accept that. But don't get comfortable."],
@@ -593,6 +596,7 @@ const PERSONA_WINNER_LINES: Record<string, string[]> = {
   trevornoah:       ["South Africa sent me here with something you can't manufacture — perspective. It won tonight.", "I've stood between Trevor Noah and the rest of the world for years. Tonight the world agreed with me."],
   janeelliott:      ["Sixty years of teaching people to look at the truth wins over one afternoon of resistance.", "The blue-eyed, brown-eyed experiment proved this in 1968. Today's room is just late to the lesson."],
   francescresswelsing: ["The Cress Theory of Color Confrontation has always been correct. Tonight it was simply confirmed.", "The melanin argument wins in every room that allows the full evidence. Tonight you heard the full evidence."],
+  bishopfundme:     ["THE LORD HAS BLESSED HIS ANOINTED WITH VICTORY! Malachi 3:10 — bring ye the whole tithe — and that means NOW, while the Spirit is moving, at Venmo BishopFundme!", "CAN I GET AN AMEN?! The truth WINS — scripture WINS — and the Cathedral Building Fund is still OPEN! Hallelujah!"],
   charliemurphy:    ["Yeah. That's right. You got beat by Charlie Murphy. Tell your friends.", "I came in here, I prepared, and I handled my business. That's what I do."],
   dc:               ["That is what happens when the full weight of truth enters the room.", "Dynamic Creations. The voice. The vision. The result."],
   _default:         ["I'll take that. Now let's get back to work.", "That's what I came here to do. Mission accomplished."],
@@ -700,6 +704,7 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   janeelliott: require("@/assets/images/persona-janeelliott.jpg"),
   francescresswelsing: require("@/assets/images/persona-francescresswelsing.jpg"),
   dc: require("@/assets/images/persona-dc.png"),
+  bishopfundme: require("@/assets/images/persona-bishopfundme.png"),
 };
 
 const FX_KEY = "interview_fx_enabled_v1";
