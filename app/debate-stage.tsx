@@ -1206,20 +1206,31 @@ export default function DebateStage() {
         } catch { /* ignore — ending exchange is best-effort */ }
       };
 
+      // ── Variables lifted outside try so the reaction IIFE can close over them ─
+      let aPersona: typeof interviewers[0] | undefined;
+      let bPersona: typeof interviewees[0] | undefined;
+      let msgs: typeof messagesRef.current = [];
+      let topicForVerdict = "Political Debate";
+      let aiVerdictText = "";
+      let aiWinnerId = "";
+      let verdictFailed = false;
+      let deliberatingMsgId = `deliberating-${Date.now()}`;
+      let winnerId = "";
+      let loserId = "";
+      let winnerName = "";
+      let loserName = "";
+      let debateWinnerObj: { id: string; name: string; portrait: any; points: number; opponentPoints: number; verdict: string; aiJudged: boolean } | null = null;
+
       try {
-      const aPersona = interviewers.find((p) => p.id === aId);
-      const bPersona = interviewees.find((p) => p.id === bId);
+      aPersona = interviewers.find((p) => p.id === aId);
+      bPersona = interviewees.find((p) => p.id === bId);
 
       // ── AI VERDICT — fired immediately, overlaps parting-shot delay ──────────
       // Start the fetch NOW so it runs in parallel with the parting-shot audio
       // instead of creating 10 s of dead air after it finishes.
-      const msgs = messagesRef.current.filter((m) => !m.isSystem);
-      const topicForVerdict = (topics && topics.length > 0) ? topics[0].title : "Political Debate";
-      let aiVerdictText = "";
-      let aiWinnerId = "";
-      let verdictFailed = false;
-
-      const deliberatingMsgId = `deliberating-${Date.now()}`;
+      msgs = messagesRef.current.filter((m) => !m.isSystem);
+      topicForVerdict = (topics && topics.length > 0) ? topics[0].title : "Political Debate";
+      deliberatingMsgId = `deliberating-${Date.now()}`;
 
       const verdictPromise = msgs.length >= 2
         ? (async () => {
@@ -1307,13 +1318,13 @@ export default function DebateStage() {
         }
       }
 
-      const winnerId = aiWinnerId;
-      const loserId  = winnerId === aId ? bId : aId;
+      winnerId = aiWinnerId;
+      loserId  = winnerId === aId ? bId : aId;
       const winnerP = winnerId === aId ? aPersona : bPersona;
       const loserP  = loserId  === aId ? aPersona : bPersona;
-      const winnerName = winnerP?.name || winnerId;
-      const loserName  = loserP?.name  || loserId;
-      const debateWinnerObj = {
+      winnerName = winnerP?.name || winnerId;
+      loserName  = loserP?.name  || loserId;
+      debateWinnerObj = {
         id: winnerId, name: winnerName,
         portrait: PERSONA_PORTRAITS[winnerId] || null,
         points: pts.a > 0 || pts.b > 0 ? (winnerId === aId ? pts.a : pts.b) : 0,
