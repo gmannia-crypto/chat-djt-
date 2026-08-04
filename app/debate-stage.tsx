@@ -856,6 +856,8 @@ export default function DebateStage() {
   const [debatePoints, setDebatePoints] = useState<{ a: number; b: number }>({ a: 0, b: 0 });
   const debatePointsRef = useRef<{ a: number; b: number }>({ a: 0, b: 0 });
   useEffect(() => { debatePointsRef.current = debatePoints; }, [debatePoints]);
+  const [showTapHint, setShowTapHint] = useState(false);
+  const tapHintShownRef = useRef(false);
   const [showDebateWinner, setShowDebateWinner] = useState(false);
   const [debateWinner, setDebateWinner] = useState<{ id: string; name: string; portrait: any; points: number; opponentPoints: number; verdict?: string; aiJudged?: boolean } | null>(null);
   const [debateTrumpRoast, setDebateTrumpRoast] = useState<string | null>(null);
@@ -987,7 +989,21 @@ export default function DebateStage() {
       }
       cancelAnimation(roomTempBarWidth);
       roomTempBarWidth.value = 0;
+      // Reset hint so it shows again on the next session
+      tapHintShownRef.current = false;
     }
+  }, [phase]);
+
+  // ── TAP-HINT — fires 10 s after going live, auto-dismisses after 4 s ─────
+  useEffect(() => {
+    if (phase !== "live" || tapHintShownRef.current) return;
+    tapHintShownRef.current = true;
+    const showT = setTimeout(() => {
+      setShowTapHint(true);
+      const hideT = setTimeout(() => setShowTapHint(false), 4000);
+      return () => clearTimeout(hideT);
+    }, 10000);
+    return () => clearTimeout(showT);
   }, [phase]);
 
   // ── HEAT PULSE DRIVER — speeds up as heat approaches angerThresh ─────────────
@@ -4409,6 +4425,21 @@ export default function DebateStage() {
             {roomTemperature}°
           </Text>
         </View>
+      )}
+
+      {/* Tap-hint toast — shows 10s after going live, fades out after 4s */}
+      {showTapHint && (
+        <Animated.View
+          entering={FadeIn.duration(400)}
+          exiting={FadeOut.duration(400)}
+          pointerEvents="none"
+          style={{ position: "absolute", bottom: 130, left: 0, right: 0, alignItems: "center", zIndex: 999 }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "rgba(0,0,0,0.85)", borderWidth: 1.5, borderColor: "rgba(255,215,0,0.55)", borderRadius: 30, paddingHorizontal: 18, paddingVertical: 10 }}>
+            <Text style={{ fontSize: 22 }}>👆</Text>
+            <Text style={{ color: "#FFD700", fontSize: 13, fontWeight: "800" }}>Tap a persona to score them DC Points!</Text>
+          </View>
+        </Animated.View>
       )}
 
       {/* Topic strip */}

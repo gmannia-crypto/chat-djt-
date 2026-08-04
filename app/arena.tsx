@@ -3932,6 +3932,8 @@ export default function ArenaScreen() {
   const [factCheckLoading, setFactCheckLoading] = useState(false);
   const factCheckInFlightRef = useRef(0);
   const [debateFinished, setDebateFinished] = useState(false);
+  const [showTapHint, setShowTapHint] = useState(false);
+  const tapHintShownRef = useRef(false);
 
   const [personaPoints, setPersonaPoints] = useState<Record<string, number>>({});
   const [awardedMessages, setAwardedMessages] = useState<Set<string>>(new Set());
@@ -4244,6 +4246,19 @@ export default function ArenaScreen() {
   useEffect(() => { useCustomTopicRef.current = useCustomTopic; }, [useCustomTopic]);
   useEffect(() => { emotionalStatesRef.current = emotionalStates; }, [emotionalStates]);
   useEffect(() => { isRunningRef.current = isRunning; }, [isRunning]);
+
+  // ── TAP-HINT — fires 10 s after arena starts, auto-dismisses after 4 s ───
+  useEffect(() => {
+    if (!isRunning) { tapHintShownRef.current = false; return; }
+    if (tapHintShownRef.current) return;
+    tapHintShownRef.current = true;
+    const showT = setTimeout(() => {
+      setShowTapHint(true);
+      const hideT = setTimeout(() => setShowTapHint(false), 4000);
+      return () => clearTimeout(hideT);
+    }, 10000);
+    return () => clearTimeout(showT);
+  }, [isRunning]);
   useEffect(() => { voiceEnabledRef.current = voiceEnabled; }, [voiceEnabled]);
 
   const navigation = useNavigation();
@@ -7945,6 +7960,21 @@ export default function ArenaScreen() {
           </Animated.View>
         );
       })()}
+
+      {/* Tap-hint toast — shows 10s after arena starts, fades out after 4s */}
+      {showTapHint && (
+        <Animated.View
+          entering={FadeIn.duration(400)}
+          exiting={FadeOut.duration(400)}
+          pointerEvents="none"
+          style={{ position: "absolute", bottom: 220, left: 0, right: 0, alignItems: "center", zIndex: 999 }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "rgba(0,0,0,0.85)", borderWidth: 1.5, borderColor: "rgba(255,215,0,0.55)", borderRadius: 30, paddingHorizontal: 18, paddingVertical: 10 }}>
+            <Text style={{ fontSize: 22 }}>👆</Text>
+            <Text style={{ color: "#FFD700", fontSize: 13, fontWeight: "800" }}>Tap a persona to give them points!</Text>
+          </View>
+        </Animated.View>
+      )}
 
       <Animated.View entering={FadeInDown.delay(200).duration(400)} style={s.personaRow}>
         {selectedPersonas.map((pid) => {
