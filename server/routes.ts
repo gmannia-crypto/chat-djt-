@@ -10573,7 +10573,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
-        max_completion_tokens: 180,
+        max_completion_tokens: 300,
         temperature: 1.0,
       });
       let speech = completion.choices[0]?.message?.content || `That's what happens when you bring facts, ${loserName}. Better luck next time.`;
@@ -10601,7 +10601,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
-        max_completion_tokens: 150,
+        max_completion_tokens: 250,
         temperature: 1.0,
       });
       let reaction = completion.choices[0]?.message?.content || `${winnerName} got lucky. This isn't over.`;
