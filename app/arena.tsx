@@ -3897,6 +3897,7 @@ export default function ArenaScreen() {
   const [showVerdictModal, setShowVerdictModal] = useState(false);
   const [verdictData, setVerdictData] = useState<any>(null);
   const [verdictLoading, setVerdictLoading] = useState(false);
+  const [verdictTimedOut, setVerdictTimedOut] = useState(false);
 
   const [personaPoints, setPersonaPoints] = useState<Record<string, number>>({});
   const [awardedMessages, setAwardedMessages] = useState<Set<string>>(new Set());
@@ -6648,6 +6649,8 @@ export default function ArenaScreen() {
     }
     setVerdictLoading(true);
     setShowVerdictModal(true);
+    setVerdictData(null);
+    setVerdictTimedOut(false);
     try {
       const timeout = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error("timeout")), 15_000)
@@ -6664,8 +6667,14 @@ export default function ArenaScreen() {
         }),
         timeout,
       ]);
-      if (r.ok) setVerdictData(await r.json());
-    } catch {}
+      if (r.ok) {
+        setVerdictData(await r.json());
+      } else {
+        setVerdictTimedOut(false);
+      }
+    } catch (err: any) {
+      setVerdictTimedOut(err?.message === "timeout");
+    }
     finally { setVerdictLoading(false); }
   }, [verdictLoading, messages, currentTopic, selectedPersonas]);
 
@@ -9038,9 +9047,15 @@ export default function ArenaScreen() {
               </ScrollView>
             ) : (
               <View style={{ alignItems: "center", paddingVertical: 24 }}>
-                <Ionicons name="cloud-offline-outline" size={32} color="#ff4d4d" style={{ marginBottom: 10 }} />
-                <Text style={{ color: "#ff4d4d", fontSize: 14, fontWeight: "900", marginBottom: 4 }}>Verdict Unavailable</Text>
-                <Text style={{ color: "rgba(255,255,255,0.45)", fontSize: 12, textAlign: "center", marginBottom: 12 }}>The connection timed out. Try again when you have a stronger signal.</Text>
+                <Ionicons name={verdictTimedOut ? "timer-outline" : "alert-circle-outline"} size={32} color="#ff4d4d" style={{ marginBottom: 10 }} />
+                <Text style={{ color: "#ff4d4d", fontSize: 14, fontWeight: "900", marginBottom: 4 }}>
+                  {verdictTimedOut ? "Connection Timed Out" : "Failed to Generate Verdict"}
+                </Text>
+                <Text style={{ color: "rgba(255,255,255,0.45)", fontSize: 12, textAlign: "center", marginBottom: 12 }}>
+                  {verdictTimedOut
+                    ? "The request took too long. Check your signal and try again."
+                    : "The server couldn't produce a verdict. Tap retry to try again."}
+                </Text>
                 <Pressable onPress={fetchVerdict} style={{ marginTop: 4, backgroundColor: "rgba(255,215,0,0.12)", borderRadius: 10, padding: 10, borderWidth: 1, borderColor: "rgba(255,215,0,0.3)" }}>
                   <Text style={{ color: "#FFD700", fontWeight: "900" }}>RETRY</Text>
                 </Pressable>
