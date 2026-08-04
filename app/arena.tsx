@@ -6649,15 +6649,21 @@ export default function ArenaScreen() {
     setVerdictLoading(true);
     setShowVerdictModal(true);
     try {
-      const r = await fetch(new URL("/api/arena/verdict", getApiUrl()).toString(), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          topic: currentTopic || "General debate",
-          messages: messages.map((m) => ({ speakerName: m.speakerName || m.speakerId, text: m.text, isSystem: m.isSystem })),
-          personas: selectedPersonas,
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("timeout")), 15_000)
+      );
+      const r = await Promise.race([
+        fetch(new URL("/api/arena/verdict", getApiUrl()).toString(), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            topic: currentTopic || "General debate",
+            messages: messages.map((m) => ({ speakerName: m.speakerName || m.speakerId, text: m.text, isSystem: m.isSystem })),
+            personas: selectedPersonas,
+          }),
         }),
-      });
+        timeout,
+      ]);
       if (r.ok) setVerdictData(await r.json());
     } catch {}
     finally { setVerdictLoading(false); }
@@ -9032,8 +9038,10 @@ export default function ArenaScreen() {
               </ScrollView>
             ) : (
               <View style={{ alignItems: "center", paddingVertical: 24 }}>
-                <Text style={{ color: "#ff4d4d", fontSize: 13 }}>Failed to generate verdict. Try again.</Text>
-                <Pressable onPress={fetchVerdict} style={{ marginTop: 12, backgroundColor: "rgba(255,215,0,0.12)", borderRadius: 10, padding: 10, borderWidth: 1, borderColor: "rgba(255,215,0,0.3)" }}>
+                <Ionicons name="cloud-offline-outline" size={32} color="#ff4d4d" style={{ marginBottom: 10 }} />
+                <Text style={{ color: "#ff4d4d", fontSize: 14, fontWeight: "900", marginBottom: 4 }}>Verdict Unavailable</Text>
+                <Text style={{ color: "rgba(255,255,255,0.45)", fontSize: 12, textAlign: "center", marginBottom: 12 }}>The connection timed out. Try again when you have a stronger signal.</Text>
+                <Pressable onPress={fetchVerdict} style={{ marginTop: 4, backgroundColor: "rgba(255,215,0,0.12)", borderRadius: 10, padding: 10, borderWidth: 1, borderColor: "rgba(255,215,0,0.3)" }}>
                   <Text style={{ color: "#FFD700", fontWeight: "900" }}>RETRY</Text>
                 </Pressable>
               </View>
