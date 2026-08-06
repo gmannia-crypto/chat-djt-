@@ -896,6 +896,31 @@ export default function DebateStage() {
   const [fightCardPreviewUri, setFightCardPreviewUri] = useState<string | null>(null);
   // On native we keep the temp file URI so we can share it directly
   const fightCardFileUriRef = useRef<string | null>(null);
+  // On web, track the current blob URL so we can revoke it when no longer needed
+  const fightCardBlobUrlRef = useRef<string | null>(null);
+  // Incremented whenever the modal closes or DISMISS is tapped so in-flight
+  // generations can detect they are stale and immediately revoke their blob URL
+  // instead of storing it.
+  const fightCardGenTokenRef = useRef(0);
+  const setFightCardPreviewUriSafe = useCallback((uri: string | null) => {
+    if (Platform.OS === "web" && fightCardBlobUrlRef.current) {
+      URL.revokeObjectURL(fightCardBlobUrlRef.current);
+    }
+    fightCardBlobUrlRef.current = (Platform.OS === "web" && uri) ? uri : null;
+    setFightCardPreviewUri(uri);
+  }, []);
+  // Revoke any held blob URL when the component unmounts and invalidate the
+  // generation token so any in-flight async on web takes the stale branch and
+  // revokes its freshly-created blob URL instead of storing it.
+  useEffect(() => {
+    return () => {
+      fightCardGenTokenRef.current++;
+      if (Platform.OS === "web" && fightCardBlobUrlRef.current) {
+        URL.revokeObjectURL(fightCardBlobUrlRef.current);
+        fightCardBlobUrlRef.current = null;
+      }
+    };
+  }, []);
   const [debateRecords, setDebateRecords] = useState<{
     aWins: number; aLosses: number; bWins: number; bLosses: number;
     aGlobalWins: number; aGlobalLosses: number; bGlobalWins: number; bGlobalLosses: number;
@@ -5502,9 +5527,9 @@ export default function DebateStage() {
       {renderPaywall()}
 
       {/* ── Share / Transcript Modal ─────────────────────────────────────── */}
-      <Modal visible={showShareModal} transparent animationType="slide" onRequestClose={() => { setShowShareModal(false); setFightCardPreviewUri(null); fightCardFileUriRef.current = null; }}>
+      <Modal visible={showShareModal} transparent animationType="slide" onRequestClose={() => { fightCardGenTokenRef.current++; setShowShareModal(false); setFightCardPreviewUriSafe(null); fightCardFileUriRef.current = null; }}>
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.82)", justifyContent: "flex-end" }}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => { setShowShareModal(false); setFightCardPreviewUri(null); fightCardFileUriRef.current = null; }} />
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => { fightCardGenTokenRef.current++; setShowShareModal(false); setFightCardPreviewUriSafe(null); fightCardFileUriRef.current = null; }} />
           <View style={{ backgroundColor: "#0F0F14", borderTopLeftRadius: 26, borderTopRightRadius: 26, borderTopWidth: 1, borderColor: "rgba(74,222,128,0.3)", padding: 18, maxHeight: "88%" }}>
             {/* Handle */}
             <View style={{ alignSelf: "center", width: 44, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.18)", marginBottom: 14 }} />
@@ -5513,7 +5538,7 @@ export default function DebateStage() {
             <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 14 }}>
               <Ionicons name="share-social" size={18} color="#4ADE80" />
               <Text style={{ flex: 1, color: "#fff", fontSize: 16, fontWeight: "900", marginLeft: 8, letterSpacing: 0.5 }}>SHARE DEBATE</Text>
-              <Pressable onPress={() => { setShowShareModal(false); setFightCardPreviewUri(null); fightCardFileUriRef.current = null; }}>
+              <Pressable onPress={() => { fightCardGenTokenRef.current++; setShowShareModal(false); setFightCardPreviewUriSafe(null); fightCardFileUriRef.current = null; }}>
                 <Ionicons name="close" size={22} color="rgba(255,255,255,0.5)" />
               </Pressable>
             </View>
@@ -5544,9 +5569,12 @@ export default function DebateStage() {
               const doGenerateFightCard = async () => {
                 if (fightCardLoading) return;
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                setFightCardPreviewUri(null);
+                setFightCardPreviewUriSafe(null);
                 fightCardFileUriRef.current = null;
                 setFightCardLoading(true);
+                // Snapshot the token so we can detect if the modal was closed
+                // (or DISMISS tapped) while this async generation was in flight.
+                const myToken = fightCardGenTokenRef.current;
                 try {
                   const rec = debateRecordsRef.current;
                   const body = JSON.stringify({
@@ -5573,7 +5601,13 @@ export default function DebateStage() {
                   if (Platform.OS === "web") {
                     const blob = await resp.blob();
                     const url = URL.createObjectURL(blob);
-                    setFightCardPreviewUri(url);
+                    // If the modal was closed while we were fetching, revoke
+                    // immediately instead of storing a URL nobody will see.
+                    if (fightCardGenTokenRef.current !== myToken) {
+                      URL.revokeObjectURL(url);
+                      return;
+                    }
+                    setFightCardPreviewUriSafe(url);
                   } else {
                     const FileSystem = await import("expo-file-system");
                     const blob = await resp.blob();
@@ -5669,7 +5703,8 @@ export default function DebateStage() {
                       <View style={{ flexDirection: "row", gap: 8, padding: 10 }}>
                         <Pressable
                           onPress={() => {
-                            setFightCardPreviewUri(null);
+                            fightCardGenTokenRef.current++;
+                            setFightCardPreviewUriSafe(null);
                             fightCardFileUriRef.current = null;
                           }}
                           style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 11, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.07)", borderWidth: 1, borderColor: "rgba(255,255,255,0.15)" }}
