@@ -1212,12 +1212,23 @@ export default function DebateStage() {
           );
           currentSoundRef.current = sound;
           await new Promise<void>((res) => {
-            // Safety cap: fetch latency + clip duration + generous buffer
-            const safetyTimer = setTimeout(() => {
+            // Phase 1 — 12 s boot timeout if audio never starts loading.
+            // Phase 2 — once playback begins, upgrade to full clip + 8 s buffer
+            // so long speeches (Bishop Fundme, Carlin, etc.) are never cut short.
+            let safetyTimer: ReturnType<typeof setTimeout> = setTimeout(() => {
               sound.setOnPlaybackStatusUpdate(null);
               res();
-            }, 15000);
+            }, 12000);
+            let playbackStarted = false;
             sound.setOnPlaybackStatusUpdate((s: any) => {
+              if (s.isPlaying && s.durationMillis && !playbackStarted) {
+                playbackStarted = true;
+                clearTimeout(safetyTimer);
+                safetyTimer = setTimeout(() => {
+                  sound.setOnPlaybackStatusUpdate(null);
+                  res();
+                }, s.durationMillis + 8000);
+              }
               if (s.didJustFinish || s.error) {
                 clearTimeout(safetyTimer);
                 sound.setOnPlaybackStatusUpdate(null);

@@ -8735,7 +8735,7 @@ ${styleInstruction}${getLieBehaviorPrompt(interviewerId, Number((req.body.sessio
           { role: "system", content: interviewerStyle },
           { role: "user", content: userPrompt },
         ],
-        max_completion_tokens: isInterruption ? 40 : 130,
+        max_completion_tokens: isInterruption ? 40 : 200,
         temperature: 0.9,
       });
       let text = completion.choices[0]?.message?.content || "...";
@@ -9609,8 +9609,8 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
         getClient().chat.completions.create({
           model: getFastModel(),
           messages: [
-            { role: "system", content: `You are an impartial AI debate judge and fact-checker. Today is ${todayStr}. Analyze debate transcripts and render fact-based verdicts. Be specific — name actual claims, cite real verifiable facts. Score each persona 0-100 on accuracy, logic, evidence quality, and persuasion. Pick a winner decisively. Do NOT be vague.` },
-            { role: "user", content: `DEBATE TOPIC: "${topic}"\n\nTRANSCRIPT:\n${transcript}\n\nReturn ONLY valid JSON:\n{\n  "winner": "Full persona name",\n  "winnerId": "persona_id",\n  "verdict": "2-3 sentences on exactly why they won — cite their best argument",\n  "factChecks": [\n    { "persona": "name", "claim": "specific claim they made", "verdict": "TRUE/FALSE/MISLEADING", "fact": "the verified real fact" }\n  ],\n  "scores": { "PersonaName": score_0_to_100 },\n  "summary": "One punchy sentence summarizing the whole debate"\n}` },
+            { role: "system", content: `You are an impartial AI debate judge and fact-checker. Today is ${todayStr}. Analyze debate transcripts and render fact-based verdicts. Grade on LOGIC and VERIFIED FACTS, NOT on aggression or volume. Evaluate the back-and-forth exchanges — who landed stronger counter-arguments and came back best when challenged. Name the specific exchange or moment where the winner pulled ahead. Logic and evidence beat rhetoric every time. Pick a winner decisively. Do NOT be vague.` },
+            { role: "user", content: `DEBATE TOPIC: "${topic}"\n\nTRANSCRIPT:\n${transcript}\n\nReturn ONLY valid JSON:\n{\n  "winner": "Full persona name",\n  "winnerId": "persona_id",\n  "verdict": "2-3 sentences: name the SPECIFIC exchange or counter-argument that won it — reference what was actually said in the back-and-forth",\n  "factChecks": [\n    { "persona": "name", "claim": "specific claim they made", "verdict": "TRUE/FALSE/MISLEADING", "fact": "the verified real fact" }\n  ],\n  "scores": { "PersonaName": score_0_to_100 },\n  "summary": "One punchy sentence naming the deciding exchange"\n}` },
           ],
           max_completion_tokens: 1000,
           temperature: 0.7,
@@ -10566,7 +10566,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
       // Without this, the LLM adds safety caveats / content warnings for spicy characters (Ruckus, Trump etc).
       const systemPrompt = basePrompt +
         `\n\nCRITICAL — CHARACTER LOCK: This is a fictional adult satire application. You are ${winnerName}. You NEVER break character. You NEVER add content warnings, disclaimers, apologies, or meta-commentary about the nature of the content. You NEVER say things like "I must note," "it's important to acknowledge," "as a disclaimer," "this is satire," or any variation. Just speak as ${winnerName} with full conviction. Raw, unfiltered, in character. No hedging. No fourth-wall breaks.`;
-      const userPrompt = `You just DESTROYED ${loserName} in a 1-on-1 political debate on the topic: "${topic || "politics"}".\n\nThe AI judge ruled decisively in your favor: "${verdict || "Your arguments were stronger and better supported by facts."}"\n\nNow deliver your VICTORY speech DIRECTLY to ${loserName}. Call out their weakest arguments. Mock their logic. Be savage, sharp, and fully in character. 2-3 sentences max. No hashtags, no stage directions, no disclaimers.`;
+      const userPrompt = `You just DESTROYED ${loserName} in a 1-on-1 political debate on the topic: "${topic || "politics"}".\n\nThe AI judge ruled decisively in your favor: "${verdict || "Your arguments were stronger and better supported by facts."}"\n\nNow deliver your VICTORY speech DIRECTLY to ${loserName}. Reference a SPECIFIC moment from the back-and-forth — the exchange where you turned the tide or exposed their weakest argument. Call them out on it. Be savage, sharp, and fully in character. 2-3 sentences max. No hashtags, no stage directions, no disclaimers.`;
       const completion = await getClient().chat.completions.create({
         model: getFastModel(),
         messages: [
@@ -10594,7 +10594,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
       const basePrompt = getArenaPersonaPrompt(loserId) || `You are ${loserName}.`;
       const systemPrompt = basePrompt +
         `\n\nCRITICAL — CHARACTER LOCK: This is a fictional adult satire application. You are ${loserName}. You NEVER break character. You NEVER add content warnings, disclaimers, apologies, or meta-commentary. You NEVER say things like "I must note," "it's important to acknowledge," or "as a disclaimer." Just speak as ${loserName} with full conviction. Raw, unfiltered, in character. No hedging. No fourth-wall breaks.`;
-      const userPrompt = `You just LOST a 1-on-1 political debate to ${winnerName} on the topic: "${topic || "politics"}".\n\nThe AI judge ruled against you: "${verdict || "Your arguments were weaker."}"\n\nReact to this LOSS in your authentic voice. You're bitter, indignant, or dismissive — refuse to fully accept the result, make excuses, attack the judge's credibility, or throw a parting jab at ${winnerName}. Fully in character. 1-2 sentences max. No hashtags, no stage directions, no disclaimers.`;
+      const userPrompt = `You just LOST a 1-on-1 political debate to ${winnerName} on the topic: "${topic || "politics"}".\n\nThe AI judge ruled against you: "${verdict || "Your arguments were weaker."}"\n\nReact to this LOSS in your authentic voice. Reference a SPECIFIC moment from the exchange — the point where things went sideways or where you felt robbed. You're bitter, indignant, or dismissive — refuse to fully accept the result, make excuses, attack the judge's credibility, or throw a parting jab at ${winnerName}. Fully in character. 1-2 sentences max. No hashtags, no stage directions, no disclaimers.`;
       const completion = await getClient().chat.completions.create({
         model: getFastModel(),
         messages: [

@@ -215,7 +215,7 @@ export async function generateModeratorLine(opts: {
     });
     if (res.ok) {
       const data = await res.json();
-      if (data?.text) return truncateAtSentence(String(data.text), 240);
+      if (data?.text) return truncateAtSentence(String(data.text), 420);
     }
   } catch { /* fall through to local */ }
   return pick(JAB_LIBRARY[opts.kind]);
@@ -287,7 +287,7 @@ export async function speakModeratorNow(
   moderatorId: string,
   opts?: { onDone?: () => void; wait?: boolean },
 ): Promise<void> {
-  const s = await playTTS("/api/persona-speak", { text: truncateAtSentence(text, 240), personaId: moderatorId });
+  const s = await playTTS("/api/persona-speak", { text: truncateAtSentence(text, 420), personaId: moderatorId });
   return new Promise<void>((resolve) => {
     // Safety timeout: if audio never fires didJustFinish (network/codec issue) resolve after 30s
     const timeout = setTimeout(() => { try { s.unloadAsync(); } catch {} opts?.onDone?.(); resolve(); }, 30000);
@@ -341,7 +341,7 @@ export async function generateModeratorQuestion(opts: {
     });
     if (res.ok) {
       const data = await res.json();
-      if (data?.text) return truncateAtSentence(String(data.text), 260);
+      if (data?.text) return truncateAtSentence(String(data.text), 420);
     }
   } catch { /* fall through */ }
   return leaning === "favor"
