@@ -2796,11 +2796,20 @@ export default function DebateStage() {
     } catch {}
     setHofLoading(false);
   }, [deviceId]);
+  useEffect(() => { fetchHallOfFame(); }, [fetchHallOfFame]);
 
   const interviewer = useMemo(() => interviewers.find((p) => p.id === interviewerId) || interviewees.find((p) => p.id === interviewerId) || null, [interviewers, interviewees, interviewerId]);
   const interviewee = useMemo(() => interviewees.find((p) => p.id === intervieweeId) || interviewers.find((p) => p.id === intervieweeId) || null, [interviewees, interviewers, intervieweeId]);
   // Debate Stage is a symmetric 1-on-1 debate: both slots draw from the same combined
   // persona pool, unlike the Interview screen where interviewer/guest are distinct roles.
+  // Map personaId → HoF rank (1-indexed) for top-10 personas with ≥5 debates
+  const hofRankMap = useMemo<Record<string, { rank: number; winPct: number }>>(() => {
+    if (!hofData?.leaderboard) return {};
+    const map: Record<string, { rank: number; winPct: number }> = {};
+    hofData.leaderboard.forEach((e, i) => { map[e.personaId] = { rank: i + 1, winPct: e.winPct }; });
+    return map;
+  }, [hofData]);
+
   const debaterPool = useMemo(() => {
     const seen = new Set<string>();
     const combined: PersonaLite[] = [];
@@ -4023,6 +4032,9 @@ export default function DebateStage() {
               const h2hAWins = isSelected && intervieweeId && debateRecords ? debateRecords.h2hAWins : null;
               const h2hBWins = isSelected && intervieweeId && debateRecords ? debateRecords.h2hBWins : null;
               const hasH2H = h2hAWins !== null && h2hBWins !== null && (h2hAWins > 0 || h2hBWins > 0);
+              const hofEntry = hofRankMap[p.id];
+              const hofMedal = hofEntry ? (hofEntry.rank === 1 ? "🥇" : hofEntry.rank === 2 ? "🥈" : hofEntry.rank === 3 ? "🥉" : null) : null;
+              const hofLabel = hofEntry ? (hofMedal ? `${hofMedal} #${hofEntry.rank}` : `#${hofEntry.rank} · ${Math.round(hofEntry.winPct)}%`) : null;
               return (
                 <Pressable key={p.id} onPress={() => { Haptics.selectionAsync(); setInterviewerId(p.id); }}
                   style={s.personaCard} testID={`interviewer-${p.id}`}>
@@ -4037,6 +4049,9 @@ export default function DebateStage() {
                   </Text>
                   {hasRecord && (
                     <Text style={s.personaCardRecord}>{rec.wins}W-{rec.losses}L</Text>
+                  )}
+                  {hofLabel && (
+                    <Text style={s.personaCardHofRank}>{hofLabel}</Text>
                   )}
                   {hasH2H && (
                     <Text style={s.personaCardH2H}>{h2hAWins}-{h2hBWins} h2h</Text>
@@ -4057,6 +4072,9 @@ export default function DebateStage() {
               const h2hBWins = isSelected && interviewerId && debateRecords ? debateRecords.h2hBWins : null;
               const h2hAWins = isSelected && interviewerId && debateRecords ? debateRecords.h2hAWins : null;
               const hasH2H = h2hBWins !== null && h2hAWins !== null && (h2hBWins > 0 || h2hAWins > 0);
+              const hofEntry = hofRankMap[p.id];
+              const hofMedal = hofEntry ? (hofEntry.rank === 1 ? "🥇" : hofEntry.rank === 2 ? "🥈" : hofEntry.rank === 3 ? "🥉" : null) : null;
+              const hofLabel = hofEntry ? (hofMedal ? `${hofMedal} #${hofEntry.rank}` : `#${hofEntry.rank} · ${Math.round(hofEntry.winPct)}%`) : null;
               return (
                 <Pressable key={p.id} onPress={() => { Haptics.selectionAsync(); setIntervieweeId(p.id); }}
                   style={s.personaCard} testID={`interviewee-${p.id}`}>
@@ -4071,6 +4089,9 @@ export default function DebateStage() {
                   </Text>
                   {hasRecord && (
                     <Text style={[s.personaCardRecord, isSelected && s.personaCardRecordGuest]}>{rec.wins}W-{rec.losses}L</Text>
+                  )}
+                  {hofLabel && (
+                    <Text style={s.personaCardHofRank}>{hofLabel}</Text>
                   )}
                   {hasH2H && (
                     <Text style={[s.personaCardH2H, s.personaCardH2HGuest]}>{h2hBWins}-{h2hAWins} h2h</Text>
@@ -5754,6 +5775,7 @@ const s = StyleSheet.create({
   personaCardNameActiveGuest: { color: "#4ADE80" },
   personaCardRecord: { color: "rgba(255,215,0,0.75)", fontSize: 9, fontWeight: "700", marginTop: 2, textAlign: "center" },
   personaCardRecordGuest: { color: "rgba(74,222,128,0.75)" },
+  personaCardHofRank: { color: "rgba(255,215,0,0.9)", fontSize: 9, fontWeight: "800", marginTop: 2, textAlign: "center" },
   personaCardH2H: { color: "rgba(255,215,0,0.55)", fontSize: 8, fontWeight: "600", marginTop: 1, textAlign: "center" },
   personaCardH2HGuest: { color: "rgba(74,222,128,0.55)" },
 
