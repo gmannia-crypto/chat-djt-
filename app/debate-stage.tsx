@@ -1368,6 +1368,40 @@ export default function DebateStage() {
         aiJudged: !!aiVerdictText,
       };
 
+      // ── Pre-fetch roast + winner speech NOW — runs in parallel with loser/winner
+      // concession audio so both are ready (or nearly ready) when the modal opens.
+      const trumpInDebate = aId === "trump" || bId === "trump";
+      const roastPromise: Promise<any> = trumpInDebate && deviceId
+        ? fetch(new URL("/api/arena/roast", getApiUrl()).toString(), {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+            body: JSON.stringify({
+              winnerId,
+              winnerName,
+              winnerPoints: debateWinnerObj?.points ?? 1,
+              trumpPoints: 0,
+              customerName: "the audience",
+              leaderboard: [
+                { name: winnerName, points: debateWinnerObj?.points ?? 1 },
+                { name: loserName,  points: debateWinnerObj?.opponentPoints ?? 0 },
+              ],
+              winTally: null,
+            }),
+          }).then((r) => r.json()).catch(() => null)
+        : !trumpInDebate
+          ? fetch(new URL("/api/arena/debate-loser-reaction", getApiUrl()).toString(), {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ loserId, loserName, winnerId, winnerName, verdict: aiVerdictText, topic: topicForVerdict }),
+            }).then((r) => r.ok ? r.json() : null).catch(() => null)
+          : Promise.resolve(null);
+
+      const speechPromise = fetch(new URL("/api/arena/debate-verdict-speech", getApiUrl()).toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ winnerId, winnerName, loserId, loserName, verdict: aiVerdictText, topic: topicForVerdict }),
+      }).then((r) => r.ok ? r.json() : null).catch(() => null);
+
       // Record win + award tokens (vote-based OR AI-judged path)
       if (deviceId) {
         fetch(new URL("/api/arena/record-win", getApiUrl()).toString(), {
@@ -1432,46 +1466,11 @@ export default function DebateStage() {
       }
 
       // ── REACTION + WINNER'S TAUNT (background, updates modal) ───────────────
-      // Trump roasts the result when he's in the debate; otherwise the loser
-      // fumes in character. Both run after the modal is already visible so
-      // results appear in-place. Fetch both in parallel — play sequentially
-      // using playAndAwait so they never overlap.
-      const trumpInDebate = aId === "trump" || bId === "trump";
+      // Both fetches were pre-kicked above (while loser/winner concession audio
+      // was playing) so they're already in-flight — no dead air waiting for them.
       ;(async () => {
         try {
-          // Kick off both fetches at the same time
-          const roastPromise: Promise<any> = trumpInDebate && deviceId
-            ? fetch(new URL("/api/arena/roast", getApiUrl()).toString(), {
-                method: "POST",
-                headers: { "Content-Type": "application/json", "x-device-id": deviceId },
-                body: JSON.stringify({
-                  winnerId,
-                  winnerName,
-                  winnerPoints: debateWinnerObj?.points ?? 1,
-                  trumpPoints: 0,
-                  customerName: "the audience",
-                  leaderboard: [
-                    { name: winnerName, points: debateWinnerObj?.points ?? 1 },
-                    { name: loserName,  points: debateWinnerObj?.opponentPoints ?? 0 },
-                  ],
-                  winTally: null,
-                }),
-              }).then((r) => r.json()).catch(() => null)
-            : !trumpInDebate
-              ? fetch(new URL("/api/arena/debate-loser-reaction", getApiUrl()).toString(), {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ loserId, loserName, winnerId, winnerName, verdict: aiVerdictText, topic: topicForVerdict }),
-                }).then((r) => r.ok ? r.json() : null).catch(() => null)
-              : Promise.resolve(null);
-
-          const speechPromise = fetch(new URL("/api/arena/debate-verdict-speech", getApiUrl()).toString(), {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ winnerId, winnerName, loserId, loserName, verdict: aiVerdictText, topic: topicForVerdict }),
-          }).then((r) => r.ok ? r.json() : null).catch(() => null);
-
-          // Wait for both fetches, then play sequentially
+          // Await the pre-fetched promises (likely already resolved)
           const [roastData, speechData] = await Promise.all([roastPromise, speechPromise]);
 
           // roastData.roast for Trump; roastData.reaction for loser
