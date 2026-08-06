@@ -905,6 +905,13 @@ export default function DebateStage() {
   const [debateBetLocked, setDebateBetLocked] = useState(false);
   const [debateBetResult, setDebateBetResult] = useState<{ won: boolean; payout: number; winner: "interviewer" | "interviewee"; refunded?: boolean } | null>(null);
 
+  // Hall of Fame
+  type HofEntry = { personaId: string; totalWins: number; totalLosses: number; totalDebates: number; winPct: number; bestRivalId: string | null; bestRivalWins: number };
+  type HofUserPick = { personaId: string; wins: number; losses: number };
+  const [showHallOfFame, setShowHallOfFame] = useState(false);
+  const [hofData, setHofData] = useState<{ leaderboard: HofEntry[]; userPicks: HofUserPick[] } | null>(null);
+  const [hofLoading, setHofLoading] = useState(false);
+
   const flatListRef = useRef<FlatList>(null);
   const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const runningRef = useRef(false);
@@ -2759,6 +2766,17 @@ export default function DebateStage() {
   // Refresh record display once the debate ends (win/loss just recorded).
   useEffect(() => { if (phase === "ended") { setTimeout(() => fetchDebateRecord(), 800); } }, [phase, fetchDebateRecord]);
 
+  const fetchHallOfFame = useCallback(async () => {
+    setHofLoading(true);
+    try {
+      const headers: Record<string, string> = {};
+      if (deviceId) headers["x-device-id"] = deviceId;
+      const res = await fetch(`${getApiUrl()}/api/arena/hall-of-fame`, { headers });
+      if (res.ok) setHofData(await res.json());
+    } catch {}
+    setHofLoading(false);
+  }, [deviceId]);
+
   const interviewer = useMemo(() => interviewers.find((p) => p.id === interviewerId) || interviewees.find((p) => p.id === interviewerId) || null, [interviewers, interviewees, interviewerId]);
   const interviewee = useMemo(() => interviewees.find((p) => p.id === intervieweeId) || interviewers.find((p) => p.id === intervieweeId) || null, [interviewees, interviewers, intervieweeId]);
   // Debate Stage is a symmetric 1-on-1 debate: both slots draw from the same combined
@@ -3926,6 +3944,14 @@ export default function DebateStage() {
             <Text style={s.headerSub}>Pick a moderator · cut mics · timed rounds</Text>
           </View>
           <Pressable
+            onPress={() => { setShowHallOfFame(true); fetchHallOfFame(); }}
+            style={s.iconBtn}
+            testID="open-hall-of-fame"
+            accessibilityLabel="Hall of Fame Leaderboard"
+          >
+            <Ionicons name="medal-outline" size={20} color="#FFD700" />
+          </Pressable>
+          <Pressable
             onPress={() => router.push("/lie-leaderboard")}
             style={s.iconBtn}
             testID="open-lie-leaderboard"
@@ -4439,6 +4465,9 @@ export default function DebateStage() {
         </Pressable>
         <Pressable onPress={openInterviewPoll} style={s.iconBtnSm} testID="interview-poll">
           <Ionicons name="bar-chart" size={16} color="#FFD700" />
+        </Pressable>
+        <Pressable onPress={() => { setShowHallOfFame(true); fetchHallOfFame(); }} style={s.iconBtnSm} testID="open-hall-of-fame-live" accessibilityLabel="Hall of Fame">
+          <Ionicons name="medal-outline" size={16} color="#FFD700" />
         </Pressable>
       </View>
 
@@ -5141,6 +5170,129 @@ export default function DebateStage() {
               })}
               <View style={{ height: 30 }} />
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Hall of Fame Modal ──────────────────────────────────────────── */}
+      <Modal visible={showHallOfFame} transparent animationType="fade" onRequestClose={() => setShowHallOfFame(false)}>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.88)", justifyContent: "flex-end" }}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowHallOfFame(false)} />
+          <View style={{ backgroundColor: "#0a0a10", borderTopLeftRadius: 28, borderTopRightRadius: 28, borderTopWidth: 1.5, borderColor: "rgba(255,215,0,0.35)", padding: 20, maxHeight: "88%" }}>
+            {/* Handle */}
+            <View style={{ alignSelf: "center", width: 44, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.18)", marginBottom: 16 }} />
+
+            {/* Header */}
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 18 }}>
+              <Text style={{ fontSize: 22 }}>🏆</Text>
+              <View style={{ marginLeft: 10, flex: 1 }}>
+                <Text style={{ color: "#FFD700", fontSize: 17, fontWeight: "900", letterSpacing: 0.8 }}>DEBATE HALL OF FAME</Text>
+                <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginTop: 2 }}>All-time rankings · updated in real time</Text>
+              </View>
+              <Pressable onPress={() => setShowHallOfFame(false)}>
+                <Ionicons name="close" size={22} color="rgba(255,255,255,0.4)" />
+              </Pressable>
+            </View>
+
+            {hofLoading ? (
+              <View style={{ alignItems: "center", paddingVertical: 40 }}>
+                <ActivityIndicator size="large" color="#FFD700" />
+                <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, marginTop: 12 }}>Loading leaderboard…</Text>
+              </View>
+            ) : (
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {/* Global leaderboard */}
+                {hofData && hofData.leaderboard.length > 0 ? (
+                  <>
+                    <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, fontWeight: "900", letterSpacing: 1.2, marginBottom: 10 }}>GLOBAL TOP 10 — WIN %</Text>
+                    {hofData.leaderboard.map((entry, idx) => {
+                      const portrait = PERSONA_PORTRAITS[entry.personaId];
+                      const pName = debaterPool.find(p => p.id === entry.personaId)?.name || entry.personaId;
+                      const rivalName = entry.bestRivalId
+                        ? (debaterPool.find(p => p.id === entry.bestRivalId)?.name || entry.bestRivalId)
+                        : null;
+                      const rankColors = ["#FFD700", "#C0C0C0", "#CD7F32"];
+                      const rankColor = idx < 3 ? rankColors[idx] : "rgba(255,255,255,0.35)";
+                      const medal = idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : null;
+                      return (
+                        <View key={entry.personaId} style={{ flexDirection: "row", alignItems: "center", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)" }}>
+                          {/* Rank */}
+                          <View style={{ width: 28, alignItems: "center" }}>
+                            {medal ? (
+                              <Text style={{ fontSize: 18 }}>{medal}</Text>
+                            ) : (
+                              <Text style={{ color: rankColor, fontSize: 13, fontWeight: "900" }}>#{idx + 1}</Text>
+                            )}
+                          </View>
+                          {/* Portrait */}
+                          {portrait ? (
+                            <Image source={portrait} style={{ width: 40, height: 40, borderRadius: 20, marginHorizontal: 10, borderWidth: 1.5, borderColor: rankColor }} />
+                          ) : (
+                            <View style={{ width: 40, height: 40, borderRadius: 20, marginHorizontal: 10, backgroundColor: "rgba(255,215,0,0.15)", alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderColor: rankColor }}>
+                              <Text style={{ color: rankColor, fontSize: 14, fontWeight: "900" }}>{pName.charAt(0)}</Text>
+                            </View>
+                          )}
+                          {/* Name + record */}
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ color: "#fff", fontSize: 14, fontWeight: "800" }} numberOfLines={1}>{pName}</Text>
+                            <Text style={{ color: "rgba(255,255,255,0.45)", fontSize: 11, marginTop: 2 }}>
+                              {entry.totalWins}W–{entry.totalLosses}L
+                              {rivalName ? <Text style={{ color: "rgba(96,165,250,0.75)" }}>  ·  dominates {rivalName.split(" ")[0]} ({entry.bestRivalWins}×)</Text> : null}
+                            </Text>
+                          </View>
+                          {/* Win % badge */}
+                          <View style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: idx < 3 ? "rgba(255,215,0,0.12)" : "rgba(255,255,255,0.06)", borderWidth: 1, borderColor: idx < 3 ? "rgba(255,215,0,0.4)" : "rgba(255,255,255,0.12)" }}>
+                            <Text style={{ color: idx < 3 ? "#FFD700" : "rgba(255,255,255,0.7)", fontSize: 15, fontWeight: "900" }}>{entry.winPct}%</Text>
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </>
+                ) : (
+                  <View style={{ alignItems: "center", paddingVertical: 30 }}>
+                    <Text style={{ fontSize: 36 }}>🏆</Text>
+                    <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 14, fontWeight: "700", marginTop: 12 }}>No data yet</Text>
+                    <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 12, marginTop: 6, textAlign: "center" }}>Complete 5+ debates to appear here.</Text>
+                  </View>
+                )}
+
+                {/* User's personal picks */}
+                {hofData && hofData.userPicks.length > 0 && (
+                  <>
+                    <View style={{ marginTop: 22, marginBottom: 10, flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <Ionicons name="person" size={13} color="#60a5fa" />
+                      <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, fontWeight: "900", letterSpacing: 1.2 }}>YOUR PICKS — WATCHED WIN MOST</Text>
+                    </View>
+                    {hofData.userPicks.map((pick, idx) => {
+                      const portrait = PERSONA_PORTRAITS[pick.personaId];
+                      const pName = debaterPool.find(p => p.id === pick.personaId)?.name || pick.personaId;
+                      const total = pick.wins + pick.losses;
+                      const pct = total > 0 ? Math.round(pick.wins / total * 100) : 0;
+                      return (
+                        <View key={pick.personaId} style={{ flexDirection: "row", alignItems: "center", paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.05)" }}>
+                          {portrait ? (
+                            <Image source={portrait} style={{ width: 34, height: 34, borderRadius: 17, marginRight: 10, borderWidth: 1, borderColor: "rgba(96,165,250,0.5)" }} />
+                          ) : (
+                            <View style={{ width: 34, height: 34, borderRadius: 17, marginRight: 10, backgroundColor: "rgba(96,165,250,0.15)", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "rgba(96,165,250,0.4)" }}>
+                              <Text style={{ color: "#60a5fa", fontSize: 13, fontWeight: "900" }}>{pName.charAt(0)}</Text>
+                            </View>
+                          )}
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ color: "#fff", fontSize: 13, fontWeight: "700" }} numberOfLines={1}>{pName}</Text>
+                            <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginTop: 1 }}>{pick.wins}W–{pick.losses}L  ·  {pct}% win rate</Text>
+                          </View>
+                          <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10, backgroundColor: "rgba(96,165,250,0.1)", borderWidth: 1, borderColor: "rgba(96,165,250,0.3)" }}>
+                            <Text style={{ color: "#60a5fa", fontSize: 13, fontWeight: "900" }}>{pick.wins} wins</Text>
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </>
+                )}
+
+                <View style={{ height: 24 }} />
+              </ScrollView>
+            )}
           </View>
         </View>
       </Modal>

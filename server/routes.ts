@@ -11368,6 +11368,103 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
     }
   });
 
+  // GET /api/arena/hall-of-fame — all-time leaderboard by win % (min 5 debates) + user's top picks
+  app.get("/api/arena/hall-of-fame", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      try {
+        await db.query(`CREATE TABLE IF NOT EXISTS arena_wins_global (
+          persona_id TEXT PRIMARY KEY,
+          total_wins INTEGER NOT NULL DEFAULT 0,
+          total_losses INTEGER NOT NULL DEFAULT 0,
+          updated_at TIMESTAMP DEFAULT NOW()
+        )`);
+        await db.query(`ALTER TABLE arena_wins_global ADD COLUMN IF NOT EXISTS total_losses INTEGER NOT NULL DEFAULT 0`);
+        await db.query(`CREATE TABLE IF NOT EXISTS arena_wins (
+          id SERIAL PRIMARY KEY,
+          device_id TEXT NOT NULL,
+          persona_id TEXT NOT NULL,
+          wins INTEGER NOT NULL DEFAULT 0,
+          losses INTEGER NOT NULL DEFAULT 0,
+          updated_at TIMESTAMP DEFAULT NOW(),
+          UNIQUE(device_id, persona_id)
+        )`);
+        await db.query(`ALTER TABLE arena_wins ADD COLUMN IF NOT EXISTS losses INTEGER NOT NULL DEFAULT 0`);
+        await db.query(`CREATE TABLE IF NOT EXISTS arena_h2h (
+          persona_a TEXT NOT NULL,
+          persona_b TEXT NOT NULL,
+          a_wins INTEGER NOT NULL DEFAULT 0,
+          b_wins INTEGER NOT NULL DEFAULT 0,
+          updated_at TIMESTAMP DEFAULT NOW(),
+          PRIMARY KEY (persona_a, persona_b)
+        )`);
+
+        // Top 10 by win% — require at least 5 total debates
+        const topRows = await db.query(`
+          SELECT
+            persona_id,
+            total_wins,
+            total_losses,
+            total_wins + total_losses AS total_debates,
+            ROUND(total_wins::numeric / NULLIF(total_wins + total_losses, 0) * 100, 1) AS win_pct
+          FROM arena_wins_global
+          WHERE total_wins + total_losses >= 5
+          ORDER BY win_pct DESC, total_wins DESC
+          LIMIT 10
+        `);
+
+        // For each top persona find their most-beaten rival
+        const leaderboard = await Promise.all(topRows.rows.map(async (row: any) => {
+          const pid = row.persona_id;
+          const rivalRow = await db.query(`
+            SELECT
+              CASE WHEN persona_a = $1 THEN persona_b ELSE persona_a END AS rival_id,
+              CASE WHEN persona_a = $1 THEN a_wins ELSE b_wins END AS wins_vs
+            FROM arena_h2h
+            WHERE (persona_a = $1 OR persona_b = $1)
+              AND CASE WHEN persona_a = $1 THEN a_wins ELSE b_wins END > 0
+            ORDER BY wins_vs DESC
+            LIMIT 1
+          `, [pid]);
+          return {
+            personaId: pid,
+            totalWins: parseInt(row.total_wins) || 0,
+            totalLosses: parseInt(row.total_losses) || 0,
+            totalDebates: parseInt(row.total_debates) || 0,
+            winPct: parseFloat(row.win_pct) || 0,
+            bestRivalId: rivalRow.rows[0]?.rival_id || null,
+            bestRivalWins: parseInt(rivalRow.rows[0]?.wins_vs || "0"),
+          };
+        }));
+
+        // User's personal top picks: personas they've personally watched win most
+        let userPicks: Array<{ personaId: string; wins: number; losses: number }> = [];
+        if (deviceId) {
+          const userRows = await db.query(`
+            SELECT persona_id, wins, COALESCE(losses, 0) AS losses
+            FROM arena_wins
+            WHERE device_id = $1 AND wins > 0
+            ORDER BY wins DESC
+            LIMIT 5
+          `, [deviceId]);
+          userPicks = userRows.rows.map((r: any) => ({
+            personaId: r.persona_id,
+            wins: parseInt(r.wins) || 0,
+            losses: parseInt(r.losses) || 0,
+          }));
+        }
+
+        res.json({ leaderboard, userPicks });
+      } finally {
+        await db.end();
+      }
+    } catch (error: any) {
+      console.error("Hall of fame error:", error);
+      res.json({ leaderboard: [], userPicks: [] });
+    }
+  });
+
   app.post("/api/tokens/use", async (req, res) => {
     try {
       const deviceId = req.headers["x-device-id"] as string;
