@@ -4972,6 +4972,9 @@ export default function ArenaScreen() {
 
   const unlockSession = useCallback(async (continueMode = false) => {
     if (!deviceId) return;
+    // Dismiss the end-summary modal immediately so stale roast/clap-back text
+    // cannot flash on screen while the new session payload is being applied.
+    setShowEndSummary(false);
     setIsUnlocking(true);
     try {
       const res = await fetch(new URL("/api/arena/access", getApiUrl()).toString(), {
