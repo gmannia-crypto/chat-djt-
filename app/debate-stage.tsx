@@ -1257,6 +1257,11 @@ export default function DebateStage() {
       let winnerName = "";
       let loserName = "";
       let debateWinnerObj: { id: string; name: string; portrait: any; points: number; opponentPoints: number; verdict: string; aiJudged: boolean } | null = null;
+      // Lifted outside try so the background IIFE can close over them — const inside
+      // a try block is scoped to that block and unreachable from the outer closure.
+      let trumpInDebate = false;
+      let roastPromise: Promise<any> = Promise.resolve(null);
+      let speechPromise: Promise<any> = Promise.resolve(null);
 
       try {
       aPersona = interviewers.find((p) => p.id === aId);
@@ -1372,8 +1377,8 @@ export default function DebateStage() {
 
       // ── Pre-fetch roast + winner speech NOW — runs in parallel with loser/winner
       // concession audio so both are ready (or nearly ready) when the modal opens.
-      const trumpInDebate = aId === "trump" || bId === "trump";
-      const roastPromise: Promise<any> = trumpInDebate && deviceId
+      trumpInDebate = aId === "trump" || bId === "trump";
+      roastPromise = trumpInDebate && deviceId
         ? fetch(new URL("/api/arena/roast", getApiUrl()).toString(), {
             method: "POST",
             headers: { "Content-Type": "application/json", "x-device-id": deviceId },
@@ -1398,7 +1403,7 @@ export default function DebateStage() {
             }).then((r) => r.ok ? r.json() : null).catch(() => null)
           : Promise.resolve(null);
 
-      const speechPromise = fetch(new URL("/api/arena/debate-verdict-speech", getApiUrl()).toString(), {
+      speechPromise = fetch(new URL("/api/arena/debate-verdict-speech", getApiUrl()).toString(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ winnerId, winnerName, loserId, loserName, verdict: aiVerdictText, topic: topicForVerdict }),
@@ -1539,7 +1544,7 @@ export default function DebateStage() {
   const beepEnabledRef = useRef(true);
   const [activeSpeaker, setActiveSpeaker] = useState<string | null>(null);
   const activeSpeakerRef = useRef<string | null>(null);
-  const ttsQueueRef = useRef<Array<{ text: string; personaId: string; msgId?: string; blockEarlyResolve?: boolean; overlapMs?: number; onComplete?: () => void }>>([]);
+  const ttsQueueRef = useRef<Array<{ text: string; personaId: string; msgId?: string; blockEarlyResolve?: boolean; overlapMs?: number; onComplete?: () => void; onStart?: () => void }>>([]);
   const ttsRunningRef = useRef(false);
   const currentSoundRef = useRef<Audio.Sound | null>(null);
   const prefetchedAudioRef = useRef<{ personaId: string; text: string; audioUri: string } | null>(null);
@@ -1838,12 +1843,17 @@ export default function DebateStage() {
       const item = ttsQueueRef.current.shift();
       if (!item) break;
       if (shouldSkipPersonaVoice(item.personaId)) {
-        // Must call onComplete so enqueueTTSAndWait doesn't hang forever on skipped personas
+        // Must call onStart + onComplete so speakMod transcript defers and
+        // enqueueTTSAndWait don't hang forever on skipped personas
+        item.onStart?.();
         item.onComplete?.();
         continue;
       }
       setActiveSpeaker(item.personaId);
       activeSpeakerRef.current = item.personaId;
+      // onStart: fires when this TTS item actually begins playing — used by
+      // speakMod to add the transcript message at audio-play time (not call time).
+      item.onStart?.();
       try {
         // Use prefetched audio if it matches this item — eliminates fetch latency gap.
         // No blocking wait: if the prefetch isn't ready yet, fall through to cold fetch.
@@ -1972,7 +1982,7 @@ export default function DebateStage() {
     }
   }, [startPrefetch]);
 
-  const enqueueTTS = useCallback((text: string, personaId: string, msgId?: string, opts?: { blockEarlyResolve?: boolean; onComplete?: () => void }) => {
+  const enqueueTTS = useCallback((text: string, personaId: string, msgId?: string, opts?: { blockEarlyResolve?: boolean; onComplete?: () => void; onStart?: () => void }) => {
     if (!voiceEnabledRef.current) return;
     ttsQueueRef.current.push({ text, personaId, msgId, ...opts });
     processQueue();
@@ -2040,7 +2050,10 @@ export default function DebateStage() {
   // call in flight, moderator not speaking). Debounced 350 ms to suppress the
   // sub-frame flickers that occur when activeSpeaker briefly clears between clips.
   useEffect(() => {
-    const idle = phase === "live" && !activeSpeaker && !moderatorSpeaking && isThinking === null;
+    // Drop the !moderatorSpeaking guard — moderatorSpeaking is true during fillers,
+    // so the old condition almost never fired. Show loading whenever no audio is
+    // actively playing (activeSpeaker null) and no AI fetch is in progress.
+    const idle = phase === "live" && !activeSpeaker && isThinking === null;
     if (idle) {
       debateLoadingTimerRef.current = setTimeout(() => setShowDebateLoading(true), 350);
     } else {
@@ -2927,15 +2940,28 @@ export default function DebateStage() {
     moderatorSpeakingRef.current = true;
     setModeratorSpeaking(true);
     setModeratorLastLine(text);
-    if (!opts?.skipTranscript) {
-      setMessages((prev) => [...prev, {
-        id: msgId, speakerId: mod.personaId, speakerName: mod.name, text, ts: Date.now(),
-      }]);
-    }
-    // blockEarlyResolve: true (default) = moderator must finish fully before next item starts.
-    // Pass { blockEarlyResolve: false } for question/bridge lines where 500ms persona overlap is desired.
+
+    // Build the transcript entry (skipped for audio-only fillers).
+    const msgEntry = !opts?.skipTranscript
+      ? { id: msgId, speakerId: mod.personaId, speakerName: mod.name, text, ts: Date.now() }
+      : null;
+
+    // Voice OFF: add to transcript immediately (no audio ordering to respect),
+    //   then resolve the promise so the runLoop doesn't stall.
+    // Voice ON: defer the transcript update to the onStart callback so the chat
+    //   order exactly matches the order audio clips actually begin playing,
+    //   preventing the "moderator line appears after persona dialog" inversion.
     await new Promise<void>((resolve) => {
-      enqueueTTS(text, mod.personaId, msgId, { blockEarlyResolve: opts?.blockEarlyResolve ?? true, onComplete: resolve });
+      if (!voiceEnabledRef.current) {
+        if (msgEntry) setMessages((prev) => [...prev, msgEntry]);
+        resolve();
+        return;
+      }
+      enqueueTTS(text, mod.personaId, msgId, {
+        blockEarlyResolve: opts?.blockEarlyResolve ?? true,
+        onComplete: resolve,
+        onStart: msgEntry ? () => setMessages((prev) => [...prev, msgEntry]) : undefined,
+      });
     });
     moderatorSpeakingRef.current = false;
     if (!runningRef.current) { setModeratorSpeaking(false); return; }
@@ -4679,7 +4705,7 @@ export default function DebateStage() {
             {/* AI verdict summary */}
             {debateWinner?.verdict ? (
               <View style={{ marginTop: 12, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "rgba(96,165,250,0.12)", borderRadius: 14, borderWidth: 1, borderColor: "rgba(96,165,250,0.35)", maxWidth: 320, width: "100%" }}>
-                <Text style={{ color: "#60A5FA", fontSize: 10, fontWeight: "900", letterSpacing: 1.5, marginBottom: 5, textAlign: "center" }}>⚖️ AI JUDGMENT</Text>
+                <Text style={{ color: "#60A5FA", fontSize: 10, fontWeight: "900", letterSpacing: 1.5, marginBottom: 5, textAlign: "center" }}>⚖️ WHY {(debateWinner.name || "THEY").toUpperCase()} WON</Text>
                 <Text style={{ color: "rgba(255,255,255,0.9)", fontSize: 12, lineHeight: 18, textAlign: "center", fontStyle: "italic" }}>"{debateWinner.verdict}"</Text>
               </View>
             ) : (debateWinner?.points ?? 0) > 0 ? (
