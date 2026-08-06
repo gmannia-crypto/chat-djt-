@@ -5540,6 +5540,66 @@ export default function DebateStage() {
             {(() => {
               const { viralText, fullTranscript, aName, bName, topicStr } = generateShareContent();
               const displayText = shareTab === "viral" ? viralText : fullTranscript;
+
+              const doGenerateFightCard = async () => {
+                if (fightCardLoading) return;
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                setFightCardPreviewUri(null);
+                fightCardFileUriRef.current = null;
+                setFightCardLoading(true);
+                try {
+                  const rec = debateRecordsRef.current;
+                  const body = JSON.stringify({
+                    personaAId: interviewerId,
+                    personaAName: aName,
+                    personaAWins: rec?.aWins ?? 0,
+                    personaALosses: rec?.aLosses ?? 0,
+                    personaBId: intervieweeId,
+                    personaBName: bName,
+                    personaBWins: rec?.bWins ?? 0,
+                    personaBLosses: rec?.bLosses ?? 0,
+                    topic: topicStr,
+                    h2hAWins: rec?.h2hAWins ?? 0,
+                    h2hBWins: rec?.h2hBWins ?? 0,
+                  });
+                  const apiBase = getApiUrl("");
+                  const resp = await fetch(`${apiBase}/api/arena/fight-card`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", ...(deviceId ? { "x-device-id": deviceId } : {}) },
+                    body,
+                  });
+                  if (!resp.ok) throw new Error("Fight card generation failed");
+
+                  if (Platform.OS === "web") {
+                    const blob = await resp.blob();
+                    const url = URL.createObjectURL(blob);
+                    setFightCardPreviewUri(url);
+                  } else {
+                    const FileSystem = await import("expo-file-system");
+                    const blob = await resp.blob();
+                    const reader = new FileReader();
+                    const base64 = await new Promise<string>((resolve, reject) => {
+                      reader.onload = () => {
+                        const result = reader.result as string;
+                        resolve(result.split(",")[1]);
+                      };
+                      reader.onerror = reject;
+                      reader.readAsDataURL(blob);
+                    });
+                    const fileUri = `${FileSystem.cacheDirectory}fight-card-${interviewerId}-vs-${intervieweeId}.png`;
+                    await FileSystem.writeAsStringAsync(fileUri, base64, { encoding: FileSystem.EncodingType.Base64 });
+                    fightCardFileUriRef.current = fileUri;
+                    setFightCardPreviewUri(fileUri);
+                  }
+                } catch (err) {
+                  try {
+                    await Share.share({ message: viralText, title: `${aName} vs ${bName}` });
+                  } catch {}
+                } finally {
+                  setFightCardLoading(false);
+                }
+              };
+
               return (
                 <>
                   <ScrollView
@@ -5618,6 +5678,17 @@ export default function DebateStage() {
                           <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, fontWeight: "800" }}>DISMISS</Text>
                         </Pressable>
                         <Pressable
+                          disabled={fightCardLoading}
+                          onPress={doGenerateFightCard}
+                          style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 11, borderRadius: 10, backgroundColor: fightCardLoading ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.09)", borderWidth: 1, borderColor: fightCardLoading ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.25)", opacity: fightCardLoading ? 0.6 : 1 }}
+                        >
+                          {fightCardLoading
+                            ? <ActivityIndicator size="small" color="rgba(255,255,255,0.6)" />
+                            : <Ionicons name="refresh" size={15} color="rgba(255,255,255,0.85)" />
+                          }
+                          <Text style={{ color: "rgba(255,255,255,0.85)", fontSize: 12, fontWeight: "800" }}>REGENERATE</Text>
+                        </Pressable>
+                        <Pressable
                           onPress={async () => {
                             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                             try {
@@ -5651,63 +5722,7 @@ export default function DebateStage() {
                     /* Fight Card generate button */
                     <Pressable
                       disabled={fightCardLoading}
-                      onPress={async () => {
-                        if (fightCardLoading) return;
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                        setFightCardLoading(true);
-                        try {
-                          const rec = debateRecordsRef.current;
-                          const body = JSON.stringify({
-                            personaAId: interviewerId,
-                            personaAName: aName,
-                            personaAWins: rec?.aWins ?? 0,
-                            personaALosses: rec?.aLosses ?? 0,
-                            personaBId: intervieweeId,
-                            personaBName: bName,
-                            personaBWins: rec?.bWins ?? 0,
-                            personaBLosses: rec?.bLosses ?? 0,
-                            topic: topicStr,
-                            h2hAWins: rec?.h2hAWins ?? 0,
-                            h2hBWins: rec?.h2hBWins ?? 0,
-                          });
-                          const apiBase = getApiUrl("");
-                          const resp = await fetch(`${apiBase}/api/arena/fight-card`, {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json", ...(deviceId ? { "x-device-id": deviceId } : {}) },
-                            body,
-                          });
-                          if (!resp.ok) throw new Error("Fight card generation failed");
-
-                          if (Platform.OS === "web") {
-                            const blob = await resp.blob();
-                            const url = URL.createObjectURL(blob);
-                            setFightCardPreviewUri(url);
-                          } else {
-                            const FileSystem = await import("expo-file-system");
-                            const blob = await resp.blob();
-                            const reader = new FileReader();
-                            const base64 = await new Promise<string>((resolve, reject) => {
-                              reader.onload = () => {
-                                const result = reader.result as string;
-                                resolve(result.split(",")[1]);
-                              };
-                              reader.onerror = reject;
-                              reader.readAsDataURL(blob);
-                            });
-                            const fileUri = `${FileSystem.cacheDirectory}fight-card-${interviewerId}-vs-${intervieweeId}.png`;
-                            await FileSystem.writeAsStringAsync(fileUri, base64, { encoding: FileSystem.EncodingType.Base64 });
-                            fightCardFileUriRef.current = fileUri;
-                            setFightCardPreviewUri(fileUri);
-                          }
-                        } catch (err) {
-                          // Fall back to text share
-                          try {
-                            await Share.share({ message: viralText, title: `${aName} vs ${bName}` });
-                          } catch {}
-                        } finally {
-                          setFightCardLoading(false);
-                        }
-                      }}
+                      onPress={doGenerateFightCard}
                       style={{ marginTop: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 14, backgroundColor: fightCardLoading ? "rgba(255,215,0,0.06)" : "rgba(255,215,0,0.13)", borderWidth: 1, borderColor: fightCardLoading ? "rgba(255,215,0,0.2)" : "rgba(255,215,0,0.55)", opacity: fightCardLoading ? 0.7 : 1 }}
                     >
                       {fightCardLoading
