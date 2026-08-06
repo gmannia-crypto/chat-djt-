@@ -7146,8 +7146,16 @@ export default function ArenaScreen() {
             testID="open-hall-of-fame-lobby"
             accessibilityLabel="Hall of Fame Leaderboard"
           >
-            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,215,0,0.2)", alignItems: "center", justifyContent: "center", marginRight: 12 }}>
-              <Text style={{ fontSize: 22 }}>🏆</Text>
+            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,215,0,0.2)", alignItems: "center", justifyContent: "center", marginRight: 12, overflow: "hidden" }}>
+              {hofData && hofData.leaderboard.length > 0 && ARENA_PERSONAS[hofData.leaderboard[0].personaId]?.image ? (
+                <Image
+                  source={ARENA_PERSONAS[hofData.leaderboard[0].personaId].image}
+                  style={{ width: 40, height: 40, borderRadius: 20 }}
+                  resizeMode="cover"
+                />
+              ) : (
+                <Text style={{ fontSize: 22 }}>🏆</Text>
+              )}
             </View>
             <View style={{ flex: 1 }}>
               <Text style={{ color: "#FFD700", fontSize: 14, fontWeight: "900", letterSpacing: 1 }}>HALL OF FAME</Text>
