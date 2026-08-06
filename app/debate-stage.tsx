@@ -870,6 +870,8 @@ export default function DebateStage() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [isStarting, setIsStarting] = useState(false);
   const [isThinking, setIsThinking] = useState<"interviewer" | "interviewee" | null>(null);
+  const [showDebateLoading, setShowDebateLoading] = useState(false);
+  const debateLoadingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [topicsPanelOpen, setTopicsPanelOpen] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
   const [paywallSpeechPaused, setPaywallSpeechPaused] = useState(false);
@@ -2032,6 +2034,22 @@ export default function DebateStage() {
     intervieweeActiveSV.value = activeSpeaker && intervieweeId && activeSpeaker === intervieweeId ? 1 : 0;
   }, [activeSpeaker, glowPulse, interviewerId, intervieweeId, interviewerActiveSV, intervieweeActiveSV]);
 
+  // ── Debounced "between-content" loading indicator ────────────────────────
+  // Shows a spinner in the chat footer whenever the debate is live but nothing
+  // is playing or being fetched — i.e. genuine dead air (queue drained, no AI
+  // call in flight, moderator not speaking). Debounced 350 ms to suppress the
+  // sub-frame flickers that occur when activeSpeaker briefly clears between clips.
+  useEffect(() => {
+    const idle = phase === "live" && !activeSpeaker && !moderatorSpeaking && isThinking === null;
+    if (idle) {
+      debateLoadingTimerRef.current = setTimeout(() => setShowDebateLoading(true), 350);
+    } else {
+      if (debateLoadingTimerRef.current) { clearTimeout(debateLoadingTimerRef.current); debateLoadingTimerRef.current = null; }
+      setShowDebateLoading(false);
+    }
+    return () => { if (debateLoadingTimerRef.current) clearTimeout(debateLoadingTimerRef.current); };
+  }, [phase, activeSpeaker, moderatorSpeaking, isThinking]);
+
   // Ground truth for the moderator portrait overlay: whenever the ACTUAL audio
   // queue is playing the moderator's voice, show the picture. Whenever a debater's
   // voice takes over, hide it. (Manual setModeratorSpeaking(true) calls elsewhere give
@@ -2903,15 +2921,17 @@ export default function DebateStage() {
   // Queue moderator audio → wait for full playback → reset state.
   // Routes through enqueueTTSAndWait so the queue's natural ordering guarantees
   // the current speaker always finishes before the moderator starts.
-  const speakMod = useCallback(async (text: string, msgId: string, opts?: { blockEarlyResolve?: boolean }) => {
+  const speakMod = useCallback(async (text: string, msgId: string, opts?: { blockEarlyResolve?: boolean; skipTranscript?: boolean }) => {
     const mod = MODERATORS[moderatorStyle];
     if (!mod || !text || !runningRef.current) return;
     moderatorSpeakingRef.current = true;
     setModeratorSpeaking(true);
     setModeratorLastLine(text);
-    setMessages((prev) => [...prev, {
-      id: msgId, speakerId: mod.personaId, speakerName: mod.name, text, ts: Date.now(),
-    }]);
+    if (!opts?.skipTranscript) {
+      setMessages((prev) => [...prev, {
+        id: msgId, speakerId: mod.personaId, speakerName: mod.name, text, ts: Date.now(),
+      }]);
+    }
     // blockEarlyResolve: true (default) = moderator must finish fully before next item starts.
     // Pass { blockEarlyResolve: false } for question/bridge lines where 500ms persona overlap is desired.
     await new Promise<void>((resolve) => {
@@ -2954,7 +2974,12 @@ export default function DebateStage() {
     const speakModFiller = (text: string, msgId: string): Promise<void> => {
       let intervalId: ReturnType<typeof setInterval> | null = null;
       return Promise.race([
-        speakMod(text, msgId),
+        // skipTranscript: true — fillers are audio-only dead-air bridges.
+        // Adding them to the transcript causes ordering inversions because the
+        // primary/rebuttal TTS is pre-queued *before* the filler runs, so the
+        // audio order is (answer → filler) but the transcript order would be
+        // (filler → answer). Keeping fillers audio-only fixes that inversion.
+        speakMod(text, msgId, { skipTranscript: true }),
         new Promise<void>((resolve) => {
           intervalId = setInterval(() => {
             if (!runningRef.current) {
@@ -4539,6 +4564,13 @@ export default function DebateStage() {
                 <View style={[s.bubble, isThinking === "interviewer" ? s.bubbleInterviewer : s.bubbleInterviewee, { paddingVertical: 8, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", gap: 8 }]}>
                   <ActivityIndicator size="small" color={isThinking === "interviewer" ? "#FFD700" : "#4ADE80"} />
                   <Text style={{ color: isThinking === "interviewer" ? "#FFD700" : "#4ADE80", fontSize: 13, fontStyle: "italic", opacity: 0.9 }}>Loading...</Text>
+                </View>
+              </Animated.View>
+            ) : showDebateLoading ? (
+              <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(150)} style={[s.bubbleRow, { justifyContent: "center" }]}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6, paddingHorizontal: 14, backgroundColor: "rgba(255,215,0,0.08)", borderRadius: 16, borderWidth: 1, borderColor: "rgba(255,215,0,0.18)" }}>
+                  <ActivityIndicator size="small" color="rgba(255,215,0,0.7)" />
+                  <Text style={{ color: "rgba(255,215,0,0.7)", fontSize: 12, fontStyle: "italic" }}>Preparing next exchange…</Text>
                 </View>
               </Animated.View>
             ) : null
