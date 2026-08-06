@@ -3951,6 +3951,12 @@ export default function ArenaScreen() {
   const [isLoadingRoast, setIsLoadingRoast] = useState(false);
   const [winnerClapBack, setWinnerClapBack] = useState("");
   const [isLoadingClapBack, setIsLoadingClapBack] = useState(false);
+  // True when Trump is the top-voted winner — suppress the clap-back card and loader
+  // since it makes no sense for Trump to fire back at himself in his own arena.
+  const currentWinnerIsTrump = useMemo(() => {
+    const sorted = Object.entries(personaPoints).sort(([, a], [, b]) => b - a);
+    return sorted.length > 0 && sorted[0][0] === "trump";
+  }, [personaPoints]);
   const personaPointsRef = useRef<Record<string, number>>({});
   useEffect(() => { personaPointsRef.current = personaPoints; }, [personaPoints]);
   useEffect(() => {
@@ -8947,7 +8953,7 @@ export default function ArenaScreen() {
                 <Text style={s.roastTriggerText}>Let Trump React!</Text>
               </Pressable>
             )}
-            {winnerClapBack ? (
+            {!currentWinnerIsTrump && winnerClapBack ? (
               <Animated.View entering={FadeIn.delay(500).duration(500)} style={[s.roastContainer, { borderColor: "#3b82f6", marginTop: 10 }]}>
                 <View style={s.roastHeader}>
                   <Ionicons name="megaphone" size={16} color="#3b82f6" />
@@ -8956,7 +8962,7 @@ export default function ArenaScreen() {
                 </View>
                 <Text style={[s.roastText, { color: "#93c5fd" }]}>{winnerClapBack}</Text>
               </Animated.View>
-            ) : isLoadingClapBack ? (
+            ) : !currentWinnerIsTrump && isLoadingClapBack ? (
               <View style={[s.roastLoading, { marginTop: 8 }]}>
                 <ActivityIndicator size="small" color="#3b82f6" />
                 <Text style={[s.roastLoadingText, { color: "#3b82f6" }]}>Winner is preparing a response...</Text>
