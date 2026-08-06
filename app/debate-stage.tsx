@@ -861,7 +861,9 @@ export default function DebateStage() {
   const [showDebateWinner, setShowDebateWinner] = useState(false);
   const [debateWinner, setDebateWinner] = useState<{ id: string; name: string; portrait: any; points: number; opponentPoints: number; verdict?: string; aiJudged?: boolean } | null>(null);
   const [debateTrumpRoast, setDebateTrumpRoast] = useState<string | null>(null);
+  const [debateTrumpRoastSpeakerId, setDebateTrumpRoastSpeakerId] = useState<string | null>(null);
   const [debateWinnerSpeech, setDebateWinnerSpeech] = useState<string | null>(null);
+  const [replayingClip, setReplayingClip] = useState<string | null>(null);
   const [isLoadingDebateRoast, setIsLoadingDebateRoast] = useState(false);
   const [debateLoser, setDebateLoser] = useState<{ id: string; name: string } | null>(null);
   const [debateTokenWinVisible, setDebateTokenWinVisible] = useState(false);
@@ -984,7 +986,9 @@ export default function DebateStage() {
       setShowDebateWinner(false);
       setDebateWinner(null);
       setDebateTrumpRoast(null);
+      setDebateTrumpRoastSpeakerId(null);
       setDebateWinnerSpeech(null);
+      setReplayingClip(null);
       setIsLoadingDebateRoast(false);
       setDebateLoser(null);
       setDebateTokenWinVisible(false);
@@ -1510,6 +1514,7 @@ export default function DebateStage() {
 
           if (reactionText) {
             setDebateTrumpRoast(reactionText);
+            setDebateTrumpRoastSpeakerId(reactionSpeakerId);
             setMessages((prev) => [...prev, {
               id: `reaction-${Date.now()}`,
               speakerId: reactionSpeakerId, speakerName: reactionSpeakerName,
@@ -4952,9 +4957,26 @@ export default function DebateStage() {
             {(() => {
               const ps = messages.find((m) => m.isPartingShot);
               if (!ps) return null;
+              const clipId = `parting-${ps.id}`;
               return (
                 <View style={{ marginTop: 14, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: "rgba(255,80,80,0.10)", borderRadius: 14, borderWidth: 1, borderColor: "rgba(255,80,80,0.40)", maxWidth: 320, width: "100%" }}>
-                  <Text style={{ color: "#FF6B6B", fontSize: 10, fontWeight: "900", letterSpacing: 1.5, marginBottom: 5, textAlign: "center" }}>🔥 PARTING SHOT</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 5 }}>
+                    <Text style={{ color: "#FF6B6B", fontSize: 10, fontWeight: "900", letterSpacing: 1.5 }}>🔥 PARTING SHOT</Text>
+                    {voiceEnabled && (
+                      <Pressable
+                        onPress={async () => {
+                          if (replayingClip === clipId) return;
+                          setReplayingClip(clipId);
+                          try { await playTTS("/api/persona-speak", { text: ps.text, personaId: ps.speakerId }, { volume: getPersonaVoiceVolume(ps.speakerId) }); } catch { /* ignore */ } finally { setReplayingClip(null); }
+                        }}
+                        style={{ padding: 3 }}
+                      >
+                        {replayingClip === clipId
+                          ? <ActivityIndicator size={11} color="#FF6B6B" />
+                          : <Ionicons name="play-circle" size={16} color="rgba(255,107,107,0.7)" />}
+                      </Pressable>
+                    )}
+                  </View>
                   <Text style={{ color: "rgba(255,255,255,0.92)", fontSize: 12, lineHeight: 18, textAlign: "center", fontStyle: "italic" }}>"{ps.text}"</Text>
                   <Text style={{ color: "rgba(255,107,107,0.65)", fontSize: 10, fontWeight: "700", textAlign: "center", marginTop: 5 }}>— {ps.speakerName}</Text>
                 </View>
@@ -4967,12 +4989,27 @@ export default function DebateStage() {
               const reactorName = trumpInDebate ? "Trump" : (debateLoser?.name ?? "Loser");
               const label = trumpInDebate ? "TRUMP'S REACTION" : `${reactorName.toUpperCase()}'S REACTION`;
               if (debateTrumpRoast) {
+                const clipId = "reaction-clip";
                 return (
                   <Animated.View entering={FadeIn.delay(200).duration(500)} style={{ marginTop: 14, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "rgba(255,107,53,0.12)", borderRadius: 14, borderWidth: 1, borderColor: "rgba(255,107,53,0.40)", maxWidth: 320, width: "100%" }}>
                     <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginBottom: 6 }}>
                       <Ionicons name="flame" size={13} color="#FF6B35" />
                       <Text style={{ color: "#FF6B35", fontSize: 10, fontWeight: "900", letterSpacing: 1.5 }}>{label}</Text>
                       <Ionicons name="flame" size={13} color="#FF6B35" />
+                      {voiceEnabled && debateTrumpRoastSpeakerId && (
+                        <Pressable
+                          onPress={async () => {
+                            if (replayingClip === clipId) return;
+                            setReplayingClip(clipId);
+                            try { await playTTS("/api/persona-speak", { text: debateTrumpRoast, personaId: debateTrumpRoastSpeakerId }, { volume: getPersonaVoiceVolume(debateTrumpRoastSpeakerId) }); } catch { /* ignore */ } finally { setReplayingClip(null); }
+                          }}
+                          style={{ padding: 3 }}
+                        >
+                          {replayingClip === clipId
+                            ? <ActivityIndicator size={11} color="#FF6B35" />
+                            : <Ionicons name="play-circle" size={16} color="rgba(255,107,53,0.7)" />}
+                        </Pressable>
+                      )}
                     </View>
                     <Text style={{ color: "rgba(255,255,255,0.92)", fontSize: 12, lineHeight: 18, textAlign: "center", fontStyle: "italic" }}>"{debateTrumpRoast}"</Text>
                   </Animated.View>
@@ -4990,13 +5027,32 @@ export default function DebateStage() {
             })()}
 
             {/* Winner's taunt at the loser */}
-            {debateWinnerSpeech ? (
-              <Animated.View entering={FadeIn.delay(400).duration(500)} style={{ marginTop: 14, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "rgba(255,215,0,0.08)", borderRadius: 14, borderWidth: 1, borderColor: "rgba(255,215,0,0.35)", maxWidth: 320, width: "100%" }}>
-                <Text style={{ color: "#FFD700", fontSize: 10, fontWeight: "900", letterSpacing: 1.5, marginBottom: 6, textAlign: "center" }}>🏆 WINNER'S REBUTTAL</Text>
-                <Text style={{ color: "rgba(255,255,255,0.92)", fontSize: 12, lineHeight: 18, textAlign: "center", fontStyle: "italic" }}>"{debateWinnerSpeech}"</Text>
-                <Text style={{ color: "rgba(255,215,0,0.6)", fontSize: 10, fontWeight: "700", textAlign: "center", marginTop: 5 }}>— {debateWinner?.name}</Text>
-              </Animated.View>
-            ) : null}
+            {debateWinnerSpeech && debateWinner ? (() => {
+              const clipId = "winner-speech-clip";
+              return (
+                <Animated.View entering={FadeIn.delay(400).duration(500)} style={{ marginTop: 14, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "rgba(255,215,0,0.08)", borderRadius: 14, borderWidth: 1, borderColor: "rgba(255,215,0,0.35)", maxWidth: 320, width: "100%" }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 6 }}>
+                    <Text style={{ color: "#FFD700", fontSize: 10, fontWeight: "900", letterSpacing: 1.5 }}>🏆 WINNER'S REBUTTAL</Text>
+                    {voiceEnabled && (
+                      <Pressable
+                        onPress={async () => {
+                          if (replayingClip === clipId) return;
+                          setReplayingClip(clipId);
+                          try { await playTTS("/api/persona-speak", { text: debateWinnerSpeech, personaId: debateWinner.id }, { volume: getPersonaVoiceVolume(debateWinner.id) }); } catch { /* ignore */ } finally { setReplayingClip(null); }
+                        }}
+                        style={{ padding: 3 }}
+                      >
+                        {replayingClip === clipId
+                          ? <ActivityIndicator size={11} color="#FFD700" />
+                          : <Ionicons name="play-circle" size={16} color="rgba(255,215,0,0.7)" />}
+                      </Pressable>
+                    )}
+                  </View>
+                  <Text style={{ color: "rgba(255,255,255,0.92)", fontSize: 12, lineHeight: 18, textAlign: "center", fontStyle: "italic" }}>"{debateWinnerSpeech}"</Text>
+                  <Text style={{ color: "rgba(255,215,0,0.6)", fontSize: 10, fontWeight: "700", textAlign: "center", marginTop: 5 }}>— {debateWinner.name}</Text>
+                </Animated.View>
+              );
+            })() : null}
 
             {/* Tokens */}
             {debateTokenWinAmount ? (
