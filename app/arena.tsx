@@ -4248,16 +4248,24 @@ export default function ArenaScreen() {
   useEffect(() => { isRunningRef.current = isRunning; }, [isRunning]);
 
   // ── TAP-HINT — fires 10 s after arena starts, auto-dismisses after 4 s ───
+  // Uses AsyncStorage so it only ever shows once across sessions.
   useEffect(() => {
-    if (!isRunning) { tapHintShownRef.current = false; return; }
+    if (!isRunning) return;
     if (tapHintShownRef.current) return;
     tapHintShownRef.current = true;
-    const showT = setTimeout(() => {
-      setShowTapHint(true);
-      const hideT = setTimeout(() => setShowTapHint(false), 4000);
-      return () => clearTimeout(hideT);
-    }, 10000);
-    return () => clearTimeout(showT);
+    let cancelled = false;
+    AsyncStorage.getItem("tap_hint_seen").then((val) => {
+      if (cancelled || val === "1") return;
+      const showT = setTimeout(() => {
+        if (cancelled) return;
+        setShowTapHint(true);
+        AsyncStorage.setItem("tap_hint_seen", "1").catch(() => {});
+        const hideT = setTimeout(() => setShowTapHint(false), 4000);
+        return () => clearTimeout(hideT);
+      }, 10000);
+      return () => clearTimeout(showT);
+    }).catch(() => {});
+    return () => { cancelled = true; };
   }, [isRunning]);
   useEffect(() => { voiceEnabledRef.current = voiceEnabled; }, [voiceEnabled]);
 

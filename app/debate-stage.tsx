@@ -989,21 +989,29 @@ export default function DebateStage() {
       }
       cancelAnimation(roomTempBarWidth);
       roomTempBarWidth.value = 0;
-      // Reset hint so it shows again on the next session
-      tapHintShownRef.current = false;
+      // Note: tap hint is now suppressed via AsyncStorage (tap_hint_seen),
+      // so we do NOT reset tapHintShownRef here — it stays true for the session.
     }
   }, [phase]);
 
   // ── TAP-HINT — fires 10 s after going live, auto-dismisses after 4 s ─────
+  // Uses AsyncStorage so it only ever shows once across sessions.
   useEffect(() => {
     if (phase !== "live" || tapHintShownRef.current) return;
     tapHintShownRef.current = true;
-    const showT = setTimeout(() => {
-      setShowTapHint(true);
-      const hideT = setTimeout(() => setShowTapHint(false), 4000);
-      return () => clearTimeout(hideT);
-    }, 10000);
-    return () => clearTimeout(showT);
+    let cancelled = false;
+    AsyncStorage.getItem("tap_hint_seen").then((val) => {
+      if (cancelled || val === "1") return;
+      const showT = setTimeout(() => {
+        if (cancelled) return;
+        setShowTapHint(true);
+        AsyncStorage.setItem("tap_hint_seen", "1").catch(() => {});
+        const hideT = setTimeout(() => setShowTapHint(false), 4000);
+        return () => clearTimeout(hideT);
+      }, 10000);
+      return () => clearTimeout(showT);
+    }).catch(() => {});
+    return () => { cancelled = true; };
   }, [phase]);
 
   // ── HEAT PULSE DRIVER — speeds up as heat approaches angerThresh ─────────────
