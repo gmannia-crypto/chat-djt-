@@ -10643,7 +10643,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
           { role: "system", content: personaPrompt || `You are ${winnerName}. You just won a debate against Trump and other political figures. You are celebrating and roasting Trump mercilessly.` },
           { role: "user", content: userPrompt },
         ],
-        max_completion_tokens: 250,
+        max_completion_tokens: 300,
         temperature: 1.0,
       });
       let clapBack = completion.choices[0]?.message?.content || "That's right — I WON. Deal with it, Donald!";

@@ -4976,6 +4976,7 @@ export default function ArenaScreen() {
           setPersonaPoints({});
           setAwardedMessages(new Set());
           setTrumpRoastText("");
+          setWinnerClapBack("");
           setIsLoadingRoast(false);
           firstAudioPlayedRef.current = false;
           setFirstAudioPlayed(false);
