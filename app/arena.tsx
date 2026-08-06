@@ -23,7 +23,7 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { router, useNavigation, useFocusEffect } from "expo-router";
+import { router, useNavigation, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown, FadeInUp, FadeIn, FadeOut, SlideInLeft, SlideInRight, SlideInUp, SlideOutUp, ZoomIn, ZoomOut, BounceIn, useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming } from "react-native-reanimated";
@@ -3694,6 +3694,7 @@ export default function ArenaScreen() {
   const { showShareCard, awardBadge } = useEngagement();
   const { logEvent: logLiveEvent } = useLiveActivity();
   useScreenTracker("arena");
+  const { hof } = useLocalSearchParams<{ hof?: string }>();
 
   useEffect(() => { logLiveEvent("arena_enter"); }, []);
 
@@ -4128,6 +4129,15 @@ export default function ArenaScreen() {
 
   // Prefetch HOF data on lobby mount so the teaser subtitle shows the current leader immediately
   useEffect(() => { fetchHallOfFame(); }, [fetchHallOfFame]);
+
+  // Deep-link: ?hof=1 (or /arena?hof=1) auto-opens the Hall of Fame modal
+  useEffect(() => {
+    if (hof === "1") {
+      setShowHallOfFame(true);
+      fetchHallOfFame();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hof]);
 
   const voteForPersona = useCallback(async (personaId: string) => {
     const currentCount = speakerVoteCounts[personaId] || 0;
