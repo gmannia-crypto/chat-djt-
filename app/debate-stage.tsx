@@ -896,6 +896,7 @@ export default function DebateStage() {
     aGlobalWins: number; aGlobalLosses: number; bGlobalWins: number; bGlobalLosses: number;
     h2hAWins: number; h2hBWins: number; h2hUserAWins: number; h2hUserBWins: number;
   } | null>(null);
+  const [allPersonaRecords, setAllPersonaRecords] = useState<Record<string, { wins: number; losses: number }>>({});
   const fetchDebateRecordRef = useRef<(() => Promise<void>) | null>(null);
   const debateRecordsRef = useRef(debateRecords);
   useEffect(() => { debateRecordsRef.current = debateRecords; }, [debateRecords]);
@@ -2726,6 +2727,16 @@ export default function DebateStage() {
 
   useEffect(() => { fetchLieTally(); }, [fetchLieTally]);
 
+  // Fetch all-personas global records once on mount for the picker badges.
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(new URL("/api/arena/all-records", getApiUrl()).toString());
+        if (res.ok) setAllPersonaRecords(await res.json());
+      } catch {}
+    })();
+  }, []);
+
   // Fetch head-to-head and per-persona W/L records for both debaters.
   // Called on mount (when IDs are known) and refreshed after each debate ends.
   const fetchDebateRecord = useCallback(async () => {
@@ -3961,6 +3972,11 @@ export default function DebateStage() {
               const portrait = PERSONA_PORTRAITS[p.id];
               const isSelected = interviewerId === p.id;
               const initials = p.name.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
+              const rec = allPersonaRecords[p.id];
+              const hasRecord = rec && (rec.wins > 0 || rec.losses > 0);
+              const h2hAWins = isSelected && intervieweeId && debateRecords ? debateRecords.h2hAWins : null;
+              const h2hBWins = isSelected && intervieweeId && debateRecords ? debateRecords.h2hBWins : null;
+              const hasH2H = h2hAWins !== null && h2hBWins !== null && (h2hAWins > 0 || h2hBWins > 0);
               return (
                 <Pressable key={p.id} onPress={() => { Haptics.selectionAsync(); setInterviewerId(p.id); }}
                   style={s.personaCard} testID={`interviewer-${p.id}`}>
@@ -3973,6 +3989,12 @@ export default function DebateStage() {
                   <Text style={[s.personaCardName, isSelected && s.personaCardNameActive]} numberOfLines={1}>
                     {p.name.split(" ")[0]}
                   </Text>
+                  {hasRecord && (
+                    <Text style={s.personaCardRecord}>{rec.wins}W-{rec.losses}L</Text>
+                  )}
+                  {hasH2H && (
+                    <Text style={s.personaCardH2H}>{h2hAWins}-{h2hBWins} h2h</Text>
+                  )}
                 </Pressable>
               );
             })}
@@ -3984,6 +4006,11 @@ export default function DebateStage() {
               const portrait = PERSONA_PORTRAITS[p.id];
               const isSelected = intervieweeId === p.id;
               const initials = p.name.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
+              const rec = allPersonaRecords[p.id];
+              const hasRecord = rec && (rec.wins > 0 || rec.losses > 0);
+              const h2hBWins = isSelected && interviewerId && debateRecords ? debateRecords.h2hBWins : null;
+              const h2hAWins = isSelected && interviewerId && debateRecords ? debateRecords.h2hAWins : null;
+              const hasH2H = h2hBWins !== null && h2hAWins !== null && (h2hBWins > 0 || h2hAWins > 0);
               return (
                 <Pressable key={p.id} onPress={() => { Haptics.selectionAsync(); setIntervieweeId(p.id); }}
                   style={s.personaCard} testID={`interviewee-${p.id}`}>
@@ -3996,6 +4023,12 @@ export default function DebateStage() {
                   <Text style={[s.personaCardName, isSelected && s.personaCardNameActiveGuest]} numberOfLines={1}>
                     {p.name.split(" ")[0]}
                   </Text>
+                  {hasRecord && (
+                    <Text style={[s.personaCardRecord, isSelected && s.personaCardRecordGuest]}>{rec.wins}W-{rec.losses}L</Text>
+                  )}
+                  {hasH2H && (
+                    <Text style={[s.personaCardH2H, s.personaCardH2HGuest]}>{h2hBWins}-{h2hAWins} h2h</Text>
+                  )}
                 </Pressable>
               );
             })}
@@ -5450,6 +5483,10 @@ const s = StyleSheet.create({
   personaCardName: { color: "rgba(255,255,255,0.6)", fontSize: 10, fontWeight: "700", marginTop: 5, textAlign: "center" },
   personaCardNameActive: { color: "#FFD700" },
   personaCardNameActiveGuest: { color: "#4ADE80" },
+  personaCardRecord: { color: "rgba(255,215,0,0.75)", fontSize: 9, fontWeight: "700", marginTop: 2, textAlign: "center" },
+  personaCardRecordGuest: { color: "rgba(74,222,128,0.75)" },
+  personaCardH2H: { color: "rgba(255,215,0,0.55)", fontSize: 8, fontWeight: "600", marginTop: 1, textAlign: "center" },
+  personaCardH2HGuest: { color: "rgba(74,222,128,0.55)" },
 
   durationRow: { flexDirection: "row", gap: 8 },
   durationCard: { flex: 1, padding: 14, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.05)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)", alignItems: "center" },

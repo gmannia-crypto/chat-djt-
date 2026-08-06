@@ -11288,6 +11288,34 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
     }
   });
 
+  // Returns global W/L for every persona — used by the matchup picker
+  app.get("/api/arena/all-records", async (req, res) => {
+    const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+    try {
+      await db.query(`CREATE TABLE IF NOT EXISTS arena_wins_global (
+        persona_id TEXT PRIMARY KEY,
+        total_wins INTEGER NOT NULL DEFAULT 0,
+        total_losses INTEGER NOT NULL DEFAULT 0,
+        updated_at TIMESTAMP DEFAULT NOW()
+      )`);
+      await db.query(`ALTER TABLE arena_wins_global ADD COLUMN IF NOT EXISTS total_losses INTEGER NOT NULL DEFAULT 0`);
+      const rows = await db.query(`SELECT persona_id, total_wins, total_losses FROM arena_wins_global`);
+      const records: Record<string, { wins: number; losses: number }> = {};
+      for (const row of rows.rows) {
+        records[row.persona_id] = {
+          wins: parseInt(row.total_wins) || 0,
+          losses: parseInt(row.total_losses) || 0,
+        };
+      }
+      res.json(records);
+    } catch (err: any) {
+      console.error("all-records error:", err.message);
+      res.status(500).json({ error: "Failed to fetch records" });
+    } finally {
+      await db.end();
+    }
+  });
+
   app.get("/api/arena/win-tally", async (req, res) => {
     try {
       const deviceId = req.headers["x-device-id"] as string;
