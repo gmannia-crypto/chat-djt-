@@ -903,6 +903,7 @@ export default function DebateStage() {
   } | null>(null);
   const [allPersonaRecords, setAllPersonaRecords] = useState<Record<string, { wins: number; losses: number }>>({});
   const fetchDebateRecordRef = useRef<(() => Promise<void>) | null>(null);
+  const fetchAllPersonaRecordsRef = useRef<(() => Promise<void>) | null>(null);
   const debateRecordsRef = useRef(debateRecords);
   useEffect(() => { debateRecordsRef.current = debateRecords; }, [debateRecords]);
   const [debateBetPick, setDebateBetPick] = useState<"interviewer" | "interviewee" | null>(null);
@@ -1448,8 +1449,11 @@ export default function DebateStage() {
               setTimeout(() => setDebateTokenWinVisible(true), 2200);
               refreshBalance();
             }
-            // Refresh the W/L record display so the updated tally is visible
-            setTimeout(() => fetchDebateRecordRef.current?.(), 600);
+            // Refresh the W/L record display and all-persona picker badges
+            setTimeout(() => {
+              fetchDebateRecordRef.current?.();
+              fetchAllPersonaRecordsRef.current?.();
+            }, 600);
           }
         }).catch(() => {});
       }
@@ -2742,15 +2746,15 @@ export default function DebateStage() {
 
   useEffect(() => { fetchLieTally(); }, [fetchLieTally]);
 
-  // Fetch all-personas global records once on mount for the picker badges.
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch(new URL("/api/arena/all-records", getApiUrl()).toString());
-        if (res.ok) setAllPersonaRecords(await res.json());
-      } catch {}
-    })();
+  // Fetch all-personas global records; called on mount and after each debate ends.
+  const fetchAllPersonaRecords = useCallback(async () => {
+    try {
+      const res = await fetch(new URL("/api/arena/all-records", getApiUrl()).toString());
+      if (res.ok) setAllPersonaRecords(await res.json());
+    } catch {}
   }, []);
+
+  useEffect(() => { fetchAllPersonaRecords(); }, [fetchAllPersonaRecords]);
 
   // Fetch head-to-head and per-persona W/L records for both debaters.
   // Called on mount (when IDs are known) and refreshed after each debate ends.
@@ -2767,12 +2771,20 @@ export default function DebateStage() {
     } catch {}
   }, [interviewerId, intervieweeId, deviceId]);
 
-  // Keep a stable ref so the runLoop can call it after recording the result.
+  // Keep stable refs so the runLoop can call them after recording the result.
   useEffect(() => { fetchDebateRecordRef.current = fetchDebateRecord; }, [fetchDebateRecord]);
+  useEffect(() => { fetchAllPersonaRecordsRef.current = fetchAllPersonaRecords; }, [fetchAllPersonaRecords]);
   // Initial fetch + re-fetch whenever the matchup changes.
   useEffect(() => { fetchDebateRecord(); }, [fetchDebateRecord]);
   // Refresh record display once the debate ends (win/loss just recorded).
-  useEffect(() => { if (phase === "ended") { setTimeout(() => fetchDebateRecord(), 800); } }, [phase, fetchDebateRecord]);
+  useEffect(() => {
+    if (phase === "ended") {
+      setTimeout(() => {
+        fetchDebateRecord();
+        fetchAllPersonaRecords();
+      }, 800);
+    }
+  }, [phase, fetchDebateRecord, fetchAllPersonaRecords]);
 
   const fetchHallOfFame = useCallback(async () => {
     setHofLoading(true);
