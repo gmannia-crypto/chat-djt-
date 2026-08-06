@@ -10239,6 +10239,229 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
     }
   });
 
+  // ── Fight-card share image ────────────────────────────────────────────────
+  // Generates a boxing-poster-style PNG showing both personas side-by-side
+  // with their W/L records and the debate topic.
+  app.post("/api/arena/fight-card", async (req, res) => {
+    try {
+      const {
+        personaAId, personaAName, personaAWins = 0, personaALosses = 0,
+        personaBId, personaBName, personaBWins = 0, personaBLosses = 0,
+        topic = "Political Debate",
+        h2hAWins = 0, h2hBWins = 0,
+      } = req.body || {};
+
+      if (!personaAId || !personaBId) {
+        return res.status(400).json({ error: "personaAId and personaBId are required" });
+      }
+
+      const sharp = (await import("sharp")).default;
+
+      const PERSONA_FILE: Record<string, string> = {
+        berniemc: "bernie",
+        elon: "musk",
+      };
+      const portraitFile = (pid: string) => {
+        const mapped = PERSONA_FILE[pid] || pid;
+        return join(process.cwd(), "assets", "images", `persona-${mapped}.png`);
+      };
+      const loadPortrait = async (pid: string): Promise<Buffer | null> => {
+        try {
+          const p = portraitFile(pid);
+          if (!existsSync(p)) return null;
+          return await sharp(p).resize(280, 280, { fit: "cover" }).png().toBuffer();
+        } catch { return null; }
+      };
+
+      const [portraitA, portraitB] = await Promise.all([
+        loadPortrait(personaAId),
+        loadPortrait(personaBId),
+      ]);
+
+      const W = 1080;
+      const H = 1080;
+
+      const escapeXml = (s: string) =>
+        String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+
+      // Wrap topic text for the banner
+      const topicWords = String(topic).replace(/['"]/g, "").split(/\s+/).filter(Boolean);
+      const topicLines: string[] = [];
+      let cur = "";
+      for (const w of topicWords) {
+        const candidate = cur ? cur + " " + w : w;
+        if (candidate.length <= 30) { cur = candidate; }
+        else {
+          if (cur) topicLines.push(cur);
+          cur = w.length > 30 ? w.slice(0, 29) + "…" : w;
+          if (topicLines.length >= 2) break;
+        }
+      }
+      if (cur && topicLines.length < 3) topicLines.push(cur);
+
+      const nameA = String(personaAName || personaAId).toUpperCase();
+      const nameB = String(personaBName || personaBId).toUpperCase();
+      const recA = `${personaAWins}W - ${personaALosses}L`;
+      const recB = `${personaBWins}W - ${personaBLosses}L`;
+      const h2hLine = (h2hAWins + h2hBWins) > 0
+        ? `H2H: ${nameA} ${h2hAWins}-${h2hBWins} ${nameB}`
+        : "";
+
+      // Split long names onto two lines for the card
+      const splitName = (name: string, maxChars = 14): string[] => {
+        if (name.length <= maxChars) return [name];
+        const words = name.split(/\s+/);
+        if (words.length === 1) return [name.slice(0, maxChars - 1) + "…"];
+        const mid = Math.ceil(words.length / 2);
+        return [words.slice(0, mid).join(" "), words.slice(mid).join(" ")];
+      };
+      const namesA = splitName(nameA);
+      const namesB = splitName(nameB);
+
+      const topicSvg = topicLines.map((line, i) =>
+        `<text x="540" y="${98 + i * 38}" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="30" font-weight="900" fill="#FFD700" letter-spacing="1">${escapeXml(line)}</text>`
+      ).join("\n");
+
+      const nameSvgA = namesA.map((line, i) =>
+        `<text x="220" y="${620 + i * 46}" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="38" font-weight="900" fill="#FFD700">${escapeXml(line)}</text>`
+      ).join("\n");
+
+      const nameSvgB = namesB.map((line, i) =>
+        `<text x="860" y="${620 + i * 46}" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="38" font-weight="900" fill="#4ADE80">${escapeXml(line)}</text>`
+      ).join("\n");
+
+      const placeholderA = !portraitA
+        ? `<circle cx="220" cy="380" r="160" fill="#1a1a2a"/><text x="220" y="400" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="90" font-weight="900" fill="#444">?</text>`
+        : "";
+      const placeholderB = !portraitB
+        ? `<circle cx="860" cy="380" r="160" fill="#1a1a2a"/><text x="860" y="400" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="90" font-weight="900" fill="#444">?</text>`
+        : "";
+
+      const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0a0004"/>
+      <stop offset="45%" stop-color="#0d0d14"/>
+      <stop offset="100%" stop-color="#020002"/>
+    </linearGradient>
+    <linearGradient id="redLeft" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#8B0000" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#8B0000" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="greenRight" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#064E3B" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#064E3B" stop-opacity="0.55"/>
+    </linearGradient>
+    <linearGradient id="goldDiv" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFD700" stop-opacity="0"/>
+      <stop offset="35%" stop-color="#FFD700" stop-opacity="1"/>
+      <stop offset="65%" stop-color="#FFD700" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#FFD700" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="glowA" cx="0.3" cy="0.42" r="0.45">
+      <stop offset="0%" stop-color="#FFD700" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#FFD700" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowB" cx="0.7" cy="0.42" r="0.45">
+      <stop offset="0%" stop-color="#4ADE80" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#4ADE80" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="circA"><circle cx="220" cy="380" r="160"/></clipPath>
+    <clipPath id="circB"><circle cx="860" cy="380" r="160"/></clipPath>
+  </defs>
+
+  <!-- Background -->
+  <rect width="${W}" height="${H}" fill="url(#bg)"/>
+  <rect width="${W}" height="${H}" fill="url(#redLeft)"/>
+  <rect width="${W}" height="${H}" fill="url(#greenRight)"/>
+  <rect width="${W}" height="${H}" fill="url(#glowA)"/>
+  <rect width="${W}" height="${H}" fill="url(#glowB)"/>
+
+  <!-- Outer border -->
+  <rect x="14" y="14" width="${W - 28}" height="${H - 28}" fill="none" stroke="#FFD700" stroke-opacity="0.5" stroke-width="3" rx="18"/>
+  <rect x="22" y="22" width="${W - 44}" height="${H - 44}" fill="none" stroke="#FFD700" stroke-opacity="0.18" stroke-width="1" rx="14"/>
+
+  <!-- Top banner -->
+  <rect x="0" y="0" width="${W}" height="148" fill="rgba(0,0,0,0.65)"/>
+  <line x1="60" y1="148" x2="${W - 60}" y2="148" stroke="#FFD700" stroke-opacity="0.5" stroke-width="2"/>
+  <text x="540" y="62" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="18" font-weight="900" fill="rgba(255,215,0,0.55)" letter-spacing="8">AI POLITICAL ARENA</text>
+  ${topicSvg}
+
+  <!-- Portrait rings -->
+  <circle cx="220" cy="380" r="168" fill="none" stroke="#FFD700" stroke-width="5" opacity="0.7"/>
+  <circle cx="860" cy="380" r="168" fill="none" stroke="#4ADE80" stroke-width="5" opacity="0.7"/>
+
+  <!-- Portrait placeholders (filled by composite if images present) -->
+  ${placeholderA}
+  ${placeholderB}
+
+  <!-- Divider line -->
+  <rect x="534" y="160" width="12" height="550" fill="url(#goldDiv)" rx="6"/>
+
+  <!-- VS text -->
+  <text x="540" y="410" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="64" font-weight="900" fill="#FFD700" opacity="0.95" letter-spacing="-2">VS</text>
+  <text x="540" y="452" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="800" fill="rgba(255,215,0,0.5)" letter-spacing="5">DEBATE</text>
+
+  <!-- Persona names -->
+  ${nameSvgA}
+  ${nameSvgB}
+
+  <!-- Records -->
+  <rect x="110" y="698" width="220" height="52" rx="10" fill="rgba(255,215,0,0.12)" stroke="#FFD700" stroke-width="2" stroke-opacity="0.6"/>
+  <text x="220" y="732" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="28" font-weight="900" fill="#FFD700">${escapeXml(recA)}</text>
+
+  <rect x="750" y="698" width="220" height="52" rx="10" fill="rgba(74,222,128,0.10)" stroke="#4ADE80" stroke-width="2" stroke-opacity="0.6"/>
+  <text x="860" y="732" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="28" font-weight="900" fill="#4ADE80">${escapeXml(recB)}</text>
+
+  ${h2hLine ? `
+  <!-- H2H line -->
+  <rect x="240" y="780" width="600" height="42" rx="10" fill="rgba(255,255,255,0.04)"/>
+  <text x="540" y="809" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="20" font-weight="800" fill="rgba(255,215,0,0.75)">🏆 ${escapeXml(h2hLine)}</text>
+  ` : ""}
+
+  <!-- Bottom branding -->
+  <rect x="0" y="${H - 130}" width="${W}" height="130" fill="rgba(0,0,0,0.7)"/>
+  <line x1="60" y1="${H - 130}" x2="${W - 60}" y2="${H - 130}" stroke="#FFD700" stroke-opacity="0.45" stroke-width="2"/>
+  <text x="540" y="${H - 72}" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="46" font-weight="900" fill="#FFD700" letter-spacing="4">CHATDJT.COM</text>
+  <text x="540" y="${H - 34}" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="rgba(255,255,255,0.4)" letter-spacing="6">AI DEBATE ARENA</text>
+</svg>`;
+
+      let pipeline = sharp(Buffer.from(svg));
+      type CompositeInput = { input: Buffer; top: number; left: number };
+      const composites: CompositeInput[] = [];
+
+      const circularMask = (size: number) =>
+        Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}"><circle cx="${size / 2}" cy="${size / 2}" r="${size / 2}" fill="white"/></svg>`);
+
+      if (portraitA) {
+        const masked = await sharp(portraitA)
+          .resize(320, 320, { fit: "cover" })
+          .composite([{ input: circularMask(320), blend: "dest-in" }])
+          .png().toBuffer();
+        composites.push({ input: masked, top: 380 - 160, left: 220 - 160 });
+      }
+      if (portraitB) {
+        const masked = await sharp(portraitB)
+          .resize(320, 320, { fit: "cover" })
+          .composite([{ input: circularMask(320), blend: "dest-in" }])
+          .png().toBuffer();
+        composites.push({ input: masked, top: 380 - 160, left: 860 - 160 });
+      }
+
+      if (composites.length) pipeline = pipeline.composite(composites);
+      const png = await pipeline.png().toBuffer();
+
+      res.setHeader("Content-Type", "image/png");
+      res.setHeader("Cache-Control", "private, no-store");
+      res.setHeader("Content-Disposition", `inline; filename="fight-card-${personaAId}-vs-${personaBId}.png"`);
+      res.send(png);
+    } catch (error: any) {
+      console.error("Fight card image error:", error);
+      res.status(500).json({ error: "Failed to generate fight card" });
+    }
+  });
+
   app.get("/api/arena/interview-bookmarks", async (req, res) => {
     try {
       const deviceId = req.headers["x-device-id"] as string;
