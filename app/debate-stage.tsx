@@ -890,6 +890,14 @@ export default function DebateStage() {
   const [savedSessionId, setSavedSessionId] = useState<string | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareTab, setShareTab] = useState<"viral" | "transcript">("viral");
+  const [debateRecords, setDebateRecords] = useState<{
+    aWins: number; aLosses: number; bWins: number; bLosses: number;
+    aGlobalWins: number; aGlobalLosses: number; bGlobalWins: number; bGlobalLosses: number;
+    h2hAWins: number; h2hBWins: number; h2hUserAWins: number; h2hUserBWins: number;
+  } | null>(null);
+  const fetchDebateRecordRef = useRef<(() => Promise<void>) | null>(null);
+  const debateRecordsRef = useRef(debateRecords);
+  useEffect(() => { debateRecordsRef.current = debateRecords; }, [debateRecords]);
   const [debateBetPick, setDebateBetPick] = useState<"interviewer" | "interviewee" | null>(null);
   const [debateBetWager, setDebateBetWager] = useState(2);
   const [debateBetLocked, setDebateBetLocked] = useState(false);
@@ -1409,12 +1417,13 @@ export default function DebateStage() {
         body: JSON.stringify({ winnerId, winnerName, loserId, loserName, verdict: aiVerdictText, topic: topicForVerdict }),
       }).then((r) => r.ok ? r.json() : null).catch(() => null);
 
-      // Record win + award tokens (vote-based OR AI-judged path)
+      // Record win + loss + award tokens (vote-based OR AI-judged path)
       if (deviceId) {
         fetch(new URL("/api/arena/record-win", getApiUrl()).toString(), {
           method: "POST",
           headers: { "Content-Type": "application/json", "x-device-id": deviceId },
-          body: JSON.stringify({ personaId: winnerId }),
+          // Pass loserId so losses and H2H are tracked server-side in the same request
+          body: JSON.stringify({ personaId: winnerId, loserId }),
         }).then(async (r) => {
           if (r.ok) {
             const data = await r.json();
@@ -1423,6 +1432,8 @@ export default function DebateStage() {
               setTimeout(() => setDebateTokenWinVisible(true), 2200);
               refreshBalance();
             }
+            // Refresh the W/L record display so the updated tally is visible
+            setTimeout(() => fetchDebateRecordRef.current?.(), 600);
           }
         }).catch(() => {});
       }
@@ -2619,28 +2630,68 @@ export default function DebateStage() {
     const now = Date.now();
     if (now - lastModReactionAtRef.current < 14000) return;
     lastModReactionAtRef.current = now;
-    const retorts = [
+    // Tiered static retorts — escalate with severity so the moderator hits back harder
+    // when the insult is more severe.
+    const tier1 = [
       "Excuse me — you do NOT get to attack me. I ask the questions. You answer them. That's the deal.",
       "I'm going to stop you right there. You're attacking the moderator, which tells me you have no real answer.",
-      "Did you just come at ME? Sir, I will cut your microphone and we will sit here in silence. Show some respect.",
-      "I'm sorry — are you now attacking the host? Because that is a new low, even for you.",
-      "Back off. You're a guest in this debate, not a judge. One more crack like that and your mic goes dark.",
-      "I don't know who told you it was okay to talk to a moderator like that, but they were wrong. Move on.",
+      "I don't know who told you that was okay, but they were wrong. Move on.",
+      "Let's keep this civil. One more crack like that and your mic goes dark.",
     ];
-    const retort = retorts[Math.floor(Math.random() * retorts.length)];
+    const tier2 = [
+      "Did you just come at ME? I will cut your microphone and we will sit here in silence until you learn some respect.",
+      "I'm sorry — are you attacking the host on live television? That is a new low, even for someone with your track record.",
+      "That mouth is writing checks your arguments can't cash. Answer the question.",
+      "Back off. You're a guest in this debate. Keep it up and your mic is done for the night.",
+      "I've moderated for thirty years and you are the most disrespectful debater I've ever had on this stage.",
+    ];
+    const tier3 = [
+      "Let me be crystal clear: you are ONE second from being removed from this debate. Shut your mouth and answer the question.",
+      "You want to come at ME? I RUN this show. One more word out of line and this debate is OVER. Your choice.",
+      "You are embarrassing yourself in front of millions of people right now. Grow up — and answer the QUESTION.",
+      "I have ended debates for less than this. You have three seconds to compose yourself or you are DONE.",
+      "That is the most disrespectful thing I've ever heard said to a moderator. You've just made a very powerful enemy. Answer the question.",
+    ];
+    const pool = severity >= 3 ? tier3 : severity >= 2 ? tier2 : tier1;
+    const retort = pool[Math.floor(Math.random() * pool.length)];
+
+    const personaName = [...interviewers, ...interviewees].find((p) => p.id === speakerId)?.name || "this debater";
+
     setTimeout(() => {
       if (!runningRef.current) return;
       setModeratorLastLine(retort);
-      setMessages((prev) => [...prev, {
-        id: `modret-${Date.now()}`,
-        speakerId: mod.personaId,
-        speakerName: mod.name,
-        text: retort,
-        ts: Date.now(),
-      }]);
-      enqueueTTS(retort, mod.personaId, `modret-${Date.now()}`, { blockEarlyResolve: true });
+      const msgId = `modret-${Date.now()}`;
+      // onStart: add to transcript when audio actually plays (ordering fix)
+      enqueueTTS(retort, mod.personaId, msgId, {
+        blockEarlyResolve: true,
+        onStart: () => setMessages((prev) => [...prev, {
+          id: msgId, speakerId: mod.personaId, speakerName: mod.name, text: retort, ts: Date.now(),
+        }]),
+      });
+
+      // For severity 2+, also fetch an AI-personalized follow-up and queue it
+      // after the static retort finishes — giving the moderator a devastating two-punch combo.
+      if (severity >= 2) {
+        fetch(new URL("/api/arena/moderator-retort", getApiUrl()).toString(), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ provocation: text, moderatorName: mod.name, severity, personaName }),
+        }).then(async (r) => {
+          if (!r.ok || !runningRef.current) return;
+          const data = await r.json();
+          if (!data.retort || !runningRef.current) return;
+          const followId = `modret-ai-${Date.now()}`;
+          setModeratorLastLine(data.retort);
+          enqueueTTS(data.retort, mod.personaId, followId, {
+            blockEarlyResolve: true,
+            onStart: () => setMessages((prev) => [...prev, {
+              id: followId, speakerId: mod.personaId, speakerName: mod.name, text: data.retort, ts: Date.now(),
+            }]),
+          });
+        }).catch(() => {});
+      }
     }, 900);
-  }, [moderatorStyle, enqueueTTS]);
+  }, [moderatorStyle, enqueueTTS, interviewers, interviewees]);
 
   useEffect(() => { tryModeratorRetortRef.current = tryModeratorRetort; }, [tryModeratorRetort]);
   // ─────────────────────────────────────────────────────────────────────────
@@ -2673,6 +2724,28 @@ export default function DebateStage() {
   }, [deviceId]);
 
   useEffect(() => { fetchLieTally(); }, [fetchLieTally]);
+
+  // Fetch head-to-head and per-persona W/L records for both debaters.
+  // Called on mount (when IDs are known) and refreshed after each debate ends.
+  const fetchDebateRecord = useCallback(async () => {
+    if (!interviewerId || !intervieweeId) return;
+    try {
+      const url = new URL("/api/arena/debate-record", getApiUrl());
+      url.searchParams.set("personaA", interviewerId);
+      url.searchParams.set("personaB", intervieweeId);
+      const headers: Record<string, string> = {};
+      if (deviceId) headers["x-device-id"] = deviceId;
+      const res = await fetch(url.toString(), { headers });
+      if (res.ok) setDebateRecords(await res.json());
+    } catch {}
+  }, [interviewerId, intervieweeId, deviceId]);
+
+  // Keep a stable ref so the runLoop can call it after recording the result.
+  useEffect(() => { fetchDebateRecordRef.current = fetchDebateRecord; }, [fetchDebateRecord]);
+  // Initial fetch + re-fetch whenever the matchup changes.
+  useEffect(() => { fetchDebateRecord(); }, [fetchDebateRecord]);
+  // Refresh record display once the debate ends (win/loss just recorded).
+  useEffect(() => { if (phase === "ended") { setTimeout(() => fetchDebateRecord(), 800); } }, [phase, fetchDebateRecord]);
 
   const interviewer = useMemo(() => interviewers.find((p) => p.id === interviewerId) || interviewees.find((p) => p.id === interviewerId) || null, [interviewers, interviewees, interviewerId]);
   const interviewee = useMemo(() => interviewees.find((p) => p.id === intervieweeId) || interviewers.find((p) => p.id === intervieweeId) || null, [interviewees, interviewers, intervieweeId]);
@@ -2883,6 +2956,13 @@ export default function DebateStage() {
           isInterruption: !!opts.isInterruption,
           interviewStyle: effectiveInterviewStyle,
           isDebate: true,
+          // Let persona prompts reference their W/L record and H2H vs opponent
+          debateRecord: debateRecordsRef.current ? {
+            aId: interviewerId, bId: intervieweeId,
+            aWins: debateRecordsRef.current.aWins, aLosses: debateRecordsRef.current.aLosses,
+            bWins: debateRecordsRef.current.bWins, bLosses: debateRecordsRef.current.bLosses,
+            h2hAWins: debateRecordsRef.current.h2hAWins, h2hBWins: debateRecordsRef.current.h2hBWins,
+          } : null,
         }),
       });
       if (!res.ok) {
@@ -2914,6 +2994,12 @@ export default function DebateStage() {
           lastQuestion,
           interviewStyle: effectiveInterviewStyle,
           isDebate: true,
+          debateRecord: debateRecordsRef.current ? {
+            aId: interviewerId, bId: intervieweeId,
+            aWins: debateRecordsRef.current.aWins, aLosses: debateRecordsRef.current.aLosses,
+            bWins: debateRecordsRef.current.bWins, bLosses: debateRecordsRef.current.bLosses,
+            h2hAWins: debateRecordsRef.current.h2hAWins, h2hBWins: debateRecordsRef.current.h2hBWins,
+          } : null,
         }),
       });
       if (res.status === 403) {
@@ -3642,8 +3728,17 @@ export default function DebateStage() {
     }
 
     // ── Viral social post ────────────────────────────────────────────────────
-    let viralText = `🔥 AI DEBATE: ${aName} vs ${bName}\n`;
-    viralText += `📢 Topic: "${topicStr}"\n\n`;
+    // Build record strings for the share card
+    const rec = debateRecordsRef.current;
+    const aRec = rec && (rec.aWins > 0 || rec.aLosses > 0) ? ` (${rec.aWins}W-${rec.aLosses}L)` : "";
+    const bRec = rec && (rec.bWins > 0 || rec.bLosses > 0) ? ` (${rec.bWins}W-${rec.bLosses}L)` : "";
+    const h2hTotal = rec ? rec.h2hAWins + rec.h2hBWins : 0;
+    const h2hLine = rec && h2hTotal > 0
+      ? `\n🏆 H2H: ${aName} leads ${rec.h2hAWins}-${rec.h2hBWins} all-time`
+      : "";
+
+    let viralText = `🔥 AI DEBATE: ${aName}${aRec} vs ${bName}${bRec}\n`;
+    viralText += `📢 Topic: "${topicStr}"\n${h2hLine}\n\n`;
     bestQuotes.slice(0, 4).forEach((m) => {
       const name = m.speakerId === interviewerId ? aName : bName;
       const snippet = m.text.length > 130 ? m.text.slice(0, 127) + "…" : m.text;
@@ -3663,7 +3758,7 @@ export default function DebateStage() {
     fullTranscript += `${"─".repeat(40)}\n`;
     fullTranscript += `chatdjt.com  |  #AIDebate #ChatDJT ${topicHashtag}`;
 
-    return { viralText, fullTranscript, aName, bName, topicStr, topicHashtag, msgCount: msgs.length };
+    return { viralText, fullTranscript, aName, bName, topicStr, topicHashtag, msgCount: msgs.length, debateRecords: rec };
   }, [interviewerId, intervieweeId, interviewers, interviewees, currentTopic]);
 
   // Resolve winner bet when debate ends
@@ -4404,6 +4499,19 @@ export default function DebateStage() {
             </View>
             <Text style={[s.stageRole, { color: p.color }]} numberOfLines={1}>{p.role}</Text>
             <Text style={s.stageName} numberOfLines={1}>{p.name || "—"}</Text>
+            {/* W/L record badge — shows personal record for this viewer */}
+            {debateRecords && p.id && (() => {
+              const w = idx === 0 ? debateRecords.aWins : debateRecords.bWins;
+              const l = idx === 0 ? debateRecords.aLosses : debateRecords.bLosses;
+              if (w === 0 && l === 0) return null;
+              const pct = w + l > 0 ? Math.round((w / (w + l)) * 100) : 0;
+              const color = pct >= 60 ? "#4ADE80" : pct <= 40 ? "#F87171" : "rgba(255,255,255,0.45)";
+              return (
+                <Text style={{ color, fontSize: 9, fontWeight: "800", letterSpacing: 0.5, marginTop: 1 }}>
+                  {w}W–{l}L
+                </Text>
+              );
+            })()}
             <Pressable
               onPress={() => {
                 setMicCut((m) => idx === 0 ? { ...m, iv: !m.iv } : { ...m, ivee: !m.ivee });
@@ -4471,6 +4579,19 @@ export default function DebateStage() {
           </View>
         ))}
       </View>
+
+      {/* ── HEAD-TO-HEAD RECORD STRIP ── shown when records are loaded */}
+      {debateRecords && (debateRecords.h2hAWins > 0 || debateRecords.h2hBWins > 0) && interviewerId && intervieweeId && (
+        <Animated.View
+          entering={FadeIn.duration(400)}
+          style={{ alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 8, marginTop: -2, marginBottom: 4, paddingHorizontal: 14, paddingVertical: 5, backgroundColor: "rgba(255,215,0,0.07)", borderRadius: 20, borderWidth: 1, borderColor: "rgba(255,215,0,0.18)" }}
+        >
+          <Text style={{ color: "#FFD700", fontSize: 11, fontWeight: "900" }}>{debateRecords.h2hAWins}</Text>
+          <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 9, fontWeight: "700", letterSpacing: 1 }}>H2H</Text>
+          <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 9 }}>✕</Text>
+          <Text style={{ color: "#4ADE80", fontSize: 11, fontWeight: "900" }}>{debateRecords.h2hBWins}</Text>
+        </Animated.View>
+      )}
 
       {/* ── ROOM TEMPERATURE METER ── */}
       {phase === "live" && (
@@ -4721,6 +4842,45 @@ export default function DebateStage() {
                 </View>
               </View>
             ) : null}
+
+            {/* Updated W/L record after the verdict */}
+            {debateRecords && debateWinner && (() => {
+              const isA = debateWinner.id === interviewerId;
+              const wW = isA ? debateRecords.aWins : debateRecords.bWins;
+              const lW = isA ? debateRecords.aLosses : debateRecords.bLosses;
+              const wL = isA ? debateRecords.bWins : debateRecords.aWins;
+              const lL = isA ? debateRecords.bLosses : debateRecords.aLosses;
+              const h2hMine = isA ? debateRecords.h2hAWins : debateRecords.h2hBWins;
+              const h2hTheirs = isA ? debateRecords.h2hBWins : debateRecords.h2hAWins;
+              if (wW === 0 && lW === 0 && wL === 0 && lL === 0) return null;
+              return (
+                <Animated.View
+                  entering={FadeIn.delay(400).duration(500)}
+                  style={{ marginTop: 14, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: "rgba(74,222,128,0.08)", borderRadius: 14, borderWidth: 1, borderColor: "rgba(74,222,128,0.25)", maxWidth: 320, width: "100%" }}
+                >
+                  <Text style={{ color: "#4ADE80", fontSize: 10, fontWeight: "900", letterSpacing: 1.5, marginBottom: 8, textAlign: "center" }}>📊 YOUR DEBATE RECORD</Text>
+                  <View style={{ flexDirection: "row", justifyContent: "space-around" }}>
+                    <View style={{ alignItems: "center" }}>
+                      <Text style={{ color: "#fff", fontSize: 15, fontWeight: "900" }}>{wW}W–{lW}L</Text>
+                      <Text style={{ color: "rgba(255,215,0,0.7)", fontSize: 9, fontWeight: "700", marginTop: 2 }}>{debateWinner.name?.toUpperCase()}</Text>
+                    </View>
+                    {(h2hMine + h2hTheirs) > 0 && (
+                      <View style={{ alignItems: "center" }}>
+                        <Text style={{ color: "rgba(255,255,255,0.55)", fontSize: 13, fontWeight: "700" }}>{h2hMine}–{h2hTheirs}</Text>
+                        <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 9, fontWeight: "700", marginTop: 2 }}>H2H</Text>
+                      </View>
+                    )}
+                    {(wL > 0 || lL > 0) && debateLoser && (
+                      <View style={{ alignItems: "center" }}>
+                        <Text style={{ color: "rgba(255,255,255,0.55)", fontSize: 15, fontWeight: "800" }}>{wL}W–{lL}L</Text>
+                        <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 9, fontWeight: "700", marginTop: 2 }}>{debateLoser.name?.toUpperCase()}</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={{ color: "rgba(74,222,128,0.5)", fontSize: 9, textAlign: "center", marginTop: 8 }}>TAP SHARE TO BRAG ABOUT IT →</Text>
+                </Animated.View>
+              );
+            })()}
 
             {/* Parting shot */}
             {(() => {

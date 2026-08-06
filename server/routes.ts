@@ -8096,6 +8096,32 @@ Keep responses to 2-3 sentences max. Always end with a scriptural reference, a c
           winTallyContext += `\nYou may reference win records naturally — brag if you're winning, trash-talk rivals who have more wins, or motivate yourself if you're losing. But do it ONLY occasionally and naturally, not every response.`;
         }
       }
+      // Head-to-head debate record — inject so personas can trash-talk their rival's record
+      const debateRecord = req.body.debateRecord as any;
+      if (debateRecord && typeof debateRecord === "object") {
+        const aName = ARENA_NAME_MAP[debateRecord.aId] || debateRecord.aId || "Debater A";
+        const bName = ARENA_NAME_MAP[debateRecord.bId] || debateRecord.bId || "Debater B";
+        const aRec = `${debateRecord.aWins || 0}W-${debateRecord.aLosses || 0}L`;
+        const bRec = `${debateRecord.bWins || 0}W-${debateRecord.bLosses || 0}L`;
+        const h2hLine = (debateRecord.h2hAWins || 0) + (debateRecord.h2hBWins || 0) > 0
+          ? ` Head-to-head so far: ${aName} leads ${debateRecord.h2hAWins || 0}-${debateRecord.h2hBWins || 0}.`
+          : " This is their FIRST TIME debating each other.";
+        const myRecord = responderId === debateRecord.aId ? aRec : bRec;
+        const rivalId = responderId === debateRecord.aId ? debateRecord.bId : debateRecord.aId;
+        const rivalName = responderId === debateRecord.aId ? bName : aName;
+        const rivalRecord = responderId === debateRecord.aId ? bRec : aRec;
+        const myWins = responderId === debateRecord.aId ? (debateRecord.aWins || 0) : (debateRecord.bWins || 0);
+        const myLosses = responderId === debateRecord.aId ? (debateRecord.aLosses || 0) : (debateRecord.bLosses || 0);
+        winTallyContext += `\n\nDEBATE RECORD — YOUR PERSONAL STATS vs ${rivalName}:`;
+        winTallyContext += `\nYour all-time record: ${myRecord}. ${rivalName}'s record: ${rivalRecord}.${h2hLine}`;
+        if (myWins > myLosses) {
+          winTallyContext += `\nYou're WINNING in the all-time record. Make ${rivalName} feel it — call out their losing record if they push you.`;
+        } else if (myLosses > myWins) {
+          winTallyContext += `\nYou're BEHIND in the record. You need this win badly — fight like your legacy depends on it.`;
+        } else if (myWins === 0 && myLosses === 0) {
+          winTallyContext += `\nYou have no debate record yet. Make this first one count.`;
+        }
+      }
 
       const newsContext = await getArenaNewsContext();
       const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
@@ -10755,11 +10781,43 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
     }
   });
 
+  // ── POST /api/arena/moderator-retort — AI comeback when a debater attacks the moderator ──
+  app.post("/api/arena/moderator-retort", async (req, res) => {
+    try {
+      const { provocation, moderatorName, severity, personaName } = req.body || {};
+      if (!provocation) return res.status(400).json({ error: "provocation required" });
+      const modName = moderatorName || "the moderator";
+      const sevNum = Math.min(3, Math.max(1, Number(severity) || 1));
+      const tone = sevNum >= 3
+        ? "go NUCLEAR — eviscerate them completely, destroy their credibility in front of everyone"
+        : sevNum >= 2
+        ? "be sharp and cutting — humiliate them with razor precision"
+        : "be firm and authoritative — shut it down with professional contempt";
+      const completion = await Promise.race([
+        getClient().chat.completions.create({
+          model: getFastModel(),
+          messages: [
+            { role: "system", content: `You are ${modName}, a veteran debate moderator with ZERO tolerance for disrespect. ${personaName || "A debater"} just attacked you on live television. Fire back with a DEVASTATING one-liner. ${tone}. ONE or TWO sentences maximum. No hedging. Pure authority. Make it memorable — the audience should gasp.` },
+            { role: "user", content: `${personaName || "The debater"} said: "${provocation}"\n\nGive your comeback as ${modName}.` },
+          ],
+          max_completion_tokens: 80,
+          temperature: 0.95,
+        }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000)),
+      ]);
+      const retort = completion.choices[0]?.message?.content?.trim() || "";
+      res.json({ retort });
+    } catch (err: any) {
+      console.error("Moderator retort error:", err.message);
+      res.status(500).json({ error: "Failed to generate retort" });
+    }
+  });
+
   app.post("/api/arena/record-win", async (req, res) => {
     try {
       const deviceId = req.headers["x-device-id"] as string;
       if (!deviceId) return res.status(400).json({ error: "Device ID required" });
-      const { personaId } = req.body;
+      const { personaId, loserId } = req.body;
       if (!personaId) return res.status(400).json({ error: "personaId required" });
       const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
       try {
@@ -10768,34 +10826,85 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
           device_id TEXT NOT NULL,
           persona_id TEXT NOT NULL,
           wins INTEGER NOT NULL DEFAULT 0,
+          losses INTEGER NOT NULL DEFAULT 0,
           updated_at TIMESTAMP DEFAULT NOW(),
           UNIQUE(device_id, persona_id)
         )`);
+        await db.query(`ALTER TABLE arena_wins ADD COLUMN IF NOT EXISTS losses INTEGER NOT NULL DEFAULT 0`);
         await db.query(`CREATE TABLE IF NOT EXISTS arena_wins_global (
           persona_id TEXT PRIMARY KEY,
           total_wins INTEGER NOT NULL DEFAULT 0,
+          total_losses INTEGER NOT NULL DEFAULT 0,
           updated_at TIMESTAMP DEFAULT NOW()
         )`);
+        await db.query(`ALTER TABLE arena_wins_global ADD COLUMN IF NOT EXISTS total_losses INTEGER NOT NULL DEFAULT 0`);
         await db.query(`CREATE TABLE IF NOT EXISTS arena_win_token_rewards (
           device_id TEXT NOT NULL,
           reward_date DATE NOT NULL,
           count INTEGER NOT NULL DEFAULT 0,
           PRIMARY KEY (device_id, reward_date)
         )`);
+        // H2H tables — canonical form: persona_a < persona_b lexicographically
+        await db.query(`CREATE TABLE IF NOT EXISTS arena_h2h (
+          persona_a TEXT NOT NULL,
+          persona_b TEXT NOT NULL,
+          a_wins INTEGER NOT NULL DEFAULT 0,
+          b_wins INTEGER NOT NULL DEFAULT 0,
+          updated_at TIMESTAMP DEFAULT NOW(),
+          PRIMARY KEY (persona_a, persona_b)
+        )`);
+        await db.query(`CREATE TABLE IF NOT EXISTS arena_h2h_user (
+          device_id TEXT NOT NULL,
+          persona_a TEXT NOT NULL,
+          persona_b TEXT NOT NULL,
+          a_wins INTEGER NOT NULL DEFAULT 0,
+          b_wins INTEGER NOT NULL DEFAULT 0,
+          PRIMARY KEY (device_id, persona_a, persona_b)
+        )`);
         await db.query(
-          `INSERT INTO arena_wins (device_id, persona_id, wins, updated_at)
-           VALUES ($1, $2, 1, NOW())
+          `INSERT INTO arena_wins (device_id, persona_id, wins, losses, updated_at)
+           VALUES ($1, $2, 1, 0, NOW())
            ON CONFLICT (device_id, persona_id) DO UPDATE SET wins = arena_wins.wins + 1, updated_at = NOW()`,
           [deviceId, personaId]
         );
         await db.query(
-          `INSERT INTO arena_wins_global (persona_id, total_wins, updated_at)
-           VALUES ($1, 1, NOW())
+          `INSERT INTO arena_wins_global (persona_id, total_wins, total_losses, updated_at)
+           VALUES ($1, 1, 0, NOW())
            ON CONFLICT (persona_id) DO UPDATE SET total_wins = arena_wins_global.total_wins + 1, updated_at = NOW()`,
           [personaId]
         );
-        const userRow = await db.query(`SELECT wins FROM arena_wins WHERE device_id = $1 AND persona_id = $2`, [deviceId, personaId]);
-        const globalRow = await db.query(`SELECT total_wins FROM arena_wins_global WHERE persona_id = $1`, [personaId]);
+        // Track loser's loss record
+        if (loserId) {
+          await db.query(
+            `INSERT INTO arena_wins (device_id, persona_id, wins, losses, updated_at)
+             VALUES ($1, $2, 0, 1, NOW())
+             ON CONFLICT (device_id, persona_id) DO UPDATE SET losses = arena_wins.losses + 1, updated_at = NOW()`,
+            [deviceId, loserId]
+          );
+          await db.query(
+            `INSERT INTO arena_wins_global (persona_id, total_wins, total_losses, updated_at)
+             VALUES ($1, 0, 1, NOW())
+             ON CONFLICT (persona_id) DO UPDATE SET total_losses = arena_wins_global.total_losses + 1, updated_at = NOW()`,
+            [loserId]
+          );
+          // H2H — canonical: smaller ID is persona_a
+          const [hA, hB] = [personaId, loserId].sort();
+          const winnerIsA = hA === personaId;
+          await db.query(
+            winnerIsA
+              ? `INSERT INTO arena_h2h (persona_a, persona_b, a_wins, b_wins, updated_at) VALUES ($1, $2, 1, 0, NOW()) ON CONFLICT (persona_a, persona_b) DO UPDATE SET a_wins = arena_h2h.a_wins + 1, updated_at = NOW()`
+              : `INSERT INTO arena_h2h (persona_a, persona_b, a_wins, b_wins, updated_at) VALUES ($1, $2, 0, 1, NOW()) ON CONFLICT (persona_a, persona_b) DO UPDATE SET b_wins = arena_h2h.b_wins + 1, updated_at = NOW()`,
+            [hA, hB]
+          );
+          await db.query(
+            winnerIsA
+              ? `INSERT INTO arena_h2h_user (device_id, persona_a, persona_b, a_wins, b_wins) VALUES ($1, $2, $3, 1, 0) ON CONFLICT (device_id, persona_a, persona_b) DO UPDATE SET a_wins = arena_h2h_user.a_wins + 1`
+              : `INSERT INTO arena_h2h_user (device_id, persona_a, persona_b, a_wins, b_wins) VALUES ($1, $2, $3, 0, 1) ON CONFLICT (device_id, persona_a, persona_b) DO UPDATE SET b_wins = arena_h2h_user.b_wins + 1`,
+            [deviceId, hA, hB]
+          );
+        }
+        const userRow = await db.query(`SELECT wins, losses FROM arena_wins WHERE device_id = $1 AND persona_id = $2`, [deviceId, personaId]);
+        const globalRow = await db.query(`SELECT total_wins, total_losses FROM arena_wins_global WHERE persona_id = $1`, [personaId]);
 
         const today = new Date().toISOString().slice(0, 10);
         const dailyRow = await db.query(
@@ -10819,7 +10928,9 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
         res.json({
           success: true,
           userWins: userRow.rows[0]?.wins || 1,
+          userLosses: userRow.rows[0]?.losses || 0,
           globalWins: globalRow.rows[0]?.total_wins || 1,
+          globalLosses: globalRow.rows[0]?.total_losses || 0,
           tokensEarned,
           dailyWinEarnings: dailyCount + (tokensEarned > 0 ? 1 : 0),
           maxDailyWinRewards: MAX_DAILY_WIN_REWARDS,
@@ -10894,6 +11005,63 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
     } catch (error: any) {
       console.error("Arena winners-stats error:", error);
       res.json({ topPersonas: [], totalWinsAllTime: 0, totalUniquePlayers: 0, userWins: {}, userTotalWins: 0, dailyWinEarnings: 0, maxDailyWinRewards: 5 });
+    }
+  });
+
+  // GET /api/arena/debate-record — per-persona W/L record + head-to-head for two debaters
+  app.get("/api/arena/debate-record", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      const { personaA, personaB } = req.query as { personaA?: string; personaB?: string };
+      if (!personaA || !personaB) return res.status(400).json({ error: "personaA and personaB required" });
+      const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      try {
+        // Ensure tables exist (idempotent)
+        await db.query(`CREATE TABLE IF NOT EXISTS arena_wins (id SERIAL PRIMARY KEY, device_id TEXT NOT NULL, persona_id TEXT NOT NULL, wins INTEGER NOT NULL DEFAULT 0, losses INTEGER NOT NULL DEFAULT 0, updated_at TIMESTAMP DEFAULT NOW(), UNIQUE(device_id, persona_id))`);
+        await db.query(`ALTER TABLE arena_wins ADD COLUMN IF NOT EXISTS losses INTEGER NOT NULL DEFAULT 0`);
+        await db.query(`CREATE TABLE IF NOT EXISTS arena_wins_global (persona_id TEXT PRIMARY KEY, total_wins INTEGER NOT NULL DEFAULT 0, total_losses INTEGER NOT NULL DEFAULT 0, updated_at TIMESTAMP DEFAULT NOW())`);
+        await db.query(`ALTER TABLE arena_wins_global ADD COLUMN IF NOT EXISTS total_losses INTEGER NOT NULL DEFAULT 0`);
+        await db.query(`CREATE TABLE IF NOT EXISTS arena_h2h (persona_a TEXT NOT NULL, persona_b TEXT NOT NULL, a_wins INTEGER NOT NULL DEFAULT 0, b_wins INTEGER NOT NULL DEFAULT 0, updated_at TIMESTAMP DEFAULT NOW(), PRIMARY KEY (persona_a, persona_b))`);
+        await db.query(`CREATE TABLE IF NOT EXISTS arena_h2h_user (device_id TEXT NOT NULL, persona_a TEXT NOT NULL, persona_b TEXT NOT NULL, a_wins INTEGER NOT NULL DEFAULT 0, b_wins INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (device_id, persona_a, persona_b))`);
+
+        const [glA, glB, userA, userB] = await Promise.all([
+          db.query(`SELECT total_wins, total_losses FROM arena_wins_global WHERE persona_id = $1`, [personaA]),
+          db.query(`SELECT total_wins, total_losses FROM arena_wins_global WHERE persona_id = $1`, [personaB]),
+          deviceId ? db.query(`SELECT wins, losses FROM arena_wins WHERE device_id = $1 AND persona_id = $2`, [deviceId, personaA]) : Promise.resolve({ rows: [] }),
+          deviceId ? db.query(`SELECT wins, losses FROM arena_wins WHERE device_id = $1 AND persona_id = $2`, [deviceId, personaB]) : Promise.resolve({ rows: [] }),
+        ]);
+
+        // H2H — canonical order
+        const [hA, hB] = [personaA, personaB].sort();
+        const aIsCanonical = hA === personaA;
+        const [h2hGlobal, h2hUser] = await Promise.all([
+          db.query(`SELECT a_wins, b_wins FROM arena_h2h WHERE persona_a = $1 AND persona_b = $2`, [hA, hB]),
+          deviceId ? db.query(`SELECT a_wins, b_wins FROM arena_h2h_user WHERE device_id = $1 AND persona_a = $2 AND persona_b = $3`, [deviceId, hA, hB]) : Promise.resolve({ rows: [] }),
+        ]);
+        const h2hRow = h2hGlobal.rows[0] || { a_wins: 0, b_wins: 0 };
+        const h2hUserRow = h2hUser.rows[0] || { a_wins: 0, b_wins: 0 };
+
+        res.json({
+          aGlobalWins: parseInt(glA.rows[0]?.total_wins || "0"),
+          aGlobalLosses: parseInt(glA.rows[0]?.total_losses || "0"),
+          bGlobalWins: parseInt(glB.rows[0]?.total_wins || "0"),
+          bGlobalLosses: parseInt(glB.rows[0]?.total_losses || "0"),
+          aWins: parseInt(userA.rows[0]?.wins || "0"),
+          aLosses: parseInt(userA.rows[0]?.losses || "0"),
+          bWins: parseInt(userB.rows[0]?.wins || "0"),
+          bLosses: parseInt(userB.rows[0]?.losses || "0"),
+          // h2h counts from personaA's perspective
+          h2hAWins: aIsCanonical ? parseInt(h2hRow.a_wins) : parseInt(h2hRow.b_wins),
+          h2hBWins: aIsCanonical ? parseInt(h2hRow.b_wins) : parseInt(h2hRow.a_wins),
+          h2hUserAWins: aIsCanonical ? parseInt(h2hUserRow.a_wins) : parseInt(h2hUserRow.b_wins),
+          h2hUserBWins: aIsCanonical ? parseInt(h2hUserRow.b_wins) : parseInt(h2hUserRow.a_wins),
+        });
+      } finally {
+        await db.end();
+      }
+    } catch (err: any) {
+      console.error("Debate record error:", err.message);
+      res.status(500).json({ error: "Failed to fetch debate record" });
     }
   });
 
