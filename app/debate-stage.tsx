@@ -2819,6 +2819,26 @@ export default function DebateStage() {
     return combined;
   }, [interviewers, interviewees]);
 
+  const handleHofShare = useCallback(async () => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      const top = hofData?.leaderboard?.slice(0, 3) ?? [];
+      let msg = "🏆 Debate Hall of Fame on TrumpBot.rip\n\n";
+      if (top.length > 0) {
+        top.forEach((entry, i) => {
+          const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : "🥉";
+          const pName = debaterPool.find((p) => p.id === entry.personaId)?.name || entry.personaId;
+          msg += `${medal} ${pName} — ${entry.winPct}% win rate\n`;
+        });
+        const leader = debaterPool.find((p) => p.id === top[0].personaId)?.name || top[0].personaId;
+        msg += `\n${leader} leads the arena — come debate them! 👉 https://trumpbot.rip/arena`;
+      } else {
+        msg += "Rankings are heating up — come debate your picks! 👉 https://trumpbot.rip/arena";
+      }
+      await Share.share({ message: msg, url: "https://trumpbot.rip/arena" });
+    } catch {}
+  }, [hofData, debaterPool]);
+
   // If a debater is selected that matches the moderator, auto-pick a different moderator.
   // If the moderator is later selected as a debater, clear that debater slot.
   useEffect(() => {
@@ -5286,6 +5306,9 @@ export default function DebateStage() {
                 <Text style={{ color: "#FFD700", fontSize: 17, fontWeight: "900", letterSpacing: 0.8 }}>DEBATE HALL OF FAME</Text>
                 <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginTop: 2 }}>All-time rankings · updated in real time</Text>
               </View>
+              <Pressable onPress={handleHofShare} hitSlop={10} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,215,0,0.12)", borderWidth: 1, borderColor: "rgba(255,215,0,0.3)", alignItems: "center", justifyContent: "center", marginRight: 8 }} accessibilityLabel="Share leaderboard">
+                <Ionicons name="share-social" size={17} color="#FFD700" />
+              </Pressable>
               <Pressable onPress={() => setShowHallOfFame(false)}>
                 <Ionicons name="close" size={22} color="rgba(255,255,255,0.4)" />
               </Pressable>
