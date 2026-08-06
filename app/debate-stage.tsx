@@ -4099,6 +4099,8 @@ export default function DebateStage() {
               const portrait = PERSONA_PORTRAITS[mod.personaId];
               const isSelected = moderatorStyle === ms;
               const initials = mod.name.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
+              const rec = allPersonaRecords[mod.personaId];
+              const hasRecord = rec && (rec.wins > 0 || rec.losses > 0);
               return (
                 <Pressable key={ms} onPress={() => { Haptics.selectionAsync(); setModeratorStyle(ms); }}
                   style={s.personaCard} testID={`moderator-${ms}`}>
@@ -4109,6 +4111,9 @@ export default function DebateStage() {
                     }
                   </View>
                   <Text style={[s.personaCardName, isSelected && s.personaCardNameActive]} numberOfLines={1}>{mod.name}</Text>
+                  {hasRecord && (
+                    <Text style={s.personaCardRecord}>{rec.wins}W-{rec.losses}L</Text>
+                  )}
                 </Pressable>
               );
             })}
