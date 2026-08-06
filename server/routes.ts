@@ -10284,20 +10284,62 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
       const escapeXml = (s: string) =>
         String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
 
-      // Wrap topic text for the banner
-      const topicWords = String(topic).replace(/['"]/g, "").split(/\s+/).filter(Boolean);
-      const topicLines: string[] = [];
-      let cur = "";
-      for (const w of topicWords) {
-        const candidate = cur ? cur + " " + w : w;
-        if (candidate.length <= 30) { cur = candidate; }
-        else {
-          if (cur) topicLines.push(cur);
-          cur = w.length > 30 ? w.slice(0, 29) + "…" : w;
-          if (topicLines.length >= 2) break;
+      // Wrap topic text for the banner — auto-shrink font to fit topics up to ~120 chars
+      const BANNER_PX = 940; // usable banner width (1080 - margins)
+      // Average glyph width ≈ fontSize * 0.62 for Helvetica Bold 900 weight
+      const GLYPH_RATIO = 0.62;
+      // Each font-size config: [fontSize, lineHeight, maxLines]
+      const TOPIC_FONT_CONFIGS: Array<[number, number, number]> = [
+        [30, 38, 2], // large: 2 lines max  (fits banner comfortably)
+        [26, 32, 2], // medium-large: 2 lines
+        [22, 26, 3], // medium: 3 lines (spacing keeps within 148px banner)
+        [18, 22, 3], // small: 3 lines
+      ];
+      const MAX_TOPIC_CHARS = 150;
+      const rawTopic = String(topic).replace(/['"]/g, "").trim();
+      const displayTopic = rawTopic.length > MAX_TOPIC_CHARS
+        ? rawTopic.slice(0, MAX_TOPIC_CHARS - 1) + "…"
+        : rawTopic;
+
+      const wrapToLines = (text: string, charsPerLine: number, maxLines: number): string[] => {
+        const words = text.split(/\s+/).filter(Boolean);
+        const lines: string[] = [];
+        let cur = "";
+        for (const w of words) {
+          if (lines.length >= maxLines) break;
+          const candidate = cur ? cur + " " + w : w;
+          if (candidate.length <= charsPerLine) {
+            cur = candidate;
+          } else {
+            if (cur) lines.push(cur);
+            cur = w.length > charsPerLine ? w.slice(0, charsPerLine - 1) + "…" : w;
+          }
+        }
+        if (cur && lines.length < maxLines) lines.push(cur);
+        return lines;
+      };
+
+      let topicFontSize = 18;
+      let topicLineHeight = 22;
+      let topicLines: string[] = [];
+      for (const [fs, lh, ml] of TOPIC_FONT_CONFIGS) {
+        const charsPerLine = Math.floor(BANNER_PX / (fs * GLYPH_RATIO));
+        // Check total lines needed without the cap — if it fits within ml, this font works
+        const totalLinesNeeded = wrapToLines(displayTopic, charsPerLine, 999).length;
+        if (totalLinesNeeded <= ml) {
+          topicFontSize = fs;
+          topicLineHeight = lh;
+          topicLines = wrapToLines(displayTopic, charsPerLine, ml);
+          break;
         }
       }
-      if (cur && topicLines.length < 3) topicLines.push(cur);
+      if (topicLines.length === 0) {
+        // Topic too long for any config — use smallest font and truncate
+        const charsPerLine = Math.floor(BANNER_PX / (18 * GLYPH_RATIO));
+        topicLines = wrapToLines(displayTopic, charsPerLine, 3);
+        topicFontSize = 18;
+        topicLineHeight = 22;
+      }
 
       const nameA = String(personaAName || personaAId).toUpperCase();
       const nameB = String(personaBName || personaBId).toUpperCase();
@@ -10318,8 +10360,12 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
       const namesA = splitName(nameA);
       const namesB = splitName(nameB);
 
+      // Vertically center the topic text block in the banner (usable area y≈75–142)
+      const TOPIC_BAND_CENTER = 108;
+      const topicBlockHeight = (topicLines.length - 1) * topicLineHeight;
+      const topicFirstY = Math.round(TOPIC_BAND_CENTER - topicBlockHeight / 2);
       const topicSvg = topicLines.map((line, i) =>
-        `<text x="540" y="${98 + i * 38}" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="30" font-weight="900" fill="#FFD700" letter-spacing="1">${escapeXml(line)}</text>`
+        `<text x="540" y="${topicFirstY + i * topicLineHeight}" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="${topicFontSize}" font-weight="900" fill="#FFD700" letter-spacing="1">${escapeXml(line)}</text>`
       ).join("\n");
 
       const nameSvgA = namesA.map((line, i) =>
