@@ -3707,6 +3707,9 @@ export default function ArenaScreen() {
   const useCustomTopicRef = useRef(false);
   const [showGlobalLeaderboard, setShowGlobalLeaderboard] = useState(false);
   const [showArenaRules, setShowArenaRules] = useState(false);
+  const [showHallOfFame, setShowHallOfFame] = useState(false);
+  const [hofData, setHofData] = useState<{ leaderboard: Array<{ personaId: string; totalWins: number; totalLosses: number; totalDebates: number; winPct: number; bestRivalId: string | null; bestRivalWins: number }>; userPicks: Array<{ personaId: string; wins: number; losses: number }> } | null>(null);
+  const [hofLoading, setHofLoading] = useState(false);
   const [globalLeaderboardData, setGlobalLeaderboardData] = useState<{ topUsers: any[]; topPersonas: any[] }>({ topUsers: [], topPersonas: [] });
   const [showWinnersStats, setShowWinnersStats] = useState(false);
   const [winnersStatsData, setWinnersStatsData] = useState<{ topPersonas: any[]; totalWinsAllTime: number; totalUniquePlayers: number; userWins: Record<string, number>; userTotalWins: number; dailyWinEarnings: number; maxDailyWinRewards: number } | null>(null);
@@ -4111,6 +4114,20 @@ export default function ArenaScreen() {
   }, []);
 
   useEffect(() => { loadAllTimeScores(); }, [loadAllTimeScores]);
+
+  const fetchHallOfFame = useCallback(async () => {
+    setHofLoading(true);
+    try {
+      const headers: Record<string, string> = {};
+      if (deviceId) headers["x-device-id"] = deviceId;
+      const res = await fetch(`${getApiUrl()}/api/arena/hall-of-fame`, { headers });
+      if (res.ok) setHofData(await res.json());
+    } catch {}
+    setHofLoading(false);
+  }, [deviceId]);
+
+  // Prefetch HOF data on lobby mount so the teaser subtitle shows the current leader immediately
+  useEffect(() => { fetchHallOfFame(); }, [fetchHallOfFame]);
 
   const voteForPersona = useCallback(async (personaId: string) => {
     const currentCount = speakerVoteCounts[personaId] || 0;
@@ -7119,6 +7136,33 @@ export default function ArenaScreen() {
             <Ionicons name="chevron-forward" size={20} color="#f43f5e" />
           </Pressable>
 
+          {/* ── Hall of Fame teaser card ──────────────────────────────── */}
+          <Pressable
+            onPress={() => { setShowHallOfFame(true); fetchHallOfFame(); }}
+            style={{
+              flexDirection: "row", alignItems: "center", padding: 14, borderRadius: 14, marginBottom: 14,
+              backgroundColor: "rgba(255,215,0,0.08)", borderWidth: 1, borderColor: "rgba(255,215,0,0.45)",
+            }}
+            testID="open-hall-of-fame-lobby"
+            accessibilityLabel="Hall of Fame Leaderboard"
+          >
+            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,215,0,0.2)", alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+              <Text style={{ fontSize: 22 }}>🏆</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: "#FFD700", fontSize: 14, fontWeight: "900", letterSpacing: 1 }}>HALL OF FAME</Text>
+              {hofData && hofData.leaderboard.length > 0 ? (
+                <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 11, marginTop: 2 }}>
+                  {"👑 "}
+                  {(ARENA_PERSONAS[hofData.leaderboard[0].personaId]?.shortName || hofData.leaderboard[0].personaId)} leads · {hofData.leaderboard[0].winPct}% win rate
+                </Text>
+              ) : (
+                <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, marginTop: 2 }}>All-time debate rankings · updated in real time</Text>
+              )}
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#FFD700" />
+          </Pressable>
+
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
             <Text style={{ color: "#FFD700", fontSize: 14, fontWeight: "800" }}>{selectedPersonas.length} DEBATERS SELECTED</Text>
             <View style={{ flexDirection: "row", gap: 12 }}>
@@ -8553,6 +8597,127 @@ export default function ArenaScreen() {
                 <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, marginTop: 6 }}>Rewards unlock automatically at session end</Text>
               </View>
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Hall of Fame Modal ──────────────────────────────────────────── */}
+      <Modal visible={showHallOfFame} transparent animationType="fade" onRequestClose={() => setShowHallOfFame(false)}>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.88)", justifyContent: "flex-end" }}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowHallOfFame(false)} />
+          <View style={{ backgroundColor: "#0a0a10", borderTopLeftRadius: 28, borderTopRightRadius: 28, borderTopWidth: 1.5, borderColor: "rgba(255,215,0,0.35)", padding: 20, maxHeight: "88%" }}>
+            {/* Handle */}
+            <View style={{ alignSelf: "center", width: 44, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.18)", marginBottom: 16 }} />
+
+            {/* Header */}
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 18 }}>
+              <Text style={{ fontSize: 22 }}>🏆</Text>
+              <View style={{ marginLeft: 10, flex: 1 }}>
+                <Text style={{ color: "#FFD700", fontSize: 17, fontWeight: "900", letterSpacing: 0.8 }}>DEBATE HALL OF FAME</Text>
+                <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginTop: 2 }}>All-time rankings · updated in real time</Text>
+              </View>
+              <Pressable onPress={() => setShowHallOfFame(false)}>
+                <Ionicons name="close" size={22} color="rgba(255,255,255,0.4)" />
+              </Pressable>
+            </View>
+
+            {hofLoading ? (
+              <View style={{ alignItems: "center", paddingVertical: 40 }}>
+                <ActivityIndicator size="large" color="#FFD700" />
+                <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, marginTop: 12 }}>Loading leaderboard…</Text>
+              </View>
+            ) : (
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {hofData && hofData.leaderboard.length > 0 ? (
+                  <>
+                    <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, fontWeight: "900", letterSpacing: 1.2, marginBottom: 10 }}>GLOBAL TOP 10 — WIN %</Text>
+                    {hofData.leaderboard.map((entry, idx) => {
+                      const persona = ARENA_PERSONAS[entry.personaId];
+                      const pName = persona?.name || entry.personaId;
+                      const rivalPersona = entry.bestRivalId ? ARENA_PERSONAS[entry.bestRivalId] : null;
+                      const rivalName = rivalPersona?.name || entry.bestRivalId;
+                      const rankColors = ["#FFD700", "#C0C0C0", "#CD7F32"];
+                      const rankColor = idx < 3 ? rankColors[idx] : "rgba(255,255,255,0.35)";
+                      const medal = idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : null;
+                      return (
+                        <View key={entry.personaId} style={{ flexDirection: "row", alignItems: "center", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)" }}>
+                          {/* Rank */}
+                          <View style={{ width: 28, alignItems: "center" }}>
+                            {medal ? (
+                              <Text style={{ fontSize: 18 }}>{medal}</Text>
+                            ) : (
+                              <Text style={{ color: rankColor, fontSize: 13, fontWeight: "900" }}>#{idx + 1}</Text>
+                            )}
+                          </View>
+                          {/* Portrait */}
+                          {persona?.image ? (
+                            <Image source={persona.image} style={{ width: 40, height: 40, borderRadius: 20, marginHorizontal: 10, borderWidth: 1.5, borderColor: rankColor }} />
+                          ) : (
+                            <View style={{ width: 40, height: 40, borderRadius: 20, marginHorizontal: 10, backgroundColor: "rgba(255,215,0,0.15)", alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderColor: rankColor }}>
+                              <Text style={{ color: rankColor, fontSize: 14, fontWeight: "900" }}>{pName.charAt(0)}</Text>
+                            </View>
+                          )}
+                          {/* Name + record */}
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ color: "#fff", fontSize: 14, fontWeight: "800" }} numberOfLines={1}>{pName}</Text>
+                            <Text style={{ color: "rgba(255,255,255,0.45)", fontSize: 11, marginTop: 2 }}>
+                              {entry.totalWins}W–{entry.totalLosses}L
+                              {rivalName ? <Text style={{ color: "rgba(96,165,250,0.75)" }}>{"  ·  "}dominates {rivalName.split(" ")[0]} ({entry.bestRivalWins}×)</Text> : null}
+                            </Text>
+                          </View>
+                          {/* Win % badge */}
+                          <View style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: idx < 3 ? "rgba(255,215,0,0.12)" : "rgba(255,255,255,0.06)", borderWidth: 1, borderColor: idx < 3 ? "rgba(255,215,0,0.4)" : "rgba(255,255,255,0.12)" }}>
+                            <Text style={{ color: idx < 3 ? "#FFD700" : "rgba(255,255,255,0.7)", fontSize: 15, fontWeight: "900" }}>{entry.winPct}%</Text>
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </>
+                ) : (
+                  <View style={{ alignItems: "center", paddingVertical: 30 }}>
+                    <Text style={{ fontSize: 36 }}>🏆</Text>
+                    <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 14, fontWeight: "700", marginTop: 12 }}>No data yet</Text>
+                    <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 12, marginTop: 6, textAlign: "center" }}>Complete 5+ debates to appear here.</Text>
+                  </View>
+                )}
+
+                {/* User's personal picks */}
+                {hofData && hofData.userPicks.length > 0 && (
+                  <>
+                    <View style={{ marginTop: 22, marginBottom: 10, flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <Ionicons name="person" size={13} color="#60a5fa" />
+                      <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, fontWeight: "900", letterSpacing: 1.2 }}>YOUR PICKS — WATCHED WIN MOST</Text>
+                    </View>
+                    {hofData.userPicks.map((pick) => {
+                      const persona = ARENA_PERSONAS[pick.personaId];
+                      const pName = persona?.name || pick.personaId;
+                      const total = pick.wins + pick.losses;
+                      const pct = total > 0 ? Math.round(pick.wins / total * 100) : 0;
+                      return (
+                        <View key={pick.personaId} style={{ flexDirection: "row", alignItems: "center", paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.05)" }}>
+                          {persona?.image ? (
+                            <Image source={persona.image} style={{ width: 34, height: 34, borderRadius: 17, marginRight: 10, borderWidth: 1, borderColor: "rgba(96,165,250,0.5)" }} />
+                          ) : (
+                            <View style={{ width: 34, height: 34, borderRadius: 17, marginRight: 10, backgroundColor: "rgba(96,165,250,0.15)", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "rgba(96,165,250,0.4)" }}>
+                              <Text style={{ color: "#60a5fa", fontSize: 13, fontWeight: "900" }}>{pName.charAt(0)}</Text>
+                            </View>
+                          )}
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ color: "#fff", fontSize: 13, fontWeight: "700" }} numberOfLines={1}>{pName}</Text>
+                            <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginTop: 1 }}>{pick.wins}W–{pick.losses}L  ·  {pct}% win rate</Text>
+                          </View>
+                          <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10, backgroundColor: "rgba(96,165,250,0.1)", borderWidth: 1, borderColor: "rgba(96,165,250,0.3)" }}>
+                            <Text style={{ color: "#60a5fa", fontSize: 13, fontWeight: "900" }}>{pick.wins} wins</Text>
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </>
+                )}
+
+                <View style={{ height: 24 }} />
+              </ScrollView>
+            )}
           </View>
         </View>
       </Modal>
