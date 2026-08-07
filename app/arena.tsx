@@ -4246,6 +4246,7 @@ export default function ArenaScreen() {
   const paywallPulse = useSharedValue(1);
   const heatSpike = useSharedValue(1);
   const dcChampionGlow = useSharedValue(1);
+  const crownScale = useSharedValue(1);
   const prevRoomTempRef = useRef<number>(0);
   const [sessionTimer, setSessionTimer] = useState<number>(0);
   const [roomTemperature, setRoomTemperature] = useState<number>(0);
@@ -5159,6 +5160,21 @@ export default function ArenaScreen() {
     shadowRadius: 8 + dcChampionGlow.value * 8,
     shadowColor: "#a78bfa",
     shadowOffset: { width: 0, height: 0 },
+  }));
+
+  useEffect(() => {
+    crownScale.value = withRepeat(
+      withSequence(
+        withTiming(1.25, { duration: 500 }),
+        withTiming(1.0, { duration: 500 }),
+      ),
+      -1,
+      false
+    );
+  }, []);
+
+  const crownAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: crownScale.value }],
   }));
 
   const addSystemMessage = useCallback((text: string) => {
@@ -7226,15 +7242,15 @@ export default function ArenaScreen() {
                 )}
               </View>
               {hofData && hofData.leaderboard.length > 0 && ARENA_PERSONAS[hofData.leaderboard[0].personaId]?.image && (
-                <View style={{
+                <Animated.View style={[{
                   position: "absolute", top: -4, right: -4,
                   width: 18, height: 18, borderRadius: 9,
                   backgroundColor: "#FFD700",
                   alignItems: "center", justifyContent: "center",
                   shadowColor: "#FFD700", shadowOpacity: 0.8, shadowRadius: 4,
-                }}>
+                }, crownAnimStyle]}>
                   <Text style={{ fontSize: 10, lineHeight: 12 }}>👑</Text>
-                </View>
+                </Animated.View>
               )}
             </View>
             <View style={{ flex: 1 }}>
