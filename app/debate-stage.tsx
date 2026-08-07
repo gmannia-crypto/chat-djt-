@@ -1295,36 +1295,19 @@ export default function DebateStage() {
         } catch { /* ignore — ending exchange is best-effort */ }
       };
 
-      // ── Variables lifted outside try so the reaction IIFE can close over them ─
-      let aPersona: typeof interviewers[0] | undefined;
-      let bPersona: typeof interviewees[0] | undefined;
-      let msgs: typeof messagesRef.current = [];
-      let topicForVerdict = "Political Debate";
+      // ── PHASE 1: GATHER CONTEXT ─────────────────────────────────────────────
+      // All of these are safe reads — no try needed.
+      const aPersona = interviewers.find((p) => p.id === aId);
+      const bPersona = interviewees.find((p) => p.id === bId);
+      const msgs     = (messagesRef.current ?? []).filter((m) => !m.isSystem);
+      const topicForVerdict = (topics && topics.length > 0) ? topics[0].title : "Political Debate";
+
+      // ── PHASE 2: AI VERDICT ─────────────────────────────────────────────────
+      // Runs in parallel with the parting-shot audio delay.
+      const deliberatingMsgId = `deliberating-${Date.now()}`;
       let aiVerdictText = "";
-      let aiWinnerId = "";
+      let aiWinnerId    = "";
       let verdictFailed = false;
-      let deliberatingMsgId = `deliberating-${Date.now()}`;
-      let winnerId = "";
-      let loserId = "";
-      let winnerName = "";
-      let loserName = "";
-      let debateWinnerObj: { id: string; name: string; portrait: any; points: number; opponentPoints: number; verdict: string; aiJudged: boolean } | null = null;
-      // Lifted outside try so the background IIFE can close over them — const inside
-      // a try block is scoped to that block and unreachable from the outer closure.
-      let trumpInDebate = false;
-      let roastPromise: Promise<any> = Promise.resolve(null);
-      let speechPromise: Promise<any> = Promise.resolve(null);
-
-      try {
-      aPersona = interviewers.find((p) => p.id === aId);
-      bPersona = interviewees.find((p) => p.id === bId);
-
-      // ── AI VERDICT — fired immediately, overlaps parting-shot delay ──────────
-      // Start the fetch NOW so it runs in parallel with the parting-shot audio
-      // instead of creating 10 s of dead air after it finishes.
-      msgs = messagesRef.current.filter((m) => !m.isSystem);
-      topicForVerdict = (topics && topics.length > 0) ? topics[0].title : "Political Debate";
-      deliberatingMsgId = `deliberating-${Date.now()}`;
 
       const verdictPromise = msgs.length >= 2
         ? (async () => {
@@ -1342,66 +1325,51 @@ export default function DebateStage() {
                 const v = await vRes.json();
                 aiVerdictText = v.verdict || v.summary || "";
                 const aNameLc = (aPersona?.name || aId).toLowerCase();
-                const vWinner  = (v.winner   || "").toLowerCase();
-                const vId      = (v.winnerId || "").toLowerCase();
-                const aWinsAI  = vId === aId.toLowerCase() ||
-                                 vId === (aPersona?.name || "").toLowerCase() ||
-                                 vWinner.includes(aNameLc) ||
-                                 aNameLc.includes(vWinner);
+                const vWinner = (v.winner   || "").toLowerCase();
+                const vId     = (v.winnerId || "").toLowerCase();
+                const aWinsAI = vId === aId.toLowerCase() ||
+                                vId === (aPersona?.name || "").toLowerCase() ||
+                                vWinner.includes(aNameLc) ||
+                                aNameLc.includes(vWinner);
                 aiWinnerId = aWinsAI ? aId : bId;
               } else {
                 verdictFailed = true;
               }
-            } catch { verdictFailed = true; /* fall through to fallback */ }
+            } catch { verdictFailed = true; }
           })()
         : Promise.resolve();
 
-      // Show deliberating indicator while verdict is being fetched
       if (msgs.length >= 2) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: deliberatingMsgId,
-            speakerId: "system",
-            speakerName: "System",
-            text: "⚖️ DC AI is deliberating...",
-            ts: Date.now(),
-            isSystem: true,
-            skipTTS: true,
-          },
-        ]);
+        setMessages((prev) => [...prev, {
+          id: deliberatingMsgId, speakerId: "system", speakerName: "System",
+          text: "⚖️ DC AI is deliberating...", ts: Date.now(), isSystem: true, skipTTS: true,
+        }]);
       }
 
-      // Wait for parting shot to finish — verdict fetch is running in parallel
-      if (partingShotDelay > 0) await new Promise<void>((r) => setTimeout(r, partingShotDelay));
+      // Wait for parting shot, then verdict (each in its own try so one can't kill the other)
+      try {
+        if (partingShotDelay > 0) await new Promise<void>((r) => setTimeout(r, partingShotDelay));
+      } catch { /* ignore */ }
 
-      // Now await verdict (likely already done or close to done).
-      // A 15-second hard timeout prevents the deliberating spinner from
-      // hanging forever on a slow or hung connection.
-      await Promise.race([
-        verdictPromise,
-        new Promise<void>((resolve) => setTimeout(() => { verdictFailed = true; resolve(); }, 15000)),
-      ]);
+      try {
+        await Promise.race([
+          verdictPromise,
+          new Promise<void>((resolve) => setTimeout(() => { verdictFailed = true; resolve(); }, 15000)),
+        ]);
+      } catch { verdictFailed = true; }
 
-      // Remove deliberating indicator; replace with a neutral note if the fetch failed
-      // or if the server returned 200 but with an empty verdict field.
       if (verdictFailed || !aiVerdictText) {
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === deliberatingMsgId
-              ? {
-                  ...m,
-                  id: `verdict-unavailable-${Date.now()}`,
-                  text: "⚖️ Verdict unavailable",
-                }
-              : m,
-          ),
-        );
+        setMessages((prev) => prev.map((m) =>
+          m.id === deliberatingMsgId
+            ? { ...m, id: `verdict-unavailable-${Date.now()}`, text: "⚖️ Verdict unavailable" }
+            : m,
+        ));
       } else {
         setMessages((prev) => prev.filter((m) => m.id !== deliberatingMsgId));
       }
 
-      // Fallback: votes (if cast) → message count
+      // ── PHASE 3: WINNER DETERMINATION ──────────────────────────────────────
+      // Fallback chain: AI verdict → votes → message count → always picks someone.
       if (!aiWinnerId) {
         if (pts.a > 0 || pts.b > 0) {
           aiWinnerId = pts.a >= pts.b ? aId : bId;
@@ -1411,14 +1379,16 @@ export default function DebateStage() {
           aiWinnerId = aC >= bC ? aId : bId;
         }
       }
+      // Belt-and-suspenders: always have a winner
+      if (!aiWinnerId) aiWinnerId = aId;
 
-      winnerId = aiWinnerId;
-      loserId  = winnerId === aId ? bId : aId;
-      const winnerP = winnerId === aId ? aPersona : bPersona;
-      const loserP  = loserId  === aId ? aPersona : bPersona;
-      winnerName = winnerP?.name || winnerId;
-      loserName  = loserP?.name  || loserId;
-      debateWinnerObj = {
+      const winnerId    = aiWinnerId;
+      const loserId     = winnerId === aId ? bId : aId;
+      const winnerP     = winnerId === aId ? aPersona : bPersona;
+      const loserP      = loserId  === aId ? aPersona : bPersona;
+      const winnerName  = winnerP?.name || winnerId;
+      const loserName   = loserP?.name  || loserId;
+      const debateWinnerObj = {
         id: winnerId, name: winnerName,
         portrait: PERSONA_PORTRAITS[winnerId] || null,
         points: pts.a > 0 || pts.b > 0 ? (winnerId === aId ? pts.a : pts.b) : 0,
@@ -1427,22 +1397,20 @@ export default function DebateStage() {
         aiJudged: !!aiVerdictText,
       };
 
-      // ── Pre-fetch roast + winner speech NOW — runs in parallel with loser/winner
-      // concession audio so both are ready (or nearly ready) when the modal opens.
-      trumpInDebate = aId === "trump" || bId === "trump";
-      roastPromise = trumpInDebate && deviceId
+      // ── PHASE 4: PRE-FETCH REACTION + SPEECH (always kicks off) ─────────────
+      const trumpInDebate = aId === "trump" || bId === "trump";
+      const roastPromise: Promise<any> = trumpInDebate && deviceId
         ? fetch(new URL("/api/arena/roast", getApiUrl()).toString(), {
             method: "POST",
             headers: { "Content-Type": "application/json", "x-device-id": deviceId },
             body: JSON.stringify({
-              winnerId,
-              winnerName,
-              winnerPoints: debateWinnerObj?.points ?? 1,
+              winnerId, winnerName,
+              winnerPoints: debateWinnerObj.points ?? 1,
               trumpPoints: 0,
               customerName: "the audience",
               leaderboard: [
-                { name: winnerName, points: debateWinnerObj?.points ?? 1 },
-                { name: loserName,  points: debateWinnerObj?.opponentPoints ?? 0 },
+                { name: winnerName, points: debateWinnerObj.points ?? 1 },
+                { name: loserName,  points: debateWinnerObj.opponentPoints ?? 0 },
               ],
               winTally: null,
             }),
@@ -1455,18 +1423,17 @@ export default function DebateStage() {
             }).then((r) => r.ok ? r.json() : null).catch(() => null)
           : Promise.resolve(null);
 
-      speechPromise = fetch(new URL("/api/arena/debate-verdict-speech", getApiUrl()).toString(), {
+      const speechPromise: Promise<any> = fetch(new URL("/api/arena/debate-verdict-speech", getApiUrl()).toString(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ winnerId, winnerName, loserId, loserName, verdict: aiVerdictText, topic: topicForVerdict }),
       }).then((r) => r.ok ? r.json() : null).catch(() => null);
 
-      // Record win + loss + award tokens (vote-based OR AI-judged path)
+      // ── PHASE 5: FIRE-AND-FORGET SIDE EFFECTS ──────────────────────────────
       if (deviceId) {
         fetch(new URL("/api/arena/record-win", getApiUrl()).toString(), {
           method: "POST",
           headers: { "Content-Type": "application/json", "x-device-id": deviceId },
-          // Pass loserId so losses and H2H are tracked server-side in the same request
           body: JSON.stringify({ personaId: winnerId, loserId }),
         }).then(async (r) => {
           if (r.ok) {
@@ -1476,7 +1443,6 @@ export default function DebateStage() {
               setTimeout(() => setDebateTokenWinVisible(true), 2200);
               refreshBalance();
             }
-            // Refresh the W/L record display and all-persona picker badges
             setTimeout(() => {
               fetchDebateRecordRef.current?.();
               fetchAllPersonaRecordsRef.current?.();
@@ -1484,19 +1450,16 @@ export default function DebateStage() {
           }
         }).catch(() => {});
       }
-      const statsKey = `debate_wins_local_v1`;
-      AsyncStorage.getItem(statsKey).then((raw) => {
+      AsyncStorage.getItem("debate_wins_local_v1").then((raw) => {
         const prev = raw ? JSON.parse(raw) : {};
         const next = { ...prev, [winnerId]: (prev[winnerId] || 0) + 1, _total: (prev._total || 0) + 1 };
-        AsyncStorage.setItem(statsKey, JSON.stringify(next)).catch(() => {});
+        AsyncStorage.setItem("debate_wins_local_v1", JSON.stringify(next)).catch(() => {});
       }).catch(() => {});
 
+      // ── PHASE 6: SHOW WINNER MODAL ──────────────────────────────────────────
       setDebateWinner(debateWinnerObj);
       setDebateLoser({ id: loserId, name: loserName });
 
-      // ── ENDING EXCHANGE: add chat lines now, play audio after modal opens ──
-      // Messages appear in transcript immediately; audio plays in the background
-      // while the winner modal is already visible so the modal is never blocked.
       const loserPool  = PERSONA_LOSER_LINES[loserId]  ?? PERSONA_LOSER_LINES._default  ?? [];
       const winnerPool = PERSONA_WINNER_LINES[winnerId] ?? PERSONA_WINNER_LINES._default ?? [];
       const loserLine  = loserPool[Math.floor(Math.random() * loserPool.length)];
@@ -1515,35 +1478,23 @@ export default function DebateStage() {
         }]);
       }
 
-      // ── SHOW MODAL NOW — before any awaits so it's never blocked ──────────
       setIsLoadingDebateRoast(true);
       setShowDebateWinner(true);
       playDebateCheer();
 
-      // Play concession audio in background — modal is already open
+      // ── PHASE 7: CONCESSION AUDIO (background — modal already open) ─────────
       ;(async () => {
         if (loserLine) await playAndAwait(loserLine, loserId);
         if (winnerLine) await playAndAwait(winnerLine, winnerId);
       })();
 
-      } catch {
-        // Any exception before the modal must never silently swallow the ending.
-        setIsLoadingDebateRoast(true);
-        setShowDebateWinner(true);
-        playDebateCheer();
-      }
-
-      // ── REACTION + WINNER'S TAUNT (background, updates modal) ───────────────
-      // Both fetches were pre-kicked above (while loser/winner concession audio
-      // was playing) so they're already in-flight — no dead air waiting for them.
+      // ── PHASE 8: REACTION + WINNER SPEECH (background, updates modal) ────────
       ;(async () => {
         try {
-          // Await the pre-fetched promises (likely already resolved)
           const [roastData, speechData] = await Promise.all([roastPromise, speechPromise]);
 
-          // roastData.roast for Trump; roastData.reaction for loser
-          const reactionText = roastData?.roast ?? roastData?.reaction ?? null;
-          const reactionSpeakerId = trumpInDebate ? "trump" : loserId;
+          const reactionText        = roastData?.roast ?? roastData?.reaction ?? null;
+          const reactionSpeakerId   = trumpInDebate ? "trump" : loserId;
           const reactionSpeakerName = trumpInDebate ? "Donald Trump" : loserName;
 
           if (reactionText) {
@@ -1570,7 +1521,6 @@ export default function DebateStage() {
           setIsLoadingDebateRoast(false);
         }
       })();
-      // ─────────────────────────────────────────────────────────────────────
     })();
     // ─────────────────────────────────────────────────────────────────────────
   }, [phase, interviewerId, intervieweeId, interviewers, interviewees, deviceId, refreshBalance, playDebateCheer]);
