@@ -8656,6 +8656,21 @@ export default function ArenaScreen() {
                 <Text style={{ color: "#FFD700", fontSize: 17, fontWeight: "900", letterSpacing: 0.8 }}>DEBATE HALL OF FAME</Text>
                 <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginTop: 2 }}>All-time rankings · updated in real time</Text>
               </View>
+              <Pressable
+                onPress={async () => {
+                  try {
+                    const domain = process.env.EXPO_PUBLIC_DOMAIN || "thearena.app";
+                    const url = `https://${domain}/arena?hof=1`;
+                    await Share.share({
+                      message: `Check out the Debate Hall of Fame — see who's winning The Arena! 🏆\n${url}`,
+                      title: "Debate Hall of Fame",
+                    });
+                  } catch {}
+                }}
+                style={{ padding: 6, marginRight: 6 }}
+              >
+                <Ionicons name="share-outline" size={22} color="rgba(255,215,0,0.7)" />
+              </Pressable>
               <Pressable onPress={() => setShowHallOfFame(false)}>
                 <Ionicons name="close" size={22} color="rgba(255,255,255,0.4)" />
               </Pressable>
