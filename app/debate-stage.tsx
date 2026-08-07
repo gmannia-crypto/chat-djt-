@@ -38,6 +38,11 @@ import {
   placeInterviewBet, clearInterviewBet, getInterviewBet,
   awardBetWin, resolveInterviewWinnerBet,
 } from "@/lib/debate-bets";
+import { usePersonaLocks, PREMIUM_PERSONA_CONFIGS } from "@/lib/persona-locks";
+
+// Mystery persona IDs and storage key — kept in sync with arena.tsx
+const MYSTERY_PERSONA_IDS = ["alexjones", "obama", "melania", "schumer", "odonnell", "kamala", "mtg", "rfk"];
+const MYSTERY_UNLOCK_KEY = "arena_mystery_unlocked";
 
 type PersonaLite = { id: string; name: string };
 type Topic = { id: string; title: string; description: string; era: "current" | "past" };
@@ -808,6 +813,17 @@ const webBottom = Platform.OS === "web" ? 34 : 0;
 export default function DebateStage() {
   const insets = useSafeAreaInsets();
   const { deviceId, balance, refreshBalance } = useTokens();
+  const { isHidden } = usePersonaLocks();
+
+  // Mirror of the mystery-unlock state in arena.tsx — same AsyncStorage key
+  const [unlockedMystery, setUnlockedMystery] = useState<string[]>([]);
+  useEffect(() => {
+    AsyncStorage.getItem(MYSTERY_UNLOCK_KEY).then((raw) => {
+      if (raw) {
+        try { setUnlockedMystery(JSON.parse(raw)); } catch {}
+      }
+    });
+  }, []);
 
   const [interviewers, setInterviewers] = useState<PersonaLite[]>([]);
   const [interviewees, setInterviewees] = useState<PersonaLite[]>([]);
@@ -4256,7 +4272,12 @@ export default function DebateStage() {
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
           <Text style={s.sectionLabel}>DEBATER A</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.personaCardRow}>
-            {debaterPool.filter(p => p.id !== intervieweeId && p.id !== MODERATORS[moderatorStyle].personaId).map((p) => {
+            {debaterPool.filter(p =>
+              p.id !== intervieweeId &&
+              p.id !== MODERATORS[moderatorStyle].personaId &&
+              !(MYSTERY_PERSONA_IDS.includes(p.id) && !unlockedMystery.includes(p.id)) &&
+              !isHidden(p.id)
+            ).map((p) => {
               const portrait = PERSONA_PORTRAITS[p.id];
               const isSelected = interviewerId === p.id;
               const initials = p.name.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
@@ -4296,7 +4317,12 @@ export default function DebateStage() {
 
           <Text style={[s.sectionLabel, { marginTop: 16 }]}>DEBATER B</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.personaCardRow}>
-            {debaterPool.filter(p => p.id !== interviewerId && p.id !== MODERATORS[moderatorStyle].personaId).map((p) => {
+            {debaterPool.filter(p =>
+              p.id !== interviewerId &&
+              p.id !== MODERATORS[moderatorStyle].personaId &&
+              !(MYSTERY_PERSONA_IDS.includes(p.id) && !unlockedMystery.includes(p.id)) &&
+              !isHidden(p.id)
+            ).map((p) => {
               const portrait = PERSONA_PORTRAITS[p.id];
               const isSelected = intervieweeId === p.id;
               const initials = p.name.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
