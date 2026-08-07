@@ -1493,9 +1493,9 @@ export default function DebateStage() {
       setDebateWinner(debateWinnerObj);
       setDebateLoser({ id: loserId, name: loserName });
 
-      // ── ENDING EXCHANGE: loser concession → winner response ─────────────────
-      // Each line waits for full audio playback before the next one starts —
-      // no blind timers, no clips fighting each other.
+      // ── ENDING EXCHANGE: add chat lines now, play audio after modal opens ──
+      // Messages appear in transcript immediately; audio plays in the background
+      // while the winner modal is already visible so the modal is never blocked.
       const loserPool  = PERSONA_LOSER_LINES[loserId]  ?? PERSONA_LOSER_LINES._default  ?? [];
       const winnerPool = PERSONA_WINNER_LINES[winnerId] ?? PERSONA_WINNER_LINES._default ?? [];
       const loserLine  = loserPool[Math.floor(Math.random() * loserPool.length)];
@@ -1506,25 +1506,28 @@ export default function DebateStage() {
           id: `loser-concession-${Date.now()}`, speakerId: loserId, speakerName: loserName,
           text: loserLine, ts: Date.now(), skipTTS: true,
         }]);
-        await playAndAwait(loserLine, loserId);
       }
-
       if (winnerLine) {
         setMessages((prev) => [...prev, {
           id: `winner-response-${Date.now()}`, speakerId: winnerId, speakerName: winnerName,
           text: winnerLine, ts: Date.now(), skipTTS: true,
         }]);
-        await playAndAwait(winnerLine, winnerId);
       }
-      // ───────────────────────────────────────────────────────────────────────
 
-      // ── SHOW MODAL NOW — reaction + speech load in-place ─────────────────
+      // ── SHOW MODAL NOW — before any awaits so it's never blocked ──────────
       setIsLoadingDebateRoast(true);
       setShowDebateWinner(true);
       playDebateCheer();
+
+      // Play concession audio in background — modal is already open
+      ;(async () => {
+        if (loserLine) await playAndAwait(loserLine, loserId);
+        if (winnerLine) await playAndAwait(winnerLine, winnerId);
+      })();
+
       } catch {
         // Any exception before the modal must never silently swallow the ending.
-        setIsLoadingDebateRoast(false);
+        setIsLoadingDebateRoast(true);
         setShowDebateWinner(true);
         playDebateCheer();
       }
