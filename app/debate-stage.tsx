@@ -2876,6 +2876,28 @@ export default function DebateStage() {
     } catch {}
   }, [hofData, debaterPool]);
 
+  const handlePersonaHofShare = useCallback(async (
+    pName: string,
+    winPct: number,
+    totalWins: number,
+    totalLosses: number,
+    rank: number,
+    rivalName?: string | null,
+    bestRivalWins?: number,
+  ) => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      const medal = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : `#${rank}`;
+      let msg = `🏆 ${pName} is ${medal} in the Debate Hall of Fame on TrumpBot.rip!\n`;
+      msg += `📊 ${winPct}% win rate · ${totalWins}W–${totalLosses}L`;
+      if (rivalName && bestRivalWins) {
+        msg += `\n💪 Dominates ${rivalName.split(" ")[0]} (${bestRivalWins}× wins)`;
+      }
+      msg += `\nCome debate them 👉 https://trumpbot.rip/arena`;
+      await Share.share({ message: msg, url: "https://trumpbot.rip/arena" });
+    } catch {}
+  }, []);
+
   // If a debater is selected that matches the moderator, auto-pick a different moderator.
   // If the moderator is later selected as a debater, clear that debater slot.
   useEffect(() => {
@@ -5407,6 +5429,15 @@ export default function DebateStage() {
                           <View style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: idx < 3 ? "rgba(255,215,0,0.12)" : "rgba(255,255,255,0.06)", borderWidth: 1, borderColor: idx < 3 ? "rgba(255,215,0,0.4)" : "rgba(255,255,255,0.12)" }}>
                             <Text style={{ color: idx < 3 ? "#FFD700" : "rgba(255,255,255,0.7)", fontSize: 15, fontWeight: "900" }}>{entry.winPct}%</Text>
                           </View>
+                          {/* Per-persona share button */}
+                          <Pressable
+                            onPress={() => handlePersonaHofShare(pName, entry.winPct, entry.totalWins, entry.totalLosses, idx + 1, rivalName, entry.bestRivalWins)}
+                            hitSlop={8}
+                            style={{ marginLeft: 8, width: 30, height: 30, borderRadius: 15, backgroundColor: "rgba(255,215,0,0.08)", borderWidth: 1, borderColor: "rgba(255,215,0,0.25)", alignItems: "center", justifyContent: "center" }}
+                            accessibilityLabel={`Share ${pName}'s stats`}
+                          >
+                            <Ionicons name="share-social" size={13} color="#FFD700" />
+                          </Pressable>
                         </View>
                       );
                     })}
@@ -5447,6 +5478,15 @@ export default function DebateStage() {
                           <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10, backgroundColor: "rgba(96,165,250,0.1)", borderWidth: 1, borderColor: "rgba(96,165,250,0.3)" }}>
                             <Text style={{ color: "#60a5fa", fontSize: 13, fontWeight: "900" }}>{pick.wins} wins</Text>
                           </View>
+                          {/* Per-persona share button */}
+                          <Pressable
+                            onPress={() => handlePersonaHofShare(pName, pct, pick.wins, pick.losses, idx + 1)}
+                            hitSlop={8}
+                            style={{ marginLeft: 8, width: 28, height: 28, borderRadius: 14, backgroundColor: "rgba(96,165,250,0.08)", borderWidth: 1, borderColor: "rgba(96,165,250,0.25)", alignItems: "center", justifyContent: "center" }}
+                            accessibilityLabel={`Share ${pName}'s stats`}
+                          >
+                            <Ionicons name="share-social" size={12} color="#60a5fa" />
+                          </Pressable>
                         </View>
                       );
                     })}
