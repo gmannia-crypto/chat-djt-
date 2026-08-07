@@ -8859,8 +8859,8 @@ export default function ArenaScreen() {
             {(() => {
               const CATEGORIES: Array<{ label: string; ids: string[]; mysteryIds: string[] }> = [
                 { label: "🏛  PRESIDENTS", ids: ["trump", "biden"], mysteryIds: ["obama"] },
-                { label: "⚖️  POLITICIANS", ids: ["netanyahu", "mcconnell", "omar", "graham", "pambondi", "miller", "jimjordan", "jascrockett", "aoc", "pressley", "timscott", "billclinton", "hillaryclinton", "marcorubio", "desantis"], mysteryIds: ["schumer", "kamala", "mtg", "rfk"] },
-                { label: "📺  MEDIA & JOURNALISTS", ids: ["maddow", "megynkelly", "joyreid", "erikakirk", "loomer", "leavitt", "hannity"], mysteryIds: ["odonnell"] },
+                { label: "⚖️  POLITICIANS", ids: ["netanyahu", "mcconnell", "omar", "graham", "pambondi", "miller", "jimjordan", "jascrockett", "aoc", "pressley", "timscott", "mikejohnson", "billclinton", "hillaryclinton", "marcorubio", "desantis"], mysteryIds: ["schumer", "kamala", "mtg", "rfk"] },
+                { label: "📺  MEDIA & JOURNALISTS", ids: ["maddow", "megynkelly", "joyreid", "erikakirk", "loomer", "leavitt", "hannity", "odonnell"], mysteryIds: [] },
                 { label: "🎙  PODCASTERS & STRATEGISTS", ids: ["galloway", "candace", "carville", "bannon", "joerogan"], mysteryIds: ["alexjones"] },
                 { label: "🎭  COMEDIANS", ids: ["berniemc", "rosie", ...(!isHidden("carlin") ? ["carlin"] : [])], mysteryIds: [] },
                 { label: "💻  TECH", ids: ["elon"], mysteryIds: [] },

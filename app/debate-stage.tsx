@@ -4303,6 +4303,23 @@ export default function DebateStage() {
                   {hofLabel && (
                     <Text style={s.personaCardHofRank}>{hofLabel}</Text>
                   )}
+                  {interviewerId && intervieweeId && (() => {
+                    const lA = getModeratorLeaning(ms, interviewerId);
+                    const lB = getModeratorLeaning(ms, intervieweeId);
+                    const sA = lA === "favor" ? 2 : lA === "target" ? -2 : 0;
+                    const sB = lB === "favor" ? 2 : lB === "target" ? -2 : 0;
+                    const n = sA - sB;
+                    if (n === 0) return null;
+                    const pct = Math.max(25, Math.min(75, 50 + n * 5));
+                    const favorsLabel = n > 0
+                      ? (debaterPool.find(p => p.id === interviewerId)?.name?.split(" ")[0] || "A")
+                      : (debaterPool.find(p => p.id === intervieweeId)?.name?.split(" ")[0] || "B");
+                    return (
+                      <Text style={{ color: isSelected ? "#000" : "#4ADE80", fontSize: 8, fontWeight: "900", marginTop: 2 }}>
+                        {n > 0 ? pct : 100 - pct}% → {favorsLabel}
+                      </Text>
+                    );
+                  })()}
                 </Pressable>
               );
             })}
@@ -4453,24 +4470,52 @@ export default function DebateStage() {
           </View>
 
           {/* ── WINNER BET ───────────────────────────────────── */}
-          {interviewerId && intervieweeId && !debateBetPick && !debateBetResult && (
-            <View style={{ marginTop: 16, padding: 14, borderRadius: 14, borderWidth: 1.5, borderColor: "rgba(251,191,36,0.35)", backgroundColor: "rgba(251,191,36,0.06)" }}>
-              <Text style={{ color: "#FBBF24", fontSize: 13, fontWeight: "900", marginBottom: 4 }}>🎰 PREDICT THE WINNER</Text>
-              <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, marginBottom: 10 }}>Who dominates the debate? Win 2× your bet</Text>
-              <View style={{ flexDirection: "row", gap: 8, marginBottom: 10 }}>
-                {([
-                  { id: "interviewer" as const, label: debaterPool.find(p => p.id === interviewerId)?.name?.split(" ")[0] || "Debater A" },
-                  { id: "interviewee" as const, label: debaterPool.find(p => p.id === intervieweeId)?.name?.split(" ")[0] || "Debater B" },
-                ] as { id: "interviewer" | "interviewee"; label: string }[]).map((opt) => (
-                  <Pressable key={opt.id} onPress={() => { Haptics.selectionAsync(); setDebateBetPick(opt.id); }}
-                    style={{ flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center", borderWidth: 1.5, borderColor: "rgba(255,255,255,0.15)", backgroundColor: "rgba(255,255,255,0.04)" }}>
-                    <Text style={{ color: "#888", fontSize: 12, fontWeight: "700" }}>{opt.label}</Text>
-                    <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, marginTop: 2 }}>TAP TO PICK</Text>
-                  </Pressable>
-                ))}
+          {interviewerId && intervieweeId && !debateBetPick && !debateBetResult && (() => {
+            const leanA = getModeratorLeaning(moderatorStyle, interviewerId);
+            const leanB = getModeratorLeaning(moderatorStyle, intervieweeId);
+            const scoreA = leanA === "favor" ? 2 : leanA === "target" ? -2 : 0;
+            const scoreB = leanB === "favor" ? 2 : leanB === "target" ? -2 : 0;
+            const net = scoreA - scoreB;
+            const oddsA = Math.max(25, Math.min(75, 50 + net * 5));
+            const oddsB = 100 - oddsA;
+            const hasBias = net !== 0;
+            const modFirstName = MODERATORS[moderatorStyle]?.name?.split(" ")[0] || "Moderator";
+            const labelA = debaterPool.find(p => p.id === interviewerId)?.name?.split(" ")[0] || "Debater A";
+            const labelB = debaterPool.find(p => p.id === intervieweeId)?.name?.split(" ")[0] || "Debater B";
+            const items = [
+              { id: "interviewer" as const, label: labelA, odds: oddsA },
+              { id: "interviewee" as const, label: labelB, odds: oddsB },
+            ];
+            return (
+              <View style={{ marginTop: 16, padding: 14, borderRadius: 14, borderWidth: 1.5, borderColor: "rgba(251,191,36,0.35)", backgroundColor: "rgba(251,191,36,0.06)" }}>
+                <Text style={{ color: "#FBBF24", fontSize: 13, fontWeight: "900", marginBottom: 4 }}>🎰 PREDICT THE WINNER</Text>
+                <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, marginBottom: 10 }}>
+                  {hasBias ? `${modFirstName}'s bias shifts the odds — choose wisely` : "Who dominates the debate? Win 2× your bet"}
+                </Text>
+                <View style={{ flexDirection: "row", gap: 8, marginBottom: hasBias ? 6 : 10 }}>
+                  {items.map((opt) => {
+                    const favored = opt.odds > 50;
+                    const targeted = opt.odds < 50;
+                    return (
+                      <Pressable key={opt.id} onPress={() => { Haptics.selectionAsync(); setDebateBetPick(opt.id); }}
+                        style={{ flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center", borderWidth: 1.5,
+                          borderColor: favored ? "rgba(74,222,128,0.45)" : targeted ? "rgba(255,107,107,0.35)" : "rgba(255,255,255,0.15)",
+                          backgroundColor: favored ? "rgba(74,222,128,0.07)" : targeted ? "rgba(255,107,107,0.05)" : "rgba(255,255,255,0.04)" }}>
+                        <Text style={{ color: "#888", fontSize: 12, fontWeight: "700" }}>{opt.label}</Text>
+                        <Text style={{ color: favored ? "#4ADE80" : targeted ? "#FF6B6B" : "rgba(255,255,255,0.45)", fontSize: 15, fontWeight: "900", marginTop: 2 }}>{opt.odds}%</Text>
+                        <Text style={{ color: "rgba(255,255,255,0.25)", fontSize: 8, marginTop: 1 }}>TAP TO PICK</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                {hasBias && (
+                  <Text style={{ color: "rgba(251,191,36,0.55)", fontSize: 9, textAlign: "center", fontStyle: "italic" }}>
+                    {`⚠️ ${modFirstName} leans toward ${net > 0 ? labelA : labelB}`}
+                  </Text>
+                )}
               </View>
-            </View>
-          )}
+            );
+          })()}
 
           {debateBetPick && debateBetLocked && !debateBetResult && (() => {
             const lockedName = debateBetPick === "interviewer"
