@@ -7458,31 +7458,74 @@ export default function ArenaScreen() {
             <View style={{ marginBottom: 16, padding: 14, borderRadius: 14, borderWidth: 1.5, borderColor: "rgba(251,191,36,0.35)", backgroundColor: "rgba(251,191,36,0.06)" }}>
               <Text style={{ color: "#FBBF24", fontSize: 13, fontWeight: "900", marginBottom: 4 }}>🎰 IQ RACE BET</Text>
               <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, marginBottom: 10 }}>Pick who ends with the LOWEST IQ — win 2.5× your bet</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }} contentContainerStyle={{ gap: 6 }}>
-                {selectedPersonas.map((pid) => {
-                  const p = getPersona(pid);
-                  if (!p) return null;
-                  const picked = betPickId === pid;
-                  const rec = allPersonaRecords[pid];
-                  const hasRecord = rec && (rec.wins > 0 || rec.losses > 0);
-                  return (
-                    <Pressable key={pid} onPress={() => { Haptics.selectionAsync(); setBetPickId(pid); }}
-                      style={{
-                        paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5,
-                        borderColor: picked ? "#FBBF24" : "rgba(255,255,255,0.15)",
-                        backgroundColor: picked ? "rgba(251,191,36,0.15)" : "rgba(255,255,255,0.04)",
-                        alignItems: "center",
-                      }}>
-                      <Text style={{ color: picked ? "#FBBF24" : "#888", fontSize: 12, fontWeight: "700" }}>{p.shortName}</Text>
-                      {hasRecord && (
-                        <Text style={{ color: picked ? "#4ADE80" : "#4ADE80", fontSize: 9, fontWeight: "700", marginTop: 1, opacity: picked ? 1 : 0.7 }}>
-                          {rec.wins}W-{rec.losses}L
-                        </Text>
-                      )}
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
+              {(() => {
+                // Compute win rates for odds labels — need ≥3 total debates to show
+                const MIN_DEBATES = 3;
+                const ratesWithData = selectedPersonas
+                  .map((pid) => {
+                    const rec = allPersonaRecords[pid];
+                    if (!rec) return null;
+                    const total = rec.wins + rec.losses;
+                    if (total < MIN_DEBATES) return null;
+                    return { pid, winRate: rec.wins / total, total };
+                  })
+                  .filter(Boolean) as { pid: string; winRate: number; total: number }[];
+                // FAVORITE = lowest win rate (most likely to lose IQ); UNDERDOG = highest
+                const showOdds = ratesWithData.length >= 2;
+                let favoritePid: string | null = null;
+                let underdogPid: string | null = null;
+                if (showOdds) {
+                  const sorted = [...ratesWithData].sort((a, b) => a.winRate - b.winRate);
+                  favoritePid = sorted[0].pid;
+                  underdogPid = sorted[sorted.length - 1].pid;
+                  // Don't label if they have the same win rate
+                  if (sorted[0].winRate === sorted[sorted.length - 1].winRate) {
+                    favoritePid = null;
+                    underdogPid = null;
+                  }
+                }
+                return (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }} contentContainerStyle={{ gap: 6 }}>
+                    {selectedPersonas.map((pid) => {
+                      const p = getPersona(pid);
+                      if (!p) return null;
+                      const picked = betPickId === pid;
+                      const rec = allPersonaRecords[pid];
+                      const hasRecord = rec && (rec.wins > 0 || rec.losses > 0);
+                      const total = rec ? rec.wins + rec.losses : 0;
+                      const winPct = total >= MIN_DEBATES ? Math.round((rec.wins / total) * 100) : null;
+                      const isFavorite = favoritePid === pid;
+                      const isUnderdog = underdogPid === pid;
+                      return (
+                        <Pressable key={pid} onPress={() => { Haptics.selectionAsync(); setBetPickId(pid); }}
+                          style={{
+                            paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5,
+                            borderColor: picked ? "#FBBF24" : isFavorite ? "rgba(74,222,128,0.4)" : isUnderdog ? "rgba(248,113,113,0.4)" : "rgba(255,255,255,0.15)",
+                            backgroundColor: picked ? "rgba(251,191,36,0.15)" : isFavorite ? "rgba(74,222,128,0.06)" : isUnderdog ? "rgba(248,113,113,0.06)" : "rgba(255,255,255,0.04)",
+                            alignItems: "center",
+                          }}>
+                          <Text style={{ color: picked ? "#FBBF24" : "#888", fontSize: 12, fontWeight: "700" }}>{p.shortName}</Text>
+                          {hasRecord && (
+                            <Text style={{ color: "#4ADE80", fontSize: 9, fontWeight: "700", marginTop: 1, opacity: picked ? 1 : 0.7 }}>
+                              {rec.wins}W-{rec.losses}L
+                            </Text>
+                          )}
+                          {isFavorite && (
+                            <Text style={{ color: "#4ADE80", fontSize: 8, fontWeight: "900", marginTop: 2, letterSpacing: 0.5 }}>
+                              ★ FAVORITE {winPct !== null ? `${winPct}%` : ""}
+                            </Text>
+                          )}
+                          {isUnderdog && (
+                            <Text style={{ color: "#F87171", fontSize: 8, fontWeight: "900", marginTop: 2, letterSpacing: 0.5 }}>
+                              ↑ UNDERDOG {winPct !== null ? `${winPct}%` : ""}
+                            </Text>
+                          )}
+                        </Pressable>
+                      );
+                    })}
+                  </ScrollView>
+                );
+              })()}
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
                 <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 11 }}>Wager:</Text>
                 {[1, 2, 3, 5, 10].map((v) => (
