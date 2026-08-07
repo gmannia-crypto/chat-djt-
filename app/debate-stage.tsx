@@ -921,6 +921,20 @@ export default function DebateStage() {
       }
     };
   }, []);
+  // Closes the share modal and cleans up any native temp file left by the
+  // fight-card generator so it doesn't accumulate across sessions.
+  const closeShareModal = useCallback(() => {
+    fightCardGenTokenRef.current++;
+    const uri = fightCardFileUriRef.current;
+    fightCardFileUriRef.current = null;
+    if (Platform.OS !== "web" && uri) {
+      import("expo-file-system").then((fs) =>
+        fs.deleteAsync(uri, { idempotent: true }).catch(() => {})
+      );
+    }
+    setFightCardPreviewUriSafe(null);
+    setShowShareModal(false);
+  }, [setFightCardPreviewUriSafe]);
   const [debateRecords, setDebateRecords] = useState<{
     aWins: number; aLosses: number; bWins: number; bLosses: number;
     aGlobalWins: number; aGlobalLosses: number; bGlobalWins: number; bGlobalLosses: number;
@@ -5563,9 +5577,9 @@ export default function DebateStage() {
       {renderPaywall()}
 
       {/* ── Share / Transcript Modal ─────────────────────────────────────── */}
-      <Modal visible={showShareModal} transparent animationType="slide" onRequestClose={() => { fightCardGenTokenRef.current++; setShowShareModal(false); }}>
+      <Modal visible={showShareModal} transparent animationType="slide" onRequestClose={closeShareModal}>
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.82)", justifyContent: "flex-end" }}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => { fightCardGenTokenRef.current++; setShowShareModal(false); }} />
+          <Pressable style={StyleSheet.absoluteFill} onPress={closeShareModal} />
           <View style={{ backgroundColor: "#0F0F14", borderTopLeftRadius: 26, borderTopRightRadius: 26, borderTopWidth: 1, borderColor: "rgba(74,222,128,0.3)", padding: 18, maxHeight: "88%" }}>
             {/* Handle */}
             <View style={{ alignSelf: "center", width: 44, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.18)", marginBottom: 14 }} />
@@ -5574,7 +5588,7 @@ export default function DebateStage() {
             <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 14 }}>
               <Ionicons name="share-social" size={18} color="#4ADE80" />
               <Text style={{ flex: 1, color: "#fff", fontSize: 16, fontWeight: "900", marginLeft: 8, letterSpacing: 0.5 }}>SHARE DEBATE</Text>
-              <Pressable onPress={() => { fightCardGenTokenRef.current++; setShowShareModal(false); }}>
+              <Pressable onPress={closeShareModal}>
                 <Ionicons name="close" size={22} color="rgba(255,255,255,0.5)" />
               </Pressable>
             </View>
@@ -5658,6 +5672,12 @@ export default function DebateStage() {
                     });
                     const fileUri = `${FileSystem.cacheDirectory}fight-card-${interviewerId}-vs-${intervieweeId}.png`;
                     await FileSystem.writeAsStringAsync(fileUri, base64, { encoding: FileSystem.EncodingType.Base64 });
+                    // If the modal was closed while we were generating, delete
+                    // the just-written temp file instead of storing its URI.
+                    if (fightCardGenTokenRef.current !== myToken) {
+                      await FileSystem.deleteAsync(fileUri, { idempotent: true }).catch(() => {});
+                      return;
+                    }
                     fightCardFileUriRef.current = fileUri;
                     setFightCardPreviewUri(fileUri);
                   }
@@ -5750,7 +5770,13 @@ export default function DebateStage() {
                           onPress={() => {
                             fightCardGenTokenRef.current++;
                             setFightCardPreviewUriSafe(null);
+                            const uri = fightCardFileUriRef.current;
                             fightCardFileUriRef.current = null;
+                            if (Platform.OS !== "web" && uri) {
+                              import("expo-file-system").then((fs) =>
+                                fs.deleteAsync(uri, { idempotent: true }).catch(() => {})
+                              );
+                            }
                           }}
                           style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 11, borderRadius: 10, backgroundColor: fightCardLoading ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.07)", borderWidth: 1, borderColor: fightCardLoading ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.15)", opacity: fightCardLoading ? 0.5 : 1 }}
                         >
