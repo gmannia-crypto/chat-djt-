@@ -5776,20 +5776,29 @@ export default function DebateStage() {
                   </View>
 
                   {/* Fight Card preview thumbnail */}
-                  {fightCardPreviewUri ? (
+                  {(fightCardPreviewUri || fightCardLoading) ? (
                     <View style={{ marginTop: 12, borderRadius: 14, overflow: "hidden", borderWidth: 1.5, borderColor: "rgba(255,215,0,0.5)", backgroundColor: "rgba(0,0,0,0.4)" }}>
-                      <Image
-                        source={{ uri: fightCardPreviewUri }}
-                        style={{ width: "100%", aspectRatio: 1.6, resizeMode: "contain" }}
-                      />
+                      {fightCardPreviewUri ? (
+                        <Image
+                          source={{ uri: fightCardPreviewUri }}
+                          style={{ width: "100%", aspectRatio: 1.6, resizeMode: "contain" }}
+                        />
+                      ) : (
+                        /* Spinner placeholder while regenerating — keeps layout stable */
+                        <View style={{ width: "100%", aspectRatio: 1.6, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.3)" }}>
+                          <ActivityIndicator size="large" color="#FFD700" />
+                          <Text style={{ color: "rgba(255,215,0,0.7)", fontSize: 11, fontWeight: "700", marginTop: 10, letterSpacing: 0.5 }}>GENERATING…</Text>
+                        </View>
+                      )}
                       <View style={{ flexDirection: "row", gap: 8, padding: 10 }}>
                         <Pressable
+                          disabled={fightCardLoading}
                           onPress={() => {
                             fightCardGenTokenRef.current++;
                             setFightCardPreviewUriSafe(null);
                             fightCardFileUriRef.current = null;
                           }}
-                          style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 11, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.07)", borderWidth: 1, borderColor: "rgba(255,255,255,0.15)" }}
+                          style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 11, borderRadius: 10, backgroundColor: fightCardLoading ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.07)", borderWidth: 1, borderColor: fightCardLoading ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.15)", opacity: fightCardLoading ? 0.5 : 1 }}
                         >
                           <Ionicons name="close" size={15} color="rgba(255,255,255,0.7)" />
                           <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, fontWeight: "800" }}>DISMISS</Text>
@@ -5805,34 +5814,36 @@ export default function DebateStage() {
                           }
                           <Text style={{ color: "rgba(255,255,255,0.85)", fontSize: 12, fontWeight: "800" }}>REGENERATE</Text>
                         </Pressable>
-                        <Pressable
-                          onPress={async () => {
-                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                            try {
-                              if (Platform.OS === "web") {
-                                const a = document.createElement("a");
-                                a.href = fightCardPreviewUri;
-                                a.download = `fight-card-${interviewerId}-vs-${intervieweeId}.png`;
-                                a.click();
-                              } else {
-                                const fileUri = fightCardFileUriRef.current;
-                                if (fileUri) {
-                                  const Sharing = await import("expo-sharing");
-                                  const canShare = await Sharing.isAvailableAsync();
-                                  if (canShare) {
-                                    await Sharing.shareAsync(fileUri, { mimeType: "image/png", dialogTitle: `${aName} vs ${bName} Fight Card` });
+                        {fightCardPreviewUri && (
+                          <Pressable
+                            onPress={async () => {
+                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                              try {
+                                if (Platform.OS === "web") {
+                                  const a = document.createElement("a");
+                                  a.href = fightCardPreviewUri;
+                                  a.download = `fight-card-${interviewerId}-vs-${intervieweeId}.png`;
+                                  a.click();
+                                } else {
+                                  const fileUri = fightCardFileUriRef.current;
+                                  if (fileUri) {
+                                    const Sharing = await import("expo-sharing");
+                                    const canShare = await Sharing.isAvailableAsync();
+                                    if (canShare) {
+                                      await Sharing.shareAsync(fileUri, { mimeType: "image/png", dialogTitle: `${aName} vs ${bName} Fight Card` });
+                                    }
                                   }
                                 }
-                              }
-                            } catch {}
-                          }}
-                          style={{ flex: 2, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingVertical: 11, borderRadius: 10, backgroundColor: "rgba(255,215,0,0.18)", borderWidth: 1, borderColor: "rgba(255,215,0,0.6)" }}
-                        >
-                          <Ionicons name="download-outline" size={16} color="#FFD700" />
-                          <Text style={{ color: "#FFD700", fontSize: 12, fontWeight: "900", letterSpacing: 0.5 }}>
-                            {Platform.OS === "web" ? "DOWNLOAD" : "SHARE"}
-                          </Text>
-                        </Pressable>
+                              } catch {}
+                            }}
+                            style={{ flex: 2, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingVertical: 11, borderRadius: 10, backgroundColor: "rgba(255,215,0,0.18)", borderWidth: 1, borderColor: "rgba(255,215,0,0.6)" }}
+                          >
+                            <Ionicons name="download-outline" size={16} color="#FFD700" />
+                            <Text style={{ color: "#FFD700", fontSize: 12, fontWeight: "900", letterSpacing: 0.5 }}>
+                              {Platform.OS === "web" ? "DOWNLOAD" : "SHARE"}
+                            </Text>
+                          </Pressable>
+                        )}
                       </View>
                     </View>
                   ) : (
