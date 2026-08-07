@@ -5841,16 +5841,18 @@ export default function DebateStage() {
                   {(fightCardPreviewUri || fightCardLoading) ? (
                     <View style={{ marginTop: 12, borderRadius: 14, overflow: "hidden", borderWidth: 1.5, borderColor: "rgba(255,215,0,0.5)", backgroundColor: "rgba(0,0,0,0.4)" }}>
                       {fightCardPreviewUri ? (
-                        <Image
-                          source={{ uri: fightCardPreviewUri }}
-                          style={{ width: "100%", aspectRatio: 1.6, resizeMode: "contain" }}
-                        />
+                        <Animated.View key="fc-image" entering={FadeIn.duration(400)} style={{ width: "100%", aspectRatio: 1.6 }}>
+                          <Image
+                            source={{ uri: fightCardPreviewUri }}
+                            style={{ width: "100%", height: "100%", resizeMode: "contain" }}
+                          />
+                        </Animated.View>
                       ) : (
                         /* Spinner placeholder while regenerating — keeps layout stable */
-                        <View style={{ width: "100%", aspectRatio: 1.6, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.3)" }}>
+                        <Animated.View key="fc-spinner" exiting={FadeOut.duration(200)} style={{ width: "100%", aspectRatio: 1.6, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.3)" }}>
                           <ActivityIndicator size="large" color="#FFD700" />
                           <Text style={{ color: "rgba(255,215,0,0.7)", fontSize: 11, fontWeight: "700", marginTop: 10, letterSpacing: 0.5 }}>GENERATING…</Text>
-                        </View>
+                        </Animated.View>
                       )}
                       <View style={{ flexDirection: "row", gap: 8, padding: 10 }}>
                         <Pressable
