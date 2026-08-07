@@ -4589,13 +4589,17 @@ export default function DebateStage() {
 
           <Pressable
             onPress={startInterview}
-            disabled={isStarting || !interviewerId || !intervieweeId || interviewerId === intervieweeId || topics.length === 0}
-            style={[s.startBtn, (isStarting || !interviewerId || !intervieweeId || interviewerId === intervieweeId || topics.length === 0) && { opacity: 0.4 }]}
+            disabled={isStarting || !interviewerId || !intervieweeId || interviewerId === intervieweeId || topics.length === 0 || topicsLoading}
+            style={[s.startBtn, (isStarting || !interviewerId || !intervieweeId || interviewerId === intervieweeId || topics.length === 0 || topicsLoading) && { opacity: 0.4 }]}
             testID="start-interview"
           >
-            <Ionicons name="mic" size={18} color="#000" />
+            {topicsLoading ? (
+              <ActivityIndicator size="small" color="#000" />
+            ) : (
+              <Ionicons name="mic" size={18} color="#000" />
+            )}
             <Text style={s.startBtnText}>
-              {isStarting ? "STARTING…" : !deviceId ? "CONNECTING…" : `START ${duration}-MIN INTERVIEW`}
+              {topicsLoading ? "LOADING TOPICS…" : isStarting ? "STARTING…" : !deviceId ? "CONNECTING…" : `START ${duration}-MIN INTERVIEW`}
             </Text>
           </Pressable>
           {topicsAreFallback ? (
