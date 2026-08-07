@@ -7165,15 +7165,28 @@ export default function ArenaScreen() {
             testID="open-hall-of-fame-lobby"
             accessibilityLabel="Hall of Fame Leaderboard"
           >
-            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,215,0,0.2)", alignItems: "center", justifyContent: "center", marginRight: 12, overflow: "hidden" }}>
-              {hofData && hofData.leaderboard.length > 0 && ARENA_PERSONAS[hofData.leaderboard[0].personaId]?.image ? (
-                <Image
-                  source={ARENA_PERSONAS[hofData.leaderboard[0].personaId].image}
-                  style={{ width: 40, height: 40, borderRadius: 20 }}
-                  resizeMode="cover"
-                />
-              ) : (
-                <Text style={{ fontSize: 22 }}>🏆</Text>
+            <View style={{ width: 40, height: 40, marginRight: 12 }}>
+              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,215,0,0.2)", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                {hofData && hofData.leaderboard.length > 0 && ARENA_PERSONAS[hofData.leaderboard[0].personaId]?.image ? (
+                  <Image
+                    source={ARENA_PERSONAS[hofData.leaderboard[0].personaId].image}
+                    style={{ width: 40, height: 40, borderRadius: 20 }}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <Text style={{ fontSize: 22 }}>🏆</Text>
+                )}
+              </View>
+              {hofData && hofData.leaderboard.length > 0 && ARENA_PERSONAS[hofData.leaderboard[0].personaId]?.image && (
+                <View style={{
+                  position: "absolute", top: -4, right: -4,
+                  width: 18, height: 18, borderRadius: 9,
+                  backgroundColor: "#FFD700",
+                  alignItems: "center", justifyContent: "center",
+                  shadowColor: "#FFD700", shadowOpacity: 0.8, shadowRadius: 4,
+                }}>
+                  <Text style={{ fontSize: 10, lineHeight: 12 }}>👑</Text>
+                </View>
               )}
             </View>
             <View style={{ flex: 1 }}>
