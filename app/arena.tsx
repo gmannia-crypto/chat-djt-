@@ -4248,6 +4248,7 @@ export default function ArenaScreen() {
   const heatSpike = useSharedValue(1);
   const dcChampionGlow = useSharedValue(1);
   const crownScale = useSharedValue(1);
+  const prevTopPersonaIdRef = useRef<string | null>(null);
   const prevRoomTempRef = useRef<number>(0);
   const [sessionTimer, setSessionTimer] = useState<number>(0);
   const [roomTemperature, setRoomTemperature] = useState<number>(0);
@@ -5176,6 +5177,28 @@ export default function ArenaScreen() {
       false
     );
   }, []);
+
+  // Burst animation when the #1 Hall-of-Fame spot changes hands
+  useEffect(() => {
+    if (!hofData || hofData.leaderboard.length === 0) return;
+    const newTopId = hofData.leaderboard[0].personaId;
+    if (prevTopPersonaIdRef.current !== null && prevTopPersonaIdRef.current !== newTopId) {
+      // Play a one-shot scale burst then resume the idle pulse
+      crownScale.value = withSequence(
+        withTiming(1.6, { duration: 300 }),
+        withTiming(1.0, { duration: 300 }),
+        withRepeat(
+          withSequence(
+            withTiming(1.25, { duration: 500 }),
+            withTiming(1.0, { duration: 500 }),
+          ),
+          -1,
+          false
+        )
+      );
+    }
+    prevTopPersonaIdRef.current = newTopId;
+  }, [hofData]);
 
   const crownAnimStyle = useAnimatedStyle(() => ({
     transform: [{ scale: crownScale.value }],
@@ -6984,6 +7007,9 @@ export default function ArenaScreen() {
     const leaderboard = sorted.slice(0, 5).map(([id, p]) => ({ name: getPersona(id)?.name || id, points: p }));
 
     await recordWin(winnerId);
+    // Refresh HOF data after the win is recorded so the lobby teaser reflects
+    // the new leader and the crown burst animation fires if #1 changed hands.
+    fetchHallOfFame();
 
     setIsLoadingRoast(true);
     try {
@@ -7014,7 +7040,7 @@ export default function ArenaScreen() {
     } catch {} finally {
       setIsLoadingRoast(false);
     }
-  }, [deviceId, queueTTS, fetchWinnerClapBack, recordWin]);
+  }, [deviceId, queueTTS, fetchWinnerClapBack, recordWin, fetchHallOfFame]);
 
   const renderMessage = useCallback(
     ({ item, index }: { item: ConversationMessage; index: number }) => {
