@@ -18,6 +18,8 @@ import { getApiUrl } from "@/lib/query-client";
 import { useTokens } from "@/lib/token-context";
 import Colors from "@/constants/colors";
 import { ShareAppButton } from "@/components/ShareAppButton";
+import { PersonaStatsCard, type PersonaStatsCardData } from "@/components/PersonaStatsCard";
+import { captureRef } from "react-native-view-shot";
 import { CashAppDonate } from "@/components/CashAppDonate";
 import { playTTS, prefetchTTSAudio, playPrefetchedAudio, warmupAudio } from "@/lib/audio-helper";
 import { getPersonaVoiceVolume, shouldSkipPersonaVoice } from "@/lib/persona-voice";
@@ -960,6 +962,8 @@ export default function DebateStage() {
   const [hofLoading, setHofLoading] = useState(false);
   const [hofShareLoading, setHofShareLoading] = useState(false);
   const hofLastFetchedAtRef = useRef<number>(0);
+  const [hofCardData, setHofCardData] = useState<PersonaStatsCardData | null>(null);
+  const personaStatsCardRef = useRef<any>(null);
 
   const flatListRef = useRef<FlatList>(null);
   const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -2882,18 +2886,77 @@ export default function DebateStage() {
     rank: number,
     rivalName?: string | null,
     bestRivalWins?: number,
+    personaId?: string,
+    portrait?: any,
   ) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    // Web: plain text share (ViewShot not supported on web)
+    if (Platform.OS === "web") {
+      try {
+        const medal = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : `#${rank}`;
+        let msg = `🏆 ${pName} is ${medal} in the Debate Hall of Fame on TrumpBot.rip!\n`;
+        msg += `📊 ${winPct}% win rate · ${totalWins}W–${totalLosses}L`;
+        if (rivalName && bestRivalWins) {
+          msg += `\n💪 Dominates ${rivalName.split(" ")[0]} (${bestRivalWins}× wins)`;
+        }
+        msg += `\nCome debate them 👉 https://trumpbot.rip/arena`;
+        await Share.share({ message: msg, url: "https://trumpbot.rip/arena" });
+      } catch {}
+      return;
+    }
+
+    // Native: capture the stats card as an image and share it
     try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      const medal = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : `#${rank}`;
-      let msg = `🏆 ${pName} is ${medal} in the Debate Hall of Fame on TrumpBot.rip!\n`;
-      msg += `📊 ${winPct}% win rate · ${totalWins}W–${totalLosses}L`;
-      if (rivalName && bestRivalWins) {
-        msg += `\n💪 Dominates ${rivalName.split(" ")[0]} (${bestRivalWins}× wins)`;
+      setHofCardData({
+        personaId: personaId || pName.toLowerCase(),
+        name: pName,
+        rank,
+        winPct,
+        wins: totalWins,
+        losses: totalLosses,
+        portrait,
+        rivalName,
+        bestRivalWins,
+      });
+
+      // Give React a tick to mount/update the off-screen card
+      await new Promise<void>((resolve) => setTimeout(resolve, 100));
+
+      if (!personaStatsCardRef.current) throw new Error("card ref not ready");
+
+      const uri = await captureRef(personaStatsCardRef.current, {
+        format: "png",
+        quality: 1,
+        result: "tmpfile",
+      });
+
+      const Sharing = await import("expo-sharing");
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(uri, {
+          mimeType: "image/png",
+          dialogTitle: `${pName} · Debate Hall of Fame`,
+        });
+      } else {
+        // Fallback: share the file URI as a message
+        await Share.share({ message: `https://trumpbot.rip/arena`, url: uri });
       }
-      msg += `\nCome debate them 👉 https://trumpbot.rip/arena`;
-      await Share.share({ message: msg, url: "https://trumpbot.rip/arena" });
-    } catch {}
+    } catch {
+      // Final fallback: text share
+      try {
+        const medal = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : `#${rank}`;
+        let msg = `🏆 ${pName} is ${medal} in the Debate Hall of Fame on TrumpBot.rip!\n`;
+        msg += `📊 ${winPct}% win rate · ${totalWins}W–${totalLosses}L`;
+        if (rivalName && bestRivalWins) {
+          msg += `\n💪 Dominates ${rivalName.split(" ")[0]} (${bestRivalWins}× wins)`;
+        }
+        msg += `\nCome debate them 👉 https://trumpbot.rip/arena`;
+        await Share.share({ message: msg, url: "https://trumpbot.rip/arena" });
+      } catch {}
+    } finally {
+      setHofCardData(null);
+    }
   }, []);
 
   // If a debater is selected that matches the moderator, auto-pick a different moderator.
@@ -5358,6 +5421,13 @@ export default function DebateStage() {
         </View>
       </Modal>
 
+      {/* ── Off-screen PersonaStatsCard for image capture ─────────────── */}
+      {hofCardData && (
+        <View style={{ position: "absolute", left: -9999, top: -9999 }} pointerEvents="none">
+          <PersonaStatsCard ref={personaStatsCardRef} data={hofCardData} />
+        </View>
+      )}
+
       {/* ── Hall of Fame Modal ──────────────────────────────────────────── */}
       <Modal visible={showHallOfFame} transparent animationType="fade" onRequestClose={() => setShowHallOfFame(false)}>
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.88)", justifyContent: "flex-end" }}>
@@ -5435,7 +5505,7 @@ export default function DebateStage() {
                           </View>
                           {/* Per-persona share button */}
                           <Pressable
-                            onPress={() => handlePersonaHofShare(pName, entry.winPct, entry.totalWins, entry.totalLosses, idx + 1, rivalName, entry.bestRivalWins)}
+                            onPress={() => handlePersonaHofShare(pName, entry.winPct, entry.totalWins, entry.totalLosses, idx + 1, rivalName, entry.bestRivalWins, entry.personaId, portrait)}
                             hitSlop={8}
                             style={{ marginLeft: 8, width: 30, height: 30, borderRadius: 15, backgroundColor: "rgba(255,215,0,0.08)", borderWidth: 1, borderColor: "rgba(255,215,0,0.25)", alignItems: "center", justifyContent: "center" }}
                             accessibilityLabel={`Share ${pName}'s stats`}
@@ -5484,7 +5554,7 @@ export default function DebateStage() {
                           </View>
                           {/* Per-persona share button */}
                           <Pressable
-                            onPress={() => handlePersonaHofShare(pName, pct, pick.wins, pick.losses, idx + 1)}
+                            onPress={() => handlePersonaHofShare(pName, pct, pick.wins, pick.losses, idx + 1, undefined, undefined, pick.personaId, portrait)}
                             hitSlop={8}
                             style={{ marginLeft: 8, width: 28, height: 28, borderRadius: 14, backgroundColor: "rgba(96,165,250,0.08)", borderWidth: 1, borderColor: "rgba(96,165,250,0.25)", alignItems: "center", justifyContent: "center" }}
                             accessibilityLabel={`Share ${pName}'s stats`}
