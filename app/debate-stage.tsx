@@ -2900,8 +2900,10 @@ export default function DebateStage() {
         if (rivalName && bestRivalWins) {
           msg += `\n💪 Dominates ${rivalName.split(" ")[0]} (${bestRivalWins}× wins)`;
         }
-        msg += `\nCome debate them 👉 https://trumpbot.rip/arena`;
-        await Share.share({ message: msg, url: "https://trumpbot.rip/arena" });
+        const pid = personaId || pName.toLowerCase().replace(/\s+/g, "");
+        const arenaUrl = `https://trumpbot.rip/arena?persona=${encodeURIComponent(pid)}`;
+        msg += `\nCome debate them 👉 ${arenaUrl}`;
+        await Share.share({ message: msg, url: arenaUrl });
       } catch {}
       return;
     }
@@ -2933,6 +2935,8 @@ export default function DebateStage() {
 
       const Sharing = await import("expo-sharing");
       const canShare = await Sharing.isAvailableAsync();
+      const pid = personaId || pName.toLowerCase().replace(/\s+/g, "");
+      const arenaUrl = `https://trumpbot.rip/arena?persona=${encodeURIComponent(pid)}`;
       if (canShare) {
         await Sharing.shareAsync(uri, {
           mimeType: "image/png",
@@ -2940,7 +2944,7 @@ export default function DebateStage() {
         });
       } else {
         // Fallback: share the file URI as a message
-        await Share.share({ message: `https://trumpbot.rip/arena`, url: uri });
+        await Share.share({ message: arenaUrl, url: uri });
       }
     } catch {
       // Final fallback: text share
@@ -2951,8 +2955,10 @@ export default function DebateStage() {
         if (rivalName && bestRivalWins) {
           msg += `\n💪 Dominates ${rivalName.split(" ")[0]} (${bestRivalWins}× wins)`;
         }
-        msg += `\nCome debate them 👉 https://trumpbot.rip/arena`;
-        await Share.share({ message: msg, url: "https://trumpbot.rip/arena" });
+        const pid = personaId || pName.toLowerCase().replace(/\s+/g, "");
+        const arenaUrl = `https://trumpbot.rip/arena?persona=${encodeURIComponent(pid)}`;
+        msg += `\nCome debate them 👉 ${arenaUrl}`;
+        await Share.share({ message: msg, url: arenaUrl });
       } catch {}
     } finally {
       setHofCardData(null);

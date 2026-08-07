@@ -3724,7 +3724,7 @@ export default function ArenaScreen() {
   const { showShareCard, awardBadge } = useEngagement();
   const { logEvent: logLiveEvent } = useLiveActivity();
   useScreenTracker("arena");
-  const { hof } = useLocalSearchParams<{ hof?: string }>();
+  const { hof, persona } = useLocalSearchParams<{ hof?: string; persona?: string }>();
 
   useEffect(() => { logLiveEvent("arena_enter"); }, []);
 
@@ -4177,6 +4177,19 @@ export default function ArenaScreen() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hof]);
+
+  // Deep-link: ?persona=<id> pre-selects that persona in the setup picker
+  useEffect(() => {
+    if (!persona) return;
+    const id = persona.trim().toLowerCase();
+    // Validate it's a known arena persona
+    if (!ARENA_PERSONAS[id]) return;
+    setSelectedPersonas((prev) => {
+      if (prev.includes(id)) return prev;
+      return [id, ...prev];
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [persona]);
 
   const voteForPersona = useCallback(async (personaId: string) => {
     const currentCount = speakerVoteCounts[personaId] || 0;
