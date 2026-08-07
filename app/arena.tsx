@@ -8322,7 +8322,7 @@ export default function ArenaScreen() {
                   </Animated.View>
                 )}
                 {voteAnim > 0 && (
-                  <Animated.View entering={FadeIn.duration(200)} style={s.votePopup}>
+                  <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(300)} style={s.votePopup}>
                     <Text style={s.votePopupText}>+1 ({voteAnim}/5)</Text>
                   </Animated.View>
                 )}

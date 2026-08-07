@@ -25,6 +25,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { trackShare } from "@/lib/track-share";
 import Animated, {
   FadeIn,
+  FadeOut,
   FadeInDown,
   useSharedValue,
   useAnimatedStyle,
@@ -232,6 +233,7 @@ function MessageBubble({
             {isCopied && (
               <Animated.View
                 entering={FadeIn.duration(200)}
+                exiting={FadeOut.duration(200)}
                 style={styles.copiedToast}
               >
                 <Text style={styles.copiedToastText}>Copied!</Text>

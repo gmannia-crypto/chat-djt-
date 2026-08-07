@@ -4972,7 +4972,7 @@ export default function DebateStage() {
               return (
                 <View style={[s.heatPillWrap, { opacity: visible ? 1 : 0 }]} testID={isA ? "heat-pill-a" : "heat-pill-b"}>
                   {flash ? (
-                    <Animated.View entering={ZoomIn.duration(180)} style={s.heatFlashPill}>
+                    <Animated.View entering={ZoomIn.duration(180)} exiting={FadeOut.duration(300)} style={s.heatFlashPill}>
                       <Text style={s.heatFlashText}>💥 FIRING BACK</Text>
                     </Animated.View>
                   ) : (
