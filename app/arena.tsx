@@ -3948,12 +3948,13 @@ export default function ArenaScreen() {
 
   // W/L records for all personas — shown on debater tiles in the picker
   const [allPersonaRecords, setAllPersonaRecords] = useState<Record<string, { wins: number; losses: number }>>({});
-  useEffect(() => {
+  const fetchAllPersonaRecords = useCallback(() => {
     fetch(new URL("/api/arena/all-records", getApiUrl()).toString())
       .then((r) => r.ok ? r.json() : null)
       .then((data) => { if (data) setAllPersonaRecords(data); })
       .catch(() => {});
   }, []);
+  useEffect(() => { fetchAllPersonaRecords(); }, [fetchAllPersonaRecords]);
 
   useEffect(() => {
     if (!breakingNewsBanner) { setBannerFlash(false); return; }
@@ -3975,6 +3976,8 @@ export default function ArenaScreen() {
   const [factCheckLoading, setFactCheckLoading] = useState(false);
   const factCheckInFlightRef = useRef(0);
   const [debateFinished, setDebateFinished] = useState(false);
+  // Re-fetch W/L records whenever a debate finishes so the picker tiles stay current
+  useEffect(() => { if (debateFinished) fetchAllPersonaRecords(); }, [debateFinished, fetchAllPersonaRecords]);
   const [showTapHint, setShowTapHint] = useState(false);
   const tapHintShownRef = useRef(false);
 
@@ -4134,9 +4137,11 @@ export default function ArenaScreen() {
           refreshBalance();
           setTimeout(() => setWinTokenToast(null), 3500);
         }
+        // Refresh picker W/L tiles so the new record shows immediately
+        fetchAllPersonaRecords();
       }
     } catch {}
-  }, [deviceId, refreshBalance]);
+  }, [deviceId, refreshBalance, fetchAllPersonaRecords]);
 
   const loadAllTimeScores = useCallback(async () => {
     try {
