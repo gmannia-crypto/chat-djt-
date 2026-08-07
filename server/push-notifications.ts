@@ -60,7 +60,11 @@ export async function getPushTokenCount(): Promise<number> {
   return parseInt(result.rows[0]?.count || "0");
 }
 
-export async function sendPushNotifications(title: string, body: string): Promise<{ sent: number; failed: number; errors: string[] }> {
+export async function sendPushNotifications(
+  title: string,
+  body: string,
+  data?: Record<string, unknown>,
+): Promise<{ sent: number; failed: number; errors: string[] }> {
   const tokens = await getAllPushTokens();
   if (tokens.length === 0) {
     return { sent: 0, failed: 0, errors: ["No registered push tokens"] };
@@ -71,7 +75,7 @@ export async function sendPushNotifications(title: string, body: string): Promis
     sound: "default" as const,
     title,
     body,
-    data: { type: "admin_notification" },
+    data: data ?? { type: "admin_notification" },
   }));
 
   const chunks: typeof messages[] = [];

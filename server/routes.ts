@@ -11132,6 +11132,20 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
           b_wins INTEGER NOT NULL DEFAULT 0,
           PRIMARY KEY (device_id, persona_a, persona_b)
         )`);
+        // Capture HOF #1 BEFORE any writes so the before/after comparison uses the
+        // fully settled ranking. Uses the same win-% query as /api/arena/hall-of-fame
+        // (min 5 total debates, ordered by win_pct DESC then total_wins DESC).
+        const HOF_MIN_DEBATES = 5;
+        const prevLeaderRow = await db.query(
+          `SELECT persona_id
+           FROM arena_wins_global
+           WHERE total_wins + total_losses >= $1
+           ORDER BY ROUND(total_wins::numeric / NULLIF(total_wins + total_losses, 0) * 100, 1) DESC, total_wins DESC
+           LIMIT 1`,
+          [HOF_MIN_DEBATES]
+        );
+        const prevLeader: string | null = prevLeaderRow.rows[0]?.persona_id ?? null;
+
         await db.query(
           `INSERT INTO arena_wins (device_id, persona_id, wins, losses, updated_at)
            VALUES ($1, $2, 1, 0, NOW())
@@ -11144,6 +11158,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
            ON CONFLICT (persona_id) DO UPDATE SET total_wins = arena_wins_global.total_wins + 1, updated_at = NOW()`,
           [personaId]
         );
+
         // Track loser's loss record
         if (loserId) {
           await db.query(
@@ -11173,6 +11188,28 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
               : `INSERT INTO arena_h2h_user (device_id, persona_a, persona_b, a_wins, b_wins) VALUES ($1, $2, $3, 0, 1) ON CONFLICT (device_id, persona_a, persona_b) DO UPDATE SET b_wins = arena_h2h_user.b_wins + 1`,
             [deviceId, hA, hB]
           );
+        }
+
+        // NOW check HOF #1 after ALL writes (winner's win + loser's loss) are committed.
+        // A leadership change driven by the loser's new loss dropping their win-% is
+        // captured correctly here.
+        const newLeaderRow = await db.query(
+          `SELECT persona_id
+           FROM arena_wins_global
+           WHERE total_wins + total_losses >= $1
+           ORDER BY ROUND(total_wins::numeric / NULLIF(total_wins + total_losses, 0) * 100, 1) DESC, total_wins DESC
+           LIMIT 1`,
+          [HOF_MIN_DEBATES]
+        );
+        const newLeader: string | null = newLeaderRow.rows[0]?.persona_id ?? null;
+        if (newLeader && newLeader !== prevLeader) {
+          // Fire-and-forget — don't let notification errors block the response
+          const personaLabel = newLeader.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+          sendPushNotifications(
+            "🏆 New Hall of Fame Leader!",
+            `${personaLabel} just claimed the #1 spot. Tap to see the Hall of Fame.`,
+            { url: "/arena?hof=1", type: "hall_of_fame_leader" },
+          ).catch((e) => console.error("HOF push notification error:", e));
         }
         const userRow = await db.query(`SELECT wins, losses FROM arena_wins WHERE device_id = $1 AND persona_id = $2`, [deviceId, personaId]);
         const globalRow = await db.query(`SELECT total_wins, total_losses FROM arena_wins_global WHERE persona_id = $1`, [personaId]);

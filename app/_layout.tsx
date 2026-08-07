@@ -1,5 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { Stack } from "expo-router";
+import { Stack, router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useState, useRef } from "react";
 import {
@@ -429,8 +429,28 @@ export default function RootLayout() {
     });
   }, []);
 
+  // Pending deep-link URL from a cold-start notification tap.
+  // Stored in state (not a ref) so a late-resolving getLastNotificationResponseAsync
+  // can still trigger the navigation effect even if appReady is already true.
+  const [pendingNotificationUrl, setPendingNotificationUrl] = useState<string | null>(null);
+  const [appReady, setAppReady] = useState(false);
+
   useEffect(() => {
     registerForPushNotifications();
+
+    // Cold-start: check whether the app was opened by tapping a notification
+    // while it was fully killed. getLastNotificationResponseAsync() returns the
+    // response that launched the app, if any. We store the URL in state so the
+    // navigation effect below re-runs regardless of whether appReady resolved
+    // before or after this promise settles.
+    Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (!response) return;
+      const data = response.notification.request.content.data as Record<string, unknown> | undefined;
+      const url = data?.url;
+      if (typeof url === "string" && url) {
+        setPendingNotificationUrl(url);
+      }
+    }).catch(() => {});
 
     notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
       console.log("Notification received:", notification.request.content.title);
@@ -438,6 +458,12 @@ export default function RootLayout() {
 
     responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
       console.log("Notification tapped:", response.notification.request.content.title);
+      const data = response.notification.request.content.data as Record<string, unknown> | undefined;
+      const url = data?.url;
+      if (typeof url === "string" && url) {
+        // Navigate to the URL encoded in the notification payload (e.g. "/arena?hof=1")
+        router.push(url as any);
+      }
     });
 
     return () => {
@@ -450,6 +476,15 @@ export default function RootLayout() {
     };
   }, []);
 
+  // Once both appReady and a pending URL are set (in any order), navigate.
+  // Because both are state, this effect re-fires whenever either changes.
+  useEffect(() => {
+    if (!appReady || !pendingNotificationUrl) return;
+    const url = pendingNotificationUrl;
+    setPendingNotificationUrl(null);
+    router.push(url as any);
+  }, [appReady, pendingNotificationUrl]);
+
   useEffect(() => {
     const t = setTimeout(() => setForceReady(true), 3000);
     return () => clearTimeout(t);
@@ -458,6 +493,7 @@ export default function RootLayout() {
   useEffect(() => {
     if ((fontsLoaded || fontError || forceReady) && disclaimerChecked) {
       SplashScreen.hideAsync();
+      setAppReady(true);
     }
   }, [fontsLoaded, fontError, forceReady, disclaimerChecked]);
 
