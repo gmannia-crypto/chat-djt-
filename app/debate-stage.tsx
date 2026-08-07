@@ -4697,7 +4697,7 @@ export default function DebateStage() {
             </Pressable>
           )}
           {topicsSlowWarning && topicsLoading && (
-            <Animated.View entering={FadeIn.duration(400)} style={{ marginTop: 8, flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Animated.View entering={FadeIn.duration(400)} exiting={FadeOut.duration(300)} style={{ marginTop: 8, flexDirection: "row", alignItems: "center", gap: 6 }}>
               <ActivityIndicator size="small" color="#FF9500" />
               <Text style={[s.startSub, { color: "#FF9500" }]}>Still generating topics…</Text>
             </Animated.View>
