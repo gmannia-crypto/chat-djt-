@@ -706,6 +706,7 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   francescresswelsing: require("@/assets/images/persona-francescresswelsing.jpg"),
   dc: require("@/assets/images/persona-dc.png"),
   bishopfundme: require("@/assets/images/persona-bishopfundme.png"),
+  mikejohnson: require("@/assets/images/persona-mikejohnson.png"),
 };
 
 const FX_KEY = "interview_fx_enabled_v1";
