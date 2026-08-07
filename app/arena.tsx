@@ -7441,14 +7441,22 @@ export default function ArenaScreen() {
                   const p = getPersona(pid);
                   if (!p) return null;
                   const picked = betPickId === pid;
+                  const rec = allPersonaRecords[pid];
+                  const hasRecord = rec && (rec.wins > 0 || rec.losses > 0);
                   return (
                     <Pressable key={pid} onPress={() => { Haptics.selectionAsync(); setBetPickId(pid); }}
                       style={{
                         paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5,
                         borderColor: picked ? "#FBBF24" : "rgba(255,255,255,0.15)",
                         backgroundColor: picked ? "rgba(251,191,36,0.15)" : "rgba(255,255,255,0.04)",
+                        alignItems: "center",
                       }}>
                       <Text style={{ color: picked ? "#FBBF24" : "#888", fontSize: 12, fontWeight: "700" }}>{p.shortName}</Text>
+                      {hasRecord && (
+                        <Text style={{ color: picked ? "#4ADE80" : "#4ADE80", fontSize: 9, fontWeight: "700", marginTop: 1, opacity: picked ? 1 : 0.7 }}>
+                          {rec.wins}W-{rec.losses}L
+                        </Text>
+                      )}
                     </Pressable>
                   );
                 })}
