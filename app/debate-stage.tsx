@@ -942,6 +942,7 @@ export default function DebateStage() {
   const [showHallOfFame, setShowHallOfFame] = useState(false);
   const [hofData, setHofData] = useState<{ leaderboard: HofEntry[]; userPicks: HofUserPick[] } | null>(null);
   const [hofLoading, setHofLoading] = useState(false);
+  const [hofShareLoading, setHofShareLoading] = useState(false);
   const hofLastFetchedAtRef = useRef<number>(0);
 
   const flatListRef = useRef<FlatList>(null);
@@ -2857,9 +2858,27 @@ export default function DebateStage() {
   }, [interviewers, interviewees]);
 
   const handleHofShare = useCallback(async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setHofShareLoading(true);
+
+    // Always fetch fresh data so the share message reflects the live leaderboard.
+    let freshData: typeof hofData = null;
     try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      const top = hofData?.leaderboard?.slice(0, 3) ?? [];
+      const headers: Record<string, string> = {};
+      if (deviceId) headers["x-device-id"] = deviceId;
+      const res = await fetch(`${getApiUrl()}/api/arena/hall-of-fame`, { headers });
+      if (res.ok) {
+        freshData = await res.json();
+        setHofData(freshData);
+        hofLastFetchedAtRef.current = Date.now();
+      }
+    } catch {}
+
+    // Use fresh data if available; fall back to the last cached snapshot.
+    const data = freshData ?? hofData;
+
+    try {
+      const top = data?.leaderboard?.slice(0, 3) ?? [];
       let msg = "🏆 Debate Hall of Fame on TrumpBot.rip\n\n";
       if (top.length > 0) {
         top.forEach((entry, i) => {
@@ -2870,11 +2889,14 @@ export default function DebateStage() {
         const leader = debaterPool.find((p) => p.id === top[0].personaId)?.name || top[0].personaId;
         msg += `\n${leader} leads the arena — come debate them! 👉 https://trumpbot.rip/arena`;
       } else {
+        // Fallback only when the leaderboard is genuinely empty (0 entries)
         msg += "Rankings are heating up — come debate your picks! 👉 https://trumpbot.rip/arena";
       }
       await Share.share({ message: msg, url: "https://trumpbot.rip/arena" });
     } catch {}
-  }, [hofData, debaterPool]);
+
+    setHofShareLoading(false);
+  }, [hofData, debaterPool, deviceId]);
 
   const handlePersonaHofShare = useCallback(async (
     pName: string,
@@ -5371,8 +5393,10 @@ export default function DebateStage() {
                 <Text style={{ color: "#FFD700", fontSize: 17, fontWeight: "900", letterSpacing: 0.8 }}>DEBATE HALL OF FAME</Text>
                 <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginTop: 2 }}>All-time rankings · updated in real time</Text>
               </View>
-              <Pressable onPress={handleHofShare} hitSlop={10} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,215,0,0.12)", borderWidth: 1, borderColor: "rgba(255,215,0,0.3)", alignItems: "center", justifyContent: "center", marginRight: 8 }} accessibilityLabel="Share leaderboard">
-                <Ionicons name="share-social" size={17} color="#FFD700" />
+              <Pressable onPress={handleHofShare} disabled={hofShareLoading} hitSlop={10} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,215,0,0.12)", borderWidth: 1, borderColor: "rgba(255,215,0,0.3)", alignItems: "center", justifyContent: "center", marginRight: 8, opacity: hofShareLoading ? 0.6 : 1 }} accessibilityLabel="Share leaderboard">
+                {hofShareLoading
+                  ? <ActivityIndicator size="small" color="#FFD700" />
+                  : <Ionicons name="share-social" size={17} color="#FFD700" />}
               </Pressable>
               <Pressable onPress={() => setShowHallOfFame(false)}>
                 <Ionicons name="close" size={22} color="rgba(255,255,255,0.4)" />
