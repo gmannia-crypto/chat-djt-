@@ -942,6 +942,7 @@ export default function DebateStage() {
   const [showHallOfFame, setShowHallOfFame] = useState(false);
   const [hofData, setHofData] = useState<{ leaderboard: HofEntry[]; userPicks: HofUserPick[] } | null>(null);
   const [hofLoading, setHofLoading] = useState(false);
+  const hofLastFetchedAtRef = useRef<number>(0);
 
   const flatListRef = useRef<FlatList>(null);
   const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -2811,17 +2812,25 @@ export default function DebateStage() {
     }
   }, [phase, fetchDebateRecord, fetchAllPersonaRecords]);
 
-  const fetchHallOfFame = useCallback(async () => {
+  const HOF_CACHE_MS = 5 * 60 * 1000; // 5-minute cooldown between background re-fetches
+  const fetchHallOfFame = useCallback(async (force = false) => {
+    if (!force && Date.now() - hofLastFetchedAtRef.current < HOF_CACHE_MS) return;
     setHofLoading(true);
     try {
       const headers: Record<string, string> = {};
       if (deviceId) headers["x-device-id"] = deviceId;
       const res = await fetch(`${getApiUrl()}/api/arena/hall-of-fame`, { headers });
-      if (res.ok) setHofData(await res.json());
+      if (res.ok) {
+        setHofData(await res.json());
+        hofLastFetchedAtRef.current = Date.now();
+      }
     } catch {}
     setHofLoading(false);
   }, [deviceId]);
-  useEffect(() => { fetchHallOfFame(); }, [fetchHallOfFame]);
+  // Fetch on mount (force=true so the initial load always runs)
+  useEffect(() => { fetchHallOfFame(true); }, [fetchHallOfFame]);
+  // Re-fetch with cooldown whenever the setup/picker screen becomes visible
+  useEffect(() => { if (phase === "setup") fetchHallOfFame(); }, [phase, fetchHallOfFame]);
 
   const interviewer = useMemo(() => interviewers.find((p) => p.id === interviewerId) || interviewees.find((p) => p.id === interviewerId) || null, [interviewers, interviewees, interviewerId]);
   const interviewee = useMemo(() => interviewees.find((p) => p.id === intervieweeId) || interviewers.find((p) => p.id === intervieweeId) || null, [interviewees, interviewers, intervieweeId]);
@@ -4018,7 +4027,7 @@ export default function DebateStage() {
             <Text style={s.headerSub}>Pick a moderator · cut mics · timed rounds</Text>
           </View>
           <Pressable
-            onPress={() => { setShowHallOfFame(true); fetchHallOfFame(); }}
+            onPress={() => { setShowHallOfFame(true); fetchHallOfFame(true); }}
             style={s.iconBtn}
             testID="open-hall-of-fame"
             accessibilityLabel="Hall of Fame Leaderboard"
@@ -4557,7 +4566,7 @@ export default function DebateStage() {
         <Pressable onPress={openInterviewPoll} style={s.iconBtnSm} testID="interview-poll">
           <Ionicons name="bar-chart" size={16} color="#FFD700" />
         </Pressable>
-        <Pressable onPress={() => { setShowHallOfFame(true); fetchHallOfFame(); }} style={s.iconBtnSm} testID="open-hall-of-fame-live" accessibilityLabel="Hall of Fame">
+        <Pressable onPress={() => { setShowHallOfFame(true); fetchHallOfFame(true); }} style={s.iconBtnSm} testID="open-hall-of-fame-live" accessibilityLabel="Hall of Fame">
           <Ionicons name="medal-outline" size={16} color="#FFD700" />
         </Pressable>
       </View>
