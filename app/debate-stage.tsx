@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import {
   View, Text, Pressable, ScrollView, StyleSheet, Modal, ActivityIndicator,
   Platform, Image, FlatList, TextInput, KeyboardAvoidingView, Alert, Share, Linking,
+  AppState,
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -2799,6 +2800,16 @@ export default function DebateStage() {
   useEffect(() => { fetchHallOfFame(true); }, [fetchHallOfFame]);
   // Re-fetch with cooldown whenever the setup/picker screen becomes visible
   useEffect(() => { if (phase === "setup") fetchHallOfFame(); }, [phase, fetchHallOfFame]);
+  // Re-fetch when the app returns to the foreground while on the setup screen
+  // (phase doesn't change in this case, so the effect above won't fire)
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active" && phase === "setup") {
+        fetchHallOfFame();
+      }
+    });
+    return () => sub.remove();
+  }, [phase, fetchHallOfFame]);
 
   const interviewer = useMemo(() => interviewers.find((p) => p.id === interviewerId) || interviewees.find((p) => p.id === interviewerId) || null, [interviewers, interviewees, interviewerId]);
   const interviewee = useMemo(() => interviewees.find((p) => p.id === intervieweeId) || interviewers.find((p) => p.id === intervieweeId) || null, [interviewees, interviewers, intervieweeId]);
