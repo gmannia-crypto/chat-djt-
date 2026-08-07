@@ -4191,6 +4191,9 @@ export default function DebateStage() {
               const initials = mod.name.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
               const rec = allPersonaRecords[mod.personaId];
               const hasRecord = rec && (rec.wins > 0 || rec.losses > 0);
+              const hofEntry = hofRankMap[mod.personaId];
+              const hofMedal = hofEntry ? (hofEntry.rank === 1 ? "🥇" : hofEntry.rank === 2 ? "🥈" : hofEntry.rank === 3 ? "🥉" : null) : null;
+              const hofLabel = hofEntry ? (hofMedal ? `${hofMedal} #${hofEntry.rank}` : `#${hofEntry.rank} · ${Math.round(hofEntry.winPct)}%`) : null;
               return (
                 <Pressable key={ms} onPress={() => { Haptics.selectionAsync(); setModeratorStyle(ms); }}
                   style={s.personaCard} testID={`moderator-${ms}`}>
@@ -4203,6 +4206,9 @@ export default function DebateStage() {
                   <Text style={[s.personaCardName, isSelected && s.personaCardNameActive]} numberOfLines={1}>{mod.name}</Text>
                   {hasRecord && (
                     <Text style={s.personaCardRecord}>{rec.wins}W-{rec.losses}L</Text>
+                  )}
+                  {hofLabel && (
+                    <Text style={s.personaCardHofRank}>{hofLabel}</Text>
                   )}
                 </Pressable>
               );
