@@ -4444,9 +4444,12 @@ export default function ArenaScreen() {
     setVerdictData(null);
     setVerdictTimedOut(false);
     setShowVerdictModal(false);
+    // Refresh W/L records so picker tiles reflect the latest DB totals even when
+    // the debate ended without a winner (manual stop, squabble exit, time-up).
+    fetchAllPersonaRecords();
     confirmedExitRef.current = true;
     doNav();
-  }, [hasSession, sessionExpiresAt, saveSessionState]);
+  }, [hasSession, sessionExpiresAt, saveSessionState, fetchAllPersonaRecords]);
 
   const [showExitModal, setShowExitModal] = useState(false);
   const pendingExitNavRef = useRef<(() => void) | null>(null);
