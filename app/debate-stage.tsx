@@ -3620,6 +3620,8 @@ export default function DebateStage() {
     sessionEndsAtRef.current = endsAt;
     setSecondsLeft(Math.ceil(clientMs / 1000));
     setMessages([]);
+    setFightCardPreviewUriSafe(null);
+    fightCardFileUriRef.current = null;
     const startIdx = selectedTopicId ? Math.max(0, topics.findIndex(t => t.id === selectedTopicId)) : 0;
     setTopicIdx(startIdx);
     topicIdxRef.current = startIdx;
@@ -3715,6 +3717,8 @@ export default function DebateStage() {
         sessionEndsAtRef.current = endsAtU;
         setSecondsLeft(duration * 60);
         setMessages([]);
+        setFightCardPreviewUriSafe(null);
+        fightCardFileUriRef.current = null;
         const startIdx2 = selectedTopicId ? Math.max(0, topics.findIndex(t => t.id === selectedTopicId)) : 0;
         setTopicIdx(startIdx2);
         topicIdxRef.current = startIdx2;
@@ -5559,9 +5563,9 @@ export default function DebateStage() {
       {renderPaywall()}
 
       {/* ── Share / Transcript Modal ─────────────────────────────────────── */}
-      <Modal visible={showShareModal} transparent animationType="slide" onRequestClose={() => { fightCardGenTokenRef.current++; setShowShareModal(false); setFightCardPreviewUriSafe(null); fightCardFileUriRef.current = null; }}>
+      <Modal visible={showShareModal} transparent animationType="slide" onRequestClose={() => { fightCardGenTokenRef.current++; setShowShareModal(false); }}>
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.82)", justifyContent: "flex-end" }}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => { fightCardGenTokenRef.current++; setShowShareModal(false); setFightCardPreviewUriSafe(null); fightCardFileUriRef.current = null; }} />
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => { fightCardGenTokenRef.current++; setShowShareModal(false); }} />
           <View style={{ backgroundColor: "#0F0F14", borderTopLeftRadius: 26, borderTopRightRadius: 26, borderTopWidth: 1, borderColor: "rgba(74,222,128,0.3)", padding: 18, maxHeight: "88%" }}>
             {/* Handle */}
             <View style={{ alignSelf: "center", width: 44, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.18)", marginBottom: 14 }} />
@@ -5570,7 +5574,7 @@ export default function DebateStage() {
             <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 14 }}>
               <Ionicons name="share-social" size={18} color="#4ADE80" />
               <Text style={{ flex: 1, color: "#fff", fontSize: 16, fontWeight: "900", marginLeft: 8, letterSpacing: 0.5 }}>SHARE DEBATE</Text>
-              <Pressable onPress={() => { fightCardGenTokenRef.current++; setShowShareModal(false); setFightCardPreviewUriSafe(null); fightCardFileUriRef.current = null; }}>
+              <Pressable onPress={() => { fightCardGenTokenRef.current++; setShowShareModal(false); }}>
                 <Ionicons name="close" size={22} color="rgba(255,255,255,0.5)" />
               </Pressable>
             </View>
