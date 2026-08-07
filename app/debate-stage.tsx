@@ -3072,8 +3072,24 @@ export default function DebateStage() {
     { id: "fb_5", title: "Foreign policy — America First or global leadership?", description: "NATO, wars, alliances, and the cost of intervention", era: "current" },
   ];
 
+  // Tracks the AbortController for the most recent generateTopics call so we can
+  // cancel it when a new call supersedes it (e.g. user swaps personas mid-retry).
+  const generateTopicsAbortRef = useRef<AbortController | null>(null);
+  // Monotonically-incrementing generation counter: each call bumps it and checks
+  // at every async boundary that it is still the latest call before writing state.
+  const generateTopicsGenRef = useRef(0);
+
   const generateTopics = useCallback(async () => {
     if (!interviewerId || !intervieweeId) return;
+
+    // Cancel any in-flight previous call.
+    generateTopicsAbortRef.current?.abort();
+    const abortController = new AbortController();
+    generateTopicsAbortRef.current = abortController;
+
+    // Capture the generation for this call; stale calls bail out before touching state.
+    const generation = ++generateTopicsGenRef.current;
+
     setTopicsLoading(true);
     setTopicsError(false);
     setTopicsAreFallback(false);
@@ -3081,7 +3097,6 @@ export default function DebateStage() {
     setTopicIdx(0);
     setSelectedTopicId(null);
     setCompletedTopics(new Set());
-    const abortController = new AbortController();
     const timeoutId = setTimeout(() => abortController.abort(), 15000);
     try {
       const res = await fetch(new URL("/api/arena/interview-topics", getApiUrl()).toString(), {
@@ -3090,8 +3105,11 @@ export default function DebateStage() {
         body: JSON.stringify({ interviewerId, intervieweeId, topicMix, durationMinutes: duration, interviewStyle, category }),
         signal: abortController.signal,
       });
+      // Discard result if a newer call has already started.
+      if (generation !== generateTopicsGenRef.current) return;
       if (res.ok) {
         const data = await res.json();
+        if (generation !== generateTopicsGenRef.current) return;
         const loaded = data.topics || [];
         if (loaded.length > 0) {
           setTopics(loaded);
@@ -3109,6 +3127,8 @@ export default function DebateStage() {
         setTopicsError(true);
       }
     } catch (err: unknown) {
+      // Discard result if a newer call has already started.
+      if (generation !== generateTopicsGenRef.current) return;
       // Timed out (AbortError) or hard network failure — show error state so users can retry.
       // We deliberately don't use the fallback here: the request never completed, so we
       // can't know whether the server is reachable; the user must explicitly retry.
@@ -3125,7 +3145,10 @@ export default function DebateStage() {
       }
     } finally {
       clearTimeout(timeoutId);
-      setTopicsLoading(false);
+      // Only clear the loading spinner if this is still the active call.
+      if (generation === generateTopicsGenRef.current) {
+        setTopicsLoading(false);
+      }
     }
   }, [interviewerId, intervieweeId, topicMix, duration, interviewStyle]);
 
