@@ -341,7 +341,7 @@ function pickRandom<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-function PersonaCard({ persona, selected, onPress }: { persona: Persona; selected: boolean; onPress: () => void }) {
+function PersonaCard({ persona, selected, onPress, hofLabel }: { persona: Persona; selected: boolean; onPress: () => void; hofLabel?: string }) {
   return (
     <Pressable
       onPress={onPress}
@@ -353,6 +353,9 @@ function PersonaCard({ persona, selected, onPress }: { persona: Persona; selecte
     >
       <Image source={persona.image} style={[cardStyles.personaAvatar, { borderColor: persona.color }]} />
       <Text style={[cardStyles.personaName, selected && { color: persona.color }]}>{persona.name}</Text>
+      {hofLabel && (
+        <Text style={cardStyles.personaCardHofRank}>{hofLabel}</Text>
+      )}
     </Pressable>
   );
 }
@@ -566,6 +569,7 @@ export default function FaceoffScreen() {
   const [viralShareData, setViralShareData] = useState({ headline: "", quote: "" });
   const [persona1Record, setPersona1Record] = useState<{ wins: number; losses: number } | null>(null);
   const [persona2Record, setPersona2Record] = useState<{ wins: number; losses: number } | null>(null);
+  const [hofData, setHofData] = useState<{ leaderboard: Array<{ personaId: string; winPct: number }> } | null>(null);
 
   const handleSpeak = useCallback(async (text: string, personaId: string) => {
     try {
@@ -611,7 +615,21 @@ export default function FaceoffScreen() {
       })
       .catch(() => {});
     getFaceoffStats().then(s => { if (mountedRef.current) setViralFaceoffStats(s); });
+    // Fetch HoF leaderboard for rank badges on contender picker tiles
+    globalThis.fetch(`${baseUrl}/api/arena/hall-of-fame`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.leaderboard && mountedRef.current) setHofData(data); })
+      .catch(() => {});
   }, []);
+
+  const hofRankMap = React.useMemo<Record<string, { rank: number; winPct: number }>>(() => {
+    if (!hofData?.leaderboard) return {};
+    const map: Record<string, { rank: number; winPct: number }> = {};
+    hofData.leaderboard.forEach((e: { personaId: string; winPct: number }, i: number) => {
+      map[e.personaId] = { rank: i + 1, winPct: e.winPct };
+    });
+    return map;
+  }, [hofData]);
 
   const handlePotwVote = useCallback((personaId: string) => {
     if (potwHasVoted) return;
@@ -935,22 +953,28 @@ export default function FaceoffScreen() {
         <Animated.View entering={FadeInDown.delay(200).duration(400)}>
           <Text style={styles.sectionLabel}>CONTENDER 1</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.personaScroll} contentContainerStyle={styles.personaScrollContent}>
-            {PERSONAS.map((p) => (
-              <PersonaCard
-                key={p.id}
-                persona={p}
-                selected={contender1.id === p.id}
-                onPress={() => {
-                  if (p.id === contender2.id) {
-                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-                    return;
-                  }
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setContender1(p);
-                  if (debateStarted) handleReset();
-                }}
-              />
-            ))}
+            {PERSONAS.map((p) => {
+              const hofEntry = hofRankMap[p.id];
+              const hofMedal = hofEntry ? (hofEntry.rank === 1 ? "🥇" : hofEntry.rank === 2 ? "🥈" : hofEntry.rank === 3 ? "🥉" : null) : null;
+              const hofLabel = hofEntry ? (hofMedal ? `${hofMedal} #${hofEntry.rank}` : `#${hofEntry.rank} · ${Math.round(hofEntry.winPct)}%`) : null;
+              return (
+                <PersonaCard
+                  key={p.id}
+                  persona={p}
+                  selected={contender1.id === p.id}
+                  hofLabel={hofLabel ?? undefined}
+                  onPress={() => {
+                    if (p.id === contender2.id) {
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                      return;
+                    }
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setContender1(p);
+                    if (debateStarted) handleReset();
+                  }}
+                />
+              );
+            })}
           </ScrollView>
         </Animated.View>
 
@@ -965,22 +989,28 @@ export default function FaceoffScreen() {
         <Animated.View entering={FadeInDown.delay(300).duration(400)}>
           <Text style={styles.sectionLabel}>CONTENDER 2</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.personaScroll} contentContainerStyle={styles.personaScrollContent}>
-            {PERSONAS.map((p) => (
-              <PersonaCard
-                key={p.id}
-                persona={p}
-                selected={contender2.id === p.id}
-                onPress={() => {
-                  if (p.id === contender1.id) {
-                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-                    return;
-                  }
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setContender2(p);
-                  if (debateStarted) handleReset();
-                }}
-              />
-            ))}
+            {PERSONAS.map((p) => {
+              const hofEntry = hofRankMap[p.id];
+              const hofMedal = hofEntry ? (hofEntry.rank === 1 ? "🥇" : hofEntry.rank === 2 ? "🥈" : hofEntry.rank === 3 ? "🥉" : null) : null;
+              const hofLabel = hofEntry ? (hofMedal ? `${hofMedal} #${hofEntry.rank}` : `#${hofEntry.rank} · ${Math.round(hofEntry.winPct)}%`) : null;
+              return (
+                <PersonaCard
+                  key={p.id}
+                  persona={p}
+                  selected={contender2.id === p.id}
+                  hofLabel={hofLabel ?? undefined}
+                  onPress={() => {
+                    if (p.id === contender1.id) {
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                      return;
+                    }
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setContender2(p);
+                    if (debateStarted) handleReset();
+                  }}
+                />
+              );
+            })}
           </ScrollView>
         </Animated.View>
 
@@ -1327,6 +1357,13 @@ const cardStyles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700" as const,
     color: "rgba(255,255,255,0.6)",
+    textAlign: "center" as const,
+  },
+  personaCardHofRank: {
+    color: "#FFD700",
+    fontSize: 9,
+    fontWeight: "700" as const,
+    marginTop: 2,
     textAlign: "center" as const,
   },
 });

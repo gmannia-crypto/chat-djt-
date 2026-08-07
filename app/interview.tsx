@@ -466,6 +466,7 @@ export default function InterviewScreen() {
   const lieVotesPendingRef = useRef<Set<string>>(new Set());
   const [flaggedMsgIds, setFlaggedMsgIds] = useState<Set<string>>(new Set());
   const flagPendingRef = useRef<Set<string>>(new Set());
+  const [hofData, setHofData] = useState<{ leaderboard: Array<{ personaId: string; winPct: number }> } | null>(null);
 
   const submitLieVote = useCallback((lie: LieEntry, direction: 1 | -1) => {
     if (!deviceId) return;
@@ -625,6 +626,23 @@ export default function InterviewScreen() {
       } catch {}
     })();
   }, []);
+
+  // Fetch HoF leaderboard once on mount to show rank badges in INTERVIEWER picker
+  useEffect(() => {
+    fetch(new URL("/api/arena/hall-of-fame", getApiUrl()).toString())
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data?.leaderboard) setHofData(data); })
+      .catch(() => {});
+  }, []);
+
+  const hofRankMap = useMemo<Record<string, { rank: number; winPct: number }>>(() => {
+    if (!hofData?.leaderboard) return {};
+    const map: Record<string, { rank: number; winPct: number }> = {};
+    hofData.leaderboard.forEach((e: { personaId: string; winPct: number }, i: number) => {
+      map[e.personaId] = { rank: i + 1, winPct: e.winPct };
+    });
+    return map;
+  }, [hofData]);
 
   const toggleVoice = useCallback(() => {
     const next = !voiceEnabledRef.current;
@@ -1959,6 +1977,9 @@ export default function InterviewScreen() {
               const portrait = PERSONA_PORTRAITS[p.id];
               const isSelected = interviewerId === p.id;
               const initials = p.name.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
+              const hofEntry = hofRankMap[p.id];
+              const hofMedal = hofEntry ? (hofEntry.rank === 1 ? "🥇" : hofEntry.rank === 2 ? "🥈" : hofEntry.rank === 3 ? "🥉" : null) : null;
+              const hofLabel = hofEntry ? (hofMedal ? `${hofMedal} #${hofEntry.rank}` : `#${hofEntry.rank} · ${Math.round(hofEntry.winPct)}%`) : null;
               return (
                 <Pressable key={p.id} onPress={() => { Haptics.selectionAsync(); setInterviewerId(p.id); }}
                   style={s.personaCard} testID={`interviewer-${p.id}`}>
@@ -1969,6 +1990,9 @@ export default function InterviewScreen() {
                     }
                   </View>
                   <Text style={[s.personaCardName, isSelected && s.personaCardNameActive]} numberOfLines={1}>{p.name}</Text>
+                  {hofLabel && (
+                    <Text style={s.personaCardHofRank}>{hofLabel}</Text>
+                  )}
                 </Pressable>
               );
             })}
@@ -2755,6 +2779,7 @@ const s = StyleSheet.create({
   personaAvatarInitials: { color: "#FFD700", fontSize: 18, fontWeight: "800" },
   personaCardName: { color: "rgba(255,255,255,0.6)", fontSize: 10, fontWeight: "700", marginTop: 5, textAlign: "center" },
   personaCardNameActive: { color: "#FFD700" },
+  personaCardHofRank: { color: "#FFD700", fontSize: 9, fontWeight: "700", marginTop: 2, textAlign: "center" },
 
   durationRow: { flexDirection: "row", gap: 8 },
   durationCard: { flex: 1, padding: 14, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.05)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)", alignItems: "center" },
