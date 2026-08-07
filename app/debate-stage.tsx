@@ -839,6 +839,7 @@ export default function DebateStage() {
 
   const [topics, setTopics] = useState<Topic[]>([]);
   const [topicsLoading, setTopicsLoading] = useState(false);
+  const [topicsSlowWarning, setTopicsSlowWarning] = useState(false);
   const [topicsAreFallback, setTopicsAreFallback] = useState(false);
   const [topicsError, setTopicsError] = useState(false);
   const [topicIdx, setTopicIdx] = useState(0);
@@ -3136,6 +3137,16 @@ export default function DebateStage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [interviewerId, intervieweeId, topicMix, duration, interviewStyle]);
 
+  // Show a soft "still working…" warning after 7 s of topicsLoading
+  useEffect(() => {
+    if (!topicsLoading) {
+      setTopicsSlowWarning(false);
+      return;
+    }
+    const t = setTimeout(() => setTopicsSlowWarning(true), 7000);
+    return () => clearTimeout(t);
+  }, [topicsLoading]);
+
   // Countdown
   useEffect(() => {
     if (phase !== "live") return;
@@ -4661,6 +4672,12 @@ export default function DebateStage() {
                 {topicsLoading ? "LOADING TOPICS…" : isStarting ? "STARTING…" : !deviceId ? "CONNECTING…" : `START ${duration}-MIN INTERVIEW`}
               </Text>
             </Pressable>
+          )}
+          {topicsSlowWarning && topicsLoading && (
+            <Animated.View entering={FadeIn.duration(400)} style={{ marginTop: 8, flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <ActivityIndicator size="small" color="#FF9500" />
+              <Text style={[s.startSub, { color: "#FF9500" }]}>Still generating topics…</Text>
+            </Animated.View>
           )}
           {topicsAreFallback ? (
             <Pressable onPress={generateTopics} style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 }}>
