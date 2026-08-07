@@ -840,6 +840,7 @@ export default function DebateStage() {
   const [topics, setTopics] = useState<Topic[]>([]);
   const [topicsLoading, setTopicsLoading] = useState(false);
   const [topicsAreFallback, setTopicsAreFallback] = useState(false);
+  const [topicsError, setTopicsError] = useState(false);
   const [topicIdx, setTopicIdx] = useState(0);
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
   const [completedTopics, setCompletedTopics] = useState<Set<string>>(new Set());
@@ -3047,15 +3048,20 @@ export default function DebateStage() {
   const generateTopics = useCallback(async () => {
     if (!interviewerId || !intervieweeId) return;
     setTopicsLoading(true);
+    setTopicsError(false);
+    setTopicsAreFallback(false);
     setTopics([]);
     setTopicIdx(0);
     setSelectedTopicId(null);
     setCompletedTopics(new Set());
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => abortController.abort(), 15000);
     try {
       const res = await fetch(new URL("/api/arena/interview-topics", getApiUrl()).toString(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ interviewerId, intervieweeId, topicMix, durationMinutes: duration, interviewStyle, category }),
+        signal: abortController.signal,
       });
       if (res.ok) {
         const data = await res.json();
@@ -3063,18 +3069,35 @@ export default function DebateStage() {
         if (loaded.length > 0) {
           setTopics(loaded);
           setTopicsAreFallback(false);
-        } else {
+        } else if (FALLBACK_TOPICS.length > 0) {
           setTopics(FALLBACK_TOPICS);
           setTopicsAreFallback(true);
+        } else {
+          setTopicsError(true);
         }
-      } else {
+      } else if (FALLBACK_TOPICS.length > 0) {
         setTopics(FALLBACK_TOPICS);
         setTopicsAreFallback(true);
+      } else {
+        setTopicsError(true);
       }
-    } catch {
-      setTopics(FALLBACK_TOPICS);
-      setTopicsAreFallback(true);
+    } catch (err: unknown) {
+      // Timed out (AbortError) or hard network failure — show error state so users can retry.
+      // We deliberately don't use the fallback here: the request never completed, so we
+      // can't know whether the server is reachable; the user must explicitly retry.
+      const isAbort = err instanceof Error && err.name === "AbortError";
+      const isNetworkErr = err instanceof TypeError; // fetch throws TypeError on network failure
+      if (isAbort || isNetworkErr) {
+        setTopicsError(true);
+      } else if (FALLBACK_TOPICS.length > 0) {
+        // Unexpected JS error — fall back gracefully
+        setTopics(FALLBACK_TOPICS);
+        setTopicsAreFallback(true);
+      } else {
+        setTopicsError(true);
+      }
     } finally {
+      clearTimeout(timeoutId);
       setTopicsLoading(false);
     }
   }, [interviewerId, intervieweeId, topicMix, duration, interviewStyle]);
@@ -4587,26 +4610,39 @@ export default function DebateStage() {
             </View>
           )}
 
-          <Pressable
-            onPress={startInterview}
-            disabled={isStarting || !interviewerId || !intervieweeId || interviewerId === intervieweeId || topics.length === 0 || topicsLoading}
-            style={[s.startBtn, (isStarting || !interviewerId || !intervieweeId || interviewerId === intervieweeId || topics.length === 0 || topicsLoading) && { opacity: 0.4 }]}
-            testID="start-interview"
-          >
-            {topicsLoading ? (
-              <ActivityIndicator size="small" color="#000" />
-            ) : (
-              <Ionicons name="mic" size={18} color="#000" />
-            )}
-            <Text style={s.startBtnText}>
-              {topicsLoading ? "LOADING TOPICS…" : isStarting ? "STARTING…" : !deviceId ? "CONNECTING…" : `START ${duration}-MIN INTERVIEW`}
-            </Text>
-          </Pressable>
+          {topicsError && !topicsLoading ? (
+            <Pressable
+              onPress={generateTopics}
+              style={[s.startBtn, { backgroundColor: "#3a1a1a", borderWidth: 1, borderColor: "#FF4D4D" }]}
+              testID="start-interview"
+            >
+              <Ionicons name="warning" size={18} color="#FF4D4D" />
+              <Text style={[s.startBtnText, { color: "#FF4D4D" }]}>TOPICS UNAVAILABLE — Retry</Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              onPress={startInterview}
+              disabled={isStarting || !interviewerId || !intervieweeId || interviewerId === intervieweeId || topics.length === 0 || topicsLoading}
+              style={[s.startBtn, (isStarting || !interviewerId || !intervieweeId || interviewerId === intervieweeId || topics.length === 0 || topicsLoading) && { opacity: 0.4 }]}
+              testID="start-interview"
+            >
+              {topicsLoading ? (
+                <ActivityIndicator size="small" color="#000" />
+              ) : (
+                <Ionicons name="mic" size={18} color="#000" />
+              )}
+              <Text style={s.startBtnText}>
+                {topicsLoading ? "LOADING TOPICS…" : isStarting ? "STARTING…" : !deviceId ? "CONNECTING…" : `START ${duration}-MIN INTERVIEW`}
+              </Text>
+            </Pressable>
+          )}
           {topicsAreFallback ? (
             <Pressable onPress={generateTopics} style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 }}>
               <Text style={[s.startSub, { color: "#FF9500" }]}>⚠️ Using generic topics — AI busy.</Text>
               <Text style={[s.startSub, { color: "#FF9500", textDecorationLine: "underline" }]}>Retry</Text>
             </Pressable>
+          ) : topicsError ? (
+            <Text style={[s.startSub, { color: "#FF4D4D" }]}>Topic generation failed — tap above to try again</Text>
           ) : (
             <Text style={s.startSub}>
               {interviewer?.name || "—"} grills {interviewee?.name || "—"} · {selectedTopicId ? `starting on "${topics.find(t => t.id === selectedTopicId)?.title}"` : `${topics.length} topic${topics.length === 1 ? "" : "s"}`}
