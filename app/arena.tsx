@@ -3916,6 +3916,15 @@ export default function ArenaScreen() {
   const selectedPersonasRef = useRef<string[]>(PERSONA_IDS);
   useEffect(() => { selectedPersonasRef.current = selectedPersonas; }, [selectedPersonas]);
 
+  // W/L records for all personas — shown on debater tiles in the picker
+  const [allPersonaRecords, setAllPersonaRecords] = useState<Record<string, { wins: number; losses: number }>>({});
+  useEffect(() => {
+    fetch(new URL("/api/arena/all-records", getApiUrl()).toString())
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data) setAllPersonaRecords(data); })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     if (!breakingNewsBanner) { setBannerFlash(false); return; }
     const flashInterval = setInterval(() => setBannerFlash((p) => !p), 500);
@@ -8796,6 +8805,15 @@ export default function ArenaScreen() {
                         {p.shortName}{isPremiumLocked ? " 🔒" : isMystery ? " ★" : ""}
                       </Text>
                       <Text style={s.selectorFaction}>{isPremiumLocked && premiumCfg ? `${premiumCfg.tokenPrice} tokens to unlock` : p.faction}</Text>
+                      {(() => {
+                        const rec = allPersonaRecords[pid];
+                        if (!rec || (rec.wins === 0 && rec.losses === 0)) return null;
+                        return (
+                          <Text style={{ fontSize: 9, color: "#4ADE80", fontWeight: "700" as const, marginTop: 1 }}>
+                            {rec.wins}W-{rec.losses}L
+                          </Text>
+                        );
+                      })()}
                     </View>
                     {isSelected && !isPremiumLocked && <Ionicons name="checkmark-circle" size={18} color={p.color} />}
                   </Pressable>
