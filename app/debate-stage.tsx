@@ -3097,7 +3097,7 @@ export default function DebateStage() {
     setTopicIdx(0);
     setSelectedTopicId(null);
     setCompletedTopics(new Set());
-    const timeoutId = setTimeout(() => abortController.abort(), 15000);
+    const timeoutId = setTimeout(() => abortController.abort(), 60000);
     try {
       const res = await fetch(new URL("/api/arena/interview-topics", getApiUrl()).toString(), {
         method: "POST",
