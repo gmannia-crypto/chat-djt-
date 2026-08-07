@@ -3741,6 +3741,7 @@ export default function ArenaScreen() {
   const [showHallOfFame, setShowHallOfFame] = useState(false);
   const [hofData, setHofData] = useState<{ leaderboard: Array<{ personaId: string; totalWins: number; totalLosses: number; totalDebates: number; winPct: number; bestRivalId: string | null; bestRivalWins: number }>; userPicks: Array<{ personaId: string; wins: number; losses: number }> } | null>(null);
   const [hofLoading, setHofLoading] = useState(false);
+  const [hofLinkCopied, setHofLinkCopied] = useState(false);
   const [globalLeaderboardData, setGlobalLeaderboardData] = useState<{ topUsers: any[]; topPersonas: any[] }>({ topUsers: [], topPersonas: [] });
   const [showWinnersStats, setShowWinnersStats] = useState(false);
   const [winnersStatsData, setWinnersStatsData] = useState<{ topPersonas: any[]; totalWinsAllTime: number; totalUniquePlayers: number; userWins: Record<string, number>; userTotalWins: number; dailyWinEarnings: number; maxDailyWinRewards: number } | null>(null);
@@ -8739,14 +8740,41 @@ export default function ArenaScreen() {
                     });
                   } catch {}
                 }}
+                onLongPress={async () => {
+                  try {
+                    const domain = process.env.EXPO_PUBLIC_DOMAIN || "thearena.app";
+                    const url = `https://${domain}/arena?hof=1`;
+                    const Clipboard = await import("expo-clipboard");
+                    await Clipboard.setStringAsync(url);
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setHofLinkCopied(true);
+                    setTimeout(() => setHofLinkCopied(false), 2200);
+                  } catch {}
+                }}
+                delayLongPress={400}
                 style={{ padding: 6, marginRight: 6 }}
               >
-                <Ionicons name="share-outline" size={22} color="rgba(255,215,0,0.7)" />
+                <Ionicons
+                  name={hofLinkCopied ? "checkmark-circle" : "share-outline"}
+                  size={22}
+                  color={hofLinkCopied ? "#4ADE80" : "rgba(255,215,0,0.7)"}
+                />
               </Pressable>
               <Pressable onPress={() => setShowHallOfFame(false)}>
                 <Ionicons name="close" size={22} color="rgba(255,255,255,0.4)" />
               </Pressable>
             </View>
+
+            {/* "Link copied!" toast */}
+            {hofLinkCopied && (
+              <Animated.View
+                entering={FadeIn.duration(180)}
+                exiting={FadeOut.duration(300)}
+                style={{ alignSelf: "center", marginTop: -8, marginBottom: 10, paddingHorizontal: 14, paddingVertical: 5, borderRadius: 20, backgroundColor: "rgba(74,222,128,0.18)", borderWidth: 1, borderColor: "rgba(74,222,128,0.45)" }}
+              >
+                <Text style={{ color: "#4ADE80", fontSize: 12, fontWeight: "700" }}>🔗 Link copied!</Text>
+              </Animated.View>
+            )}
 
             {hofLoading ? (
               <View style={{ alignItems: "center", paddingVertical: 40 }}>
