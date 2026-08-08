@@ -43,6 +43,9 @@ export const PREMIUM_PERSONA_CONFIGS: Record<string, PremiumPersonaConfig> = {
 export const PREMIUM_UNLOCKED_KEY = "premium_personas_unlocked_v2";
 export const SESSION_MINUTES_KEY = "chatdjt_total_session_minutes_v1";
 export const ARENA_WINS_KEY = "chatdjt_arena_challenge_wins_v1";
+// Consumable: IDs written here when any code path auto-unlocks a premium persona.
+// The picker reads + clears this key on focus to show the "Just unlocked!" badge.
+export const RECENTLY_UNLOCKED_BADGE_KEY = "persona_recently_unlocked_badge_v1";
 
 interface PersonaLocksContextValue {
   unlockedPremium: string[];
@@ -99,8 +102,15 @@ export function PersonaLocksProvider({ children }: { children: ReactNode }) {
         }
       }
       if (newlyUnlocked.length > 0) {
+        // Persist the newly unlocked list
         await AsyncStorage.setItem(PREMIUM_UNLOCKED_KEY, JSON.stringify(unlocked));
         setUnlockedPremium([...unlocked]);
+        // Append to the consumable badge key so any picker can show the badge even
+        // when it wasn't the code path that triggered the unlock (e.g. Arena win).
+        const prevRaw = await AsyncStorage.getItem(RECENTLY_UNLOCKED_BADGE_KEY);
+        const prev: string[] = prevRaw ? JSON.parse(prevRaw) : [];
+        const merged = Array.from(new Set([...prev, ...newlyUnlocked]));
+        await AsyncStorage.setItem(RECENTLY_UNLOCKED_BADGE_KEY, JSON.stringify(merged));
       }
       return newlyUnlocked;
     } catch {

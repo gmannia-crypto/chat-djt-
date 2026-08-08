@@ -38,7 +38,7 @@ import {
   placeInterviewBet, clearInterviewBet, getInterviewBet,
   awardBetWin, resolveInterviewWinnerBet,
 } from "@/lib/debate-bets";
-import { usePersonaLocks, PREMIUM_PERSONA_CONFIGS } from "@/lib/persona-locks";
+import { usePersonaLocks, PREMIUM_PERSONA_CONFIGS, RECENTLY_UNLOCKED_BADGE_KEY } from "@/lib/persona-locks";
 
 // Mystery persona IDs and storage key — kept in sync with arena.tsx
 const MYSTERY_PERSONA_IDS = ["alexjones", "obama", "melania", "schumer", "odonnell", "kamala", "mtg", "rfk"];
@@ -821,16 +821,61 @@ export default function DebateStage() {
   // Mirror of the mystery-unlock state in arena.tsx — same AsyncStorage key.
   // Re-read on every focus so newly unlocked personas appear without restarting.
   const [unlockedMystery, setUnlockedMystery] = useState<string[]>([]);
+  // IDs of premium personas that just auto-unlocked — cleared after 4 s or on tap
+  const [newlyUnlockedIds, setNewlyUnlockedIds] = useState<string[]>([]);
+  const newlyUnlockedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useFocusEffect(
     useCallback(() => {
+      let active = true;
+
       AsyncStorage.getItem(MYSTERY_UNLOCK_KEY).then((raw) => {
+        if (!active) return;
         if (raw) {
           try { setUnlockedMystery(JSON.parse(raw)); } catch {}
         } else {
           setUnlockedMystery([]);
         }
       });
-      checkAutoUnlocks();
+
+      // Sequential (not parallel) to avoid a write-after-read race:
+      // checkAutoUnlocks() may write IDs to RECENTLY_UNLOCKED_BADGE_KEY; if we
+      // read that key in parallel we'd see an empty value and miss those IDs
+      // while also leaving a stale entry that would reappear on the next visit.
+      (async () => {
+        // Step 1: run auto-unlock check — may write to RECENTLY_UNLOCKED_BADGE_KEY
+        const freshIds = await checkAutoUnlocks();
+        if (!active) return;
+
+        // Step 2: now atomically consume the badge key
+        const badgeRaw = await AsyncStorage.getItem(RECENTLY_UNLOCKED_BADGE_KEY);
+        if (!active) return;
+        const pendingIds: string[] = badgeRaw ? JSON.parse(badgeRaw) : [];
+        if (pendingIds.length > 0) {
+          await AsyncStorage.removeItem(RECENTLY_UNLOCKED_BADGE_KEY);
+        }
+        if (!active) return;
+
+        const all = Array.from(new Set([...freshIds, ...pendingIds]));
+        if (all.length > 0) {
+          setNewlyUnlockedIds(all);
+          if (newlyUnlockedTimerRef.current) clearTimeout(newlyUnlockedTimerRef.current);
+          newlyUnlockedTimerRef.current = setTimeout(() => {
+            if (active) setNewlyUnlockedIds([]);
+          }, 4000);
+        }
+      })();
+
+      // Cleanup: on blur, clear the badge state and timer so a later revisit
+      // starts fresh — otherwise the badge would persist if the user left the
+      // screen before the 4-second auto-dismiss fired.
+      return () => {
+        active = false;
+        setNewlyUnlockedIds([]);
+        if (newlyUnlockedTimerRef.current) {
+          clearTimeout(newlyUnlockedTimerRef.current);
+          newlyUnlockedTimerRef.current = null;
+        }
+      };
     }, [checkAutoUnlocks])
   );
 
@@ -4301,17 +4346,27 @@ export default function DebateStage() {
               const hofLabel = hofEntry ? (hofMedal ? `${hofMedal} #${hofEntry.rank}` : `#${hofEntry.rank} · ${Math.round(hofEntry.winPct)}%`) : null;
               const locked = isLocked(p.id);
               const lockCfg = locked ? PREMIUM_PERSONA_CONFIGS[p.id] : null;
+              const isNewlyUnlocked = newlyUnlockedIds.includes(p.id);
               return (
                 <Pressable key={p.id} onPress={() => {
                   Haptics.selectionAsync();
+                  if (isNewlyUnlocked) setNewlyUnlockedIds(ids => ids.filter(id => id !== p.id));
                   if (locked) {
                     if (deviceId) unlockWithTokens(p.id, deviceId, refreshBalance);
                   } else {
                     setInterviewerId(p.id);
                   }
                 }}
-                  style={s.personaCard} testID={`interviewer-${p.id}`}>
-                  <View style={[s.personaAvatarWrap, isSelected && s.personaAvatarWrapActive, locked && { opacity: 0.5 }]}>
+                  style={[s.personaCard, { position: "relative" }]} testID={`interviewer-${p.id}`}>
+                  {isNewlyUnlocked && (
+                    <Animated.View entering={FadeIn.duration(300)} exiting={FadeOut.duration(200)}
+                      style={{ position: "absolute", top: -10, left: 0, right: 0, alignItems: "center", zIndex: 10 }}>
+                      <View style={{ backgroundColor: "#4ADE80", borderRadius: 5, paddingHorizontal: 3, paddingVertical: 2 }}>
+                        <Text style={{ color: "#000", fontSize: 7, fontWeight: "900" }}>⭐ UNLOCKED</Text>
+                      </View>
+                    </Animated.View>
+                  )}
+                  <View style={[s.personaAvatarWrap, isSelected && s.personaAvatarWrapActive, locked && { opacity: 0.5 }, isNewlyUnlocked && { borderColor: "#4ADE80", borderWidth: 2.5 }]}>
                     {portrait
                       ? <Image source={portrait} style={s.personaAvatar} />
                       : <View style={s.personaAvatarFallback}><Text style={s.personaAvatarInitials}>{initials}</Text></View>
@@ -4322,11 +4377,13 @@ export default function DebateStage() {
                       </View>
                     )}
                   </View>
-                  <Text style={[s.personaCardName, isSelected && s.personaCardNameActive, locked && { color: "rgba(255,255,255,0.4)" }]} numberOfLines={1}>
+                  <Text style={[s.personaCardName, isSelected && s.personaCardNameActive, locked && { color: "rgba(255,255,255,0.4)" }, isNewlyUnlocked && { color: "#4ADE80" }]} numberOfLines={1}>
                     {p.name.split(" ")[0]}
                   </Text>
                   {locked && lockCfg ? (
                     <Text style={{ color: lockCfg.badgeColor, fontSize: 9, fontWeight: "700", textAlign: "center" }}>{lockCfg.tokenPrice}🪙</Text>
+                  ) : isNewlyUnlocked ? (
+                    <Text style={{ color: "#4ADE80", fontSize: 8, fontWeight: "800", textAlign: "center" }}>Just unlocked!</Text>
                   ) : (
                     <>
                       {hasRecord && (
@@ -4366,17 +4423,27 @@ export default function DebateStage() {
               const hofLabel = hofEntry ? (hofMedal ? `${hofMedal} #${hofEntry.rank}` : `#${hofEntry.rank} · ${Math.round(hofEntry.winPct)}%`) : null;
               const locked = isLocked(p.id);
               const lockCfg = locked ? PREMIUM_PERSONA_CONFIGS[p.id] : null;
+              const isNewlyUnlocked = newlyUnlockedIds.includes(p.id);
               return (
                 <Pressable key={p.id} onPress={() => {
                   Haptics.selectionAsync();
+                  if (isNewlyUnlocked) setNewlyUnlockedIds(ids => ids.filter(id => id !== p.id));
                   if (locked) {
                     if (deviceId) unlockWithTokens(p.id, deviceId, refreshBalance);
                   } else {
                     setIntervieweeId(p.id);
                   }
                 }}
-                  style={s.personaCard} testID={`interviewee-${p.id}`}>
-                  <View style={[s.personaAvatarWrap, isSelected && s.personaAvatarWrapActiveGuest, locked && { opacity: 0.5 }]}>
+                  style={[s.personaCard, { position: "relative" }]} testID={`interviewee-${p.id}`}>
+                  {isNewlyUnlocked && (
+                    <Animated.View entering={FadeIn.duration(300)} exiting={FadeOut.duration(200)}
+                      style={{ position: "absolute", top: -10, left: 0, right: 0, alignItems: "center", zIndex: 10 }}>
+                      <View style={{ backgroundColor: "#4ADE80", borderRadius: 5, paddingHorizontal: 3, paddingVertical: 2 }}>
+                        <Text style={{ color: "#000", fontSize: 7, fontWeight: "900" }}>⭐ UNLOCKED</Text>
+                      </View>
+                    </Animated.View>
+                  )}
+                  <View style={[s.personaAvatarWrap, isSelected && s.personaAvatarWrapActiveGuest, locked && { opacity: 0.5 }, isNewlyUnlocked && { borderColor: "#4ADE80", borderWidth: 2.5 }]}>
                     {portrait
                       ? <Image source={portrait} style={s.personaAvatar} />
                       : <View style={s.personaAvatarFallback}><Text style={s.personaAvatarInitials}>{initials}</Text></View>
@@ -4387,11 +4454,13 @@ export default function DebateStage() {
                       </View>
                     )}
                   </View>
-                  <Text style={[s.personaCardName, isSelected && s.personaCardNameActiveGuest, locked && { color: "rgba(255,255,255,0.4)" }]} numberOfLines={1}>
+                  <Text style={[s.personaCardName, isSelected && s.personaCardNameActiveGuest, locked && { color: "rgba(255,255,255,0.4)" }, isNewlyUnlocked && { color: "#4ADE80" }]} numberOfLines={1}>
                     {p.name.split(" ")[0]}
                   </Text>
                   {locked && lockCfg ? (
                     <Text style={{ color: lockCfg.badgeColor, fontSize: 9, fontWeight: "700", textAlign: "center" }}>{lockCfg.tokenPrice}🪙</Text>
+                  ) : isNewlyUnlocked ? (
+                    <Text style={{ color: "#4ADE80", fontSize: 8, fontWeight: "800", textAlign: "center" }}>Just unlocked!</Text>
                   ) : (
                     <>
                       {hasRecord && (
