@@ -813,7 +813,7 @@ const webBottom = Platform.OS === "web" ? 34 : 0;
 export default function DebateStage() {
   const insets = useSafeAreaInsets();
   const { deviceId, balance, refreshBalance } = useTokens();
-  const { isHidden } = usePersonaLocks();
+  const { isHidden, isLocked, unlockWithTokens } = usePersonaLocks();
 
   // Mirror of the mystery-unlock state in arena.tsx — same AsyncStorage key
   const [unlockedMystery, setUnlockedMystery] = useState<string[]>([]);
@@ -4289,26 +4289,46 @@ export default function DebateStage() {
               const hofEntry = hofRankMap[p.id];
               const hofMedal = hofEntry ? (hofEntry.rank === 1 ? "🥇" : hofEntry.rank === 2 ? "🥈" : hofEntry.rank === 3 ? "🥉" : null) : null;
               const hofLabel = hofEntry ? (hofMedal ? `${hofMedal} #${hofEntry.rank}` : `#${hofEntry.rank} · ${Math.round(hofEntry.winPct)}%`) : null;
+              const locked = isLocked(p.id);
+              const lockCfg = locked ? PREMIUM_PERSONA_CONFIGS[p.id] : null;
               return (
-                <Pressable key={p.id} onPress={() => { Haptics.selectionAsync(); setInterviewerId(p.id); }}
+                <Pressable key={p.id} onPress={() => {
+                  Haptics.selectionAsync();
+                  if (locked) {
+                    if (deviceId) unlockWithTokens(p.id, deviceId, refreshBalance);
+                  } else {
+                    setInterviewerId(p.id);
+                  }
+                }}
                   style={s.personaCard} testID={`interviewer-${p.id}`}>
-                  <View style={[s.personaAvatarWrap, isSelected && s.personaAvatarWrapActive]}>
+                  <View style={[s.personaAvatarWrap, isSelected && s.personaAvatarWrapActive, locked && { opacity: 0.5 }]}>
                     {portrait
                       ? <Image source={portrait} style={s.personaAvatar} />
                       : <View style={s.personaAvatarFallback}><Text style={s.personaAvatarInitials}>{initials}</Text></View>
                     }
+                    {locked && (
+                      <View style={{ position: "absolute", bottom: 2, right: 2, backgroundColor: "rgba(0,0,0,0.75)", borderRadius: 8, padding: 2 }}>
+                        <Ionicons name="lock-closed" size={11} color={lockCfg?.badgeColor ?? "#FFD700"} />
+                      </View>
+                    )}
                   </View>
-                  <Text style={[s.personaCardName, isSelected && s.personaCardNameActive]} numberOfLines={1}>
+                  <Text style={[s.personaCardName, isSelected && s.personaCardNameActive, locked && { color: "rgba(255,255,255,0.4)" }]} numberOfLines={1}>
                     {p.name.split(" ")[0]}
                   </Text>
-                  {hasRecord && (
-                    <Text style={s.personaCardRecord}>{rec.wins}W-{rec.losses}L</Text>
-                  )}
-                  {hofLabel && (
-                    <Text style={s.personaCardHofRank}>{hofLabel}</Text>
-                  )}
-                  {hasH2H && (
-                    <Text style={s.personaCardH2H}>{h2hAWins}-{h2hBWins} h2h</Text>
+                  {locked && lockCfg ? (
+                    <Text style={{ color: lockCfg.badgeColor, fontSize: 9, fontWeight: "700", textAlign: "center" }}>{lockCfg.tokenPrice}🪙</Text>
+                  ) : (
+                    <>
+                      {hasRecord && (
+                        <Text style={s.personaCardRecord}>{rec.wins}W-{rec.losses}L</Text>
+                      )}
+                      {hofLabel && (
+                        <Text style={s.personaCardHofRank}>{hofLabel}</Text>
+                      )}
+                      {hasH2H && (
+                        <Text style={s.personaCardH2H}>{h2hAWins}-{h2hBWins} h2h</Text>
+                      )}
+                    </>
                   )}
                 </Pressable>
               );
@@ -4334,26 +4354,46 @@ export default function DebateStage() {
               const hofEntry = hofRankMap[p.id];
               const hofMedal = hofEntry ? (hofEntry.rank === 1 ? "🥇" : hofEntry.rank === 2 ? "🥈" : hofEntry.rank === 3 ? "🥉" : null) : null;
               const hofLabel = hofEntry ? (hofMedal ? `${hofMedal} #${hofEntry.rank}` : `#${hofEntry.rank} · ${Math.round(hofEntry.winPct)}%`) : null;
+              const locked = isLocked(p.id);
+              const lockCfg = locked ? PREMIUM_PERSONA_CONFIGS[p.id] : null;
               return (
-                <Pressable key={p.id} onPress={() => { Haptics.selectionAsync(); setIntervieweeId(p.id); }}
+                <Pressable key={p.id} onPress={() => {
+                  Haptics.selectionAsync();
+                  if (locked) {
+                    if (deviceId) unlockWithTokens(p.id, deviceId, refreshBalance);
+                  } else {
+                    setIntervieweeId(p.id);
+                  }
+                }}
                   style={s.personaCard} testID={`interviewee-${p.id}`}>
-                  <View style={[s.personaAvatarWrap, isSelected && s.personaAvatarWrapActiveGuest]}>
+                  <View style={[s.personaAvatarWrap, isSelected && s.personaAvatarWrapActiveGuest, locked && { opacity: 0.5 }]}>
                     {portrait
                       ? <Image source={portrait} style={s.personaAvatar} />
                       : <View style={s.personaAvatarFallback}><Text style={s.personaAvatarInitials}>{initials}</Text></View>
                     }
+                    {locked && (
+                      <View style={{ position: "absolute", bottom: 2, right: 2, backgroundColor: "rgba(0,0,0,0.75)", borderRadius: 8, padding: 2 }}>
+                        <Ionicons name="lock-closed" size={11} color={lockCfg?.badgeColor ?? "#FFD700"} />
+                      </View>
+                    )}
                   </View>
-                  <Text style={[s.personaCardName, isSelected && s.personaCardNameActiveGuest]} numberOfLines={1}>
+                  <Text style={[s.personaCardName, isSelected && s.personaCardNameActiveGuest, locked && { color: "rgba(255,255,255,0.4)" }]} numberOfLines={1}>
                     {p.name.split(" ")[0]}
                   </Text>
-                  {hasRecord && (
-                    <Text style={[s.personaCardRecord, isSelected && s.personaCardRecordGuest]}>{rec.wins}W-{rec.losses}L</Text>
-                  )}
-                  {hofLabel && (
-                    <Text style={s.personaCardHofRank}>{hofLabel}</Text>
-                  )}
-                  {hasH2H && (
-                    <Text style={[s.personaCardH2H, s.personaCardH2HGuest]}>{h2hBWins}-{h2hAWins} h2h</Text>
+                  {locked && lockCfg ? (
+                    <Text style={{ color: lockCfg.badgeColor, fontSize: 9, fontWeight: "700", textAlign: "center" }}>{lockCfg.tokenPrice}🪙</Text>
+                  ) : (
+                    <>
+                      {hasRecord && (
+                        <Text style={[s.personaCardRecord, isSelected && s.personaCardRecordGuest]}>{rec.wins}W-{rec.losses}L</Text>
+                      )}
+                      {hofLabel && (
+                        <Text style={s.personaCardHofRank}>{hofLabel}</Text>
+                      )}
+                      {hasH2H && (
+                        <Text style={[s.personaCardH2H, s.personaCardH2HGuest]}>{h2hBWins}-{h2hAWins} h2h</Text>
+                      )}
+                    </>
                   )}
                 </Pressable>
               );
