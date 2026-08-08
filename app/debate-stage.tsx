@@ -4,7 +4,7 @@ import {
   Platform, Image, FlatList, TextInput, KeyboardAvoidingView, Alert, Share, Linking,
   AppState,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -815,15 +815,20 @@ export default function DebateStage() {
   const { deviceId, balance, refreshBalance } = useTokens();
   const { isHidden, isLocked, unlockWithTokens } = usePersonaLocks();
 
-  // Mirror of the mystery-unlock state in arena.tsx — same AsyncStorage key
+  // Mirror of the mystery-unlock state in arena.tsx — same AsyncStorage key.
+  // Re-read on every focus so newly unlocked personas appear without restarting.
   const [unlockedMystery, setUnlockedMystery] = useState<string[]>([]);
-  useEffect(() => {
-    AsyncStorage.getItem(MYSTERY_UNLOCK_KEY).then((raw) => {
-      if (raw) {
-        try { setUnlockedMystery(JSON.parse(raw)); } catch {}
-      }
-    });
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      AsyncStorage.getItem(MYSTERY_UNLOCK_KEY).then((raw) => {
+        if (raw) {
+          try { setUnlockedMystery(JSON.parse(raw)); } catch {}
+        } else {
+          setUnlockedMystery([]);
+        }
+      });
+    }, [])
+  );
 
   const [interviewers, setInterviewers] = useState<PersonaLite[]>([]);
   const [interviewees, setInterviewees] = useState<PersonaLite[]>([]);
