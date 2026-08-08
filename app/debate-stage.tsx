@@ -816,7 +816,7 @@ const webBottom = Platform.OS === "web" ? 34 : 0;
 export default function DebateStage() {
   const insets = useSafeAreaInsets();
   const { deviceId, balance, refreshBalance } = useTokens();
-  const { isHidden, isLocked, unlockWithTokens } = usePersonaLocks();
+  const { isHidden, isLocked, unlockWithTokens, checkAutoUnlocks } = usePersonaLocks();
 
   // Mirror of the mystery-unlock state in arena.tsx — same AsyncStorage key.
   // Re-read on every focus so newly unlocked personas appear without restarting.
@@ -830,7 +830,8 @@ export default function DebateStage() {
           setUnlockedMystery([]);
         }
       });
-    }, [])
+      checkAutoUnlocks();
+    }, [checkAutoUnlocks])
   );
 
   const [interviewers, setInterviewers] = useState<PersonaLite[]>([]);
