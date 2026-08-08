@@ -228,6 +228,8 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   janeelliott: require("@/assets/images/persona-janeelliott.jpg"),
   francescresswelsing: require("@/assets/images/persona-francescresswelsing.jpg"),
   bishopfundme: require("@/assets/images/persona-bishopfundme.png"),
+  tlaib:        require("@/assets/images/persona-tlaib.png"),
+  professorjiang: require("@/assets/images/persona-professorjiang.png"),
 };
 
 const FX_KEY = "interview_fx_enabled_v1";
@@ -235,8 +237,8 @@ const VOICE_KEY = "interview_voice_enabled_v1";
 const BEEP_KEY = "interview_beep_enabled_v1";
 const NAME_KEY = "interview_caller_name_v1";
 
-type GuestCategory = "All" | "Political" | "History" | "Science" | "Finance" | "Entertainment" | "Sports";
-const GUEST_CATEGORY_LIST: GuestCategory[] = ["All", "Political", "History", "Science", "Finance", "Entertainment", "Sports"];
+type GuestCategory = "All" | "Political" | "History" | "Science" | "Finance" | "Entertainment" | "Sports" | "Philosophy";
+const GUEST_CATEGORY_LIST: GuestCategory[] = ["All", "Political", "History", "Science", "Finance", "Entertainment", "Sports", "Philosophy"];
 
 const GUEST_CATEGORIES: Record<string, GuestCategory> = {
   trump: "Political", biden: "Political", obama: "Political", kamala: "Political",
