@@ -42,16 +42,45 @@ const DISCLAIMER_KEY = "chatdjt_disclaimer_accepted";
 // Suppress fontfaceobserver's "6000ms timeout exceeded" uncaught error/rejection
 // at module-load time (before useFonts starts) so Metro's dev overlay never
 // intercepts it. The app already falls back gracefully via forceReady/fontError.
+// Three layers needed: window.onerror (returns true = full suppress), the
+// unhandledrejection/error events, AND ErrorUtils for React Native's handler.
 if (Platform.OS === "web" && typeof window !== "undefined") {
   const isFontTimeout = (msg: unknown) =>
     typeof msg === "string" && msg.includes("ms timeout exceeded");
+  const isFontSource = (src: unknown) =>
+    typeof src === "string" && src.includes("fontfaceobserver");
+
+  // Layer 1: window.onerror — returning true prevents default AND stops propagation
+  const _origOnerror = window.onerror;
+  window.onerror = function (message, source, _line, _col, _err) {
+    if (isFontTimeout(message) || isFontSource(source)) return true;
+    return typeof _origOnerror === "function"
+      ? _origOnerror.call(window, message, source, _line, _col, _err)
+      : false;
+  };
+
+  // Layer 2: event-based catches (bubble phase)
   window.addEventListener("unhandledrejection", (event: PromiseRejectionEvent) => {
     const reason = event.reason;
     const message = reason instanceof Error ? reason.message : String(reason);
     if (isFontTimeout(message)) event.preventDefault();
   });
   window.addEventListener("error", (event: ErrorEvent) => {
-    if (isFontTimeout(event.message)) event.preventDefault();
+    if (isFontTimeout(event.message) || isFontSource(event.filename)) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
+  }, true /* capture phase — runs before Metro's listener */);
+}
+
+// Layer 3: React Native / Expo ErrorUtils global handler
+// (runs on both web and native; guards fontfaceobserver-style throws)
+if (typeof (global as any).ErrorUtils !== "undefined") {
+  const eu = (global as any).ErrorUtils;
+  const _origHandler = eu.getGlobalHandler?.();
+  eu.setGlobalHandler?.((error: Error, isFatal: boolean) => {
+    if (error?.message?.includes("ms timeout exceeded")) return;
+    _origHandler?.(error, isFatal);
   });
 }
 
