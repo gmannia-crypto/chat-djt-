@@ -3324,6 +3324,11 @@ export default function DebateStage() {
     if (!deviceId || !interviewerId || !intervieweeId) return null;
     const topicArg = opts.currentTopicArg !== undefined ? opts.currentTopicArg : currentTopic;
     try {
+      // Stamp the time before the request leaves so the grace-period check uses
+      // when the request was *sent*, not when the 403 response finally arrived.
+      // On slow connections the response can land slightly after the window closes
+      // even though the request was sent while still inside it.
+      const requestSentAt = Date.now();
       const res = await fetch(new URL("/api/arena/interview-question", getApiUrl()).toString(), {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-device-id": deviceId },
@@ -3349,7 +3354,7 @@ export default function DebateStage() {
         // for genuine mid-session expiries so squabble/roundtable don't hard-cut.
         const totalMs = sessionEndsAtRef.current - sessionStartedAtRef.current;
         const gracePeriodStart = sessionEndsAtRef.current - totalMs * 0.2;
-        if (totalMs > 0 && Date.now() >= gracePeriodStart) {
+        if (totalMs > 0 && requestSentAt >= gracePeriodStart) {
           setPhase("ended");
         } else {
           setShowPaywall(true);
@@ -3365,6 +3370,9 @@ export default function DebateStage() {
   const fetchAnswer = useCallback(async (lastQuestion: string, opts: { wasInterrupted?: boolean; interruptionText?: string; isInterruption?: boolean } = {}) => {
     if (!deviceId || !interviewerId || !intervieweeId) return null;
     try {
+      // Stamp the time before the request leaves so the grace-period check uses
+      // when the request was *sent*, not when the 403 response finally arrived.
+      const requestSentAt = Date.now();
       const res = await fetch(new URL("/api/arena/interview-answer", getApiUrl()).toString(), {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-device-id": deviceId },
@@ -3394,7 +3402,7 @@ export default function DebateStage() {
         // for genuine mid-session expiries so squabble/roundtable don't hard-cut.
         const totalMs = sessionEndsAtRef.current - sessionStartedAtRef.current;
         const gracePeriodStart = sessionEndsAtRef.current - totalMs * 0.2;
-        if (totalMs > 0 && Date.now() >= gracePeriodStart) {
+        if (totalMs > 0 && requestSentAt >= gracePeriodStart) {
           setPhase("ended");
         } else {
           setShowPaywall(true);
@@ -3411,6 +3419,9 @@ export default function DebateStage() {
   const fetchAnswerFrom = useCallback(async (questionerId: string, answererId: string, lastQuestion: string) => {
     if (!deviceId) return null;
     try {
+      // Stamp the time before the request leaves so the grace-period check uses
+      // when the request was *sent*, not when the 403 response finally arrived.
+      const requestSentAt = Date.now();
       const res = await fetch(new URL("/api/arena/interview-answer", getApiUrl()).toString(), {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-device-id": deviceId },
@@ -3436,7 +3447,7 @@ export default function DebateStage() {
         // debate gracefully with the winner reveal instead of showing a paywall.
         const totalMs = sessionEndsAtRef.current - sessionStartedAtRef.current;
         const gracePeriodStart = sessionEndsAtRef.current - totalMs * 0.2;
-        if (totalMs > 0 && Date.now() >= gracePeriodStart) {
+        if (totalMs > 0 && requestSentAt >= gracePeriodStart) {
           setPhase("ended");
         } else {
           setShowPaywall(true);
@@ -4284,6 +4295,9 @@ export default function DebateStage() {
     setIsPaused(true);
 
     try {
+      // Stamp the time before the request leaves so the grace-period check uses
+      // when the request was *sent*, not when the 403 response finally arrived.
+      const requestSentAt = Date.now();
       const res = await fetch(new URL("/api/arena/interview-callin", getApiUrl()).toString(), {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-device-id": deviceId },
@@ -4297,7 +4311,7 @@ export default function DebateStage() {
         // otherwise show the paywall so the user can renew.
         const totalMs = sessionEndsAtRef.current - sessionStartedAtRef.current;
         const gracePeriodStart = sessionEndsAtRef.current - totalMs * 0.2;
-        if (totalMs > 0 && Date.now() >= gracePeriodStart) {
+        if (totalMs > 0 && requestSentAt >= gracePeriodStart) {
           runningRef.current = false;
           setPhase("ended");
         } else {
