@@ -60,7 +60,7 @@ export const PersonaStatsCard = React.forwardRef<View, Props>(({ data }, ref) =>
         <Text style={styles.trophyEmoji}>🏆</Text>
         <View>
           <Text style={styles.hofLabel}>DEBATE HALL OF FAME</Text>
-          <Text style={styles.siteLabel}>TrumpBot.rip</Text>
+          <Text style={styles.siteLabel}>thearena.rip</Text>
         </View>
       </View>
 
@@ -113,7 +113,7 @@ export const PersonaStatsCard = React.forwardRef<View, Props>(({ data }, ref) =>
 
       {/* Bottom branding */}
       <View style={styles.footer}>
-        <Text style={styles.footerText}>trumpbot.rip/arena  ·  Come debate them</Text>
+        <Text style={styles.footerText}>thearena.rip/arena  ·  Come debate them</Text>
       </View>
     </View>
   );

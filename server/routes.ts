@@ -10224,7 +10224,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
   <text x="540" y="${H - 175}" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="28" font-weight="900" fill="${speakerColor}" letter-spacing="2">${escapeXml(speakerLabel)}</text>
   <text x="540" y="${H - 140}" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="16" font-weight="800" fill="rgba(255,255,255,0.55)" letter-spacing="4">${escapeXml(speakerSub)}</text>
 
-  <text x="540" y="${H - 70}" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="32" font-weight="900" fill="#FFD700" letter-spacing="3">TRUMPBOT.RIP</text>
+  <text x="540" y="${H - 70}" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="32" font-weight="900" fill="#FFD700" letter-spacing="3">THEARENA.RIP</text>
   <text x="540" y="${H - 40}" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="rgba(255,255,255,0.45)" letter-spacing="3">AI POLITICAL ARENA · INTERVIEW MODE</text>
 </svg>`;
 
@@ -10495,7 +10495,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
   <!-- Bottom branding -->
   <rect x="0" y="${H - 130}" width="${W}" height="130" fill="rgba(0,0,0,0.7)"/>
   <line x1="60" y1="${H - 130}" x2="${W - 60}" y2="${H - 130}" stroke="#FFD700" stroke-opacity="0.45" stroke-width="2"/>
-  <text x="540" y="${H - 72}" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="46" font-weight="900" fill="#FFD700" letter-spacing="4">CHATDJT.COM</text>
+  <text x="540" y="${H - 72}" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="46" font-weight="900" fill="#FFD700" letter-spacing="4">THEARENA.RIP</text>
   <text x="540" y="${H - 34}" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="rgba(255,255,255,0.4)" letter-spacing="6">AI DEBATE ARENA</text>
 </svg>`;
 
@@ -12519,7 +12519,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
 
         res.send(`<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Payment Successful - Chat DJT</title>
+<title>Payment Successful - The Arena</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#0a0a0a;color:#fff;font-family:-apple-system,BlinkMacSystemFont,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center;padding:20px}
@@ -12534,7 +12534,7 @@ p{color:#ccc;font-size:16px;line-height:1.5;margin-bottom:24px}
 <div class="check">\u2705</div>
 <h1>Payment Successful!</h1>
 <p>Your Dynamic Tokens have been added to your account. Go back to the app and start chatting!</p>
-<a href="/" class="btn">Back to Chat DJT</a>
+<a href="/" class="btn">Back to The Arena</a>
 </div></body></html>`);
       } catch (err: any) {
         console.error("[subscribe-redirect] Error:", err.message);
@@ -12543,7 +12543,7 @@ p{color:#ccc;font-size:16px;line-height:1.5;margin-bottom:24px}
     } else if (canceled === "true") {
       res.send(`<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Payment Canceled - Chat DJT</title>
+<title>Payment Canceled - The Arena</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#0a0a0a;color:#fff;font-family:-apple-system,BlinkMacSystemFont,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center;padding:20px}
@@ -12555,7 +12555,7 @@ p{color:#999;font-size:16px;margin-bottom:24px}
 <div class="card">
 <h1>No Problem!</h1>
 <p>You can get tokens anytime. We'll be here!</p>
-<a href="/" class="btn">Back to Chat DJT</a>
+<a href="/" class="btn">Back to The Arena</a>
 </div></body></html>`);
     } else {
       res.redirect("/");

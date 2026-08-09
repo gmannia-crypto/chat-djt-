@@ -1218,11 +1218,11 @@ export default function InterviewScreen() {
       text: m.text, timestamp: m.ts, relativeTime: 0,
     })));
     const interruptions = msgs.filter((m) => m.isInterruption).length;
-    let text = `🎙️ "${iName} vs ${eName}" — Chat DJT\n`;
+    let text = `🎙️ "${iName} vs ${eName}" — The Arena\n`;
     if (highlight) text += `\n💬 "${highlight}"\n`;
     if (interruptions > 0) text += `⚡ ${interruptions} interruption${interruptions > 1 ? "s" : ""}!\n`;
     text += `\n${msgs.length} exchanges · ${mins}m\n`;
-    text += `#ChatDJT #AIDebate #${iName.replace(/\s+/g, "")} #${eName.replace(/\s+/g, "")}\n`;
+    text += `#TheArena #AIDebate #${iName.replace(/\s+/g, "")} #${eName.replace(/\s+/g, "")}\n`;
     text += `\n🏛️ Watch live debates on The Arena\nhttps://thearena.rip`;
     try {
       if (Platform.OS === "web" && navigator.share) await navigator.share({ title: `${iName} vs ${eName}`, text });
@@ -1235,7 +1235,7 @@ export default function InterviewScreen() {
     const totalVotes = pollVoteA + pollVoteB;
     const pctA = totalVotes > 0 ? Math.round((pollVoteA / totalVotes) * 100) : 50;
     const pctB = 100 - pctA;
-    const tags = pollQuestion.hashtags?.map((h: string) => `#${h}`).join(" ") || "#ChatDJT #Poll";
+    const tags = pollQuestion.hashtags?.map((h: string) => `#${h}`).join(" ") || "#TheArena #Poll";
     const msg = `🗳️ LIVE POLL — The Arena\n\n"${pollQuestion.question}"\n\n🅰️ ${pollQuestion.optionA} — ${pctA}%\n🅱️ ${pollQuestion.optionB} — ${pctB}%\n\n${tags}\n\nVote live on The Arena 👇\nthearena.rip`;
     try {
       if (Platform.OS === "web" && navigator.share) await navigator.share({ title: "Live Poll", text: msg });

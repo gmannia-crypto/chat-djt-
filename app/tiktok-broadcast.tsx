@@ -257,11 +257,11 @@ export default function TikTokBroadcastScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const total = voteA + voteB;
     const pctA = total > 0 ? Math.round((voteA / total) * 100) : 50;
-    const tags = poll.hashtags?.map((h) => `#${h}`).join(" ") || "#ChatDJT";
+    const tags = poll.hashtags?.map((h) => `#${h}`).join(" ") || "#TheArena";
     const msg = `🔴 LIVE NOW on TikTok!\n\n"${poll.question}"\n\n🅰️ ${poll.optionA} — ${pctA}%\n🅱️ ${poll.optionB} — ${100 - pctA}%\n\n${tags}\n\nWatch live + vote: thearena.rip`;
     try {
       if (Platform.OS === "web" && navigator.share) await navigator.share({ title: "Live Poll", text: msg });
-      else await Share.share({ message: msg, title: "Chat DJT Live" });
+      else await Share.share({ message: msg, title: "The Arena Live" });
     } catch {}
   }, [poll, voteA, voteB]);
 
@@ -320,7 +320,7 @@ export default function TikTokBroadcastScreen() {
         {/* ── Topic badge ───────────────────────────────────────────────── */}
         <View style={s.topicBadge}>
           <Text style={s.topicText} numberOfLines={1}>
-            {topic || category.charAt(0).toUpperCase() + category.slice(1)} · Chat DJT Arena
+            {topic || category.charAt(0).toUpperCase() + category.slice(1)} · The Arena
           </Text>
         </View>
 
@@ -338,7 +338,7 @@ export default function TikTokBroadcastScreen() {
               {[
                 ["1", "Open TikTok → tap + → select LIVE"],
                 ["2", 'Choose "Share Screen" mode'],
-                ["3", "Select Chat DJT from app list"],
+                ["3", "Select The Arena from app list"],
                 ["4", "This screen streams live to your audience!"],
               ].map(([step, text]) => (
                 <View key={step} style={s.guideRow}>

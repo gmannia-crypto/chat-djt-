@@ -105,7 +105,7 @@ export default function RateTrumpScreen() {
     staleTime: 60000,
   });
 
-  const premiumProduct = productsData?.data?.find((p) => p.name === "Chat DJT Premium");
+  const premiumProduct = productsData?.data?.find((p) => p.name === "The Arena Premium" || p.name === "Chat DJT Premium");
   const premiumPrice = premiumProduct?.prices?.find((p) => p.recurring?.interval === "month");
   const isPremium = balance?.isSubscribed && (balance?.subscriptionTier === "premium" || balance?.subscriptionTier === "vip");
 
@@ -254,7 +254,7 @@ export default function RateTrumpScreen() {
   function handleShare() {
     if (!trumpResponse) return;
     const emojiInfo = getEmojiForRating(trumpResponse.rating);
-    const shareText = `${emojiInfo.emoji} I rated Trump ${trumpResponse.rating}% and he said:\n\n"${trumpResponse.text.slice(0, 250)}${trumpResponse.text.length > 250 ? "..." : ""}"\n\nRate him yourself \u{1F447}\nchat-djt.replit.app`;
+    const shareText = `${emojiInfo.emoji} I rated Trump ${trumpResponse.rating}% and he said:\n\n"${trumpResponse.text.slice(0, 250)}${trumpResponse.text.length > 250 ? "..." : ""}"\n\nRate him yourself \u{1F447}\nthearena.rip`;
     shareContent({
       text: shareText,
       feature: "rate_trump",
@@ -279,7 +279,7 @@ export default function RateTrumpScreen() {
       });
       const data = await res.json();
       if (data.challengeId) {
-        const challengeUrl = `chat-djt.replit.app/challenge/${data.challengeId}`;
+        const challengeUrl = `https://thearena.rip/challenge/${data.challengeId}`;
         const emojiInfo = getEmojiForRating(trumpResponse.rating);
         shareContent({
           text: `${emojiInfo.emoji} I rated Trump ${trumpResponse.rating}%! Think you can do better?\n\nTake the challenge \u{1F447}\n${challengeUrl}`,

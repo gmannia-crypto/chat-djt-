@@ -611,7 +611,7 @@ export default function LieLeaderboardDetailScreen() {
       if (Platform.OS !== "web") {
         try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
       }
-      const message = `"${lie.lieText}"\n\n${personaName} on TrumpBot — ${lie.agree} agree, ${lie.disagree} disagree (net ${lie.netScore > 0 ? "+" : ""}${lie.netScore}).\nhttps://trumpbot.rip`;
+      const message = `"${lie.lieText}"\n\n${personaName} on The Arena — ${lie.agree} agree, ${lie.disagree} disagree (net ${lie.netScore > 0 ? "+" : ""}${lie.netScore}).\nhttps://thearena.rip`;
       if (Platform.OS === "web") {
         await Clipboard.setStringAsync(message);
         setCopiedLieId(lie.lieId);

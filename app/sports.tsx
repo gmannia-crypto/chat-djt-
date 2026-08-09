@@ -3107,7 +3107,7 @@ export default function SportsScreen() {
             }}
             onChallenge={() => {
               shareContent({
-                text: `I've made ${viralStats.totalPicks} picks on Dynamic Sports Book! Think you know sports better than me? Challenge accepted! \uD83C\uDFC8\n\nGet yours at trumpbot.rip`,
+                text: `I've made ${viralStats.totalPicks} picks on Dynamic Sports Book! Think you know sports better than me? Challenge accepted! \uD83C\uDFC8\n\nGet yours at thearena.rip`,
                 feature: "sports_challenge",
               });
             }}

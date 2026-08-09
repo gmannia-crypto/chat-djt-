@@ -240,7 +240,7 @@ export default function CabinetHotSeat() {
         </Pressable>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>CABINET HOT SEAT</Text>
-          <Text style={styles.headerSubtitle}>Chat DJT Satisfaction Ratings</Text>
+          <Text style={styles.headerSubtitle}>The Arena Satisfaction Ratings</Text>
         </View>
         <Pressable
           onPress={() => {

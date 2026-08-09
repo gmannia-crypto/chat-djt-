@@ -35,7 +35,7 @@ export function ViralShareCard({ visible, onClose, category, headline, quote, su
 
   const handleShareX = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const text = `${headline} - ${quote.substring(0, 80)}... Get yours at trumpbot.rip`;
+    const text = `${headline} - ${quote.substring(0, 80)}... Get yours at thearena.rip`;
     const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`;
     if (Platform.OS === "web") {
       window.open(url, "_blank");
@@ -47,7 +47,7 @@ export function ViralShareCard({ visible, onClose, category, headline, quote, su
   const handleCopy = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     shareContent({
-      text: `${headline}\n${quote}\n\nGet yours at trumpbot.rip`,
+      text: `${headline}\n${quote}\n\nGet yours at thearena.rip`,
       feature: category,
     });
   };
@@ -69,7 +69,7 @@ export function ViralShareCard({ visible, onClose, category, headline, quote, su
 
             {subtext && <Text style={s.subtext}>{subtext}</Text>}
 
-            <Text style={s.brand}>— Chat DJT</Text>
+            <Text style={s.brand}>— The Arena</Text>
 
             <View style={s.btnRow}>
               <Pressable onPress={handleShareX} style={({ pressed }) => [s.shareBtn, { backgroundColor: "#1DA1F2" }, pressed && { opacity: 0.8 }]}>

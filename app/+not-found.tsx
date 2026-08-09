@@ -11,7 +11,7 @@ export default function NotFoundScreen() {
         <MaterialCommunityIcons name="crown-outline" size={48} color={Colors.goldDark} />
         <Text style={styles.title}>This page doesn't exist.</Text>
         <Link href="/" style={styles.link}>
-          <Text style={styles.linkText}>Go back to Chat DJT</Text>
+          <Text style={styles.linkText}>Go back to The Arena</Text>
         </Link>
       </View>
     </>

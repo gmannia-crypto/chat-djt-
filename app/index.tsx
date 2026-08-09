@@ -95,7 +95,7 @@ const FEATURE_OF_DAY = [
 ];
 
 const ONBOARDING_STEPS = [
-  { emoji: "👋", title: "Welcome to Chat DJT", body: "The most tremendous AI chat app ever built. Voice-cloned personas, live debates, and zero filter. Believe me." },
+  { emoji: "👋", title: "Welcome to The Arena", body: "The most tremendous AI chat app ever built. Voice-cloned personas, live debates, and zero filter. Believe me." },
   { emoji: "🏛️", title: "The Arena", body: "Pick up to 28 AI personas and watch them debate live news headlines. Award points, trigger breaking news, and declare a winner." },
   { emoji: "🛋️", title: "Trump Therapy", body: "Choose from 5 therapist personas — each with a unique style. Deep sessions, PHQ-9 assessments, and shareable diagnosis plans." },
   { emoji: "🪙", title: "D.C. Lightning Tokens", body: "Premium features cost tokens. Earn free ones via daily streaks, the Mystery Box, and the Arena. You can always buy more." },
@@ -606,7 +606,7 @@ export default function HomeScreen() {
     welcomePlayedRef.current = true;
     try {
       const baseUrl = getApiUrl().replace(/\/$/, "");
-      const url = `${baseUrl}/api/nav-speak?text=${encodeURIComponent("Welcome to CHAT DJT. A complete interactive immersive experience.")}`;
+      const url = `${baseUrl}/api/nav-speak?text=${encodeURIComponent("Welcome to The Arena. A complete interactive immersive experience.")}`;
       if (Platform.OS === "web") {
         const audio = new window.Audio(url);
         audio.volume = 0.9;
@@ -1730,7 +1730,7 @@ export default function HomeScreen() {
             <Pressable
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                const msg = `I've used Chat DJT for ${streak} days in a row! \uD83D\uDD25 Can you beat my streak?`;
+                const msg = `I've used The Arena for ${streak} days in a row! \uD83D\uDD25 Can you beat my streak? thearena.rip`;
                 if (Platform.OS === "web") {
                   const tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(msg)}`;
                   Linking.openURL(tweetUrl);
@@ -2302,7 +2302,7 @@ export default function HomeScreen() {
             ) : (
               <>
                 <MaterialCommunityIcons name="crown" size={28} color={Colors.gold} />
-                <Text style={styles.feedbackTitle}>Rate Chat DJT</Text>
+                <Text style={styles.feedbackTitle}>Rate The Arena</Text>
                 <Text style={styles.feedbackSubtitle}>How's your experience been?</Text>
                 <View style={styles.feedbackStars}>
                   {[1, 2, 3, 4, 5].map((star) => (

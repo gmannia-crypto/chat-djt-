@@ -196,7 +196,7 @@ export default function ChallengeScreen() {
     const myEmoji = getEmojiForRating(trumpResponse.rating);
     const theirEmoji = getEmojiForRating(challenge.challenger_rating);
     shareContent({
-      text: `${theirEmoji.emoji} @${challenge.challenger_name} rated Trump ${challenge.challenger_rating}%\n${myEmoji.emoji} I rated Trump ${trumpResponse.rating}%\n\nWho's right? Rate him yourself \u{1F447}\nchat-djt.replit.app`,
+      text: `${theirEmoji.emoji} @${challenge.challenger_name} rated Trump ${challenge.challenger_rating}%\n${myEmoji.emoji} I rated Trump ${trumpResponse.rating}%\n\nWho's right? Rate him yourself \u{1F447}\nthearena.rip`,
       feature: "rate_trump_challenge_response",
       deviceId: deviceId || undefined,
     });

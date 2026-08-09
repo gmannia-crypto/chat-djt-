@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /api/
 
-Sitemap: https://trumpbot.rip/company/sitemap.xml
+Sitemap: https://thearena.rip/company/sitemap.xml

@@ -13,7 +13,7 @@ import * as Clipboard from "expo-clipboard";
 import { getApiUrl } from "@/lib/query-client";
 import { useTokens } from "@/lib/token-context";
 
-const SHARE_URL = "https://trumpbot.rip";
+const SHARE_URL = "https://thearena.rip";
 
 type Bookmark = {
   id: string;
@@ -92,7 +92,7 @@ function interviewLabel(b: Bookmark) {
 
 function buildShareText(b: Bookmark) {
   const speaker = b.isCallIn ? `${b.speakerName} (caller)` : b.speakerName;
-  return `"${b.text}"\n— ${speaker}\n\nFrom ${interviewLabel(b)} on TrumpBot.rip\n${SHARE_URL}`;
+  return `"${b.text}"\n— ${speaker}\n\nFrom ${interviewLabel(b)} on The Arena\n${SHARE_URL}`;
 }
 
 export default function InterviewBookmarksScreen() {

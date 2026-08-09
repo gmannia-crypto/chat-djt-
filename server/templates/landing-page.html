@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <title>Chat DJT</title>
+    <title>The Arena</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="Talk to the greatest president ever. Unfiltered. Uncensored. Tremendous." />
@@ -1414,7 +1414,7 @@
       <div class="hero-badge">
         <span class="hero-badge-text">DJT</span>
       </div>
-      <h1>Chat DJT</h1>
+      <h1>The Arena</h1>
       <p class="hero-tagline">The most unfiltered AI experience ever built.<br/><em>Voice-cloned. Uncensored. Tremendous.</em></p>
       <div class="hero-cta">
         <a href="#explore" class="btn-primary" style="font-size:18px;padding:20px 44px;box-shadow:0 0 40px rgba(212,164,32,0.45),0 8px 32px rgba(212,164,32,0.3);animation:heroBtnPulse 2.5s ease-in-out infinite;">&#128293; Try the Demo Free</a>
@@ -1603,7 +1603,7 @@
     </section>
 
     <div class="footer">
-      <div>Chat DJT &mdash; For entertainment purposes only</div>
+      <div>The Arena &mdash; For entertainment purposes only</div>
       <div style="margin-top: 6px;">&#x1F4B0; This site contains affiliate links. As an Amazon Associate, I earn from qualifying purchases.</div>
       <div style="margin-top: 8px; font-size: 10px; color: rgba(255,255,255,0.2); max-width: 500px; margin-left: auto; margin-right: auto;">Not affiliated with Donald J. Trump, The Trump Organization, or any political entity. Trump's name and likeness used under license from third party. Not an investment opportunity. No real money gambling.</div>
     </div>
@@ -1903,7 +1903,7 @@
       window.showShareCard = function(title, resultText, context) {
         context = context || '';
         var truncated = resultText.substring(0, 120) + (resultText.length > 120 ? '...' : '');
-        var shareText = resultText.substring(0, 80) + '...\n\nTry Chat DJT at trumpbot.rip';
+        var shareText = resultText.substring(0, 80) + '...\n\nTry The Arena at thearena.rip';
         var modal = document.createElement('div');
         modal.className = 'share-modal';
         modal.innerHTML =
@@ -1911,7 +1911,7 @@
             '<div style="font-size:48px;">&#x1F3AD;</div>' +
             '<div class="share-result">' + title + '</div>' +
             '<div class="share-quote">"' + truncated + '"</div>' +
-            '<div style="font-size:12px;color:#888;">— Chat DJT</div>' +
+            '<div style="font-size:12px;color:#888;">— The Arena</div>' +
             '<div class="share-buttons">' +
               '<button class="share-btn share-twitter" id="viralShareTwitter">&#x1F426; Share</button>' +
               '<button class="share-btn share-copy" id="viralShareCopy">&#x1F4CB; Copy</button>' +
@@ -2011,7 +2011,7 @@
         topics.unshift({ topic: topic, votes: 1, date: Date.now() });
         localStorage.setItem('userTopics', JSON.stringify(topics));
         input.value = '';
-        window.showShareCard('Topic Suggested!', topic + ' — Your debate topic has been submitted to Chat DJT!', 'topic');
+        window.showShareCard('Topic Suggested!', topic + ' — Your debate topic has been submitted to The Arena!', 'topic');
         fetch('/api/suggest-topic', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2020,7 +2020,7 @@
       };
 
       window.challengeFriend = function(feature, data) {
-        var text = encodeURIComponent('I challenge you to beat my score in ' + feature + ' on Chat DJT! &#x1F3AD;\n\nPlay here: trumpbot.rip');
+        var text = encodeURIComponent('I challenge you to beat my score in ' + feature + ' on The Arena! &#x1F3AD;\n\nPlay here: thearena.rip');
         window.open('https://twitter.com/intent/tweet?text=' + text, '_blank');
       };
 
@@ -2051,7 +2051,7 @@
           document.body.appendChild(celebration);
           document.getElementById('streakShareBtn').onclick = function() {
             celebration.remove();
-            window.showShareCard(streak + ' Day Streak!', 'I just hit a ' + streak + ' day streak on Chat DJT! Can you beat me?', 'streak');
+            window.showShareCard(streak + ' Day Streak!', 'I just hit a ' + streak + ' day streak on The Arena! Can you beat me?', 'streak');
           };
           document.getElementById('streakCloseBtn').onclick = function() { celebration.remove(); };
           setTimeout(function() { if (celebration.parentNode) celebration.remove(); }, 10000);

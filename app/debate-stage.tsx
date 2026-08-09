@@ -3017,7 +3017,7 @@ export default function DebateStage() {
 
     try {
       const top = data?.leaderboard?.slice(0, 3) ?? [];
-      let msg = "🏆 Debate Hall of Fame on TrumpBot.rip\n\n";
+      let msg = "🏆 Debate Hall of Fame on The Arena\n\n";
       if (top.length > 0) {
         top.forEach((entry, i) => {
           const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : "🥉";
@@ -3025,12 +3025,12 @@ export default function DebateStage() {
           msg += `${medal} ${pName} — ${entry.winPct}% win rate\n`;
         });
         const leader = debaterPool.find((p) => p.id === top[0].personaId)?.name || top[0].personaId;
-        msg += `\n${leader} leads the arena — come debate them! 👉 https://trumpbot.rip/arena`;
+        msg += `\n${leader} leads the arena — come debate them! 👉 https://thearena.rip/arena`;
       } else {
         // Fallback only when the leaderboard is genuinely empty (0 entries)
-        msg += "Rankings are heating up — come debate your picks! 👉 https://trumpbot.rip/arena";
+        msg += "Rankings are heating up — come debate your picks! 👉 https://thearena.rip/arena";
       }
-      await Share.share({ message: msg, url: "https://trumpbot.rip/arena" });
+      await Share.share({ message: msg, url: "https://thearena.rip/arena" });
     } catch {}
 
     setHofShareLoading(false);
@@ -3053,13 +3053,13 @@ export default function DebateStage() {
     if (Platform.OS === "web") {
       try {
         const medal = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : `#${rank}`;
-        let msg = `🏆 ${pName} is ${medal} in the Debate Hall of Fame on TrumpBot.rip!\n`;
+        let msg = `🏆 ${pName} is ${medal} in the Debate Hall of Fame on The Arena!\n`;
         msg += `📊 ${winPct}% win rate · ${totalWins}W–${totalLosses}L`;
         if (rivalName && bestRivalWins) {
           msg += `\n💪 Dominates ${rivalName.split(" ")[0]} (${bestRivalWins}× wins)`;
         }
         const pid = personaId || pName.toLowerCase().replace(/\s+/g, "");
-        const arenaUrl = `https://trumpbot.rip/arena?persona=${encodeURIComponent(pid)}`;
+        const arenaUrl = `https://thearena.rip/arena?persona=${encodeURIComponent(pid)}`;
         msg += `\nCome debate them 👉 ${arenaUrl}`;
         await Share.share({ message: msg, url: arenaUrl });
       } catch {}
@@ -3094,7 +3094,7 @@ export default function DebateStage() {
       const Sharing = await import("expo-sharing");
       const canShare = await Sharing.isAvailableAsync();
       const pid = personaId || pName.toLowerCase().replace(/\s+/g, "");
-      const arenaUrl = `https://trumpbot.rip/arena?persona=${encodeURIComponent(pid)}`;
+      const arenaUrl = `https://thearena.rip/arena?persona=${encodeURIComponent(pid)}`;
       if (canShare) {
         await Sharing.shareAsync(uri, {
           mimeType: "image/png",
@@ -3108,13 +3108,13 @@ export default function DebateStage() {
       // Final fallback: text share
       try {
         const medal = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : `#${rank}`;
-        let msg = `🏆 ${pName} is ${medal} in the Debate Hall of Fame on TrumpBot.rip!\n`;
+        let msg = `🏆 ${pName} is ${medal} in the Debate Hall of Fame on The Arena!\n`;
         msg += `📊 ${winPct}% win rate · ${totalWins}W–${totalLosses}L`;
         if (rivalName && bestRivalWins) {
           msg += `\n💪 Dominates ${rivalName.split(" ")[0]} (${bestRivalWins}× wins)`;
         }
-        const pid = personaId || pName.toLowerCase().replace(/\s+/g, "");
-        const arenaUrl = `https://trumpbot.rip/arena?persona=${encodeURIComponent(pid)}`;
+        const pid2 = personaId || pName.toLowerCase().replace(/\s+/g, "");
+        const arenaUrl = `https://thearena.rip/arena?persona=${encodeURIComponent(pid2)}`;
         msg += `\nCome debate them 👉 ${arenaUrl}`;
         await Share.share({ message: msg, url: arenaUrl });
       } catch {}
@@ -3186,7 +3186,7 @@ export default function DebateStage() {
     const totalVotes = pollVoteA + pollVoteB;
     const pctA = totalVotes > 0 ? Math.round((pollVoteA / totalVotes) * 100) : 50;
     const pctB = 100 - pctA;
-    const tags = pollQuestion.hashtags?.map((h: string) => `#${h}`).join(" ") || "#ChatDJT #Poll";
+    const tags = pollQuestion.hashtags?.map((h: string) => `#${h}`).join(" ") || "#TheArena #Poll";
     const msg = `🗳️ LIVE POLL — The Arena\n\n"${pollQuestion.question}"\n\n🅰️ ${pollQuestion.optionA} — ${pctA}%\n🅱️ ${pollQuestion.optionB} — ${pctB}%\n\n${tags}\n\nVote live on The Arena 👇\nthearena.rip`;
     try {
       if (Platform.OS === "web" && navigator.share) await navigator.share({ title: "Live Poll", text: msg });

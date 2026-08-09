@@ -1510,7 +1510,7 @@ export default function RealEstateScreen() {
             }}
             onChallenge={() => {
               shareContent({
-                text: `I'm tracking ${viralReStats.watchedProperties.length} hot investment properties on Dynamic Reality! Think you can find better deals? \uD83C\uDFE0\n\nCheck it at trumpbot.rip`,
+                text: `I'm tracking ${viralReStats.watchedProperties.length} hot investment properties on Dynamic Reality! Think you can find better deals? \uD83C\uDFE0\n\nCheck it at thearena.rip`,
                 feature: "realestate_challenge",
               });
             }}

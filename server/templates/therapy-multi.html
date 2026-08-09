@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Multi-Voice Therapy - Chat DJT</title>
+    <title>Multi-Voice Therapy - The Arena</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { background: #0a0a0a; font-family: 'Arial', sans-serif; color: white; line-height: 1.6; }
@@ -1202,7 +1202,7 @@
         function shareSnippet(index) {
             var snippets = [sessionStorage.getItem('lastTherapy')];
             exchanges.forEach(function(e) { snippets.push(e.answer); });
-            var text = encodeURIComponent('"' + (snippets[index] || '').substring(0, 80) + '..." Get your therapy at trumpbot.rip');
+            var text = encodeURIComponent('"' + (snippets[index] || '').substring(0, 80) + '..." Get your therapy at thearena.rip');
             var url = encodeURIComponent(window.location.href);
             window.open('https://twitter.com/intent/tweet?text=' + text + '&url=' + url, '_blank');
             trackEvent('share_snippet');
@@ -2143,7 +2143,7 @@
 
         function copyTrigger(phrase) {
             if (navigator.clipboard) {
-                navigator.clipboard.writeText('My post-hypnotic trigger: "' + phrase + '" - TrumpBot.rip Therapy').then(function() {
+                navigator.clipboard.writeText('My post-hypnotic trigger: "' + phrase + '" - The Arena Therapy').then(function() {
                     alert('Trigger copied!');
                 });
             } else {
@@ -2152,7 +2152,7 @@
         }
 
         function shareTrigger(phrase, effect) {
-            var shareText = 'I just did a hypnosis session on TrumpBot.rip! My trigger phrase is "' + phrase + '" — whenever I say it, ' + effect + '. Try it yourself!';
+            var shareText = 'I just did a hypnosis session on The Arena! My trigger phrase is "' + phrase + '" — whenever I say it, ' + effect + '. Try it yourself! thearena.rip';
             if (navigator.share) {
                 navigator.share({ title: 'My Hypnotic Trigger', text: shareText, url: window.location.href }).catch(function() {});
             } else if (navigator.clipboard) {

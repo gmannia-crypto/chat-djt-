@@ -5,21 +5,21 @@ async function createProducts() {
 
   const subscriptionTiers = [
     {
-      name: 'Chat DJT Premium',
+      name: 'The Arena Premium',
       description: 'Unlimited ratings, video responses, leaderboard name, custom roasts. The premium experience!',
-      metadata: { app: 'chatdjt', tier: 'premium', type: 'subscription' },
+      metadata: { app: 'thearena', tier: 'premium', type: 'subscription' },
       price: 399,
     },
     {
-      name: 'Chat DJT Standard',
+      name: 'The Arena Standard',
       description: '50 Dynamic Tokens per month. Great deal!',
-      metadata: { app: 'chatdjt', tier: 'standard', type: 'subscription' },
+      metadata: { app: 'thearena', tier: 'standard', type: 'subscription' },
       price: 499,
     },
     {
-      name: 'Chat DJT VIP',
+      name: 'The Arena VIP',
       description: '150 Dynamic Tokens per month. The best deal, believe me! Tremendous value!',
-      metadata: { app: 'chatdjt', tier: 'vip', type: 'subscription' },
+      metadata: { app: 'thearena', tier: 'vip', type: 'subscription' },
       price: 999,
     },
   ];
@@ -69,7 +69,7 @@ async function createProducts() {
     const product = await stripe.products.create({
       name: pack.name,
       description: pack.description,
-      metadata: { app: 'chatdjt', type: 'token_pack', packId: pack.packId },
+      metadata: { app: 'thearena', type: 'token_pack', packId: pack.packId },
     });
 
     const price = await stripe.prices.create({

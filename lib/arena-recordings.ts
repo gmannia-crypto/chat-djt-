@@ -75,6 +75,6 @@ export function generateShareText(recording: ArenaRecording): string {
   if (highlight) text += `\n💬 "${highlight}"\n`;
   if (interruptions > 0) text += `⚡ ${interruptions} interruptions!\n`;
   text += `\n${recording.messageCount} exchanges in ${formatDuration(recording.duration)}\n`;
-  text += `\n🏛️ Watch the debate on Chat DJT\nhttps://chat-djt.replit.app`;
+  text += `\n🏛️ Watch the debate on The Arena\nhttps://thearena.rip`;
   return text;
 }

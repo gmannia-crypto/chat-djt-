@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Chat DJT",
+    "name": "The Arena",
     "slug": "chat-djt",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -30,7 +30,7 @@
     },
     "web": {
       "favicon": "./assets/images/favicon.png",
-      "description": "Chat DJT — Talk to an AI Donald Trump. Unfiltered debates, political arena, therapy sessions, and more. The most tremendous AI chat experience, believe me.",
+      "description": "The Arena — Watch AI personas debate live news. Political arena, therapy sessions, interviews, and more. The most tremendous AI experience, believe me.",
       "themeColor": "#000000",
       "backgroundColor": "#000000"
     },

@@ -107,11 +107,11 @@ export default function TikTokLiveScreen() {
     const pctA = total > 0 ? Math.round((voteA / total) * 100) : 50;
     const pctB = 100 - pctA;
     const phaseStr = phase === "pre" ? "Before the debate:" : phase === "live" ? "LIVE RIGHT NOW:" : "Post-debate verdict:";
-    const tags = poll.hashtags?.map((h) => `#${h}`).join(" ") || "#ChatDJT #Poll";
+    const tags = poll.hashtags?.map((h) => `#${h}`).join(" ") || "#TheArena #Poll";
     const msg = `🗳️ ${phaseStr}\n\n"${poll.question}"\n\n🅰️ ${poll.optionA} — ${pctA}%\n🅱️ ${poll.optionB} — ${pctB}%\n\n${tags}\n\nVote + watch live on The Arena 🔥\nthearena.rip`;
     try {
       if (Platform.OS === "web" && navigator.share) await navigator.share({ title: "Live Poll", text: msg });
-      else await Share.share({ message: msg, title: "Live Poll — Chat DJT" });
+      else await Share.share({ message: msg, title: "Live Poll — The Arena" });
     } catch {}
   }, [poll, voteA, voteB, phase]);
 
@@ -134,7 +134,7 @@ export default function TikTokLiveScreen() {
             <Animated.View style={[s.liveDot, liveDotStyle]} />
             <Text style={s.headerTitle}>TIKTOK LIVE POLLS</Text>
           </View>
-          <Text style={s.headerSub}>Chat DJT · Viral Question Generator</Text>
+          <Text style={s.headerSub}>The Arena · Viral Question Generator</Text>
         </View>
         <Pressable onPress={sharePoll} style={s.shareBtn} disabled={!poll}>
           <Ionicons name="share-social" size={18} color={poll ? "#FFD700" : "#555"} />

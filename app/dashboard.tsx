@@ -228,7 +228,7 @@ export default function DashboardScreen() {
                     )}
                     <Pressable
                       onPress={() => shareContent({
-                        text: `\uD83C\uDDFA\uD83C\uDDF8 TRUMP ON THE WEATHER:\n\n"${weatherComment.comment}"\n\n${weather.current.temp}\u00B0F in ${weather.city} \u2014 ${weather.current.label}\n\n\uD83C\uDFDB\uFE0F Chat with the 47th President\n\uD83D\uDC49 chat-djt.replit.app`,
+                        text: `\uD83C\uDDFA\uD83C\uDDF8 TRUMP ON THE WEATHER:\n\n"${weatherComment.comment}"\n\n${weather.current.temp}\u00B0F in ${weather.city} \u2014 ${weather.current.label}\n\n\uD83C\uDFDB\uFE0F Chat with the 47th President\n\uD83D\uDC49 thearena.rip`,
                         feature: "weather_commentary",
                       })}
                       style={({ pressed }) => [styles.shareSmallButton, pressed && { opacity: 0.7 }]}
@@ -444,7 +444,7 @@ export default function DashboardScreen() {
                     </Pressable>
                     <Pressable
                       onPress={() => shareContent({
-                        text: `\uD83D\uDCC8 TRUMP'S PICK OF THE DAY \uD83D\uDCC8\n\n${pickNames[pickAsset]} (${pickSymbols[pickAsset]})\n$${formatPrice(pickData.price)} ${isUp ? "\u2705" : "\uD83D\uDD34"} ${change >= 0 ? "+" : ""}${change.toFixed(1)}%\n\nTrump says: "${affiliateComment}"\n\n\uD83C\uDFDB\uFE0F Get Trump's daily picks\n\uD83D\uDC49 chat-djt.replit.app`,
+                        text: `\uD83D\uDCC8 TRUMP'S PICK OF THE DAY \uD83D\uDCC8\n\n${pickNames[pickAsset]} (${pickSymbols[pickAsset]})\n$${formatPrice(pickData.price)} ${isUp ? "\u2705" : "\uD83D\uDD34"} ${change >= 0 ? "+" : ""}${change.toFixed(1)}%\n\nTrump says: "${affiliateComment}"\n\n\uD83C\uDFDB\uFE0F Get Trump's daily picks\n\uD83D\uDC49 thearena.rip`,
                         feature: "stock_pick",
                       })}
                       style={({ pressed }) => [styles.sharePickButton, pressed && { opacity: 0.7 }]}

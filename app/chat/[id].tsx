@@ -144,7 +144,7 @@ function MessageBubble({
       ? message.content.slice(0, 277) + "..."
       : message.content;
     const categoryTag = speechCategory ? ` [${SPEECH_LABELS[speechCategory]?.label || ""}]` : "";
-    const shareText = `🇺🇸 TRUMP AI${categoryTag}:\n\n"${quote}"\n\n🏛️ Chat with the 47th President yourself\n👉 chat-djt.replit.app`;
+    const shareText = `🇺🇸 TRUMP AI${categoryTag}:\n\n"${quote}"\n\n🏛️ Chat with the 47th President yourself\n👉 thearena.rip`;
 
     trackShare({
       feature: "chat_message",
@@ -1617,7 +1617,7 @@ export default function ChatScreen() {
   function shareReportCard() {
     if (!reportCard) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const text = `🇺🇸 TRUMP REPORT CARD: ${reportCard.grade}\n\n"${reportCard.evaluation}"\n\n🏛️ Get YOUR grade from the 47th President\n👉 chat-djt.replit.app`;
+    const text = `🇺🇸 TRUMP REPORT CARD: ${reportCard.grade}\n\n"${reportCard.evaluation}"\n\n🏛️ Get YOUR grade from the 47th President\n👉 thearena.rip`;
     trackShare({
       feature: "report_card",
       contentPreview: `Grade: ${reportCard.grade}`,
@@ -1664,7 +1664,7 @@ export default function ChatScreen() {
         </Pressable>
         <View style={styles.chatHeaderCenter}>
           <MaterialCommunityIcons name="crown" size={20} color={Colors.gold} />
-          <Text style={styles.chatHeaderTitle}>Chat DJT</Text>
+          <Text style={styles.chatHeaderTitle}>The Arena</Text>
         </View>
         <Pressable
           onPress={() => router.push("/subscribe")}

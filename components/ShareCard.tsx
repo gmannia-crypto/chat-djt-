@@ -19,7 +19,7 @@ export function ShareCard() {
   const { shareCard, dismissShareCard, awardBadge } = useEngagement();
   if (!shareCard) return null;
 
-  const shareText = `"${shareCard.quote}"\n\n- Chat DJT\n\nGet yours at trumpbot.rip`;
+  const shareText = `"${shareCard.quote}"\n\n- The Arena\n\nGet yours at thearena.rip`;
 
   async function handleNativeShare() {
     try {
@@ -36,7 +36,7 @@ export function ShareCard() {
   }
 
   function handleFacebook() {
-    const url = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent("https://trumpbot.rip")}`;
+    const url = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent("https://thearena.rip")}`;
     Linking.openURL(url);
     awardBadge("share_first");
   }
@@ -56,7 +56,7 @@ export function ShareCard() {
 
             <View style={styles.quoteBox}>
               <Text style={styles.quote}>"{shareCard.quote}"</Text>
-              <Text style={styles.attribution}>- Chat DJT</Text>
+              <Text style={styles.attribution}>- The Arena</Text>
             </View>
 
             <Text style={styles.shareLabel}>Share your moment!</Text>

@@ -6921,7 +6921,7 @@ export default function ArenaScreen() {
     const winnerName = winnerPersona?.name || null;
     const winnerPts = winner ? winner[1] : 0;
 
-    let shareText = `🏛️ THE ARENA — Chat DJT\n`;
+    let shareText = `🏛️ THE ARENA — thearena.rip\n`;
     shareText += `📰 Topic: "${topicName}"\n\n`;
     if (recentMessages.length > 0) {
       shareText += `🔥 Highlights:\n`;

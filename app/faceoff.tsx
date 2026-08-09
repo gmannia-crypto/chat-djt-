@@ -656,8 +656,8 @@ export default function FaceoffScreen() {
   const handlePotwShare = useCallback(() => {
     const p = PERSONAS.find(x => x.id === potwVotedFor);
     const text = potwVotedFor && p
-      ? `\u{1F31F} I voted for ${p.name} as Persona of the Week on Financial Faceoff!\n\nWho gives the best financial advice? Cast your vote at chat-djt.replit.app`
-      : `\u{1F31F} Who gives the best financial advice? Vote for Persona of the Week on Financial Faceoff!\n\nchat-djt.replit.app`;
+      ? `\u{1F31F} I voted for ${p.name} as Persona of the Week on Financial Faceoff!\n\nWho gives the best financial advice? Cast your vote at thearena.rip`
+      : `\u{1F31F} Who gives the best financial advice? Vote for Persona of the Week on Financial Faceoff!\n\nthearena.rip`;
     shareContent({ text, feature: "potw" });
   }, [potwVotedFor]);
 
@@ -753,7 +753,7 @@ export default function FaceoffScreen() {
   const handleShare = useCallback(() => {
     const v1 = votes[contender1.id] || 0;
     const v2 = votes[contender2.id] || 0;
-    const shareText = `FINANCIAL FACEOFF: ${contender1.name} vs ${contender2.name} on ${selectedTopic.name}!\n\nCurrent vote: ${v1}-${v2}\n\n${contender1.name}: "${contender1.advice[selectedTopic.category] || contender1.advice.default}"\n\n${contender2.name}: "${contender2.advice[selectedTopic.category] || contender2.advice.default}"\n\nWho's right? Play at chat-djt.replit.app`;
+    const shareText = `FINANCIAL FACEOFF: ${contender1.name} vs ${contender2.name} on ${selectedTopic.name}!\n\nCurrent vote: ${v1}-${v2}\n\n${contender1.name}: "${contender1.advice[selectedTopic.category] || contender1.advice.default}"\n\n${contender2.name}: "${contender2.advice[selectedTopic.category] || contender2.advice.default}"\n\nWho's right? Play at thearena.rip`;
     shareContent({ text: shareText, feature: "faceoff" });
 
     try {
@@ -769,7 +769,7 @@ export default function FaceoffScreen() {
   const handleMashupShare = useCallback(() => {
     const a1 = contender1.advice[selectedTopic.category] || contender1.advice.default;
     const a2 = contender2.advice[selectedTopic.category] || contender2.advice.default;
-    const shareText = `PERSONA MASHUP: ${contender1.name} \u00D7 ${contender2.name} on ${selectedTopic.name}!\n\n${contender1.name}: "${a1}"\n\n...BUT WAIT...\n\n${contender2.name}: "${a2}" \uD83E\uDD2F\n\nViral Score: ${mashupViralScore}%\nCreate your own mashup at chat-djt.replit.app`;
+    const shareText = `PERSONA MASHUP: ${contender1.name} \u00D7 ${contender2.name} on ${selectedTopic.name}!\n\n${contender1.name}: "${a1}"\n\n...BUT WAIT...\n\n${contender2.name}: "${a2}" \uD83E\uDD2F\n\nViral Score: ${mashupViralScore}%\nCreate your own mashup at thearena.rip`;
     shareContent({ text: shareText, feature: "mashup" });
 
     try {
@@ -855,7 +855,7 @@ export default function FaceoffScreen() {
     const totalVotes = Object.values(battleVotes).reduce((s, v) => s + v, 0);
     const sorted = [...PERSONAS].sort((a, b) => (battleVotes[b.id] || 0) - (battleVotes[a.id] || 0));
     const leader = sorted[0];
-    const shareText = `PERSONA BATTLE ROYALE: "${battleQuestion.text}"\n\n${totalVotes} votes so far!\nLeading: ${leader.name} with ${battleVotes[leader.id] || 0} votes\n\n10 personas. 1 question. Who wins?\nPlay at chat-djt.replit.app`;
+    const shareText = `PERSONA BATTLE ROYALE: "${battleQuestion.text}"\n\n${totalVotes} votes so far!\nLeading: ${leader.name} with ${battleVotes[leader.id] || 0} votes\n\n10 personas. 1 question. Who wins?\nPlay at thearena.rip`;
     shareContent({ text: shareText, feature: "battle-royale" });
   }, [battleVotes, battleQuestion]);
 
@@ -1298,13 +1298,13 @@ export default function FaceoffScreen() {
             onShare={() => {
               setViralShareData({
                 headline: `${viralFaceoffStats.wins} Debate Wins`,
-                quote: `I've dominated ${viralFaceoffStats.wins} out of ${viralFaceoffStats.debates} financial debates!\n${viralFaceoffStats.favPersona ? `Favorite advisor: ${viralFaceoffStats.favPersona}` : ""}\n\nThink you know more? Battle me at trumpbot.rip`,
+                quote: `I've dominated ${viralFaceoffStats.wins} out of ${viralFaceoffStats.debates} financial debates!\n${viralFaceoffStats.favPersona ? `Favorite advisor: ${viralFaceoffStats.favPersona}` : ""}\n\nThink you know more? Battle me at thearena.rip`,
               });
               setViralShareVisible(true);
             }}
             onChallenge={() => {
               shareContent({
-                text: `I've won ${viralFaceoffStats.wins} financial debates! Think you can beat me? \u2694\uFE0F\n\nChallenge me at trumpbot.rip`,
+                text: `I've won ${viralFaceoffStats.wins} financial debates! Think you can beat me? \u2694\uFE0F\n\nChallenge me at thearena.rip`,
                 feature: "faceoff_challenge",
               });
             }}

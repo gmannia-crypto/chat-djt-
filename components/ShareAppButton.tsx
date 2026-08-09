@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Clipboard from "expo-clipboard";
 
-const SHARE_URL = "https://trumpbot.rip";
+const SHARE_URL = "https://thearena.rip";
 
 type Template = {
   id: string;
@@ -18,19 +18,19 @@ const TEMPLATES: Template[] = [
     id: "djt",
     label: "Chat with DJT",
     emoji: "🇺🇸",
-    message: `I just chatted with Donald Trump on TrumpBot.rip — TREMENDOUS app, the BEST! Try it 👉 ${SHARE_URL}`,
+    message: `I just chatted with Donald Trump on The Arena — TREMENDOUS app, the BEST! Try it 👉 ${SHARE_URL}`,
   },
   {
     id: "arena",
     label: "The Arena",
     emoji: "🥊",
-    message: `Trump just DEMOLISHED the entire cabinet in a live debate on TrumpBot.rip 😂 Pick your team 👉 ${SHARE_URL}/arena`,
+    message: `Trump just DEMOLISHED the entire cabinet in a live debate on The Arena 😂 Pick your team 👉 ${SHARE_URL}/arena`,
   },
   {
     id: "sports",
     label: "Sports Picks",
     emoji: "🏈",
-    message: `Trump's giving sports picks on TrumpBot.rip and trash-talking like a champ 🏆 Get in 👉 ${SHARE_URL}/sports`,
+    message: `Trump's giving sports picks on The Arena and trash-talking like a champ 🏆 Get in 👉 ${SHARE_URL}/sports`,
   },
   {
     id: "therapy",
@@ -42,25 +42,25 @@ const TEMPLATES: Template[] = [
     id: "fortune",
     label: "Fortune Teller",
     emoji: "🔮",
-    message: `Trump just predicted my future on TrumpBot.rip — wildly accurate 🔮 Get yours 👉 ${SHARE_URL}/fortune`,
+    message: `Trump just predicted my future on The Arena — wildly accurate 🔮 Get yours 👉 ${SHARE_URL}/fortune`,
   },
   {
     id: "realestate",
     label: "Real Estate Mogul",
     emoji: "🏢",
-    message: `Trump's analyzing real estate deals on TrumpBot.rip — TREMENDOUS deals only 🏢 Try it 👉 ${SHARE_URL}/real-estate`,
+    message: `Trump's analyzing real estate deals on The Arena — TREMENDOUS deals only 🏢 Try it 👉 ${SHARE_URL}/real-estate`,
   },
   {
     id: "billionaires",
     label: "Billionaires Game",
     emoji: "💎",
-    message: `I'm running with the billionaires on TrumpBot.rip 💎 Think you got what it takes? 👉 ${SHARE_URL}/game`,
+    message: `I'm running with the billionaires on The Arena 💎 Think you got what it takes? 👉 ${SHARE_URL}/game`,
   },
   {
     id: "viral",
     label: "Just Try It",
     emoji: "🚀",
-    message: `Yo you HAVE to try TrumpBot.rip — chat with DJT, debate the cabinet, get sports picks. Free 👉 ${SHARE_URL}`,
+    message: `Yo you HAVE to try The Arena — chat with DJT, debate the cabinet, get sports picks. Free 👉 ${SHARE_URL}`,
   },
 ];
 
@@ -137,7 +137,7 @@ export function ShareAppButton({
             <View style={styles.handle} />
             <View style={styles.headerRow}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.title}>Share TrumpBot.rip</Text>
+                <Text style={styles.title}>Share The Arena</Text>
                 <Text style={styles.subtitle}>Pick a template — tap to share</Text>
               </View>
               <Pressable onPress={() => setOpen(false)} hitSlop={12}>

@@ -364,7 +364,7 @@ function serveDevManifestDirect(req: Request, res: Response) {
     extra: {
       eas: {},
       expoClient: {
-        name: appConfig.name || "Chat DJT",
+        name: appConfig.name || "The Arena",
         slug: appConfig.slug || "chat-djt",
         version: appConfig.version || "1.0.0",
         orientation: appConfig.orientation || "portrait",

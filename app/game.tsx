@@ -797,7 +797,7 @@ export default function GameScreen() {
 
   const handleShare = useCallback(() => {
     const darkPercent = choiceHistory.length > 0 ? Math.round((choiceHistory.filter(c => c.karma < -10).length / choiceHistory.length) * 100) : 0;
-    const shareText = `🎮 DYNAMIC BILLIONAIRES\n\n${titleInfo.emoji} ${titleInfo.label}\n💰 Net Worth: ${fmtMoney(gameState.netWorth)}\n⚡ Moral Rating: ${karmaRating.label}\n🎭 Dark Deals: ${gameState.darkDeals}\n📊 ${darkPercent}% ruthless choices\n\n${gameWon ? "I reached $1 BILLION! 👑" : `Turn ${gameState.turn} — still climbing!`}\n\n👉 Play at chat-djt.replit.app`;
+    const shareText = `🎮 DYNAMIC BILLIONAIRES\n\n${titleInfo.emoji} ${titleInfo.label}\n💰 Net Worth: ${fmtMoney(gameState.netWorth)}\n⚡ Moral Rating: ${karmaRating.label}\n🎭 Dark Deals: ${gameState.darkDeals}\n📊 ${darkPercent}% ruthless choices\n\n${gameWon ? "I reached $1 BILLION! 👑" : `Turn ${gameState.turn} — still climbing!`}\n\n👉 Play at thearena.rip`;
     shareContent({ text: shareText, feature: "game" });
   }, [gameState, titleInfo, karmaRating, choiceHistory, gameWon]);
 
@@ -1195,7 +1195,7 @@ export default function GameScreen() {
               }}
               onChallenge={() => {
                 shareContent({
-                  text: `I've won ${viralGameStats.wins} games and scored ${fmtMoney(viralGameStats.highestScore)} in Dynamic Billionaires! Think you can do better? \uD83C\uDFAE\n\nPlay at trumpbot.rip`,
+                  text: `I've won ${viralGameStats.wins} games and scored ${fmtMoney(viralGameStats.highestScore)} in Dynamic Billionaires! Think you can do better? \uD83C\uDFAE\n\nPlay at thearena.rip`,
                   feature: "game_challenge",
                 });
               }}

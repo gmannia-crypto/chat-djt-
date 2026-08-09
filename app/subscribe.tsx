@@ -80,17 +80,17 @@ export default function SubscribeScreen() {
   });
 
   const standardProduct = productsData?.data?.find(
-    (p) => p.name === "Chat DJT Standard"
+    (p) => p.name === "The Arena Standard" || p.name === "Chat DJT Standard"
   );
   const vipProduct = productsData?.data?.find(
-    (p) => p.name === "Chat DJT VIP"
+    (p) => p.name === "The Arena VIP" || p.name === "Chat DJT VIP"
   );
 
   const standardPrice = standardProduct?.prices?.find((p) => p.recurring?.interval === "month");
   const vipPrice = vipProduct?.prices?.find((p) => p.recurring?.interval === "month");
 
   const tokenPackProducts = productsData?.data?.filter(
-    (p) => p.name.includes("Tokens") && !p.name.includes("Chat DJT")
+    (p) => p.name.includes("Tokens") && !p.name.includes("The Arena") && !p.name.includes("Chat DJT")
   );
 
   useEffect(() => {

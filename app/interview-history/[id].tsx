@@ -20,7 +20,7 @@ import TagEditorModal, {
   normalizeTag,
 } from "@/components/TagEditorModal";
 
-const SHARE_URL = "https://trumpbot.rip";
+const SHARE_URL = "https://thearena.rip";
 
 type Msg = { id: string; speakerId: string; speakerName: string; text: string; ts: number; isInterruption?: boolean; isCallIn?: boolean; callerName?: string; isPartingShot?: boolean };
 type LieEntry = { id: string; speakerId: string; speakerName: string; text: string; score: number; reason: string; fact: string; ts: number; userFlagged?: boolean };
@@ -264,7 +264,7 @@ export default function InterviewTranscriptScreen() {
   const buildShareText = (m: Msg) => {
     if (!data) return m.text;
     const speaker = m.isCallIn ? `${m.speakerName} (caller)` : m.speakerName;
-    return `"${m.text}"\n— ${speaker}\n\nFrom ${data.interviewerName} × ${data.intervieweeName} on TrumpBot.rip\n${SHARE_URL}`;
+    return `"${m.text}"\n— ${speaker}\n\nFrom ${data.interviewerName} × ${data.intervieweeName} on The Arena\n${SHARE_URL}`;
   };
 
   const handleCopyMsg = async (m: Msg) => {
