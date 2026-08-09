@@ -1486,12 +1486,18 @@ export default function DebateStage() {
           id: `loser-concession-${Date.now()}`, speakerId: prelimLoserId, speakerName: prelimLoserName,
           text: loserLine, ts: Date.now(), skipTTS: true,
         }]);
+        // Pre-seed the modal's reaction card immediately — AI content will override in phase 7.
+        // This ensures the loser's reaction always appears even if the AI fetch fails.
+        setDebateTrumpRoast(loserLine);
+        setDebateTrumpRoastSpeakerId(prelimLoserId);
       }
       if (winnerLine) {
         setMessages((prev) => [...prev, {
           id: `winner-response-${Date.now()}`, speakerId: prelimWinnerId, speakerName: prelimWinnerName,
           text: winnerLine, ts: Date.now(), skipTTS: true,
         }]);
+        // Pre-seed the modal's winner rebuttal card — AI content will override in phase 7.
+        setDebateWinnerSpeech(winnerLine);
       }
 
       setIsLoadingDebateRoast(true);
