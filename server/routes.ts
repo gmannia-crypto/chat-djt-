@@ -12336,17 +12336,17 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
       prices: [{ id: "dev_price_vip", unit_amount: 999, currency: "usd", recurring: { interval: "month" } }],
     },
     {
-      id: "dev_pack_15", name: "15 Dynamic Tokens", description: "One-time token pack",
+      id: "dev_pack_15", name: "15 Dynamic Tokens", description: "15 extra prompts with The Arena",
       metadata: { type: "token_pack" },
       prices: [{ id: "dev_price_pack15", unit_amount: 299, currency: "usd", recurring: null }],
     },
     {
-      id: "dev_pack_35", name: "35 Dynamic Tokens", description: "One-time token pack",
+      id: "dev_pack_35", name: "35 Dynamic Tokens", description: "35 extra prompts with The Arena - Popular!",
       metadata: { type: "token_pack" },
       prices: [{ id: "dev_price_pack35", unit_amount: 499, currency: "usd", recurring: null }],
     },
     {
-      id: "dev_pack_80", name: "80 Dynamic Tokens", description: "One-time token pack",
+      id: "dev_pack_80", name: "80 Dynamic Tokens", description: "80 extra prompts with The Arena - Tremendous deal!",
       metadata: { type: "token_pack" },
       prices: [{ id: "dev_price_pack80", unit_amount: 999, currency: "usd", recurring: null }],
     },

@@ -32,9 +32,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useTokens } from "@/lib/token-context";
 
 const TOKEN_PACKS = [
-  { id: "pack_15", tokens: 15, price: "$2.99", badge: null },
-  { id: "pack_35", tokens: 35, price: "$4.99", badge: "POPULAR" },
-  { id: "pack_80", tokens: 80, price: "$9.99", badge: "BEST VALUE" },
+  { id: "pack_15", tokens: 15, price: "$2.99", badge: null, description: "15 extra prompts with The Arena" },
+  { id: "pack_35", tokens: 35, price: "$4.99", badge: "POPULAR", description: "35 extra prompts with The Arena - Popular!" },
+  { id: "pack_80", tokens: 80, price: "$9.99", badge: "BEST VALUE", description: "80 extra prompts with The Arena - Tremendous deal!" },
 ];
 
 export default function SubscribeScreen() {
@@ -515,6 +515,7 @@ export default function SubscribeScreen() {
                       <Text style={styles.packTokens}>{pack.tokens}</Text>
                       <Text style={styles.packLabel}>Tokens</Text>
                     </View>
+                    <Text style={styles.packDescription}>{pack.description}</Text>
                     {pack.badge && (
                       <View style={[
                         styles.packBadge,
@@ -883,6 +884,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.whiteDim,
     fontWeight: "500" as const,
+  },
+  packDescription: {
+    fontSize: 11,
+    color: Colors.whiteMuted,
+    marginTop: 2,
   },
   packBadge: {
     backgroundColor: "rgba(212, 164, 32, 0.15)",
