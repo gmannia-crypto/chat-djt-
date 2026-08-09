@@ -3342,17 +3342,21 @@ export default function DebateStage() {
           isDebate: true,
         }),
       });
-      if (!res.ok) {
-        if (res.status === 403) {
-          // Only end the interview if client-side time has genuinely expired.
-          // A transient server 403 mid-session should not cut the interview short.
-          if (Date.now() >= sessionEndsAtRef.current) {
-            runningRef.current = false;
-            setPhase("ended");
-          }
+      if (res.status === 403) {
+        runningRef.current = false;
+        // End gracefully when the 403 arrives in the final 20% of the session
+        // (server closing out a nearly-finished session). Show the paywall only
+        // for genuine mid-session expiries so squabble/roundtable don't hard-cut.
+        const totalMs = sessionEndsAtRef.current - sessionStartedAtRef.current;
+        const gracePeriodStart = sessionEndsAtRef.current - totalMs * 0.2;
+        if (totalMs > 0 && Date.now() >= gracePeriodStart) {
+          setPhase("ended");
+        } else {
+          setShowPaywall(true);
         }
         return null;
       }
+      if (!res.ok) return null;
       const data = await res.json();
       return data;
     } catch { return null; }
@@ -3383,16 +3387,21 @@ export default function DebateStage() {
           } : null,
         }),
       });
-      if (!res.ok) {
-        if (res.status === 403) {
-          // Only end if client-side time is also up — don't let a server blip kill the session
-          if (Date.now() >= sessionEndsAtRef.current) {
-            runningRef.current = false;
-            setPhase("ended");
-          }
+      if (res.status === 403) {
+        runningRef.current = false;
+        // End gracefully when the 403 arrives in the final 20% of the session
+        // (server closing out a nearly-finished session). Show the paywall only
+        // for genuine mid-session expiries so squabble/roundtable don't hard-cut.
+        const totalMs = sessionEndsAtRef.current - sessionStartedAtRef.current;
+        const gracePeriodStart = sessionEndsAtRef.current - totalMs * 0.2;
+        if (totalMs > 0 && Date.now() >= gracePeriodStart) {
+          setPhase("ended");
+        } else {
+          setShowPaywall(true);
         }
         return null;
       }
+      if (!res.ok) return null;
       return await res.json();
     } catch { return null; }
   }, [deviceId, interviewerId, intervieweeId, currentTopic, effectiveInterviewStyle]);
@@ -4284,7 +4293,16 @@ export default function DebateStage() {
         }),
       });
       if (res.status === 403) {
-        setShowPaywall(true);
+        // End gracefully if the 403 arrives in the final 20% of the session;
+        // otherwise show the paywall so the user can renew.
+        const totalMs = sessionEndsAtRef.current - sessionStartedAtRef.current;
+        const gracePeriodStart = sessionEndsAtRef.current - totalMs * 0.2;
+        if (totalMs > 0 && Date.now() >= gracePeriodStart) {
+          runningRef.current = false;
+          setPhase("ended");
+        } else {
+          setShowPaywall(true);
+        }
       } else if (res.ok) {
         const data = await res.json();
         if (data?.interviewer?.text) {
