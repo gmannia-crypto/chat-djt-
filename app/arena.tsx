@@ -3248,7 +3248,7 @@ function ViralClipsModal({ visible, onClose, messages, currentTopic, videoStates
   }
 
   async function shareClip(idx: number, moment: ViralMoment) {
-    const text = `"${moment.message.text.slice(0, 120)}${moment.message.text.length > 120 ? "…" : ""}"\n\n— ${moment.persona.name} on The Arena\n\nTopic: ${currentTopic || "The Arena"}\n\nWatch 28 AI personas debate LIVE 🏛️\nChat DJT — chatdjt.com`;
+    const text = `"${moment.message.text.slice(0, 120)}${moment.message.text.length > 120 ? "…" : ""}"\n\n— ${moment.persona.name} on The Arena\n\nTopic: ${currentTopic || "The Arena"}\n\nWatch 28 AI personas debate LIVE 🏛️\nThe Arena — thearena.rip`;
     let shared = false;
     try {
       if (Platform.OS !== "web") {
@@ -3272,7 +3272,7 @@ function ViralClipsModal({ visible, onClose, messages, currentTopic, videoStates
   }
 
   async function shareVideo(videoUrl: string, personaName: string) {
-    const msg = `${videoUrl}\n\nWatch ${personaName} go off on The Arena!\n\nChat DJT — chatdjt.com`;
+    const msg = `${videoUrl}\n\nWatch ${personaName} go off on The Arena!\n\nThe Arena — thearena.rip`;
     let shared = false;
     try {
       if (Platform.OS !== "web") {
@@ -3353,7 +3353,7 @@ function ViralClipsModal({ visible, onClose, messages, currentTopic, videoStates
                       </View>
 
                       <View style={vcStyles.momentBrand}>
-                        <Text style={vcStyles.momentBrandText}>Chat DJT · chatdjt.com</Text>
+                        <Text style={vcStyles.momentBrandText}>The Arena · thearena.rip</Text>
                       </View>
 
                       {vs.videoUrl ? (
@@ -6906,7 +6906,7 @@ export default function ArenaScreen() {
   const shareVerdict = useCallback(async () => {
     if (!verdictData) return;
     const checks = (verdictData.factChecks || []).slice(0, 3).map((f: any) => `${f.verdict === "TRUE" ? "✅" : f.verdict === "FALSE" ? "❌" : "⚠️"} ${f.persona}: "${f.claim?.substring(0, 60)}…" → ${f.fact?.substring(0, 70)}`).join("\n");
-    const msg = `⚖️ AI VERDICT — Chat DJT\n\nTopic: "${currentTopic || "The Debate"}"\n\n🏆 WINNER: ${verdictData.winner}\n\n${verdictData.verdict}\n\n📊 FACT CHECKS:\n${checks}\n\n"${verdictData.summary}"\n\nWatch 20 AI personas debate LIVE 👇\nchatdjt.com`;
+    const msg = `⚖️ AI VERDICT — The Arena\n\nTopic: "${currentTopic || "The Debate"}"\n\n🏆 WINNER: ${verdictData.winner}\n\n${verdictData.verdict}\n\n📊 FACT CHECKS:\n${checks}\n\n"${verdictData.summary}"\n\nWatch 20 AI personas debate LIVE 👇\nthearena.rip`;
     try {
       if (Platform.OS === "web" && navigator.share) await navigator.share({ title: "AI Verdict", text: msg });
       else await Share.share({ message: msg, title: "AI Verdict" });
@@ -6937,12 +6937,12 @@ export default function ArenaScreen() {
     if (winnerName && winnerPts > 0) {
       shareText += `👑 Winning: ${winnerName} with ${winnerPts} pts\n\n`;
     }
-    shareText += `Watch 20 AI personas debate LIVE 👇\nChat DJT — chatdjt.com`;
+    shareText += `Watch 20 AI personas debate LIVE 👇\nThe Arena — thearena.rip`;
 
     try {
       if (Platform.OS === "web") {
         if (navigator.share) {
-          await navigator.share({ title: `The Arena: ${topicName}`, text: shareText, url: "https://chatdjt.com" });
+          await navigator.share({ title: `The Arena: ${topicName}`, text: shareText, url: "https://thearena.rip" });
         } else {
           const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`;
           Linking.openURL(twitterUrl);
@@ -9436,12 +9436,12 @@ export default function ArenaScreen() {
                   if (trumpRoastText) {
                     viral += `\n🔥 Trump said: "${trumpRoastText.substring(0, 80)}…"\n`;
                   }
-                  viral += `\nWatch 20 voice-cloned AI personas debate LIVE 👇\nChat DJT — chatdjt.com`;
+                  viral += `\nWatch 20 voice-cloned AI personas debate LIVE 👇\nThe Arena — thearena.rip`;
 
                   try {
                     if (Platform.OS === "web") {
                       if (navigator.share) {
-                        await navigator.share({ title: `${winnerName} wins The Arena!`, text: viral, url: "https://chatdjt.com" });
+                        await navigator.share({ title: `${winnerName} wins The Arena!`, text: viral, url: "https://thearena.rip" });
                       } else {
                         Linking.openURL(`https://twitter.com/intent/tweet?text=${encodeURIComponent(viral)}`);
                       }

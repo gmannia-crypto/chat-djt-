@@ -108,7 +108,7 @@ export default function TikTokLiveScreen() {
     const pctB = 100 - pctA;
     const phaseStr = phase === "pre" ? "Before the debate:" : phase === "live" ? "LIVE RIGHT NOW:" : "Post-debate verdict:";
     const tags = poll.hashtags?.map((h) => `#${h}`).join(" ") || "#ChatDJT #Poll";
-    const msg = `🗳️ ${phaseStr}\n\n"${poll.question}"\n\n🅰️ ${poll.optionA} — ${pctA}%\n🅱️ ${poll.optionB} — ${pctB}%\n\n${tags}\n\nVote + watch live on Chat DJT 🔥\nchatdjt.com`;
+    const msg = `🗳️ ${phaseStr}\n\n"${poll.question}"\n\n🅰️ ${poll.optionA} — ${pctA}%\n🅱️ ${poll.optionB} — ${pctB}%\n\n${tags}\n\nVote + watch live on The Arena 🔥\nthearena.rip`;
     try {
       if (Platform.OS === "web" && navigator.share) await navigator.share({ title: "Live Poll", text: msg });
       else await Share.share({ message: msg, title: "Live Poll — Chat DJT" });

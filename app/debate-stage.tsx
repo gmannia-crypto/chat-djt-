@@ -1481,6 +1481,19 @@ export default function DebateStage() {
       const loserLine  = loserPool[Math.floor(Math.random() * loserPool.length)];
       const winnerLine = winnerPool[Math.floor(Math.random() * winnerPool.length)];
 
+      // ── START AUDIO PRE-FETCH IMMEDIATELY ────────────────────────────────────
+      // Kick off TTS network requests RIGHT NOW — while the modal is opening,
+      // the parting-shot plays, and the TTS queue drains — so the audio clips
+      // are already buffered by the time phase 6 tries to play them.
+      // Cold playAndAwait would add another ~10 s of fetch latency on top of
+      // the drain wait, causing the clips to silently time-out or play very late.
+      const loserAudioFetch = (loserLine && voiceEnabledRef.current)
+        ? prefetchTTSAudio("/api/persona-speak", { text: loserLine, personaId: prelimLoserId }).catch(() => null)
+        : Promise.resolve(null);
+      const winnerAudioFetch = (winnerLine && voiceEnabledRef.current)
+        ? prefetchTTSAudio("/api/persona-speak", { text: winnerLine, personaId: prelimWinnerId }).catch(() => null)
+        : Promise.resolve(null);
+
       if (loserLine) {
         setMessages((prev) => [...prev, {
           id: `loser-concession-${Date.now()}`, speakerId: prelimLoserId, speakerName: prelimLoserName,
@@ -1505,19 +1518,49 @@ export default function DebateStage() {
       playDebateCheer();
 
       // ── PHASE 6: CONCESSION AUDIO (background — modal already open) ─────────
-      // Wait for any in-flight debate audio (last persona answer or bridge) to
-      // finish before the loser/winner lines play — without this, they overlap
-      // with the tail of the last exchange on slow connections.
-      // Cap at 8 s so we never block indefinitely if the queue is stuck.
+      // Audio was pre-fetched above (concurrently with modal open + parting shot).
+      // Drain any still-playing debate clip first so loser/winner voices land cleanly.
       ;(async () => {
         if (voiceEnabledRef.current) {
+          // Wait for in-flight debate audio to finish (processQueue exits when
+          // runningRef is false, but the current clip plays to natural completion).
           const drainDeadline = Date.now() + 8000;
           while (ttsRunningRef.current && Date.now() < drainDeadline) {
             await new Promise<void>((r) => setTimeout(r, 150));
           }
         }
-        if (loserLine) await playAndAwait(loserLine, prelimLoserId);
-        if (winnerLine) await playAndAwait(winnerLine, prelimWinnerId);
+
+        // Helper: play from a pre-fetched URI, fall back to cold playAndAwait.
+        const playPreloaded = async (text: string, personaId: string, audioFetch: Promise<string | null>) => {
+          if (!voiceEnabledRef.current) return;
+          try {
+            const uri = await audioFetch;
+            if (!uri) { await playAndAwait(text, personaId); return; }
+            const snd = await playPrefetchedAudio(uri, { volume: getPersonaVoiceVolume(personaId) });
+            currentSoundRef.current = snd;
+            await new Promise<void>((resolve) => {
+              let t: ReturnType<typeof setTimeout> | null = null;
+              const done = () => {
+                if (t) { clearTimeout(t); t = null; }
+                snd.setOnPlaybackStatusUpdate(null);
+                resolve();
+              };
+              t = setTimeout(done, 25000); // generous boot-timeout for slow TTS
+              snd.setOnPlaybackStatusUpdate((st: any) => {
+                if (st.isPlaying && st.durationMillis && t) {
+                  clearTimeout(t);
+                  t = setTimeout(done, st.durationMillis + 5000);
+                }
+                if (st.didJustFinish || st.error) done();
+              });
+            });
+            if (currentSoundRef.current === snd) currentSoundRef.current = null;
+            snd.unloadAsync().catch(() => {});
+          } catch { await playAndAwait(text, personaId); }
+        };
+
+        if (loserLine)  await playPreloaded(loserLine,  prelimLoserId,  loserAudioFetch);
+        if (winnerLine) await playPreloaded(winnerLine, prelimWinnerId, winnerAudioFetch);
       })();
 
       // ── PHASE 7: VERDICT UPDATE + REACTION + SPEECH (background) ────────────
@@ -3144,7 +3187,7 @@ export default function DebateStage() {
     const pctA = totalVotes > 0 ? Math.round((pollVoteA / totalVotes) * 100) : 50;
     const pctB = 100 - pctA;
     const tags = pollQuestion.hashtags?.map((h: string) => `#${h}`).join(" ") || "#ChatDJT #Poll";
-    const msg = `🗳️ LIVE POLL — Chat DJT\n\n"${pollQuestion.question}"\n\n🅰️ ${pollQuestion.optionA} — ${pctA}%\n🅱️ ${pollQuestion.optionB} — ${pctB}%\n\n${tags}\n\nVote live on Chat DJT 👇\nchatdjt.com`;
+    const msg = `🗳️ LIVE POLL — The Arena\n\n"${pollQuestion.question}"\n\n🅰️ ${pollQuestion.optionA} — ${pctA}%\n🅱️ ${pollQuestion.optionB} — ${pctB}%\n\n${tags}\n\nVote live on The Arena 👇\nthearena.rip`;
     try {
       if (Platform.OS === "web" && navigator.share) await navigator.share({ title: "Live Poll", text: msg });
       else await Share.share({ message: msg, title: "Live Poll" });
@@ -4124,8 +4167,8 @@ export default function DebateStage() {
       viralText += `${name}: "${snippet}"\n\n`;
     });
     viralText += `${msgs.length} exchanges 🎙️\n\n`;
-    viralText += `Watch AI personas debate LIVE 👇\nchatdjt.com\n\n`;
-    viralText += `#AIDebate #ChatDJT ${topicHashtag} @ChatDJT`;
+    viralText += `Watch AI personas debate LIVE 👇\nthearena.rip\n\n`;
+    viralText += `#AIDebate #TheArena ${topicHashtag} @TheArenaAI`;
 
     // ── Full transcript ──────────────────────────────────────────────────────
     let fullTranscript = `=== ${aName} vs ${bName} ===\n📢 ${topicStr}\n`;
@@ -4135,7 +4178,7 @@ export default function DebateStage() {
       fullTranscript += `[${ts}] ${m.speakerName}: ${m.text}\n\n`;
     });
     fullTranscript += `${"─".repeat(40)}\n`;
-    fullTranscript += `chatdjt.com  |  #AIDebate #ChatDJT ${topicHashtag}`;
+    fullTranscript += `thearena.rip  |  #AIDebate #TheArena ${topicHashtag}`;
 
     return { viralText, fullTranscript, aName, bName, topicStr, topicHashtag, msgCount: msgs.length, debateRecords: rec };
   }, [interviewerId, intervieweeId, interviewers, interviewees, currentTopic]);
@@ -6102,6 +6145,21 @@ export default function DebateStage() {
                     </Text>
                   </ScrollView>
 
+                  {/* QR code — shown only on the viral post tab */}
+                  {shareTab === "viral" && (
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 14, backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 14, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)", padding: 12 }}>
+                      <Image
+                        source={{ uri: "https://api.qrserver.com/v1/create-qr-code/?size=90x90&color=ffffff&bgcolor=000000&data=https%3A%2F%2Fthearena.rip" }}
+                        style={{ width: 90, height: 90, borderRadius: 8 }}
+                      />
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: "#fff", fontSize: 13, fontWeight: "900", marginBottom: 3 }}>Scan to watch live</Text>
+                        <Text style={{ color: "rgba(255,255,255,0.55)", fontSize: 12 }}>Point your camera at this code to open The Arena and watch voice-cloned AI personas debate in real time.</Text>
+                        <Text style={{ color: "#4ADE80", fontSize: 12, fontWeight: "800", marginTop: 4 }}>thearena.rip</Text>
+                      </View>
+                    </View>
+                  )}
+
                   {/* Action buttons */}
                   <View style={{ flexDirection: "row", gap: 10 }}>
                     <Pressable
@@ -6122,7 +6180,7 @@ export default function DebateStage() {
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                         try {
                           if (Platform.OS === "web" && navigator.share) {
-                            await navigator.share({ title: `${aName} vs ${bName} — AI Debate`, text: displayText, url: "https://chatdjt.com" });
+                            await navigator.share({ title: `${aName} vs ${bName} — AI Debate`, text: displayText, url: "https://thearena.rip" });
                           } else {
                             await Share.share({ message: displayText, title: `${aName} vs ${bName}` });
                           }
@@ -6138,7 +6196,7 @@ export default function DebateStage() {
                         onPress={() => {
                           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                           const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(
-                            shareTab === "viral" ? viralText.slice(0, 280) : `AI Debate: ${aName} vs ${bName}\n\nchatdjt.com\n\n#AIDebate #ChatDJT`
+                            shareTab === "viral" ? viralText.slice(0, 280) : `AI Debate: ${aName} vs ${bName}\n\nthearena.rip\n\n#AIDebate #TheArena`
                           )}`;
                           Linking.openURL(twitterUrl);
                         }}

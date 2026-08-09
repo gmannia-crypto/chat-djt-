@@ -1223,7 +1223,7 @@ export default function InterviewScreen() {
     if (interruptions > 0) text += `⚡ ${interruptions} interruption${interruptions > 1 ? "s" : ""}!\n`;
     text += `\n${msgs.length} exchanges · ${mins}m\n`;
     text += `#ChatDJT #AIDebate #${iName.replace(/\s+/g, "")} #${eName.replace(/\s+/g, "")}\n`;
-    text += `\n🏛️ Watch live debates on Chat DJT\nhttps://chatdjt.com`;
+    text += `\n🏛️ Watch live debates on The Arena\nhttps://thearena.rip`;
     try {
       if (Platform.OS === "web" && navigator.share) await navigator.share({ title: `${iName} vs ${eName}`, text });
       else await Share.share({ message: text, title: `${iName} vs ${eName}` });
@@ -1236,7 +1236,7 @@ export default function InterviewScreen() {
     const pctA = totalVotes > 0 ? Math.round((pollVoteA / totalVotes) * 100) : 50;
     const pctB = 100 - pctA;
     const tags = pollQuestion.hashtags?.map((h: string) => `#${h}`).join(" ") || "#ChatDJT #Poll";
-    const msg = `🗳️ LIVE POLL — Chat DJT\n\n"${pollQuestion.question}"\n\n🅰️ ${pollQuestion.optionA} — ${pctA}%\n🅱️ ${pollQuestion.optionB} — ${pctB}%\n\n${tags}\n\nVote live on Chat DJT 👇\nchatdjt.com`;
+    const msg = `🗳️ LIVE POLL — The Arena\n\n"${pollQuestion.question}"\n\n🅰️ ${pollQuestion.optionA} — ${pctA}%\n🅱️ ${pollQuestion.optionB} — ${pctB}%\n\n${tags}\n\nVote live on The Arena 👇\nthearena.rip`;
     try {
       if (Platform.OS === "web" && navigator.share) await navigator.share({ title: "Live Poll", text: msg });
       else await Share.share({ message: msg, title: "Live Poll" });

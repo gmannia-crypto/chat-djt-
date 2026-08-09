@@ -8892,7 +8892,7 @@ Stay 100% in character — your tone, vocabulary, ideology, and combativeness ar
           { role: "system", content: intervieweeStyle },
           { role: "user", content: userPrompt },
         ],
-        max_completion_tokens: insultFireback ? 60 : (isInterruption ? 40 : 220),
+        max_completion_tokens: insultFireback ? 60 : (isInterruption ? 40 : (isDebate ? 350 : 280)),
         temperature: 0.95,
       });
       let text = completion.choices[0]?.message?.content || "...";
