@@ -3204,6 +3204,7 @@ interface SavedArenaSession {
   messages: ArenaMessage[];
   currentTopic: string;
   sessionExpiresAt: number;
+  paidSessionStartedAt?: number;
   topicTimer: number;
   emotionalStates: Record<string, string>;
   savedAt: number;
@@ -4384,6 +4385,7 @@ export default function ArenaScreen() {
       messages: messagesRef.current,
       currentTopic: currentTopicRef.current,
       sessionExpiresAt,
+      paidSessionStartedAt: paidSessionStartRef.current || undefined,
       topicTimer,
       emotionalStates: emotionalStatesRef.current,
       savedAt: Date.now(),
@@ -4421,6 +4423,10 @@ export default function ArenaScreen() {
       setMessages(saved.messages);
       setCurrentTopic(saved.currentTopic);
       setSessionExpiresAt(saved.sessionExpiresAt);
+      // Restore the original paid-session start so the grace-period calculation
+      // in the call-in handler uses the full session window, not just the
+      // remaining time since this restore.
+      paidSessionStartRef.current = saved.paidSessionStartedAt ?? 0;
       setHasSession(true);
       setTopicTimer(saved.topicTimer);
       setEmotionalStates(saved.emotionalStates);
@@ -4512,6 +4518,9 @@ export default function ArenaScreen() {
   const forcePlayRef = useRef(false);
 
   const sessionStartTimeRef = useRef<number>(Date.now());
+  // Tracks the true paid-session start (set when a session is granted or
+  // restored, NOT reset on topic changes like sessionStartTimeRef).
+  const paidSessionStartRef = useRef<number>(0);
   const recordingMessagesRef = useRef<RecordedMessage[]>([]);
   const lastInterruptionRef = useRef<{ text: string; interrupterId: string } | null>(null);
 
@@ -5076,6 +5085,7 @@ export default function ArenaScreen() {
       if (res.ok && data.granted) {
         setHasSession(true);
         setSessionExpiresAt(data.expiresAt);
+        paidSessionStartRef.current = Date.now();
         setShowPaywall(false);
         setShowContinuePrompt(false);
         setShowEndSummary(false);
@@ -10037,6 +10047,9 @@ export default function ArenaScreen() {
                   const headers: Record<string, string> = { "Content-Type": "application/json" };
                   if (deviceId) headers["x-device-id"] = deviceId;
                   const locationParts = [userCityRef.current, userStateRef.current, userCountryRef.current].filter(Boolean);
+                  // Stamp time before the request so the grace-period check uses when
+                  // the call was *sent*, not when the 403 response finally arrived.
+                  const callInSentAt = Date.now();
                   const res = await fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
                     method: "POST",
                     headers,
@@ -10050,9 +10063,24 @@ export default function ArenaScreen() {
                     }),
                   });
                   if (res.status === 403 && mountedRef.current) {
-                    setFreeRemaining(0);
-                    setShowPaywall(true);
-                    setIsRunning(false);
+                    // End gracefully when the 403 arrives in the final 20% of the
+                    // session window; otherwise show the paywall so the user can renew.
+                    // Use paidSessionStartRef (anchored to when the session was granted
+                    // or restored) — not sessionStartTimeRef, which resets per topic.
+                    const expiresAt = sessionExpiresAt ?? 0;
+                    const sessionStart = paidSessionStartRef.current;
+                    const totalMs = sessionStart > 0 ? expiresAt - sessionStart : 0;
+                    const gracePeriodStart = expiresAt - totalMs * 0.2;
+                    if (totalMs > 0 && callInSentAt >= gracePeriodStart) {
+                      setIsRunning(false);
+                      isRunningRef.current = false;
+                      sessionEndedRef.current = true;
+                      setDebateFinished(true);
+                    } else {
+                      setFreeRemaining(0);
+                      setShowPaywall(true);
+                      setIsRunning(false);
+                    }
                     return;
                   }
                   if (res.ok && mountedRef.current) {
