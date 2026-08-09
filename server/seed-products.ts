@@ -54,9 +54,9 @@ async function createProducts() {
   }
 
   const tokenPacks = [
-    { name: '15 Dynamic Tokens', amount: 299, packId: 'pack_15', description: '15 extra prompts with DJT' },
-    { name: '35 Dynamic Tokens', amount: 499, packId: 'pack_35', description: '35 extra prompts with DJT - Popular!' },
-    { name: '80 Dynamic Tokens', amount: 999, packId: 'pack_80', description: '80 extra prompts with DJT - Tremendous deal!' },
+    { name: '15 Dynamic Tokens', amount: 299, packId: 'pack_15', description: '15 extra prompts with The Arena' },
+    { name: '35 Dynamic Tokens', amount: 499, packId: 'pack_35', description: '35 extra prompts with The Arena - Popular!' },
+    { name: '80 Dynamic Tokens', amount: 999, packId: 'pack_80', description: '80 extra prompts with The Arena - Tremendous deal!' },
   ];
 
   for (const pack of tokenPacks) {
