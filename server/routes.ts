@@ -12471,7 +12471,9 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
         success_url: `${baseUrl}/subscribe?success=true&session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${baseUrl}/subscribe?canceled=true`,
         metadata,
-        ...(isSubscription ? { subscription_data: { metadata } } : {}),
+        ...(isSubscription
+          ? { subscription_data: { metadata, description: "The Arena" } }
+          : { payment_intent_data: { statement_descriptor_suffix: "THE ARENA" } }),
       });
 
       res.json({ url: session.url, sessionId: session.id });
@@ -13330,7 +13332,7 @@ p{color:#999;font-size:16px;margin-bottom:24px}
               currency: "usd",
               product_data: {
                 name: selected.name,
-                description: `Trump Therapy Session - ${metadata?.problem || "Life advice"}`,
+                description: `The Arena - ${metadata?.problem || "Life advice"}`,
               },
               unit_amount: selected.price,
               ...(isSubscription ? { recurring: { interval: plan === "weekly" ? "week" : "month" } } : {}),
@@ -13350,7 +13352,9 @@ p{color:#999;font-size:16px;margin-bottom:24px}
       };
 
       if (isSubscription) {
-        sessionConfig.subscription_data = { metadata: sessionConfig.metadata };
+        sessionConfig.subscription_data = { metadata: sessionConfig.metadata, description: "The Arena" };
+      } else {
+        sessionConfig.payment_intent_data = { statement_descriptor_suffix: "THE ARENA" };
       }
 
       const session = await stripe.checkout.sessions.create(sessionConfig);
