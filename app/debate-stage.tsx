@@ -3352,9 +3352,11 @@ export default function DebateStage() {
         // End gracefully when the 403 arrives in the final 20% of the session
         // (server closing out a nearly-finished session). Show the paywall only
         // for genuine mid-session expiries so squabble/roundtable don't hard-cut.
+        // Guard: if sessionStartedAtRef is still 0 (not yet set), totalMs would be
+        // a large spurious number — skip grace-period logic and show the paywall.
         const totalMs = sessionEndsAtRef.current - sessionStartedAtRef.current;
         const gracePeriodStart = sessionEndsAtRef.current - totalMs * 0.2;
-        if (totalMs > 0 && requestSentAt >= gracePeriodStart) {
+        if (sessionStartedAtRef.current !== 0 && totalMs > 0 && requestSentAt >= gracePeriodStart) {
           setPhase("ended");
         } else {
           setShowPaywall(true);
@@ -3400,9 +3402,11 @@ export default function DebateStage() {
         // End gracefully when the 403 arrives in the final 20% of the session
         // (server closing out a nearly-finished session). Show the paywall only
         // for genuine mid-session expiries so squabble/roundtable don't hard-cut.
+        // Guard: if sessionStartedAtRef is still 0 (not yet set), totalMs would be
+        // a large spurious number — skip grace-period logic and show the paywall.
         const totalMs = sessionEndsAtRef.current - sessionStartedAtRef.current;
         const gracePeriodStart = sessionEndsAtRef.current - totalMs * 0.2;
-        if (totalMs > 0 && requestSentAt >= gracePeriodStart) {
+        if (sessionStartedAtRef.current !== 0 && totalMs > 0 && requestSentAt >= gracePeriodStart) {
           setPhase("ended");
         } else {
           setShowPaywall(true);
@@ -3445,9 +3449,11 @@ export default function DebateStage() {
         // If the 403 arrives within the final 20% of the session timer, the
         // server is simply closing out a nearly-finished session — end the
         // debate gracefully with the winner reveal instead of showing a paywall.
+        // Guard: if sessionStartedAtRef is still 0 (not yet set), totalMs would be
+        // a large spurious number — skip grace-period logic and show the paywall.
         const totalMs = sessionEndsAtRef.current - sessionStartedAtRef.current;
         const gracePeriodStart = sessionEndsAtRef.current - totalMs * 0.2;
-        if (totalMs > 0 && requestSentAt >= gracePeriodStart) {
+        if (sessionStartedAtRef.current !== 0 && totalMs > 0 && requestSentAt >= gracePeriodStart) {
           setPhase("ended");
         } else {
           setShowPaywall(true);
@@ -4309,9 +4315,11 @@ export default function DebateStage() {
       if (res.status === 403) {
         // End gracefully if the 403 arrives in the final 20% of the session;
         // otherwise show the paywall so the user can renew.
+        // Guard: if sessionStartedAtRef is still 0 (not yet set), totalMs would be
+        // a large spurious number — skip grace-period logic and show the paywall.
         const totalMs = sessionEndsAtRef.current - sessionStartedAtRef.current;
         const gracePeriodStart = sessionEndsAtRef.current - totalMs * 0.2;
-        if (totalMs > 0 && requestSentAt >= gracePeriodStart) {
+        if (sessionStartedAtRef.current !== 0 && totalMs > 0 && requestSentAt >= gracePeriodStart) {
           runningRef.current = false;
           setPhase("ended");
         } else {
