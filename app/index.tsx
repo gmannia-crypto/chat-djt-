@@ -214,7 +214,7 @@ function NewsCrawl({ headlines }: { headlines: NewsHeadline[] }) {
 }
 
 function formatConversationForCopy(conv: Conversation): string {
-  const header = `Chat DJT - ${conv.title}\n${new Date(conv.createdAt).toLocaleString()}\n${"─".repeat(40)}\n\n`;
+  const header = `The Arena - ${conv.title}\n${new Date(conv.createdAt).toLocaleString()}\n${"─".repeat(40)}\n\n`;
   const body = conv.messages
     .map((m) => {
       const label = m.role === "user" ? "YOU" : "TRUMP";

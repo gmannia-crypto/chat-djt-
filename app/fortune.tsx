@@ -197,7 +197,7 @@ export default function FortuneScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
       await Share.share({
-        message: `\uD83D\uDD2E TRUMP'S FORTUNE PARLOR \uD83D\uDD2E\n\n${firstName}'s Fortune (${zodiacSign}) | ${selectedTopic}\n\n"${fortune}"\n\nGet your fortune at Chat DJT!`,
+        message: `\uD83D\uDD2E TRUMP'S FORTUNE PARLOR \uD83D\uDD2E\n\n${firstName}'s Fortune (${zodiacSign}) | ${selectedTopic}\n\n"${fortune}"\n\nGet your fortune at thearena.rip!`,
       });
     } catch {}
   };

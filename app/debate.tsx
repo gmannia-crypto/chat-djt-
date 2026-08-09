@@ -263,7 +263,7 @@ export default function DebateScreen() {
     const tied = userScore === trumpScore;
     try {
       await Share.share({
-        message: `${won ? "\uD83C\uDFC6" : tied ? "\uD83E\uDD1D" : "\uD83D\uDE24"} I just ${won ? "BEAT" : tied ? "TIED" : "debated"} Trump!\n\nMe: ${userScore} pts vs Trump: ${trumpScore} pts\n\n${won ? "Even Trump couldn't handle my arguments!" : tied ? "It was a dead heat!" : "Trump talked his way out of it... this time."}\n\nThink you can beat him? Try it!\n\n- via Chat DJT`,
+        message: `${won ? "\uD83C\uDFC6" : tied ? "\uD83E\uDD1D" : "\uD83D\uDE24"} I just ${won ? "BEAT" : tied ? "TIED" : "debated"} Trump!\n\nMe: ${userScore} pts vs Trump: ${trumpScore} pts\n\n${won ? "Even Trump couldn't handle my arguments!" : tied ? "It was a dead heat!" : "Trump talked his way out of it... this time."}\n\nThink you can beat him? Try it!\n\n- via The Arena (thearena.rip)`,
       });
     } catch {}
   };
