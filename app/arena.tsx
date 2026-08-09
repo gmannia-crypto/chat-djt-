@@ -6013,6 +6013,7 @@ export default function ArenaScreen() {
       try {
         const headers: Record<string, string> = { "Content-Type": "application/json" };
         if (deviceId) headers["x-device-id"] = deviceId;
+        const interruptSentAt = Date.now();
         const res = await fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
           method: "POST",
           headers,
@@ -6027,6 +6028,26 @@ export default function ArenaScreen() {
             sessionAltFactTally: sessionAltFactTallyRef.current,
           }),
         });
+        if (res.status === 403 && mountedRef.current) {
+          const expiresAt = sessionExpiresAt ?? 0;
+          const sessionStart = paidSessionStartRef.current;
+          const totalMs = sessionStart > 0 ? expiresAt - sessionStart : 0;
+          const gracePeriodStart = expiresAt - totalMs * 0.2;
+          if (totalMs > 0 && interruptSentAt >= gracePeriodStart) {
+            setIsRunning(false);
+            isRunningRef.current = false;
+            sessionEndedRef.current = true;
+            setDebateFinished(true);
+          } else {
+            setFreeRemaining(0);
+            setShowPaywall(true);
+            setIsRunning(false);
+            isRunningRef.current = false;
+            if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
+          }
+          isInterruptingRef.current = false;
+          return;
+        }
         if (!res.ok || !mountedRef.current) { isInterruptingRef.current = false; return; }
         data = await res.json();
       } catch { isInterruptingRef.current = false; return; }
@@ -6085,6 +6106,7 @@ export default function ArenaScreen() {
       // Use the last Trump message we have (or fall back to empty context)
       const lastTrumpMsg = messagesRef.current.filter((m) => !m.isSystem && m.speakerId === "trump").slice(-1)[0];
       const trumpCtxText = lastTrumpMsg?.text || trumpMessageText || "";
+      const clapSentAt = Date.now();
       const clap = await fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
         method: "POST",
         headers: clapHeaders,
@@ -6103,6 +6125,25 @@ export default function ArenaScreen() {
         }),
       });
 
+      if (clap.status === 403 && mountedRef.current) {
+        const expiresAt = sessionExpiresAt ?? 0;
+        const sessionStart = paidSessionStartRef.current;
+        const totalMs = sessionStart > 0 ? expiresAt - sessionStart : 0;
+        const gracePeriodStart = expiresAt - totalMs * 0.2;
+        if (totalMs > 0 && clapSentAt >= gracePeriodStart) {
+          setIsRunning(false);
+          isRunningRef.current = false;
+          sessionEndedRef.current = true;
+          setDebateFinished(true);
+        } else {
+          setFreeRemaining(0);
+          setShowPaywall(true);
+          setIsRunning(false);
+          isRunningRef.current = false;
+          if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
+        }
+        return;
+      }
       if (clap.ok && mountedRef.current) {
         const clapData = await clap.json();
         addMessage({
@@ -6144,6 +6185,7 @@ export default function ArenaScreen() {
       if (deviceId) headers["x-device-id"] = deviceId;
       const opponentName = getPersona(opponentId)?.name || "someone";
 
+      const trumpIntSentAt = Date.now();
       const res = await fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
         method: "POST",
         headers,
@@ -6160,6 +6202,25 @@ export default function ArenaScreen() {
         }),
       });
 
+      if (res.status === 403 && mountedRef.current) {
+        const expiresAt = sessionExpiresAt ?? 0;
+        const sessionStart = paidSessionStartRef.current;
+        const totalMs = sessionStart > 0 ? expiresAt - sessionStart : 0;
+        const gracePeriodStart = expiresAt - totalMs * 0.2;
+        if (totalMs > 0 && trumpIntSentAt >= gracePeriodStart) {
+          setIsRunning(false);
+          isRunningRef.current = false;
+          sessionEndedRef.current = true;
+          setDebateFinished(true);
+        } else {
+          setFreeRemaining(0);
+          setShowPaywall(true);
+          setIsRunning(false);
+          isRunningRef.current = false;
+          if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
+        }
+        return;
+      }
       if (res.ok && mountedRef.current) {
         const data = await res.json();
         addMessage({
@@ -6214,6 +6275,7 @@ export default function ArenaScreen() {
 
       const history = messagesRef.current.filter((m) => !m.isSystem).slice(-4).map((m) => ({ speakerName: m.speakerName, text: m.text }));
 
+      const rapidSentAt = Date.now();
       const res = await fetch(new URL("/api/arena/rapid-exchange", getApiUrl()).toString(), {
         method: "POST",
         headers,
@@ -6225,6 +6287,25 @@ export default function ArenaScreen() {
         }),
       });
 
+      if (res.status === 403 && mountedRef.current) {
+        const expiresAt = sessionExpiresAt ?? 0;
+        const sessionStart = paidSessionStartRef.current;
+        const totalMs = sessionStart > 0 ? expiresAt - sessionStart : 0;
+        const gracePeriodStart = expiresAt - totalMs * 0.2;
+        if (totalMs > 0 && rapidSentAt >= gracePeriodStart) {
+          setIsRunning(false);
+          isRunningRef.current = false;
+          sessionEndedRef.current = true;
+          setDebateFinished(true);
+        } else {
+          setFreeRemaining(0);
+          setShowPaywall(true);
+          setIsRunning(false);
+          isRunningRef.current = false;
+          if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
+        }
+        return;
+      }
       if (!res.ok || !mountedRef.current) return;
       const data = await res.json();
       const lines: Array<{ personaId: string; text: string }> = data.lines || [];
@@ -6301,6 +6382,7 @@ export default function ArenaScreen() {
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (deviceId) headers["x-device-id"] = deviceId;
+      const welcomeSentAt = Date.now();
       const res = await fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
         method: "POST",
         headers,
@@ -6317,6 +6399,25 @@ export default function ArenaScreen() {
           sessionAltFactTally: sessionAltFactTallyRef.current,
         }),
       });
+      if (res.status === 403 && mountedRef.current) {
+        const expiresAt = sessionExpiresAt ?? 0;
+        const sessionStart = paidSessionStartRef.current;
+        const totalMs = sessionStart > 0 ? expiresAt - sessionStart : 0;
+        const gracePeriodStart = expiresAt - totalMs * 0.2;
+        if (totalMs > 0 && welcomeSentAt >= gracePeriodStart) {
+          setIsRunning(false);
+          isRunningRef.current = false;
+          sessionEndedRef.current = true;
+          setDebateFinished(true);
+        } else {
+          setFreeRemaining(0);
+          setShowPaywall(true);
+          setIsRunning(false);
+          isRunningRef.current = false;
+          if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
+        }
+        return;
+      }
       if (res.ok && mountedRef.current) {
         const data = await res.json();
         const persona = getPersona(welcomer);
@@ -6360,6 +6461,7 @@ export default function ArenaScreen() {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (deviceId) headers["x-device-id"] = deviceId;
       const locationParts = [userCityRef.current, userStateRef.current, userCountryRef.current].filter(Boolean);
+      const submitSentAt = Date.now();
       const res = await fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
         method: "POST",
         headers,
@@ -6378,6 +6480,25 @@ export default function ArenaScreen() {
           sessionAltFactTally: sessionAltFactTallyRef.current,
         }),
       });
+      if (res.status === 403 && mountedRef.current) {
+        const expiresAt = sessionExpiresAt ?? 0;
+        const sessionStart = paidSessionStartRef.current;
+        const totalMs = sessionStart > 0 ? expiresAt - sessionStart : 0;
+        const gracePeriodStart = expiresAt - totalMs * 0.2;
+        if (totalMs > 0 && submitSentAt >= gracePeriodStart) {
+          setIsRunning(false);
+          isRunningRef.current = false;
+          sessionEndedRef.current = true;
+          setDebateFinished(true);
+        } else {
+          setFreeRemaining(0);
+          setShowPaywall(true);
+          setIsRunning(false);
+          isRunningRef.current = false;
+          if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
+        }
+        return;
+      }
       if (res.ok && mountedRef.current) {
         const data = await res.json();
         const persona = getPersona(reactor);
@@ -6407,6 +6528,7 @@ export default function ArenaScreen() {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (deviceId) headers["x-device-id"] = deviceId;
       const locationParts = [userCityRef.current, userStateRef.current, userCountryRef.current].filter(Boolean);
+      const askSentAt = Date.now();
       const res = await fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
         method: "POST",
         headers,
@@ -6420,6 +6542,25 @@ export default function ArenaScreen() {
           userContext: { name: userNameRef.current, location: locationParts.join(", ") },
         }),
       });
+      if (res.status === 403 && mountedRef.current) {
+        const expiresAt = sessionExpiresAt ?? 0;
+        const sessionStart = paidSessionStartRef.current;
+        const totalMs = sessionStart > 0 ? expiresAt - sessionStart : 0;
+        const gracePeriodStart = expiresAt - totalMs * 0.2;
+        if (totalMs > 0 && askSentAt >= gracePeriodStart) {
+          setIsRunning(false);
+          isRunningRef.current = false;
+          sessionEndedRef.current = true;
+          setDebateFinished(true);
+        } else {
+          setFreeRemaining(0);
+          setShowPaywall(true);
+          setIsRunning(false);
+          isRunningRef.current = false;
+          if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
+        }
+        return;
+      }
       if (res.ok && mountedRef.current) {
         const data = await res.json();
         const persona = getPersona(personaId);
@@ -6555,6 +6696,7 @@ export default function ArenaScreen() {
           const preHistory = messagesRef.current.filter((m) => !m.isSystem).slice(-4).map((m) => ({ speakerName: m.speakerName, text: m.text }));
           const preHeaders: Record<string, string> = { "Content-Type": "application/json" };
           if (deviceId) preHeaders["x-device-id"] = deviceId;
+          const prefetchSentAt = Date.now();
           interruptPrefetch = fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
             method: "POST",
             headers: preHeaders,
@@ -6568,7 +6710,29 @@ export default function ArenaScreen() {
               sessionLieTally: sessionLieTallyRef.current,
               sessionAltFactTally: sessionAltFactTallyRef.current,
             }),
-          }).then(async (r) => r.ok ? { interrupter: preInterrupter, data: await r.json() } : null)
+          }).then(async (r) => {
+            if (r.status === 403 && mountedRef.current) {
+              const expiresAt = sessionExpiresAt ?? 0;
+              const sessionStart = paidSessionStartRef.current;
+              const totalMs = sessionStart > 0 ? expiresAt - sessionStart : 0;
+              const gracePeriodStart = expiresAt - totalMs * 0.2;
+              if (totalMs > 0 && prefetchSentAt >= gracePeriodStart) {
+                setIsRunning(false);
+                isRunningRef.current = false;
+                sessionEndedRef.current = true;
+                setDebateFinished(true);
+              } else {
+                setFreeRemaining(0);
+                setShowPaywall(true);
+                setIsRunning(false);
+                isRunningRef.current = false;
+                if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
+              }
+              isInterruptingRef.current = false;
+              return null;
+            }
+            return r.ok ? { interrupter: preInterrupter, data: await r.json() } : null;
+          })
             .catch(() => null);
         }
       }
@@ -6860,6 +7024,7 @@ export default function ArenaScreen() {
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (deviceId) headers["x-device-id"] = deviceId;
+      const thankYouSentAt = Date.now();
       const res = await fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
         method: "POST",
         headers,
@@ -6871,6 +7036,25 @@ export default function ArenaScreen() {
           isPollThankYou: true,
         }),
       });
+      if (res.status === 403 && mountedRef.current) {
+        const expiresAt = sessionExpiresAt ?? 0;
+        const sessionStart = paidSessionStartRef.current;
+        const totalMs = sessionStart > 0 ? expiresAt - sessionStart : 0;
+        const gracePeriodStart = expiresAt - totalMs * 0.2;
+        if (totalMs > 0 && thankYouSentAt >= gracePeriodStart) {
+          setIsRunning(false);
+          isRunningRef.current = false;
+          sessionEndedRef.current = true;
+          setDebateFinished(true);
+        } else {
+          setFreeRemaining(0);
+          setShowPaywall(true);
+          setIsRunning(false);
+          isRunningRef.current = false;
+          if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
+        }
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
         addMessage({
