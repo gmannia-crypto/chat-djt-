@@ -5835,6 +5835,7 @@ export default function ArenaScreen() {
         bodyPayload.sessionLieTally = sessionLieTallyRef.current;
         bodyPayload.sessionAltFactTally = sessionAltFactTallyRef.current;
 
+        const requestSentAt = Date.now();
         const res = await fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
           method: "POST",
           headers,
@@ -5854,6 +5855,25 @@ export default function ArenaScreen() {
               return;
             }
           }
+          // General session-expiry 403: end gracefully if the request was sent
+          // inside the final 20% of the session window, otherwise show the paywall.
+          const expiresAt = sessionExpiresAt ?? 0;
+          const sessionStart = paidSessionStartRef.current;
+          const totalMs = sessionStart > 0 ? expiresAt - sessionStart : 0;
+          const gracePeriodStart = expiresAt - totalMs * 0.2;
+          if (totalMs > 0 && requestSentAt >= gracePeriodStart) {
+            setIsRunning(false);
+            isRunningRef.current = false;
+            sessionEndedRef.current = true;
+            setDebateFinished(true);
+          } else {
+            setFreeRemaining(0);
+            setShowPaywall(true);
+            setIsRunning(false);
+            isRunningRef.current = false;
+            if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
+          }
+          return;
         }
 
         if (!res.ok || !mountedRef.current) return;
