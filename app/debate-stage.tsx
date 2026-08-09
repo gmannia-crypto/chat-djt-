@@ -3421,15 +3421,23 @@ export default function DebateStage() {
         }),
       });
       if (res.status === 403) {
-        // Session expired / free trial exhausted — stop loop and show paywall
         runningRef.current = false;
-        setShowPaywall(true);
+        // If the 403 arrives within the final 20% of the session timer, the
+        // server is simply closing out a nearly-finished session — end the
+        // debate gracefully with the winner reveal instead of showing a paywall.
+        const totalMs = sessionEndsAtRef.current - sessionStartedAtRef.current;
+        const gracePeriodStart = sessionEndsAtRef.current - totalMs * 0.2;
+        if (totalMs > 0 && Date.now() >= gracePeriodStart) {
+          setPhase("ended");
+        } else {
+          setShowPaywall(true);
+        }
         return null;
       }
       if (!res.ok) return null;
       return await res.json();
     } catch { return null; }
-  }, [deviceId, effectiveInterviewStyle, setShowPaywall]);
+  }, [deviceId, effectiveInterviewStyle, setShowPaywall, setPhase]);
 
   // Alternates which debater the MODERATOR addresses at each new topic — 'A' or 'B' — so
   // both sides get equal question time from the moderator over the course of the debate.
