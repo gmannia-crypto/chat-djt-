@@ -1505,7 +1505,17 @@ export default function DebateStage() {
       playDebateCheer();
 
       // ── PHASE 6: CONCESSION AUDIO (background — modal already open) ─────────
+      // Wait for any in-flight debate audio (last persona answer or bridge) to
+      // finish before the loser/winner lines play — without this, they overlap
+      // with the tail of the last exchange on slow connections.
+      // Cap at 8 s so we never block indefinitely if the queue is stuck.
       ;(async () => {
+        if (voiceEnabledRef.current) {
+          const drainDeadline = Date.now() + 8000;
+          while (ttsRunningRef.current && Date.now() < drainDeadline) {
+            await new Promise<void>((r) => setTimeout(r, 150));
+          }
+        }
         if (loserLine) await playAndAwait(loserLine, prelimLoserId);
         if (winnerLine) await playAndAwait(winnerLine, prelimWinnerId);
       })();
@@ -3611,13 +3621,13 @@ export default function DebateStage() {
       // Instead: skip the bridge/rebuttal, back off, and retry the same topic.
       if (!primaryAnswer?.text) {
         consecutiveNullRef.current += 1;
-        if (consecutiveNullRef.current >= 3) {
-          // Persistent failure — end the debate gracefully rather than looping silently.
+        if (consecutiveNullRef.current >= 5) {
+          // Persistent failure (≥5 in a row) — end the debate gracefully.
           runningRef.current = false;
           setPhase("ended");
           break;
         }
-        await new Promise((r) => setTimeout(r, 1500 * consecutiveNullRef.current));
+        await new Promise((r) => setTimeout(r, 2000 * consecutiveNullRef.current));
         continue; // retry this topic round with the same moderator target
       }
       consecutiveNullRef.current = 0;
@@ -3718,12 +3728,12 @@ export default function DebateStage() {
       // trigger auto-shutdown prematurely.
       if (!rebuttal?.text) {
         consecutiveRebuttalNullRef.current += 1;
-        if (consecutiveRebuttalNullRef.current >= 3) {
+        if (consecutiveRebuttalNullRef.current >= 5) {
           runningRef.current = false;
           setPhase("ended");
           break;
         }
-        await new Promise((r) => setTimeout(r, 1500 * consecutiveRebuttalNullRef.current));
+        await new Promise((r) => setTimeout(r, 2000 * consecutiveRebuttalNullRef.current));
         continue;
       }
       consecutiveRebuttalNullRef.current = 0;
