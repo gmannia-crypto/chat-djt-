@@ -105,7 +105,7 @@ export default function RateTrumpScreen() {
     staleTime: 60000,
   });
 
-  const premiumProduct = productsData?.data?.find((p) => p.name === "The Arena Premium" || p.name === "Chat DJT Premium");
+  const premiumProduct = productsData?.data?.find((p) => p.name === "The Arena Premium");
   const premiumPrice = premiumProduct?.prices?.find((p) => p.recurring?.interval === "month");
   const isPremium = balance?.isSubscribed && (balance?.subscriptionTier === "premium" || balance?.subscriptionTier === "vip");
 

@@ -80,10 +80,10 @@ export default function SubscribeScreen() {
   });
 
   const standardProduct = productsData?.data?.find(
-    (p) => p.name === "The Arena Standard" || p.name === "Chat DJT Standard"
+    (p) => p.name === "The Arena Standard"
   );
   const vipProduct = productsData?.data?.find(
-    (p) => p.name === "The Arena VIP" || p.name === "Chat DJT VIP"
+    (p) => p.name === "The Arena VIP"
   );
 
   const standardPrice = standardProduct?.prices?.find((p) => p.recurring?.interval === "month");
