@@ -229,6 +229,7 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   francescresswelsing: require("@/assets/images/persona-francescresswelsing.jpg"),
   bishopfundme: require("@/assets/images/persona-bishopfundme.png"),
   tlaib:        require("@/assets/images/persona-tlaib.png"),
+  donlemon:     require("@/assets/images/persona-donlemon.jpg"),
   professorjiang: require("@/assets/images/persona-professorjiang.png"),
 };
 
@@ -273,6 +274,7 @@ const GUEST_CATEGORIES: Record<string, GuestCategory> = {
   janeelliott: "History",
   francescresswelsing: "History",
   bishopfundme: "Entertainment",
+  donlemon: "Political",
 };
 
 // Lightweight emotion delta from text heuristics

@@ -13,7 +13,7 @@ import { getApiUrl } from "@/lib/query-client";
 import { prefetchTTSAudio, playPrefetchedAudio, playTTS } from "@/lib/audio-helper";
 import { playCrowdCheer, playDingSound } from "@/lib/arena-sfx";
 
-export type ModeratorStyle = "cenk" | "galloway" | "hannity" | "maddow" | "megynkelly" | "odonnell" | "joyreid" | "maxkellerman" | "stephena" | "kaitlyncollins" | "gilbertgottfried" | "carlin" | "tuckercarlson" | "wandasykes" | "trevornoah" | "janeelliott" | "francescresswelsing" | "shannonsharp" | "dc";
+export type ModeratorStyle = "cenk" | "galloway" | "hannity" | "maddow" | "megynkelly" | "odonnell" | "joyreid" | "maxkellerman" | "stephena" | "kaitlyncollins" | "gilbertgottfried" | "carlin" | "tuckercarlson" | "wandasykes" | "trevornoah" | "janeelliott" | "francescresswelsing" | "shannonsharp" | "dc" | "donlemon";
 
 export const MODERATORS: Record<ModeratorStyle, { name: string; personaId: string; bias: string }> = {
   cenk:             { name: "Cenk Uygur",          personaId: "cenk",             bias: "progressive" },
@@ -35,6 +35,7 @@ export const MODERATORS: Record<ModeratorStyle, { name: string; personaId: strin
   francescresswelsing: { name: "Dr. Frances Cress Welsing", personaId: "francescresswelsing", bias: "Black-liberation" },
   shannonsharp:        { name: "Shannon Sharpe",            personaId: "shannon",              bias: "Black-progressive-sports" },
   dc:                  { name: "DC",                         personaId: "dc",                   bias: "truth-seeking" },
+  donlemon:            { name: "Don Lemon",                  personaId: "donlemon",             bias: "left-center" },
 };
 
 // Which personas each moderator is friendly to ("favor" — softball questions, quick to defend
@@ -113,6 +114,11 @@ export const MODERATOR_LEANINGS: Record<ModeratorStyle, { favor: string[]; targe
   },
   // DC: pure truth-seeker — fiercely independent, no political alignment.
   dc: { favor: [], target: [] },
+  // Don Lemon: left-center CNN — favors progressive/Democratic voices, presses MAGA hard.
+  donlemon: {
+    favor: ["obama", "kamala", "biden", "aoc", "omar", "jascrockett", "berniemc", "joyreid", "maddow", "carville", "schumer"],
+    target: ["trump", "bannon", "miller", "leavitt", "mtg", "loomer", "alexjones", "candace", "jimjordan", "hannity"],
+  },
 };
 
 export type ModeratorLeaning = "favor" | "target" | "neutral";

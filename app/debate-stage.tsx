@@ -523,6 +523,7 @@ const PERSONA_LOSER_LINES: Record<string, string[]> = {
   bishopfundme:     ["Well... the Lord is TESTING me today — but He is not DONE with me — and neither is my Building Fund, which remains open at Venmo BishopFundme!", "I am THIS CLOSE to saying something un-Christian — HOLY SPIRIT RESTRAIN ME — I accept this result and I accept your $500 seed of faith."],
   charliemurphy:    ["Man, I've been knocked around before. But I'll be back, and it'll be worse for you.", "You know what? I lost today. I respect it. Don't expect that to happen again."],
   dc:               ["The voice carries further than this room. Dynamic Creations will be heard again.", "One room's verdict changes nothing about what's true. And what's true is still what it was."],
+  donlemon:         ["I've been told I was wrong before. I've also been fired for being right. Take that however you want.", "Fine. I take it. But I have the receipts and I'll be reviewing them tonight."],
   _default:         ["You get today. But this conversation isn't finished.", "I'll accept that. But don't get comfortable."],
 };
 const PERSONA_WINNER_LINES: Record<string, string[]> = {
@@ -713,6 +714,8 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   francescresswelsing: require("@/assets/images/persona-francescresswelsing.jpg"),
   dc: require("@/assets/images/persona-dc.png"),
   bishopfundme: require("@/assets/images/persona-bishopfundme.png"),
+  donlemon: require("@/assets/images/persona-donlemon.jpg"),
+  shannonsharp: require("@/assets/images/persona-shannon.jpg"),
   mikejohnson: require("@/assets/images/persona-mikejohnson.png"),
   tlaib:        require("@/assets/images/persona-tlaib.png"),
   professorjiang: require("@/assets/images/persona-professorjiang.png"),
@@ -3700,8 +3703,8 @@ export default function DebateStage() {
       // Instead: skip the bridge/rebuttal, back off, and retry the same topic.
       if (!primaryAnswer?.text) {
         consecutiveNullRef.current += 1;
-        if (consecutiveNullRef.current >= 5) {
-          // Persistent failure (≥5 in a row) — end the debate gracefully.
+        if (consecutiveNullRef.current >= 8) {
+          // Persistent failure (≥8 in a row) — end the debate gracefully.
           runningRef.current = false;
           setPhase("ended");
           break;
@@ -3807,7 +3810,7 @@ export default function DebateStage() {
       // trigger auto-shutdown prematurely.
       if (!rebuttal?.text) {
         consecutiveRebuttalNullRef.current += 1;
-        if (consecutiveRebuttalNullRef.current >= 5) {
+        if (consecutiveRebuttalNullRef.current >= 8) {
           runningRef.current = false;
           setPhase("ended");
           break;
@@ -4016,17 +4019,26 @@ export default function DebateStage() {
         const daySuffix = d === 1 || d === 21 || d === 31 ? "st" : d === 2 || d === 22 ? "nd" : d === 3 || d === 23 ? "rd" : "th";
         const dateStr = `${months[now.getMonth()]} ${d}${daySuffix}, ${now.getFullYear()}`;
         const welcomeText = `Today is ${dateStr}. This ${category} debate is brought to you by Dynamic Creations. I'm ${mod.name}, and we are getting right into it.`;
+        // Pre-fetch the welcome TTS NOW so processQueue finds it cached and plays
+        // immediately — no silent wait while the moderator's first line is fetched live.
+        if (voiceEnabledRef.current) startPrefetch({ text: welcomeText, personaId: mod.personaId });
         // Welcome TTS and opening question fetch run in parallel.
-        // speakMod routes through the TTS queue (blockEarlyResolve=true) so any
-        // persona audio that arrives while the welcome is playing is held until
-        // it fully finishes — no simultaneous overlap on slow loads.
-        // As soon as the question text arrives, also pre-fetch its TTS audio so
-        // there is zero gap between the welcome line and the first question.
+        // As soon as the question text arrives, pre-fetch its TTS so there is zero gap
+        // between the welcome and the first question, AND kick off the primary persona
+        // answer so it's in-flight by the time the moderator question finishes playing.
         const [, prefetchedQuestion] = await Promise.all([
           speakMod(welcomeText, `modwelcome-${Date.now()}`),
           openTopic && deviceId
             ? generateModeratorQuestion({ deviceId, moderatorStyle, targetId: interviewerId ?? "", topic: openTopic, isTransition: false, conversationHistory: [] })
-                .then((q) => { if (q && voiceEnabledRef.current) startPrefetch({ text: q, personaId: mod.personaId }); return q; })
+                .then((q) => {
+                  if (q && voiceEnabledRef.current) startPrefetch({ text: q, personaId: mod.personaId });
+                  // Pre-kick the first persona answer while the welcome is still playing.
+                  // By the time the moderator question finishes, the answer is settling.
+                  if (q && deviceId && interviewerId) {
+                    prefetchedPrimaryAnswerRef.current = fetchAnswerFrom(mod.personaId, interviewerId, q);
+                  }
+                  return q;
+                })
             : Promise.resolve(""),
         ]);
         await runModeratorOpening(openTopic, prefetchedQuestion || undefined);
@@ -4039,7 +4051,7 @@ export default function DebateStage() {
         runLoop();
       }
     })();
-  }, [deviceId, interviewerId, intervieweeId, topics, isStarting, duration, runLoop, runModeratorOpening, selectedTopicId, moderatorStyle, category]);
+  }, [deviceId, interviewerId, intervieweeId, topics, isStarting, duration, runLoop, runModeratorOpening, selectedTopicId, moderatorStyle, category, fetchAnswerFrom, startPrefetch]);
 
   const unlockSession = useCallback(async () => {
     if (!deviceId || isUnlocking) return;
