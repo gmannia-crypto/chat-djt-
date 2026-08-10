@@ -1353,11 +1353,14 @@ export default function DebateStage() {
       // and drives the sound object directly.
       const playAndAwait = async (text: string, personaId: string): Promise<void> => {
         if (!voiceEnabledRef.current) return;
+        if (shouldSkipPersonaVoice(personaId)) return;
+        const vol = getPersonaVoiceVolume(personaId);
+        if (vol <= 0) return;
         try {
           const sound = await playTTS(
             "/api/persona-speak",
             { text, personaId },
-            { volume: getPersonaVoiceVolume(personaId) }
+            { volume: vol }
           );
           currentSoundRef.current = sound;
           await new Promise<void>((res) => {
@@ -1387,7 +1390,9 @@ export default function DebateStage() {
           });
           if (currentSoundRef.current === sound) currentSoundRef.current = null;
           sound.unloadAsync().catch(() => {});
-        } catch { /* ignore — ending exchange is best-effort */ }
+        } catch (err) {
+          console.error("[debate-end-audio] playAndAwait failed:", err);
+        }
       };
 
       // ── PHASE 1: GATHER CONTEXT ─────────────────────────────────────────────
@@ -1481,16 +1486,13 @@ export default function DebateStage() {
       const loserLine  = loserPool[Math.floor(Math.random() * loserPool.length)];
       const winnerLine = winnerPool[Math.floor(Math.random() * winnerPool.length)];
 
-      // ── START AUDIO PRE-FETCH IMMEDIATELY ────────────────────────────────────
-      // Kick off TTS network requests RIGHT NOW — while the modal is opening,
-      // the parting-shot plays, and the TTS queue drains — so the audio clips
-      // are already buffered by the time phase 6 tries to play them.
-      // Cold playAndAwait would add another ~10 s of fetch latency on top of
-      // the drain wait, causing the clips to silently time-out or play very late.
-      const loserAudioFetch = (loserLine && voiceEnabledRef.current)
+      // Pre-fetch loser/winner audio concurrently so it's ready (or close) when
+      // the drain loop finishes. If the pre-fetch isn't done yet we fall back to
+      // a cold playAndAwait call which uses the same proven path as Phase 7.
+      const loserAudioFetch = (loserLine && voiceEnabledRef.current && !shouldSkipPersonaVoice(prelimLoserId))
         ? prefetchTTSAudio("/api/persona-speak", { text: loserLine, personaId: prelimLoserId }).catch(() => null)
         : Promise.resolve(null);
-      const winnerAudioFetch = (winnerLine && voiceEnabledRef.current)
+      const winnerAudioFetch = (winnerLine && voiceEnabledRef.current && !shouldSkipPersonaVoice(prelimWinnerId))
         ? prefetchTTSAudio("/api/persona-speak", { text: winnerLine, personaId: prelimWinnerId }).catch(() => null)
         : Promise.resolve(null);
 
@@ -1521,42 +1523,63 @@ export default function DebateStage() {
       // Audio was pre-fetched above (concurrently with modal open + parting shot).
       // Drain any still-playing debate clip first so loser/winner voices land cleanly.
       ;(async () => {
-        if (voiceEnabledRef.current) {
-          // Wait for in-flight debate audio to finish (processQueue exits when
-          // runningRef is false, but the current clip plays to natural completion).
-          const drainDeadline = Date.now() + 8000;
-          while (ttsRunningRef.current && Date.now() < drainDeadline) {
-            await new Promise<void>((r) => setTimeout(r, 150));
-          }
+        if (!voiceEnabledRef.current) return;
+
+        // Wait for in-flight debate audio to finish before playing ending clips.
+        // processQueue sets ttsRunningRef false after the last clip completes.
+        const drainDeadline = Date.now() + 8000;
+        while (ttsRunningRef.current && Date.now() < drainDeadline) {
+          await new Promise<void>((r) => setTimeout(r, 150));
         }
 
-        // Helper: play from a pre-fetched URI, fall back to cold playAndAwait.
+        // Helper: play from a pre-fetched URI with a reliable completion wait,
+        // then fall back to cold playAndAwait if the pre-fetch failed or the
+        // Sound object can't be played.
         const playPreloaded = async (text: string, personaId: string, audioFetch: Promise<string | null>) => {
-          if (!voiceEnabledRef.current) return;
+          if (!voiceEnabledRef.current || shouldSkipPersonaVoice(personaId)) return;
+          const vol = getPersonaVoiceVolume(personaId);
+          if (vol <= 0) return;
           try {
             const uri = await audioFetch;
-            if (!uri) { await playAndAwait(text, personaId); return; }
-            const snd = await playPrefetchedAudio(uri, { volume: getPersonaVoiceVolume(personaId) });
+            if (!uri) {
+              await playAndAwait(text, personaId);
+              return;
+            }
+            const snd = await playPrefetchedAudio(uri, { volume: vol });
             currentSoundRef.current = snd;
+            // Wait for natural completion. The status callback may arrive before
+            // or after registration on web — the 30s outer timer is the safety net.
             await new Promise<void>((resolve) => {
-              let t: ReturnType<typeof setTimeout> | null = null;
-              const done = () => {
-                if (t) { clearTimeout(t); t = null; }
-                snd.setOnPlaybackStatusUpdate(null);
-                resolve();
-              };
-              t = setTimeout(done, 25000); // generous boot-timeout for slow TTS
-              snd.setOnPlaybackStatusUpdate((st: any) => {
-                if (st.isPlaying && st.durationMillis && t) {
-                  clearTimeout(t);
-                  t = setTimeout(done, st.durationMillis + 5000);
+              let done = false;
+              const finish = () => { if (!done) { done = true; resolve(); } };
+              // Safety net: resolve after 30 s regardless
+              const safety = setTimeout(finish, 30000);
+              snd.getStatusAsync().then((st: any) => {
+                // If the clip already finished by the time we check, resolve now.
+                if (st.isLoaded && !st.isPlaying && !st.isBuffering) {
+                  clearTimeout(safety);
+                  finish();
+                  return;
                 }
-                if (st.didJustFinish || st.error) done();
-              });
+                snd.setOnPlaybackStatusUpdate((s: any) => {
+                  if (s.didJustFinish || s.error) {
+                    clearTimeout(safety);
+                    snd.setOnPlaybackStatusUpdate(null);
+                    finish();
+                  } else if (s.isPlaying && s.durationMillis) {
+                    // Upgrade safety timer to clip-length + 5 s
+                    clearTimeout(safety);
+                    setTimeout(finish, s.durationMillis + 5000);
+                  }
+                });
+              }).catch(() => { clearTimeout(safety); finish(); });
             });
             if (currentSoundRef.current === snd) currentSoundRef.current = null;
             snd.unloadAsync().catch(() => {});
-          } catch { await playAndAwait(text, personaId); }
+          } catch (err) {
+            console.error("[debate-end-audio] playPrefetchedAudio failed, using cold TTS:", err);
+            await playAndAwait(text, personaId);
+          }
         };
 
         if (loserLine)  await playPreloaded(loserLine,  prelimLoserId,  loserAudioFetch);
