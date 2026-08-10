@@ -1353,14 +1353,11 @@ export default function DebateStage() {
       // and drives the sound object directly.
       const playAndAwait = async (text: string, personaId: string): Promise<void> => {
         if (!voiceEnabledRef.current) return;
-        if (shouldSkipPersonaVoice(personaId)) return;
-        const vol = getPersonaVoiceVolume(personaId);
-        if (vol <= 0) return;
         try {
           const sound = await playTTS(
             "/api/persona-speak",
             { text, personaId },
-            { volume: vol }
+            { volume: getPersonaVoiceVolume(personaId) }
           );
           currentSoundRef.current = sound;
           await new Promise<void>((res) => {
@@ -1390,9 +1387,7 @@ export default function DebateStage() {
           });
           if (currentSoundRef.current === sound) currentSoundRef.current = null;
           sound.unloadAsync().catch(() => {});
-        } catch (err) {
-          console.error("[debate-end-audio] playAndAwait failed:", err);
-        }
+        } catch { /* ignore — ending exchange is best-effort */ }
       };
 
       // ── PHASE 1: GATHER CONTEXT ─────────────────────────────────────────────
@@ -1532,77 +1527,38 @@ export default function DebateStage() {
           await new Promise<void>((r) => setTimeout(r, 150));
         }
 
-        // Helper: play a TTS clip and wait for it to finish.
-        // On web we use a plain HTMLAudioElement — onended fires reliably
-        // without expo-av's polling lag that can miss short clips.
-        // On native we use the proven expo-av path with a status callback.
+        // Helper: play from a pre-fetched URI, fall back to cold playAndAwait.
         const playPreloaded = async (text: string, personaId: string, audioFetch: Promise<string | null>) => {
-          if (!voiceEnabledRef.current || shouldSkipPersonaVoice(personaId)) return;
-          const vol = getPersonaVoiceVolume(personaId);
-          if (vol <= 0) return;
-
-          if (Platform.OS === "web") {
-            try {
-              const uri = await audioFetch;
-              if (!uri) { await playAndAwait(text, personaId); return; }
-              await new Promise<void>((resolve) => {
-                const audio = new (window as any).Audio(uri) as HTMLAudioElement;
-                audio.volume = Math.min(1, Math.max(0, vol));
-                const done = () => resolve();
-                audio.onended = done;
-                audio.onerror = (e: any) => {
-                  console.error("[debate-end-audio] HTMLAudio error:", e);
-                  resolve();
-                };
-                // Safety net in case onended never fires
-                const safety = setTimeout(done, 30000);
-                audio.play().then(() => {
-                  // Upgrade safety timer once we know the duration
-                  if (audio.duration && isFinite(audio.duration)) {
-                    clearTimeout(safety);
-                    setTimeout(done, (audio.duration * 1000) + 4000);
-                  }
-                }).catch((e: any) => {
-                  clearTimeout(safety);
-                  console.error("[debate-end-audio] HTMLAudio play() rejected:", e);
-                  resolve();
-                });
-              });
-            } catch (err) {
-              console.error("[debate-end-audio] web path failed, falling back to cold TTS:", err);
-              await playAndAwait(text, personaId);
-            }
-            return;
-          }
-
-          // Native path — expo-av with status callback
+          if (!voiceEnabledRef.current) return;
           try {
             const uri = await audioFetch;
             if (!uri) { await playAndAwait(text, personaId); return; }
-            const snd = await playPrefetchedAudio(uri, { volume: vol });
+            const snd = await playPrefetchedAudio(uri, { volume: getPersonaVoiceVolume(personaId) });
             currentSoundRef.current = snd;
             await new Promise<void>((resolve) => {
-              let done = false;
-              const finish = () => { if (!done) { done = true; resolve(); } };
-              let safety = setTimeout(finish, 30000);
-              snd.setOnPlaybackStatusUpdate((s: any) => {
-                if (s.isPlaying && s.durationMillis) {
-                  clearTimeout(safety);
-                  safety = setTimeout(finish, s.durationMillis + 5000);
+              let t: ReturnType<typeof setTimeout> | null = null;
+              const done = () => {
+                if (t) { clearTimeout(t); t = null; }
+                snd.setOnPlaybackStatusUpdate(null);
+                resolve();
+              };
+              t = setTimeout(done, 25000);
+              // Register callback first, then poll status to catch clips that
+              // finished before the callback was registered (race on short clips).
+              snd.setOnPlaybackStatusUpdate((st: any) => {
+                if (st.isPlaying && st.durationMillis && t) {
+                  clearTimeout(t);
+                  t = setTimeout(done, st.durationMillis + 5000);
                 }
-                if (s.didJustFinish || s.error) {
-                  clearTimeout(safety);
-                  snd.setOnPlaybackStatusUpdate(null);
-                  finish();
-                }
+                if (st.didJustFinish || st.error) done();
               });
+              snd.getStatusAsync().then((st: any) => {
+                if (st.isLoaded && !st.isPlaying && !st.isBuffering) done();
+              }).catch(() => {});
             });
             if (currentSoundRef.current === snd) currentSoundRef.current = null;
             snd.unloadAsync().catch(() => {});
-          } catch (err) {
-            console.error("[debate-end-audio] native prefetch failed, using cold TTS:", err);
-            await playAndAwait(text, personaId);
-          }
+          } catch { await playAndAwait(text, personaId); }
         };
 
         if (loserLine)  await playPreloaded(loserLine,  prelimLoserId,  loserAudioFetch);
