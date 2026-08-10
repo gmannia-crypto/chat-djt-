@@ -1532,52 +1532,75 @@ export default function DebateStage() {
           await new Promise<void>((r) => setTimeout(r, 150));
         }
 
-        // Helper: play from a pre-fetched URI with a reliable completion wait,
-        // then fall back to cold playAndAwait if the pre-fetch failed or the
-        // Sound object can't be played.
+        // Helper: play a TTS clip and wait for it to finish.
+        // On web we use a plain HTMLAudioElement — onended fires reliably
+        // without expo-av's polling lag that can miss short clips.
+        // On native we use the proven expo-av path with a status callback.
         const playPreloaded = async (text: string, personaId: string, audioFetch: Promise<string | null>) => {
           if (!voiceEnabledRef.current || shouldSkipPersonaVoice(personaId)) return;
           const vol = getPersonaVoiceVolume(personaId);
           if (vol <= 0) return;
+
+          if (Platform.OS === "web") {
+            try {
+              const uri = await audioFetch;
+              if (!uri) { await playAndAwait(text, personaId); return; }
+              await new Promise<void>((resolve) => {
+                const audio = new (window as any).Audio(uri) as HTMLAudioElement;
+                audio.volume = Math.min(1, Math.max(0, vol));
+                const done = () => resolve();
+                audio.onended = done;
+                audio.onerror = (e: any) => {
+                  console.error("[debate-end-audio] HTMLAudio error:", e);
+                  resolve();
+                };
+                // Safety net in case onended never fires
+                const safety = setTimeout(done, 30000);
+                audio.play().then(() => {
+                  // Upgrade safety timer once we know the duration
+                  if (audio.duration && isFinite(audio.duration)) {
+                    clearTimeout(safety);
+                    setTimeout(done, (audio.duration * 1000) + 4000);
+                  }
+                }).catch((e: any) => {
+                  clearTimeout(safety);
+                  console.error("[debate-end-audio] HTMLAudio play() rejected:", e);
+                  resolve();
+                });
+              });
+            } catch (err) {
+              console.error("[debate-end-audio] web path failed, falling back to cold TTS:", err);
+              await playAndAwait(text, personaId);
+            }
+            return;
+          }
+
+          // Native path — expo-av with status callback
           try {
             const uri = await audioFetch;
-            if (!uri) {
-              await playAndAwait(text, personaId);
-              return;
-            }
+            if (!uri) { await playAndAwait(text, personaId); return; }
             const snd = await playPrefetchedAudio(uri, { volume: vol });
             currentSoundRef.current = snd;
-            // Wait for natural completion. The status callback may arrive before
-            // or after registration on web — the 30s outer timer is the safety net.
             await new Promise<void>((resolve) => {
               let done = false;
               const finish = () => { if (!done) { done = true; resolve(); } };
-              // Safety net: resolve after 30 s regardless
-              const safety = setTimeout(finish, 30000);
-              snd.getStatusAsync().then((st: any) => {
-                // If the clip already finished by the time we check, resolve now.
-                if (st.isLoaded && !st.isPlaying && !st.isBuffering) {
+              let safety = setTimeout(finish, 30000);
+              snd.setOnPlaybackStatusUpdate((s: any) => {
+                if (s.isPlaying && s.durationMillis) {
                   clearTimeout(safety);
-                  finish();
-                  return;
+                  safety = setTimeout(finish, s.durationMillis + 5000);
                 }
-                snd.setOnPlaybackStatusUpdate((s: any) => {
-                  if (s.didJustFinish || s.error) {
-                    clearTimeout(safety);
-                    snd.setOnPlaybackStatusUpdate(null);
-                    finish();
-                  } else if (s.isPlaying && s.durationMillis) {
-                    // Upgrade safety timer to clip-length + 5 s
-                    clearTimeout(safety);
-                    setTimeout(finish, s.durationMillis + 5000);
-                  }
-                });
-              }).catch(() => { clearTimeout(safety); finish(); });
+                if (s.didJustFinish || s.error) {
+                  clearTimeout(safety);
+                  snd.setOnPlaybackStatusUpdate(null);
+                  finish();
+                }
+              });
             });
             if (currentSoundRef.current === snd) currentSoundRef.current = null;
             snd.unloadAsync().catch(() => {});
           } catch (err) {
-            console.error("[debate-end-audio] playPrefetchedAudio failed, using cold TTS:", err);
+            console.error("[debate-end-audio] native prefetch failed, using cold TTS:", err);
             await playAndAwait(text, personaId);
           }
         };
