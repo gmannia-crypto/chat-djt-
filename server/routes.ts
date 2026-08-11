@@ -691,9 +691,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/analytics/pageview", async (req, res) => {
     try {
-      const { deviceId, screen, durationSeconds } = req.body;
+      const { deviceId, screen, durationSeconds, utmSource } = req.body;
       if (!deviceId || !screen) return res.status(400).json({ error: "missing fields" });
-      await trackPageView(deviceId, screen, durationSeconds || 0);
+      await trackPageView(deviceId, screen, durationSeconds || 0, utmSource || undefined);
       return res.json({ ok: true });
     } catch (e: any) {
       return res.status(500).json({ error: e.message });

@@ -20,6 +20,8 @@ export async function initAnalyticsTables() {
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
+  // Add utm_source column if it doesn't exist yet (idempotent migration)
+  await db.query(`ALTER TABLE page_views ADD COLUMN IF NOT EXISTS utm_source TEXT`);
   await db.query(`
     CREATE TABLE IF NOT EXISTS feature_events (
       id SERIAL PRIMARY KEY,
@@ -48,11 +50,11 @@ export async function initAnalyticsTables() {
   console.log("Analytics & suggestions tables initialized");
 }
 
-export async function trackPageView(deviceId: string, screen: string, durationSeconds: number) {
+export async function trackPageView(deviceId: string, screen: string, durationSeconds: number, utmSource?: string) {
   const db = getPool();
   await db.query(
-    "INSERT INTO page_views (device_id, screen, duration_seconds) VALUES ($1, $2, $3)",
-    [deviceId, screen, durationSeconds]
+    "INSERT INTO page_views (device_id, screen, duration_seconds, utm_source) VALUES ($1, $2, $3, $4)",
+    [deviceId, screen, durationSeconds, utmSource || null]
   );
 }
 
@@ -149,7 +151,7 @@ export async function getVisitorStats() {
 
   const [
     todayRes, yesterdayRes, weekRes, allTimeRes,
-    onlineNowRes, newTodayRes, dailyRes,
+    onlineNowRes, newTodayRes, dailyRes, todayBySourceRes,
   ] = await Promise.all([
     // Today
     db.query(`SELECT COUNT(DISTINCT device_id) AS count FROM page_views WHERE created_at >= CURRENT_DATE`),
@@ -178,6 +180,13 @@ export async function getVisitorStats() {
               WHERE created_at >= CURRENT_DATE - INTERVAL '13 days'
               GROUP BY DATE(created_at)
               ORDER BY day DESC`),
+    // Today's visitors broken down by utm_source
+    db.query(`SELECT COALESCE(utm_source, 'direct') AS source,
+                     COUNT(DISTINCT device_id) AS visitors
+              FROM page_views
+              WHERE created_at >= CURRENT_DATE AND utm_source IS NOT NULL
+              GROUP BY utm_source
+              ORDER BY visitors DESC`),
   ]);
 
   return {
@@ -191,6 +200,10 @@ export async function getVisitorStats() {
       day:      r.day,
       visitors: parseInt(r.visitors),
       views:    parseInt(r.views),
+    })),
+    todayBySource: todayBySourceRes.rows.map(r => ({
+      source:   r.source,
+      visitors: parseInt(r.visitors),
     })),
   };
 }

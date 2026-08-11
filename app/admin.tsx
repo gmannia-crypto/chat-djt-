@@ -1796,6 +1796,26 @@ function VisitorStatsSection() {
                 </View>
               )}
 
+              {/* Today by UTM source */}
+              {data.todayBySource?.length > 0 && (
+                <View style={visitorStyles.sourceWrap}>
+                  <Text style={visitorStyles.chartTitle}>Today by Source</Text>
+                  {data.todayBySource.map((s: any) => {
+                    const maxSrc = data.todayBySource[0]?.visitors || 1;
+                    const pct = Math.max(6, Math.round((s.visitors / maxSrc) * 100));
+                    return (
+                      <View key={s.source} style={visitorStyles.sourceRow}>
+                        <Text style={visitorStyles.sourceLabel}>{s.source}</Text>
+                        <View style={visitorStyles.sourceBarWrap}>
+                          <View style={[visitorStyles.sourceBar, { width: `${pct}%` as any }]} />
+                        </View>
+                        <Text style={visitorStyles.sourceCount}>{s.visitors}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+
               {/* Lead Generator CTA */}
               <Pressable
                 onPress={() => router.push("/community-lead" as any)}
@@ -1951,6 +1971,38 @@ const visitorStyles = StyleSheet.create({
     color: Colors.background,
     flex: 1,
     textAlign: "center",
+  },
+  sourceWrap: {
+    gap: 6,
+  },
+  sourceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  sourceLabel: {
+    fontSize: 11,
+    color: Colors.whiteMuted,
+    width: 90,
+  },
+  sourceBarWrap: {
+    flex: 1,
+    height: 8,
+    backgroundColor: "rgba(255,255,255,0.07)",
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  sourceBar: {
+    height: "100%",
+    backgroundColor: "#FACC15",
+    borderRadius: 4,
+  },
+  sourceCount: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: Colors.whiteDim,
+    width: 28,
+    textAlign: "right",
   },
 });
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from "react";
-import { AppState, AppStateStatus } from "react-native";
+import { AppState, AppStateStatus, Platform } from "react-native";
 import { getApiUrl } from "@/lib/query-client";
 import { useTokens } from "@/lib/token-context";
 
@@ -13,10 +13,25 @@ function sendBeacon(path: string, body: any) {
   }).catch(() => {});
 }
 
+/** Extract utm_source from the current URL's query string (web only). */
+function getWebUtmSource(): string | undefined {
+  if (Platform.OS !== "web") return undefined;
+  try {
+    const params = new URLSearchParams(
+      typeof window !== "undefined" ? window.location.search : ""
+    );
+    return params.get("utm_source") || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function useScreenTracker(screenName: string) {
   const { deviceId } = useTokens();
   const startTimeRef = useRef(Date.now());
   const screenRef = useRef(screenName);
+  // Capture utm_source once on mount; it won't change during the session
+  const utmSourceRef = useRef<string | undefined>(getWebUtmSource());
 
   useEffect(() => {
     screenRef.current = screenName;
@@ -27,6 +42,7 @@ export function useScreenTracker(screenName: string) {
         deviceId,
         screen: screenName,
         durationSeconds: 0,
+        ...(utmSourceRef.current ? { utmSource: utmSourceRef.current } : {}),
       });
     }
 

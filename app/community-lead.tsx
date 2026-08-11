@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
-  Share, Platform, Clipboard, Alert,
+  Share, Platform, Clipboard,
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -11,6 +11,30 @@ import Animated, { FadeInDown } from "react-native-reanimated";
 import Colors from "@/constants/colors";
 import { getApiUrl } from "@/lib/query-client";
 import { getOrCreateDeviceId } from "@/lib/token-context";
+
+// ─── UTM link helpers ─────────────────────────────────────────────────────────
+
+const APP_BASE_URL = "https://trumpbot.rip";
+
+/** Map a platform display name to a utm_source slug. */
+function platformToUtmSource(platformName: string): string {
+  const name = platformName.toLowerCase();
+  if (name.includes("reddit"))        return "reddit";
+  if (name.includes("twitter") || name.includes("/x")) return "twitter";
+  if (name.includes("facebook"))      return "facebook";
+  if (name.includes("discord"))       return "discord";
+  if (name.includes("truth"))         return "truth_social";
+  if (name.includes("youtube"))       return "youtube";
+  if (name.includes("tiktok"))        return "tiktok";
+  if (name.includes("parler") || name.includes("gab")) return "parler";
+  return name.replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+}
+
+function buildUtmLink(communityId: string, platformName: string): string {
+  const utmSource   = platformToUtmSource(platformName);
+  const utmCampaign = communityId;
+  return `${APP_BASE_URL}?utm_source=${utmSource}&utm_medium=social&utm_campaign=${utmCampaign}`;
+}
 
 // ─── Community templates ──────────────────────────────────────────────────────
 
@@ -202,12 +226,16 @@ export default function CommunityLeadPage() {
   const [selected, setSelected] = useState<CommunityTemplate>(TEMPLATES[0]);
   const [activePostIdx, setActivePostIdx] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   const activePost = selected.posts[Math.min(activePostIdx, selected.posts.length - 1)];
 
   const fullPostText = activePost.title
     ? `${activePost.title}\n\n${activePost.body}`
     : activePost.body;
+
+  // Derive the UTM link from the active post's platform
+  const utmLink = buildUtmLink(selected.id, activePost.platform);
 
   const handleCopy = useCallback(() => {
     if (Platform.OS === "web") {
@@ -226,6 +254,23 @@ export default function CommunityLeadPage() {
       }).catch(() => {});
     });
   }, [fullPostText, selected.id]);
+
+  const handleCopyLink = useCallback(() => {
+    if (Platform.OS === "web") {
+      navigator.clipboard?.writeText(utmLink).catch(() => {});
+    } else {
+      Clipboard.setString(utmLink);
+    }
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
+    getOrCreateDeviceId().then((deviceId) => {
+      fetch(new URL("/api/analytics/event", getApiUrl()).toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deviceId, feature: "lead_gen", action: "copy_link", metadata: { community: selected.id, platform: activePost.platform } }),
+      }).catch(() => {});
+    });
+  }, [utmLink, selected.id, activePost.platform]);
 
   const handleShare = useCallback(async () => {
     try {
@@ -331,6 +376,26 @@ export default function CommunityLeadPage() {
             <Text style={styles.postTitle}>{activePost.title}</Text>
           )}
           <Text style={styles.postBody}>{activePost.body}</Text>
+        </Animated.View>
+
+        {/* UTM link row */}
+        <Animated.View key={`link-${selected.id}-${activePostIdx}`} entering={FadeInDown.delay(70).duration(300)} style={styles.linkCard}>
+          <View style={styles.linkCardHeader}>
+            <Ionicons name="link-outline" size={14} color={Colors.gold} />
+            <Text style={styles.linkCardTitle}>App link (paste as first comment)</Text>
+          </View>
+          <View style={styles.linkRow}>
+            <Text style={styles.linkText} numberOfLines={1} ellipsizeMode="middle">{utmLink}</Text>
+            <Pressable
+              onPress={handleCopyLink}
+              style={({ pressed }) => [styles.linkCopyBtn, pressed && { opacity: 0.7 }]}
+            >
+              <Ionicons name={linkCopied ? "checkmark" : "copy-outline"} size={15} color={linkCopied ? "#4ADE80" : Colors.gold} />
+              <Text style={[styles.linkCopyText, linkCopied && { color: "#4ADE80" }]}>
+                {linkCopied ? "Copied!" : "Copy"}
+              </Text>
+            </Pressable>
+          </View>
         </Animated.View>
 
         {/* Action buttons */}
@@ -583,5 +648,52 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.whiteDim,
     lineHeight: 18,
+  },
+  linkCard: {
+    backgroundColor: "rgba(212,164,32,0.06)",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(212,164,32,0.22)",
+    padding: 12,
+    gap: 8,
+  },
+  linkCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+  linkCardTitle: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: Colors.gold,
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+  },
+  linkRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  linkText: {
+    flex: 1,
+    fontSize: 12,
+    color: Colors.whiteDim,
+    fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
+  },
+  linkCopyBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(212,164,32,0.12)",
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(212,164,32,0.25)",
+  },
+  linkCopyText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: Colors.gold,
   },
 });
