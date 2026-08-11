@@ -166,13 +166,14 @@ export async function getLeadGenStats(days: number = 30) {
     db.query(`
       SELECT
         DATE(created_at) AS day,
+        COALESCE(metadata->>'community', 'unknown') AS community,
         SUM(CASE WHEN action = 'copy'  THEN 1 ELSE 0 END) AS copies,
         SUM(CASE WHEN action = 'share' THEN 1 ELSE 0 END) AS shares
       FROM feature_events
       WHERE feature = 'lead_gen'
         AND action IN ('copy', 'share')
         AND created_at >= $1
-      GROUP BY DATE(created_at)
+      GROUP BY DATE(created_at), COALESCE(metadata->>'community', 'unknown')
       ORDER BY day ASC
     `, [since]),
   ]);
@@ -192,11 +193,12 @@ export async function getLeadGenStats(days: number = 30) {
     (a, b) => (b.copies + b.shares) - (a.copies + a.shares)
   );
 
-  // Daily breakdown for sparkline: one entry per day that had activity
+  // Daily breakdown per-community — frontend aggregates or filters as needed
   const dailyBreakdown = dailyResult.rows.map(r => ({
-    day:    String(r.day).slice(0, 10),
-    copies: parseInt(r.copies)  || 0,
-    shares: parseInt(r.shares)  || 0,
+    day:       String(r.day).slice(0, 10),
+    community: r.community as string,
+    copies:    parseInt(r.copies)  || 0,
+    shares:    parseInt(r.shares)  || 0,
   }));
 
   return { communities, dailyBreakdown };

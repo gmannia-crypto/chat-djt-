@@ -1711,7 +1711,7 @@ function formatDuration(totalSeconds: number): string {
 // ─── Visitor Stats Section ────────────────────────────────────────────────────
 type LeadGenData = {
   communities: { community: string; copies: number; shares: number }[];
-  dailyBreakdown: { day: string; copies: number; shares: number }[];
+  dailyBreakdown: { day: string; community: string; copies: number; shares: number }[];
 };
 
 function LeadGenSparkline({ breakdown }: { breakdown: { day: string; copies: number; shares: number }[] }) {
@@ -1752,6 +1752,7 @@ function LeadGenActivityCard({
 }) {
   const [expanded, setExpanded] = useState(false);
   const [trendExpanded, setTrendExpanded] = useState(false);
+  const [selectedCommunity, setSelectedCommunity] = useState<string | null>(null);
 
   const communities = data?.communities ?? [];
   const dailyBreakdown = data?.dailyBreakdown ?? [];
@@ -1760,6 +1761,21 @@ function LeadGenActivityCard({
   const totalCopies  = communities.reduce((s, r) => s + r.copies,  0);
   const totalShares  = communities.reduce((s, r) => s + r.shares,  0);
   const maxTotal     = hasData ? Math.max(...communities.map(r => r.copies + r.shares), 1) : 1;
+
+  // Build sparkline data: aggregate across all communities or filter to selected one
+  const sparklineData: { day: string; copies: number; shares: number }[] = (() => {
+    const filtered = selectedCommunity
+      ? dailyBreakdown.filter(e => e.community === selectedCommunity)
+      : dailyBreakdown;
+    const byDay = new Map<string, { day: string; copies: number; shares: number }>();
+    for (const e of filtered) {
+      if (!byDay.has(e.day)) byDay.set(e.day, { day: e.day, copies: 0, shares: 0 });
+      const d = byDay.get(e.day)!;
+      d.copies += e.copies;
+      d.shares += e.shares;
+    }
+    return Array.from(byDay.values()).sort((a, b) => a.day.localeCompare(b.day));
+  })();
 
   return (
     <View style={leadGenStyles.container}>
@@ -1832,7 +1848,48 @@ function LeadGenActivityCard({
                       color="rgba(167,139,250,0.6)"
                     />
                   </Pressable>
-                  {trendExpanded && <LeadGenSparkline breakdown={dailyBreakdown} />}
+                  {trendExpanded && (
+                    <>
+                      {/* Community filter chips */}
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        style={leadGenStyles.chipScroll}
+                        contentContainerStyle={leadGenStyles.chipRow}
+                      >
+                        <Pressable
+                          onPress={() => setSelectedCommunity(null)}
+                          style={[
+                            leadGenStyles.chip,
+                            selectedCommunity === null && leadGenStyles.chipActive,
+                          ]}
+                        >
+                          <Text style={[
+                            leadGenStyles.chipText,
+                            selectedCommunity === null && leadGenStyles.chipTextActive,
+                          ]}>All</Text>
+                        </Pressable>
+                        {communities.map((c) => (
+                          <Pressable
+                            key={c.community}
+                            onPress={() => setSelectedCommunity(
+                              selectedCommunity === c.community ? null : c.community
+                            )}
+                            style={[
+                              leadGenStyles.chip,
+                              selectedCommunity === c.community && leadGenStyles.chipActive,
+                            ]}
+                          >
+                            <Text style={[
+                              leadGenStyles.chipText,
+                              selectedCommunity === c.community && leadGenStyles.chipTextActive,
+                            ]} numberOfLines={1}>{c.community}</Text>
+                          </Pressable>
+                        ))}
+                      </ScrollView>
+                      <LeadGenSparkline breakdown={sparklineData} />
+                    </>
+                  )}
                 </>
               )}
             </>
@@ -2033,6 +2090,36 @@ const leadGenStyles = StyleSheet.create({
   sparklineLegendText: {
     fontSize: 9,
     color: Colors.whiteMuted,
+  },
+  chipScroll: {
+    marginTop: 6,
+    marginBottom: 2,
+  },
+  chipRow: {
+    flexDirection: "row",
+    gap: 6,
+    paddingHorizontal: 2,
+  },
+  chip: {
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 10,
+    backgroundColor: "rgba(167,139,250,0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(167,139,250,0.2)",
+    maxWidth: 120,
+  },
+  chipActive: {
+    backgroundColor: "#A78BFA",
+    borderColor: "#A78BFA",
+  },
+  chipText: {
+    fontSize: 10,
+    fontWeight: "700" as const,
+    color: "rgba(167,139,250,0.8)",
+  },
+  chipTextActive: {
+    color: "#0a0a0a",
   },
 });
 
