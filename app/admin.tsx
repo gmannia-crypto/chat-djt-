@@ -1716,10 +1716,19 @@ type LeadGenData = {
 
 function LeadGenSparkline({ breakdown }: { breakdown: { day: string; copies: number; shares: number }[] }) {
   const maxVal = Math.max(...breakdown.map(d => d.copies + d.shares), 1);
+
+  // 7-day rolling average (centred on the current day, trailing window)
+  const withAvg = breakdown.map((d, i) => {
+    const window = breakdown.slice(Math.max(0, i - 6), i + 1);
+    const avg = window.reduce((s, w) => s + w.copies + w.shares, 0) / window.length;
+    return { ...d, avg };
+  });
+
   return (
     <View style={leadGenStyles.sparklineWrap}>
+      {/* Bars + average-dot overlay share the same container */}
       <View style={leadGenStyles.sparklineBars}>
-        {breakdown.map((d) => {
+        {withAvg.map((d) => {
           const total = d.copies + d.shares;
           const heightPct = Math.max(8, Math.round((total / maxVal) * 100));
           const label = d.day.slice(5); // MM-DD
@@ -1732,10 +1741,27 @@ function LeadGenSparkline({ breakdown }: { breakdown: { day: string; copies: num
             </View>
           );
         })}
+
+        {/* Rolling-average overlay — non-interactive, sits above bars */}
+        <View style={leadGenStyles.sparklineAvgOverlay} pointerEvents="none">
+          {withAvg.map((d) => {
+            // Express avg as a percentage of maxVal, clamped 0-100
+            const avgPct = Math.min(100, Math.max(0, (d.avg / maxVal) * 100));
+            return (
+              <View key={d.day} style={leadGenStyles.sparklineAvgCol}>
+                <View style={[leadGenStyles.sparklineAvgDot, { bottom: `${avgPct}%` as any }]} />
+              </View>
+            );
+          })}
+        </View>
       </View>
+
+      {/* Legend */}
       <View style={leadGenStyles.sparklineLegend}>
         <View style={leadGenStyles.sparklineLegendDot} />
         <Text style={leadGenStyles.sparklineLegendText}>copies + shares per day</Text>
+        <View style={leadGenStyles.sparklineAvgDotLegend} />
+        <Text style={leadGenStyles.sparklineLegendText}>7-day avg</Text>
       </View>
     </View>
   );
@@ -2090,6 +2116,33 @@ const leadGenStyles = StyleSheet.create({
   sparklineLegendText: {
     fontSize: 9,
     color: Colors.whiteMuted,
+  },
+  // Rolling-average overlay styles
+  sparklineAvgOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 12, // leave room for the date labels at the bottom of each column
+    flexDirection: "row",
+  },
+  sparklineAvgCol: {
+    flex: 1,
+    position: "relative",
+  },
+  sparklineAvgDot: {
+    position: "absolute",
+    alignSelf: "center",
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#F59E0B",
+  },
+  sparklineAvgDotLegend: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#F59E0B",
   },
   chipScroll: {
     marginTop: 6,
