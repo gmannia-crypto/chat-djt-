@@ -60,6 +60,10 @@ import {
   loadArenaUserInfo,
 } from "@/lib/persona-memory";
 
+// Trump's original arena voice — preserved here so interview/1-on-1 can use the new voice
+// without affecting the arena experience.
+const TRUMP_ARENA_VOICE_ID = "7379b5f7cf9a4337b54a8fa819ae8502";
+
 const Colors = {
   background: "#0a0a0a",
   gold: "#D4A420",
@@ -4705,7 +4709,7 @@ export default function ArenaScreen() {
     if (shouldSkipPersonaVoice(item.personaId)) return;
     if (prefetchedAudioRef.current && prefetchedAudioRef.current.text === item.text && prefetchedAudioRef.current.personaId === item.personaId) return;
     prefetchingRef.current = true;
-    prefetchTTSAudio("/api/persona-speak", { text: item.text, personaId: item.personaId })
+    prefetchTTSAudio("/api/persona-speak", { text: item.text, personaId: item.personaId, ...(item.personaId === "trump" ? { voiceId: TRUMP_ARENA_VOICE_ID } : {}) })
       .then((audioUri) => {
         prefetchedAudioRef.current = { personaId: item.personaId, text: item.text, audioUri };
         prefetchingRef.current = false;
@@ -4743,7 +4747,7 @@ export default function ArenaScreen() {
           prefetchedAudioRef.current = null;
           sound = await playPrefetchedAudio(cached.audioUri, { volume: personaVolume });
         } else {
-          sound = await playTTS("/api/persona-speak", { text: item.text, personaId: item.personaId }, { volume: personaVolume });
+          sound = await playTTS("/api/persona-speak", { text: item.text, personaId: item.personaId, ...(item.personaId === "trump" ? { voiceId: TRUMP_ARENA_VOICE_ID } : {}) }, { volume: personaVolume });
         }
         currentSoundRef.current = sound;
 
@@ -4844,7 +4848,7 @@ export default function ArenaScreen() {
     }
     try {
       const interruptVolume = getPersonaVoiceVolume(personaId);
-      const sound = await playTTS("/api/persona-speak", { text, personaId }, { volume: interruptVolume });
+      const sound = await playTTS("/api/persona-speak", { text, personaId, ...(personaId === "trump" ? { voiceId: TRUMP_ARENA_VOICE_ID } : {}) }, { volume: interruptVolume });
       let cleaned = false;
       const cleanup = () => {
         if (cleaned) return;

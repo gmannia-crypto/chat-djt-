@@ -2976,7 +2976,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
   const NAV_VOICE_ID = "fc37c3f3b37245c4b1c86846c9939b06"; // Paul Robeson — deep resonant baritone
 
   const PERSONA_VOICE_IDS: Record<string, string> = {
-    trump: "7379b5f7cf9a4337b54a8fa819ae8502",
+    trump: "546bf63af23347308b6cb21edcd76835",
     jordan: "6908d35f23754047acde93acf29fc749",
     bernie: "5cbb7b199c5a4b538bf1018e6341ebc4",
     musk: "759c82adcd8f4c129ae29dec9f772b7b",
@@ -3395,8 +3395,8 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
         return res.status(500).json({ error: "TTS not configured" });
       }
 
-      let voiceId = PERSONA_VOICE_IDS[personaId];
-      if (personaId === "malcolmx") {
+      let voiceId = (req.body.voiceId as string) || PERSONA_VOICE_IDS[personaId];
+      if (personaId === "malcolmx" && !req.body.voiceId) {
         const angerLevel = Number(req.body.angerLevel ?? 10);
         voiceId = angerLevel >= 50 ? MALCOLMX_ANGRY_VOICE_ID : PERSONA_VOICE_IDS.malcolmx;
       }
@@ -11029,7 +11029,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
       }
 
       const PERSONA_VOICE_IDS_LOCAL: Record<string, string> = {
-        trump: "7379b5f7cf9a4337b54a8fa819ae8502",
+        trump: "546bf63af23347308b6cb21edcd76835",
         netanyahu: "3c5fe93c3f5348bbaeb5cee4f27bb359",
         ruckus: "35cec18b290d4896b92644f2298330ab",
         galloway: "12206c42bd74465f987178e33c277d87",
