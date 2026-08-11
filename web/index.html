@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="%LANG_ISO_CODE%">
+  <head>
+    <meta charset="utf-8" />
+    <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <title>%WEB_TITLE%</title>
+    <!--
+      Suppress fontfaceobserver's "Xms timeout exceeded" uncaught error BEFORE
+      Metro or Expo can register their own error listeners. This must run at
+      HTML parse time so our handler is already in place when the Metro bundle
+      registers its global error overlay.
+    -->
+    <script>
+      (function () {
+        function isFontTimeout(msg) {
+          return typeof msg === 'string' && msg.indexOf('ms timeout exceeded') !== -1;
+        }
+        // window.onerror — return true = fully suppress (browser will not show error)
+        var _orig = window.onerror;
+        window.onerror = function (message, source, lineno, colno, error) {
+          if (isFontTimeout(message)) return true;
+          if (typeof source === 'string' && source.indexOf('fontfaceobserver') !== -1) return true;
+          if (_orig) return _orig.apply(this, arguments);
+          return false;
+        };
+        // Capture-phase error event — stopImmediatePropagation prevents any listener
+        // registered AFTER this one (including Metro's overlay) from seeing the event.
+        window.addEventListener('error', function (event) {
+          if (isFontTimeout(event.message)) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+          }
+          if (event.filename && event.filename.indexOf('fontfaceobserver') !== -1) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+          }
+        }, true /* capture phase */);
+        // Unhandled promise rejections (fontfaceobserver can also reject)
+        window.addEventListener('unhandledrejection', function (event) {
+          var reason = event.reason;
+          var msg = reason instanceof Error ? reason.message : String(reason);
+          if (isFontTimeout(msg)) event.preventDefault();
+        });
+      })();
+    </script>
+    <!-- The `react-native-web` recommended style reset: https://necolas.github.io/react-native-web/docs/setup/#root-element -->
+    <style id="expo-reset">
+      /* These styles make the body full-height */
+      html,
+      body {
+        height: 100%;
+      }
+      /* These styles disable body scrolling if you are using <ScrollView> */
+      body {
+        overflow: hidden;
+      }
+      /* These styles make the root element full-height */
+      #root {
+        display: flex;
+        height: 100%;
+        flex: 1;
+      }
+    </style>
+  </head>
+
+  <body>
+    <!-- Use static rendering with Expo Router to support running without JavaScript. -->
+    <noscript>
+      You need to enable JavaScript to run this app.
+    </noscript>
+    <!-- The root element for your Expo app. -->
+    <div id="root"></div>
+  </body>
+</html>
