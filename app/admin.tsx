@@ -1424,6 +1424,8 @@ function AdminDashboard({ adminKey, onLogout }: { adminKey: string; onLogout: ()
           </View>
         ) : stats ? (
           <>
+            <VisitorStatsSection />
+
             <Animated.View entering={FadeInUp.duration(500)}>
               <Text style={styles.sectionTitle}>Revenue</Text>
               <Text style={styles.sectionSubtitle}>The money is flowing, believe me!</Text>
@@ -1706,6 +1708,253 @@ function formatDuration(totalSeconds: number): string {
   return `${mins}m`;
 }
 
+// ─── Visitor Stats Section ────────────────────────────────────────────────────
+function VisitorStatsSection() {
+  const adminKey = useContext(AdminKeyContext);
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState(true);
+
+  const fetchStats = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(
+        new URL("/api/admin/visitor-stats", getApiUrl()).toString(),
+        { headers: adminHeaders(adminKey) }
+      );
+      if (res.ok) setData(await res.json());
+    } catch {}
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchStats(); }, []);
+
+  const maxBar = data?.daily?.length
+    ? Math.max(...data.daily.map((d: any) => d.visitors), 1)
+    : 1;
+
+  return (
+    <Animated.View entering={FadeInDown.delay(50).duration(400)} style={visitorStyles.container}>
+      <Pressable onPress={() => setExpanded(!expanded)} style={visitorStyles.header}>
+        <View style={visitorStyles.headerLeft}>
+          <Ionicons name="eye-outline" size={22} color="#60A5FA" />
+          <Text style={visitorStyles.headerTitle}>Guests</Text>
+        </View>
+        <View style={visitorStyles.headerRight}>
+          {data && (
+            <View style={visitorStyles.onlinePill}>
+              <View style={visitorStyles.onlineDot} />
+              <Text style={visitorStyles.onlineText}>{data.onlineNow} online now</Text>
+            </View>
+          )}
+          <Pressable onPress={fetchStats} style={visitorStyles.refreshIconBtn}>
+            <Ionicons name="refresh" size={15} color="#60A5FA" />
+          </Pressable>
+          <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={18} color={Colors.whiteMuted} />
+        </View>
+      </Pressable>
+
+      {expanded && (
+        <View style={visitorStyles.body}>
+          {loading && !data ? (
+            <ActivityIndicator color="#60A5FA" style={{ marginVertical: 16 }} />
+          ) : data ? (
+            <>
+              {/* Metric grid */}
+              <View style={visitorStyles.metricGrid}>
+                {[
+                  { label: "Today",      value: data.today,     color: "#4ADE80" },
+                  { label: "Yesterday",  value: data.yesterday, color: "#60A5FA" },
+                  { label: "New Today",  value: data.newToday,  color: "#FACC15" },
+                  { label: "This Week",  value: data.week,      color: "#F97316" },
+                  { label: "All Time",   value: data.allTime,   color: Colors.whiteDim },
+                ].map(({ label, value, color }) => (
+                  <View key={label} style={visitorStyles.metricCard}>
+                    <Text style={[visitorStyles.metricValue, { color }]}>{value ?? "—"}</Text>
+                    <Text style={visitorStyles.metricLabel}>{label}</Text>
+                  </View>
+                ))}
+              </View>
+
+              {/* 14-day bar chart */}
+              {data.daily?.length > 0 && (
+                <View style={visitorStyles.chartWrap}>
+                  <Text style={visitorStyles.chartTitle}>Last 14 Days</Text>
+                  <View style={visitorStyles.chart}>
+                    {[...data.daily].reverse().map((d: any) => {
+                      const barH = Math.max(3, (d.visitors / maxBar) * 48);
+                      const label = new Date(d.day).toLocaleDateString(undefined, { weekday: "narrow" });
+                      return (
+                        <View key={d.day} style={visitorStyles.chartCol}>
+                          <Text style={visitorStyles.chartBarVal}>{d.visitors > 0 ? d.visitors : ""}</Text>
+                          <View style={[visitorStyles.chartBar, { height: barH, backgroundColor: "#60A5FA" }]} />
+                          <Text style={visitorStyles.chartDayLabel}>{label}</Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
+
+              {/* Lead Generator CTA */}
+              <Pressable
+                onPress={() => router.push("/community-lead" as any)}
+                style={({ pressed }) => [visitorStyles.leadBtn, pressed && { opacity: 0.75 }]}
+              >
+                <MaterialCommunityIcons name="rocket-launch" size={17} color={Colors.background} />
+                <Text style={visitorStyles.leadBtnText}>Lead Generator — grow your audience</Text>
+                <Ionicons name="chevron-forward" size={16} color={Colors.background} />
+              </Pressable>
+            </>
+          ) : null}
+        </View>
+      )}
+    </Animated.View>
+  );
+}
+
+const visitorStyles = StyleSheet.create({
+  container: {
+    backgroundColor: Colors.card,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "rgba(96,165,250,0.25)",
+    overflow: "hidden",
+    marginBottom: 20,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: Colors.white,
+    fontFamily: "PlayfairDisplay_700Bold",
+  },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  onlinePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "rgba(74,222,128,0.12)",
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  onlineDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: "#4ADE80",
+  },
+  onlineText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#4ADE80",
+  },
+  refreshIconBtn: {
+    padding: 4,
+  },
+  body: {
+    paddingHorizontal: 14,
+    paddingBottom: 16,
+    gap: 14,
+  },
+  metricGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  metricCard: {
+    flex: 1,
+    minWidth: 72,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 12,
+    padding: 12,
+    alignItems: "center",
+    gap: 4,
+  },
+  metricValue: {
+    fontSize: 24,
+    fontWeight: "800",
+    fontFamily: "PlayfairDisplay_900Black",
+  },
+  metricLabel: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: Colors.whiteMuted,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  chartWrap: {
+    gap: 8,
+  },
+  chartTitle: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: Colors.whiteDim,
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+  },
+  chart: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 4,
+    height: 72,
+  },
+  chartCol: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 3,
+  },
+  chartBarVal: {
+    fontSize: 8,
+    color: Colors.whiteMuted,
+    height: 10,
+  },
+  chartBar: {
+    width: "100%",
+    borderRadius: 3,
+    backgroundColor: "#60A5FA",
+  },
+  chartDayLabel: {
+    fontSize: 8,
+    color: Colors.whiteMuted,
+  },
+  leadBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: Colors.gold,
+    borderRadius: 12,
+    paddingVertical: 12,
+    marginTop: 4,
+  },
+  leadBtnText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: Colors.background,
+    flex: 1,
+    textAlign: "center",
+  },
+});
+
+// ─── Live Activity Stats ───────────────────────────────────────────────────────
 function LiveActivityStatsSection() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);

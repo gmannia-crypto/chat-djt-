@@ -36,6 +36,7 @@ import {
   submitSuggestion,
   getAnalyticsSummary,
   getSuggestions,
+  getVisitorStats,
   updateSuggestionStatus,
 } from "./analytics";
 import {
@@ -726,6 +727,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const days = parseInt(req.query.days as string) || 30;
       const summary = await getAnalyticsSummary(days);
       return res.json(summary);
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get("/api/admin/visitor-stats", async (_req, res) => {
+    try {
+      const stats = await getVisitorStats();
+      return res.json(stats);
     } catch (e: any) {
       return res.status(500).json({ error: e.message });
     }

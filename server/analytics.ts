@@ -143,3 +143,54 @@ export async function updateSuggestionStatus(id: number, status: string, adminNo
     [status, adminNote, id]
   );
 }
+
+export async function getVisitorStats() {
+  const db = getPool();
+
+  const [
+    todayRes, yesterdayRes, weekRes, allTimeRes,
+    onlineNowRes, newTodayRes, dailyRes,
+  ] = await Promise.all([
+    // Today
+    db.query(`SELECT COUNT(DISTINCT device_id) AS count FROM page_views WHERE created_at >= CURRENT_DATE`),
+    // Yesterday
+    db.query(`SELECT COUNT(DISTINCT device_id) AS count FROM page_views
+              WHERE created_at >= CURRENT_DATE - INTERVAL '1 day' AND created_at < CURRENT_DATE`),
+    // Last 7 days
+    db.query(`SELECT COUNT(DISTINCT device_id) AS count FROM page_views
+              WHERE created_at >= NOW() - INTERVAL '7 days'`),
+    // All time
+    db.query(`SELECT COUNT(DISTINCT device_id) AS count FROM page_views`),
+    // Online now: last_seen in token_accounts within past 5 minutes
+    db.query(`SELECT COUNT(*) AS count FROM token_accounts
+              WHERE last_seen > NOW() - INTERVAL '5 minutes'`)
+      .catch(() => ({ rows: [{ count: "0" }] })),
+    // New visitors today: first page_view ever is today
+    db.query(`SELECT COUNT(*) AS count FROM (
+                SELECT device_id FROM page_views
+                GROUP BY device_id HAVING MIN(created_at) >= CURRENT_DATE
+              ) AS new_today`),
+    // Daily bar chart — last 14 days
+    db.query(`SELECT DATE(created_at) AS day,
+                     COUNT(DISTINCT device_id) AS visitors,
+                     COUNT(*) AS views
+              FROM page_views
+              WHERE created_at >= CURRENT_DATE - INTERVAL '13 days'
+              GROUP BY DATE(created_at)
+              ORDER BY day DESC`),
+  ]);
+
+  return {
+    today:     parseInt(todayRes.rows[0]?.count     || "0"),
+    yesterday: parseInt(yesterdayRes.rows[0]?.count || "0"),
+    week:      parseInt(weekRes.rows[0]?.count      || "0"),
+    allTime:   parseInt(allTimeRes.rows[0]?.count   || "0"),
+    onlineNow: parseInt(onlineNowRes.rows[0]?.count || "0"),
+    newToday:  parseInt(newTodayRes.rows[0]?.count  || "0"),
+    daily: dailyRes.rows.map(r => ({
+      day:      r.day,
+      visitors: parseInt(r.visitors),
+      views:    parseInt(r.views),
+    })),
+  };
+}
