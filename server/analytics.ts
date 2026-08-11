@@ -146,12 +146,45 @@ export async function updateSuggestionStatus(id: number, status: string, adminNo
   );
 }
 
+export async function getLeadGenStats(days: number = 30) {
+  const db = getPool();
+  const since = new Date(Date.now() - days * 86400000).toISOString();
+  const result = await db.query(`
+    SELECT
+      COALESCE(metadata->>'community', 'unknown') AS community,
+      action,
+      COUNT(*) AS count
+    FROM feature_events
+    WHERE feature = 'lead_gen'
+      AND action IN ('copy', 'share')
+      AND created_at >= $1
+    GROUP BY community, action
+    ORDER BY community, action
+  `, [since]);
+
+  // Pivot into per-community {community, copies, shares} rows
+  const map = new Map<string, { community: string; copies: number; shares: number }>();
+  for (const row of result.rows) {
+    const key = row.community as string;
+    if (!map.has(key)) map.set(key, { community: key, copies: 0, shares: 0 });
+    const entry = map.get(key)!;
+    if (row.action === "copy")  entry.copies  = parseInt(row.count);
+    if (row.action === "share") entry.shares  = parseInt(row.count);
+  }
+
+  // Sort by total (copies + shares) descending
+  return Array.from(map.values()).sort(
+    (a, b) => (b.copies + b.shares) - (a.copies + a.shares)
+  );
+}
+
 export async function getVisitorStats() {
   const db = getPool();
 
   const [
     todayRes, yesterdayRes, weekRes, allTimeRes,
     onlineNowRes, newTodayRes, dailyRes, todayBySourceRes,
+    leadGenRes,
   ] = await Promise.all([
     // Today
     db.query(`SELECT COUNT(DISTINCT device_id) AS count FROM page_views WHERE created_at >= CURRENT_DATE`),
@@ -187,6 +220,8 @@ export async function getVisitorStats() {
               WHERE created_at >= CURRENT_DATE AND utm_source IS NOT NULL
               GROUP BY utm_source
               ORDER BY visitors DESC`),
+    // Lead gen community activity — last 30 days
+    getLeadGenStats(30),
   ]);
 
   return {
@@ -205,5 +240,6 @@ export async function getVisitorStats() {
       source:   r.source,
       visitors: parseInt(r.visitors),
     })),
+    leadGen: leadGenRes,
   };
 }

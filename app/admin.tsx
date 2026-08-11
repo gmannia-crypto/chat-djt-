@@ -1709,6 +1709,170 @@ function formatDuration(totalSeconds: number): string {
 }
 
 // ─── Visitor Stats Section ────────────────────────────────────────────────────
+function LeadGenActivityCard({ data }: { data?: { community: string; copies: number; shares: number }[] }) {
+  const [expanded, setExpanded] = useState(false);
+
+  const hasData = data && data.length > 0;
+  const totalCopies  = data?.reduce((s, r) => s + r.copies,  0) ?? 0;
+  const totalShares  = data?.reduce((s, r) => s + r.shares,  0) ?? 0;
+  const maxTotal     = hasData ? Math.max(...data!.map(r => r.copies + r.shares), 1) : 1;
+
+  return (
+    <View style={leadGenStyles.container}>
+      <Pressable onPress={() => setExpanded(!expanded)} style={leadGenStyles.header}>
+        <View style={leadGenStyles.headerLeft}>
+          <MaterialCommunityIcons name="share-variant" size={15} color="#A78BFA" />
+          <Text style={leadGenStyles.title}>Lead Generator Activity</Text>
+          <View style={leadGenStyles.pill}>
+            <Text style={leadGenStyles.pillText}>30d</Text>
+          </View>
+        </View>
+        <View style={leadGenStyles.headerRight}>
+          {hasData && (
+            <Text style={leadGenStyles.summary}>{totalCopies}C · {totalShares}S</Text>
+          )}
+          <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={14} color="#A78BFA" />
+        </View>
+      </Pressable>
+
+      {expanded && (
+        <View style={leadGenStyles.body}>
+          {!hasData ? (
+            <Text style={leadGenStyles.empty}>No lead gen activity in the last 30 days.</Text>
+          ) : (
+            <>
+              {data!.map((row) => {
+                const total = row.copies + row.shares;
+                const barPct = Math.max(6, Math.round((total / maxTotal) * 100));
+                return (
+                  <View key={row.community} style={leadGenStyles.row}>
+                    <Text style={leadGenStyles.community} numberOfLines={1}>{row.community}</Text>
+                    <View style={leadGenStyles.barWrap}>
+                      <View style={[leadGenStyles.bar, { width: `${barPct}%` as any }]} />
+                    </View>
+                    <View style={leadGenStyles.counts}>
+                      <Text style={leadGenStyles.copyCount}>{row.copies}C</Text>
+                      <Text style={leadGenStyles.shareCount}>{row.shares}S</Text>
+                    </View>
+                  </View>
+                );
+              })}
+              <Text style={leadGenStyles.footer}>
+                {totalCopies} copies · {totalShares} shares across {data!.length} {data!.length === 1 ? "community" : "communities"}
+              </Text>
+            </>
+          )}
+        </View>
+      )}
+    </View>
+  );
+}
+
+const leadGenStyles = StyleSheet.create({
+  container: {
+    backgroundColor: "rgba(167,139,250,0.07)",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(167,139,250,0.2)",
+    overflow: "hidden",
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  title: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#A78BFA",
+    letterSpacing: 0.3,
+  },
+  pill: {
+    backgroundColor: "rgba(167,139,250,0.15)",
+    borderRadius: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
+  pillText: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: "#A78BFA",
+  },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  summary: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "rgba(167,139,250,0.7)",
+  },
+  body: {
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+    gap: 8,
+  },
+  empty: {
+    fontSize: 11,
+    color: Colors.whiteMuted,
+    fontStyle: "italic",
+    textAlign: "center",
+    paddingVertical: 8,
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  community: {
+    fontSize: 11,
+    color: Colors.whiteDim,
+    width: 90,
+  },
+  barWrap: {
+    flex: 1,
+    height: 7,
+    backgroundColor: "rgba(255,255,255,0.07)",
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  bar: {
+    height: "100%",
+    backgroundColor: "#A78BFA",
+    borderRadius: 4,
+  },
+  counts: {
+    flexDirection: "row",
+    gap: 5,
+    width: 56,
+    justifyContent: "flex-end",
+  },
+  copyCount: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#60A5FA",
+  },
+  shareCount: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#4ADE80",
+  },
+  footer: {
+    fontSize: 10,
+    color: Colors.whiteMuted,
+    textAlign: "center",
+    marginTop: 2,
+  },
+});
+
 function VisitorStatsSection() {
   const adminKey = useContext(AdminKeyContext);
   const [data, setData] = useState<any>(null);
@@ -1815,6 +1979,9 @@ function VisitorStatsSection() {
                   })}
                 </View>
               )}
+
+              {/* Lead Generator Activity */}
+              <LeadGenActivityCard data={data?.leadGen} />
 
               {/* Lead Generator CTA */}
               <Pressable
