@@ -732,7 +732,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/admin/visitor-stats", async (_req, res) => {
+  app.get("/api/admin/visitor-stats", async (req, res) => {
+    if (!checkAdminKey(req)) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
     try {
       const stats = await getVisitorStats();
       return res.json(stats);

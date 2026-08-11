@@ -149,18 +149,33 @@ export async function updateSuggestionStatus(id: number, status: string, adminNo
 export async function getLeadGenStats(days: number = 30) {
   const db = getPool();
   const since = new Date(Date.now() - days * 86400000).toISOString();
-  const result = await db.query(`
-    SELECT
-      COALESCE(metadata->>'community', 'unknown') AS community,
-      action,
-      COUNT(*) AS count
-    FROM feature_events
-    WHERE feature = 'lead_gen'
-      AND action IN ('copy', 'share')
-      AND created_at >= $1
-    GROUP BY community, action
-    ORDER BY community, action
-  `, [since]);
+
+  const [result, dailyResult] = await Promise.all([
+    db.query(`
+      SELECT
+        COALESCE(metadata->>'community', 'unknown') AS community,
+        action,
+        COUNT(*) AS count
+      FROM feature_events
+      WHERE feature = 'lead_gen'
+        AND action IN ('copy', 'share')
+        AND created_at >= $1
+      GROUP BY community, action
+      ORDER BY community, action
+    `, [since]),
+    db.query(`
+      SELECT
+        DATE(created_at) AS day,
+        SUM(CASE WHEN action = 'copy'  THEN 1 ELSE 0 END) AS copies,
+        SUM(CASE WHEN action = 'share' THEN 1 ELSE 0 END) AS shares
+      FROM feature_events
+      WHERE feature = 'lead_gen'
+        AND action IN ('copy', 'share')
+        AND created_at >= $1
+      GROUP BY DATE(created_at)
+      ORDER BY day ASC
+    `, [since]),
+  ]);
 
   // Pivot into per-community {community, copies, shares} rows
   const map = new Map<string, { community: string; copies: number; shares: number }>();
@@ -173,9 +188,18 @@ export async function getLeadGenStats(days: number = 30) {
   }
 
   // Sort by total (copies + shares) descending
-  return Array.from(map.values()).sort(
+  const communities = Array.from(map.values()).sort(
     (a, b) => (b.copies + b.shares) - (a.copies + a.shares)
   );
+
+  // Daily breakdown for sparkline: one entry per day that had activity
+  const dailyBreakdown = dailyResult.rows.map(r => ({
+    day:    String(r.day).slice(0, 10),
+    copies: parseInt(r.copies)  || 0,
+    shares: parseInt(r.shares)  || 0,
+  }));
+
+  return { communities, dailyBreakdown };
 }
 
 export async function getVisitorStats() {

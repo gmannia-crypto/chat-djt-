@@ -1709,13 +1709,49 @@ function formatDuration(totalSeconds: number): string {
 }
 
 // ─── Visitor Stats Section ────────────────────────────────────────────────────
-function LeadGenActivityCard({ data }: { data?: { community: string; copies: number; shares: number }[] }) {
-  const [expanded, setExpanded] = useState(false);
+type LeadGenData = {
+  communities: { community: string; copies: number; shares: number }[];
+  dailyBreakdown: { day: string; copies: number; shares: number }[];
+};
 
-  const hasData = data && data.length > 0;
-  const totalCopies  = data?.reduce((s, r) => s + r.copies,  0) ?? 0;
-  const totalShares  = data?.reduce((s, r) => s + r.shares,  0) ?? 0;
-  const maxTotal     = hasData ? Math.max(...data!.map(r => r.copies + r.shares), 1) : 1;
+function LeadGenSparkline({ breakdown }: { breakdown: { day: string; copies: number; shares: number }[] }) {
+  const maxVal = Math.max(...breakdown.map(d => d.copies + d.shares), 1);
+  return (
+    <View style={leadGenStyles.sparklineWrap}>
+      <View style={leadGenStyles.sparklineBars}>
+        {breakdown.map((d) => {
+          const total = d.copies + d.shares;
+          const heightPct = Math.max(8, Math.round((total / maxVal) * 100));
+          const label = d.day.slice(5); // MM-DD
+          return (
+            <View key={d.day} style={leadGenStyles.sparklineCol}>
+              <View style={leadGenStyles.sparklineBarOuter}>
+                <View style={[leadGenStyles.sparklineBar, { height: `${heightPct}%` as any }]} />
+              </View>
+              <Text style={leadGenStyles.sparklineLabel}>{label.replace("-", "/")}</Text>
+            </View>
+          );
+        })}
+      </View>
+      <View style={leadGenStyles.sparklineLegend}>
+        <View style={leadGenStyles.sparklineLegendDot} />
+        <Text style={leadGenStyles.sparklineLegendText}>copies + shares per day</Text>
+      </View>
+    </View>
+  );
+}
+
+function LeadGenActivityCard({ data }: { data?: LeadGenData }) {
+  const [expanded, setExpanded] = useState(false);
+  const [trendExpanded, setTrendExpanded] = useState(false);
+
+  const communities = data?.communities ?? [];
+  const dailyBreakdown = data?.dailyBreakdown ?? [];
+  const hasData = communities.length > 0;
+  const hasTrend = dailyBreakdown.length > 0;
+  const totalCopies  = communities.reduce((s, r) => s + r.copies,  0);
+  const totalShares  = communities.reduce((s, r) => s + r.shares,  0);
+  const maxTotal     = hasData ? Math.max(...communities.map(r => r.copies + r.shares), 1) : 1;
 
   return (
     <View style={leadGenStyles.container}>
@@ -1741,7 +1777,7 @@ function LeadGenActivityCard({ data }: { data?: { community: string; copies: num
             <Text style={leadGenStyles.empty}>No lead gen activity in the last 30 days.</Text>
           ) : (
             <>
-              {data!.map((row) => {
+              {communities.map((row) => {
                 const total = row.copies + row.shares;
                 const barPct = Math.max(6, Math.round((total / maxTotal) * 100));
                 return (
@@ -1758,8 +1794,26 @@ function LeadGenActivityCard({ data }: { data?: { community: string; copies: num
                 );
               })}
               <Text style={leadGenStyles.footer}>
-                {totalCopies} copies · {totalShares} shares across {data!.length} {data!.length === 1 ? "community" : "communities"}
+                {totalCopies} copies · {totalShares} shares across {communities.length} {communities.length === 1 ? "community" : "communities"}
               </Text>
+
+              {hasTrend && (
+                <>
+                  <Pressable
+                    onPress={() => setTrendExpanded(!trendExpanded)}
+                    style={leadGenStyles.trendToggle}
+                  >
+                    <MaterialCommunityIcons name="chart-bar" size={12} color="#A78BFA" />
+                    <Text style={leadGenStyles.trendToggleText}>Daily Trend</Text>
+                    <Ionicons
+                      name={trendExpanded ? "chevron-up" : "chevron-down"}
+                      size={11}
+                      color="rgba(167,139,250,0.6)"
+                    />
+                  </Pressable>
+                  {trendExpanded && <LeadGenSparkline breakdown={dailyBreakdown} />}
+                </>
+              )}
             </>
           )}
         </View>
@@ -1870,6 +1924,73 @@ const leadGenStyles = StyleSheet.create({
     color: Colors.whiteMuted,
     textAlign: "center",
     marginTop: 2,
+  },
+  trendToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    alignSelf: "center",
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    backgroundColor: "rgba(167,139,250,0.1)",
+    borderRadius: 8,
+    marginTop: 2,
+  },
+  trendToggleText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#A78BFA",
+  },
+  sparklineWrap: {
+    marginTop: 6,
+    gap: 4,
+  },
+  sparklineBars: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    height: 48,
+    gap: 2,
+  },
+  sparklineCol: {
+    flex: 1,
+    alignItems: "center",
+    gap: 2,
+    height: "100%",
+    justifyContent: "flex-end",
+  },
+  sparklineBarOuter: {
+    width: "100%",
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  sparklineBar: {
+    width: "100%",
+    backgroundColor: "#A78BFA",
+    borderRadius: 2,
+    opacity: 0.85,
+  },
+  sparklineLabel: {
+    fontSize: 7,
+    color: "rgba(255,255,255,0.3)",
+    textAlign: "center",
+  },
+  sparklineLegend: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    marginTop: 2,
+  },
+  sparklineLegendDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#A78BFA",
+    opacity: 0.85,
+  },
+  sparklineLegendText: {
+    fontSize: 9,
+    color: Colors.whiteMuted,
   },
 });
 
