@@ -1741,7 +1741,15 @@ function LeadGenSparkline({ breakdown }: { breakdown: { day: string; copies: num
   );
 }
 
-function LeadGenActivityCard({ data }: { data?: LeadGenData }) {
+function LeadGenActivityCard({
+  data,
+  days = 30,
+  onDaysChange,
+}: {
+  data?: LeadGenData;
+  days?: number;
+  onDaysChange?: (d: number) => void;
+}) {
   const [expanded, setExpanded] = useState(false);
   const [trendExpanded, setTrendExpanded] = useState(false);
 
@@ -1759,11 +1767,24 @@ function LeadGenActivityCard({ data }: { data?: LeadGenData }) {
         <View style={leadGenStyles.headerLeft}>
           <MaterialCommunityIcons name="share-variant" size={15} color="#A78BFA" />
           <Text style={leadGenStyles.title}>Lead Generator Activity</Text>
-          <View style={leadGenStyles.pill}>
-            <Text style={leadGenStyles.pillText}>30d</Text>
-          </View>
         </View>
         <View style={leadGenStyles.headerRight}>
+          {/* Window toggle */}
+          {onDaysChange && (
+            <View style={leadGenStyles.windowToggle}>
+              {([7, 30, 90] as const).map((d) => (
+                <Pressable
+                  key={d}
+                  onPress={(e) => { e.stopPropagation?.(); onDaysChange(d); }}
+                  style={[leadGenStyles.windowBtn, days === d && leadGenStyles.windowBtnActive]}
+                >
+                  <Text style={[leadGenStyles.windowBtnText, days === d && leadGenStyles.windowBtnTextActive]}>
+                    {d}d
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
           {hasData && (
             <Text style={leadGenStyles.summary}>{totalCopies}C · {totalShares}S</Text>
           )}
@@ -1774,7 +1795,7 @@ function LeadGenActivityCard({ data }: { data?: LeadGenData }) {
       {expanded && (
         <View style={leadGenStyles.body}>
           {!hasData ? (
-            <Text style={leadGenStyles.empty}>No lead gen activity in the last 30 days.</Text>
+            <Text style={leadGenStyles.empty}>No lead gen activity in the last {days} days.</Text>
           ) : (
             <>
               {communities.map((row) => {
@@ -1863,6 +1884,27 @@ const leadGenStyles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+  },
+  windowToggle: {
+    flexDirection: "row",
+    gap: 3,
+  },
+  windowBtn: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+    backgroundColor: "rgba(167,139,250,0.1)",
+  },
+  windowBtnActive: {
+    backgroundColor: "#A78BFA",
+  },
+  windowBtnText: {
+    fontSize: 10,
+    fontWeight: "700" as const,
+    color: "rgba(167,139,250,0.7)",
+  },
+  windowBtnTextActive: {
+    color: "#0a0a0a",
   },
   summary: {
     fontSize: 11,
@@ -1999,17 +2041,23 @@ function VisitorStatsSection() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(true);
+  const [leadGenDays, setLeadGenDays] = useState(30);
 
-  const fetchStats = async () => {
+  const fetchStats = async (lgDays: number = leadGenDays) => {
     setLoading(true);
     try {
       const res = await fetch(
-        new URL("/api/admin/visitor-stats", getApiUrl()).toString(),
+        new URL(`/api/admin/visitor-stats?leadGenDays=${lgDays}`, getApiUrl()).toString(),
         { headers: adminHeaders(adminKey) }
       );
       if (res.ok) setData(await res.json());
     } catch {}
     setLoading(false);
+  };
+
+  const handleLeadGenDaysChange = (d: number) => {
+    setLeadGenDays(d);
+    fetchStats(d);
   };
 
   useEffect(() => { fetchStats(); }, []);
@@ -2032,7 +2080,7 @@ function VisitorStatsSection() {
               <Text style={visitorStyles.onlineText}>{data.onlineNow} online now</Text>
             </View>
           )}
-          <Pressable onPress={fetchStats} style={visitorStyles.refreshIconBtn}>
+          <Pressable onPress={() => fetchStats()} style={visitorStyles.refreshIconBtn}>
             <Ionicons name="refresh" size={15} color="#60A5FA" />
           </Pressable>
           <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={18} color={Colors.whiteMuted} />
@@ -2102,7 +2150,11 @@ function VisitorStatsSection() {
               )}
 
               {/* Lead Generator Activity */}
-              <LeadGenActivityCard data={data?.leadGen} />
+              <LeadGenActivityCard
+                data={data?.leadGen}
+                days={leadGenDays}
+                onDaysChange={handleLeadGenDaysChange}
+              />
 
               {/* Lead Generator CTA */}
               <Pressable

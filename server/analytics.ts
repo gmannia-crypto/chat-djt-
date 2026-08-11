@@ -202,7 +202,7 @@ export async function getLeadGenStats(days: number = 30) {
   return { communities, dailyBreakdown };
 }
 
-export async function getVisitorStats() {
+export async function getVisitorStats(leadGenDays: number = 30) {
   const db = getPool();
 
   const [
@@ -244,8 +244,8 @@ export async function getVisitorStats() {
               WHERE created_at >= CURRENT_DATE AND utm_source IS NOT NULL
               GROUP BY utm_source
               ORDER BY visitors DESC`),
-    // Lead gen community activity — last 30 days
-    getLeadGenStats(30),
+    // Lead gen community activity
+    getLeadGenStats(leadGenDays),
   ]);
 
   return {
