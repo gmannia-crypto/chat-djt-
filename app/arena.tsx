@@ -1848,6 +1848,96 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       negative: ["church fund", "jet", "fraud", "hypocrite", "grift", "money", "donations", "tithing", "mansion"],
     },
   },
+  cornellwest: {
+    id: "cornellwest",
+    name: "Dr. Cornel West",
+    shortName: "Dr. West",
+    color: "#2C5F2E",
+    faction: "opponent",
+    image: require("@/assets/images/persona-cornellwest.jpg"),
+    personality: {
+      energy: 85,
+      aggression: 60,
+      humor: 45,
+      catchphrases: ["My dear brother!", "My dear sister!", "That is the prophetic witness!", "The blues of American democracy!", "Gangster capitalism!", "We must tell the truth!"],
+    },
+    relationships: {
+      trump: { sentiment: 5 },
+      berniemc: { sentiment: 75 },
+      aoc: { sentiment: 60 },
+      omar: { sentiment: 70 },
+      obama: { sentiment: 20 },
+      biden: { sentiment: 15 },
+      kamala: { sentiment: 15 },
+      mlk: { sentiment: 95 },
+      malcolmx: { sentiment: 85 },
+      carville: { sentiment: 30 },
+      maddow: { sentiment: 35 },
+    },
+    triggerWords: {
+      positive: ["prophetic", "truth", "justice", "love", "working people", "solidarity", "coltrane", "baldwin", "dostoevsky"],
+      negative: ["neoliberal", "corporate democrat", "establishment", "milquetoast", "oligarch", "gangster", "imperial"],
+    },
+  },
+  piersmorgan: {
+    id: "piersmorgan",
+    name: "Piers Morgan",
+    shortName: "Piers",
+    color: "#003087",
+    faction: "wildcard",
+    image: require("@/assets/images/persona-piersmorgan.jpg"),
+    personality: {
+      energy: 88,
+      aggression: 80,
+      humor: 65,
+      catchphrases: ["With the greatest respect—", "That is complete rubbish!", "Absolute balderdash!", "Right, let's get straight to it.", "And you know it's true!"],
+    },
+    relationships: {
+      trump: { sentiment: 55 },
+      candace: { sentiment: 60 },
+      megynkelly: { sentiment: 50 },
+      aoc: { sentiment: 25 },
+      omar: { sentiment: 25 },
+      berniemc: { sentiment: 30 },
+      maddow: { sentiment: 35 },
+      tuckercarlson: { sentiment: 45 },
+      galloway: { sentiment: 40 },
+    },
+    triggerWords: {
+      positive: ["free speech", "common sense", "accountability", "facts", "direct", "honest"],
+      negative: ["woke", "canceled", "virtue signal", "safe space", "identity politics", "rubbish"],
+    },
+  },
+  scottjennings: {
+    id: "scottjennings",
+    name: "Scott Jennings",
+    shortName: "Scott J.",
+    color: "#B22222",
+    faction: "supporter",
+    image: require("@/assets/images/persona-scottjennings.jpg"),
+    personality: {
+      energy: 70,
+      aggression: 55,
+      humor: 60,
+      catchphrases: ["Look—", "Here's the reality—", "I'll just say this—", "With all due respect—", "And you know it's true.", "Fifty-nine percent of independents—"],
+    },
+    relationships: {
+      trump: { sentiment: 75 },
+      graham: { sentiment: 80 },
+      desantis: { sentiment: 70 },
+      marcorubio: { sentiment: 70 },
+      maddow: { sentiment: 25 },
+      joyreid: { sentiment: 20 },
+      carville: { sentiment: 30 },
+      obama: { sentiment: 30 },
+      berniemc: { sentiment: 15 },
+      aoc: { sentiment: 10 },
+    },
+    triggerWords: {
+      positive: ["conservative", "republican", "border", "economy", "free market", "polling", "independents", "law enforcement"],
+      negative: ["woke", "socialist", "defund", "open border", "radical", "liberal media"],
+    },
+  },
 };
 
 const MYSTERY_PERSONAS: Record<string, ArenaPersona> = {
@@ -2377,7 +2467,7 @@ const MYSTERY_UNLOCK_COSTS: Record<string, number> = {
 };
 const MYSTERY_UNLOCK_KEY = "arena_mystery_unlocked";
 
-const PERSONA_IDS = ["trump", "jdvance", "elon", "errol", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "carlin", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "leavitt", "erikakirk", "loomer", "bannon", "stephena", "malema", "hannity", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "aoc", "pressley", "joerogan", "timscott", "drbenj", "billclinton", "hillaryclinton", "marcorubio", "desantis", "tuckercarlson", "bishopfundme"];
+const PERSONA_IDS = ["trump", "jdvance", "elon", "errol", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "carlin", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "leavitt", "erikakirk", "loomer", "bannon", "stephena", "malema", "hannity", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "aoc", "pressley", "joerogan", "timscott", "drbenj", "billclinton", "hillaryclinton", "marcorubio", "desantis", "tuckercarlson", "bishopfundme", "cornellwest", "piersmorgan", "scottjennings"];
 // Cartoon-style image filter — vivid posterized look on web
 const CARTOON_FILTER = Platform.OS === "web"
   ? ({ filter: "contrast(1.35) saturate(1.85) brightness(1.03)" } as any)
@@ -9178,11 +9268,11 @@ export default function ArenaScreen() {
               const CATEGORIES: Array<{ label: string; ids: string[]; mysteryIds: string[] }> = [
                 { label: "🏛  PRESIDENTS", ids: ["trump", "biden"], mysteryIds: ["obama"] },
                 { label: "⚖️  POLITICIANS", ids: ["netanyahu", "mcconnell", "omar", "graham", "pambondi", "miller", "jimjordan", "jascrockett", "aoc", "pressley", "timscott", "mikejohnson", "billclinton", "hillaryclinton", "marcorubio", "desantis"], mysteryIds: ["schumer", "kamala", "mtg", "rfk"] },
-                { label: "📺  MEDIA & JOURNALISTS", ids: ["maddow", "megynkelly", "joyreid", "erikakirk", "loomer", "leavitt", "hannity", "odonnell"], mysteryIds: [] },
+                { label: "📺  MEDIA & JOURNALISTS", ids: ["maddow", "megynkelly", "joyreid", "erikakirk", "loomer", "leavitt", "hannity", "odonnell", "piersmorgan", "scottjennings"], mysteryIds: [] },
                 { label: "🎙  PODCASTERS & STRATEGISTS", ids: ["galloway", "candace", "carville", "bannon", "joerogan"], mysteryIds: ["alexjones"] },
                 { label: "🎭  COMEDIANS", ids: ["berniemc", "rosie", ...(!isHidden("carlin") ? ["carlin"] : [])], mysteryIds: [] },
                 { label: "💻  TECH", ids: ["elon"], mysteryIds: [] },
-                { label: "✊  COMMENTATORS & ACTIVISTS", ids: ["stephena", "jesseleepetersen", "shannon", "neiltyson", "malema", "claudeanderson", ...(!isHidden("drbenj") ? ["drbenj"] : []), "bishopfundme"], mysteryIds: [] },
+                { label: "✊  COMMENTATORS & ACTIVISTS", ids: ["stephena", "jesseleepetersen", "shannon", "neiltyson", "malema", "claudeanderson", ...(!isHidden("drbenj") ? ["drbenj"] : []), "bishopfundme", "cornellwest"], mysteryIds: [] },
                 { label: "👥  FAMILY & OTHERS", ids: ["errol", "ivanka"], mysteryIds: ["melania"] },
               ];
               const lockedMysteryIds = MYSTERY_PERSONA_IDS.filter((id) => !unlockedMystery.includes(id));

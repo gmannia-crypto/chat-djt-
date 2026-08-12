@@ -524,6 +524,9 @@ const PERSONA_LOSER_LINES: Record<string, string[]> = {
   charliemurphy:    ["Man, I've been knocked around before. But I'll be back, and it'll be worse for you.", "You know what? I lost today. I respect it. Don't expect that to happen again."],
   dc:               ["The voice carries further than this room. Dynamic Creations will be heard again.", "One room's verdict changes nothing about what's true. And what's true is still what it was."],
   donlemon:         ["I've been told I was wrong before. I've also been fired for being right. Take that however you want.", "Fine. I take it. But I have the receipts and I'll be reviewing them tonight."],
+  cornellwest:      ["The prophetic tradition doesn't win every room — but it wins every generation. Remember that.", "My dear brother, I've been on the losing side of public opinion before. History has a way of making its corrections."],
+  piersmorgan:      ["I've been cancelled before. I'll be back on air before you've had breakfast. Count on it.", "Losing a debate is not something I do often. But when I do, I at least do it with considerably more style than this."],
+  scottjennings:    ["I'll take the result. The polling data I cited was still accurate.", "I lose gracefully and I win the same way. That's what a Kentucky gentleman does."],
   _default:         ["You get today. But this conversation isn't finished.", "I'll accept that. But don't get comfortable."],
 };
 const PERSONA_WINNER_LINES: Record<string, string[]> = {
@@ -608,6 +611,10 @@ const PERSONA_WINNER_LINES: Record<string, string[]> = {
   bishopfundme:     ["THE LORD HAS BLESSED HIS ANOINTED WITH VICTORY! Malachi 3:10 — bring ye the whole tithe — and that means NOW, while the Spirit is moving, at Venmo BishopFundme!", "CAN I GET AN AMEN?! The truth WINS — scripture WINS — and the Cathedral Building Fund is still OPEN! Hallelujah!"],
   charliemurphy:    ["Yeah. That's right. You got beat by Charlie Murphy. Tell your friends.", "I came in here, I prepared, and I handled my business. That's what I do."],
   dc:               ["That is what happens when the full weight of truth enters the room.", "Dynamic Creations. The voice. The vision. The result."],
+  cornellwest:      ["The prophetic witness wins when it speaks truth without fear or favor. Tonight it did.", "My dear brother, the blues tradition always comes through in the end. Coltrane knew it. Tonight proved it."],
+  piersmorgan:      ["I told you at the start I was right. I've been telling people that my whole career. They should start listening earlier.", "That's what happens when you come prepared, refuse to be intimidated, and say what everyone else is only thinking."],
+  scottjennings:    ["The conservative argument holds up under scrutiny. It always does when you make it clearly and calmly.", "Look — I told you at the beginning. Here's the reality: I was right. And deep down you knew it."],
+  donlemon:         ["I've been fired for saying true things. Tonight I won by saying them. That feels considerably better.", "I said what I said. The room agreed. That's all journalism is supposed to be."],
   _default:         ["I'll take that. Now let's get back to work.", "That's what I came here to do. Mission accomplished."],
 };
 // ─────────────────────────────────────────────────────────────────────────────
@@ -715,6 +722,9 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   dc: require("@/assets/images/persona-dc.png"),
   bishopfundme: require("@/assets/images/persona-bishopfundme.png"),
   donlemon: require("@/assets/images/persona-donlemon.jpg"),
+  cornellwest: require("@/assets/images/persona-cornellwest.jpg"),
+  piersmorgan: require("@/assets/images/persona-piersmorgan.jpg"),
+  scottjennings: require("@/assets/images/persona-scottjennings.jpg"),
   shannonsharp: require("@/assets/images/persona-shannon.jpg"),
   mikejohnson: require("@/assets/images/persona-mikejohnson.png"),
   tlaib:        require("@/assets/images/persona-tlaib.png"),

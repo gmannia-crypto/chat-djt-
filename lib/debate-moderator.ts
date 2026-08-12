@@ -13,7 +13,7 @@ import { getApiUrl } from "@/lib/query-client";
 import { prefetchTTSAudio, playPrefetchedAudio, playTTS } from "@/lib/audio-helper";
 import { playCrowdCheer, playDingSound } from "@/lib/arena-sfx";
 
-export type ModeratorStyle = "cenk" | "galloway" | "hannity" | "maddow" | "megynkelly" | "odonnell" | "joyreid" | "maxkellerman" | "stephena" | "kaitlyncollins" | "gilbertgottfried" | "carlin" | "tuckercarlson" | "wandasykes" | "trevornoah" | "janeelliott" | "francescresswelsing" | "shannonsharp" | "dc" | "donlemon";
+export type ModeratorStyle = "cenk" | "galloway" | "hannity" | "maddow" | "megynkelly" | "odonnell" | "joyreid" | "maxkellerman" | "stephena" | "kaitlyncollins" | "gilbertgottfried" | "carlin" | "tuckercarlson" | "wandasykes" | "trevornoah" | "janeelliott" | "francescresswelsing" | "shannonsharp" | "dc" | "donlemon" | "piersmorgan";
 
 export const MODERATORS: Record<ModeratorStyle, { name: string; personaId: string; bias: string }> = {
   cenk:             { name: "Cenk Uygur",          personaId: "cenk",             bias: "progressive" },
@@ -36,6 +36,7 @@ export const MODERATORS: Record<ModeratorStyle, { name: string; personaId: strin
   shannonsharp:        { name: "Shannon Sharpe",            personaId: "shannon",              bias: "Black-progressive-sports" },
   dc:                  { name: "DC",                         personaId: "dc",                   bias: "truth-seeking" },
   donlemon:            { name: "Don Lemon",                  personaId: "donlemon",             bias: "left-center" },
+  piersmorgan:         { name: "Piers Morgan",               personaId: "piersmorgan",          bias: "provocateur" },
 };
 
 // Which personas each moderator is friendly to ("favor" — softball questions, quick to defend
@@ -118,6 +119,11 @@ export const MODERATOR_LEANINGS: Record<ModeratorStyle, { favor: string[]; targe
   donlemon: {
     favor: ["obama", "kamala", "biden", "aoc", "omar", "jascrockett", "berniemc", "joyreid", "maddow", "carville", "schumer"],
     target: ["trump", "bannon", "miller", "leavitt", "mtg", "loomer", "alexjones", "candace", "jimjordan", "hannity"],
+  },
+  // Piers: British provocateur — anti-woke, challenges everyone; softer on right/center, hardest on progressive-left.
+  piersmorgan: {
+    favor: ["trump", "candace", "tuckercarlson", "megynkelly", "hannity", "desantis"],
+    target: ["aoc", "omar", "tlaib", "pressley", "jascrockett", "berniemc", "cornellwest"],
   },
 };
 
@@ -519,6 +525,16 @@ const SQUABBLE_BRIDGE_LINES: Record<string, string[]> = {
     "That exchange is over. We came here for truth — not theatre. New topic.",
     "I'm bringing this to a close. What you just witnessed was heat without light. Moving on.",
     "Enough. The room deserves better than what you two just gave it. New subject — right now.",
+  ],
+  donlemon: [
+    "Okay — we are DONE with that. New topic. And I say that as someone who has watched this kind of nonsense on live television for twenty years.",
+    "I'm calling it right now. New topic. Because what just happened there was not debate — it was a mess.",
+    "Topic switch. Immediately. I did not get fired from CNN to come here and watch you two do THIS. Let's move.",
+  ],
+  piersmorgan: [
+    "Right — that's quite enough of that. We're moving on, and frankly, you should both be embarrassed.",
+    "I've seen better conduct in a tabloid newsroom on deadline. New topic. Try to be at least marginally coherent this time.",
+    "That is OVER. I'm taking control of this debate right now. New subject — and I suggest you both bring something worth watching.",
   ],
   _default: [
     "We're moving on — this topic is closed. Let's keep it professional.",

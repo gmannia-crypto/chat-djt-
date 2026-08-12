@@ -231,6 +231,9 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   tlaib:        require("@/assets/images/persona-tlaib.png"),
   donlemon:     require("@/assets/images/persona-donlemon.jpg"),
   professorjiang: require("@/assets/images/persona-professorjiang.png"),
+  cornellwest:  require("@/assets/images/persona-cornellwest.jpg"),
+  piersmorgan:  require("@/assets/images/persona-piersmorgan.jpg"),
+  scottjennings: require("@/assets/images/persona-scottjennings.jpg"),
 };
 
 const FX_KEY = "interview_fx_enabled_v1";
@@ -275,6 +278,9 @@ const GUEST_CATEGORIES: Record<string, GuestCategory> = {
   francescresswelsing: "History",
   bishopfundme: "Entertainment",
   donlemon: "Political",
+  cornellwest: "Philosophy",
+  piersmorgan: "Entertainment",
+  scottjennings: "Political",
 };
 
 // Lightweight emotion delta from text heuristics
