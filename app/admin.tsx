@@ -28,6 +28,7 @@ import Animated, {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Colors from "@/constants/colors";
 import { getApiUrl } from "@/lib/query-client";
+import Svg, { Polyline as SvgPolyline } from "react-native-svg";
 
 const AdminKeyContext = createContext<string>("");
 
@@ -1719,6 +1720,7 @@ type SparklineTooltip = { index: number; day: string; total: number; avg: number
 function LeadGenSparkline({ breakdown }: { breakdown: { day: string; copies: number; shares: number }[] }) {
   const maxVal = Math.max(...breakdown.map(d => d.copies + d.shares), 1);
   const [tooltip, setTooltip] = useState<SparklineTooltip>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
   const dismissTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 7-day rolling average (centred on the current day, trailing window)
@@ -1777,7 +1779,10 @@ function LeadGenSparkline({ breakdown }: { breakdown: { day: string; copies: num
       })()}
 
       {/* Bars + average-dot overlay share the same container */}
-      <View style={leadGenStyles.sparklineBars}>
+      <View
+        style={leadGenStyles.sparklineBars}
+        onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
+      >
         {withAvg.map((d, i) => {
           const total = d.copies + d.shares;
           const heightPct = Math.max(8, Math.round((total / maxVal) * 100));
@@ -1812,6 +1817,36 @@ function LeadGenSparkline({ breakdown }: { breakdown: { day: string; copies: num
               </View>
             );
           })}
+          {/* Thin line connecting the rolling-average dots */}
+          {containerWidth > 0 && withAvg.length > 1 && (() => {
+            // overlay height = sparklineBars height (48) minus label area (12)
+            const overlayH = 36;
+            const n = withAvg.length;
+            const gap = 2;
+            const colW = (containerWidth - (n - 1) * gap) / n;
+            const points = withAvg.map((d, i) => {
+              const avgPct = Math.min(100, Math.max(0, (d.avg / maxVal) * 100));
+              const x = i * (colW + gap) + colW / 2;
+              const y = overlayH * (1 - avgPct / 100);
+              return `${x},${y}`;
+            }).join(" ");
+            return (
+              <Svg
+                width={containerWidth}
+                height={overlayH}
+                style={{ position: "absolute", top: 0, left: 0 }}
+              >
+                <SvgPolyline
+                  points={points}
+                  fill="none"
+                  stroke="#F59E0B"
+                  strokeWidth={1.5}
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                />
+              </Svg>
+            );
+          })()}
         </View>
       </View>
 
