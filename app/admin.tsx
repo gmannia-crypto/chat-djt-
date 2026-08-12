@@ -24,11 +24,17 @@ import * as Haptics from "expo-haptics";
 import Animated, {
   FadeInDown,
   FadeInUp,
+  FadeIn,
+  useSharedValue,
+  useAnimatedProps,
+  withTiming,
 } from "react-native-reanimated";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Colors from "@/constants/colors";
 import { getApiUrl } from "@/lib/query-client";
 import Svg, { Path as SvgPath } from "react-native-svg";
+
+const AnimatedSvgPath = Animated.createAnimatedComponent(SvgPath);
 
 const AdminKeyContext = createContext<string>("");
 
@@ -1744,6 +1750,16 @@ function LeadGenSparkline({ breakdown }: { breakdown: { day: string; copies: num
   // Clean up on unmount
   useEffect(() => () => { if (dismissTimer.current) clearTimeout(dismissTimer.current); }, []);
 
+  // Trend-line draw-on animation (mount only)
+  const LINE_DASH_LENGTH = 2000;
+  const dashOffset = useSharedValue(LINE_DASH_LENGTH);
+  useEffect(() => {
+    dashOffset.value = withTiming(0, { duration: 400 });
+  }, []);
+  const animatedPathProps = useAnimatedProps(() => ({
+    strokeDashoffset: dashOffset.value,
+  }));
+
   const barCount = withAvg.length;
 
   return (
@@ -1808,13 +1824,17 @@ function LeadGenSparkline({ breakdown }: { breakdown: { day: string; copies: num
 
         {/* Rolling-average overlay — non-interactive, sits above bars */}
         <View style={leadGenStyles.sparklineAvgOverlay} pointerEvents="none">
-          {withAvg.map((d) => {
+          {withAvg.map((d, i) => {
             // Express avg as a percentage of maxVal, clamped 0-100
             const avgPct = Math.min(100, Math.max(0, (d.avg / maxVal) * 100));
             return (
-              <View key={d.day} style={leadGenStyles.sparklineAvgCol}>
+              <Animated.View
+                key={d.day}
+                style={leadGenStyles.sparklineAvgCol}
+                entering={FadeIn.delay(i * 20).duration(300)}
+              >
                 <View style={[leadGenStyles.sparklineAvgDot, { bottom: `${avgPct}%` as any }]} />
-              </View>
+              </Animated.View>
             );
           })}
           {/* Thin smooth curve connecting the rolling-average dots */}
@@ -1850,13 +1870,15 @@ function LeadGenSparkline({ breakdown }: { breakdown: { day: string; copies: num
                 height={overlayH}
                 style={{ position: "absolute", top: 0, left: 0 }}
               >
-                <SvgPath
+                <AnimatedSvgPath
                   d={d}
                   fill="none"
                   stroke="#F59E0B"
                   strokeWidth={1.5}
                   strokeLinecap="round"
                   strokeLinejoin="round"
+                  strokeDasharray={LINE_DASH_LENGTH}
+                  animatedProps={animatedPathProps}
                 />
               </Svg>
             );
