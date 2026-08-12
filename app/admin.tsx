@@ -1714,8 +1714,12 @@ type LeadGenData = {
   dailyBreakdown: { day: string; community: string; copies: number; shares: number }[];
 };
 
+type SparklineTooltip = { index: number; day: string; total: number; avg: number } | null;
+
 function LeadGenSparkline({ breakdown }: { breakdown: { day: string; copies: number; shares: number }[] }) {
   const maxVal = Math.max(...breakdown.map(d => d.copies + d.shares), 1);
+  const [tooltip, setTooltip] = useState<SparklineTooltip>(null);
+  const dismissTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 7-day rolling average (centred on the current day, trailing window)
   const withAvg = breakdown.map((d, i) => {
@@ -1724,21 +1728,76 @@ function LeadGenSparkline({ breakdown }: { breakdown: { day: string; copies: num
     return { ...d, avg };
   });
 
+  const showTooltip = (index: number, d: typeof withAvg[0]) => {
+    if (dismissTimer.current) clearTimeout(dismissTimer.current);
+    setTooltip({ index, day: d.day, total: d.copies + d.shares, avg: d.avg });
+    dismissTimer.current = setTimeout(() => setTooltip(null), 2000);
+  };
+
+  const hideTooltip = () => {
+    if (dismissTimer.current) clearTimeout(dismissTimer.current);
+    setTooltip(null);
+  };
+
+  // Clean up on unmount
+  useEffect(() => () => { if (dismissTimer.current) clearTimeout(dismissTimer.current); }, []);
+
+  const barCount = withAvg.length;
+
   return (
-    <View style={leadGenStyles.sparklineWrap}>
+    <Pressable onPress={hideTooltip} style={leadGenStyles.sparklineWrap}>
+      {/* Tooltip — rendered above the bars area */}
+      {tooltip !== null && (() => {
+        // Align tooltip to keep it within the card:
+        // If bar is in the first third → left-align; last third → right-align; else center
+        const leftThird  = tooltip.index < Math.floor(barCount / 3);
+        const rightThird = tooltip.index >= Math.ceil(barCount * 2 / 3);
+        const tipAlign: "flex-start" | "center" | "flex-end" =
+          leftThird ? "flex-start" : rightThird ? "flex-end" : "center";
+
+        const colPct = barCount > 1 ? tooltip.index / (barCount - 1) : 0.5;
+        // Horizontal nudge so the tooltip bubble points roughly at the tapped bar
+        const nudge = leftThird ? 0 : rightThird ? 0 : (colPct - 0.5) * 60;
+
+        return (
+          <View style={[leadGenStyles.sparklineTooltipRow, { alignItems: tipAlign }]} pointerEvents="none">
+            <View style={[leadGenStyles.sparklineTooltip, { transform: [{ translateX: nudge }] }]}>
+              <Text style={leadGenStyles.sparklineTooltipDate}>{tooltip.day.slice(5).replace("-", "/")}</Text>
+              <Text style={leadGenStyles.sparklineTooltipLine}>
+                <Text style={leadGenStyles.sparklineTooltipLabel}>Count  </Text>
+                <Text style={leadGenStyles.sparklineTooltipValue}>{tooltip.total}</Text>
+              </Text>
+              <Text style={leadGenStyles.sparklineTooltipLine}>
+                <Text style={leadGenStyles.sparklineTooltipLabel}>7d avg  </Text>
+                <Text style={[leadGenStyles.sparklineTooltipValue, { color: "#F59E0B" }]}>{tooltip.avg.toFixed(1)}</Text>
+              </Text>
+            </View>
+          </View>
+        );
+      })()}
+
       {/* Bars + average-dot overlay share the same container */}
       <View style={leadGenStyles.sparklineBars}>
-        {withAvg.map((d) => {
+        {withAvg.map((d, i) => {
           const total = d.copies + d.shares;
           const heightPct = Math.max(8, Math.round((total / maxVal) * 100));
           const label = d.day.slice(5); // MM-DD
+          const isActive = tooltip?.index === i;
           return (
-            <View key={d.day} style={leadGenStyles.sparklineCol}>
+            <Pressable
+              key={d.day}
+              style={leadGenStyles.sparklineCol}
+              onPress={(e) => { e.stopPropagation?.(); showTooltip(i, d); }}
+            >
               <View style={leadGenStyles.sparklineBarOuter}>
-                <View style={[leadGenStyles.sparklineBar, { height: `${heightPct}%` as any }]} />
+                <View style={[
+                  leadGenStyles.sparklineBar,
+                  { height: `${heightPct}%` as any },
+                  isActive && leadGenStyles.sparklineBarActive,
+                ]} />
               </View>
               <Text style={leadGenStyles.sparklineLabel}>{label.replace("-", "/")}</Text>
-            </View>
+            </Pressable>
           );
         })}
 
@@ -1763,7 +1822,7 @@ function LeadGenSparkline({ breakdown }: { breakdown: { day: string; copies: num
         <View style={leadGenStyles.sparklineAvgDotLegend} />
         <Text style={leadGenStyles.sparklineLegendText}>7-day avg</Text>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -2143,6 +2202,50 @@ const leadGenStyles = StyleSheet.create({
     height: 6,
     borderRadius: 3,
     backgroundColor: "#F59E0B",
+  },
+  sparklineBarActive: {
+    opacity: 1,
+    backgroundColor: "#C4B5FD",
+  },
+  sparklineTooltipRow: {
+    width: "100%",
+    marginBottom: 4,
+  },
+  sparklineTooltip: {
+    backgroundColor: "rgba(20,12,40,0.96)",
+    borderWidth: 1,
+    borderColor: "rgba(167,139,250,0.4)",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    minWidth: 110,
+    maxWidth: 160,
+    shadowColor: "#000",
+    shadowOpacity: 0.5,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 6,
+  },
+  sparklineTooltipDate: {
+    fontSize: 10,
+    fontWeight: "700" as const,
+    color: "#A78BFA",
+    marginBottom: 3,
+    letterSpacing: 0.4,
+  },
+  sparklineTooltipLine: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.85)",
+    marginBottom: 1,
+  },
+  sparklineTooltipLabel: {
+    fontSize: 10,
+    color: "rgba(255,255,255,0.45)",
+  },
+  sparklineTooltipValue: {
+    fontSize: 11,
+    fontWeight: "700" as const,
+    color: "#fff",
   },
   chipScroll: {
     marginTop: 6,
