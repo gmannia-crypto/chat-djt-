@@ -39,11 +39,44 @@ import { getOrCreateDeviceId } from "@/lib/token-context";
 
 const DISCLAIMER_KEY = "chatdjt_disclaimer_accepted";
 
-// Suppress fontfaceobserver's "6000ms timeout exceeded" uncaught error/rejection
-// at module-load time (before useFonts starts) so Metro's dev overlay never
-// intercepts it. The app already falls back gracefully via forceReady/fontError.
-// Three layers needed: window.onerror (returns true = full suppress), the
-// unhandledrejection/error events, AND ErrorUtils for React Native's handler.
+// Suppress fontfaceobserver's "6000ms timeout exceeded" crash.
+//
+// ROOT CAUSE: Expo's dev overlay registers its unhandledrejection handler during
+// expo-router/entry.js (before _layout.tsx), so event.preventDefault() fired from
+// a later handler is too late — Expo has already shown the dialog.
+//
+// REAL FIX (Layer 0): Patch fontfaceobserver.prototype.load so the promise NEVER
+// rejects on timeout. This eliminates the rejection at the source — Expo's overlay
+// handler never sees it because there is nothing to handle.
+//
+// Layers 1-3 remain as belt-and-suspenders for any path we might have missed.
+if (Platform.OS === "web" && typeof window !== "undefined") {
+  try {
+    // Metro's module system is singleton: requiring fontfaceobserver here gives us
+    // the SAME instance that expo-font uses, so patching the prototype applies to
+    // all subsequent useFonts() calls.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const FFOModule = require("fontfaceobserver");
+    const FFO = FFOModule?.default ?? FFOModule;
+    if (FFO?.prototype?.load) {
+      const _origLoad = FFO.prototype.load;
+      FFO.prototype.load = function (...args: unknown[]) {
+        return (_origLoad.apply(this, args) as Promise<unknown>).catch(
+          (err: unknown) => {
+            const msg = err instanceof Error ? err.message : String(err);
+            // Swallow timeout rejections silently — the app already falls back
+            // via forceReady/fontError after 3 s so no UI impact.
+            if (msg.includes("timeout")) return;
+            return Promise.reject(err);
+          }
+        );
+      };
+    }
+  } catch {
+    // fontfaceobserver not available in this build — belt-and-suspenders below still apply.
+  }
+}
+
 if (Platform.OS === "web" && typeof window !== "undefined") {
   const isFontTimeout = (msg: unknown) =>
     typeof msg === "string" && msg.includes("ms timeout exceeded");
@@ -59,22 +92,24 @@ if (Platform.OS === "web" && typeof window !== "undefined") {
       : false;
   };
 
-  // Layer 2: event-based catches (bubble phase)
+  // Layer 2: event-based catches
   window.addEventListener("unhandledrejection", (event: PromiseRejectionEvent) => {
     const reason = event.reason;
     const message = reason instanceof Error ? reason.message : String(reason);
-    if (isFontTimeout(message)) event.preventDefault();
+    if (isFontTimeout(message)) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
   });
   window.addEventListener("error", (event: ErrorEvent) => {
     if (isFontTimeout(event.message) || isFontSource(event.filename)) {
       event.preventDefault();
       event.stopImmediatePropagation();
     }
-  }, true /* capture phase — runs before Metro's listener */);
+  }, true /* capture phase */);
 }
 
 // Layer 3: React Native / Expo ErrorUtils global handler
-// (runs on both web and native; guards fontfaceobserver-style throws)
 if (typeof (global as any).ErrorUtils !== "undefined") {
   const eu = (global as any).ErrorUtils;
   const _origHandler = eu.getGlobalHandler?.();
