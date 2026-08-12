@@ -28,7 +28,7 @@ import Animated, {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Colors from "@/constants/colors";
 import { getApiUrl } from "@/lib/query-client";
-import Svg, { Polyline as SvgPolyline } from "react-native-svg";
+import Svg, { Path as SvgPath } from "react-native-svg";
 
 const AdminKeyContext = createContext<string>("");
 
@@ -1817,32 +1817,46 @@ function LeadGenSparkline({ breakdown }: { breakdown: { day: string; copies: num
               </View>
             );
           })}
-          {/* Thin line connecting the rolling-average dots */}
+          {/* Thin smooth curve connecting the rolling-average dots */}
           {containerWidth > 0 && withAvg.length > 1 && (() => {
             // overlay height = sparklineBars height (48) minus label area (12)
             const overlayH = 36;
             const n = withAvg.length;
             const gap = 2;
             const colW = (containerWidth - (n - 1) * gap) / n;
-            const points = withAvg.map((d, i) => {
+            const pts = withAvg.map((d, i) => {
               const avgPct = Math.min(100, Math.max(0, (d.avg / maxVal) * 100));
-              const x = i * (colW + gap) + colW / 2;
-              const y = overlayH * (1 - avgPct / 100);
-              return `${x},${y}`;
-            }).join(" ");
+              return {
+                x: i * (colW + gap) + colW / 2,
+                y: overlayH * (1 - avgPct / 100),
+              };
+            });
+            // Build a smooth cubic Bézier path using Catmull-Rom → cubic Bézier conversion
+            let d = `M ${pts[0].x.toFixed(2)},${pts[0].y.toFixed(2)}`;
+            for (let i = 0; i < pts.length - 1; i++) {
+              const p0 = pts[Math.max(0, i - 1)];
+              const p1 = pts[i];
+              const p2 = pts[i + 1];
+              const p3 = pts[Math.min(pts.length - 1, i + 2)];
+              const cp1x = p1.x + (p2.x - p0.x) / 6;
+              const cp1y = p1.y + (p2.y - p0.y) / 6;
+              const cp2x = p2.x - (p3.x - p1.x) / 6;
+              const cp2y = p2.y - (p3.y - p1.y) / 6;
+              d += ` C ${cp1x.toFixed(2)},${cp1y.toFixed(2)} ${cp2x.toFixed(2)},${cp2y.toFixed(2)} ${p2.x.toFixed(2)},${p2.y.toFixed(2)}`;
+            }
             return (
               <Svg
                 width={containerWidth}
                 height={overlayH}
                 style={{ position: "absolute", top: 0, left: 0 }}
               >
-                <SvgPolyline
-                  points={points}
+                <SvgPath
+                  d={d}
                   fill="none"
                   stroke="#F59E0B"
                   strokeWidth={1.5}
-                  strokeLinejoin="round"
                   strokeLinecap="round"
+                  strokeLinejoin="round"
                 />
               </Svg>
             );
