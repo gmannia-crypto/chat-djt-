@@ -234,6 +234,7 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   cornellwest:  require("@/assets/images/persona-cornellwest.jpg"),
   piersmorgan:  require("@/assets/images/persona-piersmorgan.jpg"),
   scottjennings: require("@/assets/images/persona-scottjennings.jpg"),
+  muhammadali:  require("@/assets/images/persona-muhammadali.jpg"),
 };
 
 const FX_KEY = "interview_fx_enabled_v1";
@@ -281,6 +282,7 @@ const GUEST_CATEGORIES: Record<string, GuestCategory> = {
   cornellwest: "Philosophy",
   piersmorgan: "Entertainment",
   scottjennings: "Political",
+  muhammadali: "Sports",
 };
 
 // Lightweight emotion delta from text heuristics
@@ -359,14 +361,15 @@ const TOPIC_MIXES = [
   { id: "mixed", label: "Both", icon: "shuffle" as const },
 ];
 
-type InterviewStyleId = "combative" | "informative" | "comedic" | "civil_discourse" | "educational" | "roast";
-const INTERVIEW_STYLES: Array<{ id: InterviewStyleId; label: string; icon: "flame" | "information-circle" | "happy" | "handshake" | "school" | "mic" }> = [
+type InterviewStyleId = "combative" | "informative" | "comedic" | "civil_discourse" | "educational" | "roast" | "softball";
+const INTERVIEW_STYLES: Array<{ id: InterviewStyleId; label: string; icon: "flame" | "information-circle" | "happy" | "handshake" | "school" | "mic" | "baseball" }> = [
   { id: "combative",      label: "Combative",       icon: "flame" },
   { id: "informative",    label: "Informative",     icon: "information-circle" },
   { id: "comedic",        label: "Comedic",         icon: "happy" },
   { id: "civil_discourse",label: "Civil Discourse", icon: "handshake" },
   { id: "educational",    label: "Educational",     icon: "school" },
   { id: "roast",          label: "Comedy Roast",    icon: "mic" },
+  { id: "softball",       label: "Softball",        icon: "baseball" },
 ];
 
 const webTop = Platform.OS === "web" ? 67 : 0;

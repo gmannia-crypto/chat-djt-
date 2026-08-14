@@ -5459,8 +5459,55 @@ export default function ArenaScreen() {
             }
           }
         })();
-        setTimeout(() => {
-          setShowContinuePrompt(true);
+        setTimeout(async () => {
+          const totalPts = Object.values(personaPointsRef.current).reduce((a, b) => a + b, 0);
+          if (totalPts === 0 && selectedPersonasRef.current.length > 0) {
+            // No votes cast — auto-trigger DC verdict and show end summary without requiring a tap
+            playWinnerChosenSound();
+            setShowEndSummary(true);
+            clearSavedSession();
+            awardBadge("arena_debut");
+            setTimeout(() => { playWinnerAfterSound(); }, 4000);
+            setIsLoadingRoast(true);
+            const applyDCChampion = (winnerId: string) => {
+              personaPointsRef.current = { [winnerId]: 1 };
+              setPersonaPoints({ [winnerId]: 1 });
+              setIsDCChampion(true);
+              fetchTrumpRoast();
+            };
+            const fallbackWinnerId = selectedPersonasRef.current[0];
+            try {
+              const r = await fetch(new URL("/api/arena/verdict", getApiUrl()).toString(), {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  topic: currentTopicRef.current || "General debate",
+                  messages: messagesRef.current
+                    .filter((m: any) => !m.isSystem && (m.text?.length ?? 0) > 5)
+                    .slice(-60)
+                    .map((m: any) => ({ speakerName: m.speakerName || m.speakerId, text: m.text })),
+                  personas: selectedPersonasRef.current,
+                }),
+              });
+              if (r.ok) {
+                const v = await r.json();
+                const vWinner = (v.winner || "").toLowerCase();
+                const winnerId = selectedPersonasRef.current.find((pid: string) => {
+                  const name = (getPersona(pid)?.name || "").toLowerCase();
+                  return name.includes(vWinner) || vWinner.includes(name);
+                }) ?? fallbackWinnerId;
+                applyDCChampion(winnerId ?? fallbackWinnerId);
+              } else {
+                if (fallbackWinnerId) applyDCChampion(fallbackWinnerId);
+                else setIsLoadingRoast(false);
+              }
+            } catch {
+              if (fallbackWinnerId) applyDCChampion(fallbackWinnerId);
+              else setIsLoadingRoast(false);
+            }
+          } else {
+            setShowContinuePrompt(true);
+          }
         }, 1500);
       }
     }, 1000);
