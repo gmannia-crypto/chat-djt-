@@ -42,6 +42,12 @@ import { usePersonaLocks, PREMIUM_PERSONA_CONFIGS, RECENTLY_UNLOCKED_BADGE_KEY }
 
 // Mystery persona IDs and storage key — kept in sync with arena.tsx
 const MYSTERY_PERSONA_IDS = ["alexjones", "obama", "melania", "schumer", "odonnell", "kamala", "mtg", "rfk"];
+
+// Personas that appear in the "Boxing Talk & Debate" curated section.
+const BOXING_PERSONA_IDS = [
+  "muhammadali", "floydmayweather", "georgeforeman", "howardcosell",
+  "jimlampley", "stephena", "skipbayless", "shannon", "maxkellerman",
+];
 const MYSTERY_UNLOCK_KEY = "arena_mystery_unlocked";
 
 type PersonaLite = { id: string; name: string };
@@ -926,6 +932,7 @@ export default function DebateStage() {
 
   const [category, setCategory] = useState<"Political" | "Sports" | "History" | "Finance" | "Science" | "Entertainment" | "Philosophy">("Political");
   const [moderatorStyle, setModeratorStyle] = useState<ModeratorStyle>("hannity");
+  const [boxingMode, setBoxingMode] = useState(false);
   // For history/science categories, override to civil_discourse / informative so personas
   // skip the insult-heavy combative register and focus on substance instead.
   // Entertainment always goes comedic.
@@ -3031,8 +3038,9 @@ export default function DebateStage() {
     for (const p of [...interviewers, ...interviewees]) {
       if (!seen.has(p.id)) { seen.add(p.id); combined.push(p); }
     }
+    if (boxingMode) return combined.filter(p => BOXING_PERSONA_IDS.includes(p.id));
     return combined;
-  }, [interviewers, interviewees]);
+  }, [interviewers, interviewees, boxingMode]);
 
   const handleHofShare = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -4480,6 +4488,95 @@ export default function DebateStage() {
         )}
 
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
+
+          {/* ── BOXING TALK & DEBATE featured section ─────────────────── */}
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              const next = !boxingMode;
+              setBoxingMode(next);
+              if (next) {
+                setModeratorStyle("michaelbuffer");
+                setCategory("Sports");
+                // Clear selections that might not be in the boxing roster
+                setInterviewerId(null);
+                setIntervieweeId(null);
+              }
+            }}
+            style={{
+              borderRadius: 12,
+              marginBottom: 20,
+              overflow: "hidden",
+              borderWidth: 2,
+              borderColor: boxingMode ? "#FFD700" : "#333",
+            }}
+          >
+            <View style={{
+              backgroundColor: boxingMode ? "#1A1200" : "#111",
+              padding: 14,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 12,
+            }}>
+              <Text style={{ fontSize: 32 }}>🥊</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{
+                  color: boxingMode ? "#FFD700" : "#888",
+                  fontSize: 13,
+                  fontWeight: "900",
+                  letterSpacing: 1.5,
+                  textTransform: "uppercase",
+                }}>Boxing Talk & Debate</Text>
+                <Text style={{
+                  color: boxingMode ? "#CCA800" : "#555",
+                  fontSize: 11,
+                  marginTop: 2,
+                }}>
+                  {boxingMode
+                    ? "🎤 Michael Buffer announces • Boxing roster active"
+                    : "Tap to launch the ring with Michael Buffer announcing"}
+                </Text>
+              </View>
+              <View style={{
+                backgroundColor: boxingMode ? "#FFD700" : "#222",
+                borderRadius: 8,
+                paddingHorizontal: 10,
+                paddingVertical: 5,
+              }}>
+                <Text style={{
+                  color: boxingMode ? "#000" : "#555",
+                  fontSize: 10,
+                  fontWeight: "900",
+                }}>
+                  {boxingMode ? "ON" : "OFF"}
+                </Text>
+              </View>
+            </View>
+            {boxingMode && (
+              <View style={{
+                backgroundColor: "#120E00",
+                paddingHorizontal: 14,
+                paddingVertical: 8,
+                borderTopWidth: 1,
+                borderTopColor: "#332200",
+                flexDirection: "row",
+                gap: 6,
+                flexWrap: "wrap",
+              }}>
+                <Text style={{ color: "#664400", fontSize: 9, fontWeight: "700", width: "100%", marginBottom: 2 }}>
+                  RING ROSTER
+                </Text>
+                {BOXING_PERSONA_IDS.map(id => {
+                  const portrait = PERSONA_PORTRAITS[id];
+                  return portrait ? (
+                    <Image key={id} source={portrait} style={{ width: 28, height: 28, borderRadius: 14, borderWidth: 1, borderColor: "#FFD700" }} />
+                  ) : null;
+                })}
+              </View>
+            )}
+          </Pressable>
+          {/* ─────────────────────────────────────────────────────────── */}
+
           <Text style={s.sectionLabel}>DEBATER A</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.personaCardRow}>
             {debaterPool.filter(p =>

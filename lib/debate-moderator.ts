@@ -13,7 +13,7 @@ import { getApiUrl } from "@/lib/query-client";
 import { prefetchTTSAudio, playPrefetchedAudio, playTTS } from "@/lib/audio-helper";
 import { playCrowdCheer, playDingSound } from "@/lib/arena-sfx";
 
-export type ModeratorStyle = "cenk" | "galloway" | "hannity" | "maddow" | "megynkelly" | "odonnell" | "joyreid" | "maxkellerman" | "stephena" | "kaitlyncollins" | "gilbertgottfried" | "carlin" | "tuckercarlson" | "wandasykes" | "trevornoah" | "janeelliott" | "francescresswelsing" | "shannonsharp" | "dc" | "donlemon" | "piersmorgan" | "mikabrzezinski" | "joescarborough" | "jimlampley" | "georgeforeman" | "michaelbuffer";
+export type ModeratorStyle = "cenk" | "galloway" | "hannity" | "maddow" | "megynkelly" | "odonnell" | "joyreid" | "maxkellerman" | "stephena" | "kaitlyncollins" | "gilbertgottfried" | "carlin" | "tuckercarlson" | "wandasykes" | "trevornoah" | "janeelliott" | "francescresswelsing" | "shannonsharp" | "dc" | "donlemon" | "piersmorgan" | "mikabrzezinski" | "joescarborough" | "jimlampley" | "georgeforeman" | "michaelbuffer" | "howardcosell";
 
 export const MODERATORS: Record<ModeratorStyle, { name: string; personaId: string; bias: string }> = {
   cenk:             { name: "Cenk Uygur",          personaId: "cenk",             bias: "progressive" },
@@ -42,6 +42,7 @@ export const MODERATORS: Record<ModeratorStyle, { name: string; personaId: strin
   jimlampley:          { name: "Jim Lampley",                personaId: "jimlampley",           bias: "boxing-sports" },
   georgeforeman:       { name: "George Foreman",             personaId: "georgeforeman",        bias: "humble-sports" },
   michaelbuffer:       { name: "Michael Buffer",             personaId: "michaelbuffer",        bias: "boxing-announcer" },
+  howardcosell:        { name: "Howard Cosell",              personaId: "howardcosell",         bias: "boxing-sports" },
 };
 
 // Which personas each moderator is friendly to ("favor" — softball questions, quick to defend
@@ -146,6 +147,8 @@ export const MODERATOR_LEANINGS: Record<ModeratorStyle, { favor: string[]; targe
   georgeforeman: { favor: [], target: [] },
   // Michael Buffer: Pure announcer — no bias, no targets; the ring is neutral ground.
   michaelbuffer: { favor: [], target: [] },
+  // Howard Cosell: Straight-shooting sports journalist — no political favor, calls it exactly as he sees it.
+  howardcosell: { favor: [], target: [] },
 };
 
 export type ModeratorLeaning = "favor" | "target" | "neutral";
@@ -667,6 +670,11 @@ const SQUABBLE_BRIDGE_BIASED_LINES: Record<string, string[]> = {
     "The action is stopped. {target}, consider this a warning from the referee. New topic — let's keep it clean.",
     "New round. {target}, this contest is decided on skill, not intimidation. The debate continues.",
   ],
+  howardcosell: [
+    "I am going to tell it exactly as it is — {target}, what you just did was beneath this stage and everyone watching knows it. New topic.",
+    "Moving on — and {target}, I have called Ali-Frazier, I have called the Rumble in the Jungle, and I have never seen behavior like that from anyone who calls themselves a champion. New topic.",
+    "New subject. {target}, I report what I see, and what I see is a person who just lost the room. Moving on.",
+  ],
 };
 
 /**
@@ -830,6 +838,11 @@ const SQUABBLE_CLOSER_LINES: Record<string, string[]> = {
     "Ladies and gentlemen — the contest is concluded. Your applause for both competitors. Good night!",
     "And THAT... is the final bell. Tonight's debate is officially in the books. GOOD NIGHT, EVERYBODY!",
     "The judges have their scorecards. This debate — for the ages — is OVER. Ladies and gentlemen, GOOD NIGHT!",
+  ],
+  howardcosell: [
+    "And so it concludes — as I always say, telling it like it is means telling it to the end. Good night.",
+    "That is the final word on tonight's contest. I have given you my honest assessment throughout, as I always do, as I always will. Good night.",
+    "This debate is over. Whatever the outcome, the truth was told here tonight — at least by one of us. Good night, everybody.",
   ],
   _default: [
     "That's all the time we have. This debate is over — thank you both. Good night.",
