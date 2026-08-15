@@ -4103,38 +4103,43 @@ export default function DebateStage() {
               })
           : Promise.resolve("");
 
-        if (moderatorStyle === "michaelbuffer") {
+        // Buffer is purely an announcer — fires when boxing mode is on,
+        // regardless of which moderator is selected for the actual debate.
+        if (boxingMode) {
           // ── Michael Buffer signature announcement sequence ─────────────────
+          const BUF_ID = "michaelbuffer";
           const allDebaters = [...interviewers, ...interviewees];
           const debaterAName = allDebaters.find(p => p.id === interviewerId)?.name ?? "Debater A";
           const debaterBName = allDebaters.find(p => p.id === intervieweeId)?.name ?? "Debater B";
 
-          const introA    = getBufferPersonaIntro(interviewerId, debaterAName);
-          const introB    = getBufferPersonaIntro(intervieweeId, debaterBName);
-          const sponsor   = `This debate is brought to you in proud association with Dynamic Creations — and Hen Hauz Organics!`;
-          const rumble    = `Ladies and gentlemen... LET'S GET READY TO RUMBLE!!!`;
+          const introA  = getBufferPersonaIntro(interviewerId, debaterAName);
+          const introB  = getBufferPersonaIntro(intervieweeId, debaterBName);
+          const sponsor = `This debate is brought to you in proud association with Dynamic Creations — and Hen Hauz Organics!`;
+          const rumble  = `Ladies and gentlemen... LET'S GET READY TO RUMBLE!!!`;
+          const buildup = `For the thousands in attendance... and the millions watching around the world...`;
 
-          // Pre-fetch every line up front so TTS is cached and plays instantly.
-          const allBufLines = [
-            `For the thousands in attendance... and the millions watching around the world...`,
-            sponsor, rumble, introA, introB,
-          ];
+          // Pre-fetch every Buffer line in his own voice
           if (voiceEnabledRef.current) {
-            for (const line of allBufLines) startPrefetch({ text: line, personaId: mod.personaId });
+            for (const line of [buildup, sponsor, rumble, introA, introB])
+              startPrefetch({ text: line, personaId: BUF_ID });
           }
 
-          // ① Build-up line
-          await speakMod(allBufLines[0], `modbuf-intro-${Date.now()}`);
+          // Helper: speak in Buffer's voice (bypasses speakMod's moderator lookup)
+          const speakBuffer = (text: string, msgId: string) =>
+            enqueueTTSAndWait(text, BUF_ID, msgId);
 
-          // ② Sponsorship
+          // ① Build-up
+          await speakBuffer(buildup, `modbuf-intro-${Date.now()}`);
+
+          // ② Sponsor
           if (!runningRef.current) return;
-          await speakMod(sponsor, `modbuf-sponsor-${Date.now()}`);
+          await speakBuffer(sponsor, `modbuf-sponsor-${Date.now()}`);
 
-          // ③ RUMBLE call
+          // ③ RUMBLE
           if (!runningRef.current) return;
-          await speakMod(rumble, `modbuf-rumble-${Date.now()}`);
+          await speakBuffer(rumble, `modbuf-rumble-${Date.now()}`);
 
-          // ④ Bell rings → elongated crowd roar
+          // ④ Bell → elongated crowd roar
           if (!runningRef.current) return;
           await playBoxingBell();
           if (!runningRef.current) return;
@@ -4142,12 +4147,12 @@ export default function DebateStage() {
 
           // ⑤ Individual intros after the roar settles
           if (!runningRef.current) return;
-          await speakMod(introA, `modbuf-introa-${Date.now()}`);
+          await speakBuffer(introA, `modbuf-introa-${Date.now()}`);
           playDebateCheer();
           await new Promise<void>(r => setTimeout(r, 1400));
 
           if (!runningRef.current) return;
-          await speakMod(introB, `modbuf-introb-${Date.now()}`);
+          await speakBuffer(introB, `modbuf-introb-${Date.now()}`);
           if (runningRef.current) await playLongCrowdCheer(3000);
         } else {
           // ── Generic moderator welcome ──────────────────────────────────────
@@ -4167,7 +4172,7 @@ export default function DebateStage() {
         runLoop();
       }
     })();
-  }, [deviceId, interviewerId, intervieweeId, topics, isStarting, duration, runLoop, runModeratorOpening, selectedTopicId, moderatorStyle, category, fetchAnswerFrom, startPrefetch]);
+  }, [deviceId, interviewerId, intervieweeId, topics, isStarting, duration, runLoop, runModeratorOpening, selectedTopicId, moderatorStyle, category, fetchAnswerFrom, startPrefetch, boxingMode, enqueueTTSAndWait]);
 
   const unlockSession = useCallback(async () => {
     if (!deviceId || isUnlocking) return;
@@ -4570,8 +4575,9 @@ export default function DebateStage() {
               const next = !boxingMode;
               setBoxingMode(next);
               if (next) {
-                setModeratorStyle("michaelbuffer");
                 setCategory("Sports");
+                // Default to Lampley as the debate moderator; Buffer is announcer-only
+                setModeratorStyle("jimlampley");
                 // Clear selections that might not be in the boxing roster
                 setInterviewerId(null);
                 setIntervieweeId(null);
@@ -4830,6 +4836,7 @@ export default function DebateStage() {
           <Text style={[s.sectionLabel, { marginTop: 16 }]}>MODERATOR</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.personaCardRow}>
             {(Object.keys(MODERATORS) as ModeratorStyle[]).filter(ms =>
+              ms !== "michaelbuffer" &&
               MODERATORS[ms].personaId !== interviewerId && MODERATORS[ms].personaId !== intervieweeId
             ).map((ms) => {
               const mod = MODERATORS[ms];
