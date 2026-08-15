@@ -3953,6 +3953,10 @@ export default function ArenaScreen() {
   const lastBreakingNewsIdRef = useRef<string>("");
   const breakingNewsTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [bannerFlash, setBannerFlash] = useState(false);
+  const [showNewsFeed, setShowNewsFeed] = useState(false);
+  const [newsFeedItems, setNewsFeedItems] = useState<{ title: string; source: string; publishedAt: string }[]>([]);
+  const [newsFeedLoading, setNewsFeedLoading] = useState(false);
+  const [newsFeedLastRefresh, setNewsFeedLastRefresh] = useState<number>(0);
 
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
 
@@ -5639,6 +5643,19 @@ export default function ArenaScreen() {
       highlightQuote: pickHighlightQuote(msgs),
     };
     await saveRecording(rec);
+  }, []);
+
+  const fetchNewsFeed = useCallback(async () => {
+    setNewsFeedLoading(true);
+    try {
+      const res = await fetch(new URL("/api/news", getApiUrl()).toString());
+      if (res.ok) {
+        const data = await res.json();
+        setNewsFeedItems(data.headlines || []);
+        setNewsFeedLastRefresh(Date.now());
+      }
+    } catch {}
+    setNewsFeedLoading(false);
   }, []);
 
   const shareCurrentSession = useCallback(async () => {
@@ -8533,6 +8550,14 @@ export default function ArenaScreen() {
           <Ionicons name="podium-outline" size={14} color="#D4A420" />
           <Text style={s.arenaActionBtnText}>WINNERS</Text>
         </Pressable>
+        <Pressable onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          if (!showNewsFeed) fetchNewsFeed();
+          setShowNewsFeed(v => !v);
+        }} style={[s.arenaActionBtn, showNewsFeed && { backgroundColor: "rgba(0,140,255,0.18)", borderColor: "#0088FF" }]} hitSlop={8}>
+          <Ionicons name="newspaper-outline" size={14} color="#0099FF" />
+          <Text style={[s.arenaActionBtnText, { color: "#0099FF" }]}>NEWS</Text>
+        </Pressable>
       </Animated.View>
 
       {breakingNewsBanner && (
@@ -8554,6 +8579,63 @@ export default function ArenaScreen() {
           <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 10, marginTop: 2 }}>
             {breakingNewsBanner.source}
           </Text>
+        </Animated.View>
+      )}
+
+      {showNewsFeed && (
+        <Animated.View entering={FadeInDown.duration(300)} style={{
+          backgroundColor: "#0A0F1E", borderRadius: 12, marginHorizontal: 10, marginBottom: 8,
+          borderWidth: 1.5, borderColor: "#0066CC", overflow: "hidden",
+          maxHeight: 340,
+        }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+            paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#0033AA" }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#FF3B30" }} />
+              <Text style={{ color: "#0099FF", fontSize: 12, fontWeight: "900", letterSpacing: 2 }}>LIVE NEWS FEED</Text>
+              <Text style={{ color: "#444", fontSize: 10 }}>NYT · AP · Sky News</Text>
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              {newsFeedLastRefresh > 0 && (
+                <Text style={{ color: "#444", fontSize: 9 }}>
+                  {Math.floor((Date.now() - newsFeedLastRefresh) / 60000)}m ago
+                </Text>
+              )}
+              <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); fetchNewsFeed(); }}
+                hitSlop={8} disabled={newsFeedLoading}>
+                {newsFeedLoading
+                  ? <ActivityIndicator size="small" color="#0099FF" />
+                  : <Ionicons name="refresh-outline" size={18} color="#0099FF" />}
+              </Pressable>
+              <Pressable onPress={() => setShowNewsFeed(false)} hitSlop={8}>
+                <Ionicons name="close" size={18} color="#666" />
+              </Pressable>
+            </View>
+          </View>
+          <ScrollView style={{ maxHeight: 280 }} showsVerticalScrollIndicator={false}>
+            {newsFeedItems.length === 0 && !newsFeedLoading && (
+              <Text style={{ color: "#555", textAlign: "center", padding: 20, fontSize: 12 }}>
+                Tap refresh to load headlines
+              </Text>
+            )}
+            {newsFeedItems.map((item, idx) => (
+              <View key={idx} style={{
+                paddingHorizontal: 14, paddingVertical: 9,
+                borderBottomWidth: idx < newsFeedItems.length - 1 ? 1 : 0,
+                borderBottomColor: "#111827",
+              }}>
+                <Text style={{ color: "#ccc", fontSize: 12, lineHeight: 17, fontWeight: "600" }} numberOfLines={2}>
+                  {item.title}
+                </Text>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 3 }}>
+                  <Text style={{ color: "#0077CC", fontSize: 10, fontWeight: "700" }}>{item.source}</Text>
+                  <Text style={{ color: "#444", fontSize: 10 }}>
+                    {item.publishedAt ? new Date(item.publishedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </ScrollView>
         </Animated.View>
       )}
 
