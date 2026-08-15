@@ -4060,29 +4060,54 @@ export default function DebateStage() {
         const d = now.getDate();
         const daySuffix = d === 1 || d === 21 || d === 31 ? "st" : d === 2 || d === 22 ? "nd" : d === 3 || d === 23 ? "rd" : "th";
         const dateStr = `${months[now.getMonth()]} ${d}${daySuffix}, ${now.getFullYear()}`;
-        const welcomeText = `Today is ${dateStr}. This ${category} debate is brought to you by Dynamic Creations. I'm ${mod.name}, and we are getting right into it.`;
-        // Pre-fetch the welcome TTS NOW so processQueue finds it cached and plays
-        // immediately — no silent wait while the moderator's first line is fetched live.
-        if (voiceEnabledRef.current) startPrefetch({ text: welcomeText, personaId: mod.personaId });
-        // Welcome TTS and opening question fetch run in parallel.
-        // As soon as the question text arrives, pre-fetch its TTS so there is zero gap
-        // between the welcome and the first question, AND kick off the primary persona
-        // answer so it's in-flight by the time the moderator question finishes playing.
-        const [, prefetchedQuestion] = await Promise.all([
-          speakMod(welcomeText, `modwelcome-${Date.now()}`),
-          openTopic && deviceId
-            ? generateModeratorQuestion({ deviceId, moderatorStyle, targetId: interviewerId ?? "", topic: openTopic, isTransition: false, conversationHistory: [] })
-                .then((q) => {
-                  if (q && voiceEnabledRef.current) startPrefetch({ text: q, personaId: mod.personaId });
-                  // Pre-kick the first persona answer while the welcome is still playing.
-                  // By the time the moderator question finishes, the answer is settling.
-                  if (q && deviceId && interviewerId) {
-                    prefetchedPrimaryAnswerRef.current = fetchAnswerFrom(mod.personaId, interviewerId, q);
-                  }
-                  return q;
-                })
-            : Promise.resolve(""),
-        ]);
+
+        // Start fetching the first question in parallel with the opening sequence.
+        const questionFetchPromise = openTopic && deviceId
+          ? generateModeratorQuestion({ deviceId, moderatorStyle, targetId: interviewerId ?? "", topic: openTopic, isTransition: false, conversationHistory: [] })
+              .then((q) => {
+                if (q && voiceEnabledRef.current) startPrefetch({ text: q, personaId: mod.personaId });
+                if (q && deviceId && interviewerId) {
+                  prefetchedPrimaryAnswerRef.current = fetchAnswerFrom(mod.personaId, interviewerId, q);
+                }
+                return q;
+              })
+          : Promise.resolve("");
+
+        if (moderatorStyle === "michaelbuffer") {
+          // ── Michael Buffer signature announcement sequence ─────────────────
+          const allDebaters = [...interviewers, ...interviewees];
+          const debaterAName = allDebaters.find(p => p.id === interviewerId)?.name ?? "Debater A";
+          const debaterBName = allDebaters.find(p => p.id === intervieweeId)?.name ?? "Debater B";
+
+          const bufLines = [
+            `For the thousands in attendance... and the millions watching around the world...`,
+            `In this corner — ${debaterAName}!`,
+            `And in the opposing corner — ${debaterBName}!`,
+            `This debate is brought to you in proud association with Dynamic Creations — and Hen Hauz Organics!`,
+            `Ladies and gentlemen... LET'S GET IT ON!`,
+          ];
+          // Pre-fetch all Buffer lines up front so they queue immediately.
+          if (voiceEnabledRef.current) {
+            for (const line of bufLines) startPrefetch({ text: line, personaId: mod.personaId });
+          }
+          // Deliver lines sequentially; fire cheer after the first build-up line.
+          await speakMod(bufLines[0], `modbuf-intro-${Date.now()}`);
+          playDebateCheer();
+          await new Promise<void>(r => setTimeout(r, 1600));
+          for (let i = 1; i < bufLines.length; i++) {
+            if (!runningRef.current) break;
+            await speakMod(bufLines[i], `modbuf-${i}-${Date.now()}`);
+          }
+          // Second cheer on "LET'S GET IT ON"
+          if (runningRef.current) playDebateCheer();
+        } else {
+          // ── Generic moderator welcome ──────────────────────────────────────
+          const welcomeText = `Today is ${dateStr}. This ${category} debate is brought to you by Dynamic Creations. I'm ${mod.name}, and we are getting right into it.`;
+          if (voiceEnabledRef.current) startPrefetch({ text: welcomeText, personaId: mod.personaId });
+          await speakMod(welcomeText, `modwelcome-${Date.now()}`);
+        }
+
+        const prefetchedQuestion = await questionFetchPromise;
         await runModeratorOpening(openTopic, prefetchedQuestion || undefined);
       } catch {}
       if (runningRef.current) {
