@@ -357,7 +357,7 @@ const PERSONA_SQUABBLE_THREATS: Record<string, string[]> = {
   netanyahu:       ["You threaten me?! I have faced worse than you on three continents. Do not test me.", "Push me one more time and this debate turns into something your security detail will regret."],
   omar:            ["You keep this up and I will walk over there and handle this myself — try me.", "I survived things you can't imagine. Your words don't scare me — but mine should scare you."],
   alexjones:       ["YOU WANT TO FIGHT?! BRING IT! I AM PHYSICALLY SUPERIOR AND CHEMICALLY ENHANCED!", "I will gorilla-press you over my head and THROW you out of this building!"],
-  ruckus:          ["Lord have mercy — you push me one more time and I will beat the sense into you myself!", "I may be old but I will still snatch you out that chair if you don't shut your mouth!"],
+  ruckus:          ["Lord have mercy — you push me one more time and I will beat the sense into you myself!", "I may be old but I will still snatch you out that chair if you don't shut your mouth!", "You up here hollerin' monkey noises just like a silverback go-rilla — beatin' the hell out yo chest all while howlin' at the moon!!"],
   // ── Extended persona set ──────────────────────────────────────────────────
   obama:           ["I have been patient — very patient — but you are about to find out what I look like when that patience runs out.", "Do not push me. I am not the one you want to test in this room right now."],
   berniemc:        ["I have been fighting people like you my ENTIRE career — you want to take this outside?! Let's GO!", "One more word and I swear I will leap over this table — and at my age that is saying something!"],
