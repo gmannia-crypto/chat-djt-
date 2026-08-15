@@ -11944,6 +11944,194 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
     }
   });
 
+  // ── BET RECORDS (server-side tracking for leaderboard) ──────────────────
+  app.post("/api/arena/record-bet", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Missing device ID" });
+      const { targetPersonaId, wager, riskLevel, won, payout, specialEventId } = req.body;
+      if (!targetPersonaId || !wager) return res.status(400).json({ error: "Missing required fields" });
+      const pg = (await import("pg")).default;
+      const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      await pool.query(`CREATE TABLE IF NOT EXISTS arena_bet_records (
+        id SERIAL PRIMARY KEY,
+        device_id TEXT NOT NULL,
+        target_persona_id TEXT NOT NULL,
+        wager INTEGER NOT NULL,
+        risk_level TEXT DEFAULT 'medium',
+        won BOOLEAN DEFAULT FALSE,
+        payout INTEGER DEFAULT 0,
+        special_event_id TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )`);
+      await pool.query(
+        `INSERT INTO arena_bet_records (device_id, target_persona_id, wager, risk_level, won, payout, special_event_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [deviceId, targetPersonaId, wager, riskLevel || "medium", !!won, payout || 0, specialEventId || null]
+      );
+      await pool.end();
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || "Failed to record bet" });
+    }
+  });
+
+  // ── BET LEADERBOARD ──────────────────────────────────────────────────────
+  app.get("/api/arena/bet-leaderboard", async (_req, res) => {
+    try {
+      const pg = (await import("pg")).default;
+      const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      // Create table if not exists (idempotent)
+      await pool.query(`CREATE TABLE IF NOT EXISTS arena_bet_records (
+        id SERIAL PRIMARY KEY,
+        device_id TEXT NOT NULL,
+        target_persona_id TEXT NOT NULL,
+        wager INTEGER NOT NULL,
+        risk_level TEXT DEFAULT 'medium',
+        won BOOLEAN DEFAULT FALSE,
+        payout INTEGER DEFAULT 0,
+        special_event_id TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )`);
+      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const result = await pool.query(`
+        SELECT
+          device_id,
+          COUNT(*)::int AS total_bets,
+          SUM(CASE WHEN won THEN 1 ELSE 0 END)::int AS wins,
+          SUM(CASE WHEN NOT won THEN 1 ELSE 0 END)::int AS losses,
+          COALESCE(SUM(payout),0)::int AS total_won,
+          COALESCE(SUM(wager),0)::int AS total_wagered,
+          MAX(created_at) AS last_bet
+        FROM arena_bet_records
+        WHERE created_at >= $1
+        GROUP BY device_id
+        ORDER BY total_won DESC, wins DESC
+        LIMIT 20
+      `, [weekAgo]);
+      const leaderboard = result.rows.map((r: any, i: number) => ({
+        rank: i + 1,
+        handle: "…" + r.device_id.slice(-4), // anonymized
+        totalBets: r.total_bets,
+        wins: r.wins,
+        losses: r.losses,
+        totalWon: r.total_won,
+        totalWagered: r.total_wagered,
+        winRate: r.total_bets > 0 ? Math.round((r.wins / r.total_bets) * 100) : 0,
+      }));
+      const statsResult = await pool.query(`
+        SELECT COUNT(*)::int AS total_bets,
+               SUM(CASE WHEN won THEN 1 ELSE 0 END)::int AS total_wins,
+               COALESCE(SUM(payout),0)::int AS total_paid_out
+        FROM arena_bet_records
+      `);
+      await pool.end();
+      res.json({ leaderboard, stats: statsResult.rows[0] || {} });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || "Failed", leaderboard: [], stats: {} });
+    }
+  });
+
+  // ── SPECIAL EVENTS ───────────────────────────────────────────────────────
+  app.get("/api/arena/special-events", (_req, res) => {
+    const now = new Date();
+    const day = now.getDay(); // 0=Sun, 5=Fri, 6=Sat
+    const hour = now.getHours();
+    const events: any[] = [];
+
+    if ((day === 5 && hour >= 18) || day === 6) {
+      const endDay = day === 5 ? now.getDate() + 1 : now.getDate();
+      events.push({
+        id: "friday-night-fights",
+        name: "🥊 FRIDAY NIGHT FIGHTS",
+        description: "Tonight only — IQ Race bets pay 3× instead of 2.5×!",
+        bonusMultiplier: 3.0,
+        badgeColor: "#FF4500",
+        badgeEmoji: "🥊",
+        endsAt: new Date(now.getFullYear(), now.getMonth(), endDay, 23, 59, 59).getTime(),
+      });
+    }
+    if (day === 1) {
+      events.push({
+        id: "rematch-monday",
+        name: "⚡ REMATCH MONDAY",
+        description: "Trump vs. Biden Rematch — bets pay 2.5× bonus all night!",
+        bonusMultiplier: 2.5,
+        badgeColor: "#DC143C",
+        badgeEmoji: "⚡",
+        featuredPersonas: ["trump", "joebiden"],
+        endsAt: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).getTime(),
+      });
+    }
+    if (day === 3) {
+      events.push({
+        id: "wild-card-wednesday",
+        name: "🃏 WILD CARD WEDNESDAY",
+        description: "Underdog bets pay 4× if they pull the upset tonight!",
+        bonusMultiplier: 4.0,
+        underdogOnly: true,
+        badgeColor: "#7c3aed",
+        badgeEmoji: "🃏",
+        endsAt: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).getTime(),
+      });
+    }
+    res.json({ events, activeEvent: events[0] || null });
+  });
+
+  // ── DEBATE OF THE DAY ────────────────────────────────────────────────────
+  const DOTD_MATCHUPS = [
+    { personas: ["trump", "joebiden"], topic: "Who actually left America better off?", emoji: "🇺🇸" },
+    { personas: ["trump", "berniemac"], topic: "Wealth, class, and who really gets the working man", emoji: "💰" },
+    { personas: ["galloway", "trump"], topic: "Gaza, empire, and the price of American loyalty", emoji: "🌍" },
+    { personas: ["joyreid", "trump"], topic: "Race, power, and the soul of the Republican Party", emoji: "⚖️" },
+    { personas: ["elon", "berniemac"], topic: "Billionaires vs the people — who really runs America?", emoji: "🚀" },
+    { personas: ["trump", "mlk"], topic: "Would Dr. King recognize his dream in today's America?", emoji: "✊" },
+    { personas: ["carville", "trump"], topic: "2024 election — fraud, failure, or mandate?", emoji: "🗳️" },
+    { personas: ["pastormanning", "cornellwest"], topic: "Faith, race, and what Black America owes itself", emoji: "✝️" },
+    { personas: ["trump", "galloway"], topic: "Gaza, empire, and the price of American loyalty", emoji: "🌍" },
+    { personas: ["joyreid", "ruckus"], topic: "The state of Black America — progress or propaganda?", emoji: "⚖️" },
+    { personas: ["elon", "trump"], topic: "DOGE, power, and who's really running the show", emoji: "🐕" },
+    { personas: ["trump", "carville"], topic: "Is America more divided now than ever?", emoji: "🗳️" },
+    { personas: ["cenk", "trump"], topic: "The media, truth, and who's lying to America", emoji: "📺" },
+    { personas: ["mlk", "joyreid"], topic: "What the civil rights movement would say about today", emoji: "✊" },
+  ];
+
+  app.get("/api/arena/debate-of-day", (_req, res) => {
+    const now = new Date();
+    const dayOfYear = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / (24 * 60 * 60 * 1000));
+    const matchup = DOTD_MATCHUPS[dayOfYear % DOTD_MATCHUPS.length];
+    res.json({
+      matchup,
+      date: now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }),
+    });
+  });
+
+  // ── FREE BET PROMO ───────────────────────────────────────────────────────
+  app.post("/api/arena/free-bet-promo", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Missing device ID" });
+      const pg = (await import("pg")).default;
+      const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      await pool.query(`CREATE TABLE IF NOT EXISTS arena_free_bet_grants (
+        device_id TEXT PRIMARY KEY,
+        granted_at TIMESTAMPTZ DEFAULT NOW()
+      )`);
+      const existing = await pool.query(`SELECT 1 FROM arena_free_bet_grants WHERE device_id = $1`, [deviceId]);
+      if (existing.rows.length > 0) { await pool.end(); return res.json({ granted: false, reason: "already_received" }); }
+      // Only grant if user has used at least 3 free prompts
+      const account = await getOrCreateAccount(deviceId);
+      const used = (account as any).free_prompts_used || 0;
+      if (used < 3) { await pool.end(); return res.json({ granted: false, reason: "not_yet_eligible" }); }
+      await grantRewardTokens(deviceId, 1, "Free bet promo — enjoy!");
+      await pool.query(`INSERT INTO arena_free_bet_grants (device_id) VALUES ($1) ON CONFLICT DO NOTHING`, [deviceId]);
+      await pool.end();
+      res.json({ granted: true, tokens: 1 });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || "Failed to grant promo" });
+    }
+  });
+
   app.post("/api/chat", async (req, res) => {
     req.setTimeout(120000);
     res.setTimeout(120000);

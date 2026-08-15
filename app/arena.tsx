@@ -3958,6 +3958,18 @@ export default function ArenaScreen() {
   const [newsFeedLoading, setNewsFeedLoading] = useState(false);
   const [newsFeedLastRefresh, setNewsFeedLastRefresh] = useState<number>(0);
 
+  // ── Betting leaderboard ────────────────────────────────────────────────
+  const [showBetLeaderboard, setShowBetLeaderboard] = useState(false);
+  const [betLeaderboardData, setBetLeaderboardData] = useState<{ leaderboard: any[]; stats: any } | null>(null);
+  const [betLeaderboardLoading, setBetLeaderboardLoading] = useState(false);
+
+  // ── Special events + debate of day ────────────────────────────────────
+  const [activeSpecialEvent, setActiveSpecialEvent] = useState<{ id: string; name: string; description: string; bonusMultiplier: number; badgeColor: string; badgeEmoji: string; endsAt: number; underdogOnly?: boolean; featuredPersonas?: string[] } | null>(null);
+  const [debateOfDay, setDebateOfDay] = useState<{ matchup: { personas: string[]; topic: string; emoji: string }; date: string } | null>(null);
+
+  // ── Call-in risk level (affects bet odds) ─────────────────────────────
+  const [callInRisk, setCallInRisk] = useState<"low" | "medium" | "high">("medium");
+
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
 
   // ── LIE DETECTOR (ported from 1-on-1 interview screen, same backend endpoints) ─
@@ -5330,6 +5342,10 @@ export default function ArenaScreen() {
           setIsRunning(true);
           isRunningRef.current = true;
           addSystemMessage(continueMode ? `Session extended! ${mins} more minutes — scores carry over. Keep going!` : `Session unlocked! ${mins} minutes of unlimited access.`);
+          // Fetch fresh topics on extension so users get new content, not stale ones
+          if (continueMode) {
+            setTimeout(() => { fetchTopics(); }, 500);
+          }
           setTimeout(() => { if (mountedRef.current && scheduleNextRef.current) scheduleNextRef.current(); }, 1000);
         }
       } else if (data.error === "insufficient_tokens") {
@@ -5465,9 +5481,16 @@ export default function ArenaScreen() {
     const topicRefresh = setInterval(fetchTopics, 3 * 60 * 1000);
     fetch(new URL("/api/arena/iq-alltime", getApiUrl()).toString())
       .then((r) => r.ok ? r.json() : {})
-      .then((data: Record<string, number>) => {
-        alltimeIQRef.current = data;
-      })
+      .then((data: Record<string, number>) => { alltimeIQRef.current = data; })
+      .catch(() => {});
+    // Load special events + debate of day
+    fetch(new URL("/api/arena/special-events", getApiUrl()).toString())
+      .then((r) => r.ok ? r.json() : null)
+      .then((data: any) => { if (data?.activeEvent) setActiveSpecialEvent(data.activeEvent); })
+      .catch(() => {});
+    fetch(new URL("/api/arena/debate-of-day", getApiUrl()).toString())
+      .then((r) => r.ok ? r.json() : null)
+      .then((data: any) => { if (data?.matchup) setDebateOfDay(data); })
       .catch(() => {});
     return () => clearInterval(topicRefresh);
   }, [fetchTopics, checkArenaStatus, restoreSavedSession]);
@@ -5542,10 +5565,24 @@ export default function ArenaScreen() {
             if (savedBet && savedBet.sessionKey === makeArenaSessionKey(selectedPersonasRef.current)) {
               const iqSnap = personaSessionIQRef.current;
               const { won, lowestId, lowestIQ } = resolveIQRaceBet(savedBet.targetPersonaId, iqSnap);
-              const payout = won ? Math.round(savedBet.wager * 2.5) : 0;
+              // Find underdog pid for multiplier calc
+              const iqEntries = Object.entries(iqSnap);
+              const underdogPidForCalc = iqEntries.length >= 2
+                ? [...iqEntries].sort(([,a],[,b]) => b - a)[0][0]
+                : null;
+              const mult = effectiveBetMultiplier(savedBet.wager, savedBet.targetPersonaId === underdogPidForCalc);
+              const payout = won ? Math.round(savedBet.wager * mult) : 0;
               if (won && deviceId) {
-                await awardBetWin(deviceId, payout, `IQ Race bet win`);
+                await awardBetWin(deviceId, payout, activeSpecialEvent ? `IQ Race bet win [${activeSpecialEvent.name}]` : `IQ Race bet win`);
                 await refreshBalance();
+              }
+              // Record bet server-side for leaderboard
+              if (deviceId) {
+                fetch(new URL("/api/arena/record-bet", getApiUrl()).toString(), {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+                  body: JSON.stringify({ targetPersonaId: savedBet.targetPersonaId, wager: savedBet.wager, riskLevel: callInRisk, won, payout, specialEventId: activeSpecialEvent?.id || null }),
+                }).catch(() => {});
               }
               await clearArenaBet();
               setArenaBet(null);
@@ -5553,7 +5590,7 @@ export default function ArenaScreen() {
               const targetName = getPersona(savedBet.targetPersonaId)?.shortName || savedBet.targetPersonaId;
               const lowestName = getPersona(lowestId)?.shortName || lowestId;
               if (won) {
-                setTimeout(() => { addSystemMessage(`🎰 BET WON: ${targetName} had the lowest IQ — +${payout} tokens!`); }, 1500);
+                setTimeout(() => { addSystemMessage(`🎰 BET WON: ${targetName} had the lowest IQ — +${payout} tokens!${activeSpecialEvent ? ` [${activeSpecialEvent.badgeEmoji} ${activeSpecialEvent.name} bonus applied]` : ""}`); }, 1500);
               } else {
                 setTimeout(() => { addSystemMessage(`🎰 BET LOST. Lowest IQ: ${lowestName} (${Math.round(lowestIQ)}). Better luck next time.`); }, 1500);
               }
@@ -5657,6 +5694,27 @@ export default function ArenaScreen() {
     } catch {}
     setNewsFeedLoading(false);
   }, []);
+
+  const fetchBetLeaderboard = useCallback(async () => {
+    setBetLeaderboardLoading(true);
+    try {
+      const res = await fetch(new URL("/api/arena/bet-leaderboard", getApiUrl()).toString());
+      if (res.ok) setBetLeaderboardData(await res.json());
+    } catch {}
+    setBetLeaderboardLoading(false);
+  }, []);
+
+  // Compute effective bet multiplier (base × special-event bonus × risk bonus)
+  const effectiveBetMultiplier = useCallback((wager: number, isUnderdog: boolean): number => {
+    let mult = 2.5; // base payout
+    if (activeSpecialEvent) {
+      if (!activeSpecialEvent.underdogOnly || isUnderdog) mult = activeSpecialEvent.bonusMultiplier;
+    }
+    // Risk level bonus on top of event (stacks additively)
+    if (callInRisk === "high") mult += 0.5;
+    if (callInRisk === "low")  mult -= 0.5;
+    return Math.max(1.5, mult);
+  }, [activeSpecialEvent, callInRisk]);
 
   const shareCurrentSession = useCallback(async () => {
     const msgs = recordingMessagesRef.current;
@@ -8004,9 +8062,35 @@ export default function ArenaScreen() {
 
           {/* ── IQ RACE BET ──────────────────────────────────── */}
           {selectedPersonas.length >= 2 && !arenaBet && (
-            <View style={{ marginBottom: 16, padding: 14, borderRadius: 14, borderWidth: 1.5, borderColor: "rgba(251,191,36,0.35)", backgroundColor: "rgba(251,191,36,0.06)" }}>
-              <Text style={{ color: "#FBBF24", fontSize: 13, fontWeight: "900", marginBottom: 4 }}>🎰 IQ RACE BET</Text>
-              <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, marginBottom: 10 }}>Pick who ends with the LOWEST IQ — win 2.5× your bet</Text>
+            <View style={{ marginBottom: 16, padding: 14, borderRadius: 14, borderWidth: 1.5, borderColor: activeSpecialEvent ? activeSpecialEvent.badgeColor : "rgba(251,191,36,0.35)", backgroundColor: "rgba(251,191,36,0.06)" }}>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                <Text style={{ color: "#FBBF24", fontSize: 13, fontWeight: "900" }}>🎰 IQ RACE BET</Text>
+                {activeSpecialEvent && (
+                  <View style={{ backgroundColor: activeSpecialEvent.badgeColor, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
+                    <Text style={{ color: "#fff", fontSize: 9, fontWeight: "900", letterSpacing: 0.5 }}>{activeSpecialEvent.badgeEmoji} {activeSpecialEvent.name.replace(/^[^ ]+ /, "")}</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, marginBottom: 6 }}>
+                Pick who ends with the LOWEST IQ — win {activeSpecialEvent ? `${activeSpecialEvent.bonusMultiplier}×` : "2.5×"} your bet
+                {activeSpecialEvent ? ` (${activeSpecialEvent.description})` : ""}
+              </Text>
+              {/* ── RISK LEVEL SELECTOR ─────────────────────── */}
+              <View style={{ flexDirection: "row", gap: 6, marginBottom: 10 }}>
+                <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, alignSelf: "center" }}>Risk:</Text>
+                {(["low", "medium", "high"] as const).map((r) => {
+                  const cfg = { low: { label: "🟢 LOW", color: "#4ADE80", mult: -0.5, desc: "−0.5× payout" }, medium: { label: "🟡 MED", color: "#FBBF24", mult: 0, desc: "standard" }, high: { label: "🔴 HIGH", color: "#F87171", mult: 0.5, desc: "+0.5× payout" } }[r];
+                  return (
+                    <Pressable key={r} onPress={() => { Haptics.selectionAsync(); setCallInRisk(r); }}
+                      style={{ flex: 1, paddingVertical: 5, borderRadius: 8, borderWidth: 1.5, alignItems: "center",
+                        borderColor: callInRisk === r ? cfg.color : "rgba(255,255,255,0.12)",
+                        backgroundColor: callInRisk === r ? `${cfg.color}22` : "transparent" }}>
+                      <Text style={{ color: callInRisk === r ? cfg.color : "#666", fontSize: 10, fontWeight: "800" }}>{cfg.label}</Text>
+                      <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 8 }}>{cfg.desc}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
               {(() => {
                 // Compute win rates for odds labels — need ≥3 total debates to show
                 const MIN_DEBATES = 3;
@@ -8111,18 +8195,55 @@ export default function ArenaScreen() {
             </View>
           )}
 
-          {arenaBet && !betResult && (
-            <View style={{ marginBottom: 16, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: "rgba(251,191,36,0.3)", backgroundColor: "rgba(251,191,36,0.06)", flexDirection: "row", alignItems: "center" }}>
-              <Ionicons name="checkmark-circle" size={18} color="#FBBF24" style={{ marginRight: 8 }} />
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: "#FBBF24", fontSize: 12, fontWeight: "800" }}>BET PLACED: {getPersona(arenaBet.targetPersonaId)?.shortName || arenaBet.targetPersonaId} loses IQ</Text>
-                <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 10 }}>Wagered {arenaBet.wager}🪙 · Win {Math.round(arenaBet.wager * 2.5)}🪙</Text>
+          {arenaBet && !betResult && (() => {
+            const targetIQ = personaSessionIQ[arenaBet.targetPersonaId];
+            const allIQs = Object.entries(personaSessionIQ).filter(([pid]) => selectedPersonas.includes(pid));
+            const sortedByIQ = [...allIQs].sort(([,a],[,b]) => a - b);
+            const isCurrentlyLowest = sortedByIQ[0]?.[0] === arenaBet.targetPersonaId;
+            const estimatedMult = effectiveBetMultiplier(arenaBet.wager, false);
+            return (
+              <View style={{ marginBottom: 16, padding: 12, borderRadius: 12, borderWidth: 1.5,
+                borderColor: isCurrentlyLowest ? "#4ADE80" : "rgba(251,191,36,0.3)",
+                backgroundColor: isCurrentlyLowest ? "rgba(74,222,128,0.07)" : "rgba(251,191,36,0.06)" }}>
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <Ionicons name={isCurrentlyLowest ? "trending-down" : "checkmark-circle"} size={18}
+                    color={isCurrentlyLowest ? "#4ADE80" : "#FBBF24"} style={{ marginRight: 8 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: isCurrentlyLowest ? "#4ADE80" : "#FBBF24", fontSize: 12, fontWeight: "800" }}>
+                      BET LIVE: {getPersona(arenaBet.targetPersonaId)?.shortName} {isCurrentlyLowest ? "is LOWEST ✓" : "not lowest yet"}
+                    </Text>
+                    <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 10 }}>
+                      Wagered {arenaBet.wager}🪙 · Win {Math.round(arenaBet.wager * estimatedMult)}🪙
+                      {targetIQ !== undefined ? ` · IQ: ${Math.round(targetIQ)}` : ""}
+                    </Text>
+                  </View>
+                  <Pressable onPress={async () => { await clearArenaBet(); setArenaBet(null); }}>
+                    <Ionicons name="close-circle" size={18} color="rgba(255,255,255,0.3)" />
+                  </Pressable>
+                </View>
+                {/* Live IQ mini-bar for all personas */}
+                {sortedByIQ.length >= 2 && (
+                  <View style={{ marginTop: 8, gap: 4 }}>
+                    {sortedByIQ.map(([pid, iq], idx) => {
+                      const p = getPersona(pid);
+                      const maxIQ = sortedByIQ[sortedByIQ.length - 1][1] || 100;
+                      const pct = Math.max(10, (iq / maxIQ) * 100);
+                      const isBet = pid === arenaBet.targetPersonaId;
+                      return (
+                        <View key={pid} style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                          <Text style={{ color: isBet ? "#FBBF24" : "#888", fontSize: 9, fontWeight: "700", width: 52 }} numberOfLines={1}>{p?.shortName || pid}</Text>
+                          <View style={{ flex: 1, height: 4, backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 2, overflow: "hidden" }}>
+                            <View style={{ width: `${pct}%` as any, height: 4, borderRadius: 2, backgroundColor: idx === 0 ? "#4ADE80" : isBet ? "#FBBF24" : "#555" }} />
+                          </View>
+                          <Text style={{ color: idx === 0 ? "#4ADE80" : "#666", fontSize: 9, width: 26, textAlign: "right" }}>{Math.round(iq)}</Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
               </View>
-              <Pressable onPress={async () => { await clearArenaBet(); setArenaBet(null); }}>
-                <Ionicons name="close-circle" size={18} color="rgba(255,255,255,0.3)" />
-              </Pressable>
-            </View>
-          )}
+            );
+          })()}
 
           {betResult && (
             <View style={{ marginBottom: 16, padding: 14, borderRadius: 12, borderWidth: 1.5, borderColor: betResult.won ? "#4ADE80" : "#FF4D4D", backgroundColor: betResult.won ? "rgba(74,222,128,0.08)" : "rgba(255,77,77,0.08)" }}>
@@ -8130,6 +8251,25 @@ export default function ArenaScreen() {
                 {betResult.won ? `🎉 BET WON! +${betResult.payout}🪙` : "❌ BET LOST"}
               </Text>
               {!betResult.won && <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, textAlign: "center", marginTop: 4 }}>Lowest IQ: {getPersona(betResult.lowestId)?.shortName || betResult.lowestId}</Text>}
+              {betResult.won && (
+                <Pressable
+                  onPress={async () => {
+                    const winnerName = getPersona(arenaBet?.targetPersonaId || "")?.shortName || "my pick";
+                    const msg = `🎰 I just won ${betResult.payout} tokens betting on ${winnerName} in The Arena!\n\nThink you can beat me? 👀\nJoin the debate → thearena.rip\n#TheArena #IQRace`;
+                    try {
+                      if (Platform.OS === "web") {
+                        if (navigator.share) { await navigator.share({ title: "I won a bet in The Arena!", text: msg }); }
+                        else { Linking.openURL(`https://twitter.com/intent/tweet?text=${encodeURIComponent(msg)}`); }
+                      } else {
+                        await Share.share({ message: msg, title: "I won a bet in The Arena!" });
+                      }
+                    } catch {}
+                  }}
+                  style={{ marginTop: 10, backgroundColor: "#4ADE80", borderRadius: 8, paddingVertical: 8, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                  <Ionicons name="share-social" size={14} color="#000" />
+                  <Text style={{ color: "#000", fontSize: 12, fontWeight: "900" }}>Share Your Win on X / TikTok</Text>
+                </Pressable>
+              )}
             </View>
           )}
 
@@ -8218,6 +8358,41 @@ export default function ArenaScreen() {
               multiline
               maxLength={200}
             />
+          )}
+
+          {/* ── DEBATE OF THE DAY ───────────────────────────────── */}
+          {debateOfDay && !useCustomTopic && (
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                // Auto-select the matchup's personas and topic
+                const dotdPersonas = debateOfDay.matchup.personas.filter(pid => getPersona(pid));
+                if (dotdPersonas.length >= 2) {
+                  setSelectedPersonas(dotdPersonas);
+                }
+                setUseCustomTopic(true);
+                setCustomTopicText(debateOfDay.matchup.topic);
+              }}
+              style={{
+                marginBottom: 10, padding: 14, borderRadius: 14, borderWidth: 2,
+                borderColor: "#FFD700", backgroundColor: "rgba(255,215,0,0.07)",
+                flexDirection: "row", alignItems: "center", gap: 12,
+              }}>
+              <Text style={{ fontSize: 26 }}>{debateOfDay.matchup.emoji}</Text>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 3 }}>
+                  <View style={{ backgroundColor: "#FFD700", borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
+                    <Text style={{ color: "#000", fontSize: 8, fontWeight: "900", letterSpacing: 1 }}>DEBATE OF THE DAY</Text>
+                  </View>
+                  <Text style={{ color: "rgba(255,215,0,0.5)", fontSize: 9 }}>{debateOfDay.date}</Text>
+                </View>
+                <Text style={{ color: "#FFD700", fontSize: 13, fontWeight: "800", lineHeight: 18 }}>{debateOfDay.matchup.topic}</Text>
+                <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, marginTop: 2 }}>
+                  {debateOfDay.matchup.personas.map(pid => getPersona(pid)?.shortName || pid).join(" vs. ")}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="#FFD700" />
+            </Pressable>
           )}
 
           {!useCustomTopic && dynamicTopics.map((topic) => {
@@ -8558,6 +8733,14 @@ export default function ArenaScreen() {
           <Ionicons name="newspaper-outline" size={14} color="#0099FF" />
           <Text style={[s.arenaActionBtnText, { color: "#0099FF" }]}>NEWS</Text>
         </Pressable>
+        <Pressable onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          if (!showBetLeaderboard) fetchBetLeaderboard();
+          setShowBetLeaderboard(v => !v);
+        }} style={[s.arenaActionBtn, showBetLeaderboard && { backgroundColor: "rgba(251,191,36,0.18)", borderColor: "#FBBF24" }]} hitSlop={8}>
+          <Ionicons name="medal-outline" size={14} color="#FBBF24" />
+          <Text style={[s.arenaActionBtnText, { color: "#FBBF24" }]}>BETS</Text>
+        </Pressable>
       </Animated.View>
 
       {breakingNewsBanner && (
@@ -8579,6 +8762,22 @@ export default function ArenaScreen() {
           <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 10, marginTop: 2 }}>
             {breakingNewsBanner.source}
           </Text>
+        </Animated.View>
+      )}
+
+      {/* ── SPECIAL EVENT BANNER ────────────────────────────────── */}
+      {activeSpecialEvent && isRunning && (
+        <Animated.View entering={SlideInUp.duration(500)} style={{
+          marginHorizontal: 12, marginBottom: 6, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14,
+          backgroundColor: `${activeSpecialEvent.badgeColor}22`, borderWidth: 1.5, borderColor: activeSpecialEvent.badgeColor,
+          flexDirection: "row", alignItems: "center", gap: 8,
+        }}>
+          <Text style={{ fontSize: 18 }}>{activeSpecialEvent.badgeEmoji}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: activeSpecialEvent.badgeColor, fontSize: 11, fontWeight: "900", letterSpacing: 1 }}>{activeSpecialEvent.name}</Text>
+            <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 10 }}>{activeSpecialEvent.description}</Text>
+          </View>
+          <Text style={{ color: activeSpecialEvent.badgeColor, fontSize: 12, fontWeight: "900" }}>{activeSpecialEvent.bonusMultiplier}×</Text>
         </Animated.View>
       )}
 
@@ -8632,6 +8831,57 @@ export default function ArenaScreen() {
                   <Text style={{ color: "#444", fontSize: 10 }}>
                     {item.publishedAt ? new Date(item.publishedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}
                   </Text>
+                </View>
+              </View>
+            ))}
+          </ScrollView>
+        </Animated.View>
+      )}
+
+      {showBetLeaderboard && (
+        <Animated.View entering={FadeInDown.duration(300)} style={{
+          backgroundColor: "#0D0A00", borderRadius: 12, marginHorizontal: 10, marginBottom: 8,
+          borderWidth: 1.5, borderColor: "#FBBF24", overflow: "hidden", maxHeight: 360,
+        }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+            paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#2A1F00" }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Text style={{ color: "#FBBF24", fontSize: 12, fontWeight: "900", letterSpacing: 2 }}>🏆 TOP BETTORS</Text>
+              <Text style={{ color: "#666", fontSize: 9 }}>this week</Text>
+            </View>
+            <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
+              <Pressable onPress={fetchBetLeaderboard} hitSlop={8} disabled={betLeaderboardLoading}>
+                {betLeaderboardLoading
+                  ? <ActivityIndicator size="small" color="#FBBF24" />
+                  : <Ionicons name="refresh-outline" size={18} color="#FBBF24" />}
+              </Pressable>
+              <Pressable onPress={() => setShowBetLeaderboard(false)} hitSlop={8}>
+                <Ionicons name="close" size={18} color="#666" />
+              </Pressable>
+            </View>
+          </View>
+          {betLeaderboardData && betLeaderboardData.stats && (
+            <View style={{ flexDirection: "row", paddingHorizontal: 14, paddingVertical: 8, gap: 16, borderBottomWidth: 1, borderBottomColor: "#1A1100" }}>
+              <Text style={{ color: "#888", fontSize: 10 }}>Total bets: <Text style={{ color: "#FBBF24", fontWeight: "700" }}>{betLeaderboardData.stats.total_bets || 0}</Text></Text>
+              <Text style={{ color: "#888", fontSize: 10 }}>Wins: <Text style={{ color: "#4ADE80", fontWeight: "700" }}>{betLeaderboardData.stats.total_wins || 0}</Text></Text>
+              <Text style={{ color: "#888", fontSize: 10 }}>Paid out: <Text style={{ color: "#FBBF24", fontWeight: "700" }}>{betLeaderboardData.stats.total_paid_out || 0}🪙</Text></Text>
+            </View>
+          )}
+          <ScrollView style={{ maxHeight: 270 }} showsVerticalScrollIndicator={false}>
+            {(!betLeaderboardData || betLeaderboardData.leaderboard.length === 0) && !betLeaderboardLoading && (
+              <Text style={{ color: "#555", textAlign: "center", padding: 24, fontSize: 12 }}>No bets recorded yet this week. Be the first!</Text>
+            )}
+            {betLeaderboardData?.leaderboard.map((entry: any, idx: number) => (
+              <View key={idx} style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 9,
+                borderBottomWidth: idx < betLeaderboardData.leaderboard.length - 1 ? 1 : 0, borderBottomColor: "#111" }}>
+                <Text style={{ color: idx === 0 ? "#FFD700" : idx === 1 ? "#C0C0C0" : idx === 2 ? "#CD7F32" : "#555", fontSize: 12, fontWeight: "900", width: 24 }}>#{entry.rank}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: "#ddd", fontSize: 12, fontWeight: "700" }}>Bettor {entry.handle}</Text>
+                  <Text style={{ color: "#666", fontSize: 10 }}>{entry.wins}W – {entry.losses}L · {entry.winRate}% win rate</Text>
+                </View>
+                <View style={{ alignItems: "flex-end" }}>
+                  <Text style={{ color: "#FBBF24", fontSize: 13, fontWeight: "900" }}>+{entry.totalWon}🪙</Text>
+                  <Text style={{ color: "#555", fontSize: 9 }}>{entry.totalBets} bets</Text>
                 </View>
               </View>
             ))}
