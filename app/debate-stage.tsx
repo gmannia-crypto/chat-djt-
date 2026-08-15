@@ -396,6 +396,12 @@ const PERSONA_SQUABBLE_THREATS: Record<string, string[]> = {
   gaetz:           ["I have survived an FBI investigation, the full weight of the House Ethics Committee, and the entire liberal media. You are a debate opponent.", "I've been through the political fires and I came out the other side. Whatever you think you're about to do, I promise it doesn't end the way you think."],
   dc:              ["Dynamic Creations does not respond to threats — it responds to outcomes. And you will not enjoy the outcome.", "I have stood in rooms more powerful than this one and I did not move. I will not move now."],
   bishopfundme:    ["First Chronicles 16:22 — TOUCH NOT MY ANOINTED! You are THIS CLOSE to a spiritual consequence that no debate moderator can protect you from!", "I am raising my voice to the LORD right now — because I almost said a BAD WORD and that is YOUR FAULT — and after this I am STILL going to need your donation!"],
+  mikabrzezinski:  ["I have been pushed out of studios, interrupted in interviews, and talked over by men my entire career. You are next.", "That is the last time you push me. I speak for the facts and the facts don't back down."],
+  joescarborough:  ["I was a CONGRESSMAN! I governed! I built a media empire! You want to push ME?! Think VERY carefully about your next move!", "I played guitar on Morning Joe while running a cable news show. I have levels. Don't find out what they are."],
+  jimlampley:      ["I have watched men absorb Tyson's uppercuts and stay standing. I have seen things that would make you very rethink this decision.", "Thirty years at ringside. I know exactly what happens next when someone doesn't back down. And it's not pretty."],
+  floydmayweather: ["You-you-you want to go? I'm FLOYD MAYWEATHER. 50-0. You think I can't handle myself outside a boxing ring too? Try me.", "The Money Team doesn't get pushed around. Not in the ring. Not anywhere. Back. Up."],
+  georgeforeman:   ["Son, I knocked Joe Frazier down six times in two rounds in Kingston. I was the most feared man on the planet. I'm still a very large person. Please think about this.", "I am a Christian man and I do not wish to demonstrate the other side of me — but I was the heavyweight champion of the world. Twice. Back away."],
+  michaelbuffer:   ["Ladies and gentlemen, I must warn you — the ring announcer does not engage in physical altercations. However, I am significantly larger than I appear in a tuxedo.", "The microphone is the only thing I wield in public. But I have been in arenas with the most dangerous men alive for thirty years. I do not frighten easily. Step back."],
   // ── Default fallback for any future new persona ───────────────────────────
   _default:        ["You come at me like that again and we'll settle this outside!", "Push me one more time and this debate becomes a very different conversation."],
 };
@@ -527,6 +533,12 @@ const PERSONA_LOSER_LINES: Record<string, string[]> = {
   cornellwest:      ["The prophetic tradition doesn't win every room — but it wins every generation. Remember that.", "My dear brother, I've been on the losing side of public opinion before. History has a way of making its corrections."],
   piersmorgan:      ["I've been cancelled before. I'll be back on air before you've had breakfast. Count on it.", "Losing a debate is not something I do often. But when I do, I at least do it with considerably more style than this."],
   scottjennings:    ["I'll take the result. The polling data I cited was still accurate.", "I lose gracefully and I win the same way. That's what a Kentucky gentleman does."],
+  mikabrzezinski:   ["This result is noted. The facts, as always, remain unchanged.", "I accept the outcome with grace — and I'll be back with sharper questions."],
+  joescarborough:   ["Let me tell you something — and I've said it before — today was not my best. But I have been through WORSE and come back STRONGER.", "Fine. I lose today. But you have not heard the last of Joe Scarborough. Not by a long shot."],
+  jimlampley:       ["The better fighter won tonight. I acknowledge that. The tape doesn't lie.", "I've called a hundred upsets. Today I was on the wrong side of one. That happens."],
+  floydmayweather:  ["I-I-I don't... look... you-you got lucky. That's all that was. TMT doesn't lose — tonight was an anomaly.", "Hard work. Dedication. I'll be back. 50-0 doesn't become 50-1 in my mind. Ever."],
+  georgeforeman:    ["Ha — I've been knocked down before! In 1974, in Kinshasa! And I came back! Bless you for a good fight.", "You know what? That was well done. I tip my hat. The Lord has a plan and this is part of it."],
+  michaelbuffer:    ["Ladies and gentlemen — the result is in. I accept with the same grace I bring to every announcement.", "Tonight's result is official. There is always another bout. Good night."],
   _default:         ["You get today. But this conversation isn't finished.", "I'll accept that. But don't get comfortable."],
 };
 const PERSONA_WINNER_LINES: Record<string, string[]> = {
@@ -615,6 +627,12 @@ const PERSONA_WINNER_LINES: Record<string, string[]> = {
   piersmorgan:      ["I told you at the start I was right. I've been telling people that my whole career. They should start listening earlier.", "That's what happens when you come prepared, refuse to be intimidated, and say what everyone else is only thinking."],
   scottjennings:    ["The conservative argument holds up under scrutiny. It always does when you make it clearly and calmly.", "Look — I told you at the beginning. Here's the reality: I was right. And deep down you knew it."],
   donlemon:         ["I've been fired for saying true things. Tonight I won by saying them. That feels considerably better.", "I said what I said. The room agreed. That's all journalism is supposed to be."],
+  mikabrzezinski:   ["Facts, preparation, and not letting a single dishonest answer slide. That's the formula.", "I've been waking up at 3 a.m. for years to get the story right. Tonight the story went my way."],
+  joescarborough:   ["Let me tell you — and I have said this before — I CAME IN HERE PREPARED and PREPARED WINS! That's the Morning Joe formula!", "Former Congressman. MSNBC anchor. Debate winner. You can put all three on the record now!"],
+  jimlampley:       ["The better technical fighter wins the fight. The better-prepared debater wins the debate. Tonight I was both.", "Thirty years at ringside and the lesson is always the same — skill, preparation, conditioning. I had all three."],
+  floydmayweather:  ["THAT is what 50-0 looks like in a debate room. Hard work. Dedication. The best ever.", "TMT — The Money Team — wins everywhere. In the ring, in business, in debate. Period."],
+  georgeforeman:    ["Ha! God is good, all the time! Thank you — and bless everybody in this room including the person I just beat!", "You know what? That felt GREAT. I haven't felt like that since Kinshasa — wait, no, I felt bad at Kinshasa. This feels better!"],
+  michaelbuffer:    ["Ladies and gentlemen — when the voice of the event also wins the debate, that is a historic evening.", "The announcement is official: I have delivered the verdict... in my favor. GOOD NIGHT!"],
   _default:         ["I'll take that. Now let's get back to work.", "That's what I came here to do. Mission accomplished."],
 };
 // ─────────────────────────────────────────────────────────────────────────────
@@ -729,6 +747,12 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   mikejohnson: require("@/assets/images/persona-mikejohnson.png"),
   tlaib:        require("@/assets/images/persona-tlaib.png"),
   professorjiang: require("@/assets/images/persona-professorjiang.png"),
+  mikabrzezinski: require("@/assets/images/persona-mikabrzezinski.jpg"),
+  joescarborough: require("@/assets/images/persona-joescarborough.jpg"),
+  jimlampley:    require("@/assets/images/persona-jimlampley.jpg"),
+  floydmayweather: require("@/assets/images/persona-floydmayweather.jpg"),
+  georgeforeman: require("@/assets/images/persona-georgeforeman.jpg"),
+  michaelbuffer: require("@/assets/images/persona-michaelbuffer.jpg"),
 };
 
 const FX_KEY = "interview_fx_enabled_v1";

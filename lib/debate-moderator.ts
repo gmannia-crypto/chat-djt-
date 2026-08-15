@@ -13,7 +13,7 @@ import { getApiUrl } from "@/lib/query-client";
 import { prefetchTTSAudio, playPrefetchedAudio, playTTS } from "@/lib/audio-helper";
 import { playCrowdCheer, playDingSound } from "@/lib/arena-sfx";
 
-export type ModeratorStyle = "cenk" | "galloway" | "hannity" | "maddow" | "megynkelly" | "odonnell" | "joyreid" | "maxkellerman" | "stephena" | "kaitlyncollins" | "gilbertgottfried" | "carlin" | "tuckercarlson" | "wandasykes" | "trevornoah" | "janeelliott" | "francescresswelsing" | "shannonsharp" | "dc" | "donlemon" | "piersmorgan";
+export type ModeratorStyle = "cenk" | "galloway" | "hannity" | "maddow" | "megynkelly" | "odonnell" | "joyreid" | "maxkellerman" | "stephena" | "kaitlyncollins" | "gilbertgottfried" | "carlin" | "tuckercarlson" | "wandasykes" | "trevornoah" | "janeelliott" | "francescresswelsing" | "shannonsharp" | "dc" | "donlemon" | "piersmorgan" | "mikabrzezinski" | "joescarborough" | "jimlampley" | "georgeforeman" | "michaelbuffer";
 
 export const MODERATORS: Record<ModeratorStyle, { name: string; personaId: string; bias: string }> = {
   cenk:             { name: "Cenk Uygur",          personaId: "cenk",             bias: "progressive" },
@@ -37,6 +37,11 @@ export const MODERATORS: Record<ModeratorStyle, { name: string; personaId: strin
   dc:                  { name: "DC",                         personaId: "dc",                   bias: "truth-seeking" },
   donlemon:            { name: "Don Lemon",                  personaId: "donlemon",             bias: "left-center" },
   piersmorgan:         { name: "Piers Morgan",               personaId: "piersmorgan",          bias: "provocateur" },
+  mikabrzezinski:      { name: "Mika Brzezinski",            personaId: "mikabrzezinski",       bias: "left-center" },
+  joescarborough:      { name: "Joe Scarborough",            personaId: "joescarborough",       bias: "anti-Trump-center" },
+  jimlampley:          { name: "Jim Lampley",                personaId: "jimlampley",           bias: "boxing-sports" },
+  georgeforeman:       { name: "George Foreman",             personaId: "georgeforeman",        bias: "humble-sports" },
+  michaelbuffer:       { name: "Michael Buffer",             personaId: "michaelbuffer",        bias: "boxing-announcer" },
 };
 
 // Which personas each moderator is friendly to ("favor" — softball questions, quick to defend
@@ -125,6 +130,22 @@ export const MODERATOR_LEANINGS: Record<ModeratorStyle, { favor: string[]; targe
     favor: ["trump", "candace", "tuckercarlson", "megynkelly", "hannity", "desantis"],
     target: ["aoc", "omar", "tlaib", "pressley", "jascrockett", "berniemc", "cornellwest"],
   },
+  // Mika: MSNBC/left-center — Morning Joe co-host; tough on MAGA, holds Democrats to accountability too.
+  mikabrzezinski: {
+    favor: ["obama", "kamala", "biden", "aoc", "omar", "jascrockett", "berniemc", "joyreid", "maddow", "schumer", "carville"],
+    target: ["trump", "bannon", "miller", "leavitt", "mtg", "loomer", "alexjones", "candace", "jimjordan"],
+  },
+  // Joe: Anti-Trump Republican turned MSNBC anchor — hardest on MAGA but also presses Dems on weakness.
+  joescarborough: {
+    favor: ["obama", "kamala", "biden", "maddow", "joyreid", "carville", "berniemc", "rfk"],
+    target: ["trump", "bannon", "miller", "leavitt", "mtg", "loomer", "alexjones", "jimjordan", "hannity"],
+  },
+  // Jim Lampley: Sports-only, no political bias — calls it straight on boxing and sports debates.
+  jimlampley: { favor: [], target: [] },
+  // George Foreman: Humble, faith-based, sports-focused — genuinely neutral, gentle on everyone.
+  georgeforeman: { favor: [], target: [] },
+  // Michael Buffer: Pure announcer — no bias, no targets; the ring is neutral ground.
+  michaelbuffer: { favor: [], target: [] },
 };
 
 export type ModeratorLeaning = "favor" | "target" | "neutral";
@@ -621,6 +642,31 @@ const SQUABBLE_BRIDGE_BIASED_LINES: Record<string, string[]> = {
     "New topic. {target}, I ask hard questions because I expect real answers. What you just gave us was neither. Moving on.",
     "That exchange is over. {target}, you chose to escalate rather than debate. The audience saw it. New topic.",
   ],
+  mikabrzezinski: [
+    "Moving on. {target}, that kind of response is exactly why this conversation needed a moderator. New topic.",
+    "We're moving forward. {target}, let's stay focused on what actually matters to the people watching. New subject.",
+    "Topic closed. {target}, I'd like a real answer next time — not a performance. New topic.",
+  ],
+  joescarborough: [
+    "OKAY — look — I've been in Congress, I've been in television, and I have NEVER seen anything like {target} just did. New topic. Moving on!",
+    "Let me tell you something — {target}, that kind of behavior is EXACTLY what's wrong with this whole thing. New subject!",
+    "We are MOVING ON. {target}, my friends at the Reagan Library would be appalled. New topic. Let's go.",
+  ],
+  jimlampley: [
+    "And the referee steps in. {target}, that last exchange stepped outside the rules of the fight. New topic — come out clean.",
+    "Round closed. {target}, what happened there wasn't boxing — it was brawling. Back to the center of the ring. New topic.",
+    "New subject. {target}, in thirty years of calling fights I've seen cleaner exits from a cornered fighter. Let's go.",
+  ],
+  georgeforeman: [
+    "Alright now, let's take a breath. {target}, the Lord taught me — grace under pressure. New topic, bless you.",
+    "Moving on. {target}, I know it gets heated but we're better than this. New subject.",
+    "New topic. {target}, I believe in second chances. This is yours. Let's go.",
+  ],
+  michaelbuffer: [
+    "Ladies and gentlemen — in the interest of the contest, we move to the next subject. {target}, the judges have noted what occurred. New topic.",
+    "The action is stopped. {target}, consider this a warning from the referee. New topic — let's keep it clean.",
+    "New round. {target}, this contest is decided on skill, not intimidation. The debate continues.",
+  ],
 };
 
 /**
@@ -759,6 +805,31 @@ const SQUABBLE_CLOSER_LINES: Record<string, string[]> = {
     "UNDISPUTED — this debate is OVER! Uncle Shay Shay has seen enough tonight! Good night, everybody!",
     "That's a CLOSE! My granddaddy used to say — 'When it's done, it's DONE.' Good night!",
     "We are FINISHED! And I want BOTH of y'all to think long and hard about tonight! GOOD NIGHT!",
+  ],
+  mikabrzezinski: [
+    "And with that, this debate is over. I hope both of you take something useful from tonight. Good night.",
+    "We're done. The facts are still what they are. Good night, everyone.",
+    "This debate is closed. Thank you for watching — and thank you for caring enough to want the truth. Good night.",
+  ],
+  joescarborough: [
+    "And THAT IS IT — let me tell you, folks, I've been in Congress, I've been in cable news, and this was SOMETHING. Good night, everybody!",
+    "We're done! And I want to say — and I've said it before — what you just witnessed is exactly what's at stake in this country. Good night!",
+    "Debate's over. Mika would tell me to wrap it up. She's right. Good night, everyone.",
+  ],
+  jimlampley: [
+    "Final bell. A great contest deserves a proper close — and this was one for the record books. Good night.",
+    "The fight is over. Both contestants left everything in the ring. Whatever the scorecard says, the effort was real. Good night.",
+    "And that is the end. Thirty years of calling fights, and this one will stay with me. Good night, everybody.",
+  ],
+  georgeforeman: [
+    "Well — I've been in the big fights and I've been in the little ones and this was something special. God bless you all. Good night.",
+    "That's it! Both of these fine people came in here and gave it everything. I'm proud of them. Good night, everybody!",
+    "We're done here. Thank the Lord for good debates and good people. Good night!",
+  ],
+  michaelbuffer: [
+    "Ladies and gentlemen — the contest is concluded. Your applause for both competitors. Good night!",
+    "And THAT... is the final bell. Tonight's debate is officially in the books. GOOD NIGHT, EVERYBODY!",
+    "The judges have their scorecards. This debate — for the ages — is OVER. Ladies and gentlemen, GOOD NIGHT!",
   ],
   _default: [
     "That's all the time we have. This debate is over — thank you both. Good night.",

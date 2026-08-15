@@ -234,7 +234,13 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   cornellwest:  require("@/assets/images/persona-cornellwest.jpg"),
   piersmorgan:  require("@/assets/images/persona-piersmorgan.jpg"),
   scottjennings: require("@/assets/images/persona-scottjennings.jpg"),
-  muhammadali:  require("@/assets/images/persona-muhammadali.jpg"),
+  muhammadali:   require("@/assets/images/persona-muhammadali.jpg"),
+  mikabrzezinski: require("@/assets/images/persona-mikabrzezinski.jpg"),
+  joescarborough: require("@/assets/images/persona-joescarborough.jpg"),
+  jimlampley:     require("@/assets/images/persona-jimlampley.jpg"),
+  floydmayweather: require("@/assets/images/persona-floydmayweather.jpg"),
+  georgeforeman:  require("@/assets/images/persona-georgeforeman.jpg"),
+  michaelbuffer:  require("@/assets/images/persona-michaelbuffer.jpg"),
 };
 
 const FX_KEY = "interview_fx_enabled_v1";
@@ -266,6 +272,8 @@ const GUEST_CATEGORIES: Record<string, GuestCategory> = {
   stephena: "Entertainment", hannity: "Entertainment", megynkelly: "Entertainment",
   shannon: "Entertainment", jesseleepetersen: "Entertainment", joerogan: "Entertainment",
   skipbayless: "Sports", howardcosell: "Sports",
+  jimlampley: "Sports", floydmayweather: "Sports", georgeforeman: "Sports", michaelbuffer: "Sports",
+  mikabrzezinski: "Political", joescarborough: "Political",
   cenk: "Political",
   pressley: "Political",
   drbenj: "History",
