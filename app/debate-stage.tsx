@@ -32,7 +32,7 @@ import {
   detectDodge,
   getDodgePressLine,
 } from "@/lib/debate-moderator";
-import { playDingSound, playBoxingBell } from "@/lib/arena-sfx";
+import { playDingSound, playBoxingBell, playLongCrowdCheer } from "@/lib/arena-sfx";
 import { TokenWinVideo } from "@/components/TokenWinVideo";
 import {
   placeInterviewBet, clearInterviewBet, getInterviewBet,
@@ -42,6 +42,36 @@ import { usePersonaLocks, PREMIUM_PERSONA_CONFIGS, RECENTLY_UNLOCKED_BADGE_KEY }
 
 // Mystery persona IDs and storage key — kept in sync with arena.tsx
 const MYSTERY_PERSONA_IDS = ["alexjones", "obama", "melania", "schumer", "odonnell", "kamala", "mtg", "rfk"];
+
+// ── Michael Buffer ring introductions ────────────────────────────────────────
+// Buffer introduces each debater by their real history/record before the fight.
+// Falls back to a generic ring-walk intro for personas not in this map.
+const BUFFER_PERSONA_INTROS: Record<string, string> = {
+  muhammadali:    `Fighting out of Louisville, Kentucky — three-time Heavyweight Champion of the World — 56 wins, 37 by knockout, and a legacy that transcends the sport — the Greatest of All Time — MUHAMMAD... ALI!!!`,
+  floydmayweather:`Fighting out of Grand Rapids, Michigan — undefeated World Champion across FIVE weight classes — 50 wins, 27 by knockout, ZERO defeats — Fifty. And. Zero. — FLOYD... "MONEY"... MAYWEATHER!!!`,
+  georgeforeman:  `Fighting out of Marshall, Texas — two-time Heavyweight Champion of the World — 76 wins, 68 by knockout — the man who knocked down Joe Frazier SIX times in two rounds — BIG GEORGE... FOREMAN!!!`,
+  howardcosell:   `From the broadcast booth to the center of the ring — the voice that told it LIKE IT IS for forty years — the conscience of sports journalism — HOWARD... COSELL!!!`,
+  jimlampley:     `Thirty years at ringside for HBO Championship Boxing — the man who called more world title fights than any broadcaster alive — JIM... LAMPLEY!!!`,
+  stephena:       `From ESPN's First Take — UNDISPUTED in his passion, his volume, and his convictions — STEPHEN... A... SMITH!!!`,
+  skipbayless:    `From Fox Sports' Undisputed — the most controversial sports takes in the history of television — SKIP... BAYLESS!!!`,
+  shannon:        `Super Bowl Champion — tight end — and now the host of Club Shay Shay — SHANNON... SHARPE!!!`,
+  maxkellerman:   `Boxing analyst, commentator, and the sharpest mind in sports debate — MAX... KELLERMAN!!!`,
+  trump:          `The 45th and 47th President of the United States — real estate mogul — 306 electoral votes — DONALD... J... TRUMP!!!`,
+  obama:          `The 44th President of the United States — two terms — Nobel Peace Prize — BARACK... OBAMA!!!`,
+  biden:          `46th President of the United States — Senator for 36 years — not a joke — JOE... BIDEN!!!`,
+  berniemc:       `Senator from Vermont — the man who started a REVOLUTION — BERNIE... SANDERS!!!`,
+  aoc:            `Congresswoman from New York's 14th — the youngest woman ever elected to Congress — ALEXANDRIA... OCASIO-CORTEZ!!!`,
+  maddow:         `MSNBC anchor — Rhodes Scholar — the woman with the receipts — RACHEL... MADDOW!!!`,
+  hannity:        `Fox News host — the most-watched cable news host in America — SEAN... HANNITY!!!`,
+  carville:       `The Ragin' Cajun — the man who put Bill Clinton in the White House — JAMES... CARVILLE!!!`,
+  cenk:           `Founder of The Young Turks — the voice of the progressive movement — CENK... UYGUR!!!`,
+};
+
+function getBufferPersonaIntro(personaId: string | null, name: string): string {
+  if (personaId && BUFFER_PERSONA_INTROS[personaId]) return BUFFER_PERSONA_INTROS[personaId];
+  return `Making their way to the center of the ring — ${name}!!!`;
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 // Personas that appear in the "Boxing Talk & Debate" curated section.
 const BOXING_PERSONA_IDS = [
@@ -4079,27 +4109,46 @@ export default function DebateStage() {
           const debaterAName = allDebaters.find(p => p.id === interviewerId)?.name ?? "Debater A";
           const debaterBName = allDebaters.find(p => p.id === intervieweeId)?.name ?? "Debater B";
 
-          const bufLines = [
+          const introA    = getBufferPersonaIntro(interviewerId, debaterAName);
+          const introB    = getBufferPersonaIntro(intervieweeId, debaterBName);
+          const sponsor   = `This debate is brought to you in proud association with Dynamic Creations — and Hen Hauz Organics!`;
+          const rumble    = `Ladies and gentlemen... LET'S GET READY TO RUMBLE!!!`;
+
+          // Pre-fetch every line up front so TTS is cached and plays instantly.
+          const allBufLines = [
             `For the thousands in attendance... and the millions watching around the world...`,
-            `In this corner — ${debaterAName}!`,
-            `And in the opposing corner — ${debaterBName}!`,
-            `This debate is brought to you in proud association with Dynamic Creations — and Hen Hauz Organics!`,
-            `Ladies and gentlemen... LET'S GET READY TO RUMBLE!!!`,
+            sponsor, rumble, introA, introB,
           ];
-          // Pre-fetch all Buffer lines up front so they queue immediately.
           if (voiceEnabledRef.current) {
-            for (const line of bufLines) startPrefetch({ text: line, personaId: mod.personaId });
+            for (const line of allBufLines) startPrefetch({ text: line, personaId: mod.personaId });
           }
-          // Deliver lines sequentially; fire cheer after the first build-up line.
-          await speakMod(bufLines[0], `modbuf-intro-${Date.now()}`);
+
+          // ① Build-up line
+          await speakMod(allBufLines[0], `modbuf-intro-${Date.now()}`);
+
+          // ② Sponsorship
+          if (!runningRef.current) return;
+          await speakMod(sponsor, `modbuf-sponsor-${Date.now()}`);
+
+          // ③ RUMBLE call
+          if (!runningRef.current) return;
+          await speakMod(rumble, `modbuf-rumble-${Date.now()}`);
+
+          // ④ Bell rings → elongated crowd roar
+          if (!runningRef.current) return;
+          await playBoxingBell();
+          if (!runningRef.current) return;
+          await playLongCrowdCheer(4000);
+
+          // ⑤ Individual intros after the roar settles
+          if (!runningRef.current) return;
+          await speakMod(introA, `modbuf-introa-${Date.now()}`);
           playDebateCheer();
-          await new Promise<void>(r => setTimeout(r, 1600));
-          for (let i = 1; i < bufLines.length; i++) {
-            if (!runningRef.current) break;
-            await speakMod(bufLines[i], `modbuf-${i}-${Date.now()}`);
-          }
-          // Boxing bell rings after "LET'S GET READY TO RUMBLE"
-          if (runningRef.current) await playBoxingBell();
+          await new Promise<void>(r => setTimeout(r, 1400));
+
+          if (!runningRef.current) return;
+          await speakMod(introB, `modbuf-introb-${Date.now()}`);
+          if (runningRef.current) await playLongCrowdCheer(3000);
         } else {
           // ── Generic moderator welcome ──────────────────────────────────────
           const welcomeText = `Today is ${dateStr}. This ${category} debate is brought to you by Dynamic Creations. I'm ${mod.name}, and we are getting right into it.`;

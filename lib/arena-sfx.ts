@@ -236,6 +236,38 @@ export async function playDrumroll() {
   }
 }
 
+// Elongated crowd cheer — multiple overlapping waves for a full arena roar.
+// Used by Michael Buffer after "LET'S GET READY TO RUMBLE" and intro build-ups.
+export async function playLongCrowdCheer(durationMs = 3500): Promise<void> {
+  if (Platform.OS === "web") {
+    try {
+      const ctx = getWebAudioContext();
+      const waves = 18;
+      for (let i = 0; i < waves; i++) {
+        const delay = i * (durationMs / waves / 1000);
+        const freq = 250 + Math.random() * 500;
+        const vol = 0.06 + Math.random() * 0.07;
+        setTimeout(() => {
+          playWebTone(freq, 0.4 + Math.random() * 0.4, "sawtooth", vol);
+          playWebTone(freq * 1.3, 0.3 + Math.random() * 0.3, "triangle", vol * 0.7);
+        }, delay * 1000);
+      }
+      // Rising triumphant arpeggio at the peak
+      setTimeout(() => {
+        [523, 659, 784, 1047, 1319].forEach((f, i) => {
+          setTimeout(() => playWebTone(f, 0.6, "sine", 0.22), i * 120);
+        });
+      }, durationMs * 0.55);
+    } catch {}
+    await new Promise<void>(r => setTimeout(r, durationMs));
+  } else {
+    try {
+      await playNativeSound("/public/winner-chosen.m4a", 0.8);
+    } catch {}
+    await new Promise<void>(r => setTimeout(r, Math.max(0, durationMs - 1500)));
+  }
+}
+
 // Boxing bell — plays the real recorded bell sound from the Michael Buffer
 // opening sequence. Awaitable so the caller can wait for it to finish.
 export async function playBoxingBell(): Promise<void> {
