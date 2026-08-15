@@ -236,6 +236,44 @@ export async function playDrumroll() {
   }
 }
 
+// Boxing bell — plays the real recorded bell sound from the Michael Buffer
+// opening sequence. Awaitable so the caller can wait for it to finish.
+export async function playBoxingBell(): Promise<void> {
+  if (Platform.OS === "web") {
+    return new Promise<void>((resolve) => {
+      try {
+        const baseUrl = getApiUrl().replace(/\/$/, "");
+        const audio = new window.Audio(`${baseUrl}/public/boxing-bell.mp4`);
+        audio.volume = 0.9;
+        audio.onended = () => resolve();
+        audio.onerror = () => resolve();
+        audio.play().catch(() => resolve());
+      } catch {
+        resolve();
+      }
+    });
+  } else {
+    try {
+      await ensureAudioMode();
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: `${baseUrl}/public/boxing-bell.mp4` },
+        { shouldPlay: true, volume: 0.9 }
+      );
+      await new Promise<void>((resolve) => {
+        sound.setOnPlaybackStatusUpdate((status) => {
+          if (status.isLoaded && status.didJustFinish) {
+            sound.unloadAsync().catch(() => {});
+            resolve();
+          }
+        });
+      });
+    } catch (e) {
+      console.warn("SFX boxing-bell failed:", e);
+    }
+  }
+}
+
 // Ascending fanfare chime for the DC CHAMPION badge entrance.
 // Distinct from playBellSound (triple bell) and playCrowdCheer (crowd noise).
 export async function playChampionChime() {

@@ -32,7 +32,7 @@ import {
   detectDodge,
   getDodgePressLine,
 } from "@/lib/debate-moderator";
-import { playDingSound } from "@/lib/arena-sfx";
+import { playDingSound, playBoxingBell } from "@/lib/arena-sfx";
 import { TokenWinVideo } from "@/components/TokenWinVideo";
 import {
   placeInterviewBet, clearInterviewBet, getInterviewBet,
@@ -4084,7 +4084,7 @@ export default function DebateStage() {
             `In this corner — ${debaterAName}!`,
             `And in the opposing corner — ${debaterBName}!`,
             `This debate is brought to you in proud association with Dynamic Creations — and Hen Hauz Organics!`,
-            `Ladies and gentlemen... LET'S GET IT ON!`,
+            `Ladies and gentlemen... LET'S GET READY TO RUMBLE!!!`,
           ];
           // Pre-fetch all Buffer lines up front so they queue immediately.
           if (voiceEnabledRef.current) {
@@ -4098,8 +4098,8 @@ export default function DebateStage() {
             if (!runningRef.current) break;
             await speakMod(bufLines[i], `modbuf-${i}-${Date.now()}`);
           }
-          // Second cheer on "LET'S GET IT ON"
-          if (runningRef.current) playDebateCheer();
+          // Boxing bell rings after "LET'S GET READY TO RUMBLE"
+          if (runningRef.current) await playBoxingBell();
         } else {
           // ── Generic moderator welcome ──────────────────────────────────────
           const welcomeText = `Today is ${dateStr}. This ${category} debate is brought to you by Dynamic Creations. I'm ${mod.name}, and we are getting right into it.`;
