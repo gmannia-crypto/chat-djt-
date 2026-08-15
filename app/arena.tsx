@@ -120,9 +120,6 @@ const PERSONA_CATEGORY_MAP: Record<string, PersonaCategory> = {
   // Morning Joe duo
   mikabrzezinski: "journalist",
   joescarborough: "journalist",
-  // Boxing personas
-  floydmayweather: "commentator",
-  georgeforeman: "commentator",
 };
 
 // Political Facts IQ: everyone starts at 100 (seeded from all-time average).
@@ -2577,7 +2574,7 @@ const MYSTERY_UNLOCK_COSTS: Record<string, number> = {
 };
 const MYSTERY_UNLOCK_KEY = "arena_mystery_unlocked";
 
-const PERSONA_IDS = ["trump", "jdvance", "elon", "errol", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "carlin", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "leavitt", "erikakirk", "loomer", "bannon", "stephena", "malema", "hannity", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "aoc", "pressley", "joerogan", "timscott", "drbenj", "billclinton", "hillaryclinton", "marcorubio", "desantis", "tuckercarlson", "bishopfundme", "cornellwest", "piersmorgan", "scottjennings", "mikabrzezinski", "joescarborough", "floydmayweather", "georgeforeman"];
+const PERSONA_IDS = ["trump", "jdvance", "elon", "errol", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "carlin", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "leavitt", "erikakirk", "loomer", "bannon", "stephena", "malema", "hannity", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "aoc", "pressley", "joerogan", "timscott", "drbenj", "billclinton", "hillaryclinton", "marcorubio", "desantis", "tuckercarlson", "bishopfundme", "cornellwest", "piersmorgan", "scottjennings", "mikabrzezinski", "joescarborough"];
 // Cartoon-style image filter — vivid posterized look on web
 const CARTOON_FILTER = Platform.OS === "web"
   ? ({ filter: "contrast(1.35) saturate(1.85) brightness(1.03)" } as any)
@@ -7774,15 +7771,6 @@ export default function ArenaScreen() {
             </View>
           </View>
 
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
-            {Object.entries(PERSONA_CATEGORIES).map(([key, cat]) => (
-              <View key={key} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: cat.color }} />
-                <Text style={{ color: cat.color, fontSize: 10, fontWeight: "700" }}>{cat.label}</Text>
-              </View>
-            ))}
-          </View>
-
           {(() => {
             const allIds = [
               ...PERSONA_IDS.filter(id => !isHidden(id)),
@@ -7798,12 +7786,20 @@ export default function ArenaScreen() {
             return categoryOrder.filter((cat) => grouped[cat]?.length).map((cat) => {
               const catInfo = PERSONA_CATEGORIES[cat];
               return (
-                <View key={cat} style={{ marginBottom: 10 }}>
-                  <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 6 }}>
-                    <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: catInfo.color, marginRight: 6 }} />
-                    <Text style={{ color: catInfo.color, fontSize: 12, fontWeight: "800", letterSpacing: 1 }}>{catInfo.label.toUpperCase()}S</Text>
+                <View key={cat} style={{ marginBottom: 18 }}>
+                  {/* Category header */}
+                  <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 10, gap: 8 }}>
+                    <View style={{ width: 3, height: 14, borderRadius: 2, backgroundColor: catInfo.color }} />
+                    <Text style={{ color: catInfo.color, fontSize: 11, fontWeight: "800", letterSpacing: 1.5 }}>
+                      {catInfo.label.toUpperCase()}S
+                    </Text>
+                    <View style={{ flex: 1, height: 1, backgroundColor: catInfo.color + "28" }} />
+                    <Text style={{ color: catInfo.color + "80", fontSize: 10, fontWeight: "600" }}>
+                      {grouped[cat].filter(id => selectedPersonas.includes(id)).length}/{grouped[cat].length}
+                    </Text>
                   </View>
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                  {/* Portrait card grid */}
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
                     {grouped[cat].map((pid) => {
                       const p = getPersona(pid);
                       if (!p) return null;
@@ -7811,9 +7807,8 @@ export default function ArenaScreen() {
                       const isMystery = MYSTERY_PERSONA_IDS.includes(pid);
                       const isPremiumLocked = isLocked(pid);
                       const premiumCfg = PREMIUM_PERSONA_CONFIGS[pid];
-                      const totalEntries = allTimeScores[pid]?.totalEntries || 0;
                       const wins = winTallyGlobal[pid] || 0;
-                      const winPct = totalEntries > 0 ? Math.round((wins / totalEntries) * 100) : 0;
+                      const accentColor = isPremiumLocked ? (premiumCfg?.badgeColor || "#FFD700") : p.color;
                       return (
                         <Pressable
                           key={pid}
@@ -7824,37 +7819,54 @@ export default function ArenaScreen() {
                             }
                             togglePersona(pid);
                           }}
-                          style={{
-                            flexDirection: "row", alignItems: "center", paddingHorizontal: 10, paddingVertical: 6,
-                            borderRadius: 20, borderWidth: 1.5,
-                            borderColor: isPremiumLocked ? (premiumCfg?.badgeColor || "#FFD700") + "60" : isSelected ? p.color : isMystery ? "rgba(255,215,0,0.3)" : "rgba(255,255,255,0.15)",
-                            backgroundColor: isPremiumLocked ? (premiumCfg?.badgeColor || "#FFD700") + "10" : isSelected ? p.color + "20" : "rgba(255,255,255,0.05)",
-                            opacity: isPremiumLocked ? 0.8 : 1,
-                          }}
+                          style={{ width: 68, alignItems: "center" }}
                         >
-                          <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: catInfo.color, marginRight: 5 }} />
-                          {p.image ? (
-                            <Image source={p.image} style={[{ width: 24, height: 24, borderRadius: 12, marginRight: 6 }, CARTOON_FILTER]} />
-                          ) : (
-                            <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: p.color + "40", justifyContent: "center", alignItems: "center", marginRight: 6 }}>
-                              <Text style={{ fontSize: 9, color: "#fff", fontWeight: "800" }}>{getInitials(p.name)}</Text>
-                            </View>
-                          )}
-                          {isPremiumLocked
-                            ? <Text style={{ color: premiumCfg?.badgeColor || "#FFD700", fontSize: 12, fontWeight: "700" }}>{p.shortName} 🔒{premiumCfg ? ` ${premiumCfg.tokenPrice}🪙` : ""}</Text>
-                            : <Text style={{ color: isSelected ? p.color : "#888", fontSize: 12, fontWeight: "700" }}>{p.shortName}{isMystery ? " ★" : ""}</Text>
-                          }
-                          {wins > 0 && (
-                            <View style={{ marginLeft: 4, backgroundColor: "rgba(74,222,128,0.2)", borderRadius: 8, paddingHorizontal: 4, paddingVertical: 1 }}>
-                              <Text style={{ color: "#4ADE80", fontSize: 9, fontWeight: "800" }}>{wins}W{winPct > 0 ? ` ${winPct}%` : ""}</Text>
-                            </View>
-                          )}
-                          {totalEntries > 0 && (
-                            <View style={{ marginLeft: 3, backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 8, paddingHorizontal: 4, paddingVertical: 1 }}>
-                              <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 9, fontWeight: "700" }}>{totalEntries}E</Text>
-                            </View>
-                          )}
-                          {isSelected && <Ionicons name="checkmark-circle" size={14} color={p.color} style={{ marginLeft: 4 }} />}
+                          {/* Portrait circle */}
+                          <View style={{
+                            width: 60, height: 60, borderRadius: 30,
+                            borderWidth: isSelected ? 2.5 : 1.5,
+                            borderColor: isSelected ? accentColor : isPremiumLocked ? accentColor + "55" : isMystery ? "rgba(255,215,0,0.35)" : "rgba(255,255,255,0.13)",
+                            backgroundColor: isSelected ? accentColor + "22" : "rgba(255,255,255,0.05)",
+                            overflow: "hidden",
+                            ...(Platform.OS === "web" && isSelected ? { boxShadow: `0 0 14px ${accentColor}55` } : {}),
+                          }}>
+                            {p.image ? (
+                              <Image source={p.image} style={[{ width: 60, height: 60 }, CARTOON_FILTER]} />
+                            ) : (
+                              <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: accentColor + "30" }}>
+                                <Text style={{ color: "#fff", fontSize: 15, fontWeight: "800" }}>{getInitials(p.name)}</Text>
+                              </View>
+                            )}
+                            {/* Premium lock overlay */}
+                            {isPremiumLocked && (
+                              <View style={{ position: "absolute", inset: 0, backgroundColor: "rgba(0,0,0,0.48)", justifyContent: "center", alignItems: "center" }}>
+                                <Ionicons name="lock-closed" size={20} color={accentColor} />
+                              </View>
+                            )}
+                            {/* Selected checkmark badge */}
+                            {isSelected && !isPremiumLocked && (
+                              <View style={{ position: "absolute", bottom: 1, right: 1, backgroundColor: "#0a0a0a", borderRadius: 10 }}>
+                                <Ionicons name="checkmark-circle" size={18} color={accentColor} />
+                              </View>
+                            )}
+                          </View>
+                          {/* Name */}
+                          <Text
+                            numberOfLines={1}
+                            style={{
+                              color: isSelected ? accentColor : "rgba(255,255,255,0.72)",
+                              fontSize: 10, fontWeight: isSelected ? "800" : "600",
+                              textAlign: "center", marginTop: 5, maxWidth: 66,
+                            }}
+                          >
+                            {p.shortName}{isMystery && !isSelected ? " ★" : ""}
+                          </Text>
+                          {/* Sub-line: wins or token price */}
+                          {isPremiumLocked && premiumCfg ? (
+                            <Text style={{ color: accentColor, fontSize: 9, fontWeight: "700", marginTop: 1 }}>{premiumCfg.tokenPrice}🪙</Text>
+                          ) : wins > 0 ? (
+                            <Text style={{ color: "#4ADE80", fontSize: 9, fontWeight: "700", marginTop: 1 }}>{wins}W</Text>
+                          ) : null}
                         </Pressable>
                       );
                     })}
@@ -7864,28 +7876,34 @@ export default function ArenaScreen() {
             });
           })()}
 
+          {/* ── MYSTERY PERSONAS ─────────────────────────── */}
           {MYSTERY_PERSONA_IDS.filter((id) => !unlockedMystery.includes(id)).length > 0 && (
-            <View style={{ marginBottom: 16, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: "rgba(255,215,0,0.2)", backgroundColor: "rgba(255,215,0,0.05)" }}>
-              <Text style={{ color: "#FFD700", fontSize: 13, fontWeight: "800", textAlign: "center", marginBottom: 6 }}>MYSTERY PERSONAS</Text>
-              <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, textAlign: "center", marginBottom: 10 }}>10–15 D.C. Tokens each to unlock</Text>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
+            <View style={{ marginBottom: 18 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 10, gap: 8 }}>
+                <View style={{ width: 3, height: 14, borderRadius: 2, backgroundColor: "#FFD700" }} />
+                <Text style={{ color: "#FFD700", fontSize: 11, fontWeight: "800", letterSpacing: 1.5 }}>MYSTERY</Text>
+                <View style={{ flex: 1, height: 1, backgroundColor: "rgba(255,215,0,0.2)" }} />
+              </View>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
                 {MYSTERY_PERSONA_IDS.filter((id) => !unlockedMystery.includes(id)).map((pid) => (
                   <Pressable
                     key={pid}
                     onPress={() => unlockMysteryPersona(pid)}
-                    style={{
-                      flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 8,
-                      borderRadius: 20, borderWidth: 1.5, borderColor: "rgba(255,215,0,0.4)",
-                      backgroundColor: "rgba(255,215,0,0.08)",
-                    }}
+                    style={{ width: 68, alignItems: "center" }}
                   >
-                    {mysteryUnlocking === pid ? (
-                      <ActivityIndicator size="small" color="#FFD700" style={{ marginRight: 6 }} />
-                    ) : (
-                      <Ionicons name="help-circle" size={20} color="#FFD700" style={{ marginRight: 6 }} />
-                    )}
-                    <Text style={{ color: "#FFD700", fontSize: 12, fontWeight: "700" }}>??? ({MYSTERY_UNLOCK_COSTS[pid] || 10}🪙)</Text>
-                    <Ionicons name="lock-closed" size={12} color="#FFD700" style={{ marginLeft: 6 }} />
+                    <View style={{
+                      width: 60, height: 60, borderRadius: 30,
+                      borderWidth: 1.5, borderColor: "rgba(255,215,0,0.4)",
+                      backgroundColor: "rgba(255,215,0,0.07)",
+                      justifyContent: "center", alignItems: "center",
+                    }}>
+                      {mysteryUnlocking === pid
+                        ? <ActivityIndicator size="small" color="#FFD700" />
+                        : <Ionicons name="help-circle" size={28} color="#FFD700" />
+                      }
+                    </View>
+                    <Text style={{ color: "#FFD700", fontSize: 10, fontWeight: "700", textAlign: "center", marginTop: 5 }}>???</Text>
+                    <Text style={{ color: "rgba(255,215,0,0.6)", fontSize: 9, fontWeight: "600", marginTop: 1 }}>{MYSTERY_UNLOCK_COSTS[pid] || 10}🪙</Text>
                   </Pressable>
                 ))}
               </View>
@@ -7894,32 +7912,52 @@ export default function ArenaScreen() {
 
           {/* ── PREMIUM LOCKED PERSONAS ────────────────────── */}
           {Object.entries(PREMIUM_PERSONA_CONFIGS).filter(([id]) => isHidden(id)).length > 0 && (
-            <View style={{ marginBottom: 16, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: "rgba(255,107,0,0.3)", backgroundColor: "rgba(255,107,0,0.05)" }}>
-              <Text style={{ color: "#FF6B00", fontSize: 13, fontWeight: "800", textAlign: "center", marginBottom: 4 }}>🔓 PREMIUM PERSONAS</Text>
-              <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, textAlign: "center", marginBottom: 10 }}>Unlock with tokens, 3h+ play time, or debate wins</Text>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
-                {Object.entries(PREMIUM_PERSONA_CONFIGS).filter(([id]) => isHidden(id)).map(([pid, cfg]) => (
-                  <Pressable
-                    key={pid}
-                    onPress={() => deviceId && unlockWithTokens(pid, deviceId, refreshBalance)}
-                    style={{
-                      flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 8,
-                      borderRadius: 20, borderWidth: 1.5, borderColor: cfg.badgeColor + "60",
-                      backgroundColor: cfg.badgeColor + "10",
-                    }}
-                  >
-                    {premiumUnlocking === pid ? (
-                      <ActivityIndicator size="small" color={cfg.badgeColor} style={{ marginRight: 6 }} />
-                    ) : (
-                      <Ionicons name="lock-closed" size={14} color={cfg.badgeColor} style={{ marginRight: 6 }} />
-                    )}
-                    <Text style={{ color: cfg.badgeColor, fontSize: 12, fontWeight: "700" }}>{cfg.name} ({cfg.tokenPrice}🪙)</Text>
-                  </Pressable>
-                ))}
+            <View style={{ marginBottom: 18 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 10, gap: 8 }}>
+                <View style={{ width: 3, height: 14, borderRadius: 2, backgroundColor: "#FF6B00" }} />
+                <Text style={{ color: "#FF6B00", fontSize: 11, fontWeight: "800", letterSpacing: 1.5 }}>🔓 PREMIUM</Text>
+                <View style={{ flex: 1, height: 1, backgroundColor: "rgba(255,107,0,0.25)" }} />
               </View>
-              <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, textAlign: "center", marginTop: 8 }}>
-                Or earn free: {Object.values(PREMIUM_PERSONA_CONFIGS).map(c => `${c.timeMinutes/60}h play / ${c.challengeWins} arena wins`)[0]}+
-              </Text>
+              <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, marginBottom: 10 }}>Unlock with tokens, 3h+ play time, or debate wins</Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+                {Object.entries(PREMIUM_PERSONA_CONFIGS).filter(([id]) => isHidden(id)).map(([pid, cfg]) => {
+                  const p = getPersona(pid);
+                  return (
+                    <Pressable
+                      key={pid}
+                      onPress={() => deviceId && unlockWithTokens(pid, deviceId, refreshBalance)}
+                      style={{ width: 68, alignItems: "center" }}
+                    >
+                      <View style={{
+                        width: 60, height: 60, borderRadius: 30,
+                        borderWidth: 1.5, borderColor: cfg.badgeColor + "55",
+                        backgroundColor: cfg.badgeColor + "10",
+                        overflow: "hidden", justifyContent: "center", alignItems: "center",
+                      }}>
+                        {p?.image ? (
+                          <>
+                            <Image source={p.image} style={[{ width: 60, height: 60 }, CARTOON_FILTER]} />
+                            <View style={{ position: "absolute", inset: 0, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", alignItems: "center" }}>
+                              {premiumUnlocking === pid
+                                ? <ActivityIndicator size="small" color={cfg.badgeColor} />
+                                : <Ionicons name="lock-closed" size={20} color={cfg.badgeColor} />
+                              }
+                            </View>
+                          </>
+                        ) : (
+                          premiumUnlocking === pid
+                            ? <ActivityIndicator size="small" color={cfg.badgeColor} />
+                            : <Ionicons name="lock-closed" size={20} color={cfg.badgeColor} />
+                        )}
+                      </View>
+                      <Text numberOfLines={1} style={{ color: cfg.badgeColor, fontSize: 10, fontWeight: "700", textAlign: "center", marginTop: 5, maxWidth: 66 }}>
+                        {cfg.name.split(" ")[0]}
+                      </Text>
+                      <Text style={{ color: cfg.badgeColor + "99", fontSize: 9, fontWeight: "600", marginTop: 1 }}>{cfg.tokenPrice}🪙</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
             </View>
           )}
 
