@@ -6,6 +6,7 @@ import {
   setArenaPersonaPrompt as _setArenaPersonaPrompt,
 } from "./arena-no-ai-guard";
 import { execFile } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { promisify } from "node:util";
 import { writeFileSync, readFileSync, unlinkSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -17472,6 +17473,261 @@ Respond with a JSON array ONLY — no markdown, no code fences, no preamble. Exa
     setArenaPersonaPrompt(personaId, prompt);
     const guardedPrompt = getArenaPersonaPrompt(personaId);
     return res.json({ ok: true, personaId, guardedPrompt });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Referral system
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  let _referralTableEnsured = false;
+  async function ensureReferralTable(db: Pool) {
+    if (_referralTableEnsured) return;
+    try {
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS referral_grants (
+          id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+          referrer_device_id TEXT NOT NULL,
+          referred_device_id TEXT NOT NULL UNIQUE,
+          ip_address TEXT,
+          browser_fingerprint TEXT,
+          granted_at TIMESTAMP DEFAULT NOW()
+        )
+      `);
+      // Add columns if table existed before this migration
+      await db.query(`ALTER TABLE referral_grants ADD COLUMN IF NOT EXISTS ip_address TEXT`);
+      await db.query(`ALTER TABLE referral_grants ADD COLUMN IF NOT EXISTS browser_fingerprint TEXT`);
+      await db.query(`ALTER TABLE token_accounts ADD COLUMN IF NOT EXISTS referral_code TEXT UNIQUE`);
+      // Atomic per-IP rate limit table
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS referral_ip_limits (
+          ip_address TEXT NOT NULL,
+          claim_day DATE NOT NULL,
+          claim_count INTEGER NOT NULL DEFAULT 0,
+          PRIMARY KEY (ip_address, claim_day)
+        )
+      `);
+      // Partial unique index: prevents the same fingerprint from claiming twice.
+      // PARTIAL (WHERE NOT NULL) so rows without a fingerprint don't conflict with each other.
+      await db.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS referral_grants_fingerprint_unique
+        ON referral_grants (browser_fingerprint)
+        WHERE browser_fingerprint IS NOT NULL
+      `);
+      _referralTableEnsured = true;
+    } catch {}
+  }
+
+  // GET /api/referral/generate — returns (or creates) a referral code for this device
+  app.get("/api/referral/generate", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+
+      const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      try {
+        await ensureReferralTable(db);
+
+        // Ensure account exists
+        await getOrCreateAccount(deviceId);
+
+        // Return existing code if present
+        const existing = await db.query(
+          `SELECT referral_code FROM token_accounts WHERE device_id = $1`,
+          [deviceId]
+        );
+        const existingCode = existing.rows[0]?.referral_code;
+        if (existingCode) {
+          return res.json({
+            code: existingCode,
+            url: `https://thearena.rip?ref=${existingCode}`,
+            nativeUrl: `chatdjt://?ref=${existingCode}`,
+          });
+        }
+
+        // Generate a cryptographically random 6-char alphanumeric code with collision retry
+        let finalCode: string = "";
+        for (let attempt = 0; attempt < 5; attempt++) {
+          const candidate = randomBytes(4).toString("hex").slice(0, 6).toUpperCase();
+          const updated = await db.query(
+            `UPDATE token_accounts SET referral_code = $1 WHERE device_id = $2 AND referral_code IS NULL RETURNING referral_code`,
+            [candidate, deviceId]
+          );
+          if (updated.rows.length > 0) {
+            finalCode = updated.rows[0].referral_code;
+            break;
+          }
+          // Another request raced and set a code — re-read it
+          const reread = await db.query(`SELECT referral_code FROM token_accounts WHERE device_id = $1`, [deviceId]);
+          if (reread.rows[0]?.referral_code) {
+            finalCode = reread.rows[0].referral_code;
+            break;
+          }
+        }
+        if (!finalCode) throw new Error("Failed to assign referral code after retries");
+
+        return res.json({
+          code: finalCode,
+          url: `https://thearena.rip?ref=${finalCode}`,
+          nativeUrl: `chatdjt://?ref=${finalCode}`,
+        });
+      } finally {
+        await db.end();
+      }
+    } catch (err: any) {
+      console.error("[referral/generate] error:", err);
+      res.status(500).json({ error: "Failed to generate referral code" });
+    }
+  });
+
+  // Local copy — mirrors the private set in tokens.ts so routes.ts has no implicit dependency
+  const REFERRAL_LOCALHOST_IPS = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1", "localhost"]);
+
+  // POST /api/referral/claim — new device claims a referral code; both parties get 2 tokens
+  app.post("/api/referral/claim", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+
+      const { code } = req.body;
+      if (!code || typeof code !== "string") {
+        return res.status(400).json({ error: "Referral code required" });
+      }
+
+      const isDev = process.env.NODE_ENV === "development";
+
+      const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      try {
+        await ensureReferralTable(db);
+
+        // Find the referrer by code
+        const referrerResult = await db.query(
+          `SELECT id, device_id FROM token_accounts WHERE referral_code = $1`,
+          [code.toUpperCase().trim()]
+        );
+        if (referrerResult.rows.length === 0) {
+          return res.status(404).json({ error: "Invalid referral code" });
+        }
+        const referrerDeviceId = referrerResult.rows[0].device_id;
+        const referrerAccountId = referrerResult.rows[0].id;
+
+        // Prevent self-referral
+        if (referrerDeviceId === deviceId) {
+          return res.status(400).json({ error: "Cannot use your own referral code" });
+        }
+
+        // Server-derived socket address — cannot be spoofed via request headers.
+        // Used as the rate-limit key. Behind a trusted reverse proxy this is the
+        // proxy's IP; it still enforces per-connection limits without trusting
+        // any client-controlled header.
+        const socketIp = req.socket.remoteAddress || "";
+        const reqFingerprint = (req.headers["x-browser-fp"] as string) || undefined;
+
+        // Ensure referred account exists. Pass socket IP + fingerprint so the account
+        // row is attributed with real connection signals rather than null values.
+        await getOrCreateAccount(deviceId, { ipAddress: socketIp || undefined, fingerprint: reqFingerprint });
+
+        // Re-read the referred account to use its stored signals for all checks.
+        const referredRow = await db.query(
+          `SELECT id, created_at FROM token_accounts WHERE device_id = $1`,
+          [deviceId]
+        );
+        if (referredRow.rows.length === 0) {
+          return res.status(500).json({ error: "Account initialization failed" });
+        }
+        const referred = referredRow.rows[0];
+
+        // Account must have been created within the last 7 days.
+        // Prevents existing users from fabricating new device IDs after the fact.
+        if (!isDev) {
+          const ageMs = Date.now() - new Date(referred.created_at).getTime();
+          if (ageMs > 7 * 24 * 60 * 60 * 1000) {
+            return res.status(403).json({ error: "Referral bonus is only available to new accounts." });
+          }
+        }
+
+        const REFERRAL_TOKENS = 2;
+
+        // ── Atomic transaction: rate-limit + insert grant + credit both accounts ──
+        // All anti-abuse enforcement happens inside the transaction so no race
+        // between concurrent requests can bypass it.
+        const client = await db.connect();
+        try {
+          await client.query("BEGIN");
+
+          // Concurrency-safe per-connection rate-limit using atomic INSERT … ON CONFLICT.
+          // Keyed on socket IP (server-derived) and calendar day.
+          if (!isDev && socketIp && !REFERRAL_LOCALHOST_IPS.has(socketIp)) {
+            const limitRow = await client.query(
+              `INSERT INTO referral_ip_limits (ip_address, claim_day, claim_count)
+               VALUES ($1, CURRENT_DATE, 1)
+               ON CONFLICT (ip_address, claim_day) DO UPDATE
+                 SET claim_count = referral_ip_limits.claim_count + 1
+               RETURNING claim_count`,
+              [socketIp]
+            );
+            if ((limitRow.rows[0]?.claim_count ?? 0) > 3) {
+              await client.query("ROLLBACK");
+              return res.status(429).json({ error: "Too many referral claims from this connection. Try again later." });
+            }
+          }
+
+          // Insert grant record.
+          // — UNIQUE on referred_device_id prevents concurrent double-claims for the same device.
+          // — PARTIAL UNIQUE INDEX on browser_fingerprint (where not null) prevents the same
+          //   browser fingerprint from claiming more than once; enforced by the DB constraint
+          //   so concurrent requests with the same fingerprint only one succeeds.
+          await client.query(
+            `INSERT INTO referral_grants (referrer_device_id, referred_device_id, ip_address, browser_fingerprint, granted_at)
+             VALUES ($1, $2, $3, $4, NOW())`,
+            [referrerDeviceId, deviceId, socketIp || null, reqFingerprint || null]
+          );
+
+          // Grant tokens to referrer
+          await client.query(
+            `UPDATE token_accounts SET tokens = tokens + $1, updated_at = NOW() WHERE device_id = $2`,
+            [REFERRAL_TOKENS, referrerDeviceId]
+          );
+          await client.query(
+            `INSERT INTO token_transactions (account_id, type, amount, description, created_at)
+             VALUES ($1, 'reward', $2, 'Referral reward — a friend joined with your invite link', NOW())`,
+            [referrerAccountId, REFERRAL_TOKENS]
+          );
+
+          // Grant tokens to referred device
+          await client.query(
+            `UPDATE token_accounts SET tokens = tokens + $1, updated_at = NOW() WHERE device_id = $2`,
+            [REFERRAL_TOKENS, deviceId]
+          );
+          await client.query(
+            `INSERT INTO token_transactions (account_id, type, amount, description, created_at)
+             VALUES ($1, 'reward', $2, 'Welcome referral bonus — joined via a friend''s invite link', NOW())`,
+            [referred.id, REFERRAL_TOKENS]
+          );
+
+          await client.query("COMMIT");
+        } catch (txErr) {
+          await client.query("ROLLBACK");
+          throw txErr;
+        } finally {
+          client.release();
+        }
+
+        return res.json({
+          success: true,
+          tokensGranted: REFERRAL_TOKENS,
+          message: `+${REFERRAL_TOKENS} tokens added to your account and your friend's!`,
+        });
+      } finally {
+        await db.end();
+      }
+    } catch (err: any) {
+      // Unique constraint violation = race condition, device already claimed
+      if (err.code === "23505") {
+        return res.status(409).json({ error: "Referral already claimed for this device" });
+      }
+      console.error("[referral/claim] error:", err);
+      res.status(500).json({ error: "Failed to claim referral" });
+    }
   });
 
   // ─────────────────────────────────────────────────────────────────────────────

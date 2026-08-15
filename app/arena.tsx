@@ -5734,6 +5734,38 @@ export default function ArenaScreen() {
     try { await Share.share({ message: text }); } catch {}
   }, []);
 
+  const handleReferFriend = useCallback(async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const headers: Record<string, string> = {};
+      if (deviceId) headers["x-device-id"] = deviceId;
+      const res = await fetch(new URL("/api/referral/generate", getApiUrl()).toString(), { headers });
+      if (!res.ok) throw new Error("Failed to generate referral code");
+      const { url, nativeUrl } = await res.json();
+      // Include the platform-appropriate URL in the message body.
+      // Android Share ignores the separate `url` field — both parties need the link
+      // inside the message text. iOS shows the `url` field as a tappable attachment.
+      // Web (https) URL is always included so recipients without the app can still open it.
+      let shareMessage: string;
+      let shareUrlProp: string | undefined;
+      if (Platform.OS === "web") {
+        shareMessage = `Join me in The Arena — we both get free bet tokens when you sign up → ${url}`;
+        shareUrlProp = url;
+      } else {
+        // Native: embed the chatdjt:// link in the message so Android recipients can tap it,
+        // and also include the web URL as a fallback for people who haven't installed the app yet.
+        const native = nativeUrl || url;
+        shareMessage = `Join me in The Arena — we both get free bet tokens when you sign up!\n\nOpen app → ${native}\nOr visit → ${url}`;
+        shareUrlProp = native; // iOS shows this as a separate tappable URL attachment
+      }
+      await Share.share({ message: shareMessage, url: shareUrlProp });
+    } catch (err) {
+      console.warn("[referral] share failed:", err);
+      // Fallback share without a personalised code
+      await Share.share({ message: "Join me in The Arena! → https://thearena.rip" }).catch(() => {});
+    }
+  }, [deviceId]);
+
   const showInterruptionBanner = useCallback((speakerId: string, speakerName: string, text: string) => {
     if (interruptionTimerRef.current) clearTimeout(interruptionTimerRef.current);
     setInterruptionOverlay({ speakerId, speakerName, text });
@@ -8696,6 +8728,10 @@ export default function ArenaScreen() {
         <Pressable onPress={shareCurrentSession} style={s.arenaActionBtn} hitSlop={8}>
           <Ionicons name="share-outline" size={14} color="#D4A420" />
           <Text style={s.arenaActionBtnText}>SHARE</Text>
+        </Pressable>
+        <Pressable onPress={handleReferFriend} style={[s.arenaActionBtn, { borderColor: "#22c55e" }]} hitSlop={8}>
+          <Ionicons name="person-add-outline" size={14} color="#22c55e" />
+          <Text style={[s.arenaActionBtnText, { color: "#22c55e" }]}>REFER</Text>
         </Pressable>
         <Pressable onPress={() => router.push("/arena-replay")} style={s.arenaActionBtn} hitSlop={8}>
           <Ionicons name="albums-outline" size={14} color="#D4A420" />

@@ -35,7 +35,8 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
-import { getOrCreateDeviceId } from "@/lib/token-context";
+import * as Linking from "expo-linking";
+import { getOrCreateDeviceId, generateBrowserFingerprint } from "@/lib/token-context";
 
 const DISCLAIMER_KEY = "chatdjt_disclaimer_accepted";
 
@@ -491,6 +492,55 @@ export default function RootLayout() {
       }
       setDisclaimerChecked(true);
     });
+  }, []);
+
+  // Referral claim — shared helper used by both cold-start and foreground deep-link handlers
+  async function tryClaimReferralCode(url: string) {
+    try {
+      const parsed = Linking.parse(url);
+      const refCode = parsed.queryParams?.ref;
+      if (!refCode || typeof refCode !== "string") return;
+
+      // Only claim once per device (client-side guard; server also enforces)
+      const CLAIMED_KEY = "referral_claimed";
+      const alreadyClaimed = await AsyncStorage.getItem(CLAIMED_KEY);
+      if (alreadyClaimed) return;
+
+      const deviceId = await getOrCreateDeviceId();
+      const fingerprint = generateBrowserFingerprint();
+      const claimHeaders: Record<string, string> = {
+        "Content-Type": "application/json",
+        "x-device-id": deviceId,
+      };
+      if (fingerprint) claimHeaders["x-browser-fp"] = fingerprint;
+      const baseUrl = getApiUrl();
+      const resp = await fetch(new URL("/api/referral/claim", baseUrl).toString(), {
+        method: "POST",
+        headers: claimHeaders,
+        body: JSON.stringify({ code: refCode }),
+      });
+      if (resp.ok || resp.status === 409) {
+        // Mark as claimed regardless (409 = already claimed on server)
+        await AsyncStorage.setItem(CLAIMED_KEY, "true");
+      }
+    } catch {
+      // Non-fatal — referral claim failure should never block app launch
+    }
+  }
+
+  // Cold-start: check the URL that launched the app (works on web and native custom-scheme links)
+  useEffect(() => {
+    Linking.getInitialURL().then((url) => {
+      if (url) tryClaimReferralCode(url);
+    }).catch(() => {});
+  }, []);
+
+  // Foreground: subscribe to URLs that arrive while the app is already running
+  useEffect(() => {
+    const sub = Linking.addEventListener("url", ({ url }) => {
+      if (url) tryClaimReferralCode(url);
+    });
+    return () => sub.remove();
   }, []);
 
   // Pending deep-link URL from a cold-start notification tap.

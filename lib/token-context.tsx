@@ -45,7 +45,7 @@ async function getOrCreateDeviceId(): Promise<string> {
   return id;
 }
 
-function generateBrowserFingerprint(): string {
+export function generateBrowserFingerprint(): string {
   if (Platform.OS !== "web") return "";
   try {
     const nav = typeof navigator !== "undefined" ? navigator : null;
