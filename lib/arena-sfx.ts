@@ -236,35 +236,39 @@ export async function playDrumroll() {
   }
 }
 
-// Elongated crowd cheer — multiple overlapping waves for a full arena roar.
-// Used by Michael Buffer after "LET'S GET READY TO RUMBLE" and intro build-ups.
+// Elongated crowd cheer — plays the real crowd-cheer audio (both web and native),
+// optionally looping/waiting to fill the requested durationMs.
 export async function playLongCrowdCheer(durationMs = 3500): Promise<void> {
+  const CHEER_FILE = "/public/crowd-cheer.mp3";
   if (Platform.OS === "web") {
     try {
-      const ctx = getWebAudioContext();
-      const waves = 18;
-      for (let i = 0; i < waves; i++) {
-        const delay = i * (durationMs / waves / 1000);
-        const freq = 250 + Math.random() * 500;
-        const vol = 0.06 + Math.random() * 0.07;
-        setTimeout(() => {
-          playWebTone(freq, 0.4 + Math.random() * 0.4, "sawtooth", vol);
-          playWebTone(freq * 1.3, 0.3 + Math.random() * 0.3, "triangle", vol * 0.7);
-        }, delay * 1000);
-      }
-      // Rising triumphant arpeggio at the peak
-      setTimeout(() => {
-        [523, 659, 784, 1047, 1319].forEach((f, i) => {
-          setTimeout(() => playWebTone(f, 0.6, "sine", 0.22), i * 120);
-        });
-      }, durationMs * 0.55);
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      const url = `${baseUrl}${CHEER_FILE}`;
+      const playOne = () => new Promise<void>((resolve) => {
+        try {
+          const audio = new window.Audio(url);
+          audio.volume = 0.85;
+          audio.onended = () => resolve();
+          audio.onerror = () => resolve();
+          audio.play().catch(() => resolve());
+        } catch { resolve(); }
+      });
+      // Layer up to 2 plays to fill the duration
+      const start = Date.now();
+      await playOne();
+      if (Date.now() - start < durationMs - 500) await playOne();
     } catch {}
-    await new Promise<void>(r => setTimeout(r, durationMs));
+    await new Promise<void>(r => setTimeout(r, Math.max(0, durationMs - 500)));
   } else {
     try {
-      await playNativeSound("/public/winner-chosen.m4a", 0.8);
+      // Play crowd cheer; for longer durations kick off a second wave
+      const promises: Promise<void>[] = [playNativeSound(CHEER_FILE, 0.85)];
+      if (durationMs >= 4000) {
+        setTimeout(() => { playNativeSound(CHEER_FILE, 0.7).catch(() => {}); }, 1800);
+      }
+      await promises[0];
     } catch {}
-    await new Promise<void>(r => setTimeout(r, Math.max(0, durationMs - 1500)));
+    await new Promise<void>(r => setTimeout(r, Math.max(0, durationMs - 2000)));
   }
 }
 

@@ -789,6 +789,7 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   floydmayweather: require("@/assets/images/persona-floydmayweather.jpg"),
   georgeforeman: require("@/assets/images/persona-georgeforeman.jpg"),
   michaelbuffer: require("@/assets/images/persona-michaelbuffer.jpg"),
+  muhammadali:   require("@/assets/images/persona-muhammadali.jpg"),
 };
 
 const FX_KEY = "interview_fx_enabled_v1";
