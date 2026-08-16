@@ -4705,6 +4705,7 @@ export default function DebateStage() {
             {debaterPool.filter(p =>
               p.id !== intervieweeId &&
               p.id !== MODERATORS[moderatorStyle].personaId &&
+              p.id !== "michaelbuffer" &&
               !(MYSTERY_PERSONA_IDS.includes(p.id) && !unlockedMystery.includes(p.id)) &&
               !isHidden(p.id)
             ).map((p) => {
@@ -4782,6 +4783,7 @@ export default function DebateStage() {
             {debaterPool.filter(p =>
               p.id !== interviewerId &&
               p.id !== MODERATORS[moderatorStyle].personaId &&
+              p.id !== "michaelbuffer" &&
               !(MYSTERY_PERSONA_IDS.includes(p.id) && !unlockedMystery.includes(p.id)) &&
               !isHidden(p.id)
             ).map((p) => {
