@@ -5794,17 +5794,19 @@ export default function ArenaScreen() {
   // doesn't tear down and restart the interval on every cycle.
   const betTargetId = arenaBet?.targetPersonaId ?? null;
   const hasBetResult = !!betResult;
+  // Run the ticker pre-bet too (≥2 personas selected) so the pick buttons show live labels.
+  const hasEnoughPersonasForOdds = selectedPersonas.length >= 2;
   useEffect(() => {
-    if (!isRunning || !betTargetId || hasBetResult) {
+    if (!isRunning || hasBetResult || (!betTargetId && !hasEnoughPersonasForOdds)) {
       setLiveOdds({});
       prevOddsLabelsRef.current = {};
       return;
     }
-    // Run immediately when a bet becomes active, then every 45 s
+    // Run immediately then every 45 s
     recalculateOddsRef.current();
     const id = setInterval(() => recalculateOddsRef.current(), 45_000);
     return () => clearInterval(id);
-  }, [isRunning, betTargetId, hasBetResult]);
+  }, [isRunning, betTargetId, hasBetResult, hasEnoughPersonasForOdds]);
 
   const shareCurrentSession = useCallback(async () => {
     const msgs = recordingMessagesRef.current;
@@ -8273,12 +8275,23 @@ export default function ArenaScreen() {
                       const winPct = total >= MIN_DEBATES ? Math.round((rec.wins / total) * 100) : null;
                       const isFavorite = favoritePid === pid;
                       const isUnderdog = underdogPid === pid;
+                      // Live odds label (from recalculateOdds) takes priority when the debate is running
+                      const liveOddsEntry = liveOdds[pid];
+                      const liveLabel = liveOddsEntry?.label ?? null;
+                      const liveMult = liveOddsEntry?.multiplier ?? null;
+                      const liveLabelColor =
+                        liveLabel === "FAVORITE" || liveLabel === "CO-FAVORITE" ? "#4ADE80" : "#F87171";
+                      // Border/bg highlight: prefer live label over static win-rate label
+                      const isLiveFav = liveLabel === "FAVORITE" || liveLabel === "CO-FAVORITE";
+                      const isLiveUnder = liveLabel === "UNDERDOG";
+                      const effectiveFav = liveLabel ? isLiveFav : isFavorite;
+                      const effectiveUnder = liveLabel ? isLiveUnder : isUnderdog;
                       return (
                         <Pressable key={pid} onPress={() => { Haptics.selectionAsync(); setBetPickId(pid); }}
                           style={{
                             paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5,
-                            borderColor: picked ? "#FBBF24" : isFavorite ? "rgba(74,222,128,0.4)" : isUnderdog ? "rgba(248,113,113,0.4)" : "rgba(255,255,255,0.15)",
-                            backgroundColor: picked ? "rgba(251,191,36,0.15)" : isFavorite ? "rgba(74,222,128,0.06)" : isUnderdog ? "rgba(248,113,113,0.06)" : "rgba(255,255,255,0.04)",
+                            borderColor: picked ? "#FBBF24" : effectiveFav ? "rgba(74,222,128,0.4)" : effectiveUnder ? "rgba(248,113,113,0.4)" : "rgba(255,255,255,0.15)",
+                            backgroundColor: picked ? "rgba(251,191,36,0.15)" : effectiveFav ? "rgba(74,222,128,0.06)" : effectiveUnder ? "rgba(248,113,113,0.06)" : "rgba(255,255,255,0.04)",
                             alignItems: "center",
                           }}>
                           <Text style={{ color: picked ? "#FBBF24" : "#888", fontSize: 12, fontWeight: "700" }}>{p.shortName}</Text>
@@ -8287,15 +8300,24 @@ export default function ArenaScreen() {
                               {rec.wins}W-{rec.losses}L
                             </Text>
                           )}
-                          {isFavorite && (
-                            <Text style={{ color: "#4ADE80", fontSize: 8, fontWeight: "900", marginTop: 2, letterSpacing: 0.5 }}>
-                              ★ FAVORITE {winPct !== null ? `${winPct}%` : ""}
+                          {/* Live odds label while debate is running; static win-rate label otherwise */}
+                          {liveLabel ? (
+                            <Text style={{ color: liveLabelColor, fontSize: 8, fontWeight: "900", marginTop: 2, letterSpacing: 0.5 }}>
+                              {liveLabel === "FAVORITE" || liveLabel === "CO-FAVORITE" ? "★" : "↑"} {liveLabel}{liveMult !== null ? ` ${liveMult}×` : ""}
                             </Text>
-                          )}
-                          {isUnderdog && (
-                            <Text style={{ color: "#F87171", fontSize: 8, fontWeight: "900", marginTop: 2, letterSpacing: 0.5 }}>
-                              ↑ UNDERDOG {winPct !== null ? `${winPct}%` : ""}
-                            </Text>
+                          ) : (
+                            <>
+                              {isFavorite && (
+                                <Text style={{ color: "#4ADE80", fontSize: 8, fontWeight: "900", marginTop: 2, letterSpacing: 0.5 }}>
+                                  ★ FAVORITE {winPct !== null ? `${winPct}%` : ""}
+                                </Text>
+                              )}
+                              {isUnderdog && (
+                                <Text style={{ color: "#F87171", fontSize: 8, fontWeight: "900", marginTop: 2, letterSpacing: 0.5 }}>
+                                  ↑ UNDERDOG {winPct !== null ? `${winPct}%` : ""}
+                                </Text>
+                              )}
+                            </>
                           )}
                         </Pressable>
                       );
