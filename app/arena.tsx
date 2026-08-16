@@ -6033,6 +6033,26 @@ export default function ArenaScreen() {
     }
   }, [fetchReferralUrls]);
 
+  // ── Referral share copy ────────────────────────────────────────────────────
+  // Update these constants to change share text without touching handler logic.
+  const REFERRAL_MSG_WHATSAPP = (url: string) =>
+    `🔥 AI politicians go HEAD-TO-HEAD in The Arena — Trump, Biden, Carville & more.\n` +
+    `Drop in, pick a side, and we BOTH score free bet tokens 🎲\n👉 ${url}`;
+
+  const REFERRAL_MSG_TWITTER = (url: string) =>
+    `🔥 AI Trump vs Biden vs the whole squad — live debates, lie detection & real stakes.\n` +
+    `Sign up & we both get free tokens 🎲 #TheArena ${url}`;
+
+  const REFERRAL_MSG_NATIVE = (nativeUrl: string, webUrl: string) =>
+    `🔥 AI politicians go at it in The Arena — debates, lie detection & bet tokens.\n` +
+    `We BOTH get free tokens when you sign up 🎲\n` +
+    `Open app → ${nativeUrl}\nOr visit → ${webUrl}`;
+
+  const REFERRAL_MSG_WEB = (url: string) =>
+    `🔥 AI politicians go at it in The Arena — debates, lie detection & bet tokens.\n` +
+    `We BOTH get free tokens when you sign up 🎲 → ${url}`;
+  // ───────────────────────────────────────────────────────────────────────────
+
   const handleShareReferralLink = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
@@ -6040,17 +6060,17 @@ export default function ArenaScreen() {
       let shareMessage: string;
       let shareUrlProp: string | undefined;
       if (Platform.OS === "web") {
-        shareMessage = `Join me in The Arena — we both get free bet tokens when you sign up → ${url}`;
+        shareMessage = REFERRAL_MSG_WEB(url);
         shareUrlProp = url;
       } else {
         const native = nativeUrl || url;
-        shareMessage = `Join me in The Arena — we both get free bet tokens when you sign up!\n\nOpen app → ${native}\nOr visit → ${url}`;
+        shareMessage = REFERRAL_MSG_NATIVE(native, url);
         shareUrlProp = native;
       }
       await Share.share({ message: shareMessage, url: shareUrlProp });
     } catch (err) {
       console.warn("[referral] share failed:", err);
-      await Share.share({ message: "Join me in The Arena! → https://thearena.rip" }).catch(() => {});
+      await Share.share({ message: "🔥 Join me in The Arena! → https://thearena.rip" }).catch(() => {});
     }
   }, [fetchReferralUrls]);
 
@@ -6058,7 +6078,7 @@ export default function ArenaScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       const { url } = await fetchReferralUrls();
-      const text = encodeURIComponent(`Join me in The Arena — we both get free bet tokens when you sign up → ${url}`);
+      const text = encodeURIComponent(REFERRAL_MSG_WHATSAPP(url));
       const waWeb = `https://wa.me/?text=${text}`;
       if (Platform.OS === "web") {
         // On web, canOpenURL always returns true for custom schemes — go straight to HTTPS.
@@ -6077,7 +6097,7 @@ export default function ArenaScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       const { url } = await fetchReferralUrls();
-      const text = encodeURIComponent(`Join me in The Arena — we both get free bet tokens when you sign up → ${url}`);
+      const text = encodeURIComponent(REFERRAL_MSG_TWITTER(url));
       const twitterWeb = `https://twitter.com/intent/tweet?text=${text}`;
       if (Platform.OS === "web") {
         // On web, canOpenURL always returns true for custom schemes — go straight to HTTPS.
