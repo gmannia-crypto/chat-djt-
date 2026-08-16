@@ -17,7 +17,8 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.chatdjt",
       "infoPlist": {
-        "UIBackgroundModes": ["audio"]
+        "UIBackgroundModes": ["audio"],
+        "LSApplicationQueriesSchemes": ["whatsapp", "twitter"]
       }
     },
     "android": {

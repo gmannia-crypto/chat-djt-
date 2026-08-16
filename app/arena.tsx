@@ -6054,6 +6054,44 @@ export default function ArenaScreen() {
     }
   }, [fetchReferralUrls]);
 
+  const handleShareToWhatsApp = useCallback(async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const { url } = await fetchReferralUrls();
+      const text = encodeURIComponent(`Join me in The Arena — we both get free bet tokens when you sign up → ${url}`);
+      const waWeb = `https://wa.me/?text=${text}`;
+      if (Platform.OS === "web") {
+        // On web, canOpenURL always returns true for custom schemes — go straight to HTTPS.
+        await Linking.openURL(waWeb);
+      } else {
+        const waDeep = `whatsapp://send?text=${text}`;
+        const canOpen = await Linking.canOpenURL(waDeep).catch(() => false);
+        await Linking.openURL(canOpen ? waDeep : waWeb);
+      }
+    } catch (err) {
+      console.warn("[referral] WhatsApp share failed:", err);
+    }
+  }, [fetchReferralUrls]);
+
+  const handleShareToTwitter = useCallback(async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const { url } = await fetchReferralUrls();
+      const text = encodeURIComponent(`Join me in The Arena — we both get free bet tokens when you sign up → ${url}`);
+      const twitterWeb = `https://twitter.com/intent/tweet?text=${text}`;
+      if (Platform.OS === "web") {
+        // On web, canOpenURL always returns true for custom schemes — go straight to HTTPS.
+        await Linking.openURL(twitterWeb);
+      } else {
+        const twitterDeep = `twitter://post?message=${text}`;
+        const canOpen = await Linking.canOpenURL(twitterDeep).catch(() => false);
+        await Linking.openURL(canOpen ? twitterDeep : twitterWeb);
+      }
+    } catch (err) {
+      console.warn("[referral] Twitter share failed:", err);
+    }
+  }, [fetchReferralUrls]);
+
   const showInterruptionBanner = useCallback((speakerId: string, speakerName: string, text: string) => {
     if (interruptionTimerRef.current) clearTimeout(interruptionTimerRef.current);
     setInterruptionOverlay({ speakerId, speakerName, text });
@@ -10075,8 +10113,28 @@ export default function ArenaScreen() {
               </Pressable>
             </View>
 
+            {/* Quick-share icon buttons */}
+            <View style={{ marginTop: 16, flexDirection: "row", gap: 12 }}>
+              {/* WhatsApp */}
+              <Pressable
+                onPress={handleShareToWhatsApp}
+                style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(37,211,102,0.10)", borderWidth: 1, borderColor: "rgba(37,211,102,0.35)", borderRadius: 12, paddingVertical: 13, gap: 8 }}
+              >
+                <MaterialCommunityIcons name="whatsapp" size={20} color="#25D366" />
+                <Text style={{ color: "#25D366", fontSize: 14, fontWeight: "800", letterSpacing: 0.3 }}>WhatsApp</Text>
+              </Pressable>
+              {/* Twitter / X */}
+              <Pressable
+                onPress={handleShareToTwitter}
+                style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.06)", borderWidth: 1, borderColor: "rgba(255,255,255,0.15)", borderRadius: 12, paddingVertical: 13, gap: 8 }}
+              >
+                <MaterialCommunityIcons name="twitter" size={20} color="rgba(255,255,255,0.75)" />
+                <Text style={{ color: "rgba(255,255,255,0.75)", fontSize: 14, fontWeight: "800", letterSpacing: 0.3 }}>Twitter / X</Text>
+              </Pressable>
+            </View>
+
             {/* Action buttons */}
-            <View style={{ marginTop: 20, gap: 12 }}>
+            <View style={{ marginTop: 12, gap: 12 }}>
               <Pressable
                 onPress={handleCopyReferralLink}
                 style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(34,197,94,0.12)", borderWidth: 1.5, borderColor: "rgba(34,197,94,0.55)", borderRadius: 14, paddingVertical: 16, gap: 10 }}
