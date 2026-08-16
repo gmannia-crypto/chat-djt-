@@ -17678,6 +17678,21 @@ Respond with a JSON array ONLY — no markdown, no code fences, no preamble. Exa
             }
           }
 
+          // Explicit fingerprint check: reject if this browser fingerprint has
+          // already received a successful grant, even on a different device ID.
+          // Catches the case where two brand-new devices share the same physical
+          // browser/fingerprint and both try to claim within the 48-hour window.
+          if (reqFingerprint) {
+            const fpCheck = await client.query(
+              `SELECT 1 FROM referral_grants WHERE browser_fingerprint = $1 LIMIT 1`,
+              [reqFingerprint]
+            );
+            if (fpCheck.rows.length > 0) {
+              await client.query("ROLLBACK");
+              return res.status(409).json({ error: "Referral already claimed from this device" });
+            }
+          }
+
           // Insert grant record.
           // — UNIQUE on referred_device_id prevents concurrent double-claims for the same device.
           // — PARTIAL UNIQUE INDEX on browser_fingerprint (where not null) prevents the same
