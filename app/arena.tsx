@@ -3947,6 +3947,9 @@ export default function ArenaScreen() {
   const [showGlobalLeaderboard, setShowGlobalLeaderboard] = useState(false);
   const [showArenaRules, setShowArenaRules] = useState(false);
   const [showHallOfFame, setShowHallOfFame] = useState(false);
+  const [showReferModal, setShowReferModal] = useState(false);
+  const [referLinkCopied, setReferLinkCopied] = useState(false);
+  const referUrlCacheRef = useRef<{ url: string; nativeUrl?: string } | null>(null);
   const [hofData, setHofData] = useState<{ leaderboard: Array<{ personaId: string; totalWins: number; totalLosses: number; totalDebates: number; winPct: number; bestRivalId: string | null; bestRivalWins: number }>; userPicks: Array<{ personaId: string; wins: number; losses: number }> } | null>(null);
   const [hofLoading, setHofLoading] = useState(false);
   const [hofLinkCopied, setHofLinkCopied] = useState(false);
@@ -5821,37 +5824,59 @@ export default function ArenaScreen() {
     try { await Share.share({ message: text }); } catch {}
   }, []);
 
+  /** Fetch (or return cached) referral URLs for this device. */
+  const fetchReferralUrls = useCallback(async (): Promise<{ url: string; nativeUrl?: string }> => {
+    if (referUrlCacheRef.current) return referUrlCacheRef.current;
+    const headers: Record<string, string> = {};
+    if (deviceId) headers["x-device-id"] = deviceId;
+    const res = await fetch(new URL("/api/referral/generate", getApiUrl()).toString(), { headers });
+    if (!res.ok) throw new Error("Failed to generate referral code");
+    const data = await res.json();
+    referUrlCacheRef.current = { url: data.url, nativeUrl: data.nativeUrl };
+    return referUrlCacheRef.current!;
+  }, [deviceId]);
+
   const handleReferFriend = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    // Pre-fetch the URL in the background so it's ready when the user taps Copy or Share.
+    fetchReferralUrls().catch(() => {});
+    setShowReferModal(true);
+  }, [fetchReferralUrls]);
+
+  const handleCopyReferralLink = useCallback(async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
-      const headers: Record<string, string> = {};
-      if (deviceId) headers["x-device-id"] = deviceId;
-      const res = await fetch(new URL("/api/referral/generate", getApiUrl()).toString(), { headers });
-      if (!res.ok) throw new Error("Failed to generate referral code");
-      const { url, nativeUrl } = await res.json();
-      // Include the platform-appropriate URL in the message body.
-      // Android Share ignores the separate `url` field — both parties need the link
-      // inside the message text. iOS shows the `url` field as a tappable attachment.
-      // Web (https) URL is always included so recipients without the app can still open it.
+      const { url } = await fetchReferralUrls();
+      const Clipboard = await import("expo-clipboard");
+      await Clipboard.setStringAsync(url);
+      setReferLinkCopied(true);
+      setTimeout(() => setReferLinkCopied(false), 2500);
+    } catch (err) {
+      console.warn("[referral] copy failed:", err);
+    }
+  }, [fetchReferralUrls]);
+
+  const handleShareReferralLink = useCallback(async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setShowReferModal(false);
+    try {
+      const { url, nativeUrl } = await fetchReferralUrls();
       let shareMessage: string;
       let shareUrlProp: string | undefined;
       if (Platform.OS === "web") {
         shareMessage = `Join me in The Arena — we both get free bet tokens when you sign up → ${url}`;
         shareUrlProp = url;
       } else {
-        // Native: embed the chatdjt:// link in the message so Android recipients can tap it,
-        // and also include the web URL as a fallback for people who haven't installed the app yet.
         const native = nativeUrl || url;
         shareMessage = `Join me in The Arena — we both get free bet tokens when you sign up!\n\nOpen app → ${native}\nOr visit → ${url}`;
-        shareUrlProp = native; // iOS shows this as a separate tappable URL attachment
+        shareUrlProp = native;
       }
       await Share.share({ message: shareMessage, url: shareUrlProp });
     } catch (err) {
       console.warn("[referral] share failed:", err);
-      // Fallback share without a personalised code
       await Share.share({ message: "Join me in The Arena! → https://thearena.rip" }).catch(() => {});
     }
-  }, [deviceId]);
+  }, [fetchReferralUrls]);
 
   const showInterruptionBanner = useCallback((speakerId: string, speakerName: string, text: string) => {
     if (interruptionTimerRef.current) clearTimeout(interruptionTimerRef.current);
@@ -9772,6 +9797,59 @@ export default function ArenaScreen() {
                 <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, marginTop: 6 }}>Rewards unlock automatically at session end</Text>
               </View>
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Refer a Friend Modal ────────────────────────────────────────── */}
+      <Modal visible={showReferModal} transparent animationType="fade" onRequestClose={() => setShowReferModal(false)}>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.82)", justifyContent: "flex-end" }}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowReferModal(false)} />
+          <View style={{ backgroundColor: "#0a0a10", borderTopLeftRadius: 28, borderTopRightRadius: 28, borderTopWidth: 1.5, borderColor: "rgba(34,197,94,0.4)", padding: 24, paddingBottom: 36 }}>
+            {/* Handle */}
+            <View style={{ alignSelf: "center", width: 44, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.18)", marginBottom: 18 }} />
+
+            {/* Header */}
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 6 }}>
+              <Text style={{ fontSize: 22 }}>🎟️</Text>
+              <View style={{ marginLeft: 10, flex: 1 }}>
+                <Text style={{ color: "#22c55e", fontSize: 17, fontWeight: "900", letterSpacing: 0.8 }}>REFER A FRIEND</Text>
+                <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginTop: 2 }}>You both get free bet tokens when they join</Text>
+              </View>
+              <Pressable onPress={() => setShowReferModal(false)} hitSlop={10}>
+                <Ionicons name="close" size={22} color="rgba(255,255,255,0.4)" />
+              </Pressable>
+            </View>
+
+            {/* Copied confirmation */}
+            {referLinkCopied && (
+              <Animated.View
+                entering={FadeIn.duration(150)}
+                exiting={FadeOut.duration(300)}
+                style={{ alignSelf: "center", marginTop: 8, marginBottom: 2, paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, backgroundColor: "rgba(34,197,94,0.15)", borderWidth: 1, borderColor: "rgba(34,197,94,0.45)" }}
+              >
+                <Text style={{ color: "#22c55e", fontSize: 13, fontWeight: "700" }}>✅ Link copied!</Text>
+              </Animated.View>
+            )}
+
+            {/* Action buttons */}
+            <View style={{ marginTop: 20, gap: 12 }}>
+              <Pressable
+                onPress={handleCopyReferralLink}
+                style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(34,197,94,0.12)", borderWidth: 1.5, borderColor: "rgba(34,197,94,0.55)", borderRadius: 14, paddingVertical: 16, gap: 10 }}
+              >
+                <Ionicons name="copy-outline" size={20} color="#22c55e" />
+                <Text style={{ color: "#22c55e", fontSize: 16, fontWeight: "800", letterSpacing: 0.4 }}>Copy Link</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={handleShareReferralLink}
+                style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.06)", borderWidth: 1, borderColor: "rgba(255,255,255,0.15)", borderRadius: 14, paddingVertical: 16, gap: 10 }}
+              >
+                <Ionicons name="share-outline" size={20} color="rgba(255,255,255,0.7)" />
+                <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 16, fontWeight: "700", letterSpacing: 0.4 }}>Share…</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
       </Modal>
