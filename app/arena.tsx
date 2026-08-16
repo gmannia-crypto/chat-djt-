@@ -4223,6 +4223,7 @@ export default function ArenaScreen() {
   const [showScoreboard, setShowScoreboard] = useState(false);
   const [showEndSummary, setShowEndSummary] = useState(false);
   const [endSummaryDuration, setEndSummaryDuration] = useState(0);
+  const [isIQRaceSession, setIsIQRaceSession] = useState(false);
   const [isDCChampion, setIsDCChampion] = useState(false);
   const endSummaryScrollRef = useRef<ScrollView>(null);
   const [showViralClips, setShowViralClips] = useState(false);
@@ -5697,6 +5698,7 @@ export default function ArenaScreen() {
             // No votes cast — auto-trigger DC verdict and show end summary without requiring a tap
             playWinnerChosenSound();
             setEndSummaryDuration((Date.now() - sessionStartTimeRef.current) / 1000);
+            setIsIQRaceSession(selectedPersonasRef.current.length >= 2);
             setShowEndSummary(true);
             clearSavedSession();
             awardBadge("arena_debut");
@@ -10427,6 +10429,7 @@ export default function ArenaScreen() {
                 const totalPts = Object.values(personaPointsRef.current).reduce((a, b) => a + b, 0);
                 playWinnerChosenSound();
                 setEndSummaryDuration((Date.now() - sessionStartTimeRef.current) / 1000);
+                setIsIQRaceSession(selectedPersonasRef.current.length >= 2);
                 setShowEndSummary(true);
                 clearSavedSession();
                 awardBadge("arena_debut");
@@ -10527,9 +10530,16 @@ export default function ArenaScreen() {
                   );
                 })}
             </View>
-            {oddsHistoryRef.current.length > 0 && (
+            {(oddsHistoryRef.current.length > 0 || isIQRaceSession) && (
               <Animated.View entering={FadeIn.delay(400).duration(400)} style={{ width: "100%", marginTop: 12 }}>
-                <OddsTimeline shifts={oddsHistoryRef.current} duration={endSummaryDuration} />
+                {oddsHistoryRef.current.length > 0 ? (
+                  <OddsTimeline shifts={oddsHistoryRef.current} duration={endSummaryDuration} />
+                ) : (
+                  <View style={{ padding: 12, borderRadius: 12, borderWidth: 1, borderColor: "rgba(212,164,32,0.15)", backgroundColor: "rgba(212,164,32,0.06)", flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <Ionicons name="trending-up" size={14} color="#D4A420" />
+                    <Text style={{ color: "rgba(212,164,32,0.6)", fontSize: 12, fontWeight: "600" }}>No odds shifts recorded this session</Text>
+                  </View>
+                )}
               </Animated.View>
             )}
             {isDCChampion && (
