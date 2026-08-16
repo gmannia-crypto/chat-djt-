@@ -9,6 +9,8 @@ export interface ArenaBet {
   wager: number;
   placedAt: number;
   sessionKey: string;
+  /** Live multiplier locked in by the last recalculateOdds cycle; used for settlement. */
+  lockedMultiplier?: number;
 }
 
 export interface InterviewBet {

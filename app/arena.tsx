@@ -3923,6 +3923,12 @@ export default function ArenaScreen() {
   const [betWagerInput, setBetWagerInput] = useState(3);
   const [betPickId, setBetPickId] = useState<string | null>(null);
   const [betResult, setBetResult] = useState<{ won: boolean; payout: number; lowestId: string } | null>(null);
+  const [liveOdds, setLiveOdds] = useState<Record<string, { label: string; multiplier: number }>>({});
+  const [oddsShiftToast, setOddsShiftToast] = useState(false);
+  const prevOddsLabelsRef = useRef<Record<string, string>>({});
+  // Mirror of arenaBet state for use in callbacks without stale-closure issues
+  const arenaBetRef = useRef<ArenaBet | null>(null);
+  useEffect(() => { arenaBetRef.current = arenaBet; }, [arenaBet]);
   const { showShareCard, awardBadge } = useEngagement();
   const { logEvent: logLiveEvent } = useLiveActivity();
   useScreenTracker("arena");
@@ -5565,12 +5571,14 @@ export default function ArenaScreen() {
             if (savedBet && savedBet.sessionKey === makeArenaSessionKey(selectedPersonasRef.current)) {
               const iqSnap = personaSessionIQRef.current;
               const { won, lowestId, lowestIQ } = resolveIQRaceBet(savedBet.targetPersonaId, iqSnap);
-              // Find underdog pid for multiplier calc
+              // Use the live multiplier locked in during the debate; fall back to the
+              // static base multiplier only if no recalculation happened (very short session).
               const iqEntries = Object.entries(iqSnap);
               const underdogPidForCalc = iqEntries.length >= 2
                 ? [...iqEntries].sort(([,a],[,b]) => b - a)[0][0]
                 : null;
-              const mult = effectiveBetMultiplier(savedBet.wager, savedBet.targetPersonaId === underdogPidForCalc);
+              const staticMult = effectiveBetMultiplier(savedBet.wager, savedBet.targetPersonaId === underdogPidForCalc);
+              const mult = savedBet.lockedMultiplier ?? staticMult;
               const payout = won ? Math.round(savedBet.wager * mult) : 0;
               if (won && deviceId) {
                 await awardBetWin(deviceId, payout, activeSpecialEvent ? `IQ Race bet win [${activeSpecialEvent.name}]` : `IQ Race bet win`);
@@ -5581,7 +5589,7 @@ export default function ArenaScreen() {
                 fetch(new URL("/api/arena/record-bet", getApiUrl()).toString(), {
                   method: "POST",
                   headers: { "Content-Type": "application/json", "x-device-id": deviceId },
-                  body: JSON.stringify({ targetPersonaId: savedBet.targetPersonaId, wager: savedBet.wager, riskLevel: callInRisk, won, payout, specialEventId: activeSpecialEvent?.id || null }),
+                  body: JSON.stringify({ targetPersonaId: savedBet.targetPersonaId, wager: savedBet.wager, riskLevel: callInRisk, won, payout, specialEventId: activeSpecialEvent?.id || null, finalOdds: iqSnap }),
                 }).catch(() => {});
               }
               await clearArenaBet();
@@ -5715,6 +5723,85 @@ export default function ArenaScreen() {
     if (callInRisk === "low")  mult -= 0.5;
     return Math.max(1.5, mult);
   }, [activeSpecialEvent, callInRisk]);
+
+  // Recompute live odds every 45 s while a bet is active.
+  // The base multiplier always comes from effectiveBetMultiplier (which honours
+  // special-event and risk rules); we then apply a ±0.6× IQ-position spread on top.
+  // Lowest current IQ = FAVORITE (most likely to finish last) → small adjustment downward.
+  // Highest current IQ = UNDERDOG (least likely to finish last) → small adjustment upward.
+  const recalculateOdds = useCallback(() => {
+    const iqSnap = personaSessionIQRef.current;
+    const personas = selectedPersonasRef.current;
+    const allIQs = Object.entries(iqSnap).filter(([pid]) => personas.includes(pid));
+    if (allIQs.length < 2) return;
+    const sorted = [...allIQs].sort(([, a], [, b]) => a - b); // lowest IQ first
+    const lowestIQ = sorted[0][1];
+    const highestIQ = sorted[sorted.length - 1][1];
+    const spread = Math.max(1, highestIQ - lowestIQ);
+    // In this race the "underdog" (hardest bet to win) is the persona currently at
+    // the TOP of the IQ rankings — they'd need to fall the furthest.
+    const currentUnderdogPid = sorted[sorted.length - 1][0];
+    const newOdds: Record<string, { label: string; multiplier: number }> = {};
+    sorted.forEach(([pid, iq], idx) => {
+      const pctFromLowest = (iq - lowestIQ) / spread; // 0 = at bottom, 1 = at top
+      // Base incorporates special-event bonus + risk level, exactly as at settlement.
+      const baseMult = effectiveBetMultiplier(0, pid === currentUnderdogPid);
+      // Position shift: ±0.6 centred at 0.5 so mid-table personas are unchanged.
+      const posAdjust = (pctFromLowest - 0.5) * 1.2;
+      const mult = Math.round(Math.max(1.2, baseMult + posAdjust) * 10) / 10;
+      let label: string;
+      if (idx === 0) label = "FAVORITE";
+      else if (pctFromLowest < 0.2) label = "CO-FAVORITE";
+      else if (pctFromLowest < 0.6) label = "CONTENDER";
+      else label = "UNDERDOG";
+      newOdds[pid] = { label, multiplier: mult };
+    });
+    // Detect label changes vs last cycle
+    const hasPrev = Object.keys(prevOddsLabelsRef.current).length > 0;
+    let changed = false;
+    Object.entries(newOdds).forEach(([pid, { label }]) => {
+      if (prevOddsLabelsRef.current[pid] !== label) changed = true;
+    });
+    const nextLabels: Record<string, string> = {};
+    Object.entries(newOdds).forEach(([pid, { label }]) => { nextLabels[pid] = label; });
+    prevOddsLabelsRef.current = nextLabels;
+    setLiveOdds(newOdds);
+    if (changed && hasPrev) {
+      setOddsShiftToast(true);
+      setTimeout(() => setOddsShiftToast(false), 3500);
+    }
+    // Persist the live multiplier for the bet target so settlement uses the same
+    // value the UI is showing (not re-derived from scratch at session end).
+    const betRef = arenaBetRef.current;
+    if (betRef) {
+      const targetEntry = newOdds[betRef.targetPersonaId];
+      if (targetEntry) {
+        const updated: ArenaBet = { ...betRef, lockedMultiplier: targetEntry.multiplier };
+        placeArenaBet(updated).catch(() => {});
+        setArenaBet(updated);
+      }
+    }
+  }, [effectiveBetMultiplier]);
+
+  // Kick off the 45-second odds recalculation while a bet is live
+  const recalculateOddsRef = useRef(recalculateOdds);
+  useEffect(() => { recalculateOddsRef.current = recalculateOdds; }, [recalculateOdds]);
+
+  // Use stable identity signals so updating lockedMultiplier inside recalculateOdds
+  // doesn't tear down and restart the interval on every cycle.
+  const betTargetId = arenaBet?.targetPersonaId ?? null;
+  const hasBetResult = !!betResult;
+  useEffect(() => {
+    if (!isRunning || !betTargetId || hasBetResult) {
+      setLiveOdds({});
+      prevOddsLabelsRef.current = {};
+      return;
+    }
+    // Run immediately when a bet becomes active, then every 45 s
+    recalculateOddsRef.current();
+    const id = setInterval(() => recalculateOddsRef.current(), 45_000);
+    return () => clearInterval(id);
+  }, [isRunning, betTargetId, hasBetResult]);
 
   const shareCurrentSession = useCallback(async () => {
     const msgs = recordingMessagesRef.current;
@@ -8227,12 +8314,31 @@ export default function ArenaScreen() {
             </View>
           )}
 
+          {/* ODDS SHIFTED toast */}
+          {oddsShiftToast && (
+            <Animated.View entering={FadeInDown.duration(300)} exiting={FadeOut.duration(400)}
+              style={{ marginBottom: 8, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
+                backgroundColor: "rgba(251,191,36,0.18)", borderWidth: 1, borderColor: "rgba(251,191,36,0.5)",
+                alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Text style={{ color: "#FBBF24", fontSize: 11, fontWeight: "900", letterSpacing: 0.5 }}>📈 ODDS SHIFTED ↑</Text>
+            </Animated.View>
+          )}
+
           {arenaBet && !betResult && (() => {
             const targetIQ = personaSessionIQ[arenaBet.targetPersonaId];
             const allIQs = Object.entries(personaSessionIQ).filter(([pid]) => selectedPersonas.includes(pid));
             const sortedByIQ = [...allIQs].sort(([,a],[,b]) => a - b);
             const isCurrentlyLowest = sortedByIQ[0]?.[0] === arenaBet.targetPersonaId;
-            const estimatedMult = effectiveBetMultiplier(arenaBet.wager, false);
+            // Use live odds if available, fall back to static multiplier
+            const liveOddsEntry = liveOdds[arenaBet.targetPersonaId];
+            const liveMult = liveOddsEntry?.multiplier ?? effectiveBetMultiplier(arenaBet.wager, false);
+            const liveLabel = liveOddsEntry?.label ?? (isCurrentlyLowest ? "FAVORITE" : "");
+            const livePayout = Math.round(arenaBet.wager * liveMult);
+            const labelColor = liveLabel === "FAVORITE" ? "#4ADE80"
+              : liveLabel === "CO-FAVORITE" ? "#86EFAC"
+              : liveLabel === "CONTENDER" ? "#FBBF24"
+              : liveLabel === "UNDERDOG" ? "#F87171"
+              : "#FBBF24";
             return (
               <View style={{ marginBottom: 16, padding: 12, borderRadius: 12, borderWidth: 1.5,
                 borderColor: isCurrentlyLowest ? "#4ADE80" : "rgba(251,191,36,0.3)",
@@ -8241,11 +8347,18 @@ export default function ArenaScreen() {
                   <Ionicons name={isCurrentlyLowest ? "trending-down" : "checkmark-circle"} size={18}
                     color={isCurrentlyLowest ? "#4ADE80" : "#FBBF24"} style={{ marginRight: 8 }} />
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: isCurrentlyLowest ? "#4ADE80" : "#FBBF24", fontSize: 12, fontWeight: "800" }}>
-                      BET LIVE: {getPersona(arenaBet.targetPersonaId)?.shortName} {isCurrentlyLowest ? "is LOWEST ✓" : "not lowest yet"}
-                    </Text>
-                    <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 10 }}>
-                      Wagered {arenaBet.wager}🪙 · Win {Math.round(arenaBet.wager * estimatedMult)}🪙
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                      <Text style={{ color: isCurrentlyLowest ? "#4ADE80" : "#FBBF24", fontSize: 12, fontWeight: "800" }}>
+                        BET LIVE: {getPersona(arenaBet.targetPersonaId)?.shortName} {isCurrentlyLowest ? "is LOWEST ✓" : "not lowest yet"}
+                      </Text>
+                      {liveLabel !== "" && (
+                        <View style={{ backgroundColor: `${labelColor}22`, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: `${labelColor}55` }}>
+                          <Text style={{ color: labelColor, fontSize: 8, fontWeight: "900", letterSpacing: 0.5 }}>{liveLabel} {liveMult}×</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, marginTop: 1 }}>
+                      Wagered {arenaBet.wager}🪙 · Win {livePayout}🪙 if odds hold
                       {targetIQ !== undefined ? ` · IQ: ${Math.round(targetIQ)}` : ""}
                     </Text>
                   </View>
@@ -8253,7 +8366,7 @@ export default function ArenaScreen() {
                     <Ionicons name="close-circle" size={18} color="rgba(255,255,255,0.3)" />
                   </Pressable>
                 </View>
-                {/* Live IQ mini-bar for all personas */}
+                {/* Live IQ mini-bar with odds label for each persona */}
                 {sortedByIQ.length >= 2 && (
                   <View style={{ marginTop: 8, gap: 4 }}>
                     {sortedByIQ.map(([pid, iq], idx) => {
@@ -8261,13 +8374,19 @@ export default function ArenaScreen() {
                       const maxIQ = sortedByIQ[sortedByIQ.length - 1][1] || 100;
                       const pct = Math.max(10, (iq / maxIQ) * 100);
                       const isBet = pid === arenaBet.targetPersonaId;
+                      const oddsEntry = liveOdds[pid];
+                      const barColor = idx === 0 ? "#4ADE80" : isBet ? "#FBBF24" : "#555";
                       return (
                         <View key={pid} style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                           <Text style={{ color: isBet ? "#FBBF24" : "#888", fontSize: 9, fontWeight: "700", width: 52 }} numberOfLines={1}>{p?.shortName || pid}</Text>
                           <View style={{ flex: 1, height: 4, backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 2, overflow: "hidden" }}>
-                            <View style={{ width: `${pct}%` as any, height: 4, borderRadius: 2, backgroundColor: idx === 0 ? "#4ADE80" : isBet ? "#FBBF24" : "#555" }} />
+                            <View style={{ width: `${pct}%` as any, height: 4, borderRadius: 2, backgroundColor: barColor }} />
                           </View>
                           <Text style={{ color: idx === 0 ? "#4ADE80" : "#666", fontSize: 9, width: 26, textAlign: "right" }}>{Math.round(iq)}</Text>
+                          {oddsEntry && (
+                            <Text style={{ color: oddsEntry.label === "FAVORITE" ? "#4ADE80" : oddsEntry.label === "UNDERDOG" ? "#F87171" : "#FBBF24", fontSize: 8, fontWeight: "800", width: 64, textAlign: "right" }}
+                              numberOfLines={1}>{oddsEntry.label}</Text>
+                          )}
                         </View>
                       );
                     })}
