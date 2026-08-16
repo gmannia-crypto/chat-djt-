@@ -8591,6 +8591,11 @@ export default function ArenaScreen() {
                 {betResult.won ? `🎉 BET WON! +${betResult.payout}🪙` : "❌ BET LOST"}
               </Text>
               {!betResult.won && <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, textAlign: "center", marginTop: 4 }}>Lowest IQ: {getPersona(betResult.lowestId)?.shortName || betResult.lowestId}</Text>}
+              {oddsHistoryRef.current.length > 0 && (
+                <View style={{ marginTop: 12 }}>
+                  <OddsTimeline shifts={oddsHistoryRef.current} duration={endSummaryDuration} />
+                </View>
+              )}
               {betResult.won && (
                 <Pressable
                   onPress={async () => {
