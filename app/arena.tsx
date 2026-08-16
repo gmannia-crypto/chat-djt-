@@ -4419,6 +4419,7 @@ export default function ArenaScreen() {
       if (deviceId) {
         AsyncStorage.removeItem(`referral_cache_${deviceId}`).catch(() => {});
       }
+      AsyncStorage.removeItem("referral_cache_owner").catch(() => {});
     }
 
     // Device ID switched → clear in-memory cache; AsyncStorage is already wiped
