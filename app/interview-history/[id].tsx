@@ -14,6 +14,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { getApiUrl } from "@/lib/query-client";
 import { useTokens } from "@/lib/token-context";
+import { getRecordings } from "@/lib/arena-recordings";
 import { buildSmartTagSuggestions } from "@/lib/smart-tags";
 import TagEditorModal, {
   MAX_TAGS_PER_INTERVIEW,
@@ -110,6 +111,7 @@ export default function InterviewTranscriptScreen() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [tagEditorOpen, setTagEditorOpen] = useState(false);
   const [allUserTags, setAllUserTags] = useState<{ label: string; count: number }[]>([]);
+  const [replayId, setReplayId] = useState<string | null>(null);
 
   const tags = useMemo(() => {
     if (!data || !Array.isArray(data.tags)) return [] as string[];
@@ -449,6 +451,25 @@ export default function InterviewTranscriptScreen() {
         }
         const d = await res.json();
         if (!cancel) setData(d);
+        // After loading the interview, look for a matching local recording
+        if (!cancel && d) {
+          try {
+            const recs = await getRecordings();
+            // Primary match: recording startTime exactly matches interview startedAt
+            let match = recs.find((r) => r.startTime === d.startedAt);
+            if (!match) {
+              // Secondary match: both personas present and start time within 5 seconds
+              const pA = d.interviewerId;
+              const pB = d.intervieweeId;
+              match = recs.find((r) =>
+                r.personas.includes(pA) &&
+                r.personas.includes(pB) &&
+                Math.abs(r.startTime - d.startedAt) < 5000,
+              );
+            }
+            if (!cancel && match) setReplayId(match.id);
+          } catch { /* best-effort */ }
+        }
       } catch {
         if (!cancel) setError("Failed to load");
       } finally {
@@ -538,10 +559,24 @@ export default function InterviewTranscriptScreen() {
           </View>
         ) : null}
 
+        {replayId ? (
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+              router.push(`/arena-replay?id=${replayId}`);
+            }}
+            style={s.replayBtn}
+            testID="transcript-watch-replay"
+          >
+            <Ionicons name="play-circle" size={18} color="#000" />
+            <Text style={s.replayBtnText}>WATCH REPLAY</Text>
+          </Pressable>
+        ) : null}
+
         <Text style={s.transcriptLabel}>TRANSCRIPT</Text>
       </View>
     );
-  }, [data, interviewerPortrait, intervieweePortrait, lies.length, tags, partingShot]);
+  }, [data, interviewerPortrait, intervieweePortrait, lies.length, tags, partingShot, replayId]);
 
   return (
     <View style={[s.container, { paddingTop: insets.top + webTop }]}>
@@ -933,6 +968,8 @@ const s = StyleSheet.create({
   statsRow: { flexDirection: "row", justifyContent: "center", gap: 6, marginTop: 10, flexWrap: "wrap" },
   statPill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.05)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
   statText: { color: "rgba(255,255,255,0.8)", fontSize: 11, fontWeight: "700" },
+  replayBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, backgroundColor: "#FFD700", borderRadius: 14, paddingVertical: 11, marginTop: 14 },
+  replayBtnText: { color: "#000", fontSize: 13, fontWeight: "900", letterSpacing: 1 },
   transcriptLabel: { color: "#FFD700", fontSize: 10, fontWeight: "900", letterSpacing: 1.5, marginTop: 14, textAlign: "center" },
 
   tagsBlock: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.08)" },
