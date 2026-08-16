@@ -10011,35 +10011,41 @@ export default function ArenaScreen() {
             </View>
 
             {/* URL pill */}
-            <Pressable
-              onPress={handleCopyReferralLink}
-              style={{ marginTop: 16, flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.05)", borderWidth: 1, borderColor: "rgba(255,255,255,0.12)", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, gap: 8 }}
+            <View
+              style={{ marginTop: 16, flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.05)", borderWidth: 1, borderColor: referLinkCopied ? "rgba(34,197,94,0.45)" : "rgba(255,255,255,0.12)", borderRadius: 10, overflow: "hidden" }}
             >
-              <Ionicons name="link-outline" size={15} color="rgba(255,255,255,0.35)" />
-              {referDisplayUrl ? (
-                <Text
-                  numberOfLines={1}
-                  ellipsizeMode="middle"
-                  style={{ flex: 1, color: "rgba(255,255,255,0.55)", fontSize: 12, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" }}
-                >
-                  {referDisplayUrl}
-                </Text>
-              ) : (
-                <ActivityIndicator size="small" color="rgba(255,255,255,0.3)" style={{ marginLeft: 2 }} />
-              )}
-              <Ionicons name="copy-outline" size={14} color="rgba(255,255,255,0.3)" />
-            </Pressable>
-
-            {/* Copied confirmation */}
-            {referLinkCopied && (
-              <Animated.View
-                entering={FadeIn.duration(150)}
-                exiting={FadeOut.duration(300)}
-                style={{ alignSelf: "center", marginTop: 8, marginBottom: 2, paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, backgroundColor: "rgba(34,197,94,0.15)", borderWidth: 1, borderColor: "rgba(34,197,94,0.45)" }}
+              <View style={{ flex: 1, flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 10, gap: 8 }}>
+                <Ionicons name="link-outline" size={15} color="rgba(255,255,255,0.35)" />
+                {referDisplayUrl ? (
+                  <Text
+                    numberOfLines={1}
+                    ellipsizeMode="middle"
+                    style={{ flex: 1, color: "rgba(255,255,255,0.55)", fontSize: 12, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" }}
+                  >
+                    {referDisplayUrl}
+                  </Text>
+                ) : (
+                  <ActivityIndicator size="small" color="rgba(255,255,255,0.3)" style={{ marginLeft: 2 }} />
+                )}
+              </View>
+              {/* Copy tap area */}
+              <Pressable
+                onPress={handleCopyReferralLink}
+                style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 10, borderLeftWidth: 1, borderLeftColor: referLinkCopied ? "rgba(34,197,94,0.35)" : "rgba(255,255,255,0.1)", backgroundColor: referLinkCopied ? "rgba(34,197,94,0.12)" : "rgba(255,255,255,0.04)" }}
               >
-                <Text style={{ color: "#22c55e", fontSize: 13, fontWeight: "700" }}>✅ Link copied!</Text>
-              </Animated.View>
-            )}
+                {referLinkCopied ? (
+                  <Animated.View entering={FadeIn.duration(150)} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                    <Ionicons name="checkmark" size={14} color="#22c55e" />
+                    <Text style={{ color: "#22c55e", fontSize: 12, fontWeight: "800" }}>Copied!</Text>
+                  </Animated.View>
+                ) : (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                    <Ionicons name="copy-outline" size={14} color="rgba(255,255,255,0.55)" />
+                    <Text style={{ color: "rgba(255,255,255,0.55)", fontSize: 12, fontWeight: "700" }}>Copy</Text>
+                  </View>
+                )}
+              </Pressable>
+            </View>
 
             {/* Action buttons */}
             <View style={{ marginTop: 20, gap: 12 }}>
