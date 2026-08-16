@@ -3918,7 +3918,7 @@ export default function ArenaScreen() {
   const speakingOverlaySize = Math.round(Math.sqrt(screenWidth * screenHeight / 8));
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
-  const { deviceId, balance, refreshBalance } = useTokens();
+  const { deviceId, balance, refreshBalance, linkedUser } = useTokens();
   const { isLocked, isHidden, unlockWithTokens, isUnlocking: premiumUnlocking, addArenaWin, unlockedPremium } = usePersonaLocks();
   const [arenaBet, setArenaBet] = useState<ArenaBet | null>(null);
   const [betWagerInput, setBetWagerInput] = useState(3);
@@ -3953,6 +3953,12 @@ export default function ArenaScreen() {
   const [referLinkCopied, setReferLinkCopied] = useState(false);
   const [referDisplayUrl, setReferDisplayUrl] = useState<string | null>(null);
   const referUrlCacheRef = useRef<{ url: string; nativeUrl?: string } | null>(null);
+  // Monotonically-increasing token bumped whenever the account identity changes.
+  // Async operations (AsyncStorage reads, network fetches) capture this token
+  // before awaiting and discard their result if the token has advanced by the
+  // time they resolve — preventing a stale URL from being written back into the
+  // cache after an unlink or device-ID switch.
+  const referralIdentityGenRef = useRef(0);
   const [hofData, setHofData] = useState<{ leaderboard: Array<{ personaId: string; totalWins: number; totalLosses: number; totalDebates: number; winPct: number; bestRivalId: string | null; bestRivalWins: number }>; userPicks: Array<{ personaId: string; wins: number; losses: number }> } | null>(null);
   const [hofLoading, setHofLoading] = useState(false);
   const [hofLinkCopied, setHofLinkCopied] = useState(false);
@@ -4347,10 +4353,15 @@ export default function ArenaScreen() {
   }, [lies, deviceId]);
 
   // Pre-warm the referral URL cache from AsyncStorage so the first tap is instant.
+  // Captures the identity generation before the async read; discards the result
+  // if the generation has been bumped (i.e. account unlinked or device switched)
+  // by the time the read resolves — preventing a stale URL from being restored.
   useEffect(() => {
     if (!deviceId || referUrlCacheRef.current) return;
+    const gen = referralIdentityGenRef.current;
     const REFERRAL_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
     AsyncStorage.getItem(`referral_cache_${deviceId}`).then((raw) => {
+      if (referralIdentityGenRef.current !== gen) return; // identity changed — discard
       if (!raw) return;
       try {
         const parsed = JSON.parse(raw) as { url: string; nativeUrl?: string; ts: number };
@@ -4360,6 +4371,44 @@ export default function ArenaScreen() {
       } catch {}
     });
   }, [deviceId]);
+
+  // Clear the referral URL cache whenever the account identity changes so a
+  // stale link is never shown after the user logs out and back in on the same
+  // device.  Two cases are handled:
+  //   1. linkedUser goes from non-null → null (account unlinked / reset):
+  //      wipe both the in-memory ref and the AsyncStorage entry for this device.
+  //   2. deviceId changes to a different non-null value (rare, but possible if
+  //      the device ID key is cleared externally): wipe the in-memory ref so the
+  //      pre-warm effect above re-reads the correct key on the next render.
+  // The identity generation is bumped BEFORE the cache is cleared so that any
+  // concurrent async reads/fetches that captured the old generation will discard
+  // their (now-stale) result instead of writing it back after the clear.
+  const prevLinkedUserRef = useRef<typeof linkedUser>(linkedUser);
+  const prevDeviceIdRef = useRef<string | null>(deviceId);
+  useEffect(() => {
+    const prevLinked = prevLinkedUserRef.current;
+    const prevDevice = prevDeviceIdRef.current;
+    prevLinkedUserRef.current = linkedUser;
+    prevDeviceIdRef.current = deviceId;
+
+    // Account unlinked/reset → clear cached referral URL so next sign-in fetches fresh.
+    if (prevLinked !== null && linkedUser === null) {
+      referralIdentityGenRef.current += 1; // bump first so in-flight reads are invalidated
+      referUrlCacheRef.current = null;
+      setReferDisplayUrl(null);
+      if (deviceId) {
+        AsyncStorage.removeItem(`referral_cache_${deviceId}`).catch(() => {});
+      }
+    }
+
+    // Device ID switched → clear in-memory cache; AsyncStorage is already wiped
+    // by getOrCreateDeviceId() when a new ID is generated.
+    if (prevDevice !== null && deviceId !== null && prevDevice !== deviceId) {
+      referralIdentityGenRef.current += 1; // bump first so in-flight reads are invalidated
+      referUrlCacheRef.current = null;
+      setReferDisplayUrl(null);
+    }
+  }, [linkedUser, deviceId]);
 
   const recordWin = useCallback(async (personaId: string) => {
     try {
@@ -5875,12 +5924,19 @@ export default function ArenaScreen() {
     // 1. In-memory cache (fastest — set by pre-warm effect or a previous fetch this session)
     if (referUrlCacheRef.current) return referUrlCacheRef.current;
 
+    // Capture the identity generation at the start of this async operation.
+    // Every await below checks that the generation hasn't been bumped (which
+    // happens when the account is unlinked or the device ID switches) before
+    // writing anything back — preventing a stale URL from being cached.
+    const gen = referralIdentityGenRef.current;
+
     // 2. AsyncStorage cache (instant on cold start — valid for 30 days)
     const REFERRAL_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
     if (deviceId) {
       try {
         const storageKey = `referral_cache_${deviceId}`;
         const stored = await AsyncStorage.getItem(storageKey);
+        if (referralIdentityGenRef.current !== gen) throw new Error("Identity changed");
         if (stored) {
           const parsed = JSON.parse(stored) as { url: string; nativeUrl?: string; ts: number };
           if (Date.now() - parsed.ts < REFERRAL_CACHE_TTL_MS) {
@@ -5888,7 +5944,9 @@ export default function ArenaScreen() {
             return referUrlCacheRef.current;
           }
         }
-      } catch {}
+      } catch (e) {
+        if ((e as Error).message === "Identity changed") throw e;
+      }
     }
 
     // 3. Network fetch (first ever generation, or cache expired)
@@ -5897,6 +5955,7 @@ export default function ArenaScreen() {
     const res = await fetch(new URL("/api/referral/generate", getApiUrl()).toString(), { headers });
     if (!res.ok) throw new Error("Failed to generate referral code");
     const data = await res.json();
+    if (referralIdentityGenRef.current !== gen) throw new Error("Identity changed");
     referUrlCacheRef.current = { url: data.url, nativeUrl: data.nativeUrl };
 
     // Persist so future cold starts are instant
