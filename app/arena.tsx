@@ -3956,6 +3956,7 @@ export default function ArenaScreen() {
   const [showReferModal, setShowReferModal] = useState(false);
   const [referLinkCopied, setReferLinkCopied] = useState(false);
   const [referDisplayUrl, setReferDisplayUrl] = useState<string | null>(null);
+  const [referralCount, setReferralCount] = useState<number | null>(null);
   const referUrlCacheRef = useRef<{ url: string; nativeUrl?: string } | null>(null);
   // Monotonically-increasing token bumped whenever the account identity changes.
   // Async operations (AsyncStorage reads, network fetches) capture this token
@@ -6015,10 +6016,19 @@ export default function ArenaScreen() {
   const handleReferFriend = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setReferDisplayUrl(null);
+    setReferralCount(null);
     setShowReferModal(true);
-    // Fetch URL in the background and populate the pill once ready
+    // Fetch URL and referral stats in parallel
     fetchReferralUrls().then(({ url }) => setReferDisplayUrl(url)).catch(() => {});
-  }, [fetchReferralUrls]);
+    if (deviceId) {
+      fetch(`${getApiUrl()}/api/referral/stats`, { headers: { "x-device-id": deviceId } })
+        .then((r) => r.json())
+        .then((data: { referralCount?: number }) => {
+          if (typeof data.referralCount === "number") setReferralCount(data.referralCount);
+        })
+        .catch(() => {});
+    }
+  }, [fetchReferralUrls, deviceId]);
 
   const handleCopyReferralLink = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -10132,6 +10142,22 @@ export default function ArenaScreen() {
                 )}
               </Pressable>
             </View>
+
+            {/* Friends joined count */}
+            {referralCount !== null && referralCount > 0 && (
+              <Animated.View entering={FadeIn.duration(300)} style={{ marginTop: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                <Text style={{ fontSize: 16 }}>🎉</Text>
+                <Text style={{ color: "#22c55e", fontSize: 14, fontWeight: "800" }}>
+                  {referralCount === 1 ? "1 friend joined" : `${referralCount} friends joined`}
+                </Text>
+                <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 14 }}>from your link</Text>
+              </Animated.View>
+            )}
+            {referralCount === 0 && (
+              <Animated.View entering={FadeIn.duration(300)} style={{ marginTop: 10, alignItems: "center" }}>
+                <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 12 }}>No friends joined yet — share your link!</Text>
+              </Animated.View>
+            )}
 
             {/* Quick-share icon buttons */}
             <View style={{ marginTop: 16, flexDirection: "row", gap: 12 }}>
