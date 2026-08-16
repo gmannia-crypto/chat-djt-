@@ -39,6 +39,16 @@ const TokenContext = createContext<TokenContextValue | null>(null);
 async function getOrCreateDeviceId(): Promise<string> {
   let id = await AsyncStorage.getItem(DEVICE_ID_KEY);
   if (!id) {
+    // New ID being generated — evict any stale referral cache entries that may
+    // belong to a previous device ID (e.g. after a device reset or account unlink
+    // where DEVICE_ID_KEY was cleared but referral_cache_<oldId> entries remain).
+    try {
+      const allKeys = await AsyncStorage.getAllKeys();
+      const staleReferralKeys = allKeys.filter((k) => k.startsWith("referral_cache_"));
+      if (staleReferralKeys.length > 0) {
+        await AsyncStorage.multiRemove(staleReferralKeys);
+      }
+    } catch {}
     id = `device-${Date.now()}-${Math.random().toString(36).substr(2, 12)}`;
     await AsyncStorage.setItem(DEVICE_ID_KEY, id);
   }
