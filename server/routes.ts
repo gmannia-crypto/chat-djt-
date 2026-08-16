@@ -17730,6 +17730,36 @@ Respond with a JSON array ONLY — no markdown, no code fences, no preamble. Exa
     }
   });
 
+  // GET /api/referral/stats — returns referral count and total tokens earned for this device
+  app.get("/api/referral/stats", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+
+      const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      try {
+        await ensureReferralTable(db);
+
+        const result = await db.query(
+          `SELECT COUNT(*) AS referral_count
+           FROM referral_grants
+           WHERE referrer_device_id = $1`,
+          [deviceId]
+        );
+        const referralCount = parseInt(result.rows[0]?.referral_count ?? "0", 10);
+        const REFERRAL_TOKENS = 2;
+        const tokensEarned = referralCount * REFERRAL_TOKENS;
+
+        return res.json({ referralCount, tokensEarned });
+      } finally {
+        await db.end();
+      }
+    } catch (err: any) {
+      console.error("[referral/stats] error:", err);
+      res.status(500).json({ error: "Failed to fetch referral stats" });
+    }
+  });
+
   // ─────────────────────────────────────────────────────────────────────────────
 
   const httpServer = createServer(app);

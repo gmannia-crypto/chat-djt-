@@ -48,6 +48,22 @@ export default function SubscribeScreen() {
   const [winVideoSource, setWinVideoSource] = useState<string | undefined>();
   const { deviceId, balance, refreshBalance } = useTokens();
 
+  const { data: referralStats } = useQuery<{ referralCount: number; tokensEarned: number }>({
+    queryKey: ["/api/referral/stats", deviceId],
+    staleTime: 30000,
+    enabled: !!deviceId,
+    queryFn: async () => {
+      const baseUrl = getApiUrl();
+      const url = new URL("/api/referral/stats", baseUrl);
+      const response = await fetch(url.toString(), {
+        headers: { "x-device-id": deviceId! },
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error(`${response.status}`);
+      return response.json();
+    },
+  });
+
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
 
@@ -325,6 +341,46 @@ export default function SubscribeScreen() {
                     {balance.subscriptionTier === "vip" ? "VIP Active" : "Standard Active"}
                   </Text>
                 </View>
+              )}
+            </LinearGradient>
+          </Animated.View>
+        )}
+
+        {referralStats !== undefined && (
+          <Animated.View
+            entering={FadeInDown.delay(150).duration(400)}
+            style={styles.referralCard}
+          >
+            <LinearGradient
+              colors={["rgba(212, 164, 32, 0.12)", "rgba(212, 164, 32, 0.03)"]}
+              style={styles.referralGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <View style={styles.referralHeader}>
+                <Ionicons name="people" size={16} color={Colors.gold} />
+                <Text style={styles.referralTitle}>REFERRAL HISTORY</Text>
+              </View>
+              <View style={styles.referralStats}>
+                <View style={styles.referralStat}>
+                  <Text style={styles.referralStatValue}>{referralStats.referralCount}</Text>
+                  <Text style={styles.referralStatLabel}>
+                    {referralStats.referralCount === 1 ? "Friend Invited" : "Friends Invited"}
+                  </Text>
+                </View>
+                <View style={styles.referralDivider} />
+                <View style={styles.referralStat}>
+                  <View style={styles.referralStatRow}>
+                    <Image source={require("@/assets/images/dc-lightning-token.jpeg")} style={{ width: 16, height: 16, borderRadius: 8 }} />
+                    <Text style={styles.referralStatValue}>{referralStats.tokensEarned}</Text>
+                  </View>
+                  <Text style={styles.referralStatLabel}>Tokens Earned</Text>
+                </View>
+              </View>
+              {referralStats.referralCount === 0 && (
+                <Text style={styles.referralHint}>
+                  Share your referral link — you and each friend both earn 2 free tokens!
+                </Text>
               )}
             </LinearGradient>
           </Animated.View>
@@ -949,6 +1005,64 @@ const styles = StyleSheet.create({
   paymentBadgeText: {
     fontSize: 11,
     color: Colors.whiteDim,
+  },
+  referralCard: {
+    borderRadius: 16,
+    overflow: "hidden",
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "rgba(212, 164, 32, 0.2)",
+  },
+  referralGradient: {
+    padding: 16,
+    gap: 12,
+  },
+  referralHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  referralTitle: {
+    fontSize: 11,
+    color: Colors.whiteMuted,
+    letterSpacing: 2,
+    fontWeight: "600" as const,
+  },
+  referralStats: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-around",
+  },
+  referralStat: {
+    alignItems: "center",
+    gap: 4,
+    flex: 1,
+  },
+  referralStatRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  referralStatValue: {
+    fontSize: 28,
+    fontFamily: "PlayfairDisplay_900Black",
+    color: Colors.white,
+    lineHeight: 34,
+  },
+  referralStatLabel: {
+    fontSize: 12,
+    color: Colors.whiteMuted,
+  },
+  referralDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: "rgba(212, 164, 32, 0.2)",
+  },
+  referralHint: {
+    fontSize: 12,
+    color: Colors.whiteMuted,
+    textAlign: "center",
+    lineHeight: 18,
   },
   legalText: {
     fontSize: 10,
