@@ -4343,6 +4343,21 @@ export default function ArenaScreen() {
     }
   }, [lies, deviceId]);
 
+  // Pre-warm the referral URL cache from AsyncStorage so the first tap is instant.
+  useEffect(() => {
+    if (!deviceId || referUrlCacheRef.current) return;
+    const REFERRAL_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+    AsyncStorage.getItem(`referral_cache_${deviceId}`).then((raw) => {
+      if (!raw) return;
+      try {
+        const parsed = JSON.parse(raw) as { url: string; nativeUrl?: string; ts: number };
+        if (Date.now() - parsed.ts < REFERRAL_CACHE_TTL_MS) {
+          referUrlCacheRef.current = { url: parsed.url, nativeUrl: parsed.nativeUrl };
+        }
+      } catch {}
+    });
+  }, [deviceId]);
+
   const recordWin = useCallback(async (personaId: string) => {
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -5853,13 +5868,43 @@ export default function ArenaScreen() {
 
   /** Fetch (or return cached) referral URLs for this device. */
   const fetchReferralUrls = useCallback(async (): Promise<{ url: string; nativeUrl?: string }> => {
+    // 1. In-memory cache (fastest — set by pre-warm effect or a previous fetch this session)
     if (referUrlCacheRef.current) return referUrlCacheRef.current;
+
+    // 2. AsyncStorage cache (instant on cold start — valid for 30 days)
+    const REFERRAL_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+    if (deviceId) {
+      try {
+        const storageKey = `referral_cache_${deviceId}`;
+        const stored = await AsyncStorage.getItem(storageKey);
+        if (stored) {
+          const parsed = JSON.parse(stored) as { url: string; nativeUrl?: string; ts: number };
+          if (Date.now() - parsed.ts < REFERRAL_CACHE_TTL_MS) {
+            referUrlCacheRef.current = { url: parsed.url, nativeUrl: parsed.nativeUrl };
+            return referUrlCacheRef.current;
+          }
+        }
+      } catch {}
+    }
+
+    // 3. Network fetch (first ever generation, or cache expired)
     const headers: Record<string, string> = {};
     if (deviceId) headers["x-device-id"] = deviceId;
     const res = await fetch(new URL("/api/referral/generate", getApiUrl()).toString(), { headers });
     if (!res.ok) throw new Error("Failed to generate referral code");
     const data = await res.json();
     referUrlCacheRef.current = { url: data.url, nativeUrl: data.nativeUrl };
+
+    // Persist so future cold starts are instant
+    if (deviceId) {
+      try {
+        await AsyncStorage.setItem(
+          `referral_cache_${deviceId}`,
+          JSON.stringify({ url: data.url, nativeUrl: data.nativeUrl, ts: Date.now() }),
+        );
+      } catch {}
+    }
+
     return referUrlCacheRef.current!;
   }, [deviceId]);
 
