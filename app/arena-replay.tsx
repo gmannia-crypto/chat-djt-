@@ -47,6 +47,7 @@ export default function ArenaReplayScreen() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ id?: string }>();
   const [recordings, setRecordings] = useState<ArenaRecording[]>([]);
+  const [filterType, setFilterType] = useState<"all" | "1on1" | "arena">("all");
   const [selected, setSelected] = useState<ArenaRecording | null>(null);
   const [playing, setPlaying] = useState(false);
   const [playbackTime, setPlaybackTime] = useState(0);
@@ -282,6 +283,15 @@ export default function ArenaReplayScreen() {
 
   const getPersonaColor = (id: string) => PERSONA_COLORS[id] || "#666";
 
+  const filteredRecordings = recordings.filter((r) => {
+    if (filterType === "1on1") return r.personas.length <= 2;
+    if (filterType === "arena") return r.personas.length > 2;
+    return true;
+  });
+
+  const getRecordingType = (r: ArenaRecording) =>
+    r.personas.length <= 2 ? "1-on-1" : "Arena";
+
   const renderMessage = ({ item }: { item: RecordedMessage }) => {
     const isInterruption = !!item.isInterruption;
     const color = getPersonaColor(item.speakerId);
@@ -461,10 +471,27 @@ export default function ArenaReplayScreen() {
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </Pressable>
         <View style={s.headerCenter}>
-          <Text style={s.headerTitle}>Arena Recordings</Text>
-          <Text style={s.headerSub}>{recordings.length} sessions saved</Text>
+          <Text style={s.headerTitle}>Recordings</Text>
+          <Text style={s.headerSub}>{filteredRecordings.length} session{filteredRecordings.length !== 1 ? "s" : ""} saved</Text>
         </View>
         <View style={{ width: 40 }} />
+      </View>
+
+      {/* Filter pills */}
+      <View style={s.filterRow}>
+        {(["all", "1on1", "arena"] as const).map((f) => {
+          const label = f === "all" ? "All" : f === "1on1" ? "1-on-1" : "Arena";
+          const active = filterType === f;
+          return (
+            <Pressable
+              key={f}
+              onPress={() => { setFilterType(f); Haptics.selectionAsync(); }}
+              style={[s.filterPill, active && s.filterPillActive]}
+            >
+              <Text style={[s.filterPillText, active && s.filterPillTextActive]}>{label}</Text>
+            </Pressable>
+          );
+        })}
       </View>
 
       {recordings.length === 0 ? (
@@ -478,9 +505,17 @@ export default function ArenaReplayScreen() {
             <Text style={s.goArenaBtnText}>Go to Arena</Text>
           </Pressable>
         </View>
+      ) : filteredRecordings.length === 0 ? (
+        <View style={s.emptyState}>
+          <Ionicons name="filter-outline" size={48} color="rgba(255,255,255,0.2)" />
+          <Text style={s.emptyStateTitle}>No {filterType === "1on1" ? "1-on-1" : "Arena"} Replays</Text>
+          <Text style={s.emptyStateText}>
+            You don't have any {filterType === "1on1" ? "1-on-1 debate" : "Arena"} recordings yet.
+          </Text>
+        </View>
       ) : (
         <FlatList
-          data={recordings}
+          data={filteredRecordings}
           keyExtractor={(item) => item.id}
           contentContainerStyle={s.listContent}
           showsVerticalScrollIndicator={false}
@@ -496,7 +531,18 @@ export default function ArenaReplayScreen() {
                       <Ionicons name="mic" size={16} color="#D4A420" />
                       <Text style={s.cardTopic} numberOfLines={1}>{item.topic}</Text>
                     </View>
-                    <Pressable onPress={() => handleDelete(item.id)} hitSlop={12}>
+                    <View style={[
+                      s.typeBadge,
+                      item.personas.length <= 2 ? s.typeBadge1on1 : s.typeBadgeArena,
+                    ]}>
+                      <Text style={[
+                        s.typeBadgeText,
+                        item.personas.length <= 2 ? s.typeBadgeText1on1 : s.typeBadgeTextArena,
+                      ]}>
+                        {getRecordingType(item)}
+                      </Text>
+                    </View>
+                    <Pressable onPress={() => handleDelete(item.id)} hitSlop={12} style={{ marginLeft: 6 }}>
                       <Ionicons name="trash-outline" size={18} color="rgba(255,255,255,0.3)" />
                     </Pressable>
                   </View>
@@ -808,4 +854,54 @@ const s = StyleSheet.create({
     borderRadius: 8,
   },
   cardShareText: { color: "#D4A420", fontWeight: "600", fontSize: 13 },
+  filterRow: {
+    flexDirection: "row",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(212,164,32,0.1)",
+  },
+  filterPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)",
+    backgroundColor: "transparent",
+  },
+  filterPillActive: {
+    backgroundColor: "#D4A420",
+    borderColor: "#D4A420",
+  },
+  filterPillText: {
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 13,
+    fontWeight: "600" as const,
+  },
+  filterPillTextActive: {
+    color: "#000",
+  },
+  typeBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  typeBadge1on1: {
+    backgroundColor: "rgba(99,102,241,0.15)",
+    borderColor: "rgba(99,102,241,0.4)",
+  },
+  typeBadgeArena: {
+    backgroundColor: "rgba(212,164,32,0.12)",
+    borderColor: "rgba(212,164,32,0.35)",
+  },
+  typeBadgeText: {
+    fontSize: 10,
+    fontWeight: "700" as const,
+    textTransform: "uppercase" as const,
+    letterSpacing: 0.5,
+  },
+  typeBadgeText1on1: { color: "#818cf8" },
+  typeBadgeTextArena: { color: "#D4A420" },
 });
