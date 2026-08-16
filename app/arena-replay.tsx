@@ -48,7 +48,7 @@ const SPEED_OPTIONS = [1, 1.5, 2];
 
 export default function ArenaReplayScreen() {
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ id?: string }>();
+  const params = useLocalSearchParams<{ id?: string; startAt?: string }>();
   const [recordings, setRecordings] = useState<ArenaRecording[]>([]);
   const [filterType, setFilterType] = useState<"all" | "1on1" | "arena">("all");
   const [selected, setSelected] = useState<ArenaRecording | null>(null);
@@ -174,7 +174,13 @@ export default function ArenaReplayScreen() {
     setRecordings(recs);
     if (params.id) {
       const found = recs.find((r) => r.id === params.id);
-      if (found) setSelected(found);
+      if (found) {
+        setSelected(found);
+        if (params.startAt) {
+          const t = parseFloat(params.startAt);
+          if (!isNaN(t) && t > 0) setPlaybackTime(t);
+        }
+      }
     }
   };
 
@@ -387,7 +393,16 @@ export default function ArenaReplayScreen() {
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={
             selected.oddsHistory && selected.oddsHistory.length > 0
-              ? <OddsTimeline shifts={selected.oddsHistory} duration={selected.duration} />
+              ? <OddsTimeline
+                  shifts={selected.oddsHistory}
+                  duration={selected.duration}
+                  onShiftPress={(shift) => {
+                    ttsQueueRef.current = [];
+                    stopReplayAudio();
+                    setPlaybackTime(shift.atTime / 1000);
+                    Haptics.selectionAsync();
+                  }}
+                />
               : selected.isIQRaceSession
               ? (
                 <View style={s.oddsEmptyHint}>

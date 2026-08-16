@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { OddsShift } from "@/lib/arena-recordings";
@@ -11,14 +11,24 @@ const ODDS_LABEL_COLORS: Record<string, string> = {
   UNDERDOG: "#F87171",
 };
 
+interface OddsTimelineProps {
+  shifts: OddsShift[];
+  duration: number;
+  /** When provided each row becomes pressable and fires with the tapped shift. */
+  onShiftPress?: (shift: OddsShift) => void;
+}
+
 /** Compact odds-shift timeline. `duration` is in seconds. */
-export function OddsTimeline({ shifts, duration }: { shifts: OddsShift[]; duration: number }) {
+export function OddsTimeline({ shifts, duration, onShiftPress }: OddsTimelineProps) {
   if (shifts.length === 0) return null;
   return (
     <View style={ot.container}>
       <View style={ot.titleRow}>
         <Ionicons name="trending-up" size={14} color="#D4A420" />
         <Text style={ot.title}>Odds Timeline</Text>
+        {onShiftPress && (
+          <Text style={ot.tapHint}>tap to jump</Text>
+        )}
       </View>
       {shifts.map((shift, i) => {
         const fromColor = ODDS_LABEL_COLORS[shift.fromLabel] ?? "#888";
@@ -27,8 +37,8 @@ export function OddsTimeline({ shifts, duration }: { shifts: OddsShift[]; durati
         const atMin = Math.floor(shift.atTime / 60000);
         const atSec = Math.floor((shift.atTime % 60000) / 1000);
         const timeLabel = `${atMin}:${atSec.toString().padStart(2, "0")}`;
-        return (
-          <Animated.View key={i} entering={FadeIn.delay(i * 60).duration(350)} style={ot.row}>
+        const rowContent = (
+          <>
             {/* mini track marker */}
             <View style={ot.trackWrap}>
               <View style={ot.track}>
@@ -45,6 +55,24 @@ export function OddsTimeline({ shifts, duration }: { shifts: OddsShift[]; durati
               </View>
             </View>
             <Text style={ot.timeLabel}>{timeLabel}</Text>
+            {onShiftPress && (
+              <Ionicons name="play-circle-outline" size={14} color="rgba(212,164,32,0.5)" />
+            )}
+          </>
+        );
+        return (
+          <Animated.View key={i} entering={FadeIn.delay(i * 60).duration(350)}>
+            {onShiftPress ? (
+              <Pressable
+                onPress={() => onShiftPress(shift)}
+                style={({ pressed }) => [ot.row, pressed && ot.rowPressed]}
+                hitSlop={4}
+              >
+                {rowContent}
+              </Pressable>
+            ) : (
+              <View style={ot.row}>{rowContent}</View>
+            )}
           </Animated.View>
         );
       })}
@@ -66,6 +94,8 @@ const ot = StyleSheet.create({
   titleRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 },
   title: { color: "#D4A420", fontSize: 12, fontWeight: "700", letterSpacing: 0.6, textTransform: "uppercase" },
   row: { flexDirection: "row", alignItems: "center", gap: 10 },
+  rowPressed: { opacity: 0.65 },
+  tapHint: { color: "rgba(212,164,32,0.45)", fontSize: 9, fontWeight: "600", letterSpacing: 0.3, marginLeft: "auto" },
   trackWrap: { flex: 1 },
   track: {
     height: 3,

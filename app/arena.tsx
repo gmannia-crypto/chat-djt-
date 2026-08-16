@@ -3924,6 +3924,10 @@ export default function ArenaScreen() {
   const [betWagerInput, setBetWagerInput] = useState(3);
   const [betPickId, setBetPickId] = useState<string | null>(null);
   const [betResult, setBetResult] = useState<{ won: boolean; payout: number; lowestId: string } | null>(null);
+  /** ID of the recording saved for the currently-displayed end-summary / bet-result session. */
+  const [endSummaryRecordingId, setEndSummaryRecordingId] = useState<string | null>(null);
+  /** Guard: prevents saving the same session twice when bet-result and end-summary both trigger. */
+  const endSummarySessionSavedRef = useRef(false);
   const [liveOdds, setLiveOdds] = useState<Record<string, { label: string; multiplier: number }>>({});
   const [oddsShiftToast, setOddsShiftToast] = useState(false);
   const prevOddsLabelsRef = useRef<Record<string, string>>({});
@@ -5412,6 +5416,8 @@ export default function ArenaScreen() {
           recordingMessagesRef.current = [];
           oddsHistoryRef.current = [];
           prevOddsLabelsRef.current = {};
+          endSummarySessionSavedRef.current = false;
+          setEndSummaryRecordingId(null);
         }
         setShowScoreboard(false);
         refreshBalance();
@@ -5686,6 +5692,11 @@ export default function ArenaScreen() {
               }
               await clearArenaBet();
               setArenaBet(null);
+              // Save the session now so the OddsTimeline rows can deep-link into the replay.
+              if (!endSummarySessionSavedRef.current) {
+                endSummarySessionSavedRef.current = true;
+                saveCurrentSession().then((id) => { if (id) setEndSummaryRecordingId(id); }).catch(() => {});
+              }
               setBetResult({ won, payout, lowestId });
               const targetName = getPersona(savedBet.targetPersonaId)?.shortName || savedBet.targetPersonaId;
               const lowestName = getPersona(lowestId)?.shortName || lowestId;
@@ -5715,6 +5726,11 @@ export default function ArenaScreen() {
             setEndSummaryDuration((Date.now() - sessionStartTimeRef.current) / 1000);
             setIsIQRaceSession(selectedPersonasRef.current.length >= 2);
             setShowEndSummary(true);
+            // Save recording so OddsTimeline rows can deep-link into the replay (guard against double-save).
+            if (!endSummarySessionSavedRef.current) {
+              endSummarySessionSavedRef.current = true;
+              saveCurrentSession().then((id) => { if (id) setEndSummaryRecordingId(id); }).catch(() => {});
+            }
             clearSavedSession();
             awardBadge("arena_debut");
             setTimeout(() => { playWinnerAfterSound(); }, 4000);
@@ -5764,9 +5780,9 @@ export default function ArenaScreen() {
     return () => clearInterval(tick);
   }, [hasSession, sessionExpiresAt]);
 
-  const saveCurrentSession = useCallback(async (topicName?: string) => {
+  const saveCurrentSession = useCallback(async (topicName?: string): Promise<string | null> => {
     const msgs = recordingMessagesRef.current;
-    if (msgs.length < 3) return;
+    if (msgs.length < 3) return null;
     const topic = topicName || currentTopicRef.current || "Arena Debate";
     const duration = msgs.length > 0
       ? (msgs[msgs.length - 1].relativeTime) / 1000
@@ -5784,6 +5800,7 @@ export default function ArenaScreen() {
       isIQRaceSession,
     };
     await saveRecording(rec);
+    return rec.id;
   }, []);
 
   const fetchNewsFeed = useCallback(async () => {
@@ -6051,6 +6068,7 @@ export default function ArenaScreen() {
     recordingMessagesRef.current = [];
     oddsHistoryRef.current = [];
     prevOddsLabelsRef.current = {};
+    endSummarySessionSavedRef.current = false;
     if (topicTimerRef.current) clearInterval(topicTimerRef.current);
     topicTimerRef.current = setInterval(() => {
       setTopicTimer((prev) => {
@@ -7432,6 +7450,8 @@ export default function ArenaScreen() {
       return;
     }
     setBetResult(null);
+    setEndSummaryRecordingId(null);
+    endSummarySessionSavedRef.current = false;
     sessionEndedRef.current = false;
     isInterruptingRef.current = false;
     isRapidExchangeRef.current = false;
@@ -8614,7 +8634,13 @@ export default function ArenaScreen() {
               {!betResult.won && <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, textAlign: "center", marginTop: 4 }}>Lowest IQ: {getPersona(betResult.lowestId)?.shortName || betResult.lowestId}</Text>}
               {oddsHistoryRef.current.length > 0 && (
                 <View style={{ marginTop: 12 }}>
-                  <OddsTimeline shifts={oddsHistoryRef.current} duration={endSummaryDuration} />
+                  <OddsTimeline
+                    shifts={oddsHistoryRef.current}
+                    duration={endSummaryDuration}
+                    onShiftPress={endSummaryRecordingId ? (shift) => {
+                      router.push(`/arena-replay?id=${endSummaryRecordingId}&startAt=${(shift.atTime / 1000).toFixed(1)}` as any);
+                    } : undefined}
+                  />
                 </View>
               )}
               {betResult.won && (
@@ -10463,6 +10489,11 @@ export default function ArenaScreen() {
                 setEndSummaryDuration((Date.now() - sessionStartTimeRef.current) / 1000);
                 setIsIQRaceSession(selectedPersonasRef.current.length >= 2);
                 setShowEndSummary(true);
+                // Save recording so OddsTimeline rows can deep-link into the replay (guard against double-save).
+                if (!endSummarySessionSavedRef.current) {
+                  endSummarySessionSavedRef.current = true;
+                  saveCurrentSession().then((id) => { if (id) setEndSummaryRecordingId(id); }).catch(() => {});
+                }
                 clearSavedSession();
                 awardBadge("arena_debut");
                 setTimeout(() => { playWinnerAfterSound(); }, 4000);
@@ -10565,7 +10596,13 @@ export default function ArenaScreen() {
             {(oddsHistoryRef.current.length > 0 || isIQRaceSession) && (
               <Animated.View entering={FadeIn.delay(400).duration(400)} style={{ width: "100%", marginTop: 12 }}>
                 {oddsHistoryRef.current.length > 0 ? (
-                  <OddsTimeline shifts={oddsHistoryRef.current} duration={endSummaryDuration} />
+                  <OddsTimeline
+                    shifts={oddsHistoryRef.current}
+                    duration={endSummaryDuration}
+                    onShiftPress={endSummaryRecordingId ? (shift) => {
+                      router.push(`/arena-replay?id=${endSummaryRecordingId}&startAt=${(shift.atTime / 1000).toFixed(1)}` as any);
+                    } : undefined}
+                  />
                 ) : (
                   <View style={{ padding: 12, borderRadius: 12, borderWidth: 1, borderColor: "rgba(212,164,32,0.15)", backgroundColor: "rgba(212,164,32,0.06)", flexDirection: "row", alignItems: "center", gap: 8 }}>
                     <Ionicons name="trending-up" size={14} color="#D4A420" />
