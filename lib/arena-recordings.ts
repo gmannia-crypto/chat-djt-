@@ -33,6 +33,7 @@ export interface ArenaRecording {
   messageCount: number;
   highlightQuote?: string;
   oddsHistory?: OddsShift[];
+  isIQRaceSession?: boolean;
 }
 
 export async function saveRecording(recording: ArenaRecording): Promise<void> {

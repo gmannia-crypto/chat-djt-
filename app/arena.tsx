@@ -5781,6 +5781,7 @@ export default function ArenaScreen() {
       messageCount: msgs.filter((m) => !m.isSystem).length,
       highlightQuote: pickHighlightQuote(msgs),
       oddsHistory: [...oddsHistoryRef.current],
+      isIQRaceSession,
     };
     await saveRecording(rec);
   }, []);

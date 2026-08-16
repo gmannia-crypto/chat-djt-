@@ -388,6 +388,13 @@ export default function ArenaReplayScreen() {
           ListHeaderComponent={
             selected.oddsHistory && selected.oddsHistory.length > 0
               ? <OddsTimeline shifts={selected.oddsHistory} duration={selected.duration} />
+              : selected.isIQRaceSession
+              ? (
+                <View style={s.oddsEmptyHint}>
+                  <Ionicons name="analytics-outline" size={16} color="rgba(212,164,32,0.6)" />
+                  <Text style={s.oddsEmptyHintText}>No odds shifts recorded this session</Text>
+                </View>
+              )
               : null
           }
           ListEmptyComponent={
@@ -822,6 +829,21 @@ const s = StyleSheet.create({
     gap: 12,
   },
   emptyText: { color: "rgba(255,255,255,0.4)", fontSize: 14 },
+  oddsEmptyHint: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: "rgba(212,164,32,0.06)",
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(212,164,32,0.12)",
+  },
+  oddsEmptyHintText: {
+    color: "rgba(212,164,32,0.6)",
+    fontSize: 12,
+    fontStyle: "italic",
+  },
   flipBanner: {
     flexDirection: "row",
     alignItems: "center",
