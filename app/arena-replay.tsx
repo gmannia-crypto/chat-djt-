@@ -24,6 +24,7 @@ import {
   deleteRecording,
   formatDuration,
   generateShareText,
+  pickBiggestOddsFlip,
 } from "@/lib/arena-recordings";
 import { OddsTimeline } from "@/components/OddsTimeline";
 
@@ -396,6 +397,35 @@ export default function ArenaReplayScreen() {
             </View>
           }
         />
+
+        {(() => {
+          const bigFlip = pickBiggestOddsFlip(selected.oddsHistory);
+          if (!bigFlip) return null;
+          const flipTime = bigFlip.atTime / 1000;
+          const flipLabel = formatDuration(Math.round(flipTime));
+          return (
+            <Pressable
+              onPress={() => {
+                ttsQueueRef.current = [];
+                stopReplayAudio();
+                setPlaybackTime(flipTime);
+                Haptics.selectionAsync();
+              }}
+              style={s.flipBanner}
+            >
+              <Ionicons name="trending-up" size={14} color="#D4A420" />
+              <Text style={s.flipBannerText} numberOfLines={1}>
+                <Text style={s.flipBannerName}>{bigFlip.personaName}</Text>
+                {" "}flipped{" "}
+                <Text style={s.flipBannerLabel}>{bigFlip.fromLabel}</Text>
+                {" → "}
+                <Text style={s.flipBannerLabel}>{bigFlip.toLabel}</Text>
+                {" at "}{flipLabel}
+              </Text>
+              <Ionicons name="chevron-forward" size={12} color="rgba(212,164,32,0.6)" />
+            </Pressable>
+          );
+        })()}
 
         <View style={[s.playerBar, { paddingBottom: Math.max(insets.bottom, Platform.OS === "web" ? 34 : 16) }]}>
           <View style={s.timeRow}>
@@ -792,6 +822,29 @@ const s = StyleSheet.create({
     gap: 12,
   },
   emptyText: { color: "rgba(255,255,255,0.4)", fontSize: 14 },
+  flipBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: "rgba(212,164,32,0.08)",
+    borderTopWidth: 1,
+    borderTopColor: "rgba(212,164,32,0.15)",
+  },
+  flipBannerText: {
+    flex: 1,
+    color: "rgba(255,255,255,0.75)",
+    fontSize: 12,
+  },
+  flipBannerName: {
+    color: "#D4A420",
+    fontWeight: "700",
+  },
+  flipBannerLabel: {
+    color: "#fff",
+    fontWeight: "600",
+  },
   emptyState: {
     flex: 1,
     justifyContent: "center",
