@@ -17636,12 +17636,13 @@ Respond with a JSON array ONLY — no markdown, no code fences, no preamble. Exa
         }
         const referred = referredRow.rows[0];
 
-        // Account must have been created within the last 7 days.
-        // Prevents existing users from fabricating new device IDs after the fact.
+        // Account must have been created within the last 48 hours.
+        // Prevents existing users from claiming referral tokens on a device that
+        // was already active before the referral link was clicked.
         if (!isDev) {
           const ageMs = Date.now() - new Date(referred.created_at).getTime();
-          if (ageMs > 7 * 24 * 60 * 60 * 1000) {
-            return res.status(403).json({ error: "Referral bonus is only available to new accounts." });
+          if (ageMs > 48 * 60 * 60 * 1000) {
+            return res.status(403).json({ error: "Referral codes can only be claimed within 48 hours of creating your account." });
           }
         }
 
