@@ -19,6 +19,7 @@
     "test:persona-check": "node scripts/check-persona-images.test.js",
     "test:no-ai-guard": "npx tsx server/arena-no-ai-guard.test.js",
     "test:no-ai-guard-route": "npx tsx server/arena-no-ai-guard-route.test.js",
+    "test:referral-concurrent": "npx tsx server/referral-claim-concurrent.test.js",
     "test:no-ai-deflections": "node scripts/check-no-ai-deflections.js"
   },
   "dependencies": {
