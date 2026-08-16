@@ -4357,20 +4357,35 @@ export default function ArenaScreen() {
   // Captures the identity generation before the async read; discards the result
   // if the generation has been bumped (i.e. account unlinked or device switched)
   // by the time the read resolves — preventing a stale URL from being restored.
+  // Also checks the referral_cache_owner sentinel: if it belongs to a different
+  // device, the stale entry is evicted and the owner is updated before restoring.
   useEffect(() => {
     if (!deviceId || referUrlCacheRef.current) return;
     const gen = referralIdentityGenRef.current;
     const REFERRAL_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-    AsyncStorage.getItem(`referral_cache_${deviceId}`).then((raw) => {
-      if (referralIdentityGenRef.current !== gen) return; // identity changed — discard
-      if (!raw) return;
+    (async () => {
       try {
-        const parsed = JSON.parse(raw) as { url: string; nativeUrl?: string; ts: number };
-        if (Date.now() - parsed.ts < REFERRAL_CACHE_TTL_MS) {
-          referUrlCacheRef.current = { url: parsed.url, nativeUrl: parsed.nativeUrl };
+        const owner = await AsyncStorage.getItem("referral_cache_owner");
+        if (referralIdentityGenRef.current !== gen) return;
+        if (owner && owner !== deviceId) {
+          // Owner sentinel points to a different device — evict the orphaned cache
+          // and reset the sentinel so the next fetchReferralUrls re-generates cleanly.
+          await AsyncStorage.removeItem(`referral_cache_${owner}`);
+          await AsyncStorage.removeItem("referral_cache_owner");
+          return; // Nothing to pre-warm; fetchReferralUrls will fetch fresh
         }
       } catch {}
-    });
+      AsyncStorage.getItem(`referral_cache_${deviceId}`).then((raw) => {
+        if (referralIdentityGenRef.current !== gen) return; // identity changed — discard
+        if (!raw) return;
+        try {
+          const parsed = JSON.parse(raw) as { url: string; nativeUrl?: string; ts: number };
+          if (Date.now() - parsed.ts < REFERRAL_CACHE_TTL_MS) {
+            referUrlCacheRef.current = { url: parsed.url, nativeUrl: parsed.nativeUrl };
+          }
+        } catch {}
+      });
+    })();
   }, [deviceId]);
 
   // Clear the referral URL cache whenever the account identity changes so a
@@ -5960,13 +5975,18 @@ export default function ArenaScreen() {
     if (referralIdentityGenRef.current !== gen) throw new Error("Identity changed");
     referUrlCacheRef.current = { url: data.url, nativeUrl: data.nativeUrl };
 
-    // Persist so future cold starts are instant
+    // Persist so future cold starts are instant.
+    // Also write the owner sentinel so partial-clear scenarios (device ID key deleted
+    // but referral cache left behind) can be detected and evicted on the next init.
     if (deviceId) {
       try {
-        await AsyncStorage.setItem(
-          `referral_cache_${deviceId}`,
-          JSON.stringify({ url: data.url, nativeUrl: data.nativeUrl, ts: Date.now() }),
-        );
+        await AsyncStorage.multiSet([
+          [
+            `referral_cache_${deviceId}`,
+            JSON.stringify({ url: data.url, nativeUrl: data.nativeUrl, ts: Date.now() }),
+          ],
+          ["referral_cache_owner", deviceId],
+        ]);
       } catch {}
     }
 

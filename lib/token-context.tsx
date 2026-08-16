@@ -6,6 +6,7 @@ import { fetch } from "expo/fetch";
 
 const DEVICE_ID_KEY = "chatdjt_device_id";
 const SAVE_MODAL_DISMISSED_KEY = "chatdjt_save_modal_dismissed";
+const REFERRAL_CACHE_OWNER_KEY = "referral_cache_owner";
 
 interface TokenBalance {
   tokens: number;
@@ -44,13 +45,33 @@ async function getOrCreateDeviceId(): Promise<string> {
     // where DEVICE_ID_KEY was cleared but referral_cache_<oldId> entries remain).
     try {
       const allKeys = await AsyncStorage.getAllKeys();
-      const staleReferralKeys = allKeys.filter((k) => k.startsWith("referral_cache_"));
+      const staleReferralKeys = allKeys.filter(
+        (k) => k.startsWith("referral_cache_") && k !== REFERRAL_CACHE_OWNER_KEY,
+      );
       if (staleReferralKeys.length > 0) {
         await AsyncStorage.multiRemove(staleReferralKeys);
       }
+      await AsyncStorage.removeItem(REFERRAL_CACHE_OWNER_KEY);
     } catch {}
     id = `device-${Date.now()}-${Math.random().toString(36).substr(2, 12)}`;
     await AsyncStorage.setItem(DEVICE_ID_KEY, id);
+  } else {
+    // Device ID exists — check that the referral-cache owner sentinel still
+    // matches this device.  If not (e.g. only the device ID key was deleted and
+    // then recreated while old cache entries lingered), evict orphaned entries.
+    try {
+      const owner = await AsyncStorage.getItem(REFERRAL_CACHE_OWNER_KEY);
+      if (owner && owner !== id) {
+        const allKeys = await AsyncStorage.getAllKeys();
+        const staleReferralKeys = allKeys.filter(
+          (k) => k.startsWith("referral_cache_") && k !== REFERRAL_CACHE_OWNER_KEY,
+        );
+        if (staleReferralKeys.length > 0) {
+          await AsyncStorage.multiRemove(staleReferralKeys);
+        }
+        await AsyncStorage.removeItem(REFERRAL_CACHE_OWNER_KEY);
+      }
+    } catch {}
   }
   return id;
 }
@@ -258,4 +279,4 @@ export function useTokens() {
   return context;
 }
 
-export { getOrCreateDeviceId, DEVICE_ID_KEY };
+export { getOrCreateDeviceId, DEVICE_ID_KEY, REFERRAL_CACHE_OWNER_KEY };
