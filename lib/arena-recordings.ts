@@ -114,6 +114,9 @@ export function generateShareText(recording: ArenaRecording): string {
   if (bigFlip) {
     const flipTime = formatDuration(Math.round(bigFlip.atTime / 1000));
     text += `📈 ${bigFlip.personaName} flipped ${bigFlip.fromLabel} → ${bigFlip.toLabel} at ${flipTime}\n`;
+  } else if (recording.oddsHistory === undefined) {
+    // oddsHistory was added after this recording was saved; odds data cannot be recovered
+    text += `📊 (odds data unavailable for this replay)\n`;
   }
   text += `\n${recording.messageCount} exchanges in ${formatDuration(recording.duration)}\n`;
   text += `\n🏛️ Watch the debate on The Arena\nhttps://thearena.rip`;

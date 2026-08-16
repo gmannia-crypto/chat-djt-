@@ -5765,7 +5765,7 @@ export default function ArenaScreen() {
       messages: [...msgs],
       messageCount: msgs.filter((m) => !m.isSystem).length,
       highlightQuote: pickHighlightQuote(msgs),
-      oddsHistory: oddsHistoryRef.current.length > 0 ? [...oddsHistoryRef.current] : undefined,
+      oddsHistory: [...oddsHistoryRef.current],
     };
     await saveRecording(rec);
   }, []);
