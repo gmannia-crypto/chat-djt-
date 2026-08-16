@@ -1016,6 +1016,11 @@ export default function DebateStage() {
 
   const [interviewers, setInterviewers] = useState<PersonaLite[]>([]);
   const [interviewees, setInterviewees] = useState<PersonaLite[]>([]);
+  // Stable refs so sarcasm closures don't need these arrays as useCallback deps
+  const interviewersRef = useRef<PersonaLite[]>([]);
+  const intervieweesRef = useRef<PersonaLite[]>([]);
+  useEffect(() => { interviewersRef.current = interviewers; }, [interviewers]);
+  useEffect(() => { intervieweesRef.current = interviewees; }, [interviewees]);
   const [interviewerId, setInterviewerId] = useState<string | null>(null);
   const [intervieweeId, setIntervieweeId] = useState<string | null>(null);
   const [duration, setDuration] = useState<5 | 10 | 15>(10);
@@ -1509,7 +1514,7 @@ export default function DebateStage() {
       // ── PHASE 1: GATHER CONTEXT ─────────────────────────────────────────────
       const aPersona = interviewers.find((p) => p.id === aId);
       const bPersona = interviewees.find((p) => p.id === bId);
-      const msgs     = (messagesRef.current ?? []).filter((m) => !m.isSystem);
+      const msgs     = (messagesRef.current ?? []).filter((m) => !m.isSystem && !m.isSarcasm && !m.isInterruption);
       const topicForVerdict = (topics && topics.length > 0) ? topics[0].title : "Political Debate";
 
       // ── PHASE 2: KICK OFF AI VERDICT IN BACKGROUND (don't await yet) ────────
@@ -2623,8 +2628,8 @@ export default function DebateStage() {
         const line = pool[Math.floor(Math.random() * pool.length)];
         const reactorPersona =
           reactorId === interviewerId
-            ? interviewers.find((p) => p.id === reactorId)
-            : interviewees.find((p) => p.id === reactorId);
+            ? interviewersRef.current.find((p) => p.id === reactorId)
+            : intervieweesRef.current.find((p) => p.id === reactorId);
         const reactorName = reactorPersona?.name || reactorId;
         const msgId = `sarcasm-${Date.now()}`;
         // Fire after a short beat — main-speaker TTS must land first
@@ -2670,7 +2675,7 @@ export default function DebateStage() {
         }
       }
     }
-  }, [enqueueTTS, interviewerId, intervieweeId, runFactCheck, moderatorStyle, interviewers, interviewees]);
+  }, [enqueueTTS, interviewerId, intervieweeId, runFactCheck, moderatorStyle]);
 
   /** Arena-style interruption audio: ducks the current speaker to 10%, plays the
    *  interrupt at full persona volume, then restores the main speaker to 100%.
