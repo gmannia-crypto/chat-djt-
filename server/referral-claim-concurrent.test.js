@@ -40,6 +40,7 @@ import {
   ensureReferralTable,
   makeReferralClaimHandler,
   _resetEnsuredFlagForTests,
+  REFERRAL_LOCALHOST_IPS,
 } from "./referral-handler.ts";
 
 // ─── Assertion harness ────────────────────────────────────────────────────────
@@ -386,6 +387,145 @@ async function run() {
     assertEqual(resDiff.status, 200, "different fingerprint on a new device succeeds");
 
     await claimDb.end();
+
+    // ── Layer C: Per-IP rate-limit (4+ concurrent requests, same socket IP) ──
+    //
+    // The handler increments referral_ip_limits atomically inside the transaction.
+    // This layer proves that 4 simultaneous claims from the same socket IP result
+    // in exactly 3 grants (HTTP 200) and 1+ rejections (HTTP 429), and that
+    // referral_ip_limits.claim_count never exceeds 3 for the test IP.
+    //
+    // Because the test HTTP server binds to 127.0.0.1 the socket's remoteAddress
+    // is "127.0.0.1", which the handler normally exempts.  We temporarily remove
+    // it from REFERRAL_LOCALHOST_IPS and switch NODE_ENV away from "development"
+    // so the IP check runs, then restore both after the layer completes.
+
+    console.log("\n=== Layer C: Per-IP rate-limit (4 concurrent, same socket IP) ===\n");
+
+    const IP_DEVICE_1 = `${tag}-ip-dev-1`;
+    const IP_DEVICE_2 = `${tag}-ip-dev-2`;
+    const IP_DEVICE_3 = `${tag}-ip-dev-3`;
+    const IP_DEVICE_4 = `${tag}-ip-dev-4`;
+    const IP_DEVICES = [IP_DEVICE_1, IP_DEVICE_2, IP_DEVICE_3, IP_DEVICE_4];
+    allDeviceIds.push(...IP_DEVICES);
+
+    // Pre-create all four referred accounts so the handler doesn't race on that
+    // write path — we want the IP-limit INSERT to be the bottleneck under test.
+    for (const dev of IP_DEVICES) {
+      await db.query(
+        `INSERT INTO token_accounts
+           (device_id, tokens, free_prompts_used, subscription_active,
+            subscription_tokens_granted, created_at, updated_at)
+         VALUES ($1, 10, 0, false, false, NOW(), NOW())
+         ON CONFLICT (device_id) DO NOTHING`,
+        [dev]
+      );
+    }
+
+    // Each device uses a distinct fingerprint so the fingerprint-dedup guard
+    // cannot trigger — only the IP rate-limit is under test here.
+    const ipClaimDb = new Pool({ connectionString: process.env.DATABASE_URL, max: 10 });
+    const ipClaimHandler = makeReferralClaimHandler(ipClaimDb);
+
+    const ipServer = http.createServer((req, res) => {
+      if (req.method === "POST" && req.url === "/api/referral/claim") {
+        let raw = "";
+        req.on("data", (c) => (raw += c));
+        req.on("end", () => {
+          try { req.body = JSON.parse(raw); } catch { req.body = {}; }
+          res.status = (code) => { res.statusCode = code; return res; };
+          res.json = (obj) => {
+            if (!res.headersSent) res.setHeader("content-type", "application/json");
+            res.end(JSON.stringify(obj));
+            return res;
+          };
+          ipClaimHandler(req, res);
+        });
+      } else {
+        res.writeHead(404);
+        res.end();
+      }
+    });
+
+    const ipPort = await new Promise((resolve, reject) => {
+      ipServer.listen(0, "127.0.0.1", () => resolve(ipServer.address().port));
+      ipServer.once("error", reject);
+    });
+    console.log(`IP-limit test server listening on port ${ipPort}\n`);
+
+    // Clean any leftover rows from previous runs so the counter starts at 0.
+    await db.query(
+      `DELETE FROM referral_ip_limits WHERE ip_address IN ('127.0.0.1', '::1', '::ffff:127.0.0.1')
+         AND claim_day = CURRENT_DATE`
+    );
+
+    // ── Activate the IP check: remove localhost bypass + leave dev-mode ───────
+    const savedNodeEnv = process.env.NODE_ENV;
+    REFERRAL_LOCALHOST_IPS.delete("127.0.0.1");
+    REFERRAL_LOCALHOST_IPS.delete("::1");
+    REFERRAL_LOCALHOST_IPS.delete("::ffff:127.0.0.1");
+    process.env.NODE_ENV = "test"; // anything other than "development"
+
+    let ipResults;
+    try {
+      // Test C-1: Four simultaneous claims from the same socket IP.
+      console.log("Test C-1: 4 concurrent claims from the same socket IP");
+
+      ipResults = await Promise.all(
+        IP_DEVICES.map((dev, i) =>
+          postClaim(ipPort, {
+            deviceId: dev,
+            fingerprint: `fp-ip-${i}-${RUN_ID}`,
+            code: REFERRAL_CODE,
+          })
+        )
+      );
+
+      ipResults.forEach((r, i) =>
+        console.log(`  Device ${i + 1}: HTTP ${r.status}  ${JSON.stringify(r.body)}`)
+      );
+    } finally {
+      // ── Restore state unconditionally ────────────────────────────────────
+      process.env.NODE_ENV = savedNodeEnv;
+      REFERRAL_LOCALHOST_IPS.add("127.0.0.1");
+      REFERRAL_LOCALHOST_IPS.add("::1");
+      REFERRAL_LOCALHOST_IPS.add("::ffff:127.0.0.1");
+    }
+
+    const ipStatuses = ipResults.map((r) => r.status);
+    const successCount = ipStatuses.filter((s) => s === 200).length;
+    const tooManyCount = ipStatuses.filter((s) => s === 429).length;
+
+    assertEqual(successCount, 3, "exactly 3 requests received HTTP 200 (IP limit allows 3)");
+    assert(tooManyCount >= 1, "at least 1 request received HTTP 429 (IP limit enforced)");
+
+    // Test C-2: DB claim_count must not exceed 3 for the socket IP.
+    console.log("\nTest C-2: referral_ip_limits.claim_count does not exceed 3");
+
+    const ipLimitRows = await db.query(
+      `SELECT claim_count FROM referral_ip_limits
+       WHERE ip_address = ANY($1::text[]) AND claim_day = CURRENT_DATE`,
+      [["127.0.0.1", "::1", "::ffff:127.0.0.1"]]
+    );
+    const maxCount = ipLimitRows.rows.reduce(
+      (max, r) => Math.max(max, Number(r.claim_count)),
+      0
+    );
+    console.log(`  claim_count in DB: ${maxCount}`);
+    assert(maxCount <= 3, `referral_ip_limits.claim_count (${maxCount}) does not exceed 3`);
+
+    // Test C-3: Exactly 3 grant rows were created for the IP devices.
+    console.log("\nTest C-3: exactly 3 grant rows created (4th claim was rejected)");
+
+    const ipGrantRows = await db.query(
+      `SELECT referred_device_id FROM referral_grants
+       WHERE referred_device_id = ANY($1::text[])`,
+      [IP_DEVICES]
+    );
+    assertEqual(ipGrantRows.rows.length, 3, "exactly 3 grant rows exist for the IP-limited batch");
+
+    await ipClaimDb.end();
+    ipServer.close();
 
   } finally {
     // ── Full cleanup: grants, transactions, accounts ──────────────────────────
