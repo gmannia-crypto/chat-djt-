@@ -3950,6 +3950,7 @@ export default function ArenaScreen() {
   const [showHallOfFame, setShowHallOfFame] = useState(false);
   const [showReferModal, setShowReferModal] = useState(false);
   const [referLinkCopied, setReferLinkCopied] = useState(false);
+  const [referDisplayUrl, setReferDisplayUrl] = useState<string | null>(null);
   const referUrlCacheRef = useRef<{ url: string; nativeUrl?: string } | null>(null);
   const [hofData, setHofData] = useState<{ leaderboard: Array<{ personaId: string; totalWins: number; totalLosses: number; totalDebates: number; winPct: number; bestRivalId: string | null; bestRivalWins: number }>; userPicks: Array<{ personaId: string; wins: number; losses: number }> } | null>(null);
   const [hofLoading, setHofLoading] = useState(false);
@@ -5910,9 +5911,10 @@ export default function ArenaScreen() {
 
   const handleReferFriend = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    // Pre-fetch the URL in the background so it's ready when the user taps Copy or Share.
-    fetchReferralUrls().catch(() => {});
+    setReferDisplayUrl(null);
     setShowReferModal(true);
+    // Fetch URL in the background and populate the pill once ready
+    fetchReferralUrls().then(({ url }) => setReferDisplayUrl(url)).catch(() => {});
   }, [fetchReferralUrls]);
 
   const handleCopyReferralLink = useCallback(async () => {
@@ -9919,6 +9921,26 @@ export default function ArenaScreen() {
                 <Ionicons name="close" size={22} color="rgba(255,255,255,0.4)" />
               </Pressable>
             </View>
+
+            {/* URL pill */}
+            <Pressable
+              onPress={handleCopyReferralLink}
+              style={{ marginTop: 16, flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.05)", borderWidth: 1, borderColor: "rgba(255,255,255,0.12)", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, gap: 8 }}
+            >
+              <Ionicons name="link-outline" size={15} color="rgba(255,255,255,0.35)" />
+              {referDisplayUrl ? (
+                <Text
+                  numberOfLines={1}
+                  ellipsizeMode="middle"
+                  style={{ flex: 1, color: "rgba(255,255,255,0.55)", fontSize: 12, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" }}
+                >
+                  {referDisplayUrl}
+                </Text>
+              ) : (
+                <ActivityIndicator size="small" color="rgba(255,255,255,0.3)" style={{ marginLeft: 2 }} />
+              )}
+              <Ionicons name="copy-outline" size={14} color="rgba(255,255,255,0.3)" />
+            </Pressable>
 
             {/* Copied confirmation */}
             {referLinkCopied && (
