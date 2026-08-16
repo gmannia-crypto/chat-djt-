@@ -213,7 +213,6 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   arikana: require("@/assets/images/persona-arikana.png"),
   alishahrazad: require("@/assets/images/persona-alishahrazad.png"),
   waylonjennnings: require("@/assets/images/persona-waylonjennnings.png"),
-  galloway: require("@/assets/images/persona-galloway.png"),
   skipbayless: require("@/assets/images/persona-skipbayless.png"),
   cenk: require("@/assets/images/persona-cenk.jpg"),
   howardcosell: require("@/assets/images/persona-howardcosell.jpg"),
