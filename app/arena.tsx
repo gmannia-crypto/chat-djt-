@@ -45,6 +45,7 @@ import {
 import { TokenWinVideo } from "@/components/TokenWinVideo";
 import { ShareAppButton } from "@/components/ShareAppButton";
 import { CashAppDonate } from "@/components/CashAppDonate";
+import { OddsTimeline } from "@/components/OddsTimeline";
 import {
   saveRecording,
   RecordedMessage,
@@ -4215,6 +4216,7 @@ export default function ArenaScreen() {
   const [awardedMessages, setAwardedMessages] = useState<Set<string>>(new Set());
   const [showScoreboard, setShowScoreboard] = useState(false);
   const [showEndSummary, setShowEndSummary] = useState(false);
+  const [endSummaryDuration, setEndSummaryDuration] = useState(0);
   const [isDCChampion, setIsDCChampion] = useState(false);
   const endSummaryScrollRef = useRef<ScrollView>(null);
   const [showViralClips, setShowViralClips] = useState(false);
@@ -5645,6 +5647,7 @@ export default function ArenaScreen() {
           if (totalPts === 0 && selectedPersonasRef.current.length > 0) {
             // No votes cast — auto-trigger DC verdict and show end summary without requiring a tap
             playWinnerChosenSound();
+            setEndSummaryDuration((Date.now() - sessionStartTimeRef.current) / 1000);
             setShowEndSummary(true);
             clearSavedSession();
             awardBadge("arena_debut");
@@ -10365,6 +10368,7 @@ export default function ArenaScreen() {
                 setShowContinuePrompt(false);
                 const totalPts = Object.values(personaPointsRef.current).reduce((a, b) => a + b, 0);
                 playWinnerChosenSound();
+                setEndSummaryDuration((Date.now() - sessionStartTimeRef.current) / 1000);
                 setShowEndSummary(true);
                 clearSavedSession();
                 awardBadge("arena_debut");
@@ -10465,6 +10469,11 @@ export default function ArenaScreen() {
                   );
                 })}
             </View>
+            {oddsHistoryRef.current.length > 0 && (
+              <Animated.View entering={FadeIn.delay(400).duration(400)} style={{ width: "100%", marginTop: 12 }}>
+                <OddsTimeline shifts={oddsHistoryRef.current} duration={endSummaryDuration} />
+              </Animated.View>
+            )}
             {isDCChampion && (
               <Animated.View entering={BounceIn.delay(600).duration(800)} style={{ alignItems: "center", marginVertical: 10 }}>
                 <Animated.View style={[{ flexDirection: "row", alignItems: "center", backgroundColor: "rgba(167,139,250,0.15)", borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 8, gap: 8 }, dcChampionGlowStyle]}>
