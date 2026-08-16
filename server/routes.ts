@@ -9958,21 +9958,21 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
       }
       const transcript = (messages as any[])
         .filter((m: any) => !m.isSystem && m.speakerName && m.text)
-        .slice(-30)
+        .slice(-60)
         .map((m: any) => `${m.speakerName}: "${m.text}"`)
         .join("\n");
       const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
       const completion = await Promise.race([
         getClient().chat.completions.create({
-          model: getFastModel(),
+          model: getSmartModel(),
           messages: [
-            { role: "system", content: `You are an impartial AI debate judge and fact-checker. Today is ${todayStr}. Analyze debate transcripts and render fact-based verdicts. Grade on LOGIC and VERIFIED FACTS, NOT on aggression or volume. Evaluate the back-and-forth exchanges — who landed stronger counter-arguments and came back best when challenged. Name the specific exchange or moment where the winner pulled ahead. Logic and evidence beat rhetoric every time. Pick a winner decisively. Do NOT be vague.` },
-            { role: "user", content: `DEBATE TOPIC: "${topic}"\n\nTRANSCRIPT:\n${transcript}\n\nReturn ONLY valid JSON:\n{\n  "winner": "Full persona name",\n  "winnerId": "persona_id",\n  "verdict": "2-3 sentences that MUST start with '[WinnerName] won because ...' — explain the specific reason with the actual exchange or counter-argument that decided it",\n  "factChecks": [\n    { "persona": "name", "claim": "specific claim they made", "verdict": "TRUE/FALSE/MISLEADING", "fact": "the verified real fact" }\n  ],\n  "scores": { "PersonaName": score_0_to_100 },\n  "summary": "One punchy sentence naming the deciding exchange"\n}` },
+            { role: "system", content: `You are an impartial AI debate judge and professional fact-checker. Today is ${todayStr}.\n\nYour job is to render a fair, rigorous verdict based SOLELY on:\n1. FACTUAL ACCURACY — are the claims made verifiable and true?\n2. LOGICAL COHERENCE — are arguments internally consistent and free of fallacies?\n3. INTELLECTUAL QUALITY — who gave stronger evidence, sharper analysis, and better rebuttals?\n4. COUNTER-ARGUMENT STRENGTH — who came back hardest when challenged?\n\nDo NOT factor in volume, aggression, rhetorical flair, insults, or how many messages each persona sent.\nDo NOT default to the persona who spoke more — a single devastating factual counter beats ten loud claims.\nIdentify the specific exchange or statement that DECIDED the debate.\nPick a winner decisively. Do NOT be vague or hedge. Always choose one winner.` },
+            { role: "user", content: `DEBATE TOPIC: "${topic}"\nPERSONAS: ${Array.isArray(personas) ? personas.join(" vs. ") : ""}\n\nTRANSCRIPT:\n${transcript}\n\nReturn ONLY valid JSON:\n{\n  "winner": "Full persona name",\n  "winnerId": "persona_id_lowercase_nospaces",\n  "verdict": "2-4 sentences that MUST start with '[WinnerName] won because ...' — cite the actual claim, counter-argument, or factual moment that decided it. Be specific.",\n  "factChecks": [\n    { "persona": "name", "claim": "exact claim they made", "verdict": "TRUE | FALSE | MISLEADING | UNVERIFIABLE", "fact": "the real verified fact or correction" }\n  ],\n  "scores": { "PersonaName": score_0_to_100 },\n  "summary": "One punchy sentence naming the single exchange or fact that decided the debate"\n}` },
           ],
-          max_completion_tokens: 1000,
-          temperature: 0.7,
+          max_completion_tokens: 1200,
+          temperature: 0.4,
         }),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 35000)),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 40000)),
       ]);
       const raw = completion.choices[0]?.message?.content || "{}";
       const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();

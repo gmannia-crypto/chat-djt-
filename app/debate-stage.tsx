@@ -1006,13 +1006,11 @@ export default function DebateStage() {
   const [phase, setPhase] = useState<"setup" | "live" | "ended">("setup");
   const [firstAudioPlayed, setFirstAudioPlayed] = useState(false);
   const firstAudioPlayedRef = useRef(false);
-  const [debatePoints, setDebatePoints] = useState<{ a: number; b: number }>({ a: 0, b: 0 });
+  // debatePoints removed — DC AI verdict is the sole judge; user tap-scoring is gone.
   const debatePointsRef = useRef<{ a: number; b: number }>({ a: 0, b: 0 });
-  useEffect(() => { debatePointsRef.current = debatePoints; }, [debatePoints]);
-  const [showTapHint, setShowTapHint] = useState(false);
-  const tapHintShownRef = useRef(false);
+  // showTapHint + tapHintShownRef removed — no user tapping mechanic.
   const [showDebateWinner, setShowDebateWinner] = useState(false);
-  const [debateWinner, setDebateWinner] = useState<{ id: string; name: string; portrait: any; points: number; opponentPoints: number; verdict?: string; aiJudged?: boolean } | null>(null);
+  const [debateWinner, setDebateWinner] = useState<{ id: string; name: string; portrait: any; verdict?: string; aiJudged?: boolean } | null>(null);
   const [debateTrumpRoast, setDebateTrumpRoast] = useState<string | null>(null);
   const [debateTrumpRoastSpeakerId, setDebateTrumpRoastSpeakerId] = useState<string | null>(null);
   const [debateWinnerSpeech, setDebateWinnerSpeech] = useState<string | null>(null);
@@ -1179,7 +1177,6 @@ export default function DebateStage() {
   useEffect(() => {
     if (phase === "setup") {
       winnerTriggeredRef.current = false;
-      setDebatePoints({ a: 0, b: 0 });
       debatePointsRef.current = { a: 0, b: 0 };
       setShowDebateWinner(false);
       setDebateWinner(null);
@@ -1218,25 +1215,7 @@ export default function DebateStage() {
     }
   }, [phase]);
 
-  // ── TAP-HINT — fires 10 s after going live, auto-dismisses after 4 s ─────
-  // Uses AsyncStorage so it only ever shows once across sessions.
-  useEffect(() => {
-    if (phase !== "live" || tapHintShownRef.current) return;
-    tapHintShownRef.current = true;
-    let cancelled = false;
-    AsyncStorage.getItem("tap_hint_seen").then((val) => {
-      if (cancelled || val === "1") return;
-      const showT = setTimeout(() => {
-        if (cancelled) return;
-        setShowTapHint(true);
-        AsyncStorage.setItem("tap_hint_seen", "1").catch(() => {});
-        const hideT = setTimeout(() => setShowTapHint(false), 4000);
-        return () => clearTimeout(hideT);
-      }, 10000);
-      return () => clearTimeout(showT);
-    }).catch(() => {});
-    return () => { cancelled = true; };
-  }, [phase]);
+  // Tap-hint removed — DC AI always judges the winner; no user tapping needed.
 
   // ── HEAT PULSE DRIVER — speeds up as heat approaches angerThresh ─────────────
   useEffect(() => {
@@ -1524,16 +1503,11 @@ export default function DebateStage() {
       } catch { /* ignore */ }
 
       // ── PHASE 4: PRELIMINARY WINNER (instant — no verdict needed) ───────────
-      // Fallback chain: votes → message count → always picks someone.
-      // The AI verdict may later confirm or correct this; the modal updates in-place.
-      let prelimWinnerId = "";
-      if (pts.a > 0 || pts.b > 0) {
-        prelimWinnerId = pts.a >= pts.b ? aId : bId;
-      } else {
-        const aC = msgs.filter((m) => m.speakerId === aId).length;
-        const bC = msgs.filter((m) => m.speakerId === bId).length;
-        prelimWinnerId = aC >= bC ? aId : bId;
-      }
+      // DC AI always decides the final winner. This is a placeholder only —
+      // the modal updates in-place when the AI verdict arrives.
+      const aC = msgs.filter((m) => m.speakerId === aId).length;
+      const bC = msgs.filter((m) => m.speakerId === bId).length;
+      let prelimWinnerId = aC >= bC ? aId : bId;
       if (!prelimWinnerId) prelimWinnerId = aId;
 
       const prelimLoserId   = prelimWinnerId === aId ? bId : aId;
@@ -1546,8 +1520,6 @@ export default function DebateStage() {
       setDebateWinner({
         id: prelimWinnerId, name: prelimWinnerName,
         portrait: PERSONA_PORTRAITS[prelimWinnerId] || null,
-        points: pts.a > 0 || pts.b > 0 ? (prelimWinnerId === aId ? pts.a : pts.b) : 0,
-        opponentPoints: pts.a > 0 || pts.b > 0 ? (prelimWinnerId === aId ? pts.b : pts.a) : 0,
         verdict: undefined,
         aiJudged: false,
       });
@@ -1680,8 +1652,6 @@ export default function DebateStage() {
             setDebateWinner({
               id: winnerId, name: winnerName,
               portrait: PERSONA_PORTRAITS[winnerId] || null,
-              points: pts.a > 0 || pts.b > 0 ? (winnerId === aId ? pts.a : pts.b) : 0,
-              opponentPoints: pts.a > 0 || pts.b > 0 ? (winnerId === aId ? pts.b : pts.a) : 0,
               verdict: aiVerdictText,
               aiJudged: true,
             });
@@ -5463,25 +5433,6 @@ export default function DebateStage() {
                 {(idx === 0 ? micCut.iv : micCut.ivee) ? "Restore mic" : "Cut mic"}
               </Text>
             </Pressable>
-            {/* DC Point Award Button — tap to score this debater */}
-            <Pressable
-              onPress={() => {
-                if (phase !== "live") return;
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                setDebatePoints((prev) => {
-                  const next = idx === 0 ? { ...prev, a: prev.a + 1 } : { ...prev, b: prev.b + 1 };
-                  debatePointsRef.current = next;
-                  return next;
-                });
-              }}
-              style={{ marginTop: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, flexDirection: "row" as const, alignItems: "center" as const, gap: 4, backgroundColor: "rgba(255,215,0,0.1)", borderWidth: 1, borderColor: "rgba(255,215,0,0.3)" }}
-              testID={idx === 0 ? "award-point-a" : "award-point-b"}
-            >
-              <Ionicons name="star" size={10} color="#FFD700" />
-              <Text style={{ color: "#FFD700", fontSize: 11, fontWeight: "900" as const }}>
-                {idx === 0 ? debatePoints.a : debatePoints.b} DC PT{(idx === 0 ? debatePoints.a : debatePoints.b) === 1 ? "" : "S"}
-              </Text>
-            </Pressable>
             {/* ── HEAT METER PILL ── */}
             {(() => {
               const isA = idx === 0;
@@ -5554,21 +5505,6 @@ export default function DebateStage() {
             {roomTemperature}°
           </Text>
         </View>
-      )}
-
-      {/* Tap-hint toast — shows 10s after going live, fades out after 4s */}
-      {showTapHint && (
-        <Animated.View
-          entering={FadeIn.duration(400)}
-          exiting={FadeOut.duration(400)}
-          pointerEvents="none"
-          style={{ position: "absolute", bottom: 130, left: 0, right: 0, alignItems: "center", zIndex: 999 }}
-        >
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "rgba(0,0,0,0.85)", borderWidth: 1.5, borderColor: "rgba(255,215,0,0.55)", borderRadius: 30, paddingHorizontal: 18, paddingVertical: 10 }}>
-            <Text style={{ fontSize: 22 }}>👆</Text>
-            <Text style={{ color: "#FFD700", fontSize: 13, fontWeight: "800" }}>Tap a persona to score them DC Points!</Text>
-          </View>
-        </Animated.View>
       )}
 
       {/* Topic strip */}
@@ -5762,25 +5698,18 @@ export default function DebateStage() {
             ) : null}
             <Text style={{ color: "#fff", fontSize: 28, fontWeight: "900", marginTop: 12, textAlign: "center" }}>{debateWinner?.name}</Text>
 
-            {/* AI verdict summary */}
+            {/* AI verdict summary — or deliberating spinner */}
             {debateWinner?.verdict ? (
               <View style={{ marginTop: 12, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "rgba(96,165,250,0.12)", borderRadius: 14, borderWidth: 1, borderColor: "rgba(96,165,250,0.35)", maxWidth: 320, width: "100%" }}>
                 <Text style={{ color: "#60A5FA", fontSize: 10, fontWeight: "900", letterSpacing: 1.5, marginBottom: 5, textAlign: "center" }}>⚖️ WHY {(debateWinner.name || "THEY").toUpperCase()} WON</Text>
                 <Text style={{ color: "rgba(255,255,255,0.9)", fontSize: 12, lineHeight: 18, textAlign: "center", fontStyle: "italic" }}>"{debateWinner.verdict}"</Text>
               </View>
-            ) : (debateWinner?.points ?? 0) > 0 ? (
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 16, marginTop: 10 }}>
-                <View style={{ alignItems: "center" }}>
-                  <Text style={{ color: "#FFD700", fontSize: 28, fontWeight: "900" }}>{debateWinner?.points ?? 0}</Text>
-                  <Text style={{ color: "rgba(255,215,0,0.6)", fontSize: 9, fontWeight: "800", letterSpacing: 1 }}>WINNER</Text>
-                </View>
-                <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 18 }}>vs</Text>
-                <View style={{ alignItems: "center" }}>
-                  <Text style={{ color: "rgba(255,255,255,0.55)", fontSize: 22, fontWeight: "800" }}>{debateWinner?.opponentPoints ?? 0}</Text>
-                  <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: "800", letterSpacing: 1 }}>OPPONENT</Text>
-                </View>
+            ) : (
+              <View style={{ marginTop: 12, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "rgba(96,165,250,0.07)", borderRadius: 12, borderWidth: 1, borderColor: "rgba(96,165,250,0.2)" }}>
+                <ActivityIndicator size="small" color="#60A5FA" />
+                <Text style={{ color: "#60A5FA", fontSize: 12, fontWeight: "700" }}>DC AI is deliberating on facts & arguments…</Text>
               </View>
-            ) : null}
+            )}
 
             {/* Updated W/L record after the verdict */}
             {debateRecords && debateWinner && (() => {
