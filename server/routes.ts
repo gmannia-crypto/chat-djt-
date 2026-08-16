@@ -9952,7 +9952,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
   // POST /api/arena/verdict — AI fact-based debate judge
   app.post("/api/arena/verdict", async (req, res) => {
     try {
-      const { topic, messages, personas } = req.body || {};
+      const { topic, messages, personas, personaIds } = req.body || {};
       if (!topic || !Array.isArray(messages) || messages.length < 2) {
         return res.status(400).json({ error: "Need a topic and at least 2 messages" });
       }
@@ -9961,13 +9961,16 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
         .slice(-60)
         .map((m: any) => `${m.speakerName}: "${m.text}"`)
         .join("\n");
+      const personaIdHint = Array.isArray(personaIds) && personaIds.length === 2
+        ? `\nIMPORTANT: The exact persona IDs are "${personaIds[0]}" and "${personaIds[1]}". Return winnerId as EXACTLY one of these two strings — no spaces, no capitalization.`
+        : "";
       const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
       const completion = await Promise.race([
         getClient().chat.completions.create({
           model: getSmartModel(),
           messages: [
             { role: "system", content: `You are an impartial AI debate judge and professional fact-checker. Today is ${todayStr}.\n\nYour job is to render a fair, rigorous verdict based SOLELY on:\n1. FACTUAL ACCURACY — are the claims made verifiable and true?\n2. LOGICAL COHERENCE — are arguments internally consistent and free of fallacies?\n3. INTELLECTUAL QUALITY — who gave stronger evidence, sharper analysis, and better rebuttals?\n4. COUNTER-ARGUMENT STRENGTH — who came back hardest when challenged?\n\nDo NOT factor in volume, aggression, rhetorical flair, insults, or how many messages each persona sent.\nDo NOT default to the persona who spoke more — a single devastating factual counter beats ten loud claims.\nIdentify the specific exchange or statement that DECIDED the debate.\nPick a winner decisively. Do NOT be vague or hedge. Always choose one winner.` },
-            { role: "user", content: `DEBATE TOPIC: "${topic}"\nPERSONAS: ${Array.isArray(personas) ? personas.join(" vs. ") : ""}\n\nTRANSCRIPT:\n${transcript}\n\nReturn ONLY valid JSON:\n{\n  "winner": "Full persona name",\n  "winnerId": "persona_id_lowercase_nospaces",\n  "verdict": "2-4 sentences that MUST start with '[WinnerName] won because ...' — cite the actual claim, counter-argument, or factual moment that decided it. Be specific.",\n  "factChecks": [\n    { "persona": "name", "claim": "exact claim they made", "verdict": "TRUE | FALSE | MISLEADING | UNVERIFIABLE", "fact": "the real verified fact or correction" }\n  ],\n  "scores": { "PersonaName": score_0_to_100 },\n  "summary": "One punchy sentence naming the single exchange or fact that decided the debate"\n}` },
+            { role: "user", content: `DEBATE TOPIC: "${topic}"\nPERSONAS: ${Array.isArray(personas) ? personas.join(" vs. ") : ""}${personaIdHint}\n\nTRANSCRIPT:\n${transcript}\n\nReturn ONLY valid JSON:\n{\n  "winner": "Full persona name",\n  "winnerId": "EXACT persona_id from the list above — lowercase, no spaces",\n  "verdict": "2-4 sentences that MUST start with '[WinnerName] won because ...' — cite the actual claim, counter-argument, or factual moment that decided it. Be specific.",\n  "factChecks": [\n    { "persona": "name", "claim": "exact claim they made", "verdict": "TRUE | FALSE | MISLEADING | UNVERIFIABLE", "fact": "the real verified fact or correction" }\n  ],\n  "scores": { "PersonaName": score_0_to_100 },\n  "summary": "One punchy sentence naming the single exchange or fact that decided the debate"\n}` },
           ],
           max_completion_tokens: 1200,
           temperature: 0.4,

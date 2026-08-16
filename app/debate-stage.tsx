@@ -83,7 +83,7 @@ const MYSTERY_UNLOCK_KEY = "arena_mystery_unlocked";
 
 type PersonaLite = { id: string; name: string };
 type Topic = { id: string; title: string; description: string; era: "current" | "past" };
-type Msg = { id: string; speakerId: string; speakerName: string; text: string; ts: number; isInterruption?: boolean; isCallIn?: boolean; callerName?: string; isSystem?: boolean; skipTTS?: boolean; isPartingShot?: boolean };
+type Msg = { id: string; speakerId: string; speakerName: string; text: string; ts: number; isInterruption?: boolean; isCallIn?: boolean; callerName?: string; isSystem?: boolean; skipTTS?: boolean; isPartingShot?: boolean; isSarcasm?: boolean };
 
 type Emotions = { anger: number; happy: number; engagement: number; frantic: number; sad: number };
 type LieEntry = { id: string; speakerId: string; speakerName: string; text: string; score: number; reason: string; fact: string; ts: number; userFlagged?: boolean; pending?: boolean };
@@ -239,6 +239,66 @@ const getWaitFiller = (name: string): string => {
   _waitFillerIdx++;
   return fn(name || "Debater");
 };
+
+// ── SARCASTIC REACTION SYSTEM ─────────────────────────────────────────────────
+// Short overlapping quips fired by the listening persona or the moderator when
+// the other side says something they find absurd, weak, or outright wrong.
+// These are spoken with the reactor's own voice (very short — 2-5 words).
+const SARCASM_GENERIC = [
+  "Please.", "Sure.", "Keep dreaming.", "Mm-hmm.", "Right.",
+  "Oh, wow.", "*laughs*", "That's rich.", "Fascinating.", "Okay then.",
+  "Sure, sure.", "Classic.", "Oh, absolutely.", "Obviously.",
+  "If you say so.", "*scoffs*", "Outstanding.", "Totally.",
+  "Ha.", "Sure they did.", "Of course.", "Incredible.", "Groundbreaking.",
+  "Yeah, okay.", "Love that logic.", "Bold claim.", "Mm.", "Noted.",
+  "Sure, Jan.", "Wild take.", "Checks out.", "Wow.", "Deep.",
+];
+
+// Per-persona sarcasm — overrides the generic pool when available
+const SARCASM_BY_PERSONA: Record<string, string[]> = {
+  trump:          ["Wrong!", "Total disaster!", "Believe me — no.", "Sad!", "Fake news!"],
+  obama:          ["Come on, man.", "That's not how this works.", "Let me be clear — no.", "Respectfully — no."],
+  biden:          ["Come on, man.", "Not a joke.", "Here's the deal — no.", "Malarkey."],
+  hillaryclinton: ["That's rich.", "Bless your heart.", "Fascinating fiction.", "Delete that."],
+  trump2:         ["Wrong!", "Total disaster!", "Believe me — no.", "Sad!", "Fake news!"],
+  bernie:         ["The billionaires love this argument.", "Meanwhile, workers suffer.", "Unbelievable.", "The top one percent applauds."],
+  aoc:            ["Wow, so brave.", "That aged well.", "Science disagrees.", "Cool story."],
+  hannity:        ["Oh, please.", "Here we go.", "Classic.", "Liberal logic, folks."],
+  tuckercarlson:  ["Interesting. Why though?", "Nobody asked that question.", "Sure, sure.", "Fascinating."],
+  joyreid:        ["Mm-hmm.", "Right.", "That's rich.", "And yet—"],
+  maddow:         ["I have documents.", "The receipts say otherwise.", "Sure.", "Noted — and wrong."],
+  shapiro:        ["Actually—", "Facts don't care.", "Well, technically—", "That's not an argument."],
+  carlin:         ["*laughs bitterly*", "Beautiful nonsense.", "The machine loves this answer.", "Outstanding BS."],
+  charlamagne:    ["Cap.", "Big cap.", "That's capping.", "Nah, fam."],
+  shannonsharp:   ["Man, stop.", "Come on now.", "You can't be serious.", "Nah."],
+  skipbayless:    ["WRONG.", "Overrated take.", "Take is cooked.", "This is why I— no."],
+  whoopi:         ["Oh, please.", "I can't.", "Mm-mm.", "No, no, no."],
+  megynkelly:     ["Incredible.", "Sure.", "Let me stop you there.", "No."],
+  stephena:       ["Remarkable.", "That tracks — ironically.", "Outstanding reasoning.", "*slow clap*"],
+  dc:             ["That's a reach.", "Nah.", "Sure, buddy.", "The streets don't agree."],
+  trumpjr:        ["Dad said it better.", "Incredible take.", "Big facts — not.", "Wow."],
+  mikepence:      ["Well, now—", "I respectfully disagree.", "That is simply not the case.", "Karen and I— never mind."],
+  desantis:       ["Woke nonsense.", "Florida disagrees.", "That's a globalist take.", "Pass."],
+  howardcosell:   ["I must say — no.", "Extraordinary claim.", "In all my years—", "Remarkable ignorance."],
+  jimlampley:     ["The judges disagree.", "Scorecards say otherwise.", "That's a low blow.", "Ruled — invalid."],
+  muhammadali:    ["I am the greatest — you're not.", "Float like a butterfly — that argument? Dead.", "Shook.", "Nah."],
+};
+
+// Short moderator sarcastic laughs — only fired when moderator leans "target" against the speaker
+const MOD_SARCASM_LINES = [
+  "*chuckles*", "Ha.", "Sure they did.", "Right, right.", "Mm.",
+  "*under breath* Wow.", "Of course.", "Incredible.", "*stifles laugh*",
+  "Fascinating take.", "Mm-hmm.", "Bold.", "Sure.", "*clears throat* Moving on.",
+];
+
+// Per-persona sarcasm cooldown (module-level — no re-render needed).
+// Key: personaId, Value: timestamp of last sarcasm fired.
+const _sarcasticCooldown = new Map<string, number>();
+const SARCASM_MIN_GAP_MS   = 18000; // at least 18 s between sarcasms from the same persona
+const MOD_SARCASM_GAP_MS   = 28000; // moderator sarcastic laugh at most every 28 s
+const SARCASM_CHANCE       = 0.22;  // 22 % chance per non-interruption debater message
+const MOD_SARCASM_CHANCE   = 0.12;  // 12 % chance per debater message when mod leans "target"
+let _modSarcasticLastAt    = 0;     // tracks moderator sarcasm separately
 
 // Maps persona IDs to TTS-safe spoken names.
 // Values can be a plain string (universal) or a per-speaker map with a "default" fallback.
@@ -1469,19 +1529,32 @@ export default function DebateStage() {
                   topic: topicForVerdict,
                   messages: msgs.map((m) => ({ speakerName: m.speakerName, text: m.text })),
                   personas: [aPersona?.name || aId, bPersona?.name || bId],
+                  personaIds: [aId, bId],
                 }),
               });
               if (vRes.ok) {
                 const v = await vRes.json();
                 aiVerdictText = v.verdict || v.summary || "";
-                const aNameLc = (aPersona?.name || aId).toLowerCase();
-                const vWinner = (v.winner   || "").toLowerCase();
-                const vId     = (v.winnerId || "").toLowerCase();
-                const aWinsAI = vId === aId.toLowerCase() ||
-                                vId === (aPersona?.name || "").toLowerCase() ||
-                                vWinner.includes(aNameLc) ||
-                                aNameLc.includes(vWinner);
-                aiWinnerId = aWinsAI ? aId : bId;
+                // Symmetric, empty-string-safe winner resolution.
+                // Bug: "anything".includes("") is always true → always picked A.
+                // Fix: require vWinner.length > 2 before using includes(); check B too.
+                const aNameLc = (aPersona?.name || aId).toLowerCase().trim();
+                const bNameLc = (bPersona?.name || bId).toLowerCase().trim();
+                const aIdLc   = aId.toLowerCase();
+                const bIdLc   = bId.toLowerCase();
+                const vWinner = (v.winner   || "").toLowerCase().trim();
+                const vId     = (v.winnerId || "").toLowerCase().trim().replace(/[\s\-]/g, "");
+                const aWinsById   = vId.length > 1 && (vId === aIdLc || aIdLc.includes(vId) || vId.includes(aIdLc));
+                const aWinsByName = vWinner.length > 2 && (aNameLc.includes(vWinner) || vWinner.includes(aNameLc.split(" ")[0]));
+                const bWinsById   = vId.length > 1 && (vId === bIdLc || bIdLc.includes(vId) || vId.includes(bIdLc));
+                const bWinsByName = vWinner.length > 2 && (bNameLc.includes(vWinner) || vWinner.includes(bNameLc.split(" ")[0]));
+                const aWins = aWinsById || aWinsByName;
+                const bWins = bWinsById || bWinsByName;
+                if      (aWins && !bWins)            aiWinnerId = aId;
+                else if (bWins && !aWins)            aiWinnerId = bId;
+                else if (aWinsById && !bWinsById)    aiWinnerId = aId;
+                else if (bWinsById && !aWinsById)    aiWinnerId = bId;
+                // else: ambiguous — aiWinnerId stays "" → preliminary winner kept
               } else {
                 verdictFailed = true;
               }
@@ -2535,7 +2608,69 @@ export default function DebateStage() {
       // Decay chain after 30 s of calm
       if (Date.now() - lastFirebackAtRef.current > 30000) firebackChainRef.current = 0;
     }
-  }, [enqueueTTS, interviewerId, intervieweeId, runFactCheck]);
+    // ── Sarcastic reaction engine ──────────────────────────────────────────
+    // Only for substantial debater messages (not system/interruptions).
+    if (!m.isInterruption && !m.isSystem && !m.isSarcasm && m.text.length > 18 &&
+        (m.speakerId === interviewerId || m.speakerId === intervieweeId) &&
+        runningRef.current) {
+      const reactorId   = m.speakerId === interviewerId ? intervieweeId : interviewerId;
+      const now         = Date.now();
+      const lastAt      = reactorId ? (_sarcasticCooldown.get(reactorId) ?? 0) : Infinity;
+      // ── Debater sarcasm ────────────────────────────────────────────────
+      if (reactorId && now - lastAt > SARCASM_MIN_GAP_MS && Math.random() < SARCASM_CHANCE) {
+        _sarcasticCooldown.set(reactorId, now);
+        const pool = SARCASM_BY_PERSONA[reactorId] ?? SARCASM_GENERIC;
+        const line = pool[Math.floor(Math.random() * pool.length)];
+        const reactorPersona =
+          reactorId === interviewerId
+            ? interviewers.find((p) => p.id === reactorId)
+            : interviewees.find((p) => p.id === reactorId);
+        const reactorName = reactorPersona?.name || reactorId;
+        const msgId = `sarcasm-${Date.now()}`;
+        // Fire after a short beat — main-speaker TTS must land first
+        setTimeout(() => {
+          if (!runningRef.current) return;
+          setMessages((prev) => [...prev, {
+            id: msgId,
+            speakerId: reactorId,
+            speakerName: reactorName,
+            text: line,
+            ts: Date.now(),
+            isInterruption: true,
+            isSarcasm: true,
+            skipTTS: false,
+          }]);
+          enqueueTTS(line, reactorId, msgId);
+        }, 1800);
+      }
+      // ── Moderator sarcastic laugh when biased against current speaker ──
+      if (moderatorStyle && now - _modSarcasticLastAt > MOD_SARCASM_GAP_MS && Math.random() < MOD_SARCASM_CHANCE) {
+        const leaning = getModeratorLeaning(moderatorStyle, m.speakerId);
+        if (leaning === "target") {
+          _modSarcasticLastAt = now;
+          const modLine = MOD_SARCASM_LINES[Math.floor(Math.random() * MOD_SARCASM_LINES.length)];
+          const mod = MODERATORS[moderatorStyle];
+          if (mod) {
+            const modMsgId = `mod-sarcasm-${Date.now()}`;
+            setTimeout(() => {
+              if (!runningRef.current) return;
+              setMessages((prev) => [...prev, {
+                id: modMsgId,
+                speakerId: mod.personaId,
+                speakerName: mod.name,
+                text: modLine,
+                ts: Date.now(),
+                isInterruption: true,
+                isSarcasm: true,
+                skipTTS: false,
+              }]);
+              enqueueTTS(modLine, mod.personaId, modMsgId);
+            }, 2400);
+          }
+        }
+      }
+    }
+  }, [enqueueTTS, interviewerId, intervieweeId, runFactCheck, moderatorStyle, interviewers, interviewees]);
 
   /** Arena-style interruption audio: ducks the current speaker to 10%, plays the
    *  interrupt at full persona volume, then restores the main speaker to 100%.
@@ -5543,6 +5678,19 @@ export default function DebateStage() {
                       🔥 {item.speakerName} · PARTING SHOT
                     </Text>
                     <Text style={[s.bubbleText, { fontStyle: "italic", textAlign: "center" }]}>{item.text}</Text>
+                  </View>
+                </Animated.View>
+              );
+            }
+            // ── Sarcastic reaction bubble — compact, centered, italic ────────
+            if (item.isSarcasm) {
+              const isModSarcasm = item.speakerId !== interviewerId && item.speakerId !== intervieweeId;
+              const sarcastColor = isModSarcasm ? "#a78bfa" : item.speakerId === interviewerId ? "rgba(255,215,0,0.7)" : "rgba(74,222,128,0.7)";
+              return (
+                <Animated.View entering={FadeInUp.duration(200)} style={[s.bubbleRow, { justifyContent: "center" }]}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 5, backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 20, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", maxWidth: 280 }}>
+                    <Text style={{ color: sarcastColor, fontSize: 10, fontWeight: "800" }}>{item.speakerName}:</Text>
+                    <Text style={{ color: "rgba(255,255,255,0.65)", fontSize: 12, fontStyle: "italic" }}>{item.text}</Text>
                   </View>
                 </Animated.View>
               );
