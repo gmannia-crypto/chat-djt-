@@ -39,6 +39,7 @@ import {
   awardBetWin, resolveInterviewWinnerBet,
 } from "@/lib/debate-bets";
 import { usePersonaLocks, PREMIUM_PERSONA_CONFIGS, RECENTLY_UNLOCKED_BADGE_KEY } from "@/lib/persona-locks";
+import { saveRecording, pickHighlightQuote, type ArenaRecording, type RecordedMessage } from "@/lib/arena-recordings";
 
 // Mystery persona IDs and storage key — kept in sync with arena.tsx
 const MYSTERY_PERSONA_IDS = ["alexjones", "obama", "melania", "schumer", "odonnell", "kamala", "mtg", "rfk"];
@@ -1042,6 +1043,7 @@ export default function DebateStage() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const savedSessionRef = useRef(false);
   const [savedSessionId, setSavedSessionId] = useState<string | null>(null);
+  const [localRecordingId, setLocalRecordingId] = useState<string | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareTab, setShareTab] = useState<"viral" | "transcript">("viral");
   const [fightCardLoading, setFightCardLoading] = useState(false);
@@ -4060,6 +4062,7 @@ export default function DebateStage() {
     setLatestTruthScore(null);
     savedSessionRef.current = false;
     setSavedSessionId(null);
+    setLocalRecordingId(null);
     ttsQueueRef.current = [];
     ttsRunningRef.current = false;
     prefetchingRef.current = false;
@@ -4290,7 +4293,46 @@ export default function DebateStage() {
       .catch(() => {
         savedSessionRef.current = false;
       });
-  }, [phase, deviceId, interviewerId, intervieweeId, duration, lies, emoInterviewer, emoInterviewee, topics, fetchLieTally]);
+
+    // ── Save a local replay recording (AsyncStorage) ──────────────────────
+    // Converts the Msg[] transcript into ArenaRecording shape so the
+    // existing /arena-replay screen can play it back without any changes.
+    (() => {
+      try {
+        const topicStr =
+          topics && topics.length > 0
+            ? topics[0].title
+            : typeof currentTopic === "string"
+              ? currentTopic
+              : (currentTopic as any)?.title || "Political Debate";
+        const durationSecs = Math.max(1, Math.round((endedAt - startedAt) / 1000));
+        const aName = interviewers.find((p) => p.id === interviewerId)?.name ?? interviewerId ?? "A";
+        const bName = interviewees.find((p) => p.id === intervieweeId)?.name ?? intervieweeId ?? "B";
+        const recId = `debate-${startedAt}-${Math.random().toString(36).slice(2, 7)}`;
+        const recMsgs: RecordedMessage[] = msgs.map((m) => ({
+          id: m.id,
+          speakerId: m.speakerId,
+          speakerName: m.speakerName,
+          text: m.text,
+          timestamp: m.ts,
+          relativeTime: Math.max(0, m.ts - startedAt),
+          isSystem: m.isSystem,
+          isInterruption: m.isInterruption,
+        }));
+        const recording: ArenaRecording = {
+          id: recId,
+          topic: `${aName} vs ${bName}: ${topicStr}`,
+          startTime: startedAt,
+          duration: durationSecs,
+          personas: [interviewerId!, intervieweeId!],
+          messages: recMsgs,
+          messageCount: recMsgs.filter((m) => !m.isSystem).length,
+          highlightQuote: pickHighlightQuote(recMsgs),
+        };
+        saveRecording(recording).then(() => setLocalRecordingId(recId)).catch(() => {});
+      } catch { /* best-effort — never block the ended flow */ }
+    })();
+  }, [phase, deviceId, interviewerId, intervieweeId, duration, lies, emoInterviewer, emoInterviewee, topics, currentTopic, interviewers, interviewees, fetchLieTally]);
 
   // Build share content for the viral transcript modal
   const generateShareContent = useCallback(() => {
@@ -5946,6 +5988,18 @@ export default function DebateStage() {
               <Ionicons name="bar-chart" size={14} color="#FFD700" />
               <Text style={{ color: "#FFD700", fontSize: 12, fontWeight: "800" }}>POLL</Text>
             </Pressable>
+            {localRecordingId && (
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  router.push(`/arena-replay?id=${localRecordingId}`);
+                }}
+                style={[s.endedBtnSecondary, { borderColor: "rgba(212,164,32,0.5)", backgroundColor: "rgba(212,164,32,0.1)" }]}
+              >
+                <Ionicons name="play-circle-outline" size={14} color="#D4A420" />
+                <Text style={{ color: "#D4A420", fontSize: 12, fontWeight: "800" }}>WATCH REPLAY</Text>
+              </Pressable>
+            )}
           </View>
         </Animated.View>
       )}
