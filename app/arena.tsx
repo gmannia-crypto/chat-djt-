@@ -5935,7 +5935,6 @@ export default function ArenaScreen() {
 
   const handleShareReferralLink = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setShowReferModal(false);
     try {
       const { url, nativeUrl } = await fetchReferralUrls();
       let shareMessage: string;
