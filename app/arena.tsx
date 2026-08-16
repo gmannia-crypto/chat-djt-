@@ -3926,6 +3926,7 @@ export default function ArenaScreen() {
   const [liveOdds, setLiveOdds] = useState<Record<string, { label: string; multiplier: number }>>({});
   const [oddsShiftToast, setOddsShiftToast] = useState(false);
   const prevOddsLabelsRef = useRef<Record<string, string>>({});
+  const oddsHistoryRef = useRef<import("@/lib/arena-recordings").OddsShift[]>([]);
   // Mirror of arenaBet state for use in callbacks without stale-closure issues
   const arenaBetRef = useRef<ArenaBet | null>(null);
   useEffect(() => { arenaBetRef.current = arenaBet; }, [arenaBet]);
@@ -5323,6 +5324,11 @@ export default function ArenaScreen() {
           setIsLoadingRoast(false);
           firstAudioPlayedRef.current = false;
           setFirstAudioPlayed(false);
+          // Fresh session — reset recording boundary and discard odds history from prior debate.
+          sessionStartTimeRef.current = Date.now();
+          recordingMessagesRef.current = [];
+          oddsHistoryRef.current = [];
+          prevOddsLabelsRef.current = {};
         }
         setShowScoreboard(false);
         refreshBalance();
@@ -5689,6 +5695,7 @@ export default function ArenaScreen() {
       messages: [...msgs],
       messageCount: msgs.filter((m) => !m.isSystem).length,
       highlightQuote: pickHighlightQuote(msgs),
+      oddsHistory: oddsHistoryRef.current.length > 0 ? [...oddsHistoryRef.current] : undefined,
     };
     await saveRecording(rec);
   }, []);
@@ -5767,6 +5774,22 @@ export default function ArenaScreen() {
     });
     const nextLabels: Record<string, string> = {};
     Object.entries(newOdds).forEach(([pid, { label }]) => { nextLabels[pid] = label; });
+    // Record each label flip for the odds history shown on the replay screen
+    if (hasPrev) {
+      const now = Date.now();
+      Object.entries(newOdds).forEach(([pid, { label }]) => {
+        const prev = prevOddsLabelsRef.current[pid];
+        if (prev && prev !== label) {
+          oddsHistoryRef.current.push({
+            personaId: pid,
+            personaName: getPersona(pid)?.shortName ?? pid,
+            fromLabel: prev,
+            toLabel: label,
+            atTime: now - sessionStartTimeRef.current,
+          });
+        }
+      });
+    }
     prevOddsLabelsRef.current = nextLabels;
     setLiveOdds(newOdds);
     if (changed && hasPrev) {
@@ -5800,6 +5823,8 @@ export default function ArenaScreen() {
     if (!isRunning || hasBetResult || (!betTargetId && !hasEnoughPersonasForOdds)) {
       setLiveOdds({});
       prevOddsLabelsRef.current = {};
+      // Do NOT clear oddsHistoryRef here — session save reads it after isRunning goes false.
+      // It is reset at each new recording boundary (topic rotation / session start).
       return;
     }
     // Run immediately then every 45 s
@@ -5893,6 +5918,8 @@ export default function ArenaScreen() {
     setTopicTimer(TOPIC_DURATION);
     sessionStartTimeRef.current = Date.now();
     recordingMessagesRef.current = [];
+    oddsHistoryRef.current = [];
+    prevOddsLabelsRef.current = {};
     if (topicTimerRef.current) clearInterval(topicTimerRef.current);
     topicTimerRef.current = setInterval(() => {
       setTopicTimer((prev) => {
@@ -7293,6 +7320,11 @@ export default function ArenaScreen() {
     setPersonaHeat({});
     setRoomTemperature(0);
     roomTempRef.current = 0;
+    // Reset recording boundary so odds timestamps and messages are relative to this debate.
+    sessionStartTimeRef.current = Date.now();
+    recordingMessagesRef.current = [];
+    oddsHistoryRef.current = [];
+    prevOddsLabelsRef.current = {};
     arenaFirebackChainRef.current = 0;
     arenaLastFirebackAtRef.current = 0;
     arenaSquabbleCooldownUntilRef.current = 0;

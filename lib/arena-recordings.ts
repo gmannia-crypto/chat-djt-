@@ -3,6 +3,14 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 const RECORDINGS_KEY = "arenaRecordings";
 const MAX_RECORDINGS = 20;
 
+export interface OddsShift {
+  personaId: string;
+  personaName: string;
+  fromLabel: string;
+  toLabel: string;
+  atTime: number; // ms from session start
+}
+
 export interface RecordedMessage {
   id: string;
   speakerId: string;
@@ -24,6 +32,7 @@ export interface ArenaRecording {
   messages: RecordedMessage[];
   messageCount: number;
   highlightQuote?: string;
+  oddsHistory?: OddsShift[];
 }
 
 export async function saveRecording(recording: ArenaRecording): Promise<void> {
