@@ -1855,6 +1855,32 @@ export default function DebateStage() {
   // ── Pro mode state ───────────────────────────────────────────────────────
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const voiceEnabledRef = useRef(true);
+  const [bleepEnabled, setBleepEnabled] = useState<boolean>(false);
+  const applyBleep = useCallback((text: string): string => {
+    if (!bleepEnabled) return text;
+    const profanity = [
+      /\bf+u+c+k+(e+r+s?|i+n+g?|e+d?)?\b/gi,
+      /\bs+h+i+t+(t+y|t+e+r+s?|t+i+n+g?)?\b/gi,
+      /\ba+s+s+(h+o+l+e+s?|f+u+c+k+e+r+s?|w+i+p+e+s?)?\b/gi,
+      /\bb+i+t+c+h+(e+s?|i+n+g?)?\b/gi,
+      /\bc+u+n+t+s?\b/gi,
+      /\bd+a+m+n+s?\b/gi,
+      /\bp+r+i+c+k+s?\b/gi,
+      /\bc+o+c+k+s?\b/gi,
+      /\bd+i+c+k+(s|h+e+a+d+s?|f+a+c+e+s?)?\b/gi,
+      /\bm+o+t+h+e+r+f+u+c+k+(e+r+s?|i+n+g?)?\b/gi,
+      /\bb+a+s+t+a+r+d+s?\b/gi,
+      /\bw+h+o+r+e+s?\b/gi,
+      /\bs+l+u+t+s?\b/gi,
+      /\bn+i+g+g+(e+r+s?|a+s?)\b/gi,
+      /\bf+a+g+(g+o+t+s?|s)?\b/gi,
+    ];
+    let result = text;
+    for (const re of profanity) {
+      result = result.replace(re, (m) => m[0] + "*".repeat(Math.max(1, m.length - 1)));
+    }
+    return result;
+  }, [bleepEnabled]);
   const [fxEnabled, setFxEnabled] = useState(true);
   const fxEnabledRef = useRef(true);
   const [beepEnabled, setBeepEnabled] = useState(true);
@@ -5399,6 +5425,13 @@ export default function DebateStage() {
           <Ionicons name={voiceEnabled ? "volume-high" : "volume-mute"} size={16} color={voiceEnabled ? "#FFD700" : "rgba(255,255,255,0.4)"} />
         </Pressable>
         <Pressable
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setBleepEnabled((p) => !p); }}
+          style={[s.iconBtnSm, bleepEnabled && { borderColor: "#60A5FA", backgroundColor: "rgba(96,165,250,0.15)" }]}
+          testID="toggle-bleep"
+        >
+          <Ionicons name={bleepEnabled ? "shield-checkmark" : "shield-outline"} size={16} color={bleepEnabled ? "#60A5FA" : "rgba(255,255,255,0.4)"} />
+        </Pressable>
+        <Pressable
           onPress={async () => {
             Haptics.selectionAsync();
             const mod = MODERATORS[moderatorStyle];
@@ -5663,7 +5696,7 @@ export default function DebateStage() {
                     <Text style={[s.bubbleName, { color: "#ff6a00", textAlign: "center" }]}>
                       🔥 {item.speakerName} · PARTING SHOT
                     </Text>
-                    <Text style={[s.bubbleText, { fontStyle: "italic", textAlign: "center" }]}>{item.text}</Text>
+                    <Text style={[s.bubbleText, { fontStyle: "italic", textAlign: "center" }]}>{applyBleep(item.text)}</Text>
                   </View>
                 </Animated.View>
               );
@@ -5676,7 +5709,7 @@ export default function DebateStage() {
                 <Animated.View entering={FadeInUp.duration(200)} style={[s.bubbleRow, { justifyContent: "center" }]}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 5, backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 20, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", maxWidth: 280 }}>
                     <Text style={{ color: sarcastColor, fontSize: 10, fontWeight: "800" }}>{item.speakerName}:</Text>
-                    <Text style={{ color: "rgba(255,255,255,0.65)", fontSize: 12, fontStyle: "italic" }}>{item.text}</Text>
+                    <Text style={{ color: "rgba(255,255,255,0.65)", fontSize: 12, fontStyle: "italic" }}>{applyBleep(item.text)}</Text>
                   </View>
                 </Animated.View>
               );
@@ -5691,7 +5724,7 @@ export default function DebateStage() {
                   <Text style={[s.bubbleName, { color: isCallIn ? "#60a5fa" : isInterviewer ? "#FFD700" : "#4ADE80" }]}>
                     {item.speakerName}{item.isInterruption ? " · INTERRUPTS" : ""}{isCallIn ? " · CALL-IN" : ""}
                   </Text>
-                  <Text style={s.bubbleText}>{item.text}</Text>
+                  <Text style={s.bubbleText}>{applyBleep(item.text)}</Text>
                   {canFlag && (
                     <Pressable
                       onPress={() => flagMessageAsLie(item)}
