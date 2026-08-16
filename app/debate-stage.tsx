@@ -3538,18 +3538,13 @@ export default function DebateStage() {
         }),
       });
       if (res.status === 403) {
-        runningRef.current = false;
-        // End gracefully when the 403 arrives in the final 20% of the session
-        // (server closing out a nearly-finished session). Show the paywall only
-        // for genuine mid-session expiries so squabble/roundtable don't hard-cut.
-        // Guard: if sessionStartedAtRef is still 0 (not yet set), totalMs would be
-        // a large spurious number — skip grace-period logic and show the paywall.
-        const totalMs = sessionEndsAtRef.current - sessionStartedAtRef.current;
-        const gracePeriodStart = sessionEndsAtRef.current - totalMs * 0.2;
-        if (sessionStartedAtRef.current !== 0 && totalMs > 0 && requestSentAt >= gracePeriodStart) {
+        // Only stop the session if the client timer has genuinely expired.
+        // A server 403 mid-session (free-trial expiry, clock skew, etc.) should
+        // not kill the debate while the client timer still has time — mirror the
+        // resilient pattern used in interview.tsx.
+        if (Date.now() >= sessionEndsAtRef.current) {
+          runningRef.current = false;
           setPhase("ended");
-        } else {
-          setShowPaywall(true);
         }
         return null;
       }
@@ -3588,18 +3583,10 @@ export default function DebateStage() {
         }),
       });
       if (res.status === 403) {
-        runningRef.current = false;
-        // End gracefully when the 403 arrives in the final 20% of the session
-        // (server closing out a nearly-finished session). Show the paywall only
-        // for genuine mid-session expiries so squabble/roundtable don't hard-cut.
-        // Guard: if sessionStartedAtRef is still 0 (not yet set), totalMs would be
-        // a large spurious number — skip grace-period logic and show the paywall.
-        const totalMs = sessionEndsAtRef.current - sessionStartedAtRef.current;
-        const gracePeriodStart = sessionEndsAtRef.current - totalMs * 0.2;
-        if (sessionStartedAtRef.current !== 0 && totalMs > 0 && requestSentAt >= gracePeriodStart) {
+        // Mirror interview.tsx: only stop when the client timer has also expired.
+        if (Date.now() >= sessionEndsAtRef.current) {
+          runningRef.current = false;
           setPhase("ended");
-        } else {
-          setShowPaywall(true);
         }
         return null;
       }
@@ -3635,25 +3622,17 @@ export default function DebateStage() {
         }),
       });
       if (res.status === 403) {
-        runningRef.current = false;
-        // If the 403 arrives within the final 20% of the session timer, the
-        // server is simply closing out a nearly-finished session — end the
-        // debate gracefully with the winner reveal instead of showing a paywall.
-        // Guard: if sessionStartedAtRef is still 0 (not yet set), totalMs would be
-        // a large spurious number — skip grace-period logic and show the paywall.
-        const totalMs = sessionEndsAtRef.current - sessionStartedAtRef.current;
-        const gracePeriodStart = sessionEndsAtRef.current - totalMs * 0.2;
-        if (sessionStartedAtRef.current !== 0 && totalMs > 0 && requestSentAt >= gracePeriodStart) {
+        // Mirror interview.tsx: only stop when the client timer has also expired.
+        if (Date.now() >= sessionEndsAtRef.current) {
+          runningRef.current = false;
           setPhase("ended");
-        } else {
-          setShowPaywall(true);
         }
         return null;
       }
       if (!res.ok) return null;
       return await res.json();
     } catch { return null; }
-  }, [deviceId, effectiveInterviewStyle, setShowPaywall, setPhase]);
+  }, [deviceId, effectiveInterviewStyle]);
 
   // Alternates which debater the MODERATOR addresses at each new topic — 'A' or 'B' — so
   // both sides get equal question time from the moderator over the course of the debate.
@@ -4816,6 +4795,7 @@ export default function DebateStage() {
               p.id !== intervieweeId &&
               p.id !== MODERATORS[moderatorStyle].personaId &&
               p.id !== "michaelbuffer" &&
+              !(p.id === "floydmayweather" && !boxingMode) &&
               !(MYSTERY_PERSONA_IDS.includes(p.id) && !unlockedMystery.includes(p.id)) &&
               !isHidden(p.id)
             ).map((p) => {
@@ -4894,6 +4874,7 @@ export default function DebateStage() {
               p.id !== interviewerId &&
               p.id !== MODERATORS[moderatorStyle].personaId &&
               p.id !== "michaelbuffer" &&
+              !(p.id === "floydmayweather" && !boxingMode) &&
               !(MYSTERY_PERSONA_IDS.includes(p.id) && !unlockedMystery.includes(p.id)) &&
               !isHidden(p.id)
             ).map((p) => {
