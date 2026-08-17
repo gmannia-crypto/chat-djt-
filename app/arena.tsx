@@ -8085,6 +8085,19 @@ export default function ArenaScreen() {
   );
 
   const [flashOn, setFlashOn] = useState(true);
+  const [isRefreshingTopics, setIsRefreshingTopics] = useState(false);
+
+  const handleRefreshTopics = async (bust = false) => {
+    if (isRefreshingTopics) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setIsRefreshingTopics(true);
+    try {
+      await fetchTopics(topicCategory, bust);
+    } finally {
+      setIsRefreshingTopics(false);
+    }
+  };
+
   useEffect(() => {
     if (!showPreDebateSetup) return;
     fetchTopics(topicCategory);
@@ -8770,12 +8783,13 @@ export default function ArenaScreen() {
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <Text style={{ color: "#FFD700", fontSize: 14, fontWeight: "800" }}>CHOOSE TOPIC</Text>
             <Pressable
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); fetchTopics(topicCategory, true); }}
-              style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: "rgba(255,215,0,0.25)", backgroundColor: "rgba(255,215,0,0.08)" }}
+              onPress={() => handleRefreshTopics(true)}
+              disabled={isRefreshingTopics}
+              style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: isRefreshingTopics ? "rgba(255,215,0,0.1)" : "rgba(255,215,0,0.25)", backgroundColor: isRefreshingTopics ? "rgba(255,215,0,0.04)" : "rgba(255,215,0,0.08)" }}
               testID="refresh-topics"
             >
-              <Ionicons name="refresh" size={13} color="#FFD700" />
-              <Text style={{ color: "#FFD700", fontSize: 10, fontWeight: "800" }}>REFRESH</Text>
+              <Ionicons name={isRefreshingTopics ? "hourglass-outline" : "refresh"} size={13} color={isRefreshingTopics ? "rgba(255,215,0,0.4)" : "#FFD700"} />
+              <Text style={{ color: isRefreshingTopics ? "rgba(255,215,0,0.4)" : "#FFD700", fontSize: 10, fontWeight: "800" }}>{isRefreshingTopics ? "LOADING…" : "REFRESH"}</Text>
             </Pressable>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }} contentContainerStyle={{ gap: 6, paddingVertical: 2 }}>
@@ -9891,8 +9905,9 @@ export default function ArenaScreen() {
 
       <Animated.View entering={FadeInUp.delay(400).duration(400)} style={[s.topicRow, { paddingBottom: insets.bottom + webBottomInset + 8 }]}>
         <Pressable
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); fetchTopics(topicCategory, true); }}
-          style={{ paddingHorizontal: 10, paddingVertical: 6, justifyContent: "center", alignItems: "center" }}
+          onPress={() => handleRefreshTopics(true)}
+          disabled={isRefreshingTopics}
+          style={{ paddingHorizontal: 10, paddingVertical: 6, justifyContent: "center", alignItems: "center", opacity: isRefreshingTopics ? 0.35 : 1 }}
           testID="refresh-topics-live"
         >
           <Ionicons name="refresh" size={18} color="rgba(255,215,0,0.7)" />

@@ -4028,6 +4028,25 @@ Your personality quirks:
   const categoryTopicsCache: Map<string, { topics: any[]; expires: number }> = new Map();
   const categoryGenerationInProgress: Set<string> = new Set();
 
+  /** Convert raw RSS headline strings ("Title (Source)") into minimal topic objects.
+   *  Used as a reliable fallback when the AI call times out — callers always get
+   *  REAL news content instead of the hardcoded generic list. */
+  function makeTopicsFromHeadlines(headlines: string[], count: number): any[] {
+    return headlines.slice(0, count).map((h, i) => {
+      const match = h.match(/^(.+?)\s+\((.+?)\)$/);
+      const fullTitle = match ? match[1] : h;
+      const source = match ? match[2] : "News";
+      const words = fullTitle.split(/\s+/);
+      const shortTitle = words.slice(0, 6).join(" ") + (words.length > 6 ? "…" : "");
+      return {
+        id: `headline_${i}_${Date.now()}`,
+        title: shortTitle,
+        description: `${fullTitle} — live debate topic from ${source}.`,
+        headlines: [fullTitle],
+      };
+    });
+  }
+
   function getDefaultCategoryTopics(category: string): any[] {
     const defaults: Record<string, any[]> = {
       sports: [
@@ -4163,6 +4182,7 @@ Your personality quirks:
     if (cached && cached.topics.length > 0 && Date.now() < cached.expires) return cached.topics;
     if (categoryGenerationInProgress.has(category)) return cached?.topics || getDefaultCategoryTopics(category);
     categoryGenerationInProgress.add(category);
+    const allHeadlines: string[] = []; // hoisted so catch block can use it as fallback
     try {
       const feeds = CATEGORY_RSS_FEEDS[category] || CATEGORY_RSS_FEEDS["sports"];
       const feedPromises = feeds.slice(0, 5).map(f =>
@@ -4172,7 +4192,6 @@ Your personality quirks:
         ]).catch(() => [] as any[])
       );
       const results = await Promise.all(feedPromises);
-      const allHeadlines: string[] = [];
       for (const r of results) {
         if (Array.isArray(r)) allHeadlines.push(...r.map((h: any) => `${h.title} (${h.source})`));
       }
@@ -4194,7 +4213,7 @@ Your personality quirks:
           max_completion_tokens: 2500,
           temperature: 0.9,
         }),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("AI timeout")), 40000)),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("AI timeout")), 20000)),
       ]);
       const raw = completion.choices[0]?.message?.content || "[]";
       const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
@@ -4215,6 +4234,13 @@ Your personality quirks:
       }
     } catch (err) {
       console.error(`Category topics error (${category}):`, err);
+      // AI failed — fall back to the raw headlines we already fetched so the
+      // user still sees real news content instead of hardcoded generics.
+      const headlineTopics = makeTopicsFromHeadlines(allHeadlines, 8);
+      if (headlineTopics.length > 0) {
+        categoryTopicsCache.set(category, { topics: headlineTopics, expires: Date.now() + ARENA_NEWS_CACHE_TTL });
+        return headlineTopics;
+      }
     } finally {
       categoryGenerationInProgress.delete(category);
     }
@@ -4231,8 +4257,8 @@ Your personality quirks:
       return arenaTopicsCache.topics.length > 0 ? arenaTopicsCache.topics : getDefaultArenaTopics();
     }
     topicGenerationInProgress = true;
+    const allHeadlines: string[] = []; // hoisted so catch block can use it as fallback
     try {
-      const allHeadlines: string[] = [];
       const feedPromises = NEWS_FEEDS.slice(0, 10).map(f =>
         Promise.race([
           fetchRSSFeed(f.url, f.source),
@@ -4247,7 +4273,9 @@ Your personality quirks:
       }
       if (allHeadlines.length < 3) {
         topicGenerationInProgress = false;
-        return getDefaultArenaTopics();
+        // Even with few headlines try to serve what we have rather than hardcoded defaults
+        const headlineTopics = makeTopicsFromHeadlines(allHeadlines, 8);
+        return headlineTopics.length > 0 ? headlineTopics : getDefaultArenaTopics();
       }
       const viralSignals = await fetchViralTrends().catch(() => [] as string[]);
       const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
@@ -4280,7 +4308,7 @@ Return ONLY a valid JSON array: [{"id":"snake_case","title":"3-6 PUNCHY words","
           max_completion_tokens: 3000,
           temperature: 0.95,
         }),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("AI timeout")), 45000)),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("AI timeout")), 20000)),
       ]);
       const raw = completion.choices[0]?.message?.content || "[]";
       const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
@@ -4303,6 +4331,14 @@ Return ONLY a valid JSON array: [{"id":"snake_case","title":"3-6 PUNCHY words","
       }
     } catch (err) {
       console.error("Arena topics generation error:", err);
+      // AI timed out or failed — use the RSS headlines we already fetched so the
+      // user sees real current news instead of hardcoded generics.
+      const headlineTopics = makeTopicsFromHeadlines(allHeadlines, 12);
+      if (headlineTopics.length > 0) {
+        arenaTopicsCache = { topics: headlineTopics, expires: Date.now() + ARENA_NEWS_CACHE_TTL };
+        topicGenerationInProgress = false;
+        return headlineTopics;
+      }
     }
     topicGenerationInProgress = false;
     return getDefaultArenaTopics();
@@ -4831,10 +4867,14 @@ CRITICAL: If an opponent makes a claim that contradicts these or other well-esta
       const bust = req.query.bust === "1";
 
       if (category !== "politics") {
-        // Bust: evict the cache so the next fetch generates fresh topics.
+        // Bust: evict the cache and await a fresh generation so the response
+        // contains new topics rather than falling back to defaults immediately.
         if (bust) {
           categoryTopicsCache.delete(category);
           categoryGenerationInProgress.delete(category);
+          const fresh = await fetchCategoryTopics(category).catch(() => [] as any[]);
+          const result = fresh.length > 0 ? fresh : getDefaultCategoryTopics(category);
+          return res.json({ topics: result });
         }
         const cached = categoryTopicsCache.get(category);
         if (cached && cached.topics.length > 0 && Date.now() < cached.expires) {
@@ -4851,10 +4891,13 @@ CRITICAL: If an opponent makes a claim that contradicts these or other well-esta
         return res.json({ topics: getDefaultCategoryTopics(category) });
       }
 
-      // Politics / default path — bust clears the main cache too.
+      // Politics / default path — bust awaits a fresh generation too.
       if (bust) {
         arenaTopicsCache = { topics: [], expires: 0 };
         topicGenerationInProgress = false;
+        const fresh = await fetchArenaTopics().catch(() => [] as any[]);
+        const result = fresh.length > 0 ? fresh : getDefaultArenaTopics();
+        return res.json({ topics: result });
       }
       if (arenaTopicsCache.topics.length > 0 && Date.now() < arenaTopicsCache.expires) {
         return res.json({ topics: arenaTopicsCache.topics });
