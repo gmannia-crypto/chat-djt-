@@ -3898,19 +3898,20 @@ export default function DebateStage() {
       // sound like the AI stopped talking while the moderator just keeps going.
       // Instead: skip the bridge/rebuttal, back off, and retry the same topic.
       if (!primaryAnswer?.text) {
-        // Undo the moderatorTarget flip so the SAME debater is retried next round.
-        // Without this, the loop would alternate A→B→A→B with no responses, making
-        // it look like the moderator is asking questions both sides refuse to answer.
-        moderatorTargetRef.current = side;
+        // Leave moderatorTargetRef as-is (already flipped at top of loop) so the
+        // OTHER debater is asked next. This keeps the debate flowing when one side
+        // is temporarily unreachable instead of hammering the same persona over and
+        // over. A flat 1.5 s pause prevents a tight spin; no progressive backoff
+        // since that caused multi-minute stalls (2s+4s+6s+… = ~3 min for 6 nulls).
         consecutiveNullRef.current += 1;
-        if (consecutiveNullRef.current >= 12) {
-          // Persistent failure (≥12 in a row) — end the debate gracefully.
+        if (consecutiveNullRef.current >= 6) {
+          // Both sides failing persistently — end gracefully.
           runningRef.current = false;
           setPhase("ended");
           break;
         }
-        await new Promise((r) => setTimeout(r, 2000 * consecutiveNullRef.current));
-        continue; // retry this topic round with the same moderator target
+        await new Promise((r) => setTimeout(r, 1500));
+        continue;
       }
       consecutiveNullRef.current = 0;
 
@@ -4053,12 +4054,12 @@ export default function DebateStage() {
       // trigger auto-shutdown prematurely.
       if (!rebuttal?.text) {
         consecutiveRebuttalNullRef.current += 1;
-        if (consecutiveRebuttalNullRef.current >= 12) {
+        if (consecutiveRebuttalNullRef.current >= 6) {
           runningRef.current = false;
           setPhase("ended");
           break;
         }
-        await new Promise((r) => setTimeout(r, 2000 * consecutiveRebuttalNullRef.current));
+        await new Promise((r) => setTimeout(r, 1500));
         continue;
       }
       consecutiveRebuttalNullRef.current = 0;
