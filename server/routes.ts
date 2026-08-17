@@ -4828,7 +4828,14 @@ CRITICAL: If an opponent makes a claim that contradicts these or other well-esta
   app.get("/api/arena/topics", async (req, res) => {
     try {
       const category = (req.query.category as string) || "politics";
+      const bust = req.query.bust === "1";
+
       if (category !== "politics") {
+        // Bust: evict the cache so the next fetch generates fresh topics.
+        if (bust) {
+          categoryTopicsCache.delete(category);
+          categoryGenerationInProgress.delete(category);
+        }
         const cached = categoryTopicsCache.get(category);
         if (cached && cached.topics.length > 0 && Date.now() < cached.expires) {
           return res.json({ topics: cached.topics });
@@ -4842,6 +4849,12 @@ CRITICAL: If an opponent makes a claim that contradicts these or other well-esta
         }
         fetchCategoryTopics(category).catch(() => {});
         return res.json({ topics: getDefaultCategoryTopics(category) });
+      }
+
+      // Politics / default path — bust clears the main cache too.
+      if (bust) {
+        arenaTopicsCache = { topics: [], expires: 0 };
+        topicGenerationInProgress = false;
       }
       if (arenaTopicsCache.topics.length > 0 && Date.now() < arenaTopicsCache.expires) {
         return res.json({ topics: arenaTopicsCache.topics });

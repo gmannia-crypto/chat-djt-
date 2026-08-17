@@ -5353,11 +5353,12 @@ export default function ArenaScreen() {
   useEffect(() => { tryArenaFirebackRef.current = tryArenaFireback; }, [tryArenaFireback]);
   // ─────────────────────────────────────────────────────────────────────────
 
-  const fetchTopics = useCallback(async (category?: string) => {
+  const fetchTopics = useCallback(async (category?: string, bust = false) => {
     try {
       const cat = category || "politics";
       const url = new URL("/api/arena/topics", getApiUrl());
       url.searchParams.set("category", cat);
+      if (bust) url.searchParams.set("bust", "1");
       const res = await fetch(url.toString());
       if (res.ok) {
         const data = await res.json();
@@ -8769,7 +8770,7 @@ export default function ArenaScreen() {
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <Text style={{ color: "#FFD700", fontSize: 14, fontWeight: "800" }}>CHOOSE TOPIC</Text>
             <Pressable
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); fetchTopics(topicCategory); }}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); fetchTopics(topicCategory, true); }}
               style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: "rgba(255,215,0,0.25)", backgroundColor: "rgba(255,215,0,0.08)" }}
               testID="refresh-topics"
             >
@@ -9890,7 +9891,7 @@ export default function ArenaScreen() {
 
       <Animated.View entering={FadeInUp.delay(400).duration(400)} style={[s.topicRow, { paddingBottom: insets.bottom + webBottomInset + 8 }]}>
         <Pressable
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); fetchTopics(topicCategory); }}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); fetchTopics(topicCategory, true); }}
           style={{ paddingHorizontal: 10, paddingVertical: 6, justifyContent: "center", alignItems: "center" }}
           testID="refresh-topics-live"
         >
