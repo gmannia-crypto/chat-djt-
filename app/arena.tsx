@@ -2575,6 +2575,15 @@ const MYSTERY_UNLOCK_COSTS: Record<string, number> = {
 };
 const MYSTERY_UNLOCK_KEY = "arena_mystery_unlocked";
 
+// Boxing-exclusive persona IDs — kept in sync with BOXING_EXCLUSIVE_IDS in debate-stage.tsx.
+// These personas only appear in boxing mode (debate-stage.tsx). The Arena roundtable has no
+// boxing toggle, so they must be filtered out of any server-driven entry point (deep links,
+// Debate of the Day) to prevent them landing in a non-boxing session.
+const BOXING_EXCLUSIVE_IDS = [
+  "muhammadali", "floydmayweather", "georgeforeman",
+  "howardcosell", "jimlampley", "maxkellerman",
+];
+
 const PERSONA_IDS = ["trump", "jdvance", "elon", "errol", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "carlin", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "leavitt", "erikakirk", "loomer", "bannon", "stephena", "malema", "hannity", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "aoc", "pressley", "joerogan", "timscott", "drbenj", "billclinton", "hillaryclinton", "marcorubio", "desantis", "tuckercarlson", "bishopfundme", "cornellwest", "piersmorgan", "scottjennings", "mikabrzezinski", "joescarborough"];
 // Cartoon-style image filter — vivid posterized look on web
 const CARTOON_FILTER = Platform.OS === "web"
@@ -4507,6 +4516,8 @@ export default function ArenaScreen() {
     const id = persona.trim().toLowerCase();
     // Validate it's a known arena persona
     if (!ARENA_PERSONAS[id]) return;
+    // Boxing-exclusive personas have no place in the roundtable (no boxing mode here)
+    if (BOXING_EXCLUSIVE_IDS.includes(id)) return;
     setSelectedPersonas((prev) => {
       if (prev.includes(id)) return prev;
       return [id, ...prev];
@@ -8827,7 +8838,9 @@ export default function ArenaScreen() {
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                 // Auto-select the matchup's personas and topic
-                const dotdPersonas = debateOfDay.matchup.personas.filter(pid => getPersona(pid));
+                const dotdPersonas = debateOfDay.matchup.personas.filter(
+                  pid => getPersona(pid) && !BOXING_EXCLUSIVE_IDS.includes(pid),
+                );
                 if (dotdPersonas.length >= 2) {
                   setSelectedPersonas(dotdPersonas);
                 }
@@ -10383,13 +10396,7 @@ export default function ArenaScreen() {
                 { label: "👥  FAMILY & OTHERS", ids: ["errol", "ivanka"], mysteryIds: ["melania"] },
               ];
               const lockedMysteryIds = MYSTERY_PERSONA_IDS.filter((id) => !unlockedMystery.includes(id));
-              // Boxing-exclusive persona IDs — kept in sync with BOXING_EXCLUSIVE_IDS in debate-stage.tsx.
-              // These personas only belong in boxing mode; the IQ Race has no boxing toggle so they
-              // are always excluded from the roundtable participant picker.
-              const BOXING_EXCLUSIVE_IDS = [
-                "muhammadali", "floydmayweather", "georgeforeman",
-                "howardcosell", "jimlampley", "maxkellerman",
-              ];
+              // BOXING_EXCLUSIVE_IDS is defined at module scope (after MYSTERY_UNLOCK_KEY).
               const renderPersonaCard = (pid: string, isMystery = false) => {
                 const p = getPersona(pid);
                 if (!p) return null;
