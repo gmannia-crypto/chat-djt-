@@ -8964,6 +8964,33 @@ Use "era":"current" for today's news/viral moments, "era":"past" for career hist
     return { ok: true, access };
   }
 
+  // Personas that are only valid inside boxing mode — kept in sync with debate-stage.tsx.
+  // BOXING_EXCLUSIVE_IDS: can ONLY appear when paired with another boxing persona.
+  // BOXING_PERSONA_IDS: the full roster of personas that are valid boxing participants
+  // (includes broadcasters/analysts that double as boxing-mode moderators).
+  const BOXING_EXCLUSIVE_IDS = [
+    "muhammadali", "floydmayweather", "georgeforeman",
+    "howardcosell", "jimlampley", "maxkellerman",
+  ];
+  const BOXING_PERSONA_IDS = [
+    "muhammadali", "floydmayweather", "georgeforeman", "howardcosell",
+    "jimlampley", "stephena", "skipbayless", "shannon", "maxkellerman",
+  ];
+
+  /**
+   * Returns true when the interviewer/interviewee pair is valid for a
+   * boxing-exclusive persona. The determination is derived entirely from the
+   * persona IDs themselves — no client-supplied flag is trusted.
+   *
+   * Rule: if either participant is BOXING_EXCLUSIVE, BOTH must be in the full
+   * BOXING_PERSONA_IDS roster. This prevents boxing-only personas from being
+   * slipped into non-boxing debates via a crafted API call.
+   */
+  function assertBoxingCompat(a: string, b: string): boolean {
+    if (!BOXING_EXCLUSIVE_IDS.includes(a) && !BOXING_EXCLUSIVE_IDS.includes(b)) return true;
+    return BOXING_PERSONA_IDS.includes(a) && BOXING_PERSONA_IDS.includes(b);
+  }
+
   app.post("/api/arena/interview-question", async (req, res) => {
     try {
       const deviceId = req.headers["x-device-id"] as string;
@@ -8972,6 +8999,9 @@ Use "era":"current" for today's news/viral moments, "era":"past" for career hist
       if (!interviewerId || !ARENA_PERSONA_PROMPTS[interviewerId]) return res.status(400).json({ error: "Invalid interviewerId" });
       if (!intervieweeId || !ARENA_PERSONA_PROMPTS[intervieweeId]) return res.status(400).json({ error: "Invalid intervieweeId" });
       if (interviewerId === intervieweeId) return res.status(400).json({ error: "A persona cannot interview themselves" });
+      if (!assertBoxingCompat(interviewerId, intervieweeId)) {
+        return res.status(400).json({ error: "This persona is only available in boxing mode" });
+      }
 
       const ipAddress = ((req.headers["x-forwarded-for"] as string || req.socket.remoteAddress || "").split(",")[0].trim()) || undefined;
       const accessCheck = await checkInterviewAccess(deviceId, !isInterruption, ipAddress);
@@ -9126,6 +9156,9 @@ ${styleInstruction}${getLieBehaviorPrompt(interviewerId, Number((req.body.sessio
       if (!interviewerId || !ARENA_PERSONA_PROMPTS[interviewerId]) return res.status(400).json({ error: "Invalid interviewerId" });
       if (!intervieweeId || !ARENA_PERSONA_PROMPTS[intervieweeId]) return res.status(400).json({ error: "Invalid intervieweeId" });
       if (interviewerId === intervieweeId) return res.status(400).json({ error: "A persona cannot interview themselves" });
+      if (!assertBoxingCompat(interviewerId, intervieweeId)) {
+        return res.status(400).json({ error: "This persona is only available in boxing mode" });
+      }
 
       const ipAddress = ((req.headers["x-forwarded-for"] as string || req.socket.remoteAddress || "").split(",")[0].trim()) || undefined;
       const accessCheck = await checkInterviewAccess(deviceId, false, ipAddress);

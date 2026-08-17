@@ -2985,6 +2985,7 @@ export default function DebateStage() {
           insultFireback: true,
           insultSeverity: severity,
           isDebate: true,
+          boxingMode,
         }),
       });
       if (!res.ok || !runningRef.current) return;
@@ -3566,6 +3567,7 @@ export default function DebateStage() {
           // moderator should be posing genuine "questions". See isDebate handling
           // in server/routes.ts.
           isDebate: true,
+          boxingMode,
         }),
       });
       if (res.status === 403) {
@@ -3604,6 +3606,7 @@ export default function DebateStage() {
           isInterruption: !!opts.isInterruption,
           interviewStyle: effectiveInterviewStyle,
           isDebate: true,
+          boxingMode,
           // Let persona prompts reference their W/L record and H2H vs opponent
           debateRecord: debateRecordsRef.current ? {
             aId: interviewerId, bId: intervieweeId,
@@ -3644,6 +3647,7 @@ export default function DebateStage() {
           lastQuestion,
           interviewStyle: effectiveInterviewStyle,
           isDebate: true,
+          boxingMode,
           debateRecord: debateRecordsRef.current ? {
             aId: interviewerId, bId: intervieweeId,
             aWins: debateRecordsRef.current.aWins, aLosses: debateRecordsRef.current.aLosses,
