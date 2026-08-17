@@ -2575,14 +2575,7 @@ const MYSTERY_UNLOCK_COSTS: Record<string, number> = {
 };
 const MYSTERY_UNLOCK_KEY = "arena_mystery_unlocked";
 
-// Boxing-exclusive persona IDs — kept in sync with BOXING_EXCLUSIVE_IDS in debate-stage.tsx.
-// These personas only appear in boxing mode (debate-stage.tsx). The Arena roundtable has no
-// boxing toggle, so they must be filtered out of any server-driven entry point (deep links,
-// Debate of the Day) to prevent them landing in a non-boxing session.
-const BOXING_EXCLUSIVE_IDS = [
-  "muhammadali", "floydmayweather", "georgeforeman",
-  "howardcosell", "jimlampley", "maxkellerman",
-];
+import { BOXING_EXCLUSIVE_IDS } from "@/lib/boxing-personas";
 
 const PERSONA_IDS = ["trump", "jdvance", "elon", "errol", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "carlin", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "leavitt", "erikakirk", "loomer", "bannon", "stephena", "malema", "hannity", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "aoc", "pressley", "joerogan", "timscott", "drbenj", "billclinton", "hillaryclinton", "marcorubio", "desantis", "tuckercarlson", "bishopfundme", "cornellwest", "piersmorgan", "scottjennings", "mikabrzezinski", "joescarborough"];
 // Cartoon-style image filter — vivid posterized look on web

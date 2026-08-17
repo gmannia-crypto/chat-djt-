@@ -80,10 +80,7 @@ const BOXING_PERSONA_IDS = [
   "jimlampley", "stephena", "skipbayless", "shannon", "maxkellerman",
 ];
 
-const BOXING_EXCLUSIVE_IDS = [
-  "muhammadali", "floydmayweather", "georgeforeman",
-  "howardcosell", "jimlampley", "maxkellerman",
-];
+import { BOXING_EXCLUSIVE_IDS } from "@/lib/boxing-personas";
 const MYSTERY_UNLOCK_KEY = "arena_mystery_unlocked";
 
 type PersonaLite = { id: string; name: string };
