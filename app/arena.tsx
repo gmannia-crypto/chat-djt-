@@ -10383,10 +10383,18 @@ export default function ArenaScreen() {
                 { label: "👥  FAMILY & OTHERS", ids: ["errol", "ivanka"], mysteryIds: ["melania"] },
               ];
               const lockedMysteryIds = MYSTERY_PERSONA_IDS.filter((id) => !unlockedMystery.includes(id));
+              // Boxing-exclusive persona IDs — kept in sync with BOXING_EXCLUSIVE_IDS in debate-stage.tsx.
+              // These personas only belong in boxing mode; the IQ Race has no boxing toggle so they
+              // are always excluded from the roundtable participant picker.
+              const BOXING_EXCLUSIVE_IDS = [
+                "muhammadali", "floydmayweather", "georgeforeman",
+                "howardcosell", "jimlampley", "maxkellerman",
+              ];
               const renderPersonaCard = (pid: string, isMystery = false) => {
                 const p = getPersona(pid);
                 if (!p) return null;
                 if (isHidden(pid)) return null;
+                if (BOXING_EXCLUSIVE_IDS.includes(pid)) return null;
                 const isSelected = selectedPersonas.includes(pid);
                 const isPremiumLocked = isLocked(pid);
                 const premiumCfg = PREMIUM_PERSONA_CONFIGS[pid];

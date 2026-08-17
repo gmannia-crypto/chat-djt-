@@ -79,6 +79,11 @@ const BOXING_PERSONA_IDS = [
   "muhammadali", "floydmayweather", "georgeforeman", "howardcosell",
   "jimlampley", "stephena", "skipbayless", "shannon", "maxkellerman",
 ];
+
+const BOXING_EXCLUSIVE_IDS = [
+  "muhammadali", "floydmayweather", "georgeforeman",
+  "howardcosell", "jimlampley", "maxkellerman",
+];
 const MYSTERY_UNLOCK_KEY = "arena_mystery_unlocked";
 
 type PersonaLite = { id: string; name: string };
@@ -4739,6 +4744,12 @@ export default function DebateStage() {
                 // Clear selections that might not be in the boxing roster
                 setInterviewerId(null);
                 setIntervieweeId(null);
+              } else {
+                // Clear any boxing-exclusive selections that shouldn't persist
+                // outside boxing mode — they're hidden in the picker so the user
+                // can't swap them out manually.
+                setInterviewerId(prev => (prev && BOXING_EXCLUSIVE_IDS.includes(prev) ? null : prev));
+                setIntervieweeId(prev => (prev && BOXING_EXCLUSIVE_IDS.includes(prev) ? null : prev));
               }
             }}
             style={{
@@ -4821,7 +4832,7 @@ export default function DebateStage() {
               p.id !== intervieweeId &&
               p.id !== MODERATORS[moderatorStyle].personaId &&
               p.id !== "michaelbuffer" &&
-              !(p.id === "floydmayweather" && !boxingMode) &&
+              !(BOXING_EXCLUSIVE_IDS.includes(p.id) && !boxingMode) &&
               !(MYSTERY_PERSONA_IDS.includes(p.id) && !unlockedMystery.includes(p.id)) &&
               !isHidden(p.id)
             ).map((p) => {
@@ -4900,7 +4911,7 @@ export default function DebateStage() {
               p.id !== interviewerId &&
               p.id !== MODERATORS[moderatorStyle].personaId &&
               p.id !== "michaelbuffer" &&
-              !(p.id === "floydmayweather" && !boxingMode) &&
+              !(BOXING_EXCLUSIVE_IDS.includes(p.id) && !boxingMode) &&
               !(MYSTERY_PERSONA_IDS.includes(p.id) && !unlockedMystery.includes(p.id)) &&
               !isHidden(p.id)
             ).map((p) => {
