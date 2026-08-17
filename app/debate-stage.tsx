@@ -3898,9 +3898,13 @@ export default function DebateStage() {
       // sound like the AI stopped talking while the moderator just keeps going.
       // Instead: skip the bridge/rebuttal, back off, and retry the same topic.
       if (!primaryAnswer?.text) {
+        // Undo the moderatorTarget flip so the SAME debater is retried next round.
+        // Without this, the loop would alternate A→B→A→B with no responses, making
+        // it look like the moderator is asking questions both sides refuse to answer.
+        moderatorTargetRef.current = side;
         consecutiveNullRef.current += 1;
-        if (consecutiveNullRef.current >= 8) {
-          // Persistent failure (≥8 in a row) — end the debate gracefully.
+        if (consecutiveNullRef.current >= 12) {
+          // Persistent failure (≥12 in a row) — end the debate gracefully.
           runningRef.current = false;
           setPhase("ended");
           break;
@@ -3920,6 +3924,49 @@ export default function DebateStage() {
           const pressLine = getDodgePressLine();
           await speakMod(pressLine, `moddodge-${Date.now()}-${Math.random()}`);
           if (!runningRef.current) break;
+        }
+      }
+
+      // ── INLINE MODERATOR RETORT ───────────────────────────────────────────
+      // If the primary debater attacked the moderator, speak the retort HERE —
+      // before the rebuttal bridge — so it plays in the correct order:
+      //   primary answer → retort → bridge → rebuttal → next question.
+      // tryModeratorRetort (called via enrichAndAddMessage) uses a 900 ms delay
+      // + enqueueTTS, which races against the bridge and loses; the retort ends
+      // up playing AFTER the next question. This inline check fixes that by
+      // speaking synchronously. lastModReactionAtRef is stamped here so the
+      // async tryModeratorRetort path skips the duplicate.
+      if (primaryAnswer?.text && runningRef.current) {
+        const modRef = MODERATORS[moderatorStyle];
+        if (modRef) {
+          const modFirst = modRef.name.split(" ")[0].toLowerCase();
+          const lower = primaryAnswer.text.toLowerCase();
+          const attacksMod = lower.includes(modFirst) || lower.includes("moderator") || lower.includes("this host") || lower.includes("you're biased") || lower.includes("you are biased");
+          if (attacksMod) {
+            const sev = detectInsult(primaryAnswer.text);
+            const now = Date.now();
+            if (sev >= 1 && now - lastModReactionAtRef.current >= 14000) {
+              lastModReactionAtRef.current = now; // prevent tryModeratorRetort from double-firing
+              const t1 = [
+                "Excuse me — you do NOT get to attack me. I ask the questions. You answer them. That's the deal.",
+                "I'm going to stop you right there. You're attacking the moderator, which tells me you have no real answer.",
+                "Let's keep this civil. One more crack like that and your mic goes dark.",
+              ];
+              const t2 = [
+                "Did you just come at ME? I will cut your microphone and we will sit here in silence until you learn some respect.",
+                "That mouth is writing checks your arguments can't cash. Answer the question.",
+                "Back off. You're a guest in this debate. Keep it up and your mic is done for the night.",
+              ];
+              const t3 = [
+                "Let me be crystal clear: you are ONE second from being removed from this debate. Shut your mouth and answer the question.",
+                "You want to come at ME? I RUN this show. One more word out of line and this debate is OVER. Your choice.",
+              ];
+              const pool = sev >= 3 ? t3 : sev >= 2 ? t2 : t1;
+              const retortLine = pool[Math.floor(Math.random() * pool.length)];
+              await speakMod(retortLine, `modretort-inline-${Date.now()}-${Math.random()}`, { blockEarlyResolve: true });
+              if (!runningRef.current) break;
+            }
+          }
         }
       }
 
@@ -4006,7 +4053,7 @@ export default function DebateStage() {
       // trigger auto-shutdown prematurely.
       if (!rebuttal?.text) {
         consecutiveRebuttalNullRef.current += 1;
-        if (consecutiveRebuttalNullRef.current >= 8) {
+        if (consecutiveRebuttalNullRef.current >= 12) {
           runningRef.current = false;
           setPhase("ended");
           break;
