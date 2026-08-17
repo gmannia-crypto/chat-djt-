@@ -12143,7 +12143,12 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
   app.get("/api/arena/debate-of-day", (_req, res) => {
     const now = new Date();
     const dayOfYear = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / (24 * 60 * 60 * 1000));
-    const matchup = DOTD_MATCHUPS[dayOfYear % DOTD_MATCHUPS.length];
+    // Filter out any matchup that includes a boxing-exclusive persona so they
+    // never appear in a standard Debate of the Day card.
+    const validMatchups = DOTD_MATCHUPS.filter(
+      (m) => !m.personas.some((id) => BOXING_EXCLUSIVE_IDS.includes(id))
+    );
+    const matchup = validMatchups[dayOfYear % validMatchups.length];
     res.json({
       matchup,
       date: now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }),
