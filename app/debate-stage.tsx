@@ -6016,6 +6016,51 @@ export default function DebateStage() {
               </View>
             )}
 
+            {/* Lie tally — shown when at least one confirmed lie was caught during the debate.
+                Uses the same authoritative source as the verdict override:
+                !pending && score < 40, which includes both AI fact-checks and
+                verified viewer-flagged lies. */}
+            {debateWinner && (() => {
+              const confirmedLies = lies.filter((l) => !l.pending && l.score < 40);
+              const confirmedLieCountA = confirmedLies.filter((l) => l.speakerId === interviewerId).length;
+              const confirmedLieCountB = confirmedLies.filter((l) => l.speakerId === intervieweeId).length;
+              if (confirmedLieCountA === 0 && confirmedLieCountB === 0) return null;
+              const aIsWinner = debateWinner.id === interviewerId;
+              const winnerLies  = aIsWinner ? confirmedLieCountA : confirmedLieCountB;
+              const loserLies   = aIsWinner ? confirmedLieCountB : confirmedLieCountA;
+              const winnerName  = debateWinner.name ?? "Winner";
+              const loserName   = debateLoser?.name ?? "Loser";
+              const lieDiff     = loserLies - winnerLies;
+              const affectedOutcome = lieDiff >= 3;
+              return (
+                <Animated.View
+                  entering={FadeIn.delay(250).duration(500)}
+                  style={{ marginTop: 14, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: "rgba(255,77,77,0.09)", borderRadius: 14, borderWidth: 1, borderColor: "rgba(255,77,77,0.30)", maxWidth: 320, width: "100%" }}
+                >
+                  <Text style={{ color: "#ff4d4d", fontSize: 10, fontWeight: "900", letterSpacing: 1.5, marginBottom: 8, textAlign: "center" }}>⚡ FACT-CHECK TALLY</Text>
+                  <View style={{ flexDirection: "row", justifyContent: "space-around", alignItems: "center" }}>
+                    <View style={{ alignItems: "center", flex: 1 }}>
+                      <Text style={{ color: winnerLies > 0 ? "#ff4d4d" : "#4ADE80", fontSize: 24, fontWeight: "900", lineHeight: 28 }}>{winnerLies}</Text>
+                      <Text style={{ color: "rgba(255,215,0,0.8)", fontSize: 9, fontWeight: "700", marginTop: 2, textAlign: "center" }} numberOfLines={1}>{winnerName.toUpperCase()}</Text>
+                      <Text style={{ color: "rgba(255,215,0,0.45)", fontSize: 8, marginTop: 1 }}>🏆 WINNER</Text>
+                    </View>
+                    <Text style={{ color: "rgba(255,255,255,0.2)", fontSize: 14, fontWeight: "300", marginHorizontal: 4 }}>vs</Text>
+                    <View style={{ alignItems: "center", flex: 1 }}>
+                      <Text style={{ color: loserLies > 0 ? "#ff4d4d" : "rgba(255,255,255,0.55)", fontSize: 24, fontWeight: "900", lineHeight: 28 }}>{loserLies}</Text>
+                      <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 9, fontWeight: "700", marginTop: 2, textAlign: "center" }} numberOfLines={1}>{loserName.toUpperCase()}</Text>
+                      <Text style={{ color: "rgba(255,255,255,0.25)", fontSize: 8, marginTop: 1 }}>LOSER</Text>
+                    </View>
+                  </View>
+                  <Text style={{ color: "rgba(255,77,77,0.4)", fontSize: 8, textAlign: "center", marginTop: 5, letterSpacing: 0.5 }}>FACT-CHECKED FALSE CLAIMS</Text>
+                  {affectedOutcome && (
+                    <Text style={{ color: "#ff6b6b", fontSize: 11, fontWeight: "700", textAlign: "center", marginTop: 8, lineHeight: 16 }}>
+                      {loserName} made {loserLies} fact-checked false claim{loserLies !== 1 ? "s" : ""} — this cost them the debate.
+                    </Text>
+                  )}
+                </Animated.View>
+              );
+            })()}
+
             {/* Updated W/L record after the verdict */}
             {debateRecords && debateWinner && (() => {
               const isA = debateWinner.id === interviewerId;
