@@ -5025,7 +5025,7 @@ export default function ArenaScreen() {
     if (shouldSkipPersonaVoice(item.personaId)) return;
     if (prefetchedAudioRef.current && prefetchedAudioRef.current.text === item.text && prefetchedAudioRef.current.personaId === item.personaId) return;
     prefetchingRef.current = true;
-    prefetchTTSAudio("/api/persona-speak", { text: item.text, personaId: item.personaId, ...(item.personaId === "trump" ? { voiceId: TRUMP_ARENA_VOICE_ID } : {}) })
+    prefetchTTSAudio("/api/persona-speak", { text: item.text, personaId: item.personaId, ...(item.personaId === "trump" ? { voiceId: TRUMP_ARENA_VOICE_ID } : {}), ...(item.personaId === "loudmouth" ? { angerLevel: roomTempRef.current } : {}) })
       .then((audioUri) => {
         prefetchedAudioRef.current = { personaId: item.personaId, text: item.text, audioUri };
         prefetchingRef.current = false;
@@ -5063,7 +5063,7 @@ export default function ArenaScreen() {
           prefetchedAudioRef.current = null;
           sound = await playPrefetchedAudio(cached.audioUri, { volume: personaVolume });
         } else {
-          sound = await playTTS("/api/persona-speak", { text: item.text, personaId: item.personaId, ...(item.personaId === "trump" ? { voiceId: TRUMP_ARENA_VOICE_ID } : {}) }, { volume: personaVolume });
+          sound = await playTTS("/api/persona-speak", { text: item.text, personaId: item.personaId, ...(item.personaId === "trump" ? { voiceId: TRUMP_ARENA_VOICE_ID } : {}), ...(item.personaId === "loudmouth" ? { angerLevel: roomTempRef.current } : {}) }, { volume: personaVolume });
         }
         currentSoundRef.current = sound;
 
