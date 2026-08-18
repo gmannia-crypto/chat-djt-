@@ -5769,7 +5769,24 @@ export default function ArenaScreen() {
                   const name = (getPersona(pid)?.name || "").toLowerCase();
                   return name.includes(vWinner) || vWinner.includes(name);
                 }) ?? fallbackWinnerId;
-                applyDCChampion(winnerId ?? fallbackWinnerId);
+                // ── LIE-COUNT OVERRIDE ────────────────────────────────────
+                // If the AI-chosen winner has ≥3 more confirmed lies than
+                // the cleanest rival, disqualify the bigger liar.
+                // sessionLieTallyRef resets each startDebate so only this
+                // session's confirmed lies count toward disqualification.
+                {
+                  const liesFor = (pid: string) => sessionLieTallyRef.current[pid] ?? 0;
+                  const aiWinnerId = winnerId ?? fallbackWinnerId;
+                  const alts = selectedPersonasRef.current.filter((pid: string) => pid !== aiWinnerId);
+                  const cleanestAlt = alts.length > 0
+                    ? alts.reduce((best: string, pid: string) => liesFor(pid) < liesFor(best) ? pid : best, alts[0])
+                    : null;
+                  const finalWinnerId = (cleanestAlt && liesFor(aiWinnerId) - liesFor(cleanestAlt) >= 3)
+                    ? cleanestAlt
+                    : aiWinnerId;
+                  applyDCChampion(finalWinnerId);
+                }
+                // ─────────────────────────────────────────────────────────
               } else {
                 if (fallbackWinnerId) applyDCChampion(fallbackWinnerId);
                 else setIsLoadingRoast(false);
@@ -10673,7 +10690,24 @@ export default function ArenaScreen() {
                         const name = (getPersona(pid)?.name || "").toLowerCase();
                         return name.includes(vWinner) || vWinner.includes(name);
                       }) ?? fallbackWinnerId;
-                      applyDCChampion(winnerId ?? fallbackWinnerId);
+                      // ── LIE-COUNT OVERRIDE ──────────────────────────────
+                      // If the AI-chosen winner has ≥3 more confirmed lies
+                      // than the cleanest rival, disqualify the bigger liar.
+                      // sessionLieTallyRef resets each startDebate so only
+                      // this session's confirmed lies count.
+                      {
+                        const liesFor = (pid: string) => sessionLieTallyRef.current[pid] ?? 0;
+                        const aiWinnerId = winnerId ?? fallbackWinnerId;
+                        const alts = selectedPersonasRef.current.filter((pid: string) => pid !== aiWinnerId);
+                        const cleanestAlt = alts.length > 0
+                          ? alts.reduce((best: string, pid: string) => liesFor(pid) < liesFor(best) ? pid : best, alts[0])
+                          : null;
+                        const finalWinnerId = (cleanestAlt && liesFor(aiWinnerId) - liesFor(cleanestAlt) >= 3)
+                          ? cleanestAlt
+                          : aiWinnerId;
+                        applyDCChampion(finalWinnerId);
+                      }
+                      // ────────────────────────────────────────────────────
                     } else {
                       // API error — fall back to first persona so the flow always fires
                       if (fallbackWinnerId) applyDCChampion(fallbackWinnerId);
@@ -10819,7 +10853,24 @@ export default function ArenaScreen() {
                           const name = (getPersona(pid)?.name || "").toLowerCase();
                           return name.includes(vWinner) || vWinner.includes(name);
                         }) ?? fallbackWinnerId;
-                        applyDCChampion(winnerId ?? fallbackWinnerId);
+                        // ── LIE-COUNT OVERRIDE ────────────────────────────
+                        // If the AI-chosen winner has ≥3 more confirmed lies
+                        // than the cleanest rival, disqualify the bigger liar.
+                        // sessionLieTallyRef resets each startDebate so only
+                        // this session's confirmed lies count.
+                        {
+                          const liesFor = (pid: string) => sessionLieTallyRef.current[pid] ?? 0;
+                          const aiWinnerId = winnerId ?? fallbackWinnerId;
+                          const alts = selectedPersonasRef.current.filter((pid: string) => pid !== aiWinnerId);
+                          const cleanestAlt = alts.length > 0
+                            ? alts.reduce((best: string, pid: string) => liesFor(pid) < liesFor(best) ? pid : best, alts[0])
+                            : null;
+                          const finalWinnerId = (cleanestAlt && liesFor(aiWinnerId) - liesFor(cleanestAlt) >= 3)
+                            ? cleanestAlt
+                            : aiWinnerId;
+                          applyDCChampion(finalWinnerId);
+                        }
+                        // ──────────────────────────────────────────────────
                       } else {
                         if (fallbackWinnerId) applyDCChampion(fallbackWinnerId);
                         else setIsLoadingRoast(false);
