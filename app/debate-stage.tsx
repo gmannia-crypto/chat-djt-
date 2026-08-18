@@ -1597,6 +1597,30 @@ export default function DebateStage() {
                 else if (aWinsById && !bWinsById)    aiWinnerId = aId;
                 else if (bWinsById && !aWinsById)    aiWinnerId = bId;
                 // else: ambiguous — aiWinnerId stays "" → preliminary winner kept
+
+                // ── LIE-COUNT OVERRIDE ──────────────────────────────────────
+                // If one debater has ≥3 more confirmed lies than the other,
+                // the bigger liar cannot win regardless of rhetorical score.
+                const confirmedLies = (liesRef.current ?? []).filter(
+                  (l) => !l.pending && l.score < 40,
+                );
+                const confirmedLieCountA = confirmedLies.filter((l) => l.speakerId === aId).length;
+                const confirmedLieCountB = confirmedLies.filter((l) => l.speakerId === bId).length;
+                const lieDiff = confirmedLieCountA - confirmedLieCountB;
+                if (Math.abs(lieDiff) >= 3) {
+                  const overrideWinnerId = lieDiff > 0 ? bId : aId;
+                  const overrideLoserName =
+                    lieDiff > 0 ? (aPersona?.name || aId) : (bPersona?.name || bId);
+                  const overrideLieCount =
+                    lieDiff > 0 ? confirmedLieCountA : confirmedLieCountB;
+                  if (aiWinnerId !== overrideWinnerId) {
+                    aiWinnerId = overrideWinnerId;
+                    aiVerdictText =
+                      (aiVerdictText || "") +
+                      `\n\nNote: ${overrideLoserName} was disqualified from the win due to ${overrideLieCount} fact-checked false claims.`;
+                  }
+                }
+                // ────────────────────────────────────────────────────────────
               } else {
                 verdictFailed = true;
               }
