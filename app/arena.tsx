@@ -8308,6 +8308,61 @@ export default function ArenaScreen() {
             </View>
           )}
 
+          {/* ── SESSION LENGTH ─────────────────────────────────── */}
+          <View
+            style={{
+              marginBottom: 14,
+              padding: 14,
+              borderRadius: 14,
+              borderWidth: 1.5,
+              borderColor: "#FFD700",
+              backgroundColor: "rgba(255,215,0,0.08)",
+            }}
+            testID="arena-session-duration-selector"
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <View>
+                <Text style={{ color: "#FFD700", fontSize: 13, fontWeight: "900", letterSpacing: 1 }}>SESSION LENGTH</Text>
+                <Text style={{ color: "rgba(255,255,255,0.55)", fontSize: 10, marginTop: 3 }}>
+                  Choose 5, 10, or 15 minutes · 1 token per minute
+                </Text>
+              </View>
+              <Ionicons name="timer-outline" size={22} color="#FFD700" />
+            </View>
+            <View style={s.durationRow}>
+              {([5, 10, 15] as const).map((dur) => (
+                <Pressable
+                  key={dur}
+                  onPress={() => {
+                    Haptics.selectionAsync().catch(() => {});
+                    setSelectedDuration(dur);
+                  }}
+                  style={[s.durationChip, selectedDuration === dur && s.durationChipActive]}
+                  testID={`arena-duration-${dur}`}
+                >
+                  <Text style={[s.durationChipText, selectedDuration === dur && s.durationChipTextActive]}>
+                    {dur} MIN
+                  </Text>
+                  <Text style={[s.durationChipCost, selectedDuration === dur && s.durationChipCostActive]}>
+                    {dur} TOKENS
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            <Pressable
+              onPress={() => unlockSession()}
+              disabled={!deviceId || isUnlocking}
+              style={[s.paywallBtn, { marginTop: 12 }, (!deviceId || isUnlocking) && { opacity: 0.55 }]}
+              testID="arena-unlock-timed-session"
+            >
+              {isUnlocking ? (
+                <ActivityIndicator size="small" color="#000" />
+              ) : (
+                <Text style={s.paywallBtnText}>UNLOCK {selectedDuration} MIN · {selectedDuration} TOKENS</Text>
+              )}
+            </Pressable>
+          </View>
+
           <Pressable
             onPress={() => router.push("/interview")}
             style={{
