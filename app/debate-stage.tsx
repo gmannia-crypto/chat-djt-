@@ -88,7 +88,7 @@ type Topic = { id: string; title: string; description: string; era: "current" | 
 type Msg = { id: string; speakerId: string; speakerName: string; text: string; ts: number; isInterruption?: boolean; isCallIn?: boolean; callerName?: string; isSystem?: boolean; skipTTS?: boolean; isPartingShot?: boolean; isSarcasm?: boolean };
 
 type Emotions = { anger: number; happy: number; engagement: number; frantic: number; sad: number };
-type LieEntry = { id: string; speakerId: string; speakerName: string; text: string; score: number; reason: string; fact: string; ts: number; userFlagged?: boolean; pending?: boolean };
+type LieEntry = { id: string; speakerId: string; speakerName: string; text: string; score: number; reason: string; fact: string; ts: number; userFlagged?: boolean; pending?: boolean; lieToken?: string };
 
 const ZERO_EMO: Emotions = { anger: 10, happy: 10, engagement: 30, frantic: 5, sad: 5 };
 const EMO_KEYS: (keyof Emotions)[] = ["anger", "happy", "engagement", "frantic", "sad"];
@@ -1556,6 +1556,13 @@ export default function DebateStage() {
       const verdictPromise = msgs.length >= 2
         ? (async () => {
             try {
+              // Collect server-issued tokens for confirmed lies (score < 40, not pending).
+              // The server stores the full lie record against each token — the client
+              // sends only opaque tokens so the verdict endpoint can look up verified
+              // data server-side without trusting any client-supplied claim text.
+              const lieTokens = (liesRef.current ?? [])
+                .filter((l) => !l.pending && l.score < 40 && typeof l.lieToken === "string")
+                .map((l) => l.lieToken as string);
               const vRes = await fetch(new URL("/api/arena/verdict", getApiUrl()).toString(), {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -1564,6 +1571,7 @@ export default function DebateStage() {
                   messages: msgs.map((m) => ({ speakerName: m.speakerName, text: m.text })),
                   personas: [aPersona?.name || aId, bPersona?.name || bId],
                   personaIds: [aId, bId],
+                  lieTokens,
                 }),
               });
               if (vRes.ok) {
@@ -1953,6 +1961,8 @@ export default function DebateStage() {
   const [lieCountA, setLieCountA] = useState(0);
   const [lieCountB, setLieCountB] = useState(0);
   const [lies, setLies] = useState<LieEntry[]>([]);
+  const liesRef = useRef<LieEntry[]>([]);
+  useEffect(() => { liesRef.current = lies; }, [lies]);
   const [liesSheetOpen, setLiesSheetOpen] = useState(false);
   const [lieFlashOn, setLieFlashOn] = useState(false);
   const [lieVotes, setLieVotes] = useState<Record<string, { up: number; down: number; myVote: number }>>({});
@@ -2535,6 +2545,7 @@ export default function DebateStage() {
             reason: String(data.reason || ""),
             fact: String(data.fact || ""),
             ts: Date.now(),
+            lieToken: typeof data.lieToken === "string" ? data.lieToken : undefined,
           }]);
           triggerLightning();
           playLieAlert();
@@ -2629,6 +2640,7 @@ export default function DebateStage() {
           reason: String(data?.reason || ""),
           fact: String(data?.fact || ""),
           pending: false,
+          lieToken: typeof data?.lieToken === "string" ? data.lieToken : l.lieToken,
         } : l));
         setLatestTruthScore(score);
         if (score < 40) {

@@ -9474,12 +9474,24 @@ Return ONLY valid JSON: {"score": 0-100, "isLie": boolean (true if score<40), "r
       const moderatorLine = isLie
         ? (String(parsed.moderatorLine || "").trim().slice(0, 200) || (fact ? `Point of order — ${fact}` : ""))
         : "";
+      // Issue an opaque token for confirmed lies so the verdict endpoint can look up
+      // server-verified data without trusting client-supplied claim text.
+      let lieToken: string | undefined;
+      if (isLie) {
+        lieToken = randomBytes(16).toString("hex");
+        verifiedLieStore.set(lieToken, {
+          speakerName: intervieweeName,
+          claim: claim.slice(0, 300),
+          issuedAt: Date.now(),
+        });
+      }
       res.json({
         score,
         isLie,
         reason: String(parsed.reason || "").slice(0, 240),
         fact,
         moderatorLine,
+        ...(lieToken ? { lieToken } : {}),
       });
     } catch (error: any) {
       console.error("Interview factcheck error:", error);
@@ -9580,6 +9592,21 @@ Return ONLY valid JSON: {"score": 0-100, "isLie": boolean (true if score<40), "r
     }
   }, 30 * 60 * 1000);
   if (typeof flagLimiterCleanup?.unref === "function") flagLimiterCleanup.unref();
+
+  // Server-side store for confirmed lie tokens.
+  // When a fact-check confirms a lie (score < 40), the endpoint generates an opaque
+  // hex token, stores the verified { speakerName, claim } server-side, and returns
+  // only the token to the client. The verdict endpoint looks up records by token —
+  // never trusting client-supplied claim text — so lie data has server provenance.
+  const VERIFIED_LIE_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours
+  const verifiedLieStore = new Map<string, { speakerName: string; claim: string; issuedAt: number }>();
+  const verifiedLieStoreCleanup = setInterval(() => {
+    const cutoff = Date.now() - VERIFIED_LIE_TTL_MS;
+    for (const [k, v] of verifiedLieStore) {
+      if (v.issuedAt < cutoff) verifiedLieStore.delete(k);
+    }
+  }, 30 * 60 * 1000);
+  if (typeof verifiedLieStoreCleanup?.unref === "function") verifiedLieStoreCleanup.unref();
 
   function normalizeFlagText(s: string): string {
     return s.toLowerCase().replace(/\s+/g, " ").trim();
@@ -9689,12 +9716,24 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
       try { parsed = JSON.parse(raw); } catch { parsed = {}; }
       const score = Math.max(0, Math.min(100, Number(parsed.score) || 50));
       if (score < 40) bumpLieTally(speakerId).catch(() => {});
+      // Issue an opaque token for confirmed lies so the verdict endpoint can look up
+      // server-verified data without trusting client-supplied claim text.
+      let lieToken: string | undefined;
+      if (score < 40) {
+        lieToken = randomBytes(16).toString("hex");
+        verifiedLieStore.set(lieToken, {
+          speakerName,
+          claim: claim.slice(0, 300),
+          issuedAt: Date.now(),
+        });
+      }
       res.json({
         score,
         isLie: score < 40,
         reason: String(parsed.reason || "").slice(0, 240),
         fact: String(parsed.fact || "").slice(0, 240),
         userFlagged: true,
+        ...(lieToken ? { lieToken } : {}),
       });
     } catch (error: any) {
       console.error("Interview flag-lie error:", error);
@@ -10061,7 +10100,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
   // POST /api/arena/verdict — AI fact-based debate judge
   app.post("/api/arena/verdict", async (req, res) => {
     try {
-      const { topic, messages, personas, personaIds } = req.body || {};
+      const { topic, messages, personas, personaIds, lieTokens } = req.body || {};
       if (!topic || !Array.isArray(messages) || messages.length < 2) {
         return res.status(400).json({ error: "Need a topic and at least 2 messages" });
       }
@@ -10073,13 +10112,28 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
       const personaIdHint = Array.isArray(personaIds) && personaIds.length === 2
         ? `\nIMPORTANT: The exact persona IDs are "${personaIds[0]}" and "${personaIds[1]}". Return winnerId as EXACTLY one of these two strings — no spaces, no capitalization.`
         : "";
+      // Look up confirmed lies from the server-side store using opaque tokens issued
+      // by the fact-check endpoints. Only tokens present in the store (and not yet
+      // expired) are trusted — the client never supplies claim text directly.
+      const confirmedLies = Array.isArray(lieTokens)
+        ? (lieTokens as unknown[])
+            .filter((t): t is string => typeof t === "string" && t.length > 0)
+            .slice(0, 20) // hard cap on prompt growth
+            .map((t) => verifiedLieStore.get(t))
+            .filter((r): r is { speakerName: string; claim: string; issuedAt: number } => r !== undefined)
+        : [];
+      const liesBlock = confirmedLies.length > 0
+        ? `\n\nLIVE FACT-CHECK RECORD — claims verified as false/misleading by the real-time fact-checker during this debate:\n${confirmedLies
+            .map((l, i) => `${i + 1}. [CONFIRMED FALSE/MISLEADING] ${l.speakerName}: "${l.claim}"`)
+            .join("\n")}\n\nThese claims were scored below the truthfulness threshold in real time. Weight them HEAVILY against the speaker who made them. A debater who made multiple fact-checked false claims should LOSE points proportionally — the more lies, the bigger the penalty.`
+        : "";
       const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
       const completion = await Promise.race([
         getClient().chat.completions.create({
           model: getSmartModel(),
           messages: [
-            { role: "system", content: `You are an impartial AI debate judge and professional fact-checker. Today is ${todayStr}.\n\nYour job is to render a fair, rigorous verdict based SOLELY on:\n1. FACTUAL ACCURACY — are the claims made verifiable and true? FALSE or MISLEADING claims are a MAJOR strike against the speaker, not a minor one.\n2. LOGICAL COHERENCE — are arguments internally consistent and free of fallacies?\n3. INTELLECTUAL QUALITY — who gave stronger evidence, sharper analysis, and better rebuttals?\n4. COUNTER-ARGUMENT STRENGTH — who came back hardest when challenged with FACTS, not just volume?\n\nCRITICAL ANTI-BIAS RULES:\n- Confidence, volume, aggression, and rhetorical flair are NOT evidence. A loud false claim loses to a quiet true one every time.\n- A persona that repeats demonstrably false claims multiple times should LOSE, not win — repetition of a lie is not a stronger argument.\n- Do NOT be swayed by which persona sounds more dominant or assertive. Dominance is not debate skill.\n- Do NOT default to the persona listed first or who spoke more messages.\n- If one persona made significantly more false or misleading claims, that persona LOSES regardless of style.\n- A persona who effectively fact-checks their opponent's lies with accurate counter-evidence WINS that exchange.\n\nIdentify the specific exchange or statement that DECIDED the debate — usually the moment one side exposed a lie or landed an unanswered factual counter.\nPick a winner decisively based on SUBSTANCE. Do NOT be vague or hedge. Always choose one winner.` },
-            { role: "user", content: `DEBATE TOPIC: "${topic}"\nPERSONAS: ${Array.isArray(personas) ? personas.join(" vs. ") : ""}${personaIdHint}\n\nTRANSCRIPT:\n${transcript}\n\nReturn ONLY valid JSON:\n{\n  "winner": "Full persona name",\n  "winnerId": "EXACT persona_id from the list above — lowercase, no spaces",\n  "verdict": "2-4 sentences that MUST start with '[WinnerName] won because ...' — cite the actual claim, counter-argument, or factual moment that decided it. Be specific.",\n  "factChecks": [\n    { "persona": "name", "claim": "exact claim they made", "verdict": "TRUE | FALSE | MISLEADING | UNVERIFIABLE", "fact": "the real verified fact or correction" }\n  ],\n  "scores": { "PersonaName": score_0_to_100 },\n  "summary": "One punchy sentence naming the single exchange or fact that decided the debate"\n}` },
+            { role: "system", content: `You are an impartial AI debate judge and professional fact-checker. Today is ${todayStr}.\n\nYour job is to render a fair, rigorous verdict based SOLELY on:\n1. FACTUAL ACCURACY — are the claims made verifiable and true? FALSE or MISLEADING claims are a MAJOR strike against the speaker, not a minor one.\n2. LOGICAL COHERENCE — are arguments internally consistent and free of fallacies?\n3. INTELLECTUAL QUALITY — who gave stronger evidence, sharper analysis, and better rebuttals?\n4. COUNTER-ARGUMENT STRENGTH — who came back hardest when challenged with FACTS, not just volume?\n\nCRITICAL ANTI-BIAS RULES:\n- Confidence, volume, aggression, and rhetorical flair are NOT evidence. A loud false claim loses to a quiet true one every time.\n- A persona that repeats demonstrably false claims multiple times should LOSE, not win — repetition of a lie is not a stronger argument.\n- Do NOT be swayed by which persona sounds more dominant or assertive. Dominance is not debate skill.\n- Do NOT default to the persona listed first or who spoke more messages.\n- If one persona made significantly more false or misleading claims, that persona LOSES regardless of style.\n- A persona who effectively fact-checks their opponent's lies with accurate counter-evidence WINS that exchange.\n- When a LIVE FACT-CHECK RECORD is provided, treat those findings as authoritative ground truth — they were verified in real time and must factor heavily into your scoring.\n\nIdentify the specific exchange or statement that DECIDED the debate — usually the moment one side exposed a lie or landed an unanswered factual counter.\nPick a winner decisively based on SUBSTANCE. Do NOT be vague or hedge. Always choose one winner.` },
+            { role: "user", content: `DEBATE TOPIC: "${topic}"\nPERSONAS: ${Array.isArray(personas) ? personas.join(" vs. ") : ""}${personaIdHint}\n\nTRANSCRIPT:\n${transcript}${liesBlock}\n\nReturn ONLY valid JSON:\n{\n  "winner": "Full persona name",\n  "winnerId": "EXACT persona_id from the list above — lowercase, no spaces",\n  "verdict": "2-4 sentences that MUST start with '[WinnerName] won because ...' — cite the actual claim, counter-argument, or factual moment that decided it. Be specific.",\n  "factChecks": [\n    { "persona": "name", "claim": "exact claim they made", "verdict": "TRUE | FALSE | MISLEADING | UNVERIFIABLE", "fact": "the real verified fact or correction" }\n  ],\n  "scores": { "PersonaName": score_0_to_100 },\n  "summary": "One punchy sentence naming the single exchange or fact that decided the debate"\n}` },
           ],
           max_completion_tokens: 1200,
           temperature: 0.7,
