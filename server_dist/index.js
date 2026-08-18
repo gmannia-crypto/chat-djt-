@@ -4510,6 +4510,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
   };
   const MALCOLMX_ANGRY_VOICE_ID = "a2392edff0cf4422b2cb52d065381eb9";
   const MUHAMMADALI_ANGRY_VOICE_ID = "f7039e96ca8e456994d16ec6822e5273";
+  const LOUDMOUTH_CALM_VOICE_ID = "3b265ac5d0f94343a128bfc62cf81258";
   app2.post("/api/nav-speak", async (req, res) => {
     try {
       const { text } = req.body;
@@ -4731,6 +4732,10 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
         const angerLevel = Number(req.body.angerLevel ?? 10);
         voiceId = angerLevel >= 50 ? MUHAMMADALI_ANGRY_VOICE_ID : PERSONA_VOICE_IDS.muhammadali;
       }
+      if (personaId === "loudmouth" && !req.body.voiceId) {
+        const angerLevel = Number(req.body.angerLevel ?? 10);
+        voiceId = angerLevel >= 25 ? PERSONA_VOICE_IDS.loudmouth : LOUDMOUTH_CALM_VOICE_ID;
+      }
       if (!voiceId) {
         voiceId = process.env.FISH_AUDIO_VOICE_ID || "";
       }
@@ -4739,7 +4744,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
       }
       const personaSpeed = PERSONA_SPEED_MAP[personaId] ?? 1;
       const personaVolumeDb = PERSONA_VOLUME_BOOST[personaId] ?? 0;
-      const personaEmotion = PERSONA_EMOTION_MAP[personaId];
+      const personaEmotion = personaId === "loudmouth" && voiceId === LOUDMOUTH_CALM_VOICE_ID ? void 0 : PERSONA_EMOTION_MAP[personaId];
       const safeText = applyPersonaTTSFormatting(text.slice(0, 2e3), personaId);
       const rawBuffer = await fishAudioRequest(safeText, voiceId, personaSpeed, apiKey, 3, personaVolumeDb, personaEmotion);
       const buffer = await overlayBleeps(rawBuffer, safeText);
@@ -4770,6 +4775,10 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
       if (personaId === "muhammadali" && !req.query.voiceId) {
         const angerLevel = Number(req.query.angerLevel ?? 10);
         voiceId = angerLevel >= 50 ? MUHAMMADALI_ANGRY_VOICE_ID : PERSONA_VOICE_IDS.muhammadali;
+      }
+      if (personaId === "loudmouth" && !req.query.voiceId) {
+        const angerLevel = Number(req.query.angerLevel ?? 10);
+        voiceId = angerLevel >= 25 ? PERSONA_VOICE_IDS.loudmouth : LOUDMOUTH_CALM_VOICE_ID;
       }
       if (!voiceId) {
         voiceId = process.env.FISH_AUDIO_VOICE_ID || "";
@@ -5278,6 +5287,21 @@ Your personality quirks:
   const ARENA_NEWS_CACHE_TTL = 15 * 60 * 1e3;
   const categoryTopicsCache = /* @__PURE__ */ new Map();
   const categoryGenerationInProgress = /* @__PURE__ */ new Set();
+  function makeTopicsFromHeadlines(headlines, count) {
+    return headlines.slice(0, count).map((h, i) => {
+      const match = h.match(/^(.+?)\s+\((.+?)\)$/);
+      const fullTitle = match ? match[1] : h;
+      const source = match ? match[2] : "News";
+      const words = fullTitle.split(/\s+/);
+      const shortTitle = words.slice(0, 6).join(" ") + (words.length > 6 ? "\u2026" : "");
+      return {
+        id: `headline_${i}_${Date.now()}`,
+        title: shortTitle,
+        description: `${fullTitle} \u2014 live debate topic from ${source}.`,
+        headlines: [fullTitle]
+      };
+    });
+  }
   function getDefaultCategoryTopics(category) {
     const defaults = {
       sports: [
@@ -5410,6 +5434,7 @@ Your personality quirks:
     if (cached && cached.topics.length > 0 && Date.now() < cached.expires) return cached.topics;
     if (categoryGenerationInProgress.has(category)) return cached?.topics || getDefaultCategoryTopics(category);
     categoryGenerationInProgress.add(category);
+    const allHeadlines = [];
     try {
       const feeds = CATEGORY_RSS_FEEDS[category] || CATEGORY_RSS_FEEDS["sports"];
       const feedPromises = feeds.slice(0, 5).map(
@@ -5419,7 +5444,6 @@ Your personality quirks:
         ]).catch(() => [])
       );
       const results = await Promise.all(feedPromises);
-      const allHeadlines = [];
       for (const r of results) {
         if (Array.isArray(r)) allHeadlines.push(...r.map((h) => `${h.title} (${h.source})`));
       }
@@ -5445,7 +5469,7 @@ Generate 8 maximum-viral current ${category} debate topics based on what's most 
           max_completion_tokens: 2500,
           temperature: 0.9
         }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("AI timeout")), 4e4))
+        new Promise((_, reject) => setTimeout(() => reject(new Error("AI timeout")), 2e4))
       ]);
       const raw = completion.choices[0]?.message?.content || "[]";
       const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
@@ -5466,6 +5490,11 @@ Generate 8 maximum-viral current ${category} debate topics based on what's most 
       }
     } catch (err) {
       console.error(`Category topics error (${category}):`, err);
+      const headlineTopics = makeTopicsFromHeadlines(allHeadlines, 8);
+      if (headlineTopics.length > 0) {
+        categoryTopicsCache.set(category, { topics: headlineTopics, expires: Date.now() + ARENA_NEWS_CACHE_TTL });
+        return headlineTopics;
+      }
     } finally {
       categoryGenerationInProgress.delete(category);
     }
@@ -5480,8 +5509,8 @@ Generate 8 maximum-viral current ${category} debate topics based on what's most 
       return arenaTopicsCache.topics.length > 0 ? arenaTopicsCache.topics : getDefaultArenaTopics();
     }
     topicGenerationInProgress = true;
+    const allHeadlines = [];
     try {
-      const allHeadlines = [];
       const feedPromises = NEWS_FEEDS.slice(0, 10).map(
         (f) => Promise.race([
           fetchRSSFeed(f.url, f.source),
@@ -5496,7 +5525,8 @@ Generate 8 maximum-viral current ${category} debate topics based on what's most 
       }
       if (allHeadlines.length < 3) {
         topicGenerationInProgress = false;
-        return getDefaultArenaTopics();
+        const headlineTopics = makeTopicsFromHeadlines(allHeadlines, 8);
+        return headlineTopics.length > 0 ? headlineTopics : getDefaultArenaTopics();
       }
       const viralSignals = await fetchViralTrends().catch(() => []);
       const todayStr = (/* @__PURE__ */ new Date()).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
@@ -5533,7 +5563,7 @@ Generate 12 maximum-viral debate topics as a JSON array.` }
           max_completion_tokens: 3e3,
           temperature: 0.95
         }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("AI timeout")), 45e3))
+        new Promise((_, reject) => setTimeout(() => reject(new Error("AI timeout")), 2e4))
       ]);
       const raw = completion.choices[0]?.message?.content || "[]";
       const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
@@ -5556,6 +5586,12 @@ Generate 12 maximum-viral debate topics as a JSON array.` }
       }
     } catch (err) {
       console.error("Arena topics generation error:", err);
+      const headlineTopics = makeTopicsFromHeadlines(allHeadlines, 12);
+      if (headlineTopics.length > 0) {
+        arenaTopicsCache = { topics: headlineTopics, expires: Date.now() + ARENA_NEWS_CACHE_TTL };
+        topicGenerationInProgress = false;
+        return headlineTopics;
+      }
     }
     topicGenerationInProgress = false;
     return getDefaultArenaTopics();
@@ -6047,7 +6083,15 @@ ${viralSignals.slice(0, 10).map((s) => `- ${s}`).join("\n")}` : "";
   app2.get("/api/arena/topics", async (req, res) => {
     try {
       const category = req.query.category || "politics";
+      const bust = req.query.bust === "1";
       if (category !== "politics") {
+        if (bust) {
+          categoryTopicsCache.delete(category);
+          categoryGenerationInProgress.delete(category);
+          const fresh = await fetchCategoryTopics(category).catch(() => []);
+          const result = fresh.length > 0 ? fresh : getDefaultCategoryTopics(category);
+          return res.json({ topics: result });
+        }
         const cached = categoryTopicsCache.get(category);
         if (cached && cached.topics.length > 0 && Date.now() < cached.expires) {
           return res.json({ topics: cached.topics });
@@ -6063,6 +6107,13 @@ ${viralSignals.slice(0, 10).map((s) => `- ${s}`).join("\n")}` : "";
         fetchCategoryTopics(category).catch(() => {
         });
         return res.json({ topics: getDefaultCategoryTopics(category) });
+      }
+      if (bust) {
+        arenaTopicsCache = { topics: [], expires: 0 };
+        topicGenerationInProgress = false;
+        const fresh = await fetchArenaTopics().catch(() => []);
+        const result = fresh.length > 0 ? fresh : getDefaultArenaTopics();
+        return res.json({ topics: result });
       }
       if (arenaTopicsCache.topics.length > 0 && Date.now() < arenaTopicsCache.expires) {
         return res.json({ topics: arenaTopicsCache.topics });
@@ -10615,12 +10666,22 @@ Score it now as JSON.` }
       });
       const fact = String(parsed.fact || "").slice(0, 240);
       const moderatorLine = isLie ? String(parsed.moderatorLine || "").trim().slice(0, 200) || (fact ? `Point of order \u2014 ${fact}` : "") : "";
+      let lieToken;
+      if (isLie) {
+        lieToken = randomBytes(16).toString("hex");
+        verifiedLieStore.set(lieToken, {
+          speakerName: intervieweeName,
+          claim: claim.slice(0, 300),
+          issuedAt: Date.now()
+        });
+      }
       res.json({
         score,
         isLie,
         reason: String(parsed.reason || "").slice(0, 240),
         fact,
-        moderatorLine
+        moderatorLine,
+        ...lieToken ? { lieToken } : {}
       });
     } catch (error) {
       console.error("Interview factcheck error:", error);
@@ -10701,6 +10762,15 @@ Score it now as JSON.` }
     }
   }, 30 * 60 * 1e3);
   if (typeof flagLimiterCleanup?.unref === "function") flagLimiterCleanup.unref();
+  const VERIFIED_LIE_TTL_MS = 4 * 60 * 60 * 1e3;
+  const verifiedLieStore = /* @__PURE__ */ new Map();
+  const verifiedLieStoreCleanup = setInterval(() => {
+    const cutoff = Date.now() - VERIFIED_LIE_TTL_MS;
+    for (const [k, v] of verifiedLieStore) {
+      if (v.issuedAt < cutoff) verifiedLieStore.delete(k);
+    }
+  }, 30 * 60 * 1e3);
+  if (typeof verifiedLieStoreCleanup?.unref === "function") verifiedLieStoreCleanup.unref();
   function normalizeFlagText(s) {
     return s.toLowerCase().replace(/\s+/g, " ").trim();
   }
@@ -10804,12 +10874,22 @@ A viewer flagged this as a suspected lie. Score it now as JSON.` }
       const score = Math.max(0, Math.min(100, Number(parsed.score) || 50));
       if (score < 40) bumpLieTally(speakerId).catch(() => {
       });
+      let lieToken;
+      if (score < 40) {
+        lieToken = randomBytes(16).toString("hex");
+        verifiedLieStore.set(lieToken, {
+          speakerName,
+          claim: claim.slice(0, 300),
+          issuedAt: Date.now()
+        });
+      }
       res.json({
         score,
         isLie: score < 40,
         reason: String(parsed.reason || "").slice(0, 240),
         fact: String(parsed.fact || "").slice(0, 240),
-        userFlagged: true
+        userFlagged: true,
+        ...lieToken ? { lieToken } : {}
       });
     } catch (error) {
       console.error("Interview flag-lie error:", error);
@@ -11174,35 +11254,49 @@ A viewer flagged this as a suspected lie. Score it now as JSON.` }
   });
   app2.post("/api/arena/verdict", async (req, res) => {
     try {
-      const { topic, messages, personas, personaIds } = req.body || {};
+      const { topic, messages, personas, personaIds, lieTokens } = req.body || {};
       if (!topic || !Array.isArray(messages) || messages.length < 2) {
         return res.status(400).json({ error: "Need a topic and at least 2 messages" });
       }
       const transcript = messages.filter((m) => !m.isSystem && m.speakerName && m.text).slice(-60).map((m) => `${m.speakerName}: "${m.text}"`).join("\n");
       const personaIdHint = Array.isArray(personaIds) && personaIds.length === 2 ? `
 IMPORTANT: The exact persona IDs are "${personaIds[0]}" and "${personaIds[1]}". Return winnerId as EXACTLY one of these two strings \u2014 no spaces, no capitalization.` : "";
+      const confirmedLies = Array.isArray(lieTokens) ? lieTokens.filter((t) => typeof t === "string" && t.length > 0).slice(0, 20).map((t) => verifiedLieStore.get(t)).filter((r) => r !== void 0) : [];
+      const liesBlock = confirmedLies.length > 0 ? `
+
+LIVE FACT-CHECK RECORD \u2014 claims verified as false/misleading by the real-time fact-checker during this debate:
+${confirmedLies.map((l, i) => `${i + 1}. [CONFIRMED FALSE/MISLEADING] ${l.speakerName}: "${l.claim}"`).join("\n")}
+
+These claims were scored below the truthfulness threshold in real time. Weight them HEAVILY against the speaker who made them. A debater who made multiple fact-checked false claims should LOSE points proportionally \u2014 the more lies, the bigger the penalty.` : "";
       const todayStr = (/* @__PURE__ */ new Date()).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
       const completion = await Promise.race([
         getClient().chat.completions.create({
-          model: getSmartModel(),
+          model: getChatModel(),
           messages: [
             { role: "system", content: `You are an impartial AI debate judge and professional fact-checker. Today is ${todayStr}.
 
 Your job is to render a fair, rigorous verdict based SOLELY on:
-1. FACTUAL ACCURACY \u2014 are the claims made verifiable and true?
+1. FACTUAL ACCURACY \u2014 are the claims made verifiable and true? FALSE or MISLEADING claims are a MAJOR strike against the speaker, not a minor one.
 2. LOGICAL COHERENCE \u2014 are arguments internally consistent and free of fallacies?
 3. INTELLECTUAL QUALITY \u2014 who gave stronger evidence, sharper analysis, and better rebuttals?
-4. COUNTER-ARGUMENT STRENGTH \u2014 who came back hardest when challenged?
+4. COUNTER-ARGUMENT STRENGTH \u2014 who came back hardest when challenged with FACTS, not just volume?
 
-Do NOT factor in volume, aggression, rhetorical flair, insults, or how many messages each persona sent.
-Do NOT default to the persona who spoke more \u2014 a single devastating factual counter beats ten loud claims.
-Identify the specific exchange or statement that DECIDED the debate.
-Pick a winner decisively. Do NOT be vague or hedge. Always choose one winner.` },
+CRITICAL ANTI-BIAS RULES:
+- Confidence, volume, aggression, and rhetorical flair are NOT evidence. A loud false claim loses to a quiet true one every time.
+- A persona that repeats demonstrably false claims multiple times should LOSE, not win \u2014 repetition of a lie is not a stronger argument.
+- Do NOT be swayed by which persona sounds more dominant or assertive. Dominance is not debate skill.
+- Do NOT default to the persona listed first or who spoke more messages.
+- If one persona made significantly more false or misleading claims, that persona LOSES regardless of style.
+- A persona who effectively fact-checks their opponent's lies with accurate counter-evidence WINS that exchange.
+- When a LIVE FACT-CHECK RECORD is provided, treat those findings as authoritative ground truth \u2014 they were verified in real time and must factor heavily into your scoring.
+
+Identify the specific exchange or statement that DECIDED the debate \u2014 usually the moment one side exposed a lie or landed an unanswered factual counter.
+Pick a winner decisively based on SUBSTANCE. Do NOT be vague or hedge. Always choose one winner.` },
             { role: "user", content: `DEBATE TOPIC: "${topic}"
 PERSONAS: ${Array.isArray(personas) ? personas.join(" vs. ") : ""}${personaIdHint}
 
 TRANSCRIPT:
-${transcript}
+${transcript}${liesBlock}
 
 Return ONLY valid JSON:
 {
@@ -11217,7 +11311,7 @@ Return ONLY valid JSON:
 }` }
           ],
           max_completion_tokens: 1200,
-          temperature: 0.4
+          temperature: 0.7
         }),
         new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 4e4))
       ]);
