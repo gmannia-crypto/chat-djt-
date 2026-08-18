@@ -1615,12 +1615,12 @@ export default function DebateStage() {
                     lieDiff > 0 ? (aPersona?.name || aId) : (bPersona?.name || bId);
                   const overrideLieCount =
                     lieDiff > 0 ? confirmedLieCountA : confirmedLieCountB;
+                  setLieDisqualifiedLoser({ loserName: overrideLoserName, lieCount: overrideLieCount });
                   if (aiWinnerId !== overrideWinnerId) {
                     aiWinnerId = overrideWinnerId;
                     aiVerdictText =
                       (aiVerdictText || "") +
                       `\n\nNote: ${overrideLoserName} was disqualified from the win due to ${overrideLieCount} fact-checked false claims.`;
-                    setLieDisqualifiedLoser({ loserName: overrideLoserName, lieCount: overrideLieCount });
                   }
                 }
                 // ────────────────────────────────────────────────────────────
