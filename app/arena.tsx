@@ -7844,7 +7844,33 @@ export default function ArenaScreen() {
         timeout,
       ]);
       if (r.ok) {
-        setVerdictData(await r.json());
+        const data = await r.json();
+        // ── LIE-COUNT OVERRIDE ───────────────────────────────────────────
+        // If the AI-chosen winner has ≥3 more confirmed lies than the
+        // cleanest rival, disqualify the bigger liar and show a note.
+        {
+          const vWinner = (data.winner || "").toLowerCase();
+          const aiWinnerId = selectedPersonas.find((pid: string) => {
+            const name = (getPersona(pid)?.name || "").toLowerCase();
+            return name.includes(vWinner) || vWinner.includes(name);
+          });
+          if (aiWinnerId) {
+            const liesFor = (pid: string) => sessionLieTallyRef.current[pid] ?? 0;
+            const alts = selectedPersonas.filter((pid: string) => pid !== aiWinnerId);
+            const cleanestAlt = alts.length > 0
+              ? alts.reduce((best: string, pid: string) => liesFor(pid) < liesFor(best) ? pid : best, alts[0])
+              : null;
+            if (cleanestAlt && liesFor(aiWinnerId) - liesFor(cleanestAlt) >= 3) {
+              const disqName = getPersona(aiWinnerId)?.name || data.winner;
+              const altName = getPersona(cleanestAlt)?.name || cleanestAlt;
+              data.winner = altName;
+              data.verdict = (data.verdict ? data.verdict + "\n\n" : "") +
+                `⚖️ Note: ${disqName} was disqualified for accumulating ${liesFor(aiWinnerId)} confirmed lies — ${liesFor(aiWinnerId) - liesFor(cleanestAlt)} more than ${altName}. The win is awarded to ${altName}.`;
+            }
+          }
+        }
+        // ────────────────────────────────────────────────────────────────
+        setVerdictData(data);
       } else {
         setVerdictTimedOut(false);
       }
