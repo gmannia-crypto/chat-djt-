@@ -1669,8 +1669,10 @@ export default function DebateStage() {
 
       const loserPool  = PERSONA_LOSER_LINES[prelimLoserId]  ?? PERSONA_LOSER_LINES._default  ?? [];
       const winnerPool = PERSONA_WINNER_LINES[prelimWinnerId] ?? PERSONA_WINNER_LINES._default ?? [];
-      const loserLine  = loserPool[Math.floor(Math.random() * loserPool.length)];
-      const winnerLine = winnerPool[Math.floor(Math.random() * winnerPool.length)];
+      const loserLine = loserPool[Math.floor(Math.random() * loserPool.length)]
+        || "The debate is over, but my argument still stands.";
+      const winnerLine = winnerPool[Math.floor(Math.random() * winnerPool.length)]
+        || "I made the stronger case, and the result proves it.";
 
       // Pre-fetch loser/winner audio concurrently so it's ready (or close) when
       // the drain loop finishes. If the pre-fetch isn't done yet we fall back to
