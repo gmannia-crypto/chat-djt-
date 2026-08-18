@@ -3425,7 +3425,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
       }
       if (personaId === "loudmouth" && !req.body.voiceId) {
         const angerLevel = Number(req.body.angerLevel ?? 10);
-        voiceId = angerLevel >= 50 ? PERSONA_VOICE_IDS.loudmouth : LOUDMOUTH_CALM_VOICE_ID;
+        voiceId = angerLevel >= 25 ? PERSONA_VOICE_IDS.loudmouth : LOUDMOUTH_CALM_VOICE_ID;
       }
       if (!voiceId) {
         voiceId = process.env.FISH_AUDIO_VOICE_ID || "";
@@ -3479,7 +3479,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
       }
       if (personaId === "loudmouth" && !req.query.voiceId) {
         const angerLevel = Number(req.query.angerLevel ?? 10);
-        voiceId = angerLevel >= 50 ? PERSONA_VOICE_IDS.loudmouth : LOUDMOUTH_CALM_VOICE_ID;
+        voiceId = angerLevel >= 25 ? PERSONA_VOICE_IDS.loudmouth : LOUDMOUTH_CALM_VOICE_ID;
       }
       if (!voiceId) {
         voiceId = process.env.FISH_AUDIO_VOICE_ID || "";
