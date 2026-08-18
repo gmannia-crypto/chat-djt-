@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const RECORDINGS_KEY = "arenaRecordings";
 const MAX_RECORDINGS = 20;
+let recordingsMutationQueue: Promise<void> = Promise.resolve();
 
 export interface OddsShift {
   personaId: string;
@@ -34,17 +35,10 @@ export interface ArenaRecording {
   highlightQuote?: string;
   oddsHistory?: OddsShift[];
   isIQRaceSession?: boolean;
+  lieDisqualified?: boolean;
 }
 
-export async function saveRecording(recording: ArenaRecording): Promise<void> {
-  try {
-    const existing = await getRecordings();
-    const updated = [recording, ...existing].slice(0, MAX_RECORDINGS);
-    await AsyncStorage.setItem(RECORDINGS_KEY, JSON.stringify(updated));
-  } catch {}
-}
-
-export async function getRecordings(): Promise<ArenaRecording[]> {
+async function readStoredRecordings(): Promise<ArenaRecording[]> {
   try {
     const raw = await AsyncStorage.getItem(RECORDINGS_KEY);
     return raw ? JSON.parse(raw) : [];
@@ -53,12 +47,43 @@ export async function getRecordings(): Promise<ArenaRecording[]> {
   }
 }
 
-export async function deleteRecording(id: string): Promise<void> {
-  try {
-    const existing = await getRecordings();
-    const filtered = existing.filter((r) => r.id !== id);
-    await AsyncStorage.setItem(RECORDINGS_KEY, JSON.stringify(filtered));
-  } catch {}
+function queueRecordingsMutation(
+  mutate: (recordings: ArenaRecording[]) => ArenaRecording[],
+): Promise<void> {
+  const mutation = recordingsMutationQueue.then(async () => {
+    try {
+      const existing = await readStoredRecordings();
+      await AsyncStorage.setItem(RECORDINGS_KEY, JSON.stringify(mutate(existing)));
+    } catch {}
+  });
+  recordingsMutationQueue = mutation.catch(() => {});
+  return mutation;
+}
+
+export function saveRecording(recording: ArenaRecording): Promise<void> {
+  return queueRecordingsMutation((existing) =>
+    [recording, ...existing].slice(0, MAX_RECORDINGS),
+  );
+}
+
+export async function getRecordings(): Promise<ArenaRecording[]> {
+  return readStoredRecordings();
+}
+
+export function deleteRecording(id: string): Promise<void> {
+  return queueRecordingsMutation((existing) =>
+    existing.filter((recording) => recording.id !== id),
+  );
+}
+
+export function markRecordingLieDisqualified(id: string): Promise<void> {
+  return queueRecordingsMutation((existing) =>
+    existing.map((recording) =>
+      recording.id === id
+        ? { ...recording, lieDisqualified: true }
+        : recording,
+    ),
+  );
 }
 
 export function pickHighlightQuote(messages: RecordedMessage[]): string {

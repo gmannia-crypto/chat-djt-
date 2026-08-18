@@ -39,7 +39,13 @@ import {
   awardBetWin, resolveInterviewWinnerBet,
 } from "@/lib/debate-bets";
 import { usePersonaLocks, PREMIUM_PERSONA_CONFIGS, RECENTLY_UNLOCKED_BADGE_KEY } from "@/lib/persona-locks";
-import { saveRecording, pickHighlightQuote, type ArenaRecording, type RecordedMessage } from "@/lib/arena-recordings";
+import {
+  markRecordingLieDisqualified,
+  saveRecording,
+  pickHighlightQuote,
+  type ArenaRecording,
+  type RecordedMessage,
+} from "@/lib/arena-recordings";
 
 // Mystery persona IDs and storage key — kept in sync with arena.tsx
 const MYSTERY_PERSONA_IDS = ["alexjones", "obama", "melania", "schumer", "odonnell", "kamala", "mtg", "rfk"];
@@ -1132,6 +1138,10 @@ export default function DebateStage() {
   const sessionStartedAtRef = useRef<number>(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const savedSessionRef = useRef(false);
+  // Keep verdict-to-replay associations independent of current screen state.
+  // A verdict can resolve after navigation or after another debate starts.
+  const recordingIdBySessionRef = useRef(new Map<string, string>());
+  const pendingLieDisqualificationSessionsRef = useRef(new Set<string>());
   const [savedSessionId, setSavedSessionId] = useState<string | null>(null);
   const [localRecordingId, setLocalRecordingId] = useState<string | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -1434,6 +1444,14 @@ export default function DebateStage() {
     const pts = debatePointsRef.current;
     const aId = interviewerId;
     const bId = intervieweeId;
+    const endedSessionKey = String(sessionStartedAtRef.current || Date.now());
+    const markEndedSessionDisqualified = () => {
+      pendingLieDisqualificationSessionsRef.current.add(endedSessionKey);
+      const recordingId = recordingIdBySessionRef.current.get(endedSessionKey);
+      if (recordingId) {
+        markRecordingLieDisqualified(recordingId).catch(() => {});
+      }
+    };
     if (!aId || !bId) return;
 
     // ── PARTING SHOT ──────────────────────────────────────────────────────────
@@ -1615,6 +1633,7 @@ export default function DebateStage() {
                     lieDiff > 0 ? (aPersona?.name || aId) : (bPersona?.name || bId);
                   const overrideLieCount =
                     lieDiff > 0 ? confirmedLieCountA : confirmedLieCountB;
+                  markEndedSessionDisqualified();
                   setLieDisqualifiedLoser({ loserName: overrideLoserName, lieCount: overrideLieCount });
                   if (aiWinnerId !== overrideWinnerId) {
                     aiWinnerId = overrideWinnerId;
@@ -4561,6 +4580,7 @@ export default function DebateStage() {
         const aName = interviewers.find((p) => p.id === interviewerId)?.name ?? interviewerId ?? "A";
         const bName = interviewees.find((p) => p.id === intervieweeId)?.name ?? intervieweeId ?? "B";
         const recId = `debate-${startedAt}-${Math.random().toString(36).slice(2, 7)}`;
+        const recordingSessionKey = String(startedAt);
         const recMsgs: RecordedMessage[] = msgs.map((m) => ({
           id: m.id,
           speakerId: m.speakerId,
@@ -4580,8 +4600,19 @@ export default function DebateStage() {
           messages: recMsgs,
           messageCount: recMsgs.filter((m) => !m.isSystem).length,
           highlightQuote: pickHighlightQuote(recMsgs),
+          lieDisqualified: pendingLieDisqualificationSessionsRef.current.has(recordingSessionKey)
+            ? true
+            : undefined,
         };
-        saveRecording(recording).then(() => setLocalRecordingId(recId)).catch(() => {});
+        saveRecording(recording).then(() => {
+          recordingIdBySessionRef.current.set(recordingSessionKey, recId);
+          setLocalRecordingId(recId);
+          // Covers the race where the verdict resolves after this object was
+          // built but before AsyncStorage finishes writing it.
+          if (pendingLieDisqualificationSessionsRef.current.has(recordingSessionKey)) {
+            markRecordingLieDisqualified(recId).catch(() => {});
+          }
+        }).catch(() => {});
       } catch { /* best-effort — never block the ended flow */ }
     })();
   }, [phase, deviceId, interviewerId, intervieweeId, duration, lies, emoInterviewer, emoInterviewee, topics, currentTopic, interviewers, interviewees, fetchLieTally]);

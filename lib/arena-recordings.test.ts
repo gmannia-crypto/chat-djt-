@@ -19,9 +19,13 @@
  *     flip line and does NOT contain the unavailable note.
  */
 
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   generateShareText,
+  getRecordings,
+  markRecordingLieDisqualified,
   pickBiggestOddsFlip,
+  saveRecording,
   type ArenaRecording,
   type OddsShift,
 } from "./arena-recordings.js";
@@ -141,7 +145,60 @@ console.log("\n4. New recording with a qualifying odds flip");
   );
 }
 
-// ─── Summary ──────────────────────────────────────────────────────────────────
+async function runDisqualificationPersistenceTest(): Promise<void> {
+  console.log("\n5. Concurrent saves and a late disqualification preserve every replay");
+  let stored: string | null = null;
+  const storage = AsyncStorage as unknown as {
+    getItem: (key: string) => Promise<string | null>;
+    setItem: (key: string, value: string) => Promise<void>;
+  };
+  const originalGetItem = storage.getItem;
+  const originalSetItem = storage.setItem;
+  storage.getItem = async () => stored;
+  storage.setItem = async (_key, value) => { stored = value; };
 
-console.log(`\n${passed + failed} tests: ${passed} passed, ${failed} failed\n`);
-if (failed > 0) process.exit(1);
+  try {
+    const first = makeRecording({ id: "first" });
+    const second = makeRecording({ id: "second" });
+    const firstSave = saveRecording(first);
+    const secondSave = saveRecording(second);
+    const lateMark = markRecordingLieDisqualified(first.id);
+    await Promise.all([firstSave, secondSave, lateMark]);
+    const recordings = await getRecordings();
+
+    assert(recordings.length === 2, "late marking does not remove concurrent saves");
+    assert(
+      recordings.find((recording) => recording.id === first.id)?.lieDisqualified === true,
+      "marks only the disqualified recording",
+    );
+    assert(
+      recordings.find((recording) => recording.id === second.id)?.lieDisqualified !== true,
+      "does not mark unrelated recordings",
+    );
+
+    const pendingDisqualification = true;
+    const preFlaggedRecording = makeRecording({
+      id: "pre-flagged",
+      lieDisqualified: pendingDisqualification ? true : undefined,
+    });
+    await saveRecording(preFlaggedRecording);
+    const recordingsAfterPreFlaggedSave = await getRecordings();
+    assert(
+      recordingsAfterPreFlaggedSave.find((recording) => recording.id === preFlaggedRecording.id)?.lieDisqualified === true,
+      "preserves a disqualification flagged before saving",
+    );
+  } finally {
+    storage.getItem = originalGetItem;
+    storage.setItem = originalSetItem;
+  }
+}
+
+runDisqualificationPersistenceTest()
+  .then(() => {
+    console.log(`\n${passed + failed} tests: ${passed} passed, ${failed} failed\n`);
+    if (failed > 0) process.exit(1);
+  })
+  .catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });

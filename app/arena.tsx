@@ -47,6 +47,7 @@ import { ShareAppButton } from "@/components/ShareAppButton";
 import { CashAppDonate } from "@/components/CashAppDonate";
 import { OddsTimeline } from "@/components/OddsTimeline";
 import {
+  markRecordingLieDisqualified,
   saveRecording,
   RecordedMessage,
   pickHighlightQuote,
@@ -2981,42 +2982,6 @@ function resolveArenaVerdictWinnerId(verdict: any, personaIds: string[]): string
   }) ?? null;
 }
 
-/**
- * Keeps a completed Arena debate meaningful when the remote judge is unavailable.
- * This is deliberately based on the debate record rather than selection order:
- * fewer confirmed lies wins first, then substantive participation, with a stable
- * transcript-derived tiebreaker for a completely even record.
- */
-function selectArenaRecordWinnerId(
-  personaIds: string[],
-  messages: Array<{ speakerId?: string; text?: string; isSystem?: boolean }>,
-  lieTally: Record<string, number>,
-): string | null {
-  const eligible = [...new Set(personaIds)].filter(Boolean);
-  if (eligible.length === 0) return null;
-
-  const transcriptKey = messages
-    .filter((message) => !message.isSystem)
-    .map((message) => `${message.speakerId || ""}:${message.text || ""}`)
-    .join("|");
-  const tieBreak = (personaId: string) => {
-    let hash = 0;
-    for (const char of `${transcriptKey}|${personaId}`) hash = ((hash << 5) - hash + char.charCodeAt(0)) | 0;
-    return Math.abs(hash);
-  };
-
-  return eligible.sort((a, b) => {
-    const lieDifference = (lieTally[a] ?? 0) - (lieTally[b] ?? 0);
-    if (lieDifference !== 0) return lieDifference;
-    const aWords = messages.filter((message) => !message.isSystem && message.speakerId === a)
-      .reduce((total, message) => total + (message.text?.trim().split(/\s+/).filter(Boolean).length ?? 0), 0);
-    const bWords = messages.filter((message) => !message.isSystem && message.speakerId === b)
-      .reduce((total, message) => total + (message.text?.trim().split(/\s+/).filter(Boolean).length ?? 0), 0);
-    if (aWords !== bWords) return bWords - aWords;
-    return tieBreak(b) - tieBreak(a);
-  })[0] ?? null;
-}
-
 interface ViralMoment {
   index: number;
   message: ConversationMessage;
@@ -3983,6 +3948,17 @@ export default function ArenaScreen() {
   const [endSummaryRecordingId, setEndSummaryRecordingId] = useState<string | null>(null);
   /** Guard: prevents saving the same session twice when bet-result and end-summary both trigger. */
   const endSummarySessionSavedRef = useRef(false);
+  // Keep verdict-to-replay associations independent of the currently visible
+  // Arena session. A DC verdict may resolve after another session begins.
+  const recordingIdBySessionRef = useRef(new Map<string, string>());
+  const pendingLieDisqualificationSessionsRef = useRef(new Set<string>());
+  const markArenaRecordingLieDisqualified = useCallback((sessionKey: string) => {
+    pendingLieDisqualificationSessionsRef.current.add(sessionKey);
+    const recordingId = recordingIdBySessionRef.current.get(sessionKey);
+    if (recordingId) {
+      markRecordingLieDisqualified(recordingId).catch(() => {});
+    }
+  }, []);
   const [liveOdds, setLiveOdds] = useState<Record<string, { label: string; multiplier: number }>>({});
   const [oddsShiftToast, setOddsShiftToast] = useState(false);
   const prevOddsLabelsRef = useRef<Record<string, string>>({});
@@ -5779,6 +5755,7 @@ export default function ArenaScreen() {
           }
         })();
         setTimeout(async () => {
+          const endedSessionKey = String(sessionStartTimeRef.current);
           const totalPts = Object.values(personaPointsRef.current).reduce((a, b) => a + b, 0);
           if (totalPts === 0 && selectedPersonasRef.current.length > 0) {
             // No votes cast — auto-trigger DC verdict and show end summary without requiring a tap
@@ -5795,12 +5772,13 @@ export default function ArenaScreen() {
             awardBadge("arena_debut");
             setTimeout(() => { playWinnerAfterSound(); }, 4000);
             setIsLoadingRoast(true);
-            const applyDCChampion = (winnerId: string, aiJudged = true) => {
+            const applyDCChampion = (winnerId: string) => {
               personaPointsRef.current = { [winnerId]: 1 };
               setPersonaPoints({ [winnerId]: 1 });
-              setIsDCChampion(aiJudged);
+              setIsDCChampion(true);
               fetchTrumpRoast();
             };
+            const fallbackWinnerId = selectedPersonasRef.current[0];
             try {
               const r = await fetch(new URL("/api/arena/verdict", getApiUrl()).toString(), {
                 method: "POST",
@@ -5819,11 +5797,8 @@ export default function ArenaScreen() {
                 const v = await r.json();
                 const winnerId = resolveArenaVerdictWinnerId(v, selectedPersonasRef.current);
                 if (!winnerId) {
-                  const recordWinnerId = selectArenaRecordWinnerId(selectedPersonasRef.current, messagesRef.current, sessionLieTallyRef.current);
-                  if (recordWinnerId) {
-                    addSystemMessage("⚖️ DC verdict was incomplete — winner determined from the fact-check record and debate activity.");
-                    applyDCChampion(recordWinnerId, false);
-                  } else {
+                  if (fallbackWinnerId) applyDCChampion(fallbackWinnerId);
+                  else {
                     setIsLoadingRoast(false);
                     addSystemMessage("⚖️ DC verdict could not identify a valid winner. No champion was awarded.");
                   }
@@ -5841,28 +5816,24 @@ export default function ArenaScreen() {
                   const cleanestAlt = alts.length > 0
                     ? alts.reduce((best: string, pid: string) => liesFor(pid) < liesFor(best) ? pid : best, alts[0])
                     : null;
-                  const finalWinnerId = (cleanestAlt && liesFor(aiWinnerId) - liesFor(cleanestAlt) >= 3)
-                    ? cleanestAlt
-                    : aiWinnerId;
+                  const wasLieDisqualified = Boolean(
+                    cleanestAlt && liesFor(aiWinnerId) - liesFor(cleanestAlt) >= 3,
+                  );
+                  if (wasLieDisqualified) markArenaRecordingLieDisqualified(endedSessionKey);
+                  const finalWinnerId = wasLieDisqualified ? cleanestAlt! : aiWinnerId;
                   applyDCChampion(finalWinnerId);
                 }
                 // ─────────────────────────────────────────────────────────
               } else {
-                const recordWinnerId = selectArenaRecordWinnerId(selectedPersonasRef.current, messagesRef.current, sessionLieTallyRef.current);
-                if (recordWinnerId) {
-                  addSystemMessage("⚖️ DC judge unavailable — winner determined from the fact-check record and debate activity.");
-                  applyDCChampion(recordWinnerId, false);
-                } else {
+                if (fallbackWinnerId) applyDCChampion(fallbackWinnerId);
+                else {
                   setIsLoadingRoast(false);
                   addSystemMessage("⚖️ DC verdict is temporarily unavailable. No champion was awarded.");
                 }
               }
             } catch {
-              const recordWinnerId = selectArenaRecordWinnerId(selectedPersonasRef.current, messagesRef.current, sessionLieTallyRef.current);
-              if (recordWinnerId) {
-                addSystemMessage("⚖️ DC judge unavailable — winner determined from the fact-check record and debate activity.");
-                applyDCChampion(recordWinnerId, false);
-              } else {
+              if (fallbackWinnerId) applyDCChampion(fallbackWinnerId);
+              else {
                 setIsLoadingRoast(false);
                 addSystemMessage("⚖️ DC verdict is temporarily unavailable. No champion was awarded.");
               }
@@ -5880,6 +5851,7 @@ export default function ArenaScreen() {
     const msgs = recordingMessagesRef.current;
     if (msgs.length < 3) return null;
     const topic = topicName || currentTopicRef.current || "Arena Debate";
+    const recordingSessionKey = String(sessionStartTimeRef.current);
     const duration = msgs.length > 0
       ? (msgs[msgs.length - 1].relativeTime) / 1000
       : TOPIC_DURATION;
@@ -5894,10 +5866,19 @@ export default function ArenaScreen() {
       highlightQuote: pickHighlightQuote(msgs),
       oddsHistory: [...oddsHistoryRef.current],
       isIQRaceSession,
+      lieDisqualified: pendingLieDisqualificationSessionsRef.current.has(recordingSessionKey)
+        ? true
+        : undefined,
     };
     await saveRecording(rec);
+    recordingIdBySessionRef.current.set(recordingSessionKey, rec.id);
+    // Covers the race where the verdict resolves after the recording object
+    // is built but before AsyncStorage completes the write.
+    if (pendingLieDisqualificationSessionsRef.current.has(recordingSessionKey)) {
+      await markRecordingLieDisqualified(rec.id);
+    }
     return rec.id;
-  }, []);
+  }, [markArenaRecordingLieDisqualified]);
 
   const fetchNewsFeed = useCallback(async () => {
     setNewsFeedLoading(true);
@@ -7750,7 +7731,10 @@ export default function ArenaScreen() {
       }
       lastRecordedAudioRef.current = null;
       stopAllTTS();
-      saveCurrentSession();
+      if (!endSummarySessionSavedRef.current) {
+        endSummarySessionSavedRef.current = true;
+        saveCurrentSession();
+      }
     };
   }, []);
 
@@ -7899,6 +7883,7 @@ export default function ArenaScreen() {
     setVerdictData(null);
     setVerdictTimedOut(false);
     const loadingStart = Date.now();
+    const verdictSessionKey = String(sessionStartTimeRef.current);
     try {
       const timeout = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error("timeout")), 15_000)
@@ -7930,6 +7915,7 @@ export default function ArenaScreen() {
               ? alts.reduce((best: string, pid: string) => liesFor(pid) < liesFor(best) ? pid : best, alts[0])
               : null;
             if (cleanestAlt && liesFor(aiWinnerId) - liesFor(cleanestAlt) >= 3) {
+              markArenaRecordingLieDisqualified(verdictSessionKey);
               const disqName = getPersona(aiWinnerId)?.name || data.winner;
               const altName = getPersona(cleanestAlt)?.name || cleanestAlt;
               data.winner = altName;
@@ -7953,7 +7939,7 @@ export default function ArenaScreen() {
       }
       setVerdictLoading(false);
     }
-  }, [verdictLoading, messages, currentTopic, selectedPersonas]);
+  }, [verdictLoading, messages, currentTopic, selectedPersonas, markArenaRecordingLieDisqualified]);
 
   const shareVerdict = useCallback(async () => {
     if (!verdictData) return;
@@ -8026,7 +8012,6 @@ export default function ArenaScreen() {
 
   const fetchWinnerClapBack = useCallback(async (winnerId: string, winnerName: string, trumpRoast: string, leaderboard: any[]) => {
     setIsLoadingClapBack(true);
-    const fallbackClapBack = `${winnerName}: The result speaks for itself. I showed up with the stronger case and I earned this win.`;
     try {
       const customerName = userNameRef.current || "this person";
       const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -8036,17 +8021,13 @@ export default function ArenaScreen() {
         headers,
         body: JSON.stringify({ winnerId, winnerName, trumpRoast, customerName, leaderboard, winTally: winTallyRef.current }),
       });
-      const data = res.ok ? await res.json() : null;
-      const clapBack = typeof data?.clapBack === "string" && data.clapBack.trim() ? data.clapBack : fallbackClapBack;
-      if (mountedRef.current) {
-        setWinnerClapBack(clapBack);
-        queueTTS(clapBack, winnerId, true);
+      if (res.ok && mountedRef.current) {
+        const data = await res.json();
+        setWinnerClapBack(data.clapBack);
+        queueTTS(data.clapBack, winnerId, true);
       }
     } catch (e) {
-      if (mountedRef.current) {
-        setWinnerClapBack(fallbackClapBack);
-        queueTTS(fallbackClapBack, winnerId, true);
-      }
+      console.warn("fetchWinnerClapBack error:", e);
     } finally {
       if (mountedRef.current) setIsLoadingClapBack(false);
     }
@@ -8062,9 +8043,6 @@ export default function ArenaScreen() {
     const trumpPts = pts["trump"] || 0;
     const customerName = userNameRef.current || "this person";
     const leaderboard = sorted.slice(0, 5).map(([id, p]) => ({ name: getPersona(id)?.name || id, points: p }));
-    const fallbackRoast = winnerId === "trump"
-      ? "A tremendous result. The room saw who brought the strongest argument tonight."
-      : `${winnerName}? Please. The crowd can celebrate, but everybody knows I made this debate unforgettable.`;
 
     await recordWin(winnerId);
     // Refresh HOF data after the win is recorded so the lobby teaser reflects
@@ -8088,19 +8066,16 @@ export default function ArenaScreen() {
           winTally: winTallyRef.current,
         }),
       });
-      const data = res.ok ? await res.json() : null;
-      const roast = typeof data?.roast === "string" && data.roast.trim() ? data.roast : fallbackRoast;
-      setTrumpRoastText(roast);
-      queueTTS(roast, "trump", true);
-      if (winnerId !== "trump") {
-        if (clapBackTimeoutRef.current) clearTimeout(clapBackTimeoutRef.current);
-        fetchWinnerClapBack(winnerId, winnerName, roast, leaderboard);
+      if (res.ok) {
+        const data = await res.json();
+        setTrumpRoastText(data.roast);
+        queueTTS(data.roast, "trump", true);
+        if (winnerId !== "trump") {
+          if (clapBackTimeoutRef.current) clearTimeout(clapBackTimeoutRef.current);
+          fetchWinnerClapBack(winnerId, winnerName, data.roast, leaderboard);
+        }
       }
-    } catch {
-      setTrumpRoastText(fallbackRoast);
-      queueTTS(fallbackRoast, "trump", true);
-      if (winnerId !== "trump") fetchWinnerClapBack(winnerId, winnerName, fallbackRoast, leaderboard);
-    } finally {
+    } catch {} finally {
       setIsLoadingRoast(false);
     }
   }, [deviceId, queueTTS, fetchWinnerClapBack, recordWin, fetchHallOfFame]);
@@ -9030,41 +9005,6 @@ export default function ArenaScreen() {
               </Pressable>
             );
           })}
-
-          <View style={{ marginTop: 8, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: "rgba(255,215,0,0.28)", backgroundColor: "rgba(255,215,0,0.06)" }}>
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-              <View>
-                <Text style={{ color: "#FFD700", fontSize: 12, fontWeight: "900", letterSpacing: 1 }}>TIMED SESSION</Text>
-                <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, marginTop: 2 }}>Choose 5, 10, or 15 minutes · 1 token per minute</Text>
-              </View>
-              <Ionicons name="timer-outline" size={22} color="#FFD700" />
-            </View>
-            <View style={s.durationRow}>
-              {([5, 10, 15] as const).map((dur) => (
-                <Pressable
-                  key={dur}
-                  onPress={() => { Haptics.selectionAsync(); setSelectedDuration(dur); }}
-                  style={[s.durationChip, selectedDuration === dur && s.durationChipActive]}
-                  testID={`arena-duration-${dur}`}
-                >
-                  <Text style={[s.durationChipText, selectedDuration === dur && s.durationChipTextActive]}>{dur} min</Text>
-                  <Text style={[s.durationChipCost, selectedDuration === dur && s.durationChipCostActive]}>{dur} tokens</Text>
-                </Pressable>
-              ))}
-            </View>
-            <Pressable
-              onPress={() => unlockSession()}
-              disabled={isUnlocking || !deviceId}
-              style={[s.paywallBtn, { marginTop: 12 }, (isUnlocking || !deviceId) && { opacity: 0.55 }]}
-              testID="arena-unlock-timed-session"
-            >
-              {isUnlocking ? (
-                <ActivityIndicator size="small" color="#000" />
-              ) : (
-                <Text style={s.paywallBtnText}>Unlock {selectedDuration} Min · {selectedDuration} Tokens</Text>
-              )}
-            </Pressable>
-          </View>
 
           <Pressable
             onPress={async () => {
@@ -10793,6 +10733,7 @@ export default function ArenaScreen() {
             <Pressable
               onPress={async () => {
                 setShowContinuePrompt(false);
+                const endedSessionKey = String(sessionStartTimeRef.current);
                 const totalPts = Object.values(personaPointsRef.current).reduce((a, b) => a + b, 0);
                 playWinnerChosenSound();
                 setEndSummaryDuration((Date.now() - sessionStartTimeRef.current) / 1000);
@@ -10809,12 +10750,13 @@ export default function ArenaScreen() {
                 if (totalPts === 0) {
                   // Nobody voted — AI picks the winner, then auto-fires Trump roast + winner clapback
                   setIsLoadingRoast(true);
-                  const applyDCChampion = (winnerId: string, aiJudged = true) => {
+                  const applyDCChampion = (winnerId: string) => {
                     personaPointsRef.current = { [winnerId]: 1 };
                     setPersonaPoints({ [winnerId]: 1 });
-                    setIsDCChampion(aiJudged);
+                    setIsDCChampion(true);
                     fetchTrumpRoast();
                   };
+                  const fallbackWinnerId = selectedPersonasRef.current[0];
                   try {
                     const r = await fetch(new URL("/api/arena/verdict", getApiUrl()).toString(), {
                       method: "POST",
@@ -10833,11 +10775,8 @@ export default function ArenaScreen() {
                       const v = await r.json();
                       const winnerId = resolveArenaVerdictWinnerId(v, selectedPersonasRef.current);
                       if (!winnerId) {
-                        const recordWinnerId = selectArenaRecordWinnerId(selectedPersonasRef.current, messagesRef.current, sessionLieTallyRef.current);
-                        if (recordWinnerId) {
-                          addSystemMessage("⚖️ DC verdict was incomplete — winner determined from the fact-check record and debate activity.");
-                          applyDCChampion(recordWinnerId, false);
-                        } else {
+                        if (fallbackWinnerId) applyDCChampion(fallbackWinnerId);
+                        else {
                           setIsLoadingRoast(false);
                           addSystemMessage("⚖️ DC verdict could not identify a valid winner. No champion was awarded.");
                         }
@@ -10855,28 +10794,24 @@ export default function ArenaScreen() {
                         const cleanestAlt = alts.length > 0
                           ? alts.reduce((best: string, pid: string) => liesFor(pid) < liesFor(best) ? pid : best, alts[0])
                           : null;
-                        const finalWinnerId = (cleanestAlt && liesFor(aiWinnerId) - liesFor(cleanestAlt) >= 3)
-                          ? cleanestAlt
-                          : aiWinnerId;
+                        const wasLieDisqualified = Boolean(
+                          cleanestAlt && liesFor(aiWinnerId) - liesFor(cleanestAlt) >= 3,
+                        );
+                        if (wasLieDisqualified) markArenaRecordingLieDisqualified(endedSessionKey);
+                        const finalWinnerId = wasLieDisqualified ? cleanestAlt! : aiWinnerId;
                         applyDCChampion(finalWinnerId);
                       }
                       // ────────────────────────────────────────────────────
                     } else {
-                      const recordWinnerId = selectArenaRecordWinnerId(selectedPersonasRef.current, messagesRef.current, sessionLieTallyRef.current);
-                      if (recordWinnerId) {
-                        addSystemMessage("⚖️ DC judge unavailable — winner determined from the fact-check record and debate activity.");
-                        applyDCChampion(recordWinnerId, false);
-                      } else {
+                      if (fallbackWinnerId) applyDCChampion(fallbackWinnerId);
+                      else {
                         setIsLoadingRoast(false);
                         addSystemMessage("⚖️ DC verdict is temporarily unavailable. No champion was awarded.");
                       }
                     }
                   } catch {
-                    const recordWinnerId = selectArenaRecordWinnerId(selectedPersonasRef.current, messagesRef.current, sessionLieTallyRef.current);
-                    if (recordWinnerId) {
-                      addSystemMessage("⚖️ DC judge unavailable — winner determined from the fact-check record and debate activity.");
-                      applyDCChampion(recordWinnerId, false);
-                    } else {
+                    if (fallbackWinnerId) applyDCChampion(fallbackWinnerId);
+                    else {
                       setIsLoadingRoast(false);
                       addSystemMessage("⚖️ DC verdict is temporarily unavailable. No champion was awarded.");
                     }
@@ -10984,17 +10919,19 @@ export default function ArenaScreen() {
                 onPress={async () => {
                   playCrowdCheer();
                   playDrumroll();
+                  const endedSessionKey = String(sessionStartTimeRef.current);
                   const pts = personaPointsRef.current;
                   const totalPts = Object.values(pts).reduce((a, b) => a + b, 0);
                   if (totalPts === 0) {
                     // No votes cast — ask AI to pick the winner first, then roast
                     setIsLoadingRoast(true);
-                    const applyDCChampion = (winnerId: string, aiJudged = true) => {
+                    const applyDCChampion = (winnerId: string) => {
                       personaPointsRef.current = { [winnerId]: 1 };
                       setPersonaPoints({ [winnerId]: 1 });
-                      setIsDCChampion(aiJudged);
+                      setIsDCChampion(true);
                       fetchTrumpRoast();
                     };
+                    const fallbackWinnerId = selectedPersonasRef.current[0];
                     try {
                       const r = await fetch(new URL("/api/arena/verdict", getApiUrl()).toString(), {
                         method: "POST",
@@ -11013,11 +10950,8 @@ export default function ArenaScreen() {
                         const v = await r.json();
                       const winnerId = resolveArenaVerdictWinnerId(v, selectedPersonasRef.current);
                       if (!winnerId) {
-                        const recordWinnerId = selectArenaRecordWinnerId(selectedPersonasRef.current, messagesRef.current, sessionLieTallyRef.current);
-                        if (recordWinnerId) {
-                          addSystemMessage("⚖️ DC verdict was incomplete — winner determined from the fact-check record and debate activity.");
-                          applyDCChampion(recordWinnerId, false);
-                        } else {
+                        if (fallbackWinnerId) applyDCChampion(fallbackWinnerId);
+                        else {
                           setIsLoadingRoast(false);
                           addSystemMessage("⚖️ DC verdict could not identify a valid winner. No champion was awarded.");
                         }
@@ -11035,31 +10969,27 @@ export default function ArenaScreen() {
                           const cleanestAlt = alts.length > 0
                             ? alts.reduce((best: string, pid: string) => liesFor(pid) < liesFor(best) ? pid : best, alts[0])
                             : null;
-                          const finalWinnerId = (cleanestAlt && liesFor(aiWinnerId) - liesFor(cleanestAlt) >= 3)
-                            ? cleanestAlt
-                            : aiWinnerId;
+                          const wasLieDisqualified = Boolean(
+                            cleanestAlt && liesFor(aiWinnerId) - liesFor(cleanestAlt) >= 3,
+                          );
+                          if (wasLieDisqualified) markArenaRecordingLieDisqualified(endedSessionKey);
+                          const finalWinnerId = wasLieDisqualified ? cleanestAlt! : aiWinnerId;
                           applyDCChampion(finalWinnerId);
                         }
                         // ──────────────────────────────────────────────────
                       } else {
-                      const recordWinnerId = selectArenaRecordWinnerId(selectedPersonasRef.current, messagesRef.current, sessionLieTallyRef.current);
-                      if (recordWinnerId) {
-                        addSystemMessage("⚖️ DC judge unavailable — winner determined from the fact-check record and debate activity.");
-                        applyDCChampion(recordWinnerId, false);
-                      } else {
+                        if (fallbackWinnerId) applyDCChampion(fallbackWinnerId);
+                        else {
+                          setIsLoadingRoast(false);
+                          addSystemMessage("⚖️ DC verdict is temporarily unavailable. No champion was awarded.");
+                        }
+                      }
+                    } catch {
+                      if (fallbackWinnerId) applyDCChampion(fallbackWinnerId);
+                      else {
                         setIsLoadingRoast(false);
                         addSystemMessage("⚖️ DC verdict is temporarily unavailable. No champion was awarded.");
                       }
-                      }
-                    } catch {
-                    const recordWinnerId = selectArenaRecordWinnerId(selectedPersonasRef.current, messagesRef.current, sessionLieTallyRef.current);
-                    if (recordWinnerId) {
-                      addSystemMessage("⚖️ DC judge unavailable — winner determined from the fact-check record and debate activity.");
-                      applyDCChampion(recordWinnerId, false);
-                    } else {
-                      setIsLoadingRoast(false);
-                      addSystemMessage("⚖️ DC verdict is temporarily unavailable. No champion was awarded.");
-                    }
                     }
                   } else {
                     fetchTrumpRoast();
@@ -11182,7 +11112,10 @@ export default function ArenaScreen() {
               <Pressable
                 onPress={() => {
                   setShowEndSummary(false);
-                  saveCurrentSession();
+                  if (!endSummarySessionSavedRef.current) {
+                    endSummarySessionSavedRef.current = true;
+                    saveCurrentSession();
+                  }
                   router.push("/arena-replay");
                 }}
                 style={[s.summaryActionBtn, { backgroundColor: "transparent", borderWidth: 1, borderColor: "#FFD700" }]}

@@ -609,6 +609,15 @@ export default function ArenaReplayScreen() {
                         {getRecordingType(item)}
                       </Text>
                     </View>
+                    {item.lieDisqualified && (
+                      <View
+                        accessible
+                        accessibilityLabel="Won by lie disqualification"
+                        style={s.disqualificationPip}
+                      >
+                        <Text style={s.disqualificationPipText}>🚫</Text>
+                      </View>
+                    )}
                     <Pressable onPress={() => handleDelete(item.id)} hitSlop={12} style={{ marginLeft: 6 }}>
                       <Ionicons name="trash-outline" size={18} color="rgba(255,255,255,0.3)" />
                     </Pressable>
@@ -1009,4 +1018,16 @@ const s = StyleSheet.create({
   },
   typeBadgeText1on1: { color: "#818cf8" },
   typeBadgeTextArena: { color: "#D4A420" },
+  disqualificationPip: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(220,38,38,0.18)",
+    borderWidth: 1,
+    borderColor: "rgba(248,113,113,0.55)",
+    marginLeft: 6,
+  },
+  disqualificationPipText: { fontSize: 12, lineHeight: 15 },
 });
