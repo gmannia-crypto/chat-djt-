@@ -1108,6 +1108,7 @@ export default function DebateStage() {
   const [replayingClip, setReplayingClip] = useState<string | null>(null);
   const [isLoadingDebateRoast, setIsLoadingDebateRoast] = useState(false);
   const [debateLoser, setDebateLoser] = useState<{ id: string; name: string } | null>(null);
+  const [lieDisqualifiedLoser, setLieDisqualifiedLoser] = useState<{ loserName: string; lieCount: number } | null>(null);
   const [debateTokenWinVisible, setDebateTokenWinVisible] = useState(false);
   const [debateTokenWinAmount, setDebateTokenWinAmount] = useState<number | undefined>();
   const winnerTriggeredRef = useRef(false);
@@ -1280,6 +1281,7 @@ export default function DebateStage() {
       setReplayingClip(null);
       setIsLoadingDebateRoast(false);
       setDebateLoser(null);
+      setLieDisqualifiedLoser(null);
       setDebateTokenWinVisible(false);
       setDebateTokenWinAmount(undefined);
       setDebateBetPick(null);
@@ -1618,6 +1620,7 @@ export default function DebateStage() {
                     aiVerdictText =
                       (aiVerdictText || "") +
                       `\n\nNote: ${overrideLoserName} was disqualified from the win due to ${overrideLieCount} fact-checked false claims.`;
+                    setLieDisqualifiedLoser({ loserName: overrideLoserName, lieCount: overrideLieCount });
                   }
                 }
                 // ────────────────────────────────────────────────────────────
@@ -6014,6 +6017,23 @@ export default function DebateStage() {
                 <ActivityIndicator size="small" color="#60A5FA" />
                 <Text style={{ color: "#60A5FA", fontSize: 12, fontWeight: "700" }}>DC AI is deliberating on facts & arguments…</Text>
               </View>
+            )}
+
+            {/* Disqualification badge — shown when the lie-count override fired */}
+            {lieDisqualifiedLoser && (
+              <Animated.View
+                entering={FadeIn.delay(180).duration(450)}
+                style={{ marginTop: 14, paddingHorizontal: 16, paddingVertical: 12, backgroundColor: "rgba(220,38,38,0.13)", borderRadius: 14, borderWidth: 1.5, borderColor: "rgba(220,38,38,0.65)", maxWidth: 320, width: "100%", alignItems: "center" }}
+              >
+                <Text style={{ fontSize: 22, lineHeight: 26, marginBottom: 4 }}>🚫</Text>
+                <Text style={{ color: "#f87171", fontSize: 13, fontWeight: "900", letterSpacing: 1.5, textAlign: "center" }}>DISQUALIFIED</Text>
+                <Text style={{ color: "rgba(255,255,255,0.85)", fontSize: 12, fontWeight: "700", textAlign: "center", marginTop: 4 }}>
+                  {lieDisqualifiedLoser.loserName}
+                </Text>
+                <Text style={{ color: "rgba(248,113,113,0.85)", fontSize: 11, textAlign: "center", marginTop: 3, lineHeight: 16 }}>
+                  Too many lies — {lieDisqualifiedLoser.lieCount} fact-checked false claim{lieDisqualifiedLoser.lieCount !== 1 ? "s" : ""}
+                </Text>
+              </Animated.View>
             )}
 
             {/* Lie tally — shown when at least one confirmed lie was caught during the debate.
