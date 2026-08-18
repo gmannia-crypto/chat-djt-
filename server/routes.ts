@@ -3103,6 +3103,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
   // Malcolm X — high-anger voice (anger meter >= 50)
   const MALCOLMX_ANGRY_VOICE_ID = "a2392edff0cf4422b2cb52d065381eb9";
   const MUHAMMADALI_ANGRY_VOICE_ID = "f7039e96ca8e456994d16ec6822e5273"; // passion / anger voice
+  const LOUDMOUTH_CALM_VOICE_ID = "3b265ac5d0f94343a128bfc62cf81258"; // calm Stephen A. — before anger kicks in
 
   app.post("/api/nav-speak", async (req, res) => {
     try {
@@ -3422,6 +3423,10 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
         const angerLevel = Number(req.body.angerLevel ?? 10);
         voiceId = angerLevel >= 50 ? MUHAMMADALI_ANGRY_VOICE_ID : PERSONA_VOICE_IDS.muhammadali;
       }
+      if (personaId === "loudmouth" && !req.body.voiceId) {
+        const angerLevel = Number(req.body.angerLevel ?? 10);
+        voiceId = angerLevel >= 50 ? PERSONA_VOICE_IDS.loudmouth : LOUDMOUTH_CALM_VOICE_ID;
+      }
       if (!voiceId) {
         voiceId = process.env.FISH_AUDIO_VOICE_ID || "";
       }
@@ -3431,7 +3436,12 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
 
       const personaSpeed = PERSONA_SPEED_MAP[personaId] ?? 1.0;
       const personaVolumeDb = PERSONA_VOLUME_BOOST[personaId] ?? 0;
-      const personaEmotion = PERSONA_EMOTION_MAP[personaId];
+      // For loudmouth, suppress the "excited" emotion tag when the calm voice is
+      // active — the emotion was tuned for the angered voice and sounds wrong on
+      // the calm clone.
+      const personaEmotion = (personaId === "loudmouth" && voiceId === LOUDMOUTH_CALM_VOICE_ID)
+        ? undefined
+        : PERSONA_EMOTION_MAP[personaId];
       const safeText = applyPersonaTTSFormatting(text.slice(0, 2000), personaId);
       const rawBuffer = await fishAudioRequest(safeText, voiceId, personaSpeed, apiKey, 3, personaVolumeDb, personaEmotion);
       const buffer = await overlayBleeps(rawBuffer, safeText);
@@ -3466,6 +3476,10 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
       if (personaId === "muhammadali" && !req.query.voiceId) {
         const angerLevel = Number(req.query.angerLevel ?? 10);
         voiceId = angerLevel >= 50 ? MUHAMMADALI_ANGRY_VOICE_ID : PERSONA_VOICE_IDS.muhammadali;
+      }
+      if (personaId === "loudmouth" && !req.query.voiceId) {
+        const angerLevel = Number(req.query.angerLevel ?? 10);
+        voiceId = angerLevel >= 50 ? PERSONA_VOICE_IDS.loudmouth : LOUDMOUTH_CALM_VOICE_ID;
       }
       if (!voiceId) {
         voiceId = process.env.FISH_AUDIO_VOICE_ID || "";
