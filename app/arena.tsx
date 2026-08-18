@@ -2982,6 +2982,36 @@ function resolveArenaVerdictWinnerId(verdict: any, personaIds: string[]): string
   }) ?? null;
 }
 
+// A judge outage must never silently hand the win to the first selected persona.
+// Prefer the cleanest fact-check record, then substantive participation; a stable
+// transcript-derived tiebreaker handles a completely even debate without list bias.
+function selectArenaRecordWinnerId(
+  personaIds: string[],
+  messages: Array<{ speakerId?: string; text?: string; isSystem?: boolean }>,
+  lieTally: Record<string, number>,
+): string | null {
+  const candidates = [...new Set(personaIds)].filter(Boolean);
+  if (candidates.length === 0) return null;
+  const transcript = messages
+    .filter((message) => !message.isSystem)
+    .map((message) => `${message.speakerId || ""}:${message.text || ""}`)
+    .join("|");
+  const tieBreak = (personaId: string) => {
+    let hash = 0;
+    for (const char of `${transcript}|${personaId}`) hash = ((hash << 5) - hash + char.charCodeAt(0)) | 0;
+    return Math.abs(hash);
+  };
+  return candidates.sort((a, b) => {
+    const lieDifference = (lieTally[a] ?? 0) - (lieTally[b] ?? 0);
+    if (lieDifference !== 0) return lieDifference;
+    const wordCount = (personaId: string) => messages
+      .filter((message) => !message.isSystem && message.speakerId === personaId)
+      .reduce((total, message) => total + (message.text?.trim().split(/\s+/).filter(Boolean).length ?? 0), 0);
+    const wordDifference = wordCount(b) - wordCount(a);
+    return wordDifference !== 0 ? wordDifference : tieBreak(b) - tieBreak(a);
+  })[0] ?? null;
+}
+
 interface ViralMoment {
   index: number;
   message: ConversationMessage;
@@ -4094,6 +4124,7 @@ export default function ArenaScreen() {
     });
   }, []);
   const sessionLieTallyRef = useRef<Record<string, number>>({});
+  const sessionLieTokensRef = useRef<string[]>([]);
   const [altFactCount, setAltFactCount] = useState(0);
   const sessionAltFactTallyRef = useRef<Record<string, number>>({});
   const [personaAltTruths, setPersonaAltTruths] = useState<Record<string, number>>({});
@@ -5772,13 +5803,17 @@ export default function ArenaScreen() {
             awardBadge("arena_debut");
             setTimeout(() => { playWinnerAfterSound(); }, 4000);
             setIsLoadingRoast(true);
-            const applyDCChampion = (winnerId: string) => {
+            const applyDCChampion = (winnerId: string, aiJudged = true) => {
               personaPointsRef.current = { [winnerId]: 1 };
               setPersonaPoints({ [winnerId]: 1 });
-              setIsDCChampion(true);
+              setIsDCChampion(aiJudged);
               fetchTrumpRoast();
             };
-            const fallbackWinnerId = selectedPersonasRef.current[0];
+            const fallbackWinnerId = selectArenaRecordWinnerId(
+              selectedPersonasRef.current,
+              messagesRef.current,
+              sessionLieTallyRef.current,
+            );
             try {
               const r = await fetch(new URL("/api/arena/verdict", getApiUrl()).toString(), {
                 method: "POST",
@@ -5791,13 +5826,14 @@ export default function ArenaScreen() {
                     .map((m: any) => ({ speakerName: m.speakerName || m.speakerId, text: m.text })),
                   personas: selectedPersonasRef.current.map((pid) => getPersona(pid)?.name || pid),
                   personaIds: selectedPersonasRef.current,
+                  lieTokens: sessionLieTokensRef.current,
                 }),
               });
               if (r.ok) {
                 const v = await r.json();
                 const winnerId = resolveArenaVerdictWinnerId(v, selectedPersonasRef.current);
                 if (!winnerId) {
-                  if (fallbackWinnerId) applyDCChampion(fallbackWinnerId);
+                  if (fallbackWinnerId) applyDCChampion(fallbackWinnerId, false);
                   else {
                     setIsLoadingRoast(false);
                     addSystemMessage("⚖️ DC verdict could not identify a valid winner. No champion was awarded.");
@@ -5805,8 +5841,7 @@ export default function ArenaScreen() {
                   return;
                 }
                 // ── LIE-COUNT OVERRIDE ────────────────────────────────────
-                // If the AI-chosen winner has ≥3 more confirmed lies than
-                // the cleanest rival, disqualify the bigger liar.
+                // Any confirmed lie advantage disqualifies the AI-selected winner.
                 // sessionLieTallyRef resets each startDebate so only this
                 // session's confirmed lies count toward disqualification.
                 {
@@ -5817,7 +5852,7 @@ export default function ArenaScreen() {
                     ? alts.reduce((best: string, pid: string) => liesFor(pid) < liesFor(best) ? pid : best, alts[0])
                     : null;
                   const wasLieDisqualified = Boolean(
-                    cleanestAlt && liesFor(aiWinnerId) - liesFor(cleanestAlt) >= 3,
+                    cleanestAlt && liesFor(aiWinnerId) > liesFor(cleanestAlt),
                   );
                   if (wasLieDisqualified) markArenaRecordingLieDisqualified(endedSessionKey);
                   const finalWinnerId = wasLieDisqualified ? cleanestAlt! : aiWinnerId;
@@ -5825,14 +5860,14 @@ export default function ArenaScreen() {
                 }
                 // ─────────────────────────────────────────────────────────
               } else {
-                if (fallbackWinnerId) applyDCChampion(fallbackWinnerId);
+                if (fallbackWinnerId) applyDCChampion(fallbackWinnerId, false);
                 else {
                   setIsLoadingRoast(false);
                   addSystemMessage("⚖️ DC verdict is temporarily unavailable. No champion was awarded.");
                 }
               }
             } catch {
-              if (fallbackWinnerId) applyDCChampion(fallbackWinnerId);
+              if (fallbackWinnerId) applyDCChampion(fallbackWinnerId, false);
               else {
                 setIsLoadingRoast(false);
                 addSystemMessage("⚖️ DC verdict is temporarily unavailable. No champion was awarded.");
@@ -6299,6 +6334,9 @@ export default function ArenaScreen() {
         const score = Math.max(0, Math.min(100, Number(data.score) || 70));
         setLatestTruthScore(score);
         if (score < 40 || data.isLie) {
+          if (typeof data.lieToken === "string" && data.lieToken) {
+            sessionLieTokensRef.current = [...new Set([...sessionLieTokensRef.current, data.lieToken])].slice(-20);
+          }
           adjustPersonaIQ(msg.speakerId, -8);
           sessionLieTallyRef.current = { ...sessionLieTallyRef.current, [msg.speakerId]: (sessionLieTallyRef.current[msg.speakerId] || 0) + 1 };
           setLieCount((c) => c + 1);
@@ -6395,6 +6433,9 @@ export default function ArenaScreen() {
         } : l));
         setLatestTruthScore(score);
         if (score < 40) {
+          if (typeof data?.lieToken === "string" && data.lieToken) {
+            sessionLieTokensRef.current = [...new Set([...sessionLieTokensRef.current, data.lieToken])].slice(-20);
+          }
           adjustPersonaIQ(msg.speakerId, -4);
           sessionLieTallyRef.current = { ...sessionLieTallyRef.current, [msg.speakerId]: (sessionLieTallyRef.current[msg.speakerId] || 0) + 1 };
           triggerLieFlash();
@@ -7624,6 +7665,7 @@ export default function ArenaScreen() {
     arenaLastFirebackAtRef.current = 0;
     arenaSquabbleCooldownUntilRef.current = 0;
     sessionLieTallyRef.current = {};
+    sessionLieTokensRef.current = [];
     sessionAltFactTallyRef.current = {};
     setAltFactCount(0);
     setPersonaAltTruths({});
@@ -7897,6 +7939,7 @@ export default function ArenaScreen() {
             messages: messages.map((m) => ({ speakerName: m.speakerName || m.speakerId, text: m.text, isSystem: m.isSystem })),
             personas: selectedPersonas.map((pid) => getPersona(pid)?.name || pid),
             personaIds: selectedPersonas,
+            lieTokens: sessionLieTokensRef.current,
           }),
         }),
         timeout,
@@ -7904,8 +7947,8 @@ export default function ArenaScreen() {
       if (r.ok) {
         const data = await r.json();
         // ── LIE-COUNT OVERRIDE ───────────────────────────────────────────
-        // If the AI-chosen winner has ≥3 more confirmed lies than the
-        // cleanest rival, disqualify the bigger liar and show a note.
+        // Any confirmed lie advantage disqualifies the AI-selected winner.
+        // Factual accuracy outranks rhetorical style in a DC verdict.
         {
           const aiWinnerId = resolveArenaVerdictWinnerId(data, selectedPersonas);
           if (aiWinnerId) {
@@ -7914,11 +7957,12 @@ export default function ArenaScreen() {
             const cleanestAlt = alts.length > 0
               ? alts.reduce((best: string, pid: string) => liesFor(pid) < liesFor(best) ? pid : best, alts[0])
               : null;
-            if (cleanestAlt && liesFor(aiWinnerId) - liesFor(cleanestAlt) >= 3) {
+            if (cleanestAlt && liesFor(aiWinnerId) > liesFor(cleanestAlt)) {
               markArenaRecordingLieDisqualified(verdictSessionKey);
               const disqName = getPersona(aiWinnerId)?.name || data.winner;
               const altName = getPersona(cleanestAlt)?.name || cleanestAlt;
               data.winner = altName;
+              data.winnerId = cleanestAlt;
               data.verdict = (data.verdict ? data.verdict + "\n\n" : "") +
                 `⚖️ Note: ${disqName} was disqualified for accumulating ${liesFor(aiWinnerId)} confirmed lies — ${liesFor(aiWinnerId) - liesFor(cleanestAlt)} more than ${altName}. The win is awarded to ${altName}.`;
             }
@@ -10750,13 +10794,17 @@ export default function ArenaScreen() {
                 if (totalPts === 0) {
                   // Nobody voted — AI picks the winner, then auto-fires Trump roast + winner clapback
                   setIsLoadingRoast(true);
-                  const applyDCChampion = (winnerId: string) => {
+                  const applyDCChampion = (winnerId: string, aiJudged = true) => {
                     personaPointsRef.current = { [winnerId]: 1 };
                     setPersonaPoints({ [winnerId]: 1 });
-                    setIsDCChampion(true);
+                    setIsDCChampion(aiJudged);
                     fetchTrumpRoast();
                   };
-                  const fallbackWinnerId = selectedPersonasRef.current[0];
+                  const fallbackWinnerId = selectArenaRecordWinnerId(
+                    selectedPersonasRef.current,
+                    messagesRef.current,
+                    sessionLieTallyRef.current,
+                  );
                   try {
                     const r = await fetch(new URL("/api/arena/verdict", getApiUrl()).toString(), {
                       method: "POST",
@@ -10769,13 +10817,14 @@ export default function ArenaScreen() {
                           .map((m) => ({ speakerName: m.speakerName || m.speakerId, text: m.text })),
                         personas: selectedPersonasRef.current.map((pid) => getPersona(pid)?.name || pid),
                         personaIds: selectedPersonasRef.current,
+                        lieTokens: sessionLieTokensRef.current,
                       }),
                     });
                     if (r.ok) {
                       const v = await r.json();
                       const winnerId = resolveArenaVerdictWinnerId(v, selectedPersonasRef.current);
                       if (!winnerId) {
-                        if (fallbackWinnerId) applyDCChampion(fallbackWinnerId);
+                        if (fallbackWinnerId) applyDCChampion(fallbackWinnerId, false);
                         else {
                           setIsLoadingRoast(false);
                           addSystemMessage("⚖️ DC verdict could not identify a valid winner. No champion was awarded.");
@@ -10783,8 +10832,7 @@ export default function ArenaScreen() {
                         return;
                       }
                       // ── LIE-COUNT OVERRIDE ──────────────────────────────
-                      // If the AI-chosen winner has ≥3 more confirmed lies
-                      // than the cleanest rival, disqualify the bigger liar.
+                      // Any confirmed lie advantage disqualifies the AI-selected winner.
                       // sessionLieTallyRef resets each startDebate so only
                       // this session's confirmed lies count.
                       {
@@ -10795,7 +10843,7 @@ export default function ArenaScreen() {
                           ? alts.reduce((best: string, pid: string) => liesFor(pid) < liesFor(best) ? pid : best, alts[0])
                           : null;
                         const wasLieDisqualified = Boolean(
-                          cleanestAlt && liesFor(aiWinnerId) - liesFor(cleanestAlt) >= 3,
+                          cleanestAlt && liesFor(aiWinnerId) > liesFor(cleanestAlt),
                         );
                         if (wasLieDisqualified) markArenaRecordingLieDisqualified(endedSessionKey);
                         const finalWinnerId = wasLieDisqualified ? cleanestAlt! : aiWinnerId;
@@ -10803,14 +10851,14 @@ export default function ArenaScreen() {
                       }
                       // ────────────────────────────────────────────────────
                     } else {
-                      if (fallbackWinnerId) applyDCChampion(fallbackWinnerId);
+                      if (fallbackWinnerId) applyDCChampion(fallbackWinnerId, false);
                       else {
                         setIsLoadingRoast(false);
                         addSystemMessage("⚖️ DC verdict is temporarily unavailable. No champion was awarded.");
                       }
                     }
                   } catch {
-                    if (fallbackWinnerId) applyDCChampion(fallbackWinnerId);
+                    if (fallbackWinnerId) applyDCChampion(fallbackWinnerId, false);
                     else {
                       setIsLoadingRoast(false);
                       addSystemMessage("⚖️ DC verdict is temporarily unavailable. No champion was awarded.");
@@ -10925,13 +10973,17 @@ export default function ArenaScreen() {
                   if (totalPts === 0) {
                     // No votes cast — ask AI to pick the winner first, then roast
                     setIsLoadingRoast(true);
-                    const applyDCChampion = (winnerId: string) => {
+                    const applyDCChampion = (winnerId: string, aiJudged = true) => {
                       personaPointsRef.current = { [winnerId]: 1 };
                       setPersonaPoints({ [winnerId]: 1 });
-                      setIsDCChampion(true);
+                      setIsDCChampion(aiJudged);
                       fetchTrumpRoast();
                     };
-                    const fallbackWinnerId = selectedPersonasRef.current[0];
+                    const fallbackWinnerId = selectArenaRecordWinnerId(
+                      selectedPersonasRef.current,
+                      messagesRef.current,
+                      sessionLieTallyRef.current,
+                    );
                     try {
                       const r = await fetch(new URL("/api/arena/verdict", getApiUrl()).toString(), {
                         method: "POST",
@@ -10944,13 +10996,14 @@ export default function ArenaScreen() {
                             .map((m) => ({ speakerName: m.speakerName || m.speakerId, text: m.text })),
                         personas: selectedPersonasRef.current.map((pid) => getPersona(pid)?.name || pid),
                         personaIds: selectedPersonasRef.current,
+                        lieTokens: sessionLieTokensRef.current,
                         }),
                       });
                       if (r.ok) {
                         const v = await r.json();
                       const winnerId = resolveArenaVerdictWinnerId(v, selectedPersonasRef.current);
                       if (!winnerId) {
-                        if (fallbackWinnerId) applyDCChampion(fallbackWinnerId);
+                        if (fallbackWinnerId) applyDCChampion(fallbackWinnerId, false);
                         else {
                           setIsLoadingRoast(false);
                           addSystemMessage("⚖️ DC verdict could not identify a valid winner. No champion was awarded.");
@@ -10958,8 +11011,7 @@ export default function ArenaScreen() {
                         return;
                       }
                         // ── LIE-COUNT OVERRIDE ────────────────────────────
-                        // If the AI-chosen winner has ≥3 more confirmed lies
-                        // than the cleanest rival, disqualify the bigger liar.
+                        // Any confirmed lie advantage disqualifies the AI-selected winner.
                         // sessionLieTallyRef resets each startDebate so only
                         // this session's confirmed lies count.
                         {
@@ -10970,7 +11022,7 @@ export default function ArenaScreen() {
                             ? alts.reduce((best: string, pid: string) => liesFor(pid) < liesFor(best) ? pid : best, alts[0])
                             : null;
                           const wasLieDisqualified = Boolean(
-                            cleanestAlt && liesFor(aiWinnerId) - liesFor(cleanestAlt) >= 3,
+                            cleanestAlt && liesFor(aiWinnerId) > liesFor(cleanestAlt),
                           );
                           if (wasLieDisqualified) markArenaRecordingLieDisqualified(endedSessionKey);
                           const finalWinnerId = wasLieDisqualified ? cleanestAlt! : aiWinnerId;
@@ -10978,14 +11030,14 @@ export default function ArenaScreen() {
                         }
                         // ──────────────────────────────────────────────────
                       } else {
-                        if (fallbackWinnerId) applyDCChampion(fallbackWinnerId);
+                        if (fallbackWinnerId) applyDCChampion(fallbackWinnerId, false);
                         else {
                           setIsLoadingRoast(false);
                           addSystemMessage("⚖️ DC verdict is temporarily unavailable. No champion was awarded.");
                         }
                       }
                     } catch {
-                      if (fallbackWinnerId) applyDCChampion(fallbackWinnerId);
+                      if (fallbackWinnerId) applyDCChampion(fallbackWinnerId, false);
                       else {
                         setIsLoadingRoast(false);
                         addSystemMessage("⚖️ DC verdict is temporarily unavailable. No champion was awarded.");
