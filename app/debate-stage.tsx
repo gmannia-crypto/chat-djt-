@@ -359,6 +359,22 @@ function moodFor(anger: number, frantic: number, happy: number, speaking: boolea
   return "neutral";
 }
 
+/** Compute a broadcast-flow letter grade from an array of between-clip gap times (ms). */
+function computeFlowGrade(gaps: number[]): { letter: string; color: string; label: string; avgMs: number } | null {
+  // Keep only gaps that represent genuine dead air (≥80 ms, <20 s).
+  // Gaps below 80 ms are overlap artefacts; gaps above 20 s mean the user
+  // tabbed away or the AI timed out — don't penalise those.
+  const meaningful = gaps.filter((g) => g >= 80 && g < 20000);
+  if (meaningful.length < 3) return null; // too few samples to grade
+  const avg = Math.round(meaningful.reduce((a, b) => a + b, 0) / meaningful.length);
+  if (avg < 400)  return { letter: "A+", color: "#4ADE80", label: "Zero dead air — broadcast ready",    avgMs: avg };
+  if (avg < 900)  return { letter: "A",  color: "#4ADE80", label: "Smooth — barely a beat dropped",     avgMs: avg };
+  if (avg < 1800) return { letter: "B",  color: "#FFD700", label: "Solid — minor pauses",               avgMs: avg };
+  if (avg < 3500) return { letter: "C",  color: "#FF9500", label: "Choppy — noticeable dead air",       avgMs: avg };
+  if (avg < 6000) return { letter: "D",  color: "#FF6B35", label: "Rough — frequent dead air",          avgMs: avg };
+  return             { letter: "F",  color: "#FF3B30", label: "Off the air — constant long pauses", avgMs: avg };
+}
+
 /**
  * Returns true if `text` contains an offense trigger for `personaId`
  * and `personaId` is NOT the speaker of that text (no self-interruption).
@@ -1075,6 +1091,14 @@ export default function DebateStage() {
   const firstAudioPlayedRef = useRef(false);
   // debatePoints removed — DC AI verdict is the sole judge; user tap-scoring is gone.
   const debatePointsRef = useRef<{ a: number; b: number }>({ a: 0, b: 0 });
+
+  // ── Broadcast flow grade ──────────────────────────────────────────────────
+  // flowGapRef collects the millisecond gap between consecutive audio clips.
+  // lastAudioEndRef timestamps when a clip finishes so the next clip can
+  // compute how long silence lasted before it started playing.
+  const flowGapRef     = useRef<number[]>([]);
+  const lastAudioEndRef = useRef<number | null>(null);
+  const [flowGrade, setFlowGrade] = useState<{ letter: string; color: string; label: string; avgMs: number } | null>(null);
   // showTapHint + tapHintShownRef removed — no user tapping mechanic.
   const [showDebateWinner, setShowDebateWinner] = useState(false);
   const [debateWinner, setDebateWinner] = useState<{ id: string; name: string; portrait: any; verdict?: string; aiJudged?: boolean } | null>(null);
@@ -1245,6 +1269,9 @@ export default function DebateStage() {
     if (phase === "setup") {
       winnerTriggeredRef.current = false;
       debatePointsRef.current = { a: 0, b: 0 };
+      flowGapRef.current = [];
+      lastAudioEndRef.current = null;
+      setFlowGrade(null);
       setShowDebateWinner(false);
       setDebateWinner(null);
       setDebateTrumpRoast(null);
@@ -1640,6 +1667,7 @@ export default function DebateStage() {
       }
 
       setIsLoadingDebateRoast(true);
+      setFlowGrade(computeFlowGrade(flowGapRef.current));
       setShowDebateWinner(true);
       playDebateCheer();
 
@@ -2249,6 +2277,9 @@ export default function DebateStage() {
           const finish = () => {
             if (resolved) return;
             resolved = true;
+            // Stamp the end time so the NEXT clip can measure how long silence
+            // lasted before it began playing (broadcast flow grade).
+            lastAudioEndRef.current = Date.now();
             // Always fire onComplete regardless of exit path (didJustFinish, error,
             // OR safety-timeout). Without this, enqueueTTSAndWait hangs forever
             // when audio fails to load — blocking the entire runLoop.
@@ -5987,6 +6018,23 @@ export default function DebateStage() {
                 </Animated.View>
               );
             })()}
+
+            {/* Broadcast flow grade */}
+            {flowGrade && (
+              <Animated.View
+                entering={FadeIn.delay(600).duration(500)}
+                style={{ marginTop: 14, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "rgba(0,0,0,0.35)", borderRadius: 14, borderWidth: 1, borderColor: `${flowGrade.color}55`, maxWidth: 320, width: "100%" }}
+              >
+                <Text style={{ color: flowGrade.color, fontSize: 10, fontWeight: "900", letterSpacing: 1.5, textAlign: "center", marginBottom: 8 }}>📡 BROADCAST FLOW GRADE</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 14 }}>
+                  <Text style={{ color: flowGrade.color, fontSize: 44, fontWeight: "900", lineHeight: 48 }}>{flowGrade.letter}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: "rgba(255,255,255,0.9)", fontSize: 12, fontWeight: "700", lineHeight: 16 }}>{flowGrade.label}</Text>
+                    <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, marginTop: 3 }}>avg gap · {flowGrade.avgMs < 1000 ? `${flowGrade.avgMs}ms` : `${(flowGrade.avgMs / 1000).toFixed(1)}s`}</Text>
+                  </View>
+                </View>
+              </Animated.View>
+            )}
 
             {/* Parting shot */}
             {(() => {
