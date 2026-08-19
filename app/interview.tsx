@@ -413,6 +413,7 @@ export default function InterviewScreen() {
 
   const [phase, setPhase] = useState<"setup" | "live" | "ended">("setup");
   const [firstAudioPlayed, setFirstAudioPlayed] = useState(false);
+  const [aiRetrying, setAiRetrying] = useState(false);
   const firstAudioPlayedRef = useRef(false);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [isStarting, setIsStarting] = useState(false);
@@ -438,6 +439,7 @@ export default function InterviewScreen() {
   const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const runningRef = useRef(false);
   const isPausedRef = useRef(false);
+  const providerUnavailableRef = useRef(false);
   const [isPaused, setIsPaused] = useState(false);
   const exchangesOnTopicRef = useRef(0);
   const totalExchangesRef = useRef(0);
@@ -1337,11 +1339,62 @@ export default function InterviewScreen() {
     setMessages((prev) => [...prev, m]);
   }, []);
 
+  const stopForAiUnavailable = useCallback(() => {
+    if (providerUnavailableRef.current) return;
+    providerUnavailableRef.current = true;
+    setAiRetrying(false);
+    runningRef.current = false;
+    setIsThinking(null);
+    stopAllAudio();
+    addMessage({
+      id: `sys-unavail-${Date.now()}`,
+      speakerId: "system",
+      speakerName: "System",
+      text: "AI service temporarily unavailable — the interview has been paused. Please try again in a few minutes.",
+      ts: Date.now(),
+      isSystem: true,
+    });
+    setPhase("ended");
+  }, [addMessage, stopAllAudio]);
+
+  // The API returns 503/ai_unavailable when a bounded AI turn times out. Give
+  // the provider one quick retry before ending the interview visibly.
+  const fetchTurnWithRetry = useCallback(async (makeRequest: () => Promise<any>) => {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const res = await makeRequest();
+        if (res.status !== 503) {
+          if (attempt > 0) setAiRetrying(false);
+          return res;
+        }
+
+        const errorBody = await res.json().catch(() => ({}));
+        const isAiUnavailable = errorBody?.error === "ai_unavailable" || res.status === 503;
+        if (!isAiUnavailable) {
+          setAiRetrying(false);
+          return res;
+        }
+        if (attempt === 0) {
+          setAiRetrying(true);
+          await new Promise((resolve) => setTimeout(resolve, 900));
+          continue;
+        }
+
+        stopForAiUnavailable();
+        return null;
+      } catch {
+        setAiRetrying(false);
+        return null;
+      }
+    }
+    return null;
+  }, [stopForAiUnavailable]);
+
   const fetchQuestion = useCallback(async (opts: { isFollowUp?: boolean; isTransition?: boolean; previousTopicTitle?: string; isInterruption?: boolean; currentTopicArg?: Topic | null }) => {
     if (!deviceId || !interviewerId || !intervieweeId) return null;
     const topicArg = opts.currentTopicArg !== undefined ? opts.currentTopicArg : currentTopic;
     try {
-      const res = await fetch(new URL("/api/arena/interview-question", getApiUrl()).toString(), {
+      const res = await fetchTurnWithRetry(() => fetch(new URL("/api/arena/interview-question", getApiUrl()).toString(), {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-device-id": deviceId },
         body: JSON.stringify({
@@ -1354,7 +1407,8 @@ export default function InterviewScreen() {
           isInterruption: !!opts.isInterruption,
           interviewStyle,
         }),
-      });
+      }));
+      if (!res) return null;
       if (!res.ok) {
         if (res.status === 403) {
           // Only end the interview if client-side time has genuinely expired.
@@ -1369,12 +1423,12 @@ export default function InterviewScreen() {
       const data = await res.json();
       return data;
     } catch { return null; }
-  }, [deviceId, interviewerId, intervieweeId, currentTopic]);
+  }, [deviceId, interviewerId, intervieweeId, currentTopic, fetchTurnWithRetry, interviewStyle]);
 
   const fetchAnswer = useCallback(async (lastQuestion: string, opts: { wasInterrupted?: boolean; interruptionText?: string; isInterruption?: boolean } = {}) => {
     if (!deviceId || !interviewerId || !intervieweeId) return null;
     try {
-      const res = await fetch(new URL("/api/arena/interview-answer", getApiUrl()).toString(), {
+      const res = await fetchTurnWithRetry(() => fetch(new URL("/api/arena/interview-answer", getApiUrl()).toString(), {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-device-id": deviceId },
         body: JSON.stringify({
@@ -1387,7 +1441,8 @@ export default function InterviewScreen() {
           isInterruption: !!opts.isInterruption,
           interviewStyle,
         }),
-      });
+      }));
+      if (!res) return null;
       if (!res.ok) {
         if (res.status === 403) {
           // Only end if client-side time is also up — don't let a server blip kill the session
@@ -1400,7 +1455,7 @@ export default function InterviewScreen() {
       }
       return await res.json();
     } catch { return null; }
-  }, [deviceId, interviewerId, intervieweeId, currentTopic, interviewStyle]);
+  }, [deviceId, interviewerId, intervieweeId, currentTopic, interviewStyle, fetchTurnWithRetry]);
 
   // Main turn loop
   const runLoop = useCallback(async () => {
@@ -1659,6 +1714,8 @@ export default function InterviewScreen() {
     setFirstAudioPlayed(false);
     setPhase("live");
     runningRef.current = true;
+    providerUnavailableRef.current = false;
+    setAiRetrying(false);
     isPausedRef.current = false;
     setIsPaused(false);
     setIsStarting(false);
@@ -2287,6 +2344,32 @@ export default function InterviewScreen() {
             </Animated.View>
           </View>
         </View>
+      )}
+
+      {phase === "live" && aiRetrying && (
+        <Animated.View
+          entering={FadeInDown.duration(180)}
+          exiting={FadeOut.duration(180)}
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            top: insets.top + webTop + 58,
+            alignSelf: "center",
+            zIndex: 300,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 8,
+            paddingHorizontal: 14,
+            paddingVertical: 9,
+            borderRadius: 18,
+            backgroundColor: "rgba(24,24,27,0.96)",
+            borderWidth: 1,
+            borderColor: "rgba(251,191,36,0.7)",
+          }}
+        >
+          <ActivityIndicator size="small" color="#FBBF24" />
+          <Text style={{ color: "#FDE68A", fontSize: 12, fontWeight: "800" }}>Connection hiccup — retrying…</Text>
+        </Animated.View>
       )}
 
       <View style={s.header}>

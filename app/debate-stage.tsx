@@ -1094,6 +1094,7 @@ export default function DebateStage() {
 
   const [phase, setPhase] = useState<"setup" | "live" | "ended">("setup");
   const [firstAudioPlayed, setFirstAudioPlayed] = useState(false);
+  const [aiRetrying, setAiRetrying] = useState(false);
   const firstAudioPlayedRef = useRef(false);
   // debatePoints removed — DC AI verdict is the sole judge; user tap-scoring is gone.
   const debatePointsRef = useRef<{ a: number; b: number }>({ a: 0, b: 0 });
@@ -3675,11 +3676,65 @@ export default function DebateStage() {
     setMessages((prev) => [...prev, m]);
   }, []);
 
+  const stopForAiUnavailable = useCallback(() => {
+    if (providerUnavailableRef.current) return;
+    providerUnavailableRef.current = true;
+    setAiRetrying(false);
+    runningRef.current = false;
+    setIsThinking(null);
+    stopAllAudio();
+    addMessage({
+      id: `sys-unavail-${Date.now()}`,
+      speakerId: "system",
+      speakerName: "System",
+      text: "AI service temporarily unavailable — the debate has been paused. Please try again in a few minutes.",
+      ts: Date.now(),
+      isSystem: true,
+    });
+    if (!accessExpiredRef.current) setPhase("ended");
+  }, [addMessage, stopAllAudio]);
+
+  // AI timeouts are surfaced by the server as 503/ai_unavailable. Retry each
+  // turn once so a short provider hiccup does not interrupt an active debate.
+  // A second failure ends the debate instead of quietly continuing with empty
+  // turns, including when the failed request was a prefetch.
+  const fetchTurnWithRetry = useCallback(async (makeRequest: () => Promise<any>) => {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const res = await makeRequest();
+        if (res.status !== 503) {
+          if (attempt > 0) setAiRetrying(false);
+          return res;
+        }
+
+        const errorBody = await res.json().catch(() => ({}));
+        const isAiUnavailable = errorBody?.error === "ai_unavailable" || res.status === 503;
+        if (!isAiUnavailable) {
+          setAiRetrying(false);
+          return res;
+        }
+        if (attempt === 0) {
+          setAiRetrying(true);
+          await new Promise((resolve) => setTimeout(resolve, 900));
+          continue;
+        }
+
+        setAiRetrying(false);
+        stopForAiUnavailable();
+        return null;
+      } catch {
+        setAiRetrying(false);
+        return null;
+      }
+    }
+    return null;
+  }, [stopForAiUnavailable]);
+
   const fetchQuestion = useCallback(async (opts: { isFollowUp?: boolean; isTransition?: boolean; previousTopicTitle?: string; isInterruption?: boolean; currentTopicArg?: Topic | null }) => {
     if (!deviceId || !interviewerId || !intervieweeId) return null;
     const topicArg = opts.currentTopicArg !== undefined ? opts.currentTopicArg : currentTopic;
     try {
-      const res = await fetch(new URL("/api/arena/interview-question", getApiUrl()).toString(), {
+      const res = await fetchTurnWithRetry(() => fetch(new URL("/api/arena/interview-question", getApiUrl()).toString(), {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-device-id": deviceId },
         body: JSON.stringify({
@@ -3697,7 +3752,8 @@ export default function DebateStage() {
           isDebate: true,
           boxingMode,
         }),
-      });
+      }));
+      if (!res) return null;
       if (res.status === 403) {
         handleArenaAccessExpired();
         return null;
@@ -3706,12 +3762,12 @@ export default function DebateStage() {
       const data = await res.json();
       return data;
     } catch { return null; }
-  }, [deviceId, interviewerId, intervieweeId, currentTopic, handleArenaAccessExpired]);
+  }, [deviceId, interviewerId, intervieweeId, currentTopic, fetchTurnWithRetry, handleArenaAccessExpired]);
 
   const fetchAnswer = useCallback(async (lastQuestion: string, opts: { wasInterrupted?: boolean; interruptionText?: string; isInterruption?: boolean } = {}) => {
     if (!deviceId || !interviewerId || !intervieweeId) return null;
     try {
-      const res = await fetch(new URL("/api/arena/interview-answer", getApiUrl()).toString(), {
+      const res = await fetchTurnWithRetry(() => fetch(new URL("/api/arena/interview-answer", getApiUrl()).toString(), {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-device-id": deviceId },
         body: JSON.stringify({
@@ -3733,7 +3789,8 @@ export default function DebateStage() {
             h2hAWins: debateRecordsRef.current.h2hAWins, h2hBWins: debateRecordsRef.current.h2hBWins,
           } : null,
         }),
-      });
+      }));
+      if (!res) return null;
       if (res.status === 403) {
         handleArenaAccessExpired();
         return null;
@@ -3746,14 +3803,14 @@ export default function DebateStage() {
       if (!res.ok) return null;
       return await res.json();
     } catch { return null; }
-  }, [deviceId, interviewerId, intervieweeId, currentTopic, effectiveInterviewStyle, handleArenaAccessExpired]);
+  }, [deviceId, interviewerId, intervieweeId, currentTopic, effectiveInterviewStyle, fetchTurnWithRetry, handleArenaAccessExpired]);
 
   // Generic answer fetch — used when the MODERATOR (not the other debater) is the questioner,
   // e.g. topic-opening questions that alternate between Debater A and Debater B.
   const fetchAnswerFrom = useCallback(async (questionerId: string, answererId: string, lastQuestion: string) => {
     if (!deviceId) return null;
     try {
-      const res = await fetch(new URL("/api/arena/interview-answer", getApiUrl()).toString(), {
+      const res = await fetchTurnWithRetry(() => fetch(new URL("/api/arena/interview-answer", getApiUrl()).toString(), {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-device-id": deviceId },
         body: JSON.stringify({
@@ -3771,7 +3828,8 @@ export default function DebateStage() {
             h2hAWins: debateRecordsRef.current.h2hAWins, h2hBWins: debateRecordsRef.current.h2hBWins,
           } : null,
         }),
-      });
+      }));
+      if (!res) return null;
       if (res.status === 403) {
         handleArenaAccessExpired();
         return null;
@@ -3784,7 +3842,7 @@ export default function DebateStage() {
       if (!res.ok) return null;
       return await res.json();
     } catch { return null; }
-  }, [deviceId, effectiveInterviewStyle, handleArenaAccessExpired]);
+  }, [deviceId, effectiveInterviewStyle, fetchTurnWithRetry, handleArenaAccessExpired]);
 
   // Alternates which debater the MODERATOR addresses at each new topic — 'A' or 'B' — so
   // both sides get equal question time from the moderator over the course of the debate.
@@ -4044,7 +4102,7 @@ export default function DebateStage() {
           runningRef.current = false;
           stopAllAudio();
           addMessage({ id: `sys-unavail-${Date.now()}`, speakerId: "system", speakerName: "System",
-            text: "The debate has been paused — our AI service is temporarily unavailable. Please try again in a few minutes.", ts: Date.now(), isSystem: true });
+            text: "AI service temporarily unavailable — the debate has been paused. Please try again in a few minutes.", ts: Date.now(), isSystem: true });
           if (!accessExpiredRef.current) setPhase("ended");
           break;
         }
@@ -4434,6 +4492,7 @@ export default function DebateStage() {
     runningRef.current = true;
     accessExpiredRef.current = false;
     providerUnavailableRef.current = false;
+    setAiRetrying(false);
     debateTurnRef.current = 0;
     isPausedRef.current = false;
     setIsPaused(false);
@@ -4608,6 +4667,7 @@ export default function DebateStage() {
         runningRef.current = true;
         accessExpiredRef.current = false;
         providerUnavailableRef.current = false;
+        setAiRetrying(false);
         debateTurnRef.current = 0;
         isPausedRef.current = false;
         setIsPaused(false);
@@ -5704,6 +5764,32 @@ export default function DebateStage() {
             </Animated.View>
           </View>
         </View>
+      )}
+
+      {phase === "live" && aiRetrying && (
+        <Animated.View
+          entering={FadeInDown.duration(180)}
+          exiting={FadeOut.duration(180)}
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            top: insets.top + webTop + 58,
+            alignSelf: "center",
+            zIndex: 300,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 8,
+            paddingHorizontal: 14,
+            paddingVertical: 9,
+            borderRadius: 18,
+            backgroundColor: "rgba(24,24,27,0.96)",
+            borderWidth: 1,
+            borderColor: "rgba(251,191,36,0.7)",
+          }}
+        >
+          <ActivityIndicator size="small" color="#FBBF24" />
+          <Text style={{ color: "#FDE68A", fontSize: 12, fontWeight: "800" }}>Connection hiccup — retrying…</Text>
+        </Animated.View>
       )}
 
       <View style={s.header}>
