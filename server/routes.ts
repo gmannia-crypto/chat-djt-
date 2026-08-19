@@ -9371,15 +9371,26 @@ ${styleInstruction}${getLieBehaviorPrompt(interviewerId, Number((req.body.sessio
       }
       userPrompt += `\n\nWrite ONLY your spoken question — no quotes, no stage directions, no asterisks.`;
 
-      const completion = await getClient().chat.completions.create({
-        model: getFastModel(),
-        messages: [
-          { role: "system", content: interviewerStyle },
-          { role: "user", content: userPrompt },
-        ],
-        max_completion_tokens: isInterruption ? 40 : 200,
-        temperature: 0.9,
-      });
+      // Per-turn question generation always uses the premium model — the budget
+      // tier (DeepSeek) was measured at 13-25+ s per call under load, which
+      // blows through the client's abort window and causes the "moderator asks,
+      // nobody answers" stall. Premium is reliable at <5 s for these short
+      // outputs. Bounded by a 12 s timeout as a hard safety net.
+      const questionTimeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(Object.assign(new Error("AI_TIMEOUT"), { code: "AI_TIMEOUT" })), 12000)
+      );
+      const completion = await Promise.race([
+        openai.chat.completions.create({
+          model: MODEL_CONFIG.premium.fast,
+          messages: [
+            { role: "system", content: interviewerStyle },
+            { role: "user", content: userPrompt },
+          ],
+          max_completion_tokens: isInterruption ? 40 : 200,
+          temperature: 0.9,
+        }),
+        questionTimeoutPromise,
+      ]);
       let text = completion.choices[0]?.message?.content || "...";
       text = text.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim();
 
@@ -9393,6 +9404,10 @@ ${styleInstruction}${getLieBehaviorPrompt(interviewerId, Number((req.body.sessio
       });
     } catch (error: any) {
       console.error("Interview question error:", error);
+      if (error?.code === "AI_TIMEOUT") {
+        console.warn("Interview question timed out after 12 s");
+        return res.status(503).json({ error: "ai_unavailable" });
+      }
       if (error?.status === 402) {
         return res.status(503).json({ error: "ai_unavailable" });
       }
@@ -9482,15 +9497,26 @@ Stay 100% in character — your tone, vocabulary, ideology, and combativeness ar
       }
       userPrompt += `\n\nWrite ONLY your spoken response — no quotes, no stage directions, no asterisks.`;
 
-      const completion = await getClient().chat.completions.create({
-        model: getFastModel(),
-        messages: [
-          { role: "system", content: intervieweeStyle },
-          { role: "user", content: userPrompt },
-        ],
-        max_completion_tokens: insultFireback ? 60 : (isInterruption ? 40 : (isDebate ? 350 : 280)),
-        temperature: 0.95,
-      });
+      // Per-turn answer generation always uses the premium model — the budget
+      // tier (DeepSeek) was measured at 13-25+ s per call under load, which
+      // blows through the client's abort window and causes the "moderator asks,
+      // nobody answers" stall. Premium is reliable at <6 s for these outputs.
+      // Bounded by a 15 s timeout as a hard safety net.
+      const answerTimeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(Object.assign(new Error("AI_TIMEOUT"), { code: "AI_TIMEOUT" })), 15000)
+      );
+      const completion = await Promise.race([
+        openai.chat.completions.create({
+          model: MODEL_CONFIG.premium.fast,
+          messages: [
+            { role: "system", content: intervieweeStyle },
+            { role: "user", content: userPrompt },
+          ],
+          max_completion_tokens: insultFireback ? 60 : (isInterruption ? 40 : (isDebate ? 350 : 280)),
+          temperature: 0.95,
+        }),
+        answerTimeoutPromise,
+      ]);
       let text = completion.choices[0]?.message?.content || "...";
       text = text.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim();
       if (intervieweeId === "trump" || intervieweeId === "ruckus" || intervieweeId === "graham" || intervieweeId === "megynkelly" || intervieweeId === "pambondi") {
@@ -9507,6 +9533,10 @@ Stay 100% in character — your tone, vocabulary, ideology, and combativeness ar
       });
     } catch (error: any) {
       console.error("Interview answer error:", error);
+      if (error?.code === "AI_TIMEOUT") {
+        console.warn("Interview answer timed out after 15 s");
+        return res.status(503).json({ error: "ai_unavailable" });
+      }
       if (error?.status === 402) {
         return res.status(503).json({ error: "ai_unavailable" });
       }
