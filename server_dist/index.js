@@ -1637,15 +1637,18 @@ var deepseek = new OpenAI({
   apiKey: process.env.DEEPSEEK_API_KEY || "",
   baseURL: "https://api.deepseek.com"
 });
+function getEffectiveTier() {
+  const tier = resolveModelTier();
+  return tier === "budget" && !process.env.DEEPSEEK_API_KEY ? "premium" : tier;
+}
 function getChatModel() {
-  return MODEL_CONFIG[resolveModelTier()].chat;
+  return MODEL_CONFIG[getEffectiveTier()].chat;
 }
 function getFastModel() {
-  return MODEL_CONFIG[resolveModelTier()].fast;
+  return MODEL_CONFIG[getEffectiveTier()].fast;
 }
 function getClient() {
-  const tier = resolveModelTier();
-  return tier === "budget" && process.env.DEEPSEEK_API_KEY ? deepseek : openai;
+  return getEffectiveTier() === "budget" ? deepseek : openai;
 }
 async function requireToken(req, res) {
   const deviceId = req.headers["x-device-id"];
@@ -10171,8 +10174,8 @@ Use "era":"current" for today's news/viral moments, "era":"past" for career hist
         (_, reject) => setTimeout(() => reject(Object.assign(new Error("AI_TIMEOUT"), { code: "AI_TIMEOUT" })), AI_TIMEOUT_MS)
       );
       const completion = await Promise.race([
-        getClient().chat.completions.create({
-          model: getFastModel(),
+        openai.chat.completions.create({
+          model: MODEL_CONFIG.premium.fast,
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: `Generate the ${topicCount} interview topics now as JSON.` }

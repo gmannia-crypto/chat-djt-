@@ -3573,8 +3573,9 @@ export default function DebateStage() {
     setSelectedTopicId(null);
     setCompletedTopics(new Set());
     // Topic generation is helpful but must never block the debate indefinitely.
-    // The AI endpoint can occasionally take 40–50 seconds; use the built-in
-    // topic set after a short bounded wait so the start button remains usable.
+    // Topic generation always uses the fast premium model server-side (see
+    // /api/arena/interview-topics), so this only needs to cover normal
+    // request latency, not a slow reasoning model.
     const timeoutId = setTimeout(() => abortController.abort(), 12000);
     try {
       const res = await fetch(new URL("/api/arena/interview-topics", getApiUrl()).toString(), {
@@ -3643,13 +3644,13 @@ export default function DebateStage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [interviewerId, intervieweeId, topicMix, duration, effectiveInterviewStyle, category]);
 
-  // Show a soft "still working…" warning after 7 s of topicsLoading
+  // Show a soft "still working…" warning after 10 s of topicsLoading
   useEffect(() => {
     if (!topicsLoading) {
       setTopicsSlowWarning(false);
       return;
     }
-    const t = setTimeout(() => setTopicsSlowWarning(true), 7000);
+    const t = setTimeout(() => setTopicsSlowWarning(true), 10000);
     return () => clearTimeout(t);
   }, [topicsLoading]);
 

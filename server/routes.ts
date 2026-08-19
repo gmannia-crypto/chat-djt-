@@ -115,15 +115,26 @@ const deepseek = new OpenAI({
   baseURL: "https://api.deepseek.com",
 });
 
+// The "budget" tier's model names (deepseek-v4-*) only exist on the DeepSeek
+// API. If DEEPSEEK_API_KEY isn't configured, getClient() below correctly
+// falls back to the OpenAI-compatible client — but that client has no model
+// named "deepseek-v4-flash"/"deepseek-v4-pro". Every model-name lookup must
+// fall back to "premium" in lockstep with the client fallback, or budget-tier
+// requests silently hang against a nonexistent model until the caller's AI
+// timeout fires (this took down interview/debate topic + question generation
+// entirely when no DeepSeek key was present).
+function getEffectiveTier(): ModelTier {
+  const tier = resolveModelTier();
+  return tier === "budget" && !process.env.DEEPSEEK_API_KEY ? "premium" : tier;
+}
 function getChatModel(): string {
-  return MODEL_CONFIG[resolveModelTier()].chat;
+  return MODEL_CONFIG[getEffectiveTier()].chat;
 }
 function getFastModel(): string {
-  return MODEL_CONFIG[resolveModelTier()].fast;
+  return MODEL_CONFIG[getEffectiveTier()].fast;
 }
 function getClient(): OpenAI {
-  const tier = resolveModelTier();
-  return tier === "budget" && process.env.DEEPSEEK_API_KEY ? deepseek : openai;
+  return getEffectiveTier() === "budget" ? deepseek : openai;
 }
 
 async function requireToken(req: any, res: any): Promise<boolean> {
@@ -9094,15 +9105,22 @@ Return ONLY valid JSON in this exact shape:
 Use "era":"current" for today's news/viral moments, "era":"past" for career history/expertise topics. No text outside the JSON.`;
 
       // Hard cap on how long we wait for the AI — must complete well within
-      // the client's 12-second abort window so custom topics actually arrive.
+      // the client's abort window so custom topics actually arrive.
       const AI_TIMEOUT_MS = 9000;
       const aiTimeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(() => reject(Object.assign(new Error("AI_TIMEOUT"), { code: "AI_TIMEOUT" })), AI_TIMEOUT_MS)
       );
 
+      // Topic generation always uses the premium (OpenAI) model regardless of
+      // the active cost tier. Measured: the budget-tier model (DeepSeek) took
+      // 13-25s+ (and rising under load) on a real topic-generation prompt this
+      // size, which blew through every reasonable timeout and meant topics
+      // fell back to generic content on virtually every request. This is a
+      // one-time per-setup/refresh call (not a per-turn cost), so the ~$0.05
+      // premium-tier cost per generation is worth the reliability.
       const completion = await Promise.race([
-        getClient().chat.completions.create({
-          model: getFastModel(),
+        openai.chat.completions.create({
+          model: MODEL_CONFIG.premium.fast,
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: `Generate the ${topicCount} interview topics now as JSON.` },
