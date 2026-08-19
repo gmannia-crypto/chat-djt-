@@ -4537,18 +4537,6 @@ export default function DebateStage() {
       });
       const data = await res.json();
       if (res.ok && data.granted) {
-        const selectedMs = duration * 60 * 1000;
-        const serverRemaining = Number(data.expiresAt) - Date.now();
-        if (Number.isFinite(serverRemaining) && serverRemaining > 0 && serverRemaining < selectedMs) {
-          // /arena/access returns an existing pass without extending it. Never
-          // label that as a fresh longer purchase: doing so starts a 10/15-minute
-          // client timer against a shorter server authorization.
-          Alert.alert(
-            "Session too short",
-            `Your active pass has about ${Math.max(1, Math.floor(serverRemaining / 60000))} minute${serverRemaining >= 120000 ? "s" : ""} left. Choose a duration it can cover or start again once this pass ends.`,
-          );
-          return;
-        }
         setShowPaywall(false);
         await refreshBalance();
         // Auto-start

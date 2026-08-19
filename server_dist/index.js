@@ -5287,6 +5287,8 @@ Your personality quirks:
   const ARENA_NEWS_CACHE_TTL = 15 * 60 * 1e3;
   const categoryTopicsCache = /* @__PURE__ */ new Map();
   const categoryGenerationInProgress = /* @__PURE__ */ new Set();
+  const interviewTopicsCache = /* @__PURE__ */ new Map();
+  const INTERVIEW_TOPICS_CACHE_TTL = 5 * 60 * 1e3;
   function makeTopicsFromHeadlines(headlines, count) {
     return headlines.slice(0, count).map((h, i) => {
       const match = h.match(/^(.+?)\s+\((.+?)\)$/);
@@ -6198,13 +6200,16 @@ ${viralSignals.slice(0, 10).map((s) => `- ${s}`).join("\n")}` : "";
       }
       const ipAddress = (req.headers["x-forwarded-for"] || req.socket.remoteAddress || "").split(",")[0].trim() || void 0;
       const access = await getArenaAccess(deviceId, ipAddress);
-      if (access.sessionExpiry && Date.now() < access.sessionExpiry) {
-        return res.json({ granted: true, expiresAt: access.sessionExpiry, freeRemaining: Math.max(0, ARENA_FREE_LIMIT - access.freeUsed) });
-      }
       const requestedDuration = req.body?.duration;
       const durationConfig = ARENA_SESSION_DURATIONS[requestedDuration] || ARENA_SESSION_DURATIONS[5];
       const sessionCost = durationConfig.cost;
       const sessionMs = durationConfig.ms;
+      if (access.sessionExpiry && Date.now() < access.sessionExpiry) {
+        const remaining = access.sessionExpiry - Date.now();
+        if (remaining >= sessionMs) {
+          return res.json({ granted: true, expiresAt: access.sessionExpiry, freeRemaining: Math.max(0, ARENA_FREE_LIMIT - access.freeUsed) });
+        }
+      }
       const currentBalance = await getTokenBalance(deviceId);
       const availableTokens = currentBalance.totalAvailable ?? 0;
       if (availableTokens < sessionCost) {
@@ -10053,6 +10058,11 @@ You are ${intervieweeName}. Today is ${todayStr}. You are appearing on a live TV
       const interviewerName = ARENA_NAME_MAP[interviewerId] || interviewerId;
       const intervieweeName = ARENA_NAME_MAP[intervieweeId] || intervieweeId;
       const topicCount = durationMinutes <= 5 ? 6 : durationMinutes <= 10 ? 10 : 14;
+      const cacheKey = `${interviewerId}:${intervieweeId}:${topicMix}:${durationMinutes}:${interviewStyle}:${category}`;
+      const cached = interviewTopicsCache.get(cacheKey);
+      if (cached && Date.now() < cached.expires) {
+        return res.json({ topics: cached.topics, interviewerName: cached.interviewerName, intervieweeName: cached.intervieweeName, fromCache: true });
+      }
       const newsContext = await getArenaNewsContext().catch(() => "");
       const todayStr = (/* @__PURE__ */ new Date()).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
       const isEducational = interviewStyle === "educational";
@@ -10093,16 +10103,23 @@ ${newsLine}
 Return ONLY valid JSON in this exact shape:
 {"topics":[{"title":"Punchy headline matching the style","description":"1 sentence \u2014 the exact angle ${interviewerName} uses, naming the specific receipt, quote, or question","era":"current"}]}
 Use "era":"current" for today's news/viral moments, "era":"past" for career history/expertise topics. No text outside the JSON.`;
-      const completion = await getClient().chat.completions.create({
-        model: getFastModel(),
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: `Generate the ${topicCount} interview topics now as JSON.` }
-        ],
-        max_completion_tokens: 700,
-        temperature: 0.85,
-        response_format: { type: "json_object" }
-      });
+      const AI_TIMEOUT_MS = 9e3;
+      const aiTimeoutPromise = new Promise(
+        (_, reject) => setTimeout(() => reject(Object.assign(new Error("AI_TIMEOUT"), { code: "AI_TIMEOUT" })), AI_TIMEOUT_MS)
+      );
+      const completion = await Promise.race([
+        getClient().chat.completions.create({
+          model: getFastModel(),
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: `Generate the ${topicCount} interview topics now as JSON.` }
+          ],
+          max_completion_tokens: 700,
+          temperature: 0.85,
+          response_format: { type: "json_object" }
+        }),
+        aiTimeoutPromise
+      ]);
       const raw = completion.choices[0]?.message?.content || "{}";
       let parsed = {};
       try {
@@ -10125,8 +10142,13 @@ Use "era":"current" for today's news/viral moments, "era":"past" for career hist
           era: "current"
         }));
       }
+      interviewTopicsCache.set(cacheKey, { topics, interviewerName, intervieweeName, expires: Date.now() + INTERVIEW_TOPICS_CACHE_TTL });
       res.json({ topics, interviewerName, intervieweeName });
     } catch (error) {
+      if (error?.code === "AI_TIMEOUT") {
+        console.warn("Interview topics timed out after 9 s");
+        return res.status(503).json({ error: "Topic generation timed out" });
+      }
       console.error("Interview topics error:", error);
       res.status(500).json({ error: "Failed to generate topics" });
     }

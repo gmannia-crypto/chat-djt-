@@ -5006,13 +5006,19 @@ CRITICAL: If an opponent makes a claim that contradicts these or other well-esta
       }
       const ipAddress = ((req.headers["x-forwarded-for"] as string || req.socket.remoteAddress || "").split(",")[0].trim()) || undefined;
       const access = await getArenaAccess(deviceId, ipAddress);
-      if (access.sessionExpiry && Date.now() < access.sessionExpiry) {
-        return res.json({ granted: true, expiresAt: access.sessionExpiry, freeRemaining: Math.max(0, ARENA_FREE_LIMIT - access.freeUsed) });
-      }
       const requestedDuration = req.body?.duration as number;
       const durationConfig = ARENA_SESSION_DURATIONS[requestedDuration] || ARENA_SESSION_DURATIONS[5];
       const sessionCost = durationConfig.cost;
       const sessionMs = durationConfig.ms;
+      // Return the existing session only when it already covers the full requested
+      // duration — no charge needed. If it is shorter (e.g. a 5-min free trial
+      // when the user wants 10 min), fall through to purchase a new, longer session.
+      if (access.sessionExpiry && Date.now() < access.sessionExpiry) {
+        const remaining = access.sessionExpiry - Date.now();
+        if (remaining >= sessionMs) {
+          return res.json({ granted: true, expiresAt: access.sessionExpiry, freeRemaining: Math.max(0, ARENA_FREE_LIMIT - access.freeUsed) });
+        }
+      }
       const currentBalance = await getTokenBalance(deviceId);
       const availableTokens = currentBalance.totalAvailable ?? 0;
       if (availableTokens < sessionCost) {
