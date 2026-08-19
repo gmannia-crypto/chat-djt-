@@ -28,7 +28,6 @@ import {
   MODERATORS, ModeratorStyle, generateModeratorLine, makeInterruptController,
   speakModeratorNow, localJab, moderatorLieReaction, generateModeratorQuestion, getModeratorLeaning,
   getSquabbleBridge,
-  getSquabbleCloser,
   detectDodge,
   getDodgePressLine,
 } from "@/lib/debate-moderator";
@@ -2927,17 +2926,20 @@ export default function DebateStage() {
             };
             const modLine = localJab("squabble");
             await speakModQueued(modLine);
-            // ── SQUABBLE TOPIC ADVANCE: force a topic switch so the loop can't restart ──
-            // Advance to the next topic (if one exists), reset exchange counter, then
-            // speak a short "moving on" bridge so the transition feels intentional.
+            // ── SQUABBLE TOPIC ADVANCE ───────────────────────────────────────
+            // Keep a timed debate alive after a heated exchange. Once every
+            // generated topic has been used, rotate back through the list instead
+            // of ending a 10- or 15-minute session early.
             if (runningRef.current) {
               const liveTopics = topicsRef.current;
               const currentIdx = topicIdxRef.current;
-              const nextIdx = currentIdx + 1 < liveTopics.length ? currentIdx + 1 : currentIdx;
-              if (nextIdx !== currentIdx) {
+              const nextIdx = liveTopics.length > 0 ? (currentIdx + 1) % liveTopics.length : currentIdx;
+              if (liveTopics.length > 0) {
+                const wrappedTopics = nextIdx === 0 && currentIdx === liveTopics.length - 1;
                 topicIdxRef.current = nextIdx;
                 setTopicIdx(nextIdx);
                 exchangesOnTopicRef.current = 0;
+                if (wrappedTopics) setCompletedTopics(new Set());
                 // ── Show TIME-OUT banner ──────────────────────────────────
                 if (timeoutBannerTimerRef.current) clearTimeout(timeoutBannerTimerRef.current);
                 setShowTimeoutBanner(true);
@@ -3037,12 +3039,10 @@ export default function DebateStage() {
                 }
                 // ────────────────────────────────────────────────────────────────────────
               } else {
-                // Already on the last topic — end the debate rather than limping
-                // along on an exhausted topic with a 90 s cooldown in effect.
-                const closerLine = getSquabbleCloser(moderatorStyle);
-                await speakModQueued(closerLine);
-                // Signal the run-loop to stop — it will call setPhase("ended") on exit.
-                sessionEndsAtRef.current = Date.now();
+                // The main loop waits for topics before it reaches this branch.
+                // Do not shorten an active paid session if the topic list is
+                // momentarily unavailable.
+                await new Promise<void>((resolve) => setTimeout(resolve, 800));
               }
             }
             // ─────────────────────────────────────────────────────────────────────
@@ -4007,10 +4007,15 @@ export default function DebateStage() {
         // since that caused multi-minute stalls (2s+4s+6s+… = ~3 min for 6 nulls).
         consecutiveNullRef.current += 1;
         if (consecutiveNullRef.current >= 6) {
-          // Both sides failing persistently — end gracefully.
-          runningRef.current = false;
-          setPhase("ended");
-          break;
+          // A slow model, mobile connection, or temporary dev-server hiccup is
+          // not a valid reason to throw away the remainder of a paid session.
+          // Reset the streak, announce the recovery, then keep retrying until
+          // the selected client timer expires.
+          consecutiveNullRef.current = 0;
+          await speakMod("We’re refreshing the debate feed. Give us a moment — this round is not over.", `mod-recover-${Date.now()}`);
+          if (!runningRef.current) break;
+          await new Promise((r) => setTimeout(r, 3000));
+          continue;
         }
         await new Promise((r) => setTimeout(r, 1500));
         continue;
@@ -4157,9 +4162,14 @@ export default function DebateStage() {
       if (!rebuttal?.text) {
         consecutiveRebuttalNullRef.current += 1;
         if (consecutiveRebuttalNullRef.current >= 6) {
-          runningRef.current = false;
-          setPhase("ended");
-          break;
+          // Keep the chosen session running through a transient response outage.
+          // The next loop turn will begin a fresh moderator question instead of
+          // declaring an early winner.
+          consecutiveRebuttalNullRef.current = 0;
+          await speakMod("We’re resetting the exchange and coming right back to the debate.", `mod-recover-rebuttal-${Date.now()}`);
+          if (!runningRef.current) break;
+          await new Promise((r) => setTimeout(r, 3000));
+          continue;
         }
         await new Promise((r) => setTimeout(r, 1500));
         continue;
@@ -4305,6 +4315,18 @@ export default function DebateStage() {
     // window on an existing session (e.g. user has 2 min left on a 5-min pass).
     const selectedMs = duration * 60 * 1000;
     const serverRemaining = serverExpiresAt ? serverExpiresAt - Date.now() : 0;
+    if (hasSession && serverRemaining > 0 && serverRemaining < selectedMs) {
+      // Do not start a longer debate against an older, shorter Arena pass. The
+      // server would correctly reject answer requests when that pass expired,
+      // which made a 10/15-minute selection look like it had ended early.
+      Alert.alert(
+        "Session too short",
+        `Your current pass has about ${Math.max(1, Math.floor(serverRemaining / 60000))} minute${serverRemaining >= 120000 ? "s" : ""} left. Unlock a ${duration}-minute session to run the full debate.`,
+      );
+      setShowPaywall(true);
+      setIsStarting(false);
+      return;
+    }
     const clientMs = serverRemaining > 0
       ? Math.min(serverRemaining, selectedMs)
       : selectedMs;
