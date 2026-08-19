@@ -3548,7 +3548,7 @@ export default function DebateStage() {
   // at every async boundary that it is still the latest call before writing state.
   const generateTopicsGenRef = useRef(0);
 
-  const generateTopics = useCallback(async () => {
+  const generateTopics = useCallback(async (bustCache = false) => {
     if (!interviewerId || !intervieweeId) return;
 
     // Cancel any in-flight previous call.
@@ -3574,7 +3574,7 @@ export default function DebateStage() {
       const res = await fetch(new URL("/api/arena/interview-topics", getApiUrl()).toString(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ interviewerId, intervieweeId, topicMix, durationMinutes: duration, interviewStyle, category }),
+        body: JSON.stringify({ interviewerId, intervieweeId, topicMix, durationMinutes: duration, interviewStyle, category, bust: bustCache ? 1 : 0 }),
         signal: abortController.signal,
       });
       // Discard result if a newer call has already started.
@@ -5362,7 +5362,7 @@ export default function DebateStage() {
                 <Ionicons name="list" size={16} color="#FFD700" />
                 <Text style={s.topicsTitle}>INTERVIEW QUESTIONS</Text>
               </View>
-              <Pressable onPress={generateTopics} disabled={topicsLoading || !interviewerId || !intervieweeId} style={s.refreshTopicsBtn}>
+              <Pressable onPress={() => generateTopics(true)} disabled={topicsLoading || !interviewerId || !intervieweeId} style={s.refreshTopicsBtn}>
                 {topicsLoading ? (
                   <ActivityIndicator size="small" color="#FFD700" />
                 ) : (

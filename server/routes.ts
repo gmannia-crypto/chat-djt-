@@ -8931,7 +8931,7 @@ FORMAT:
 
   app.post("/api/arena/interview-topics", async (req, res) => {
     try {
-      const { interviewerId, intervieweeId, topicMix = "mixed", durationMinutes = 10, interviewStyle = "combative", category = "" } = req.body || {};
+      const { interviewerId, intervieweeId, topicMix = "mixed", durationMinutes = 10, interviewStyle = "combative", category = "", bust = 0 } = req.body || {};
       if (!interviewerId || !intervieweeId) return res.status(400).json({ error: "interviewerId and intervieweeId required" });
       if (!ARENA_PERSONA_PROMPTS[interviewerId] || !ARENA_PERSONA_PROMPTS[intervieweeId]) {
         return res.status(400).json({ error: "Invalid persona ids" });
@@ -8942,7 +8942,12 @@ FORMAT:
 
       // Serve from cache when the same combo was requested recently — avoids
       // a full AI round-trip on repeated requests within the same 5-minute window.
+      // When the client explicitly busts the cache (bust=1, from the Refresh button),
+      // evict the cached entry so a fresh set is generated and then re-stored.
       const cacheKey = `${interviewerId}:${intervieweeId}:${topicMix}:${durationMinutes}:${interviewStyle}:${category}`;
+      if (bust) {
+        interviewTopicsCache.delete(cacheKey);
+      }
       const cached = interviewTopicsCache.get(cacheKey);
       if (cached && Date.now() < cached.expires) {
         return res.json({ topics: cached.topics, interviewerName: cached.interviewerName, intervieweeName: cached.intervieweeName, fromCache: true });
