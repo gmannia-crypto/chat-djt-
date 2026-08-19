@@ -5623,6 +5623,25 @@ Generate 12 maximum-viral debate topics as a JSON array.` }
     ];
   }
   let arenaHeadlinesCache = { headlines: [], expires: 0 };
+  async function warmArenaHeadlinesCache() {
+    try {
+      const feedResults = await Promise.allSettled(NEWS_FEEDS.slice(0, 14).map((f) => fetchRSSFeed(f.url, f.source)));
+      const headlines = [];
+      for (const r of feedResults) {
+        if (r.status === "fulfilled") {
+          headlines.push(...r.value.map((h) => `${h.title} (${h.source})`));
+        }
+      }
+      if (headlines.length > 0) {
+        arenaHeadlinesCache = { headlines: headlines.slice(0, 16), expires: Date.now() + 2 * 60 * 1e3 };
+      }
+    } catch {
+    }
+  }
+  warmArenaHeadlinesCache();
+  setInterval(() => {
+    warmArenaHeadlinesCache();
+  }, 9e4);
   let viralTrendsCache = { signals: [], expires: 0 };
   const VIRAL_TRENDS_TTL = 10 * 60 * 1e3;
   async function fetchViralTrends() {

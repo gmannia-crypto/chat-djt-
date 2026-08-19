@@ -4392,6 +4392,29 @@ Return ONLY a valid JSON array: [{"id":"snake_case","title":"3-6 PUNCHY words","
 
   let arenaHeadlinesCache: { headlines: string[]; expires: number } = { headlines: [], expires: 0 };
 
+  // Proactively keep the arena headlines cache warm so debate/interview topic
+  // generation almost never hits a cold RSS fetch inside its 3-second budget —
+  // without this, "current/breaking news" topics silently degrade to generic
+  // AI knowledge whenever the cache had expired right before a request came in.
+  async function warmArenaHeadlinesCache(): Promise<void> {
+    try {
+      const feedResults = await Promise.allSettled(NEWS_FEEDS.slice(0, 14).map(f => fetchRSSFeed(f.url, f.source)));
+      const headlines: string[] = [];
+      for (const r of feedResults) {
+        if (r.status === "fulfilled") {
+          headlines.push(...r.value.map((h: any) => `${h.title} (${h.source})`));
+        }
+      }
+      if (headlines.length > 0) {
+        arenaHeadlinesCache = { headlines: headlines.slice(0, 16), expires: Date.now() + 2 * 60 * 1000 };
+      }
+    } catch { /* keep serving whatever is cached, if anything */ }
+  }
+  // Warm immediately on boot, then refresh every 90s — comfortably inside the
+  // 2-minute cache TTL so a request practically never sees a cold/empty cache.
+  warmArenaHeadlinesCache();
+  setInterval(() => { warmArenaHeadlinesCache(); }, 90_000);
+
   // ── VIRAL TRENDS ── Real-time social media signals (Google Trends, Reddit, YouTube) ──────────
   let viralTrendsCache: { signals: string[]; expires: number } = { signals: [], expires: 0 };
   const VIRAL_TRENDS_TTL = 10 * 60 * 1000; // 10 minutes

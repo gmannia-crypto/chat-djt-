@@ -3580,7 +3580,7 @@ export default function DebateStage() {
       const res = await fetch(new URL("/api/arena/interview-topics", getApiUrl()).toString(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ interviewerId, intervieweeId, topicMix, durationMinutes: duration, interviewStyle, category, bust: bustCache ? 1 : 0 }),
+        body: JSON.stringify({ interviewerId, intervieweeId, topicMix, durationMinutes: duration, interviewStyle: effectiveInterviewStyle, category, bust: bustCache ? 1 : 0 }),
         signal: abortController.signal,
       });
       // Discard result if a newer call has already started.
@@ -3633,15 +3633,15 @@ export default function DebateStage() {
         setTopicsLoading(false);
       }
     }
-  }, [interviewerId, intervieweeId, topicMix, duration, interviewStyle]);
+  }, [interviewerId, intervieweeId, topicMix, duration, effectiveInterviewStyle, category]);
 
-  // Auto-generate when pairing/duration/style changes
+  // Auto-generate when pairing/duration/style/category changes
   useEffect(() => {
     if (interviewerId && intervieweeId && phase === "setup") {
       generateTopics();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [interviewerId, intervieweeId, topicMix, duration, interviewStyle]);
+  }, [interviewerId, intervieweeId, topicMix, duration, effectiveInterviewStyle, category]);
 
   // Show a soft "still working…" warning after 7 s of topicsLoading
   useEffect(() => {
