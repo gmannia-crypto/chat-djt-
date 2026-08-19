@@ -2837,6 +2837,8 @@ export default function DebateStage() {
   const playInterruptionAudio = useCallback(async (text: string, personaId: string) => {
     if (!voiceEnabledRef.current) return;
     if (shouldSkipPersonaVoice(personaId)) return;
+    // A persona can never interrupt/overlap their own currently-playing voice.
+    if (personaId === activeSpeakerRef.current) return;
     // Interrupter plays at the same volume as any other speaker
     setActiveSpeaker(personaId);
     activeSpeakerRef.current = personaId;

@@ -1164,6 +1164,8 @@ export default function InterviewScreen() {
   const playInterruptionAudio = useCallback(async (text: string, personaId: string) => {
     if (!voiceEnabledRef.current) return;
     if (shouldSkipPersonaVoice(personaId)) return;
+    // A persona can never interrupt/overlap their own currently-playing voice.
+    if (personaId === activeSpeakerRef.current) return;
     const mainSound = currentSoundRef.current;
     if (mainSound) { try { mainSound.setVolumeAsync(0.10).catch(() => {}); } catch {} }
     setActiveSpeaker(personaId);
