@@ -9575,12 +9575,21 @@ A viewer named "${callerLabel}" just sent in this question for ${intervieweeName
 
 In character, briefly introduce the call-in (1 sentence, ~12 words: "We've got a caller — ${callerLabel} from the audience asks…" or similar), then RELAY the viewer's question to ${intervieweeName} sharply. Keep the entire output under 35 words. Write ONLY your spoken words — no quotes, no stage directions.`;
 
-      const frameCompletion = await getClient().chat.completions.create({
-        model: getFastModel(),
-        messages: [{ role: "system", content: framePrompt }, { role: "user", content: "Read the call-in question now." }],
-        max_completion_tokens: 100,
-        temperature: 0.85,
-      });
+      // Call-in framing uses the premium model because the budget tier can
+      // stall for 13-25 s under load. Bound this first of two sequential calls
+      // so a slow provider cannot hold the whole call-in request open.
+      const frameTimeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(Object.assign(new Error("AI_TIMEOUT"), { code: "AI_TIMEOUT" })), 12000)
+      );
+      const frameCompletion = await Promise.race([
+        openai.chat.completions.create({
+          model: MODEL_CONFIG.premium.fast,
+          messages: [{ role: "system", content: framePrompt }, { role: "user", content: "Read the call-in question now." }],
+          max_completion_tokens: 100,
+          temperature: 0.85,
+        }),
+        frameTimeoutPromise,
+      ]);
       let interviewerText = frameCompletion.choices[0]?.message?.content || `We've got a call-in from ${callerLabel}: ${cleanQ}`;
       interviewerText = interviewerText.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim();
 
@@ -9595,15 +9604,23 @@ Answer the viewer's question in character — punchy, provocative, true to your 
 
 ${getArenaPersonaPrompt(intervieweeId)}${getShannonGrandmomNote(intervieweeId, conversationHistory)}${getLieBehaviorPrompt(intervieweeId, Number((req.body.sessionLieTally || {})[intervieweeId]) || 0, req.body.sessionIQ || {})}`;
 
-      const answerCompletion = await getClient().chat.completions.create({
-        model: getFastModel(),
-        messages: [
-          { role: "system", content: answerPrompt },
-          { role: "user", content: `Recent context:\n${historyContext}\n\nAnswer ${callerLabel}'s question now.` },
-        ],
-        max_completion_tokens: 220,
-        temperature: 0.95,
-      });
+      // Bound the second sequential call separately; the response deadline
+      // starts after framing completes.
+      const answerTimeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(Object.assign(new Error("AI_TIMEOUT"), { code: "AI_TIMEOUT" })), 15000)
+      );
+      const answerCompletion = await Promise.race([
+        openai.chat.completions.create({
+          model: MODEL_CONFIG.premium.fast,
+          messages: [
+            { role: "system", content: answerPrompt },
+            { role: "user", content: `Recent context:\n${historyContext}\n\nAnswer ${callerLabel}'s question now.` },
+          ],
+          max_completion_tokens: 220,
+          temperature: 0.95,
+        }),
+        answerTimeoutPromise,
+      ]);
       let intervieweeText = answerCompletion.choices[0]?.message?.content || "...";
       intervieweeText = intervieweeText.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim();
       if (intervieweeId === "trump" || intervieweeId === "ruckus" || intervieweeId === "graham" || intervieweeId === "megynkelly" || intervieweeId === "pambondi") {
@@ -9618,6 +9635,13 @@ ${getArenaPersonaPrompt(intervieweeId)}${getShannonGrandmomNote(intervieweeId, c
       });
     } catch (error: any) {
       console.error("Interview callin error:", error);
+      if (error?.code === "AI_TIMEOUT") {
+        console.warn("Interview callin timed out waiting for AI");
+        return res.status(503).json({ error: "ai_unavailable" });
+      }
+      if (error?.status === 402) {
+        return res.status(503).json({ error: "ai_unavailable" });
+      }
       res.status(500).json({ error: "Failed to generate call-in response" });
     }
   });
@@ -9675,16 +9699,24 @@ ${newsContext || "(none available)"}
 
 Return ONLY valid JSON: {"score": 0-100, "isLie": boolean (true if score<40), "reason": "short 1-sentence explanation", "fact": "1-sentence corrective fact citing a real source or verified record (only if isLie=true, else empty string)", "moderatorLine": "a firm 1-sentence moderator correction spoken aloud starting with 'Actually' or 'Point of order' and citing the corrective fact — only if isLie=true, else empty string"}`;
 
-      const completion = await getClient().chat.completions.create({
-        model: getFastModel(),
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: `${intervieweeName} just said: "${claim}"\n\nTopic context: ${topic?.title || "general"}.\n\nScore it now as JSON.` },
-        ],
-        max_completion_tokens: 180,
-        temperature: 0.3,
-        response_format: { type: "json_object" },
-      });
+      // Fact checks run alongside every answer turn, so a slow budget-tier
+      // response must not delay the badge indefinitely.
+      const factcheckTimeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(Object.assign(new Error("AI_TIMEOUT"), { code: "AI_TIMEOUT" })), 10000)
+      );
+      const completion = await Promise.race([
+        openai.chat.completions.create({
+          model: MODEL_CONFIG.premium.fast,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: `${intervieweeName} just said: "${claim}"\n\nTopic context: ${topic?.title || "general"}.\n\nScore it now as JSON.` },
+          ],
+          max_completion_tokens: 180,
+          temperature: 0.3,
+          response_format: { type: "json_object" },
+        }),
+        factcheckTimeoutPromise,
+      ]);
       const raw = completion.choices[0]?.message?.content || "{}";
       let parsed: any = {};
       try { parsed = JSON.parse(raw); } catch { parsed = {}; }
@@ -9716,6 +9748,13 @@ Return ONLY valid JSON: {"score": 0-100, "isLie": boolean (true if score<40), "r
       });
     } catch (error: any) {
       console.error("Interview factcheck error:", error);
+      if (error?.code === "AI_TIMEOUT") {
+        console.warn("Interview factcheck timed out after 10 s");
+        return res.status(503).json({ error: "ai_unavailable" });
+      }
+      if (error?.status === 402) {
+        return res.status(503).json({ error: "ai_unavailable" });
+      }
       res.status(500).json({ error: "Fact-check failed", score: 70, isLie: false, reason: "", fact: "", moderatorLine: "" });
     }
   });

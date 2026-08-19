@@ -10478,15 +10478,21 @@ REMEMBER: this is a DEBATE, not an interview. Phrase this as a statement, argume
       userPrompt += `
 
 Write ONLY your spoken question \u2014 no quotes, no stage directions, no asterisks.`;
-      const completion = await getClient().chat.completions.create({
-        model: getFastModel(),
-        messages: [
-          { role: "system", content: interviewerStyle },
-          { role: "user", content: userPrompt }
-        ],
-        max_completion_tokens: isInterruption ? 40 : 200,
-        temperature: 0.9
-      });
+      const questionTimeoutPromise = new Promise(
+        (_, reject) => setTimeout(() => reject(Object.assign(new Error("AI_TIMEOUT"), { code: "AI_TIMEOUT" })), 12e3)
+      );
+      const completion = await Promise.race([
+        openai.chat.completions.create({
+          model: MODEL_CONFIG.premium.fast,
+          messages: [
+            { role: "system", content: interviewerStyle },
+            { role: "user", content: userPrompt }
+          ],
+          max_completion_tokens: isInterruption ? 40 : 200,
+          temperature: 0.9
+        }),
+        questionTimeoutPromise
+      ]);
       let text = completion.choices[0]?.message?.content || "...";
       text = text.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim();
       res.json({
@@ -10499,6 +10505,10 @@ Write ONLY your spoken question \u2014 no quotes, no stage directions, no asteri
       });
     } catch (error) {
       console.error("Interview question error:", error);
+      if (error?.code === "AI_TIMEOUT") {
+        console.warn("Interview question timed out after 12 s");
+        return res.status(503).json({ error: "ai_unavailable" });
+      }
       if (error?.status === 402) {
         return res.status(503).json({ error: "ai_unavailable" });
       }
@@ -10622,15 +10632,21 @@ You were just interrupted with: "${interruptionText}". Address the interruption 
       userPrompt += `
 
 Write ONLY your spoken response \u2014 no quotes, no stage directions, no asterisks.`;
-      const completion = await getClient().chat.completions.create({
-        model: getFastModel(),
-        messages: [
-          { role: "system", content: intervieweeStyle },
-          { role: "user", content: userPrompt }
-        ],
-        max_completion_tokens: insultFireback ? 60 : isInterruption ? 40 : isDebate ? 350 : 280,
-        temperature: 0.95
-      });
+      const answerTimeoutPromise = new Promise(
+        (_, reject) => setTimeout(() => reject(Object.assign(new Error("AI_TIMEOUT"), { code: "AI_TIMEOUT" })), 15e3)
+      );
+      const completion = await Promise.race([
+        openai.chat.completions.create({
+          model: MODEL_CONFIG.premium.fast,
+          messages: [
+            { role: "system", content: intervieweeStyle },
+            { role: "user", content: userPrompt }
+          ],
+          max_completion_tokens: insultFireback ? 60 : isInterruption ? 40 : isDebate ? 350 : 280,
+          temperature: 0.95
+        }),
+        answerTimeoutPromise
+      ]);
       let text = completion.choices[0]?.message?.content || "...";
       text = text.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim();
       if (intervieweeId === "trump" || intervieweeId === "ruckus" || intervieweeId === "graham" || intervieweeId === "megynkelly" || intervieweeId === "pambondi") {
@@ -10646,6 +10662,10 @@ Write ONLY your spoken response \u2014 no quotes, no stage directions, no asteri
       });
     } catch (error) {
       console.error("Interview answer error:", error);
+      if (error?.code === "AI_TIMEOUT") {
+        console.warn("Interview answer timed out after 15 s");
+        return res.status(503).json({ error: "ai_unavailable" });
+      }
       if (error?.status === 402) {
         return res.status(503).json({ error: "ai_unavailable" });
       }
@@ -10677,12 +10697,18 @@ Write ONLY your spoken response \u2014 no quotes, no stage directions, no asteri
 A viewer named "${callerLabel}" just sent in this question for ${intervieweeName}: "${cleanQ}"
 
 In character, briefly introduce the call-in (1 sentence, ~12 words: "We've got a caller \u2014 ${callerLabel} from the audience asks\u2026" or similar), then RELAY the viewer's question to ${intervieweeName} sharply. Keep the entire output under 35 words. Write ONLY your spoken words \u2014 no quotes, no stage directions.`;
-      const frameCompletion = await getClient().chat.completions.create({
-        model: getFastModel(),
-        messages: [{ role: "system", content: framePrompt }, { role: "user", content: "Read the call-in question now." }],
-        max_completion_tokens: 100,
-        temperature: 0.85
-      });
+      const frameTimeoutPromise = new Promise(
+        (_, reject) => setTimeout(() => reject(Object.assign(new Error("AI_TIMEOUT"), { code: "AI_TIMEOUT" })), 12e3)
+      );
+      const frameCompletion = await Promise.race([
+        openai.chat.completions.create({
+          model: MODEL_CONFIG.premium.fast,
+          messages: [{ role: "system", content: framePrompt }, { role: "user", content: "Read the call-in question now." }],
+          max_completion_tokens: 100,
+          temperature: 0.85
+        }),
+        frameTimeoutPromise
+      ]);
       let interviewerText = frameCompletion.choices[0]?.message?.content || `We've got a call-in from ${callerLabel}: ${cleanQ}`;
       interviewerText = interviewerText.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim();
       const answerPrompt = `You are ${intervieweeName} being interviewed live by ${interviewerName}. Today is ${(/* @__PURE__ */ new Date()).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}.
@@ -10694,18 +10720,24 @@ The viewer ${callerLabel} asked: "${cleanQ}"
 Answer the viewer's question in character \u2014 punchy, provocative, true to your beliefs. You may briefly acknowledge the caller by name. 2-3 sentences max. Write ONLY your spoken response.
 
 ${getArenaPersonaPrompt2(intervieweeId)}${getShannonGrandmomNote(intervieweeId, conversationHistory)}${getLieBehaviorPrompt(intervieweeId, Number((req.body.sessionLieTally || {})[intervieweeId]) || 0, req.body.sessionIQ || {})}`;
-      const answerCompletion = await getClient().chat.completions.create({
-        model: getFastModel(),
-        messages: [
-          { role: "system", content: answerPrompt },
-          { role: "user", content: `Recent context:
+      const answerTimeoutPromise = new Promise(
+        (_, reject) => setTimeout(() => reject(Object.assign(new Error("AI_TIMEOUT"), { code: "AI_TIMEOUT" })), 15e3)
+      );
+      const answerCompletion = await Promise.race([
+        openai.chat.completions.create({
+          model: MODEL_CONFIG.premium.fast,
+          messages: [
+            { role: "system", content: answerPrompt },
+            { role: "user", content: `Recent context:
 ${historyContext}
 
 Answer ${callerLabel}'s question now.` }
-        ],
-        max_completion_tokens: 220,
-        temperature: 0.95
-      });
+          ],
+          max_completion_tokens: 220,
+          temperature: 0.95
+        }),
+        answerTimeoutPromise
+      ]);
       let intervieweeText = answerCompletion.choices[0]?.message?.content || "...";
       intervieweeText = intervieweeText.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim();
       if (intervieweeId === "trump" || intervieweeId === "ruckus" || intervieweeId === "graham" || intervieweeId === "megynkelly" || intervieweeId === "pambondi") {
@@ -10719,6 +10751,13 @@ Answer ${callerLabel}'s question now.` }
       });
     } catch (error) {
       console.error("Interview callin error:", error);
+      if (error?.code === "AI_TIMEOUT") {
+        console.warn("Interview callin timed out waiting for AI");
+        return res.status(503).json({ error: "ai_unavailable" });
+      }
+      if (error?.status === 402) {
+        return res.status(503).json({ error: "ai_unavailable" });
+      }
       res.status(500).json({ error: "Failed to generate call-in response" });
     }
   });
@@ -10766,20 +10805,26 @@ LIVE HEADLINES:
 ${newsContext || "(none available)"}
 
 Return ONLY valid JSON: {"score": 0-100, "isLie": boolean (true if score<40), "reason": "short 1-sentence explanation", "fact": "1-sentence corrective fact citing a real source or verified record (only if isLie=true, else empty string)", "moderatorLine": "a firm 1-sentence moderator correction spoken aloud starting with 'Actually' or 'Point of order' and citing the corrective fact \u2014 only if isLie=true, else empty string"}`;
-      const completion = await getClient().chat.completions.create({
-        model: getFastModel(),
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: `${intervieweeName} just said: "${claim}"
+      const factcheckTimeoutPromise = new Promise(
+        (_, reject) => setTimeout(() => reject(Object.assign(new Error("AI_TIMEOUT"), { code: "AI_TIMEOUT" })), 1e4)
+      );
+      const completion = await Promise.race([
+        openai.chat.completions.create({
+          model: MODEL_CONFIG.premium.fast,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: `${intervieweeName} just said: "${claim}"
 
 Topic context: ${topic?.title || "general"}.
 
 Score it now as JSON.` }
-        ],
-        max_completion_tokens: 180,
-        temperature: 0.3,
-        response_format: { type: "json_object" }
-      });
+          ],
+          max_completion_tokens: 180,
+          temperature: 0.3,
+          response_format: { type: "json_object" }
+        }),
+        factcheckTimeoutPromise
+      ]);
       const raw = completion.choices[0]?.message?.content || "{}";
       let parsed = {};
       try {
@@ -10812,6 +10857,13 @@ Score it now as JSON.` }
       });
     } catch (error) {
       console.error("Interview factcheck error:", error);
+      if (error?.code === "AI_TIMEOUT") {
+        console.warn("Interview factcheck timed out after 10 s");
+        return res.status(503).json({ error: "ai_unavailable" });
+      }
+      if (error?.status === 402) {
+        return res.status(503).json({ error: "ai_unavailable" });
+      }
       res.status(500).json({ error: "Fact-check failed", score: 70, isLie: false, reason: "", fact: "", moderatorLine: "" });
     }
   });
