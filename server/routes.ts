@@ -8528,7 +8528,13 @@ AS INTERVIEWER: You ask clean, precise questions and refuse to let guests pivot.
         }
       }
 
-      const newsContext = await getArenaNewsContext();
+      // Give the news-context fetch a hard 3-second deadline so slow RSS cache
+      // warm-ups don't eat into the AI's budget.  If it misses the window we
+      // proceed without news context rather than blocking the debate turn.
+      const newsContext = await Promise.race<string>([
+        getArenaNewsContext().catch(() => ""),
+        new Promise<string>((resolve) => setTimeout(() => resolve(""), 3000)),
+      ]);
       const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
       const currentYearContext = `\n\nCRITICAL WORLD CONTEXT — TODAY IS ${todayStr}:\n- Donald Trump is the CURRENT sitting President of the United States (inaugurated January 2025, won the 2024 election)\n- Joe Biden is the FORMER president — he LOST and is no longer in office\n- Elon Musk led DOGE (Department of Government Efficiency) for Trump's administration\n- The Iran military conflict is ongoing in 2025-2026 — Trump's opponents mockingly call it "The Epstein War" claiming he started it to distract from the Epstein files, but Trump and his supporters NEVER use that term and get furious when they hear it\n- LINDSEY GRAHAM DIED ON JULY 12, 2026 at age 71. He is NO LONGER a sitting senator — his sister now holds his South Carolina Senate seat. Every persona is fully aware of this. React to his presence or his words accordingly — some with grief, some with mockery, some with awe that he's here at all. If Graham himself is speaking, he is doing so from beyond the grave.\n- DON LEMON was FIRED by CNN in April 2023 after years of ratings decline and on-air controversies. He was NOT let go gracefully — he was terminated. He now runs his own independent podcast/streaming show called "The Don Lemon Show." He is no longer on CNN.\n- JOY REID was FIRED by MSNBC in late 2023. The network has since rebranded to "MS Now." Joy Reid's show "The ReidOut" was cancelled. She is no longer on MSNBC/MS Now. She is doing independent media work.\n- THE LOS ANGELES LAKERS were sold in a landmark $12.4 BILLION deal — the largest in NBA history. The ownership group that purchased the team includes prominent pro-Israel business figures, which has sparked significant controversy and public debate.\n- You are fully up to date on ALL 2025-2026 world events. NEVER reference events as if they haven't happened yet. You know everything that has happened up to today.\n`;
       const sessionLieTally: Record<string, number> = req.body.sessionLieTally || {};
@@ -9133,7 +9139,13 @@ Use "era":"current" for today's news/viral moments, "era":"past" for career hist
       const interviewerName = ARENA_NAME_MAP[interviewerId] || interviewerId;
       const intervieweeName = ARENA_NAME_MAP[intervieweeId] || intervieweeId;
       const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
-      const newsContext = await getArenaNewsContext().catch(() => "");
+      // Give the news-context fetch a hard 3-second deadline so slow RSS cache
+      // warm-ups don't eat into the AI's budget.  If it misses the window we
+      // proceed without news context rather than blocking the debate turn.
+      const newsContext = await Promise.race<string>([
+        getArenaNewsContext().catch(() => ""),
+        new Promise<string>((resolve) => setTimeout(() => resolve(""), 3000)),
+      ]);
 
       const shannonGrandmomNote = getShannonGrandmomNote(interviewerId, conversationHistory);
 
@@ -9480,7 +9492,13 @@ ${getArenaPersonaPrompt(intervieweeId)}${getShannonGrandmomNote(intervieweeId, c
       if (!accessCheck.ok) return res.status(403).json({ error: accessCheck.error || "No active interview session" });
 
       const intervieweeName = ARENA_NAME_MAP[intervieweeId] || intervieweeId;
-      const newsContext = await getArenaNewsContext().catch(() => "");
+      // Give the news-context fetch a hard 3-second deadline so slow RSS cache
+      // warm-ups don't eat into the AI's budget.  If it misses the window we
+      // proceed without news context rather than blocking the fact-check turn.
+      const newsContext = await Promise.race<string>([
+        getArenaNewsContext().catch(() => ""),
+        new Promise<string>((resolve) => setTimeout(() => resolve(""), 3000)),
+      ]);
 
       const credibleFacts = getCredibleFactsContext();
       const systemPrompt = `You are a sharp, neutral fact-checker scoring a single quote from public figure ${intervieweeName} on a 0-100 truthfulness scale.
@@ -9733,7 +9751,13 @@ Return ONLY valid JSON: {"score": 0-100, "isLie": boolean (true if score<40), "r
       bucket.lastTouched = now;
 
       const speakerName = ARENA_NAME_MAP[speakerId] || speakerId;
-      const newsContext = await getArenaNewsContext().catch(() => "");
+      // Give the news-context fetch a hard 3-second deadline so slow RSS cache
+      // warm-ups don't eat into the AI's budget.  If it misses the window we
+      // proceed without news context rather than blocking the viewer flag turn.
+      const newsContext = await Promise.race<string>([
+        getArenaNewsContext().catch(() => ""),
+        new Promise<string>((resolve) => setTimeout(() => resolve(""), 3000)),
+      ]);
 
       const systemPrompt = `You are a sharp, neutral fact-checker. A viewer has flagged this quote from public figure ${speakerName} as a suspected lie that an automated check missed. Score it on a 0-100 truthfulness scale and explain your reasoning.
 

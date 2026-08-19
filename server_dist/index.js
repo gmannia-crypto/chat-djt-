@@ -9642,7 +9642,10 @@ You're BEHIND in the record. You need this win badly \u2014 fight like your lega
 You have no debate record yet. Make this first one count.`;
         }
       }
-      const newsContext = await getArenaNewsContext();
+      const newsContext = await Promise.race([
+        getArenaNewsContext().catch(() => ""),
+        new Promise((resolve2) => setTimeout(() => resolve2(""), 3e3))
+      ]);
       const todayStr = (/* @__PURE__ */ new Date()).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
       const currentYearContext = `
 
@@ -10215,7 +10218,10 @@ Use "era":"current" for today's news/viral moments, "era":"past" for career hist
       const interviewerName = ARENA_NAME_MAP[interviewerId] || interviewerId;
       const intervieweeName = ARENA_NAME_MAP[intervieweeId] || intervieweeId;
       const todayStr = (/* @__PURE__ */ new Date()).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
-      const newsContext = await getArenaNewsContext().catch(() => "");
+      const newsContext = await Promise.race([
+        getArenaNewsContext().catch(() => ""),
+        new Promise((resolve2) => setTimeout(() => resolve2(""), 3e3))
+      ]);
       const shannonGrandmomNote = getShannonGrandmomNote(interviewerId, conversationHistory);
       const interviewStyle = req.body.interviewStyle || "combative";
       const isEdStyle = interviewStyle === "educational";
@@ -10644,7 +10650,10 @@ Answer ${callerLabel}'s question now.` }
       const accessCheck = await checkInterviewAccess(deviceId, false, ipAddress);
       if (!accessCheck.ok) return res.status(403).json({ error: accessCheck.error || "No active interview session" });
       const intervieweeName = ARENA_NAME_MAP[intervieweeId] || intervieweeId;
-      const newsContext = await getArenaNewsContext().catch(() => "");
+      const newsContext = await Promise.race([
+        getArenaNewsContext().catch(() => ""),
+        new Promise((resolve2) => setTimeout(() => resolve2(""), 3e3))
+      ]);
       const credibleFacts = getCredibleFactsContext();
       const systemPrompt = `You are a sharp, neutral fact-checker scoring a single quote from public figure ${intervieweeName} on a 0-100 truthfulness scale.
 
@@ -10861,7 +10870,10 @@ Score it now as JSON.` }
       bucket.seen.set(dedupeKey, now);
       bucket.lastTouched = now;
       const speakerName = ARENA_NAME_MAP[speakerId] || speakerId;
-      const newsContext = await getArenaNewsContext().catch(() => "");
+      const newsContext = await Promise.race([
+        getArenaNewsContext().catch(() => ""),
+        new Promise((resolve2) => setTimeout(() => resolve2(""), 3e3))
+      ]);
       const systemPrompt = `You are a sharp, neutral fact-checker. A viewer has flagged this quote from public figure ${speakerName} as a suspected lie that an automated check missed. Score it on a 0-100 truthfulness scale and explain your reasoning.
 
 100 = fully accurate, well-supported.
