@@ -14,6 +14,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Audio } from "expo-av";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import { getApiUrl } from "@/lib/query-client";
+import { fetchAiTurnWithRetry } from "@/lib/ai-turn-retry";
 import { useTokens } from "@/lib/token-context";
 import { saveRecording, generateShareText, pickHighlightQuote, type ArenaRecording, type RecordedMessage } from "@/lib/arena-recordings";
 import { usePersonaLocks, PREMIUM_PERSONA_CONFIGS } from "@/lib/persona-locks";
@@ -1359,36 +1360,12 @@ export default function InterviewScreen() {
 
   // The API returns 503/ai_unavailable when a bounded AI turn times out. Give
   // the provider one quick retry before ending the interview visibly.
-  const fetchTurnWithRetry = useCallback(async (makeRequest: () => Promise<any>) => {
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      try {
-        const res = await makeRequest();
-        if (res.status !== 503) {
-          if (attempt > 0) setAiRetrying(false);
-          return res;
-        }
-
-        const errorBody = await res.json().catch(() => ({}));
-        const isAiUnavailable = errorBody?.error === "ai_unavailable" || res.status === 503;
-        if (!isAiUnavailable) {
-          setAiRetrying(false);
-          return res;
-        }
-        if (attempt === 0) {
-          setAiRetrying(true);
-          await new Promise((resolve) => setTimeout(resolve, 900));
-          continue;
-        }
-
-        stopForAiUnavailable();
-        return null;
-      } catch {
-        setAiRetrying(false);
-        return null;
-      }
-    }
-    return null;
-  }, [stopForAiUnavailable]);
+  const fetchTurnWithRetry = useCallback((makeRequest: () => Promise<any>) => (
+    fetchAiTurnWithRetry(makeRequest, {
+      onRetrying: setAiRetrying,
+      onUnavailable: stopForAiUnavailable,
+    })
+  ), [stopForAiUnavailable]);
 
   const fetchQuestion = useCallback(async (opts: { isFollowUp?: boolean; isTransition?: boolean; previousTopicTitle?: string; isInterruption?: boolean; currentTopicArg?: Topic | null }) => {
     if (!deviceId || !interviewerId || !intervieweeId) return null;
