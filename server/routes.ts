@@ -4042,6 +4042,13 @@ Your personality quirks:
   const categoryTopicsCache: Map<string, { topics: any[]; expires: number }> = new Map();
   const categoryGenerationInProgress: Set<string> = new Set();
 
+  // Per-combo cache for /api/arena/interview-topics results.
+  // Key: "interviewerId:intervieweeId:topicMix:duration:style:category"
+  // Avoids repeated AI calls for the same pairing and serves results instantly on
+  // the second request within the same 5-minute window.
+  const interviewTopicsCache = new Map<string, { topics: any[]; interviewerName: string; intervieweeName: string; expires: number }>();
+  const INTERVIEW_TOPICS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
   /** Convert raw RSS headline strings ("Title (Source)") into minimal topic objects.
    *  Used as a reliable fallback when the AI call times out — callers always get
    *  REAL news content instead of the hardcoded generic list. */
@@ -8926,6 +8933,15 @@ FORMAT:
       const interviewerName = ARENA_NAME_MAP[interviewerId] || interviewerId;
       const intervieweeName = ARENA_NAME_MAP[intervieweeId] || intervieweeId;
       const topicCount = durationMinutes <= 5 ? 6 : durationMinutes <= 10 ? 10 : 14;
+
+      // Serve from cache when the same combo was requested recently — avoids
+      // a full AI round-trip on repeated requests within the same 5-minute window.
+      const cacheKey = `${interviewerId}:${intervieweeId}:${topicMix}:${durationMinutes}:${interviewStyle}:${category}`;
+      const cached = interviewTopicsCache.get(cacheKey);
+      if (cached && Date.now() < cached.expires) {
+        return res.json({ topics: cached.topics, interviewerName: cached.interviewerName, intervieweeName: cached.intervieweeName, fromCache: true });
+      }
+
       const newsContext = await getArenaNewsContext().catch(() => "");
       const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
 
@@ -8982,16 +8998,26 @@ Return ONLY valid JSON in this exact shape:
 {"topics":[{"title":"Punchy headline matching the style","description":"1 sentence — the exact angle ${interviewerName} uses, naming the specific receipt, quote, or question","era":"current"}]}
 Use "era":"current" for today's news/viral moments, "era":"past" for career history/expertise topics. No text outside the JSON.`;
 
-      const completion = await getClient().chat.completions.create({
-        model: getFastModel(),
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: `Generate the ${topicCount} interview topics now as JSON.` },
-        ],
-        max_completion_tokens: 700,
-        temperature: 0.85,
-        response_format: { type: "json_object" },
-      });
+      // Hard cap on how long we wait for the AI — must complete well within
+      // the client's 12-second abort window so custom topics actually arrive.
+      const AI_TIMEOUT_MS = 9000;
+      const aiTimeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(Object.assign(new Error("AI_TIMEOUT"), { code: "AI_TIMEOUT" })), AI_TIMEOUT_MS)
+      );
+
+      const completion = await Promise.race([
+        getClient().chat.completions.create({
+          model: getFastModel(),
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: `Generate the ${topicCount} interview topics now as JSON.` },
+          ],
+          max_completion_tokens: 700,
+          temperature: 0.85,
+          response_format: { type: "json_object" },
+        }),
+        aiTimeoutPromise,
+      ]);
       const raw = completion.choices[0]?.message?.content || "{}";
       let parsed: any = {};
       try { parsed = JSON.parse(raw); } catch { parsed = {}; }
@@ -9010,8 +9036,16 @@ Use "era":"current" for today's news/viral moments, "era":"past" for career hist
           era: "current",
         }));
       }
+      // Store in cache so the next identical request is served immediately.
+      interviewTopicsCache.set(cacheKey, { topics, interviewerName, intervieweeName, expires: Date.now() + INTERVIEW_TOPICS_CACHE_TTL });
       res.json({ topics, interviewerName, intervieweeName });
     } catch (error: any) {
+      if (error?.code === "AI_TIMEOUT") {
+        // AI took too long — tell the client promptly so it can fall back to
+        // generic topics rather than waiting out its own 12-second abort.
+        console.warn("Interview topics timed out after 9 s");
+        return res.status(503).json({ error: "Topic generation timed out" });
+      }
       console.error("Interview topics error:", error);
       res.status(500).json({ error: "Failed to generate topics" });
     }
