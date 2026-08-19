@@ -109,7 +109,7 @@ const MICRO_REACTIONS = [
   "You crazy!", "Kiss my ass!", "Mmm-hmm.", "Come on!",
   "Excuse me!", "No way!", "Sure.", "Right.",
   "Oh stop.", "Whatever.", "Here we go.", "Lord have mercy.",
-  "Say what?", "Unbelievable.", "Mm.", "Ok sure.", "That's rich.",
+  "Say what?", "Unbelievable.", "Mm.", "Ok sure.", "Cute story.",
 ];
 
 // ── OFFENSE DETECTION ─────────────────────────────────────────────────────────
