@@ -1229,6 +1229,10 @@ export default function DebateStage() {
   const debateTurnRef = useRef(0);
   const consecutiveNullRef = useRef(0);
   const consecutiveRebuttalNullRef = useRef(0);
+  // Set to true when the AI provider returns a balance/availability error (HTTP 503
+  // with error:"ai_unavailable"). The loop stops immediately rather than spinning
+  // through 6 null rounds and playing the "refreshing" filler line.
+  const providerUnavailableRef = useRef(false);
   const micCutRef = useRef({ iv: false, ivee: false });
   useEffect(() => { micCutRef.current = micCut; }, [micCut]);
 
@@ -3732,6 +3736,11 @@ export default function DebateStage() {
         handleArenaAccessExpired();
         return null;
       }
+      if (res.status === 503) {
+        const d = await res.json().catch(() => ({}));
+        if (d.error === "ai_unavailable") providerUnavailableRef.current = true;
+        return null;
+      }
       if (!res.ok) return null;
       return await res.json();
     } catch { return null; }
@@ -3763,6 +3772,11 @@ export default function DebateStage() {
       });
       if (res.status === 403) {
         handleArenaAccessExpired();
+        return null;
+      }
+      if (res.status === 503) {
+        const d = await res.json().catch(() => ({}));
+        if (d.error === "ai_unavailable") providerUnavailableRef.current = true;
         return null;
       }
       if (!res.ok) return null;
@@ -4022,6 +4036,15 @@ export default function DebateStage() {
       // sound like the AI stopped talking while the moderator just keeps going.
       // Instead: skip the bridge/rebuttal, back off, and retry the same topic.
       if (!primaryAnswer?.text) {
+        // Provider balance exhausted — stop immediately rather than spinning on nulls.
+        if (providerUnavailableRef.current) {
+          runningRef.current = false;
+          stopAllAudio();
+          addMessage({ id: `sys-unavail-${Date.now()}`, speakerId: "system", speakerName: "System",
+            text: "The debate has been paused — our AI service is temporarily unavailable. Please try again in a few minutes.", ts: Date.now(), isSystem: true });
+          if (!accessExpiredRef.current) setPhase("ended");
+          break;
+        }
         // Leave moderatorTargetRef as-is (already flipped at top of loop) so the
         // OTHER debater is asked next. This keeps the debate flowing when one side
         // is temporarily unreachable instead of hammering the same persona over and
@@ -4406,6 +4429,7 @@ export default function DebateStage() {
     setPhase("live");
     runningRef.current = true;
     accessExpiredRef.current = false;
+    providerUnavailableRef.current = false;
     debateTurnRef.current = 0;
     isPausedRef.current = false;
     setIsPaused(false);
@@ -4578,6 +4602,7 @@ export default function DebateStage() {
         setPhase("live");
         runningRef.current = true;
         accessExpiredRef.current = false;
+        providerUnavailableRef.current = false;
         debateTurnRef.current = 0;
         isPausedRef.current = false;
         setIsPaused(false);

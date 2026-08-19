@@ -9265,6 +9265,9 @@ ${styleInstruction}${getLieBehaviorPrompt(interviewerId, Number((req.body.sessio
       });
     } catch (error: any) {
       console.error("Interview question error:", error);
+      if (error?.status === 402) {
+        return res.status(503).json({ error: "ai_unavailable" });
+      }
       res.status(500).json({ error: "Failed to generate question" });
     }
   });
@@ -9376,6 +9379,9 @@ Stay 100% in character — your tone, vocabulary, ideology, and combativeness ar
       });
     } catch (error: any) {
       console.error("Interview answer error:", error);
+      if (error?.status === 402) {
+        return res.status(503).json({ error: "ai_unavailable" });
+      }
       res.status(500).json({ error: "Failed to generate answer" });
     }
   });

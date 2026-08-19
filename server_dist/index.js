@@ -10050,7 +10050,7 @@ You are ${intervieweeName}. Today is ${todayStr}. You are appearing on a live TV
   });
   app2.post("/api/arena/interview-topics", async (req, res) => {
     try {
-      const { interviewerId, intervieweeId, topicMix = "mixed", durationMinutes = 10, interviewStyle = "combative", category = "" } = req.body || {};
+      const { interviewerId, intervieweeId, topicMix = "mixed", durationMinutes = 10, interviewStyle = "combative", category = "", bust = 0 } = req.body || {};
       if (!interviewerId || !intervieweeId) return res.status(400).json({ error: "interviewerId and intervieweeId required" });
       if (!ARENA_PERSONA_PROMPTS[interviewerId] || !ARENA_PERSONA_PROMPTS[intervieweeId]) {
         return res.status(400).json({ error: "Invalid persona ids" });
@@ -10059,11 +10059,17 @@ You are ${intervieweeName}. Today is ${todayStr}. You are appearing on a live TV
       const intervieweeName = ARENA_NAME_MAP[intervieweeId] || intervieweeId;
       const topicCount = durationMinutes <= 5 ? 6 : durationMinutes <= 10 ? 10 : 14;
       const cacheKey = `${interviewerId}:${intervieweeId}:${topicMix}:${durationMinutes}:${interviewStyle}:${category}`;
+      if (bust) {
+        interviewTopicsCache.delete(cacheKey);
+      }
       const cached = interviewTopicsCache.get(cacheKey);
       if (cached && Date.now() < cached.expires) {
         return res.json({ topics: cached.topics, interviewerName: cached.interviewerName, intervieweeName: cached.intervieweeName, fromCache: true });
       }
-      const newsContext = await getArenaNewsContext().catch(() => "");
+      const newsContext = await Promise.race([
+        getArenaNewsContext().catch(() => ""),
+        new Promise((resolve2) => setTimeout(() => resolve2(""), 3e3))
+      ]);
       const todayStr = (/* @__PURE__ */ new Date()).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
       const isEducational = interviewStyle === "educational";
       const eraDirective = isEducational ? `ALL topics must be drawn from ${intervieweeName}'s documented real-world expertise, career history, ideological formation, and publicly stated beliefs. Use what is known about them in the real world \u2014 their writings, speeches, interviews, policy positions, and life experiences. Do NOT use current news headlines. Topics should explore HOW and WHY they arrived at their worldview, what shaped their thinking, and what they genuinely know and believe.` : topicMix === "current" ? "ALL topics must be drawn from CURRENT 2026 news headlines and live viral social media flashpoints happening right now." : topicMix === "past" ? "ALL topics must be drawn from PAST controversies, scandals, embarrassing moments, or historic decisions involving the interviewee \u2014 the kind of receipts that go viral when dug up." : "Mix half topics from CURRENT 2026 viral headlines and half from PAST scandals, controversies, or career-defining decisions involving the interviewee that would still blow up on social media today.";
@@ -10403,6 +10409,9 @@ Write ONLY your spoken question \u2014 no quotes, no stage directions, no asteri
       });
     } catch (error) {
       console.error("Interview question error:", error);
+      if (error?.status === 402) {
+        return res.status(503).json({ error: "ai_unavailable" });
+      }
       res.status(500).json({ error: "Failed to generate question" });
     }
   });
@@ -10547,6 +10556,9 @@ Write ONLY your spoken response \u2014 no quotes, no stage directions, no asteri
       });
     } catch (error) {
       console.error("Interview answer error:", error);
+      if (error?.status === 402) {
+        return res.status(503).json({ error: "ai_unavailable" });
+      }
       res.status(500).json({ error: "Failed to generate answer" });
     }
   });
