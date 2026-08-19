@@ -357,13 +357,17 @@ export async function generateModeratorQuestion(opts: {
   isTransition?: boolean;
   previousTopicTitle?: string;
   conversationHistory?: Array<{ speakerName: string; text: string }>;
+  onAccessDenied?: () => void;
 }): Promise<string> {
   const mod = MODERATORS[opts.moderatorStyle];
   const leaning = getModeratorLeaning(opts.moderatorStyle, opts.targetId);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
   try {
     const res = await fetch(new URL("/api/arena/interview-question", getApiUrl()).toString(), {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-device-id": opts.deviceId },
+      signal: controller.signal,
       body: JSON.stringify({
         interviewerId: mod.personaId,
         intervieweeId: opts.targetId,
@@ -375,11 +379,18 @@ export async function generateModeratorQuestion(opts: {
         moderatorLeaning: leaning,
       }),
     });
+    if (res.status === 403) {
+      opts.onAccessDenied?.();
+      return "";
+    }
     if (res.ok) {
       const data = await res.json();
       if (data?.text) return truncateAtSentence(String(data.text), 420);
     }
   } catch { /* fall through */ }
+  finally {
+    clearTimeout(timeoutId);
+  }
   return leaning === "favor"
     ? `So tell us in your own words — what's the real story on ${opts.topic.title}?`
     : `Let's not dance around it — explain yourself on ${opts.topic.title}.`;

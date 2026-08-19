@@ -1218,6 +1218,14 @@ export default function DebateStage() {
   const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const runningRef = useRef(false);
   const isPausedRef = useRef(false);
+  // A server-side access denial is definitive. Keep it separate from ordinary
+  // model/network failures so the turn loop never keeps asking questions after
+  // the server has stopped authorizing debater responses.
+  const accessExpiredRef = useRef(false);
+  // Advances only when the moderator begins a fresh question. Fact-check results
+  // from an older turn are retained in the tally but must never cut in after a
+  // newer question has already started.
+  const debateTurnRef = useRef(0);
   const consecutiveNullRef = useRef(0);
   const consecutiveRebuttalNullRef = useRef(0);
   const micCutRef = useRef({ iv: false, ivee: false });
@@ -2474,6 +2482,20 @@ export default function DebateStage() {
     if (snd) snd.stopAsync().then(() => snd.unloadAsync()).catch(() => {});
   }, []);
 
+  // Unlike a transient model error, a 403 from an interview endpoint means the
+  // server will not generate another question or answer. Stop the loop once and
+  // surface the renewal UI instead of replaying fallback questions into silence.
+  const handleArenaAccessExpired = useCallback(() => {
+    if (accessExpiredRef.current) return;
+    accessExpiredRef.current = true;
+    runningRef.current = false;
+    setIsThinking(null);
+    setModeratorSpeaking(false);
+    setActiveSpeaker(null);
+    stopAllAudio();
+    setShowPaywall(true);
+  }, [stopAllAudio]);
+
   // Pulse animation for the active speaker glow + reactive active flags via shared values
   const interviewerActiveSV = useSharedValue(0);
   const intervieweeActiveSV = useSharedValue(0);
@@ -2568,6 +2590,7 @@ export default function DebateStage() {
     if (isB && !lieDetectorB) return;
     if (msg.text.length < 25) return;
     if (!deviceId) return;
+    const factCheckTurn = debateTurnRef.current;
     fetch(new URL("/api/arena/interview-factcheck", getApiUrl()).toString(), {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-device-id": deviceId },
@@ -2605,29 +2628,23 @@ export default function DebateStage() {
         // start talking until the moderator fully finishes — no cutoffs.
         const modCooldownOk = Date.now() - lastModReactionAtRef.current >= MOD_REACTION_COOLDOWN_MS;
         if (isLie && deviceId && modCooldownOk) {
+          // A delayed response must not interrupt a newer moderator question.
+          if (factCheckTurn !== debateTurnRef.current) return;
           lastModReactionAtRef.current = Date.now();
           const mod = MODERATORS[moderatorStyle];
           const reactionKind = moderatorLieReaction(moderatorStyle, msg.speakerId, true);
           const factLine = data.moderatorLine ? String(data.moderatorLine) : null;
-          const linePromise: Promise<string> = factLine
-            ? Promise.resolve(factLine)
-            : reactionKind
-              ? generateModeratorLine({
-                  deviceId, moderatorId: mod.personaId, kind: reactionKind,
-                  topic: currentTopicRef.current?.title, lastSpeakerText: msg.text, moderatorStyle,
-                })
-              : Promise.resolve("");
-          linePromise.then((line) => {
-            if (!line || !runningRef.current) return;
-            setModeratorLastLine(line);
-            setModeratorSpeaking(true);
-            // blockEarlyResolve=true: next debater waits for moderator to
-            // fully finish — no overlapping, no mid-sentence cutoffs.
-            enqueueTTS(line, mod.personaId, `mod-lie-${msg.id}`, {
-              blockEarlyResolve: true,
-              onComplete: () => setModeratorSpeaking(false),
-            });
-          }).catch(() => {});
+          // The fact-check response is already asynchronous. Avoid another model
+          // call here, which was allowing corrections to speak well after the
+          // exchange that prompted them.
+          const line = factLine || (reactionKind ? localJab(reactionKind) : "");
+          if (!line || !runningRef.current || accessExpiredRef.current) return;
+          setModeratorLastLine(line);
+          setModeratorSpeaking(true);
+          enqueueTTS(line, mod.personaId, `mod-lie-${msg.id}`, {
+            blockEarlyResolve: true,
+            onComplete: () => setModeratorSpeaking(false),
+          });
         }
       })
       .catch(() => {});
@@ -2990,6 +3007,7 @@ export default function DebateStage() {
                   topic: nextTopic,
                   isTransition: false,
                   conversationHistory: messagesRef.current.filter((m) => !m.isSystem).slice(-4),
+                  onAccessDenied: handleArenaAccessExpired,
                 }).then((q) => { nextQuestion = q || null; nextQuestionDone = true; })
                   .catch(() => { nextQuestionDone = true; });
 
@@ -3629,7 +3647,7 @@ export default function DebateStage() {
       setSecondsLeft(remaining);
       if (remaining <= 0) {
         runningRef.current = false;
-        setPhase("ended");
+        if (!accessExpiredRef.current) setPhase("ended");
       }
     }, 500);
     return () => {
@@ -3645,11 +3663,6 @@ export default function DebateStage() {
     if (!deviceId || !interviewerId || !intervieweeId) return null;
     const topicArg = opts.currentTopicArg !== undefined ? opts.currentTopicArg : currentTopic;
     try {
-      // Stamp the time before the request leaves so the grace-period check uses
-      // when the request was *sent*, not when the 403 response finally arrived.
-      // On slow connections the response can land slightly after the window closes
-      // even though the request was sent while still inside it.
-      const requestSentAt = Date.now();
       const res = await fetch(new URL("/api/arena/interview-question", getApiUrl()).toString(), {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-device-id": deviceId },
@@ -3670,28 +3683,18 @@ export default function DebateStage() {
         }),
       });
       if (res.status === 403) {
-        // Only stop the session if the client timer has genuinely expired.
-        // A server 403 mid-session (free-trial expiry, clock skew, etc.) should
-        // not kill the debate while the client timer still has time — mirror the
-        // resilient pattern used in interview.tsx.
-        if (Date.now() >= sessionEndsAtRef.current) {
-          runningRef.current = false;
-          setPhase("ended");
-        }
+        handleArenaAccessExpired();
         return null;
       }
       if (!res.ok) return null;
       const data = await res.json();
       return data;
     } catch { return null; }
-  }, [deviceId, interviewerId, intervieweeId, currentTopic]);
+  }, [deviceId, interviewerId, intervieweeId, currentTopic, handleArenaAccessExpired]);
 
   const fetchAnswer = useCallback(async (lastQuestion: string, opts: { wasInterrupted?: boolean; interruptionText?: string; isInterruption?: boolean } = {}) => {
     if (!deviceId || !interviewerId || !intervieweeId) return null;
     try {
-      // Stamp the time before the request leaves so the grace-period check uses
-      // when the request was *sent*, not when the 403 response finally arrived.
-      const requestSentAt = Date.now();
       const res = await fetch(new URL("/api/arena/interview-answer", getApiUrl()).toString(), {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-device-id": deviceId },
@@ -3716,26 +3719,19 @@ export default function DebateStage() {
         }),
       });
       if (res.status === 403) {
-        // Mirror interview.tsx: only stop when the client timer has also expired.
-        if (Date.now() >= sessionEndsAtRef.current) {
-          runningRef.current = false;
-          setPhase("ended");
-        }
+        handleArenaAccessExpired();
         return null;
       }
       if (!res.ok) return null;
       return await res.json();
     } catch { return null; }
-  }, [deviceId, interviewerId, intervieweeId, currentTopic, effectiveInterviewStyle]);
+  }, [deviceId, interviewerId, intervieweeId, currentTopic, effectiveInterviewStyle, handleArenaAccessExpired]);
 
   // Generic answer fetch — used when the MODERATOR (not the other debater) is the questioner,
   // e.g. topic-opening questions that alternate between Debater A and Debater B.
   const fetchAnswerFrom = useCallback(async (questionerId: string, answererId: string, lastQuestion: string) => {
     if (!deviceId) return null;
     try {
-      // Stamp the time before the request leaves so the grace-period check uses
-      // when the request was *sent*, not when the 403 response finally arrived.
-      const requestSentAt = Date.now();
       const res = await fetch(new URL("/api/arena/interview-answer", getApiUrl()).toString(), {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-device-id": deviceId },
@@ -3756,17 +3752,13 @@ export default function DebateStage() {
         }),
       });
       if (res.status === 403) {
-        // Mirror interview.tsx: only stop when the client timer has also expired.
-        if (Date.now() >= sessionEndsAtRef.current) {
-          runningRef.current = false;
-          setPhase("ended");
-        }
+        handleArenaAccessExpired();
         return null;
       }
       if (!res.ok) return null;
       return await res.json();
     } catch { return null; }
-  }, [deviceId, effectiveInterviewStyle]);
+  }, [deviceId, effectiveInterviewStyle, handleArenaAccessExpired]);
 
   // Alternates which debater the MODERATOR addresses at each new topic — 'A' or 'B' — so
   // both sides get equal question time from the moderator over the course of the debate.
@@ -3887,6 +3879,9 @@ export default function DebateStage() {
       const rawIdx = topicIdxRef.current;
       const idx = rawIdx < liveTopics.length ? rawIdx : 0;
       const topic = liveTopics[idx];
+      // Any fact-check that resolves after this point belongs to the preceding
+      // exchange and must not be voiced over this new question.
+      debateTurnRef.current += 1;
 
       // Alternate which debater the moderator addresses
       const side = moderatorTargetRef.current;
@@ -3916,6 +3911,7 @@ export default function DebateStage() {
           deviceId, moderatorStyle, targetId: primaryId, topic,
           isTransition: false,
           conversationHistory: messagesRef.current.filter((m) => !m.isSystem).slice(-6),
+          onAccessDenied: handleArenaAccessExpired,
         });
         setIsThinking(null);
       }
@@ -4276,6 +4272,7 @@ export default function DebateStage() {
           deviceId, moderatorStyle, targetId: nextPrimaryId, topic: nextTopic,
           isTransition: false,
           conversationHistory: messagesRef.current.filter((m) => !m.isSystem).slice(-4),
+          onAccessDenied: handleArenaAccessExpired,
         }).catch(() => ""),
         speakMod(transText, `modtrans-${Date.now()}-${Math.random()}`),
       ]);
@@ -4296,12 +4293,11 @@ export default function DebateStage() {
 
     }
     runningRef.current = false;
-    // Always transition to ended when the loop terminates — whether the client
-    // timer expired, the server returned 403, or the null guard fired.
-    // Previously gated on Date.now() >= sessionEndsAtRef, which left the UI in
-    // a zombie "live" state when the server session expired before the client timer.
+    // An access denial opens the renewal UI. Do not replace it with the normal
+    // end-of-debate screen as the loop unwinds.
+    if (accessExpiredRef.current) return;
     setPhase("ended");
-  }, [topics, fetchAnswerFrom, enrichAndAddMessage, speakMod, moderatorStyle, deviceId, interviewerId, intervieweeId, interviewer, interviewee]);
+  }, [topics, fetchAnswerFrom, enrichAndAddMessage, speakMod, moderatorStyle, deviceId, interviewerId, intervieweeId, interviewer, interviewee, handleArenaAccessExpired]);
 
   const startInterview = useCallback(async () => {
     if (!deviceId || !interviewerId || !intervieweeId || topics.length === 0 || isStarting) return;
@@ -4399,6 +4395,8 @@ export default function DebateStage() {
     setFirstAudioPlayed(false);
     setPhase("live");
     runningRef.current = true;
+    accessExpiredRef.current = false;
+    debateTurnRef.current = 0;
     isPausedRef.current = false;
     setIsPaused(false);
     setIsStarting(false);
@@ -4422,7 +4420,10 @@ export default function DebateStage() {
 
         // Start fetching the first question in parallel with the opening sequence.
         const questionFetchPromise = openTopic && deviceId
-          ? generateModeratorQuestion({ deviceId, moderatorStyle, targetId: interviewerId ?? "", topic: openTopic, isTransition: false, conversationHistory: [] })
+          ? generateModeratorQuestion({
+              deviceId, moderatorStyle, targetId: interviewerId ?? "", topic: openTopic,
+              isTransition: false, conversationHistory: [], onAccessDenied: handleArenaAccessExpired,
+            })
               .then((q) => {
                 if (q && voiceEnabledRef.current) startPrefetch({ text: q, personaId: mod.personaId });
                 if (q && deviceId && interviewerId) {
@@ -4490,7 +4491,22 @@ export default function DebateStage() {
           await speakMod(welcomeText, `modwelcome-${Date.now()}`);
         }
 
-        const prefetchedQuestion = await questionFetchPromise;
+        // A slow question request used to leave a long silent gap after the
+        // introduction. Speak one concise bridge while the bounded request
+        // finishes; never loop or repeat this line.
+        let prefetchedQuestion = "";
+        const earlyQuestion = await Promise.race([
+          questionFetchPromise.then((question) => ({ question, ready: true })),
+          new Promise<{ question: string; ready: false }>((resolve) =>
+            setTimeout(() => resolve({ question: "", ready: false }), 700),
+          ),
+        ]);
+        if (earlyQuestion.ready) {
+          prefetchedQuestion = earlyQuestion.question;
+        } else if (runningRef.current) {
+          await speakMod("Let's begin with the question voters most want answered.", `modopening-bridge-${Date.now()}`, { skipTranscript: true });
+          prefetchedQuestion = await questionFetchPromise;
+        }
         await runModeratorOpening(openTopic, prefetchedQuestion || undefined);
       } catch {}
       if (runningRef.current) {
@@ -4501,7 +4517,7 @@ export default function DebateStage() {
         runLoop();
       }
     })();
-  }, [deviceId, interviewerId, intervieweeId, topics, isStarting, duration, runLoop, runModeratorOpening, selectedTopicId, moderatorStyle, category, fetchAnswerFrom, startPrefetch, boxingMode, enqueueTTSAndWait]);
+  }, [deviceId, interviewerId, intervieweeId, topics, isStarting, duration, runLoop, runModeratorOpening, selectedTopicId, moderatorStyle, category, fetchAnswerFrom, startPrefetch, boxingMode, enqueueTTSAndWait, handleArenaAccessExpired, speakMod]);
 
   const unlockSession = useCallback(async () => {
     if (!deviceId || isUnlocking) return;
@@ -4514,6 +4530,18 @@ export default function DebateStage() {
       });
       const data = await res.json();
       if (res.ok && data.granted) {
+        const selectedMs = duration * 60 * 1000;
+        const serverRemaining = Number(data.expiresAt) - Date.now();
+        if (Number.isFinite(serverRemaining) && serverRemaining > 0 && serverRemaining < selectedMs) {
+          // /arena/access returns an existing pass without extending it. Never
+          // label that as a fresh longer purchase: doing so starts a 10/15-minute
+          // client timer against a shorter server authorization.
+          Alert.alert(
+            "Session too short",
+            `Your active pass has about ${Math.max(1, Math.floor(serverRemaining / 60000))} minute${serverRemaining >= 120000 ? "s" : ""} left. Choose a duration it can cover or start again once this pass ends.`,
+          );
+          return;
+        }
         setShowPaywall(false);
         await refreshBalance();
         // Auto-start
@@ -4551,11 +4579,32 @@ export default function DebateStage() {
         setFirstAudioPlayed(false);
         setPhase("live");
         runningRef.current = true;
+        accessExpiredRef.current = false;
+        debateTurnRef.current = 0;
         isPausedRef.current = false;
         setIsPaused(false);
         (async () => {
           try {
-            await runModeratorOpening(topics[startIdx2], undefined, true);
+            const openingTopic = topics[startIdx2];
+            const mod = MODERATORS[moderatorStyle];
+            // Begin the request before the paid-session introduction speaks, so
+            // the first actual exchange is ready when that introduction ends.
+            const openingQuestionPromise = openingTopic
+              ? generateModeratorQuestion({
+                  deviceId, moderatorStyle, targetId: interviewerId ?? "",
+                  topic: openingTopic, conversationHistory: [],
+                  onAccessDenied: handleArenaAccessExpired,
+                })
+              : Promise.resolve("");
+            await runModeratorOpening(openingTopic, undefined, true);
+            const openingQuestion = await openingQuestionPromise;
+            if (openingQuestion && runningRef.current) {
+              prefetchedOpeningRef.current = openingQuestion;
+              if (voiceEnabledRef.current) startPrefetch({ text: openingQuestion, personaId: mod.personaId });
+              if (interviewerId) {
+                prefetchedPrimaryAnswerRef.current = fetchAnswerFrom(mod.personaId, interviewerId, openingQuestion);
+              }
+            }
           } catch {}
           if (runningRef.current) {
             sessionEndsAtRef.current = Date.now() + duration * 60 * 1000;
@@ -4567,7 +4616,7 @@ export default function DebateStage() {
     } catch {} finally {
       setIsUnlocking(false);
     }
-  }, [deviceId, duration, isUnlocking, refreshBalance, runLoop, runModeratorOpening, selectedTopicId, topics]);
+  }, [deviceId, duration, isUnlocking, refreshBalance, runLoop, runModeratorOpening, selectedTopicId, topics, moderatorStyle, interviewerId, handleArenaAccessExpired, startPrefetch, fetchAnswerFrom]);
 
   const stopInterview = useCallback(() => {
     runningRef.current = false;
