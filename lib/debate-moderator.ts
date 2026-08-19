@@ -377,6 +377,7 @@ export async function generateModeratorQuestion(opts: {
         previousTopicTitle: opts.previousTopicTitle,
         interviewStyle: leaning === "favor" ? "civil_discourse" : leaning === "target" ? "combative" : "informative",
         moderatorLeaning: leaning,
+        isModerator: true,
       }),
     });
     if (res.status === 403) {

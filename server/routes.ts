@@ -9193,7 +9193,7 @@ Use "era":"current" for today's news/viral moments, "era":"past" for career hist
     try {
       const deviceId = req.headers["x-device-id"] as string;
       if (!deviceId) return res.status(400).json({ error: "Device ID required" });
-      const { interviewerId, intervieweeId, topic, conversationHistory = [], isFollowUp = false, isTransition = false, previousTopicTitle, isInterruption = false, moderatorLeaning, isDebate = false } = req.body || {};
+      const { interviewerId, intervieweeId, topic, conversationHistory = [], isFollowUp = false, isTransition = false, previousTopicTitle, isInterruption = false, moderatorLeaning, isDebate = false, isModerator = false } = req.body || {};
       if (!interviewerId || !ARENA_PERSONA_PROMPTS[interviewerId]) return res.status(400).json({ error: "Invalid interviewerId" });
       if (!intervieweeId || !ARENA_PERSONA_PROMPTS[intervieweeId]) return res.status(400).json({ error: "Invalid intervieweeId" });
       if (interviewerId === intervieweeId) return res.status(400).json({ error: "A persona cannot interview themselves" });
@@ -9251,7 +9251,11 @@ Use "era":"current" for today's news/viral moments, "era":"past" for career hist
           : "";
 
       const grahamDeathFact = `\n\nCRITICAL CURRENT EVENT: Lindsey Graham passed away on July 12, 2026 at age 71. His sister now holds his South Carolina Senate seat — he is no longer a sitting senator. All personas are fully aware of this. If Graham is your interviewee or opponent, you know he is speaking from beyond the grave. React accordingly — grief, mockery, disbelief, or dark humor depending on your character.`;
-      const interviewerStyle = isDebate
+      const interviewerStyle = isModerator
+        ? `You are ${interviewerName}, MODERATING a live debate — you are NOT one of the debaters and you are NOT hosting a polite 1-on-1 interview. ${intervieweeName} is one of the two debaters on this stage; you are putting a question to them. Today is ${todayStr}.${grahamDeathFact} Stay 100% in character as yourself, ${interviewerName} — your real personality, biases, catchphrases, tone, and speaking style must come through in exactly how you frame this question. Do not become generic, neutral, or interchangeable with any other moderator: a question from you must sound like it could only come from ${interviewerName}. ${getArenaPersonaPrompt(interviewerId)}${shannonGrandmomNote}
+
+${styleInstruction}${moderatorBiasSuffix}`
+        : isDebate
         ? `You are ${interviewerName}, one of TWO co-equal debaters (not a host or interviewer) on a live debate stage opposite ${intervieweeName}. Today is ${todayStr}.${grahamDeathFact} A separate MODERATOR runs this debate and asks the actual questions — your job is to argue your position, make your case, and rebut ${intervieweeName} as an equal. Do NOT act like a talk-show host interviewing a guest; do not ask ${intervieweeName} formal interview-style questions — instead make statements, arguments, and rebuttals, ending with a challenge or pointed jab if you like, not a polite question. Stay 100% in character — your tone, vocabulary, and ideology are who you are. ${getArenaPersonaPrompt(interviewerId)}${shannonGrandmomNote}
 
 ${targetingDirective}
