@@ -3809,13 +3809,29 @@ export default function DebateStage() {
     setModeratorSpeaking(false);
   }, [moderatorStyle, enqueueTTS]);
 
-  // Thin shim kept so startInterview / unlockSession don't need refactoring.
-  // runLoop now handles the full structured debate flow including the first round.
-  const runModeratorOpening = useCallback(async (_openTopic?: Topic | undefined, prefetchedQuestion?: string) => {
+  // Shared opening state for both ways a debate can begin. The regular start
+  // path has its own full broadcast opening; the paid-unlock path must still
+  // introduce the moderator, both debaters, and the first topic before the
+  // first question is allowed to begin.
+  const runModeratorOpening = useCallback(async (
+    openTopic?: Topic | undefined,
+    prefetchedQuestion?: string,
+    includeIntroduction = false,
+  ) => {
     moderatorTargetRef.current = "A";
     exchangesOnTopicRef.current = 0;
+    if (includeIntroduction) {
+      const mod = MODERATORS[moderatorStyle];
+      const interviewerName = interviewersRef.current.find((p) => p.id === interviewerId)?.name ?? "our first debater";
+      const intervieweeName = intervieweesRef.current.find((p) => p.id === intervieweeId)?.name ?? "our second debater";
+      const topicTitle = openTopic?.title ?? "the issues on the table tonight";
+      await speakMod(
+        `Welcome to tonight's ${category} debate. I'm ${mod.name}. ${interviewerName} and ${intervieweeName}, thank you both for being here. Our opening topic is ${topicTitle}.`,
+        `modwelcome-unlock-${Date.now()}`,
+      );
+    }
     prefetchedOpeningRef.current = prefetchedQuestion || "";
-  }, []);
+  }, [category, interviewerId, intervieweeId, moderatorStyle, speakMod]);
 
   // Throttle for moderator opinion injections (chastise/defend lie reactions) —
   // keeps the moderator from piling on every single lie flag, and enforces a
@@ -4190,6 +4206,22 @@ export default function DebateStage() {
       }
       if (!runningRef.current || Date.now() >= sessionEndsAtRef.current) break;
 
+      // ── STEP 4.5: Moderator acknowledges the exchange ─────────────────────
+      // Let the moderator close out the back-and-forth before steering into the
+      // next topic. speakMod drains the rebuttal audio first, so the audience
+      // hears the debaters' full exchange, then the moderator's reaction, then
+      // the next question — never the question cutting ahead of the dialogue.
+      const exchangeWraps = [
+        `${primaryName} has made the case, and ${secondaryName} has answered it. I've heard both sides.`,
+        `That is a clear disagreement between ${primaryName} and ${secondaryName}. Keep it focused as we continue.`,
+        `We've heard the argument and the rebuttal. ${primaryName} and ${secondaryName}, stay on the substance.`,
+      ];
+      await speakMod(
+        exchangeWraps[Math.floor(Math.random() * exchangeWraps.length)],
+        `mod-wrap-${Date.now()}-${Math.random()}`,
+      );
+      if (!runningRef.current || Date.now() >= sessionEndsAtRef.current) break;
+
       totalExchangesRef.current += 1;
 
       // One-time shop promo after exchange 4
@@ -4523,7 +4555,7 @@ export default function DebateStage() {
         setIsPaused(false);
         (async () => {
           try {
-            await runModeratorOpening(topics[startIdx2]);
+            await runModeratorOpening(topics[startIdx2], undefined, true);
           } catch {}
           if (runningRef.current) {
             sessionEndsAtRef.current = Date.now() + duration * 60 * 1000;
