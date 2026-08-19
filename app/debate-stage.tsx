@@ -1077,6 +1077,7 @@ export default function DebateStage() {
   const [topicsSlowWarning, setTopicsSlowWarning] = useState(false);
   const [topicsAreFallback, setTopicsAreFallback] = useState(false);
   const [topicsError, setTopicsError] = useState(false);
+  const [topicsFromCache, setTopicsFromCache] = useState(false);
   const [topicIdx, setTopicIdx] = useState(0);
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
   const [completedTopics, setCompletedTopics] = useState<Set<string>>(new Set());
@@ -3562,6 +3563,7 @@ export default function DebateStage() {
     setTopicsLoading(true);
     setTopicsError(false);
     setTopicsAreFallback(false);
+    setTopicsFromCache(false);
     setTopics([]);
     setTopicIdx(0);
     setSelectedTopicId(null);
@@ -3586,6 +3588,7 @@ export default function DebateStage() {
         if (loaded.length > 0) {
           setTopics(loaded);
           setTopicsAreFallback(false);
+          setTopicsFromCache(data.fromCache === true);
         } else if (FALLBACK_TOPICS.length > 0) {
           setTopics(FALLBACK_TOPICS);
           setTopicsAreFallback(true);
@@ -5362,16 +5365,27 @@ export default function DebateStage() {
                 <Ionicons name="list" size={16} color="#FFD700" />
                 <Text style={s.topicsTitle}>INTERVIEW QUESTIONS</Text>
               </View>
-              <Pressable onPress={() => generateTopics(true)} disabled={topicsLoading || !interviewerId || !intervieweeId} style={s.refreshTopicsBtn}>
-                {topicsLoading ? (
-                  <ActivityIndicator size="small" color="#FFD700" />
-                ) : (
-                  <>
-                    <Ionicons name="refresh" size={14} color="#FFD700" />
-                    <Text style={s.refreshTopicsText}>New</Text>
-                  </>
-                )}
-              </Pressable>
+              {topicsFromCache && !topicsLoading ? (
+                <Pressable
+                  onPress={() => generateTopics(true)}
+                  disabled={!interviewerId || !intervieweeId}
+                  style={[s.refreshTopicsBtn, { borderColor: "rgba(255,149,0,0.5)", backgroundColor: "rgba(255,149,0,0.1)" }]}
+                >
+                  <Ionicons name="time-outline" size={13} color="#FF9500" />
+                  <Text style={[s.refreshTopicsText, { color: "#FF9500" }]}>CACHED · Refresh</Text>
+                </Pressable>
+              ) : (
+                <Pressable onPress={() => generateTopics(true)} disabled={topicsLoading || !interviewerId || !intervieweeId} style={s.refreshTopicsBtn}>
+                  {topicsLoading ? (
+                    <ActivityIndicator size="small" color="#FFD700" />
+                  ) : (
+                    <>
+                      <Ionicons name="refresh" size={14} color="#FFD700" />
+                      <Text style={s.refreshTopicsText}>New</Text>
+                    </>
+                  )}
+                </Pressable>
+              )}
             </View>
             {topicsLoading && topics.length === 0 ? (
               <View style={{ padding: 20, alignItems: "center" }}>
