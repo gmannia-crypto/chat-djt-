@@ -8953,7 +8953,13 @@ FORMAT:
         return res.json({ topics: cached.topics, interviewerName: cached.interviewerName, intervieweeName: cached.intervieweeName, fromCache: true });
       }
 
-      const newsContext = await getArenaNewsContext().catch(() => "");
+      // Give the news-context fetch a hard 3-second deadline so slow RSS cache
+      // warm-ups don't eat into the AI's 9-second budget.  If it misses the
+      // window we simply proceed without news context rather than blocking.
+      const newsContext = await Promise.race<string>([
+        getArenaNewsContext().catch(() => ""),
+        new Promise<string>((resolve) => setTimeout(() => resolve(""), 3000)),
+      ]);
       const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
 
       // Educational style ignores topicMix entirely — topics come from the persona's
