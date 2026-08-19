@@ -441,6 +441,7 @@ export default function InterviewScreen() {
   const runningRef = useRef(false);
   const isPausedRef = useRef(false);
   const providerUnavailableRef = useRef(false);
+  const networkErrorRef = useRef(false);
   const [isPaused, setIsPaused] = useState(false);
   const exchangesOnTopicRef = useRef(0);
   const totalExchangesRef = useRef(0);
@@ -1358,14 +1359,33 @@ export default function InterviewScreen() {
     setPhase("ended");
   }, [addMessage, stopAllAudio]);
 
+  const stopForNetworkError = useCallback(() => {
+    if (networkErrorRef.current) return;
+    networkErrorRef.current = true;
+    setAiRetrying(false);
+    runningRef.current = false;
+    setIsThinking(null);
+    stopAllAudio();
+    addMessage({
+      id: `sys-network-${Date.now()}`,
+      speakerId: "system",
+      speakerName: "System",
+      text: "Network connection lost — the interview has been paused. Please check your connection and try again.",
+      ts: Date.now(),
+      isSystem: true,
+    });
+    setPhase("ended");
+  }, [addMessage, stopAllAudio]);
+
   // The API returns 503/ai_unavailable when a bounded AI turn times out. Give
   // the provider one quick retry before ending the interview visibly.
   const fetchTurnWithRetry = useCallback((makeRequest: () => Promise<any>) => (
     fetchAiTurnWithRetry(makeRequest, {
       onRetrying: setAiRetrying,
       onUnavailable: stopForAiUnavailable,
+      onNetworkError: stopForNetworkError,
     })
-  ), [stopForAiUnavailable]);
+  ), [stopForAiUnavailable, stopForNetworkError]);
 
   const fetchQuestion = useCallback(async (opts: { isFollowUp?: boolean; isTransition?: boolean; previousTopicTitle?: string; isInterruption?: boolean; currentTopicArg?: Topic | null }) => {
     if (!deviceId || !interviewerId || !intervieweeId) return null;
@@ -1692,6 +1712,7 @@ export default function InterviewScreen() {
     setPhase("live");
     runningRef.current = true;
     providerUnavailableRef.current = false;
+    networkErrorRef.current = false;
     setAiRetrying(false);
     isPausedRef.current = false;
     setIsPaused(false);
@@ -1791,6 +1812,8 @@ export default function InterviewScreen() {
         setFirstAudioPlayed(false);
         setPhase("live");
         runningRef.current = true;
+        providerUnavailableRef.current = false;
+        networkErrorRef.current = false;
         isPausedRef.current = false;
         setIsPaused(false);
         (async () => {
@@ -2602,7 +2625,7 @@ export default function InterviewScreen() {
 
       {phase === "ended" && (
         <Animated.View entering={FadeInDown.duration(300)} style={[s.endedBar, { paddingBottom: insets.bottom + webBottom + 12 }]}>
-          <Text style={s.endedTitle}>INTERVIEW COMPLETE</Text>
+          <Text style={s.endedTitle}>{networkErrorRef.current ? "INTERVIEW PAUSED" : "INTERVIEW COMPLETE"}</Text>
           <View style={{ flexDirection: "row", gap: 8, marginTop: 8, flexWrap: "wrap", justifyContent: "center" }}>
             <Pressable onPress={() => setPhase("setup")} style={s.endedBtnSecondary}>
               <Ionicons name="arrow-back" size={14} color="#fff" />

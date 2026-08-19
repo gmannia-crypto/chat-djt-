@@ -29,6 +29,10 @@ function response(status: number, body: unknown = {}): AiTurnResponse {
   };
 }
 
+function rejectedRequest(): never {
+  throw new TypeError("mock network failure");
+}
+
 async function runScenario(
   endpoint: string,
   responses: AiTurnResponse[],
@@ -53,10 +57,35 @@ async function runScenario(
       retryDelayMs: 0,
       onRetrying: (retrying) => retryStates.push(retrying),
       onUnavailable: () => { unavailable += 1; },
+      onNetworkError: () => {},
     },
   );
 
   return { result, calls, retryStates, unavailable };
+}
+
+async function runNetworkFailureScenario(endpoint: string): Promise<{
+  result: AiTurnResponse | null;
+  calls: string[];
+  networkErrors: number;
+}> {
+  const calls: string[] = [];
+  let networkErrors = 0;
+
+  const result = await fetchAiTurnWithRetry(
+    async () => {
+      calls.push(endpoint);
+      return rejectedRequest();
+    },
+    {
+      retryDelayMs: 0,
+      onRetrying: () => {},
+      onUnavailable: () => {},
+      onNetworkError: () => { networkErrors += 1; },
+    },
+  );
+
+  return { result, calls, networkErrors };
 }
 
 async function main(): Promise<void> {
@@ -80,6 +109,12 @@ async function main(): Promise<void> {
     assert(recovery.result?.status === 200, "the successful retry continues the session");
     assert(recovery.retryStates.join(",") === "true,false", "retry status clears after recovery");
     assert(recovery.unavailable === 0, "recovery does not end the session");
+
+    console.log(`${endpoint}: network request rejection`);
+    const networkFailure = await runNetworkFailureScenario(endpoint);
+    assert(networkFailure.calls.length === 1, "a rejected request does not create a silent retry loop");
+    assert(networkFailure.result === null, "a rejected request ends the turn");
+    assert(networkFailure.networkErrors === 1, "the network-error callback runs exactly once");
   }
 
   if (failed > 0) {

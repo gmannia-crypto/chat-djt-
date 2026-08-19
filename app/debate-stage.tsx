@@ -1235,6 +1235,7 @@ export default function DebateStage() {
   // with error:"ai_unavailable"). The loop stops immediately rather than spinning
   // through 6 null rounds and playing the "refreshing" filler line.
   const providerUnavailableRef = useRef(false);
+  const networkErrorRef = useRef(false);
   const micCutRef = useRef({ iv: false, ivee: false });
   useEffect(() => { micCutRef.current = micCut; }, [micCut]);
 
@@ -3695,6 +3696,24 @@ export default function DebateStage() {
     if (!accessExpiredRef.current) setPhase("ended");
   }, [addMessage, stopAllAudio]);
 
+  const stopForNetworkError = useCallback(() => {
+    if (networkErrorRef.current) return;
+    networkErrorRef.current = true;
+    setAiRetrying(false);
+    runningRef.current = false;
+    setIsThinking(null);
+    stopAllAudio();
+    addMessage({
+      id: `sys-network-${Date.now()}`,
+      speakerId: "system",
+      speakerName: "System",
+      text: "Network connection lost — the debate has been paused. Please check your connection and try again.",
+      ts: Date.now(),
+      isSystem: true,
+    });
+    if (!accessExpiredRef.current) setPhase("ended");
+  }, [addMessage, stopAllAudio]);
+
   // AI timeouts are surfaced by the server as 503/ai_unavailable. Retry each
   // turn once so a short provider hiccup does not interrupt an active debate.
   // A second failure ends the debate instead of quietly continuing with empty
@@ -3703,8 +3722,9 @@ export default function DebateStage() {
     fetchAiTurnWithRetry(makeRequest, {
       onRetrying: setAiRetrying,
       onUnavailable: stopForAiUnavailable,
+      onNetworkError: stopForNetworkError,
     })
-  ), [stopForAiUnavailable]);
+  ), [stopForAiUnavailable, stopForNetworkError]);
 
   const fetchQuestion = useCallback(async (opts: { isFollowUp?: boolean; isTransition?: boolean; previousTopicTitle?: string; isInterruption?: boolean; currentTopicArg?: Topic | null }) => {
     if (!deviceId || !interviewerId || !intervieweeId) return null;
@@ -4468,6 +4488,7 @@ export default function DebateStage() {
     runningRef.current = true;
     accessExpiredRef.current = false;
     providerUnavailableRef.current = false;
+    networkErrorRef.current = false;
     setAiRetrying(false);
     debateTurnRef.current = 0;
     isPausedRef.current = false;
@@ -4643,6 +4664,7 @@ export default function DebateStage() {
         runningRef.current = true;
         accessExpiredRef.current = false;
         providerUnavailableRef.current = false;
+        networkErrorRef.current = false;
         setAiRetrying(false);
         debateTurnRef.current = 0;
         isPausedRef.current = false;
@@ -6514,7 +6536,7 @@ export default function DebateStage() {
 
       {phase === "ended" && (
         <Animated.View entering={FadeInDown.duration(300)} style={[s.endedBar, { paddingBottom: insets.bottom + webBottom + 12 }]}>
-          <Text style={s.endedTitle}>DEBATE COMPLETE</Text>
+          <Text style={s.endedTitle}>{networkErrorRef.current ? "DEBATE PAUSED" : "DEBATE COMPLETE"}</Text>
           <View style={{ flexDirection: "row", gap: 8, marginTop: 8, flexWrap: "wrap", justifyContent: "center" }}>
             <Pressable onPress={() => { setPhase("setup"); setDebateBetPick(null); setDebateBetResult(null); }} style={s.endedBtnSecondary}>
               <Ionicons name="arrow-back" size={14} color="#fff" />
