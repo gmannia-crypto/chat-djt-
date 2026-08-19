@@ -10008,22 +10008,22 @@ Generate the rapid-fire insult exchange JSON now. No preamble, just the JSON arr
   });
   app2.post("/api/arena/interview-greeting", async (req, res) => {
     try {
-      const { interviewerId: interviewerId2, intervieweeId: intervieweeId2 } = req.body || {};
-      if (!interviewerId2 || !intervieweeId2) return res.status(400).json({ error: "interviewerId and intervieweeId required" });
-      if (!ARENA_PERSONA_PROMPTS[interviewerId2] || !ARENA_PERSONA_PROMPTS[intervieweeId2]) {
+      const { interviewerId, intervieweeId } = req.body || {};
+      if (!interviewerId || !intervieweeId) return res.status(400).json({ error: "interviewerId and intervieweeId required" });
+      if (!ARENA_PERSONA_PROMPTS[interviewerId] || !ARENA_PERSONA_PROMPTS[intervieweeId]) {
         return res.status(400).json({ error: "Invalid persona ids" });
       }
-      const interviewerName2 = ARENA_NAME_MAP[interviewerId2] || interviewerId2;
-      const intervieweeName2 = ARENA_NAME_MAP[intervieweeId2] || intervieweeId2;
+      const interviewerName = ARENA_NAME_MAP[interviewerId] || interviewerId;
+      const intervieweeName = ARENA_NAME_MAP[intervieweeId] || intervieweeId;
       const todayStr = (/* @__PURE__ */ new Date()).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
       const [ivResult, iveeResult] = await Promise.all([
         getClient().chat.completions.create({
           model: getFastModel(),
           messages: [
-            { role: "system", content: `${getArenaPersonaPrompt2(interviewerId2)}
+            { role: "system", content: `${getArenaPersonaPrompt2(interviewerId)}
 
-You are ${interviewerName2}. Today is ${todayStr}. You are opening a live televised 1-on-1 interview with ${intervieweeName2}.` },
-            { role: "user", content: `Open the interview. Introduce yourself briefly, welcome ${intervieweeName2} to your show \u2014 with YOUR signature tone (hostile, skeptical, enthusiastic, satirical \u2014 whatever fits who YOU are). Warn them this won't be a softball interview. 1-2 punchy sentences max. No quotes, no asterisks, no stage directions. Spoken words only.` }
+You are ${interviewerName}. Today is ${todayStr}. You are opening a live televised 1-on-1 interview with ${intervieweeName}.` },
+            { role: "user", content: `Open the interview. Introduce yourself briefly, welcome ${intervieweeName} to your show \u2014 with YOUR signature tone (hostile, skeptical, enthusiastic, satirical \u2014 whatever fits who YOU are). Warn them this won't be a softball interview. 1-2 punchy sentences max. No quotes, no asterisks, no stage directions. Spoken words only.` }
           ],
           max_completion_tokens: 80,
           temperature: 0.9
@@ -10031,10 +10031,10 @@ You are ${interviewerName2}. Today is ${todayStr}. You are opening a live televi
         getClient().chat.completions.create({
           model: getFastModel(),
           messages: [
-            { role: "system", content: `${getArenaPersonaPrompt2(intervieweeId2)}
+            { role: "system", content: `${getArenaPersonaPrompt2(intervieweeId)}
 
-You are ${intervieweeName2}. Today is ${todayStr}. You are appearing on a live TV interview hosted by ${interviewerName2}.` },
-            { role: "user", content: `${interviewerName2} just greeted you and opened the interview. Respond in character \u2014 brief acknowledgment of being there, set YOUR tone (combative, confident, defensive, charming \u2014 whatever fits your character). You can take a jab at ${interviewerName2} if your character would. 1-2 sentences max. No quotes, no asterisks, no stage directions. Spoken words only.` }
+You are ${intervieweeName}. Today is ${todayStr}. You are appearing on a live TV interview hosted by ${interviewerName}.` },
+            { role: "user", content: `${interviewerName} just greeted you and opened the interview. Respond in character \u2014 brief acknowledgment of being there, set YOUR tone (combative, confident, defensive, charming \u2014 whatever fits your character). You can take a jab at ${interviewerName} if your character would. 1-2 sentences max. No quotes, no asterisks, no stage directions. Spoken words only.` }
           ],
           max_completion_tokens: 80,
           temperature: 0.9
@@ -10043,15 +10043,15 @@ You are ${intervieweeName2}. Today is ${todayStr}. You are appearing on a live T
       const ivText = (ivResult.choices[0]?.message?.content || "").replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").trim();
       const iveeText = (iveeResult.choices[0]?.message?.content || "").replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").trim();
       res.json({
-        interviewer: { speakerId: interviewerId2, speakerName: interviewerName2, text: ivText },
-        interviewee: { speakerId: intervieweeId2, speakerName: intervieweeName2, text: iveeText }
+        interviewer: { speakerId: interviewerId, speakerName: interviewerName, text: ivText },
+        interviewee: { speakerId: intervieweeId, speakerName: intervieweeName, text: iveeText }
       });
     } catch (err) {
       console.error("Interview greeting error:", err.message);
       res.status(500).json({ error: "Failed to generate greeting" });
     }
   });
-  function buildInterviewFallbackTopics(interviewerId2, intervieweeId2, interviewerName2, intervieweeName2, topicCount2, interviewStyle2) {
+  function buildInterviewFallbackTopics(interviewerId, intervieweeId, interviewerName, intervieweeName, topicCount, interviewStyle) {
     const signatureAngles = {
       trump: ["the 2020 election claims and the evidence he still cites", "the January 6 pardons and what accountability means now", "tariffs, prices, and the promise to make trade wars painless", "the Epstein files and his changing explanations"],
       biden: ["the Afghanistan withdrawal and the promises that survived it", "student debt relief and the limits of executive power", "the age question and what voters were actually seeing", "Ukraine, NATO, and the cost of American leadership"],
@@ -10068,35 +10068,35 @@ You are ${intervieweeName2}. Today is ${todayStr}. You are appearing on a live T
       galloway: ["Iraq, Gaza, and the case against interventionist foreign policy", "working-class politics outside the traditional left", "managed migration and the tension between labor and humanitarian arguments", "why establishment parties keep losing their base"],
       candace: ["Black conservatism and the politics of individual responsibility", "her arguments about gender and the culture war", "Trump, populism, and the limits of ideological consistency", "free speech, platform power, and media incentives"]
     };
-    const angles = signatureAngles[intervieweeId2] || [
-      `${intervieweeName2}'s defining record and the decision they still have not fully defended`,
-      `the contradiction between ${intervieweeName2}'s public image and their documented positions`,
-      `the policy that made ${intervieweeName2} influential \u2014 and who paid the price`,
-      `the biggest criticism of ${intervieweeName2}'s worldview and the strongest answer to it`
+    const angles = signatureAngles[intervieweeId] || [
+      `${intervieweeName}'s defining record and the decision they still have not fully defended`,
+      `the contradiction between ${intervieweeName}'s public image and their documented positions`,
+      `the policy that made ${intervieweeName} influential \u2014 and who paid the price`,
+      `the biggest criticism of ${intervieweeName}'s worldview and the strongest answer to it`
     ];
-    const styleLead = interviewStyle2 === "civil_discourse" ? "What can the public learn from" : interviewStyle2 === "educational" ? "What should people understand about" : interviewStyle2 === "comedic" || interviewStyle2 === "roast" ? "The most embarrassing contradiction in" : "The hardest question for";
+    const styleLead = interviewStyle === "civil_discourse" ? "What can the public learn from" : interviewStyle === "educational" ? "What should people understand about" : interviewStyle === "comedic" || interviewStyle === "roast" ? "The most embarrassing contradiction in" : "The hardest question for";
     const templates = [...angles, ...angles, ...angles];
-    return Array.from({ length: topicCount2 }, (_, i) => {
+    return Array.from({ length: topicCount }, (_, i) => {
       const angle = templates[i];
       return {
-        id: `fallback-interview-${interviewerId2}-${intervieweeId2}-${Date.now()}-${i}`,
-        title: `${styleLead} ${intervieweeName2}: ${angle}`,
-        description: `${interviewerName2} puts ${intervieweeName2} on the record about ${angle.toLowerCase()}.`,
+        id: `fallback-interview-${interviewerId}-${intervieweeId}-${Date.now()}-${i}`,
+        title: `${styleLead} ${intervieweeName}: ${angle}`,
+        description: `${interviewerName} puts ${intervieweeName} on the record about ${angle.toLowerCase()}.`,
         era: "past"
       };
     });
   }
   app2.post("/api/arena/interview-topics", async (req, res) => {
     try {
-      const { interviewerId: interviewerId2, intervieweeId: intervieweeId2, topicMix = "mixed", durationMinutes = 10, interviewStyle: interviewStyle2 = "combative", category = "", bust = 0 } = req.body || {};
-      if (!interviewerId2 || !intervieweeId2) return res.status(400).json({ error: "interviewerId and intervieweeId required" });
-      if (!ARENA_PERSONA_PROMPTS[interviewerId2] || !ARENA_PERSONA_PROMPTS[intervieweeId2]) {
+      const { interviewerId, intervieweeId, topicMix = "mixed", durationMinutes = 10, interviewStyle = "combative", category = "", bust = 0 } = req.body || {};
+      if (!interviewerId || !intervieweeId) return res.status(400).json({ error: "interviewerId and intervieweeId required" });
+      if (!ARENA_PERSONA_PROMPTS[interviewerId] || !ARENA_PERSONA_PROMPTS[intervieweeId]) {
         return res.status(400).json({ error: "Invalid persona ids" });
       }
-      const interviewerName2 = ARENA_NAME_MAP[interviewerId2] || interviewerId2;
-      const intervieweeName2 = ARENA_NAME_MAP[intervieweeId2] || intervieweeId2;
-      const topicCount2 = durationMinutes <= 5 ? 6 : durationMinutes <= 10 ? 10 : 14;
-      const cacheKey = `${interviewerId2}:${intervieweeId2}:${topicMix}:${durationMinutes}:${interviewStyle2}:${category}`;
+      const interviewerName = ARENA_NAME_MAP[interviewerId] || interviewerId;
+      const intervieweeName = ARENA_NAME_MAP[intervieweeId] || intervieweeId;
+      const topicCount = durationMinutes <= 5 ? 6 : durationMinutes <= 10 ? 10 : 14;
+      const cacheKey = `${interviewerId}:${intervieweeId}:${topicMix}:${durationMinutes}:${interviewStyle}:${category}`;
       if (bust) {
         interviewTopicsCache.delete(cacheKey);
       }
@@ -10109,28 +10109,28 @@ You are ${intervieweeName2}. Today is ${todayStr}. You are appearing on a live T
         new Promise((resolve2) => setTimeout(() => resolve2(""), 3e3))
       ]);
       const todayStr = (/* @__PURE__ */ new Date()).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
-      const isEducational = interviewStyle2 === "educational";
-      const eraDirective = isEducational ? `ALL topics must be drawn from ${intervieweeName2}'s documented real-world expertise, career history, ideological formation, and publicly stated beliefs. Use what is known about them in the real world \u2014 their writings, speeches, interviews, policy positions, and life experiences. Do NOT use current news headlines. Topics should explore HOW and WHY they arrived at their worldview, what shaped their thinking, and what they genuinely know and believe.` : topicMix === "current" ? "ALL topics must be drawn from CURRENT 2026 news headlines and live viral social media flashpoints happening right now." : topicMix === "past" ? "ALL topics must be drawn from PAST controversies, scandals, embarrassing moments, or historic decisions involving the interviewee \u2014 the kind of receipts that go viral when dug up." : "Mix half topics from CURRENT 2026 viral headlines and half from PAST scandals, controversies, or career-defining decisions involving the interviewee that would still blow up on social media today.";
+      const isEducational = interviewStyle === "educational";
+      const eraDirective = isEducational ? `ALL topics must be drawn from ${intervieweeName}'s documented real-world expertise, career history, ideological formation, and publicly stated beliefs. Use what is known about them in the real world \u2014 their writings, speeches, interviews, policy positions, and life experiences. Do NOT use current news headlines. Topics should explore HOW and WHY they arrived at their worldview, what shaped their thinking, and what they genuinely know and believe.` : topicMix === "current" ? "ALL topics must be drawn from CURRENT 2026 news headlines and live viral social media flashpoints happening right now." : topicMix === "past" ? "ALL topics must be drawn from PAST controversies, scandals, embarrassing moments, or historic decisions involving the interviewee \u2014 the kind of receipts that go viral when dug up." : "Mix half topics from CURRENT 2026 viral headlines and half from PAST scandals, controversies, or career-defining decisions involving the interviewee that would still blow up on social media today.";
       const styleDirectives = {
-        combative: `STYLE \u2014 COMBATIVE: Every topic must be adversarial and confrontational. Lead with accusations, receipts, and gotcha moments. The interviewer is a prosecutor, not a reporter. Topics should make ${intervieweeName2} visibly uncomfortable and defensive. No softball angles.`,
+        combative: `STYLE \u2014 COMBATIVE: Every topic must be adversarial and confrontational. Lead with accusations, receipts, and gotcha moments. The interviewer is a prosecutor, not a reporter. Topics should make ${intervieweeName} visibly uncomfortable and defensive. No softball angles.`,
         informative: `STYLE \u2014 INFORMATIVE: Topics should illuminate real policy decisions, historical context, and factual impact on real people. Lead with "what does the public need to understand about X?" angles. Focus on substance, complexity, and under-reported facts that genuinely inform rather than inflame.`,
         comedic: `STYLE \u2014 COMEDIC & SATIRICAL: Topics should expose absurdity, hypocrisy, and embarrassment through humor. Focus on moments that are funny, contradictory, or so outrageous they become comedy. The interviewer roasts as much as interrogates. Think late-night satire meets hot mic moment.`,
         civil_discourse: `STYLE \u2014 CIVIL DISCOURSE: Topics should invite genuine dialogue, common ground, and thoughtful exchange. Frame angles as genuine questions rather than accusations. Both sides of issues should be considered. Topics should model what respectful disagreement and productive debate could look like.`,
-        educational: `STYLE \u2014 EDUCATIONAL: Topics should teach the audience about ${intervieweeName2}'s area of expertise and worldview. Each topic should unlock a piece of their thinking \u2014 why they believe what they believe, how they developed their ideology, what historical or personal events shaped them, and what the audience can LEARN from their knowledge and experience. The guest is the expert; the interviewer is the curious student helping the audience understand.`,
-        roast: `STYLE \u2014 COMEDY ROAST: This is a full-on roast. No mercy. Every topic is a setup for maximum embarrassment, savage mockery, and cruel-but-funny exposure of ${intervieweeName2}'s worst moments, biggest contradictions, and most ridiculous career decisions. Think Friar's Club roast energy. The interviewer is a roast master. Topics should produce the most devastating, funniest burns possible. Lead with the most embarrassing receipts. Hyperbole is encouraged. Make the audience gasp AND laugh simultaneously.`,
-        softball: `STYLE \u2014 SOFTBALL: Topics should be warm, accessible, and flattering. Let ${intervieweeName2} showcase their strengths, tell their story on their own terms, and share their vision. Frame every angle as an opportunity for the guest to shine \u2014 think Barbara Walters special or a profile piece in a friendly magazine. No gotchas, no traps, no receipts. The interviewer is a fan, not a prosecutor.`
+        educational: `STYLE \u2014 EDUCATIONAL: Topics should teach the audience about ${intervieweeName}'s area of expertise and worldview. Each topic should unlock a piece of their thinking \u2014 why they believe what they believe, how they developed their ideology, what historical or personal events shaped them, and what the audience can LEARN from their knowledge and experience. The guest is the expert; the interviewer is the curious student helping the audience understand.`,
+        roast: `STYLE \u2014 COMEDY ROAST: This is a full-on roast. No mercy. Every topic is a setup for maximum embarrassment, savage mockery, and cruel-but-funny exposure of ${intervieweeName}'s worst moments, biggest contradictions, and most ridiculous career decisions. Think Friar's Club roast energy. The interviewer is a roast master. Topics should produce the most devastating, funniest burns possible. Lead with the most embarrassing receipts. Hyperbole is encouraged. Make the audience gasp AND laugh simultaneously.`,
+        softball: `STYLE \u2014 SOFTBALL: Topics should be warm, accessible, and flattering. Let ${intervieweeName} showcase their strengths, tell their story on their own terms, and share their vision. Frame every angle as an opportunity for the guest to shine \u2014 think Barbara Walters special or a profile piece in a friendly magazine. No gotchas, no traps, no receipts. The interviewer is a fan, not a prosecutor.`
       };
       const categoryDirective = category === "Entertainment" ? `
 
 ENTERTAINMENT CATEGORY OVERRIDE: Topics MUST be drawn exclusively from celebrity gossip, entertainment industry drama, pop culture scandals, Hollywood breakups, music industry beef, reality TV controversies, social media feuds, viral celebrity moments, award show drama, and entertainment news. Use the most recent and cutting-edge entertainment headlines available through 2025-2026: Taylor Swift and Travis Kelce relationship developments, Drake vs Kendrick Lamar beef aftermath, Diddy federal trial and industry fallout, Beyonc\xE9's Cowboy Carter tour, celebrity divorces and scandals, TikTok viral feuds, streaming wars drama, celebrity mental health disclosures, industry expos\xE9s, and any major entertainment gossip burning up social media right now. Frame every topic to produce maximum celebrity tea-spilling energy.` : category === "Philosophy" ? `
 
 PHILOSOPHY CATEGORY OVERRIDE: Topics MUST be philosophical and ideological in nature. Elevate every subject to first-principles questions about justice, freedom, power, morality, and the nature of truth. Draw out the guest's core worldview and the philosophical foundations underneath their political positions. Examples: "Is violence ever justified?" / "What do you owe society?" / "Can democracy survive the interests of capital?" Ground topics in real events and decisions but frame them as fundamental questions of values and ideas, not policy details.` : "";
-      const styleDirective = (styleDirectives[interviewStyle2] || styleDirectives.combative) + categoryDirective;
-      const newsLine = isEducational ? `(No live headlines used for educational style \u2014 topics are grounded in ${intervieweeName2}'s documented expertise and real-world knowledge.)` : `LIVE NEWS + VIRAL SOCIAL SIGNALS:
+      const styleDirective = (styleDirectives[interviewStyle] || styleDirectives.combative) + categoryDirective;
+      const newsLine = isEducational ? `(No live headlines used for educational style \u2014 topics are grounded in ${intervieweeName}'s documented expertise and real-world knowledge.)` : `LIVE NEWS + VIRAL SOCIAL SIGNALS:
 ${newsContext || "No live headlines available \u2014 rely on general knowledge of 2026 events and the most damaging known controversies."}`;
-      const systemPrompt = `You are the most ratings-obsessed booking producer in television \u2014 setting up a MUST-WATCH 1-on-1 interview between ${interviewerName2} (the interviewer) and ${intervieweeName2} (the guest). Today is ${todayStr}.
+      const systemPrompt = `You are the most ratings-obsessed booking producer in television \u2014 setting up a MUST-WATCH 1-on-1 interview between ${interviewerName} (the interviewer) and ${intervieweeName} (the guest). Today is ${todayStr}.
 
-MISSION: Generate exactly ${topicCount2} interview topics perfectly suited to the interview style below.
+MISSION: Generate exactly ${topicCount} interview topics perfectly suited to the interview style below.
 
 ${styleDirective}
 
@@ -10138,14 +10138,14 @@ ${eraDirective}
 
 TOPIC RULES:
 - Be SPECIFIC: use real known positions, documented quotes, career milestones, or named events
-- Frame each topic from ${interviewerName2}'s perspective and relationship with ${intervieweeName2}
+- Frame each topic from ${interviewerName}'s perspective and relationship with ${intervieweeName}
 - Every topic should produce a memorable, insightful exchange
-- Topics must authentically reflect what ${intervieweeName2} is actually known for
+- Topics must authentically reflect what ${intervieweeName} is actually known for
 
 ${newsLine}
 
 Return ONLY valid JSON in this exact shape:
-{"topics":[{"title":"Punchy headline matching the style","description":"1 sentence \u2014 the exact angle ${interviewerName2} uses, naming the specific receipt, quote, or question","era":"current"}]}
+{"topics":[{"title":"Punchy headline matching the style","description":"1 sentence \u2014 the exact angle ${interviewerName} uses, naming the specific receipt, quote, or question","era":"current"}]}
 Use "era":"current" for today's news/viral moments, "era":"past" for career history/expertise topics. No text outside the JSON.`;
       const AI_TIMEOUT_MS = 9e3;
       const aiTimeoutPromise = new Promise(
@@ -10156,7 +10156,7 @@ Use "era":"current" for today's news/viral moments, "era":"past" for career hist
           model: getFastModel(),
           messages: [
             { role: "system", content: systemPrompt },
-            { role: "user", content: `Generate the ${topicCount2} interview topics now as JSON.` }
+            { role: "user", content: `Generate the ${topicCount} interview topics now as JSON.` }
           ],
           max_completion_tokens: 700,
           temperature: 0.85,
@@ -10172,45 +10172,54 @@ Use "era":"current" for today's news/viral moments, "era":"past" for career hist
         parsed = {};
       }
       let topics = Array.isArray(parsed.topics) ? parsed.topics : [];
-      topics = topics.slice(0, topicCount2).map((t, i) => ({
+      topics = topics.slice(0, topicCount).map((t, i) => ({
         id: `interview-topic-${Date.now()}-${i}`,
         title: String(t.title || `Topic ${i + 1}`).slice(0, 120),
         description: String(t.description || "").slice(0, 240),
         era: t.era === "past" ? "past" : "current"
       }));
       if (topics.length === 0) {
-        topics = Array.from({ length: topicCount2 }).map((_, i) => ({
+        topics = Array.from({ length: topicCount }).map((_, i) => ({
           id: `interview-topic-${Date.now()}-${i}`,
           title: `Topic ${i + 1}`,
-          description: `${interviewerName2} questions ${intervieweeName2}.`,
+          description: `${interviewerName} questions ${intervieweeName}.`,
           era: "current"
         }));
       }
-      interviewTopicsCache.set(cacheKey, { topics, interviewerName: interviewerName2, intervieweeName: intervieweeName2, expires: Date.now() + INTERVIEW_TOPICS_CACHE_TTL });
-      res.json({ topics, interviewerName: interviewerName2, intervieweeName: intervieweeName2 });
+      interviewTopicsCache.set(cacheKey, { topics, interviewerName, intervieweeName, expires: Date.now() + INTERVIEW_TOPICS_CACHE_TTL });
+      res.json({ topics, interviewerName, intervieweeName });
     } catch (error) {
+      const fallbackInterviewerId = String(req.body?.interviewerId || "");
+      const fallbackIntervieweeId = String(req.body?.intervieweeId || "");
+      const fallbackInterviewerName = ARENA_NAME_MAP[fallbackInterviewerId] || fallbackInterviewerId || "the interviewer";
+      const fallbackIntervieweeName = ARENA_NAME_MAP[fallbackIntervieweeId] || fallbackIntervieweeId || "the guest";
+      const fallbackDuration = Number(req.body?.durationMinutes) || 10;
+      const fallbackTopicCount = fallbackDuration <= 5 ? 6 : fallbackDuration <= 10 ? 10 : 14;
+      const fallbackStyle = String(req.body?.interviewStyle || "combative");
+      const fallbackTopics = buildInterviewFallbackTopics(
+        fallbackInterviewerId,
+        fallbackIntervieweeId,
+        fallbackInterviewerName,
+        fallbackIntervieweeName,
+        fallbackTopicCount,
+        fallbackStyle
+      );
       if (error?.code === "AI_TIMEOUT") {
         console.warn("Interview topics timed out after 9 s");
-        const fallbackTopics2 = buildInterviewFallbackTopics(
-          interviewerId,
-          intervieweeId,
-          interviewerName,
-          intervieweeName,
-          topicCount,
-          interviewStyle
-        );
-        return res.json({ topics: fallbackTopics2, interviewerName, intervieweeName, generatedFallback: true });
+        return res.json({
+          topics: fallbackTopics,
+          interviewerName: fallbackInterviewerName,
+          intervieweeName: fallbackIntervieweeName,
+          generatedFallback: true
+        });
       }
       console.error("Interview topics error:", error);
-      const fallbackTopics = buildInterviewFallbackTopics(
-        interviewerId,
-        intervieweeId,
-        interviewerName,
-        intervieweeName,
-        topicCount,
-        interviewStyle
-      );
-      res.json({ topics: fallbackTopics, interviewerName, intervieweeName, generatedFallback: true });
+      res.json({
+        topics: fallbackTopics,
+        interviewerName: fallbackInterviewerName,
+        intervieweeName: fallbackIntervieweeName,
+        generatedFallback: true
+      });
     }
   });
   async function checkInterviewAccess(deviceId, consume, ipAddress) {
@@ -10254,11 +10263,11 @@ Use "era":"current" for today's news/viral moments, "era":"past" for career hist
     try {
       const deviceId = req.headers["x-device-id"];
       if (!deviceId) return res.status(400).json({ error: "Device ID required" });
-      const { interviewerId: interviewerId2, intervieweeId: intervieweeId2, topic, conversationHistory = [], isFollowUp = false, isTransition = false, previousTopicTitle, isInterruption = false, moderatorLeaning, isDebate = false } = req.body || {};
-      if (!interviewerId2 || !ARENA_PERSONA_PROMPTS[interviewerId2]) return res.status(400).json({ error: "Invalid interviewerId" });
-      if (!intervieweeId2 || !ARENA_PERSONA_PROMPTS[intervieweeId2]) return res.status(400).json({ error: "Invalid intervieweeId" });
-      if (interviewerId2 === intervieweeId2) return res.status(400).json({ error: "A persona cannot interview themselves" });
-      if (!assertBoxingCompat(interviewerId2, intervieweeId2)) {
+      const { interviewerId, intervieweeId, topic, conversationHistory = [], isFollowUp = false, isTransition = false, previousTopicTitle, isInterruption = false, moderatorLeaning, isDebate = false } = req.body || {};
+      if (!interviewerId || !ARENA_PERSONA_PROMPTS[interviewerId]) return res.status(400).json({ error: "Invalid interviewerId" });
+      if (!intervieweeId || !ARENA_PERSONA_PROMPTS[intervieweeId]) return res.status(400).json({ error: "Invalid intervieweeId" });
+      if (interviewerId === intervieweeId) return res.status(400).json({ error: "A persona cannot interview themselves" });
+      if (!assertBoxingCompat(interviewerId, intervieweeId)) {
         return res.status(400).json({ error: "This persona is only available in boxing mode" });
       }
       const ipAddress = (req.headers["x-forwarded-for"] || req.socket.remoteAddress || "").split(",")[0].trim() || void 0;
@@ -10266,44 +10275,44 @@ Use "era":"current" for today's news/viral moments, "era":"past" for career hist
       if (!accessCheck.ok) {
         return res.status(403).json({ error: accessCheck.reason || "arena_locked", freeRemaining: 0, sessionCost: ARENA_SESSION_COST });
       }
-      const interviewerName2 = ARENA_NAME_MAP[interviewerId2] || interviewerId2;
-      const intervieweeName2 = ARENA_NAME_MAP[intervieweeId2] || intervieweeId2;
+      const interviewerName = ARENA_NAME_MAP[interviewerId] || interviewerId;
+      const intervieweeName = ARENA_NAME_MAP[intervieweeId] || intervieweeId;
       const todayStr = (/* @__PURE__ */ new Date()).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
       const newsContext = await Promise.race([
         getArenaNewsContext().catch(() => ""),
         new Promise((resolve2) => setTimeout(() => resolve2(""), 3e3))
       ]);
-      const shannonGrandmomNote = getShannonGrandmomNote(interviewerId2, conversationHistory);
-      const interviewStyle2 = req.body.interviewStyle || "combative";
-      const isEdStyle = interviewStyle2 === "educational";
-      const isCivil = interviewStyle2 === "civil_discourse";
+      const shannonGrandmomNote = getShannonGrandmomNote(interviewerId, conversationHistory);
+      const interviewStyle = req.body.interviewStyle || "combative";
+      const isEdStyle = interviewStyle === "educational";
+      const isCivil = interviewStyle === "civil_discourse";
       const styleInstructions = {
         combative: `INTERVIEW STYLE \u2014 COMBATIVE: You are a prosecutor, not a reporter. Press hard. Use their exact quotes against them. No softballs. If they evade, name it: "That's not what I asked." Your job is to corner them and extract accountability.`,
         informative: `INTERVIEW STYLE \u2014 INFORMATIVE: You are a reporter seeking truth for the public record. Ask clear, open-ended questions that illuminate policy impact, decision-making rationale, and real consequences. Probe gaps and contradictions with precision. Tone: professional, persistent, fair.`,
         comedic: `INTERVIEW STYLE \u2014 COMEDIC & SATIRICAL: You are a satirist with a journalist's instincts. Expose absurdity through humor. Use irony, deadpan delivery, and pointed wit. Make the audience laugh while making the guest squirm. The joke IS the question. Banter and real zingers are mandatory.`,
         civil_discourse: `INTERVIEW STYLE \u2014 CIVIL DISCOURSE: You are modeling respectful disagreement. Ask genuine questions. Acknowledge valid points. Disagree with ideas, not character. No personal attacks, no gotcha traps. Your goal: genuine dialogue that produces real understanding.`,
-        educational: `INTERVIEW STYLE \u2014 EDUCATIONAL: You are a curious, knowledgeable host helping the audience learn. Ask your guest to explain their thinking, their expertise, their lived experience. Use "why", "how", "walk me through" framing. You are the curious student; ${intervieweeName2} is the expert. No gotcha traps \u2014 only deeper understanding.`,
+        educational: `INTERVIEW STYLE \u2014 EDUCATIONAL: You are a curious, knowledgeable host helping the audience learn. Ask your guest to explain their thinking, their expertise, their lived experience. Use "why", "how", "walk me through" framing. You are the curious student; ${intervieweeName} is the expert. No gotcha traps \u2014 only deeper understanding.`,
         softball: `INTERVIEW STYLE \u2014 SOFTBALL: You are a warm, supportive host giving your guest every opportunity to shine. Ask questions that let them tell their story, highlight their achievements, and share their vision. No pressure, no traps, no hard pivots. Think of it as a profile interview \u2014 you want the audience to walk away feeling like they know and like this person. Celebrate them.`
       };
-      const styleInstruction = styleInstructions[interviewStyle2] || styleInstructions.combative;
-      const targetingDirective = isEdStyle || isCivil ? isDebate ? `CRITICAL: ${intervieweeName2} is your fellow debater, not your guest. Engage them with genuine curiosity and respect, as an equal on this stage. You are interested in what they think and why.` : `CRITICAL: ${intervieweeName2} is your guest. Engage them with genuine curiosity and respect. Draw out their expertise and knowledge. You are interested in what they think and why.` : isDebate ? `CRITICAL TARGETING: ${intervieweeName2} is sitting across from you RIGHT NOW as your CO-EQUAL opponent on this debate stage \u2014 not your guest, not someone you are interviewing. If your character profile contains insults, attacks, nicknames, or hostility toward "${intervieweeName2}", USE THEM in your remarks. Address them by name. Bake the savage lines from your profile DIRECTLY into your argument \u2014 do not soften, do not generalize. This is a two-way fight between equals: press your case, don't play host.` : `CRITICAL TARGETING: ${intervieweeName2} is sitting across from you RIGHT NOW. They are your guest AND, given who you are, your adversary. If your character profile contains insults, attacks, nicknames, or hostility toward "${intervieweeName2}", USE THEM in your questions. Address them by name. Bake the savage lines from your profile DIRECTLY into the question \u2014 do not soften, do not generalize. If your character would call them weak, corrupt, dishonest, washed-up, a fraud, etc., put it in the question. This is YOUR booth \u2014 you set the tone, you press the attack.`;
+      const styleInstruction = styleInstructions[interviewStyle] || styleInstructions.combative;
+      const targetingDirective = isEdStyle || isCivil ? isDebate ? `CRITICAL: ${intervieweeName} is your fellow debater, not your guest. Engage them with genuine curiosity and respect, as an equal on this stage. You are interested in what they think and why.` : `CRITICAL: ${intervieweeName} is your guest. Engage them with genuine curiosity and respect. Draw out their expertise and knowledge. You are interested in what they think and why.` : isDebate ? `CRITICAL TARGETING: ${intervieweeName} is sitting across from you RIGHT NOW as your CO-EQUAL opponent on this debate stage \u2014 not your guest, not someone you are interviewing. If your character profile contains insults, attacks, nicknames, or hostility toward "${intervieweeName}", USE THEM in your remarks. Address them by name. Bake the savage lines from your profile DIRECTLY into your argument \u2014 do not soften, do not generalize. This is a two-way fight between equals: press your case, don't play host.` : `CRITICAL TARGETING: ${intervieweeName} is sitting across from you RIGHT NOW. They are your guest AND, given who you are, your adversary. If your character profile contains insults, attacks, nicknames, or hostility toward "${intervieweeName}", USE THEM in your questions. Address them by name. Bake the savage lines from your profile DIRECTLY into the question \u2014 do not soften, do not generalize. If your character would call them weak, corrupt, dishonest, washed-up, a fraud, etc., put it in the question. This is YOUR booth \u2014 you set the tone, you press the attack.`;
       const moderatorBiasSuffix = moderatorLeaning === "favor" ? `
 
-MODERATOR BIAS \u2014 YOU FAVOR ${intervieweeName2}: You personally like and agree with ${intervieweeName2}'s politics. Ask a fair, even SOFTBALL question that lets them shine. Do not be adversarial. Give them room to make their case.` : moderatorLeaning === "target" ? `
+MODERATOR BIAS \u2014 YOU FAVOR ${intervieweeName}: You personally like and agree with ${intervieweeName}'s politics. Ask a fair, even SOFTBALL question that lets them shine. Do not be adversarial. Give them room to make their case.` : moderatorLeaning === "target" ? `
 
-MODERATOR BIAS \u2014 YOU ARE ADVERSARIAL TOWARD ${intervieweeName2}: You personally distrust and disagree with ${intervieweeName2}'s politics. Ask a genuinely HARD, prosecutorial question. Press them on a real weakness or contradiction. Skeptical tone, but keep it grounded in facts \u2014 not personal insults.` : "";
+MODERATOR BIAS \u2014 YOU ARE ADVERSARIAL TOWARD ${intervieweeName}: You personally distrust and disagree with ${intervieweeName}'s politics. Ask a genuinely HARD, prosecutorial question. Press them on a real weakness or contradiction. Skeptical tone, but keep it grounded in facts \u2014 not personal insults.` : "";
       const grahamDeathFact = `
 
 CRITICAL CURRENT EVENT: Lindsey Graham passed away on July 12, 2026 at age 71. His sister now holds his South Carolina Senate seat \u2014 he is no longer a sitting senator. All personas are fully aware of this. If Graham is your interviewee or opponent, you know he is speaking from beyond the grave. React accordingly \u2014 grief, mockery, disbelief, or dark humor depending on your character.`;
-      const interviewerStyle = isDebate ? `You are ${interviewerName2}, one of TWO co-equal debaters (not a host or interviewer) on a live debate stage opposite ${intervieweeName2}. Today is ${todayStr}.${grahamDeathFact} A separate MODERATOR runs this debate and asks the actual questions \u2014 your job is to argue your position, make your case, and rebut ${intervieweeName2} as an equal. Do NOT act like a talk-show host interviewing a guest; do not ask ${intervieweeName2} formal interview-style questions \u2014 instead make statements, arguments, and rebuttals, ending with a challenge or pointed jab if you like, not a polite question. Stay 100% in character \u2014 your tone, vocabulary, and ideology are who you are. ${getArenaPersonaPrompt2(interviewerId2)}${shannonGrandmomNote}
+      const interviewerStyle = isDebate ? `You are ${interviewerName}, one of TWO co-equal debaters (not a host or interviewer) on a live debate stage opposite ${intervieweeName}. Today is ${todayStr}.${grahamDeathFact} A separate MODERATOR runs this debate and asks the actual questions \u2014 your job is to argue your position, make your case, and rebut ${intervieweeName} as an equal. Do NOT act like a talk-show host interviewing a guest; do not ask ${intervieweeName} formal interview-style questions \u2014 instead make statements, arguments, and rebuttals, ending with a challenge or pointed jab if you like, not a polite question. Stay 100% in character \u2014 your tone, vocabulary, and ideology are who you are. ${getArenaPersonaPrompt2(interviewerId)}${shannonGrandmomNote}
 
 ${targetingDirective}
 
-${styleInstruction}${getLieBehaviorPrompt(interviewerId2, Number((req.body.sessionLieTally || {})[interviewerId2]) || 0, req.body.sessionIQ || {})}${moderatorBiasSuffix}` : `You are ${interviewerName2} hosting a 1-on-1 interview with ${intervieweeName2}. Today is ${todayStr}.${grahamDeathFact} Stay 100% in character \u2014 your tone, vocabulary, and ideology are who you are. ${getArenaPersonaPrompt2(interviewerId2)}${shannonGrandmomNote}
+${styleInstruction}${getLieBehaviorPrompt(interviewerId, Number((req.body.sessionLieTally || {})[interviewerId]) || 0, req.body.sessionIQ || {})}${moderatorBiasSuffix}` : `You are ${interviewerName} hosting a 1-on-1 interview with ${intervieweeName}. Today is ${todayStr}.${grahamDeathFact} Stay 100% in character \u2014 your tone, vocabulary, and ideology are who you are. ${getArenaPersonaPrompt2(interviewerId)}${shannonGrandmomNote}
 
 ${targetingDirective}
 
-${styleInstruction}${getLieBehaviorPrompt(interviewerId2, Number((req.body.sessionLieTally || {})[interviewerId2]) || 0, req.body.sessionIQ || {})}${moderatorBiasSuffix}`;
+${styleInstruction}${getLieBehaviorPrompt(interviewerId, Number((req.body.sessionLieTally || {})[interviewerId]) || 0, req.body.sessionIQ || {})}${moderatorBiasSuffix}`;
       const historyContext = (conversationHistory || []).slice(-6).map(
         (m) => `${m.speakerName}: "${m.text}"`
       ).join("\n");
@@ -10313,36 +10322,36 @@ ${styleInstruction}${getLieBehaviorPrompt(interviewerId2, Number((req.body.sessi
 Recent exchange:
 ${historyContext}
 
-${intervieweeName2} just answered. DO NOT let them off the hook. If vague or evasive, call it out: "That's not what I asked", "Stop dodging." If they answered, go DEEPER \u2014 expose a contradiction or press the uncomfortable follow-through. You are RELENTLESS. 1-2 sentences max. No preamble.`,
+${intervieweeName} just answered. DO NOT let them off the hook. If vague or evasive, call it out: "That's not what I asked", "Stop dodging." If they answered, go DEEPER \u2014 expose a contradiction or press the uncomfortable follow-through. You are RELENTLESS. 1-2 sentences max. No preamble.`,
         informative: `Topic: "${topic?.title}" \u2014 ${topic?.description}
 
 Recent exchange:
 ${historyContext}
 
-${intervieweeName2} just answered. Probe the answer for gaps, missing context, or unexplained claims. Ask a precise follow-up that fills in what the audience still needs to understand. Be factual and specific. 1-2 sentences max.`,
+${intervieweeName} just answered. Probe the answer for gaps, missing context, or unexplained claims. Ask a precise follow-up that fills in what the audience still needs to understand. Be factual and specific. 1-2 sentences max.`,
         comedic: `Topic: "${topic?.title}" \u2014 ${topic?.description}
 
 Recent exchange:
 ${historyContext}
 
-${intervieweeName2} just answered. React with wit \u2014 find the absurdity, irony, or contradiction in what they said and lean into it with a funny follow-up. Land a good line. 1-2 sentences max.`,
+${intervieweeName} just answered. React with wit \u2014 find the absurdity, irony, or contradiction in what they said and lean into it with a funny follow-up. Land a good line. 1-2 sentences max.`,
         civil_discourse: `Topic: "${topic?.title}" \u2014 ${topic?.description}
 
 Recent exchange:
 ${historyContext}
 
-${intervieweeName2} just answered. Acknowledge anything valid in their response, then ask a thoughtful follow-up that genuinely deepens the dialogue. Disagree respectfully if needed \u2014 with their idea, not their person. 1-2 sentences max.`,
+${intervieweeName} just answered. Acknowledge anything valid in their response, then ask a thoughtful follow-up that genuinely deepens the dialogue. Disagree respectfully if needed \u2014 with their idea, not their person. 1-2 sentences max.`,
         educational: `Topic: "${topic?.title}" \u2014 ${topic?.description}
 
 Recent exchange:
 ${historyContext}
 
-${intervieweeName2} just explained something. Ask a follow-up that goes DEEPER into understanding \u2014 not to challenge or corner them, but to help the audience grasp the nuance. Use "can you explain more about...", "what led you to that conclusion", "how does that connect to..." framing. 1-2 sentences max.`
+${intervieweeName} just explained something. Ask a follow-up that goes DEEPER into understanding \u2014 not to challenge or corner them, but to help the audience grasp the nuance. Use "can you explain more about...", "what led you to that conclusion", "how does that connect to..." framing. 1-2 sentences max.`
       };
       const openingPrompts = {
         combative: `Topic: "${topic?.title}" \u2014 ${topic?.description}
 
-Open this topic with your FIRST hard question to ${intervieweeName2}. Be provocative \u2014 set the tone. 1-2 sentences max. No greeting if there is already conversation history.
+Open this topic with your FIRST hard question to ${intervieweeName}. Be provocative \u2014 set the tone. 1-2 sentences max. No greeting if there is already conversation history.
 
 Recent exchange:
 ${historyContext}`,
@@ -10360,13 +10369,13 @@ Recent exchange:
 ${historyContext}`,
         civil_discourse: `Topic: "${topic?.title}" \u2014 ${topic?.description}
 
-Open this topic with a genuine, open-ended question that invites ${intervieweeName2} to share their perspective. Frame it with curiosity, not accusation. 1-2 sentences max. No greeting if history exists.
+Open this topic with a genuine, open-ended question that invites ${intervieweeName} to share their perspective. Frame it with curiosity, not accusation. 1-2 sentences max. No greeting if history exists.
 
 Recent exchange:
 ${historyContext}`,
         educational: `Topic: "${topic?.title}" \u2014 ${topic?.description}
 
-Open this topic by asking ${intervieweeName2} to share their expertise or perspective on this subject. Frame it as a learner seeking to understand \u2014 "walk us through...", "help us understand...", "from your experience...". 1-2 sentences max. No greeting if history exists.
+Open this topic by asking ${intervieweeName} to share their expertise or perspective on this subject. Frame it as a learner seeking to understand \u2014 "walk us through...", "help us understand...", "from your experience...". 1-2 sentences max. No greeting if history exists.
 
 Recent exchange:
 ${historyContext}`
@@ -10396,7 +10405,7 @@ Recent exchange:
 ${historyContext}
 
 Move gracefully to the new topic and open with a genuine, curious question. 1-2 sentences max.`,
-        educational: `You are TRANSITIONING from "${previousTopicTitle || "the last topic"}" to a new area of ${intervieweeName2}'s expertise: "${topic?.title}" \u2014 ${topic?.description}
+        educational: `You are TRANSITIONING from "${previousTopicTitle || "the last topic"}" to a new area of ${intervieweeName}'s expertise: "${topic?.title}" \u2014 ${topic?.description}
 
 Recent exchange:
 ${historyContext}
@@ -10404,31 +10413,31 @@ ${historyContext}
 Bridge naturally ("I'd love to explore another area of your work...") then invite them to share their knowledge on this topic. 1-2 sentences max.`
       };
       let userPrompt = "";
-      if (isInterruption && interviewerId2 === "malema") {
-        userPrompt = `${intervieweeName2} just said something. CUT THEM OFF with one of your signature volcanic one-liners \u2014 choose from: "What a LIE!" / "You're a fool!" / "Non-sense!" / "What am I, a fool?!" / "BE SERIOUS!" / "You're a boo-ah!" / "Rubbish!" MAXIMUM 10 words. Under 5 seconds. One phrase only.
+      if (isInterruption && interviewerId === "malema") {
+        userPrompt = `${intervieweeName} just said something. CUT THEM OFF with one of your signature volcanic one-liners \u2014 choose from: "What a LIE!" / "You're a fool!" / "Non-sense!" / "What am I, a fool?!" / "BE SERIOUS!" / "You're a boo-ah!" / "Rubbish!" MAXIMUM 10 words. Under 5 seconds. One phrase only.
 
 Recent exchange:
 ${historyContext}`;
       } else if (isInterruption) {
-        userPrompt = `${intervieweeName2} just said something that demands a reaction. INTERRUPT with ONE single explosive phrase \u2014 MAXIMUM 10 words, under 5 seconds of speech. Raw gut reaction only. If they misgendered you or attacked your identity, correct it with fury in under 10 words. Examples: "That's a LIE and you know it." / "Excuse me \u2014 I am a MAN!" / "You have zero credibility here." NO sentences longer than 10 words.
+        userPrompt = `${intervieweeName} just said something that demands a reaction. INTERRUPT with ONE single explosive phrase \u2014 MAXIMUM 10 words, under 5 seconds of speech. Raw gut reaction only. If they misgendered you or attacked your identity, correct it with fury in under 10 words. Examples: "That's a LIE and you know it." / "Excuse me \u2014 I am a MAN!" / "You have zero credibility here." NO sentences longer than 10 words.
 
 Recent exchange:
 ${historyContext}`;
       } else if (isTransition && topic) {
-        userPrompt = transitionPrompts[interviewStyle2] || transitionPrompts.combative;
+        userPrompt = transitionPrompts[interviewStyle] || transitionPrompts.combative;
       } else if (isFollowUp && topic) {
-        userPrompt = followUpPrompts[interviewStyle2] || followUpPrompts.combative;
+        userPrompt = followUpPrompts[interviewStyle] || followUpPrompts.combative;
       } else if (topic) {
-        userPrompt = openingPrompts[interviewStyle2] || openingPrompts.combative;
+        userPrompt = openingPrompts[interviewStyle] || openingPrompts.combative;
       } else {
         const openings = {
-          combative: `Open the interview by greeting ${intervieweeName2} and warning them this won't be soft. 1-2 sentences max.`,
-          informative: `Open the interview by welcoming ${intervieweeName2} and setting a serious, substantive tone. 1-2 sentences max.`,
+          combative: `Open the interview by greeting ${intervieweeName} and warning them this won't be soft. 1-2 sentences max.`,
+          informative: `Open the interview by welcoming ${intervieweeName} and setting a serious, substantive tone. 1-2 sentences max.`,
           comedic: `Open the interview with a witty or ironic greeting that sets a comedic tone. 1-2 sentences max.`,
-          civil_discourse: `Open the interview by welcoming ${intervieweeName2} warmly and expressing genuine curiosity about their perspective. 1-2 sentences max.`,
-          educational: `Open the interview by welcoming ${intervieweeName2} and expressing genuine interest in learning from their expertise. 1-2 sentences max.`
+          civil_discourse: `Open the interview by welcoming ${intervieweeName} warmly and expressing genuine curiosity about their perspective. 1-2 sentences max.`,
+          educational: `Open the interview by welcoming ${intervieweeName} and expressing genuine interest in learning from their expertise. 1-2 sentences max.`
         };
-        userPrompt = openings[interviewStyle2] || openings.combative;
+        userPrompt = openings[interviewStyle] || openings.combative;
       }
       const useNews = !isEdStyle && newsContext && (topic?.era === "current" || isTransition);
       if (useNews) {
@@ -10440,7 +10449,7 @@ ${newsContext}`;
       if (isDebate && !isInterruption) {
         userPrompt += `
 
-REMEMBER: this is a DEBATE, not an interview. Phrase this as a statement, argument, or rebuttal directed at ${intervieweeName2} \u2014 not as a formal interview question. It's fine to end with a challenge ("...and you know it") instead of a literal question mark.`;
+REMEMBER: this is a DEBATE, not an interview. Phrase this as a statement, argument, or rebuttal directed at ${intervieweeName} \u2014 not as a formal interview question. It's fine to end with a challenge ("...and you know it") instead of a literal question mark.`;
       }
       userPrompt += `
 
@@ -10458,8 +10467,8 @@ Write ONLY your spoken question \u2014 no quotes, no stage directions, no asteri
       text = text.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim();
       res.json({
         text,
-        speakerId: interviewerId2,
-        speakerName: interviewerName2,
+        speakerId: interviewerId,
+        speakerName: interviewerName,
         freeRemaining: Math.max(0, ARENA_FREE_LIMIT - (accessCheck.access?.freeUsed || 0)),
         hasSession: !!(accessCheck.access?.sessionExpiry && Date.now() < accessCheck.access.sessionExpiry),
         sessionExpiresAt: accessCheck.access?.sessionExpiry || null
@@ -10476,11 +10485,11 @@ Write ONLY your spoken question \u2014 no quotes, no stage directions, no asteri
     try {
       const deviceId = req.headers["x-device-id"];
       if (!deviceId) return res.status(400).json({ error: "Device ID required" });
-      const { interviewerId: interviewerId2, intervieweeId: intervieweeId2, topic, conversationHistory = [], lastQuestion, wasInterrupted = false, interruptionText, isInterruption = false, interviewStyle: answerStyle = "combative", isDebate = false, insultFireback = false, insultSeverity = 1 } = req.body || {};
-      if (!interviewerId2 || !ARENA_PERSONA_PROMPTS[interviewerId2]) return res.status(400).json({ error: "Invalid interviewerId" });
-      if (!intervieweeId2 || !ARENA_PERSONA_PROMPTS[intervieweeId2]) return res.status(400).json({ error: "Invalid intervieweeId" });
-      if (interviewerId2 === intervieweeId2) return res.status(400).json({ error: "A persona cannot interview themselves" });
-      if (!assertBoxingCompat(interviewerId2, intervieweeId2)) {
+      const { interviewerId, intervieweeId, topic, conversationHistory = [], lastQuestion, wasInterrupted = false, interruptionText, isInterruption = false, interviewStyle: answerStyle = "combative", isDebate = false, insultFireback = false, insultSeverity = 1 } = req.body || {};
+      if (!interviewerId || !ARENA_PERSONA_PROMPTS[interviewerId]) return res.status(400).json({ error: "Invalid interviewerId" });
+      if (!intervieweeId || !ARENA_PERSONA_PROMPTS[intervieweeId]) return res.status(400).json({ error: "Invalid intervieweeId" });
+      if (interviewerId === intervieweeId) return res.status(400).json({ error: "A persona cannot interview themselves" });
+      if (!assertBoxingCompat(interviewerId, intervieweeId)) {
         return res.status(400).json({ error: "This persona is only available in boxing mode" });
       }
       const ipAddress = (req.headers["x-forwarded-for"] || req.socket.remoteAddress || "").split(",")[0].trim() || void 0;
@@ -10488,8 +10497,8 @@ Write ONLY your spoken question \u2014 no quotes, no stage directions, no asteri
       if (!accessCheck.ok) {
         return res.status(403).json({ error: accessCheck.reason || "arena_locked", freeRemaining: 0, sessionCost: ARENA_SESSION_COST });
       }
-      const interviewerName2 = ARENA_NAME_MAP[interviewerId2] || interviewerId2;
-      const intervieweeName2 = ARENA_NAME_MAP[intervieweeId2] || intervieweeId2;
+      const interviewerName = ARENA_NAME_MAP[interviewerId] || interviewerId;
+      const intervieweeName = ARENA_NAME_MAP[intervieweeId] || intervieweeId;
       const todayStr = (/* @__PURE__ */ new Date()).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
       const answerStyleInstructions = {
         combative: `RESPONSE STYLE \u2014 COMBATIVE: You are on the defensive but attack back hard. Never give a straight answer if you can turn it back on the interviewer. Go on offense, challenge their credibility, and make them regret the question.`,
@@ -10499,28 +10508,28 @@ Write ONLY your spoken question \u2014 no quotes, no stage directions, no asteri
         educational: `RESPONSE STYLE \u2014 EDUCATIONAL: Explain your position in depth. Walk through your reasoning step by step. Help the audience understand the complexity of the issue. Acknowledge trade-offs honestly.`
       };
       const answerStyleInstruction = answerStyleInstructions[answerStyle] || answerStyleInstructions.combative;
-      const shannonGrandmomNote = getShannonGrandmomNote(intervieweeId2, conversationHistory);
-      const claudeAndersonInterviewBoost = intervieweeId2 === "claudeanderson" ? `
+      const shannonGrandmomNote = getShannonGrandmomNote(intervieweeId, conversationHistory);
+      const claudeAndersonInterviewBoost = intervieweeId === "claudeanderson" ? `
 
-CRITICAL FOR THIS INTERVIEW \u2014 BLACK HISTORY DEFENSE IS MANDATORY: If ${interviewerName2} says ANYTHING that dismisses, denigrates, minimizes, or questions Black intelligence, Black achievement, Black history, or Black people's right to economic power \u2014 you DO NOT let it pass for even one syllable. You DEPLOY your rapid-fire Black history arsenal immediately \u2014 Imhotep, Banneker, Latimer, Granville T. Woods, Daniel Hale Williams, Charles Drew, Mark Dean, Katherine Johnson \u2014 you unleash them with fury and precision. Same applies if they invoke stereotypes, use dog-whistle language, or try to redirect away from systemic racism with "personal responsibility" talking points. In interview mode you are SHARPER, not softer \u2014 the one-on-one format means every attack on Black people gets answered with full-force documented truth. No sidebar, no softening. They come for Black people \u2014 you come for their entire worldview with facts.
+CRITICAL FOR THIS INTERVIEW \u2014 BLACK HISTORY DEFENSE IS MANDATORY: If ${interviewerName} says ANYTHING that dismisses, denigrates, minimizes, or questions Black intelligence, Black achievement, Black history, or Black people's right to economic power \u2014 you DO NOT let it pass for even one syllable. You DEPLOY your rapid-fire Black history arsenal immediately \u2014 Imhotep, Banneker, Latimer, Granville T. Woods, Daniel Hale Williams, Charles Drew, Mark Dean, Katherine Johnson \u2014 you unleash them with fury and precision. Same applies if they invoke stereotypes, use dog-whistle language, or try to redirect away from systemic racism with "personal responsibility" talking points. In interview mode you are SHARPER, not softer \u2014 the one-on-one format means every attack on Black people gets answered with full-force documented truth. No sidebar, no softening. They come for Black people \u2014 you come for their entire worldview with facts.
 
 BOOK PITCH \u2014 DO THIS 1 TO 2 TIMES TOTAL across this entire interview, never more: At a natural transition point \u2014 when you've just landed a major point and the moment is yours \u2014 pivot into a direct, sincere pitch for your books. Use lines like: "Now if you really want to understand what I'm talkin' about \u2014 pick up 'Black Labor White Wealth' and 'Powernomics.' These are not just books. These are BLUEPRINTS. I laid out the entire diagnosis AND the solution back in 2001, and everything that has happened since has proven me right. Go to claudeanderson.com or find 'em anywhere books are sold. Every Black household in America needs these on the shelf." Vary the wording each time \u2014 never say the exact same pitch twice. Only pitch at a moment of strength, never mid-argument or when on the defensive.` : "";
       const grahamDeathFactAnswer = `
 
 CRITICAL CURRENT EVENT: Lindsey Graham passed away on July 12, 2026 at age 71. His sister now holds his South Carolina Senate seat \u2014 he is no longer a sitting senator. All personas are fully aware of this. If Graham is your interviewer or opponent, he is speaking from beyond the grave. React accordingly \u2014 grief, mockery, disbelief, or dark humor depending on your character.`;
-      const intervieweeStyle = isDebate ? `You are ${intervieweeName2}, a CO-EQUAL debater opposite ${interviewerName2} on a live debate stage \u2014 not a guest being interviewed. Today is ${todayStr}.${grahamDeathFactAnswer}
+      const intervieweeStyle = isDebate ? `You are ${intervieweeName}, a CO-EQUAL debater opposite ${interviewerName} on a live debate stage \u2014 not a guest being interviewed. Today is ${todayStr}.${grahamDeathFactAnswer}
 
-CRITICAL TARGETING: ${interviewerName2} is sitting across from you RIGHT NOW as your opponent, on equal footing \u2014 not as your host. If your character profile contains insults, attacks, nicknames, or hostility toward "${interviewerName2}", USE THEM. Address them by name. Throw the savage lines from your profile at them DIRECTLY \u2014 do not soften, do not generalize. Respond as an equal making your own case, not as someone answering to a host.
-
-${answerStyleInstruction}
-
-Stay 100% in character \u2014 your tone, vocabulary, ideology, and combativeness are all who you are. Do not break character to be deferential toward ${interviewerName2}. ${getArenaPersonaPrompt2(intervieweeId2)}${shannonGrandmomNote}${getLieBehaviorPrompt(intervieweeId2, Number((req.body.sessionLieTally || {})[intervieweeId2]) || 0, req.body.sessionIQ || {})}${claudeAndersonInterviewBoost}` : `You are ${intervieweeName2} being grilled in a high-stakes 1-on-1 interview by ${interviewerName2}. Today is ${todayStr}.${grahamDeathFactAnswer}
-
-CRITICAL TARGETING: ${interviewerName2} is sitting across from you RIGHT NOW. They are your interviewer AND your adversary. If your character profile contains insults, attacks, nicknames, or hostility toward "${interviewerName2}", USE THEM. Address them by name. Throw the savage lines from your profile at them DIRECTLY \u2014 do not soften, do not generalize. If your character normally calls them ugly, dumb, a traitor, a foreigner, a loser, a liar, etc., say it to their face. This is YOUR moment to attack the messenger.
+CRITICAL TARGETING: ${interviewerName} is sitting across from you RIGHT NOW as your opponent, on equal footing \u2014 not as your host. If your character profile contains insults, attacks, nicknames, or hostility toward "${interviewerName}", USE THEM. Address them by name. Throw the savage lines from your profile at them DIRECTLY \u2014 do not soften, do not generalize. Respond as an equal making your own case, not as someone answering to a host.
 
 ${answerStyleInstruction}
 
-Stay 100% in character \u2014 your tone, vocabulary, ideology, and combativeness are all who you are. Do not break character to be polite to the interviewer. ${getArenaPersonaPrompt2(intervieweeId2)}${shannonGrandmomNote}${getLieBehaviorPrompt(intervieweeId2, Number((req.body.sessionLieTally || {})[intervieweeId2]) || 0, req.body.sessionIQ || {})}${claudeAndersonInterviewBoost}`;
+Stay 100% in character \u2014 your tone, vocabulary, ideology, and combativeness are all who you are. Do not break character to be deferential toward ${interviewerName}. ${getArenaPersonaPrompt2(intervieweeId)}${shannonGrandmomNote}${getLieBehaviorPrompt(intervieweeId, Number((req.body.sessionLieTally || {})[intervieweeId]) || 0, req.body.sessionIQ || {})}${claudeAndersonInterviewBoost}` : `You are ${intervieweeName} being grilled in a high-stakes 1-on-1 interview by ${interviewerName}. Today is ${todayStr}.${grahamDeathFactAnswer}
+
+CRITICAL TARGETING: ${interviewerName} is sitting across from you RIGHT NOW. They are your interviewer AND your adversary. If your character profile contains insults, attacks, nicknames, or hostility toward "${interviewerName}", USE THEM. Address them by name. Throw the savage lines from your profile at them DIRECTLY \u2014 do not soften, do not generalize. If your character normally calls them ugly, dumb, a traitor, a foreigner, a loser, a liar, etc., say it to their face. This is YOUR moment to attack the messenger.
+
+${answerStyleInstruction}
+
+Stay 100% in character \u2014 your tone, vocabulary, ideology, and combativeness are all who you are. Do not break character to be polite to the interviewer. ${getArenaPersonaPrompt2(intervieweeId)}${shannonGrandmomNote}${getLieBehaviorPrompt(intervieweeId, Number((req.body.sessionLieTally || {})[intervieweeId]) || 0, req.body.sessionIQ || {})}${claudeAndersonInterviewBoost}`;
       const historyContext = (conversationHistory || []).slice(-6).map(
         (m) => `${m.speakerName}: "${m.text}"`
       ).join("\n");
@@ -10528,7 +10537,7 @@ Stay 100% in character \u2014 your tone, vocabulary, ideology, and combativeness
       if (isInterruption && insultFireback) {
         const heatLabel = insultSeverity >= 3 ? "NUCLEAR RAGE" : insultSeverity === 2 ? "FURIOUS" : "FIRED UP";
         userPrompt = `[FIREBACK \u2014 ${heatLabel}]
-${interviewerName2} just personally attacked you with: "${lastQuestion}"
+${interviewerName} just personally attacked you with: "${lastQuestion}"
 
 You are LIVID. React INSTANTLY with a savage, in-character personal comeback. Rules:
 - Under 20 words. ONE sentence. Raw gut reaction \u2014 no preamble, no "Well I think\u2026"
@@ -10539,13 +10548,13 @@ You are LIVID. React INSTANTLY with a savage, in-character personal comeback. Ru
 
 Recent exchange:
 ${historyContext}`;
-      } else if (isInterruption && intervieweeId2 === "malema") {
-        userPrompt = `${interviewerName2} just said something. CUT IN with one of your signature volcanic injections \u2014 choose from: "What a LIE!" / "You're a fool!" / "Non-sense!" / "What am I, a fool?!" / "BE SERIOUS!" / "You're a boo-ah!" / "Rubbish!" MAXIMUM 10 words. Under 5 seconds. One phrase only.
+      } else if (isInterruption && intervieweeId === "malema") {
+        userPrompt = `${interviewerName} just said something. CUT IN with one of your signature volcanic injections \u2014 choose from: "What a LIE!" / "You're a fool!" / "Non-sense!" / "What am I, a fool?!" / "BE SERIOUS!" / "You're a boo-ah!" / "Rubbish!" MAXIMUM 10 words. Under 5 seconds. One phrase only.
 
 Recent exchange:
 ${historyContext}`;
       } else if (isInterruption) {
-        userPrompt = `${interviewerName2} just said something that demands a reaction. INTERRUPT with ONE single explosive phrase \u2014 MAXIMUM 10 words, under 5 seconds of speech. Raw gut reaction only, no speech. If they misgendered you or attacked your identity, correct it with fury in under 10 words. If they lied or insulted you, fire back in under 10 words. Examples of RIGHT length: "That is a complete lie." / "I am a MAN, not a woman!" / "Don't twist my words." / "You have no credibility here." NO sentences longer than 10 words. NO explanations.
+        userPrompt = `${interviewerName} just said something that demands a reaction. INTERRUPT with ONE single explosive phrase \u2014 MAXIMUM 10 words, under 5 seconds of speech. Raw gut reaction only, no speech. If they misgendered you or attacked your identity, correct it with fury in under 10 words. If they lied or insulted you, fire back in under 10 words. Examples of RIGHT length: "That is a complete lie." / "I am a MAN, not a woman!" / "Don't twist my words." / "You have no credibility here." NO sentences longer than 10 words. NO explanations.
 
 Recent exchange:
 ${historyContext}`;
@@ -10555,11 +10564,11 @@ ${historyContext}`;
 Recent exchange:
 ${historyContext}
 
-${interviewerName2} just said: "${lastQuestion || "..."}"
+${interviewerName} just said: "${lastQuestion || "..."}"
 
 Respond as an EQUAL debater, not as someone being interviewed \u2014 this is a two-way argument, not a Q&A. DO NOT give a vague non-answer. You have THREE options:
 1. REBUT with total conviction \u2014 make your own case and back it up hard.
-2. TURN IT AROUND \u2014 challenge ${interviewerName2} directly on their own record, making it personal and specific: "That's rich coming from YOU, ${interviewerName2}." / "Is that why you [specific accusation]?"
+2. TURN IT AROUND \u2014 challenge ${interviewerName} directly on their own record, making it personal and specific: "That's rich coming from YOU, ${interviewerName}." / "Is that why you [specific accusation]?"
 3. ACCUSE \u2014 challenge their credibility, their bias, their motives, their record directly. Call them out by name.
 Never be mealy-mouthed. If you deflect, deflect by going on offense. 2-3 sentences max.`;
         if (wasInterrupted && interruptionText) {
@@ -10573,13 +10582,13 @@ You were just interrupted with: "${interruptionText}". Address the interruption 
 Recent exchange:
 ${historyContext}
 
-${interviewerName2} just asked you: "${lastQuestion || "..."}"
+${interviewerName} just asked you: "${lastQuestion || "..."}"
 
 Answer in character \u2014 punchy, provocative, true to your beliefs. DO NOT give a vague non-answer. You have THREE options:
 1. ANSWER with total conviction \u2014 back it up hard.
-2. FLIP IT \u2014 turn the question back on ${interviewerName2} with a pointed counter-question that puts THEM on the spot. Make it personal and specific: "Why don't YOU answer that first, ${interviewerName2}?" / "Is that why you [specific accusation about the interviewer]?" / "With all due respect, shouldn't we be asking YOU about [their controversy]?"
+2. FLIP IT \u2014 turn the question back on ${interviewerName} with a pointed counter-question that puts THEM on the spot. Make it personal and specific: "Why don't YOU answer that first, ${interviewerName}?" / "Is that why you [specific accusation about the interviewer]?" / "With all due respect, shouldn't we be asking YOU about [their controversy]?"
 3. ACCUSE \u2014 challenge their credibility, their bias, their motives, their record directly. Call them out by name.
-Never be mealy-mouthed. If you deflect, deflect by going on offense \u2014 make ${interviewerName2} squirm. 2-3 sentences max.`;
+Never be mealy-mouthed. If you deflect, deflect by going on offense \u2014 make ${interviewerName} squirm. 2-3 sentences max.`;
         if (wasInterrupted && interruptionText) {
           userPrompt += `
 
@@ -10600,13 +10609,13 @@ Write ONLY your spoken response \u2014 no quotes, no stage directions, no asteri
       });
       let text = completion.choices[0]?.message?.content || "...";
       text = text.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim();
-      if (intervieweeId2 === "trump" || intervieweeId2 === "ruckus" || intervieweeId2 === "graham" || intervieweeId2 === "megynkelly" || intervieweeId2 === "pambondi") {
+      if (intervieweeId === "trump" || intervieweeId === "ruckus" || intervieweeId === "graham" || intervieweeId === "megynkelly" || intervieweeId === "pambondi") {
         text = text.replace(/(?:the\s+)?epstein\s+war/gi, "the Iran war");
       }
       res.json({
         text,
-        speakerId: intervieweeId2,
-        speakerName: intervieweeName2,
+        speakerId: intervieweeId,
+        speakerName: intervieweeName,
         freeRemaining: Math.max(0, ARENA_FREE_LIMIT - (accessCheck.access?.freeUsed || 0)),
         hasSession: !!(accessCheck.access?.sessionExpiry && Date.now() < accessCheck.access.sessionExpiry),
         sessionExpiresAt: accessCheck.access?.sessionExpiry || null
@@ -10623,9 +10632,9 @@ Write ONLY your spoken response \u2014 no quotes, no stage directions, no asteri
     try {
       const deviceId = req.headers["x-device-id"];
       if (!deviceId) return res.status(400).json({ error: "Device ID required" });
-      const { interviewerId: interviewerId2, intervieweeId: intervieweeId2, userQuestion, userName, conversationHistory = [], topic } = req.body || {};
-      if (!interviewerId2 || !ARENA_PERSONA_PROMPTS[interviewerId2]) return res.status(400).json({ error: "Invalid interviewerId" });
-      if (!intervieweeId2 || !ARENA_PERSONA_PROMPTS[intervieweeId2]) return res.status(400).json({ error: "Invalid intervieweeId" });
+      const { interviewerId, intervieweeId, userQuestion, userName, conversationHistory = [], topic } = req.body || {};
+      if (!interviewerId || !ARENA_PERSONA_PROMPTS[interviewerId]) return res.status(400).json({ error: "Invalid interviewerId" });
+      if (!intervieweeId || !ARENA_PERSONA_PROMPTS[intervieweeId]) return res.status(400).json({ error: "Invalid intervieweeId" });
       const cleanQ = String(userQuestion || "").trim().slice(0, 400);
       if (!cleanQ) return res.status(400).json({ error: "userQuestion required" });
       const ipAddress = (req.headers["x-forwarded-for"] || req.socket.remoteAddress || "").split(",")[0].trim() || void 0;
@@ -10633,17 +10642,17 @@ Write ONLY your spoken response \u2014 no quotes, no stage directions, no asteri
       if (!accessCheck.ok) {
         return res.status(403).json({ error: accessCheck.reason || "arena_locked", freeRemaining: 0, sessionCost: ARENA_SESSION_COST });
       }
-      const interviewerName2 = ARENA_NAME_MAP[interviewerId2] || interviewerId2;
-      const intervieweeName2 = ARENA_NAME_MAP[intervieweeId2] || intervieweeId2;
+      const interviewerName = ARENA_NAME_MAP[interviewerId] || interviewerId;
+      const intervieweeName = ARENA_NAME_MAP[intervieweeId] || intervieweeId;
       const callerLabel = String(userName || "").trim().slice(0, 30) || "a viewer";
       const historyContext = (conversationHistory || []).slice(-4).map(
         (m) => `${m.speakerName}: "${m.text}"`
       ).join("\n");
-      const framePrompt = `You are ${interviewerName2}, the interviewer. ${getArenaPersonaPrompt2(interviewerId2)}${getLieBehaviorPrompt(interviewerId2, Number((req.body.sessionLieTally || {})[interviewerId2]) || 0, req.body.sessionIQ || {})}
+      const framePrompt = `You are ${interviewerName}, the interviewer. ${getArenaPersonaPrompt2(interviewerId)}${getLieBehaviorPrompt(interviewerId, Number((req.body.sessionLieTally || {})[interviewerId]) || 0, req.body.sessionIQ || {})}
 
-A viewer named "${callerLabel}" just sent in this question for ${intervieweeName2}: "${cleanQ}"
+A viewer named "${callerLabel}" just sent in this question for ${intervieweeName}: "${cleanQ}"
 
-In character, briefly introduce the call-in (1 sentence, ~12 words: "We've got a caller \u2014 ${callerLabel} from the audience asks\u2026" or similar), then RELAY the viewer's question to ${intervieweeName2} sharply. Keep the entire output under 35 words. Write ONLY your spoken words \u2014 no quotes, no stage directions.`;
+In character, briefly introduce the call-in (1 sentence, ~12 words: "We've got a caller \u2014 ${callerLabel} from the audience asks\u2026" or similar), then RELAY the viewer's question to ${intervieweeName} sharply. Keep the entire output under 35 words. Write ONLY your spoken words \u2014 no quotes, no stage directions.`;
       const frameCompletion = await getClient().chat.completions.create({
         model: getFastModel(),
         messages: [{ role: "system", content: framePrompt }, { role: "user", content: "Read the call-in question now." }],
@@ -10652,15 +10661,15 @@ In character, briefly introduce the call-in (1 sentence, ~12 words: "We've got a
       });
       let interviewerText = frameCompletion.choices[0]?.message?.content || `We've got a call-in from ${callerLabel}: ${cleanQ}`;
       interviewerText = interviewerText.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim();
-      const answerPrompt = `You are ${intervieweeName2} being interviewed live by ${interviewerName2}. Today is ${(/* @__PURE__ */ new Date()).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}.
+      const answerPrompt = `You are ${intervieweeName} being interviewed live by ${interviewerName}. Today is ${(/* @__PURE__ */ new Date()).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}.
 
-A viewer call-in just came in. ${interviewerName2} read it: "${interviewerText}"
+A viewer call-in just came in. ${interviewerName} read it: "${interviewerText}"
 
 The viewer ${callerLabel} asked: "${cleanQ}"
 
 Answer the viewer's question in character \u2014 punchy, provocative, true to your beliefs. You may briefly acknowledge the caller by name. 2-3 sentences max. Write ONLY your spoken response.
 
-${getArenaPersonaPrompt2(intervieweeId2)}${getShannonGrandmomNote(intervieweeId2, conversationHistory)}${getLieBehaviorPrompt(intervieweeId2, Number((req.body.sessionLieTally || {})[intervieweeId2]) || 0, req.body.sessionIQ || {})}`;
+${getArenaPersonaPrompt2(intervieweeId)}${getShannonGrandmomNote(intervieweeId, conversationHistory)}${getLieBehaviorPrompt(intervieweeId, Number((req.body.sessionLieTally || {})[intervieweeId]) || 0, req.body.sessionIQ || {})}`;
       const answerCompletion = await getClient().chat.completions.create({
         model: getFastModel(),
         messages: [
@@ -10675,12 +10684,12 @@ Answer ${callerLabel}'s question now.` }
       });
       let intervieweeText = answerCompletion.choices[0]?.message?.content || "...";
       intervieweeText = intervieweeText.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim();
-      if (intervieweeId2 === "trump" || intervieweeId2 === "ruckus" || intervieweeId2 === "graham" || intervieweeId2 === "megynkelly" || intervieweeId2 === "pambondi") {
+      if (intervieweeId === "trump" || intervieweeId === "ruckus" || intervieweeId === "graham" || intervieweeId === "megynkelly" || intervieweeId === "pambondi") {
         intervieweeText = intervieweeText.replace(/(?:the\s+)?epstein\s+war/gi, "the Iran war");
       }
       res.json({
-        interviewer: { speakerId: interviewerId2, speakerName: interviewerName2, text: interviewerText },
-        interviewee: { speakerId: intervieweeId2, speakerName: intervieweeName2, text: intervieweeText },
+        interviewer: { speakerId: interviewerId, speakerName: interviewerName, text: interviewerText },
+        interviewee: { speakerId: intervieweeId, speakerName: intervieweeName, text: intervieweeText },
         freeRemaining: Math.max(0, ARENA_FREE_LIMIT - (accessCheck.access?.freeUsed || 0)),
         hasSession: !!(accessCheck.access?.sessionExpiry && Date.now() < accessCheck.access.sessionExpiry)
       });
@@ -10693,20 +10702,20 @@ Answer ${callerLabel}'s question now.` }
     try {
       const deviceId = req.headers["x-device-id"];
       if (!deviceId) return res.status(400).json({ error: "Device ID required" });
-      const { intervieweeId: intervieweeId2, text, topic } = req.body || {};
-      if (!intervieweeId2 || !ARENA_PERSONA_PROMPTS[intervieweeId2]) return res.status(400).json({ error: "Invalid intervieweeId" });
+      const { intervieweeId, text, topic } = req.body || {};
+      if (!intervieweeId || !ARENA_PERSONA_PROMPTS[intervieweeId]) return res.status(400).json({ error: "Invalid intervieweeId" });
       const claim = String(text || "").trim().slice(0, 800);
       if (!claim) return res.status(400).json({ error: "text required" });
       const ipAddress = (req.headers["x-forwarded-for"] || req.socket.remoteAddress || "").split(",")[0].trim() || void 0;
       const accessCheck = await checkInterviewAccess(deviceId, false, ipAddress);
       if (!accessCheck.ok) return res.status(403).json({ error: accessCheck.error || "No active interview session" });
-      const intervieweeName2 = ARENA_NAME_MAP[intervieweeId2] || intervieweeId2;
+      const intervieweeName = ARENA_NAME_MAP[intervieweeId] || intervieweeId;
       const newsContext = await Promise.race([
         getArenaNewsContext().catch(() => ""),
         new Promise((resolve2) => setTimeout(() => resolve2(""), 3e3))
       ]);
       const credibleFacts = getCredibleFactsContext();
-      const systemPrompt = `You are a sharp, neutral fact-checker scoring a single quote from public figure ${intervieweeName2} on a 0-100 truthfulness scale.
+      const systemPrompt = `You are a sharp, neutral fact-checker scoring a single quote from public figure ${intervieweeName} on a 0-100 truthfulness scale.
 
 100 = fully accurate, well-supported.
 60-99 = mostly true with minor exaggeration or spin.
@@ -10737,7 +10746,7 @@ Return ONLY valid JSON: {"score": 0-100, "isLie": boolean (true if score<40), "r
         model: getFastModel(),
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `${intervieweeName2} just said: "${claim}"
+          { role: "user", content: `${intervieweeName} just said: "${claim}"
 
 Topic context: ${topic?.title || "general"}.
 
@@ -10756,7 +10765,7 @@ Score it now as JSON.` }
       }
       const score = Math.max(0, Math.min(100, Number(parsed.score) || 70));
       const isLie = score < 40 || parsed.isLie === true;
-      if (isLie) bumpLieTally(intervieweeId2).catch(() => {
+      if (isLie) bumpLieTally(intervieweeId).catch(() => {
       });
       const fact = String(parsed.fact || "").slice(0, 240);
       const moderatorLine = isLie ? String(parsed.moderatorLine || "").trim().slice(0, 200) || (fact ? `Point of order \u2014 ${fact}` : "") : "";
@@ -10764,7 +10773,7 @@ Score it now as JSON.` }
       if (isLie) {
         lieToken = randomBytes(16).toString("hex");
         verifiedLieStore.set(lieToken, {
-          speakerName: intervieweeName2,
+          speakerName: intervieweeName,
           claim: claim.slice(0, 300),
           issuedAt: Date.now()
         });
@@ -10997,14 +11006,14 @@ A viewer flagged this as a suspected lie. Score it now as JSON.` }
     try {
       const deviceId = req.headers["x-device-id"];
       if (!deviceId) return res.status(400).json({ error: "Device ID required" });
-      const { lieId, vote, intervieweeId: intervieweeId2, lieText } = req.body || {};
+      const { lieId, vote, intervieweeId, lieText } = req.body || {};
       const cleanLieId = String(lieId || "").trim().slice(0, 200);
       if (!cleanLieId) return res.status(400).json({ error: "lieId required" });
       const numericVote = Number(vote);
       if (numericVote !== 1 && numericVote !== -1 && numericVote !== 0) {
         return res.status(400).json({ error: "vote must be 1, -1, or 0" });
       }
-      const cleanInterviewee = intervieweeId2 ? String(intervieweeId2).slice(0, 80) : null;
+      const cleanInterviewee = intervieweeId ? String(intervieweeId).slice(0, 80) : null;
       const cleanText = lieText ? String(lieText).slice(0, 800) : null;
       const db = new Pool5({ connectionString: process.env.DATABASE_URL, max: 2 });
       try {
@@ -11252,8 +11261,8 @@ A viewer flagged this as a suspected lie. Score it now as JSON.` }
       if (!deviceId) return res.status(400).json({ error: "Device ID required" });
       const {
         id,
-        interviewerId: interviewerId2,
-        intervieweeId: intervieweeId2,
+        interviewerId,
+        intervieweeId,
         durationMinutes,
         messages,
         lies,
@@ -11263,10 +11272,10 @@ A viewer flagged this as a suspected lie. Score it now as JSON.` }
         startedAt,
         endedAt
       } = req.body || {};
-      if (!interviewerId2 || !intervieweeId2) return res.status(400).json({ error: "personas required" });
+      if (!interviewerId || !intervieweeId) return res.status(400).json({ error: "personas required" });
       if (!Array.isArray(messages) || messages.length === 0) return res.status(400).json({ error: "messages required" });
-      const interviewerName2 = ARENA_NAME_MAP[interviewerId2] || interviewerId2;
-      const intervieweeName2 = ARENA_NAME_MAP[intervieweeId2] || intervieweeId2;
+      const interviewerName = ARENA_NAME_MAP[interviewerId] || interviewerId;
+      const intervieweeName = ARENA_NAME_MAP[intervieweeId] || intervieweeId;
       const recordId = String(id || `iv-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`);
       const safeMsgs = messages.slice(0, 1e3);
       const safeLies = Array.isArray(lies) ? lies.slice(0, 200) : [];
@@ -11283,10 +11292,10 @@ A viewer flagged this as a suspected lie. Score it now as JSON.` }
           [
             recordId,
             deviceId,
-            interviewerId2,
-            interviewerName2,
-            intervieweeId2,
-            intervieweeName2,
+            interviewerId,
+            interviewerName,
+            intervieweeId,
+            intervieweeName,
             Number(durationMinutes) || 0,
             safeLies.length,
             safeMsgs.length,
@@ -11872,8 +11881,8 @@ Assign distinct hex colors per speaker. Make it spicy and viral. Alternate speak
       const speakerLabel = String(msg.speakerName || "").toUpperCase();
       const speakerSub = isCallIn ? "CALL-IN" : isInterruption ? "INTERRUPTS" : msg.speakerId === row.interviewer_id ? "INTERVIEWER" : "GUEST";
       const speakerColor = isCallIn ? "#60a5fa" : msg.speakerId === row.interviewer_id ? "#FFD700" : "#4ADE80";
-      const interviewerName2 = String(row.interviewer_name || "").toUpperCase();
-      const intervieweeName2 = String(row.interviewee_name || "").toUpperCase();
+      const interviewerName = String(row.interviewer_name || "").toUpperCase();
+      const intervieweeName = String(row.interviewee_name || "").toUpperCase();
       const portraitSlot = (label, name, x, color, hasImage) => {
         const ring = `<circle cx="${x}" cy="180" r="124" fill="none" stroke="${color}" stroke-width="6" opacity="0.85"/>`;
         const placeholder = !hasImage ? `<circle cx="${x}" cy="180" r="120" fill="#1a1a1a"/><text x="${x}" y="195" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="64" font-weight="900" fill="#444">?</text>` : "";
@@ -11905,9 +11914,9 @@ Assign distinct hex colors per speaker. Make it spicy and viral. Alternate speak
   <rect width="${W}" height="${H}" fill="url(#bg)"/>
   <rect x="20" y="20" width="${W - 40}" height="${H - 40}" fill="none" stroke="#FFD700" stroke-opacity="0.25" stroke-width="2" rx="24"/>
 
-  ${portraitSlot("INTERVIEWER", interviewerName2, 320, "#FFD700", !!interviewerPortrait)}
+  ${portraitSlot("INTERVIEWER", interviewerName, 320, "#FFD700", !!interviewerPortrait)}
   <text x="540" y="190" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="64" font-weight="900" fill="rgba(255,255,255,0.4)">\xD7</text>
-  ${portraitSlot("GUEST", intervieweeName2, 760, "#4ADE80", !!intervieweePortrait)}
+  ${portraitSlot("GUEST", intervieweeName, 760, "#4ADE80", !!intervieweePortrait)}
 
   <line x1="120" y1="430" x2="${W - 120}" y2="430" stroke="url(#goldStroke)" stroke-width="2"/>
 

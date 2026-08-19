@@ -9112,23 +9112,36 @@ Use "era":"current" for today's news/viral moments, "era":"past" for career hist
       interviewTopicsCache.set(cacheKey, { topics, interviewerName, intervieweeName, expires: Date.now() + INTERVIEW_TOPICS_CACHE_TTL });
       res.json({ topics, interviewerName, intervieweeName });
     } catch (error: any) {
+      // Request values are scoped to the try block above, so rebuild the small
+      // fallback context here before responding to an AI-provider failure.
+      const fallbackInterviewerId = String(req.body?.interviewerId || "");
+      const fallbackIntervieweeId = String(req.body?.intervieweeId || "");
+      const fallbackInterviewerName = ARENA_NAME_MAP[fallbackInterviewerId] || fallbackInterviewerId || "the interviewer";
+      const fallbackIntervieweeName = ARENA_NAME_MAP[fallbackIntervieweeId] || fallbackIntervieweeId || "the guest";
+      const fallbackDuration = Number(req.body?.durationMinutes) || 10;
+      const fallbackTopicCount = fallbackDuration <= 5 ? 6 : fallbackDuration <= 10 ? 10 : 14;
+      const fallbackStyle = String(req.body?.interviewStyle || "combative");
+      const fallbackTopics = buildInterviewFallbackTopics(
+        fallbackInterviewerId, fallbackIntervieweeId, fallbackInterviewerName, fallbackIntervieweeName,
+        fallbackTopicCount, fallbackStyle,
+      );
       if (error?.code === "AI_TIMEOUT") {
         // AI took too long — return persona-aware local topics rather than
         // making the client replace them with the same global generic list.
         console.warn("Interview topics timed out after 9 s");
-        const fallbackTopics = buildInterviewFallbackTopics(
-          interviewerId, intervieweeId, interviewerName, intervieweeName, topicCount, interviewStyle,
-        );
-        return res.json({ topics: fallbackTopics, interviewerName, intervieweeName, generatedFallback: true });
+        return res.json({
+          topics: fallbackTopics, interviewerName: fallbackInterviewerName,
+          intervieweeName: fallbackIntervieweeName, generatedFallback: true,
+        });
       }
       console.error("Interview topics error:", error);
       // A provider outage must not erase the personalization of the interview
       // setup. These are deterministic, named angles based on the selected
       // guest and host, and are preferable to the old one-size-fits-all list.
-      const fallbackTopics = buildInterviewFallbackTopics(
-        interviewerId, intervieweeId, interviewerName, intervieweeName, topicCount, interviewStyle,
-      );
-      res.json({ topics: fallbackTopics, interviewerName, intervieweeName, generatedFallback: true });
+      res.json({
+        topics: fallbackTopics, interviewerName: fallbackInterviewerName,
+        intervieweeName: fallbackIntervieweeName, generatedFallback: true,
+      });
     }
   });
 
