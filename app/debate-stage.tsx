@@ -2645,7 +2645,7 @@ export default function DebateStage() {
           // The fact-check response is already asynchronous. Avoid another model
           // call here, which was allowing corrections to speak well after the
           // exchange that prompted them.
-          const line = factLine || (reactionKind ? localJab(reactionKind) : "");
+          const line = factLine || (reactionKind ? localJab(reactionKind, moderatorStyle) : "");
           if (!line || !runningRef.current || accessExpiredRef.current) return;
           setModeratorLastLine(line);
           setModeratorSpeaking(true);
@@ -2951,7 +2951,7 @@ export default function DebateStage() {
                 });
               });
             };
-            const modLine = localJab("squabble");
+            const modLine = localJab("squabble", moderatorStyle);
             await speakModQueued(modLine);
             // ── SQUABBLE TOPIC ADVANCE ───────────────────────────────────────
             // Keep a timed debate alive after a heated exchange. Once every

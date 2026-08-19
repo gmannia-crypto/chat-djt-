@@ -13,7 +13,7 @@ import { getApiUrl } from "@/lib/query-client";
 import { prefetchTTSAudio, playPrefetchedAudio, playTTS } from "@/lib/audio-helper";
 import { playCrowdCheer, playDingSound } from "@/lib/arena-sfx";
 
-export type ModeratorStyle = "cenk" | "galloway" | "hannity" | "maddow" | "megynkelly" | "odonnell" | "joyreid" | "maxkellerman" | "stephena" | "kaitlyncollins" | "gilbertgottfried" | "carlin" | "tuckercarlson" | "wandasykes" | "trevornoah" | "janeelliott" | "francescresswelsing" | "shannonsharp" | "dc" | "donlemon" | "piersmorgan" | "mikabrzezinski" | "joescarborough" | "jimlampley" | "georgeforeman" | "michaelbuffer" | "howardcosell";
+export type ModeratorStyle = "cenk" | "galloway" | "hannity" | "maddow" | "megynkelly" | "odonnell" | "joyreid" | "maxkellerman" | "stephena" | "kaitlyncollins" | "gilbertgottfried" | "carlin" | "tuckercarlson" | "wandasykes" | "trevornoah" | "janeelliott" | "francescresswelsing" | "shannonsharp" | "dc" | "donlemon" | "piersmorgan" | "mikabrzezinski" | "joescarborough" | "jimlampley" | "georgeforeman" | "michaelbuffer" | "howardcosell" | "samjackson";
 
 export const MODERATORS: Record<ModeratorStyle, { name: string; personaId: string; bias: string }> = {
   cenk:             { name: "Cenk Uygur",          personaId: "cenk",             bias: "progressive" },
@@ -43,6 +43,7 @@ export const MODERATORS: Record<ModeratorStyle, { name: string; personaId: strin
   georgeforeman:       { name: "George Foreman",             personaId: "georgeforeman",        bias: "humble-sports" },
   michaelbuffer:       { name: "Michael Buffer",             personaId: "michaelbuffer",        bias: "boxing-announcer" },
   howardcosell:        { name: "Howard Cosell",              personaId: "howardcosell",         bias: "boxing-sports" },
+  samjackson:          { name: "Samuel L. Jackson",          personaId: "samjackson",           bias: "biblical-menace" },
 };
 
 // Which personas each moderator is friendly to ("favor" — softball questions, quick to defend
@@ -149,6 +150,8 @@ export const MODERATOR_LEANINGS: Record<ModeratorStyle, { favor: string[]; targe
   michaelbuffer: { favor: [], target: [] },
   // Howard Cosell: Straight-shooting sports journalist — no political favor, calls it exactly as he sees it.
   howardcosell: { favor: [], target: [] },
+  // Samuel L. Jackson: no political favorites — he runs this stage on principle and profanity alone.
+  samjackson: { favor: [], target: [] },
 };
 
 export type ModeratorLeaning = "favor" | "target" | "neutral";
@@ -199,6 +202,49 @@ const JAB_LIBRARY: Record<string, string[]> = {
     "HOLD IT. I don't care who started it — if anyone takes one step forward this debate is OVER. Back off.",
   ],
 };
+
+// Per-moderator signature overrides — when a moderator has a distinct enough voice
+// (catchphrases, lingo) that generic jabs would feel wrong, override specific kinds here.
+// Falls back to JAB_LIBRARY for any kind not listed.
+const MODERATOR_JAB_OVERRIDES: Partial<Record<ModeratorStyle, Partial<Record<keyof typeof JAB_LIBRARY, string[]>>>> = {
+  samjackson: {
+    warn: [
+      "Alright, that's enough — say 'one more word' again, I dare you, I DOUBLE dare you.",
+      "English, gentlemen — do either of you speak it? One at a time, or Ezekiel's coming for both of you.",
+    ],
+    chastise: [
+      "That was the weakest, most miserable excuse for an answer I have ever had the displeasure of hearing.",
+      "You didn't answer a damn thing — you just performed for the cameras. Try that again, for real this time.",
+    ],
+    cutMic: [
+      "And that's the end of that. Mic's off. Sit there and think about the path of the righteous.",
+      "Nah. We're done with you for a minute. Go on and meditate on that.",
+    ],
+    interrupt: [
+      "Hold up — HOLD UP. You do not get to just say that and roll on. Break it down for me.",
+      "Say that again. I dare you. Say. That. Again.",
+    ],
+    chastiseLie: [
+      "And the tyranny of evil men just got caught lying, right there on the record.",
+      "That was a straight-up LIE, and the path of the righteous does not run through dishonesty. Noted.",
+    ],
+    defendLie: [
+      "Now hold on — that's a stretch, not a lie. Let's not strike him down for exaggerating.",
+      "I'll extend a little mercy there — that's shading the truth, not full-blown blasphemy.",
+    ],
+    squabble: [
+      "ENGLISH, MOTHERF— gentlemen, do either of you speak it?! SIT. DOWN. Both of you!",
+      "That's IT. I have had it with these two squabbling on this stage. Somebody's about to get struck down.",
+      "HOLD IT — I will bring the wrath down on BOTH of you if this doesn't stop right now. Back off.",
+    ],
+  },
+};
+
+/** Returns the moderator's signature line for this jab kind if one exists, else the generic pool. */
+function pickJabForModerator(kind: keyof typeof JAB_LIBRARY, moderatorStyle?: ModeratorStyle): string {
+  const override = moderatorStyle ? MODERATOR_JAB_OVERRIDES[moderatorStyle]?.[kind] : undefined;
+  return pick(override && override.length > 0 ? override : JAB_LIBRARY[kind]);
+}
 
 function pick(arr: string[]) { return arr[Math.floor(Math.random() * arr.length)]; }
 
@@ -254,7 +300,7 @@ export async function generateModeratorLine(opts: {
       if (data?.text) return truncateAtSentence(String(data.text), 420);
     }
   } catch { /* fall through to local */ }
-  return pick(JAB_LIBRARY[opts.kind]);
+  return pickJabForModerator(opts.kind, opts.moderatorStyle);
 }
 
 /**
@@ -341,7 +387,7 @@ export async function speakModeratorNow(
   });
 }
 
-export function localJab(kind: keyof typeof JAB_LIBRARY) { return pick(JAB_LIBRARY[kind]); }
+export function localJab(kind: keyof typeof JAB_LIBRARY, moderatorStyle?: ModeratorStyle) { return pickJabForModerator(kind, moderatorStyle); }
 
 /**
  * The moderator opens a new topic by putting a question to ONE of the two debaters

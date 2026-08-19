@@ -3082,7 +3082,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     davidwellington: "0917271afb724ec0bea79008613ab34a",
     sirdameon: "fdeaeb07ccac446d8b3ae07e49270b88",
     mlk: "2e32105354084e8cb509c6fdd4c3bb95",
-    samjackson: "b5b08431971f45ceb70baf388e57bb6a",
+    samjackson: "2d525a9e0c9e43dc95b28998e79ad0af",
     malcolmx: "78e58f7e943042e5a001e8d6a23559c0",
     louisfarrakhan: "58b3775e47174ae4950e1181c8ac7170",
     carlsagan: "cf4135f201ce4ea1b01bfdbdf47235f2",
