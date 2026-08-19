@@ -290,6 +290,7 @@ const SARCASM_BY_PERSONA: Record<string, string[]> = {
   howardcosell:   ["I must say — no.", "Extraordinary claim.", "In all my years—", "Remarkable ignorance.", "That, my friend, is pure hyperbole.", "I've called fights with more substance than that."],
   jimlampley:     ["The judges disagree.", "Scorecards say otherwise.", "That's a low blow.", "Ruled — invalid.", "That one lands nowhere on my card.", "The replay does not support that claim."],
   muhammadali:    ["I am the greatest — you're not.", "Float like a butterfly — that argument? Dead.", "Shook.", "Nah.", "That's a jab with no power behind it.", "Pretty words, but you can't back it up."],
+  samjackson:     ["Say that again. I dare you. I DOUBLE dare you.", "English — do you speak it?", "*scoffs* Personality of a wet napkin.", "That, right there, is some royal nonsense.", "Hold up — say what now?"],
 };
 
 // Short moderator sarcastic laughs — only fired when moderator leans "target" against the speaker
@@ -298,6 +299,18 @@ const MOD_SARCASM_LINES = [
   "*under breath* Wow.", "Of course.", "Incredible.", "*stifles laugh*",
   "Fascinating take.", "Mm-hmm.", "Bold.", "Sure.", "*clears throat* Moving on.",
 ];
+
+// Per-moderator overrides for the sarcastic laugh above — keeps a moderator's
+// signature voice even in this generic reaction slot. Falls back to MOD_SARCASM_LINES.
+const MOD_SARCASM_BY_MODERATOR: Record<string, string[]> = {
+  samjackson: [
+    "*scoffs* Say that again, I dare you.",
+    "Mm. English — do you speak it?",
+    "*shakes head* Personality of a wet napkin.",
+    "That, right there, is some royal nonsense.",
+    "*under breath* Lord, give me strength.",
+  ],
+};
 
 // Per-persona sarcasm cooldown (module-level — no re-render needed).
 // Key: personaId, Value: timestamp of last sarcasm fired.
@@ -2807,7 +2820,8 @@ export default function DebateStage() {
         const leaning = getModeratorLeaning(moderatorStyle, m.speakerId);
         if (leaning === "target") {
           _modSarcasticLastAt = now;
-          const modLine = MOD_SARCASM_LINES[Math.floor(Math.random() * MOD_SARCASM_LINES.length)];
+          const modPool = MOD_SARCASM_BY_MODERATOR[moderatorStyle] ?? MOD_SARCASM_LINES;
+          const modLine = modPool[Math.floor(Math.random() * modPool.length)];
           const mod = MODERATORS[moderatorStyle];
           if (mod) {
             const modMsgId = `mod-sarcasm-${Date.now()}`;

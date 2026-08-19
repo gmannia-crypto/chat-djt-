@@ -5,6 +5,17 @@ import {
   getArenaPersonaPrompt as _getArenaPersonaPrompt,
   setArenaPersonaPrompt as _setArenaPersonaPrompt,
 } from "./arena-no-ai-guard";
+// Cliché phrases the AI models default to too often — stripped out post-generation
+// as a safety net on top of the "avoid clichés" prompt instruction, since models
+// don't always follow negative instructions reliably.
+const BANNED_CLICHE_PATTERNS: RegExp[] = [
+  /that'?s\s+rich\b\.?/gi,
+];
+function stripBannedCliches(text: string): string {
+  let out = text;
+  for (const re of BANNED_CLICHE_PATTERNS) out = out.replace(re, "").replace(/\s{2,}/g, " ").trim();
+  return out;
+}
 import { execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { promisify } from "node:util";
@@ -9408,7 +9419,7 @@ ${styleInstruction}${getLieBehaviorPrompt(interviewerId, Number((req.body.sessio
         questionTimeoutPromise,
       ]);
       let text = completion.choices[0]?.message?.content || "...";
-      text = text.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim();
+      text = stripBannedCliches(text.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim());
 
       res.json({
         text,
@@ -9534,7 +9545,7 @@ Stay 100% in character — your tone, vocabulary, ideology, and combativeness ar
         answerTimeoutPromise,
       ]);
       let text = completion.choices[0]?.message?.content || "...";
-      text = text.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim();
+      text = stripBannedCliches(text.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim());
       if (intervieweeId === "trump" || intervieweeId === "ruckus" || intervieweeId === "graham" || intervieweeId === "megynkelly" || intervieweeId === "pambondi") {
         text = text.replace(/(?:the\s+)?epstein\s+war/gi, "the Iran war");
       }
@@ -9607,7 +9618,7 @@ In character, briefly introduce the call-in (1 sentence, ~12 words: "We've got a
         frameTimeoutPromise,
       ]);
       let interviewerText = frameCompletion.choices[0]?.message?.content || `We've got a call-in from ${callerLabel}: ${cleanQ}`;
-      interviewerText = interviewerText.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim();
+      interviewerText = stripBannedCliches(interviewerText.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim());
 
       // Step 2: interviewee answers the call-in
       const answerPrompt = `You are ${intervieweeName} being interviewed live by ${interviewerName}. Today is ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}.
