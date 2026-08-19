@@ -8935,6 +8935,55 @@ FORMAT:
     }
   });
 
+  function buildInterviewFallbackTopics(
+    interviewerId: string,
+    intervieweeId: string,
+    interviewerName: string,
+    intervieweeName: string,
+    topicCount: number,
+    interviewStyle: string,
+  ) {
+    const signatureAngles: Record<string, string[]> = {
+      trump: ["the 2020 election claims and the evidence he still cites", "the January 6 pardons and what accountability means now", "tariffs, prices, and the promise to make trade wars painless", "the Epstein files and his changing explanations"],
+      biden: ["the Afghanistan withdrawal and the promises that survived it", "student debt relief and the limits of executive power", "the age question and what voters were actually seeing", "Ukraine, NATO, and the cost of American leadership"],
+      obama: ["the financial crisis bailout and the voters left behind", "drones, executive power, and the limits of hope-and-change politics", "healthcare reform and the compromises that shaped the ACA", "his relationship with the Democratic Party's progressive wing"],
+      carville: ["the Democratic Party's working-class message and where it went wrong", "his attacks on progressive priorities and the electoral math behind them", "the Clinton legacy and the scandals he still defends", "whether blunt political instincts are enough in the current media era"],
+      berniemc: ["Medicare for All and why corporate power keeps blocking it", "the billionaire class and what a wealth tax would actually change", "the Gaza war and the limits of his foreign-policy coalition", "labor organizing after the collapse of traditional union power"],
+      aoc: ["the Green New Deal and the jobs-versus-climate attack", "Israel, Gaza, and the pressure on progressive Democrats", "housing costs, private equity, and who gets to live in New York", "whether inside-the-system politics can deliver structural change"],
+      malcolmx: ["self-defense, revolution, and the limits of nonviolence", "Black nationalism versus integration as the path to power", "the international human-rights frame for American racism", "how his thinking changed after Mecca and the Nation of Islam"],
+      mlk: ["civil disobedience and why moderation never delivered equality", "the Poor People's Campaign and the unfinished economic fight", "Vietnam, militarism, and the cost of speaking against your allies", "whether the dream has been reduced to a slogan without the program"],
+      malema: ["land reform and who should control South Africa's economy", "Pan-Africanism versus global capital", "the ANC's failures and the case for a more radical opposition", "race, class, and the politics of nationalization"],
+      musk: ["government contracts, private power, and the billionaire accountability gap", "free speech claims versus moderation on X", "AI safety, competition, and whether regulation threatens innovation", "labor practices and the human cost of moving fast"],
+      graham: ["Ukraine funding and the argument for permanent American intervention", "the Senate's partisan transformation", "Trump loyalty versus constitutional principles", "the gap between national-security rhetoric and civilian casualties"],
+      kamala: ["criminal-justice reform versus her prosecutorial record", "the border and the politics of enforcement", "the Biden administration's economic record", "whether representation changed policy for working families"],
+      galloway: ["Iraq, Gaza, and the case against interventionist foreign policy", "working-class politics outside the traditional left", "managed migration and the tension between labor and humanitarian arguments", "why establishment parties keep losing their base"],
+      candace: ["Black conservatism and the politics of individual responsibility", "her arguments about gender and the culture war", "Trump, populism, and the limits of ideological consistency", "free speech, platform power, and media incentives"],
+    };
+    const angles = signatureAngles[intervieweeId] || [
+      `${intervieweeName}'s defining record and the decision they still have not fully defended`,
+      `the contradiction between ${intervieweeName}'s public image and their documented positions`,
+      `the policy that made ${intervieweeName} influential — and who paid the price`,
+      `the biggest criticism of ${intervieweeName}'s worldview and the strongest answer to it`,
+    ];
+    const styleLead = interviewStyle === "civil_discourse"
+      ? "What can the public learn from"
+      : interviewStyle === "educational"
+        ? "What should people understand about"
+        : interviewStyle === "comedic" || interviewStyle === "roast"
+          ? "The most embarrassing contradiction in"
+          : "The hardest question for";
+    const templates = [...angles, ...angles, ...angles];
+    return Array.from({ length: topicCount }, (_, i) => {
+      const angle = templates[i];
+      return {
+        id: `fallback-interview-${interviewerId}-${intervieweeId}-${Date.now()}-${i}`,
+        title: `${styleLead} ${intervieweeName}: ${angle}`,
+        description: `${interviewerName} puts ${intervieweeName} on the record about ${angle.toLowerCase()}.`,
+        era: "past",
+      };
+    });
+  }
+
   app.post("/api/arena/interview-topics", async (req, res) => {
     try {
       const { interviewerId, intervieweeId, topicMix = "mixed", durationMinutes = 10, interviewStyle = "combative", category = "", bust = 0 } = req.body || {};
@@ -9064,13 +9113,22 @@ Use "era":"current" for today's news/viral moments, "era":"past" for career hist
       res.json({ topics, interviewerName, intervieweeName });
     } catch (error: any) {
       if (error?.code === "AI_TIMEOUT") {
-        // AI took too long — tell the client promptly so it can fall back to
-        // generic topics rather than waiting out its own 12-second abort.
+        // AI took too long — return persona-aware local topics rather than
+        // making the client replace them with the same global generic list.
         console.warn("Interview topics timed out after 9 s");
-        return res.status(503).json({ error: "Topic generation timed out" });
+        const fallbackTopics = buildInterviewFallbackTopics(
+          interviewerId, intervieweeId, interviewerName, intervieweeName, topicCount, interviewStyle,
+        );
+        return res.json({ topics: fallbackTopics, interviewerName, intervieweeName, generatedFallback: true });
       }
       console.error("Interview topics error:", error);
-      res.status(500).json({ error: "Failed to generate topics" });
+      // A provider outage must not erase the personalization of the interview
+      // setup. These are deterministic, named angles based on the selected
+      // guest and host, and are preferable to the old one-size-fits-all list.
+      const fallbackTopics = buildInterviewFallbackTopics(
+        interviewerId, intervieweeId, interviewerName, intervieweeName, topicCount, interviewStyle,
+      );
+      res.json({ topics: fallbackTopics, interviewerName, intervieweeName, generatedFallback: true });
     }
   });
 
