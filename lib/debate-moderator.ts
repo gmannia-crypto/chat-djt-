@@ -358,6 +358,13 @@ export async function generateModeratorQuestion(opts: {
   previousTopicTitle?: string;
   conversationHistory?: Array<{ speakerName: string; text: string }>;
   onAccessDenied?: () => void;
+  /**
+   * The debate's selected format (combative/comedic/civil_discourse/roast/
+   * softball/educational/informative) — drives the MODERATOR's overall tone
+   * server-side. Falls back to a leaning-derived style if omitted so older
+   * callers keep working.
+   */
+  debateStyle?: string;
 }): Promise<string> {
   const mod = MODERATORS[opts.moderatorStyle];
   const leaning = getModeratorLeaning(opts.moderatorStyle, opts.targetId);
@@ -375,7 +382,7 @@ export async function generateModeratorQuestion(opts: {
         conversationHistory: opts.conversationHistory || [],
         isTransition: !!opts.isTransition,
         previousTopicTitle: opts.previousTopicTitle,
-        interviewStyle: leaning === "favor" ? "civil_discourse" : leaning === "target" ? "combative" : "informative",
+        interviewStyle: opts.debateStyle || (leaning === "favor" ? "civil_discourse" : leaning === "target" ? "combative" : "informative"),
         moderatorLeaning: leaning,
         isModerator: true,
       }),

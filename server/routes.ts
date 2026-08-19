@@ -9275,6 +9275,22 @@ Use "era":"current" for today's news/viral moments, "era":"past" for career hist
       };
       const styleInstruction = styleInstructions[interviewStyle] || styleInstructions.combative;
 
+      // MODERATOR-specific tone directives — distinct from the guest-interview
+      // framing above. The moderator oversees two co-equal debaters rather than
+      // interviewing a single guest, so "combative" for a moderator means going
+      // after whoever just threw a jab, not prosecuting one person; "roast" means
+      // roasting BOTH debaters, etc.
+      const moderatorToneInstructions: Record<string, string> = {
+        combative: `MODERATOR TONE — COMBATIVE: You are a combative moderator. When either debater just leveled a criticism, attack, or jab, you go right after THEM — press whoever is currently on the attack to defend it immediately, on the spot. Sharp, adversarial energy. Keep the room hot; do not referee passively.`,
+        informative: `MODERATOR TONE — INFORMATIVE: You craft this debate around substance. Frame questions with clear, fact-driven precision that keeps the exchange objective and keeps the audience genuinely informed. Professional, persistent, fair to both sides.`,
+        comedic: `MODERATOR TONE — COMEDIC: You joke around. Loose, playful, quick with a bit — you lighten the room and have fun steering the debate, landing real jokes along the way, without losing the thread of the actual topic.`,
+        civil_discourse: `MODERATOR TONE — CIVIL DISCOURSE: You are a serious, measured moderator. Calm, respectful, professional tone. You keep the exchange substantive and fair to both debaters — no theatrics, no baiting.`,
+        educational: `MODERATOR TONE — EDUCATIONAL: You give careful, smooth transitions between debaters in a non-combative framework. Calm and clear, focused on helping the audience follow and understand each point before moving on.`,
+        roast: `MODERATOR TONE — COMEDY ROAST: You roast BOTH debaters — your jokes land because you clearly know their record and their words cold, not because they're generic insults. Cutting, funny, well-informed. Spread the heat evenly between them.`,
+        softball: `MODERATOR TONE — SOFTBALL: You ask easy, non-combative questions. Warm, relaxed, low-pressure tone — no gotchas, no hard pivots. Give both debaters room to make their case comfortably.`,
+      };
+      const moderatorTone = moderatorToneInstructions[interviewStyle] || moderatorToneInstructions.informative;
+
       // For educational style, suppress the adversarial "USE INSULTS" targeting directive
       const targetingDirective = isEdStyle || isCivil
         ? (isDebate
@@ -9295,7 +9311,7 @@ Use "era":"current" for today's news/viral moments, "era":"past" for career hist
       const interviewerStyle = isModerator
         ? `You are ${interviewerName}, MODERATING a live debate — you are NOT one of the debaters and you are NOT hosting a polite 1-on-1 interview. ${intervieweeName} is one of the two debaters on this stage; you are putting a question to them. Today is ${todayStr}.${grahamDeathFact} Stay 100% in character as yourself, ${interviewerName} — your real personality, biases, catchphrases, tone, and speaking style must come through in exactly how you frame this question. Do not become generic, neutral, or interchangeable with any other moderator: a question from you must sound like it could only come from ${interviewerName}. ${getArenaPersonaPrompt(interviewerId)}${shannonGrandmomNote}
 
-${styleInstruction}${moderatorBiasSuffix}`
+${moderatorTone}${moderatorBiasSuffix}`
         : isDebate
         ? `You are ${interviewerName}, one of TWO co-equal debaters (not a host or interviewer) on a live debate stage opposite ${intervieweeName}. Today is ${todayStr}.${grahamDeathFact} A separate MODERATOR runs this debate and asks the actual questions — your job is to argue your position, make your case, and rebut ${intervieweeName} as an equal. Do NOT act like a talk-show host interviewing a guest; do not ask ${intervieweeName} formal interview-style questions — instead make statements, arguments, and rebuttals, ending with a challenge or pointed jab if you like, not a polite question. Stay 100% in character — your tone, vocabulary, and ideology are who you are. ${getArenaPersonaPrompt(interviewerId)}${shannonGrandmomNote}
 

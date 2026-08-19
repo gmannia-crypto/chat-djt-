@@ -3013,6 +3013,7 @@ export default function DebateStage() {
                   isTransition: false,
                   conversationHistory: messagesRef.current.filter((m) => !m.isSystem).slice(-4),
                   onAccessDenied: handleArenaAccessExpired,
+                  debateStyle: effectiveInterviewStyle,
                 }).then((q) => { nextQuestion = q || null; nextQuestionDone = true; })
                   .catch(() => { nextQuestionDone = true; });
 
@@ -3937,6 +3938,7 @@ export default function DebateStage() {
           isTransition: false,
           conversationHistory: messagesRef.current.filter((m) => !m.isSystem).slice(-6),
           onAccessDenied: handleArenaAccessExpired,
+          debateStyle: effectiveInterviewStyle,
         });
         setIsThinking(null);
       }
@@ -4307,6 +4309,7 @@ export default function DebateStage() {
           isTransition: false,
           conversationHistory: messagesRef.current.filter((m) => !m.isSystem).slice(-4),
           onAccessDenied: handleArenaAccessExpired,
+          debateStyle: effectiveInterviewStyle,
         }).catch(() => ""),
         speakMod(transText, `modtrans-${Date.now()}-${Math.random()}`),
       ]);
@@ -4458,6 +4461,7 @@ export default function DebateStage() {
           ? generateModeratorQuestion({
               deviceId, moderatorStyle, targetId: interviewerId ?? "", topic: openTopic,
               isTransition: false, conversationHistory: [], onAccessDenied: handleArenaAccessExpired,
+              debateStyle: effectiveInterviewStyle,
             })
               .then((q) => {
                 if (q && voiceEnabledRef.current) startPrefetch({ text: q, personaId: mod.personaId });
@@ -4618,6 +4622,7 @@ export default function DebateStage() {
                   deviceId, moderatorStyle, targetId: interviewerId ?? "",
                   topic: openingTopic, conversationHistory: [],
                   onAccessDenied: handleArenaAccessExpired,
+                  debateStyle: effectiveInterviewStyle,
                 })
               : Promise.resolve("");
             await runModeratorOpening(openingTopic, undefined, true);
