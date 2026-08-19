@@ -5,3 +5,4 @@
 - [routes.ts duplication risk](routes-duplication-risk.md) — task agents can quadruple server/routes.ts; check wc -l after merges and fix with head -n <cut> if registerRoutes appears more than once.
 - [Arena verdict integrity](arena-verdict-integrity.md) — DC verdicts consume server-issued fact-check tokens; any confirmed lie advantage disqualifies the proposed winner, and outages must never use selection order.
 - [Arena session authority](arena-session-authority.md) — Server authorization is definitive during debates; never retry a 403 as an AI failure or start a selected duration against a shorter remaining pass.
+- [Debate topic fallback](debate-topic-fallback.md) — Custom topic generation is optional: after a short wait, use the curated generic topics so the start control never stays blocked on AI latency.

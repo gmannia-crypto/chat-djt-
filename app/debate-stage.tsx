@@ -3566,7 +3566,10 @@ export default function DebateStage() {
     setTopicIdx(0);
     setSelectedTopicId(null);
     setCompletedTopics(new Set());
-    const timeoutId = setTimeout(() => abortController.abort(), 60000);
+    // Topic generation is helpful but must never block the debate indefinitely.
+    // The AI endpoint can occasionally take 40–50 seconds; use the built-in
+    // topic set after a short bounded wait so the start button remains usable.
+    const timeoutId = setTimeout(() => abortController.abort(), 12000);
     try {
       const res = await fetch(new URL("/api/arena/interview-topics", getApiUrl()).toString(), {
         method: "POST",
@@ -3598,13 +3601,17 @@ export default function DebateStage() {
     } catch (err: unknown) {
       // Discard result if a newer call has already started.
       if (generation !== generateTopicsGenRef.current) return;
-      // Timed out (AbortError) or hard network failure — show error state so users can retry.
-      // We deliberately don't use the fallback here: the request never completed, so we
-      // can't know whether the server is reachable; the user must explicitly retry.
+      // Timed out (AbortError) or hard network failure — generic topics are
+      // still valid debate starters, so do not leave the start button disabled.
       const isAbort = err instanceof Error && err.name === "AbortError";
       const isNetworkErr = err instanceof TypeError; // fetch throws TypeError on network failure
       if (isAbort || isNetworkErr) {
-        setTopicsError(true);
+        if (FALLBACK_TOPICS.length > 0) {
+          setTopics(FALLBACK_TOPICS);
+          setTopicsAreFallback(true);
+        } else {
+          setTopicsError(true);
+        }
       } else if (FALLBACK_TOPICS.length > 0) {
         // Unexpected JS error — fall back gracefully
         setTopics(FALLBACK_TOPICS);
