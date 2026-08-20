@@ -838,7 +838,7 @@ async function initStripe() {
       scheduleInterviewCleanup();
 
       if (port !== 8082) {
-        const mirrorServer = require("http").createServer(app);
+        const mirrorServer = http.createServer(app);
         mirrorServer.listen({ port: 8082, host: "0.0.0.0" }, () => {
           log(`mirror server also serving on port 8082`);
         });
