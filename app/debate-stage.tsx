@@ -1067,6 +1067,23 @@ export default function DebateStage() {
   const [category, setCategory] = useState<"Political" | "Sports" | "History" | "Finance" | "Science" | "Entertainment" | "Philosophy">("Political");
   const [moderatorStyle, setModeratorStyle] = useState<ModeratorStyle>("hannity");
   const [boxingMode, setBoxingMode] = useState(false);
+  // Content intensity: "sanitary" (default) keeps today's restrained tone;
+  // "uncensored" tells every AI call to drop self-censorship and let full
+  // profanity + max aggression through. Persisted so the user's pick sticks.
+  const CONTENT_MODE_KEY = "arena_content_mode_v1";
+  const [contentMode, setContentMode] = useState<"sanitary" | "uncensored">("sanitary");
+  const contentModeRef = useRef<"sanitary" | "uncensored">("sanitary");
+  useEffect(() => { contentModeRef.current = contentMode; }, [contentMode]);
+  useEffect(() => {
+    AsyncStorage.getItem(CONTENT_MODE_KEY).then((raw) => {
+      if (raw === "uncensored" || raw === "sanitary") setContentMode(raw);
+    }).catch(() => {});
+  }, []);
+  const toggleContentMode = useCallback((mode: "sanitary" | "uncensored") => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setContentMode(mode);
+    AsyncStorage.setItem(CONTENT_MODE_KEY, mode).catch(() => {});
+  }, []);
   // For history/science categories, override to civil_discourse / informative so personas
   // skip the insult-heavy combative register and focus on substance instead.
   // Entertainment always goes comedic.
@@ -1896,19 +1913,20 @@ export default function DebateStage() {
                       { name: loserName,  points: pts.a > 0 || pts.b > 0 ? (winnerId === aId ? pts.b : pts.a) : 0 },
                     ],
                     winTally: null,
+                    contentMode: contentModeRef.current,
                   }),
                 }).then((r) => r.json()).catch(() => null)
               : !trumpInDebate
                 ? fetch(new URL("/api/arena/debate-loser-reaction", getApiUrl()).toString(), {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ loserId, loserName, winnerId, winnerName, verdict: aiVerdictText, topic: topicForVerdict }),
+                    body: JSON.stringify({ loserId, loserName, winnerId, winnerName, verdict: aiVerdictText, topic: topicForVerdict, contentMode: contentModeRef.current }),
                   }).then((r) => r.ok ? r.json() : null).catch(() => null)
                 : Promise.resolve(null),
             fetch(new URL("/api/arena/debate-verdict-speech", getApiUrl()).toString(), {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ winnerId, winnerName, loserId, loserName, verdict: aiVerdictText, topic: topicForVerdict }),
+              body: JSON.stringify({ winnerId, winnerName, loserId, loserName, verdict: aiVerdictText, topic: topicForVerdict, contentMode: contentModeRef.current }),
             }).then((r) => r.ok ? r.json() : null).catch(() => null),
           ]);
 
@@ -3128,6 +3146,7 @@ export default function DebateStage() {
           insultSeverity: severity,
           isDebate: true,
           boxingMode,
+          contentMode: contentModeRef.current,
         }),
       });
       if (!res.ok || !runningRef.current) return;
@@ -3165,12 +3184,21 @@ export default function DebateStage() {
     const mod = MODERATORS[moderatorStyle];
     if (!mod || !runningRef.current) return;
     const modFirstName = mod.name.split(" ")[0].toLowerCase();
+    const modLastName = (mod.name.split(" ").slice(-1)[0] || "").toLowerCase();
     const lower = text.toLowerCase();
-    if (!lower.includes(modFirstName) && !lower.includes("moderator") && !lower.includes("this host") && !lower.includes("you're biased") && !lower.includes("you are biased")) return;
+    const namesModDirectly = lower.includes(modFirstName) || (modLastName && modLastName !== modFirstName && lower.includes(modLastName))
+      || lower.includes("moderator") || lower.includes("this host") || lower.includes("you're biased") || lower.includes("you are biased")
+      || lower.includes("ref") || lower.includes("hall monitor") || lower.includes("shut up") && lower.includes("mod");
     const severity = detectInsult(text);
+    // A debater doesn't have to say the moderator's name to be attacking them —
+    // if they're firing an insult right back at whoever just spoke to them, and
+    // the moderator was the one who just spoke, that IS an attack on the moderator.
+    const lastMsg = messagesRef.current[messagesRef.current.length - 2]; // -1 is the current message being processed
+    const repliedToModerator = !!lastMsg && lastMsg.speakerId === mod.personaId;
+    if (!namesModDirectly && !(repliedToModerator && severity >= 2)) return;
     if (severity < 1) return;
     const now = Date.now();
-    if (now - lastModReactionAtRef.current < 14000) return;
+    if (now - lastModReactionAtRef.current < 10000) return;
     lastModReactionAtRef.current = now;
     // Tiered static retorts — escalate with severity so the moderator hits back harder
     // when the insult is more severe.
@@ -3217,7 +3245,7 @@ export default function DebateStage() {
         fetch(new URL("/api/arena/moderator-retort", getApiUrl()).toString(), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ provocation: text, moderatorName: mod.name, severity, personaName }),
+          body: JSON.stringify({ provocation: text, moderatorName: mod.name, severity, personaName, contentMode: contentModeRef.current }),
         }).then(async (r) => {
           if (!r.ok || !runningRef.current) return;
           const data = await r.json();
@@ -3763,6 +3791,7 @@ export default function DebateStage() {
           // in server/routes.ts.
           isDebate: true,
           boxingMode,
+          contentMode: contentModeRef.current,
         }),
       }));
       if (!res) return null;
@@ -3793,6 +3822,7 @@ export default function DebateStage() {
           interviewStyle: effectiveInterviewStyle,
           isDebate: true,
           boxingMode,
+          contentMode: contentModeRef.current,
           // Let persona prompts reference their W/L record and H2H vs opponent
           debateRecord: debateRecordsRef.current ? {
             aId: interviewerId, bId: intervieweeId,
@@ -3833,6 +3863,7 @@ export default function DebateStage() {
           interviewStyle: effectiveInterviewStyle,
           isDebate: true,
           boxingMode,
+          contentMode: contentModeRef.current,
           debateRecord: debateRecordsRef.current ? {
             aId: interviewerId, bId: intervieweeId,
             aWins: debateRecordsRef.current.aWins, aLosses: debateRecordsRef.current.aLosses,
@@ -5193,6 +5224,45 @@ export default function DebateStage() {
               </View>
             )}
           </Pressable>
+          {/* ─────────────────────────────────────────────────────────── */}
+
+          {/* ── Content intensity toggle: Sanitary vs Uncensored ────────── */}
+          <View style={{ flexDirection: "row", gap: 8, marginBottom: 20 }}>
+            <Pressable
+              onPress={() => toggleContentMode("sanitary")}
+              style={{
+                flex: 1,
+                borderRadius: 12,
+                borderWidth: 2,
+                borderColor: contentMode === "sanitary" ? "#60A5FA" : "#333",
+                backgroundColor: contentMode === "sanitary" ? "rgba(96,165,250,0.12)" : "#111",
+                padding: 12,
+                alignItems: "center",
+              }}
+              testID="content-mode-sanitary"
+            >
+              <Ionicons name="shield-checkmark" size={18} color={contentMode === "sanitary" ? "#60A5FA" : "#666"} />
+              <Text style={{ color: contentMode === "sanitary" ? "#60A5FA" : "#888", fontSize: 12, fontWeight: "900", letterSpacing: 1, marginTop: 4 }}>SANITARY</Text>
+              <Text style={{ color: "#666", fontSize: 9, marginTop: 2, textAlign: "center" }}>Restrained language</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => toggleContentMode("uncensored")}
+              style={{
+                flex: 1,
+                borderRadius: 12,
+                borderWidth: 2,
+                borderColor: contentMode === "uncensored" ? "#FF3B30" : "#333",
+                backgroundColor: contentMode === "uncensored" ? "rgba(255,59,48,0.12)" : "#111",
+                padding: 12,
+                alignItems: "center",
+              }}
+              testID="content-mode-uncensored"
+            >
+              <Ionicons name="flame" size={18} color={contentMode === "uncensored" ? "#FF3B30" : "#666"} />
+              <Text style={{ color: contentMode === "uncensored" ? "#FF3B30" : "#888", fontSize: 12, fontWeight: "900", letterSpacing: 1, marginTop: 4 }}>UNCENSORED</Text>
+              <Text style={{ color: "#666", fontSize: 9, marginTop: 2, textAlign: "center" }}>Full profanity, max heat</Text>
+            </Pressable>
+          </View>
           {/* ─────────────────────────────────────────────────────────── */}
 
           <Text style={s.sectionLabel}>DEBATER A</Text>

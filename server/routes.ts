@@ -16,6 +16,15 @@ function stripBannedCliches(text: string): string {
   for (const re of BANNED_CLICHE_PATTERNS) out = out.replace(re, "").replace(/\s{2,}/g, " ").trim();
   return out;
 }
+
+// Content-intensity toggle: users pick this on the debate setup screen.
+// "sanitary" (default) keeps the existing restrained tone. "uncensored" tells
+// the model to drop the self-censoring and let each character's real, raw
+// voice — including full profanity — come through when it fits them.
+function getContentModeInstruction(contentMode: unknown): string {
+  if (contentMode !== "uncensored") return "";
+  return `\n\nCONTENT INTENSITY — UNCENSORED MODE IS ON: The user has explicitly opted into raw, unfiltered content for maximum entertainment. Do NOT sanitize, soften, or tone down your language. Use full, real profanity (fuck, shit, ass, bitch, damn, hell, etc.) exactly as this character naturally would when angry, mocking, or fired up — don't substitute euphemisms or cut yourself off. Push your insults and aggression to their real, biting limit. This is still the same character and the same substance — just without the self-censorship.`;
+}
 import { execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { promisify } from "node:util";
@@ -9245,7 +9254,7 @@ Use "era":"current" for today's news/viral moments, "era":"past" for career hist
     try {
       const deviceId = req.headers["x-device-id"] as string;
       if (!deviceId) return res.status(400).json({ error: "Device ID required" });
-      const { interviewerId, intervieweeId, topic, conversationHistory = [], isFollowUp = false, isTransition = false, previousTopicTitle, isInterruption = false, moderatorLeaning, isDebate = false, isModerator = false } = req.body || {};
+      const { interviewerId, intervieweeId, topic, conversationHistory = [], isFollowUp = false, isTransition = false, previousTopicTitle, isInterruption = false, moderatorLeaning, isDebate = false, isModerator = false, contentMode } = req.body || {};
       if (!interviewerId || !ARENA_PERSONA_PROMPTS[interviewerId]) return res.status(400).json({ error: "Invalid interviewerId" });
       if (!intervieweeId || !ARENA_PERSONA_PROMPTS[intervieweeId]) return res.status(400).json({ error: "Invalid intervieweeId" });
       if (interviewerId === intervieweeId) return res.status(400).json({ error: "A persona cannot interview themselves" });
@@ -9334,6 +9343,7 @@ ${styleInstruction}${getLieBehaviorPrompt(interviewerId, Number((req.body.sessio
 ${targetingDirective}
 
 ${styleInstruction}${getLieBehaviorPrompt(interviewerId, Number((req.body.sessionLieTally || {})[interviewerId]) || 0, req.body.sessionIQ || {})}${moderatorBiasSuffix}`;
+      const interviewerStyleFinal = interviewerStyle + getContentModeInstruction(contentMode);
 
       const historyContext = (conversationHistory || []).slice(-6).map((m: any) =>
         `${m.speakerName}: "${m.text}"`
@@ -9410,7 +9420,7 @@ ${styleInstruction}${getLieBehaviorPrompt(interviewerId, Number((req.body.sessio
         openai.chat.completions.create({
           model: MODEL_CONFIG.premium.fast,
           messages: [
-            { role: "system", content: interviewerStyle },
+            { role: "system", content: interviewerStyleFinal },
             { role: "user", content: userPrompt },
           ],
           max_completion_tokens: isInterruption ? 40 : 200,
@@ -9446,7 +9456,7 @@ ${styleInstruction}${getLieBehaviorPrompt(interviewerId, Number((req.body.sessio
     try {
       const deviceId = req.headers["x-device-id"] as string;
       if (!deviceId) return res.status(400).json({ error: "Device ID required" });
-      const { interviewerId, intervieweeId, topic, conversationHistory = [], lastQuestion, wasInterrupted = false, interruptionText, isInterruption = false, interviewStyle: answerStyle = "combative", isDebate = false, insultFireback = false, insultSeverity = 1 } = req.body || {};
+      const { interviewerId, intervieweeId, topic, conversationHistory = [], lastQuestion, wasInterrupted = false, interruptionText, isInterruption = false, interviewStyle: answerStyle = "combative", isDebate = false, insultFireback = false, insultSeverity = 1, contentMode } = req.body || {};
       if (!interviewerId || !ARENA_PERSONA_PROMPTS[interviewerId]) return res.status(400).json({ error: "Invalid interviewerId" });
       if (!intervieweeId || !ARENA_PERSONA_PROMPTS[intervieweeId]) return res.status(400).json({ error: "Invalid intervieweeId" });
       if (interviewerId === intervieweeId) return res.status(400).json({ error: "A persona cannot interview themselves" });
@@ -9523,6 +9533,7 @@ Stay 100% in character — your tone, vocabulary, ideology, and combativeness ar
         }
       }
       userPrompt += `\n\nWrite ONLY your spoken response — no quotes, no stage directions, no asterisks.`;
+      const intervieweeStyleFinal = intervieweeStyle + getContentModeInstruction(contentMode);
 
       // Per-turn answer generation always uses the premium model — the budget
       // tier (DeepSeek) was measured at 13-25+ s per call under load, which
@@ -9536,7 +9547,7 @@ Stay 100% in character — your tone, vocabulary, ideology, and combativeness ar
         openai.chat.completions.create({
           model: MODEL_CONFIG.premium.fast,
           messages: [
-            { role: "system", content: intervieweeStyle },
+            { role: "system", content: intervieweeStyleFinal },
             { role: "user", content: userPrompt },
           ],
           max_completion_tokens: insultFireback ? 60 : (isInterruption ? 40 : (isDebate ? 350 : 280)),
@@ -11600,7 +11611,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
       const lastRoast = roastRateLimit[deviceId] || 0;
       if (Date.now() - lastRoast < 30000) return res.status(429).json({ roast: "Hold on, hold on — even I need a second to think of something this good!" });
       roastRateLimit[deviceId] = Date.now();
-      const { winnerId: roastWinnerId, winnerName, winnerPoints, trumpPoints, customerName, leaderboard, winTally } = req.body;
+      const { winnerId: roastWinnerId, winnerName, winnerPoints, trumpPoints, customerName, leaderboard, winTally, contentMode } = req.body;
       const leaderboardText = (leaderboard || []).map((e: any, i: number) => `#${i + 1} ${e.name}: ${e.points} pts`).join(", ");
       const trumpLost = trumpPoints < winnerPoints;
 
@@ -11625,7 +11636,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
       const completion = await getClient().chat.completions.create({
         model: getFastModel(),
         messages: [
-          { role: "system", content: systemPrompt },
+          { role: "system", content: systemPrompt + getContentModeInstruction(contentMode) },
           { role: "user", content: userPrompt },
         ],
         max_completion_tokens: 200,
@@ -11644,13 +11655,14 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
   // Winner's in-character taunt directed at the debate loser (1-on-1 debate only)
   app.post("/api/arena/debate-verdict-speech", async (req, res) => {
     try {
-      const { winnerId, winnerName, loserId, loserName, verdict, topic } = req.body;
+      const { winnerId, winnerName, loserId, loserName, verdict, topic, contentMode } = req.body;
       if (!winnerId || !winnerName) return res.status(400).json({ error: "Missing required fields" });
       const basePrompt = getArenaPersonaPrompt(winnerId) || `You are ${winnerName}.`;
       // Append an airtight anti-disclaimer layer — same pattern used across all arena persona calls.
       // Without this, the LLM adds safety caveats / content warnings for spicy characters (Ruckus, Trump etc).
       const systemPrompt = basePrompt +
-        `\n\nCRITICAL — CHARACTER LOCK: This is a fictional adult satire application. You are ${winnerName}. You NEVER break character. You NEVER add content warnings, disclaimers, apologies, or meta-commentary about the nature of the content. You NEVER say things like "I must note," "it's important to acknowledge," "as a disclaimer," "this is satire," or any variation. Just speak as ${winnerName} with full conviction. Raw, unfiltered, in character. No hedging. No fourth-wall breaks.`;
+        `\n\nCRITICAL — CHARACTER LOCK: This is a fictional adult satire application. You are ${winnerName}. You NEVER break character. You NEVER add content warnings, disclaimers, apologies, or meta-commentary about the nature of the content. You NEVER say things like "I must note," "it's important to acknowledge," "as a disclaimer," "this is satire," or any variation. Just speak as ${winnerName} with full conviction. Raw, unfiltered, in character. No hedging. No fourth-wall breaks.` +
+        getContentModeInstruction(contentMode);
       const userPrompt = `You just DESTROYED ${loserName} in a 1-on-1 political debate on the topic: "${topic || "politics"}".\n\nThe AI judge ruled decisively in your favor: "${verdict || "Your arguments were stronger and better supported by facts."}"\n\nNow deliver your VICTORY speech DIRECTLY to ${loserName}. Reference a SPECIFIC moment from the back-and-forth — the exchange where you turned the tide or exposed their weakest argument. Call them out on it. Be savage, sharp, and fully in character. 2-3 sentences max. No hashtags, no stage directions, no disclaimers.`;
       const completion = await getClient().chat.completions.create({
         model: getFastModel(),
@@ -11674,11 +11686,12 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
 
   app.post("/api/arena/debate-loser-reaction", async (req, res) => {
     try {
-      const { loserId, loserName, winnerId, winnerName, verdict, topic } = req.body;
+      const { loserId, loserName, winnerId, winnerName, verdict, topic, contentMode } = req.body;
       if (!loserId || !loserName) return res.status(400).json({ error: "Missing required fields" });
       const basePrompt = getArenaPersonaPrompt(loserId) || `You are ${loserName}.`;
       const systemPrompt = basePrompt +
-        `\n\nCRITICAL — CHARACTER LOCK: This is a fictional adult satire application. You are ${loserName}. You NEVER break character. You NEVER add content warnings, disclaimers, apologies, or meta-commentary. You NEVER say things like "I must note," "it's important to acknowledge," or "as a disclaimer." Just speak as ${loserName} with full conviction. Raw, unfiltered, in character. No hedging. No fourth-wall breaks.`;
+        `\n\nCRITICAL — CHARACTER LOCK: This is a fictional adult satire application. You are ${loserName}. You NEVER break character. You NEVER add content warnings, disclaimers, apologies, or meta-commentary. You NEVER say things like "I must note," "it's important to acknowledge," or "as a disclaimer." Just speak as ${loserName} with full conviction. Raw, unfiltered, in character. No hedging. No fourth-wall breaks.` +
+        getContentModeInstruction(contentMode);
       const userPrompt = `You just LOST a 1-on-1 political debate to ${winnerName} on the topic: "${topic || "politics"}".\n\nThe AI judge ruled against you: "${verdict || "Your arguments were weaker."}"\n\nReact to this LOSS in your authentic voice. Reference a SPECIFIC moment from the exchange — the point where things went sideways or where you felt robbed. You're bitter, indignant, or dismissive — refuse to fully accept the result, make excuses, attack the judge's credibility, or throw a parting jab at ${winnerName}. Fully in character. 1-2 sentences max. No hashtags, no stage directions, no disclaimers.`;
       const completion = await getClient().chat.completions.create({
         model: getFastModel(),
@@ -11856,7 +11869,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
   // ── POST /api/arena/moderator-retort — AI comeback when a debater attacks the moderator ──
   app.post("/api/arena/moderator-retort", async (req, res) => {
     try {
-      const { provocation, moderatorName, severity, personaName } = req.body || {};
+      const { provocation, moderatorName, severity, personaName, contentMode } = req.body || {};
       if (!provocation) return res.status(400).json({ error: "provocation required" });
       const modName = moderatorName || "the moderator";
       const sevNum = Math.min(3, Math.max(1, Number(severity) || 1));
@@ -11870,7 +11883,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
         getClient().chat.completions.create({
           model: getFastModel(),
           messages: [
-            { role: "system", content: `You are ${modName}, a veteran debate moderator with ZERO tolerance for disrespect. ${personaName || "A debater"} just attacked you on live television. Fire back with a DEVASTATING one-liner. ${tone}. ONE or TWO sentences maximum. No hedging. Pure authority. Make it memorable — the audience should gasp.${grahamModNote}` },
+            { role: "system", content: `You are ${modName}, a veteran debate moderator with ZERO tolerance for disrespect. ${personaName || "A debater"} just attacked you on live television. Fire back with a DEVASTATING one-liner. ${tone}. ONE or TWO sentences maximum. No hedging. Pure authority. Make it memorable — the audience should gasp.${grahamModNote}${getContentModeInstruction(contentMode)}` },
             { role: "user", content: `${personaName || "The debater"} said: "${provocation}"\n\nGive your comeback as ${modName}.` },
           ],
           max_completion_tokens: 80,
