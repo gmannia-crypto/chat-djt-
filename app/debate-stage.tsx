@@ -848,6 +848,8 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   samjackson: require("@/assets/images/persona-samjackson.jpg"),
   louisfarrakhan: require("@/assets/images/persona-louisfarrakhan.png"),
   carlsagan: require("@/assets/images/persona-carlsagan.png"),
+  richardwolff: require("@/assets/images/persona-richardwolff.jpg"),
+  berniesanders: require("@/assets/images/persona-berniesanders.jpg"),
   larrycableguy: require("@/assets/images/persona-larrycableguy.png"),
   jdvance: require("@/assets/images/persona-jdvance.png"),
   tedcruz: require("@/assets/images/persona-tedcruz.png"),

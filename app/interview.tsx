@@ -241,6 +241,8 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   floydmayweather: require("@/assets/images/persona-floydmayweather.jpg"),
   georgeforeman:  require("@/assets/images/persona-georgeforeman.jpg"),
   michaelbuffer:  require("@/assets/images/persona-michaelbuffer.jpg"),
+  richardwolff: require("@/assets/images/persona-richardwolff.jpg"),
+  berniesanders: require("@/assets/images/persona-berniesanders.jpg"),
 };
 
 const FX_KEY = "interview_fx_enabled_v1";
@@ -266,7 +268,8 @@ const GUEST_CATEGORIES: Record<string, GuestCategory> = {
   arikana: "History", alishahrazad: "History",
   jdvance: "Political", tedcruz: "Political", kaitlyncollins: "Political",
   neiltyson: "Science", professorjiang: "Science", carlsagan: "Science",
-  elon: "Finance",
+  elon: "Finance", richardwolff: "Finance",
+  berniesanders: "Political",
   rosie: "Entertainment", ruckus: "Entertainment", samjackson: "Entertainment",
   waylonjennnings: "Entertainment", gilbertgottfried: "Entertainment", larrycableguy: "Entertainment",
   stephena: "Entertainment", hannity: "Entertainment", megynkelly: "Entertainment",
