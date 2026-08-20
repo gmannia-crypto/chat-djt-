@@ -4360,6 +4360,7 @@ export default function ArenaScreen() {
     return () => clearInterval(flashInterval);
   }, [breakingNewsBanner]);
 
+
   const [pollVotes, setPollVotes] = useState<Record<string, number>>({});
   const [userVoted, setUserVoted] = useState(false);
   const [showPollResults, setShowPollResults] = useState(false);
@@ -4386,6 +4387,23 @@ export default function ArenaScreen() {
   const [endSummaryDuration, setEndSummaryDuration] = useState(0);
   const [isIQRaceSession, setIsIQRaceSession] = useState(false);
   const [isDCChampion, setIsDCChampion] = useState(false);
+  // DC AI Verdict winner — the ONLY winner that gets a persisted win/loss record.
+  const [dcVerdictWinnerId, setDcVerdictWinnerId] = useState<string | null>(null);
+  // Tap/crowd-vote leader — cosmetic "People's Champ" badge only, never recorded as a win.
+  const [peoplesChampionId, setPeoplesChampionId] = useState<string | null>(null);
+  // Halfway "who's winning" banner (10/15 min sessions only)
+  const [showHalfwayBanner, setShowHalfwayBanner] = useState(false);
+  const [halfwayFlash, setHalfwayFlash] = useState(false);
+  const [interimVerdictLeader, setInterimVerdictLeader] = useState<{ id: string; name: string } | null>(null);
+  const [isLoadingInterimVerdict, setIsLoadingInterimVerdict] = useState(false);
+  const halfwayBannerFiredRef = useRef(false);
+  const halfwayBannerHideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sessionDurationMinutesRef = useRef<number>(5);
+  useEffect(() => {
+    if (!showHalfwayBanner) { setHalfwayFlash(false); return; }
+    const flashInterval = setInterval(() => setHalfwayFlash((p) => !p), 500);
+    return () => clearInterval(flashInterval);
+  }, [showHalfwayBanner]);
   const endSummaryScrollRef = useRef<ScrollView>(null);
   const [showViralClips, setShowViralClips] = useState(false);
   const [viralClipVideoStates, setViralClipVideoStates] = useState<Record<number, { loading: boolean; videoUrl: string | null; error: string | null }>>({});
@@ -5566,6 +5584,8 @@ export default function ArenaScreen() {
         setShowEndSummary(false);
         if (!continueMode) {
           setPersonaPoints({});
+          setDcVerdictWinnerId(null);
+          setPeoplesChampionId(null);
           setAwardedMessages(new Set());
           setTrumpRoastText("");
           setWinnerClapBack("");
@@ -5583,6 +5603,11 @@ export default function ArenaScreen() {
         setShowScoreboard(false);
         refreshBalance();
         const mins = data.durationMinutes || selectedDuration;
+        sessionDurationMinutesRef.current = mins;
+        halfwayBannerFiredRef.current = false;
+        setShowHalfwayBanner(false);
+        setInterimVerdictLeader(null);
+        if (halfwayBannerHideTimeoutRef.current) { clearTimeout(halfwayBannerHideTimeoutRef.current); halfwayBannerHideTimeoutRef.current = null; }
         if (showPreDebateSetup && !continueMode) {
           if (useCustomTopicRef.current && customTopicTextRef.current.trim()) {
             const t = customTopicTextRef.current.trim();
@@ -5765,6 +5790,19 @@ export default function ArenaScreen() {
     const tick = setInterval(() => {
       const remaining = Math.max(0, Math.floor((sessionExpiresAt - Date.now()) / 1000));
       setSessionTimer(remaining);
+      // Halfway "who's winning" banner — only for 10 or 15 minute sessions,
+      // never the 5-minute default. Fires once per granted session.
+      const durMin = sessionDurationMinutesRef.current;
+      if (!halfwayBannerFiredRef.current && (durMin === 10 || durMin === 15) && remaining > 0) {
+        const halfwaySec = (durMin * 60) / 2;
+        if (remaining <= halfwaySec) {
+          halfwayBannerFiredRef.current = true;
+          setInterimVerdictLeader(null);
+          setShowHalfwayBanner(true);
+          if (halfwayBannerHideTimeoutRef.current) clearTimeout(halfwayBannerHideTimeoutRef.current);
+          halfwayBannerHideTimeoutRef.current = setTimeout(() => { setShowHalfwayBanner(false); }, 60000);
+        }
+      }
       if (remaining <= 0) {
         setHasSession(false);
         setSessionExpiresAt(null);
@@ -5884,6 +5922,7 @@ export default function ArenaScreen() {
           const totalPts = Object.values(personaPointsRef.current).reduce((a, b) => a + b, 0);
           if (totalPts === 0 && selectedPersonasRef.current.length > 0) {
             // No votes cast — auto-trigger DC verdict and show end summary without requiring a tap
+            setPeoplesChampionId(null);
             playWinnerChosenSound();
             setEndSummaryDuration((Date.now() - sessionStartTimeRef.current) / 1000);
             setIsIQRaceSession(selectedPersonasRef.current.length >= 2);
@@ -5898,10 +5937,9 @@ export default function ArenaScreen() {
             setTimeout(() => { playWinnerAfterSound(); }, 4000);
             setIsLoadingRoast(true);
             const applyDCChampion = (winnerId: string, aiJudged = true) => {
-              personaPointsRef.current = { [winnerId]: 1 };
-              setPersonaPoints({ [winnerId]: 1 });
+              setDcVerdictWinnerId(winnerId);
               setIsDCChampion(aiJudged);
-              fetchTrumpRoast();
+              fetchTrumpRoast(winnerId);
             };
             const fallbackWinnerId = selectArenaRecordWinnerId(
               selectedPersonasRef.current,
@@ -8171,13 +8209,15 @@ export default function ArenaScreen() {
     }
   }, [deviceId, queueTTS]);
 
-  const fetchTrumpRoast = useCallback(async () => {
+  const fetchTrumpRoast = useCallback(async (explicitWinnerId?: string) => {
     const pts = personaPointsRef.current;
     const sorted = Object.entries(pts).sort(([, a], [, b]) => b - a);
-    if (sorted.length === 0) return;
-    const winnerId = sorted[0][0];
+    if (!explicitWinnerId && sorted.length === 0) return;
+    // The DC AI Verdict winner (when provided) is always the official winner —
+    // tap/crowd tallies are display-only and never override it here.
+    const winnerId = explicitWinnerId || sorted[0][0];
     const winnerName = getPersona(winnerId)?.name || "someone";
-    const winnerPts = sorted[0][1];
+    const winnerPts = pts[winnerId] ?? (sorted[0]?.[1] ?? 0);
     const trumpPts = pts["trump"] || 0;
     const customerName = userNameRef.current || "this person";
     const leaderboard = sorted.slice(0, 5).map(([id, p]) => ({ name: getPersona(id)?.name || id, points: p }));
@@ -8217,6 +8257,44 @@ export default function ArenaScreen() {
       setIsLoadingRoast(false);
     }
   }, [deviceId, queueTTS, fetchWinnerClapBack, recordWin, fetchHallOfFame]);
+
+  // Halfway-banner "who's winning so far" check — a read-only DC verdict
+  // snapshot mid-debate. Never records a win, never ends the session.
+  const checkInterimVerdict = useCallback(async () => {
+    if (isLoadingInterimVerdict || interimVerdictLeader) return;
+    setIsLoadingInterimVerdict(true);
+    try {
+      const r = await fetch(new URL("/api/arena/verdict", getApiUrl()).toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          topic: currentTopicRef.current || "General debate",
+          messages: messagesRef.current
+            .filter((m: any) => !m.isSystem && (m.text?.length ?? 0) > 5)
+            .slice(-60)
+            .map((m: any) => ({ speakerName: m.speakerName || m.speakerId, text: m.text })),
+          personas: selectedPersonasRef.current.map((pid) => getPersona(pid)?.name || pid),
+          personaIds: selectedPersonasRef.current,
+          lieTokens: sessionLieTokensRef.current,
+        }),
+      });
+      if (r.ok) {
+        const v = await r.json();
+        const winnerId = resolveArenaVerdictWinnerId(v, selectedPersonasRef.current);
+        setInterimVerdictLeader(
+          winnerId
+            ? { id: winnerId, name: getPersona(winnerId)?.name || winnerId }
+            : { id: "", name: "Too close to call" },
+        );
+      } else {
+        setInterimVerdictLeader({ id: "", name: "Verdict unavailable right now" });
+      }
+    } catch {
+      setInterimVerdictLeader({ id: "", name: "Verdict unavailable right now" });
+    } finally {
+      setIsLoadingInterimVerdict(false);
+    }
+  }, [isLoadingInterimVerdict, interimVerdictLeader]);
 
   const renderMessage = useCallback(
     ({ item, index }: { item: ConversationMessage; index: number }) => {
@@ -9554,6 +9632,39 @@ export default function ArenaScreen() {
           <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 10, marginTop: 2 }}>
             {breakingNewsBanner.source}
           </Text>
+        </Animated.View>
+      )}
+
+      {showHalfwayBanner && (
+        <Animated.View entering={SlideInUp.duration(400)} exiting={SlideOutUp.duration(400)} style={{
+          backgroundColor: halfwayFlash ? "rgba(167,139,250,0.28)" : "rgba(167,139,250,0.14)",
+          marginHorizontal: 12, marginBottom: 6, borderRadius: 10,
+          borderWidth: 2, borderColor: halfwayFlash ? "#c4b5fd" : "#a78bfa",
+          shadowColor: "#a78bfa", shadowOffset: { width: 0, height: 2 }, shadowOpacity: halfwayFlash ? 0.7 : 0.25, shadowRadius: halfwayFlash ? 10 : 5,
+        }}>
+          <Pressable
+            onPress={() => { if (!isLoadingInterimVerdict && !interimVerdictLeader) checkInterimVerdict(); }}
+            style={{ paddingVertical: 10, paddingHorizontal: 16, alignItems: "center" }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 3 }}>
+              <Ionicons name="scale" size={14} color="#a78bfa" />
+              <Text style={{ color: "#a78bfa", fontSize: 12, fontWeight: "900" as const, letterSpacing: 1.5, marginLeft: 6 }}>
+                MID-DEBATE VERDICT
+              </Text>
+              <Ionicons name="scale" size={14} color="#a78bfa" style={{ marginLeft: 6 }} />
+            </View>
+            {isLoadingInterimVerdict ? (
+              <ActivityIndicator size="small" color="#a78bfa" />
+            ) : interimVerdictLeader ? (
+              <Text style={{ color: "#fff", fontSize: 13, fontWeight: "700" as const, textAlign: "center" }}>
+                {interimVerdictLeader.id ? `${interimVerdictLeader.name} is leading so far` : interimVerdictLeader.name}
+              </Text>
+            ) : (
+              <Text style={{ color: "rgba(255,255,255,0.85)", fontSize: 12, fontWeight: "600" as const, textAlign: "center" }}>
+                Tap to see who's winning so far
+              </Text>
+            )}
+          </Pressable>
         </Animated.View>
       )}
 
@@ -10927,7 +11038,15 @@ export default function ArenaScreen() {
               onPress={async () => {
                 setShowContinuePrompt(false);
                 const endedSessionKey = String(sessionStartTimeRef.current);
-                const totalPts = Object.values(personaPointsRef.current).reduce((a, b) => a + b, 0);
+                const pts2 = personaPointsRef.current;
+                const totalPts = Object.values(pts2).reduce((a, b) => a + b, 0);
+                // The DC AI Verdict always decides the official winner. The tap
+                // leader (if any) only earns a cosmetic "People's Champ" badge —
+                // it is never persisted as a win.
+                const tapLeaderId2 = totalPts > 0
+                  ? Object.entries(pts2).sort(([, a], [, b]) => b - a)[0][0]
+                  : null;
+                setPeoplesChampionId(tapLeaderId2);
                 playWinnerChosenSound();
                 setEndSummaryDuration((Date.now() - sessionStartTimeRef.current) / 1000);
                 setIsIQRaceSession(selectedPersonasRef.current.length >= 2);
@@ -10940,16 +11059,14 @@ export default function ArenaScreen() {
                 clearSavedSession();
                 awardBadge("arena_debut");
                 setTimeout(() => { playWinnerAfterSound(); }, 4000);
-                if (totalPts === 0) {
-                  // Nobody voted — AI picks the winner, then auto-fires Trump roast + winner clapback
+                {
                   setIsLoadingRoast(true);
                   const applyDCChampion = (winnerId: string, aiJudged = true) => {
-                    personaPointsRef.current = { [winnerId]: 1 };
-                    setPersonaPoints({ [winnerId]: 1 });
+                    setDcVerdictWinnerId(winnerId);
                     setIsDCChampion(aiJudged);
-                    fetchTrumpRoast();
+                    fetchTrumpRoast(winnerId);
                   };
-                  const fallbackWinnerId = selectArenaRecordWinnerId(
+                  const fallbackWinnerId = tapLeaderId2 || selectArenaRecordWinnerId(
                     selectedPersonasRef.current,
                     messagesRef.current,
                     sessionLieTallyRef.current,
@@ -11044,16 +11161,19 @@ export default function ArenaScreen() {
               </Text>
             )}
             <View style={s.summaryLeaderboard}>
-              {Object.entries(personaPoints)
-                .sort(([, a], [, b]) => b - a)
+              {(Object.keys(personaPoints).length > 0
+                ? Object.entries(personaPoints).sort(([, a], [, b]) => b - a)
+                : dcVerdictWinnerId ? ([[dcVerdictWinnerId, 0]] as [string, number][]) : []
+              )
                 .map(([pid, pts], idx) => {
                   const p = getPersona(pid);
                   if (!p) return null;
-                  const isDCWinner = isDCChampion && idx === 0;
+                  const isDCWinner = isDCChampion && pid === dcVerdictWinnerId;
+                  const isPeoplesChamp = peoplesChampionId === pid && peoplesChampionId !== dcVerdictWinnerId;
                   return (
-                    <Animated.View key={pid} entering={FadeInDown.delay(idx * 150).duration(300)} style={[s.summaryRow, idx === 0 && s.summaryRowWinner]}>
-                      <Text style={[s.summaryRank, idx === 0 && { color: isDCWinner ? "#a78bfa" : "#FFD700", fontSize: 18 }]}>
-                        {idx === 0 ? (isDCWinner ? "⚖️" : "👑") : `#${idx + 1}`}
+                    <Animated.View key={pid} entering={FadeInDown.delay(idx * 150).duration(300)} style={[s.summaryRow, isDCWinner && s.summaryRowWinner]}>
+                      <Text style={[s.summaryRank, isDCWinner && { color: "#a78bfa", fontSize: 18 }, !isDCWinner && idx === 0 && !dcVerdictWinnerId && { color: "#FFD700", fontSize: 18 }]}>
+                        {isDCWinner ? "⚖️" : (idx === 0 && !dcVerdictWinnerId ? "👑" : `#${idx + 1}`)}
                       </Text>
                       {p.image ? (
                         <Image source={p.image} style={s.summaryAvatar} />
@@ -11062,7 +11182,15 @@ export default function ArenaScreen() {
                           <Text style={{ fontSize: 10, color: "#fff", fontWeight: "800" as const }}>{getInitials(p.name)}</Text>
                         </View>
                       )}
-                      <Text style={[s.summaryName, { color: p.color }]}>{p.name}</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[s.summaryName, { color: p.color }]}>{p.name}</Text>
+                        {isPeoplesChamp && (
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 3, marginTop: 1 }}>
+                            <Ionicons name="medal" size={10} color="#FFD700" />
+                            <Text style={{ color: "#FFD700", fontSize: 9, fontWeight: "800" as const, letterSpacing: 0.5 }}>PEOPLE'S CHAMP</Text>
+                          </View>
+                        )}
+                      </View>
                       <Text style={[s.summaryPoints, isDCWinner && { color: "#a78bfa" }]}>{isDCWinner ? "AI" : pts}</Text>
                     </Animated.View>
                   );
@@ -11119,16 +11247,21 @@ export default function ArenaScreen() {
                   const endedSessionKey = String(sessionStartTimeRef.current);
                   const pts = personaPointsRef.current;
                   const totalPts = Object.values(pts).reduce((a, b) => a + b, 0);
-                  if (totalPts === 0) {
-                    // No votes cast — ask AI to pick the winner first, then roast
+                  // The DC AI Verdict always decides the official winner. The tap
+                  // leader (if any) only earns a cosmetic "People's Champ" badge —
+                  // it is never persisted as a win.
+                  const tapLeaderId3 = totalPts > 0
+                    ? Object.entries(pts).sort(([, a], [, b]) => b - a)[0][0]
+                    : null;
+                  setPeoplesChampionId(tapLeaderId3);
+                  {
                     setIsLoadingRoast(true);
                     const applyDCChampion = (winnerId: string, aiJudged = true) => {
-                      personaPointsRef.current = { [winnerId]: 1 };
-                      setPersonaPoints({ [winnerId]: 1 });
+                      setDcVerdictWinnerId(winnerId);
                       setIsDCChampion(aiJudged);
-                      fetchTrumpRoast();
+                      fetchTrumpRoast(winnerId);
                     };
-                    const fallbackWinnerId = selectArenaRecordWinnerId(
+                    const fallbackWinnerId = tapLeaderId3 || selectArenaRecordWinnerId(
                       selectedPersonasRef.current,
                       messagesRef.current,
                       sessionLieTallyRef.current,
@@ -11192,8 +11325,6 @@ export default function ArenaScreen() {
                         addSystemMessage("⚖️ DC verdict is temporarily unavailable. No champion was awarded.");
                       }
                     }
-                  } else {
-                    fetchTrumpRoast();
                   }
                 }}
                 style={s.roastTriggerBtn}
@@ -11264,7 +11395,7 @@ export default function ArenaScreen() {
                 onPress={async () => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                   const sortedPersonas = Object.entries(personaPoints).sort(([, a], [, b]) => b - a);
-                  const winner = sortedPersonas[0];
+                  const winner = sortedPersonas[0] || (dcVerdictWinnerId ? [dcVerdictWinnerId, 0] as [string, number] : undefined);
                   const winnerName = winner ? getPersona(winner[0])?.name || "Unknown" : "Unknown";
                   const pts = winner ? winner[1] : 0;
                   const topicName = currentTopic || "The Arena";
@@ -11844,23 +11975,27 @@ export default function ArenaScreen() {
 
       {userJoined && !showUserInput && isRunning && (
         <View style={[s.userChatBar, { bottom: insets.bottom + webBottomInset + 8 }]}>
+          <View style={s.callinLabelRow}>
+            <Ionicons name="call" size={12} color="#60a5fa" />
+            <Text style={s.callinLabelText} numberOfLines={1}>Call in to the Arena</Text>
+          </View>
           <View style={s.userChatBarInner}>
-            <Pressable
-              onPress={isRecording ? stopVoiceRecording : startVoiceRecording}
-              style={[s.micBtn, isRecording && s.micBtnActive]}
-              hitSlop={4}
-            >
-              <Ionicons name={isRecording ? "stop" : "mic"} size={18} color={isRecording ? "#fff" : "#4ADE80"} />
-            </Pressable>
             <TextInput
               style={s.userChatInput}
-              placeholder={isTranscribing ? "Transcribing..." : "Say something or change the topic..."}
-              placeholderTextColor="rgba(255,255,255,0.3)"
+              placeholder={isTranscribing ? "Transcribing..." : `Ask ${selectedPersonas.length === 1 ? (getPersona(selectedPersonas[0])?.shortName || "them") : "them"} anything…`}
+              placeholderTextColor="rgba(255,255,255,0.35)"
               value={userInputText}
               onChangeText={setUserInputText}
               maxLength={280}
               multiline
             />
+            <Pressable
+              onPress={isRecording ? stopVoiceRecording : startVoiceRecording}
+              style={[s.micBtn, { backgroundColor: "rgba(96,165,250,0.12)", borderColor: "rgba(96,165,250,0.35)" }, isRecording && s.micBtnActive]}
+              hitSlop={4}
+            >
+              <Ionicons name={isRecording ? "stop" : "mic-outline"} size={18} color={isRecording ? "#ff4d4d" : "#60a5fa"} />
+            </Pressable>
             <Pressable
               onPress={async () => {
                 if (!userInputText.trim() || isUserSendingRef.current) return;
@@ -11939,7 +12074,7 @@ export default function ArenaScreen() {
                 }
               }}
               disabled={!userInputText.trim() || !!isUserSendingRef.current}
-              style={[s.userInputSend, !userInputText.trim() && { opacity: 0.4 }]}
+              style={[s.userInputSend, s.callinSendGold, !userInputText.trim() && { opacity: 0.4 }]}
             >
               <Ionicons name="send" size={18} color="#000" />
             </Pressable>
@@ -13139,24 +13274,48 @@ const s = StyleSheet.create({
     left: 12,
     right: 12,
     zIndex: 85,
+    backgroundColor: "rgba(15,15,18,0.95)",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(96,165,250,0.25)",
+    paddingHorizontal: 10,
+    paddingTop: 8,
+    paddingBottom: 8,
+    gap: 6,
+  },
+  callinLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 8,
+    height: 22,
+  },
+  callinLabelText: {
+    color: "rgba(96,165,250,0.85)",
+    fontSize: 11,
+    fontWeight: "700" as const,
+    letterSpacing: 0.3,
   },
   userChatBarInner: {
     flexDirection: "row",
     alignItems: "flex-end",
     gap: 8,
-    backgroundColor: "rgba(26,26,26,0.95)",
-    borderRadius: 24,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: "rgba(74,222,128,0.25)",
   },
   userChatInput: {
     flex: 1,
+    minHeight: 40,
+    maxHeight: 100,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 18,
     color: "#fff",
     fontSize: 14,
-    maxHeight: 60,
-    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  callinSendGold: {
+    backgroundColor: "#FFD700",
   },
   pointBtn: {
     flexDirection: "row" as const,
