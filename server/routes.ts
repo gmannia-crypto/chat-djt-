@@ -4696,6 +4696,7 @@ CRITICAL: If an opponent makes a claim that contradicts these or other well-esta
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )`);
     await initDb.query(`ALTER TABLE arena_access ADD COLUMN IF NOT EXISTS last_trial_at BIGINT`);
+    await initDb.query(`ALTER TABLE arena_access ADD COLUMN IF NOT EXISTS has_purchased BOOLEAN NOT NULL DEFAULT FALSE`);
     await initDb.query(`CREATE TABLE IF NOT EXISTS interview_history (
       id TEXT PRIMARY KEY,
       device_id TEXT NOT NULL,
@@ -4773,13 +4774,13 @@ CRITICAL: If an opponent makes a claim that contradicts these or other well-esta
 
   const ARENA_LOCALHOST_IPS = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1", "localhost"]);
 
-  async function getArenaAccess(deviceId: string, ipAddress?: string): Promise<{ freeUsed: number; sessionExpiry: number | null; freeTrialExpiry: number | null; lastTrialAt: number | null }> {
+  async function getArenaAccess(deviceId: string, ipAddress?: string): Promise<{ freeUsed: number; sessionExpiry: number | null; freeTrialExpiry: number | null; lastTrialAt: number | null; hasPurchased: boolean }> {
     const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
     try {
       // Ensure ip_address column exists on arena_access table
       await db.query(`ALTER TABLE arena_access ADD COLUMN IF NOT EXISTS ip_address TEXT`).catch(() => {});
 
-      const result = await db.query(`SELECT free_used, session_expiry, free_trial_expiry, last_trial_at FROM arena_access WHERE device_id = $1`, [deviceId]);
+      const result = await db.query(`SELECT free_used, session_expiry, free_trial_expiry, last_trial_at, has_purchased FROM arena_access WHERE device_id = $1`, [deviceId]);
       if (result.rows.length > 0) {
         const row = result.rows[0];
         return {
@@ -4787,6 +4788,7 @@ CRITICAL: If an opponent makes a claim that contradicts these or other well-esta
           sessionExpiry: row.session_expiry ? parseInt(row.session_expiry) : null,
           freeTrialExpiry: row.free_trial_expiry ? parseInt(row.free_trial_expiry) : null,
           lastTrialAt: row.last_trial_at ? parseInt(row.last_trial_at) : null,
+          hasPurchased: !!row.has_purchased,
         };
       }
 
@@ -4805,7 +4807,7 @@ CRITICAL: If an opponent makes a claim that contradicts these or other well-esta
                ON CONFLICT (device_id) DO NOTHING`,
               [deviceId, ARENA_FREE_LIMIT, ipAddress]
             );
-            return { freeUsed: ARENA_FREE_LIMIT, sessionExpiry: null, freeTrialExpiry: null, lastTrialAt: null };
+            return { freeUsed: ARENA_FREE_LIMIT, sessionExpiry: null, freeTrialExpiry: null, lastTrialAt: null, hasPurchased: false };
           }
         } catch {}
       }
@@ -4814,21 +4816,22 @@ CRITICAL: If an opponent makes a claim that contradicts these or other well-esta
     } finally {
       await db.end();
     }
-    return { freeUsed: 0, sessionExpiry: null, freeTrialExpiry: null, lastTrialAt: null };
+    return { freeUsed: 0, sessionExpiry: null, freeTrialExpiry: null, lastTrialAt: null, hasPurchased: false };
   }
 
-  async function setArenaAccess(deviceId: string, access: { freeUsed: number; sessionExpiry: number | null; freeTrialExpiry: number | null; lastTrialAt?: number | null }, ipAddress?: string): Promise<void> {
+  async function setArenaAccess(deviceId: string, access: { freeUsed: number; sessionExpiry: number | null; freeTrialExpiry: number | null; lastTrialAt?: number | null; hasPurchased?: boolean }, ipAddress?: string): Promise<void> {
     const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
     try {
       await db.query(
-        `INSERT INTO arena_access (device_id, free_used, session_expiry, free_trial_expiry, last_trial_at, ip_address, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, NOW())
+        `INSERT INTO arena_access (device_id, free_used, session_expiry, free_trial_expiry, last_trial_at, has_purchased, ip_address, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
          ON CONFLICT (device_id) DO UPDATE SET
            free_used = $2, session_expiry = $3, free_trial_expiry = $4,
            last_trial_at = COALESCE($5, arena_access.last_trial_at),
-           ip_address = COALESCE($6, arena_access.ip_address),
+           has_purchased = arena_access.has_purchased OR $6,
+           ip_address = COALESCE($7, arena_access.ip_address),
            updated_at = NOW()`,
-        [deviceId, access.freeUsed, access.sessionExpiry, access.freeTrialExpiry, access.lastTrialAt ?? null, ipAddress || null]
+        [deviceId, access.freeUsed, access.sessionExpiry, access.freeTrialExpiry, access.lastTrialAt ?? null, access.hasPurchased ?? false, ipAddress || null]
       );
     } catch (e: any) {
       console.error("setArenaAccess error:", e.message);
@@ -5102,7 +5105,7 @@ CRITICAL: If an opponent makes a claim that contradicts these or other well-esta
       // debate duration PLUS the opening intro (welcome TTS + first question).
       const SESSION_INTRO_BUFFER_MS = 2 * 60 * 1000;
       const expiry = Date.now() + sessionMs + SESSION_INTRO_BUFFER_MS;
-      await setArenaAccess(deviceId, { ...access, sessionExpiry: expiry }, ipAddress);
+      await setArenaAccess(deviceId, { ...access, sessionExpiry: expiry, hasPurchased: true }, ipAddress);
       const balance = await getTokenBalance(deviceId);
       const grantedMinutes = Object.keys(ARENA_SESSION_DURATIONS).find(k => ARENA_SESSION_DURATIONS[Number(k)].ms === sessionMs);
       res.json({ granted: true, expiresAt: expiry, balance, tokensCharged: sessionCost, durationMinutes: Number(grantedMinutes) || 5 });
@@ -5151,12 +5154,21 @@ CRITICAL: If an opponent makes a claim that contradicts these or other well-esta
       if (access.sessionExpiry && now < access.sessionExpiry) {
         return res.json({ granted: true, expiresAt: access.sessionExpiry, alreadyActive: true });
       }
+      // The free trial is a one-time teaser for brand-new users only: anyone who has
+      // ever purchased a real session, or who is already sitting on more than 15
+      // tokens (i.e. has never really needed the paywall), should be routed straight
+      // to the paywall instead of an unlabeled short trial.
+      const currentBalance = await getTokenBalance(deviceId);
+      const availableTokens = currentBalance.totalAvailable ?? 0;
+      if (access.hasPurchased || availableTokens > ARENA_FREE_LIMIT) {
+        return res.status(403).json({ granted: false, error: "trial_ineligible", balance: availableTokens });
+      }
       // No cooldown — always grant a fresh 2-min trial when users are out of free turns.
       // Paying for a session remains the path to longer debates.
       const SESSION_INTRO_BUFFER_MS = 2 * 60 * 1000;
       const expiry = now + ARENA_DAILY_TRIAL_MS + SESSION_INTRO_BUFFER_MS;
       await setArenaAccess(deviceId, { ...access, sessionExpiry: expiry, lastTrialAt: now }, ipAddress);
-      res.json({ granted: true, expiresAt: expiry, durationMinutes: Math.round(ARENA_DAILY_TRIAL_MS / 60000) });
+      res.json({ granted: true, expiresAt: expiry, durationMinutes: Math.round(ARENA_DAILY_TRIAL_MS / 60000), isFreeTrial: true });
     } catch (error: any) {
       console.error("Arena free-trial error:", error);
       res.status(500).json({ error: "Failed to grant free trial" });

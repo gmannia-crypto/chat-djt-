@@ -4399,6 +4399,10 @@ export default function ArenaScreen() {
   const halfwayBannerFiredRef = useRef(false);
   const halfwayBannerHideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sessionDurationMinutesRef = useRef<number>(5);
+  // True only while the current session is the short, unpaid free-trial grant
+  // (not a real purchased session). Debates ended during a trial are too short
+  // for a fair DC verdict, so verdict/winner logic is skipped in that case.
+  const isFreeTrialSessionRef = useRef<boolean>(false);
   useEffect(() => {
     if (!showHalfwayBanner) { setHalfwayFlash(false); return; }
     const flashInterval = setInterval(() => setHalfwayFlash((p) => !p), 500);
@@ -5604,6 +5608,7 @@ export default function ArenaScreen() {
         refreshBalance();
         const mins = data.durationMinutes || selectedDuration;
         sessionDurationMinutesRef.current = mins;
+        isFreeTrialSessionRef.current = false;
         halfwayBannerFiredRef.current = false;
         setShowHalfwayBanner(false);
         setInterimVerdictLeader(null);
@@ -5935,6 +5940,14 @@ export default function ArenaScreen() {
             clearSavedSession();
             awardBadge("arena_debut");
             setTimeout(() => { playWinnerAfterSound(); }, 4000);
+            if (isFreeTrialSessionRef.current) {
+              // Free trials are too short for a fair DC verdict — end without a winner.
+              setIsLoadingRoast(false);
+              setDcVerdictWinnerId(null);
+              setTrumpRoastText("");
+              addSystemMessage("🎟️ That was a free trial — too short for an official DC verdict. Buy tokens for a full-length ranked debate!");
+              return;
+            }
             setIsLoadingRoast(true);
             const applyDCChampion = (winnerId: string, aiJudged = true) => {
               setDcVerdictWinnerId(winnerId);
@@ -9288,6 +9301,7 @@ export default function ArenaScreen() {
               try {
                 let liveFreeRemaining = freeRemaining;
                 let liveHasSession = hasSession;
+                isFreeTrialSessionRef.current = false;
 
                 {
                   const controller = new AbortController();
@@ -9322,12 +9336,20 @@ export default function ArenaScreen() {
                         liveHasSession = true;
                         setHasSession(true);
                         setSessionExpiresAt(trialData.expiresAt);
+                        isFreeTrialSessionRef.current = true;
+                        sessionDurationMinutesRef.current = trialData.durationMinutes || 2;
+                        addSystemMessage(`🎟️ Free trial: ${trialData.durationMinutes || 2} minutes, on the house — too short for an official DC verdict. Buy tokens for a full-length ranked debate!`);
                         // Keep the client-side session window anchored to the moment
                         // the free trial was granted. Without this, a later 403 has
                         // no reliable grace-window baseline and can cut a live arena
                         // session short.
                         paidSessionStartRef.current = Date.now();
                       }
+                    } else {
+                      // Trial not eligible (already purchased before, or sitting on
+                      // plenty of tokens) — send straight to the paywall instead.
+                      setShowPaywall(true);
+                      return;
                     }
                   } catch {}
                   if (!liveHasSession) {
@@ -11059,6 +11081,14 @@ export default function ArenaScreen() {
                 clearSavedSession();
                 awardBadge("arena_debut");
                 setTimeout(() => { playWinnerAfterSound(); }, 4000);
+                if (isFreeTrialSessionRef.current) {
+                  // Free trials are too short for a fair DC verdict — end without a winner.
+                  setIsLoadingRoast(false);
+                  setDcVerdictWinnerId(null);
+                  setTrumpRoastText("");
+                  addSystemMessage("🎟️ That was a free trial — too short for an official DC verdict. Buy tokens for a full-length ranked debate!");
+                  return;
+                }
                 {
                   setIsLoadingRoast(true);
                   const applyDCChampion = (winnerId: string, aiJudged = true) => {
@@ -11254,6 +11284,14 @@ export default function ArenaScreen() {
                     ? Object.entries(pts).sort(([, a], [, b]) => b - a)[0][0]
                     : null;
                   setPeoplesChampionId(tapLeaderId3);
+                  if (isFreeTrialSessionRef.current) {
+                    // Free trials are too short for a fair DC verdict — end without a winner.
+                    setIsLoadingRoast(false);
+                    setDcVerdictWinnerId(null);
+                    setTrumpRoastText("");
+                    addSystemMessage("🎟️ That was a free trial — too short for an official DC verdict. Buy tokens for a full-length ranked debate!");
+                    return;
+                  }
                   {
                     setIsLoadingRoast(true);
                     const applyDCChampion = (winnerId: string, aiJudged = true) => {
