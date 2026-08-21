@@ -23,6 +23,7 @@ import { ShareAppButton } from "@/components/ShareAppButton";
 import { CashAppDonate } from "@/components/CashAppDonate";
 import { playTTS, prefetchTTSAudio, playPrefetchedAudio, warmupAudio } from "@/lib/audio-helper";
 import { getPersonaVoiceVolume, shouldSkipPersonaVoice } from "@/lib/persona-voice";
+import { useReactionOverlapEnabled } from "@/lib/reaction-overlap-settings";
 
 type PersonaLite = { id: string; name: string };
 type Topic = { id: string; title: string; description: string; era: "current" | "past" };
@@ -490,6 +491,7 @@ export default function InterviewScreen() {
   // ── Pro mode state ───────────────────────────────────────────────────────
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const voiceEnabledRef = useRef(true);
+  const { reactionOverlapEnabled, reactionOverlapEnabledRef, toggleReactionOverlap } = useReactionOverlapEnabled();
   const [bleepEnabled, setBleepEnabled] = useState<boolean>(false);
   const applyBleep = useCallback((text: string): string => {
     if (!bleepEnabled) return text;
@@ -1249,6 +1251,7 @@ export default function InterviewScreen() {
    *  runs) so the UI doesn't stay pinned on the reactor after the overlap ends. */
   const playReactionOverlap = useCallback(async (audioUriPromise: Promise<string>, personaId: string) => {
     if (!voiceEnabledRef.current) return;
+    if (!reactionOverlapEnabledRef.current) return;
     if (shouldSkipPersonaVoice(personaId)) return;
     if (personaId === activeSpeakerRef.current) return;
     const prevSpeaker = activeSpeakerRef.current;
@@ -2581,6 +2584,13 @@ export default function InterviewScreen() {
         </Pressable>
         <Pressable onPress={toggleFx} style={s.iconBtnSm} testID="toggle-fx">
           <Ionicons name={fxEnabled ? "flash" : "flash-off"} size={16} color={fxEnabled ? "#FFD700" : "rgba(255,255,255,0.4)"} />
+        </Pressable>
+        <Pressable
+          onPress={toggleReactionOverlap}
+          style={[s.iconBtnSm, reactionOverlapEnabled && { borderColor: "#34D399", backgroundColor: "rgba(52,211,153,0.15)" }]}
+          testID="toggle-reaction-overlap"
+        >
+          <Ionicons name={reactionOverlapEnabled ? "happy" : "happy-outline"} size={16} color={reactionOverlapEnabled ? "#34D399" : "rgba(255,255,255,0.4)"} />
         </Pressable>
         <Pressable onPress={toggleBeep} style={s.iconBtnSm} testID="toggle-beep">
           <Ionicons name={beepEnabled ? "notifications" : "notifications-off"} size={16} color={beepEnabled ? "#FFD700" : "rgba(255,255,255,0.4)"} />

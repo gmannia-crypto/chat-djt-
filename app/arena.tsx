@@ -34,6 +34,7 @@ import { getApiUrl } from "@/lib/query-client";
 import { fetch } from "expo/fetch";
 import { playTTS, playAudioFromUrl, prefetchTTSAudio, playPrefetchedAudio } from "@/lib/audio-helper";
 import { getPersonaVoiceVolume, shouldSkipPersonaVoice } from "@/lib/persona-voice";
+import { useReactionOverlapEnabled } from "@/lib/reaction-overlap-settings";
 import { playPointAwardSound, playVoteClickSound, playVoteSound2, playBellSound, playCrowdCheer, playDrumroll, playWinnerChosenSound, playWinnerAfterSound, playBreakingNewsAlert, playChampionChime } from "@/lib/arena-sfx";
 import { useTokens } from "@/lib/token-context";
 import { usePersonaLocks, PREMIUM_PERSONA_CONFIGS } from "@/lib/persona-locks";
@@ -4348,6 +4349,7 @@ export default function ArenaScreen() {
   const [skippedPersonaId, setSkippedPersonaId] = useState<string | null>(null);
 
   const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const { reactionOverlapEnabled, reactionOverlapEnabledRef, toggleReactionOverlap } = useReactionOverlapEnabled();
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const ttsQueueRef = useRef<{ text: string; personaId: string; onPlaybackStart?: () => void }[]>([]);
   const isProcessingTTSRef = useRef(false);
@@ -5496,6 +5498,7 @@ export default function ArenaScreen() {
    *  transcript UI doesn't stay pinned on the reactor afterward. */
   const playReactionOverlap = useCallback(async (audioUriPromise: Promise<string>, personaId: string) => {
     if (!voiceEnabledRef.current) return;
+    if (!reactionOverlapEnabledRef.current) return;
     if (shouldSkipPersonaVoice(personaId)) return;
     if (personaId === ttsActiveSpeakerRef.current) return;
     const prevSpeaker = ttsActiveSpeakerRef.current;
@@ -9852,6 +9855,16 @@ export default function ArenaScreen() {
           <Ionicons name={bleepEnabled ? "shield-checkmark" : "shield-outline"} size={16} color={bleepEnabled ? "#60A5FA" : "#aaa"} />
           <Text style={[s.voiceToggleText, bleepEnabled && { color: "#60A5FA" }]}>
             {bleepEnabled ? "BLEEP ON" : "BLEEP OFF"}
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); toggleReactionOverlap(); }}
+          style={[s.voiceToggle, reactionOverlapEnabled && { borderColor: "#34D399", backgroundColor: "rgba(52,211,153,0.15)" }]}
+          testID="toggle-reaction-overlap"
+        >
+          <Ionicons name={reactionOverlapEnabled ? "happy" : "happy-outline"} size={16} color={reactionOverlapEnabled ? "#34D399" : "#aaa"} />
+          <Text style={[s.voiceToggleText, reactionOverlapEnabled && { color: "#34D399" }]}>
+            {reactionOverlapEnabled ? "REACTIONS ON" : "REACTIONS OFF"}
           </Text>
         </Pressable>
         <Pressable onPress={replayLastMessage} style={s.replayBtn}>
