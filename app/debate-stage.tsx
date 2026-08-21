@@ -3210,7 +3210,7 @@ export default function DebateStage() {
           isInterruption: true,
           skipTTS: true,
         }]);
-        await new Promise<void>((r) => setTimeout(r, 50));
+        await new Promise<void>((r) => setTimeout(r, 200 + Math.random() * 800)); // overlap up to 1s
         await playInterruptionAudio(threatLine, targetId);
         // Moderator forcibly intervenes after the physical threat.
         // Route through the TTS queue (blockEarlyResolve=true) so the moderator
@@ -3428,8 +3428,8 @@ export default function DebateStage() {
         isInterruption: true,
         skipTTS: true,
       }]);
-      // 50 ms overlap — duck current speaker, fire retort
-      await new Promise<void>((r) => setTimeout(r, 50));
+      // Overlap up to 1s — duck current speaker, fire retort
+      await new Promise<void>((r) => setTimeout(r, 200 + Math.random() * 800));
       await playInterruptionAudio(firebackText, targetId);
       // Chain: if the fireback itself was insulting, the original attacker may fire back
       const retalSeverity = detectInsult(firebackText);
