@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import {
   View, Text, Pressable, ScrollView, StyleSheet, Modal, ActivityIndicator,
   Platform, Image, FlatList, TextInput, KeyboardAvoidingView, Alert, Share, Linking,
-  AppState,
+  AppState, Switch,
 } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -1993,6 +1993,90 @@ export default function DebateStage() {
   // ── Pro mode state ───────────────────────────────────────────────────────
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const voiceEnabledRef = useRef(true);
+
+  // ── Sportsbook background music (Sports category, 1-on-1 debate only) ────
+  // Reuses the same royalty-cleared loop tracks as the Sports Book screen so
+  // the music feels consistent across the app. Only ever plays when the
+  // debate's category is "Sports" — every other category is silent.
+  const SPORTS_MUSIC_TRACKS = ["prowling-dragon.mp3", "zdragon.mp3"];
+  const SPORTS_MUSIC_ENABLED_KEY = "arena_debate_sports_music_enabled_v1";
+  const SPORTS_MUSIC_VOLUME_KEY = "arena_debate_sports_music_volume_v1";
+  const [sportsMusicEnabled, setSportsMusicEnabled] = useState(false);
+  const [sportsMusicVolume, setSportsMusicVolume] = useState(0.4);
+  const sportsMusicEnabledRef = useRef(false);
+  const sportsMusicVolumeRef = useRef(0.4);
+  const sportsMusicSoundRef = useRef<Audio.Sound | null>(null);
+  const sportsMusicPlayingRef = useRef(false);
+  const sportsMusicTrackIndexRef = useRef(0);
+  const sportsMusicMountedRef = useRef(true);
+  const musicVolumeTrackWidthRef = useRef(0);
+  useEffect(() => () => { sportsMusicMountedRef.current = false; }, []);
+  useEffect(() => { sportsMusicEnabledRef.current = sportsMusicEnabled; }, [sportsMusicEnabled]);
+  useEffect(() => {
+    sportsMusicVolumeRef.current = sportsMusicVolume;
+    if (sportsMusicSoundRef.current) sportsMusicSoundRef.current.setVolumeAsync(sportsMusicVolume).catch(() => {});
+  }, [sportsMusicVolume]);
+  useEffect(() => {
+    AsyncStorage.getItem(SPORTS_MUSIC_ENABLED_KEY).then((raw) => {
+      if (raw === "1") setSportsMusicEnabled(true);
+    }).catch(() => {});
+    AsyncStorage.getItem(SPORTS_MUSIC_VOLUME_KEY).then((raw) => {
+      const v = raw ? parseFloat(raw) : NaN;
+      if (!Number.isNaN(v) && v >= 0 && v <= 1) setSportsMusicVolume(v);
+    }).catch(() => {});
+  }, []);
+  const stopSportsMusic = useCallback(async () => {
+    sportsMusicPlayingRef.current = false;
+    const snd = sportsMusicSoundRef.current;
+    sportsMusicSoundRef.current = null;
+    if (snd) {
+      try { await snd.stopAsync(); } catch {}
+      try { await snd.unloadAsync(); } catch {}
+    }
+  }, []);
+  const playNextSportsMusicTrack = useCallback(async () => {
+    if (!sportsMusicPlayingRef.current || !sportsMusicMountedRef.current) return;
+    try {
+      const idx = sportsMusicTrackIndexRef.current;
+      const trackUrl = new URL(`/public/${SPORTS_MUSIC_TRACKS[idx]}`, getApiUrl()).toString();
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: trackUrl },
+        { shouldPlay: true, isLooping: false, volume: sportsMusicVolumeRef.current }
+      );
+      sportsMusicSoundRef.current = sound;
+      sound.setOnPlaybackStatusUpdate((status: any) => {
+        if (status.isLoaded && status.didJustFinish) {
+          sound.unloadAsync().catch(() => {});
+          sportsMusicTrackIndexRef.current = (sportsMusicTrackIndexRef.current + 1) % SPORTS_MUSIC_TRACKS.length;
+          if (sportsMusicMountedRef.current && sportsMusicPlayingRef.current) playNextSportsMusicTrack();
+        }
+      });
+    } catch {
+      sportsMusicPlayingRef.current = false;
+    }
+  }, []);
+  const toggleSportsMusic = useCallback((next: boolean) => {
+    Haptics.selectionAsync();
+    setSportsMusicEnabled(next);
+    AsyncStorage.setItem(SPORTS_MUSIC_ENABLED_KEY, next ? "1" : "0").catch(() => {});
+  }, []);
+  const setSportsMusicVolumeAndPersist = useCallback((v: number) => {
+    setSportsMusicVolume(v);
+    AsyncStorage.setItem(SPORTS_MUSIC_VOLUME_KEY, String(v)).catch(() => {});
+  }, []);
+  // Start/stop the loop purely from: category is Sports, the toggle is on,
+  // and the debate is actually live (never during setup/ended screens).
+  useEffect(() => {
+    const shouldPlay = category === "Sports" && sportsMusicEnabled && phase === "live";
+    if (shouldPlay && !sportsMusicPlayingRef.current) {
+      sportsMusicTrackIndexRef.current = 0;
+      sportsMusicPlayingRef.current = true;
+      playNextSportsMusicTrack();
+    } else if (!shouldPlay && sportsMusicPlayingRef.current) {
+      stopSportsMusic();
+    }
+  }, [category, sportsMusicEnabled, phase, playNextSportsMusicTrack, stopSportsMusic]);
+  useEffect(() => () => { stopSportsMusic(); }, [stopSportsMusic]);
   const { reactionOverlapEnabled, reactionOverlapEnabledRef, toggleReactionOverlap } = useReactionOverlapEnabled();
   const [bleepEnabled, setBleepEnabled] = useState<boolean>(false);
   const applyBleep = useCallback((text: string): string => {
@@ -5583,6 +5667,68 @@ export default function DebateStage() {
               </Pressable>
             ))}
           </View>
+
+          {category === "Sports" && (
+            <View style={{ marginTop: 16 }}>
+              <Text style={s.sectionLabel}>SPORTSBOOK BACKGROUND MUSIC</Text>
+              <View style={{
+                flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+                backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 12, padding: 12,
+                borderWidth: 1, borderColor: sportsMusicEnabled ? "#FFD700" : "rgba(255,255,255,0.12)",
+              }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Ionicons name={sportsMusicEnabled ? "musical-notes" : "musical-notes-outline"} size={18} color={sportsMusicEnabled ? "#FFD700" : "rgba(255,255,255,0.5)"} />
+                  <Text style={{ color: "#fff", fontWeight: "600" }}>Play arena walkout music</Text>
+                </View>
+                <Switch
+                  value={sportsMusicEnabled}
+                  onValueChange={toggleSportsMusic}
+                  trackColor={{ false: "rgba(255,255,255,0.2)", true: "#8a6d00" }}
+                  thumbColor={sportsMusicEnabled ? "#FFD700" : "#ccc"}
+                  testID="sports-music-toggle"
+                />
+              </View>
+              {sportsMusicEnabled && (
+                <View style={{ marginTop: 10 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                    <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, fontWeight: "600" }}>VOLUME</Text>
+                    <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 12 }}>{Math.round(sportsMusicVolume * 100)}%</Text>
+                  </View>
+                  <View
+                    style={{ height: 32, justifyContent: "center", marginTop: 4 }}
+                    testID="sports-music-volume-track"
+                    onStartShouldSetResponder={() => true}
+                    onMoveShouldSetResponder={() => true}
+                    onResponderGrant={(e) => {
+                      if (musicVolumeTrackWidthRef.current > 0) {
+                        setSportsMusicVolumeAndPersist(
+                          Math.max(0, Math.min(1, e.nativeEvent.locationX / musicVolumeTrackWidthRef.current))
+                        );
+                      }
+                    }}
+                    onResponderMove={(e) => {
+                      musicVolumeTrackWidthRef.current > 0 && setSportsMusicVolumeAndPersist(
+                        Math.max(0, Math.min(1, e.nativeEvent.locationX / musicVolumeTrackWidthRef.current))
+                      );
+                    }}
+                    onLayout={(e) => { musicVolumeTrackWidthRef.current = e.nativeEvent.layout.width; }}
+                  >
+                    <View style={{ height: 6, borderRadius: 3, backgroundColor: "rgba(255,255,255,0.15)", overflow: "hidden" }}>
+                      <View style={{ height: "100%", width: `${sportsMusicVolume * 100}%`, backgroundColor: "#FFD700" }} />
+                    </View>
+                    <View style={{
+                      position: "absolute", left: `${sportsMusicVolume * 100}%`, marginLeft: -8,
+                      width: 16, height: 16, borderRadius: 8, backgroundColor: "#FFD700",
+                      borderWidth: 2, borderColor: "#0a0a0a",
+                    }} />
+                  </View>
+                </View>
+              )}
+              <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginTop: 6 }}>
+                Only plays during a live Sports category debate.
+              </Text>
+            </View>
+          )}
 
           <Text style={[s.sectionLabel, { marginTop: 16 }]}>MODERATOR</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.personaCardRow}>
