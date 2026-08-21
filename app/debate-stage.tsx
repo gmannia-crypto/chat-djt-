@@ -2372,7 +2372,7 @@ export default function DebateStage() {
         currentSoundRef.current = sound;
         // 50 ms overlap: next speaker starts 50 ms before current clip ends — zero dead air,
         // tight conversational handoff without audible cross-talk.
-        const OVERLAP_MS = 500;
+        const OVERLAP_MS = 850;
         let prefetchStarted = false;
         await new Promise<void>((resolve) => {
           let resolved = false;
@@ -4757,7 +4757,7 @@ export default function DebateStage() {
           if (!runningRef.current) return;
           await speakBuffer(introA, `modbuf-introa-${Date.now()}`);
           playDebateCheer();
-          await new Promise<void>(r => setTimeout(r, 1400));
+          await new Promise<void>(r => setTimeout(r, 700));
 
           if (!runningRef.current) return;
           await speakBuffer(introB, `modbuf-introb-${Date.now()}`);
