@@ -145,6 +145,26 @@ function detectOffense(text: string, personaId: string, speakerId: string): bool
   if (!pattern) return false;
   return pattern.test(text);
 }
+
+// ── GENERAL INSULT DETECTION (any guest → the interviewer) ────────────────────
+// Mirrors debate-stage.tsx's INSULT_PAT/detectInsult so ANY interviewer persona —
+// not just the handful with a bespoke PERSONA_OFFENSE_TRIGGERS entry — gets to
+// strike back when a guest blatantly disrespects them, not just go quiet.
+const INSULT_PAT = {
+  direct: /(go fuck (your|him|her|them)self|fuck you|kiss my (ass|butt)|up yours|drop dead|you'?re (an )?(idiot|a fool|a clown|a fraud|worthless|pathetic|a liar|full of shit|out of (your )?mind)|you make me sick|you disgust me|screw you|get lost|get the hell out)/i,
+  profanity: /\b(fuck(ing)?|shit|ass(hole)?|bastard|son of a bitch|bitch(?!es (?:brew|cakes))|cunt|goddamn)\b/i,
+  attack: /\b(idiot|moron|stupid|dumb(ass)?|loser|pathetic|incompetent|fraud|liar|coward|scum(bag)?|disgrace|clown|corrupt|criminal|shut up|you never|you always lie|you failed|washed up|irrelevant|nobody believes|laughingstock)\b/i,
+  taunt: /\b(you can't win|you'll lose|everyone knows|no one (likes|trusts|believes) you|you're finished|you're done|sit down|get out|go home|you're a joke|what a joke)\b/i,
+};
+function detectInsult(text: string): number {
+  const l = text.toLowerCase();
+  let s = 0;
+  if (INSULT_PAT.direct.test(l)) s += 3;
+  if (INSULT_PAT.profanity.test(l)) s += 2;
+  if (INSULT_PAT.attack.test(l)) s += 1;
+  if (INSULT_PAT.taunt.test(l)) s += 1;
+  return Math.min(s, 3);
+}
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Persona id → portrait require()
@@ -158,6 +178,9 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   carville: require("@/assets/images/persona-carville.png"),
   maddow: require("@/assets/images/persona-maddow.png"),
   omar: require("@/assets/images/persona-omar.png"),
+  kwame: require("@/assets/images/persona-kwame.png"),
+  coachprime: require("@/assets/images/persona-coachprime.png"),
+  ochocinco: require("@/assets/images/persona-ochocinco.png"),
   biden: require("@/assets/images/persona-biden.png"),
   rosie: require("@/assets/images/persona-rosie.png"),
   berniemc: require("@/assets/images/persona-bernie.png"),
@@ -272,10 +295,12 @@ const GUEST_CATEGORIES: Record<string, GuestCategory> = {
   berniesanders: "Political",
   rosie: "Entertainment", ruckus: "Entertainment", samjackson: "Entertainment",
   waylonjennnings: "Entertainment", gilbertgottfried: "Entertainment", larrycableguy: "Entertainment",
-  stephena: "Entertainment", hannity: "Entertainment", megynkelly: "Entertainment",
-  shannon: "Entertainment", jesseleepetersen: "Entertainment", joerogan: "Entertainment",
+  hannity: "Entertainment", megynkelly: "Entertainment",
+  jesseleepetersen: "Entertainment", joerogan: "Entertainment",
+  stephena: "Sports", shannon: "Sports",
   skipbayless: "Sports", howardcosell: "Sports",
   jimlampley: "Sports", floydmayweather: "Sports", georgeforeman: "Sports", michaelbuffer: "Sports",
+  kwame: "Sports", coachprime: "Sports", ochocinco: "Sports",
   mikabrzezinski: "Political", joescarborough: "Political",
   cenk: "Political",
   pressley: "Political",
@@ -1528,13 +1553,34 @@ export default function InterviewScreen() {
             const angerKeywords = ["fake", "liar", "idiot", "stupid", "pathetic", "traitor", "moron", "coward", "disgusting", "fraud"];
             const angerHits = angerKeywords.reduce((c, w) => c + (lower.includes(w) ? 1 : 0), 0);
             const offended = detectOffense(ans.text, interviewerId, ans.speakerId);
-            if (offended || angerHits >= 2) {
+            // Blatant insult aimed at the interviewer — fire back with a quick, witty
+            // put-down immediately, then follow with an AI-personalized comeback in the
+            // interviewer's own voice for the more severe cases. Generalized (not tied
+            // to the small PERSONA_OFFENSE_TRIGGERS list) so every interviewer gets to
+            // defend themselves, not just sit there and take it.
+            const insultSeverity = detectInsult(ans.text);
+            if (offended || insultSeverity >= 2) {
               const retaliations = offended
                 ? ["I'm going to stop you right there.", "That's not how this works. Answer the question.", "You don't talk to me like that.", "We're not doing that here.", "That tells me everything I need to know about your answer."]
-                : MICRO_REACTIONS;
+                : ["Careful now — that mouth is writing checks your answers can't cash.", "Cute. Now try answering the actual question.", "That's the best you've got? Sit with that for a second.", "I've heard better comebacks from a heckler in the cheap seats. Answer the question.", "Keep talking — you're only making my job easier."];
               const txt = retaliations[Math.floor(Math.random() * retaliations.length)];
-              if (Math.random() < (offended ? 0.85 : 0.60)) {
+              if (Math.random() < (offended ? 0.85 : 0.85)) {
                 setTimeout(() => { if (runningRef.current) playInterruptionAudio(txt, interviewerId); }, 350);
+              }
+              if (insultSeverity >= 2 && interviewerId) {
+                const interviewerName = interviewers.find((p) => p.id === interviewerId)?.name || "The interviewer";
+                fetch(new URL("/api/arena/moderator-retort", getApiUrl()).toString(), {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ provocation: ans.text, moderatorName: interviewerName, severity: insultSeverity, personaName: ans.speakerName }),
+                }).then(async (r) => {
+                  if (!r.ok || !runningRef.current) return;
+                  const data = await r.json();
+                  if (!data.retort || !runningRef.current) return;
+                  const retortId = `mret-${Date.now()}-${Math.random()}`;
+                  enrichAndAddMessage({ id: retortId, speakerId: interviewerId, speakerName: interviewerName, text: data.retort, ts: Date.now(), skipTTS: true });
+                  enqueueTTS(data.retort, interviewerId, retortId);
+                }).catch(() => {});
               }
             } else if (angerHits >= 1 && Math.random() < 0.45) {
               const reaction = MICRO_REACTIONS[Math.floor(Math.random() * MICRO_REACTIONS.length)];
