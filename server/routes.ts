@@ -9558,6 +9558,8 @@ ${styleInstruction}${getLieBehaviorPrompt(interviewerId, Number((req.body.sessio
         comedic: `RESPONSE STYLE — COMEDIC: Deploy humor, wit, and self-deprecation strategically. Make the audience laugh. Use irony and comedic deflection when cornered. Banter with the interviewer — land a good line.`,
         civil_discourse: `RESPONSE STYLE — CIVIL DISCOURSE: Engage the question genuinely. Acknowledge valid points. Disagree respectfully — disagree with the idea, not the person. Model what civil political dialogue could be.`,
         educational: `RESPONSE STYLE — EDUCATIONAL: Explain your position in depth. Walk through your reasoning step by step. Help the audience understand the complexity of the issue. Acknowledge trade-offs honestly.`,
+        roast: `RESPONSE STYLE — COMEDY ROAST: You're getting roasted, so roast right back. Take the hit, then return fire with a savage, funny burn of your own — self-aware, quick, and merciless. Don't get defensive or serious; escalate the comedy. Trade devastating one-liners like it's a Friar's Club roast.`,
+        softball: `RESPONSE STYLE — SOFTBALL: This is a friendly, flattering conversation, so relax and open up. Tell your story warmly, share personal color and anecdotes, and use the question as a chance to shine — no need to be defensive or combative, nobody's attacking you here.`,
       };
       const answerStyleInstruction = answerStyleInstructions[answerStyle] || answerStyleInstructions.combative;
       const shannonGrandmomNote = getShannonGrandmomNote(intervieweeId, conversationHistory);
