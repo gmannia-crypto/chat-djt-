@@ -9490,6 +9490,60 @@ export default function ArenaScreen() {
 
           <CashAppDonate />
         </ScrollView>
+
+        {/* Paywall must also be reachable from the pre-debate setup screen —
+            pressing "START DEBATE" here can open the paywall (e.g. trial
+            ineligible / no session), but that state lives on a separate
+            early-return branch from the main paywall Modal below it, so
+            without this it silently did nothing. */}
+        <Modal visible={showPaywall} transparent animationType="fade">
+          <View style={s.paywallOverlay}>
+            <View style={s.paywallCard}>
+              <Ionicons name="lock-closed" size={36} color="#FFD700" />
+              <Text style={s.paywallTitle}>Arena Access Required</Text>
+              <Text style={s.paywallSubtitle}>
+                Choose your debate duration. 1 token per minute.
+              </Text>
+              <View style={s.durationRow}>
+                {([5, 10, 15] as const).map((dur) => (
+                  <Pressable
+                    key={dur}
+                    onPress={() => setSelectedDuration(dur)}
+                    style={[s.durationChip, selectedDuration === dur && s.durationChipActive]}
+                  >
+                    <Text style={[s.durationChipText, selectedDuration === dur && s.durationChipTextActive]}>
+                      {dur} min
+                    </Text>
+                    <Text style={[s.durationChipCost, selectedDuration === dur && s.durationChipCostActive]}>
+                      {dur} tokens
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+              <View style={s.paywallBalanceRow}>
+                <Ionicons name="diamond" size={16} color="#FFD700" />
+                <Text style={s.paywallBalance}>{balance?.totalAvailable ?? 0} tokens available</Text>
+              </View>
+              <Pressable
+                onPress={unlockSession}
+                disabled={isUnlocking}
+                style={[s.paywallBtn, isUnlocking && { opacity: 0.6 }]}
+              >
+                {isUnlocking ? (
+                  <ActivityIndicator size="small" color="#000" />
+                ) : (
+                  <Text style={s.paywallBtnText}>Unlock {selectedDuration} Min for {selectedDuration} Tokens</Text>
+                )}
+              </Pressable>
+              <Pressable onPress={() => { setShowPaywall(false); router.push("/subscribe"); }} style={s.paywallSecondaryBtn}>
+                <Text style={s.paywallSecondaryText}>Get More Tokens</Text>
+              </Pressable>
+              <Pressable onPress={() => setShowPaywall(false)} style={s.paywallDismiss}>
+                <Text style={s.paywallDismissText}>Close</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
       </ImageBackground>
     );
   }
