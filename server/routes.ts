@@ -8577,7 +8577,7 @@ Keep responses to 2-3 sentences max. Stay fully in character — urgent, gruff, 
 
   app.post("/api/arena/respond", async (req, res) => {
     try {
-      const { responderId, toSpeakerId, conversationHistory, topic, wasInterrupted, interruptionText, interrupterId, activePersonas, isWelcome, askUser, userContext, arenaMemoryContext, arenaUserContext } = req.body;
+      const { responderId, toSpeakerId, conversationHistory, topic, wasInterrupted, interruptionText, interrupterId, activePersonas, isWelcome, askUser, userContext, arenaMemoryContext, arenaUserContext, requestReaction = false } = req.body;
       const deviceId = req.headers["x-device-id"] as string;
 
       if (!responderId || !ARENA_PERSONA_PROMPTS[responderId]) {
@@ -8768,9 +8768,9 @@ Keep responses to 2-3 sentences max. Stay fully in character — urgent, gruff, 
         const defaultReaction = `Mitch McConnell just FROZE UP mid-sentence — went completely blank, staring into space. React to this in character. Comment on it, mock it, or express concern depending on your personality.`;
         userPrompt += ` IMPORTANT: ${freezeReactions[responderId] || defaultReaction}`;
       }
-      const otherPersonas = (Array.isArray(activePersonas) ? activePersonas : [])
-        .filter((id: string) => id !== responderId && ARENA_NAME_MAP[id])
-        .map((id: string) => ARENA_NAME_MAP[id]);
+      const otherPersonaIds = (Array.isArray(activePersonas) ? activePersonas : [])
+        .filter((id: string) => id !== responderId && ARENA_NAME_MAP[id]);
+      const otherPersonas = otherPersonaIds.map((id: string) => ARENA_NAME_MAP[id]);
       if (otherPersonas.length > 0 && !isInterruption) {
         const questionStyles = [
           "ask a sarcastic question dripping with contempt",
@@ -8786,7 +8786,28 @@ Keep responses to 2-3 sentences max. Stay fully in character — urgent, gruff, 
       }
       userPrompt += ` Give your in-character response. Do NOT use quotation marks around your response. Do NOT use asterisks or stage directions like *pauses* or *blinks*. Write only spoken dialogue.`;
 
-      const tokenLimit = isInterruption ? 18 : 150;
+      // ── Live overlapping reaction (Savage mode only) ────────────────────────
+      // Mirrors the interview/debate-stage mechanic: ask the model, in the SAME
+      // call, whether another active persona in the room would burst out
+      // laughing or scoff at what was just said — generated in one round trip,
+      // no added latency from a second AI call. The client only sets
+      // requestReaction=true when the room is in Savage mode and its own
+      // cooldown allows it; the model is the final judge of whether THIS
+      // specific line actually earns a reaction.
+      let reactorId: string | null = null;
+      if (!isInterruption && requestReaction && debateMode === "savage" && otherPersonaIds.length > 0) {
+        reactorId = (toSpeakerId && toSpeakerId !== responderId && otherPersonaIds.includes(toSpeakerId))
+          ? toSpeakerId
+          : otherPersonaIds[Math.floor(Math.random() * otherPersonaIds.length)];
+      }
+      const wantsReaction = !!reactorId;
+      if (wantsReaction && reactorId) {
+        const reactorName = ARENA_NAME_MAP[reactorId] || reactorId;
+        const reactorPersonaSnippet = getArenaPersonaPrompt(reactorId);
+        userPrompt += `\n\nSEPARATE STEP — REACTION CHECK: After writing your answer above (including its mandatory hidden [IQ:X,ALT:Y] self-score tag, which still belongs at the end of THAT answer), decide whether what you just said was a genuinely absurd, hyperbolic, boastful, or sarcasm-worthy claim — something so over-the-top that ${reactorName}, listening in the room, would burst out laughing, scoff, or crack up in disbelief the INSTANT you said it. Be selective — most ordinary lines do NOT qualify, only real "come on, be serious" moments.\n\nIf it qualifies: on a new final line AFTER the [IQ:X,ALT:Y] tag, write the exact marker "###REACT###" followed by ${reactorName}'s immediate spoken reaction — in ${reactorName}'s own voice, personality, and vocabulary (not generic), a short sharp sarcastic laugh-line or scoff, under 12 words, with NOTHING else after it (no tags, no scores, no stage directions). Example shape only (write your own, in character): "Please. Boy you must be on crack." / "Ha! Sure you did." Here is ${reactorName}'s personality for this reaction line ONLY: ${reactorPersonaSnippet}\n\nIf it does NOT qualify: write the exact marker "###REACT###" followed by exactly "NONE".\n\nAlways include the "###REACT###" marker line exactly once, after your full answer and its self-score tag.`;
+      }
+
+      const tokenLimit = (isInterruption ? 18 : 150) + (wantsReaction ? 40 : 0);
       const completion = await getClient().chat.completions.create({
         model: getFastModel(),
         messages: [
@@ -8796,7 +8817,27 @@ Keep responses to 2-3 sentences max. Stay fully in character — urgent, gruff, 
         max_completion_tokens: tokenLimit,
         temperature: 0.9,
       });
-      let response = completion.choices[0]?.message?.content || "...";
+      let rawContent = completion.choices[0]?.message?.content || "...";
+
+      // Split off the optional live reaction (marker only present when
+      // wantsReaction was set — see prompt above). Missing/garbled markers
+      // fall back to no reaction rather than corrupting the main response.
+      let reaction: { text: string; speakerId: string; speakerName: string } | null = null;
+      const reactMarkerIdx = rawContent.indexOf("###REACT###");
+      if (reactMarkerIdx !== -1) {
+        const reactionRaw = rawContent.slice(reactMarkerIdx + "###REACT###".length)
+          .replace(/\s*\[IQ\s*:\s*\d+\s*,\s*ALT\s*:\s*[01]\s*\]\s*/gi, "")
+          .replace(/(\s*\[[^\[\]\n]{1,60}\])+\s*$/, "")
+          .replace(/^["'\s:—-]+|["'\s]+$/g, "")
+          .replace(/\*[^*]+\*/g, "")
+          .trim();
+        rawContent = rawContent.slice(0, reactMarkerIdx);
+        if (reactorId && reactionRaw && !/^none\.?$/i.test(reactionRaw) && reactionRaw.length <= 140) {
+          reaction = { text: reactionRaw, speakerId: reactorId, speakerName: ARENA_NAME_MAP[reactorId] || reactorId };
+        }
+      }
+
+      let response = rawContent;
       response = response.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim();
       if (responderId === "trump" || responderId === "ruckus" || responderId === "graham" || responderId === "megynkelly" || responderId === "pambondi") {
         response = response.replace(/(?:the\s+)?epstein\s+war/gi, "the Iran war");
@@ -8901,6 +8942,7 @@ Keep responses to 2-3 sentences max. Stay fully in character — urgent, gruff, 
         personaId: responderId,
         questionTargetId,
         mcconnellFroze,
+        reaction,
         freeRemaining: Math.max(0, ARENA_FREE_LIMIT - access.freeUsed),
         hasSession: !!(access.sessionExpiry && Date.now() < access.sessionExpiry),
         sessionExpiresAt: access.sessionExpiry || null,

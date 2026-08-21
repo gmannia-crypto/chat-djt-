@@ -183,6 +183,7 @@ interface ConversationMessage {
   timestamp: number;
   isSystem?: boolean;
   audioUri?: string;
+  isReaction?: boolean;
 }
 
 type LieEntry = {
@@ -4348,7 +4349,7 @@ export default function ArenaScreen() {
 
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
-  const ttsQueueRef = useRef<{ text: string; personaId: string }[]>([]);
+  const ttsQueueRef = useRef<{ text: string; personaId: string; onPlaybackStart?: () => void }[]>([]);
   const isProcessingTTSRef = useRef(false);
   const ttsPendingMoreRef = useRef(false);
   const prefetchedAudioRef = useRef<{ personaId: string; text: string; audioUri: string } | null>(null);
@@ -4901,6 +4902,10 @@ export default function ArenaScreen() {
   const addMessageRef = useRef<null | ((msg: ConversationMessage) => void)>(null);
   // ────────────────────────────────────────────────────────────────────────
 
+  // Live overlapping reaction cooldown (mirrors interview.tsx/debate-stage.tsx):
+  // counts turns since the last reaction so requests aren't fired every turn.
+  const turnsSinceReactionRef = useRef(0);
+
   // Pulse interval for the heat ring animation (600 ms on / 600 ms off)
   useEffect(() => {
     const id = setInterval(() => setHeatPulseOn((v) => !v), 600);
@@ -5332,6 +5337,12 @@ export default function ArenaScreen() {
       if (mountedRef.current) {
         setTtsActiveSpeaker(item.personaId);
       }
+      // Fire the moment this item actually reaches the front of the queue and
+      // begins playing — NOT when its fetch resolved. Arena keeps fetching and
+      // queueing subsequent turns while earlier TTS is still draining, so a
+      // reaction scheduled from fetch-completion could play before its own
+      // line does, or duck an unrelated, still-speaking persona.
+      item.onPlaybackStart?.();
       try {
         let sound: Audio.Sound;
         const personaVolume = getPersonaVoiceVolume(item.personaId);
@@ -5422,11 +5433,11 @@ export default function ArenaScreen() {
     }
   }, [startPrefetch]);
 
-  const queueTTS = useCallback((text: string, personaId: string, force?: boolean) => {
+  const queueTTS = useCallback((text: string, personaId: string, force?: boolean, onPlaybackStart?: () => void) => {
     if (!force && sessionEndedRef.current) return;
     if (!force && !voiceEnabledRef.current) return;
     if (force) forcePlayRef.current = true;
-    ttsQueueRef.current.push({ text, personaId });
+    ttsQueueRef.current.push({ text, personaId, onPlaybackStart });
     processTTSQueue();
   }, [processTTSQueue]);
 
@@ -5474,6 +5485,91 @@ export default function ArenaScreen() {
       });
     } catch {}
   }, []);
+
+  /** Live comedic/savage reaction: plays a reaction line that was synthesized in
+   *  PARALLEL with the main line (via the audioUriPromise, started the moment
+   *  the server response arrived) so it's ready to overlap the tail of the
+   *  statement instead of waiting for cold TTS latency. Same ducking pattern as
+   *  playInterruptionAudio, but consumes prefetched audio and, unlike a plain
+   *  copy of it, captures the speaker that was active before the reaction fired
+   *  and restores it (not whatever is active at the moment cleanup runs) so the
+   *  transcript UI doesn't stay pinned on the reactor afterward. */
+  const playReactionOverlap = useCallback(async (audioUriPromise: Promise<string>, personaId: string) => {
+    if (!voiceEnabledRef.current) return;
+    if (shouldSkipPersonaVoice(personaId)) return;
+    if (personaId === ttsActiveSpeakerRef.current) return;
+    const prevSpeaker = ttsActiveSpeakerRef.current;
+    // Duck the main line the instant the overlap window begins — before the
+    // reaction audio itself is ready — so the two voices don't compete at full
+    // volume while the reaction clip is still loading.
+    const mainSound = currentSoundRef.current;
+    if (mainSound) { try { mainSound.setVolumeAsync(0.10).catch(() => {}); } catch {} }
+    ttsActiveSpeakerRef.current = personaId;
+    if (mountedRef.current) setTtsActiveSpeaker(personaId);
+    const restore = () => {
+      const ms = currentSoundRef.current;
+      if (ms) { try { ms.setVolumeAsync(1.0).catch(() => {}); } catch {} }
+      if (ttsActiveSpeakerRef.current === personaId) {
+        ttsActiveSpeakerRef.current = prevSpeaker;
+        if (mountedRef.current) setTtsActiveSpeaker(prevSpeaker);
+      }
+    };
+    try {
+      const audioUri = await audioUriPromise;
+      const sound = await playPrefetchedAudio(audioUri, { volume: getPersonaVoiceVolume(personaId) });
+      let cleaned = false;
+      const cleanup = () => {
+        if (cleaned) return; cleaned = true;
+        sound.setOnPlaybackStatusUpdate(null);
+        sound.getStatusAsync().then((st: any) => { if (st.isLoaded) sound.stopAsync().then(() => sound.unloadAsync()).catch(() => {}); }).catch(() => {});
+        restore();
+      };
+      let safetyTimer: ReturnType<typeof setTimeout> = setTimeout(cleanup, 12000);
+      sound.setOnPlaybackStatusUpdate((status: any) => {
+        if (status.didJustFinish || status.error) {
+          clearTimeout(safetyTimer);
+          cleanup();
+        } else if (status.isPlaying && (status as any).durationMillis && !cleaned) {
+          clearTimeout(safetyTimer);
+          safetyTimer = setTimeout(cleanup, (status as any).durationMillis + 4000);
+        }
+      });
+    } catch {
+      restore();
+    }
+  }, []);
+
+  /** Fires a live overlapping reaction returned alongside a persona's answer:
+   *  kicks off audio synthesis for the reaction line immediately (in parallel
+   *  with the main line's own audio), then — timed near the tail of the main
+   *  line's estimated playback — drops it into the transcript and plays it
+   *  overlapping via playReactionOverlap. No-op if there's no reaction. */
+  const fireLiveReaction = useCallback((reaction: { text: string; speakerId: string; speakerName: string } | null | undefined, mainText: string) => {
+    if (!reaction?.text) {
+      turnsSinceReactionRef.current += 1;
+      return;
+    }
+    turnsSinceReactionRef.current = 0;
+    const reactionAudioPromise = prefetchTTSAudio("/api/persona-speak", { text: reaction.text, personaId: reaction.speakerId });
+    const estMs = Math.max(2500, (mainText.length / 14) * 1000);
+    const overlapDelay = Math.max(600, estMs - 900);
+    setTimeout(() => {
+      if (!mountedRef.current || sessionEndedRef.current) return;
+      setMessages((prev) => {
+        const next = [...prev, {
+          id: `react-${Date.now()}-${Math.random()}`,
+          speakerId: reaction.speakerId,
+          speakerName: reaction.speakerName,
+          text: reaction.text,
+          timestamp: Date.now(),
+          isReaction: true,
+        }].slice(-50);
+        messagesRef.current = next;
+        return next;
+      });
+      playReactionOverlap(reactionAudioPromise, reaction.speakerId);
+    }, overlapDelay);
+  }, [playReactionOverlap]);
 
   // ── ARENA FIREBACK ENGINE ─────────────────────────────────────────────────
   // When a persona's message crosses the insult threshold, this picks the most
@@ -6881,6 +6977,10 @@ export default function ArenaScreen() {
         const headers: Record<string, string> = { "Content-Type": "application/json" };
         if (deviceId) headers["x-device-id"] = deviceId;
 
+        // Live overlapping reaction: only ask for one in Savage mode, and only
+        // once the cooldown has passed + a coin flip, so it feels earned rather
+        // than constant. The server still decides per-line whether it's warranted.
+        const requestReaction = debateModeRef.current === "savage" && turnsSinceReactionRef.current >= 2 && Math.random() < 0.6;
         const bodyPayload: Record<string, any> = {
           responderId,
           toSpeakerId,
@@ -6888,6 +6988,7 @@ export default function ArenaScreen() {
           topic: currentTopicRef.current || "Current Events",
           activePersonas: selectedPersonasRef.current,
           debateMode: debateModeRef.current,
+          requestReaction,
         };
         const currentWinTally = winTallyRef.current;
         if (currentWinTally.global && Object.keys(currentWinTally.global).length > 0) {
@@ -7025,7 +7126,17 @@ export default function ArenaScreen() {
           if (isProcessingTTSRef.current && !prefetchingRef.current && !prefetchedAudioRef.current) {
             startPrefetch({ text: data.response, personaId: responderId });
           }
-          queueTTS(data.response, responderId);
+          // ── Live overlapping reaction (Savage mode only) ──────────────────
+          // Server already gated this to savage tone + a genuinely hyperbolic/
+          // absurd line + our own cooldown. Must fire from THIS line's actual
+          // playback start (once it reaches the front of the TTS queue), not
+          // from fetch completion — the queue may still be draining an earlier
+          // turn when this response arrives, and a fetch-time timer could play
+          // the reaction before its own line does, or duck the wrong speaker.
+          const liveReaction = data.reaction;
+          queueTTS(data.response, responderId, false, () => fireLiveReaction(liveReaction, data.response));
+        } else {
+          if (data.reaction) turnsSinceReactionRef.current = 0; else turnsSinceReactionRef.current += 1;
         }
         ttsPendingMoreRef.current = false;
 
@@ -7065,7 +7176,7 @@ export default function ArenaScreen() {
         }
       }
     },
-    [addMessage, updateEmotions, deviceId, queueTTS, startPrefetch]
+    [addMessage, updateEmotions, deviceId, queueTTS, startPrefetch, fireLiveReaction]
   );
 
   const triggerInterruption = useCallback(async (trumpMessageText: string, prefetchedInterrupter?: string, prefetchedData?: any) => {
@@ -8443,6 +8554,18 @@ export default function ArenaScreen() {
       }
       const persona = getPersona(item.speakerId);
       if (!persona) return null;
+      // ── Live overlapping reaction bubble — content-aware, AI-driven laugh/
+      // scoff/comeback, distinct from a regular turn (dashed pill, "REACTS" tag).
+      if (item.isReaction) {
+        return (
+          <Animated.View entering={FadeIn.duration(200)} style={{ alignItems: "center", marginVertical: 4 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 5, backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 20, borderWidth: 1, borderStyle: "dashed", borderColor: persona.color + "60", maxWidth: 320 }}>
+              <Text style={{ color: persona.color, fontSize: 10, fontWeight: "900" }}>{persona.shortName} · REACTS:</Text>
+              <Text style={{ color: "#ddd", fontSize: 12, fontStyle: "italic" }}>{applyBleep(item.text)}</Text>
+            </View>
+          </Animated.View>
+        );
+      }
       const isLatest = item.id === latestPersonaMsgId;
       return (
         <Animated.View entering={SlideInLeft.duration(350).springify()} style={[s.msgRow, { borderLeftColor: persona.color }]}>
