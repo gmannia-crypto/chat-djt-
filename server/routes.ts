@@ -9534,7 +9534,7 @@ ${styleInstruction}${getLieBehaviorPrompt(interviewerId, Number((req.body.sessio
     try {
       const deviceId = req.headers["x-device-id"] as string;
       if (!deviceId) return res.status(400).json({ error: "Device ID required" });
-      const { interviewerId, intervieweeId, topic, conversationHistory = [], lastQuestion, wasInterrupted = false, interruptionText, isInterruption = false, interviewStyle: answerStyle = "combative", isDebate = false, insultFireback = false, insultSeverity = 1, contentMode } = req.body || {};
+      const { interviewerId, intervieweeId, topic, conversationHistory = [], lastQuestion, wasInterrupted = false, interruptionText, isInterruption = false, interviewStyle: answerStyle = "combative", isDebate = false, insultFireback = false, insultSeverity = 1, contentMode, requestReaction = false } = req.body || {};
       if (!interviewerId || !ARENA_PERSONA_PROMPTS[interviewerId]) return res.status(400).json({ error: "Invalid interviewerId" });
       if (!intervieweeId || !ARENA_PERSONA_PROMPTS[intervieweeId]) return res.status(400).json({ error: "Invalid intervieweeId" });
       if (interviewerId === intervieweeId) return res.status(400).json({ error: "A persona cannot interview themselves" });
@@ -9613,6 +9613,19 @@ Stay 100% in character — your tone, vocabulary, ideology, and combativeness ar
         }
       }
       userPrompt += `\n\nWrite ONLY your spoken response — no quotes, no stage directions, no asterisks.`;
+
+      // ── Live overlapping reaction (Comedic/Roast only) ──────────────────────
+      // Ask the model, in the SAME call, to also decide whether ${interviewerName}
+      // would burst out laughing/scoffing at what was just said — and if so, write
+      // that reaction in ${interviewerName}'s own voice. One round trip, no added
+      // latency from a second AI call. The client only sets requestReaction=true
+      // when the tone is comedic/roast and its own cooldown allows it; the model
+      // is the final judge of whether THIS specific line actually earns a reaction.
+      const wantsReaction = !isInterruption && !insultFireback && requestReaction && (answerStyle === "comedic" || answerStyle === "roast");
+      if (wantsReaction) {
+        const reactorPersonaSnippet = getArenaPersonaPrompt(interviewerId);
+        userPrompt += `\n\nSEPARATE STEP — REACTION CHECK: After writing your answer above, decide whether what you (as ${intervieweeName}) just said was a genuinely absurd, hyperbolic, boastful, or sarcasm-worthy claim — something so over-the-top that ${interviewerName} would burst out laughing, scoff, or crack up in disbelief the INSTANT you said it. Be selective — most ordinary lines do NOT qualify, only real "come on, be serious" moments.\n\nIf it qualifies: on a new final line, write the exact marker "###REACT###" followed by ${interviewerName}'s immediate spoken reaction — in ${interviewerName}'s own voice, personality, and vocabulary (not generic), a short sharp sarcastic laugh-line or scoff, under 12 words. Example shape only (write your own, in character): "Please. Boy you must be on crack." / "Ha! Sure you did." Here is ${interviewerName}'s personality for this reaction line ONLY: ${reactorPersonaSnippet}\n\nIf it does NOT qualify: write the exact marker "###REACT###" followed by exactly "NONE".\n\nAlways include the "###REACT###" marker line exactly once, after your full answer.`;
+      }
       const intervieweeStyleFinal = intervieweeStyle + getContentModeInstruction(contentMode);
 
       // Per-turn answer generation always uses the premium model — the budget
@@ -9630,13 +9643,30 @@ Stay 100% in character — your tone, vocabulary, ideology, and combativeness ar
             { role: "system", content: intervieweeStyleFinal },
             { role: "user", content: userPrompt },
           ],
-          max_completion_tokens: insultFireback ? 60 : (isInterruption ? 40 : (isDebate ? 350 : 280)),
+          max_completion_tokens: insultFireback ? 60 : (isInterruption ? 40 : (isDebate ? 350 : 280)) + (wantsReaction ? 40 : 0),
           temperature: 0.95,
         }),
         answerTimeoutPromise,
       ]);
-      let text = completion.choices[0]?.message?.content || "...";
-      text = stripBannedCliches(text.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim());
+      let rawText = completion.choices[0]?.message?.content || "...";
+
+      // Split off the optional live reaction (marker only present when wantsReaction
+      // was set — see prompt above). Missing/garbled markers fall back to no reaction
+      // rather than corrupting the main answer.
+      let reaction: { text: string; speakerId: string; speakerName: string } | null = null;
+      const reactMarkerIdx = rawText.indexOf("###REACT###");
+      if (reactMarkerIdx !== -1) {
+        const reactionRaw = rawText.slice(reactMarkerIdx + "###REACT###".length)
+          .replace(/^["'\s:—-]+|["'\s]+$/g, "")
+          .replace(/\*[^*]+\*/g, "")
+          .trim();
+        rawText = rawText.slice(0, reactMarkerIdx);
+        if (reactionRaw && !/^none\.?$/i.test(reactionRaw) && reactionRaw.length <= 140) {
+          reaction = { text: reactionRaw, speakerId: interviewerId, speakerName: interviewerName };
+        }
+      }
+
+      let text = stripBannedCliches(rawText.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim());
       if (intervieweeId === "trump" || intervieweeId === "ruckus" || intervieweeId === "graham" || intervieweeId === "megynkelly" || intervieweeId === "pambondi") {
         text = text.replace(/(?:the\s+)?epstein\s+war/gi, "the Iran war");
       }
@@ -9645,6 +9675,7 @@ Stay 100% in character — your tone, vocabulary, ideology, and combativeness ar
         text,
         speakerId: intervieweeId,
         speakerName: intervieweeName,
+        reaction,
         freeRemaining: Math.max(0, ARENA_FREE_LIMIT - (accessCheck.access?.freeUsed || 0)),
         hasSession: !!(accessCheck.access?.sessionExpiry && Date.now() < accessCheck.access.sessionExpiry),
         sessionExpiresAt: accessCheck.access?.sessionExpiry || null,

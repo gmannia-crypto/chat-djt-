@@ -91,7 +91,7 @@ const MYSTERY_UNLOCK_KEY = "arena_mystery_unlocked";
 
 type PersonaLite = { id: string; name: string };
 type Topic = { id: string; title: string; description: string; era: "current" | "past" };
-type Msg = { id: string; speakerId: string; speakerName: string; text: string; ts: number; isInterruption?: boolean; isCallIn?: boolean; callerName?: string; isSystem?: boolean; skipTTS?: boolean; isPartingShot?: boolean; isSarcasm?: boolean };
+type Msg = { id: string; speakerId: string; speakerName: string; text: string; ts: number; isInterruption?: boolean; isCallIn?: boolean; callerName?: string; isSystem?: boolean; skipTTS?: boolean; isPartingShot?: boolean; isSarcasm?: boolean; isReaction?: boolean };
 
 type Emotions = { anger: number; happy: number; engagement: number; frantic: number; sad: number };
 type LieEntry = { id: string; speakerId: string; speakerName: string; text: string; score: number; reason: string; fact: string; ts: number; userFlagged?: boolean; pending?: boolean; lieToken?: string };
@@ -2024,7 +2024,7 @@ export default function DebateStage() {
   const beepEnabledRef = useRef(true);
   const [activeSpeaker, setActiveSpeaker] = useState<string | null>(null);
   const activeSpeakerRef = useRef<string | null>(null);
-  const ttsQueueRef = useRef<Array<{ text: string; personaId: string; msgId?: string; blockEarlyResolve?: boolean; overlapMs?: number; onComplete?: () => void; onStart?: () => void }>>([]);
+  const ttsQueueRef = useRef<Array<{ text: string; personaId: string; msgId?: string; blockEarlyResolve?: boolean; overlapMs?: number; onComplete?: () => void; onStart?: () => void; onPlaybackStart?: () => void }>>([]);
   const ttsRunningRef = useRef(false);
   const currentSoundRef = useRef<Audio.Sound | null>(null);
   const prefetchedAudioRef = useRef<{ personaId: string; text: string; audioUri: string } | null>(null);
@@ -2032,6 +2032,10 @@ export default function DebateStage() {
   // Pending slot: if a prefetch is in flight and a new one arrives, it queues here
   // and fires automatically when the current one completes — prevents dropped prefetches.
   const pendingPrefetchRef = useRef<{ text: string; personaId: string } | null>(null);
+  // ── Live overlapping reaction cooldown (Comedic/Roast only) ─────────────
+  // Counts turns since the last live reaction fired so they feel earned, not
+  // constant. Starts at 2 so a reaction can fire on the very first eligible turn.
+  const turnsSinceReactionRef = useRef(2);
 
   const [emoInterviewer, setEmoInterviewer] = useState<Emotions>(ZERO_EMO);
   const [emoInterviewee, setEmoInterviewee] = useState<Emotions>(ZERO_EMO);
@@ -2335,16 +2339,21 @@ export default function DebateStage() {
       const item = ttsQueueRef.current.shift();
       if (!item) break;
       if (shouldSkipPersonaVoice(item.personaId)) {
-        // Must call onStart + onComplete so speakMod transcript defers and
-        // enqueueTTSAndWait don't hang forever on skipped personas
+        // Must call onStart + onComplete so speakMod/moderator-retort transcript
+        // entries still get appended and enqueueTTSAndWait doesn't hang forever
+        // when a persona's voice is configured off — the debate flow (and its
+        // transcript) continues even with no audio. Do NOT call onPlaybackStart:
+        // that's reserved for callers (live reactions) that must never schedule
+        // without actual audio to overlap/duck against.
         item.onStart?.();
         item.onComplete?.();
         continue;
       }
       setActiveSpeaker(item.personaId);
       activeSpeakerRef.current = item.personaId;
-      // onStart: fires when this TTS item actually begins playing — used by
-      // speakMod to add the transcript message at audio-play time (not call time).
+      // onStart: fires when this TTS item reaches the front of the queue — used
+      // by speakMod/moderator-retort to add the transcript message at queue-start
+      // time (not call time). NOT used for reaction scheduling — see onPlaybackStart.
       item.onStart?.();
       try {
         // Use prefetched audio if it matches this item — eliminates fetch latency gap.
@@ -2428,6 +2437,14 @@ export default function DebateStage() {
                 activeSpeakerRef.current = item.personaId;
                 setActiveSpeaker(item.personaId);
                 if (!firstAudioPlayedRef.current) { firstAudioPlayedRef.current = true; setFirstAudioPlayed(true); }
+                // onPlaybackStart fires on the FIRST confirmed isPlaying status —
+                // i.e. once this clip has actually started producing audio, not
+                // merely reached the front of the queue. Used exclusively by live
+                // reactions so their overlap/duck timing keys off the real playback
+                // clock and can never fire when there's no audio to react against
+                // (distinct from onStart above, which fires even for skipped voices
+                // so transcript entries still appear).
+                item.onPlaybackStart?.();
                 clearTimeout(safetyTimer);
                 // Allow the full clip duration + 6 s buffer before force-finishing
                 safetyTimer = setTimeout(finish, status.durationMillis + 6000);
@@ -2478,7 +2495,7 @@ export default function DebateStage() {
     }
   }, [startPrefetch]);
 
-  const enqueueTTS = useCallback((text: string, personaId: string, msgId?: string, opts?: { blockEarlyResolve?: boolean; onComplete?: () => void; onStart?: () => void }) => {
+  const enqueueTTS = useCallback((text: string, personaId: string, msgId?: string, opts?: { blockEarlyResolve?: boolean; onComplete?: () => void; onStart?: () => void; onPlaybackStart?: () => void }) => {
     if (!voiceEnabledRef.current) return;
     ttsQueueRef.current.push({ text, personaId, msgId, ...opts });
     processQueue();
@@ -2805,7 +2822,12 @@ export default function DebateStage() {
     }
     // ── Sarcastic reaction engine ──────────────────────────────────────────
     // Only for substantial debater messages (not system/interruptions).
-    if (!m.isInterruption && !m.isSystem && !m.isSarcasm && m.text.length > 18 &&
+    // Skipped in Comedic/Roast tone — the AI-driven live reaction (fireLiveReaction,
+    // tied to ans.reaction from the server) already covers that ground there with
+    // content-aware, in-character lines; running both would double-fire competing
+    // overlap audio for the same turn.
+    const isComedicOrRoastTone = effectiveInterviewStyle === "comedic" || effectiveInterviewStyle === "roast";
+    if (!isComedicOrRoastTone && !m.isInterruption && !m.isSystem && !m.isSarcasm && m.text.length > 18 &&
         (m.speakerId === interviewerId || m.speakerId === intervieweeId) &&
         runningRef.current) {
       const reactorId   = m.speakerId === interviewerId ? intervieweeId : interviewerId;
@@ -2866,7 +2888,7 @@ export default function DebateStage() {
         }
       }
     }
-  }, [enqueueTTS, interviewerId, intervieweeId, runFactCheck, moderatorStyle]);
+  }, [enqueueTTS, interviewerId, intervieweeId, runFactCheck, moderatorStyle, effectiveInterviewStyle]);
 
   /** Arena-style interruption audio: ducks the current speaker to 10%, plays the
    *  interrupt at full persona volume, then restores the main speaker to 100%.
@@ -2904,6 +2926,94 @@ export default function DebateStage() {
       });
     } catch {}
   }, []);
+
+  /** Live comedic reaction: plays a reaction line that was synthesized in PARALLEL
+   *  with the main line (via the audioUriPromise, started the moment the server
+   *  response arrived) so it's ready to overlap the tail of the statement instead
+   *  of waiting for cold TTS latency. Same ducking pattern as playInterruptionAudio,
+   *  but consumes prefetched audio instead of fetching fresh — and, unlike a plain
+   *  copy of playInterruptionAudio, captures the speaker that was active before the
+   *  reaction fired and restores it (not whatever is active at the moment cleanup
+   *  runs) so the transcript UI doesn't stay pinned on the reactor afterward. */
+  const playReactionOverlap = useCallback(async (audioUriPromise: Promise<string>, personaId: string) => {
+    if (!voiceEnabledRef.current) return;
+    if (shouldSkipPersonaVoice(personaId)) return;
+    if (personaId === activeSpeakerRef.current) return;
+    const prevSpeaker = activeSpeakerRef.current;
+    // Duck the main line the instant the overlap window begins — before the
+    // reaction audio itself is ready — so the two voices don't compete at full
+    // volume while the reaction clip is still loading.
+    const mainSound = currentSoundRef.current;
+    if (mainSound) { try { mainSound.setVolumeAsync(0.10).catch(() => {}); } catch {} }
+    setActiveSpeaker(personaId);
+    activeSpeakerRef.current = personaId;
+    const restore = () => {
+      const ms = currentSoundRef.current;
+      if (ms) { try { ms.setVolumeAsync(1.0).catch(() => {}); } catch {} }
+      if (activeSpeakerRef.current === personaId) {
+        setActiveSpeaker(prevSpeaker);
+        activeSpeakerRef.current = prevSpeaker;
+      }
+    };
+    try {
+      const audioUri = await audioUriPromise;
+      const sound = await playPrefetchedAudio(audioUri, { volume: getPersonaVoiceVolume(personaId) });
+      let cleaned = false;
+      const cleanup = () => {
+        if (cleaned) return; cleaned = true;
+        sound.setOnPlaybackStatusUpdate(null);
+        sound.getStatusAsync().then((st: any) => { if (st.isLoaded) sound.stopAsync().then(() => sound.unloadAsync()).catch(() => {}); }).catch(() => {});
+        restore();
+      };
+      let safetyTimer: ReturnType<typeof setTimeout> = setTimeout(cleanup, 12000);
+      sound.setOnPlaybackStatusUpdate((status: any) => {
+        if (status.didJustFinish || status.error) {
+          clearTimeout(safetyTimer);
+          cleanup();
+        } else if (status.isPlaying && (status as any).durationMillis && !cleaned) {
+          clearTimeout(safetyTimer);
+          safetyTimer = setTimeout(cleanup, (status as any).durationMillis + 4000);
+        }
+      });
+    } catch {
+      restore();
+    }
+  }, []);
+
+  /** Fires a live comedic reaction returned alongside an answer/rebuttal: kicks off
+   *  audio synthesis for the reaction line immediately (in parallel with the main
+   *  line's own audio), then — timed near the tail of the main line's estimated
+   *  playback — drops it into the transcript and plays it overlapping via
+   *  playReactionOverlap. No-op if there's no reaction on this turn.
+   *
+   *  Must be called from the main line's TTS-queue `onStart` callback (i.e. once
+   *  it actually reaches the front of the queue and begins playing), NOT from
+   *  answer-fetch completion — the queue can still be draining a prior question
+   *  or bridge line when the answer arrives, and scheduling from fetch time would
+   *  let a fast reaction play before its own answer line does. */
+  const fireLiveReaction = useCallback((reaction: { text: string; speakerId: string; speakerName: string } | null | undefined, mainText: string) => {
+    if (!reaction?.text) {
+      turnsSinceReactionRef.current += 1;
+      return;
+    }
+    turnsSinceReactionRef.current = 0;
+    const reactionAudioPromise = prefetchTTSAudio("/api/persona-speak", { text: reaction.text, personaId: reaction.speakerId });
+    const estMs = Math.max(2500, (mainText.length / 14) * 1000);
+    const overlapDelay = Math.max(600, estMs - 900);
+    setTimeout(() => {
+      if (!runningRef.current) return;
+      setMessages((prev) => [...prev, {
+        id: `react-${Date.now()}-${Math.random()}`,
+        speakerId: reaction.speakerId,
+        speakerName: reaction.speakerName,
+        text: reaction.text,
+        ts: Date.now(),
+        isReaction: true,
+        skipTTS: true,
+      }]);
+      playReactionOverlap(reactionAudioPromise, reaction.speakerId);
+    }, overlapDelay);
+  }, [playReactionOverlap]);
 
   // ── FIREBACK ENGINE ───────────────────────────────────────────────────────
   // When a debater's line crosses the insult threshold for the opponent,
@@ -3813,6 +3923,11 @@ export default function DebateStage() {
   const fetchAnswer = useCallback(async (lastQuestion: string, opts: { wasInterrupted?: boolean; interruptionText?: string; isInterruption?: boolean } = {}) => {
     if (!deviceId || !interviewerId || !intervieweeId) return null;
     try {
+      // Live overlapping reaction: only ask for one in Comedic/Roast, and only
+      // once the cooldown has passed + a coin flip, so it feels earned rather
+      // than constant. The server still decides per-line whether it's warranted.
+      const comedicTone = effectiveInterviewStyle === "comedic" || effectiveInterviewStyle === "roast";
+      const requestReaction = !opts.isInterruption && comedicTone && turnsSinceReactionRef.current >= 2 && Math.random() < 0.6;
       const res = await fetchTurnWithRetry(() => fetch(new URL("/api/arena/interview-answer", getApiUrl()).toString(), {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-device-id": deviceId },
@@ -3828,6 +3943,7 @@ export default function DebateStage() {
           isDebate: true,
           boxingMode,
           contentMode: contentModeRef.current,
+          requestReaction,
           // Let persona prompts reference their W/L record and H2H vs opponent
           debateRecord: debateRecordsRef.current ? {
             aId: interviewerId, bId: intervieweeId,
@@ -3857,6 +3973,8 @@ export default function DebateStage() {
   const fetchAnswerFrom = useCallback(async (questionerId: string, answererId: string, lastQuestion: string) => {
     if (!deviceId) return null;
     try {
+      const comedicTone = effectiveInterviewStyle === "comedic" || effectiveInterviewStyle === "roast";
+      const requestReaction = comedicTone && turnsSinceReactionRef.current >= 2 && Math.random() < 0.6;
       const res = await fetchTurnWithRetry(() => fetch(new URL("/api/arena/interview-answer", getApiUrl()).toString(), {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-device-id": deviceId },
@@ -3869,6 +3987,7 @@ export default function DebateStage() {
           isDebate: true,
           boxingMode,
           contentMode: contentModeRef.current,
+          requestReaction,
           debateRecord: debateRecordsRef.current ? {
             aId: interviewerId, bId: intervieweeId,
             aWins: debateRecordsRef.current.aWins, aLosses: debateRecordsRef.current.aLosses,
@@ -4100,7 +4219,16 @@ export default function DebateStage() {
             // processQueue() must be called after the push — if processQueue exited
             // between the last filler finishing and this .then() callback firing,
             // the item would sit in the queue forever with nothing to drain it.
-            ttsQueueRef.current.push({ text: ans.text, personaId: primaryId });
+            ttsQueueRef.current.push({
+              text: ans.text, personaId: primaryId,
+              // Fire the live reaction from onPlaybackStart — i.e. once this
+              // item's audio has actually been confirmed playing (first isPlaying
+              // status), not merely reached the front of the queue or been
+              // fetched. Guarantees the reaction can never be scheduled before
+              // its own answer starts, and never fires with no audio to overlap
+              // (e.g. this persona's voice is configured off).
+              onPlaybackStart: () => fireLiveReaction((ans as any).reaction, ans.text),
+            });
             processQueue();
             // Kick off rebuttal fetch early so it's settling while primary TTS plays.
             rebuttalFetchPromise = prefetchedRebuttalAnswerRef.current ?? fetchAnswerFrom(primaryId, secondaryId, ans.text);
@@ -4302,7 +4430,10 @@ export default function DebateStage() {
           // Enqueue rebuttal TTS here — bridge+fillers are guaranteed done so order
           // is always correct. Audio was pre-fetched in Branch A → zero dead air.
           if (rebuttal?.text && runningRef.current) {
-            ttsQueueRef.current.push({ text: rebuttal.text, personaId: secondaryId });
+            ttsQueueRef.current.push({
+              text: rebuttal.text, personaId: secondaryId,
+              onPlaybackStart: () => fireLiveReaction((rebuttal as any).reaction, rebuttal.text),
+            });
             processQueue();
           }
         })(),
@@ -6202,6 +6333,22 @@ export default function DebateStage() {
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 5, backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 20, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", maxWidth: 280 }}>
                     <Text style={{ color: sarcastColor, fontSize: 10, fontWeight: "800" }}>{item.speakerName}:</Text>
                     <Text style={{ color: "rgba(255,255,255,0.65)", fontSize: 12, fontStyle: "italic" }}>{applyBleep(item.text)}</Text>
+                  </View>
+                </Animated.View>
+              );
+            }
+            // ── Live comedic reaction bubble — content-aware overlap reaction ──
+            // Distinct from the static sarcasm bubble above (different accent, an
+            // explicit "REACTS" tag) since it's the AI-driven, content-aware version.
+            if (item.isReaction) {
+              const reactColor = item.speakerId !== interviewerId && item.speakerId !== intervieweeId
+                ? "#a78bfa"
+                : item.speakerId === interviewerId ? "#FFD700" : "#4ADE80";
+              return (
+                <Animated.View entering={FadeInUp.duration(200)} style={[s.bubbleRow, { justifyContent: "center" }]}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 5, backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 20, borderWidth: 1, borderStyle: "dashed", borderColor: "rgba(255,255,255,0.25)", maxWidth: 280 }}>
+                    <Text style={{ color: reactColor, fontSize: 10, fontWeight: "900" }}>{item.speakerName} · REACTS:</Text>
+                    <Text style={{ color: "#ddd", fontSize: 12, fontStyle: "italic" }}>{applyBleep(item.text)}</Text>
                   </View>
                 </Animated.View>
               );

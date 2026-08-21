@@ -26,7 +26,7 @@ import { getPersonaVoiceVolume, shouldSkipPersonaVoice } from "@/lib/persona-voi
 
 type PersonaLite = { id: string; name: string };
 type Topic = { id: string; title: string; description: string; era: "current" | "past" };
-type Msg = { id: string; speakerId: string; speakerName: string; text: string; ts: number; isInterruption?: boolean; isCallIn?: boolean; callerName?: string; isSystem?: boolean; skipTTS?: boolean };
+type Msg = { id: string; speakerId: string; speakerName: string; text: string; ts: number; isInterruption?: boolean; isReaction?: boolean; isCallIn?: boolean; callerName?: string; isSystem?: boolean; skipTTS?: boolean };
 
 type Emotions = { anger: number; happy: number; engagement: number; frantic: number; sad: number };
 type LieEntry = { id: string; speakerId: string; speakerName: string; text: string; score: number; reason: string; fact: string; ts: number; userFlagged?: boolean; pending?: boolean };
@@ -522,7 +522,7 @@ export default function InterviewScreen() {
   const beepEnabledRef = useRef(true);
   const [activeSpeaker, setActiveSpeaker] = useState<string | null>(null);
   const activeSpeakerRef = useRef<string | null>(null);
-  const ttsQueueRef = useRef<Array<{ text: string; personaId: string; msgId?: string }>>([]);
+  const ttsQueueRef = useRef<Array<{ text: string; personaId: string; msgId?: string; onStart?: () => void; onPlaybackStart?: () => void }>>([]);
   const ttsRunningRef = useRef(false);
   const currentSoundRef = useRef<Audio.Sound | null>(null);
   const prefetchedAudioRef = useRef<{ personaId: string; text: string; audioUri: string } | null>(null);
@@ -530,6 +530,10 @@ export default function InterviewScreen() {
   // Pending slot: if a prefetch is in flight and a new one arrives, it queues here
   // and fires automatically when the current one completes — prevents dropped prefetches.
   const pendingPrefetchRef = useRef<{ text: string; personaId: string } | null>(null);
+  // ── Live overlapping reaction cooldown (Comedic/Roast only) ─────────────
+  // Counts turns since the last live reaction fired so they feel earned, not
+  // constant. Starts at 2 so a reaction can fire on the very first eligible turn.
+  const turnsSinceReactionRef = useRef(2);
 
   const [emoInterviewer, setEmoInterviewer] = useState<Emotions>(ZERO_EMO);
   const [emoInterviewee, setEmoInterviewee] = useState<Emotions>(ZERO_EMO);
@@ -826,12 +830,21 @@ export default function InterviewScreen() {
       const item = ttsQueueRef.current.shift();
       if (!item) break;
       if (shouldSkipPersonaVoice(item.personaId)) {
-        // Must call onComplete so enqueueTTSAndWait doesn't hang forever on skipped personas
+        // Must call onStart + onComplete so callers relying on queue-start timing
+        // (and enqueueTTSAndWait) don't hang or silently never fire when a
+        // persona's voice is configured off. Do NOT call onPlaybackStart: that's
+        // reserved for callers (live reactions) that must never schedule without
+        // actual audio to overlap/duck against.
+        item.onStart?.();
         item.onComplete?.();
         continue;
       }
       setActiveSpeaker(item.personaId);
       activeSpeakerRef.current = item.personaId;
+      // onStart: fires when this item reaches the front of the queue (call/queue
+      // time), regardless of whether audio actually plays. NOT used for reaction
+      // scheduling — see onPlaybackStart below.
+      item.onStart?.();
       try {
         // If a prefetch is in flight for this item, wait up to 6 s for it to land.
         // 6 s covers worst-case Fish Audio latency; the prefetch was started early
@@ -896,6 +909,14 @@ export default function InterviewScreen() {
               // Switch to a duration-aware cap the first time we see playback
               if (!playbackStarted) {
                 playbackStarted = true;
+                // onPlaybackStart fires on the FIRST confirmed isPlaying status —
+                // i.e. once this clip has actually started producing audio, not
+                // merely reached the front of the queue. Used exclusively by live
+                // reactions so their overlap/duck timing keys off the real
+                // playback clock and can never fire with no audio to react
+                // against (distinct from onStart above, which fires even for
+                // skipped voices).
+                item.onPlaybackStart?.();
                 clearTimeout(safetyTimer);
                 // Allow the full clip duration + 6 s buffer before force-finishing
                 safetyTimer = setTimeout(finish, status.durationMillis + 6000);
@@ -953,9 +974,9 @@ export default function InterviewScreen() {
     }
   }, [startPrefetch]);
 
-  const enqueueTTS = useCallback((text: string, personaId: string, msgId?: string) => {
+  const enqueueTTS = useCallback((text: string, personaId: string, msgId?: string, opts?: { onStart?: () => void; onPlaybackStart?: () => void }) => {
     if (!voiceEnabledRef.current) return;
-    ttsQueueRef.current.push({ text, personaId, msgId });
+    ttsQueueRef.current.push({ text, personaId, msgId, onStart: opts?.onStart, onPlaybackStart: opts?.onPlaybackStart });
     processQueue();
   }, [processQueue]);
 
@@ -1177,9 +1198,10 @@ export default function InterviewScreen() {
   }, [deviceId, flaggedMsgIds, triggerLightning, playLieAlert]);
 
   // Wrap addMessage to also drive emotions, TTS, fact-check
-  const enrichAndAddMessage = useCallback((m: Msg) => {
+  const enrichAndAddMessage = useCallback((m: Msg, opts?: { onStart?: () => void; onPlaybackStart?: () => void }) => {
     setMessages((prev) => [...prev, m]);
-    if (!m.skipTTS) enqueueTTS(m.text, m.speakerId, m.id);
+    if (!m.skipTTS) enqueueTTS(m.text, m.speakerId, m.id, opts);
+    else opts?.onStart?.();
     const delta = computeEmotionDelta(m.text);
     if (interviewerId && m.speakerId === interviewerId) setEmoInterviewer((p) => applyEmotionDelta(p, delta));
     else if (intervieweeId && m.speakerId === intervieweeId) setEmoInterviewee((p) => applyEmotionDelta(p, delta));
@@ -1214,6 +1236,54 @@ export default function InterviewScreen() {
     } catch {
       const ms = currentSoundRef.current;
       if (ms) { try { ms.setVolumeAsync(1.0).catch(() => {}); } catch {} }
+    }
+  }, []);
+
+  /** Live comedic reaction: plays a reaction line that was synthesized in PARALLEL
+   *  with the main line (via the audioUriPromise, started the moment the server
+   *  response arrived) so it's ready to overlap the tail of the statement instead
+   *  of waiting for cold TTS latency. Same ducking pattern as playInterruptionAudio,
+   *  but consumes prefetched audio instead of fetching fresh — and, unlike a plain
+   *  copy of playInterruptionAudio, captures the speaker that was active before the
+   *  reaction fired and restores it (not whatever is active at the moment cleanup
+   *  runs) so the UI doesn't stay pinned on the reactor after the overlap ends. */
+  const playReactionOverlap = useCallback(async (audioUriPromise: Promise<string>, personaId: string) => {
+    if (!voiceEnabledRef.current) return;
+    if (shouldSkipPersonaVoice(personaId)) return;
+    if (personaId === activeSpeakerRef.current) return;
+    const prevSpeaker = activeSpeakerRef.current;
+    // Duck the main line the instant the overlap window begins — before the
+    // reaction audio itself is ready — so the softening reads as reacting to
+    // the tail of the statement, not to the reaction clip finishing synthesis.
+    const mainSound = currentSoundRef.current;
+    if (mainSound) { try { mainSound.setVolumeAsync(0.10).catch(() => {}); } catch {} }
+    setActiveSpeaker(personaId);
+    activeSpeakerRef.current = personaId;
+    // Restores the main line's volume and hands the active-speaker back to
+    // whoever it was before — but only if nothing newer has already taken over
+    // (e.g. the next queued speaker started while the reaction was in flight).
+    const restore = () => {
+      const ms = currentSoundRef.current;
+      if (ms) { try { ms.setVolumeAsync(1.0).catch(() => {}); } catch {} }
+      if (activeSpeakerRef.current === personaId) {
+        setActiveSpeaker(prevSpeaker);
+        activeSpeakerRef.current = prevSpeaker;
+      }
+    };
+    try {
+      const audioUri = await audioUriPromise;
+      const sound = await playPrefetchedAudio(audioUri, { volume: getPersonaVoiceVolume(personaId) });
+      let cleaned = false;
+      const cleanup = () => {
+        if (cleaned) return; cleaned = true;
+        sound.setOnPlaybackStatusUpdate(null);
+        sound.getStatusAsync().then((st: any) => { if (st.isLoaded) sound.stopAsync().then(() => sound.unloadAsync()).catch(() => {}); }).catch(() => {});
+        restore();
+      };
+      sound.setOnPlaybackStatusUpdate((status: any) => { if (status.didJustFinish || status.error) cleanup(); });
+      setTimeout(cleanup, 8000);
+    } catch {
+      restore();
     }
   }, []);
 
@@ -1455,6 +1525,11 @@ export default function InterviewScreen() {
   const fetchAnswer = useCallback(async (lastQuestion: string, opts: { wasInterrupted?: boolean; interruptionText?: string; isInterruption?: boolean } = {}) => {
     if (!deviceId || !interviewerId || !intervieweeId) return null;
     try {
+      // Live overlapping reaction: only ask for one in Comedic/Roast, and only
+      // once the cooldown has passed + a coin flip, so it feels earned rather
+      // than constant. The server still decides per-line whether it's warranted.
+      const comedicTone = interviewStyle === "comedic" || interviewStyle === "roast";
+      const requestReaction = !opts.isInterruption && comedicTone && turnsSinceReactionRef.current >= 2 && Math.random() < 0.6;
       const res = await fetchTurnWithRetry(() => fetch(new URL("/api/arena/interview-answer", getApiUrl()).toString(), {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-device-id": deviceId },
@@ -1467,6 +1542,7 @@ export default function InterviewScreen() {
           interruptionText: opts.interruptionText,
           isInterruption: !!opts.isInterruption,
           interviewStyle,
+          requestReaction,
         }),
       }));
       if (!res) return null;
@@ -1546,7 +1622,45 @@ export default function InterviewScreen() {
           guestAnswer = ans;
           setIsThinking(null);
           if (ans?.text && runningRef.current) {
-            enrichAndAddMessage({ id: `a-${Date.now()}-${Math.random()}`, speakerId: ans.speakerId, speakerName: ans.speakerName, text: ans.text, ts: Date.now() });
+            // ── Live comedic reaction (Comedic/Roast only) ──────────────────────
+            // Server already gated this to comedic/roast tone + a genuinely
+            // hyperbolic/absurd line + our own cooldown. Takes priority over the
+            // generic anger/insult reactions below since it's rarer and more specific.
+            // Computed BEFORE enrichAndAddMessage so it can be wired into that
+            // message's TTS-queue onStart — firing from actual playback start
+            // (once this answer reaches the front of the queue) rather than from
+            // fetch completion, since the queue may still be draining the
+            // interviewer's question when the answer text arrives.
+            const liveReaction = ans.reaction && ans.reaction.text ? ans.reaction : null;
+            if (liveReaction) turnsSinceReactionRef.current = 0;
+            else turnsSinceReactionRef.current += 1;
+            enrichAndAddMessage(
+              { id: `a-${Date.now()}-${Math.random()}`, speakerId: ans.speakerId, speakerName: ans.speakerName, text: ans.text, ts: Date.now() },
+              liveReaction ? {
+                onPlaybackStart: () => {
+                  // Kick off synthesis for the reaction line the instant playback
+                  // starts, in parallel with the main answer's own audio — by the
+                  // time we want to overlap it near the tail of the statement,
+                  // it's usually already ready.
+                  const reactionAudioPromise = prefetchTTSAudio("/api/persona-speak", { text: liveReaction.text, personaId: liveReaction.speakerId });
+                  const estMs = Math.max(2500, (ans.text.length / 14) * 1000);
+                  const overlapDelay = Math.max(600, estMs - 900);
+                  setTimeout(() => {
+                    if (!runningRef.current) return;
+                    setMessages((prev) => [...prev, {
+                      id: `react-${Date.now()}-${Math.random()}`,
+                      speakerId: liveReaction.speakerId,
+                      speakerName: liveReaction.speakerName,
+                      text: liveReaction.text,
+                      ts: Date.now(),
+                      isReaction: true,
+                      skipTTS: true,
+                    }]);
+                    playReactionOverlap(reactionAudioPromise, liveReaction.speakerId);
+                  }, overlapDelay);
+                },
+              } : undefined,
+            );
             if (voiceEnabledRef.current) startPrefetch({ text: ans.text, personaId: ans.speakerId });
             // Anger-scaled interruption + moderator pushback when guest is hostile
             const lower = ans.text.toLowerCase();
@@ -1564,7 +1678,7 @@ export default function InterviewScreen() {
                 ? ["I'm going to stop you right there.", "That's not how this works. Answer the question.", "You don't talk to me like that.", "We're not doing that here.", "That tells me everything I need to know about your answer."]
                 : ["Careful now — that mouth is writing checks your answers can't cash.", "Cute. Now try answering the actual question.", "That's the best you've got? Sit with that for a second.", "I've heard better comebacks from a heckler in the cheap seats. Answer the question.", "Keep talking — you're only making my job easier."];
               const txt = retaliations[Math.floor(Math.random() * retaliations.length)];
-              if (Math.random() < (offended ? 0.85 : 0.85)) {
+              if (!liveReaction && Math.random() < (offended ? 0.85 : 0.85)) {
                 setTimeout(() => { if (runningRef.current) playInterruptionAudio(txt, interviewerId); }, 350);
               }
               if (insultSeverity >= 2 && interviewerId) {
@@ -1582,10 +1696,10 @@ export default function InterviewScreen() {
                   enqueueTTS(data.retort, interviewerId, retortId);
                 }).catch(() => {});
               }
-            } else if (angerHits >= 1 && Math.random() < 0.45) {
+            } else if (!liveReaction && angerHits >= 1 && Math.random() < 0.45) {
               const reaction = MICRO_REACTIONS[Math.floor(Math.random() * MICRO_REACTIONS.length)];
               setTimeout(() => { if (runningRef.current) playInterruptionAudio(reaction, interviewerId); }, 600);
-            } else {
+            } else if (!liveReaction) {
               // Base-rate passive listener reaction — fires ~40% of the time even on calm
               // answers so the interviewer sounds engaged throughout, not just on hostile answers.
               // Delay is timed to hit 40-65% through the estimated audio clip.
@@ -2555,11 +2669,12 @@ export default function InterviewScreen() {
                   s.bubble,
                   isCallIn ? s.bubbleCallIn : isInterviewer ? s.bubbleInterviewer : s.bubbleInterviewee,
                   item.isInterruption && s.bubbleInterrupt,
+                  item.isReaction && s.bubbleReaction,
                 ]}>
                   <Text style={[s.bubbleName, { color: isCallIn ? "#60a5fa" : isInterviewer ? "#FFD700" : "#4ADE80" }]}>
-                    {item.speakerName}{item.isInterruption ? " · INTERRUPTS" : ""}{isCallIn ? " · CALL-IN" : ""}
+                    {item.speakerName}{item.isReaction ? " · REACTS" : item.isInterruption ? " · INTERRUPTS" : ""}{isCallIn ? " · CALL-IN" : ""}
                   </Text>
-                  <Text style={s.bubbleText}>{applyBleep(item.text)}</Text>
+                  <Text style={[s.bubbleText, item.isReaction && s.bubbleTextReaction]}>{applyBleep(item.text)}</Text>
                   {canFlag && (
                     <Pressable
                       onPress={() => flagMessageAsLie(item)}
@@ -3030,8 +3145,10 @@ const s = StyleSheet.create({
   bubbleInterviewer: { backgroundColor: "rgba(255,215,0,0.12)", borderColor: "rgba(255,215,0,0.35)", borderTopLeftRadius: 4 },
   bubbleInterviewee: { backgroundColor: "rgba(74,222,128,0.12)", borderColor: "rgba(74,222,128,0.35)", borderTopRightRadius: 4 },
   bubbleInterrupt: { borderStyle: "dashed" },
+  bubbleReaction: { borderStyle: "dashed", backgroundColor: "rgba(255,255,255,0.05)", paddingVertical: 6, borderColor: "rgba(255,255,255,0.25)" },
   bubbleName: { fontSize: 10, fontWeight: "900", letterSpacing: 0.5, marginBottom: 3 },
   bubbleText: { color: "#fff", fontSize: 14, lineHeight: 19 },
+  bubbleTextReaction: { fontStyle: "italic", fontSize: 13, color: "#ddd" },
 
   endedBar: { position: "absolute", left: 0, right: 0, bottom: 0, padding: 14, backgroundColor: "rgba(20,20,20,0.95)", borderTopWidth: 1, borderTopColor: "rgba(255,215,0,0.3)", alignItems: "center" },
   endedTitle: { color: "#FFD700", fontSize: 13, fontWeight: "900", letterSpacing: 1 },
