@@ -34,6 +34,10 @@ import {
   getDodgePressLine,
 } from "@/lib/debate-moderator";
 import { playDingSound, playBoxingBell, playLongCrowdCheer } from "@/lib/arena-sfx";
+import {
+  areAllied, isTrump, getAllyClarityOpener, getAllyClarityReply, getInterruptAddressLine,
+  PERSONA_INTERRUPT_STYLE,
+} from "@/lib/persona-ideology";
 import { TokenWinVideo } from "@/components/TokenWinVideo";
 import {
   placeInterviewBet, clearInterviewBet, getInterviewBet,
@@ -2937,13 +2941,25 @@ export default function DebateStage() {
       // ── Debater sarcasm ────────────────────────────────────────────────
       if (reactorId && now - lastAt > SARCASM_MIN_GAP_MS && Math.random() < SARCASM_CHANCE) {
         _sarcasticCooldown.set(reactorId, now);
-        const pool = SARCASM_BY_PERSONA[reactorId] ?? SARCASM_GENERIC;
-        const line = pool[Math.floor(Math.random() * pool.length)];
         const reactorPersona =
           reactorId === interviewerId
             ? interviewersRef.current.find((p) => p.id === reactorId)
             : intervieweesRef.current.find((p) => p.id === reactorId);
         const reactorName = reactorPersona?.name || reactorId;
+        const speakerPersona =
+          m.speakerId === interviewerId
+            ? interviewersRef.current.find((p) => p.id === m.speakerId)
+            : intervieweesRef.current.find((p) => p.id === m.speakerId);
+        const speakerName = speakerPersona?.name || m.speakerId;
+        // ── IDEOLOGY GATE: ideological allies only interrupt each other
+        // politely, for clarity — never a rude jab. Trump ignores this and
+        // always gets the full rude sarcasm pool.
+        const alliedPair = areAllied(reactorId, m.speakerId) && !isTrump(reactorId);
+        const line = alliedPair
+          ? getAllyClarityOpener(reactorName)
+          : (SARCASM_BY_PERSONA[reactorId] ?? SARCASM_GENERIC)[
+              Math.floor(Math.random() * (SARCASM_BY_PERSONA[reactorId] ?? SARCASM_GENERIC).length)
+            ];
         const msgId = `sarcasm-${Date.now()}`;
         // Fire after a short beat — main-speaker TTS must land first
         setTimeout(() => {
@@ -2958,7 +2974,29 @@ export default function DebateStage() {
             isSarcasm: true,
             skipTTS: false,
           }]);
-          enqueueTTS(line, reactorId, msgId);
+          enqueueTTS(line, reactorId, msgId, alliedPair ? {
+            onComplete: () => {
+              // Ally politely yields the floor back — original speaker
+              // briefly acknowledges before the debate continues normally.
+              if (!runningRef.current) return;
+              const replyLine = getAllyClarityReply(reactorName);
+              const replyId = `sarcasm-reply-${Date.now()}`;
+              setTimeout(() => {
+                if (!runningRef.current) return;
+                setMessages((prev) => [...prev, {
+                  id: replyId,
+                  speakerId: m.speakerId,
+                  speakerName,
+                  text: replyLine,
+                  ts: Date.now(),
+                  isInterruption: true,
+                  isSarcasm: true,
+                  skipTTS: false,
+                }]);
+                enqueueTTS(replyLine, m.speakerId, replyId);
+              }, 400);
+            },
+          } : undefined);
         }, 1800);
       }
       // ── Moderator sarcastic laugh when biased against current speaker ──
@@ -3134,6 +3172,10 @@ export default function DebateStage() {
     if (moderatorSpeakingRef.current) return;
     // Target is currently speaking their own regular turn — don't self-interrupt them.
     if (targetId === activeSpeakerRef.current) return;
+    // ── IDEOLOGY GATE: ideological allies never trade rude firebacks/squabbles —
+    // only polite "for clarity" interjections (handled in the sarcasm-reaction
+    // engine below). Trump is exempt and can always fire back at anyone.
+    if (areAllied(attackerId, targetId) && !isTrump(attackerId) && !isTrump(targetId)) return;
     const { aggression, angerThresh, maxChain } = getAggression(targetId);
     heatRef.current[targetId] = (heatRef.current[targetId] ?? 0) + severity;
     // Mirror heat into React state so the heat pill re-renders
@@ -3368,8 +3410,14 @@ export default function DebateStage() {
       });
       if (!res.ok || !runningRef.current) return;
       const data = await res.json();
-      const firebackText: string = (data.text || "").trim();
+      let firebackText: string = (data.text || "").trim();
       if (!firebackText) return;
+      // Personas with a signature "you interrupted me" reaction lead their
+      // retort with it — e.g. Dr. Arikana's "Are you finished?" or Dr. Claude
+      // Anderson's "You'll get your chance!" — before making their point.
+      if (PERSONA_INTERRUPT_STYLE[targetId]) {
+        firebackText = `${getInterruptAddressLine(targetId, severity < 2)} ${firebackText}`;
+      }
       // Add to transcript (skipTTS — audio plays via playInterruptionAudio)
       setMessages((prev) => [...prev, {
         id: `fb-${Date.now()}-${Math.random().toString(36).slice(2)}`,
