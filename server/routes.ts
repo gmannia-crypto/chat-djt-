@@ -8963,7 +8963,7 @@ Keep responses to 2-3 sentences max. Stay fully in character — urgent, gruff, 
 
   app.post("/api/arena/rapid-exchange", async (req, res) => {
     try {
-      const { personaAId, personaBId, topic, conversationHistory } = req.body;
+      const { personaAId, personaBId, topic, conversationHistory, activePersonas, debateMode = "elevated", requestReaction = false } = req.body;
       const deviceId = req.headers["x-device-id"] as string;
       if (!personaAId || !personaBId || !ARENA_PERSONA_PROMPTS[personaAId] || !ARENA_PERSONA_PROMPTS[personaBId]) {
         return res.status(400).json({ error: "Invalid personaIds" });
@@ -8996,6 +8996,18 @@ Keep responses to 2-3 sentences max. Stay fully in character — urgent, gruff, 
       const promptA = RAPID_INSULT_PERSONAS[personaAId] || `You are ${nameA} in a rapid-fire insult exchange.`;
       const promptB = RAPID_INSULT_PERSONAS[personaBId] || `You are ${nameB} in a rapid-fire insult exchange.`;
 
+      // ── Live overlapping reaction (Savage mode only) ────────────────────────
+      // Mirrors the respond/interview-answer mechanic: a bystander persona in
+      // the room (not one of the two combatants) may burst out laughing/scoff
+      // at the most savage line. Client gates requestReaction itself (Savage
+      // mode + shared cooldown); the model is the final judge of whether one
+      // of these lines actually earns it.
+      const otherPersonaIds = (Array.isArray(activePersonas) ? activePersonas : [])
+        .filter((id: string) => id !== personaAId && id !== personaBId && ARENA_NAME_MAP[id]);
+      const wantsReaction = !!requestReaction && debateMode === "savage" && otherPersonaIds.length > 0;
+      const reactorId: string | null = wantsReaction ? otherPersonaIds[Math.floor(Math.random() * otherPersonaIds.length)] : null;
+      const reactorName = reactorId ? (ARENA_NAME_MAP[reactorId] || reactorId) : null;
+
       const systemPrompt = `You are generating a RAPID FIRE INSULT EXCHANGE between ${nameA} and ${nameB} in a live political debate arena. Today is ${todayStr}. Donald Trump is the current president.
 
 ${nameA}: ${promptA}
@@ -9008,19 +9020,24 @@ RULES:
 - Based on their REAL rivalry and known personality clashes
 - Use their real insult style and signature phrases
 - No stage directions, no quotes, no asterisks
-- Return ONLY a valid JSON array, nothing else
+- Return ONLY a valid JSON object, nothing else
 
 FORMAT:
-[
-  {"personaId": "${personaAId}", "text": "..."},
-  {"personaId": "${personaBId}", "text": "..."},
-  {"personaId": "${personaAId}", "text": "..."},
-  {"personaId": "${personaBId}", "text": "..."},
-  {"personaId": "${personaAId}", "text": "..."},
-  {"personaId": "${personaBId}", "text": "..."}
-]`;
+{
+  "lines": [
+    {"personaId": "${personaAId}", "text": "..."},
+    {"personaId": "${personaBId}", "text": "..."},
+    {"personaId": "${personaAId}", "text": "..."},
+    {"personaId": "${personaBId}", "text": "..."},
+    {"personaId": "${personaAId}", "text": "..."},
+    {"personaId": "${personaBId}", "text": "..."}
+  ]${reactorId ? `,
+  "reaction": "..." or null` : ""}
+}${reactorId ? `
 
-      const userPrompt = `Recent context:\n${historyContext}\n\nTopic: ${topic || "current events"}\n\nGenerate the rapid-fire insult exchange JSON now. No preamble, just the JSON array.`;
+REACTION (separate persona listening in): ${reactorName} is standing in the room watching this exchange. If ONE of the 6 lines above is so over-the-top savage that ${reactorName} would burst out laughing or scoff out loud the instant it lands, set "reaction" to ${reactorName}'s short spoken reaction — in ${reactorName}'s own voice and vocabulary, under 12 words, no stage directions. Here is ${reactorName}'s personality for this reaction line ONLY: ${getArenaPersonaPrompt(reactorId!)}\n\nBe selective — most exchanges do NOT qualify. If none of the lines qualify, set "reaction" to null.` : ""}`;
+
+      const userPrompt = `Recent context:\n${historyContext}\n\nTopic: ${topic || "current events"}\n\nGenerate the rapid-fire insult exchange JSON now. No preamble, just the JSON object.`;
 
       const completion = await getClient().chat.completions.create({
         model: getFastModel(),
@@ -9028,24 +9045,33 @@ FORMAT:
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
-        max_completion_tokens: 300,
+        max_completion_tokens: wantsReaction ? 340 : 300,
         temperature: 1.0,
       });
 
-      let raw = (completion.choices[0]?.message?.content || "[]").trim();
+      let raw = (completion.choices[0]?.message?.content || "{}").trim();
       raw = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
       let lines: Array<{ personaId: string; text: string }> = [];
+      let reactionRaw: any = null;
       try {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          lines = parsed.filter((l: any) => l.personaId && l.text).map((l: any) => ({
-            personaId: l.personaId,
-            text: String(l.text).replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").trim(),
-          }));
-        }
+        const rawLines = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.lines) ? parsed.lines : [];
+        lines = rawLines.filter((l: any) => l.personaId && l.text).map((l: any) => ({
+          personaId: l.personaId,
+          text: String(l.text).replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").trim(),
+        }));
+        if (!Array.isArray(parsed)) reactionRaw = parsed?.reaction ?? null;
       } catch { lines = []; }
 
-      res.json({ lines });
+      let reaction: { text: string; speakerId: string; speakerName: string } | null = null;
+      if (reactorId && reactionRaw && typeof reactionRaw === "string") {
+        const cleanReaction = reactionRaw.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").trim();
+        if (cleanReaction && !/^none\.?$/i.test(cleanReaction) && cleanReaction.length <= 140) {
+          reaction = { text: cleanReaction, speakerId: reactorId, speakerName: reactorName || reactorId };
+        }
+      }
+
+      res.json({ lines, reaction });
     } catch (error: any) {
       console.error("Rapid exchange error:", error);
       res.status(500).json({ error: "Failed to generate rapid exchange" });
@@ -9752,7 +9778,7 @@ Stay 100% in character — your tone, vocabulary, ideology, and combativeness ar
     try {
       const deviceId = req.headers["x-device-id"] as string;
       if (!deviceId) return res.status(400).json({ error: "Device ID required" });
-      const { interviewerId, intervieweeId, userQuestion, userName, conversationHistory = [], topic } = req.body || {};
+      const { interviewerId, intervieweeId, userQuestion, userName, conversationHistory = [], topic, interviewStyle = "combative", requestReaction = false } = req.body || {};
       if (!interviewerId || !ARENA_PERSONA_PROMPTS[interviewerId]) return res.status(400).json({ error: "Invalid interviewerId" });
       if (!intervieweeId || !ARENA_PERSONA_PROMPTS[intervieweeId]) return res.status(400).json({ error: "Invalid intervieweeId" });
       const cleanQ = String(userQuestion || "").trim().slice(0, 400);
@@ -9797,7 +9823,17 @@ In character, briefly introduce the call-in (1 sentence, ~12 words: "We've got a
       interviewerText = stripBannedCliches(interviewerText.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim());
 
       // Step 2: interviewee answers the call-in
-      const answerPrompt = `You are ${intervieweeName} being interviewed live by ${interviewerName}. Today is ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}.
+      // ── Live overlapping reaction (Comedic/Roast only) ──────────────────────
+      // Mirrors interview-answer's own mechanic: this is a 1-on-1 exchange, so
+      // the only other person in the room to react is the interviewer who just
+      // read the caller's question out. Client gates requestReaction itself
+      // (Comedic/Roast tone + shared cooldown); the model judges whether THIS
+      // answer actually earns it.
+      const wantsReaction = !!requestReaction && (interviewStyle === "comedic" || interviewStyle === "roast");
+      const reactorId: string | null = wantsReaction ? interviewerId : null;
+      const reactorName: string | null = wantsReaction ? interviewerName : null;
+
+      let answerPrompt = `You are ${intervieweeName} being interviewed live by ${interviewerName}. Today is ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}.
 
 A viewer call-in just came in. ${interviewerName} read it: "${interviewerText}"
 
@@ -9806,6 +9842,10 @@ The viewer ${callerLabel} asked: "${cleanQ}"
 Answer the viewer's question in character — punchy, provocative, true to your beliefs. You may briefly acknowledge the caller by name. 2-3 sentences max. Write ONLY your spoken response.
 
 ${getArenaPersonaPrompt(intervieweeId)}${getShannonGrandmomNote(intervieweeId, conversationHistory)}${getLieBehaviorPrompt(intervieweeId, Number((req.body.sessionLieTally || {})[intervieweeId]) || 0, req.body.sessionIQ || {})}`;
+
+      if (wantsReaction && reactorId) {
+        answerPrompt += `\n\nSEPARATE STEP — REACTION CHECK: After writing your answer above, decide whether what you just said was a genuinely absurd, hyperbolic, boastful, or sarcasm-worthy claim — something so over-the-top that ${reactorName}, listening in the room, would burst out laughing, scoff, or crack up in disbelief the INSTANT you said it. Be selective — most ordinary answers do NOT qualify, only real "come on, be serious" moments.\n\nIf it qualifies: on a new final line write the exact marker "###REACT###" followed by ${reactorName}'s immediate spoken reaction — in ${reactorName}'s own voice, personality, and vocabulary (not generic), a short sharp sarcastic laugh-line or scoff, under 12 words, with NOTHING else after it (no tags, no stage directions). Here is ${reactorName}'s personality for this reaction line ONLY: ${getArenaPersonaPrompt(reactorId)}\n\nIf it does NOT qualify: write the exact marker "###REACT###" followed by exactly "NONE".\n\nAlways include the "###REACT###" marker line exactly once, after your full answer.`;
+      }
 
       // Bound the second sequential call separately; the response deadline
       // starts after framing completes.
@@ -9819,12 +9859,27 @@ ${getArenaPersonaPrompt(intervieweeId)}${getShannonGrandmomNote(intervieweeId, c
             { role: "system", content: answerPrompt },
             { role: "user", content: `Recent context:\n${historyContext}\n\nAnswer ${callerLabel}'s question now.` },
           ],
-          max_completion_tokens: 220,
+          max_completion_tokens: wantsReaction ? 260 : 220,
           temperature: 0.95,
         }),
         answerTimeoutPromise,
       ]);
-      let intervieweeText = answerCompletion.choices[0]?.message?.content || "...";
+      let rawAnswer = answerCompletion.choices[0]?.message?.content || "...";
+
+      let reaction: { text: string; speakerId: string; speakerName: string } | null = null;
+      const reactMarkerIdx = rawAnswer.indexOf("###REACT###");
+      if (reactMarkerIdx !== -1) {
+        const reactionRaw = rawAnswer.slice(reactMarkerIdx + "###REACT###".length)
+          .replace(/^["'\s:—-]+|["'\s]+$/g, "")
+          .replace(/\*[^*]+\*/g, "")
+          .trim();
+        rawAnswer = rawAnswer.slice(0, reactMarkerIdx);
+        if (reactorId && reactionRaw && !/^none\.?$/i.test(reactionRaw) && reactionRaw.length <= 140) {
+          reaction = { text: reactionRaw, speakerId: reactorId, speakerName: reactorName || reactorId };
+        }
+      }
+
+      let intervieweeText = rawAnswer;
       intervieweeText = intervieweeText.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim();
       if (intervieweeId === "trump" || intervieweeId === "ruckus" || intervieweeId === "graham" || intervieweeId === "megynkelly" || intervieweeId === "pambondi") {
         intervieweeText = intervieweeText.replace(/(?:the\s+)?epstein\s+war/gi, "the Iran war");
@@ -9833,6 +9888,7 @@ ${getArenaPersonaPrompt(intervieweeId)}${getShannonGrandmomNote(intervieweeId, c
       res.json({
         interviewer: { speakerId: interviewerId, speakerName: interviewerName, text: interviewerText },
         interviewee: { speakerId: intervieweeId, speakerName: intervieweeName, text: intervieweeText },
+        reaction,
         freeRemaining: Math.max(0, ARENA_FREE_LIMIT - (accessCheck.access?.freeUsed || 0)),
         hasSession: !!(accessCheck.access?.sessionExpiry && Date.now() < accessCheck.access.sessionExpiry),
       });

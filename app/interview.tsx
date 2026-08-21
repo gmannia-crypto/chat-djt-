@@ -2136,12 +2136,19 @@ export default function InterviewScreen() {
     setIsPaused(true);
 
     try {
+      // Live comedic reaction: only ask for one in Comedic/Roast, same gating
+      // as fetchAnswer above — cooldown + coin flip so it feels earned. The
+      // server still decides per-answer whether it's warranted.
+      const comedicTone = interviewStyle === "comedic" || interviewStyle === "roast";
+      const requestReaction = comedicTone && turnsSinceReactionRef.current >= 2 && Math.random() < 0.6;
       const res = await fetch(new URL("/api/arena/interview-callin", getApiUrl()).toString(), {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-device-id": deviceId },
         body: JSON.stringify({
           interviewerId, intervieweeId, userQuestion: q, userName: callerName.trim(),
           conversationHistory: messagesRef.current.filter((m) => !m.isSystem).slice(-4), topic: currentTopic,
+          interviewStyle,
+          requestReaction,
         }),
       });
       if (res.status === 403) {
@@ -2160,13 +2167,40 @@ export default function InterviewScreen() {
         // Wait for interviewer audio before pushing interviewee answer
         await waitForQueueDrain();
         if (data?.interviewee?.text) {
-          enrichAndAddMessage({
-            id: `ca-${Date.now()}-${Math.random()}`,
-            speakerId: data.interviewee.speakerId,
-            speakerName: data.interviewee.speakerName,
-            text: data.interviewee.text,
-            ts: Date.now(),
-          });
+          const liveReaction = data.reaction && data.reaction.text ? data.reaction : null;
+          if (liveReaction) turnsSinceReactionRef.current = 0;
+          else turnsSinceReactionRef.current += 1;
+          enrichAndAddMessage(
+            {
+              id: `ca-${Date.now()}-${Math.random()}`,
+              speakerId: data.interviewee.speakerId,
+              speakerName: data.interviewee.speakerName,
+              text: data.interviewee.text,
+              ts: Date.now(),
+            },
+            liveReaction ? {
+              onPlaybackStart: () => {
+                // Same overlap-timing pattern as fetchAnswer's reaction: kick off
+                // synthesis immediately, then overlap it near the tail of the answer.
+                const reactionAudioPromise = prefetchTTSAudio("/api/persona-speak", { text: liveReaction.text, personaId: liveReaction.speakerId });
+                const estMs = Math.max(2500, (data.interviewee.text.length / 14) * 1000);
+                const overlapDelay = Math.max(600, estMs - 900);
+                setTimeout(() => {
+                  if (!runningRef.current) return;
+                  setMessages((prev) => [...prev, {
+                    id: `react-${Date.now()}-${Math.random()}`,
+                    speakerId: liveReaction.speakerId,
+                    speakerName: liveReaction.speakerName,
+                    text: liveReaction.text,
+                    ts: Date.now(),
+                    isReaction: true,
+                    skipTTS: true,
+                  }]);
+                  playReactionOverlap(reactionAudioPromise, liveReaction.speakerId);
+                }, overlapDelay);
+              },
+            } : undefined,
+          );
         }
       }
     } catch {} finally {
@@ -2177,7 +2211,7 @@ export default function InterviewScreen() {
         if (wasRunning) { isPausedRef.current = false; setIsPaused(false); }
       }, 1200);
     }
-  }, [callinText, deviceId, interviewerId, intervieweeId, callerName, currentTopic, isCallinSending, enrichAndAddMessage, waitForQueueDrain, playInterruptionAudio]);
+  }, [callinText, deviceId, interviewerId, intervieweeId, callerName, currentTopic, isCallinSending, enrichAndAddMessage, waitForQueueDrain, playInterruptionAudio, interviewStyle, playReactionOverlap]);
 
   const skipTopic = useCallback(() => {
     if (topicIdx + 1 >= topics.length) return;

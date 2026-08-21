@@ -2027,8 +2027,13 @@ export default function DebateStage() {
       if (!Number.isNaN(v) && v >= 0 && v <= 1) setSportsMusicVolume(v);
     }).catch(() => {});
   }, []);
+  // Bumped every time playback is stopped/superseded so an in-flight
+  // createAsync() that resolves afterward can tell it's stale and unload
+  // itself instead of starting music nobody asked for anymore.
+  const sportsMusicGenerationRef = useRef(0);
   const stopSportsMusic = useCallback(async () => {
     sportsMusicPlayingRef.current = false;
+    sportsMusicGenerationRef.current += 1;
     const snd = sportsMusicSoundRef.current;
     sportsMusicSoundRef.current = null;
     if (snd) {
@@ -2038,6 +2043,7 @@ export default function DebateStage() {
   }, []);
   const playNextSportsMusicTrack = useCallback(async () => {
     if (!sportsMusicPlayingRef.current || !sportsMusicMountedRef.current) return;
+    const myGeneration = sportsMusicGenerationRef.current;
     try {
       const idx = sportsMusicTrackIndexRef.current;
       const trackUrl = new URL(`/public/${SPORTS_MUSIC_TRACKS[idx]}`, getApiUrl()).toString();
@@ -2045,6 +2051,13 @@ export default function DebateStage() {
         { uri: trackUrl },
         { shouldPlay: true, isLooping: false, volume: sportsMusicVolumeRef.current }
       );
+      // Stale by the time creation resolved (stopped/unmounted/superseded
+      // while the async load was in flight) — stop it immediately rather
+      // than leaving it playing with nothing left to ever stop it.
+      if (myGeneration !== sportsMusicGenerationRef.current || !sportsMusicPlayingRef.current || !sportsMusicMountedRef.current) {
+        sound.stopAsync().then(() => sound.unloadAsync()).catch(() => {});
+        return;
+      }
       sportsMusicSoundRef.current = sound;
       sound.setOnPlaybackStatusUpdate((status: any) => {
         if (status.isLoaded && status.didJustFinish) {
@@ -5224,6 +5237,11 @@ export default function DebateStage() {
     setIsPaused(true);
 
     try {
+      // Live overlapping reaction: only ask for one in Comedic/Roast, same
+      // gating as fetchAnswer/fetchAnswerFrom — cooldown + coin flip so it
+      // feels earned. The server still decides per-answer whether it's warranted.
+      const comedicTone = effectiveInterviewStyle === "comedic" || effectiveInterviewStyle === "roast";
+      const requestReaction = comedicTone && turnsSinceReactionRef.current >= 2 && Math.random() < 0.6;
       // Stamp the time before the request leaves so the grace-period check uses
       // when the request was *sent*, not when the 403 response finally arrived.
       const requestSentAt = Date.now();
@@ -5233,6 +5251,8 @@ export default function DebateStage() {
         body: JSON.stringify({
           interviewerId, intervieweeId, userQuestion: q, userName: callerName.trim(),
           conversationHistory: messagesRef.current.filter((m) => !m.isSystem).slice(-4), topic: currentTopic,
+          interviewStyle: effectiveInterviewStyle,
+          requestReaction,
         }),
       });
       if (res.status === 403) {
@@ -5262,12 +5282,19 @@ export default function DebateStage() {
         // Wait for interviewer audio before pushing interviewee answer
         await waitForQueueDrain();
         if (data?.interviewee?.text) {
+          // skipTTS here — we enqueue the audio ourselves below so we can fire
+          // the live reaction from its onPlaybackStart, never before the
+          // interviewee's own answer has actually started playing.
           enrichAndAddMessage({
             id: `ca-${Date.now()}-${Math.random()}`,
             speakerId: data.interviewee.speakerId,
             speakerName: data.interviewee.speakerName,
             text: data.interviewee.text,
             ts: Date.now(),
+            skipTTS: true,
+          });
+          enqueueTTS(data.interviewee.text, data.interviewee.speakerId, `ca-${Date.now()}`, {
+            onPlaybackStart: () => fireLiveReaction(data.reaction, data.interviewee.text),
           });
         }
       }
@@ -5279,7 +5306,7 @@ export default function DebateStage() {
         if (wasRunning) { isPausedRef.current = false; setIsPaused(false); }
       }, 1200);
     }
-  }, [callinText, deviceId, interviewerId, intervieweeId, callerName, currentTopic, isCallinSending, enrichAndAddMessage, waitForQueueDrain, playInterruptionAudio]);
+  }, [callinText, deviceId, interviewerId, intervieweeId, callerName, currentTopic, isCallinSending, enrichAndAddMessage, waitForQueueDrain, playInterruptionAudio, effectiveInterviewStyle, enqueueTTS, fireLiveReaction]);
 
   const skipTopic = useCallback(() => {
     if (topicIdx + 1 >= topics.length) return;

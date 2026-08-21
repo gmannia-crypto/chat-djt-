@@ -5339,12 +5339,14 @@ export default function ArenaScreen() {
       if (mountedRef.current) {
         setTtsActiveSpeaker(item.personaId);
       }
-      // Fire the moment this item actually reaches the front of the queue and
-      // begins playing — NOT when its fetch resolved. Arena keeps fetching and
-      // queueing subsequent turns while earlier TTS is still draining, so a
-      // reaction scheduled from fetch-completion could play before its own
-      // line does, or duck an unrelated, still-speaking persona.
-      item.onPlaybackStart?.();
+      // onPlaybackStart fires on the first CONFIRMED isPlaying status below —
+      // not here at dequeue time — since dequeue only means the item reached
+      // the front of the queue; the actual sound object still has to be
+      // created/fetched (playTTS/playPrefetchedAudio) before anything is
+      // audible. Firing here would let a reaction scheduled off this line
+      // start before the line itself is actually playing, or overlap a
+      // still-speaking earlier persona if this fetch is slow.
+      let firedPlaybackStart = false;
       try {
         let sound: Audio.Sound;
         const personaVolume = getPersonaVoiceVolume(item.personaId);
@@ -5391,6 +5393,10 @@ export default function ArenaScreen() {
             if (status.didJustFinish || status.error) {
               finish();
               return;
+            }
+            if (status.isPlaying && !firedPlaybackStart) {
+              firedPlaybackStart = true;
+              item.onPlaybackStart?.();
             }
             if (status.isPlaying && status.durationMillis && status.positionMillis) {
               if (!prefetchStarted && (ttsQueueRef.current.length > 0 || ttsPendingMoreRef.current)) {
@@ -7499,6 +7505,10 @@ export default function ArenaScreen() {
 
       const history = messagesRef.current.filter((m) => !m.isSystem).slice(-4).map((m) => ({ speakerName: m.speakerName, text: m.text }));
 
+      // Live overlapping reaction (Savage mode only) — gated the same way as
+      // ordinary turns (Savage mode + shared cooldown).
+      const requestReaction = debateModeRef.current === "savage" && turnsSinceReactionRef.current >= 2 && Math.random() < 0.6;
+
       const rapidSentAt = Date.now();
       const res = await fetch(new URL("/api/arena/rapid-exchange", getApiUrl()).toString(), {
         method: "POST",
@@ -7508,6 +7518,9 @@ export default function ArenaScreen() {
           personaBId,
           topic: currentTopicRef.current || "politics",
           conversationHistory: history,
+          activePersonas: selectedPersonasRef.current,
+          debateMode: debateModeRef.current,
+          requestReaction,
         }),
       });
 
@@ -7534,7 +7547,8 @@ export default function ArenaScreen() {
       const data = await res.json();
       const lines: Array<{ personaId: string; text: string }> = data.lines || [];
 
-      for (const line of lines) {
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
         if (!mountedRef.current || !isRunningRef.current) break;
         const persona = getPersona(line.personaId);
         if (!persona) continue;
@@ -7547,8 +7561,18 @@ export default function ArenaScreen() {
           timestamp: Date.now(),
         });
 
-        queueTTS(line.text, line.personaId);
+        // Fire the overlapping reaction, if any, off the FINAL (most savage)
+        // line's own onPlaybackStart — guarantees it can't be scheduled before
+        // that line has actually started playing, even if earlier lines in
+        // this rapid-fire burst are still queued/speaking.
+        const isFinalLine = i === lines.length - 1;
+        queueTTS(line.text, line.personaId, false, isFinalLine ? () => fireLiveReaction(data.reaction, line.text) : undefined);
         await new Promise((r) => setTimeout(r, 350));
+      }
+      if (lines.length === 0) {
+        // No lines came back to anchor the reaction's timing off of — drop it,
+        // but still keep the shared cooldown counter accurate.
+        if (data.reaction) turnsSinceReactionRef.current = 0; else turnsSinceReactionRef.current += 1;
       }
 
       const newTemp = Math.min(100, roomTempRef.current + 20);
@@ -7558,7 +7582,7 @@ export default function ArenaScreen() {
     } finally {
       isRapidExchangeRef.current = false;
     }
-  }, [deviceId, addMessage, queueTTS]);
+  }, [deviceId, addMessage, queueTTS, fireLiveReaction]);
 
   const handleJoinConversation = useCallback(() => {
     if (joinTimerRef.current) clearInterval(joinTimerRef.current);
@@ -12395,6 +12419,9 @@ export default function ArenaScreen() {
                   const headers: Record<string, string> = { "Content-Type": "application/json" };
                   if (deviceId) headers["x-device-id"] = deviceId;
                   const locationParts = [userCityRef.current, userStateRef.current, userCountryRef.current].filter(Boolean);
+                  // Live overlapping reaction (Savage mode only) — gated the same way
+                  // as ordinary turns (Savage mode + shared cooldown).
+                  const requestReaction = debateModeRef.current === "savage" && turnsSinceReactionRef.current >= 2 && Math.random() < 0.6;
                   // Stamp time before the request so the grace-period check uses when
                   // the call was *sent*, not when the 403 response finally arrived.
                   const callInSentAt = Date.now();
@@ -12407,6 +12434,8 @@ export default function ArenaScreen() {
                       conversationHistory: messagesRef.current.filter((m: any) => !m.isSystem).slice(-4).map((m: any) => ({ speakerName: m.speakerName, text: m.text })),
                       topic: text,
                       activePersonas: active,
+                      debateMode: debateModeRef.current,
+                      requestReaction,
                       userContext: { name: userNameRef.current, location: locationParts.join(", ") },
                     }),
                   });
@@ -12441,7 +12470,7 @@ export default function ArenaScreen() {
                       text: data.response,
                       timestamp: Date.now(),
                     });
-                    queueTTS(data.response, reactor);
+                    queueTTS(data.response, reactor, false, () => fireLiveReaction(data.reaction, data.response));
                     if (data.freeRemaining !== undefined) setFreeRemaining(data.freeRemaining);
                   }
                 } catch (_e) {} finally {
