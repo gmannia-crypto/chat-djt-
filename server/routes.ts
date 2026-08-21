@@ -8794,8 +8794,12 @@ Keep responses to 2-3 sentences max. Stay fully in character — urgent, gruff, 
       // requestReaction=true when the room is in Savage mode and its own
       // cooldown allows it; the model is the final judge of whether THIS
       // specific line actually earns a reaction.
+      // Note: interruption and clapback turns (isInterruption === true) are
+      // intentionally allowed to request a reaction here too — those firebacks
+      // and cut-ins are the most heated moments in the room and the client
+      // gates requestReaction itself (Savage mode + cooldown), same as normal turns.
       let reactorId: string | null = null;
-      if (!isInterruption && requestReaction && debateMode === "savage" && otherPersonaIds.length > 0) {
+      if (requestReaction && debateMode === "savage" && otherPersonaIds.length > 0) {
         reactorId = (toSpeakerId && toSpeakerId !== responderId && otherPersonaIds.includes(toSpeakerId))
           ? toSpeakerId
           : otherPersonaIds[Math.floor(Math.random() * otherPersonaIds.length)];
@@ -9576,7 +9580,7 @@ ${styleInstruction}${getLieBehaviorPrompt(interviewerId, Number((req.body.sessio
     try {
       const deviceId = req.headers["x-device-id"] as string;
       if (!deviceId) return res.status(400).json({ error: "Device ID required" });
-      const { interviewerId, intervieweeId, topic, conversationHistory = [], lastQuestion, wasInterrupted = false, interruptionText, isInterruption = false, interviewStyle: answerStyle = "combative", isDebate = false, insultFireback = false, insultSeverity = 1, contentMode, requestReaction = false } = req.body || {};
+      const { interviewerId, intervieweeId, topic, conversationHistory = [], lastQuestion, wasInterrupted = false, interruptionText, isInterruption = false, interviewStyle: answerStyle = "combative", isDebate = false, insultFireback = false, insultSeverity = 1, contentMode, requestReaction = false, debateMode } = req.body || {};
       if (!interviewerId || !ARENA_PERSONA_PROMPTS[interviewerId]) return res.status(400).json({ error: "Invalid interviewerId" });
       if (!intervieweeId || !ARENA_PERSONA_PROMPTS[intervieweeId]) return res.status(400).json({ error: "Invalid intervieweeId" });
       if (interviewerId === intervieweeId) return res.status(400).json({ error: "A persona cannot interview themselves" });
@@ -9663,10 +9667,18 @@ Stay 100% in character — your tone, vocabulary, ideology, and combativeness ar
       // latency from a second AI call. The client only sets requestReaction=true
       // when the tone is comedic/roast and its own cooldown allows it; the model
       // is the final judge of whether THIS specific line actually earns a reaction.
-      const wantsReaction = !isInterruption && !insultFireback && requestReaction && (answerStyle === "comedic" || answerStyle === "roast");
-      if (wantsReaction) {
+      // Squabble firebacks (isInterruption + insultFireback) can also earn a live
+      // reaction — from the attacker who just got hit with the comeback — but only
+      // in Savage mode, mirroring the gating on ordinary comedic/roast turns above.
+      const wantsCommonReaction = !isInterruption && !insultFireback && requestReaction && (answerStyle === "comedic" || answerStyle === "roast");
+      const wantsFirebackReaction = isInterruption && insultFireback && requestReaction && debateMode === "savage";
+      const wantsReaction = wantsCommonReaction || wantsFirebackReaction;
+      if (wantsCommonReaction) {
         const reactorPersonaSnippet = getArenaPersonaPrompt(interviewerId);
         userPrompt += `\n\nSEPARATE STEP — REACTION CHECK: After writing your answer above, decide whether what you (as ${intervieweeName}) just said was a genuinely absurd, hyperbolic, boastful, or sarcasm-worthy claim — something so over-the-top that ${interviewerName} would burst out laughing, scoff, or crack up in disbelief the INSTANT you said it. Be selective — most ordinary lines do NOT qualify, only real "come on, be serious" moments.\n\nIf it qualifies: on a new final line, write the exact marker "###REACT###" followed by ${interviewerName}'s immediate spoken reaction — in ${interviewerName}'s own voice, personality, and vocabulary (not generic), a short sharp sarcastic laugh-line or scoff, under 12 words. Example shape only (write your own, in character): "Please. Boy you must be on crack." / "Ha! Sure you did." Here is ${interviewerName}'s personality for this reaction line ONLY: ${reactorPersonaSnippet}\n\nIf it does NOT qualify: write the exact marker "###REACT###" followed by exactly "NONE".\n\nAlways include the "###REACT###" marker line exactly once, after your full answer.`;
+      } else if (wantsFirebackReaction) {
+        const reactorPersonaSnippet = getArenaPersonaPrompt(interviewerId);
+        userPrompt += `\n\nSEPARATE STEP — REACTION CHECK: After writing your fireback above, decide whether it was such a devastating, savage, or outrageous comeback that ${interviewerName} — the one who just got hit with it — would burst out laughing, scoff, or crack up in disbelief the INSTANT you said it (a "did they really just say that" reaction). Be selective — most firebacks do NOT qualify, only the real showstoppers.\n\nIf it qualifies: on a new final line, write the exact marker "###REACT###" followed by ${interviewerName}'s immediate spoken reaction — in ${interviewerName}'s own voice, personality, and vocabulary (not generic), a short sharp sarcastic laugh-line or scoff, under 12 words. Here is ${interviewerName}'s personality for this reaction line ONLY: ${reactorPersonaSnippet}\n\nIf it does NOT qualify: write the exact marker "###REACT###" followed by exactly "NONE".\n\nAlways include the "###REACT###" marker line exactly once, after your full fireback.`;
       }
       const intervieweeStyleFinal = intervieweeStyle + getContentModeInstruction(contentMode);
 

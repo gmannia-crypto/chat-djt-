@@ -5672,6 +5672,10 @@ export default function ArenaScreen() {
 
       try {
         const targetPersona = getPersona(targetId);
+        // Live overlapping reaction (Savage mode only): the attacker who just
+        // got hit with the fireback may burst out laughing/scoffing — gated the
+        // same way as ordinary turns (Savage mode + shared cooldown).
+        const requestReaction = debateModeRef.current === "savage" && turnsSinceReactionRef.current >= 2 && Math.random() < 0.6;
         const res = await fetch(new URL("/api/arena/interview-answer", getApiUrl()).toString(), {
           method: "POST",
           headers: { "Content-Type": "application/json", "x-device-id": deviceId },
@@ -5685,6 +5689,8 @@ export default function ArenaScreen() {
             insultFireback: true,
             insultSeverity: severity,
             isDebate: true,
+            debateMode: currentDebateMode,
+            requestReaction,
           }),
         });
         if (!res.ok || !mountedRef.current || sessionEndedRef.current) return;
@@ -5701,6 +5707,8 @@ export default function ArenaScreen() {
         });
         await new Promise<void>((r) => setTimeout(r, 50));
         await playInterruptionAudio(firebackText, targetId);
+        fireLiveReaction(data.reaction, firebackText);
+        if (data.reaction) turnsSinceReactionRef.current = 0; else turnsSinceReactionRef.current += 1;
         // Fireback — spike room temperature by 10–15 points
         const firebackTempBoost = 10 + Math.floor(Math.random() * 6); // 10–15
         setRoomTemperature((prev) => {
@@ -5723,7 +5731,7 @@ export default function ArenaScreen() {
       } catch { /* never break the arena loop */ }
       return; // only one fireback persona per message
     }
-  }, [deviceId, playInterruptionAudio]);
+  }, [deviceId, playInterruptionAudio, fireLiveReaction]);
 
   // Keep ref in sync so recursive chain calls always use the latest closure
   useEffect(() => { tryArenaFirebackRef.current = tryArenaFireback; }, [tryArenaFireback]);
@@ -7204,6 +7212,9 @@ export default function ArenaScreen() {
         const headers: Record<string, string> = { "Content-Type": "application/json" };
         if (deviceId) headers["x-device-id"] = deviceId;
         const interruptSentAt = Date.now();
+        // Live overlapping reaction (Savage mode only) — gated the same way as
+        // ordinary turns (Savage mode + shared cooldown).
+        const requestReaction = debateModeRef.current === "savage" && turnsSinceReactionRef.current >= 2 && Math.random() < 0.6;
         const res = await fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
           method: "POST",
           headers,
@@ -7213,6 +7224,9 @@ export default function ArenaScreen() {
             conversationHistory: [{ speakerName: "Donald Trump", text: trumpMessageText }],
             topic: currentTopicRef.current || "debate",
             isInterruption: true,
+            activePersonas: selectedPersonasRef.current,
+            debateMode: debateModeRef.current,
+            requestReaction,
             sessionIQ: personaSessionIQRef.current,
             sessionLieTally: sessionLieTallyRef.current,
             sessionAltFactTally: sessionAltFactTallyRef.current,
@@ -7275,6 +7289,8 @@ export default function ArenaScreen() {
       showInterruptionBanner(interrupter, persona.name, data.response);
       lastInterruptionRef.current = { text: data.response, interrupterId: interrupter };
       playInterruptionAudio(data.response, interrupter);
+      fireLiveReaction(data.reaction, data.response);
+      if (data.reaction) turnsSinceReactionRef.current = 0; else turnsSinceReactionRef.current += 1;
       if (typeof data.currentIQ === "number") {
         setPersonaSessionIQ((prev) => { const u = { ...prev, [interrupter]: data.currentIQ }; personaSessionIQRef.current = u; return u; });
       } else if (typeof data.iqDelta === "number" && data.iqDelta !== 0) adjustPersonaIQ(interrupter, data.iqDelta);
@@ -7297,6 +7313,9 @@ export default function ArenaScreen() {
       const lastTrumpMsg = messagesRef.current.filter((m) => !m.isSystem && m.speakerId === "trump").slice(-1)[0];
       const trumpCtxText = lastTrumpMsg?.text || trumpMessageText || "";
       const clapSentAt = Date.now();
+      // Live overlapping reaction (Savage mode only) — gated the same way as
+      // ordinary turns (Savage mode + shared cooldown).
+      const clapRequestReaction = debateModeRef.current === "savage" && turnsSinceReactionRef.current >= 2 && Math.random() < 0.6;
       const clap = await fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
         method: "POST",
         headers: clapHeaders,
@@ -7309,6 +7328,9 @@ export default function ArenaScreen() {
           ],
           topic: currentTopicRef.current || "debate",
           isInterruption: true,
+          activePersonas: selectedPersonasRef.current,
+          debateMode: debateModeRef.current,
+          requestReaction: clapRequestReaction,
           sessionIQ: personaSessionIQRef.current,
           sessionLieTally: sessionLieTallyRef.current,
           sessionAltFactTally: sessionAltFactTallyRef.current,
@@ -7343,7 +7365,8 @@ export default function ArenaScreen() {
           text: clapData.response,
           timestamp: Date.now(),
         });
-        queueTTS(clapData.response, "trump");
+        queueTTS(clapData.response, "trump", false, () => fireLiveReaction(clapData.reaction, clapData.response));
+        if (clapData.reaction) turnsSinceReactionRef.current = 0; else turnsSinceReactionRef.current += 1;
         if (typeof clapData.currentIQ === "number") {
           setPersonaSessionIQ((prev) => { const u = { ...prev, trump: clapData.currentIQ }; personaSessionIQRef.current = u; return u; });
         } else if (typeof clapData.iqDelta === "number" && clapData.iqDelta !== 0) adjustPersonaIQ("trump", clapData.iqDelta);
@@ -7359,7 +7382,7 @@ export default function ArenaScreen() {
       roomTempRef.current = newTemp;
       setRoomTemperature(newTemp);
     }
-  }, [deviceId, addMessage, showInterruptionBanner, playInterruptionAudio, queueTTS]);
+  }, [deviceId, addMessage, showInterruptionBanner, playInterruptionAudio, queueTTS, fireLiveReaction]);
 
   const triggerTrumpInterruption = useCallback(async (opponentText: string, opponentId: string) => {
     if (!mountedRef.current || isInterruptingRef.current) return;
@@ -7376,6 +7399,9 @@ export default function ArenaScreen() {
       const opponentName = getPersona(opponentId)?.name || "someone";
 
       const trumpIntSentAt = Date.now();
+      // Live overlapping reaction (Savage mode only) — gated the same way as
+      // ordinary turns (Savage mode + shared cooldown).
+      const requestReaction = debateModeRef.current === "savage" && turnsSinceReactionRef.current >= 2 && Math.random() < 0.6;
       const res = await fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
         method: "POST",
         headers,
@@ -7386,6 +7412,9 @@ export default function ArenaScreen() {
           topic: currentTopicRef.current || "debate",
           isInterruption: true,
           isTrumpInitiated: true,
+          activePersonas: selectedPersonasRef.current,
+          debateMode: debateModeRef.current,
+          requestReaction,
           sessionIQ: personaSessionIQRef.current,
           sessionLieTally: sessionLieTallyRef.current,
           sessionAltFactTally: sessionAltFactTallyRef.current,
@@ -7423,6 +7452,8 @@ export default function ArenaScreen() {
         showInterruptionBanner("trump", "Donald Trump", data.response);
         lastInterruptionRef.current = { text: data.response, interrupterId: "trump" };
         playInterruptionAudio(data.response, "trump");
+        fireLiveReaction(data.reaction, data.response);
+        if (data.reaction) turnsSinceReactionRef.current = 0; else turnsSinceReactionRef.current += 1;
         if (typeof data.currentIQ === "number") {
           setPersonaSessionIQ((prev) => { const u = { ...prev, trump: data.currentIQ }; personaSessionIQRef.current = u; return u; });
         } else if (typeof data.iqDelta === "number" && data.iqDelta !== 0) adjustPersonaIQ("trump", data.iqDelta);
@@ -7438,7 +7469,7 @@ export default function ArenaScreen() {
       roomTempRef.current = newTemp;
       setRoomTemperature(newTemp);
     }
-  }, [deviceId, addMessage, showInterruptionBanner, playInterruptionAudio]);
+  }, [deviceId, addMessage, showInterruptionBanner, playInterruptionAudio, fireLiveReaction]);
 
   const triggerRapidExchange = useCallback(async (personaAId: string, personaBId: string) => {
     if (!mountedRef.current || !isRunningRef.current || sessionEndedRef.current) return;
@@ -7887,6 +7918,9 @@ export default function ArenaScreen() {
           const preHeaders: Record<string, string> = { "Content-Type": "application/json" };
           if (deviceId) preHeaders["x-device-id"] = deviceId;
           const prefetchSentAt = Date.now();
+          // Live overlapping reaction (Savage mode only) — gated the same way as
+          // ordinary turns (Savage mode + shared cooldown).
+          const preRequestReaction = debateModeRef.current === "savage" && turnsSinceReactionRef.current >= 2 && Math.random() < 0.6;
           interruptPrefetch = fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
             method: "POST",
             headers: preHeaders,
@@ -7896,6 +7930,9 @@ export default function ArenaScreen() {
               conversationHistory: preHistory,
               topic: currentTopicRef.current || "debate",
               isInterruption: true,
+              activePersonas: selectedPersonasRef.current,
+              debateMode: debateModeRef.current,
+              requestReaction: preRequestReaction,
               sessionIQ: personaSessionIQRef.current,
               sessionLieTally: sessionLieTallyRef.current,
               sessionAltFactTally: sessionAltFactTallyRef.current,
