@@ -3130,13 +3130,35 @@ export default function DebateStage() {
    *  it actually reaches the front of the queue and begins playing), NOT from
    *  answer-fetch completion — the queue can still be draining a prior question
    *  or bridge line when the answer arrives, and scheduling from fetch time would
-   *  let a fast reaction play before its own answer line does. */
-  const fireLiveReaction = useCallback((reaction: { text: string; speakerId: string; speakerName: string } | null | undefined, mainText: string) => {
+   *  let a fast reaction play before its own answer line does.
+   *
+   *  IDEOLOGY GATE: ideological allies never talk over each other just for a
+   *  passing comedic reaction — that's not a real interruption, so if the
+   *  reactor and the main speaker are allied (and neither is Trump) the line
+   *  is queued to play AFTER the main line finishes instead of overlapping
+   *  it. Genuine mid-conversation interruptions (firebacks/squabbles) are
+   *  gated separately and still allowed for allies as polite clarity cut-ins. */
+  const fireLiveReaction = useCallback((reaction: { text: string; speakerId: string; speakerName: string } | null | undefined, mainText: string, mainSpeakerId?: string) => {
     if (!reaction?.text) {
       turnsSinceReactionRef.current += 1;
       return;
     }
     turnsSinceReactionRef.current = 0;
+    const noOverlap = !!mainSpeakerId && areAllied(reaction.speakerId, mainSpeakerId) && !isTrump(reaction.speakerId) && !isTrump(mainSpeakerId);
+    if (noOverlap) {
+      // Allies wait their turn — sequential queue entry, no ducking/overlap.
+      setMessages((prev) => [...prev, {
+        id: `react-${Date.now()}-${Math.random()}`,
+        speakerId: reaction.speakerId,
+        speakerName: reaction.speakerName,
+        text: reaction.text,
+        ts: Date.now(),
+        isReaction: true,
+        skipTTS: true,
+      }]);
+      enqueueTTS(reaction.text, reaction.speakerId, `react-${Date.now()}`);
+      return;
+    }
     const reactionAudioPromise = prefetchTTSAudio("/api/persona-speak", { text: reaction.text, personaId: reaction.speakerId });
     const estMs = Math.max(2500, (mainText.length / 14) * 1000);
     const overlapDelay = Math.max(600, estMs - 900);
@@ -3153,7 +3175,7 @@ export default function DebateStage() {
       }]);
       playReactionOverlap(reactionAudioPromise, reaction.speakerId);
     }, overlapDelay);
-  }, [playReactionOverlap]);
+  }, [playReactionOverlap, enqueueTTS]);
 
   // ── FIREBACK ENGINE ───────────────────────────────────────────────────────
   // When a debater's line crosses the insult threshold for the opponent,
@@ -3412,12 +3434,15 @@ export default function DebateStage() {
       const data = await res.json();
       let firebackText: string = (data.text || "").trim();
       if (!firebackText) return;
-      // Personas with a signature "you interrupted me" reaction lead their
-      // retort with it — e.g. Dr. Arikana's "Are you finished?" or Dr. Claude
-      // Anderson's "You'll get your chance!" — before making their point.
-      if (PERSONA_INTERRUPT_STYLE[targetId]) {
-        firebackText = `${getInterruptAddressLine(targetId, severity < 2)} ${firebackText}`;
-      }
+      // Every persona is aware they just got cut off and leads their retort
+      // acknowledging it, matching the energy of the interruption — a rude
+      // cut-in (severity >= 2) gets a sharper line, a milder one gets a
+      // gentler pushback. Named personas (Dr. Arikana's "Are you finished?",
+      // Dr. Claude Anderson's "You'll get your chance!") use their own
+      // signature lines; everyone else falls back to a generic tone-matched
+      // one via getInterruptStyle's default, so no one is ever silently
+      // interrupted without reacting in-character.
+      firebackText = `${getInterruptAddressLine(targetId, severity >= 2)} ${firebackText}`;
       // Add to transcript (skipTTS — audio plays via playInterruptionAudio)
       setMessages((prev) => [...prev, {
         id: `fb-${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -4377,7 +4402,7 @@ export default function DebateStage() {
               // fetched. Guarantees the reaction can never be scheduled before
               // its own answer starts, and never fires with no audio to overlap
               // (e.g. this persona's voice is configured off).
-              onPlaybackStart: () => fireLiveReaction((ans as any).reaction, ans.text),
+              onPlaybackStart: () => fireLiveReaction((ans as any).reaction, ans.text, primaryId),
             });
             processQueue();
             // Kick off rebuttal fetch early so it's settling while primary TTS plays.
@@ -4582,7 +4607,7 @@ export default function DebateStage() {
           if (rebuttal?.text && runningRef.current) {
             ttsQueueRef.current.push({
               text: rebuttal.text, personaId: secondaryId,
-              onPlaybackStart: () => fireLiveReaction((rebuttal as any).reaction, rebuttal.text),
+              onPlaybackStart: () => fireLiveReaction((rebuttal as any).reaction, rebuttal.text, secondaryId),
             });
             processQueue();
           }
@@ -5342,7 +5367,7 @@ export default function DebateStage() {
             skipTTS: true,
           });
           enqueueTTS(data.interviewee.text, data.interviewee.speakerId, `ca-${Date.now()}`, {
-            onPlaybackStart: () => fireLiveReaction(data.reaction, data.interviewee.text),
+            onPlaybackStart: () => fireLiveReaction(data.reaction, data.interviewee.text, data.interviewee.speakerId),
           });
         }
       }

@@ -193,36 +193,55 @@ export function getAllyClarityReply(interrupterName: string): string {
  * to GENERIC_INTERRUPT_STYLE, and the AI-generated continuation (already
  * fed `wasInterrupted`/`interruptionText`) handles the rest in-character.
  */
-export type InterruptStyle = { address: string[]; resume: string[] };
+/**
+ * `address` is the mild/respectful pool (used for a respectful pushback,
+ * severity < 2). `rudeAddress`, when present, is swapped in for a genuinely
+ * rude cut-in (severity >= 2) so the interrupted persona "responds in kind" —
+ * matching the energy of how they were interrupted instead of always
+ * reaching for the same line regardless of tone. Personas without a
+ * `rudeAddress` just reuse `address` for both cases.
+ */
+export type InterruptStyle = { address: string[]; rudeAddress?: string[]; resume: string[] };
 
 export const PERSONA_INTERRUPT_STYLE: Record<string, InterruptStyle> = {
   arikana: {
     address: ["Are you finished?", "Excuse me — are you quite finished?"],
+    rudeAddress: ["Do NOT cut me off like that!", "You will not talk over me — are you finished?"],
     resume: ["As I was saying, before I was so rudely interrupted—", "Now, as I was saying—"],
   },
   claudeanderson: {
-    address: ["Shut them the hell up! You see me talking!", "You'll get your chance!", "Hold on now — you'll get your chance!"],
+    address: ["You'll get your chance!", "Hold on now — you'll get your chance!"],
+    rudeAddress: ["Shut them the hell up! You see me talking!", "Don't you EVER cut me off again!"],
     resume: ["Anyway—", "As I was saying, anyway—"],
   },
 };
 
 const GENERIC_INTERRUPT_STYLE: InterruptStyle = {
   address: ["Let me finish.", "Hold on — let me finish my point.", "I wasn't done."],
+  rudeAddress: ["Hey! I wasn't finished!", "Don't cut me off like that!", "Excuse you — I was talking!"],
   resume: ["As I was saying—", "Anyway, as I was saying—"],
 };
 
+/**
+ * Every persona is "aware" of being interrupted, not just the two named
+ * above — anyone without a bespoke entry falls back to a fully generic but
+ * still tone-matched style so the reaction is never silently dropped.
+ */
 export function getInterruptStyle(personaId: string): InterruptStyle {
   return PERSONA_INTERRUPT_STYLE[personaId] ?? GENERIC_INTERRUPT_STYLE;
 }
 
 /**
  * Picks the right "address the interrupter" line for a persona who was just
- * cut off, tuned to how rude the interruption was — respectful pushback gets
- * a milder line where a style offers one, otherwise the pool is shared.
+ * cut off, tuned to how rude the interruption was — a rude cut-in (severity
+ * >= 2) gets the sharper `rudeAddress` pool when the style has one, a
+ * respectful pushback gets the milder `address` pool. This is how a persona
+ * "responds in kind": their pushback matches the energy they were hit with.
  */
-export function getInterruptAddressLine(personaId: string, _wasRude: boolean): string {
+export function getInterruptAddressLine(personaId: string, wasRude: boolean): string {
   const style = getInterruptStyle(personaId);
-  return style.address[Math.floor(Math.random() * style.address.length)];
+  const pool = wasRude && style.rudeAddress?.length ? style.rudeAddress : style.address;
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
 export function getInterruptResumeLine(personaId: string): string {
