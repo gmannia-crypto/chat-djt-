@@ -143,6 +143,9 @@ const PERSONA_IMAGES: Record<string, ImageSourcePropType> = {
   skipbayless: require("@/assets/images/persona-skipbayless.png"),
   davidwellington: require("@/assets/images/persona-davidwellington.png"),
   sirdameon: require("@/assets/images/persona-sirdameon.png"),
+  kwame: require("@/assets/images/persona-kwame.png"),
+  coachprime: require("@/assets/images/persona-coachprime.png"),
+  ochocinco: require("@/assets/images/persona-ochocinco.png"),
 };
 
 interface PersonaInfo {
@@ -167,6 +170,9 @@ const PERSONAS: PersonaInfo[] = [
   { id: "ruckus", name: "Ruckus", fullName: "Uncle Ruckus", color: "#8B4513", image: PERSONA_IMAGES.ruckus },
   { id: "dickyV", name: "Dicky V", fullName: "Dicky V", color: "#FF6F00", image: PERSONA_IMAGES.dickyV },
   { id: "skipbayless", name: "Skip", fullName: "Skip Bayless", color: "#0077C0", image: PERSONA_IMAGES.skipbayless },
+  { id: "kwame", name: "Kwame", fullName: "Kwame Brown", color: "#00695C", image: PERSONA_IMAGES.kwame },
+  { id: "coachprime", name: "Coach Prime", fullName: "Deion Sanders", color: "#000000", image: PERSONA_IMAGES.coachprime },
+  { id: "ochocinco", name: "Ochocinco", fullName: "Chad Ochocinco", color: "#F57C00", image: PERSONA_IMAGES.ochocinco },
 ];
 
 const RACING_PERSONAS: PersonaInfo[] = [

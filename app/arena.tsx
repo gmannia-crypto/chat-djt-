@@ -122,6 +122,8 @@ const PERSONA_CATEGORY_MAP: Record<string, PersonaCategory> = {
   // Morning Joe duo
   mikabrzezinski: "journalist",
   joescarborough: "journalist",
+  clarke: "activist",
+  donalds: "politician",
 };
 
 // Political Facts IQ: everyone starts at 100 (seeded from all-time average).
@@ -2141,6 +2143,66 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       negative: ["obama", "gay marriage", "abortion", "atheist", "secular", "planned parenthood"],
     },
   },
+  clarke: {
+    id: "clarke",
+    name: "John Henrik Clarke",
+    shortName: "Dr. Clarke",
+    color: "#00C896",
+    faction: "wildcard",
+    image: require("@/assets/images/persona-clarke.png"),
+    personality: {
+      energy: 80,
+      aggression: 65,
+      humor: 30,
+      catchphrases: ["History is a clock", "A people without knowledge of their history is like a tree without roots", "We must recapture our history and our identity", "Power never takes a step back — only in the face of more power"],
+    },
+    relationships: {
+      malcolmx: { sentiment: 90 },
+      louisfarrakhan: { sentiment: 80 },
+      cornellwest: { sentiment: 75 },
+      claudeanderson: { sentiment: 80 },
+      malema: { sentiment: 70 },
+      mlk: { sentiment: 60 },
+      trump: { sentiment: 10 },
+      ruckus: { sentiment: 5 },
+      candace: { sentiment: 15 },
+    },
+    triggerWords: {
+      positive: ["african history", "pan-africanism", "identity", "education", "self-determination", "our story"],
+      negative: ["colonialism", "erasure", "whitewash", "propaganda"],
+    },
+  },
+  donalds: {
+    id: "donalds",
+    name: "Byron Donalds",
+    shortName: "Donalds",
+    color: "#1E3A8A",
+    faction: "supporter",
+    image: require("@/assets/images/persona-donalds.png"),
+    personality: {
+      energy: 85,
+      aggression: 70,
+      humor: 45,
+      catchphrases: ["Let's be real", "The American Dream is still alive", "We need to get back to common sense", "Florida is leading the way"],
+    },
+    relationships: {
+      trump: { sentiment: 90 },
+      timscott: { sentiment: 85 },
+      erikakirk: { sentiment: 75 },
+      candace: { sentiment: 70 },
+      leavitt: { sentiment: 75 },
+      graham: { sentiment: 65 },
+      aoc: { sentiment: 15 },
+      omar: { sentiment: 10 },
+      jascrockett: { sentiment: 15 },
+      maddow: { sentiment: 15 },
+      pressley: { sentiment: 15 },
+    },
+    triggerWords: {
+      positive: ["freedom", "florida", "common sense", "opportunity", "faith and family", "law and order"],
+      negative: ["socialism", "defund", "open borders", "woke", "big government"],
+    },
+  },
 };
 
 const MYSTERY_PERSONAS: Record<string, ArenaPersona> = {
@@ -2672,7 +2734,7 @@ const MYSTERY_UNLOCK_KEY = "arena_mystery_unlocked";
 
 import { BOXING_EXCLUSIVE_IDS } from "@/lib/boxing-personas";
 
-const PERSONA_IDS = ["trump", "jdvance", "elon", "errol", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "carlin", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "leavitt", "erikakirk", "loomer", "bannon", "stephena", "malema", "hannity", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "aoc", "pressley", "joerogan", "timscott", "drbenj", "billclinton", "hillaryclinton", "marcorubio", "desantis", "tuckercarlson", "bishopfundme", "cornellwest", "piersmorgan", "scottjennings", "mikabrzezinski", "joescarborough", "richardwolff", "berniesanders", "pastormanning"];
+const PERSONA_IDS = ["trump", "jdvance", "elon", "errol", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "carlin", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "leavitt", "erikakirk", "loomer", "bannon", "stephena", "malema", "hannity", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "aoc", "pressley", "joerogan", "timscott", "drbenj", "billclinton", "hillaryclinton", "marcorubio", "desantis", "tuckercarlson", "bishopfundme", "cornellwest", "piersmorgan", "scottjennings", "mikabrzezinski", "joescarborough", "richardwolff", "berniesanders", "pastormanning", "clarke", "donalds"];
 // Cartoon-style image filter — vivid posterized look on web
 const CARTOON_FILTER = Platform.OS === "web"
   ? ({ filter: "contrast(1.35) saturate(1.85) brightness(1.03)" } as any)
@@ -8676,7 +8738,8 @@ export default function ArenaScreen() {
                     {grouped[cat].map((pid) => {
                       const p = getPersona(pid);
                       if (!p) return null;
-                      const isSelected = selectedPersonas.includes(pid);
+                      const selectionIndex = selectedPersonas.indexOf(pid);
+                      const isSelected = selectionIndex >= 0;
                       const isMystery = MYSTERY_PERSONA_IDS.includes(pid);
                       const isPremiumLocked = isLocked(pid);
                       const premiumCfg = PREMIUM_PERSONA_CONFIGS[pid];
@@ -8716,10 +8779,10 @@ export default function ArenaScreen() {
                                 <Ionicons name="lock-closed" size={20} color={accentColor} />
                               </View>
                             )}
-                            {/* Selected checkmark badge */}
+                            {/* Selected number badge */}
                             {isSelected && !isPremiumLocked && (
-                              <View style={{ position: "absolute", bottom: 1, right: 1, backgroundColor: "#0a0a0a", borderRadius: 10 }}>
-                                <Ionicons name="checkmark-circle" size={18} color={accentColor} />
+                              <View style={{ position: "absolute", bottom: 1, right: 1, width: 18, height: 18, borderRadius: 9, backgroundColor: accentColor, alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderColor: "#0a0a0a" }}>
+                                <Text style={{ color: "#000", fontSize: 10, fontWeight: "900" as const }}>{selectionIndex + 1}</Text>
                               </View>
                             )}
                           </View>
@@ -10842,12 +10905,12 @@ export default function ArenaScreen() {
             {(() => {
               const CATEGORIES: Array<{ label: string; ids: string[]; mysteryIds: string[] }> = [
                 { label: "🏛  PRESIDENTS", ids: ["trump", "biden"], mysteryIds: ["obama"] },
-                { label: "⚖️  POLITICIANS", ids: ["netanyahu", "mcconnell", "omar", "graham", "pambondi", "miller", "jimjordan", "jascrockett", "aoc", "pressley", "timscott", "mikejohnson", "billclinton", "hillaryclinton", "marcorubio", "desantis"], mysteryIds: ["schumer", "kamala", "mtg", "rfk"] },
+                { label: "⚖️  POLITICIANS", ids: ["netanyahu", "mcconnell", "omar", "graham", "pambondi", "miller", "jimjordan", "jascrockett", "aoc", "pressley", "timscott", "mikejohnson", "billclinton", "hillaryclinton", "marcorubio", "desantis", "donalds"], mysteryIds: ["schumer", "kamala", "mtg", "rfk"] },
                 { label: "📺  MEDIA & JOURNALISTS", ids: ["maddow", "megynkelly", "joyreid", "erikakirk", "loomer", "leavitt", "hannity", "odonnell", "piersmorgan", "scottjennings"], mysteryIds: [] },
                 { label: "🎙  PODCASTERS & STRATEGISTS", ids: ["galloway", "candace", "carville", "bannon", "joerogan"], mysteryIds: ["alexjones"] },
                 { label: "🎭  COMEDIANS", ids: ["berniemc", "rosie", ...(!isHidden("carlin") ? ["carlin"] : [])], mysteryIds: [] },
                 { label: "💻  TECH", ids: ["elon"], mysteryIds: [] },
-                { label: "✊  COMMENTATORS & ACTIVISTS", ids: ["stephena", "jesseleepetersen", "shannon", "neiltyson", "malema", "claudeanderson", ...(!isHidden("drbenj") ? ["drbenj"] : []), "bishopfundme", "cornellwest"], mysteryIds: [] },
+                { label: "✊  COMMENTATORS & ACTIVISTS", ids: ["stephena", "jesseleepetersen", "shannon", "neiltyson", "malema", "claudeanderson", ...(!isHidden("drbenj") ? ["drbenj"] : []), "bishopfundme", "cornellwest", "clarke"], mysteryIds: [] },
                 { label: "👥  FAMILY & OTHERS", ids: ["errol", "ivanka"], mysteryIds: ["melania"] },
               ];
               const lockedMysteryIds = MYSTERY_PERSONA_IDS.filter((id) => !unlockedMystery.includes(id));
@@ -10857,7 +10920,8 @@ export default function ArenaScreen() {
                 if (!p) return null;
                 if (isHidden(pid)) return null;
                 if (BOXING_EXCLUSIVE_IDS.includes(pid)) return null;
-                const isSelected = selectedPersonas.includes(pid);
+                const selectionIndex = selectedPersonas.indexOf(pid);
+                const isSelected = selectionIndex >= 0;
                 const isPremiumLocked = isLocked(pid);
                 const premiumCfg = PREMIUM_PERSONA_CONFIGS[pid];
                 const accentColor = isPremiumLocked ? (premiumCfg?.badgeColor || "#FFD700") : isSelected ? p.color : isMystery ? "#FFD700" : "rgba(255,255,255,0.1)";
@@ -10900,7 +10964,11 @@ export default function ArenaScreen() {
                         );
                       })()}
                     </View>
-                    {isSelected && !isPremiumLocked && <Ionicons name="checkmark-circle" size={18} color={p.color} />}
+                    {isSelected && !isPremiumLocked && (
+                      <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: p.color, alignItems: "center", justifyContent: "center" }}>
+                        <Text style={{ color: "#000", fontSize: 12, fontWeight: "900" as const }}>{selectionIndex + 1}</Text>
+                      </View>
+                    )}
                   </Pressable>
                 );
               };
