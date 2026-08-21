@@ -885,6 +885,8 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   scottjennings: require("@/assets/images/persona-scottjennings.jpg"),
   shannonsharp: require("@/assets/images/persona-shannon.jpg"),
   mikejohnson: require("@/assets/images/persona-mikejohnson.png"),
+  donalds: require("@/assets/images/persona-donalds.png"),
+  clarke: require("@/assets/images/persona-clarke.png"),
   tlaib:        require("@/assets/images/persona-tlaib.png"),
   professorjiang: require("@/assets/images/persona-professorjiang.png"),
   mikabrzezinski: require("@/assets/images/persona-mikabrzezinski.jpg"),
