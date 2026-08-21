@@ -124,6 +124,7 @@ const PERSONA_CATEGORY_MAP: Record<string, PersonaCategory> = {
   joescarborough: "journalist",
   clarke: "activist",
   donalds: "politician",
+  arikana: "activist",
 };
 
 // Political Facts IQ: everyone starts at 100 (seeded from all-time average).
@@ -2203,6 +2204,35 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       negative: ["socialism", "defund", "open borders", "woke", "big government"],
     },
   },
+  arikana: {
+    id: "arikana",
+    name: "Dr. Arikana Chihombori",
+    shortName: "Dr. Arikana",
+    color: "#C8102E",
+    faction: "wildcard",
+    image: require("@/assets/images/persona-arikana.png"),
+    personality: {
+      energy: 90,
+      aggression: 75,
+      humor: 25,
+      catchphrases: ["Africa is not poor, Africa is looted", "We must speak truth to power", "The West owes Africa a debt", "Wake up, Africa!"],
+    },
+    relationships: {
+      malema: { sentiment: 85 },
+      cornellwest: { sentiment: 75 },
+      claudeanderson: { sentiment: 80 },
+      clarke: { sentiment: 85 },
+      louisfarrakhan: { sentiment: 70 },
+      malcolmx: { sentiment: 75 },
+      trump: { sentiment: 10 },
+      candace: { sentiment: 15 },
+      ruckus: { sentiment: 5 },
+    },
+    triggerWords: {
+      positive: ["pan-africanism", "reparations", "sovereignty", "self-determination", "colonialism", "exploitation"],
+      negative: ["aid", "charity", "foreign intervention", "sanctions"],
+    },
+  },
 };
 
 const MYSTERY_PERSONAS: Record<string, ArenaPersona> = {
@@ -2734,7 +2764,7 @@ const MYSTERY_UNLOCK_KEY = "arena_mystery_unlocked";
 
 import { BOXING_EXCLUSIVE_IDS } from "@/lib/boxing-personas";
 
-const PERSONA_IDS = ["trump", "jdvance", "elon", "errol", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "carlin", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "leavitt", "erikakirk", "loomer", "bannon", "stephena", "malema", "hannity", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "aoc", "pressley", "joerogan", "timscott", "drbenj", "billclinton", "hillaryclinton", "marcorubio", "desantis", "tuckercarlson", "bishopfundme", "cornellwest", "piersmorgan", "scottjennings", "mikabrzezinski", "joescarborough", "richardwolff", "berniesanders", "pastormanning", "clarke", "donalds"];
+const PERSONA_IDS = ["trump", "jdvance", "elon", "errol", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "carlin", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "leavitt", "erikakirk", "loomer", "bannon", "stephena", "malema", "hannity", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "aoc", "pressley", "joerogan", "timscott", "drbenj", "billclinton", "hillaryclinton", "marcorubio", "desantis", "tuckercarlson", "bishopfundme", "cornellwest", "piersmorgan", "scottjennings", "mikabrzezinski", "joescarborough", "richardwolff", "berniesanders", "pastormanning", "clarke", "donalds", "arikana"];
 // Cartoon-style image filter — vivid posterized look on web
 const CARTOON_FILTER = Platform.OS === "web"
   ? ({ filter: "contrast(1.35) saturate(1.85) brightness(1.03)" } as any)
