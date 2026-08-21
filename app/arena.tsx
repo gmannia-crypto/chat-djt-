@@ -4328,6 +4328,15 @@ export default function ArenaScreen() {
   // Ref mirror of ttsActiveSpeaker for synchronous reads inside callbacks.
   // currentSpeakerRef tracks the FETCH phase; ttsActiveSpeakerRef tracks actual AUDIO playback.
   const ttsActiveSpeakerRef = useRef<string | null>(null);
+  // Interruptions/firebacks/squabble-threats play on a SEPARATE audio track from the
+  // main queue (playInterruptionAudio never touches currentSoundRef), so they must
+  // track their own "speaking" state too. Sharing ttsActiveSpeakerRef between the two
+  // tracks caused whichever track finished LAST to null out the other track's still-
+  // playing speaker — visually cutting a persona's "is speaking" indicator/dialog
+  // short even though their audio kept playing underneath. Each track now owns its
+  // own state; the UI unions both so overlapping speakers both show as speaking.
+  const [interruptActiveSpeaker, setInterruptActiveSpeaker] = useState<string | null>(null);
+  const interruptActiveSpeakerRef = useRef<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [firstAudioPlayed, setFirstAudioPlayed] = useState(false);
   const firstAudioPlayedRef = useRef(false);
@@ -5425,10 +5434,13 @@ export default function ArenaScreen() {
     if (!voiceEnabledRef.current) return;
     if (shouldSkipPersonaVoice(personaId)) return;
 
-    // Interrupter plays at the same volume as any other speaker
-    ttsActiveSpeakerRef.current = personaId;
+    // Interrupter plays at the same volume as any other speaker, on its own
+    // track — never touch ttsActiveSpeakerRef here, or finishing this clip
+    // would null out the main queue's still-playing speaker (see comment on
+    // interruptActiveSpeakerRef above).
+    interruptActiveSpeakerRef.current = personaId;
     if (mountedRef.current) {
-      setTtsActiveSpeaker(personaId);
+      setInterruptActiveSpeaker(personaId);
     }
     try {
       const interruptVolume = getPersonaVoiceVolume(personaId);
@@ -5441,9 +5453,9 @@ export default function ArenaScreen() {
         sound.getStatusAsync().then((st: any) => {
           if (st.isLoaded) sound.stopAsync().then(() => sound.unloadAsync()).catch(() => {});
         }).catch(() => {});
-        ttsActiveSpeakerRef.current = null;
+        if (interruptActiveSpeakerRef.current === personaId) interruptActiveSpeakerRef.current = null;
         if (mountedRef.current) {
-          setTtsActiveSpeaker(null);
+          setInterruptActiveSpeaker((prev) => (prev === personaId ? null : prev));
         }
       };
       // Dynamic safety timeout: start at 12 s (covers slow-network TTS fetch).
@@ -5486,7 +5498,7 @@ export default function ArenaScreen() {
 
     // Sort candidates by hostility toward the attacker (lowest sentiment = most provoked)
     const candidates = activePersonas
-      .filter((id) => id !== attackerId && id !== currentSpeakerRef.current && id !== ttsActiveSpeakerRef.current)
+      .filter((id) => id !== attackerId && id !== currentSpeakerRef.current && id !== ttsActiveSpeakerRef.current && id !== interruptActiveSpeakerRef.current)
       .map((id) => {
         const persona = getPersona(id);
         const rel = persona?.relationships?.[attackerId];
@@ -7698,7 +7710,7 @@ export default function ArenaScreen() {
     // so ttsActiveSpeakerRef is the only reliable guard against scheduling a persona
     // while their voice is still audible.
     const pool = active.filter(
-      (pid) => pid !== lastMsg.speakerId && pid !== ttsActiveSpeakerRef.current
+      (pid) => pid !== lastMsg.speakerId && pid !== ttsActiveSpeakerRef.current && pid !== interruptActiveSpeakerRef.current
     );
     if (pool.length === 0) return;
 
@@ -10019,7 +10031,7 @@ export default function ArenaScreen() {
       )}
 
       {(() => {
-        const activeSpeakerId = ttsActiveSpeaker || currentSpeaker;
+        const activeSpeakerId = interruptActiveSpeaker || ttsActiveSpeaker || currentSpeaker;
         const sp = activeSpeakerId ? getPersona(activeSpeakerId) : null;
         if (!sp) return null;
         const spVotes = speakerVoteCounts[activeSpeakerId!] || 0;
@@ -10135,7 +10147,7 @@ export default function ArenaScreen() {
           const p = getPersona(pid);
           if (!p) return null;
           const emo = emotionalStates[pid] || { anger: 20, happiness: 50, engagement: 50, lastSpoke: null };
-          const isSpeaking = currentSpeaker === pid || ttsActiveSpeaker === pid;
+          const isSpeaking = currentSpeaker === pid || ttsActiveSpeaker === pid || interruptActiveSpeaker === pid;
           const isFocused = focusedPersona === pid;
           const voteAnim = voteAnimations[pid] || 0;
           const allTime = allTimeScores[pid];
@@ -10360,12 +10372,12 @@ export default function ArenaScreen() {
           <View style={s.streamLive}>
             <View style={[s.liveDot, { width: 6, height: 6, borderRadius: 3 }]} />
             <Text style={s.streamHeaderText}>
-              {(ttsActiveSpeaker || currentSpeaker)
-                ? `${getPersona(ttsActiveSpeaker || currentSpeaker)?.shortName} is speaking...`
+              {(interruptActiveSpeaker || ttsActiveSpeaker || currentSpeaker)
+                ? `${getPersona(interruptActiveSpeaker || ttsActiveSpeaker || currentSpeaker)?.shortName} is speaking...`
                 : currentTopic ? currentTopic : "Real-time AI conversation"}
             </Text>
           </View>
-          {(ttsActiveSpeaker || currentSpeaker) && <ActivityIndicator size="small" color={getPersona(ttsActiveSpeaker || currentSpeaker)?.color || "#fff"} />}
+          {(interruptActiveSpeaker || ttsActiveSpeaker || currentSpeaker) && <ActivityIndicator size="small" color={getPersona(interruptActiveSpeaker || ttsActiveSpeaker || currentSpeaker)?.color || "#fff"} />}
         </View>
         <FlatList
           ref={flatListRef}
