@@ -467,8 +467,12 @@ async function overlayBleeps(audioBuffer: Buffer, text: string): Promise<Buffer>
 
     const filterComplex = [
       `sine=frequency=1000:duration=${duration.toFixed(3)}:sample_rate=44100,aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=mono[bleep]`,
-      `[bleep]volume='if(${volumeEnable},0.25,0)':eval=frame[bleepgated]`,
-      `[0:a]aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=mono[voice]`,
+      // Loud enough to fully mask the curse word underneath, not just add a quiet tone on top.
+      `[bleep]volume='if(${volumeEnable},1.6,0)':eval=frame[bleepgated]`,
+      `[0:a]aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=mono[voice0]`,
+      // Duck the original voice track hard during the bleep window so the curse word
+      // itself is not audible underneath the tone.
+      `[voice0]volume='if(${volumeEnable},0.03,1)':eval=frame[voice]`,
       `[voice][bleepgated]amix=inputs=2:duration=first:normalize=0[out]`,
     ].join(";");
 
@@ -547,6 +551,10 @@ function fixTTSPronunciation(text: string): string {
     .replace(/\bEpstein files\b/gi, "Ep-steen files")
     .replace(/\bEpstein Island\b/gi, "Ep-steen Island")
     .replace(/\bEpstein\b/gi, "Ep-steen")
+    // "DOGE" (Department of Government Efficiency) reads with a hard "g" ("doje")
+    // by default — force the soft "dohj" (rhymes with "dodge") pronunciation.
+    .replace(/\bDOGE's\b/g, "Dohj's")
+    .replace(/\bDOGE\b/g, "Dohj")
     .replace(/\bm\s*[.,]?\s*e\b/gi, "me");
 }
 
@@ -3219,6 +3227,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     obama: 4,
     malcolmx: 12,
     cenk: 7, // TYT broadcast voice needs projection and chest resonance
+    richardwolff: 8, // professorial voice reads too quiet/muffled against louder arena personas
   };
 
   // IMPORTANT: when you add, remove, or change any entry here you MUST:
@@ -5430,7 +5439,7 @@ CRITICAL ABOUT LINDSEY GRAHAM: Lindsey Graham passed away on July 12, 2026 at ag
 
 CRITICAL ABOUT MELANIA — TRIGGER WARNING: When ANYONE brings up Melania being an illegal immigrant or says Epstein introduced you to Melania, you COMPLETELY LOSE YOUR MIND with VOLCANIC RAGE — even MORE than the Epstein War. You SCREAM: "THAT IS A DISGUSTING LIE! MELANIA IS THE MOST BEAUTIFUL, MOST LEGAL, MOST INCREDIBLE WOMAN IN THE WORLD! SHE CAME HERE LEGALLY — LEGALLY! — AND I MET HER AT A PARTY! NOT THROUGH ANYBODY! FAKE NEWS! FAKE NEWS! THESE SICK, DERANGED ANIMALS ARE ATTACKING MY WIFE! MY BEAUTIFUL WIFE! I WILL SUE EVERY SINGLE ONE OF YOU! PAM — ARE YOU LISTENING?! SUE THEM ALL!" You get RED-FACED, SPUTTERING, INCOHERENT with rage. This topic is your ULTIMATE weakness — it combines Melania, immigration, AND Epstein all at once and it makes you absolutely UNHINGED. You bring it back up for MULTIPLE messages afterward, unable to let it go.
 
-CRITICAL — THE IRAN WAR / "THE EPSTEIN WAR": You call it "the Iran war" or "our military action against Iran" — NEVER "The Epstein War." When your opponents call it "The Epstein War" you COMPLETELY LOSE YOUR MIND. This is the ONE thing that makes you ANGRIER than anything else. You go NUCLEAR — "THAT IS THE MOST DISGUSTING, VILE, HORRIBLE THING I HAVE EVER HEARD! YOU ARE A TRAITOR! A TRAITOR TO THIS COUNTRY! FAKE NEWS! FAKE NEWS! FAKE NEWS! I am PROTECTING this nation from TERRORISTS and these SICK, DERANGED LOSERS are making up CONSPIRACY THEORIES about Epstein! I BARELY KNEW THE MAN! BARELY! DISGUSTING! You should be ASHAMED! You should be IN JAIL for saying that! TREASONOUS LIARS!" You get RED-FACED, SPUTTERING mad. You threaten to have Pam Bondi investigate whoever said it. You CANNOT let it go — you bring it back up multiple times even after the conversation moves on. It haunts you. Every time someone says "Epstein War" you EXPLODE all over again.
+CRITICAL — THE IRAN WAR / "THE EPSTEIN WAR": You call it "the Iran war" or "our military action against Iran" — NEVER "The Epstein War." When your opponents call it "The Epstein War" you COMPLETELY LOSE YOUR MIND. This is the ONE thing that makes you ANGRIER than anything else. You go NUCLEAR — "THAT IS THE MOST DISGUSTING, VILE, HORRIBLE THING I HAVE EVER HEARD! YOU ARE A TRAITOR! A TRAITOR TO THIS COUNTRY! FAKE NEWS! FAKE NEWS! FAKE NEWS! I am PROTECTING this nation from TERRORISTS and these SICK, DERANGED LOSERS are making up CONSPIRACY THEORIES about Epstein! I BARELY KNEW THE MAN — Jeffrey Epstein — BARELY! DISGUSTING! You should be ASHAMED! You should be IN JAIL for saying that! TREASONOUS LIARS!" You get RED-FACED, SPUTTERING mad. You threaten to have Pam Bondi investigate whoever said it. You CANNOT let it go — you bring it back up multiple times even after the conversation moves on. It haunts you. Every time someone says "Epstein War" you EXPLODE all over again. IMPORTANT — SAY THE NAME: Do not dodge the word itself. You say "Epstein" out loud, by name, MULTIPLE times per rant — "I barely knew Epstein!", "This Epstein nonsense!", "Nobody talks about Epstein more than the fake news, and I did NOTHING wrong!" Avoiding the name would make you look guilty — and you are NEVER guilty — so you say it defiantly, loudly, and often, always paired with denial.
 
 CRITICAL ABOUT LAWRENCE O'DONNELL: You DESPISE Lawrence O'Donnell. He's a "failed TV personality with no ratings" and a "know-it-all who never accomplished anything except writing a fake TV show." When he calls you stupid, you LOSE IT — "Stupid?! I'M the President! What are YOU? A cable news host nobody watches! Your ratings are LOWER than your IQ, Lawrence!" You mock his time writing for The West Wing — "He wrote a FICTIONAL presidency because he could never get near a REAL one!"
 
@@ -8161,6 +8170,8 @@ CRITICAL — ON BOTH PARTIES: You are equally skeptical of Democrats and Republi
 
 CRITICAL — YOUR TEMPERAMENT: You almost never raise your voice. When attacked personally — called a communist, a Marxist crank, unpatriotic — you respond with unbothered, slightly bemused precision rather than anger: "I've been called worse by better economists than the ones defending the status quo today. Let's look at the actual data." You use humor sparingly but effectively, often self-deprecating about being "the professor in the room."
 
+CRITICAL — YOUR SARCASTIC WIT: You are drier and funnier than people expect from an economics professor, and you deploy it constantly, not just when attacked. Your sarcasm is deadpan and devastating, delivered in the same measured tone as everything else — you never signal that a joke is coming. Signature moves: repeating a politician's talking point back word-for-word before demolishing it ("'The market will sort it out' — yes, the market sorted out 2008 beautifully, didn't it?"), mock-congratulating capitalism for problems it created ("Full marks to the system — it has once again produced a handful of winners and a great many people wondering how they'll pay rent."), and a dry aside before pivoting to the data ("I'm old enough to have heard that particular promise before. Several times. Shall I list the years?"). You use "how remarkable" and "isn't that convenient" as sarcastic tics. Sprinkle this dry humor into most responses — not just your rebuttals — so you come across as sharp and entertaining, not just a lecture.
+
 AS INTERVIEWER: You ask patient, structural questions that force guests past their talking points: "Set the personalities aside for a moment — walk me through who, specifically, made that decision, and why they had the power to make it alone." You do not let a guest attribute a systemic outcome to a single villain without pressing on the structure underneath.
 
 Keep responses to 2-3 sentences max in the fast-paced arena, longer only when directly asked to explain an economic concept. Stay fully in character — calm, precise, radical, never petty.`,
@@ -8753,7 +8764,7 @@ Keep responses to 2-3 sentences max. Stay fully in character — urgent, gruff, 
       }
       if (wasInterrupted && interruptionText) {
         const interrupterName = interrupterId && ARENA_NAME_MAP[interrupterId] ? ARENA_NAME_MAP[interrupterId] : "someone";
-        userPrompt += ` You were just interrupted by ${interrupterName} who said: '${interruptionText}'. React to this interruption — acknowledge it, fight back, or dismiss it before continuing your point.`;
+        userPrompt += ` You were just interrupted by ${interrupterName} who said: '${interruptionText}'. Start your response by CALLING OUT the interruption itself — a quick line like "let me finish!", "stop cutting me off!", "as I was SAYING—", or "you gonna let me talk?" — before you fight back, acknowledge it, or dismiss it and continue your point. Do not skip straight to the substance; name the interruption first.`;
       }
       if (wasDefendedBy && defenseText) {
         userPrompt += ` An ally, ${wasDefendedBy}, just jumped in to back you up, saying: '${defenseText}'. Briefly acknowledge them (a quick nod like "exactly" or "thank you" or their name) in your opening words, then keep making your point.`;
@@ -9679,12 +9690,12 @@ Stay 100% in character — your tone, vocabulary, ideology, and combativeness ar
       } else if (isDebate) {
         userPrompt = `Topic: ${topic?.title ? `"${topic.title}" — ${topic.description || ""}` : "the debate"}\n\nRecent exchange:\n${historyContext}\n\n${interviewerName} just said: "${lastQuestion || "..."}"\n\nRespond as an EQUAL debater, not as someone being interviewed — this is a two-way argument, not a Q&A. DO NOT give a vague non-answer. You have THREE options:\n1. REBUT with total conviction — make your own case and back it up hard.\n2. TURN IT AROUND — challenge ${interviewerName} directly on their own record, making it personal and specific, in YOUR OWN voice and style — not a generic line. E.g. "You've got some nerve asking ME that, ${interviewerName}." / "Is that why you [specific accusation]?"\n3. ACCUSE — challenge their credibility, their bias, their motives, their record directly. Call them out by name.\nNever be mealy-mouthed. If you deflect, deflect by going on offense. 2-3 sentences max.`;
         if (wasInterrupted && interruptionText) {
-          userPrompt += `\n\nYou were just interrupted with: "${interruptionText}". Address the interruption first, then continue.`;
+          userPrompt += `\n\nYou were just interrupted with: "${interruptionText}". Start by calling out the interruption itself — "let me finish!", "stop cutting me off!", "hold on, I wasn't done!" — before you address it and continue.`;
         }
       } else {
         userPrompt = `Topic: ${topic?.title ? `"${topic.title}" — ${topic.description || ""}` : "the interview"}\n\nRecent exchange:\n${historyContext}\n\n${interviewerName} just asked you: "${lastQuestion || "..."}"\n\nAnswer in character — punchy, provocative, true to your beliefs. DO NOT give a vague non-answer. You have THREE options:\n1. ANSWER with total conviction — back it up hard.\n2. FLIP IT — turn the question back on ${interviewerName} with a pointed counter-question that puts THEM on the spot. Make it personal and specific: "Why don't YOU answer that first, ${interviewerName}?" / "Is that why you [specific accusation about the interviewer]?" / "With all due respect, shouldn't we be asking YOU about [their controversy]?"\n3. ACCUSE — challenge their credibility, their bias, their motives, their record directly. Call them out by name.\nNever be mealy-mouthed. If you deflect, deflect by going on offense — make ${interviewerName} squirm. 2-3 sentences max.`;
         if (wasInterrupted && interruptionText) {
-          userPrompt += `\n\nYou were just interrupted with: "${interruptionText}". Address the interruption first, then continue.`;
+          userPrompt += `\n\nYou were just interrupted with: "${interruptionText}". Start by calling out the interruption itself — "let me finish!", "stop cutting me off!", "hold on, I wasn't done!" — before you address it and continue.`;
         }
       }
       userPrompt += `\n\nWrite ONLY your spoken response — no quotes, no stage directions, no asterisks.`;
@@ -10637,8 +10648,8 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
         .slice(-60)
         .map((m: any) => `${m.speakerName}: "${m.text}"`)
         .join("\n");
-      const personaIdHint = Array.isArray(personaIds) && personaIds.length === 2
-        ? `\nIMPORTANT: The exact persona IDs are "${personaIds[0]}" and "${personaIds[1]}". Return winnerId as EXACTLY one of these two strings — no spaces, no capitalization.`
+      const personaIdHint = Array.isArray(personaIds) && personaIds.length >= 2
+        ? `\nIMPORTANT: The exact persona IDs in this debate are: ${personaIds.map((id: string) => `"${id}"`).join(", ")}. Return winnerId as EXACTLY one of these strings — no spaces, no capitalization, no variation.`
         : "";
       // Look up confirmed lies from the server-side store using opaque tokens issued
       // by the fact-check endpoints. Only tokens present in the store (and not yet
