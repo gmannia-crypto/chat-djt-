@@ -3492,7 +3492,8 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
         : PERSONA_EMOTION_MAP[personaId];
       const safeText = applyPersonaTTSFormatting(text.slice(0, 2000), personaId);
       const rawBuffer = await fishAudioRequest(safeText, voiceId, personaSpeed, apiKey, 3, personaVolumeDb, personaEmotion);
-      const buffer = await overlayBleeps(rawBuffer, safeText);
+      const bleepRequested = req.body.bleepEnabled === undefined ? true : req.body.bleepEnabled === "true" || req.body.bleepEnabled === true;
+      const buffer = bleepRequested ? await overlayBleeps(rawBuffer, safeText) : rawBuffer;
 
       res.setHeader("Content-Type", "audio/mpeg");
       res.setHeader("Content-Length", buffer.length.toString());
@@ -3540,7 +3541,8 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
       const getPersonaVolumeDb = PERSONA_VOLUME_BOOST[personaId as string] ?? 0;
       const safeText = applyPersonaTTSFormatting(text.slice(0, 2000), personaId);
       const rawBuffer = await fishAudioRequest(safeText, voiceId, getPersonaSpeed, apiKey, 3, getPersonaVolumeDb);
-      const buffer = await overlayBleeps(rawBuffer, safeText);
+      const bleepRequested = req.query.bleepEnabled === undefined ? true : req.query.bleepEnabled === "true";
+      const buffer = bleepRequested ? await overlayBleeps(rawBuffer, safeText) : rawBuffer;
 
       res.setHeader("Content-Type", "audio/mpeg");
       res.setHeader("Content-Length", buffer.length.toString());

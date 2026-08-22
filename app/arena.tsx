@@ -4283,6 +4283,8 @@ export default function ArenaScreen() {
   useEffect(() => { debateModeRef.current = debateMode; }, [debateMode]);
   const [topicCategory, setTopicCategory] = useState<string>("politics");
   const [bleepEnabled, setBleepEnabled] = useState<boolean>(false);
+  const bleepEnabledRef = useRef<boolean>(false);
+  useEffect(() => { bleepEnabledRef.current = bleepEnabled; }, [bleepEnabled]);
 
   const applyBleep = useCallback((text: string): string => {
     if (!bleepEnabled) return text;
@@ -5325,7 +5327,7 @@ export default function ArenaScreen() {
     if (shouldSkipPersonaVoice(item.personaId)) return;
     if (prefetchedAudioRef.current && prefetchedAudioRef.current.text === item.text && prefetchedAudioRef.current.personaId === item.personaId) return;
     prefetchingRef.current = true;
-    prefetchTTSAudio("/api/persona-speak", { text: item.text, personaId: item.personaId, ...(item.personaId === "trump" ? { voiceId: TRUMP_ARENA_VOICE_ID } : {}), ...(item.personaId === "loudmouth" ? { angerLevel: roomTempRef.current } : {}) })
+    prefetchTTSAudio("/api/persona-speak", { text: item.text, personaId: item.personaId, bleepEnabled: bleepEnabledRef.current, ...(item.personaId === "trump" ? { voiceId: TRUMP_ARENA_VOICE_ID } : {}), ...(item.personaId === "loudmouth" ? { angerLevel: roomTempRef.current } : {}) })
       .then((audioUri) => {
         prefetchedAudioRef.current = { personaId: item.personaId, text: item.text, audioUri };
         prefetchingRef.current = false;
@@ -5371,7 +5373,7 @@ export default function ArenaScreen() {
           prefetchedAudioRef.current = null;
           sound = await playPrefetchedAudio(cached.audioUri, { volume: personaVolume });
         } else {
-          sound = await playTTS("/api/persona-speak", { text: item.text, personaId: item.personaId, ...(item.personaId === "trump" ? { voiceId: TRUMP_ARENA_VOICE_ID } : {}), ...(item.personaId === "loudmouth" ? { angerLevel: roomTempRef.current } : {}) }, { volume: personaVolume });
+          sound = await playTTS("/api/persona-speak", { text: item.text, personaId: item.personaId, bleepEnabled: bleepEnabledRef.current, ...(item.personaId === "trump" ? { voiceId: TRUMP_ARENA_VOICE_ID } : {}), ...(item.personaId === "loudmouth" ? { angerLevel: roomTempRef.current } : {}) }, { volume: personaVolume });
         }
         currentSoundRef.current = sound;
 
@@ -5485,7 +5487,7 @@ export default function ArenaScreen() {
     const restoreMain = () => { if (duckedMain) { try { duckedMain.setVolumeAsync(1.0).catch(() => {}); } catch {} } };
     try {
       const interruptVolume = getPersonaVoiceVolume(personaId);
-      const sound = await playTTS("/api/persona-speak", { text, personaId, ...(personaId === "trump" ? { voiceId: TRUMP_ARENA_VOICE_ID } : {}) }, { volume: interruptVolume });
+      const sound = await playTTS("/api/persona-speak", { text, personaId, bleepEnabled: bleepEnabledRef.current, ...(personaId === "trump" ? { voiceId: TRUMP_ARENA_VOICE_ID } : {}) }, { volume: interruptVolume });
       let cleaned = false;
       const cleanup = () => {
         if (cleaned) return;
@@ -5608,7 +5610,7 @@ export default function ArenaScreen() {
       }, 400);
       return;
     }
-    const reactionAudioPromise = prefetchTTSAudio("/api/persona-speak", { text: reaction.text, personaId: reaction.speakerId });
+    const reactionAudioPromise = prefetchTTSAudio("/api/persona-speak", { text: reaction.text, personaId: reaction.speakerId, bleepEnabled: bleepEnabledRef.current });
     const estMs = Math.max(2500, (mainText.length / 14) * 1000);
     const overlapDelay = Math.max(600, estMs - 900);
     setTimeout(() => {
