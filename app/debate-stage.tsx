@@ -2475,9 +2475,15 @@ export default function DebateStage() {
           sound = await playTTS("/api/persona-speak", ttsBody, { volume: getPersonaVoiceVolume(item.personaId) });
         }
         currentSoundRef.current = sound;
-        // 50 ms overlap: next speaker starts 50 ms before current clip ends — zero dead air,
-        // tight conversational handoff without audible cross-talk.
-        const OVERLAP_MS = 850;
+        // No early cutoff for ordinary turn-taking: a persona's full line must
+        // finish playing before the next speaker starts UNLESS this is a real
+        // interruption. Genuine interruptions (firebacks, squabbles, live
+        // reactions) go through their own explicit ducking/overlap paths
+        // (playInterruptionAudio / playReactionOverlap) and never touch this
+        // early-resolve mechanism — it now only exists for callers that opt in
+        // via an explicit `overlapMs` (e.g. the moderator→persona broadcast
+        // handoff), so plain back-to-back debate turns are never cut short.
+        const OVERLAP_MS = 0;
         let prefetchStarted = false;
         await new Promise<void>((resolve) => {
           let resolved = false;
