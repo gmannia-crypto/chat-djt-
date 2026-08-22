@@ -983,8 +983,8 @@ const TOPIC_MIXES = [
   { id: "mixed", label: "Both", icon: "shuffle" as const },
 ];
 
-type InterviewStyleId = "combative" | "informative" | "comedic" | "civil_discourse" | "educational" | "roast" | "softball";
-const INTERVIEW_STYLES: Array<{ id: InterviewStyleId; label: string; icon: "flame" | "information-circle" | "happy" | "handshake" | "school" | "mic" | "baseball" }> = [
+type InterviewStyleId = "combative" | "informative" | "comedic" | "civil_discourse" | "educational" | "roast" | "softball" | "unhinged";
+const INTERVIEW_STYLES: Array<{ id: InterviewStyleId; label: string; icon: "flame" | "information-circle" | "happy" | "handshake" | "school" | "mic" | "baseball" | "skull" }> = [
   { id: "combative",      label: "Combative",       icon: "flame" },
   { id: "informative",    label: "Informative",     icon: "information-circle" },
   { id: "comedic",        label: "Comedic",         icon: "happy" },
@@ -992,6 +992,7 @@ const INTERVIEW_STYLES: Array<{ id: InterviewStyleId; label: string; icon: "flam
   { id: "educational",    label: "Educational",     icon: "school" },
   { id: "roast",          label: "Comedy Roast",    icon: "mic" },
   { id: "softball",       label: "Softball",        icon: "baseball" },
+  { id: "unhinged",       label: "Unhinged",        icon: "skull" },
 ];
 
 const webTop = Platform.OS === "web" ? 67 : 0;
@@ -1524,7 +1525,7 @@ export default function DebateStage() {
       if (shotPool.length > 0) {
         const line = shotPool[Math.floor(Math.random() * shotPool.length)];
         if (voiceEnabledRef.current) {
-          playTTS("/api/persona-speak", { text: line, personaId: hotId }, { volume: getPersonaVoiceVolume(hotId) }).catch(() => {});
+          playTTS("/api/persona-speak", { text: line, personaId: hotId, bleepEnabled: bleepEnabledRef.current }, { volume: getPersonaVoiceVolume(hotId) }).catch(() => {});
           partingShotDelay = 4500;
         }
         // Always append parting shot to transcript — voice-disabled viewers
@@ -1583,7 +1584,7 @@ export default function DebateStage() {
         try {
           const sound = await playTTS(
             "/api/persona-speak",
-            { text, personaId },
+            { text, personaId, bleepEnabled: bleepEnabledRef.current },
             { volume: getPersonaVoiceVolume(personaId) }
           );
           currentSoundRef.current = sound;
@@ -1754,10 +1755,10 @@ export default function DebateStage() {
       // the drain loop finishes. If the pre-fetch isn't done yet we fall back to
       // a cold playAndAwait call which uses the same proven path as Phase 7.
       const loserAudioFetch = (loserLine && voiceEnabledRef.current && !shouldSkipPersonaVoice(prelimLoserId))
-        ? prefetchTTSAudio("/api/persona-speak", { text: loserLine, personaId: prelimLoserId }).catch(() => null)
+        ? prefetchTTSAudio("/api/persona-speak", { text: loserLine, personaId: prelimLoserId, bleepEnabled: bleepEnabledRef.current }).catch(() => null)
         : Promise.resolve(null);
       const winnerAudioFetch = (winnerLine && voiceEnabledRef.current && !shouldSkipPersonaVoice(prelimWinnerId))
-        ? prefetchTTSAudio("/api/persona-speak", { text: winnerLine, personaId: prelimWinnerId }).catch(() => null)
+        ? prefetchTTSAudio("/api/persona-speak", { text: winnerLine, personaId: prelimWinnerId, bleepEnabled: bleepEnabledRef.current }).catch(() => null)
         : Promise.resolve(null);
 
       if (loserLine) {
@@ -2098,6 +2099,8 @@ export default function DebateStage() {
   useEffect(() => () => { stopSportsMusic(); }, [stopSportsMusic]);
   const { reactionOverlapEnabled, reactionOverlapEnabledRef, toggleReactionOverlap } = useReactionOverlapEnabled();
   const [bleepEnabled, setBleepEnabled] = useState<boolean>(false);
+  const bleepEnabledRef = useRef<boolean>(false);
+  useEffect(() => { bleepEnabledRef.current = bleepEnabled; }, [bleepEnabled]);
   const applyBleep = useCallback((text: string): string => {
     if (!bleepEnabled) return text;
     const profanity = [
@@ -2417,7 +2420,7 @@ export default function DebateStage() {
       return;
     }
     prefetchingRef.current = true;
-    const prefetchBody: Record<string, any> = { text: item.text, personaId: item.personaId };
+    const prefetchBody: Record<string, any> = { text: item.text, personaId: item.personaId, bleepEnabled: bleepEnabledRef.current };
     if (item.personaId === "malcolmx") prefetchBody.angerLevel = malcolmxAngerRef.current;
     if (item.personaId === "loudmouth") prefetchBody.angerLevel = loudmouthAngerRef.current;
     prefetchTTSAudio("/api/persona-speak", prefetchBody)
@@ -2469,7 +2472,7 @@ export default function DebateStage() {
           prefetchedAudioRef.current = null;
           sound = await playPrefetchedAudio(cached.audioUri, { volume: getPersonaVoiceVolume(item.personaId) });
         } else {
-          const ttsBody: Record<string, any> = { text: item.text, personaId: item.personaId };
+          const ttsBody: Record<string, any> = { text: item.text, personaId: item.personaId, bleepEnabled: bleepEnabledRef.current };
           if (item.personaId === "malcolmx") ttsBody.angerLevel = malcolmxAngerRef.current;
           if (item.personaId === "loudmouth") ttsBody.angerLevel = loudmouthAngerRef.current;
           sound = await playTTS("/api/persona-speak", ttsBody, { volume: getPersonaVoiceVolume(item.personaId) });
@@ -3048,7 +3051,7 @@ export default function DebateStage() {
     activeSpeakerRef.current = personaId;
     try {
       const interruptVolume = getPersonaVoiceVolume(personaId);
-      const sound = await playTTS("/api/persona-speak", { text, personaId }, { volume: interruptVolume });
+      const sound = await playTTS("/api/persona-speak", { text, personaId, bleepEnabled: bleepEnabledRef.current }, { volume: interruptVolume });
       let cleaned = false;
       const cleanup = () => {
         if (cleaned) return; cleaned = true;
@@ -3165,7 +3168,7 @@ export default function DebateStage() {
       enqueueTTS(reaction.text, reaction.speakerId, `react-${Date.now()}`);
       return;
     }
-    const reactionAudioPromise = prefetchTTSAudio("/api/persona-speak", { text: reaction.text, personaId: reaction.speakerId });
+    const reactionAudioPromise = prefetchTTSAudio("/api/persona-speak", { text: reaction.text, personaId: reaction.speakerId, bleepEnabled: bleepEnabledRef.current });
     const estMs = Math.max(2500, (mainText.length / 14) * 1000);
     const overlapDelay = Math.max(600, estMs - 900);
     setTimeout(() => {
@@ -6913,7 +6916,7 @@ export default function DebateStage() {
                         onPress={async () => {
                           if (replayingClip === clipId) return;
                           setReplayingClip(clipId);
-                          try { await playTTS("/api/persona-speak", { text: ps.text, personaId: ps.speakerId }, { volume: getPersonaVoiceVolume(ps.speakerId) }); } catch { /* ignore */ } finally { setReplayingClip(null); }
+                          try { await playTTS("/api/persona-speak", { text: ps.text, personaId: ps.speakerId, bleepEnabled: bleepEnabledRef.current }, { volume: getPersonaVoiceVolume(ps.speakerId) }); } catch { /* ignore */ } finally { setReplayingClip(null); }
                         }}
                         style={{ padding: 3 }}
                       >
@@ -6947,7 +6950,7 @@ export default function DebateStage() {
                           onPress={async () => {
                             if (replayingClip === clipId) return;
                             setReplayingClip(clipId);
-                            try { await playTTS("/api/persona-speak", { text: debateTrumpRoast, personaId: debateTrumpRoastSpeakerId }, { volume: getPersonaVoiceVolume(debateTrumpRoastSpeakerId) }); } catch { /* ignore */ } finally { setReplayingClip(null); }
+                            try { await playTTS("/api/persona-speak", { text: debateTrumpRoast, personaId: debateTrumpRoastSpeakerId, bleepEnabled: bleepEnabledRef.current }, { volume: getPersonaVoiceVolume(debateTrumpRoastSpeakerId) }); } catch { /* ignore */ } finally { setReplayingClip(null); }
                           }}
                           style={{ padding: 3 }}
                         >
@@ -6984,7 +6987,7 @@ export default function DebateStage() {
                         onPress={async () => {
                           if (replayingClip === clipId) return;
                           setReplayingClip(clipId);
-                          try { await playTTS("/api/persona-speak", { text: debateWinnerSpeech, personaId: debateWinner.id }, { volume: getPersonaVoiceVolume(debateWinner.id) }); } catch { /* ignore */ } finally { setReplayingClip(null); }
+                          try { await playTTS("/api/persona-speak", { text: debateWinnerSpeech, personaId: debateWinner.id, bleepEnabled: bleepEnabledRef.current }, { volume: getPersonaVoiceVolume(debateWinner.id) }); } catch { /* ignore */ } finally { setReplayingClip(null); }
                         }}
                         style={{ padding: 3 }}
                       >

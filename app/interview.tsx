@@ -401,8 +401,8 @@ const TOPIC_MIXES = [
   { id: "mixed", label: "Both", icon: "shuffle" as const },
 ];
 
-type InterviewStyleId = "combative" | "informative" | "comedic" | "civil_discourse" | "educational" | "roast" | "softball";
-const INTERVIEW_STYLES: Array<{ id: InterviewStyleId; label: string; icon: "flame" | "information-circle" | "happy" | "handshake" | "school" | "mic" | "baseball" }> = [
+type InterviewStyleId = "combative" | "informative" | "comedic" | "civil_discourse" | "educational" | "roast" | "softball" | "unhinged";
+const INTERVIEW_STYLES: Array<{ id: InterviewStyleId; label: string; icon: "flame" | "information-circle" | "happy" | "handshake" | "school" | "mic" | "baseball" | "skull" }> = [
   { id: "combative",      label: "Combative",       icon: "flame" },
   { id: "informative",    label: "Informative",     icon: "information-circle" },
   { id: "comedic",        label: "Comedic",         icon: "happy" },
@@ -410,6 +410,7 @@ const INTERVIEW_STYLES: Array<{ id: InterviewStyleId; label: string; icon: "flam
   { id: "educational",    label: "Educational",     icon: "school" },
   { id: "roast",          label: "Comedy Roast",    icon: "mic" },
   { id: "softball",       label: "Softball",        icon: "baseball" },
+  { id: "unhinged",       label: "Unhinged",        icon: "skull" },
 ];
 
 const webTop = Platform.OS === "web" ? 67 : 0;
@@ -496,6 +497,8 @@ export default function InterviewScreen() {
   const voiceEnabledRef = useRef(true);
   const { reactionOverlapEnabled, reactionOverlapEnabledRef, toggleReactionOverlap } = useReactionOverlapEnabled();
   const [bleepEnabled, setBleepEnabled] = useState<boolean>(false);
+  const bleepEnabledRef = useRef<boolean>(false);
+  useEffect(() => { bleepEnabledRef.current = bleepEnabled; }, [bleepEnabled]);
   const applyBleep = useCallback((text: string): string => {
     if (!bleepEnabled) return text;
     const profanity = [
@@ -810,7 +813,7 @@ export default function InterviewScreen() {
       return;
     }
     prefetchingRef.current = true;
-    prefetchTTSAudio("/api/persona-speak", { text: item.text, personaId: item.personaId })
+    prefetchTTSAudio("/api/persona-speak", { text: item.text, personaId: item.personaId, bleepEnabled: bleepEnabledRef.current })
       .then((audioUri) => {
         prefetchedAudioRef.current = { personaId: item.personaId, text: item.text, audioUri };
         prefetchingRef.current = false;
@@ -867,7 +870,7 @@ export default function InterviewScreen() {
           prefetchedAudioRef.current = null;
           sound = await playPrefetchedAudio(cached.audioUri, { volume: getPersonaVoiceVolume(item.personaId) });
         } else {
-          sound = await playTTS("/api/persona-speak", { text: item.text, personaId: item.personaId }, { volume: getPersonaVoiceVolume(item.personaId) });
+          sound = await playTTS("/api/persona-speak", { text: item.text, personaId: item.personaId, bleepEnabled: bleepEnabledRef.current }, { volume: getPersonaVoiceVolume(item.personaId) });
         }
         currentSoundRef.current = sound;
         if (!firstAudioPlayedRef.current) { firstAudioPlayedRef.current = true; setFirstAudioPlayed(true); }
@@ -1226,7 +1229,7 @@ export default function InterviewScreen() {
     setActiveSpeaker(personaId);
     activeSpeakerRef.current = personaId;
     try {
-      const sound = await playTTS("/api/persona-speak", { text, personaId }, { volume: getPersonaVoiceVolume(personaId) });
+      const sound = await playTTS("/api/persona-speak", { text, personaId, bleepEnabled: bleepEnabledRef.current }, { volume: getPersonaVoiceVolume(personaId) });
       let cleaned = false;
       const cleanup = () => {
         if (cleaned) return; cleaned = true;
@@ -1648,7 +1651,7 @@ export default function InterviewScreen() {
                   // starts, in parallel with the main answer's own audio — by the
                   // time we want to overlap it near the tail of the statement,
                   // it's usually already ready.
-                  const reactionAudioPromise = prefetchTTSAudio("/api/persona-speak", { text: liveReaction.text, personaId: liveReaction.speakerId });
+                  const reactionAudioPromise = prefetchTTSAudio("/api/persona-speak", { text: liveReaction.text, personaId: liveReaction.speakerId, bleepEnabled: bleepEnabledRef.current });
                   const estMs = Math.max(2500, (ans.text.length / 14) * 1000);
                   const overlapDelay = Math.max(600, estMs - 900);
                   setTimeout(() => {
@@ -2182,7 +2185,7 @@ export default function InterviewScreen() {
               onPlaybackStart: () => {
                 // Same overlap-timing pattern as fetchAnswer's reaction: kick off
                 // synthesis immediately, then overlap it near the tail of the answer.
-                const reactionAudioPromise = prefetchTTSAudio("/api/persona-speak", { text: liveReaction.text, personaId: liveReaction.speakerId });
+                const reactionAudioPromise = prefetchTTSAudio("/api/persona-speak", { text: liveReaction.text, personaId: liveReaction.speakerId, bleepEnabled: bleepEnabledRef.current });
                 const estMs = Math.max(2500, (data.interviewee.text.length / 14) * 1000);
                 const overlapDelay = Math.max(600, estMs - 900);
                 setTimeout(() => {

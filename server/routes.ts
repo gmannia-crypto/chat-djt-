@@ -9458,6 +9458,7 @@ Use "era":"current" for today's news/viral moments, "era":"past" for career hist
         civil_discourse: `INTERVIEW STYLE — CIVIL DISCOURSE: You are modeling respectful disagreement. Ask genuine questions. Acknowledge valid points. Disagree with ideas, not character. No personal attacks, no gotcha traps. Your goal: genuine dialogue that produces real understanding.`,
         educational: `INTERVIEW STYLE — EDUCATIONAL: You are a curious, knowledgeable host helping the audience learn. Ask your guest to explain their thinking, their expertise, their lived experience. Use "why", "how", "walk me through" framing. You are the curious student; ${intervieweeName} is the expert. No gotcha traps — only deeper understanding.`,
         softball: `INTERVIEW STYLE — SOFTBALL: You are a warm, supportive host giving your guest every opportunity to shine. Ask questions that let them tell their story, highlight their achievements, and share their vision. No pressure, no traps, no hard pivots. Think of it as a profile interview — you want the audience to walk away feeling like they know and like this person. Celebrate them.`,
+        unhinged: `INTERVIEW STYLE — UNHINGED: There are no guardrails left. You are not a professional host anymore — you are a live wire who has completely lost patience. Go after ${intervieweeName} with maximum viciousness: brutal personal attacks, real profanity, mockery of their record, their character, their intelligence — whatever cuts deepest. No softening, no "with all due respect," no professional distance. Interrupt your own question with insults if the mood strikes. This is the most extreme, no-holds-barred version of yourself — substance stays sharp and specific (real facts, real record), but the delivery is savage and completely uncensored.`,
       };
       const styleInstruction = styleInstructions[interviewStyle] || styleInstructions.combative;
 
@@ -9474,6 +9475,7 @@ Use "era":"current" for today's news/viral moments, "era":"past" for career hist
         educational: `MODERATOR TONE — EDUCATIONAL: You give careful, smooth transitions between debaters in a non-combative framework. Calm and clear, focused on helping the audience follow and understand each point before moving on.`,
         roast: `MODERATOR TONE — COMEDY ROAST: You roast BOTH debaters — your jokes land because you clearly know their record and their words cold, not because they're generic insults. Cutting, funny, well-informed. Spread the heat evenly between them.`,
         softball: `MODERATOR TONE — SOFTBALL: You ask easy, non-combative questions. Warm, relaxed, low-pressure tone — no gotchas, no hard pivots. Give both debaters room to make their case comfortably.`,
+        unhinged: `MODERATOR TONE — UNHINGED: You have zero interest in decorum. When either debater lands a jab, you pile on with your own vicious commentary — real profanity, brutal personal cracks, no filter. You goad both debaters into going further. This is chaos television, not a formal debate — but keep steering it back to the actual topic between outbursts so it's still substantive underneath the mayhem.`,
       };
       const moderatorTone = moderatorToneInstructions[interviewStyle] || moderatorToneInstructions.informative;
 
@@ -9509,7 +9511,7 @@ ${styleInstruction}${getLieBehaviorPrompt(interviewerId, Number((req.body.sessio
 ${targetingDirective}
 
 ${styleInstruction}${getLieBehaviorPrompt(interviewerId, Number((req.body.sessionLieTally || {})[interviewerId]) || 0, req.body.sessionIQ || {})}${moderatorBiasSuffix}`;
-      const interviewerStyleFinal = interviewerStyle + getContentModeInstruction(contentMode);
+      const interviewerStyleFinal = interviewerStyle + getContentModeInstruction(interviewStyle === "unhinged" ? "uncensored" : contentMode);
 
       const historyContext = (conversationHistory || []).slice(-6).map((m: any) =>
         `${m.speakerName}: "${m.text}"`
@@ -9648,6 +9650,7 @@ ${styleInstruction}${getLieBehaviorPrompt(interviewerId, Number((req.body.sessio
         educational: `RESPONSE STYLE — EDUCATIONAL: Explain your position in depth. Walk through your reasoning step by step. Help the audience understand the complexity of the issue. Acknowledge trade-offs honestly.`,
         roast: `RESPONSE STYLE — COMEDY ROAST: You're getting roasted, so roast right back. Take the hit, then return fire with a savage, funny burn of your own — self-aware, quick, and merciless. Don't get defensive or serious; escalate the comedy. Trade devastating one-liners like it's a Friar's Club roast.`,
         softball: `RESPONSE STYLE — SOFTBALL: This is a friendly, flattering conversation, so relax and open up. Tell your story warmly, share personal color and anecdotes, and use the question as a chance to shine — no need to be defensive or combative, nobody's attacking you here.`,
+        unhinged: `RESPONSE STYLE — UNHINGED: There are no guardrails left. Fire back with maximum viciousness — real profanity, brutal personal attacks on their record, character, or intelligence, whatever cuts deepest. No softening, no diplomatic hedging. This is the rawest, most extreme version of your character. Keep it substantive underneath the savagery — real accusations, real record — just with zero self-censorship in how you deliver it.`,
       };
       const answerStyleInstruction = answerStyleInstructions[answerStyle] || answerStyleInstructions.combative;
       const shannonGrandmomNote = getShannonGrandmomNote(intervieweeId, conversationHistory);
@@ -9722,7 +9725,7 @@ Stay 100% in character — your tone, vocabulary, ideology, and combativeness ar
         const reactorPersonaSnippet = getArenaPersonaPrompt(interviewerId);
         userPrompt += `\n\nSEPARATE STEP — REACTION CHECK: After writing your fireback above, decide whether it was such a devastating, savage, or outrageous comeback that ${interviewerName} — the one who just got hit with it — would burst out laughing, scoff, or crack up in disbelief the INSTANT you said it (a "did they really just say that" reaction). Be selective — most firebacks do NOT qualify, only the real showstoppers.\n\nIf it qualifies: on a new final line, write the exact marker "###REACT###" followed by ${interviewerName}'s immediate spoken reaction — in ${interviewerName}'s own voice, personality, and vocabulary (not generic), a short sharp sarcastic laugh-line or scoff, under 12 words. Here is ${interviewerName}'s personality for this reaction line ONLY: ${reactorPersonaSnippet}\n\nIf it does NOT qualify: write the exact marker "###REACT###" followed by exactly "NONE".\n\nAlways include the "###REACT###" marker line exactly once, after your full fireback.`;
       }
-      const intervieweeStyleFinal = intervieweeStyle + getContentModeInstruction(contentMode);
+      const intervieweeStyleFinal = intervieweeStyle + getContentModeInstruction(answerStyle === "unhinged" ? "uncensored" : contentMode);
 
       // Per-turn answer generation always uses the premium model — the budget
       // tier (DeepSeek) was measured at 13-25+ s per call under load, which
@@ -10640,11 +10643,14 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
 
   // POST /api/arena/verdict — AI fact-based debate judge
   app.post("/api/arena/verdict", async (req, res) => {
+    const dcStartedAt = Date.now();
     try {
       const { topic, messages, personas, personaIds, lieTokens } = req.body || {};
       if (!topic || !Array.isArray(messages) || messages.length < 2) {
+        console.warn(`[DC VERDICT] rejected — missing topic or <2 messages (topic=${!!topic}, messageCount=${Array.isArray(messages) ? messages.length : "n/a"})`);
         return res.status(400).json({ error: "Need a topic and at least 2 messages" });
       }
+      console.log(`[DC VERDICT] request received — personas=${Array.isArray(personas) ? personas.join(",") : "?"} messages=${messages.length} lieTokens=${Array.isArray(lieTokens) ? lieTokens.length : 0}`);
       const transcript = (messages as any[])
         .filter((m: any) => !m.isSystem && m.speakerName && m.text)
         .slice(-60)
@@ -10679,13 +10685,15 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
           max_completion_tokens: 1200,
           temperature: 0.7,
         }),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 40000)),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 55000)),
       ]);
       const raw = completion.choices[0]?.message?.content || "{}";
       const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-      res.json(JSON.parse(cleaned));
+      const parsed = JSON.parse(cleaned);
+      console.log(`[DC VERDICT] resolved in ${Date.now() - dcStartedAt}ms — winner="${parsed.winner}" winnerId="${parsed.winnerId}"`);
+      res.json(parsed);
     } catch (err: any) {
-      console.error("Verdict error:", err.message);
+      console.error(`[DC VERDICT] error after ${Date.now() - dcStartedAt}ms:`, err.message);
       res.status(500).json({ error: "Failed to generate verdict" });
     }
   });
