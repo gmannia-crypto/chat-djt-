@@ -5651,6 +5651,17 @@ export default function ArenaScreen() {
     // Decay chain after 30 s of calm
     if (now - arenaLastFirebackAtRef.current > 30000) arenaFirebackChainRef.current = 0;
 
+    // Stale by the time this actually fires (delayed setTimeout, or a slow
+    // AI round-trip) — the room has already moved on to a brand new speaker
+    // unrelated to this exchange. Firing now would read as two people
+    // picking a fight in the background while someone else is mid-sentence
+    // about something else entirely, which is exactly the "side argument
+    // during the main speaker's line" complaint. Abandon rather than layer it.
+    const activeMainSpeaker = currentSpeakerRef.current;
+    if (activeMainSpeaker && activeMainSpeaker !== attackerId && activeMainSpeaker !== victimId) {
+      return;
+    }
+
     // Sort candidates by hostility toward the attacker (lowest sentiment = most provoked)
     const candidates = activePersonas
       .filter((id) => id !== attackerId && id !== currentSpeakerRef.current && id !== ttsActiveSpeakerRef.current && id !== interruptActiveSpeakerRef.current)
@@ -5766,6 +5777,12 @@ export default function ArenaScreen() {
             timestamp: Date.now(),
           };
         }
+        // The room "heard" this fireback: whoever speaks next (almost always
+        // the attacker, continuing their point) should actually address it,
+        // the same way an ordinary insult-interruption already does — this is
+        // what makes the speaker sound like they paused and reacted, instead
+        // of talking straight through a cut-in they supposedly just took.
+        lastInterruptionRef.current = { text: firebackText, interrupterId: targetId };
         addMessageRef.current?.({
           id: `fb-${Date.now()}-${Math.random().toString(36).slice(2)}`,
           speakerId: targetId,
