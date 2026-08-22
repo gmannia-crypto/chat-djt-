@@ -8577,7 +8577,7 @@ Keep responses to 2-3 sentences max. Stay fully in character — urgent, gruff, 
 
   app.post("/api/arena/respond", async (req, res) => {
     try {
-      const { responderId, toSpeakerId, conversationHistory, topic, wasInterrupted, interruptionText, interrupterId, activePersonas, isWelcome, askUser, userContext, arenaMemoryContext, arenaUserContext, requestReaction = false } = req.body;
+      const { responderId, toSpeakerId, conversationHistory, topic, wasInterrupted, interruptionText, interrupterId, activePersonas, isWelcome, askUser, userContext, arenaMemoryContext, arenaUserContext, requestReaction = false, wasDefendedBy, defenseText } = req.body;
       const deviceId = req.headers["x-device-id"] as string;
 
       if (!responderId || !ARENA_PERSONA_PROMPTS[responderId]) {
@@ -8754,6 +8754,9 @@ Keep responses to 2-3 sentences max. Stay fully in character — urgent, gruff, 
       if (wasInterrupted && interruptionText) {
         const interrupterName = interrupterId && ARENA_NAME_MAP[interrupterId] ? ARENA_NAME_MAP[interrupterId] : "someone";
         userPrompt += ` You were just interrupted by ${interrupterName} who said: '${interruptionText}'. React to this interruption — acknowledge it, fight back, or dismiss it before continuing your point.`;
+      }
+      if (wasDefendedBy && defenseText) {
+        userPrompt += ` An ally, ${wasDefendedBy}, just jumped in to back you up, saying: '${defenseText}'. Briefly acknowledge them (a quick nod like "exactly" or "thank you" or their name) in your opening words, then keep making your point.`;
       }
       const { mcconnellJustFroze } = req.body;
       if (mcconnellJustFroze && responderId !== "mcconnell") {

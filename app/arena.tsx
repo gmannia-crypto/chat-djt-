@@ -35,6 +35,7 @@ import { fetch } from "expo/fetch";
 import { playTTS, playAudioFromUrl, prefetchTTSAudio, playPrefetchedAudio } from "@/lib/audio-helper";
 import { getPersonaVoiceVolume, shouldSkipPersonaVoice } from "@/lib/persona-voice";
 import { useReactionOverlapEnabled } from "@/lib/reaction-overlap-settings";
+import { areAllied, isTrump } from "@/lib/persona-ideology";
 import { playPointAwardSound, playVoteClickSound, playVoteSound2, playBellSound, playCrowdCheer, playDrumroll, playWinnerChosenSound, playWinnerAfterSound, playBreakingNewsAlert, playChampionChime } from "@/lib/arena-sfx";
 import { useTokens } from "@/lib/token-context";
 import { usePersonaLocks, PREMIUM_PERSONA_CONFIGS } from "@/lib/persona-locks";
@@ -4909,8 +4910,12 @@ export default function ArenaScreen() {
   const arenaFirebackChainRef = useRef(0);
   const arenaLastFirebackAtRef = useRef(0);
   const arenaSquabbleCooldownUntilRef = useRef(0);
+  // Tracks the most recent "ally jumped in to defend me" moment so the
+  // defended persona's NEXT turn can briefly acknowledge it before moving on.
+  // Consumed (cleared) the first time it's used so it's never referenced twice.
+  const arenaLastDefenseRef = useRef<{ defenderId: string; defenderName: string; defenderText: string; victimId: string; timestamp: number } | null>(null);
   // Ref-forwarded so tryArenaFireback can call itself recursively via closure
-  const tryArenaFirebackRef = useRef<null | ((attackerId: string, attackText: string, severity: number) => void)>(null);
+  const tryArenaFirebackRef = useRef<null | ((attackerId: string, attackText: string, severity: number, victimId?: string) => void)>(null);
   // addMessage is declared later (depends on runFactCheck); ref breaks the TDZ cycle
   const addMessageRef = useRef<null | ((msg: ConversationMessage) => void)>(null);
   // ────────────────────────────────────────────────────────────────────────
@@ -5472,6 +5477,12 @@ export default function ArenaScreen() {
     if (mountedRef.current) {
       setInterruptActiveSpeaker(personaId);
     }
+    // Duck (not mute) whoever is still mid-line on the main track so a
+    // fireback/squabble cut-in reads as "jumping in over them" rather than
+    // fully drowning them out — restored the moment the interjection ends.
+    const duckedMain = currentSoundRef.current;
+    if (duckedMain) { try { duckedMain.setVolumeAsync(0.35).catch(() => {}); } catch {} }
+    const restoreMain = () => { if (duckedMain) { try { duckedMain.setVolumeAsync(1.0).catch(() => {}); } catch {} } };
     try {
       const interruptVolume = getPersonaVoiceVolume(personaId);
       const sound = await playTTS("/api/persona-speak", { text, personaId, ...(personaId === "trump" ? { voiceId: TRUMP_ARENA_VOICE_ID } : {}) }, { volume: interruptVolume });
@@ -5487,6 +5498,7 @@ export default function ArenaScreen() {
         if (mountedRef.current) {
           setInterruptActiveSpeaker((prev) => (prev === personaId ? null : prev));
         }
+        restoreMain();
       };
       // Dynamic safety timeout: start at 12 s (covers slow-network TTS fetch).
       // The moment the clip starts playing and durationMillis is known, reset
@@ -5564,12 +5576,38 @@ export default function ArenaScreen() {
    *  with the main line's own audio), then — timed near the tail of the main
    *  line's estimated playback — drops it into the transcript and plays it
    *  overlapping via playReactionOverlap. No-op if there's no reaction. */
-  const fireLiveReaction = useCallback((reaction: { text: string; speakerId: string; speakerName: string } | null | undefined, mainText: string) => {
+  const fireLiveReaction = useCallback((reaction: { text: string; speakerId: string; speakerName: string } | null | undefined, mainText: string, mainSpeakerId?: string) => {
     if (!reaction?.text) {
       turnsSinceReactionRef.current += 1;
       return;
     }
     turnsSinceReactionRef.current = 0;
+    // An ally reacting to their OWN side's line is just banter aimed at someone
+    // else in the room — it should never cut across the speaker they agree with.
+    // Only a rival's heckle earns the overlapping cut-in; ally banter queues
+    // sequentially and plays once the main line is done.
+    const isAllyBanter = !!mainSpeakerId
+      && !isTrump(reaction.speakerId) && !isTrump(mainSpeakerId)
+      && areAllied(reaction.speakerId, mainSpeakerId);
+    if (isAllyBanter) {
+      setTimeout(() => {
+        if (!mountedRef.current || sessionEndedRef.current) return;
+        setMessages((prev) => {
+          const next = [...prev, {
+            id: `react-${Date.now()}-${Math.random()}`,
+            speakerId: reaction.speakerId,
+            speakerName: reaction.speakerName,
+            text: reaction.text,
+            timestamp: Date.now(),
+            isReaction: true,
+          }].slice(-50);
+          messagesRef.current = next;
+          return next;
+        });
+        queueTTS(reaction.text, reaction.speakerId);
+      }, 400);
+      return;
+    }
     const reactionAudioPromise = prefetchTTSAudio("/api/persona-speak", { text: reaction.text, personaId: reaction.speakerId });
     const estMs = Math.max(2500, (mainText.length / 14) * 1000);
     const overlapDelay = Math.max(600, estMs - 900);
@@ -5589,7 +5627,7 @@ export default function ArenaScreen() {
       });
       playReactionOverlap(reactionAudioPromise, reaction.speakerId);
     }, overlapDelay);
-  }, [playReactionOverlap]);
+  }, [playReactionOverlap, queueTTS]);
 
   // ── ARENA FIREBACK ENGINE ─────────────────────────────────────────────────
   // When a persona's message crosses the insult threshold, this picks the most
@@ -5599,6 +5637,7 @@ export default function ArenaScreen() {
     attackerId: string,
     attackText: string,
     severity: number,
+    victimId?: string,
   ) => {
     if (!mountedRef.current || sessionEndedRef.current || !deviceId) return;
     const activePersonas = selectedPersonasRef.current;
@@ -5718,6 +5757,15 @@ export default function ArenaScreen() {
         const firebackText: string = (data.text || data.response || "").trim();
         if (!firebackText) return;
 
+        if (victimId && victimId !== targetId) {
+          arenaLastDefenseRef.current = {
+            defenderId: targetId,
+            defenderName: targetPersona?.name || targetId,
+            defenderText: firebackText,
+            victimId,
+            timestamp: Date.now(),
+          };
+        }
         addMessageRef.current?.({
           id: `fb-${Date.now()}-${Math.random().toString(36).slice(2)}`,
           speakerId: targetId,
@@ -5727,7 +5775,7 @@ export default function ArenaScreen() {
         });
         await new Promise<void>((r) => setTimeout(r, 50));
         await playInterruptionAudio(firebackText, targetId);
-        fireLiveReaction(data.reaction, firebackText);
+        fireLiveReaction(data.reaction, firebackText, targetId);
         if (data.reaction) turnsSinceReactionRef.current = 0; else turnsSinceReactionRef.current += 1;
         // Fireback — spike room temperature by 10–15 points
         const firebackTempBoost = 10 + Math.floor(Math.random() * 6); // 10–15
@@ -5741,7 +5789,7 @@ export default function ArenaScreen() {
         const retalSeverity = detectArenaInsult(firebackText);
         if (retalSeverity >= 2 && mountedRef.current && !sessionEndedRef.current) {
           setTimeout(() => {
-            tryArenaFirebackRef.current?.(targetId, firebackText, retalSeverity);
+            tryArenaFirebackRef.current?.(targetId, firebackText, retalSeverity, attackerId);
           }, 2000);
         } else {
           setTimeout(() => {
@@ -7035,6 +7083,16 @@ export default function ArenaScreen() {
           bodyPayload.interrupterId = lastInt.interrupterId;
           lastInterruptionRef.current = null;
         }
+        // If an ally just jumped in to defend THIS speaker from an attack,
+        // have them briefly acknowledge it before continuing — consumed once
+        // so it's never referenced twice, and only within a 20s window so it
+        // never surfaces as a stale non-sequitur several turns later.
+        const lastDefense = arenaLastDefenseRef.current;
+        if (lastDefense && lastDefense.victimId === responderId && Date.now() - lastDefense.timestamp < 20000) {
+          bodyPayload.wasDefendedBy = lastDefense.defenderName;
+          bodyPayload.defenseText = lastDefense.defenderText;
+          arenaLastDefenseRef.current = null;
+        }
         if (mcconnellFreezeRef.current && responderId !== "mcconnell") {
           bodyPayload.mcconnellJustFroze = true;
           mcconnellFreezeRef.current = false;
@@ -7162,7 +7220,7 @@ export default function ArenaScreen() {
           // turn when this response arrives, and a fetch-time timer could play
           // the reaction before its own line does, or duck the wrong speaker.
           const liveReaction = data.reaction;
-          queueTTS(data.response, responderId, false, () => fireLiveReaction(liveReaction, data.response));
+          queueTTS(data.response, responderId, false, () => fireLiveReaction(liveReaction, data.response, responderId));
         } else {
           if (data.reaction) turnsSinceReactionRef.current = 0; else turnsSinceReactionRef.current += 1;
         }
@@ -7180,7 +7238,7 @@ export default function ArenaScreen() {
           if (fbSeverity >= 1) {
             // Small delay so the main speaker's TTS gets queued first
             setTimeout(() => {
-              tryArenaFirebackRef.current?.(responderId, data.response, fbSeverity);
+              tryArenaFirebackRef.current?.(responderId, data.response, fbSeverity, toSpeakerId);
             }, 1200);
           }
         }
@@ -7315,7 +7373,7 @@ export default function ArenaScreen() {
       showInterruptionBanner(interrupter, persona.name, data.response);
       lastInterruptionRef.current = { text: data.response, interrupterId: interrupter };
       playInterruptionAudio(data.response, interrupter);
-      fireLiveReaction(data.reaction, data.response);
+      fireLiveReaction(data.reaction, data.response, interrupter);
       if (data.reaction) turnsSinceReactionRef.current = 0; else turnsSinceReactionRef.current += 1;
       if (typeof data.currentIQ === "number") {
         setPersonaSessionIQ((prev) => { const u = { ...prev, [interrupter]: data.currentIQ }; personaSessionIQRef.current = u; return u; });
@@ -7391,7 +7449,7 @@ export default function ArenaScreen() {
           text: clapData.response,
           timestamp: Date.now(),
         });
-        queueTTS(clapData.response, "trump", false, () => fireLiveReaction(clapData.reaction, clapData.response));
+        queueTTS(clapData.response, "trump", false, () => fireLiveReaction(clapData.reaction, clapData.response, "trump"));
         if (clapData.reaction) turnsSinceReactionRef.current = 0; else turnsSinceReactionRef.current += 1;
         if (typeof clapData.currentIQ === "number") {
           setPersonaSessionIQ((prev) => { const u = { ...prev, trump: clapData.currentIQ }; personaSessionIQRef.current = u; return u; });
@@ -7478,7 +7536,7 @@ export default function ArenaScreen() {
         showInterruptionBanner("trump", "Donald Trump", data.response);
         lastInterruptionRef.current = { text: data.response, interrupterId: "trump" };
         playInterruptionAudio(data.response, "trump");
-        fireLiveReaction(data.reaction, data.response);
+        fireLiveReaction(data.reaction, data.response, "trump");
         if (data.reaction) turnsSinceReactionRef.current = 0; else turnsSinceReactionRef.current += 1;
         if (typeof data.currentIQ === "number") {
           setPersonaSessionIQ((prev) => { const u = { ...prev, trump: data.currentIQ }; personaSessionIQRef.current = u; return u; });
@@ -7583,7 +7641,7 @@ export default function ArenaScreen() {
         // that line has actually started playing, even if earlier lines in
         // this rapid-fire burst are still queued/speaking.
         const isFinalLine = i === lines.length - 1;
-        queueTTS(line.text, line.personaId, false, isFinalLine ? () => fireLiveReaction(data.reaction, line.text) : undefined);
+        queueTTS(line.text, line.personaId, false, isFinalLine ? () => fireLiveReaction(data.reaction, line.text, line.personaId) : undefined);
         await new Promise((r) => setTimeout(r, 350));
       }
       if (lines.length === 0) {
@@ -12487,7 +12545,7 @@ export default function ArenaScreen() {
                       text: data.response,
                       timestamp: Date.now(),
                     });
-                    queueTTS(data.response, reactor, false, () => fireLiveReaction(data.reaction, data.response));
+                    queueTTS(data.response, reactor, false, () => fireLiveReaction(data.reaction, data.response, reactor));
                     if (data.freeRemaining !== undefined) setFreeRemaining(data.freeRemaining);
                   }
                 } catch (_e) {} finally {
