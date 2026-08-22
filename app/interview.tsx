@@ -543,6 +543,9 @@ export default function InterviewScreen() {
   // constant. Starts at 2 so a reaction can fire on the very first eligible turn.
   const turnsSinceReactionRef = useRef(2);
 
+  const [emoInterviewer, setEmoInterviewer] = useState<Emotions>(ZERO_EMO);
+  const [emoInterviewee, setEmoInterviewee] = useState<Emotions>(ZERO_EMO);
+
   // Stephen A. Smith ("stephena") gets a calm→angry voice switch — same real
   // voice, calm before the anger meter crosses threshold, matching loudmouth.
   const stephenaAngerRef = useRef<number>(10);
@@ -553,8 +556,16 @@ export default function InterviewScreen() {
       stephenaAngerRef.current = emoInterviewee.anger;
     }
   }, [interviewerId, intervieweeId, emoInterviewer.anger, emoInterviewee.anger]);
-  const [emoInterviewer, setEmoInterviewer] = useState<Emotions>(ZERO_EMO);
-  const [emoInterviewee, setEmoInterviewee] = useState<Emotions>(ZERO_EMO);
+
+  // Uncle Ruckus ("ruckus") — calm voice before his animated voice kicks in.
+  const ruckusAngerRef = useRef<number>(10);
+  useEffect(() => {
+    if (interviewerId === "ruckus") {
+      ruckusAngerRef.current = emoInterviewer.anger;
+    } else if (intervieweeId === "ruckus") {
+      ruckusAngerRef.current = emoInterviewee.anger;
+    }
+  }, [interviewerId, intervieweeId, emoInterviewer.anger, emoInterviewee.anger]);
 
   const [lieTally, setLieTally] = useState<{ totalLies: number; totalSessions: number; bestSession: number; topLiarName: string | null; topLiarCount: number } | null>(null);
 
@@ -823,7 +834,7 @@ export default function InterviewScreen() {
       return;
     }
     prefetchingRef.current = true;
-    prefetchTTSAudio("/api/persona-speak", { text: item.text, personaId: item.personaId, bleepEnabled: bleepEnabledRef.current, ...(item.personaId === "stephena" ? { angerLevel: stephenaAngerRef.current } : {}) })
+    prefetchTTSAudio("/api/persona-speak", { text: item.text, personaId: item.personaId, bleepEnabled: bleepEnabledRef.current, ...(item.personaId === "stephena" ? { angerLevel: stephenaAngerRef.current } : {}), ...(item.personaId === "ruckus" ? { angerLevel: ruckusAngerRef.current } : {}) })
       .then((audioUri) => {
         prefetchedAudioRef.current = { personaId: item.personaId, text: item.text, audioUri };
         prefetchingRef.current = false;
@@ -880,7 +891,7 @@ export default function InterviewScreen() {
           prefetchedAudioRef.current = null;
           sound = await playPrefetchedAudio(cached.audioUri, { volume: getPersonaVoiceVolume(item.personaId) });
         } else {
-          sound = await playTTS("/api/persona-speak", { text: item.text, personaId: item.personaId, bleepEnabled: bleepEnabledRef.current, ...(item.personaId === "stephena" ? { angerLevel: stephenaAngerRef.current } : {}) }, { volume: getPersonaVoiceVolume(item.personaId) });
+          sound = await playTTS("/api/persona-speak", { text: item.text, personaId: item.personaId, bleepEnabled: bleepEnabledRef.current, ...(item.personaId === "stephena" ? { angerLevel: stephenaAngerRef.current } : {}), ...(item.personaId === "ruckus" ? { angerLevel: ruckusAngerRef.current } : {}) }, { volume: getPersonaVoiceVolume(item.personaId) });
         }
         currentSoundRef.current = sound;
         if (!firstAudioPlayedRef.current) { firstAudioPlayedRef.current = true; setFirstAudioPlayed(true); }
@@ -1239,7 +1250,7 @@ export default function InterviewScreen() {
     setActiveSpeaker(personaId);
     activeSpeakerRef.current = personaId;
     try {
-      const sound = await playTTS("/api/persona-speak", { text, personaId, bleepEnabled: bleepEnabledRef.current, ...(personaId === "stephena" ? { angerLevel: stephenaAngerRef.current } : {}) }, { volume: getPersonaVoiceVolume(personaId) });
+      const sound = await playTTS("/api/persona-speak", { text, personaId, bleepEnabled: bleepEnabledRef.current, ...(personaId === "stephena" ? { angerLevel: stephenaAngerRef.current } : {}), ...(personaId === "ruckus" ? { angerLevel: ruckusAngerRef.current } : {}) }, { volume: getPersonaVoiceVolume(personaId) });
       let cleaned = false;
       const cleanup = () => {
         if (cleaned) return; cleaned = true;
@@ -1661,7 +1672,7 @@ export default function InterviewScreen() {
                   // starts, in parallel with the main answer's own audio — by the
                   // time we want to overlap it near the tail of the statement,
                   // it's usually already ready.
-                  const reactionAudioPromise = prefetchTTSAudio("/api/persona-speak", { text: liveReaction.text, personaId: liveReaction.speakerId, bleepEnabled: bleepEnabledRef.current, ...(liveReaction.speakerId === "stephena" ? { angerLevel: stephenaAngerRef.current } : {}) });
+                  const reactionAudioPromise = prefetchTTSAudio("/api/persona-speak", { text: liveReaction.text, personaId: liveReaction.speakerId, bleepEnabled: bleepEnabledRef.current, ...(liveReaction.speakerId === "stephena" ? { angerLevel: stephenaAngerRef.current } : {}), ...(liveReaction.speakerId === "ruckus" ? { angerLevel: ruckusAngerRef.current } : {}) });
                   const estMs = Math.max(2500, (ans.text.length / 14) * 1000);
                   const overlapDelay = Math.max(600, estMs - 900);
                   setTimeout(() => {
@@ -2195,7 +2206,7 @@ export default function InterviewScreen() {
               onPlaybackStart: () => {
                 // Same overlap-timing pattern as fetchAnswer's reaction: kick off
                 // synthesis immediately, then overlap it near the tail of the answer.
-                const reactionAudioPromise = prefetchTTSAudio("/api/persona-speak", { text: liveReaction.text, personaId: liveReaction.speakerId, bleepEnabled: bleepEnabledRef.current, ...(liveReaction.speakerId === "stephena" ? { angerLevel: stephenaAngerRef.current } : {}) });
+                const reactionAudioPromise = prefetchTTSAudio("/api/persona-speak", { text: liveReaction.text, personaId: liveReaction.speakerId, bleepEnabled: bleepEnabledRef.current, ...(liveReaction.speakerId === "stephena" ? { angerLevel: stephenaAngerRef.current } : {}), ...(liveReaction.speakerId === "ruckus" ? { angerLevel: ruckusAngerRef.current } : {}) });
                 const estMs = Math.max(2500, (data.interviewee.text.length / 14) * 1000);
                 const overlapDelay = Math.max(600, estMs - 900);
                 setTimeout(() => {

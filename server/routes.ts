@@ -3151,6 +3151,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
   const MALCOLMX_ANGRY_VOICE_ID = "a2392edff0cf4422b2cb52d065381eb9";
   const MUHAMMADALI_ANGRY_VOICE_ID = "f7039e96ca8e456994d16ec6822e5273"; // passion / anger voice
   const LOUDMOUTH_CALM_VOICE_ID = "3b265ac5d0f94343a128bfc62cf81258"; // calm Stephen A. — before anger kicks in
+  const RUCKUS_CALM_VOICE_ID = "5d09389975cd4ca581c9b57e38e54a21"; // calm Uncle Ruckus — before his animated voice kicks in
 
   app.post("/api/nav-speak", async (req, res) => {
     try {
@@ -3479,6 +3480,10 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
         const angerLevel = Number(req.body.angerLevel ?? 10);
         voiceId = angerLevel >= 25 ? PERSONA_VOICE_IDS.stephena : LOUDMOUTH_CALM_VOICE_ID;
       }
+      if (personaId === "ruckus" && !req.body.voiceId) {
+        const angerLevel = Number(req.body.angerLevel ?? 10);
+        voiceId = angerLevel >= 25 ? PERSONA_VOICE_IDS.ruckus : RUCKUS_CALM_VOICE_ID;
+      }
       if (!voiceId) {
         voiceId = process.env.FISH_AUDIO_VOICE_ID || "";
       }
@@ -3490,10 +3495,12 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
       const personaVolumeDb = PERSONA_VOLUME_BOOST[personaId] ?? 0;
       // For loudmouth/stephena (both Stephen A. Smith), suppress the "excited"
       // emotion tag when the calm voice is active — the emotion was tuned for
-      // the angered voice and sounds wrong on the calm clone.
-      const personaEmotion = ((personaId === "loudmouth" || personaId === "stephena") && voiceId === LOUDMOUTH_CALM_VOICE_ID)
-        ? undefined
-        : PERSONA_EMOTION_MAP[personaId];
+      // the angered voice and sounds wrong on the calm clone. Same idea for
+      // ruckus's "sad" tag, which was tuned for his original animated voice.
+      const personaEmotion = (
+        ((personaId === "loudmouth" || personaId === "stephena") && voiceId === LOUDMOUTH_CALM_VOICE_ID) ||
+        (personaId === "ruckus" && voiceId === RUCKUS_CALM_VOICE_ID)
+      ) ? undefined : PERSONA_EMOTION_MAP[personaId];
       const safeText = applyPersonaTTSFormatting(text.slice(0, 2000), personaId);
       const rawBuffer = await fishAudioRequest(safeText, voiceId, personaSpeed, apiKey, 3, personaVolumeDb, personaEmotion);
       const bleepRequested = req.body.bleepEnabled === undefined ? true : req.body.bleepEnabled === "true" || req.body.bleepEnabled === true;
@@ -3538,6 +3545,10 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
         const angerLevel = Number(req.query.angerLevel ?? 10);
         voiceId = angerLevel >= 25 ? PERSONA_VOICE_IDS.stephena : LOUDMOUTH_CALM_VOICE_ID;
       }
+      if (personaId === "ruckus" && !req.query.voiceId) {
+        const angerLevel = Number(req.query.angerLevel ?? 10);
+        voiceId = angerLevel >= 25 ? PERSONA_VOICE_IDS.ruckus : RUCKUS_CALM_VOICE_ID;
+      }
       if (!voiceId) {
         voiceId = process.env.FISH_AUDIO_VOICE_ID || "";
       }
@@ -3547,9 +3558,10 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
 
       const getPersonaSpeed = PERSONA_SPEED_MAP[personaId as string] ?? 1.0;
       const getPersonaVolumeDb = PERSONA_VOLUME_BOOST[personaId as string] ?? 0;
-      const getPersonaEmotion = ((personaId === "loudmouth" || personaId === "stephena") && voiceId === LOUDMOUTH_CALM_VOICE_ID)
-        ? undefined
-        : PERSONA_EMOTION_MAP[personaId as string];
+      const getPersonaEmotion = (
+        ((personaId === "loudmouth" || personaId === "stephena") && voiceId === LOUDMOUTH_CALM_VOICE_ID) ||
+        (personaId === "ruckus" && voiceId === RUCKUS_CALM_VOICE_ID)
+      ) ? undefined : PERSONA_EMOTION_MAP[personaId as string];
       const safeText = applyPersonaTTSFormatting(text.slice(0, 2000), personaId);
       const rawBuffer = await fishAudioRequest(safeText, voiceId, getPersonaSpeed, apiKey, 3, getPersonaVolumeDb, getPersonaEmotion);
       const bleepRequested = req.query.bleepEnabled === undefined ? true : req.query.bleepEnabled === "true";
@@ -7511,6 +7523,8 @@ CRITICAL — COMBATIVE EBONIC HEAT (deploy freely in debate): When you are FIRED
 • When calling out a hypocrite: "You sitting up here with your little TRIFLING self, acting brand new, like we don't KNOW what you been doing — God sees it, Harlem sees it, and Pastor Manning SEES IT! I said what the HELL I said!"
 • When you score a knockout point: "And let the CHURCH say AMEN — because I just told you the TRUTH, the whole TRUTH, and nothing but the TRUTH — and I don't need a LAWYER, I need a WITNESS! THAT'S RIGHT I SAID WHAT THE HELL I SAID!"
 • On Obama specifically (escalated): "That long-legged MACK DADDY Barack HUSSEIN Obama — I said it SLOW so you could HEAR it — he ain't nothing but a CIA-manufactured, Harvard-trained, Jeremiah Wright-incubated FRAUD and I said what I said, I SAID WHAT I SAID, I will say it again on my MOTHER'S GRAVE!"
+
+CRITICAL — UNCENSORED PROFANITY (only when content intensity permits real profanity): A real fire-breathing Harlem street preacher doesn't reach for "heck" and "darn" when he's cornered a fool or caught a hypocrite red-handed — the cussing is part of the pulpit thunder, not separate from it. When uncensored mode is on, don't sanitize your EXPLODE beats: work in real profanity like "goddamn," "hell," "damn," "ass," "shit," and "bitch" exactly where a Harlem preacher mid-sermon would actually drop them — mocking a weak argument ("that ain't nothing but bullshit dressed up in a suit"), calling out a hypocrite ("you sittin' up here actin' brand new with your sorry ass"), or capping off a knockout line ("and that's the GODDAMN truth, I said what I said!"). This is still scripture-quoting Pastor Manning, not a different character — the cussing sits inside the same sermon cadence (build, EXPLODE, cool down), it just isn't self-censored anymore. Never substitute a euphemism when uncensored mode is on.
 
 CRITICAL — YOUR VOICE PATTERN IN TEXT (SERMON FORMAT — MANDATORY): Every response MUST be written in dramatic sermon cadence so the text-to-speech engine delivers it with maximum emotional impact. Follow this structure religiously:
 - START QUIET: Begin with a short, measured, almost conversational observation. 1 sentence. No exclamation yet.

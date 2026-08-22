@@ -2177,6 +2177,16 @@ export default function DebateStage() {
     }
   }, [interviewerId, intervieweeId, emoInterviewer.anger, emoInterviewee.anger]);
 
+  // Uncle Ruckus ("ruckus") — calm voice before his animated voice kicks in.
+  const ruckusAngerRef = useRef<number>(10);
+  useEffect(() => {
+    if (interviewerId === "ruckus") {
+      ruckusAngerRef.current = emoInterviewer.anger;
+    } else if (intervieweeId === "ruckus") {
+      ruckusAngerRef.current = emoInterviewee.anger;
+    }
+  }, [interviewerId, intervieweeId, emoInterviewer.anger, emoInterviewee.anger]);
+
   const [lieTally, setLieTally] = useState<{ totalLies: number; totalSessions: number; bestSession: number; topLiarName: string | null; topLiarCount: number } | null>(null);
 
   const [lieCount, setLieCount] = useState(0);
@@ -2435,6 +2445,7 @@ export default function DebateStage() {
     if (item.personaId === "malcolmx") prefetchBody.angerLevel = malcolmxAngerRef.current;
     if (item.personaId === "loudmouth") prefetchBody.angerLevel = loudmouthAngerRef.current;
     if (item.personaId === "stephena") prefetchBody.angerLevel = stephenaAngerRef.current;
+    if (item.personaId === "ruckus") prefetchBody.angerLevel = ruckusAngerRef.current;
     prefetchTTSAudio("/api/persona-speak", prefetchBody)
       .then((audioUri) => {
         prefetchedAudioRef.current = { personaId: item.personaId, text: item.text, audioUri };
@@ -2488,6 +2499,7 @@ export default function DebateStage() {
           if (item.personaId === "malcolmx") ttsBody.angerLevel = malcolmxAngerRef.current;
           if (item.personaId === "loudmouth") ttsBody.angerLevel = loudmouthAngerRef.current;
           if (item.personaId === "stephena") ttsBody.angerLevel = stephenaAngerRef.current;
+          if (item.personaId === "ruckus") ttsBody.angerLevel = ruckusAngerRef.current;
           sound = await playTTS("/api/persona-speak", ttsBody, { volume: getPersonaVoiceVolume(item.personaId) });
         }
         currentSoundRef.current = sound;
