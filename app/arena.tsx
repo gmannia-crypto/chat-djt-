@@ -11676,7 +11676,7 @@ export default function ArenaScreen() {
                           </View>
                         )}
                       </View>
-                      <Text style={[s.summaryPoints, isDCWinner && { color: "#a78bfa" }]}>{isDCWinner ? "AI" : pts}</Text>
+                      <Text style={[s.summaryPoints, isDCWinner && { color: "#a78bfa" }]}>{isDCWinner ? "AI" : (idx === 0 && !dcVerdictWinnerId && pts === 0 ? "👑" : pts)}</Text>
                     </Animated.View>
                   );
                 })}
