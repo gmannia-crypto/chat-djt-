@@ -984,7 +984,7 @@ const TOPIC_MIXES = [
 ];
 
 type InterviewStyleId = "combative" | "informative" | "comedic" | "civil_discourse" | "educational" | "roast" | "softball" | "unhinged";
-const INTERVIEW_STYLES: Array<{ id: InterviewStyleId; label: string; icon: "flame" | "information-circle" | "happy" | "handshake" | "school" | "mic" | "baseball" | "skull" }> = [
+const INTERVIEW_STYLES: Array<{ id: InterviewStyleId; label: string; icon: "flame" | "information-circle" | "happy" | "handshake" | "school" | "mic" | "baseball" | "skull-outline" }> = [
   { id: "combative",      label: "Combative",       icon: "flame" },
   { id: "informative",    label: "Informative",     icon: "information-circle" },
   { id: "comedic",        label: "Comedic",         icon: "happy" },
@@ -992,7 +992,7 @@ const INTERVIEW_STYLES: Array<{ id: InterviewStyleId; label: string; icon: "flam
   { id: "educational",    label: "Educational",     icon: "school" },
   { id: "roast",          label: "Comedy Roast",    icon: "mic" },
   { id: "softball",       label: "Softball",        icon: "baseball" },
-  { id: "unhinged",       label: "Unhinged",        icon: "skull" },
+  { id: "unhinged",       label: "Unhinged",        icon: "skull-outline" },
 ];
 
 const webTop = Platform.OS === "web" ? 67 : 0;
@@ -2166,6 +2166,17 @@ export default function DebateStage() {
     }
   }, [interviewerId, intervieweeId, emoInterviewer.anger, emoInterviewee.anger]);
 
+  // Stephen A. Smith ("stephena") gets the same calm→angry voice switch as
+  // loudmouth — same real voice, calm before the anger meter crosses threshold.
+  const stephenaAngerRef = useRef<number>(10);
+  useEffect(() => {
+    if (interviewerId === "stephena") {
+      stephenaAngerRef.current = emoInterviewer.anger;
+    } else if (intervieweeId === "stephena") {
+      stephenaAngerRef.current = emoInterviewee.anger;
+    }
+  }, [interviewerId, intervieweeId, emoInterviewer.anger, emoInterviewee.anger]);
+
   const [lieTally, setLieTally] = useState<{ totalLies: number; totalSessions: number; bestSession: number; topLiarName: string | null; topLiarCount: number } | null>(null);
 
   const [lieCount, setLieCount] = useState(0);
@@ -2423,6 +2434,7 @@ export default function DebateStage() {
     const prefetchBody: Record<string, any> = { text: item.text, personaId: item.personaId, bleepEnabled: bleepEnabledRef.current };
     if (item.personaId === "malcolmx") prefetchBody.angerLevel = malcolmxAngerRef.current;
     if (item.personaId === "loudmouth") prefetchBody.angerLevel = loudmouthAngerRef.current;
+    if (item.personaId === "stephena") prefetchBody.angerLevel = stephenaAngerRef.current;
     prefetchTTSAudio("/api/persona-speak", prefetchBody)
       .then((audioUri) => {
         prefetchedAudioRef.current = { personaId: item.personaId, text: item.text, audioUri };
@@ -2475,6 +2487,7 @@ export default function DebateStage() {
           const ttsBody: Record<string, any> = { text: item.text, personaId: item.personaId, bleepEnabled: bleepEnabledRef.current };
           if (item.personaId === "malcolmx") ttsBody.angerLevel = malcolmxAngerRef.current;
           if (item.personaId === "loudmouth") ttsBody.angerLevel = loudmouthAngerRef.current;
+          if (item.personaId === "stephena") ttsBody.angerLevel = stephenaAngerRef.current;
           sound = await playTTS("/api/persona-speak", ttsBody, { volume: getPersonaVoiceVolume(item.personaId) });
         }
         currentSoundRef.current = sound;

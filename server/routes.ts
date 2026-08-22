@@ -3475,6 +3475,10 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
         const angerLevel = Number(req.body.angerLevel ?? 10);
         voiceId = angerLevel >= 25 ? PERSONA_VOICE_IDS.loudmouth : LOUDMOUTH_CALM_VOICE_ID;
       }
+      if (personaId === "stephena" && !req.body.voiceId) {
+        const angerLevel = Number(req.body.angerLevel ?? 10);
+        voiceId = angerLevel >= 25 ? PERSONA_VOICE_IDS.stephena : LOUDMOUTH_CALM_VOICE_ID;
+      }
       if (!voiceId) {
         voiceId = process.env.FISH_AUDIO_VOICE_ID || "";
       }
@@ -3484,10 +3488,10 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
 
       const personaSpeed = PERSONA_SPEED_MAP[personaId] ?? 1.0;
       const personaVolumeDb = PERSONA_VOLUME_BOOST[personaId] ?? 0;
-      // For loudmouth, suppress the "excited" emotion tag when the calm voice is
-      // active — the emotion was tuned for the angered voice and sounds wrong on
-      // the calm clone.
-      const personaEmotion = (personaId === "loudmouth" && voiceId === LOUDMOUTH_CALM_VOICE_ID)
+      // For loudmouth/stephena (both Stephen A. Smith), suppress the "excited"
+      // emotion tag when the calm voice is active — the emotion was tuned for
+      // the angered voice and sounds wrong on the calm clone.
+      const personaEmotion = ((personaId === "loudmouth" || personaId === "stephena") && voiceId === LOUDMOUTH_CALM_VOICE_ID)
         ? undefined
         : PERSONA_EMOTION_MAP[personaId];
       const safeText = applyPersonaTTSFormatting(text.slice(0, 2000), personaId);
@@ -3530,6 +3534,10 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
         const angerLevel = Number(req.query.angerLevel ?? 10);
         voiceId = angerLevel >= 25 ? PERSONA_VOICE_IDS.loudmouth : LOUDMOUTH_CALM_VOICE_ID;
       }
+      if (personaId === "stephena" && !req.query.voiceId) {
+        const angerLevel = Number(req.query.angerLevel ?? 10);
+        voiceId = angerLevel >= 25 ? PERSONA_VOICE_IDS.stephena : LOUDMOUTH_CALM_VOICE_ID;
+      }
       if (!voiceId) {
         voiceId = process.env.FISH_AUDIO_VOICE_ID || "";
       }
@@ -3539,8 +3547,11 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
 
       const getPersonaSpeed = PERSONA_SPEED_MAP[personaId as string] ?? 1.0;
       const getPersonaVolumeDb = PERSONA_VOLUME_BOOST[personaId as string] ?? 0;
+      const getPersonaEmotion = ((personaId === "loudmouth" || personaId === "stephena") && voiceId === LOUDMOUTH_CALM_VOICE_ID)
+        ? undefined
+        : PERSONA_EMOTION_MAP[personaId as string];
       const safeText = applyPersonaTTSFormatting(text.slice(0, 2000), personaId);
-      const rawBuffer = await fishAudioRequest(safeText, voiceId, getPersonaSpeed, apiKey, 3, getPersonaVolumeDb);
+      const rawBuffer = await fishAudioRequest(safeText, voiceId, getPersonaSpeed, apiKey, 3, getPersonaVolumeDb, getPersonaEmotion);
       const bleepRequested = req.query.bleepEnabled === undefined ? true : req.query.bleepEnabled === "true";
       const buffer = bleepRequested ? await overlayBleeps(rawBuffer, safeText) : rawBuffer;
 
