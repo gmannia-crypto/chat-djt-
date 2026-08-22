@@ -2975,6 +2975,17 @@ function detectArenaInsult(text: string): number {
   return Math.min(s, 3);
 }
 
+// Elevated mode rarely produces literal insults/profanity (the prompt gives no
+// permission to go personal the way Savage does), so on its own
+// detectArenaInsult almost never crosses threshold there. This lighter pattern
+// catches strong rhetorical pushback/disagreement that still reads as heated —
+// "that's a lie", "nonsense", "you're delusional" — so Elevated-mode debates
+// can still provoke the occasional fireback without needing personal attacks.
+const ARENA_DISAGREEMENT_PAT = /\b(that'?s (a )?(lie|nonsense|garbage|delusional|absurd|ridiculous|insane|dishonest)|you'?re (delusional|out of touch|dead wrong|flat wrong|mistaken|in denial)|(complete(ly)?|total(ly)?) (nonsense|fiction|fantasy|garbage)|no evidence (for|of) that|(you|that) (made|makes) that up|spare me|give me a break|come on, that'?s|that'?s simply not true|that'?s categorically false|propaganda|spin)\b/i;
+function detectArenaDisagreement(text: string): number {
+  return ARENA_DISAGREEMENT_PAT.test(text.toLowerCase()) ? 1 : 0;
+}
+
 // aggression: 0–1 probability of firing a fireback when insulted
 // angerThresh: insult-severity points needed before triggering
 // maxChain: consecutive exchanges before squabble cooldown
@@ -7159,7 +7170,13 @@ export default function ArenaScreen() {
 
         // ── Fireback trigger: check if this message provokes another persona ──
         if (data.response && !sessionEndedRef.current) {
-          const fbSeverity = detectArenaInsult(data.response);
+          let fbSeverity = detectArenaInsult(data.response);
+          // Elevated mode's prompt never licenses personal insults the way Savage
+          // does, so plain disagreement almost never crosses the insult-based
+          // threshold. Fold in the lighter "heated pushback" signal there too.
+          if (fbSeverity === 0 && debateModeRef.current === "elevated") {
+            fbSeverity = detectArenaDisagreement(data.response);
+          }
           if (fbSeverity >= 1) {
             // Small delay so the main speaker's TTS gets queued first
             setTimeout(() => {
