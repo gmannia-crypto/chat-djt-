@@ -7290,7 +7290,89 @@ export default function ArenaScreen() {
     [addMessage, updateEmotions, deviceId, queueTTS, startPrefetch, fireLiveReaction]
   );
 
-  const triggerInterruption = useCallback(async (trumpMessageText: string, prefetchedInterrupter?: string, prefetchedData?: any) => {
+  // Shared "clapback" step: the persona who just got interrupted/attacked fires an
+  // immediate rebuttal at whoever interrupted them. Used by both the ordinary
+  // interruption path (any persona can now be interrupted, not just Trump) and any
+  // future Trump-initiated interruption path. Skips cleanly if the victim's own
+  // speech is already queued, so nobody talks over themselves.
+  const fireClapback = useCallback(async (victimId: string, attackerId: string, attackText: string) => {
+    if (!mountedRef.current || !isRunningRef.current) return;
+    const victimAlreadyQueued = ttsQueueRef.current.some((item: any) => item.personaId === victimId);
+    if (victimAlreadyQueued) return;
+
+    const victimPersona = getPersona(victimId);
+    const attackerPersona = getPersona(attackerId);
+    const clapHeaders: Record<string, string> = { "Content-Type": "application/json" };
+    if (deviceId) clapHeaders["x-device-id"] = deviceId;
+    const lastVictimMsg = messagesRef.current.filter((m) => !m.isSystem && m.speakerId === victimId).slice(-1)[0];
+    const victimCtxText = lastVictimMsg?.text || "";
+    const clapSentAt = Date.now();
+    const clapRequestReaction = debateModeRef.current === "savage" && turnsSinceReactionRef.current >= 2 && Math.random() < 0.6;
+    try {
+      const clap = await fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
+        method: "POST",
+        headers: clapHeaders,
+        body: JSON.stringify({
+          responderId: victimId,
+          toSpeakerId: attackerId,
+          conversationHistory: [
+            ...(victimCtxText ? [{ speakerName: victimPersona?.name || victimId, text: victimCtxText }] : []),
+            { speakerName: attackerPersona?.name || attackerId, text: attackText },
+          ],
+          topic: currentTopicRef.current || "debate",
+          isInterruption: true,
+          activePersonas: selectedPersonasRef.current,
+          debateMode: debateModeRef.current,
+          requestReaction: clapRequestReaction,
+          sessionIQ: personaSessionIQRef.current,
+          sessionLieTally: sessionLieTallyRef.current,
+          sessionAltFactTally: sessionAltFactTallyRef.current,
+        }),
+      });
+
+      if (clap.status === 403 && mountedRef.current) {
+        const expiresAt = sessionExpiresAt ?? 0;
+        const sessionStart = paidSessionStartRef.current;
+        const totalMs = sessionStart > 0 ? expiresAt - sessionStart : 0;
+        const gracePeriodStart = expiresAt - totalMs * 0.2;
+        if (totalMs > 0 && clapSentAt >= gracePeriodStart) {
+          setIsRunning(false);
+          isRunningRef.current = false;
+          sessionEndedRef.current = true;
+          setDebateFinished(true);
+        } else {
+          setFreeRemaining(0);
+          setShowPaywall(true);
+          setIsRunning(false);
+          isRunningRef.current = false;
+          if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
+        }
+        return;
+      }
+      if (clap.ok && mountedRef.current) {
+        const clapData = await clap.json();
+        addMessage({
+          id: "clapback-" + Date.now() + Math.random().toString(36).substr(2, 5),
+          speakerId: victimId,
+          speakerName: victimPersona?.name || victimId,
+          text: clapData.response,
+          timestamp: Date.now(),
+        });
+        queueTTS(clapData.response, victimId, false, () => fireLiveReaction(clapData.reaction, clapData.response, victimId));
+        if (clapData.reaction) turnsSinceReactionRef.current = 0; else turnsSinceReactionRef.current += 1;
+        if (typeof clapData.currentIQ === "number") {
+          setPersonaSessionIQ((prev) => { const u = { ...prev, [victimId]: clapData.currentIQ }; personaSessionIQRef.current = u; return u; });
+        } else if (typeof clapData.iqDelta === "number" && clapData.iqDelta !== 0) adjustPersonaIQ(victimId, clapData.iqDelta);
+        if (typeof clapData.altTruthCount === "number") {
+          setPersonaAltTruths((prev) => ({ ...prev, [victimId]: clapData.altTruthCount }));
+          sessionAltFactTallyRef.current = { ...sessionAltFactTallyRef.current, [victimId]: clapData.altTruthCount };
+        } else if (clapData.altTruthIncrement) setPersonaAltTruths((prev) => ({ ...prev, [victimId]: (prev[victimId] || 0) + 1 }));
+        await new Promise((r) => setTimeout(r, 500));
+      }
+    } catch {}
+  }, [deviceId, addMessage, queueTTS, fireLiveReaction]);
+
+  const triggerInterruption = useCallback(async (interruptedMessageText: string, prefetchedInterrupter?: string, prefetchedData?: any, interruptedId: string = "trump") => {
     if (!mountedRef.current) return;
 
     let interrupter: string;
@@ -7318,13 +7400,14 @@ export default function ArenaScreen() {
         // Live overlapping reaction (Savage mode only) — gated the same way as
         // ordinary turns (Savage mode + shared cooldown).
         const requestReaction = debateModeRef.current === "savage" && turnsSinceReactionRef.current >= 2 && Math.random() < 0.6;
+        const interruptedName = getPersona(interruptedId)?.name || interruptedId;
         const res = await fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
           method: "POST",
           headers,
           body: JSON.stringify({
             responderId: interrupter,
-            toSpeakerId: "trump",
-            conversationHistory: [{ speakerName: "Donald Trump", text: trumpMessageText }],
+            toSpeakerId: interruptedId,
+            conversationHistory: [{ speakerName: interruptedName, text: interruptedMessageText }],
             topic: currentTopicRef.current || "debate",
             isInterruption: true,
             activePersonas: selectedPersonasRef.current,
@@ -7405,87 +7488,17 @@ export default function ArenaScreen() {
       await new Promise((r) => setTimeout(r, 500 + Math.random() * 500));
       if (!mountedRef.current || !isRunningRef.current) return;
 
-      // Clapback: Trump fires back at the interrupter — but skip if Trump's own
-      // speech is already queued (prevents Trump from talking over himself).
-      const trumpAlreadyQueued = ttsQueueRef.current.some((item: any) => item.personaId === "trump");
-      if (trumpAlreadyQueued) return;
-
-      const clapHeaders: Record<string, string> = { "Content-Type": "application/json" };
-      if (deviceId) clapHeaders["x-device-id"] = deviceId;
-      // Use the last Trump message we have (or fall back to empty context)
-      const lastTrumpMsg = messagesRef.current.filter((m) => !m.isSystem && m.speakerId === "trump").slice(-1)[0];
-      const trumpCtxText = lastTrumpMsg?.text || trumpMessageText || "";
-      const clapSentAt = Date.now();
-      // Live overlapping reaction (Savage mode only) — gated the same way as
-      // ordinary turns (Savage mode + shared cooldown).
-      const clapRequestReaction = debateModeRef.current === "savage" && turnsSinceReactionRef.current >= 2 && Math.random() < 0.6;
-      const clap = await fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
-        method: "POST",
-        headers: clapHeaders,
-        body: JSON.stringify({
-          responderId: "trump",
-          toSpeakerId: interrupter,
-          conversationHistory: [
-            ...(trumpCtxText ? [{ speakerName: "Donald Trump", text: trumpCtxText }] : []),
-            { speakerName: persona.name, text: data.response },
-          ],
-          topic: currentTopicRef.current || "debate",
-          isInterruption: true,
-          activePersonas: selectedPersonasRef.current,
-          debateMode: debateModeRef.current,
-          requestReaction: clapRequestReaction,
-          sessionIQ: personaSessionIQRef.current,
-          sessionLieTally: sessionLieTallyRef.current,
-          sessionAltFactTally: sessionAltFactTallyRef.current,
-        }),
-      });
-
-      if (clap.status === 403 && mountedRef.current) {
-        const expiresAt = sessionExpiresAt ?? 0;
-        const sessionStart = paidSessionStartRef.current;
-        const totalMs = sessionStart > 0 ? expiresAt - sessionStart : 0;
-        const gracePeriodStart = expiresAt - totalMs * 0.2;
-        if (totalMs > 0 && clapSentAt >= gracePeriodStart) {
-          setIsRunning(false);
-          isRunningRef.current = false;
-          sessionEndedRef.current = true;
-          setDebateFinished(true);
-        } else {
-          setFreeRemaining(0);
-          setShowPaywall(true);
-          setIsRunning(false);
-          isRunningRef.current = false;
-          if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
-        }
-        return;
-      }
-      if (clap.ok && mountedRef.current) {
-        const clapData = await clap.json();
-        addMessage({
-          id: "clapback-" + Date.now() + Math.random().toString(36).substr(2, 5),
-          speakerId: "trump",
-          speakerName: "Donald Trump",
-          text: clapData.response,
-          timestamp: Date.now(),
-        });
-        queueTTS(clapData.response, "trump", false, () => fireLiveReaction(clapData.reaction, clapData.response, "trump"));
-        if (clapData.reaction) turnsSinceReactionRef.current = 0; else turnsSinceReactionRef.current += 1;
-        if (typeof clapData.currentIQ === "number") {
-          setPersonaSessionIQ((prev) => { const u = { ...prev, trump: clapData.currentIQ }; personaSessionIQRef.current = u; return u; });
-        } else if (typeof clapData.iqDelta === "number" && clapData.iqDelta !== 0) adjustPersonaIQ("trump", clapData.iqDelta);
-        if (typeof clapData.altTruthCount === "number") {
-          setPersonaAltTruths((prev) => ({ ...prev, trump: clapData.altTruthCount }));
-          sessionAltFactTallyRef.current = { ...sessionAltFactTallyRef.current, trump: clapData.altTruthCount };
-        } else if (clapData.altTruthIncrement) setPersonaAltTruths((prev) => ({ ...prev, trump: (prev.trump || 0) + 1 }));
-        await new Promise((r) => setTimeout(r, 500));
-      }
+      // Clapback: whoever got interrupted fires back at the interrupter immediately —
+      // generalized so it's not just Trump; skips cleanly if the victim's own speech
+      // is already queued (prevents them from talking over themselves).
+      await fireClapback(interruptedId, interrupter, data.response);
     } catch {} finally {
       isInterruptingRef.current = false;
       const newTemp = Math.min(100, roomTempRef.current + 10);
       roomTempRef.current = newTemp;
       setRoomTemperature(newTemp);
     }
-  }, [deviceId, addMessage, showInterruptionBanner, playInterruptionAudio, queueTTS, fireLiveReaction]);
+  }, [deviceId, addMessage, showInterruptionBanner, playInterruptionAudio, queueTTS, fireLiveReaction, fireClapback]);
 
   const triggerTrumpInterruption = useCallback(async (opponentText: string, opponentId: string) => {
     if (!mountedRef.current || isInterruptingRef.current) return;
@@ -8025,13 +8038,16 @@ export default function ArenaScreen() {
         return;
       }
 
-      const willInterrupt = !isInterruptingRef.current && chosen.id === "trump" && !trumpAttacked && Math.random() < 0.35;
+      // Any persona about to speak can now get interrupted, not just Trump — the
+      // interrupter pool just needs to exclude the persona who's about to talk.
+      const willInterrupt = !isInterruptingRef.current && !trumpAttacked && Math.random() < 0.35;
 
       // Pre-fetch the interrupter's response in parallel with generateAIResponse so it is
-      // ready the moment Trump's TTS starts — eliminates the 5-10 s sequential lag.
+      // ready the moment the interrupted persona's TTS starts — eliminates the 5-10 s sequential lag.
       let interruptPrefetch: Promise<{ interrupter: string; data: any } | null> | null = null;
+      const interruptedId = chosen.id;
       if (willInterrupt && !isInterruptingRef.current) {
-        const available = INTERRUPTERS.filter((id) => selectedPersonasRef.current.includes(id) && id !== "trump");
+        const available = INTERRUPTERS.filter((id) => selectedPersonasRef.current.includes(id) && id !== interruptedId);
         if (available.length > 0) {
           isInterruptingRef.current = true;
           const preInterrupter = available[Math.floor(Math.random() * available.length)];
@@ -8047,7 +8063,7 @@ export default function ArenaScreen() {
             headers: preHeaders,
             body: JSON.stringify({
               responderId: preInterrupter,
-              toSpeakerId: "trump",
+              toSpeakerId: interruptedId,
               conversationHistory: preHistory,
               topic: currentTopicRef.current || "debate",
               isInterruption: true,
@@ -8091,7 +8107,7 @@ export default function ArenaScreen() {
       if (interruptPrefetch && mountedRef.current && isRunningRef.current) {
         const prefetched = await interruptPrefetch;
         if (prefetched) {
-          await triggerInterruption("", prefetched.interrupter, prefetched.data);
+          await triggerInterruption("", prefetched.interrupter, prefetched.data, interruptedId);
         } else {
           isInterruptingRef.current = false;
         }
