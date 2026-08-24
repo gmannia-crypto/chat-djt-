@@ -555,7 +555,10 @@ function fixTTSPronunciation(text: string): string {
     // by default — force the soft "dohj" (rhymes with "dodge") pronunciation.
     .replace(/\bDOGE's\b/g, "Dohj's")
     .replace(/\bDOGE\b/g, "Dohj")
-    .replace(/\bm\s*[.,]?\s*e\b/gi, "me");
+    .replace(/\bm\s*[.,]?\s*e\b/gi, "me")
+    // "Dr." reads the period as a sentence break, inserting an unwanted pause
+    // before the name ("Dr. — Ben" instead of "Doctor Ben"). Spell it out.
+    .replace(/\bDr\.\s*/g, "Doctor ");
 }
 
 // Persona-specific TTS text formatting — applied BEFORE Fish Audio to shape prosody
@@ -10682,8 +10685,23 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
         .slice(-60)
         .map((m: any) => `${m.speakerName}: "${m.text}"`)
         .join("\n");
-      const personaIdHint = Array.isArray(personaIds) && personaIds.length >= 2
-        ? `\nIMPORTANT: The exact persona IDs in this debate are: ${personaIds.map((id: string) => `"${id}"`).join(", ")}. Return winnerId as EXACTLY one of these strings — no spaces, no capitalization, no variation.`
+      // Shuffle the persona list order shown to the model on every request. LLM judges
+      // exhibit measurable primacy bias toward whichever candidate is listed/mentioned
+      // first — always presenting personaIds in the same (selection) order let that bias
+      // masquerade as "the first-picked persona always wins". The transcript itself is
+      // left untouched (it reflects real speaking order, which is legitimate signal).
+      const idOrder: string[] = Array.isArray(personaIds) ? [...personaIds] : [];
+      for (let i = idOrder.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [idOrder[i], idOrder[j]] = [idOrder[j], idOrder[i]];
+      }
+      const nameById = new Map<string, string>();
+      if (Array.isArray(personaIds) && Array.isArray(personas)) {
+        personaIds.forEach((id: string, i: number) => nameById.set(id, personas[i] || id));
+      }
+      const shuffledPersonaNames = idOrder.map((id) => nameById.get(id) || id);
+      const personaIdHint = idOrder.length >= 2
+        ? `\nIMPORTANT: The exact persona IDs in this debate are (order randomized, NOT a ranking or speaking order): ${idOrder.map((id: string) => `"${id}"`).join(", ")}. Return winnerId as EXACTLY one of these strings — no spaces, no capitalization, no variation.`
         : "";
       // Look up confirmed lies from the server-side store using opaque tokens issued
       // by the fact-check endpoints. Only tokens present in the store (and not yet
@@ -10706,7 +10724,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
           model: getChatModel(),
           messages: [
             { role: "system", content: `You are an impartial AI debate judge and professional fact-checker. Today is ${todayStr}.\n\nYour job is to render a fair, rigorous verdict based SOLELY on:\n1. FACTUAL ACCURACY — are the claims made verifiable and true? FALSE or MISLEADING claims are a MAJOR strike against the speaker, not a minor one.\n2. LOGICAL COHERENCE — are arguments internally consistent and free of fallacies?\n3. INTELLECTUAL QUALITY — who gave stronger evidence, sharper analysis, and better rebuttals?\n4. COUNTER-ARGUMENT STRENGTH — who came back hardest when challenged with FACTS, not just volume?\n\nCRITICAL ANTI-BIAS RULES:\n- Confidence, volume, aggression, and rhetorical flair are NOT evidence. A loud false claim loses to a quiet true one every time.\n- A persona that repeats demonstrably false claims multiple times should LOSE, not win — repetition of a lie is not a stronger argument.\n- Do NOT be swayed by which persona sounds more dominant or assertive. Dominance is not debate skill.\n- Do NOT default to the persona listed first or who spoke more messages.\n- If one persona made significantly more false or misleading claims, that persona LOSES regardless of style.\n- A persona who effectively fact-checks their opponent's lies with accurate counter-evidence WINS that exchange.\n- When a LIVE FACT-CHECK RECORD is provided, treat those findings as authoritative ground truth — they were verified in real time and must factor heavily into your scoring.\n\nIdentify the specific exchange or statement that DECIDED the debate — usually the moment one side exposed a lie or landed an unanswered factual counter.\nPick a winner decisively based on SUBSTANCE. Do NOT be vague or hedge. Always choose one winner.` },
-            { role: "user", content: `DEBATE TOPIC: "${topic}"\nPERSONAS: ${Array.isArray(personas) ? personas.join(" vs. ") : ""}${personaIdHint}\n\nTRANSCRIPT:\n${transcript}${liesBlock}\n\nReturn ONLY valid JSON:\n{\n  "winner": "Full persona name",\n  "winnerId": "EXACT persona_id from the list above — lowercase, no spaces",\n  "verdict": "2-4 sentences that MUST start with '[WinnerName] won because ...' — cite the actual claim, counter-argument, or factual moment that decided it. Be specific.",\n  "factChecks": [\n    { "persona": "name", "claim": "exact claim they made", "verdict": "TRUE | FALSE | MISLEADING | UNVERIFIABLE", "fact": "the real verified fact or correction" }\n  ],\n  "scores": { "PersonaName": score_0_to_100 },\n  "summary": "One punchy sentence naming the single exchange or fact that decided the debate"\n}` },
+            { role: "user", content: `DEBATE TOPIC: "${topic}"\nPERSONAS: ${shuffledPersonaNames.length > 0 ? shuffledPersonaNames.join(" vs. ") : ""}${personaIdHint}\n\nTRANSCRIPT:\n${transcript}${liesBlock}\n\nFirst, silently score EACH persona 0-100 on substance alone. THEN derive your winner from whichever persona has the highest score — the winner and the top score in "scores" must always agree.\n\nReturn ONLY valid JSON:\n{\n  "winner": "Full persona name",\n  "winnerId": "EXACT persona_id from the list above — lowercase, no spaces",\n  "verdict": "2-4 sentences that MUST start with '[WinnerName] won because ...' — cite the actual claim, counter-argument, or factual moment that decided it. Be specific.",\n  "factChecks": [\n    { "persona": "name", "claim": "exact claim they made", "verdict": "TRUE | FALSE | MISLEADING | UNVERIFIABLE", "fact": "the real verified fact or correction" }\n  ],\n  "scores": { "PersonaName": score_0_to_100 },\n  "summary": "One punchy sentence naming the single exchange or fact that decided the debate"\n}` },
           ],
           max_completion_tokens: 1200,
           temperature: 0.7,
@@ -10716,6 +10734,34 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
       const raw = completion.choices[0]?.message?.content || "{}";
       const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
       const parsed = JSON.parse(cleaned);
+
+      // ── SCORE/WINNER CONSISTENCY GUARD ──────────────────────────────────
+      // The model is asked to score every persona and then declare a winner
+      // consistent with those scores, but nothing stops it from returning a
+      // "winner" that doesn't actually match its own top score (a common way
+      // primacy bias leaks through even when scores are computed honestly).
+      // Recompute the winner from the scores object whenever it disagrees
+      // with the declared winnerId, so the highest-scored persona always wins.
+      if (parsed.scores && typeof parsed.scores === "object" && idOrder.length >= 2) {
+        const scoreEntries = Object.entries(parsed.scores as Record<string, unknown>)
+          .map(([name, score]) => ({ name, score: Number(score) }))
+          .filter((e) => Number.isFinite(e.score));
+        if (scoreEntries.length >= 2) {
+          const top = scoreEntries.reduce((best, e) => (e.score > best.score ? e : best), scoreEntries[0]);
+          const topId = idOrder.find((id) => {
+            const n = (nameById.get(id) || "").toLowerCase();
+            const t = top.name.toLowerCase();
+            return n === t || n.includes(t) || t.includes(n);
+          });
+          if (topId && topId !== parsed.winnerId) {
+            console.warn(`[DC VERDICT] winner/score mismatch — declared winnerId="${parsed.winnerId}" but top score belongs to "${topId}" (${top.name}: ${top.score}). Overriding to match scores.`);
+            parsed.winnerId = topId;
+            parsed.winner = nameById.get(topId) || top.name;
+          }
+        }
+      }
+      // ─────────────────────────────────────────────────────────────────────
+
       console.log(`[DC VERDICT] resolved in ${Date.now() - dcStartedAt}ms — winner="${parsed.winner}" winnerId="${parsed.winnerId}"`);
       res.json(parsed);
     } catch (err: any) {
