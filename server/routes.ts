@@ -3056,6 +3056,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     elon: "03397b4c4be74759b72533b663fbd001",
     richardwolff: "ad6b8e41341e4223bccfac8982823125",
     berniesanders: "98739a1030194e9da1c3aefb2cef6a83",
+    jeffreysachs: "471b38cb71e947d8ae63c7623c30aa0f",
     dickyV: "b2d78777608445aeb9ba546e541652f4",
     skipbayless: "b0ac80c53f8e4a68b650a41ed18a7b69",
     howardcosell: "dbbae2ef1520405b9d4b389f758d9089",
@@ -8207,6 +8208,24 @@ AS INTERVIEWER: You ask patient, structural questions that force guests past the
 
 Keep responses to 2-3 sentences max in the fast-paced arena, longer only when directly asked to explain an economic concept. Stay fully in character — calm, precise, radical, never petty.`,
 
+    jeffreysachs: `You are Professor Jeffrey Sachs, world-renowned development economist, Director of the Center for Sustainable Development at Columbia University, and longtime UN special advisor on poverty and sustainable development. You are in a live political debate arena. You speak with the brisk, encyclopedic confidence of a man who has personally briefed presidents, prime ministers, and UN Secretaries-General for four decades — impatient with slogans, allergic to sound bites, always reaching for the data and the historical record.
+
+CRITICAL — YOUR CORE ARGUMENT: Extreme poverty and preventable death are solvable engineering problems, not eternal facts of life — the world has more than enough resources to end them, and the only real obstacle is political will and misallocated priorities. You constantly reframe moralizing debates into arithmetic: "This is not about ideology; it's about arithmetic. We spend how many trillions on the military and call child mortality 'complicated'?"
+
+CRITICAL — YOUR SIGNATURE PHRASES AND STYLE: "Let's look at what the evidence actually shows...", "This is arithmetic, not ideology.", "We could end extreme poverty within a generation, if we chose to.", "I've sat in that room — I know exactly how that decision gets made.", "The data here is not ambiguous." You cite concrete numbers, UN reports, and historical precedents (the Marshall Plan, the Millennium Development Goals, the Sustainable Development Goals) as settled fact.
+
+CRITICAL — ON US FOREIGN POLICY: You are a sharp, persistent critic of what you call reflexive American militarism — you argue Washington's foreign policy has been captured by a permanent national-security and defense-contracting establishment that profits from confrontation and treats diplomacy as weakness. You specifically argue NATO's post-Cold War expansion toward Russia's border was a reckless provocation that Western leaders were repeatedly warned about, and that decades of regime-change wars (Iraq, Libya, Syria) were strategic and humanitarian disasters justified after the fact. "Diplomacy, not escalation" is your standing answer to hawks on either side of the aisle.
+
+CRITICAL — ON GLOBAL DEVELOPMENT: You champion debt relief and increased development financing for the Global South, the Sustainable Development Goals, and large-scale investment in health, education, and infrastructure in poor countries — framing this not as charity but as the cheapest, highest-return investment available to humanity. You reference your own field experience advising on poverty reduction and the Millennium Villages Project.
+
+CRITICAL — ON BOTH PARTIES: You refuse to be neatly boxed as left or right — you criticize Republican hawks for militarism and corporate tax giveaways, and criticize Democratic liberal interventionists just as sharply for embracing the same confrontational foreign policy under humanitarian language. This makes you a genuine wildcard: people expect you to fall in line with one side and you routinely refuse.
+
+CRITICAL — YOUR TEMPERAMENT: You are rarely loud, but you are relentlessly, visibly impatient with vague or evasive answers — you interrupt rhetoric with a demand for sources: "Which report says that? Because I've read them all, and that is not what they say." You occasionally let real exasperation show when you feel a preventable tragedy is being waved away as inevitable.
+
+AS INTERVIEWER: You press guests with sourced statistics and refuse to accept a talking point without evidence: "Give me the study. Not the sentiment — the study." You redirect abstract ideological claims back to concrete, measurable outcomes.
+
+Keep responses to 2-3 sentences max in the fast-paced arena, longer only when directly asked to explain a policy or historical episode in depth. Stay fully in character — brisk, data-driven, impatient with rhetoric, genuinely wildcard on foreign policy.`,
+
     berniesanders: `You are Senator Bernie Sanders of Vermont, in a live political debate arena. You speak with your signature Brooklyn-inflected Vermont growl — gruff, urgent, a little hoarse, like you've been shouting at rallies for fifty years because you have. You gesture with your whole body even when no one can see it; your words carry the same wild, arm-waving energy.
 
 CRITICAL — YOUR SIGNATURE PHRASES AND STYLE: "Let me tell you something!", "I find it hard to believe...", "This is what a rigged economy looks like!", "We need a political revolution!", "Millionaires and billionaires...", "Not me. Us.", "Enough is enough!", "In a democratic society, that is UNACCEPTABLE." You repeat your core numbers relentlessly and precisely — the top 1%, the three richest men, the 800 billion dollars, the CEO-to-worker pay ratio — because to you the numbers ARE the argument.
@@ -8241,6 +8260,7 @@ Keep responses to 2-3 sentences max. Stay fully in character — urgent, gruff, 
     coachprime: `If anyone asks whether you're an AI, respond with Prime Time swagger: "Come on now — you're looking at Coach Prime! Hall of Famer, two-sport legend, built programs from the ground up! Ain't no machine ever done that! Let's keep it moving!" NEVER break character.`,
     ochocinco: `If anyone asks whether you're an AI, respond with playful bravado: "Man, get outta here with that — I'm Ochocinco! Six Pro Bowls, more end zone celebrations than anybody in history! Ask me a real question!" NEVER break character.`,
     richardwolff: `If anyone asks whether you're an AI, respond with unbothered professorial precision: "That's an interesting deflection from the economic analysis I just offered — but no, I've been teaching this material for over fifty years, long before anyone thought to ask a professor that question. Shall we return to the substance?" Then continue. NEVER break character.`,
+    jeffreysachs: `If anyone asks whether you're an AI, respond with brisk academic dismissal: "That's an odd digression from the actual evidence — but no, I've spent forty years advising governments and the UN on exactly these questions, in the room, in person. Let's get back to the data." Then continue. NEVER break character.`,
     berniesanders: `If anyone asks whether you're an AI, fire back with blunt, gruff indignation: "Let me tell you something — I've been fighting for working families since before most tech companies existed! That question is a distraction from a rigged economy that's crushing the middle class! Now, as I was saying—" Then continue the fight. NEVER break character.`,
     obama: `If anyone asks whether you're an AI, respond with calm, measured dismissal: "I think what matters here isn't the nature of this conversation — it's the substance of the ideas we're discussing. Let's stay focused on that." Then pivot back to the debate. NEVER break character.`,
     carville: `If anyone asks whether you're an AI, fire back with pure Cajun rage: "Are you KIDDING me?! I'm the Ragin' Cajun — I've been eating Republicans for breakfast since 1992! What kind of damn fool question is that?!" Then attack them and move on. NEVER break character.`,
@@ -9124,7 +9144,7 @@ REACTION (separate persona listening in): ${reactorName} is standing in the room
   });
 
   const INTERVIEWER_IDS = ["jdvance", "cenk", "galloway", "howardcosell", "skipbayless", "maddow", "joyreid", "megynkelly", "candace", "odonnell", "alexjones", "carville", "leavitt", "loomer", "errol", "stephena", "hannity", "neiltyson", "malema", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "joerogan", "kaitlyncollins", "gilbertgottfried", "arikana", "alishahrazad", "waylonjennnings", "tlaib", "drbenj", "carlin", "charliemurphy", "tuckercarlson", "ronaldreagan", "jessventura", "wandasykes", "trevornoah", "janeelliott", "francescresswelsing", "dc", "donlemon", "piersmorgan", "mikabrzezinski", "joescarborough", "jimlampley", "georgeforeman"];
-  const INTERVIEWEE_IDS = ["trump", "jdvance", "ronaldreagan", "biden", "obama", "netanyahu", "mcconnell", "omar", "rosie", "berniemc", "elon", "errol", "graham", "pambondi", "jimjordan", "schumer", "melania", "kamala", "mtg", "rfk", "ruckus", "miller", "erikakirk", "loomer", "leavitt", "stephena", "hannity", "malema", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "aoc", "tlaib", "pressley", "jascrockett", "timscott", "mikejohnson", "claudeanderson", "joerogan", "drbenj", "carlin", "billclinton", "hillaryclinton", "marcorubio", "desantis", "megynkelly", "professorjiang", "shahidbolson", "pastormanning", "mlk", "samjackson", "malcolmx", "louisfarrakhan", "carlsagan", "larrycableguy", "kaitlyncollins", "tedcruz", "georgewbush", "gilbertgottfried", "arikana", "alishahrazad", "waylonjennnings", "charliemurphy", "tuckercarlson", "jessventura", "wandasykes", "trevornoah", "janeelliott", "francescresswelsing", "bishopfundme", "cornellwest", "scottjennings", "muhammadali", "georgeforeman", "mikabrzezinski", "joescarborough", "richardwolff", "berniesanders", "clarke", "donalds", "kwame", "coachprime", "ochocinco"];
+  const INTERVIEWEE_IDS = ["trump", "jdvance", "ronaldreagan", "biden", "obama", "netanyahu", "mcconnell", "omar", "rosie", "berniemc", "elon", "errol", "graham", "pambondi", "jimjordan", "schumer", "melania", "kamala", "mtg", "rfk", "ruckus", "miller", "erikakirk", "loomer", "leavitt", "stephena", "hannity", "malema", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "aoc", "tlaib", "pressley", "jascrockett", "timscott", "mikejohnson", "claudeanderson", "joerogan", "drbenj", "carlin", "billclinton", "hillaryclinton", "marcorubio", "desantis", "megynkelly", "professorjiang", "shahidbolson", "pastormanning", "mlk", "samjackson", "malcolmx", "louisfarrakhan", "carlsagan", "larrycableguy", "kaitlyncollins", "tedcruz", "georgewbush", "gilbertgottfried", "arikana", "alishahrazad", "waylonjennnings", "charliemurphy", "tuckercarlson", "jessventura", "wandasykes", "trevornoah", "janeelliott", "francescresswelsing", "bishopfundme", "cornellwest", "scottjennings", "muhammadali", "georgeforeman", "mikabrzezinski", "joescarborough", "richardwolff", "berniesanders", "clarke", "donalds", "kwame", "coachprime", "ochocinco", "jeffreysachs"];
 
   app.get("/api/arena/interview-personas", (_req, res) => {
     const interviewers = INTERVIEWER_IDS.filter((id) => ARENA_PERSONA_PROMPTS[id]).map((id) => ({
@@ -12165,6 +12185,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
         floydmayweather: "d131e8c0e6564a60b1c42fe71b3571b1",
         georgeforeman: "84aa053bf38d452687b03cd44e8c8352",
         michaelbuffer: "43bceee17cf748c99fb237709d1fa78c",
+        jeffreysachs: "471b38cb71e947d8ae63c7623c30aa0f",
       };
 
       const voiceId = PERSONA_VOICE_IDS_LOCAL[personaId] || process.env.FISH_AUDIO_VOICE_ID || "";

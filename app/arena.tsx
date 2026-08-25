@@ -2207,6 +2207,33 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       negative: ["socialism", "defund", "open borders", "woke", "big government"],
     },
   },
+  jeffreysachs: {
+    id: "jeffreysachs",
+    name: "Jeffrey Sachs",
+    shortName: "Prof. Sachs",
+    color: "#2563EB",
+    faction: "wildcard",
+    image: require("@/assets/images/persona-jeffreysachs.png"),
+    personality: {
+      energy: 55,
+      aggression: 30,
+      humor: 20,
+      catchphrases: ["Let's look at what the evidence actually shows", "This is arithmetic, not ideology", "We could end extreme poverty in a generation if we chose to", "Washington's foreign policy has been captured by the military-industrial complex", "Diplomacy, not escalation"],
+    },
+    relationships: {
+      richardwolff: { sentiment: 55 },
+      berniesanders: { sentiment: 45 },
+      trump: { sentiment: 20 },
+      netanyahu: { sentiment: 15 },
+      biden: { sentiment: 25 },
+      elon: { sentiment: 25 },
+      obama: { sentiment: 35 },
+    },
+    triggerWords: {
+      positive: ["poverty", "sustainable development", "debt relief", "diplomacy", "united nations", "global south", "evidence"],
+      negative: ["regime change", "nato expansion", "military-industrial complex", "sanctions", "warmongering"],
+    },
+  },
   arikana: {
     id: "arikana",
     name: "Dr. Arikana Chihombori",
@@ -2767,7 +2794,7 @@ const MYSTERY_UNLOCK_KEY = "arena_mystery_unlocked";
 
 import { BOXING_EXCLUSIVE_IDS } from "@/lib/boxing-personas";
 
-const PERSONA_IDS = ["trump", "jdvance", "elon", "errol", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "carlin", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "leavitt", "erikakirk", "loomer", "bannon", "stephena", "malema", "hannity", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "aoc", "pressley", "joerogan", "timscott", "drbenj", "billclinton", "hillaryclinton", "marcorubio", "desantis", "tuckercarlson", "bishopfundme", "cornellwest", "piersmorgan", "scottjennings", "mikabrzezinski", "joescarborough", "richardwolff", "berniesanders", "pastormanning", "clarke", "donalds", "arikana"];
+const PERSONA_IDS = ["trump", "jdvance", "elon", "errol", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "carlin", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "leavitt", "erikakirk", "loomer", "bannon", "stephena", "malema", "hannity", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "aoc", "pressley", "joerogan", "timscott", "drbenj", "billclinton", "hillaryclinton", "marcorubio", "desantis", "tuckercarlson", "bishopfundme", "cornellwest", "piersmorgan", "scottjennings", "mikabrzezinski", "joescarborough", "richardwolff", "berniesanders", "pastormanning", "clarke", "donalds", "arikana", "jeffreysachs"];
 // Cartoon-style image filter — vivid posterized look on web
 const CARTOON_FILTER = Platform.OS === "web"
   ? ({ filter: "contrast(1.35) saturate(1.85) brightness(1.03)" } as any)
