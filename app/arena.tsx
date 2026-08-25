@@ -5153,6 +5153,13 @@ export default function ArenaScreen() {
   } | null>(null);
   const interruptionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isInterruptingRef = useRef(false);
+  // Bumped whenever an interruption exchange is abandoned mid-flight (the scheduler
+  // watchdog force-clears a stuck isInterruptingRef after 8s). A clapback fetch that
+  // was already in flight when that happens has no way to know the debate moved on —
+  // without this token it would still land several turns later, reading as though the
+  // victim got cut off "much earlier" than they actually did. Each clapback captures
+  // the token before its fetch and only applies the result if it's unchanged.
+  const interruptionTokenRef = useRef(0);
   const rapidExchangeCooldownRef = useRef<number>(0);
   const isRapidExchangeRef = useRef(false);
   const isAskingUserRef = useRef(false);
@@ -7299,6 +7306,12 @@ export default function ArenaScreen() {
     if (!mountedRef.current || !isRunningRef.current) return;
     const victimAlreadyQueued = ttsQueueRef.current.some((item: any) => item.personaId === victimId);
     if (victimAlreadyQueued) return;
+    // Snapshot the token before the (possibly slow) AI round-trip below. If the
+    // scheduler watchdog abandons this interruption while the fetch is still in
+    // flight (see interruptionTokenRef), the token will have moved on by the time
+    // we get a response — apply-time checks below drop the stale clapback instead
+    // of inserting it into a conversation that has already progressed past it.
+    const myInterruptionToken = interruptionTokenRef.current;
 
     const victimPersona = getPersona(victimId);
     const attackerPersona = getPersona(attackerId);
@@ -7350,6 +7363,11 @@ export default function ArenaScreen() {
         return;
       }
       if (clap.ok && mountedRef.current) {
+        // The debate moved on (scheduler watchdog abandoned this interruption)
+        // while this fetch was in flight — drop it rather than surfacing a
+        // reply to an exchange that, from the viewer's perspective, ended
+        // several turns ago.
+        if (interruptionTokenRef.current !== myInterruptionToken) return;
         const clapData = await clap.json();
         addMessage({
           id: "clapback-" + Date.now() + Math.random().toString(36).substr(2, 5),
@@ -7485,13 +7503,17 @@ export default function ArenaScreen() {
         sessionAltFactTallyRef.current = { ...sessionAltFactTallyRef.current, [interrupter]: data.altTruthCount };
       } else if (data.altTruthIncrement) setPersonaAltTruths((prev) => ({ ...prev, [interrupter]: (prev[interrupter] || 0) + 1 }));
 
-      await new Promise((r) => setTimeout(r, 500 + Math.random() * 500));
-      if (!mountedRef.current || !isRunningRef.current) return;
-
       // Clapback: whoever got interrupted fires back at the interrupter immediately —
       // generalized so it's not just Trump; skips cleanly if the victim's own speech
-      // is already queued (prevents them from talking over themselves).
-      await fireClapback(interruptedId, interrupter, data.response);
+      // is already queued (prevents them from talking over themselves). Kicked off
+      // now, in parallel with the interrupter's own line playing, instead of after
+      // an extra fixed delay — that sequential wait was adding seconds on top of
+      // the clapback's own AI round-trip, which is exactly what made the reply feel
+      // like it arrived long after the interruption instead of right on its heels.
+      const clapbackPromise = fireClapback(interruptedId, interrupter, data.response);
+      await new Promise((r) => setTimeout(r, 500 + Math.random() * 500));
+      if (!mountedRef.current || !isRunningRef.current) return;
+      await clapbackPromise;
     } catch {} finally {
       isInterruptingRef.current = false;
       const newTemp = Math.min(100, roomTempRef.current + 10);
@@ -8129,6 +8151,10 @@ export default function ArenaScreen() {
         if (!watchdogTimer) {
           watchdogTimer = setTimeout(() => {
             console.warn("Arena watchdog: clearing stuck locks after timeout");
+            // Invalidate any clapback fetch still in flight from the interruption
+            // being abandoned here — it must not land late in a conversation that
+            // has since moved on. See interruptionTokenRef for details.
+            interruptionTokenRef.current += 1;
             isInterruptingRef.current = false;
             currentSpeakerRef.current = null;
             setCurrentSpeaker(null);
