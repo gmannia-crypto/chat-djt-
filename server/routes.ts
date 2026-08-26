@@ -634,21 +634,29 @@ async function fishAudioRequest(text: string, voiceId: string, speed: number, ap
       if (volumeDb !== 0) prosody.volume = volumeDb;
       if (emotion) prosody.emotion = emotion;
 
-      const response = await fetch("https://api.fish.audio/v1/tts", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-          "model": "s2.1-pro-free",
-        },
-        body: JSON.stringify({
-          text: ttsText,
-          reference_id: voiceId,
-          format: "mp3",
-          latency: "balanced",
-          prosody,
-        }),
-      });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 20000);
+      let response: Response;
+      try {
+        response = await fetch("https://api.fish.audio/v1/tts", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+            "model": "s2.1-pro-free",
+          },
+          body: JSON.stringify({
+            text: ttsText,
+            reference_id: voiceId,
+            format: "mp3",
+            latency: "balanced",
+            prosody,
+          }),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
       if (response.status === 429 || response.status === 503 || response.status === 502) {
         const errorText = await response.text();
@@ -668,6 +676,11 @@ async function fishAudioRequest(text: string, voiceId: string, speed: number, ap
       setCachedTTS(cacheKey, buffer);
       return buffer;
     } catch (err: any) {
+      if (err.name === "AbortError") {
+        console.warn(`Fish Audio request timed out (attempt ${attempt + 1}/${retries})`);
+        lastError = new Error("Fish Audio error: timeout");
+        continue;
+      }
       if (err.message?.includes("rate limited") || err.message?.includes("Fish Audio error")) {
         lastError = err;
         continue;
