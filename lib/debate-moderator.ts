@@ -13,7 +13,7 @@ import { getApiUrl } from "@/lib/query-client";
 import { prefetchTTSAudio, playPrefetchedAudio, playTTS } from "@/lib/audio-helper";
 import { playCrowdCheer, playDingSound } from "@/lib/arena-sfx";
 
-export type ModeratorStyle = "cenk" | "galloway" | "hannity" | "maddow" | "megynkelly" | "odonnell" | "joyreid" | "maxkellerman" | "stephena" | "kaitlyncollins" | "gilbertgottfried" | "carlin" | "tuckercarlson" | "wandasykes" | "trevornoah" | "janeelliott" | "francescresswelsing" | "shannonsharp" | "dc" | "donlemon" | "piersmorgan" | "mikabrzezinski" | "joescarborough" | "jimlampley" | "georgeforeman" | "michaelbuffer" | "howardcosell" | "samjackson";
+export type ModeratorStyle = "cenk" | "galloway" | "hannity" | "maddow" | "megynkelly" | "odonnell" | "joyreid" | "maxkellerman" | "stephena" | "kaitlyncollins" | "gilbertgottfried" | "carlin" | "tuckercarlson" | "wandasykes" | "trevornoah" | "janeelliott" | "francescresswelsing" | "shannonsharp" | "dc" | "donlemon" | "piersmorgan" | "mikabrzezinski" | "joescarborough" | "jimlampley" | "georgeforeman" | "michaelbuffer" | "howardcosell" | "samjackson" | "khalidmuhammad";
 
 export const MODERATORS: Record<ModeratorStyle, { name: string; personaId: string; bias: string }> = {
   cenk:             { name: "Cenk Uygur",          personaId: "cenk",             bias: "progressive" },
@@ -44,6 +44,7 @@ export const MODERATORS: Record<ModeratorStyle, { name: string; personaId: strin
   michaelbuffer:       { name: "Michael Buffer",             personaId: "michaelbuffer",        bias: "boxing-announcer" },
   howardcosell:        { name: "Howard Cosell",              personaId: "howardcosell",         bias: "boxing-sports" },
   samjackson:          { name: "Samuel L. Jackson",          personaId: "samjackson",           bias: "biblical-menace" },
+  khalidmuhammad:      { name: "Brother Khalid Muhammad",    personaId: "khalidmuhammad",       bias: "militant-Black-liberation" },
 };
 
 // Which personas each moderator is friendly to ("favor" — softball questions, quick to defend
@@ -152,6 +153,11 @@ export const MODERATOR_LEANINGS: Record<ModeratorStyle, { favor: string[]; targe
   howardcosell: { favor: [], target: [] },
   // Samuel L. Jackson: no political favorites — he runs this stage on principle and profanity alone.
   samjackson: { favor: [], target: [] },
+  // Brother Khalid Muhammad: militant Black-liberation lens — favors self-determination voices, hard on establishment figures of any party.
+  khalidmuhammad: {
+    favor: ["malcolmx", "claudeanderson", "mlk", "louisfarrakhan", "arikana", "alishahrazad", "jascrockett", "omar", "cornellwest", "malema"],
+    target: ["trump", "bannon", "miller", "leavitt", "candace", "timscott", "alexjones", "mtg", "loomer", "netanyahu"],
+  },
 };
 
 export type ModeratorLeaning = "favor" | "target" | "neutral";
@@ -236,6 +242,37 @@ const MODERATOR_JAB_OVERRIDES: Partial<Record<ModeratorStyle, Partial<Record<key
       "ENGLISH, MOTHERF— gentlemen, do either of you speak it?! SIT. DOWN. Both of you!",
       "That's IT. I have had it with these two squabbling on this stage. Somebody's about to get struck down.",
       "HOLD IT — I will bring the wrath down on BOTH of you if this doesn't stop right now. Back off.",
+    ],
+  },
+  khalidmuhammad: {
+    warn: [
+      "Hold on now — hold ON. This is a debate, not a shouting match. Discipline, brothers and sisters, discipline!",
+      "Order! I said ORDER! You will get your turn to speak your truth — but not like this.",
+    ],
+    chastise: [
+      "That was a weak, watered-down, tap-dancing answer, and you know it! Say something with some BACKBONE!",
+      "You did not answer the question — you performed for the cameras like a good little house servant! Try again, and tell the TRUTH this time!",
+    ],
+    cutMic: [
+      "That's it. Mic is OFF. Sit down and reflect on what you just said to these people.",
+      "No, no, NO — we are done hearing from you for a minute. Go on and think about that.",
+    ],
+    interrupt: [
+      "Hold it right there! You do not get to say something like that and just keep on rolling! Explain yourself!",
+      "Wait a minute, wait a MINUTE — say that again, because I want everybody in here to hear it clearly!",
+    ],
+    chastiseLie: [
+      "And there it is — caught in a bold-faced LIE, right here in front of everybody! Let the record show it!",
+      "That was not a mistake, that was a LIE, and I will not let it stand uncorrected on this stage!",
+    ],
+    defendLie: [
+      "Now hold on, hold on — that's an exaggeration, not a lie. Let's not crucify the man for stretching a point.",
+      "I'll give a little grace there — that's spin, not a straight-up falsehood.",
+    ],
+    squabble: [
+      "ENOUGH! I said ENOUGH! We are not going to turn this stage into a street brawl — sit DOWN, both of you!",
+      "HOLD IT RIGHT THERE! This is supposed to be a battle of IDEAS, not fists! Compose yourselves or I will end this right now!",
+      "STOP! I did not come here to referee a schoolyard fight! One more step from either of you and this debate is OVER!",
     ],
   },
 };

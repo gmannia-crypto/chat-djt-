@@ -868,6 +868,7 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   alishahrazad: require("@/assets/images/persona-alishahrazad.png"),
   waylonjennnings: require("@/assets/images/persona-waylonjennnings.png"),
   jeffreysachs: require("@/assets/images/persona-jeffreysachs.png"),
+  khalidmuhammad: require("@/assets/images/persona-khalidmuhammad.png"),
   skipbayless: require("@/assets/images/persona-skipbayless.png"),
   cenk: require("@/assets/images/persona-cenk.jpg"),
   howardcosell: require("@/assets/images/persona-howardcosell.jpg"),
@@ -1153,7 +1154,11 @@ export default function DebateStage() {
   const [flowGrade, setFlowGrade] = useState<{ letter: string; color: string; label: string; avgMs: number } | null>(null);
   // showTapHint + tapHintShownRef removed — no user tapping mechanic.
   const [showDebateWinner, setShowDebateWinner] = useState(false);
-  const [debateWinner, setDebateWinner] = useState<{ id: string; name: string; portrait: any; verdict?: string; aiJudged?: boolean } | null>(null);
+  const [debateWinner, setDebateWinner] = useState<{ id: string; name: string; portrait: any; verdict?: string; aiJudged?: boolean; victoryTier?: { label: string; color: string; margin: number } } | null>(null);
+  // Mid-debate "leading so far" DC verdict — non-authoritative, shown once near the halfway
+  // point of the timed session. Never calls record-win; purely a live-standings banner.
+  const [midDebateLead, setMidDebateLead] = useState<{ leaderName: string; leaderId: string; blurb: string } | null>(null);
+  const midDebateVerdictFiredRef = useRef(false);
   const [debateTrumpRoast, setDebateTrumpRoast] = useState<string | null>(null);
   const [debateTrumpRoastSpeakerId, setDebateTrumpRoastSpeakerId] = useState<string | null>(null);
   const [debateWinnerSpeech, setDebateWinnerSpeech] = useState<string | null>(null);
@@ -1243,6 +1248,7 @@ export default function DebateStage() {
   const [allPersonaRecords, setAllPersonaRecords] = useState<Record<string, { wins: number; losses: number }>>({});
   const fetchDebateRecordRef = useRef<(() => Promise<void>) | null>(null);
   const fetchAllPersonaRecordsRef = useRef<(() => Promise<void>) | null>(null);
+  const fetchMidDebateLeadRef = useRef<(() => Promise<void>) | null>(null);
   const debateRecordsRef = useRef(debateRecords);
   useEffect(() => { debateRecordsRef.current = debateRecords; }, [debateRecords]);
   const [debateBetPick, setDebateBetPick] = useState<"interviewer" | "interviewee" | null>(null);
@@ -1631,6 +1637,7 @@ export default function DebateStage() {
       let aiVerdictText = "";
       let aiWinnerId    = "";
       let verdictFailed = false;
+      let aiVictoryTier: { label: string; color: string; margin: number } | null = null;
 
       const verdictPromise = msgs.length >= 2
         ? (async () => {
@@ -1677,6 +1684,35 @@ export default function DebateStage() {
                 else if (bWinsById && !aWinsById)    aiWinnerId = bId;
                 // else: ambiguous — aiWinnerId stays "" → preliminary winner kept
 
+                // ── VICTORY TIER — derived from the winner/loser score margin ──
+                // v.scores is keyed by persona NAME (see /api/arena/verdict schema),
+                // so match on name the same way the winner resolution above does.
+                if (aiWinnerId && v.scores && typeof v.scores === "object") {
+                  const scoreEntries = Object.entries(v.scores as Record<string, unknown>)
+                    .map(([name, score]) => ({ name: name.toLowerCase(), score: Number(score) }))
+                    .filter((e) => Number.isFinite(e.score));
+                  const findScore = (personaName: string, personaId: string) => {
+                    const nameLc = personaName.toLowerCase();
+                    const idLc = personaId.toLowerCase();
+                    const match = scoreEntries.find((e) =>
+                      e.name === nameLc || e.name.includes(nameLc.split(" ")[0]) || nameLc.includes(e.name) || e.name === idLc,
+                    );
+                    return match?.score;
+                  };
+                  const winnerName = aiWinnerId === aId ? (aPersona?.name || aId) : (bPersona?.name || bId);
+                  const loserName  = aiWinnerId === aId ? (bPersona?.name || bId) : (aPersona?.name || aId);
+                  const winnerScore = findScore(winnerName, aiWinnerId);
+                  const loserScore  = findScore(loserName, aiWinnerId === aId ? bId : aId);
+                  if (winnerScore !== undefined && loserScore !== undefined) {
+                    const margin = winnerScore - loserScore;
+                    aiVictoryTier =
+                      margin >= 40 ? { label: "LANDSLIDE VICTORY", color: "#ff4d4d", margin }
+                      : margin >= 22 ? { label: "DECISIVE WIN", color: "#f97316", margin }
+                      : margin >= 10 ? { label: "CLEAR WIN", color: "#facc15", margin }
+                      : { label: "NARROW DECISION", color: "#60A5FA", margin };
+                  }
+                }
+
                 // ── LIE-COUNT OVERRIDE ──────────────────────────────────────
                 // If one debater has ≥3 more confirmed lies than the other,
                 // the bigger liar cannot win regardless of rhetorical score.
@@ -1700,6 +1736,8 @@ export default function DebateStage() {
                       (aiVerdictText || "") +
                       `\n\nNote: ${overrideLoserName} was disqualified from the win due to ${overrideLieCount} fact-checked false claims.`;
                   }
+                  // Disqualification always overrides any score-margin tier — the win is by forfeit, not substance.
+                  aiVictoryTier = { label: "WIN BY DISQUALIFICATION", color: "#ff4d4d", margin: 100 };
                 }
                 // ────────────────────────────────────────────────────────────
               } else {
@@ -1877,6 +1915,7 @@ export default function DebateStage() {
               portrait: PERSONA_PORTRAITS[winnerId] || null,
               verdict: aiVerdictText,
               aiJudged: true,
+              victoryTier: aiVictoryTier || undefined,
             });
             if (winnerId !== prelimWinnerId) {
               setDebateLoser({ id: loserId, name: loserName });
@@ -3645,6 +3684,63 @@ export default function DebateStage() {
     } catch {}
   }, [interviewerId, intervieweeId, deviceId]);
 
+  // ── MID-DEBATE "LEADING SO FAR" DC VERDICT ──────────────────────────────
+  // Fires once, near the halfway point of the timed session. Sends the partial
+  // transcript + confirmed-lie tokens so far to the SAME verdict endpoint the
+  // final judgment uses, but the result is explicitly presented as a
+  // non-authoritative snapshot — it never calls /api/arena/record-win, and the
+  // final verdict at debate end is the only one that counts.
+  const fetchMidDebateLead = useCallback(async () => {
+    try {
+      const aId = interviewerId, bId = intervieweeId;
+      if (!aId || !bId) return;
+      const msgs = (messagesRef.current ?? []).filter((m) => !m.isSystem && !m.isSarcasm && !m.isInterruption);
+      if (msgs.length < 2) return;
+      const aPersona = interviewers.find((p) => p.id === aId);
+      const bPersona = interviewees.find((p) => p.id === bId);
+      const topicForVerdict = (topics && topics.length > 0) ? topics[0].title : "Political Debate";
+      const lieTokens = (liesRef.current ?? [])
+        .filter((l) => !l.pending && l.score < 40 && typeof l.lieToken === "string")
+        .map((l) => l.lieToken as string);
+      const res = await fetch(new URL("/api/arena/verdict", getApiUrl()).toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          topic: topicForVerdict,
+          messages: msgs.map((m) => ({ speakerName: m.speakerName, text: m.text })),
+          personas: [aPersona?.name || aId, bPersona?.name || bId],
+          personaIds: [aId, bId],
+          lieTokens,
+        }),
+      });
+      if (!res.ok) return;
+      const v = await res.json();
+      const aNameLc = (aPersona?.name || aId).toLowerCase().trim();
+      const bNameLc = (bPersona?.name || bId).toLowerCase().trim();
+      const aIdLc = aId.toLowerCase();
+      const bIdLc = bId.toLowerCase();
+      const vWinner = (v.winner || "").toLowerCase().trim();
+      const vId = (v.winnerId || "").toLowerCase().trim().replace(/[\s\-]/g, "");
+      const aWinsById = vId.length > 1 && (vId === aIdLc || aIdLc.includes(vId) || vId.includes(aIdLc));
+      const aWinsByName = vWinner.length > 2 && (aNameLc.includes(vWinner) || vWinner.includes(aNameLc.split(" ")[0]));
+      const bWinsById = vId.length > 1 && (vId === bIdLc || bIdLc.includes(vId) || vId.includes(bIdLc));
+      const bWinsByName = vWinner.length > 2 && (bNameLc.includes(vWinner) || vWinner.includes(bNameLc.split(" ")[0]));
+      let leaderId = "";
+      if ((aWinsById || aWinsByName) && !(bWinsById || bWinsByName)) leaderId = aId;
+      else if ((bWinsById || bWinsByName) && !(aWinsById || aWinsByName)) leaderId = bId;
+      else if (aWinsById && !bWinsById) leaderId = aId;
+      else if (bWinsById && !aWinsById) leaderId = bId;
+      if (!leaderId) return; // ambiguous — skip the banner rather than guess
+      const leaderPersona = leaderId === aId ? aPersona : bPersona;
+      const blurb = String(v.summary || v.verdict || "").split(/(?<=[.!?])\s/)[0]?.slice(0, 140) || "";
+      setMidDebateLead({ leaderId, leaderName: leaderPersona?.name || leaderId, blurb });
+      // Auto-dismiss after 12s so it doesn't linger over later exchanges.
+      setTimeout(() => setMidDebateLead((cur) => (cur?.leaderId === leaderId ? null : cur)), 12000);
+    } catch { /* non-authoritative — fail silently, final verdict is unaffected */ }
+  }, [interviewerId, intervieweeId, interviewers, interviewees, topics]);
+
+  useEffect(() => { fetchMidDebateLeadRef.current = fetchMidDebateLead; }, [fetchMidDebateLead]);
+
   // Keep stable refs so the runLoop can call them after recording the result.
   useEffect(() => { fetchDebateRecordRef.current = fetchDebateRecord; }, [fetchDebateRecord]);
   useEffect(() => { fetchAllPersonaRecordsRef.current = fetchAllPersonaRecords; }, [fetchAllPersonaRecords]);
@@ -4033,6 +4129,12 @@ export default function DebateStage() {
     timerRef.current = setInterval(() => {
       const remaining = Math.max(0, Math.ceil((sessionEndsAtRef.current - Date.now()) / 1000));
       setSecondsLeft(remaining);
+      const totalSecs = duration * 60;
+      const elapsed = totalSecs - remaining;
+      if (!midDebateVerdictFiredRef.current && totalSecs > 0 && elapsed >= totalSecs / 2 && remaining > 15) {
+        midDebateVerdictFiredRef.current = true;
+        fetchMidDebateLeadRef.current?.();
+      }
       if (remaining <= 0) {
         runningRef.current = false;
         if (!accessExpiredRef.current) setPhase("ended");
@@ -4041,7 +4143,7 @@ export default function DebateStage() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [phase]);
+  }, [phase, duration]);
 
   const addMessage = useCallback((m: Msg) => {
     setMessages((prev) => [...prev, m]);
@@ -6699,6 +6801,29 @@ export default function DebateStage() {
           scrollEnabled={messages.length > 0}
         />
         <Animated.View pointerEvents="none" style={[s.lightning, flashStyle]} />
+        {midDebateLead && (
+          <Animated.View
+            entering={FadeInDown.duration(300)}
+            exiting={FadeOut.duration(400)}
+            pointerEvents="none"
+            style={{
+              position: "absolute", top: 10, left: 12, right: 12, alignItems: "center", zIndex: 20,
+            }}
+          >
+            <View style={{
+              flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, paddingVertical: 8,
+              backgroundColor: "rgba(96,165,250,0.16)", borderRadius: 14, borderWidth: 1, borderColor: "rgba(96,165,250,0.45)", maxWidth: 380,
+            }}>
+              <Text style={{ fontSize: 14 }}>⚖️</Text>
+              <View style={{ flexShrink: 1 }}>
+                <Text style={{ color: "#60A5FA", fontSize: 10, fontWeight: "900", letterSpacing: 1 }}>LEADING SO FAR (NOT FINAL)</Text>
+                <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700" }} numberOfLines={2}>
+                  {midDebateLead.leaderName}{midDebateLead.blurb ? ` — ${midDebateLead.blurb}` : ""}
+                </Text>
+              </View>
+            </View>
+          </Animated.View>
+        )}
         {showTimeoutBanner && (
           <Animated.View
             entering={FadeInDown.duration(280)}
@@ -6808,6 +6933,21 @@ export default function DebateStage() {
                 <ActivityIndicator size="small" color="#60A5FA" />
                 <Text style={{ color: "#60A5FA", fontSize: 12, fontWeight: "700" }}>DC AI is deliberating on facts & arguments…</Text>
               </View>
+            )}
+
+            {/* Victory tier badge — margin-of-victory read on the AI verdict's scores */}
+            {debateWinner?.victoryTier && !lieDisqualifiedLoser && (
+              <Animated.View
+                entering={FadeIn.delay(150).duration(400)}
+                style={{
+                  marginTop: 10, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20,
+                  backgroundColor: `${debateWinner.victoryTier.color}22`, borderWidth: 1.5, borderColor: debateWinner.victoryTier.color,
+                }}
+              >
+                <Text style={{ color: debateWinner.victoryTier.color, fontSize: 12, fontWeight: "900", letterSpacing: 1.5 }}>
+                  🏆 {debateWinner.victoryTier.label}
+                </Text>
+              </Animated.View>
             )}
 
             {/* Disqualification badge — shown when the lie-count override fired */}
