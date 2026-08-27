@@ -545,6 +545,70 @@ const PERSONA_SQUABBLE_THREATS: Record<string, string[]> = {
   _default:        ["You come at me like that again and we'll settle this outside!", "Push me one more time and this debate becomes a very different conversation."],
 };
 
+// Sarcastic laugh + one-liner the rival fires the instant someone's statement
+// crosses from "insulting" into flat-out outrageous — plays as a live
+// overlapping reaction (ducks the outrageous line, doesn't stop it) via the
+// existing fireLiveReaction/playReactionOverlap pipeline.
+const DEBATE_OUTRAGE_REACTIONS: Record<string, string[]> = {
+  trump:           ["Ha! Total lunatic — everybody sees it, believe me!", "*laughs* Sad! You've completely lost it, folks, completely!"],
+  carville:        ["*snorts* Son, you have lost every marble you ever had!", "*laughs* Good LORD, that is the dumbest thing I've heard all week!"],
+  biden:           ["*laughs* Come on, man — you've lost it, I mean literally lost it.", "*chuckles* God love ya, but that is straight up malarkey and you know it."],
+  obama:           ["*laughs* Come on now — that's not a serious answer, that's a punchline.", "*chuckles* Let's be honest with each other — you've lost the thread here."],
+  hillaryclinton:  ["*laughs* Oh, bless your heart — you've completely lost it.", "*scoffs, laughing* Somewhere a fact-checker just fainted."],
+  bernie:          ["*laughs* The billionaires are laughing WITH you right now, not at you — actually, both.", "Ha! That is the most unbelievable thing I have heard in this whole campaign."],
+  aoc:             ["*laughs* Wow, so brave — and completely unhinged.", "*scoffs, laughing* That aged into nonsense in real time."],
+  hannity:         ["*laughs* Unbelievable, folks — this guy's completely lost it!", "Ha! That's the craziest thing I've heard on this stage, folks!"],
+  tuckercarlson:   ["*laughs quietly* Fascinating — you actually believe that.", "*chuckles* Curious that you'd say that out loud."],
+  joyreid:         ["*laughs incredulously* Oh, the AUDACITY — you have lost your mind.", "*scoffs* Mm, no — sweetie, you've completely lost the plot."],
+  maddow:          ["*laughs* I have documents that disagree with your entire face right now.", "*chuckles* There's a timeline for this, and it is NOT kind to you."],
+  shapiro:         ["*laughs* That's not an argument, that's a punchline.", "*chuckles* Facts don't care about whatever that was."],
+  carlin:          ["*laughs bitterly* Boy, you have lost your goddamn mind.", "*chuckles darkly* Beautiful, gorgeous nonsense right there."],
+  charlamagne:     ["*dies laughing* That's a WHOLE movie, and not a good one.", "*wheezing* Nah, cap detected — big cap!"],
+  shannonsharp:    ["*laughs* Man, stop — unc ain't buying that one, playboy.", "*chuckles* Come on now, you can't be serious with that."],
+  skipbayless:     ["*laughs* That take just got cooked on live television.", "Ha! That doesn't survive first contact with reality."],
+  whoopi:          ["*laughs* Girl, sit DOWN with that.", "*cackles* Oh, I can't — that is NOT it."],
+  megynkelly:      ["*laughs* Incredible — and not in a good way.", "*chuckles* I'll need a source for whatever THAT was."],
+  desantis:        ["*laughs* That wouldn't fly in the Free State of Florida.", "*chuckles* Sounds like a press release, not a fact."],
+  mikepence:       ["*chuckles politely* Well now — that's simply not the case.", "*laughs* I've heard sturdier arguments back in Indiana."],
+  muhammadali:     ["*laughs* Float like a butterfly — that argument? Dead on arrival.", "Ha! That's a jab with no power behind it."],
+  samjackson:      ["*laughs* Say that again. I dare you. I DOUBLE dare you.", "*scoffs, laughing* Personality of a wet napkin, and the argument to match."],
+  _default:        ["*laughs* Boy, you musta lost yo damn mind sayin' that!", "*scoffs, laughing* Okay — you have officially lost the plot.", "Ha! You have completely lost your mind with that one."],
+};
+
+// Fill-in epithets for the immediate "No! F*** you! You ___!" retort a
+// persona fires the instant their attacker tells them to go do something
+// physically impossible with themselves — flavored to each persona's style.
+const DEBATE_COMEBACK_EPITHETS: Record<string, string[]> = {
+  trump:           ["overrated con man", "total loser", "disaster of a human being"],
+  carville:        ["swamp rat", "sorry excuse for a man", "son of a bitch"],
+  biden:           ["jack wagon", "malarkey merchant", "fool"],
+  obama:           ["fraud", "hack", "empty suit"],
+  hillaryclinton:  ["disgrace", "fraud", "embarrassment"],
+  bernie:          ["corporate shill", "sellout", "fraud"],
+  aoc:             ["hack", "sellout", "disgrace"],
+  hannity:         ["hack", "shill", "disgrace"],
+  tuckercarlson:   ["fraud", "hack", "disgrace"],
+  joyreid:         ["hack", "embarrassment", "disgrace"],
+  maddow:          ["fraud", "hack", "disgrace"],
+  shapiro:         ["hack", "fraud", "clown"],
+  carlin:          ["walking punchline", "fraud", "empty suit"],
+  charlamagne:     ["clown", "fraud", "sucka"],
+  shannonsharp:    ["clown", "fraud", "sucka"],
+  skipbayless:     ["clown", "hack", "fraud"],
+  whoopi:          ["disgrace", "clown", "fraud"],
+  megynkelly:      ["fraud", "hack", "disgrace"],
+  desantis:        ["fraud", "hack", "empty suit"],
+  mikepence:       ["empty suit", "coward", "fraud"],
+  muhammadali:     ["pretender", "fraud", "clown"],
+  samjackson:      ["fool", "clown", "sucka"],
+  _default:        ["disgrace", "fraud", "clown", "embarrassment"],
+};
+
+/** Matches "go f*** yourself" and close variants regardless of censoring. */
+function detectGoFYourselfTrigger(text: string): boolean {
+  return /go\s+f\W*u?c?k?\W*\s*yourself/i.test(text);
+}
+
 // ── PARTING SHOTS ────────────────────────────────────────────────────────────
 // Fired when either persona's heat is still above PARTING_HEAT_THRESHOLD
 // at the moment the debate clock hits zero — giving the exit a sharp dramatic
@@ -1297,6 +1361,10 @@ export default function DebateStage() {
   const lastFirebackAtRef = useRef(0);
   const squabbleCooldownUntilRef = useRef(0);
   const tryFirebackRef = useRef<null | ((attackerId: string, targetId: string, text: string, severity: number) => void)>(null);
+  // Ref-forwarded so enrichAndAddMessage (declared before fireLiveReaction
+  // exists) can fire outrage-laugh reactions without a TDZ crash — see the
+  // usage site's comment for why a direct closure isn't safe here.
+  const fireLiveReactionRef = useRef<null | ((reaction: { text: string; speakerId: string; speakerName: string } | null | undefined, mainText: string, mainSpeakerId?: string) => void)>(null);
   const tryModeratorRetortRef = useRef<null | ((speakerId: string, text: string) => void)>(null);
   // ── HEAT METER UI STATE ──────────────────────────────────────────────────
   const [heatA, setHeatA] = useState(0);
@@ -2993,6 +3061,39 @@ export default function DebateStage() {
         if (targetId) {
           // Small delay so main-speaker TTS gets queued first
           setTimeout(() => { tryFirebackRef.current?.(m.speakerId, targetId, m.text, severity); }, 1200);
+          // ── Outrage laugh reaction: a flat-out outrageous line (not just a
+          // mild insult) earns an immediate sarcastic laugh + catchphrase
+          // overlay from the rival — separate from the AI-generated fireback
+          // reply, which can take seconds to arrive. Routed through a ref
+          // (fireLiveReaction is declared further down the file) to avoid a
+          // temporal-dead-zone crash: enrichAndAddMessage is declared before
+          // fireLiveReaction exists, and directly closing over it here would
+          // throw "Cannot access 'fireLiveReaction' before initialization."
+          if (severity >= 2) {
+            const outragePool = DEBATE_OUTRAGE_REACTIONS[targetId] || DEBATE_OUTRAGE_REACTIONS._default;
+            const laughLine = outragePool[Math.floor(Math.random() * outragePool.length)];
+            const targetName = [...interviewers, ...interviewees].find((p) => p.id === targetId)?.name;
+            fireLiveReactionRef.current?.({ text: laughLine, speakerId: targetId, speakerName: targetName || targetId }, m.text, m.speakerId);
+          }
+          // ── "Go f*** yourself" trigger: the target fires back an immediate,
+          // in-character retort rather than waiting for the next AI turn.
+          if (detectGoFYourselfTrigger(m.text)) {
+            const epithetPool = DEBATE_COMEBACK_EPITHETS[targetId] || DEBATE_COMEBACK_EPITHETS._default;
+            const epithet = epithetPool[Math.floor(Math.random() * epithetPool.length)];
+            const retortText = `No! F*** you! You ${epithet}!`;
+            const targetName = [...interviewers, ...interviewees].find((p) => p.id === targetId)?.name;
+            setTimeout(() => {
+              if (!runningRef.current) return;
+              setMessages((prev) => [...prev, {
+                id: "retort-" + Date.now() + Math.random().toString(36).slice(2),
+                speakerId: targetId,
+                speakerName: targetName || targetId,
+                text: retortText,
+                ts: Date.now(),
+              }]);
+              enqueueTTS(retortText, targetId);
+            }, 500);
+          }
         }
         tryModeratorRetortRef.current?.(m.speakerId, m.text);
       }
@@ -3165,7 +3266,11 @@ export default function DebateStage() {
     // reaction audio itself is ready — so the two voices don't compete at full
     // volume while the reaction clip is still loading.
     const mainSound = currentSoundRef.current;
-    if (mainSound) { try { mainSound.setVolumeAsync(0.10).catch(() => {}); } catch {} }
+    // Ducked, not silenced: the main line needs to stay audible enough that it
+    // reads as "continuing under the overlay" rather than getting cut off —
+    // 0.10 was near-inaudible and made a still-playing statement feel like it
+    // had stopped.
+    if (mainSound) { try { mainSound.setVolumeAsync(0.25).catch(() => {}); } catch {} }
     setActiveSpeaker(personaId);
     activeSpeakerRef.current = personaId;
     // Restores the ducked line's volume — but ONLY on the exact sound instance
@@ -3287,6 +3392,7 @@ export default function DebateStage() {
       playReactionOverlap(reactionAudioPromise, reaction.speakerId, mainSpeakerId);
     }, overlapDelay);
   }, [playReactionOverlap, enqueueTTS]);
+  useEffect(() => { fireLiveReactionRef.current = fireLiveReaction; }, [fireLiveReaction]);
 
   // ── FIREBACK ENGINE ───────────────────────────────────────────────────────
   // When a debater's line crosses the insult threshold for the opponent,

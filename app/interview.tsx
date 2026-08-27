@@ -1249,7 +1249,12 @@ export default function InterviewScreen() {
     // A persona can never interrupt/overlap their own currently-playing voice.
     if (personaId === activeSpeakerRef.current) return;
     const mainSound = currentSoundRef.current;
-    if (mainSound) { try { mainSound.setVolumeAsync(0.10).catch(() => {}); } catch {} }
+    const prevSpeaker = activeSpeakerRef.current;
+    // Ducked, not silenced: the main line needs to stay audible enough that it
+    // reads as "continuing under the overlay" rather than getting cut off —
+    // 0.10 was near-inaudible and made a still-playing statement feel like it
+    // had stopped.
+    if (mainSound) { try { mainSound.setVolumeAsync(0.25).catch(() => {}); } catch {} }
     setActiveSpeaker(personaId);
     activeSpeakerRef.current = personaId;
     try {
@@ -1259,15 +1264,18 @@ export default function InterviewScreen() {
         if (cleaned) return; cleaned = true;
         sound.setOnPlaybackStatusUpdate(null);
         sound.getStatusAsync().then((st: any) => { if (st.isLoaded) sound.stopAsync().then(() => sound.unloadAsync()).catch(() => {}); }).catch(() => {});
+        // Restore to the ducked speaker's own configured volume, not a
+        // hard-coded 1.0 — a speaker who set their volume below 100% should
+        // not get bumped back up after an interruption ends.
         const ms = currentSoundRef.current;
-        if (ms) { try { ms.setVolumeAsync(1.0).catch(() => {}); } catch {} }
+        if (ms) { try { ms.setVolumeAsync(getPersonaVoiceVolume(prevSpeaker || "")).catch(() => {}); } catch {} }
         setActiveSpeaker(activeSpeakerRef.current);
       };
       sound.setOnPlaybackStatusUpdate((status: any) => { if (status.didJustFinish || status.error) cleanup(); });
       setTimeout(cleanup, 8000);
     } catch {
       const ms = currentSoundRef.current;
-      if (ms) { try { ms.setVolumeAsync(1.0).catch(() => {}); } catch {} }
+      if (ms) { try { ms.setVolumeAsync(getPersonaVoiceVolume(prevSpeaker || "")).catch(() => {}); } catch {} }
     }
   }, []);
 

@@ -3103,6 +3103,60 @@ const ARENA_SQUABBLE_THREATS: Record<string, string[]> = {
 };
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Sarcastic laugh + one-liner a rival fires the instant someone's statement
+// crosses from "insulting" into flat-out outrageous — plays as a live
+// overlapping reaction (ducks the outrageous line, doesn't stop it) via the
+// existing fireLiveReaction/playReactionOverlap pipeline.
+const ARENA_OUTRAGE_REACTIONS: Record<string, string[]> = {
+  ruckus:          ["*wheeze* Boy, you musta lost yo damn mind!", "*cackles* Son, you done bumped yo head talkin' like that!", "Lord Jesus — boy, you musta lost yo damn mind sayin' that!"],
+  carville:        ["*snorts* Son, you have lost every marble you ever had!", "*laughs* Good LORD, that is the dumbest thing I've heard all week!"],
+  trump:           ["Ha! Total lunatic — everybody sees it, believe me!", "*laughs* Sad! You've completely lost it, folks, completely!"],
+  charliemurphy:   ["*dies laughing* Yo, did you HEAR yourself right now?!", "*wheezing* Man, you gotta be smokin' something to say that!"],
+  malema:          ["*laughs mockingly* You have lost your entire mind, comrade!", "Ha! Even your own people are embarrassed for you right now!"],
+  claudeanderson:  ["*chuckles darkly* That is the most confused statement I've heard all night.", "*laughs* Son, you have absolutely no idea what you just said."],
+  gilbertgottfried:["AH HA HA HA — ARE YOU KIDDING ME WITH THAT?!", "*shrieking laugh* THAT IS THE STUPIDEST THING I HAVE EVER HEARD!"],
+  biden:           ["*laughs* Come on, man — you've lost it, I mean literally lost it.", "*chuckles* God love ya, but that is straight up malarkey and you know it."],
+  joyreid:         ["*laughs incredulously* Oh, the AUDACITY — you have lost your mind.", "*scoffs* Mm, no — sweetie, you've completely lost the plot."],
+  netanyahu:       ["*laughs* You cannot be serious — that is delusional even for you.", "Ha! I have heard nonsense before, but that takes the prize."],
+  omar:            ["*laughs* That is genuinely unhinged — you hear yourself?", "*shakes head laughing* Wow. Just — wow. You've lost it."],
+  alexjones:       ["HA! THEY GOT TO YOUR BRAIN — YOU'VE LOST YOUR MIND!", "*maniacal laugh* THAT IS THE CRAZIEST THING I'VE EVER HEARD, AND I'VE HEARD EVERYTHING!"],
+  rosie:           ["*cackles* Oh my GOD, did you really just say that?!", "*laughing hysterically* Honey, you have lost your ENTIRE mind!"],
+  aoc:             ["*laughs* Wow, so brave — and completely unhinged.", "*scoffs, laughing* That aged into nonsense in real time."],
+  hannity:         ["*laughs* Unbelievable, folks — this guy's completely lost it!", "Ha! That's the craziest thing I've heard on this stage, folks!"],
+  carlin:          ["*laughs bitterly* Boy, you have lost your goddamn mind.", "*chuckles darkly* Beautiful, gorgeous nonsense right there."],
+  bernie:          ["*laughs* The billionaires are laughing WITH you right now, not at you — actually, both.", "Ha! That is the most unbelievable thing I have heard in this whole campaign."],
+  _default:        ["*laughs* Boy, you musta lost yo damn mind sayin' that!", "*scoffs, laughing* Okay — you have officially lost the plot.", "Ha! You have completely lost your mind with that one."],
+};
+
+// Fill-in epithets for the immediate "No! F*** you! You ___!" retort a
+// persona fires the instant their attacker tells them to go do something
+// physically impossible with themselves — flavored to each persona's style.
+const ARENA_COMEBACK_EPITHETS: Record<string, string[]> = {
+  trump:           ["overrated con man", "total loser", "disaster of a human being"],
+  carville:        ["swamp rat", "sorry excuse for a man", "son of a bitch"],
+  ruckus:          ["fool", "old goat", "sorry excuse for a debater"],
+  charliemurphy:   ["clown", "fake tough guy", "sucka"],
+  malema:          ["coward", "sellout", "empty suit"],
+  claudeanderson:  ["fraud", "confused little man", "pretender"],
+  gilbertgottfried:["screaming lunatic", "walking headache", "clown"],
+  biden:           ["jack wagon", "malarkey merchant", "fool"],
+  joyreid:         ["hack", "embarrassment", "disgrace"],
+  netanyahu:       ["coward", "disgrace", "fool"],
+  omar:            ["bully", "disgrace", "coward"],
+  alexjones:       ["shill", "government plant", "fraud"],
+  rosie:           ["bully", "clown", "disgrace"],
+  aoc:             ["hack", "sellout", "disgrace"],
+  hannity:         ["hack", "shill", "disgrace"],
+  carlin:          ["walking punchline", "fraud", "empty suit"],
+  bernie:          ["corporate shill", "sellout", "fraud"],
+  _default:        ["disgrace", "fraud", "clown", "embarrassment"],
+};
+
+/** Matches "go f*** yourself" and close variants regardless of censoring. */
+function detectGoFYourselfTrigger(text: string): boolean {
+  return /go\s+f\W*u?c?k?\W*\s*yourself/i.test(text);
+}
+
 function detectTrumpAttack(text: string, speakerId: string): boolean {
   if (speakerId === "trump" || speakerId === "ruckus" || speakerId === "netanyahu" || speakerId === "graham" || speakerId === "megynkelly" || speakerId === "pambondi" || speakerId === "miller" || speakerId === "jimjordan") return false;
   const lower = text.toLowerCase();
@@ -7402,6 +7456,40 @@ export default function ArenaScreen() {
               tryArenaFirebackRef.current?.(responderId, data.response, fbSeverity, toSpeakerId);
             }, 1200);
           }
+          // ── Outrage laugh reaction: a flat-out outrageous line (not just a
+          // mild insult) earns an immediate sarcastic laugh + catchphrase
+          // overlay from a rival — separate from the AI-generated fireback
+          // reply, which can take seconds to arrive. Anchored to THIS line's
+          // own queued playback via fireLiveReaction's "main" track guard.
+          if (fbSeverity >= 2) {
+            const rivalPool = selectedPersonasRef.current.filter((id) => id !== responderId);
+            if (rivalPool.length > 0) {
+              const rival = rivalPool[Math.floor(Math.random() * rivalPool.length)];
+              const rivalPersona = getPersona(rival);
+              const outragePool = ARENA_OUTRAGE_REACTIONS[rival] || ARENA_OUTRAGE_REACTIONS._default;
+              const laughLine = outragePool[Math.floor(Math.random() * outragePool.length)];
+              fireLiveReaction({ text: laughLine, speakerId: rival, speakerName: rivalPersona?.name || rival }, data.response, responderId);
+            }
+          }
+          // ── "Go f*** yourself" trigger: the target fires back an immediate,
+          // in-character retort rather than waiting for the next AI turn.
+          if (detectGoFYourselfTrigger(data.response) && toSpeakerId && toSpeakerId !== responderId) {
+            const victimPersona = getPersona(toSpeakerId);
+            const epithetPool = ARENA_COMEBACK_EPITHETS[toSpeakerId] || ARENA_COMEBACK_EPITHETS._default;
+            const epithet = epithetPool[Math.floor(Math.random() * epithetPool.length)];
+            const retortText = `No! F*** you! You ${epithet}!`;
+            setTimeout(() => {
+              if (!mountedRef.current || sessionEndedRef.current) return;
+              addMessage({
+                id: "retort-" + Date.now() + Math.random().toString(36).substr(2, 5),
+                speakerId: toSpeakerId,
+                speakerName: victimPersona?.name || toSpeakerId,
+                text: retortText,
+                timestamp: Date.now(),
+              });
+              queueTTS(retortText, toSpeakerId);
+            }, 500);
+          }
         }
         // ────────────────────────────────────────────────────────────────────
 
@@ -7641,6 +7729,26 @@ export default function ArenaScreen() {
       await playInterruptionAudio(data.response, interrupter);
       fireLiveReaction(data.reaction, data.response, interrupter, "interrupt");
       if (data.reaction) turnsSinceReactionRef.current = 0; else turnsSinceReactionRef.current += 1;
+      // "Go f*** yourself"-style interruption earns an immediate in-character
+      // retort from whoever got interrupted, rather than waiting for the next
+      // AI turn to address it.
+      if (detectGoFYourselfTrigger(data.response) && interruptedId && interruptedId !== interrupter) {
+        const victimPersona = getPersona(interruptedId);
+        const epithetPool = ARENA_COMEBACK_EPITHETS[interruptedId] || ARENA_COMEBACK_EPITHETS._default;
+        const epithet = epithetPool[Math.floor(Math.random() * epithetPool.length)];
+        const retortText = `No! F*** you! You ${epithet}!`;
+        setTimeout(() => {
+          if (!mountedRef.current || sessionEndedRef.current) return;
+          addMessage({
+            id: "retort-" + Date.now() + Math.random().toString(36).substr(2, 5),
+            speakerId: interruptedId,
+            speakerName: victimPersona?.name || interruptedId,
+            text: retortText,
+            timestamp: Date.now(),
+          });
+          queueTTS(retortText, interruptedId);
+        }, 500);
+      }
       if (typeof data.currentIQ === "number") {
         setPersonaSessionIQ((prev) => { const u = { ...prev, [interrupter]: data.currentIQ }; personaSessionIQRef.current = u; return u; });
       } else if (typeof data.iqDelta === "number" && data.iqDelta !== 0) adjustPersonaIQ(interrupter, data.iqDelta);
