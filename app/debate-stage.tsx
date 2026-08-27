@@ -986,11 +986,11 @@ const TOPIC_MIXES = [
 ];
 
 type InterviewStyleId = "combative" | "informative" | "comedic" | "civil_discourse" | "educational" | "roast" | "softball" | "unhinged";
-const INTERVIEW_STYLES: Array<{ id: InterviewStyleId; label: string; icon: "flame" | "information-circle" | "happy" | "handshake" | "school" | "mic" | "baseball" | "skull-outline" }> = [
+const INTERVIEW_STYLES: Array<{ id: InterviewStyleId; label: string; icon: keyof typeof Ionicons.glyphMap }> = [
   { id: "combative",      label: "Combative",       icon: "flame" },
   { id: "informative",    label: "Informative",     icon: "information-circle" },
   { id: "comedic",        label: "Comedic",         icon: "happy" },
-  { id: "civil_discourse",label: "Civil Discourse", icon: "handshake" },
+  { id: "civil_discourse",label: "Civil Discourse", icon: "people" },
   { id: "educational",    label: "Educational",     icon: "school" },
   { id: "roast",          label: "Comedy Roast",    icon: "mic" },
   { id: "softball",       label: "Softball",        icon: "baseball" },
@@ -3148,11 +3148,18 @@ export default function DebateStage() {
    *  copy of playInterruptionAudio, captures the speaker that was active before the
    *  reaction fired and restores it (not whatever is active at the moment cleanup
    *  runs) so the transcript UI doesn't stay pinned on the reactor afterward. */
-  const playReactionOverlap = useCallback(async (audioUriPromise: Promise<string>, personaId: string) => {
+  const playReactionOverlap = useCallback(async (audioUriPromise: Promise<string>, personaId: string, mainSpeakerId?: string) => {
     if (!voiceEnabledRef.current) return;
     if (!reactionOverlapEnabledRef.current) return;
     if (shouldSkipPersonaVoice(personaId)) return;
     if (personaId === activeSpeakerRef.current) return;
+    // Guard against ducking the WRONG line: if this reaction was scheduled
+    // against a specific main speaker and playback has since moved past them
+    // (queue advanced while the reaction's delay timer or TTS synthesis was
+    // still in flight), abandon the overlap instead of ducking/stepping on
+    // whatever is playing now — that would land the reaction on the next
+    // turn rather than the one that earned it.
+    if (mainSpeakerId && activeSpeakerRef.current !== mainSpeakerId) return;
     const prevSpeaker = activeSpeakerRef.current;
     // Duck the main line the instant the overlap window begins — before the
     // reaction audio itself is ready — so the two voices don't compete at full
@@ -3161,9 +3168,12 @@ export default function DebateStage() {
     if (mainSound) { try { mainSound.setVolumeAsync(0.10).catch(() => {}); } catch {} }
     setActiveSpeaker(personaId);
     activeSpeakerRef.current = personaId;
+    // Restores the ducked line's volume — but ONLY on the exact sound instance
+    // we ducked (never whatever is playing now, which may belong to a
+    // different speaker), and to that speaker's own configured volume rather
+    // than a hard-coded 1.0.
     const restore = () => {
-      const ms = currentSoundRef.current;
-      if (ms) { try { ms.setVolumeAsync(1.0).catch(() => {}); } catch {} }
+      if (mainSound) { try { mainSound.setVolumeAsync(getPersonaVoiceVolume(prevSpeaker || "")).catch(() => {}); } catch {} }
       if (activeSpeakerRef.current === personaId) {
         setActiveSpeaker(prevSpeaker);
         activeSpeakerRef.current = prevSpeaker;
@@ -3171,6 +3181,15 @@ export default function DebateStage() {
     };
     try {
       const audioUri = await audioUriPromise;
+      // Re-validate right before playing: reaction synthesis can take longer
+      // than the remaining tail of the main line, so the queue may have
+      // already advanced to a new speaker/sound while we were awaiting audio.
+      // If the sound we ducked is no longer the one actively playing, abandon
+      // the overlap instead of stepping on the next speaker's line.
+      if (mainSpeakerId && currentSoundRef.current !== mainSound) {
+        restore();
+        return;
+      }
       const sound = await playPrefetchedAudio(audioUri, { volume: getPersonaVoiceVolume(personaId) });
       let cleaned = false;
       const cleanup = () => {
@@ -3238,6 +3257,24 @@ export default function DebateStage() {
     const overlapDelay = Math.max(600, estMs - 900);
     setTimeout(() => {
       if (!runningRef.current) return;
+      // The main line may have already finished (or the queue advanced to
+      // someone else) by the time this delay elapses — only fire the overlap
+      // if the line we're reacting to is still the one actively playing.
+      // Otherwise queue the reaction sequentially so it still appears, just
+      // without incorrectly ducking/overlapping the wrong speaker.
+      if (mainSpeakerId && activeSpeakerRef.current !== mainSpeakerId) {
+        setMessages((prev) => [...prev, {
+          id: `react-${Date.now()}-${Math.random()}`,
+          speakerId: reaction.speakerId,
+          speakerName: reaction.speakerName,
+          text: reaction.text,
+          ts: Date.now(),
+          isReaction: true,
+          skipTTS: true,
+        }]);
+        enqueueTTS(reaction.text, reaction.speakerId, `react-${Date.now()}`);
+        return;
+      }
       setMessages((prev) => [...prev, {
         id: `react-${Date.now()}-${Math.random()}`,
         speakerId: reaction.speakerId,
@@ -3247,7 +3284,7 @@ export default function DebateStage() {
         isReaction: true,
         skipTTS: true,
       }]);
-      playReactionOverlap(reactionAudioPromise, reaction.speakerId);
+      playReactionOverlap(reactionAudioPromise, reaction.speakerId, mainSpeakerId);
     }, overlapDelay);
   }, [playReactionOverlap, enqueueTTS]);
 

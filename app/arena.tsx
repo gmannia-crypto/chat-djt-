@@ -5193,6 +5193,11 @@ export default function ArenaScreen() {
   }, [debateActive]);
 
   const currentSoundRef = useRef<any>(null);
+  // Tracks the sound object for the interrupter's own line (played on a
+  // separate track from the main queue via playInterruptionAudio) so
+  // reactions anchored to an interruption/fireback can validate against the
+  // right sound identity instead of the main queue's currentSoundRef.
+  const interruptSoundRef = useRef<any>(null);
   const forcePlayRef = useRef(false);
 
   const sessionStartTimeRef = useRef<number>(Date.now());
@@ -5546,11 +5551,19 @@ export default function ArenaScreen() {
     // fireback/squabble cut-in reads as "jumping in over them" rather than
     // fully drowning them out — restored the moment the interjection ends.
     const duckedMain = currentSoundRef.current;
+    const duckedMainSpeaker = ttsActiveSpeakerRef.current;
     if (duckedMain) { try { duckedMain.setVolumeAsync(0.35).catch(() => {}); } catch {} }
-    const restoreMain = () => { if (duckedMain) { try { duckedMain.setVolumeAsync(1.0).catch(() => {}); } catch {} } };
+    // Restore the ducked speaker's own configured volume, not a hard-coded
+    // full volume — a speaker who set their volume below 100% should not get
+    // bumped back up after an interruption ends.
+    const restoreMain = () => { if (duckedMain) { try { duckedMain.setVolumeAsync(getPersonaVoiceVolume(duckedMainSpeaker || "")).catch(() => {}); } catch {} } };
     try {
       const interruptVolume = getPersonaVoiceVolume(personaId);
       const sound = await playTTS("/api/persona-speak", { text, personaId, bleepEnabled: bleepEnabledRef.current, ...(personaId === "trump" ? { voiceId: TRUMP_ARENA_VOICE_ID } : {}) }, { volume: interruptVolume });
+      // Publish this sound's identity so a reaction anchored to THIS
+      // interruption (fireLiveReaction called with the interrupter as the
+      // main speaker) can validate it's still the one playing before ducking.
+      interruptSoundRef.current = sound;
       let cleaned = false;
       const cleanup = () => {
         if (cleaned) return;
@@ -5559,9 +5572,18 @@ export default function ArenaScreen() {
         sound.getStatusAsync().then((st: any) => {
           if (st.isLoaded) sound.stopAsync().then(() => sound.unloadAsync()).catch(() => {});
         }).catch(() => {});
-        if (interruptActiveSpeakerRef.current === personaId) interruptActiveSpeakerRef.current = null;
-        if (mountedRef.current) {
-          setInterruptActiveSpeaker((prev) => (prev === personaId ? null : prev));
+        // Gate ALL interrupt-track ownership cleanup on sound identity, not
+        // persona ID: if this same persona has since started a NEWER
+        // interruption (sound B) while this older clip (sound A) is still
+        // finishing up, A's cleanup must not clear B's active-speaker marker
+        // or B's reaction guard would wrongly see "no one talking" and queue
+        // sequentially instead of overlapping B.
+        if (interruptSoundRef.current === sound) {
+          interruptSoundRef.current = null;
+          if (interruptActiveSpeakerRef.current === personaId) interruptActiveSpeakerRef.current = null;
+          if (mountedRef.current) {
+            setInterruptActiveSpeaker((prev) => (prev === personaId ? null : prev));
+          }
         }
         restoreMain();
       };
@@ -5590,29 +5612,64 @@ export default function ArenaScreen() {
    *  copy of it, captures the speaker that was active before the reaction fired
    *  and restores it (not whatever is active at the moment cleanup runs) so the
    *  transcript UI doesn't stay pinned on the reactor afterward. */
-  const playReactionOverlap = useCallback(async (audioUriPromise: Promise<string>, personaId: string) => {
+  // `track` selects which "main line" this reaction is anchored to: the
+  // ordinary main queue (ttsActiveSpeakerRef/currentSoundRef) or an
+  // interrupter/fireback's own separately-tracked line
+  // (interruptActiveSpeakerRef/interruptSoundRef). Reactions to an
+  // interruption must validate against the interrupt track, not the main
+  // queue, or the guard would always abort them (the interrupter is never
+  // the main-queue's active speaker).
+  const playReactionOverlap = useCallback(async (audioUriPromise: Promise<string>, personaId: string, mainSpeakerId?: string, track: "main" | "interrupt" = "main", expectedSound?: any) => {
     if (!voiceEnabledRef.current) return;
     if (!reactionOverlapEnabledRef.current) return;
     if (shouldSkipPersonaVoice(personaId)) return;
-    if (personaId === ttsActiveSpeakerRef.current) return;
-    const prevSpeaker = ttsActiveSpeakerRef.current;
+    const speakerRef = track === "interrupt" ? interruptActiveSpeakerRef : ttsActiveSpeakerRef;
+    const soundRef = track === "interrupt" ? interruptSoundRef : currentSoundRef;
+    if (personaId === speakerRef.current) return;
+    // Guard against ducking the WRONG line: a same-persona-ID check alone is
+    // NOT enough for the interrupt track — the same persona can interrupt
+    // twice in a row, and a stale reaction would then pass the ID check
+    // while a completely different sound instance is now playing. When the
+    // caller captured the exact sound instance it scheduled against
+    // (`expectedSound`), require that instance to still be the active one;
+    // otherwise fall back to the speaker-ID check for callers that didn't.
+    if (mainSpeakerId && speakerRef.current !== mainSpeakerId) return;
+    if (expectedSound !== undefined && soundRef.current !== expectedSound) return;
+    const prevSpeaker = track === "interrupt" ? null : ttsActiveSpeakerRef.current;
     // Duck the main line the instant the overlap window begins — before the
     // reaction audio itself is ready — so the two voices don't compete at full
     // volume while the reaction clip is still loading.
-    const mainSound = currentSoundRef.current;
+    const mainSound = expectedSound !== undefined ? expectedSound : soundRef.current;
     if (mainSound) { try { mainSound.setVolumeAsync(0.10).catch(() => {}); } catch {} }
-    ttsActiveSpeakerRef.current = personaId;
-    if (mountedRef.current) setTtsActiveSpeaker(personaId);
+    // Only the main-queue track owns ttsActiveSpeakerRef/UI highlight — an
+    // interrupter's line already has its own highlight via
+    // interruptActiveSpeakerRef, set by playInterruptionAudio.
+    if (track === "main") {
+      ttsActiveSpeakerRef.current = personaId;
+      if (mountedRef.current) setTtsActiveSpeaker(personaId);
+    }
+    // Restores the ducked line's volume — but ONLY on the exact sound instance
+    // we ducked (never whatever is playing now, which may belong to a
+    // different speaker), and to that speaker's own configured volume rather
+    // than a hard-coded 1.0.
     const restore = () => {
-      const ms = currentSoundRef.current;
-      if (ms) { try { ms.setVolumeAsync(1.0).catch(() => {}); } catch {} }
-      if (ttsActiveSpeakerRef.current === personaId) {
+      if (mainSound) { try { mainSound.setVolumeAsync(getPersonaVoiceVolume((track === "interrupt" ? mainSpeakerId : prevSpeaker) || "")).catch(() => {}); } catch {} }
+      if (track === "main" && ttsActiveSpeakerRef.current === personaId) {
         ttsActiveSpeakerRef.current = prevSpeaker;
         if (mountedRef.current) setTtsActiveSpeaker(prevSpeaker);
       }
     };
     try {
       const audioUri = await audioUriPromise;
+      // Re-validate right before playing: reaction synthesis can take longer
+      // than the remaining tail of the main line, so the queue may have
+      // already advanced to a new speaker/sound while we were awaiting audio.
+      // If the sound we ducked is no longer the one actively playing, abandon
+      // the overlap instead of stepping on the next speaker's line.
+      if (mainSpeakerId && soundRef.current !== mainSound) {
+        restore();
+        return;
+      }
       const sound = await playPrefetchedAudio(audioUri, { volume: getPersonaVoiceVolume(personaId) });
       let cleaned = false;
       const cleanup = () => {
@@ -5641,12 +5698,22 @@ export default function ArenaScreen() {
    *  with the main line's own audio), then — timed near the tail of the main
    *  line's estimated playback — drops it into the transcript and plays it
    *  overlapping via playReactionOverlap. No-op if there's no reaction. */
-  const fireLiveReaction = useCallback((reaction: { text: string; speakerId: string; speakerName: string } | null | undefined, mainText: string, mainSpeakerId?: string) => {
+  const fireLiveReaction = useCallback((reaction: { text: string; speakerId: string; speakerName: string } | null | undefined, mainText: string, mainSpeakerId?: string, track: "main" | "interrupt" = "main") => {
     if (!reaction?.text) {
       turnsSinceReactionRef.current += 1;
       return;
     }
     turnsSinceReactionRef.current = 0;
+    // Lock in the EXACT sound instance that's playing right now, at the
+    // moment this reaction is scheduled (callers only invoke this once the
+    // main/interrupt line's own sound has been confirmed created — see the
+    // `await playInterruptionAudio(...)` callers). A persona-ID match alone
+    // isn't enough downstream because the same persona can speak twice in a
+    // row (e.g. two interruptions back to back); comparing this captured
+    // instance against the live ref later is what actually detects that the
+    // queue moved on.
+    const soundTrackRef = track === "interrupt" ? interruptSoundRef : currentSoundRef;
+    const expectedSound = soundTrackRef.current;
     // An ally reacting to their OWN side's line is just banter aimed at someone
     // else in the room — it should never cut across the speaker they agree with.
     // Only a rival's heckle earns the overlapping cut-in; ally banter queues
@@ -5690,7 +5757,19 @@ export default function ArenaScreen() {
         messagesRef.current = next;
         return next;
       });
-      playReactionOverlap(reactionAudioPromise, reaction.speakerId);
+      // The main line may have already finished (or the queue/interrupt track
+      // advanced to someone else — including a second interruption by the
+      // SAME persona, which a speaker-ID check alone wouldn't catch) by the
+      // time this delay elapses. Only overlap if the exact sound instance
+      // captured when this reaction was scheduled is still the one actively
+      // playing; otherwise queue the reaction sequentially so it still
+      // appears without incorrectly ducking/overlapping the wrong line.
+      const speakerRef = track === "interrupt" ? interruptActiveSpeakerRef : ttsActiveSpeakerRef;
+      if (mainSpeakerId && (speakerRef.current !== mainSpeakerId || soundTrackRef.current !== expectedSound)) {
+        queueTTS(reaction.text, reaction.speakerId);
+        return;
+      }
+      playReactionOverlap(reactionAudioPromise, reaction.speakerId, mainSpeakerId, track, expectedSound);
     }, overlapDelay);
   }, [playReactionOverlap, queueTTS]);
 
@@ -5857,7 +5936,7 @@ export default function ArenaScreen() {
         });
         await new Promise<void>((r) => setTimeout(r, 50));
         await playInterruptionAudio(firebackText, targetId);
-        fireLiveReaction(data.reaction, firebackText, targetId);
+        fireLiveReaction(data.reaction, firebackText, targetId, "interrupt");
         if (data.reaction) turnsSinceReactionRef.current = 0; else turnsSinceReactionRef.current += 1;
         // Fireback — spike room temperature by 10–15 points
         const firebackTempBoost = 10 + Math.floor(Math.random() * 6); // 10–15
@@ -7548,8 +7627,19 @@ export default function ArenaScreen() {
       addMessage(interruptMsg);
       showInterruptionBanner(interrupter, persona.name, data.response);
       lastInterruptionRef.current = { text: data.response, interrupterId: interrupter };
-      playInterruptionAudio(data.response, interrupter);
-      fireLiveReaction(data.reaction, data.response, interrupter);
+      // Start the clapback's own AI round-trip FIRST, in parallel with the
+      // interrupter's TTS creation below — this is the existing
+      // "don't wait sequentially" optimization the surrounding flow relies
+      // on. Only the reaction's own scheduling (fireLiveReaction) needs to
+      // wait for playInterruptionAudio, not the clapback fetch.
+      const clapbackPromise = fireClapback(interruptedId, interrupter, data.response);
+      // Await sound creation (playInterruptionAudio's promise resolves once
+      // the sound is created and its playback listeners are attached, not
+      // once playback finishes) so fireLiveReaction captures the ACTUAL
+      // interrupt sound instance instead of scheduling against a stale or
+      // not-yet-created one.
+      await playInterruptionAudio(data.response, interrupter);
+      fireLiveReaction(data.reaction, data.response, interrupter, "interrupt");
       if (data.reaction) turnsSinceReactionRef.current = 0; else turnsSinceReactionRef.current += 1;
       if (typeof data.currentIQ === "number") {
         setPersonaSessionIQ((prev) => { const u = { ...prev, [interrupter]: data.currentIQ }; personaSessionIQRef.current = u; return u; });
@@ -7561,12 +7651,12 @@ export default function ArenaScreen() {
 
       // Clapback: whoever got interrupted fires back at the interrupter immediately —
       // generalized so it's not just Trump; skips cleanly if the victim's own speech
-      // is already queued (prevents them from talking over themselves). Kicked off
-      // now, in parallel with the interrupter's own line playing, instead of after
-      // an extra fixed delay — that sequential wait was adding seconds on top of
-      // the clapback's own AI round-trip, which is exactly what made the reply feel
-      // like it arrived long after the interruption instead of right on its heels.
-      const clapbackPromise = fireClapback(interruptedId, interrupter, data.response);
+      // is already queued (prevents them from talking over themselves). Already
+      // kicked off above (in parallel with the interrupter's TTS creation, before
+      // this function awaited anything) instead of after an extra fixed delay —
+      // that sequential wait was adding seconds on top of the clapback's own AI
+      // round-trip, which is exactly what made the reply feel like it arrived long
+      // after the interruption instead of right on its heels.
       await new Promise((r) => setTimeout(r, 500 + Math.random() * 500));
       if (!mountedRef.current || !isRunningRef.current) return;
       await clapbackPromise;
@@ -7645,8 +7735,8 @@ export default function ArenaScreen() {
         });
         showInterruptionBanner("trump", "Donald Trump", data.response);
         lastInterruptionRef.current = { text: data.response, interrupterId: "trump" };
-        playInterruptionAudio(data.response, "trump");
-        fireLiveReaction(data.reaction, data.response, "trump");
+        await playInterruptionAudio(data.response, "trump");
+        fireLiveReaction(data.reaction, data.response, "trump", "interrupt");
         if (data.reaction) turnsSinceReactionRef.current = 0; else turnsSinceReactionRef.current += 1;
         if (typeof data.currentIQ === "number") {
           setPersonaSessionIQ((prev) => { const u = { ...prev, trump: data.currentIQ }; personaSessionIQRef.current = u; return u; });

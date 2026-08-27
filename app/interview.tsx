@@ -405,11 +405,11 @@ const TOPIC_MIXES = [
 ];
 
 type InterviewStyleId = "combative" | "informative" | "comedic" | "civil_discourse" | "educational" | "roast" | "softball" | "unhinged";
-const INTERVIEW_STYLES: Array<{ id: InterviewStyleId; label: string; icon: "flame" | "information-circle" | "happy" | "handshake" | "school" | "mic" | "baseball" | "skull-outline" }> = [
+const INTERVIEW_STYLES: Array<{ id: InterviewStyleId; label: string; icon: keyof typeof Ionicons.glyphMap }> = [
   { id: "combative",      label: "Combative",       icon: "flame" },
   { id: "informative",    label: "Informative",     icon: "information-circle" },
   { id: "comedic",        label: "Comedic",         icon: "happy" },
-  { id: "civil_discourse",label: "Civil Discourse", icon: "handshake" },
+  { id: "civil_discourse",label: "Civil Discourse", icon: "people" },
   { id: "educational",    label: "Educational",     icon: "school" },
   { id: "roast",          label: "Comedy Roast",    icon: "mic" },
   { id: "softball",       label: "Softball",        icon: "baseball" },
@@ -1279,11 +1279,17 @@ export default function InterviewScreen() {
    *  copy of playInterruptionAudio, captures the speaker that was active before the
    *  reaction fired and restores it (not whatever is active at the moment cleanup
    *  runs) so the UI doesn't stay pinned on the reactor after the overlap ends. */
-  const playReactionOverlap = useCallback(async (audioUriPromise: Promise<string>, personaId: string) => {
+  const playReactionOverlap = useCallback(async (audioUriPromise: Promise<string>, personaId: string, mainSpeakerId?: string) => {
     if (!voiceEnabledRef.current) return;
     if (!reactionOverlapEnabledRef.current) return;
     if (shouldSkipPersonaVoice(personaId)) return;
     if (personaId === activeSpeakerRef.current) return;
+    // Guard against ducking the WRONG line: if a speaker was specified as the
+    // one this reaction is reacting to, and playback has already moved past
+    // them (queue advanced while the reaction's timer/synthesis was in
+    // flight), abandon the overlap rather than duck/step on whatever is
+    // playing now — that would land the reaction on the following turn.
+    if (mainSpeakerId && activeSpeakerRef.current !== mainSpeakerId) return;
     const prevSpeaker = activeSpeakerRef.current;
     // Duck the main line the instant the overlap window begins — before the
     // reaction audio itself is ready — so the softening reads as reacting to
@@ -1292,12 +1298,14 @@ export default function InterviewScreen() {
     if (mainSound) { try { mainSound.setVolumeAsync(0.10).catch(() => {}); } catch {} }
     setActiveSpeaker(personaId);
     activeSpeakerRef.current = personaId;
-    // Restores the main line's volume and hands the active-speaker back to
-    // whoever it was before — but only if nothing newer has already taken over
-    // (e.g. the next queued speaker started while the reaction was in flight).
+    // Restores the ducked line's volume — but ONLY on the exact sound instance
+    // we ducked (never whatever is playing now, which may belong to a
+    // different speaker), and to that speaker's own configured volume rather
+    // than a hard-coded 1.0. Also hands the active-speaker back, but only if
+    // nothing newer has already taken over (e.g. the next queued speaker
+    // started while the reaction was in flight).
     const restore = () => {
-      const ms = currentSoundRef.current;
-      if (ms) { try { ms.setVolumeAsync(1.0).catch(() => {}); } catch {} }
+      if (mainSound) { try { mainSound.setVolumeAsync(getPersonaVoiceVolume(prevSpeaker || "")).catch(() => {}); } catch {} }
       if (activeSpeakerRef.current === personaId) {
         setActiveSpeaker(prevSpeaker);
         activeSpeakerRef.current = prevSpeaker;
@@ -1305,6 +1313,19 @@ export default function InterviewScreen() {
     };
     try {
       const audioUri = await audioUriPromise;
+      // Re-validate right before playing: reaction synthesis can take longer
+      // than the remaining tail of the main line, so the queue may have
+      // already advanced to a new speaker/sound while we were awaiting audio.
+      // If the sound we ducked is no longer the one actively playing, abandon
+      // the overlap instead of stepping on the next speaker's line.
+      if (mainSpeakerId && currentSoundRef.current !== mainSound) {
+        if (mainSound) { try { mainSound.setVolumeAsync(getPersonaVoiceVolume(prevSpeaker || "")).catch(() => {}); } catch {} }
+        if (activeSpeakerRef.current === personaId) {
+          setActiveSpeaker(prevSpeaker);
+          activeSpeakerRef.current = prevSpeaker;
+        }
+        return;
+      }
       const sound = await playPrefetchedAudio(audioUri, { volume: getPersonaVoiceVolume(personaId) });
       let cleaned = false;
       const cleanup = () => {
@@ -1680,6 +1701,22 @@ export default function InterviewScreen() {
                   const overlapDelay = Math.max(600, estMs - 900);
                   setTimeout(() => {
                     if (!runningRef.current) return;
+                    // If the answer already finished (or the queue moved on) by the
+                    // time this delay elapses, queue the reaction sequentially
+                    // instead of ducking whatever line is playing now.
+                    if (activeSpeakerRef.current !== ans.speakerId) {
+                      setMessages((prev) => [...prev, {
+                        id: `react-${Date.now()}-${Math.random()}`,
+                        speakerId: liveReaction.speakerId,
+                        speakerName: liveReaction.speakerName,
+                        text: liveReaction.text,
+                        ts: Date.now(),
+                        isReaction: true,
+                        skipTTS: true,
+                      }]);
+                      enqueueTTS(liveReaction.text, liveReaction.speakerId, `react-${Date.now()}`);
+                      return;
+                    }
                     setMessages((prev) => [...prev, {
                       id: `react-${Date.now()}-${Math.random()}`,
                       speakerId: liveReaction.speakerId,
@@ -1689,7 +1726,7 @@ export default function InterviewScreen() {
                       isReaction: true,
                       skipTTS: true,
                     }]);
-                    playReactionOverlap(reactionAudioPromise, liveReaction.speakerId);
+                    playReactionOverlap(reactionAudioPromise, liveReaction.speakerId, ans.speakerId);
                   }, overlapDelay);
                 },
               } : undefined,
@@ -2214,6 +2251,19 @@ export default function InterviewScreen() {
                 const overlapDelay = Math.max(600, estMs - 900);
                 setTimeout(() => {
                   if (!runningRef.current) return;
+                  if (activeSpeakerRef.current !== data.interviewee.speakerId) {
+                    setMessages((prev) => [...prev, {
+                      id: `react-${Date.now()}-${Math.random()}`,
+                      speakerId: liveReaction.speakerId,
+                      speakerName: liveReaction.speakerName,
+                      text: liveReaction.text,
+                      ts: Date.now(),
+                      isReaction: true,
+                      skipTTS: true,
+                    }]);
+                    enqueueTTS(liveReaction.text, liveReaction.speakerId, `react-${Date.now()}`);
+                    return;
+                  }
                   setMessages((prev) => [...prev, {
                     id: `react-${Date.now()}-${Math.random()}`,
                     speakerId: liveReaction.speakerId,
@@ -2223,7 +2273,7 @@ export default function InterviewScreen() {
                     isReaction: true,
                     skipTTS: true,
                   }]);
-                  playReactionOverlap(reactionAudioPromise, liveReaction.speakerId);
+                  playReactionOverlap(reactionAudioPromise, liveReaction.speakerId, data.interviewee.speakerId);
                 }, overlapDelay);
               },
             } : undefined,
