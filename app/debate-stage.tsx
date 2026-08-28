@@ -1365,6 +1365,10 @@ export default function DebateStage() {
   // exists) can fire outrage-laugh reactions without a TDZ crash — see the
   // usage site's comment for why a direct closure isn't safe here.
   const fireLiveReactionRef = useRef<null | ((reaction: { text: string; speakerId: string; speakerName: string } | null | undefined, mainText: string, mainSpeakerId?: string) => void)>(null);
+  // Ref-forwarded so enrichAndAddMessage can fire the "go f*** yourself"
+  // comeback off the main TTS queue (like a real interruption) without a TDZ
+  // crash — playInterruptionAudio is declared further down the file.
+  const playInterruptionAudioRef = useRef<null | ((text: string, personaId: string) => Promise<void>)>(null);
   const tryModeratorRetortRef = useRef<null | ((speakerId: string, text: string) => void)>(null);
   // ── HEAT METER UI STATE ──────────────────────────────────────────────────
   const [heatA, setHeatA] = useState(0);
@@ -3077,12 +3081,22 @@ export default function DebateStage() {
           }
           // ── "Go f*** yourself" trigger: the target fires back an immediate,
           // in-character retort rather than waiting for the next AI turn.
+          // Fired via playInterruptionAudioRef (off the main TTS queue), like
+          // a real interruption, instead of enqueueTTS — enqueueTTS lands the
+          // retort behind the fireback (1200ms above) and anything else
+          // already queued, which is what made it arrive out of sync with the
+          // line that provoked it. Ref-forwarded for the same TDZ reason as
+          // fireLiveReactionRef above (playInterruptionAudio is declared
+          // further down the file).
           if (detectGoFYourselfTrigger(m.text)) {
             const epithetPool = DEBATE_COMEBACK_EPITHETS[targetId] || DEBATE_COMEBACK_EPITHETS._default;
             const epithet = epithetPool[Math.floor(Math.random() * epithetPool.length)];
             const retortText = `No! F*** you! You ${epithet}!`;
             const targetName = [...interviewers, ...interviewees].find((p) => p.id === targetId)?.name;
-            setTimeout(() => {
+            (async () => {
+              // Let the provoking line's own queued TTS get a beat's head
+              // start before cutting in with the retort.
+              await new Promise((r) => setTimeout(r, 900));
               if (!runningRef.current) return;
               setMessages((prev) => [...prev, {
                 id: "retort-" + Date.now() + Math.random().toString(36).slice(2),
@@ -3091,8 +3105,8 @@ export default function DebateStage() {
                 text: retortText,
                 ts: Date.now(),
               }]);
-              enqueueTTS(retortText, targetId);
-            }, 500);
+              await playInterruptionAudioRef.current?.(retortText, targetId);
+            })();
           }
         }
         tryModeratorRetortRef.current?.(m.speakerId, m.text);
@@ -3240,6 +3254,7 @@ export default function DebateStage() {
       });
     } catch {}
   }, []);
+  useEffect(() => { playInterruptionAudioRef.current = playInterruptionAudio; }, [playInterruptionAudio]);
 
   /** Live comedic reaction: plays a reaction line that was synthesized in PARALLEL
    *  with the main line (via the audioUriPromise, started the moment the server

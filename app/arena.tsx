@@ -7473,12 +7473,20 @@ export default function ArenaScreen() {
           }
           // ── "Go f*** yourself" trigger: the target fires back an immediate,
           // in-character retort rather than waiting for the next AI turn.
+          // Fired via playInterruptionAudio (off the main TTS queue), like a
+          // real interruption, instead of queueTTS — queueTTS lands it behind
+          // the fireback (1200ms above) and anything else already queued,
+          // which is what made it arrive out of sync with the line that
+          // provoked it.
           if (detectGoFYourselfTrigger(data.response) && toSpeakerId && toSpeakerId !== responderId) {
             const victimPersona = getPersona(toSpeakerId);
             const epithetPool = ARENA_COMEBACK_EPITHETS[toSpeakerId] || ARENA_COMEBACK_EPITHETS._default;
             const epithet = epithetPool[Math.floor(Math.random() * epithetPool.length)];
             const retortText = `No! F*** you! You ${epithet}!`;
-            setTimeout(() => {
+            (async () => {
+              // Let the provoking line's own queued TTS get a beat's head
+              // start before cutting in with the retort.
+              await new Promise((r) => setTimeout(r, 900));
               if (!mountedRef.current || sessionEndedRef.current) return;
               addMessage({
                 id: "retort-" + Date.now() + Math.random().toString(36).substr(2, 5),
@@ -7487,8 +7495,8 @@ export default function ArenaScreen() {
                 text: retortText,
                 timestamp: Date.now(),
               });
-              queueTTS(retortText, toSpeakerId);
-            }, 500);
+              await playInterruptionAudio(retortText, toSpeakerId);
+            })();
           }
         }
         // ────────────────────────────────────────────────────────────────────
@@ -7730,15 +7738,19 @@ export default function ArenaScreen() {
       fireLiveReaction(data.reaction, data.response, interrupter, "interrupt");
       if (data.reaction) turnsSinceReactionRef.current = 0; else turnsSinceReactionRef.current += 1;
       // "Go f*** yourself"-style interruption earns an immediate in-character
-      // retort from whoever got interrupted, rather than waiting for the next
-      // AI turn to address it.
+      // retort from whoever got interrupted — fired the same way as the
+      // interruption itself (playInterruptionAudio, off the main TTS queue)
+      // rather than through queueTTS/addMessage. queueTTS lands the retort
+      // behind whatever else is already queued (the rest of the main
+      // statement, any clapback, etc.), which is what made it arrive badly
+      // out of sync with the line that provoked it. This plays it back-to-back
+      // with the interruption line instead, like a real volley.
       if (detectGoFYourselfTrigger(data.response) && interruptedId && interruptedId !== interrupter) {
         const victimPersona = getPersona(interruptedId);
         const epithetPool = ARENA_COMEBACK_EPITHETS[interruptedId] || ARENA_COMEBACK_EPITHETS._default;
         const epithet = epithetPool[Math.floor(Math.random() * epithetPool.length)];
         const retortText = `No! F*** you! You ${epithet}!`;
-        setTimeout(() => {
-          if (!mountedRef.current || sessionEndedRef.current) return;
+        if (mountedRef.current && !sessionEndedRef.current) {
           addMessage({
             id: "retort-" + Date.now() + Math.random().toString(36).substr(2, 5),
             speakerId: interruptedId,
@@ -7746,8 +7758,14 @@ export default function ArenaScreen() {
             text: retortText,
             timestamp: Date.now(),
           });
-          queueTTS(retortText, interruptedId);
-        }, 500);
+          // A short beat (not a full queue cycle) so the retort reads as an
+          // immediate comeback rather than talking over the interrupter's
+          // own line before it's finished.
+          await new Promise((r) => setTimeout(r, 400));
+          if (mountedRef.current && !sessionEndedRef.current) {
+            await playInterruptionAudio(retortText, interruptedId);
+          }
+        }
       }
       if (typeof data.currentIQ === "number") {
         setPersonaSessionIQ((prev) => { const u = { ...prev, [interrupter]: data.currentIQ }; personaSessionIQRef.current = u; return u; });
