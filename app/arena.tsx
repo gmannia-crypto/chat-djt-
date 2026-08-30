@@ -5589,9 +5589,9 @@ export default function ArenaScreen() {
     processTTSQueue();
   }, [processTTSQueue]);
 
-  const playInterruptionAudio = useCallback(async (text: string, personaId: string) => {
-    if (!voiceEnabledRef.current) return;
-    if (shouldSkipPersonaVoice(personaId)) return;
+  const playInterruptionAudio = useCallback(async (text: string, personaId: string, onDone?: () => void) => {
+    if (!voiceEnabledRef.current) { onDone?.(); return; }
+    if (shouldSkipPersonaVoice(personaId)) { onDone?.(); return; }
 
     // Interrupter plays at the same volume as any other speaker, on its own
     // track — never touch ttsActiveSpeakerRef here, or finishing this clip
@@ -5650,12 +5650,13 @@ export default function ArenaScreen() {
         if (status.didJustFinish || status.error) {
           clearTimeout(safetyTimer);
           cleanup();
+          onDone?.();
         } else if (status.isPlaying && (status as any).durationMillis && !cleaned) {
           clearTimeout(safetyTimer);
-          safetyTimer = setTimeout(cleanup, (status as any).durationMillis + 4000);
+          safetyTimer = setTimeout(() => { cleanup(); onDone?.(); }, (status as any).durationMillis + 4000);
         }
       });
-    } catch {}
+    } catch { onDone?.(); }
   }, []);
 
   /** Live comedic/savage reaction: plays a reaction line that was synthesized in
@@ -5840,6 +5841,30 @@ export default function ArenaScreen() {
     if (!mountedRef.current || sessionEndedRef.current || !deviceId) return;
     const activePersonas = selectedPersonasRef.current;
     if (activePersonas.length < 2) return;
+
+    // ── "Go f*** yourself" trigger: bypass the normal candidate-selection +
+    // AI-fireback path entirely. The addressed persona (victimId) retorts
+    // immediately with a canned line, played the same way a real interrupt
+    // cut-in plays (off the main queue, via playInterruptionAudio) — never
+    // queued behind the 1200ms fireback delay or an AI round-trip, which is
+    // what made it arrive out of sync with the insult that provoked it.
+    if (detectGoFYourselfTrigger(attackText) && victimId && victimId !== attackerId && activePersonas.includes(victimId)) {
+      const victimPersona = getPersona(victimId);
+      const epithetPool = ARENA_COMEBACK_EPITHETS[victimId] || ARENA_COMEBACK_EPITHETS._default;
+      const epithet = epithetPool[Math.floor(Math.random() * epithetPool.length)];
+      const retortText = `No! F*** you! You ${epithet}!`;
+      if (mountedRef.current && !sessionEndedRef.current) {
+        addMessage({
+          id: "retort-" + Date.now() + Math.random().toString(36).substr(2, 5),
+          speakerId: victimId,
+          speakerName: victimPersona?.name || victimId,
+          text: retortText,
+          timestamp: Date.now(),
+        });
+        await playInterruptionAudio(retortText, victimId);
+      }
+      return;
+    }
 
     // In squabble cooldown — block for 90 s after an escalation
     if (Date.now() < arenaSquabbleCooldownUntilRef.current) return;
@@ -7423,27 +7448,15 @@ export default function ArenaScreen() {
         });
 
         updateEmotions(responderId, toSpeakerId);
-        if (!sessionEndedRef.current) {
-          if (isProcessingTTSRef.current && !prefetchingRef.current && !prefetchedAudioRef.current) {
-            startPrefetch({ text: data.response, personaId: responderId });
-          }
-          // ── Live overlapping reaction (Savage mode only) ──────────────────
-          // Server already gated this to savage tone + a genuinely hyperbolic/
-          // absurd line + our own cooldown. Must fire from THIS line's actual
-          // playback start (once it reaches the front of the TTS queue), not
-          // from fetch completion — the queue may still be draining an earlier
-          // turn when this response arrives, and a fetch-time timer could play
-          // the reaction before its own line does, or duck the wrong speaker.
-          const liveReaction = data.reaction;
-          queueTTS(data.response, responderId, false, () => fireLiveReaction(liveReaction, data.response, responderId));
-        } else {
-          if (data.reaction) turnsSinceReactionRef.current = 0; else turnsSinceReactionRef.current += 1;
-        }
-        ttsPendingMoreRef.current = false;
 
-        // ── Fireback trigger: check if this message provokes another persona ──
+        // ── Fireback/outrage detection — computed BEFORE the line is queued so
+        // the outcome can be closed over by queueTTS's onStart callback below,
+        // instead of raced through a shared ref that a second, faster-arriving
+        // response could stomp before this one's onStart ever fires.
+        let fbSeverity = 0;
+        let outrageReaction: { text: string; speakerId: string; speakerName: string } | null = null;
         if (data.response && !sessionEndedRef.current) {
-          let fbSeverity = detectArenaInsult(data.response);
+          fbSeverity = detectArenaInsult(data.response);
           // Elevated mode's prompt never licenses personal insults the way Savage
           // does, so plain disagreement almost never crosses the insult-based
           // threshold. Fold in the lighter "heated pushback" signal there too.
@@ -7456,11 +7469,10 @@ export default function ArenaScreen() {
               tryArenaFirebackRef.current?.(responderId, data.response, fbSeverity, toSpeakerId);
             }, 1200);
           }
-          // ── Outrage laugh reaction: a flat-out outrageous line (not just a
-          // mild insult) earns an immediate sarcastic laugh + catchphrase
-          // overlay from a rival — separate from the AI-generated fireback
-          // reply, which can take seconds to arrive. Anchored to THIS line's
-          // own queued playback via fireLiveReaction's "main" track guard.
+          // Outrage laugh reaction: a flat-out outrageous line (not just a mild
+          // insult) earns a sarcastic laugh + catchphrase overlay from a rival
+          // instead of (never alongside) the ordinary AI-provided live
+          // reaction — chosen here, fired from onStart below.
           if (fbSeverity >= 2) {
             const rivalPool = selectedPersonasRef.current.filter((id) => id !== responderId);
             if (rivalPool.length > 0) {
@@ -7468,37 +7480,30 @@ export default function ArenaScreen() {
               const rivalPersona = getPersona(rival);
               const outragePool = ARENA_OUTRAGE_REACTIONS[rival] || ARENA_OUTRAGE_REACTIONS._default;
               const laughLine = outragePool[Math.floor(Math.random() * outragePool.length)];
-              fireLiveReaction({ text: laughLine, speakerId: rival, speakerName: rivalPersona?.name || rival }, data.response, responderId);
+              outrageReaction = { text: laughLine, speakerId: rival, speakerName: rivalPersona?.name || rival };
             }
           }
-          // ── "Go f*** yourself" trigger: the target fires back an immediate,
-          // in-character retort rather than waiting for the next AI turn.
-          // Fired via playInterruptionAudio (off the main TTS queue), like a
-          // real interruption, instead of queueTTS — queueTTS lands it behind
-          // the fireback (1200ms above) and anything else already queued,
-          // which is what made it arrive out of sync with the line that
-          // provoked it.
-          if (detectGoFYourselfTrigger(data.response) && toSpeakerId && toSpeakerId !== responderId) {
-            const victimPersona = getPersona(toSpeakerId);
-            const epithetPool = ARENA_COMEBACK_EPITHETS[toSpeakerId] || ARENA_COMEBACK_EPITHETS._default;
-            const epithet = epithetPool[Math.floor(Math.random() * epithetPool.length)];
-            const retortText = `No! F*** you! You ${epithet}!`;
-            (async () => {
-              // Let the provoking line's own queued TTS get a beat's head
-              // start before cutting in with the retort.
-              await new Promise((r) => setTimeout(r, 900));
-              if (!mountedRef.current || sessionEndedRef.current) return;
-              addMessage({
-                id: "retort-" + Date.now() + Math.random().toString(36).substr(2, 5),
-                speakerId: toSpeakerId,
-                speakerName: victimPersona?.name || toSpeakerId,
-                text: retortText,
-                timestamp: Date.now(),
-              });
-              await playInterruptionAudio(retortText, toSpeakerId);
-            })();
-          }
         }
+
+        if (!sessionEndedRef.current) {
+          if (isProcessingTTSRef.current && !prefetchingRef.current && !prefetchedAudioRef.current) {
+            startPrefetch({ text: data.response, personaId: responderId });
+          }
+          // ── Live overlapping reaction (Savage mode only) ──────────────────
+          // Server already gated this to savage tone + a genuinely hyperbolic/
+          // absurd line + our own cooldown. Must fire from THIS line's actual
+          // playback start (once it reaches the front of the TTS queue), not
+          // from fetch completion — the queue may still be draining an earlier
+          // turn when this response arrives, and a fetch-time timer could play
+          // the reaction before its own line does, or duck the wrong speaker.
+          // The canned outrage laugh (if any) takes priority over the AI's own
+          // reaction line — only one reaction ever plays per turn.
+          const liveReaction = outrageReaction || data.reaction;
+          queueTTS(data.response, responderId, false, () => fireLiveReaction(liveReaction, data.response, responderId));
+        } else {
+          if (data.reaction) turnsSinceReactionRef.current = 0; else turnsSinceReactionRef.current += 1;
+        }
+        ttsPendingMoreRef.current = false;
         // ────────────────────────────────────────────────────────────────────
 
         if (data.response && data.response.length > 30) {
@@ -7729,27 +7734,35 @@ export default function ArenaScreen() {
       // on. Only the reaction's own scheduling (fireLiveReaction) needs to
       // wait for playInterruptionAudio, not the clapback fetch.
       const clapbackPromise = fireClapback(interruptedId, interrupter, data.response);
+      // If this interruption is a "go f*** yourself"-style line, the retort
+      // must wait for the interrupter's OWN clip to actually finish playing —
+      // not just be *created* — or the two clips talk over each other. Track
+      // real completion via onDone (fired from playInterruptionAudio's
+      // cleanup) separately from the "sound created" resolution below, which
+      // fireLiveReaction still needs early for its own anchoring.
+      let interruptionPlaybackDone: () => void = () => {};
+      const interruptionPlaybackDonePromise = new Promise<void>((resolve) => { interruptionPlaybackDone = resolve; });
+      const wantsRetort = detectGoFYourselfTrigger(data.response) && !!interruptedId && interruptedId !== interrupter;
       // Await sound creation (playInterruptionAudio's promise resolves once
       // the sound is created and its playback listeners are attached, not
       // once playback finishes) so fireLiveReaction captures the ACTUAL
       // interrupt sound instance instead of scheduling against a stale or
       // not-yet-created one.
-      await playInterruptionAudio(data.response, interrupter);
+      await playInterruptionAudio(data.response, interrupter, wantsRetort ? interruptionPlaybackDone : undefined);
       fireLiveReaction(data.reaction, data.response, interrupter, "interrupt");
       if (data.reaction) turnsSinceReactionRef.current = 0; else turnsSinceReactionRef.current += 1;
       // "Go f*** yourself"-style interruption earns an immediate in-character
       // retort from whoever got interrupted — fired the same way as the
       // interruption itself (playInterruptionAudio, off the main TTS queue)
-      // rather than through queueTTS/addMessage. queueTTS lands the retort
-      // behind whatever else is already queued (the rest of the main
-      // statement, any clapback, etc.), which is what made it arrive badly
-      // out of sync with the line that provoked it. This plays it back-to-back
-      // with the interruption line instead, like a real volley.
-      if (detectGoFYourselfTrigger(data.response) && interruptedId && interruptedId !== interrupter) {
+      // rather than through queueTTS/addMessage, but only once the
+      // interrupter's own clip has actually finished (see above), so the two
+      // never overlap or arrive out of order.
+      if (wantsRetort) {
         const victimPersona = getPersona(interruptedId);
         const epithetPool = ARENA_COMEBACK_EPITHETS[interruptedId] || ARENA_COMEBACK_EPITHETS._default;
         const epithet = epithetPool[Math.floor(Math.random() * epithetPool.length)];
         const retortText = `No! F*** you! You ${epithet}!`;
+        await interruptionPlaybackDonePromise;
         if (mountedRef.current && !sessionEndedRef.current) {
           addMessage({
             id: "retort-" + Date.now() + Math.random().toString(36).substr(2, 5),
@@ -7758,13 +7771,7 @@ export default function ArenaScreen() {
             text: retortText,
             timestamp: Date.now(),
           });
-          // A short beat (not a full queue cycle) so the retort reads as an
-          // immediate comeback rather than talking over the interrupter's
-          // own line before it's finished.
-          await new Promise((r) => setTimeout(r, 400));
-          if (mountedRef.current && !sessionEndedRef.current) {
-            await playInterruptionAudio(retortText, interruptedId);
-          }
+          await playInterruptionAudio(retortText, interruptedId);
         }
       }
       if (typeof data.currentIQ === "number") {

@@ -3052,7 +3052,29 @@ export default function DebateStage() {
   // Wrap addMessage to also drive emotions, TTS, fact-check, and fireback triggers
   const enrichAndAddMessage = useCallback((m: Msg) => {
     setMessages((prev) => [...prev, m]);
-    if (!m.skipTTS) enqueueTTS(m.text, m.speakerId, m.id);
+    // ── Outrage laugh reaction: a flat-out outrageous line (not just a mild
+    // insult) earns a sarcastic laugh + catchphrase overlay from the rival —
+    // anchored to THIS line's actual TTS playback start (enqueueTTS's
+    // onStart), not to fetch/enqueue time. Firing it immediately here (as it
+    // used to) could duck/cut in on whatever line was ACTUALLY playing while
+    // this one was still sitting in the queue, which read as random dead air
+    // and reactions landing on the wrong line. Routed through a ref
+    // (fireLiveReaction is declared further down the file) to avoid a
+    // temporal-dead-zone crash — see fireLiveReactionRef below.
+    const severityForReaction = (!m.isInterruption && (m.speakerId === interviewerId || m.speakerId === intervieweeId)) ? detectInsult(m.text) : 0;
+    let outrageReaction: { text: string; speakerId: string; speakerName: string } | null = null;
+    if (severityForReaction >= 2) {
+      const targetId = m.speakerId === interviewerId ? intervieweeId : interviewerId;
+      if (targetId) {
+        const outragePool = DEBATE_OUTRAGE_REACTIONS[targetId] || DEBATE_OUTRAGE_REACTIONS._default;
+        const laughLine = outragePool[Math.floor(Math.random() * outragePool.length)];
+        const targetName = [...interviewers, ...interviewees].find((p) => p.id === targetId)?.name;
+        outrageReaction = { text: laughLine, speakerId: targetId, speakerName: targetName || targetId };
+      }
+    }
+    if (!m.skipTTS) {
+      enqueueTTS(m.text, m.speakerId, m.id, outrageReaction ? { onStart: () => fireLiveReactionRef.current?.(outrageReaction, m.text, m.speakerId) } : undefined);
+    }
     const delta = computeEmotionDelta(m.text);
     if (interviewerId && m.speakerId === interviewerId) setEmoInterviewer((p) => applyEmotionDelta(p, delta));
     else if (intervieweeId && m.speakerId === intervieweeId) setEmoInterviewee((p) => applyEmotionDelta(p, delta));
@@ -3063,51 +3085,12 @@ export default function DebateStage() {
       if (severity >= 1) {
         const targetId = m.speakerId === interviewerId ? intervieweeId : interviewerId;
         if (targetId) {
-          // Small delay so main-speaker TTS gets queued first
+          // Small delay so main-speaker TTS gets queued first. The "go f***
+          // yourself" canned-retort special case is now handled INSIDE
+          // tryFireback itself (it bypasses the AI round-trip entirely when
+          // triggered), so this call always fires and lets that function
+          // decide.
           setTimeout(() => { tryFirebackRef.current?.(m.speakerId, targetId, m.text, severity); }, 1200);
-          // ── Outrage laugh reaction: a flat-out outrageous line (not just a
-          // mild insult) earns an immediate sarcastic laugh + catchphrase
-          // overlay from the rival — separate from the AI-generated fireback
-          // reply, which can take seconds to arrive. Routed through a ref
-          // (fireLiveReaction is declared further down the file) to avoid a
-          // temporal-dead-zone crash: enrichAndAddMessage is declared before
-          // fireLiveReaction exists, and directly closing over it here would
-          // throw "Cannot access 'fireLiveReaction' before initialization."
-          if (severity >= 2) {
-            const outragePool = DEBATE_OUTRAGE_REACTIONS[targetId] || DEBATE_OUTRAGE_REACTIONS._default;
-            const laughLine = outragePool[Math.floor(Math.random() * outragePool.length)];
-            const targetName = [...interviewers, ...interviewees].find((p) => p.id === targetId)?.name;
-            fireLiveReactionRef.current?.({ text: laughLine, speakerId: targetId, speakerName: targetName || targetId }, m.text, m.speakerId);
-          }
-          // ── "Go f*** yourself" trigger: the target fires back an immediate,
-          // in-character retort rather than waiting for the next AI turn.
-          // Fired via playInterruptionAudioRef (off the main TTS queue), like
-          // a real interruption, instead of enqueueTTS — enqueueTTS lands the
-          // retort behind the fireback (1200ms above) and anything else
-          // already queued, which is what made it arrive out of sync with the
-          // line that provoked it. Ref-forwarded for the same TDZ reason as
-          // fireLiveReactionRef above (playInterruptionAudio is declared
-          // further down the file).
-          if (detectGoFYourselfTrigger(m.text)) {
-            const epithetPool = DEBATE_COMEBACK_EPITHETS[targetId] || DEBATE_COMEBACK_EPITHETS._default;
-            const epithet = epithetPool[Math.floor(Math.random() * epithetPool.length)];
-            const retortText = `No! F*** you! You ${epithet}!`;
-            const targetName = [...interviewers, ...interviewees].find((p) => p.id === targetId)?.name;
-            (async () => {
-              // Let the provoking line's own queued TTS get a beat's head
-              // start before cutting in with the retort.
-              await new Promise((r) => setTimeout(r, 900));
-              if (!runningRef.current) return;
-              setMessages((prev) => [...prev, {
-                id: "retort-" + Date.now() + Math.random().toString(36).slice(2),
-                speakerId: targetId,
-                speakerName: targetName || targetId,
-                text: retortText,
-                ts: Date.now(),
-              }]);
-              await playInterruptionAudioRef.current?.(retortText, targetId);
-            })();
-          }
         }
         tryModeratorRetortRef.current?.(m.speakerId, m.text);
       }
@@ -3426,6 +3409,32 @@ export default function DebateStage() {
     if (moderatorSpeakingRef.current) return;
     // Target is currently speaking their own regular turn — don't self-interrupt them.
     if (targetId === activeSpeakerRef.current) return;
+
+    // ── "Go f*** yourself" trigger: bypass the normal heat/cooldown gates and
+    // the AI round-trip entirely — the target retorts immediately with a
+    // canned line, played the same off-queue way a real interrupt cut-in
+    // plays. Skipping the AI fetch keeps this exact-phrase retort fast and
+    // in sync with the insult that provoked it, instead of racing an AI
+    // reply and a fixed guessed delay.
+    if (detectGoFYourselfTrigger(attackText)) {
+      const targetName = [...interviewers, ...interviewees].find((p) => p.id === targetId)?.name;
+      const epithetPool = DEBATE_COMEBACK_EPITHETS[targetId] || DEBATE_COMEBACK_EPITHETS._default;
+      const epithet = epithetPool[Math.floor(Math.random() * epithetPool.length)];
+      const retortText = `No! F*** you! You ${epithet}!`;
+      if (runningRef.current) {
+        setMessages((prev) => [...prev, {
+          id: "retort-" + Date.now() + Math.random().toString(36).slice(2),
+          speakerId: targetId,
+          speakerName: targetName || targetId,
+          text: retortText,
+          ts: Date.now(),
+          isInterruption: true,
+          skipTTS: true,
+        }]);
+        await playInterruptionAudioRef.current?.(retortText, targetId);
+      }
+      return;
+    }
     // ── IDEOLOGY GATE: ideological allies never trade rude firebacks/squabbles —
     // only polite "for clarity" interjections (handled in the sarcasm-reaction
     // engine below). Trump is exempt and can always fire back at anyone.

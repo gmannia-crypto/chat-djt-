@@ -162,12 +162,23 @@ export async function playPrefetchedAudio(
   return sound;
 }
 
+// Strips markdown-style stage directions (*laughs*, *scoffs, laughing*, etc.)
+// from text before it reaches the TTS engine. These are meant as flavor for
+// on-screen transcript text, not literal words — without this, Fish Audio
+// reads the asterisks and action words out loud verbatim (e.g. "asterisk
+// laughs asterisk boy you musta..."), which is exactly what makes canned
+// reaction/catchphrase lines sound broken when spoken.
+export function stripStageDirectionsForTTS(text: string): string {
+  return text.replace(/\*[^*]*\*/g, "").replace(/\s{2,}/g, " ").trim();
+}
+
 export async function playTTS(
   endpoint: string,
   body: Record<string, any>,
   options?: { volume?: number }
 ): Promise<Audio.Sound> {
-  const url = buildTTSUrl(endpoint, body);
+  const cleanedBody = typeof body.text === "string" ? { ...body, text: stripStageDirectionsForTTS(body.text) } : body;
+  const url = buildTTSUrl(endpoint, cleanedBody);
   return playAudioFromUrl(url, { volume: options?.volume });
 }
 
