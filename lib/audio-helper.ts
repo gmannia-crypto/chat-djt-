@@ -23,7 +23,11 @@ async function ensureAudioMode() {
     // both clips actually play concurrently, so our own setVolumeAsync-based
     // ducking is what the listener hears, not a hard OS-level stop.
     interruptionModeIOS: InterruptionModeIOS.MixWithOthers,
-    interruptionModeAndroid: InterruptionModeAndroid.MixWithOthers,
+    // Android has no MixWithOthers value — DoNotMix/DuckOthers here only ever
+    // governs focus arbitration with OTHER apps' audio, not between multiple
+    // Sound instances inside our own app, so it was never the Android side of
+    // this bug. DuckOthers is the platform default.
+    interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
     shouldDuckAndroid: false,
     playThroughEarpieceAndroid: false,
   });
@@ -33,6 +37,29 @@ async function ensureAudioMode() {
 // before the first clip plays, avoiding the cold-start lag on the first TTS call.
 export async function warmupAudio(): Promise<void> {
   await ensureAudioMode().catch(() => {});
+}
+
+// Every TTS/audio fetch in this file used to be a bare, unguarded fetch() —
+// a slow or hung request (dead network, overloaded TTS provider) would await
+// forever with nothing downstream ever timing out it. Callers like
+// playReactionOverlap duck the main line's volume BEFORE this promise
+// resolves, so a hung fetch here reads to the listener as literal dead air
+// with no recovery, sometimes for tens of seconds until some unrelated timer
+// elsewhere finally forces things to move on. Every fetch below goes through
+// this helper so a stalled request fails fast and lets its caller's own
+// catch/restore logic run instead of hanging indefinitely.
+const TTS_FETCH_TIMEOUT_MS = 10000;
+async function fetchWithTimeout(url: string, init?: RequestInit, timeoutMs: number = TTS_FETCH_TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await globalThis.fetch(url, { ...(init || {}), signal: controller.signal });
+  } catch (e: any) {
+    if (e?.name === "AbortError") throw new Error(`Audio fetch timed out after ${timeoutMs}ms: ${url}`);
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export async function playAudioFromUrl(
@@ -47,7 +74,7 @@ export async function playAudioFromUrl(
   if (Platform.OS === "web") {
     if (!options?.method || options.method === "GET") {
       try {
-        const res = await globalThis.fetch(url, options?.headers ? { headers: options.headers } : undefined);
+        const res = await fetchWithTimeout(url, options?.headers ? { headers: options.headers } : undefined);
         if (!res.ok) throw new Error(`Audio fetch failed: ${res.status}`);
         const ct = res.headers.get("content-type") || "";
         if (ct.includes("text/html")) throw new Error("Server returned HTML instead of audio");
@@ -78,7 +105,7 @@ export async function playAudioFromUrl(
         return sound;
       }
     }
-    const res = await globalThis.fetch(url, {
+    const res = await fetchWithTimeout(url, {
       method: options.method,
       headers: options.headers,
       body: options.body ? JSON.stringify(options.body) : undefined,
@@ -104,7 +131,7 @@ export async function playAudioFromUrl(
 
   const fetchOpts: RequestInit = {};
   if (options?.headers) fetchOpts.headers = options.headers;
-  const res = await fetch(url, Object.keys(fetchOpts).length > 0 ? fetchOpts : undefined);
+  const res = await fetchWithTimeout(url, Object.keys(fetchOpts).length > 0 ? fetchOpts : undefined);
   if (!res.ok) throw new Error(`Audio fetch failed: ${res.status}`);
   const ct = res.headers.get("content-type") || "";
   if (ct.includes("text/html")) throw new Error("Server returned HTML instead of audio");
@@ -137,7 +164,7 @@ export async function prefetchTTSAudio(
   await ensureAudioMode();
 
   if (Platform.OS === "web") {
-    const res = await globalThis.fetch(url);
+    const res = await fetchWithTimeout(url);
     if (!res.ok) throw new Error(`TTS prefetch failed: ${res.status}`);
     const ct = res.headers.get("content-type") || "";
     if (ct.includes("text/html")) throw new Error("Server returned HTML instead of audio");
@@ -151,7 +178,7 @@ export async function prefetchTTSAudio(
     return dataUri;
   }
 
-  const res = await fetch(url);
+  const res = await fetchWithTimeout(url);
   if (!res.ok) throw new Error(`TTS prefetch failed: ${res.status}`);
   return url;
 }
