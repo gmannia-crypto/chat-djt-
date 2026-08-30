@@ -12,8 +12,18 @@ async function ensureAudioMode() {
   await Audio.setAudioModeAsync({
     playsInSilentModeIOS: true,
     staysActiveInBackground: true,
-    interruptionModeIOS: InterruptionModeIOS.DoNotMix,
-    interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+    // MixWithOthers (not DoNotMix) lets two of our own Sound instances play at
+    // once. DoNotMix operates at the native OS audio-session level, BELOW our
+    // own ducking/overlap logic (processTTSQueue's overlap window,
+    // playInterruptionAudio, playReactionOverlap) — so even though the app
+    // intentionally starts an overlapping/reaction clip while the prior line
+    // is still speaking (often in its last ~500ms), DoNotMix made the OS kill
+    // the first clip outright the instant the second one started, which read
+    // as dialogue getting cut off right before it finished. MixWithOthers lets
+    // both clips actually play concurrently, so our own setVolumeAsync-based
+    // ducking is what the listener hears, not a hard OS-level stop.
+    interruptionModeIOS: InterruptionModeIOS.MixWithOthers,
+    interruptionModeAndroid: InterruptionModeAndroid.MixWithOthers,
     shouldDuckAndroid: false,
     playThroughEarpieceAndroid: false,
   });
