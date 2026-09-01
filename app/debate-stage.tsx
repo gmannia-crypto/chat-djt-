@@ -4599,6 +4599,26 @@ export default function DebateStage() {
       });
     };
 
+    // Retry-pause helper: fills a failed-fetch retry wait with a spoken moderator
+    // line (same wait-filler mechanism used during normal answer generation)
+    // instead of pure silence. Audio only actually plays when voice is globally
+    // ON *and* the moderator persona itself isn't muted/zero-volume — processQueue
+    // resolves TTS instantly for a skipped persona (see shouldSkipPersonaVoice
+    // above), and speakMod resolves instantly when voiceEnabledRef is off. In
+    // either case a spoken filler would collapse to a no-op pause, removing the
+    // only throttle protecting against a tight retry spin. Fall back to the
+    // original timed delay whenever audio won't actually play.
+    const retryFillerPause = async (name: string, fallbackMs: number, tag: string): Promise<void> => {
+      if (!runningRef.current) return;
+      const mod = MODERATORS[moderatorStyle];
+      const audioWillPlay = voiceEnabledRef.current && mod && !shouldSkipPersonaVoice(mod.personaId);
+      if (audioWillPlay) {
+        await speakModFiller(getWaitFiller(name), `${tag}-${Date.now()}-${Math.random()}`);
+      } else {
+        await new Promise<void>((r) => setTimeout(r, fallbackMs));
+      }
+    };
+
     while (runningRef.current && Date.now() < sessionEndsAtRef.current) {
       if (isPausedRef.current) { await new Promise((r) => setTimeout(r, 400)); continue; }
       if (!runningRef.current) break;
@@ -4764,8 +4784,11 @@ export default function DebateStage() {
         // Leave moderatorTargetRef as-is (already flipped at top of loop) so the
         // OTHER debater is asked next. This keeps the debate flowing when one side
         // is temporarily unreachable instead of hammering the same persona over and
-        // over. A flat 1.5 s pause prevents a tight spin; no progressive backoff
-        // since that caused multi-minute stalls (2s+4s+6s+… = ~3 min for 6 nulls).
+        // over. Rather than sitting in dead air, the moderator fills the wait with
+        // a short spoken line (the same wait-filler mechanism used during normal
+        // answer generation) so repeated provider hiccups don't feel like silence.
+        // No progressive backoff since that caused multi-minute stalls (2s+4s+6s+…
+        // = ~3 min for 6 nulls).
         consecutiveNullRef.current += 1;
         if (consecutiveNullRef.current >= 6) {
           // A slow model, mobile connection, or temporary dev-server hiccup is
@@ -4775,10 +4798,10 @@ export default function DebateStage() {
           consecutiveNullRef.current = 0;
           await speakMod("We’re refreshing the debate feed. Give us a moment — this round is not over.", `mod-recover-${Date.now()}`);
           if (!runningRef.current) break;
-          await new Promise((r) => setTimeout(r, 1500));
+          await retryFillerPause(primaryName, 1500, "modfill-recover");
           continue;
         }
-        await new Promise((r) => setTimeout(r, 800));
+        await retryFillerPause(primaryName, 800, "modfill-retry");
         continue;
       }
       consecutiveNullRef.current = 0;
@@ -4928,14 +4951,17 @@ export default function DebateStage() {
         if (consecutiveRebuttalNullRef.current >= 6) {
           // Keep the chosen session running through a transient response outage.
           // The next loop turn will begin a fresh moderator question instead of
-          // declaring an early winner.
+          // declaring an early winner. Fill the wait with spoken filler lines
+          // instead of dead air — same mechanism as the primary-answer retry path.
           consecutiveRebuttalNullRef.current = 0;
           await speakMod("We’re resetting the exchange and coming right back to the debate.", `mod-recover-rebuttal-${Date.now()}`);
           if (!runningRef.current) break;
-          await new Promise((r) => setTimeout(r, 3000));
+          await retryFillerPause(secondaryName, 1500, "modfill-recover-rebuttal");
+          if (!runningRef.current) break;
+          await retryFillerPause(secondaryName, 1500, "modfill-recover-rebuttal2");
           continue;
         }
-        await new Promise((r) => setTimeout(r, 1500));
+        await retryFillerPause(secondaryName, 1500, "modfill-retry-rebuttal");
         continue;
       }
       consecutiveRebuttalNullRef.current = 0;
