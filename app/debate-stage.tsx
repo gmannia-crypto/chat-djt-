@@ -4775,10 +4775,10 @@ export default function DebateStage() {
           consecutiveNullRef.current = 0;
           await speakMod("We’re refreshing the debate feed. Give us a moment — this round is not over.", `mod-recover-${Date.now()}`);
           if (!runningRef.current) break;
-          await new Promise((r) => setTimeout(r, 3000));
+          await new Promise((r) => setTimeout(r, 1500));
           continue;
         }
-        await new Promise((r) => setTimeout(r, 1500));
+        await new Promise((r) => setTimeout(r, 800));
         continue;
       }
       consecutiveNullRef.current = 0;

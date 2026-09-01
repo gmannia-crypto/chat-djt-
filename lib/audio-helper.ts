@@ -48,7 +48,12 @@ export async function warmupAudio(): Promise<void> {
 // elsewhere finally forces things to move on. Every fetch below goes through
 // this helper so a stalled request fails fast and lets its caller's own
 // catch/restore logic run instead of hanging indefinitely.
-const TTS_FETCH_TIMEOUT_MS = 10000;
+// 10s was aborting some legitimately-slow-but-successful TTS calls (real
+// synthesis latency has been observed up to ~30-50s under provider load),
+// and an aborted call means that persona silently skips its turn entirely —
+// which reads to the user as a conversational dead-air gap, not a recovery.
+// 15s trades a little worst-case wait for far fewer of those silent skips.
+const TTS_FETCH_TIMEOUT_MS = 15000;
 async function fetchWithTimeout(url: string, init?: RequestInit, timeoutMs: number = TTS_FETCH_TIMEOUT_MS): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
