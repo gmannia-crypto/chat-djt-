@@ -8969,15 +8969,23 @@ export default function ArenaScreen() {
     });
   }, [scheduleNext, stopAllTTS]);
 
-  // Auto-pause (never auto-resume) when the app leaves the foreground — most
-  // commonly an incoming phone call. Without this the debate keeps generating
-  // and speaking turns while the user is away, so several exchanges play out
-  // (or silently advance with voice off) before they're back to hear them.
-  // Freezing here mirrors the manual pause button; the user must explicitly
-  // resume themselves once they're back, since they may still be on the call.
+  // Auto-pause (never auto-resume) when the app is actually backgrounded —
+  // most commonly an incoming phone call or switching apps. Without this the
+  // debate keeps generating and speaking turns while the user is away, so
+  // several exchanges play out (or silently advance with voice off) before
+  // they're back to hear them. Freezing here mirrors the manual pause button;
+  // the user must explicitly resume themselves once they're back, since they
+  // may still be on the call.
+  //
+  // Deliberately only fires on "background", not "inactive" — "inactive" is
+  // a brief transient state (screen auto-lock/dim, control center, an
+  // incoming-call banner that's dismissed) that iOS reports even though the
+  // app never truly leaves the foreground. Treating it as a pause cut audio
+  // and ended the session just from the screen dimming; only a real
+  // backgrounding should stop playback.
   useEffect(() => {
     const sub = AppState.addEventListener("change", (nextState) => {
-      if (nextState !== "active" && isRunningRef.current && !sessionEndedRef.current) {
+      if (nextState === "background" && isRunningRef.current && !sessionEndedRef.current) {
         isRunningRef.current = false;
         setIsRunning(false);
         if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
