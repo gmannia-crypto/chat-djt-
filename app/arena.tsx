@@ -117,6 +117,8 @@ const PERSONA_CATEGORY_MAP: Record<string, PersonaCategory> = {
   jascrockett: "politician",
   aoc: "politician",
   pressley: "politician",
+  tlaib: "politician",
+  shahidbolson: "commentator",
   joerogan: "podcaster",
   timscott: "politician",
   drbenj: "commentator",
@@ -303,6 +305,46 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       negative: ["democrat", "liberal", "fake news", "biden", "obama", "sambo", "bernie mac"],
     },
   },
+  shahidbolson: {
+    id: "shahidbolson",
+    name: "Shahid Bolson",
+    shortName: "Shahid",
+    color: "#2e8b57",
+    faction: "opponent",
+    image: require("@/assets/images/persona-shahid.png"),
+    personality: {
+      energy: 100,
+      aggression: 85,
+      humor: 15,
+      catchphrases: ["THE PEOPLE ARE WATCHING!", "Follow the money!", "The Global South will not be silenced!", "Western democracy is a performance!"],
+    },
+    relationships: {
+      trump: { sentiment: 10 },
+      netanyahu: { sentiment: 2 },
+      ruckus: { sentiment: 10 },
+      galloway: { sentiment: 90 },
+      mcconnell: { sentiment: 10 },
+      carville: { sentiment: 20 },
+      maddow: { sentiment: 25 },
+      omar: { sentiment: 75 },
+      tlaib: { sentiment: 70 },
+      biden: { sentiment: 15 },
+      rosie: { sentiment: 30 },
+      berniemc: { sentiment: 40 },
+      elon: { sentiment: 5 },
+      graham: { sentiment: 5 },
+      megynkelly: { sentiment: 10 },
+      pambondi: { sentiment: 5 },
+      candace: { sentiment: 45 },
+      joyreid: { sentiment: 30 },
+      miller: { sentiment: 5 },
+      jimjordan: { sentiment: 5 },
+    },
+    triggerWords: {
+      positive: ["islam", "palestine", "global south", "justice", "colonialism", "truth"],
+      negative: ["terrorism", "radical", "extremist", "western values", "imperialism"],
+    },
+  },
   galloway: {
     id: "galloway",
     name: "George Galloway",
@@ -429,6 +471,43 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
     triggerWords: {
       positive: ["facts", "evidence", "democracy", "constitution", "progressive", "rights"],
       negative: ["trump", "corruption", "authoritarian", "lies", "obstruction", "cover-up"],
+    },
+  },
+  tlaib: {
+    id: "tlaib",
+    name: "Rashida Tlaib",
+    shortName: "Tlaib",
+    color: "#16A34A",
+    faction: "opponent",
+    image: require("@/assets/images/persona-tlaib.png"),
+    personality: {
+      energy: 90,
+      aggression: 80,
+      humor: 30,
+      catchphrases: ["The people demand accountability", "Free Palestine", "We will not be silenced", "This is about basic human dignity"],
+    },
+    relationships: {
+      trump: { sentiment: 5 },
+      ruckus: { sentiment: 5 },
+      netanyahu: { sentiment: 2 },
+      miller: { sentiment: 5 },
+      timscott: { sentiment: 10 },
+      candace: { sentiment: 10 },
+      joyreid: { sentiment: 85 },
+      maddow: { sentiment: 80 },
+      omar: { sentiment: 95 },
+      aoc: { sentiment: 95 },
+      pressley: { sentiment: 90 },
+      berniemc: { sentiment: 65 },
+      carville: { sentiment: 55 },
+      galloway: { sentiment: 75 },
+      jascrockett: { sentiment: 85 },
+      claudeanderson: { sentiment: 55 },
+      elon: { sentiment: 10 },
+    },
+    triggerWords: {
+      positive: ["palestine", "justice", "squad", "working class", "healthcare", "ceasefire", "accountability"],
+      negative: ["trump", "aipac", "genocide", "islamophobia", "silence", "occupation"],
     },
   },
   omar: {
@@ -2824,7 +2903,7 @@ const MYSTERY_UNLOCK_KEY = "arena_mystery_unlocked";
 
 import { BOXING_EXCLUSIVE_IDS } from "@/lib/boxing-personas";
 
-const PERSONA_IDS = ["trump", "jdvance", "elon", "errol", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "biden", "rosie", "berniemc", "carlin", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "leavitt", "erikakirk", "loomer", "bannon", "stephena", "malema", "hannity", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "aoc", "pressley", "joerogan", "timscott", "drbenj", "billclinton", "hillaryclinton", "marcorubio", "desantis", "tuckercarlson", "bishopfundme", "cornellwest", "piersmorgan", "scottjennings", "mikabrzezinski", "joescarborough", "richardwolff", "berniesanders", "pastormanning", "clarke", "donalds", "arikana", "jeffreysachs", "khalidmuhammad"];
+const PERSONA_IDS = ["trump", "jdvance", "elon", "errol", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "tlaib", "biden", "rosie", "berniemc", "carlin", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "shahidbolson", "leavitt", "erikakirk", "loomer", "bannon", "stephena", "malema", "hannity", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "aoc", "pressley", "joerogan", "timscott", "drbenj", "billclinton", "hillaryclinton", "marcorubio", "desantis", "tuckercarlson", "bishopfundme", "cornellwest", "piersmorgan", "scottjennings", "mikabrzezinski", "joescarborough", "richardwolff", "berniesanders", "pastormanning", "clarke", "donalds", "arikana", "jeffreysachs", "khalidmuhammad"];
 // Cartoon-style image filter — vivid posterized look on web
 const CARTOON_FILTER = Platform.OS === "web"
   ? ({ filter: "contrast(1.35) saturate(1.85) brightness(1.03)" } as any)
@@ -2869,6 +2948,14 @@ const BREAKING_NEWS_REACTIONS: Record<string, string[]> = {
   omar: [
     "WAIT — everyone stop! This breaking news — THIS is what I've been trying to tell you all!",
     "Hold on — breaking news! And I GUARANTEE this traces back to the same corrupt systems we've been talking about!",
+  ],
+  tlaib: [
+    "Hold on — stop. This breaking news — this is exactly the kind of accountability we've been demanding.",
+    "Wait, everyone — this just happened and the people deserve to know the truth about it right now.",
+  ],
+  shahidbolson: [
+    "STOP — EVERYONE STOP! This breaking news... this is the empire's agenda playing out in real time before your eyes!",
+    "THE PEOPLE NEED TO HEAR THIS — this is precisely what I have been warning about!",
   ],
   biden: [
     "Whoa whoa whoa — hold on a second, folks. We got some... some breaking news here. Not a joke!",
@@ -3011,6 +3098,8 @@ const PERSONA_ALIASES: Record<string, string[]> = {
   erikakirk: ["erika", "erika kirk", "kirk", "charlie's wife", "charlie kirk's widow"],
   loomer: ["laura", "loomer", "laura loomer"],
   leavitt: ["caroline", "leavitt", "caroline leavitt", "press secretary"],
+  tlaib: ["tlaib", "rashida", "rashida tlaib"],
+  shahidbolson: ["shahid", "shahid bolson", "bolson"],
 };
 
 // ── ARENA FIREBACK HEAT SYSTEM ────────────────────────────────────────────────
