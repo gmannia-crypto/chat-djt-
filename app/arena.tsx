@@ -132,6 +132,77 @@ const PERSONA_CATEGORY_MAP: Record<string, PersonaCategory> = {
   arikana: "activist",
 };
 
+// ── IDEOLOGY GROUPS (Team Battle mode) ─────────────────────────────────────
+// Personas can belong to more than one group. Rule: if a persona is a member
+// of BOTH groups in a given team matchup, they are excluded from both team
+// rosters for that specific matchup (they can't be drafted against a group
+// they also belong to).
+type IdeologyGroupId =
+  | "maga" | "aipac" | "squad" | "bluedog" | "medialeft"
+  | "independents" | "rino" | "globalsouth" | "blackempowerment"
+  | "imperialistwest" | "independentleft";
+
+const IDEOLOGY_GROUPS: Record<IdeologyGroupId, { label: string; color: string; description: string }> = {
+  maga: { label: "MAGA Populists", color: "#ff4d4d", description: "America First loyalists" },
+  aipac: { label: "AIPAC / Pro-Israel Hawks", color: "#0038b8", description: "Hawkish pro-Israel voices" },
+  squad: { label: "The Squad", color: "#E74C3C", description: "Progressive left" },
+  bluedog: { label: "Blue Dog Dems", color: "#4A90D9", description: "Establishment Democrats" },
+  medialeft: { label: "Media Left", color: "#9333ea", description: "Left-leaning media hosts" },
+  independents: { label: "Independents", color: "#22c55e", description: "Contrarians & independents" },
+  rino: { label: "RINOs", color: "#94a3b8", description: "Establishment Republicans" },
+  globalsouth: { label: "Global South", color: "#2e8b57", description: "Anti-imperialist / Global South" },
+  blackempowerment: { label: "Black Empowerment", color: "#C0392B", description: "Black empowerment & nationalist voices" },
+  imperialistwest: { label: "Imperialist West", color: "#1DA1F2", description: "Western establishment power" },
+  independentleft: { label: "Independent Left", color: "#00C896", description: "Non-Squad independent left" },
+};
+const IDEOLOGY_GROUP_ORDER: IdeologyGroupId[] = ["maga", "aipac", "squad", "bluedog", "medialeft", "independents", "rino", "globalsouth", "blackempowerment", "imperialistwest", "independentleft"];
+
+// Multi-membership: a persona can appear in more than one group's array.
+const PERSONA_GROUPS: Record<string, IdeologyGroupId[]> = {
+  trump: ["maga"], jdvance: ["maga"], ruckus: ["maga"], jimjordan: ["maga"],
+  leavitt: ["maga"], bannon: ["maga"], erikakirk: ["maga"], loomer: ["maga"],
+  stephena: ["maga"], ivanka: ["maga"], hannity: ["maga"], candace: ["maga"],
+  jesseleepetersen: ["maga"], pambondi: ["maga"], melania: ["maga"], scottjennings: ["maga", "imperialistwest"],
+  netanyahu: ["aipac", "imperialistwest"], graham: ["aipac", "imperialistwest"], miller: ["aipac"], marcorubio: ["aipac"],
+  aoc: ["squad"], omar: ["squad"], tlaib: ["squad"], pressley: ["squad"],
+  jascrockett: ["squad"], berniesanders: ["squad", "independentleft"], richardwolff: ["squad", "independentleft"],
+  biden: ["bluedog"], billclinton: ["bluedog"], hillaryclinton: ["bluedog"], carville: ["bluedog"],
+  schumer: ["bluedog"], kamala: ["bluedog"], obama: ["bluedog"],
+  maddow: ["medialeft"], joyreid: ["medialeft"], mikabrzezinski: ["medialeft"], joescarborough: ["medialeft"], odonnell: ["medialeft"],
+  elon: ["imperialistwest"], megynkelly: ["independents"], joerogan: ["independents"], neiltyson: ["independents"],
+  piersmorgan: ["independents", "imperialistwest"], alexjones: ["independents"], rfk: ["independents"], mtg: ["independents"],
+  tuckercarlson: ["independents"],
+  mcconnell: ["rino"], timscott: ["rino"], desantis: ["rino"], clarke: ["rino"], donalds: ["rino"],
+  galloway: ["globalsouth"], shahidbolson: ["globalsouth"], malema: ["globalsouth"],
+  arikana: ["globalsouth"], jeffreysachs: ["globalsouth", "independentleft"], khalidmuhammad: ["globalsouth"],
+  claudeanderson: ["blackempowerment"], drbenj: ["blackempowerment"], bishopfundme: ["blackempowerment"], pastormanning: ["blackempowerment"],
+  errol: ["imperialistwest"],
+  cornellwest: ["independentleft"],
+};
+
+function getGroupRoster(groupId: IdeologyGroupId): string[] {
+  return Object.entries(PERSONA_GROUPS).filter(([, groups]) => groups.includes(groupId)).map(([pid]) => pid);
+}
+
+// Drafts two 4-person team rosters from two ideology groups, excluding any
+// persona who belongs to BOTH groups (they can't play in this matchup at all).
+function draftIdeologyTeams(groupA: IdeologyGroupId, groupB: IdeologyGroupId, availableIds: string[]): { teamA: string[]; teamB: string[] } | { error: string } {
+  const available = new Set(availableIds);
+  const eligibleA = getGroupRoster(groupA).filter((pid) => available.has(pid) && !PERSONA_GROUPS[pid]?.includes(groupB));
+  const eligibleB = getGroupRoster(groupB).filter((pid) => available.has(pid) && !PERSONA_GROUPS[pid]?.includes(groupA));
+  if (eligibleA.length < 4) return { error: `Not enough eligible ${IDEOLOGY_GROUPS[groupA].label} members (need 4, have ${eligibleA.length}).` };
+  if (eligibleB.length < 4) return { error: `Not enough eligible ${IDEOLOGY_GROUPS[groupB].label} members (need 4, have ${eligibleB.length}).` };
+  const shuffle = (arr: string[]) => {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  };
+  return { teamA: shuffle(eligibleA).slice(0, 4), teamB: shuffle(eligibleB).slice(0, 4) };
+}
+
 // Political Facts IQ: everyone starts at 100 (seeded from all-time average).
 // Scored on factual accuracy + political logic consistency. Range 0–200.
 // Four tiers: Political Genius (gold ≥160) | Politically Savvy (yellow ≥110) |
@@ -3473,6 +3544,21 @@ function pickViralMoments(messages: ConversationMessage[], maxCount = 3): ViralM
   return chosen.sort((a, b) => a.index - b.index);
 }
 
+// Team Battle mode: while a team matchup is active, teammates lean on each
+// other rather than following their normal baseline relationship. Cleared
+// when the team battle session ends (see stopDebate / startDebate).
+let ACTIVE_TEAM_ASSIGNMENTS: Record<string, "A" | "B"> | null = null;
+function teamAdjustedSentiment(listenerId: string, speakerId: string, baseSentiment: number): number {
+  if (
+    ACTIVE_TEAM_ASSIGNMENTS &&
+    ACTIVE_TEAM_ASSIGNMENTS[listenerId] &&
+    ACTIVE_TEAM_ASSIGNMENTS[listenerId] === ACTIVE_TEAM_ASSIGNMENTS[speakerId]
+  ) {
+    return Math.max(baseSentiment, 78);
+  }
+  return baseSentiment;
+}
+
 function calculateResponseProbability(
   listenerId: string,
   speakerId: string,
@@ -3481,9 +3567,10 @@ function calculateResponseProbability(
   const listener = getPersona(listenerId);
   if (!listener) return 30;
   const relationship = listener.relationships[speakerId] || { sentiment: 50 };
+  const sentiment = teamAdjustedSentiment(listenerId, speakerId, relationship.sentiment);
 
   let probability = 35;
-  probability += (relationship.sentiment - 50) * 0.3;
+  probability += (sentiment - 50) * 0.3;
 
   const words = text.toLowerCase().split(/\s+/);
   words.forEach((word) => {
@@ -4575,6 +4662,49 @@ export default function ArenaScreen() {
 
   const [mysteryUnlocking, setMysteryUnlocking] = useState<string | null>(null);
 
+  // ── Team Battle mode state ──────────────────────────────────────────────
+  const [teamBattleMode, setTeamBattleMode] = useState(false);
+  const [teamGroupA, setTeamGroupA] = useState<IdeologyGroupId | null>(null);
+  const [teamGroupB, setTeamGroupB] = useState<IdeologyGroupId | null>(null);
+  const [draftedTeams, setDraftedTeams] = useState<{ teamA: string[]; teamB: string[] } | null>(null);
+  const [teamDraftError, setTeamDraftError] = useState<string | null>(null);
+  const [activeTeamBattle, setActiveTeamBattle] = useState<{ groupA: IdeologyGroupId; groupB: IdeologyGroupId; teamA: string[]; teamB: string[] } | null>(null);
+  const activeTeamBattleRef = useRef(activeTeamBattle);
+  useEffect(() => { activeTeamBattleRef.current = activeTeamBattle; }, [activeTeamBattle]);
+
+  const rerollTeamDraft = useCallback(() => {
+    if (!teamGroupA || !teamGroupB) return;
+    const available = [...PERSONA_IDS, ...unlockedMystery.filter((id) => !PERSONA_IDS.includes(id))];
+    const result = draftIdeologyTeams(teamGroupA, teamGroupB, available);
+    if ("error" in result) {
+      setTeamDraftError(result.error);
+      setDraftedTeams(null);
+    } else {
+      setTeamDraftError(null);
+      setDraftedTeams(result);
+    }
+  }, [teamGroupA, teamGroupB, unlockedMystery]);
+
+  const confirmTeamBattle = useCallback(() => {
+    if (!draftedTeams || !teamGroupA || !teamGroupB) return;
+    const assignments: Record<string, "A" | "B"> = {};
+    draftedTeams.teamA.forEach((id) => { assignments[id] = "A"; });
+    draftedTeams.teamB.forEach((id) => { assignments[id] = "B"; });
+    ACTIVE_TEAM_ASSIGNMENTS = assignments;
+    setActiveTeamBattle({ groupA: teamGroupA, groupB: teamGroupB, teamA: draftedTeams.teamA, teamB: draftedTeams.teamB });
+    setSelectedPersonas([...draftedTeams.teamA, ...draftedTeams.teamB]);
+    setTeamBattleMode(false);
+  }, [draftedTeams, teamGroupA, teamGroupB]);
+
+  const clearTeamBattle = useCallback(() => {
+    ACTIVE_TEAM_ASSIGNMENTS = null;
+    setActiveTeamBattle(null);
+    setDraftedTeams(null);
+    setTeamGroupA(null);
+    setTeamGroupB(null);
+    setTeamDraftError(null);
+  }, []);
+
   useEffect(() => {
     AsyncStorage.getItem(MYSTERY_UNLOCK_KEY).then((data) => {
       if (data) {
@@ -4928,6 +5058,52 @@ export default function ArenaScreen() {
     }
   }, [linkedUser, deviceId]);
 
+  const recordTeamWin = useCallback(async (
+    teamBattle: { groupA: IdeologyGroupId; groupB: IdeologyGroupId; teamA: string[]; teamB: string[] },
+    pts: Record<string, number>
+  ) => {
+    const scoreOf = (ids: string[]) => ids.reduce((sum, id) => sum + (pts[id] || 0), 0);
+    const scoreA = scoreOf(teamBattle.teamA);
+    const scoreB = scoreOf(teamBattle.teamB);
+    const winningGroup = scoreA >= scoreB ? teamBattle.groupA : teamBattle.groupB;
+    const winningTeam = scoreA >= scoreB ? teamBattle.teamA : teamBattle.teamB;
+    // MVP = the persona with the most individual impact within the winning
+    // group; that persona also gets individual global-win credit (#group-win-crediting).
+    const mvpPersonaId = winningTeam.reduce((best, id) => (pts[id] || 0) > (pts[best] || 0) ? id : best, winningTeam[0]);
+    try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (deviceId) headers["x-device-id"] = deviceId;
+      const res = await fetch(new URL("/api/arena/record-team-win", getApiUrl()).toString(), {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          groupA: teamBattle.groupA,
+          groupB: teamBattle.groupB,
+          winnerGroup: winningGroup,
+          mvpPersonaId,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (typeof data.globalWins === "number") {
+          setWinTallyGlobal((prev) => ({ ...prev, [mvpPersonaId]: data.globalWins }));
+          winTallyRef.current = { ...winTallyRef.current, global: { ...winTallyRef.current.global, [mvpPersonaId]: data.globalWins } };
+        }
+        if (typeof data.userWins === "number") {
+          setWinTallyUser((prev) => ({ ...prev, [mvpPersonaId]: data.userWins }));
+          winTallyRef.current = { ...winTallyRef.current, user: { ...winTallyRef.current.user, [mvpPersonaId]: data.userWins } };
+        }
+        if (data.tokensEarned > 0) {
+          const personaName = getPersona(mvpPersonaId)?.shortName || mvpPersonaId;
+          setWinTokenToast({ tokens: data.tokensEarned, personaName });
+          refreshBalance();
+          setTimeout(() => setWinTokenToast(null), 3500);
+        }
+        fetchAllPersonaRecords();
+      }
+    } catch {}
+  }, [deviceId, refreshBalance, fetchAllPersonaRecords]);
+
   const recordWin = useCallback(async (personaId: string) => {
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -5276,6 +5452,10 @@ export default function ArenaScreen() {
     // Refresh W/L records so picker tiles reflect the latest DB totals even when
     // the debate ended without a winner (manual stop, squabble exit, time-up).
     fetchAllPersonaRecords();
+    // Team Battle sessions are one-shot: clear the matchup so the next debate
+    // doesn't inherit stale team sentiment boosts.
+    ACTIVE_TEAM_ASSIGNMENTS = null;
+    setActiveTeamBattle(null);
     confirmedExitRef.current = true;
     doNav();
   }, [hasSession, sessionExpiresAt, saveSessionState, fetchAllPersonaRecords]);
@@ -7350,10 +7530,11 @@ export default function ArenaScreen() {
 
         const persona = getPersona(responderId);
         const relationship = persona?.relationships[toSpeakerId] || { sentiment: 50 };
-        if (relationship.sentiment > 70) {
+        const teamSentiment = teamAdjustedSentiment(responderId, toSpeakerId, relationship.sentiment);
+        if (teamSentiment > 70) {
           responder.happiness = Math.min(100, responder.happiness + 5);
           responder.anger = Math.max(0, responder.anger - 3);
-        } else if (relationship.sentiment < 30) {
+        } else if (teamSentiment < 30) {
           responder.happiness = Math.max(0, responder.happiness - 3);
           responder.anger = Math.min(100, responder.anger + 8);
         }
@@ -8686,6 +8867,18 @@ export default function ArenaScreen() {
       timestamp: Date.now(),
       isSystem: true,
     });
+    if (activeTeamBattleRef.current) {
+      const { groupA, groupB, teamA, teamB } = activeTeamBattleRef.current;
+      const nameList = (ids: string[]) => ids.map((id) => getPersona(id)?.shortName || id).join(", ");
+      addMessage({
+        id: "team-battle-" + Date.now(),
+        speakerId: "system",
+        speakerName: "TEAM BATTLE",
+        text: `⚔️ ${IDEOLOGY_GROUPS[groupA].label} (${nameList(teamA)}) vs ${IDEOLOGY_GROUPS[groupB].label} (${nameList(teamB)})`,
+        timestamp: Date.now(),
+        isSystem: true,
+      });
+    }
     const active = selectedPersonasRef.current;
     const starter = active.includes("trump") ? "trump" : active[0];
     const pool = active.filter((p) => p !== starter);
@@ -9055,7 +9248,12 @@ export default function ArenaScreen() {
     const customerName = userNameRef.current || "this person";
     const leaderboard = sorted.slice(0, 5).map(([id, p]) => ({ name: getPersona(id)?.name || id, points: p }));
 
-    await recordWin(winnerId);
+    const teamBattle = activeTeamBattleRef.current;
+    if (teamBattle) {
+      await recordTeamWin(teamBattle, pts);
+    } else {
+      await recordWin(winnerId);
+    }
     // Refresh HOF data after the win is recorded so the lobby teaser reflects
     // the new leader and the crown burst animation fires if #1 changed hands.
     fetchHallOfFame();
@@ -9324,6 +9522,120 @@ export default function ArenaScreen() {
               ))}
             </View>
           )}
+
+          {/* ── TEAM BATTLE MODE ─────────────────────────────────── */}
+          <View
+            style={{
+              marginBottom: 14,
+              padding: 14,
+              borderRadius: 14,
+              borderWidth: 1.5,
+              borderColor: "#00C896",
+              backgroundColor: "rgba(0,200,150,0.08)",
+            }}
+            testID="arena-team-battle-selector"
+          >
+            <Pressable
+              onPress={() => {
+                if (activeTeamBattle) { clearTeamBattle(); setSelectedPersonas(["trump"]); return; }
+                setTeamBattleMode((v) => !v);
+              }}
+              style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: "#00C896", fontSize: 13, fontWeight: "900", letterSpacing: 1 }}>TEAM BATTLE MODE</Text>
+                <Text style={{ color: "rgba(255,255,255,0.55)", fontSize: 10, marginTop: 3 }}>
+                  {activeTeamBattle
+                    ? `${IDEOLOGY_GROUPS[activeTeamBattle.groupA].label} vs ${IDEOLOGY_GROUPS[activeTeamBattle.groupB].label} — matchup locked`
+                    : "4-vs-4 ideology group showdown"}
+                </Text>
+              </View>
+              <Ionicons name={activeTeamBattle ? "close-circle" : teamBattleMode ? "chevron-up" : "chevron-down"} size={20} color="#00C896" />
+            </Pressable>
+
+            {teamBattleMode && !activeTeamBattle && (
+              <View style={{ marginTop: 12 }}>
+                <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 11, marginBottom: 6 }}>Team A</Text>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+                  {IDEOLOGY_GROUP_ORDER.map((gid) => (
+                    <Pressable
+                      key={`a-${gid}`}
+                      onPress={() => { setTeamGroupA(gid); setDraftedTeams(null); setTeamDraftError(null); }}
+                      style={{
+                        paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
+                        borderWidth: 1.5, borderColor: teamGroupA === gid ? IDEOLOGY_GROUPS[gid].color : "rgba(255,255,255,0.15)",
+                        backgroundColor: teamGroupA === gid ? IDEOLOGY_GROUPS[gid].color + "22" : "transparent",
+                        opacity: teamGroupB === gid ? 0.35 : 1,
+                      }}
+                      disabled={teamGroupB === gid}
+                    >
+                      <Text style={{ color: teamGroupA === gid ? IDEOLOGY_GROUPS[gid].color : "rgba(255,255,255,0.7)", fontSize: 11, fontWeight: "700" }}>{IDEOLOGY_GROUPS[gid].label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 11, marginBottom: 6 }}>Team B</Text>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+                  {IDEOLOGY_GROUP_ORDER.map((gid) => (
+                    <Pressable
+                      key={`b-${gid}`}
+                      onPress={() => { setTeamGroupB(gid); setDraftedTeams(null); setTeamDraftError(null); }}
+                      style={{
+                        paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
+                        borderWidth: 1.5, borderColor: teamGroupB === gid ? IDEOLOGY_GROUPS[gid].color : "rgba(255,255,255,0.15)",
+                        backgroundColor: teamGroupB === gid ? IDEOLOGY_GROUPS[gid].color + "22" : "transparent",
+                        opacity: teamGroupA === gid ? 0.35 : 1,
+                      }}
+                      disabled={teamGroupA === gid}
+                    >
+                      <Text style={{ color: teamGroupB === gid ? IDEOLOGY_GROUPS[gid].color : "rgba(255,255,255,0.7)", fontSize: 11, fontWeight: "700" }}>{IDEOLOGY_GROUPS[gid].label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+
+                <Pressable
+                  onPress={rerollTeamDraft}
+                  disabled={!teamGroupA || !teamGroupB}
+                  style={{
+                    alignSelf: "flex-start", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10,
+                    backgroundColor: teamGroupA && teamGroupB ? "#00C896" : "rgba(255,255,255,0.1)", marginBottom: 10,
+                  }}
+                >
+                  <Text style={{ color: teamGroupA && teamGroupB ? "#001a14" : "rgba(255,255,255,0.4)", fontSize: 12, fontWeight: "800" }}>
+                    {draftedTeams ? "RE-DRAFT ROSTERS" : "DRAFT ROSTERS"}
+                  </Text>
+                </Pressable>
+
+                {teamDraftError && (
+                  <Text style={{ color: "#ff8080", fontSize: 11, marginBottom: 8 }}>{teamDraftError}</Text>
+                )}
+
+                {draftedTeams && (
+                  <View>
+                    <View style={{ flexDirection: "row", gap: 10, marginBottom: 10 }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: IDEOLOGY_GROUPS[teamGroupA!].color, fontSize: 11, fontWeight: "800", marginBottom: 4 }}>{IDEOLOGY_GROUPS[teamGroupA!].label}</Text>
+                        {draftedTeams.teamA.map((pid) => (
+                          <Text key={pid} style={{ color: "rgba(255,255,255,0.8)", fontSize: 11 }}>• {getPersona(pid)?.name || pid}</Text>
+                        ))}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: IDEOLOGY_GROUPS[teamGroupB!].color, fontSize: 11, fontWeight: "800", marginBottom: 4 }}>{IDEOLOGY_GROUPS[teamGroupB!].label}</Text>
+                        {draftedTeams.teamB.map((pid) => (
+                          <Text key={pid} style={{ color: "rgba(255,255,255,0.8)", fontSize: 11 }}>• {getPersona(pid)?.name || pid}</Text>
+                        ))}
+                      </View>
+                    </View>
+                    <Pressable
+                      onPress={confirmTeamBattle}
+                      style={{ alignSelf: "flex-start", paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#00C896" }}
+                    >
+                      <Text style={{ color: "#001a14", fontSize: 13, fontWeight: "900" }}>LOCK IN MATCHUP</Text>
+                    </Pressable>
+                  </View>
+                )}
+              </View>
+            )}
+          </View>
 
           {/* ── SESSION LENGTH ─────────────────────────────────── */}
           <View

@@ -12448,6 +12448,154 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
     }
   });
 
+  // Team Battle mode — separate global stats keyed by ideology group, kept
+  // distinct from the individual arena_wins_global table above. A group win
+  // ALSO credits the winning group's MVP (most individual impact) with an
+  // individual global win, so Hall of Fame reflects team-battle heroics too.
+  app.post("/api/arena/record-team-win", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      const { groupA, groupB, winnerGroup, mvpPersonaId } = req.body;
+      if (!groupA || !groupB || !winnerGroup || !mvpPersonaId) {
+        return res.status(400).json({ error: "groupA, groupB, winnerGroup, mvpPersonaId required" });
+      }
+      const loserGroup = winnerGroup === groupA ? groupB : groupA;
+      const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      try {
+        await db.query(`CREATE TABLE IF NOT EXISTS arena_team_wins_global (
+          group_id TEXT PRIMARY KEY,
+          total_wins INTEGER NOT NULL DEFAULT 0,
+          total_losses INTEGER NOT NULL DEFAULT 0,
+          updated_at TIMESTAMP DEFAULT NOW()
+        )`);
+        await db.query(`CREATE TABLE IF NOT EXISTS arena_team_wins (
+          id SERIAL PRIMARY KEY,
+          device_id TEXT,
+          group_a TEXT NOT NULL,
+          group_b TEXT NOT NULL,
+          winner_group TEXT NOT NULL,
+          mvp_persona_id TEXT NOT NULL,
+          created_at TIMESTAMP DEFAULT NOW()
+        )`);
+        // Reuse the existing individual win tables for MVP crediting — a team
+        // win counts as a normal individual global win for the MVP.
+        await db.query(`CREATE TABLE IF NOT EXISTS arena_wins (
+          id SERIAL PRIMARY KEY, device_id TEXT NOT NULL, persona_id TEXT NOT NULL,
+          wins INTEGER NOT NULL DEFAULT 0, losses INTEGER NOT NULL DEFAULT 0,
+          updated_at TIMESTAMP DEFAULT NOW(), UNIQUE(device_id, persona_id)
+        )`);
+        await db.query(`CREATE TABLE IF NOT EXISTS arena_wins_global (
+          persona_id TEXT PRIMARY KEY, total_wins INTEGER NOT NULL DEFAULT 0,
+          total_losses INTEGER NOT NULL DEFAULT 0, updated_at TIMESTAMP DEFAULT NOW()
+        )`);
+
+        await db.query(
+          `INSERT INTO arena_team_wins_global (group_id, total_wins, total_losses, updated_at)
+           VALUES ($1, 1, 0, NOW())
+           ON CONFLICT (group_id) DO UPDATE SET total_wins = arena_team_wins_global.total_wins + 1, updated_at = NOW()`,
+          [winnerGroup]
+        );
+        await db.query(
+          `INSERT INTO arena_team_wins_global (group_id, total_wins, total_losses, updated_at)
+           VALUES ($1, 0, 1, NOW())
+           ON CONFLICT (group_id) DO UPDATE SET total_losses = arena_team_wins_global.total_losses + 1, updated_at = NOW()`,
+          [loserGroup]
+        );
+        await db.query(
+          `INSERT INTO arena_team_wins (device_id, group_a, group_b, winner_group, mvp_persona_id)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [deviceId || null, groupA, groupB, winnerGroup, mvpPersonaId]
+        );
+
+        // MVP individual global-win credit (group win → individual win, #group-win-crediting)
+        if (deviceId) {
+          await db.query(
+            `INSERT INTO arena_wins (device_id, persona_id, wins, losses, updated_at)
+             VALUES ($1, $2, 1, 0, NOW())
+             ON CONFLICT (device_id, persona_id) DO UPDATE SET wins = arena_wins.wins + 1, updated_at = NOW()`,
+            [deviceId, mvpPersonaId]
+          );
+        }
+        await db.query(
+          `INSERT INTO arena_wins_global (persona_id, total_wins, total_losses, updated_at)
+           VALUES ($1, 1, 0, NOW())
+           ON CONFLICT (persona_id) DO UPDATE SET total_wins = arena_wins_global.total_wins + 1, updated_at = NOW()`,
+          [mvpPersonaId]
+        );
+
+        const userRow = deviceId
+          ? await db.query(`SELECT wins, losses FROM arena_wins WHERE device_id = $1 AND persona_id = $2`, [deviceId, mvpPersonaId])
+          : { rows: [] as any[] };
+        const globalRow = await db.query(`SELECT total_wins, total_losses FROM arena_wins_global WHERE persona_id = $1`, [mvpPersonaId]);
+
+        let tokensEarned = 0;
+        if (deviceId) {
+          await db.query(`CREATE TABLE IF NOT EXISTS arena_win_token_rewards (
+            device_id TEXT NOT NULL, reward_date DATE NOT NULL, count INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (device_id, reward_date)
+          )`);
+          const today = new Date().toISOString().slice(0, 10);
+          const dailyRow = await db.query(`SELECT count FROM arena_win_token_rewards WHERE device_id = $1 AND reward_date = $2`, [deviceId, today]);
+          const dailyCount = dailyRow.rows[0]?.count || 0;
+          const MAX_DAILY_WIN_REWARDS = 5;
+          if (dailyCount < MAX_DAILY_WIN_REWARDS) {
+            tokensEarned = Math.floor(Math.random() * 3) + 3;
+            await db.query(
+              `INSERT INTO arena_win_token_rewards (device_id, reward_date, count) VALUES ($1, $2, 1)
+               ON CONFLICT (device_id, reward_date) DO UPDATE SET count = arena_win_token_rewards.count + 1`,
+              [deviceId, today]
+            );
+            await grantRewardTokens(deviceId, tokensEarned, `Team Battle MVP reward — ${mvpPersonaId}`);
+          }
+        }
+
+        res.json({
+          success: true,
+          winnerGroup,
+          mvpPersonaId,
+          userWins: userRow.rows[0]?.wins,
+          globalWins: globalRow.rows[0]?.total_wins || 1,
+          tokensEarned,
+        });
+      } finally {
+        await db.end();
+      }
+    } catch (error: any) {
+      console.error("Arena record-team-win error:", error);
+      res.status(500).json({ error: "Failed to record team win" });
+    }
+  });
+
+  // Team Battle Hall of Fame — group-level win/loss standings, separate from
+  // the individual arena_wins_global leaderboard.
+  app.get("/api/arena/team-hall-of-fame", async (_req, res) => {
+    try {
+      const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      try {
+        await db.query(`CREATE TABLE IF NOT EXISTS arena_team_wins_global (
+          group_id TEXT PRIMARY KEY, total_wins INTEGER NOT NULL DEFAULT 0,
+          total_losses INTEGER NOT NULL DEFAULT 0, updated_at TIMESTAMP DEFAULT NOW()
+        )`);
+        const rows = await db.query(
+          `SELECT group_id, total_wins, total_losses FROM arena_team_wins_global ORDER BY total_wins DESC`
+        );
+        res.json({
+          leaderboard: rows.rows.map((r: any) => ({
+            groupId: r.group_id,
+            totalWins: r.total_wins,
+            totalLosses: r.total_losses,
+            winPct: r.total_wins + r.total_losses > 0 ? Math.round((r.total_wins / (r.total_wins + r.total_losses)) * 1000) / 10 : 0,
+          })),
+        });
+      } finally {
+        await db.end();
+      }
+    } catch (error: any) {
+      console.error("Arena team-hall-of-fame error:", error);
+      res.status(500).json({ error: "Failed to load team hall of fame" });
+    }
+  });
+
   app.get("/api/arena/winners-stats", async (req, res) => {
     try {
       const deviceId = req.headers["x-device-id"] as string;
