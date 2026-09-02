@@ -20,6 +20,7 @@ import {
   BackHandler,
   useWindowDimensions,
   ImageBackground,
+  AppState,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -5521,6 +5522,15 @@ export default function ArenaScreen() {
           const earlyResolve = () => {
             if (earlyResolved || resolved) return;
             earlyResolved = true;
+            // MixWithOthers (lib/audio-helper.ts) lets this clip keep playing
+            // physically after we resolve — the OS no longer force-kills it the
+            // way DoNotMix used to. Without an explicit duck here, resolving early
+            // lets the next queued line start immediately while this one is still
+            // at full volume, so both voices play on top of each other for the
+            // overlap window instead of a clean handoff. Fade this tail clip down
+            // (don't stop it — a hard stop mid-word sounds like a cut) so the
+            // intended overlap reads as a soft undertone, not two voices colliding.
+            sound.setVolumeAsync(0.15).catch(() => {});
             resolve();
           };
           const finish = () => {
@@ -8667,10 +8677,37 @@ export default function ArenaScreen() {
         currentSpeakerRef.current = null;
         setCurrentSpeaker(null);
         isProcessingTTSRef.current = false;
+        // Stop whatever's currently playing, not just future scheduling —
+        // without this the paused debate still finishes speaking the in-flight
+        // line (and any queued follow-up) out loud, which reads as the pause
+        // button not actually working. See stopAllTTS above.
+        stopAllTTS();
       }
       return next;
     });
-  }, [scheduleNext]);
+  }, [scheduleNext, stopAllTTS]);
+
+  // Auto-pause (never auto-resume) when the app leaves the foreground — most
+  // commonly an incoming phone call. Without this the debate keeps generating
+  // and speaking turns while the user is away, so several exchanges play out
+  // (or silently advance with voice off) before they're back to hear them.
+  // Freezing here mirrors the manual pause button; the user must explicitly
+  // resume themselves once they're back, since they may still be on the call.
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (nextState) => {
+      if (nextState !== "active" && isRunningRef.current && !sessionEndedRef.current) {
+        isRunningRef.current = false;
+        setIsRunning(false);
+        if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
+        isInterruptingRef.current = false;
+        currentSpeakerRef.current = null;
+        setCurrentSpeaker(null);
+        isProcessingTTSRef.current = false;
+        stopAllTTS();
+      }
+    });
+    return () => sub.remove();
+  }, [stopAllTTS]);
 
   const togglePersona = useCallback((pid: string) => {
     setSelectedPersonas((prev) => {

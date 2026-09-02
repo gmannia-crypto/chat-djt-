@@ -2641,6 +2641,16 @@ export default function DebateStage() {
           const earlyResolve = () => {
             if (earlyResolved || resolved) return;
             earlyResolved = true;
+            // MixWithOthers (see lib/audio-helper.ts) lets this clip keep playing
+            // physically after we resolve — the OS no longer force-kills it the way
+            // DoNotMix used to. Resolving here lets the caller start the NEXT clip
+            // immediately, so without an explicit duck both voices play at full
+            // volume simultaneously for the overlap window, which is what actually
+            // produced two people talking over each other instead of a clean handoff.
+            // Fading this tail clip down (not stopping it — stopping mid-word sounds
+            // like a hard cut) keeps the intended "conversational overlap" audible
+            // as a soft undertone instead of a collision.
+            sound.setVolumeAsync(0.15).catch(() => {});
             resolve();
           };
           const finish = () => {
@@ -5602,6 +5612,26 @@ export default function DebateStage() {
     setIsPaused(next);
     if (next) stopAllAudio();
   }, [stopAllAudio]);
+
+  // Auto-pause (never auto-resume) when the app leaves the foreground — the
+  // most common real-world cause being an incoming phone call. Without this,
+  // the debate loop keeps fetching/advancing while the user is on their call,
+  // so by the time they return several exchanges have already happened off-
+  // screen with no audio played ("missed a beat"). Backgrounding now freezes
+  // the loop at isPausedRef's 400ms poll (same as the manual pause button) and
+  // stops any in-flight audio outright, so nothing advances until the user
+  // explicitly taps resume themselves — we never auto-resume on return,
+  // since they may still be mid-call.
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (nextState) => {
+      if (nextState !== "active" && phase === "live" && runningRef.current && !isPausedRef.current) {
+        isPausedRef.current = true;
+        setIsPaused(true);
+        stopAllAudio();
+      }
+    });
+    return () => sub.remove();
+  }, [phase, stopAllAudio]);
 
   // Cleanup on unmount
   useEffect(() => {
