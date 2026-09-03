@@ -28,8 +28,10 @@ the guard `generateAIResponse` and `fireClapback` already had; it was added to
 `tryArenaFireback`, `triggerInterruption` (both prefetch and fallback paths),
 `triggerTrumpInterruption`, and `triggerRapidExchange`.
 
-**Still unguarded** (lower risk, single-shot user-triggered flows rather than
-scheduler-driven, tracked as a follow-up task): the arena join/welcome
-message, `submitUserResponse`, `askUserQuestion`, the poll thank-you message,
-and the call-in composer response. Apply the same pattern if users report
-jumbling tied to those specific interactions.
+This guard applies to every AI-response fetch in arena.tsx that inserts into
+the transcript/TTS queue, including single-shot user-triggered flows, not
+just the scheduler-driven ones. Place the token comparison immediately after
+parsing the response body and immediately before the state/message/TTS side
+effects — a check placed only before `await res.json()` is not sufficient,
+since the scheduler can advance the turn during body parsing. Apply this
+pattern to any new insertion path from the start rather than adding it later.

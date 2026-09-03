@@ -8343,6 +8343,10 @@ export default function ArenaScreen() {
 
     const active = selectedPersonasRef.current;
     const welcomer = active[Math.floor(Math.random() * active.length)];
+    // Snapshot the turn generation before the fetch — if the conversation has
+    // already advanced by the time it resolves, drop this welcome line instead
+    // of inserting it behind newer turns (see arena-stale-response-guard-pattern).
+    const myWelcomeGen = speakTokenRef.current;
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (deviceId) headers["x-device-id"] = deviceId;
@@ -8384,6 +8388,7 @@ export default function ArenaScreen() {
       }
       if (res.ok && mountedRef.current) {
         const data = await res.json();
+        if (speakTokenRef.current !== myWelcomeGen) return;
         const persona = getPersona(welcomer);
         addMessage({
           id: "welcome-" + Date.now(),
@@ -8421,6 +8426,9 @@ export default function ArenaScreen() {
     const active = selectedPersonasRef.current;
     const targeted = detectTargetPersona(responseText, active);
     const reactor = targeted || askerPersona;
+    // Snapshot the turn generation before the fetch — a slow response can
+    // otherwise land behind newer conversation (see arena-stale-response-guard-pattern).
+    const mySubmitGen = speakTokenRef.current;
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (deviceId) headers["x-device-id"] = deviceId;
@@ -8465,6 +8473,7 @@ export default function ArenaScreen() {
       }
       if (res.ok && mountedRef.current) {
         const data = await res.json();
+        if (speakTokenRef.current !== mySubmitGen) return;
         const persona = getPersona(reactor);
         addMessage({
           id: "react-" + Date.now(),
@@ -8488,6 +8497,9 @@ export default function ArenaScreen() {
   const askUserQuestion = useCallback(async (personaId: string) => {
     if (!userJoinedRef.current || !mountedRef.current || showUserInput || isAskingUserRef.current) return;
     isAskingUserRef.current = true;
+    // Snapshot the turn generation before the fetch — a slow response can
+    // otherwise land behind newer conversation (see arena-stale-response-guard-pattern).
+    const myAskGen = speakTokenRef.current;
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (deviceId) headers["x-device-id"] = deviceId;
@@ -8527,6 +8539,7 @@ export default function ArenaScreen() {
       }
       if (res.ok && mountedRef.current) {
         const data = await res.json();
+        if (speakTokenRef.current !== myAskGen) return;
         const persona = getPersona(personaId);
         addMessage({
           id: "ask-user-" + Date.now(),
@@ -9056,6 +9069,9 @@ export default function ArenaScreen() {
     const persona = getPersona(personaId);
     if (!persona) return;
 
+    // Snapshot the turn generation before the fetch — a slow response can
+    // otherwise land behind newer conversation (see arena-stale-response-guard-pattern).
+    const myThankYouGen = speakTokenRef.current;
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (deviceId) headers["x-device-id"] = deviceId;
@@ -9092,6 +9108,7 @@ export default function ArenaScreen() {
       }
       if (res.ok) {
         const data = await res.json();
+        if (speakTokenRef.current !== myThankYouGen) return;
         addMessage({
           id: "thankyou-" + Date.now() + Math.random().toString(36).substr(2, 5),
           speakerId: personaId,
@@ -13314,6 +13331,9 @@ export default function ArenaScreen() {
                   // Stamp time before the request so the grace-period check uses when
                   // the call was *sent*, not when the 403 response finally arrived.
                   const callInSentAt = Date.now();
+                  // Snapshot the turn generation before the fetch — a slow response can
+                  // otherwise land behind newer conversation (see arena-stale-response-guard-pattern).
+                  const myCallInGen = speakTokenRef.current;
                   const res = await fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
                     method: "POST",
                     headers,
@@ -13351,6 +13371,7 @@ export default function ArenaScreen() {
                   }
                   if (res.ok && mountedRef.current) {
                     const data = await res.json();
+                    if (speakTokenRef.current !== myCallInGen) return;
                     const persona = getPersona(reactor);
                     addMessage({
                       id: "react-user-" + Date.now(),
