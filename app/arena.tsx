@@ -6120,13 +6120,6 @@ export default function ArenaScreen() {
     if (!mountedRef.current || sessionEndedRef.current || !deviceId) return;
     const activePersonas = selectedPersonasRef.current;
     if (activePersonas.length < 2) return;
-    // Snapshot the shared turn generation. If the main scheduler moves on to a
-    // brand-new turn while this fireback's AI round-trip is still in flight —
-    // most likely on a slow connection — speakTokenRef will have advanced by
-    // the time the fetch resolves. Inserting the fireback then would land it
-    // behind conversation that has already progressed, reading as two people
-    // arguing about something several exchanges old. Drop it instead (#jumbled-on-delay).
-    const myFirebackGen = speakTokenRef.current;
 
     // ── "Go f*** yourself" trigger: bypass the normal candidate-selection +
     // AI-fireback path entirely. The addressed persona (victimId) retorts
@@ -6273,11 +6266,9 @@ export default function ArenaScreen() {
           }),
         });
         if (!res.ok || !mountedRef.current || sessionEndedRef.current) return;
-        if (speakTokenRef.current !== myFirebackGen) return;
         const data = await res.json();
         const firebackText: string = (data.text || data.response || "").trim();
         if (!firebackText) return;
-        if (speakTokenRef.current !== myFirebackGen) return;
 
         if (victimId && victimId !== targetId) {
           arenaLastDefenseRef.current = {
@@ -7917,13 +7908,6 @@ export default function ArenaScreen() {
 
   const triggerInterruption = useCallback(async (interruptedMessageText: string, prefetchedInterrupter?: string, prefetchedData?: any, interruptedId: string = "trump") => {
     if (!mountedRef.current) return;
-    // Snapshot the shared turn generation up front. Both the prefetched fast
-    // path and the on-demand fallback can take a while (AI round-trip, then a
-    // wait-for-mid-sentence pause below) — if the scheduler's main turn has
-    // moved on by the time we're ready to insert, this interruption would
-    // land behind newer conversation instead of the line it was meant to cut
-    // into. See tryArenaFireback for the same pattern (#jumbled-on-delay).
-    const myInterruptGen = speakTokenRef.current;
 
     let interrupter: string;
     let data: any;
@@ -8020,7 +8004,6 @@ export default function ArenaScreen() {
       }
 
       if (!mountedRef.current || !isRunningRef.current) return;
-      if (speakTokenRef.current !== myInterruptGen) { isInterruptingRef.current = false; return; }
 
       addMessage(interruptMsg);
       showInterruptionBanner(interrupter, persona.name, data.response);
@@ -8103,10 +8086,6 @@ export default function ArenaScreen() {
     isInterruptingRef.current = true;
     const active = selectedPersonasRef.current;
     if (!active.includes("trump")) { isInterruptingRef.current = false; return; }
-    // See tryArenaFireback/triggerInterruption for the same pattern — abandon
-    // if the conversation has moved to a new main turn by the time this
-    // interruption's delay + AI round-trip finish (#jumbled-on-delay).
-    const myTrumpIntGen = speakTokenRef.current;
 
     await new Promise((r) => setTimeout(r, 600 + Math.random() * 800));
     if (!mountedRef.current || !isRunningRef.current) { isInterruptingRef.current = false; return; }
@@ -8160,7 +8139,6 @@ export default function ArenaScreen() {
       }
       if (res.ok && mountedRef.current) {
         const data = await res.json();
-        if (speakTokenRef.current !== myTrumpIntGen) return;
         addMessage({
           id: "trump-interrupt-" + Date.now() + Math.random().toString(36).substr(2, 5),
           speakerId: "trump",
@@ -8196,10 +8174,6 @@ export default function ArenaScreen() {
     if (isRapidExchangeRef.current) return;
     isRapidExchangeRef.current = true;
     rapidExchangeCooldownRef.current = Date.now() + 90000;
-    // See tryArenaFireback for the same pattern — a slow rapid-exchange
-    // fetch shouldn't dump its lines into a conversation that has already
-    // moved on to unrelated turns (#jumbled-on-delay).
-    const myRapidGen = speakTokenRef.current;
 
     const nameA = getPersona(personaAId)?.name || personaAId;
     const nameB = getPersona(personaBId)?.name || personaBId;
@@ -8261,11 +8235,9 @@ export default function ArenaScreen() {
       const data = await res.json();
       const lines: Array<{ personaId: string; text: string }> = data.lines || [];
 
-      if (speakTokenRef.current !== myRapidGen) return;
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         if (!mountedRef.current || !isRunningRef.current) break;
-        if (speakTokenRef.current !== myRapidGen) break;
         const persona = getPersona(line.personaId);
         if (!persona) continue;
 
@@ -9010,35 +8982,16 @@ export default function ArenaScreen() {
     });
   }, [scheduleNext, stopAllTTS]);
 
-  // Auto-pause (never auto-resume) when the app is actually backgrounded —
-  // most commonly an incoming phone call or switching apps. Without this the
-  // debate keeps generating and speaking turns while the user is away, so
-  // several exchanges play out (or silently advance with voice off) before
-  // they're back to hear them. Freezing here mirrors the manual pause button;
-  // the user must explicitly resume themselves once they're back, since they
-  // may still be on the call.
-  //
-  // Deliberately only fires on "background", not "inactive" — "inactive" is
-  // a brief transient state (screen auto-lock/dim, control center, an
-  // incoming-call banner that's dismissed) that iOS reports even though the
-  // app never truly leaves the foreground. Treating it as a pause cut audio
-  // and ended the session just from the screen dimming; only a real
-  // backgrounding should stop playback.
-  useEffect(() => {
-    const sub = AppState.addEventListener("change", (nextState) => {
-      if (nextState === "background" && isRunningRef.current && !sessionEndedRef.current) {
-        isRunningRef.current = false;
-        setIsRunning(false);
-        if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
-        isInterruptingRef.current = false;
-        currentSpeakerRef.current = null;
-        setCurrentSpeaker(null);
-        isProcessingTTSRef.current = false;
-        stopAllTTS();
-      }
-    });
-    return () => sub.remove();
-  }, [stopAllTTS]);
+  // Deliberately NOT auto-pausing on backgrounding. Audio is configured with
+  // staysActiveInBackground so users can lock the screen or switch apps and
+  // keep listening, the same way a podcast/music app works — that's the
+  // whole point of a listen-only debate mode. iOS reports "background" both
+  // for a genuine app-switch AND for an ordinary screen lock/dim, so there is
+  // no reliable signal here to tell "user walked away" apart from "user
+  // locked the screen to keep listening"; erring on the side of continuing
+  // playback matches what users actually want and expect. A real interruption
+  // (e.g. an incoming phone call) is handled by the OS audio session itself,
+  // not by this listener.
 
   const togglePersona = useCallback((pid: string) => {
     setSelectedPersonas((prev) => {
