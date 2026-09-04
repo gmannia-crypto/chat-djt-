@@ -10660,54 +10660,91 @@ export default function ArenaScreen() {
             <Text style={s.liveText}>LIVE</Text>
           </Animated.View>
         </View>
-        <Pressable onPress={() => setShowPersonaSelector(true)} style={s.headerIconBtn}>
-          <Ionicons name="people" size={18} color="#FFD700" />
+        <Pressable
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowPersonaSelector(true); }}
+          onLongPress={() => Alert.alert("Debaters", "Add, remove, or swap who's in the debate.")}
+          style={s.headerIconBtn}
+          accessibilityLabel="Debaters — add, remove, or swap who's in the debate"
+        >
+          <Ionicons name="people" size={16} color="#FFD700" />
+          <Text style={[s.headerIconCaption, { color: "#FFD700" }]}>CAST</Text>
         </Pressable>
         {altFactCount > 0 && (
           <Pressable
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setLiesSheetOpen(true); }}
+            onLongPress={() => Alert.alert("Spin Count", "How many times someone's spun an alternative version of the facts. Tap to see details.")}
             style={[s.headerIconBtn, { backgroundColor: "rgba(251,191,36,0.15)", borderColor: "rgba(251,191,36,0.5)" }]}
             testID="arena-altfact-counter"
+            accessibilityLabel="Spin count — alternative-fact tally, tap for details"
           >
-            <Ionicons name="star-half" size={15} color="#FBB924" />
-            <Text style={{ color: "#FBB924", fontSize: 10, fontWeight: "900", marginLeft: 2 }}>{altFactCount}</Text>
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <Ionicons name="star-half" size={13} color="#FBB924" />
+              <Text style={{ color: "#FBB924", fontSize: 10, fontWeight: "900", marginLeft: 2 }}>{altFactCount}</Text>
+            </View>
+            <Text style={[s.headerIconCaption, { color: "#FBB924" }]}>SPIN</Text>
           </Pressable>
         )}
         <Pressable
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setLiesSheetOpen(true); }}
+          onLongPress={() => Alert.alert("Lie Tracker", "How many flagged lies have come up so far. Tap to see who said what.")}
           style={[s.headerIconBtn, lieCount > 0 && { backgroundColor: "rgba(255,77,77,0.15)", borderColor: "rgba(255,77,77,0.5)" }]}
           testID="arena-lie-counter"
+          accessibilityLabel="Lie tracker — flagged lie count, tap for details"
         >
-          {factCheckLoading
-            ? <ActivityIndicator size="small" color="#ff4d4d" />
-            : <Ionicons name="flash" size={16} color={lieCount > 0 ? "#ff4d4d" : "rgba(255,255,255,0.6)"} />
-          }
-          {lieCount > 0 && !factCheckLoading && (
-            <Text style={{ color: "#ff4d4d", fontSize: 10, fontWeight: "900", marginLeft: 2 }}>{lieCount}</Text>
-          )}
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            {factCheckLoading
+              ? <ActivityIndicator size="small" color="#ff4d4d" />
+              : <Ionicons name="flash" size={14} color={lieCount > 0 ? "#ff4d4d" : "rgba(255,255,255,0.6)"} />
+            }
+            {lieCount > 0 && !factCheckLoading && (
+              <Text style={{ color: "#ff4d4d", fontSize: 10, fontWeight: "900", marginLeft: 2 }}>{lieCount}</Text>
+            )}
+          </View>
+          <Text style={[s.headerIconCaption, lieCount > 0 ? { color: "#ff4d4d" } : null]}>LIES</Text>
         </Pressable>
         {debateFinished ? (
-          <Pressable onPress={() => { if (verdictLoading) return; Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); fetchVerdict(); }} disabled={verdictLoading} style={[s.headerIconBtn, { borderColor: "rgba(255,215,0,0.4)", opacity: verdictLoading ? 0.6 : 1 }]} testID="arena-verdict">
+          <Pressable
+            onPress={() => { if (verdictLoading) return; Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); fetchVerdict(); }}
+            onLongPress={() => Alert.alert("Verdict", "See who the AI judge declared the winner, based on facts and performance.")}
+            disabled={verdictLoading}
+            style={[s.headerIconBtn, { borderColor: "rgba(255,215,0,0.4)", opacity: verdictLoading ? 0.6 : 1 }]}
+            testID="arena-verdict"
+            accessibilityLabel="Verdict — see the AI judge's winner"
+          >
             {verdictLoading
               ? <ActivityIndicator size="small" color="#FFD700" />
-              : <Ionicons name="scale" size={16} color="#FFD700" />
+              : <Ionicons name="scale" size={14} color="#FFD700" />
             }
+            <Text style={[s.headerIconCaption, { color: "#FFD700" }]}>{verdictLoading ? "..." : "VERDICT"}</Text>
           </Pressable>
         ) : isRunning ? (
           <Pressable
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); Alert.alert("Verdict Locked", "The verdict unlocks once the debate ends."); }}
-            style={[s.headerIconBtn, { borderColor: "rgba(255,215,0,0.15)", opacity: 0.45, flexDirection: "column", paddingHorizontal: 6, minWidth: 40 }]}
+            style={[s.headerIconBtn, { borderColor: "rgba(255,215,0,0.15)", opacity: 0.45, paddingHorizontal: 6, minWidth: 40 }]}
             testID="arena-verdict-pending"
+            accessibilityLabel="Verdict locked until the debate ends"
           >
             <Ionicons name="scale" size={14} color="#FFD700" />
             <Text style={{ color: "#FFD700", fontSize: 8, fontWeight: "700", marginTop: 1, letterSpacing: 0.3 }}>AFTER</Text>
           </Pressable>
         ) : null}
-        <Pressable onPress={shareDebate} style={s.headerIconBtn}>
-          <Ionicons name="share-social" size={18} color="#fff" />
+        <Pressable
+          onPress={shareDebate}
+          onLongPress={() => Alert.alert("Share", "Share this debate with a link others can watch too.")}
+          style={s.headerIconBtn}
+          accessibilityLabel="Share this debate"
+        >
+          <Ionicons name="share-social" size={16} color="#fff" />
+          <Text style={s.headerIconCaption}>SHARE</Text>
         </Pressable>
-        <Pressable onPress={toggleRunning} style={s.headerIconBtn}>
-          <Ionicons name={isRunning ? "pause" : "play"} size={18} color="#fff" />
+        <Pressable
+          onPress={toggleRunning}
+          onLongPress={() => Alert.alert(isRunning ? "Pause" : "Resume", isRunning ? "Pause the debate — it stays exactly where it left off." : "Resume the debate from where it paused.")}
+          style={s.headerIconBtn}
+          accessibilityLabel={isRunning ? "Pause the debate" : "Resume the debate"}
+        >
+          <Ionicons name={isRunning ? "pause" : "play"} size={16} color="#fff" />
+          <Text style={s.headerIconCaption}>{isRunning ? "PAUSE" : "PLAY"}</Text>
         </Pressable>
       </Animated.View>
 
@@ -13391,12 +13428,20 @@ const s = StyleSheet.create({
     letterSpacing: 1.5,
   },
   headerIconBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    minWidth: 34,
+    height: 38,
+    borderRadius: 12,
     backgroundColor: "rgba(255,255,255,0.08)",
     alignItems: "center",
     justifyContent: "center",
+    paddingHorizontal: 4,
+  },
+  headerIconCaption: {
+    fontSize: 7,
+    fontWeight: "800" as const,
+    color: "rgba(255,255,255,0.55)",
+    marginTop: 1,
+    letterSpacing: 0.2,
   },
   liveBadge: {
     flexDirection: "row",
