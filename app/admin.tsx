@@ -1688,6 +1688,8 @@ function AdminDashboard({ adminKey, onLogout }: { adminKey: string; onLogout: ()
 
             <ModelSettingsSection onModelChange={fetchQuickModelData} />
 
+            <PersonaVolumeSection />
+
             <GrantCreditsSection />
 
             <PushNotificationSection />
@@ -3100,6 +3102,36 @@ function GrantCreditsSection() {
           <Text style={{ color: "#888", fontSize: 10, marginTop: 2 }}>Subscribed: {lookupResult.isSubscribed ? "Yes" : "No"}{lookupResult.subscriptionTier ? ` (${lookupResult.subscriptionTier})` : ""}</Text>
         </View>
       )}
+    </Animated.View>
+  );
+}
+
+function PersonaVolumeSection() {
+  return (
+    <Animated.View entering={FadeInDown.delay(180).duration(400)} style={{ marginTop: 16, backgroundColor: "rgba(212,164,32,0.08)", borderRadius: 16, padding: 16, borderWidth: 1, borderColor: "rgba(212,164,32,0.2)" }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
+        <Ionicons name="options" size={20} color={Colors.gold} />
+        <Text style={{ color: Colors.gold, fontSize: 14, fontWeight: "800" }}>Persona Voice Volume</Text>
+      </View>
+      <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, marginBottom: 10 }}>
+        Per-persona TTS volume and mute controls. Back-office only — no longer reachable from the app's own screens.
+      </Text>
+      <Pressable
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          router.push("/voice-mixer");
+        }}
+        testID="open-voice-mixer-admin"
+        style={({ pressed }) => ({
+          backgroundColor: Colors.gold,
+          paddingVertical: 10,
+          borderRadius: 10,
+          alignItems: "center" as const,
+          opacity: pressed ? 0.7 : 1,
+        })}
+      >
+        <Text style={{ color: "#0a0a0a", fontWeight: "800", fontSize: 13 }}>Open Voice Mixer</Text>
+      </Pressable>
     </Animated.View>
   );
 }

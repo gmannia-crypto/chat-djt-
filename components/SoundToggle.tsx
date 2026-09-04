@@ -2,9 +2,11 @@ import React from "react";
 import { Pressable, Text, StyleSheet, Platform, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSound } from "@/lib/sound-context";
-import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
 
+// Per-persona voice volume (the mixer) used to be reachable by any end user
+// from here. It's now back-office only — see app/admin.tsx's
+// PersonaVolumeSection — so this control is just the global sound toggle.
 export function SoundToggle() {
   const { soundEnabled, toggleSound } = useSound();
 
@@ -30,20 +32,6 @@ export function SoundToggle() {
           <Text style={styles.text}>
             {soundEnabled ? "Sound On" : "Sound Off"}
           </Text>
-        </Pressable>
-        <Pressable
-          testID="open-voice-mixer"
-          onPress={() => {
-            Haptics.selectionAsync();
-            router.push("/voice-mixer");
-          }}
-          style={({ pressed }) => [
-            styles.mixerBtn,
-            pressed && { opacity: 0.7 },
-          ]}
-          hitSlop={6}
-        >
-          <Ionicons name="options" size={16} color="#fff" />
         </Pressable>
       </View>
     </View>
@@ -85,20 +73,5 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 12,
     fontWeight: "700" as const,
-  },
-  mixerBtn: {
-    backgroundColor: "#1a1a1a",
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255,215,0,0.4)",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 8,
   },
 });
