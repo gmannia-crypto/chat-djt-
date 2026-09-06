@@ -9162,7 +9162,11 @@ REACTION (separate persona listening in): ${reactorName} is standing in the room
         // never has to trust an unvalidated persona for voice/display.
         let expectedSpeaker = personaAId;
         lines = rawLines.filter((l: any) => l.personaId && l.text).map((l: any) => {
-          const speakerId = (l.personaId === personaAId || l.personaId === personaBId) ? l.personaId : expectedSpeaker;
+          const wasCoerced = l.personaId !== personaAId && l.personaId !== personaBId;
+          const speakerId = wasCoerced ? expectedSpeaker : l.personaId;
+          if (wasCoerced) {
+            console.warn(`[rapid-exchange:server-coercion] AI assigned line to "${l.personaId}", not a combatant (${personaAId} vs ${personaBId}) — coerced to "${speakerId}"`);
+          }
           expectedSpeaker = speakerId === personaAId ? personaBId : personaAId;
           return {
             personaId: speakerId,

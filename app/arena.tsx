@@ -8245,7 +8245,11 @@ export default function ArenaScreen() {
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         if (!mountedRef.current || !isRunningRef.current) break;
-        const speakerId = exchangeSpeakers.includes(line.personaId) ? line.personaId : expectedSpeaker;
+        const wasCoerced = !exchangeSpeakers.includes(line.personaId);
+        const speakerId = wasCoerced ? expectedSpeaker : line.personaId;
+        if (wasCoerced) {
+          console.warn(`[rapid-exchange:client-coercion] AI assigned line to "${line.personaId}", not a combatant (${personaAId} vs ${personaBId}) — coerced to "${speakerId}"`);
+        }
         const persona = getPersona(speakerId);
         // Alternate expectation for the next line regardless of what this
         // one turned out to be, so a run of coerced lines still alternates.
