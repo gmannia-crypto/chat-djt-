@@ -9680,6 +9680,7 @@ ${styleInstruction}${getLieBehaviorPrompt(interviewerId, Number((req.body.sessio
         comedic: `Topic: "${topic?.title}" — ${topic?.description}\n\nRecent exchange:\n${historyContext}\n\n${intervieweeName} just answered. React with wit — find the absurdity, irony, or contradiction in what they said and lean into it with a funny follow-up. Land a good line. 1-2 sentences max.`,
         civil_discourse: `Topic: "${topic?.title}" — ${topic?.description}\n\nRecent exchange:\n${historyContext}\n\n${intervieweeName} just answered. Acknowledge anything valid in their response, then ask a thoughtful follow-up that genuinely deepens the dialogue. Disagree respectfully if needed — with their idea, not their person. 1-2 sentences max.`,
         educational: `Topic: "${topic?.title}" — ${topic?.description}\n\nRecent exchange:\n${historyContext}\n\n${intervieweeName} just explained something. Ask a follow-up that goes DEEPER into understanding — not to challenge or corner them, but to help the audience grasp the nuance. Use "can you explain more about...", "what led you to that conclusion", "how does that connect to..." framing. 1-2 sentences max.`,
+        roast: `Topic: "${topic?.title}" — ${topic?.description}\n\nRecent exchange:\n${historyContext}\n\n${intervieweeName} just answered. Roast them for it — a sharp, specific joke that lands because you clearly know their record and their own words, not a generic insult. Keep it funny, not just mean, and stay on topic. 1-2 sentences max.`,
       };
 
       // Style-specific opening question prompts
@@ -9689,6 +9690,7 @@ ${styleInstruction}${getLieBehaviorPrompt(interviewerId, Number((req.body.sessio
         comedic: `Topic: "${topic?.title}" — ${topic?.description}\n\nOpen this topic with a question that's funny, ironic, or sarcastically framed — expose the absurdity right from the start. Make them squirm with a smile. 1-2 sentences max. No greeting if history exists.\n\nRecent exchange:\n${historyContext}`,
         civil_discourse: `Topic: "${topic?.title}" — ${topic?.description}\n\nOpen this topic with a genuine, open-ended question that invites ${intervieweeName} to share their perspective. Frame it with curiosity, not accusation. 1-2 sentences max. No greeting if history exists.\n\nRecent exchange:\n${historyContext}`,
         educational: `Topic: "${topic?.title}" — ${topic?.description}\n\nOpen this topic by asking ${intervieweeName} to share their expertise or perspective on this subject. Frame it as a learner seeking to understand — "walk us through...", "help us understand...", "from your experience...". 1-2 sentences max. No greeting if history exists.\n\nRecent exchange:\n${historyContext}`,
+        roast: `Topic: "${topic?.title}" — ${topic?.description}\n\nOpen this topic by roasting ${intervieweeName} straight out of the gate — a sharp, specific joke about their record or their own words that also frames the topic. Funny, not just mean. 1-2 sentences max. No greeting if there is already conversation history.\n\nRecent exchange:\n${historyContext}`,
       };
 
       // Style-specific transition prompts
@@ -9698,6 +9700,7 @@ ${styleInstruction}${getLieBehaviorPrompt(interviewerId, Number((req.body.sessio
         comedic: `You are TRANSITIONING from "${previousTopicTitle || "the last topic"}" to: "${topic?.title}" — ${topic?.description}\n\nRecent exchange:\n${historyContext}\n\nMake the pivot with a witty or ironic segue, then open the new topic with a funny angle. 1-2 sentences max.`,
         civil_discourse: `You are TRANSITIONING from "${previousTopicTitle || "the last topic"}" to: "${topic?.title}" — ${topic?.description}\n\nRecent exchange:\n${historyContext}\n\nMove gracefully to the new topic and open with a genuine, curious question. 1-2 sentences max.`,
         educational: `You are TRANSITIONING from "${previousTopicTitle || "the last topic"}" to a new area of ${intervieweeName}'s expertise: "${topic?.title}" — ${topic?.description}\n\nRecent exchange:\n${historyContext}\n\nBridge naturally ("I'd love to explore another area of your work...") then invite them to share their knowledge on this topic. 1-2 sentences max.`,
+        roast: `You are TRANSITIONING from "${previousTopicTitle || "the last topic"}" to: "${topic?.title}" — ${topic?.description}\n\nRecent exchange:\n${historyContext}\n\nMake the pivot with a roast-worthy jab, then open the new topic with a sharp, specific joke. 1-2 sentences max.`,
       };
 
       let userPrompt = "";

@@ -29,6 +29,7 @@ import AnimatedDebateFace, { EXPRESSION_SOURCES, Mood } from "@/components/Anima
 import {
   MODERATORS, ModeratorStyle, generateModeratorLine, makeInterruptController,
   speakModeratorNow, localJab, moderatorLieReaction, generateModeratorQuestion, getModeratorLeaning,
+  MODERATOR_DEFAULT_STYLE,
   getSquabbleBridge,
   detectDodge,
   getDodgePressLine,
@@ -1144,6 +1145,9 @@ export default function DebateStage() {
   const [duration, setDuration] = useState<5 | 10 | 15>(10);
   const [topicMix, setTopicMix] = useState<"current" | "past" | "mixed">("mixed");
   const [interviewStyle, setInterviewStyle] = useState<InterviewStyleId>("combative");
+  // Once the user manually taps a style card, stop auto-switching the style when
+  // they pick a different moderator — their explicit choice always wins after that.
+  const styleManuallySetRef = useRef(false);
 
   const [category, setCategory] = useState<"Political" | "Sports" | "History" | "Finance" | "Science" | "Entertainment" | "Philosophy">("Political");
   const [moderatorStyle, setModeratorStyle] = useState<ModeratorStyle>("hannity");
@@ -1175,6 +1179,14 @@ export default function DebateStage() {
     if (category === "Philosophy") return "civil_discourse";
     return interviewStyle;
   }, [category, interviewStyle]);
+  // Each moderator has their own natural debate register (Carlin roasts, Jane Elliott
+  // corrects facts, Foreman goes easy, etc.) — auto-apply it when the moderator changes,
+  // unless the user has manually picked a style, which always wins from then on.
+  useEffect(() => {
+    if (styleManuallySetRef.current) return;
+    const defaultStyle = MODERATOR_DEFAULT_STYLE[moderatorStyle] as InterviewStyleId | undefined;
+    if (defaultStyle) setInterviewStyle(defaultStyle);
+  }, [moderatorStyle]);
   const [micCut, setMicCut] = useState<{ iv: boolean; ivee: boolean }>({ iv: false, ivee: false });
   const interruptCtl = useRef(makeInterruptController()).current;
   const [moderatorSpeaking, setModeratorSpeaking] = useState(false);
@@ -6275,7 +6287,7 @@ export default function DebateStage() {
           <Text style={[s.sectionLabel, { marginTop: 16 }]}>INTERVIEW STYLE</Text>
           <View style={s.styleRow}>
             {INTERVIEW_STYLES.map((st) => (
-              <Pressable key={st.id} onPress={() => { Haptics.selectionAsync(); setInterviewStyle(st.id); }}
+              <Pressable key={st.id} onPress={() => { Haptics.selectionAsync(); styleManuallySetRef.current = true; setInterviewStyle(st.id); }}
                 style={[s.styleCard, interviewStyle === st.id && s.styleCardActive]} testID={`style-${st.id}`}>
                 <Ionicons name={st.icon} size={16} color={interviewStyle === st.id ? "#000" : "#FFD700"} />
                 <Text style={[s.styleText, interviewStyle === st.id && s.styleTextActive]}>{st.label}</Text>
