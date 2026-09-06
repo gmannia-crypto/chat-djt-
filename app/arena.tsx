@@ -8137,7 +8137,7 @@ export default function ArenaScreen() {
         }
         return;
       }
-      if (res.ok && mountedRef.current) {
+      if (res.ok && mountedRef.current && isRunningRef.current) {
         const data = await res.json();
         addMessage({
           id: "trump-interrupt-" + Date.now() + Math.random().toString(36).substr(2, 5),
@@ -8231,7 +8231,7 @@ export default function ArenaScreen() {
         }
         return;
       }
-      if (!res.ok || !mountedRef.current) return;
+      if (!res.ok || !mountedRef.current || !isRunningRef.current) return;
       const data = await res.json();
       const lines: Array<{ personaId: string; text: string }> = data.lines || [];
 
