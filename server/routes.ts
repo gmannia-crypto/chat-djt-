@@ -9156,10 +9156,19 @@ REACTION (separate persona listening in): ${reactorName} is standing in the room
       try {
         const parsed = JSON.parse(raw);
         const rawLines = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.lines) ? parsed.lines : [];
-        lines = rawLines.filter((l: any) => l.personaId && l.text).map((l: any) => ({
-          personaId: l.personaId,
-          text: String(l.text).replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").trim(),
-        }));
+        // The exchange only ever involves personaAId/personaBId — coerce any
+        // line the model attributes to a third (even otherwise-valid)
+        // personaId back to the correct alternating speaker so the client
+        // never has to trust an unvalidated persona for voice/display.
+        let expectedSpeaker = personaAId;
+        lines = rawLines.filter((l: any) => l.personaId && l.text).map((l: any) => {
+          const speakerId = (l.personaId === personaAId || l.personaId === personaBId) ? l.personaId : expectedSpeaker;
+          expectedSpeaker = speakerId === personaAId ? personaBId : personaAId;
+          return {
+            personaId: speakerId,
+            text: String(l.text).replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").trim(),
+          };
+        });
         if (!Array.isArray(parsed)) reactionRaw = parsed?.reaction ?? null;
       } catch { lines = []; }
 

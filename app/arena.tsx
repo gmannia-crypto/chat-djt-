@@ -8235,15 +8235,26 @@ export default function ArenaScreen() {
       const data = await res.json();
       const lines: Array<{ personaId: string; text: string }> = data.lines || [];
 
+      // The exchange only ever involves these two personas — the AI's JSON
+      // response is untrusted, so any line claiming a different (even
+      // otherwise-valid) personaId gets coerced to the correct alternating
+      // speaker rather than silently voiced as an untracked persona.
+      const exchangeSpeakers = [personaAId, personaBId];
+      let expectedSpeaker = personaAId;
+
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         if (!mountedRef.current || !isRunningRef.current) break;
-        const persona = getPersona(line.personaId);
+        const speakerId = exchangeSpeakers.includes(line.personaId) ? line.personaId : expectedSpeaker;
+        const persona = getPersona(speakerId);
+        // Alternate expectation for the next line regardless of what this
+        // one turned out to be, so a run of coerced lines still alternates.
+        expectedSpeaker = speakerId === personaAId ? personaBId : personaAId;
         if (!persona) continue;
 
         addMessage({
           id: "rapid-" + Date.now() + Math.random().toString(36).substr(2, 4),
-          speakerId: line.personaId,
+          speakerId,
           speakerName: `⚡ ${persona.name}`,
           text: line.text,
           timestamp: Date.now(),
@@ -8254,7 +8265,7 @@ export default function ArenaScreen() {
         // that line has actually started playing, even if earlier lines in
         // this rapid-fire burst are still queued/speaking.
         const isFinalLine = i === lines.length - 1;
-        queueTTS(line.text, line.personaId, false, isFinalLine ? () => fireLiveReaction(data.reaction, line.text, line.personaId) : undefined);
+        queueTTS(line.text, speakerId, false, isFinalLine ? () => fireLiveReaction(data.reaction, line.text, speakerId) : undefined);
         await new Promise((r) => setTimeout(r, 350));
       }
       if (lines.length === 0) {
