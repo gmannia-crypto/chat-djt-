@@ -13,7 +13,7 @@ import { getApiUrl } from "@/lib/query-client";
 import { prefetchTTSAudio, playPrefetchedAudio, playTTS } from "@/lib/audio-helper";
 import { playCrowdCheer, playDingSound } from "@/lib/arena-sfx";
 
-export type ModeratorStyle = "cenk" | "galloway" | "hannity" | "maddow" | "megynkelly" | "odonnell" | "joyreid" | "maxkellerman" | "stephena" | "kaitlyncollins" | "gilbertgottfried" | "carlin" | "tuckercarlson" | "wandasykes" | "trevornoah" | "janeelliott" | "francescresswelsing" | "shannonsharp" | "dc" | "donlemon" | "piersmorgan" | "mikabrzezinski" | "joescarborough" | "jimlampley" | "georgeforeman" | "michaelbuffer" | "howardcosell" | "samjackson" | "khalidmuhammad";
+export type ModeratorStyle = "cenk" | "galloway" | "hannity" | "maddow" | "megynkelly" | "odonnell" | "joyreid" | "maxkellerman" | "stephena" | "kaitlyncollins" | "gilbertgottfried" | "carlin" | "tuckercarlson" | "wandasykes" | "trevornoah" | "janeelliott" | "francescresswelsing" | "shannonsharp" | "dc" | "donlemon" | "piersmorgan" | "mikabrzezinski" | "joescarborough" | "jimlampley" | "georgeforeman" | "michaelbuffer" | "howardcosell" | "samjackson" | "khalidmuhammad" | "kylekulinski" | "mehdihasan";
 
 export const MODERATORS: Record<ModeratorStyle, { name: string; personaId: string; bias: string }> = {
   cenk:             { name: "Cenk Uygur",          personaId: "cenk",             bias: "progressive" },
@@ -45,6 +45,8 @@ export const MODERATORS: Record<ModeratorStyle, { name: string; personaId: strin
   howardcosell:        { name: "Howard Cosell",              personaId: "howardcosell",         bias: "boxing-sports" },
   samjackson:          { name: "Samuel L. Jackson",          personaId: "samjackson",           bias: "biblical-menace" },
   khalidmuhammad:      { name: "Brother Khalid Muhammad",    personaId: "khalidmuhammad",       bias: "militant-Black-liberation" },
+  kylekulinski:        { name: "Kyle Kulinski",              personaId: "kylekulinski",         bias: "democratic-socialist" },
+  mehdihasan:          { name: "Mehdi Hasan",                personaId: "mehdihasan",           bias: "adversarial-journalist" },
 };
 
 // Which personas each moderator is friendly to ("favor" — softball questions, quick to defend
@@ -157,6 +159,16 @@ export const MODERATOR_LEANINGS: Record<ModeratorStyle, { favor: string[]; targe
   khalidmuhammad: {
     favor: ["malcolmx", "claudeanderson", "mlk", "louisfarrakhan", "arikana", "alishahrazad", "jascrockett", "omar", "cornellwest", "malema"],
     target: ["trump", "bannon", "miller", "leavitt", "candace", "timscott", "alexjones", "mtg", "loomer", "netanyahu"],
+  },
+  // Kyle Kulinski: democratic-socialist — favors the progressive/Justice Democrats wing, hard on both MAGA and corporate-establishment Democrats.
+  kylekulinski: {
+    favor: ["berniemc", "berniesanders", "aoc", "omar", "tlaib", "jascrockett", "richardwolff"],
+    target: ["trump", "bannon", "miller", "leavitt", "erikakirk", "mtg", "loomer", "netanyahu", "elon", "graham"],
+  },
+  // Mehdi Hasan: adversarial-journalist — no political home base, but especially relentless on hypocrisy, Gaza/civil-liberties questions, and power of any stripe.
+  mehdihasan: {
+    favor: ["omar", "tlaib", "berniemc", "berniesanders"],
+    target: ["trump", "netanyahu", "miller", "bannon", "leavitt", "erikakirk", "mtg", "loomer", "piersmorgan"],
   },
 };
 

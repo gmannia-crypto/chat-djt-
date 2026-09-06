@@ -8,3 +8,4 @@
 - [Debate topic fallback](debate-topic-fallback.md) — Custom topic generation is optional: after a short wait, use the curated generic topics so the start control never stays blocked on AI latency.
 - [Live reaction wiring](live-reaction-wiring.md) — reactor choice depends on format; schedule off confirmed playback start, not dequeue/fetch time.
 - [Arena stale-response guard pattern](arena-stale-response-guard-pattern.md) — snapshot speakTokenRef before an AI fetch, recheck before addMessage/queueTTS, or a delayed side-channel response jumbles transcript order.
+- [Moderator/interviewer-only persona addition](persona-moderator-interviewer-only-addition.md) — minimum registry set when a persona is added only as moderator+interviewer, not a full arena combatant.
