@@ -45,6 +45,16 @@ import { getGameStats, recordGameResult as recordGameResultStats, type GameStats
 import { getOrCreateDeviceId } from "@/lib/token-context";
 import { FlatList } from "react-native";
 import { CashAppDonate } from "@/components/CashAppDonate";
+import { PuttingMiniGame, type PuttingResult } from "@/components/PuttingMiniGame";
+
+// Bonus putting rounds are offered every N completed turns, purely as an optional break from
+// the scenario loop — they never block "NEXT DEAL" and disappear once the player moves on.
+const PUTTING_BONUS_INTERVAL = 3;
+// Mirrors server/billionaire-game-validation.ts (BILLIONAIRE_WIN_THRESHOLD / MIN_TURNS_FOR_WIN).
+// Kept as a client-side safety clamp only: a mini-game bonus must never itself be able to push
+// net worth across the win line or shrink the number of scenario turns a claimed win required,
+// since that's exactly what the server-side anti-cheat check guards against.
+const BILLIONAIRE_WIN_THRESHOLD = 1_000_000_000;
 
 interface LeaderboardEntry {
   rank: number;
@@ -330,6 +340,9 @@ export default function GameScreen() {
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardData | null>(null);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+  const [puttingAvailable, setPuttingAvailable] = useState(false);
+  const [showPuttingGame, setShowPuttingGame] = useState(false);
+  const lastPuttingOfferTurn = useRef(0);
 
   const karmaRating = getKarmaRating(gameState.karma);
   const titleInfo = getTitle(gameState.netWorth);
@@ -566,11 +579,27 @@ export default function GameScreen() {
     return 5;
   }, []);
 
+  const applyPuttingResult = useCallback((result: PuttingResult) => {
+    setGameState(prev => {
+      // Clamp so a mini-game bonus can never itself cross the win threshold — the actual win
+      // must always be produced by a scenario choice, keeping the existing win flow (and the
+      // server's turn-count anti-cheat check) single-sourced.
+      const netWorth = Math.min(BILLIONAIRE_WIN_THRESHOLD - 1, Math.max(0, prev.netWorth + result.netWorthBonus));
+      const updated: GameState = { ...prev, netWorth };
+      saveProgress(updated, choiceHistory, usedTitles, playerName);
+      return updated;
+    });
+    trackAnalyticsEvent("billionaires_game_putting_result", { outcome: result.outcome });
+    setPuttingAvailable(false);
+    setShowPuttingGame(false);
+  }, [saveProgress, choiceHistory, usedTitles, playerName]);
+
   const startNextTurn = useCallback(async () => {
     setLoading(true);
     setShowConsequence(false);
     setLastChoice(null);
     setIsResolvingChoice(false);
+    setPuttingAvailable(false);
     await cleanupSound();
 
     try {
@@ -757,6 +786,10 @@ export default function GameScreen() {
       submitResult(false, updatedState, playerName);
     } else {
       saveProgress(updatedState, [...choiceHistory, { scenario: currentScenario?.title || "", choice: choice.text, profit: adjustedProfit, karma: choice.karma }], usedTitles, playerName);
+      if (gameState.turn > 0 && gameState.turn % PUTTING_BONUS_INTERVAL === 0 && lastPuttingOfferTurn.current !== gameState.turn) {
+        lastPuttingOfferTurn.current = gameState.turn;
+        setPuttingAvailable(true);
+      }
     }
   }, [gameState, currentScenario, playerName, apiCall, playTrumpAudio, saveProgress, submitResult, choiceHistory, usedTitles]);
 
@@ -800,6 +833,9 @@ export default function GameScreen() {
     setBreakingNews("");
     setRandomEvent(null);
     setStreakBonus(0);
+    setPuttingAvailable(false);
+    setShowPuttingGame(false);
+    lastPuttingOfferTurn.current = 0;
   }, [cleanupSound]);
 
   const handleShare = useCallback(() => {
@@ -1076,6 +1112,30 @@ export default function GameScreen() {
             </Animated.View>
           )}
 
+          {puttingAvailable && !loading && (
+            <Animated.View entering={FadeInDown.duration(400)}>
+              <Pressable
+                onPress={() => {
+                  // Consuming the offer here (not on completion) means a single tap grants
+                  // exactly one scored attempt — closing early without finishing forfeits it
+                  // rather than leaving the offer re-openable for unlimited free retries.
+                  setPuttingAvailable(false);
+                  setShowPuttingGame(true);
+                }}
+                style={({ pressed }) => [styles.puttingBanner, pressed && { opacity: 0.85 }]}
+              >
+                <LinearGradient colors={["#16A34A", "#166534"]} style={styles.puttingBannerGradient}>
+                  <Text style={styles.puttingBannerEmoji}>⛳</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.puttingBannerTitle}>BONUS PUTT AVAILABLE</Text>
+                    <Text style={styles.puttingBannerSubtitle}>Nail it for extra net worth — totally optional</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#fff" />
+                </LinearGradient>
+              </Pressable>
+            </Animated.View>
+          )}
+
           <Animated.View entering={FadeInDown.delay(500).duration(400)}>
             <Pressable
               onPress={startNextTurn}
@@ -1106,6 +1166,11 @@ export default function GameScreen() {
             </Pressable>
           )}
         </ScrollView>
+        <PuttingMiniGame
+          visible={showPuttingGame}
+          onClose={() => setShowPuttingGame(false)}
+          onComplete={applyPuttingResult}
+        />
       </View>
     );
   }
@@ -1591,6 +1656,13 @@ const styles = StyleSheet.create({
   statDivider: {
     width: 1, height: 30, backgroundColor: "rgba(255,255,255,0.08)",
   },
+  puttingBanner: { borderRadius: 14, overflow: "hidden", marginBottom: 12 },
+  puttingBannerGradient: {
+    flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 12, paddingHorizontal: 14,
+  },
+  puttingBannerEmoji: { fontSize: 22 },
+  puttingBannerTitle: { color: "#fff", fontSize: 13, fontWeight: "900" as const, letterSpacing: 0.5 },
+  puttingBannerSubtitle: { color: "rgba(255,255,255,0.75)", fontSize: 11, marginTop: 2 },
   startBtn: { borderRadius: 14, overflow: "hidden" },
   startBtnGradient: {
     paddingVertical: 16, alignItems: "center", justifyContent: "center", borderRadius: 14,
