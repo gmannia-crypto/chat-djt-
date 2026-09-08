@@ -135,6 +135,7 @@ export default function DcUniversityScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <LinearGradient colors={["#0B1F3A", "#050B18"]} style={StyleSheet.absoluteFill} />
+      <Image source={require("@/assets/images/dc-university-crest.png")} style={styles.crestWatermark} resizeMode="contain" />
 
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backButton} testID="dc-university-back">
@@ -282,6 +283,7 @@ export default function DcUniversityScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#050B18" },
+  crestWatermark: { position: "absolute", width: 380, height: 680, opacity: 0.05, alignSelf: "center", top: 20, pointerEvents: "none" },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingBottom: 12 },
   backButton: { padding: 4 },
   headerTitle: { color: "#FFD700", fontSize: 18, fontWeight: "800", letterSpacing: 1 },

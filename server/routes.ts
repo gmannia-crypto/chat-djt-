@@ -18759,6 +18759,7 @@ TEACHING RULES:
         courseDescription: c.courseDescription,
         comingSoon: !!c.comingSoon,
         lengths: ([5, 10, 15] as LectureMinutes[]).map((m) => ({ minutes: m, tokenCost: c.lengths[m].tokenCost })),
+        books: c.books || [],
       }));
       const today = new Date();
       const todaySchedule = DC_WEEKLY_SCHEDULE.find((s) => s.day === today.getDay());
@@ -18857,6 +18858,7 @@ TEACHING RULES:
         topic: beat.topic,
         text,
         balance: tokenResult.balance,
+        books: course.books || [],
       });
     } catch (err: any) {
       console.error("[dc-university/lecture/start] error:", err);

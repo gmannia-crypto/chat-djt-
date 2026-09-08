@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Linking,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -49,6 +50,12 @@ interface QuizQ {
   choices: string[];
 }
 
+interface BookReference {
+  title: string;
+  author: string;
+  url: string;
+}
+
 export default function DcUniversityLectureScreen() {
   const insets = useSafeAreaInsets();
   const { deviceId, refreshBalance } = useTokens();
@@ -75,6 +82,7 @@ export default function DcUniversityLectureScreen() {
   const [quizAnswers, setQuizAnswers] = useState<number[]>([]);
   const [submittingQuiz, setSubmittingQuiz] = useState(false);
   const [results, setResults] = useState<any>(null);
+  const [books, setBooks] = useState<BookReference[]>([]);
 
   const soundRef = useRef<Audio.Sound | null>(null);
   const scrollRef = useRef<ScrollView>(null);
@@ -118,6 +126,7 @@ export default function DcUniversityLectureScreen() {
       setBeatIndex(0);
       setTotalBeats(data.totalBeats);
       setTranscript([{ role: "educator", text: data.text }]);
+      setBooks(Array.isArray(data.books) ? data.books : []);
       setPhase("lecture");
       refreshBalance();
       trackAnalyticsEvent("dc_university_lecture_started", { courseId, minutes });
@@ -268,6 +277,7 @@ export default function DcUniversityLectureScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <LinearGradient colors={["#0B1F3A", "#050B18"]} style={StyleSheet.absoluteFill} />
+      <Image source={require("@/assets/images/dc-university-crest.png")} style={styles.crestWatermark as any} resizeMode="contain" />
 
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backButton} testID="dc-lecture-back">
@@ -315,6 +325,28 @@ export default function DcUniversityLectureScreen() {
               <Feather name="send" size={18} color="#050B18" />
             </Pressable>
           </View>
+
+          {books.length > 0 && (
+            <View style={styles.readingSection}>
+              <Text style={styles.readingLabel}>Recommended Reading</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.affiliateRow}>
+                {books.map((b, i) => (
+                  <Pressable
+                    key={i}
+                    style={styles.affiliateBtn}
+                    onPress={() => Linking.openURL(b.url)}
+                    testID={`dc-lecture-book-${i}`}
+                  >
+                    <Feather name="book-open" size={13} color="#FFD700" />
+                    <View style={{ marginLeft: 6, maxWidth: 150 }}>
+                      <Text style={styles.affiliateBtnTitle} numberOfLines={1}>{b.title}</Text>
+                      <Text style={styles.affiliateBtnAuthor} numberOfLines={1}>{b.author}</Text>
+                    </View>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+          )}
 
           <Pressable
             onPress={nextBeat}
@@ -461,4 +493,11 @@ const styles = StyleSheet.create({
   weeklyBonusText: { color: "#6FCF97", fontSize: 12, marginTop: 6 },
   shareButton: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFD700", borderRadius: 14, paddingHorizontal: 22, paddingVertical: 12, marginTop: 22 },
   shareButtonText: { color: "#050B18", fontWeight: "800", fontSize: 14 },
+  readingSection: { paddingHorizontal: 16, marginBottom: 10 },
+  readingLabel: { color: "#8899AA", fontSize: 11, fontWeight: "700", letterSpacing: 0.5, marginBottom: 8, textTransform: "uppercase" },
+  affiliateRow: { gap: 10, paddingRight: 8 },
+  affiliateBtn: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,215,0,0.1)", borderWidth: 1, borderColor: "rgba(255,215,0,0.35)", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 9 },
+  affiliateBtnTitle: { color: "#FFD700", fontSize: 12, fontWeight: "700" },
+  affiliateBtnAuthor: { color: "#8899AA", fontSize: 10.5, marginTop: 1 },
+  crestWatermark: { position: "absolute", width: 340, height: 610, opacity: 0.06, alignSelf: "center", top: 40, pointerEvents: "none" },
 });
