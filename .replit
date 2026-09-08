@@ -168,6 +168,7 @@ isValidation = true
 [userenv.shared]
 CI = "0"
 SPORTS_API_KEY = "24db37589d114537a349d154b7a3d040"
+RESEND_FROM_EMAIL = "Dynamic AI <noreply@trumpbot.rip>"
 
 [postMerge]
 path = "scripts/post-merge.sh"

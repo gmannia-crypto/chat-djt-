@@ -7,6 +7,7 @@ import { fetch } from "expo/fetch";
 const DEVICE_ID_KEY = "chatdjt_device_id";
 const SAVE_MODAL_DISMISSED_KEY = "chatdjt_save_modal_dismissed";
 const REFERRAL_CACHE_OWNER_KEY = "referral_cache_owner";
+export const AUTH_SESSION_KEY = "dynamic_auth_session";
 
 interface TokenBalance {
   tokens: number;
@@ -30,8 +31,11 @@ interface TokenContextValue {
   refreshBalance: () => Promise<void>;
   hasTokens: boolean;
   linkedUser: LinkedUser | null;
-  linkAccount: (name: string, email: string) => Promise<{ bonusGranted: boolean }>;
+  requestVerificationCode: (name: string, email: string) => Promise<void>;
+  verifyAccount: (email: string, code: string) => Promise<{ bonusGranted: boolean }>;
+  authToken: string | null;
   showSaveModal: boolean;
+  openSaveModal: () => void;
   dismissSaveModal: () => void;
 }
 
@@ -108,6 +112,7 @@ export function TokenProvider({ children }: { children: ReactNode }) {
   const [balance, setBalance] = useState<TokenBalance | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [linkedUser, setLinkedUser] = useState<LinkedUser | null>(null);
+  const [authToken, setAuthToken] = useState<string | null>(null);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const fingerprint = useRef(generateBrowserFingerprint());
   const timeTrackerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -118,15 +123,16 @@ export function TokenProvider({ children }: { children: ReactNode }) {
     getOrCreateDeviceId().then((id) => {
       setDeviceId(id);
     });
+    AsyncStorage.getItem(AUTH_SESSION_KEY).then(setAuthToken);
   }, []);
 
   // Fetch linked user on init
   useEffect(() => {
-    if (!deviceId) return;
+    if (!deviceId || !authToken) return;
     (async () => {
       try {
         const res = await fetch(new URL("/api/auth/me", getApiUrl()).toString(), {
-          headers: { "x-device-id": deviceId },
+          headers: { Authorization: `Bearer ${authToken}` },
         });
         if (res.ok) {
           const data = await res.json();
@@ -134,7 +140,7 @@ export function TokenProvider({ children }: { children: ReactNode }) {
         }
       } catch {}
     })();
-  }, [deviceId]);
+  }, [deviceId, authToken]);
 
   const refreshBalance = useCallback(async () => {
     if (!deviceId) return;
@@ -229,9 +235,9 @@ export function TokenProvider({ children }: { children: ReactNode }) {
     return balance.totalAvailable > 0;
   }, [balance]);
 
-  const linkAccount = useCallback(async (name: string, email: string): Promise<{ bonusGranted: boolean }> => {
+  const requestVerificationCode = useCallback(async (name: string, email: string): Promise<void> => {
     if (!deviceId) throw new Error("No device ID");
-    const res = await fetch(new URL("/api/auth/register-email", getApiUrl()).toString(), {
+    const res = await fetch(new URL("/api/auth/request-code", getApiUrl()).toString(), {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-device-id": deviceId },
       body: JSON.stringify({ name, email }),
@@ -240,12 +246,29 @@ export function TokenProvider({ children }: { children: ReactNode }) {
       const err = await res.json();
       throw new Error(err.error || "Registration failed");
     }
+  }, [deviceId]);
+
+  const verifyAccount = useCallback(async (email: string, code: string): Promise<{ bonusGranted: boolean }> => {
+    if (!deviceId) throw new Error("No device ID");
+    const res = await fetch(new URL("/api/auth/verify-code", getApiUrl()).toString(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+      body: JSON.stringify({ email, code }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || "Verification failed");
+    }
     const data = await res.json();
+    await AsyncStorage.setItem(AUTH_SESSION_KEY, data.sessionToken);
+    setAuthToken(data.sessionToken);
     setLinkedUser(data.user);
     setShowSaveModal(false);
     await refreshBalance();
     return { bonusGranted: data.bonusGranted };
   }, [deviceId, refreshBalance]);
+
+  const openSaveModal = useCallback(() => setShowSaveModal(true), []);
 
   const dismissSaveModal = useCallback(() => {
     setShowSaveModal(false);
@@ -259,10 +282,13 @@ export function TokenProvider({ children }: { children: ReactNode }) {
     refreshBalance,
     hasTokens,
     linkedUser,
-    linkAccount,
+    requestVerificationCode,
+    verifyAccount,
+    authToken,
     showSaveModal,
+    openSaveModal,
     dismissSaveModal,
-  }), [deviceId, balance, isLoading, refreshBalance, hasTokens, linkedUser, linkAccount, showSaveModal, dismissSaveModal]);
+  }), [deviceId, balance, isLoading, refreshBalance, hasTokens, linkedUser, requestVerificationCode, verifyAccount, authToken, showSaveModal, openSaveModal, dismissSaveModal]);
 
   return (
     <TokenContext.Provider value={value}>

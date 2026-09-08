@@ -10,3 +10,5 @@
 - [Arena stale-response guard pattern](arena-stale-response-guard-pattern.md) — snapshot speakTokenRef before an AI fetch, recheck before addMessage/queueTTS, or a delayed side-channel response jumbles transcript order.
 - [Moderator/interviewer-only persona addition](persona-moderator-interviewer-only-addition.md) — minimum registry set when a persona is added only as moderator+interviewer, not a full arena combatant.
 - [DC University architecture](dc-university.md) — lecture/quiz/certificate feature reuses Arena personas/voices/prompts; curated fact "beats" constrain AI teaching content; only history-west course is fully built, rest are comingSoon stubs.
+- [Cross-device account identity](cross-device-account-identity.md) — valuable entitlements require a server-verifiable account session; device, fingerprint, and IP signals are supplementary only.
+- [Server-authoritative claim race pattern](server-claim-race-pattern.md) — insert-if-missing must happen in its own statement before `SELECT ... FOR UPDATE`, or two first-ever concurrent claims for the same key both miss the lock and hit a duplicate-key error instead of a clean conflict response.

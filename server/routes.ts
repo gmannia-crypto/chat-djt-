@@ -57,8 +57,6 @@ import {
   cancelSubscription,
   TOKEN_PACKS,
   getOrCreateAccount,
-  linkDeviceToEmail,
-  getLinkedAccount,
 } from "./tokens";
 import {
   initAnalyticsTables,
@@ -94,6 +92,16 @@ import {
   ensureReferralTable,
   makeReferralClaimHandler,
 } from "./referral-handler";
+import {
+  getMysteryBoxStatus,
+  claimMysteryBox,
+} from "./mystery-box";
+import {
+  authenticateSession,
+  getVerifiedLinkedAccount,
+  requestEmailVerification,
+  verifyEmailCode,
+} from "./email-auth";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -11950,28 +11958,67 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
   });
 
   // ── Auth: Email signup / account linking ────────────────────────────────────
-  app.post("/api/auth/register-email", async (req, res) => {
+  app.post("/api/auth/request-code", async (req, res) => {
     try {
       const deviceId = req.headers["x-device-id"] as string;
       const { name, email } = req.body as { name?: string; email?: string };
       if (!deviceId) return res.status(400).json({ error: "Device ID required" });
       if (!email || !email.includes("@")) return res.status(400).json({ error: "Valid email required" });
-      const result = await linkDeviceToEmail(deviceId, email, name || "");
-      res.json(result);
+      await requestEmailVerification(deviceId, email, name || "");
+      res.json({ ok: true });
     } catch (e: any) {
-      console.error("Auth register-email error:", e);
-      res.status(500).json({ error: e.message });
+      console.error("Auth request-code error:", e);
+      res.status(e.message?.includes("Too many") ? 429 : 500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/auth/verify-code", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      const { email, code } = req.body as { email?: string; code?: string };
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      if (!email || !code) return res.status(400).json({ error: "Email and code required" });
+      res.json(await verifyEmailCode(deviceId, email, code));
+    } catch (e: any) {
+      console.error("Auth verify-code error:", e);
+      res.status(400).json({ error: e.message });
     }
   });
 
   app.get("/api/auth/me", async (req, res) => {
     try {
-      const deviceId = req.headers["x-device-id"] as string;
-      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
-      const user = await getLinkedAccount(deviceId);
+      const user = await getVerifiedLinkedAccount(req.headers.authorization);
       res.json({ user });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ── Mystery Box: server-authoritative daily reward ──────────────────────────
+  app.get("/api/mystery-box/status", async (req, res) => {
+    try {
+      const session = await authenticateSession(req.headers.authorization);
+      if (!session) return res.status(401).json({ error: "Verified account required" });
+      const status = await getMysteryBoxStatus(session.deviceId, session.accountId);
+      res.json(status);
+    } catch (e: any) {
+      console.error("Mystery box status error:", e);
+      res.status(500).json({ error: "Failed to load mystery box status" });
+    }
+  });
+
+  app.post("/api/mystery-box/claim", async (req, res) => {
+    try {
+      const session = await authenticateSession(req.headers.authorization);
+      if (!session) return res.status(401).json({ error: "Verified account required" });
+      const result = await claimMysteryBox(session.deviceId, session.accountId);
+      if (!result.ok) {
+        return res.status(409).json({ error: "Mystery box is not ready yet", secondsRemaining: result.secondsRemaining });
+      }
+      res.json(result);
+    } catch (e: any) {
+      console.error("Mystery box claim error:", e);
+      res.status(500).json({ error: "Failed to claim mystery box" });
     }
   });
 

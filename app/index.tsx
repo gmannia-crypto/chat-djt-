@@ -57,8 +57,8 @@ import {
 } from "@/lib/chat-storage";
 import {
   getCollection,
-  getRandomCard,
   addCard,
+  getCardById,
   getCollectionStats,
   CARD_CATALOG,
   RARITY_COLORS,
@@ -386,7 +386,7 @@ export default function HomeScreen() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
   const dailyFeature = useMemo(() => getDailyFeature(), []);
-  const { deviceId, hasTokens, balance } = useTokens();
+  const { deviceId, hasTokens, balance, linkedUser, authToken, openSaveModal } = useTokens();
   const { streak, awardBadge } = useEngagement();
   const { events: liveEvents, logEvent } = useLiveActivity();
   const { playClick, playTransition, playWhoosh, playPersonaSting } = useSoundEffects();
@@ -560,8 +560,14 @@ export default function HomeScreen() {
       AsyncStorage.getItem(ONBOARDING_DONE_KEY).then((done) => {
         if (!done) setShowOnboarding(true);
       });
-    }, [])
+    }, [deviceId, authToken])
   );
+
+  // TokenProvider loads both values asynchronously. Guarantee a sync when the
+  // verified session becomes available without requiring a navigation refocus.
+  useEffect(() => {
+    if (deviceId && authToken) initMysteryBox();
+  }, [deviceId, authToken]);
 
   function getNextSunday8pm(): Date {
     const now = new Date();
@@ -836,26 +842,62 @@ export default function HomeScreen() {
   }
 
   async function initMysteryBox() {
+    // Eligibility is decided server-side (keyed by device / linked account)
+    // so clearing app storage or switching devices can't replay the reward.
+    // The AsyncStorage cache below is only a fast, offline-friendly mirror
+    // of the last known server state — the server is always the source of
+    // truth when reachable.
     try {
-      const stored = await AsyncStorage.getItem(MYSTERY_BOX_KEY);
-      if (stored) {
-        const data = JSON.parse(stored);
-        const elapsed = Math.floor((Date.now() - data.lockedAt) / 1000);
-        const remaining = Math.max(0, 86400 - elapsed);
-        if (remaining <= 0) {
-          setMysteryReady(true);
-          setMysteryTimeLeft(0);
-        } else {
-          setMysteryReady(false);
-          setMysteryTimeLeft(remaining);
+      const cached = await AsyncStorage.getItem(MYSTERY_BOX_KEY);
+      if (cached) {
+        const data = JSON.parse(cached);
+        if (typeof data.ready === "boolean") {
+          setMysteryReady(data.ready);
+          setMysteryTimeLeft(typeof data.secondsRemaining === "number" ? data.secondsRemaining : 0);
         }
-      } else {
-        const now = Date.now();
-        await AsyncStorage.setItem(MYSTERY_BOX_KEY, JSON.stringify({ lockedAt: now }));
-        setMysteryTimeLeft(86400);
-        setMysteryReady(false);
       }
     } catch {}
+
+    if (!deviceId || !authToken) return;
+    try {
+      const res = await fetch(new URL("/api/mystery-box/status", getApiUrl()).toString(), {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setMysteryReady(!!data.ready);
+      setMysteryTimeLeft(data.ready ? 0 : Math.max(0, data.secondsRemaining || 0));
+      await AsyncStorage.setItem(
+        MYSTERY_BOX_KEY,
+        JSON.stringify({ ready: !!data.ready, secondsRemaining: data.secondsRemaining || 0 }),
+      );
+      const unlockedFromServer: string[] = Array.isArray(data.unlockedPersonaIds) ? data.unlockedPersonaIds : [];
+      if (unlockedFromServer.length > 0) {
+        // Reconcile server-persisted unlocks into the local persona-unlock
+        // cache so the arena picker reflects reinstall/cross-device state.
+        const stored = await AsyncStorage.getItem(ARENA_MYSTERY_UNLOCK_KEY);
+        const local: string[] = stored ? JSON.parse(stored) : [];
+        const merged = Array.from(new Set([...local, ...unlockedFromServer]));
+        if (merged.length !== local.length) {
+          await AsyncStorage.setItem(ARENA_MYSTERY_UNLOCK_KEY, JSON.stringify(merged));
+          refreshUnlockedPersonaCount();
+        }
+      }
+      const ownedFromServer: string[] = Array.isArray(data.ownedCardIds) ? data.ownedCardIds : [];
+      if (ownedFromServer.length > 0) {
+        // Reconcile server-persisted collectible cards (earned from the
+        // Mystery Box) into the local collectibles store so a reinstall or
+        // new device shows cards the account already owns.
+        let addedAny = false;
+        for (const cardId of ownedFromServer) {
+          const newlyOwned = await addCard(cardId);
+          if (newlyOwned) addedAny = true;
+        }
+        if (addedAny) refreshCollectionCount();
+      }
+    } catch {
+      // Offline / server unreachable — fall back to whatever was cached above.
+    }
   }
 
   useEffect(() => {
@@ -929,83 +971,146 @@ export default function HomeScreen() {
   }, [mysteryReady]);
 
   async function openMysteryBox() {
-    if (!mysteryReady || mysteryRevealing) return;
+    if (!linkedUser || !authToken) {
+      Alert.alert(
+        "Verify your email",
+        "Verify your email once to protect Mystery Box rewards and keep them across devices.",
+        [
+          { text: "Not now", style: "cancel" },
+          { text: "Verify Email", onPress: openSaveModal },
+        ],
+      );
+      return;
+    }
+    if (!mysteryReady || mysteryRevealing || !deviceId) return;
     setMysteryRevealing(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     await new Promise((r) => setTimeout(r, 1200));
-    const prize = MYSTERY_REWARDS[Math.floor(Math.random() * MYSTERY_REWARDS.length)];
-    if (prize.label === "Arena Persona Unlock") {
-      try {
-        const stored = await AsyncStorage.getItem(ARENA_MYSTERY_UNLOCK_KEY);
-        const alreadyUnlocked: string[] = stored ? JSON.parse(stored) : [];
-        const locked = ARENA_MYSTERY_PERSONA_IDS.filter((id) => !alreadyUnlocked.includes(id));
-        if (locked.length > 0) {
-          const personaId = locked[Math.floor(Math.random() * locked.length)];
-          const teaserSeq = getMysteryTeaserPalettes(personaId, locked, 3);
-          const decoyMs = 440;
-          const finalMs = Math.max(560, 1100 - decoyMs * (teaserSeq.length - 1));
-          for (let i = 0; i < teaserSeq.length; i++) {
-            setMysteryTeaser({ palette: teaserSeq[i], step: i, total: teaserSeq.length });
-            try { Haptics.selectionAsync(); } catch {}
-            playWhoosh();
-            const isFinal = i === teaserSeq.length - 1;
-            await new Promise((r) => setTimeout(r, isFinal ? finalMs : decoyMs));
-          }
-          setMysteryTeaser(null);
-          const newUnlocked = [...alreadyUnlocked, personaId];
-          await AsyncStorage.setItem(ARENA_MYSTERY_UNLOCK_KEY, JSON.stringify(newUnlocked));
-          refreshUnlockedPersonaCount();
-          refreshUnseenMysteryCount();
-          if (PERSONA_UNLOCKS[personaId]) {
-            playPersonaSting(personaId);
-            setUnlockedPersonaId(personaId);
-          } else {
-            setMysteryPrize({
-              ...prize,
-              label: `Persona Unlocked: ${ARENA_MYSTERY_PERSONA_NAMES[personaId] || personaId}`,
-              description: `${ARENA_MYSTERY_PERSONA_NAMES[personaId] || personaId} has joined The Arena! Head in to debate them.`,
-            });
-          }
-        } else {
-          const card = getRandomCard();
-          const added = await addCard(card.id);
-          if (added) {
-            setMysteryPrize({ ...prize, label: `${card.rarity} Card: ${card.name}`, description: `All personas unlocked! Bonus card: ${card.description}` });
-          } else {
-            setMysteryPrize({ ...prize, label: "All Personas Unlocked!", description: "You've already unlocked every mystery persona. Champion status!" });
-          }
-          refreshCollectionCount();
-        }
-      } catch {
-        setMysteryPrize(prize);
+
+    // The claim — including which reward is granted — is decided and
+    // recorded server-side so it can't be replayed by clearing AsyncStorage
+    // or reinstalling the app. The reveal animation below is purely
+    // presentational; the server has already committed the reward.
+    let claim: any = null;
+    try {
+      const res = await fetch(new URL("/api/mystery-box/claim", getApiUrl()).toString(), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
+      });
+      if (res.status === 409) {
+        // Another request (or another device on a linked account) already
+        // claimed today's box — resync local state instead of granting
+        // a phantom local-only reward.
+        const data = await res.json().catch(() => ({}));
+        setMysteryRevealing(false);
+        setMysteryReady(false);
+        setMysteryTimeLeft(Math.max(0, data.secondsRemaining || 86400));
+        await AsyncStorage.setItem(
+          MYSTERY_BOX_KEY,
+          JSON.stringify({ ready: false, secondsRemaining: Math.max(0, data.secondsRemaining || 86400) }),
+        );
+        return;
       }
-    } else if (prize.label === "Collectible Card") {
-      const card = getRandomCard();
-      const added = await addCard(card.id);
-      const rarityColor = RARITY_COLORS[card.rarity];
-      if (added) {
-        setMysteryPrize({
-          ...prize,
-          label: `${card.rarity} Card: ${card.name}`,
-          description: `${card.description} (${card.rarity.toUpperCase()} collectible added!)`,
-        });
+      if (!res.ok) throw new Error("claim failed");
+      claim = await res.json();
+    } catch {
+      // Server unreachable — fail safe by not granting a reward rather than
+      // falling back to a client-only pick, which is exactly the replay
+      // vector this fix closes.
+      setMysteryRevealing(false);
+      Alert.alert("Mystery Box", "Couldn't reach the server to open your box. Please try again.");
+      return;
+    }
+
+    const reward = claim.reward as { label: string; icon: string; description: string; detail: any };
+    const prizeBase = MYSTERY_REWARDS.find((r) => r.label === reward.label) || MYSTERY_REWARDS[0];
+
+    if (reward.label === "Arena Persona Unlock" && reward.detail?.personaId) {
+      const personaId: string = reward.detail.personaId;
+      try {
+        const alreadyUnlocked = await getLocalUnlockedPersonas();
+        const locked = ARENA_MYSTERY_PERSONA_IDS.filter((id) => !alreadyUnlocked.includes(id));
+        const teaserSeq = getMysteryTeaserPalettes(personaId, locked, 3);
+        const decoyMs = 440;
+        const finalMs = Math.max(560, 1100 - decoyMs * (teaserSeq.length - 1));
+        for (let i = 0; i < teaserSeq.length; i++) {
+          setMysteryTeaser({ palette: teaserSeq[i], step: i, total: teaserSeq.length });
+          try { Haptics.selectionAsync(); } catch {}
+          playWhoosh();
+          const isFinal = i === teaserSeq.length - 1;
+          await new Promise((r) => setTimeout(r, isFinal ? finalMs : decoyMs));
+        }
+        setMysteryTeaser(null);
+        await AsyncStorage.setItem(
+          ARENA_MYSTERY_UNLOCK_KEY,
+          JSON.stringify(Array.from(new Set([...alreadyUnlocked, personaId]))),
+        );
+      } catch {}
+      refreshUnlockedPersonaCount();
+      refreshUnseenMysteryCount();
+      if (PERSONA_UNLOCKS[personaId]) {
+        playPersonaSting(personaId);
+        setUnlockedPersonaId(personaId);
       } else {
         setMysteryPrize({
-          ...prize,
+          ...prizeBase,
+          label: `Persona Unlocked: ${ARENA_MYSTERY_PERSONA_NAMES[personaId] || personaId}`,
+          description: `${ARENA_MYSTERY_PERSONA_NAMES[personaId] || personaId} has joined The Arena! Head in to debate them.`,
+        });
+      }
+    } else if (reward.detail?.cardId) {
+      // Server confirmed this is a new card and already recorded ownership.
+      const card = getCardById(reward.detail.cardId);
+      if (card) {
+        await addCard(card.id);
+        refreshCollectionCount();
+        setMysteryPrize({
+          ...prizeBase,
+          label: `${card.rarity} Card: ${card.name}`,
+          description: reward.detail.allPersonasUnlocked
+            ? `All personas unlocked! Bonus card: ${card.description}`
+            : `${card.description} (${card.rarity.toUpperCase()} collectible added!)`,
+        });
+      } else {
+        setMysteryPrize(prizeBase);
+      }
+    } else if (reward.detail?.duplicateCardId) {
+      // Server rolled a card already owned by this account — no local write.
+      const card = getCardById(reward.detail.duplicateCardId);
+      if (card) {
+        setMysteryPrize({
+          ...prizeBase,
           label: `Duplicate: ${card.name}`,
           description: "You already own this card. Keep opening boxes for more!",
         });
+      } else {
+        setMysteryPrize(prizeBase);
       }
-      refreshCollectionCount();
+    } else if (reward.detail?.allPersonasUnlocked) {
+      setMysteryPrize({ ...prizeBase, label: "All Personas Unlocked!", description: "You've already unlocked every mystery persona. Champion status!" });
     } else {
-      setMysteryPrize(prize);
+      setMysteryPrize({ ...prizeBase, label: reward.label, description: reward.description });
     }
+
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setMysteryRevealing(false);
     setMysteryReady(false);
-    setMysteryTimeLeft(86400);
-    await AsyncStorage.setItem(MYSTERY_BOX_KEY, JSON.stringify({ lockedAt: Date.now() }));
+    const secondsUntilNext = claim.secondsUntilNextClaim || 86400;
+    setMysteryTimeLeft(secondsUntilNext);
+    await AsyncStorage.setItem(MYSTERY_BOX_KEY, JSON.stringify({ ready: false, secondsRemaining: secondsUntilNext }));
     await AsyncStorage.setItem("chatdjt_mystery_opened", "true").catch(() => {});
+  }
+
+  async function getLocalUnlockedPersonas(): Promise<string[]> {
+    try {
+      const stored = await AsyncStorage.getItem(ARENA_MYSTERY_UNLOCK_KEY);
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
   }
 
   function dismissMysteryPrize() {
@@ -1750,9 +1855,9 @@ export default function HomeScreen() {
 
         <Animated.View entering={FadeInDown.delay(850).duration(500)}>
           <Pressable
-            onPress={mysteryReady ? openMysteryBox : undefined}
-            disabled={!mysteryReady || mysteryRevealing}
-            style={({ pressed }) => [pressed && mysteryReady && { opacity: 0.85 }]}
+            onPress={openMysteryBox}
+            disabled={mysteryRevealing}
+            style={({ pressed }) => [pressed && { opacity: 0.85 }]}
           >
             <LinearGradient
               colors={mysteryReady ? ["#FFD700", "#b8860b", "#FFD700"] : ["#1a1a2e", "#16213e", "#1a1a2e"]}
@@ -1765,7 +1870,13 @@ export default function HomeScreen() {
                 <View>
                   <Text style={[styles.mysteryBoxTitle, mysteryReady && { color: "#0a0a0a" }]}>MYSTERY BOX</Text>
                   <Text style={[styles.mysteryBoxSub, mysteryReady && { color: "#0a0a0a" }]}>
-                    {mysteryRevealing ? "REVEALING..." : mysteryReady ? "TAP TO OPEN!" : `Opens in: ${Math.floor(mysteryTimeLeft / 3600)}h ${Math.floor((mysteryTimeLeft % 3600) / 60)}m`}
+                    {mysteryRevealing
+                      ? "REVEALING..."
+                      : !linkedUser
+                        ? "VERIFY EMAIL TO OPEN"
+                        : mysteryReady
+                          ? "TAP TO OPEN!"
+                          : `Opens in: ${Math.floor(mysteryTimeLeft / 3600)}h ${Math.floor((mysteryTimeLeft % 3600) / 60)}m`}
                   </Text>
                 </View>
                 {mysteryRevealing && <ActivityIndicator size="small" color={mysteryReady ? "#0a0a0a" : "#FFD700"} style={{ marginLeft: "auto" }} />}

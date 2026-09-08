@@ -18,7 +18,7 @@ import Colors from "@/constants/colors";
 import { useTokens } from "@/lib/token-context";
 
 export function SaveChatsModal() {
-  const { showSaveModal, dismissSaveModal, linkAccount } = useTokens();
+  const { showSaveModal, dismissSaveModal, requestVerificationCode, verifyAccount } = useTokens();
   const insets = useSafeAreaInsets();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -26,6 +26,8 @@ export function SaveChatsModal() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [bonusGranted, setBonusGranted] = useState(false);
+  const [code, setCode] = useState("");
+  const [codeSent, setCodeSent] = useState(false);
 
   async function handleSubmit() {
     if (!email.trim() || !email.includes("@")) {
@@ -36,7 +38,16 @@ export function SaveChatsModal() {
     setLoading(true);
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      const result = await linkAccount(name.trim(), email.trim());
+      if (!codeSent) {
+        await requestVerificationCode(name.trim(), email.trim());
+        setCodeSent(true);
+        return;
+      }
+      if (!/^\d{6}$/.test(code.trim())) {
+        setError("Enter the 6-digit code from your email.");
+        return;
+      }
+      const result = await verifyAccount(email.trim(), code.trim());
       setBonusGranted(result.bonusGranted);
       setSuccess(true);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -54,10 +65,11 @@ export function SaveChatsModal() {
   }
 
   function handleClose() {
-    if (success) {
-      dismissSaveModal();
-    } else {
-      dismissSaveModal();
+    dismissSaveModal();
+    if (!success) {
+      setCodeSent(false);
+      setCode("");
+      setError(null);
     }
   }
 
@@ -110,9 +122,9 @@ export function SaveChatsModal() {
               </View>
               <Text style={styles.headline}>Save Your Conversation</Text>
               <Text style={styles.sub}>
-                Your 15 free tokens are up.{"\n"}
-                Sign up in 10 seconds — get{" "}
-                <Text style={styles.bonusHighlight}>5 bonus tokens</Text> and keep your chat history.
+                {codeSent
+                  ? `We sent a 6-digit code to ${email}. Enter it below to verify your account.`
+                  : <>Your 15 free tokens are up.{"\n"}Sign up in 10 seconds — get{" "}<Text style={styles.bonusHighlight}>5 bonus tokens</Text> and keep your chat history.</>}
               </Text>
 
               {/* Value props */}
@@ -150,7 +162,22 @@ export function SaveChatsModal() {
                 autoCorrect={false}
                 returnKeyType="done"
                 onSubmitEditing={handleSubmit}
+                editable={!codeSent}
               />
+              {codeSent && (
+                <TextInput
+                  style={styles.input}
+                  placeholder="6-digit verification code"
+                  placeholderTextColor="#555"
+                  value={code}
+                  onChangeText={setCode}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  autoFocus
+                  returnKeyType="done"
+                  onSubmitEditing={handleSubmit}
+                />
+              )}
 
               {error && <Text style={styles.errorText}>{error}</Text>}
 
@@ -164,7 +191,7 @@ export function SaveChatsModal() {
                   : (
                     <View style={styles.primaryBtnInner}>
                       <MaterialCommunityIcons name="lightning-bolt" size={16} color="#000" />
-                      <Text style={styles.primaryBtnText}>Save &amp; Get 5 Tokens</Text>
+                      <Text style={styles.primaryBtnText}>{codeSent ? "Verify & Save" : "Email Me a Code"}</Text>
                     </View>
                   )
                 }
