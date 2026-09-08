@@ -369,6 +369,8 @@ export default function HomeScreen() {
   const [mysteryTimeLeft, setMysteryTimeLeft] = useState(0);
   const [mysteryReady, setMysteryReady] = useState(false);
   const [mysteryPrize, setMysteryPrize] = useState<typeof MYSTERY_REWARDS[0] | null>(null);
+  const [mysteryPrizeSharing, setMysteryPrizeSharing] = useState(false);
+  const referralUrlCacheRef = useRef<{ url: string; nativeUrl?: string } | null>(null);
   const [mysteryRevealing, setMysteryRevealing] = useState(false);
   const [mysteryTeaser, setMysteryTeaser] = useState<{ palette: MysteryTeaserPalette; step: number; total: number } | null>(null);
   const [unlockedPersonaId, setUnlockedPersonaId] = useState<string | null>(null);
@@ -1116,6 +1118,39 @@ export default function HomeScreen() {
   function dismissMysteryPrize() {
     setMysteryPrize(null);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }
+
+  /** Fetch (or return cached) referral URL for this device, used to attribute Mystery Box shares. */
+  async function fetchMysteryReferralUrl(): Promise<{ url: string; nativeUrl?: string }> {
+    if (referralUrlCacheRef.current) return referralUrlCacheRef.current;
+    const headers: Record<string, string> = {};
+    if (deviceId) headers["x-device-id"] = deviceId;
+    const res = await fetch(new URL("/api/referral/generate", getApiUrl()).toString(), { headers });
+    if (!res.ok) throw new Error("Failed to generate referral code");
+    const data = await res.json();
+    referralUrlCacheRef.current = { url: data.url, nativeUrl: data.nativeUrl };
+    return referralUrlCacheRef.current;
+  }
+
+  async function shareMysteryPrize() {
+    if (!mysteryPrize || mysteryPrizeSharing) return;
+    setMysteryPrizeSharing(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const { url, nativeUrl } = await fetchMysteryReferralUrl();
+      const shareLink = Platform.OS === "web" ? url : nativeUrl || url;
+      const message =
+        `🎁 I just won "${mysteryPrize.label}" from today's Mystery Box on The Arena!\n` +
+        `Open your own free box and we BOTH score bonus tokens 👉 ${shareLink}`;
+      await Share.share(
+        Platform.OS === "web" ? { message, url } : { message },
+      );
+    } catch (err) {
+      console.warn("[mystery-box] share failed:", err);
+      Alert.alert("Share failed", "Couldn't share your win right now. Please try again.");
+    } finally {
+      setMysteryPrizeSharing(false);
+    }
   }
 
   function dismissPersonaUnlock() {
@@ -2555,6 +2590,19 @@ export default function HomeScreen() {
                   <Text style={styles.mysteryPrizeDesc}>{mysteryPrize.description}</Text>
                 </>
               )}
+              <Pressable
+                onPress={shareMysteryPrize}
+                disabled={mysteryPrizeSharing}
+                style={[styles.mysteryPrizeShare, mysteryPrizeSharing && { opacity: 0.6 }]}
+                testID="mystery-prize-share"
+              >
+                {mysteryPrizeSharing ? (
+                  <ActivityIndicator size="small" color="#0a0a0a" />
+                ) : (
+                  <Ionicons name="share-social" size={16} color="#0a0a0a" />
+                )}
+                <Text style={styles.mysteryPrizeShareText}>SHARE YOUR PULL</Text>
+              </Pressable>
               <Pressable onPress={dismissMysteryPrize} style={styles.mysteryPrizeDismiss}>
                 <Text style={styles.mysteryPrizeDismissText}>CLAIM & CLOSE</Text>
               </Pressable>
@@ -3860,6 +3908,26 @@ const styles = StyleSheet.create({
     textAlign: "center" as const,
     lineHeight: 20,
     marginBottom: 20,
+  },
+  mysteryPrizeShare: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    gap: 8,
+    backgroundColor: "rgba(10,10,10,0.12)",
+    borderWidth: 1.5,
+    borderColor: "rgba(10,10,10,0.35)",
+    paddingHorizontal: 30,
+    paddingVertical: 11,
+    borderRadius: 12,
+    marginBottom: 10,
+    minWidth: 220,
+  },
+  mysteryPrizeShareText: {
+    fontSize: 13,
+    fontWeight: "800" as const,
+    color: "#0a0a0a",
+    letterSpacing: 1.2,
   },
   mysteryPrizeDismiss: {
     backgroundColor: "#0a0a0a",
