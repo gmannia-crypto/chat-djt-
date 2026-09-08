@@ -23,6 +23,8 @@ import Colors from "@/constants/colors";
 import { ShareAppButton } from "@/components/ShareAppButton";
 import { getApiUrl } from "@/lib/query-client";
 import { useTokens } from "@/lib/token-context";
+import { useSound } from "@/lib/sound-context";
+import { playTokenSpendSound } from "@/lib/arena-sfx";
 
 interface CabinetMember {
   name: string;
@@ -147,6 +149,7 @@ export default function CabinetHotSeat() {
   const [speakingName, setSpeakingName] = useState<string | null>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
   const { deviceId, hasTokens, refreshBalance } = useTokens();
+  const { soundEnabled } = useSound();
 
   const { data, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ["cabinet-hotseat"],
@@ -200,6 +203,7 @@ export default function CabinetHotSeat() {
         volume: getPersonaVoiceVolume("trump"),
       });
       soundRef.current = sound;
+      if (soundEnabled) playTokenSpendSound();
       sound.setOnPlaybackStatusUpdate((status: any) => {
         if (!status.isLoaded || status.didJustFinish) {
           setSpeakingName(null);

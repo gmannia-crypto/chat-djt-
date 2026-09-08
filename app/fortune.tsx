@@ -22,6 +22,8 @@ import * as Haptics from "expo-haptics";
 import { Video, Audio, ResizeMode } from "expo-av";
 import { playTTS, playTrumpTTS, isTrumpCurrentlySpeaking } from "@/lib/audio-helper";
 import { getPersonaVoiceVolume, shouldSkipPersonaVoice } from "@/lib/persona-voice";
+import { useSound } from "@/lib/sound-context";
+import { playTokenSpendSound } from "@/lib/arena-sfx";
 import Animated, {
   FadeIn,
   FadeInDown,
@@ -75,6 +77,7 @@ export default function FortuneScreen() {
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
   const { hasTokens, deviceId, refreshBalance } = useTokens();
   const { showShareCard, awardBadge } = useEngagement();
+  const { soundEnabled } = useSound();
   useScreenTracker("fortune");
 
   const [firstName, setFirstName] = useState("");
@@ -166,6 +169,7 @@ export default function FortuneScreen() {
       const data = await res.json();
       setFortune(data.fortune);
       refreshBalance();
+      if (soundEnabled) playTokenSpendSound();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       awardBadge("fortune_seeker");
       try {

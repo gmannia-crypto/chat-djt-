@@ -24,6 +24,8 @@ import { useTokens } from "@/lib/token-context";
 import { playTTS } from "@/lib/audio-helper";
 import { shareContent } from "@/lib/track-share";
 import { trackAnalyticsEvent } from "@/lib/use-analytics";
+import { useSound } from "@/lib/sound-context";
+import { playTokenSpendSound } from "@/lib/arena-sfx";
 
 const EDUCATOR_PORTRAITS: Record<string, any> = {
   cornellwest: require("@/assets/images/persona-cornellwest.jpg"),
@@ -59,6 +61,7 @@ interface BookReference {
 export default function DcUniversityLectureScreen() {
   const insets = useSafeAreaInsets();
   const { deviceId, refreshBalance } = useTokens();
+  const { soundEnabled } = useSound();
   const params = useLocalSearchParams<{ courseId: string; minutes: string; studentName: string }>();
   const courseId = params.courseId;
   const minutes = Number(params.minutes) as 5 | 10 | 15;
@@ -129,12 +132,13 @@ export default function DcUniversityLectureScreen() {
       setBooks(Array.isArray(data.books) ? data.books : []);
       setPhase("lecture");
       refreshBalance();
+      if (soundEnabled) playTokenSpendSound();
       trackAnalyticsEvent("dc_university_lecture_started", { courseId, minutes });
     } catch (e) {
       setErrorMsg("Network error starting lecture. Please try again.");
       setPhase("error");
     }
-  }, [deviceId, courseId, minutes, studentName, refreshBalance]);
+  }, [deviceId, courseId, minutes, studentName, refreshBalance, soundEnabled]);
 
   useEffect(() => {
     start();

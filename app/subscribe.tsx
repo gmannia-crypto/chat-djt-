@@ -31,6 +31,8 @@ import { apiRequest, getApiUrl } from "@/lib/query-client";
 import { trackAnalyticsEvent } from "@/lib/use-analytics";
 import { useQuery } from "@tanstack/react-query";
 import { useTokens } from "@/lib/token-context";
+import { useSound } from "@/lib/sound-context";
+import { playRewardChime } from "@/lib/arena-sfx";
 
 const TOKEN_PACKS = [
   { id: "pack_15", tokens: 15, price: "$2.99", badge: null, description: "15 extra prompts with The Arena" },
@@ -48,6 +50,7 @@ export default function SubscribeScreen() {
   const [winVideoAmount, setWinVideoAmount] = useState<number | undefined>();
   const [winVideoSource, setWinVideoSource] = useState<string | undefined>();
   const { deviceId, balance, refreshBalance } = useTokens();
+  const { soundEnabled } = useSound();
 
   const { data: referralStats } = useQuery<{ referralCount: number; tokensEarned: number }>({
     queryKey: ["/api/referral/stats", deviceId],
@@ -164,6 +167,7 @@ export default function SubscribeScreen() {
       setWinVideoAmount(tokenAmount);
       setWinVideoSource(tokenSource);
       setWinVideoVisible(true);
+      if (soundEnabled) playRewardChime();
       trackAnalyticsEvent("token_purchase_fulfilled", {
         source: tokenSource || "unknown",
         amount: tokenAmount ?? 0,

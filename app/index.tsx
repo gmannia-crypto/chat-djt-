@@ -28,6 +28,8 @@ import { Audio } from "expo-av";
 import { playTTS } from "@/lib/audio-helper";
 import { useSoundEffects } from "@/lib/use-sound";
 import { SoundToggle } from "@/components/SoundToggle";
+import { useSound } from "@/lib/sound-context";
+import { playRewardChime } from "@/lib/arena-sfx";
 import { SuggestionBox } from "@/components/SuggestionBox";
 import { ShareAppButton } from "@/components/ShareAppButton";
 import { useEngagement } from "@/lib/engagement-context";
@@ -393,6 +395,10 @@ export default function HomeScreen() {
   const { streak, awardBadge } = useEngagement();
   const { events: liveEvents, logEvent } = useLiveActivity();
   const { playClick, playTransition, playWhoosh, playPersonaSting } = useSoundEffects();
+  const { soundEnabled } = useSound();
+  const playMysteryRewardChime = useCallback(() => {
+    if (soundEnabled) playRewardChime();
+  }, [soundEnabled]);
   useScreenTracker("main_menu");
   const trackEvent = useTrackEvent();
 
@@ -1066,6 +1072,7 @@ export default function HomeScreen() {
         playPersonaSting(personaId);
         setUnlockedPersonaId(personaId);
       } else {
+        playMysteryRewardChime();
         setMysteryPrize({
           ...prizeBase,
           label: `Persona Unlocked: ${ARENA_MYSTERY_PERSONA_NAMES[personaId] || personaId}`,
@@ -1078,6 +1085,7 @@ export default function HomeScreen() {
       if (card) {
         await addCard(card.id);
         refreshCollectionCount();
+        playMysteryRewardChime();
         setMysteryPrize({
           ...prizeBase,
           label: `${card.rarity} Card: ${card.name}`,
@@ -1086,23 +1094,28 @@ export default function HomeScreen() {
             : `${card.description} (${card.rarity.toUpperCase()} collectible added!)`,
         });
       } else {
+        playMysteryRewardChime();
         setMysteryPrize(prizeBase);
       }
     } else if (reward.detail?.duplicateCardId) {
       // Server rolled a card already owned by this account — no local write.
       const card = getCardById(reward.detail.duplicateCardId);
       if (card) {
+        playMysteryRewardChime();
         setMysteryPrize({
           ...prizeBase,
           label: `Duplicate: ${card.name}`,
           description: "You already own this card. Keep opening boxes for more!",
         });
       } else {
+        playMysteryRewardChime();
         setMysteryPrize(prizeBase);
       }
     } else if (reward.detail?.allPersonasUnlocked) {
+      playMysteryRewardChime();
       setMysteryPrize({ ...prizeBase, label: "All Personas Unlocked!", description: "You've already unlocked every mystery persona. Champion status!" });
     } else {
+      playMysteryRewardChime();
       setMysteryPrize({ ...prizeBase, label: reward.label, description: reward.description });
     }
 

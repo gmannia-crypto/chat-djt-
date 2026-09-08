@@ -638,8 +638,8 @@ export default function RootLayout() {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <TokenProvider>
-          <PersonaLocksProvider>
           <SoundProvider>
+          <PersonaLocksProvider>
             <EngagementProvider>
               <LiveActivityProvider>
                 <GestureHandlerRootView style={{ flex: 1 }}>
@@ -657,8 +657,8 @@ export default function RootLayout() {
                 </GestureHandlerRootView>
               </LiveActivityProvider>
             </EngagementProvider>
-          </SoundProvider>
           </PersonaLocksProvider>
+          </SoundProvider>
         </TokenProvider>
       </QueryClientProvider>
     </ErrorBoundary>

@@ -40,6 +40,7 @@ import {
   type PersonaVoiceSettings,
 } from "@/components/VoiceMixer";
 import { useSound } from "@/lib/sound-context";
+import { playTokenSpendSound } from "@/lib/arena-sfx";
 import { useScreenTracker, useTrackEvent } from "@/lib/use-analytics";
 import { useLiveActivity } from "@/lib/live-activity-context";
 import {
@@ -1507,6 +1508,7 @@ function DCRoyalTab({
   voiceSettings: PersonaVoiceSettings;
   onUpdateVoiceSetting: (personaId: string, update: Partial<PersonaVoiceSetting>) => void;
 }) {
+  const { soundEnabled } = useSound();
   const [voicePopoverPersonaId, setVoicePopoverPersonaId] = useState<string | null>(null);
   const [crawlItems, setCrawlItems] = useState<{ emoji: string; text: string }[]>([]);
   const [standings, setStandings] = useState<any[]>([]);
@@ -1579,6 +1581,7 @@ function DCRoyalTab({
       }
       const data = await res.json();
       refreshBalance();
+      if (soundEnabled) playTokenSpendSound();
       setDebateExpiresAt(data.expiresAt);
       setDebateSeconds(debateDuration * 60);
       setDebateMessages([]);
@@ -1818,6 +1821,7 @@ function DCRoyalTab({
         const data = await res.json();
         setDiscussion(data.dialogue || []);
         awardCrowns();
+        if (soundEnabled) playTokenSpendSound();
       }
     } catch {}
     setDiscussionLoading(false);
@@ -2797,6 +2801,7 @@ export default function SportsScreen() {
       if (mountedRef.current) {
         setRecapText(data.recap || null);
         refreshBalance();
+        if (soundEnabled) playTokenSpendSound();
       }
     } catch (e) {
       console.error("Recap error:", e);
@@ -2962,7 +2967,10 @@ export default function SportsScreen() {
         throw new Error("Failed");
       }
       const data = await res.json();
-      if (mountedRef.current) setRoundtableDialogue(data.dialogue || []);
+      if (mountedRef.current) {
+        setRoundtableDialogue(data.dialogue || []);
+        if (soundEnabled) playTokenSpendSound();
+      }
     } catch {
     } finally {
       if (mountedRef.current) setRoundtableLoading(false);

@@ -35,7 +35,8 @@ import {
   detectDodge,
   getDodgePressLine,
 } from "@/lib/debate-moderator";
-import { playDingSound, playBoxingBell, playLongCrowdCheer } from "@/lib/arena-sfx";
+import { playDingSound, playBoxingBell, playLongCrowdCheer, playRewardChime, playTokenSpendSound } from "@/lib/arena-sfx";
+import { useSound } from "@/lib/sound-context";
 import {
   areAllied, isTrump, getAllyClarityOpener, getAllyClarityReply, getInterruptAddressLine,
   PERSONA_INTERRUPT_STYLE,
@@ -1071,6 +1072,7 @@ const webBottom = Platform.OS === "web" ? 34 : 0;
 export default function DebateStage() {
   const insets = useSafeAreaInsets();
   const { deviceId, balance, refreshBalance } = useTokens();
+  const { soundEnabled } = useSound();
   const { isHidden, isLocked, unlockWithTokens, checkAutoUnlocks } = usePersonaLocks();
 
   // Mirror of the mystery-unlock state in arena.tsx — same AsyncStorage key.
@@ -2020,7 +2022,10 @@ export default function DebateStage() {
                 const data = await r.json();
                 if (data.tokensEarned > 0) {
                   setDebateTokenWinAmount(data.tokensEarned);
-                  setTimeout(() => setDebateTokenWinVisible(true), 2200);
+                  setTimeout(() => {
+                    setDebateTokenWinVisible(true);
+                    if (soundEnabled) playRewardChime();
+                  }, 2200);
                   refreshBalance();
                 }
                 setTimeout(() => {
@@ -6512,6 +6517,7 @@ export default function DebateStage() {
                       await refreshBalance();
                       await placeInterviewBet({ pick: debateBetPick, interviewerId, intervieweeId, wager: debateBetWager, placedAt: Date.now() });
                       setDebateBetLocked(true);
+                      if (soundEnabled) playTokenSpendSound();
                       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                     }}
                     style={{ flex: 1, backgroundColor: "#FBBF24", borderRadius: 10, paddingVertical: 10, alignItems: "center" }}>

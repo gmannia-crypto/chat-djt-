@@ -3,6 +3,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Alert } from "react-native";
 import { getApiUrl } from "@/lib/query-client";
 import { trackAnalyticsEvent } from "@/lib/use-analytics";
+import { playTokenSpendSound } from "@/lib/arena-sfx";
+import { useSound } from "@/lib/sound-context";
 
 export interface PremiumPersonaConfig {
   name: string;
@@ -68,6 +70,7 @@ export function PersonaLocksProvider({ children }: { children: ReactNode }) {
   const [sessionMinutes, setSessionMinutes] = useState(0);
   const [arenaWins, setArenaWins] = useState(0);
   const [isUnlocking, setIsUnlocking] = useState<string | null>(null);
+  const { soundEnabled } = useSound();
 
   useEffect(() => {
     (async () => {
@@ -171,6 +174,7 @@ export function PersonaLocksProvider({ children }: { children: ReactNode }) {
         setUnlockedPremium(updated);
       }
       await refreshBalance();
+      if (soundEnabled) playTokenSpendSound();
       trackAnalyticsEvent("persona_unlocked", {
         persona_id: personaId,
         token_price: cfg.tokenPrice,
@@ -182,7 +186,7 @@ export function PersonaLocksProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsUnlocking(null);
     }
-  }, [isUnlocking]);
+  }, [isUnlocking, soundEnabled]);
 
   const isLocked = useCallback((personaId: string): boolean => {
     if (!PREMIUM_PERSONA_CONFIGS[personaId]) return false;

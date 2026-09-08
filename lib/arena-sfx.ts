@@ -310,6 +310,47 @@ export async function playBoxingBell(): Promise<void> {
   }
 }
 
+// Reward chime for high-emotion, low-frequency reward moments: mystery box
+// reveals, collectible card unlocks, and token purchase completions.
+// Distinct from playChampionChime (arpeggio+chord) and playDingSound (single
+// double-tone) — a bright "cha-ching" style two-hit chime with a shimmer.
+export async function playRewardChime() {
+  if (Platform.OS === "web") {
+    try {
+      playWebTone(1046, 0.14, "sine", 0.35);
+      setTimeout(() => playWebTone(1568, 0.28, "sine", 0.32), 90);
+      setTimeout(() => {
+        playWebTone(2093, 0.35, "sine", 0.22);
+        playWebTone(1568, 0.35, "sine", 0.12);
+      }, 170);
+    } catch {}
+  } else {
+    try {
+      await playNativeSound("/public/winner-chosen.m4a", 0.6);
+    } catch (e) {
+      console.warn("SFX reward-chime failed:", e);
+    }
+  }
+}
+
+// Short, lower-pitched confirmation tone for token spends (arena bets,
+// mystery-persona token unlocks). Deliberately understated compared to
+// playRewardChime so spending doesn't feel like a reward.
+export async function playTokenSpendSound() {
+  if (Platform.OS === "web") {
+    try {
+      playWebTone(700, 0.1, "sine", 0.25);
+      setTimeout(() => playWebTone(480, 0.16, "sine", 0.2), 70);
+    } catch {}
+  } else {
+    try {
+      await playNativeSound("/public/vote-click.m4a", 0.45);
+    } catch (e) {
+      console.warn("SFX token-spend failed:", e);
+    }
+  }
+}
+
 // Ascending fanfare chime for the DC CHAMPION badge entrance.
 // Distinct from playBellSound (triple bell) and playCrowdCheer (crowd noise).
 export async function playChampionChime() {

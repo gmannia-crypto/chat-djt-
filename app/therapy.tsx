@@ -29,6 +29,7 @@ import { SoundToggle } from "@/components/SoundToggle";
 import { ShareAppButton } from "@/components/ShareAppButton";
 import { CashAppDonate } from "@/components/CashAppDonate";
 import { useSound } from "@/lib/sound-context";
+import { playTokenSpendSound } from "@/lib/arena-sfx";
 import { useScreenTracker, useTrackEvent } from "@/lib/use-analytics";
 import { recordTherapySession, getTherapyContext } from "@/lib/persona-memory";
 import Animated, {
@@ -671,6 +672,7 @@ export default function TherapyScreen() {
       setSessionActive(true);
       setSessionEnded(false);
       refreshBalance();
+      if (soundEnabled) playTokenSpendSound();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
       setTimeout(() => {
@@ -815,6 +817,7 @@ export default function TherapyScreen() {
       const data = await res.json();
       if (data.plan) {
         setDiagnosisPlan(data.plan);
+        if (soundEnabled) playTokenSpendSound();
         setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 300);
       }
     } catch (err) {
@@ -967,6 +970,7 @@ export default function TherapyScreen() {
         return;
       }
       refreshBalance();
+      if (soundEnabled) playTokenSpendSound();
       await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
       setShowHypnoOverlay(true);
 
@@ -1093,6 +1097,7 @@ export default function TherapyScreen() {
       ]);
       setFollowUpAnswer("");
       refreshBalance();
+      if (soundEnabled) playTokenSpendSound();
       if (data.followUp && followUpIndex < 2) {
         setFollowUpQuestion(data.followUp);
         setFollowUpIndex(data.followUpIndex !== undefined ? data.followUpIndex + 1 : followUpIndex + 1);
@@ -1155,6 +1160,7 @@ export default function TherapyScreen() {
         throw new Error("Session start failed");
       }
       refreshBalance();
+      if (soundEnabled) playTokenSpendSound();
     } catch {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
@@ -1254,6 +1260,7 @@ export default function TherapyScreen() {
             if (lipData.videoUrl) {
               setLipSyncVideoUrl(lipData.videoUrl);
               videoGenerated = true;
+              if (soundEnabled) playTokenSpendSound();
             }
           }
         } catch {
@@ -1313,6 +1320,7 @@ export default function TherapyScreen() {
         throw new Error("Session start failed");
       }
       refreshBalance();
+      if (soundEnabled) playTokenSpendSound();
     } catch {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
@@ -1389,6 +1397,7 @@ export default function TherapyScreen() {
         setIntakeOptions(null);
         setIntakeMessages(prev => [...prev, { role: "therapist", text: data.assessment }]);
         setConversationHistory([{ role: "therapist", text: data.assessment }]);
+        if (soundEnabled) playTokenSpendSound();
         const uid = deviceId || "anonymous";
         recordTherapySession(uid, {
           therapist: selectedTherapist,

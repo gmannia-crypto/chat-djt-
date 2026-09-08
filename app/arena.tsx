@@ -37,7 +37,8 @@ import { playTTS, playAudioFromUrl, prefetchTTSAudio, playPrefetchedAudio } from
 import { getPersonaVoiceVolume, shouldSkipPersonaVoice } from "@/lib/persona-voice";
 import { useReactionOverlapEnabled } from "@/lib/reaction-overlap-settings";
 import { areAllied, isTrump } from "@/lib/persona-ideology";
-import { playPointAwardSound, playVoteClickSound, playVoteSound2, playBellSound, playCrowdCheer, playDrumroll, playWinnerChosenSound, playWinnerAfterSound, playBreakingNewsAlert, playChampionChime } from "@/lib/arena-sfx";
+import { playPointAwardSound, playVoteClickSound, playVoteSound2, playBellSound, playCrowdCheer, playDrumroll, playWinnerChosenSound, playWinnerAfterSound, playBreakingNewsAlert, playChampionChime, playRewardChime, playTokenSpendSound } from "@/lib/arena-sfx";
+import { useSound } from "@/lib/sound-context";
 import { useTokens } from "@/lib/token-context";
 import { usePersonaLocks, PREMIUM_PERSONA_CONFIGS } from "@/lib/persona-locks";
 import {
@@ -3964,6 +3965,7 @@ function ViralClipsModal({ visible, onClose, messages, currentTopic, videoStates
   const moments = React.useMemo(() => pickViralMoments(messages, 3), [messages]);
   const [confirmIdx, setConfirmIdx] = useState<number | null>(null);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  const { soundEnabled } = useSound();
 
   async function generateVideo(idx: number, moment: ViralMoment) {
     setConfirmIdx(null);
@@ -3980,6 +3982,9 @@ function ViralClipsModal({ visible, onClose, messages, currentTopic, videoStates
       if (!res.ok) {
         setVideoStates((prev) => ({ ...prev, [idx]: { loading: false, videoUrl: null, error: data.error || "Generation failed" } }));
       } else {
+        // Token deduction for the 3-token clip cost is committed server-side
+        // once this request succeeds — confirm the spend audibly here.
+        if (soundEnabled) playTokenSpendSound();
         setVideoStates((prev) => ({ ...prev, [idx]: { loading: false, videoUrl: data.videoUrl || null, error: data.error || null } }));
       }
     } catch (e: any) {
@@ -4456,6 +4461,7 @@ export default function ArenaScreen() {
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
   const { deviceId, balance, refreshBalance, linkedUser } = useTokens();
+  const { soundEnabled } = useSound();
   const { isLocked, isHidden, unlockWithTokens, isUnlocking: premiumUnlocking, addArenaWin, unlockedPremium } = usePersonaLocks();
   const [arenaBet, setArenaBet] = useState<ArenaBet | null>(null);
   const [betWagerInput, setBetWagerInput] = useState(3);
@@ -4762,6 +4768,7 @@ export default function ArenaScreen() {
       const newUnlocked = [...unlockedMystery, personaId];
       setUnlockedMystery(newUnlocked);
       await AsyncStorage.setItem(MYSTERY_UNLOCK_KEY, JSON.stringify(newUnlocked));
+      if (soundEnabled) playTokenSpendSound();
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       const persona = MYSTERY_PERSONAS[personaId];
       if (persona) {
@@ -4780,7 +4787,7 @@ export default function ArenaScreen() {
     } finally {
       setMysteryUnlocking(null);
     }
-  }, [balance, deviceId, refreshBalance, unlockedMystery]);
+  }, [balance, deviceId, refreshBalance, unlockedMystery, soundEnabled]);
 
   const [selectedPersonas, setSelectedPersonas] = useState<string[]>(() => {
     const others = PERSONA_IDS.filter((id) => id !== "trump");
@@ -6658,6 +6665,7 @@ export default function ArenaScreen() {
                   setTokenWinAmount(trackData.reward.tokens);
                   setTokenWinSource(`Arena ${trackData.reward.badge} Reward`);
                   setTokenWinVisible(true);
+                  if (soundEnabled) playRewardChime();
                 }, 3000);
               }
             }
@@ -10169,6 +10177,7 @@ export default function ArenaScreen() {
                   const bet: ArenaBet = { targetPersonaId: betPickId, wager: betWagerInput, placedAt: Date.now(), sessionKey: makeArenaSessionKey(selectedPersonas) };
                   await placeArenaBet(bet);
                   setArenaBet(bet);
+                  if (soundEnabled) playTokenSpendSound();
                   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                 }}
                 disabled={!betPickId}
