@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, Rea
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Alert } from "react-native";
 import { getApiUrl } from "@/lib/query-client";
+import { trackAnalyticsEvent } from "@/lib/use-analytics";
 
 export interface PremiumPersonaConfig {
   name: string;
@@ -170,6 +171,10 @@ export function PersonaLocksProvider({ children }: { children: ReactNode }) {
         setUnlockedPremium(updated);
       }
       await refreshBalance();
+      trackAnalyticsEvent("persona_unlocked", {
+        persona_id: personaId,
+        token_price: cfg.tokenPrice,
+      });
       return true;
     } catch {
       Alert.alert("Error", "Unlock failed. Please try again.");

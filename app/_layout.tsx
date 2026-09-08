@@ -16,6 +16,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { queryClient, getApiUrl } from "@/lib/query-client";
+import { trackAnalyticsEvent } from "@/lib/use-analytics";
 import { TokenProvider } from "@/lib/token-context";
 import { SoundProvider } from "@/lib/sound-context";
 import { PersonaLocksProvider } from "@/lib/persona-locks";
@@ -522,6 +523,9 @@ export default function RootLayout() {
       if (resp.ok || resp.status === 409) {
         // Mark as claimed regardless (409 = already claimed on server)
         await AsyncStorage.setItem(CLAIMED_KEY, "true");
+        if (resp.ok) {
+          trackAnalyticsEvent("referral_claimed", {});
+        }
       }
     } catch {
       // Non-fatal — referral claim failure should never block app launch

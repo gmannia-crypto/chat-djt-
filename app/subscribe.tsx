@@ -28,6 +28,7 @@ import Animated, {
 } from "react-native-reanimated";
 import Colors from "@/constants/colors";
 import { apiRequest, getApiUrl } from "@/lib/query-client";
+import { trackAnalyticsEvent } from "@/lib/use-analytics";
 import { useQuery } from "@tanstack/react-query";
 import { useTokens } from "@/lib/token-context";
 
@@ -163,6 +164,10 @@ export default function SubscribeScreen() {
       setWinVideoAmount(tokenAmount);
       setWinVideoSource(tokenSource);
       setWinVideoVisible(true);
+      trackAnalyticsEvent("token_purchase_fulfilled", {
+        source: tokenSource || "unknown",
+        amount: tokenAmount ?? 0,
+      });
     } catch (error) {
       console.error("Fulfill error:", error);
       const msg = "There was an issue adding your tokens. Please try again or contact support.";
@@ -195,6 +200,7 @@ export default function SubscribeScreen() {
       const { url } = await res.json();
 
       if (url) {
+        trackAnalyticsEvent("subscription_checkout_started", { tier });
         if (Platform.OS === "web") {
           window.location.href = url;
         } else {
@@ -237,6 +243,7 @@ export default function SubscribeScreen() {
       const { url } = await res.json();
 
       if (url) {
+        trackAnalyticsEvent("token_pack_checkout_started", { pack_id: packId });
         if (Platform.OS === "web") {
           window.location.href = url;
         } else {

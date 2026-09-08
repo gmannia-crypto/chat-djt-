@@ -14,6 +14,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Audio } from "expo-av";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import { getApiUrl } from "@/lib/query-client";
+import { trackAnalyticsEvent } from "@/lib/use-analytics";
 import { fetchAiTurnWithRetry } from "@/lib/ai-turn-retry";
 import { useTokens } from "@/lib/token-context";
 import { saveRecording, generateShareText, pickHighlightQuote, type ArenaRecording, type RecordedMessage } from "@/lib/arena-recordings";
@@ -1955,6 +1956,11 @@ export default function InterviewScreen() {
     firstAudioPlayedRef.current = false;
     setFirstAudioPlayed(false);
     setPhase("live");
+    trackAnalyticsEvent("interview_started", {
+      interviewer: interviewerId || "unknown",
+      interviewee: intervieweeId || "unknown",
+      duration_minutes: duration,
+    });
     runningRef.current = true;
     providerUnavailableRef.current = false;
     networkErrorRef.current = false;

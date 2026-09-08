@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
-import { useScreenTracker } from "@/lib/use-analytics";
+import { useScreenTracker, trackAnalyticsEvent } from "@/lib/use-analytics";
 import {
   StyleSheet,
   Text,
@@ -422,6 +422,12 @@ export default function GameScreen() {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-device-id": deviceId },
         body: JSON.stringify({ playerName: pn, won, gameState: gs, durationSeconds }),
+      });
+      trackAnalyticsEvent("billionaires_game_result_submitted", {
+        won,
+        net_worth: gs.netWorth ?? 0,
+        turn: gs.turn ?? 0,
+        duration_seconds: durationSeconds,
       });
     } catch {}
   }, [deviceId]);

@@ -5,6 +5,30 @@ import { useTokens } from "@/lib/token-context";
 
 const baseUrl = getApiUrl();
 
+type UmamiData = Record<string, string | number | boolean>;
+
+declare global {
+  interface Window {
+    umami?: {
+      track(name: string, data?: UmamiData): void;
+    };
+  }
+}
+
+/**
+ * Fires a custom analytics event to Replit-hosted (Umami) analytics.
+ * Safe no-op on native platforms, in dev, or before the injected tracker loads.
+ * Use snake_case names under 50 chars; keep data values to string/number/boolean.
+ */
+export function trackAnalyticsEvent(name: string, data?: UmamiData): void {
+  if (Platform.OS !== "web" || typeof window === "undefined") return;
+  try {
+    window.umami?.track(name, data);
+  } catch {
+    // Analytics must never break the app.
+  }
+}
+
 function sendBeacon(path: string, body: any) {
   fetch(new URL(path, baseUrl).toString(), {
     method: "POST",

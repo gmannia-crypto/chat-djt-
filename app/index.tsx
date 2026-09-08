@@ -32,7 +32,7 @@ import { SuggestionBox } from "@/components/SuggestionBox";
 import { ShareAppButton } from "@/components/ShareAppButton";
 import { useEngagement } from "@/lib/engagement-context";
 import { useLiveActivity } from "@/lib/live-activity-context";
-import { useScreenTracker, useTrackEvent } from "@/lib/use-analytics";
+import { useScreenTracker, useTrackEvent, trackAnalyticsEvent } from "@/lib/use-analytics";
 import Animated, {
   FadeInDown,
   FadeInUp,
@@ -1114,6 +1114,7 @@ export default function HomeScreen() {
         comment: feedbackComment.trim() || null,
         deviceId,
       });
+      trackAnalyticsEvent("feedback_submitted", { rating: feedbackRating });
       setFeedbackSubmitted(true);
       await AsyncStorage.setItem(FEEDBACK_SHOWN_KEY, "true");
       setTimeout(() => {
