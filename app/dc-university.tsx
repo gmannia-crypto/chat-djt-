@@ -283,7 +283,7 @@ export default function DcUniversityScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#050B18" },
-  crestWatermark: { position: "absolute", width: 380, height: 680, opacity: 0.05, alignSelf: "center", top: 20, pointerEvents: "none" },
+  crestWatermark: { position: "absolute", width: 480, height: 860, opacity: 0.16, alignSelf: "center", top: 0, pointerEvents: "none" },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingBottom: 12 },
   backButton: { padding: 4 },
   headerTitle: { color: "#FFD700", fontSize: 18, fontWeight: "800", letterSpacing: 1 },

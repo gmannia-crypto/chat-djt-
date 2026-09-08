@@ -499,5 +499,5 @@ const styles = StyleSheet.create({
   affiliateBtn: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,215,0,0.1)", borderWidth: 1, borderColor: "rgba(255,215,0,0.35)", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 9 },
   affiliateBtnTitle: { color: "#FFD700", fontSize: 12, fontWeight: "700" },
   affiliateBtnAuthor: { color: "#8899AA", fontSize: 10.5, marginTop: 1 },
-  crestWatermark: { position: "absolute", width: 340, height: 610, opacity: 0.06, alignSelf: "center", top: 40, pointerEvents: "none" },
+  crestWatermark: { position: "absolute", width: 460, height: 825, opacity: 0.16, alignSelf: "center", top: 10, pointerEvents: "none" },
 });
