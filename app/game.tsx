@@ -59,6 +59,7 @@ interface LeaderboardEntry {
   completedAt: string;
   efficiencyScore: number;
   speedScore: number;
+  performanceScore: number;
 }
 
 interface LeaderboardData {
@@ -861,11 +862,14 @@ export default function GameScreen() {
                     </View>
                   </View>
                 )}
+                <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, marginBottom: 10, textAlign: "center" as const }}>
+                  Ranked by overall performance — net worth, speed, karma, streaks & milestones combined
+                </Text>
                 <View style={{ flexDirection: "row", paddingHorizontal: 4, marginBottom: 8 }}>
                   <Text style={{ flex: 0.15, color: "rgba(255,255,255,0.4)", fontSize: 9, fontWeight: "700" as const }}>RANK</Text>
-                  <Text style={{ flex: 0.35, color: "rgba(255,255,255,0.4)", fontSize: 9, fontWeight: "700" as const }}>PLAYER</Text>
-                  <Text style={{ flex: 0.2, color: "rgba(255,255,255,0.4)", fontSize: 9, fontWeight: "700" as const, textAlign: "center" as const }}>TURNS</Text>
-                  <Text style={{ flex: 0.3, color: "rgba(255,255,255,0.4)", fontSize: 9, fontWeight: "700" as const, textAlign: "right" as const }}>TIME</Text>
+                  <Text style={{ flex: 0.3, color: "rgba(255,255,255,0.4)", fontSize: 9, fontWeight: "700" as const }}>PLAYER</Text>
+                  <Text style={{ flex: 0.2, color: "rgba(255,255,255,0.4)", fontSize: 9, fontWeight: "700" as const, textAlign: "center" as const }}>SCORE</Text>
+                  <Text style={{ flex: 0.35, color: "rgba(255,255,255,0.4)", fontSize: 9, fontWeight: "700" as const, textAlign: "right" as const }}>TURNS / TIME</Text>
                 </View>
               </View>
             }
@@ -878,20 +882,20 @@ export default function GameScreen() {
                         {item.rank <= 3 ? ["🥇", "🥈", "🥉"][item.rank - 1] : `#${item.rank}`}
                       </Text>
                     </View>
-                    <View style={{ flex: 0.35 }}>
+                    <View style={{ flex: 0.3 }}>
                       <Text style={{ color: "#fff", fontSize: 13, fontWeight: "800" as const }} numberOfLines={1}>{item.playerName}</Text>
                       <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, marginTop: 2 }}>
                         {fmtMoney(item.finalNetWorth)} • {item.karma >= 0 ? "+" : ""}{item.karma} karma
                       </Text>
                     </View>
                     <View style={{ flex: 0.2, alignItems: "center" as const }}>
-                      <Text style={{ color: Colors.gold, fontSize: 16, fontWeight: "900" as const }}>{item.turns}</Text>
-                      <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 8 }}>DEALS</Text>
+                      <Text style={{ color: Colors.gold, fontSize: 16, fontWeight: "900" as const }}>{item.performanceScore.toLocaleString()}</Text>
+                      <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 8 }}>SCORE</Text>
                     </View>
-                    <View style={{ flex: 0.3, alignItems: "flex-end" as const }}>
-                      <Text style={{ color: "#22C55E", fontSize: 12, fontWeight: "800" as const }}>{formatDuration(item.durationSeconds)}</Text>
+                    <View style={{ flex: 0.35, alignItems: "flex-end" as const }}>
+                      <Text style={{ color: "#22C55E", fontSize: 12, fontWeight: "800" as const }}>{item.turns} deals • {formatDuration(item.durationSeconds)}</Text>
                       <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 8, marginTop: 2 }}>
-                        🔥{item.bestStreak} streak • {item.milestonesHit}/{MILESTONES.length}
+                        🔥{item.bestStreak} streak • {item.milestonesHit}/{MILESTONES.length} milestones
                       </Text>
                     </View>
                   </View>

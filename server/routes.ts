@@ -35,6 +35,7 @@ import OpenAI from "openai";
 import { XMLParser } from "fast-xml-parser";
 import { Pool } from "pg";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
+import { validateBillionaireSubmission, clampBillionaireKarma } from "./billionaire-game-validation";
 import { INTERVIEW_RETENTION_MS, INTERVIEW_CLEANUP_DISABLED } from "./cleanupConfig";
 import {
   DC_UNIVERSITY_COURSES,
@@ -3698,6 +3699,7 @@ Karma: ruthless=-20 to -45, ethical=+10 to +30, gray=-5 to -15.`
           let karma = Number(c.karma) || 0;
           if (idx === 0 && karma > 0) karma = -karma;
           if (idx === 1 && karma < 0) karma = -karma;
+          karma = clampBillionaireKarma(karma);
           return { ...c, profit, karma };
         });
       }
@@ -3867,7 +3869,7 @@ Your personality quirks:
     );
     CREATE INDEX IF NOT EXISTS idx_bg_device ON billionaire_games(device_id);
     CREATE INDEX IF NOT EXISTS idx_bg_status ON billionaire_games(status);
-    CREATE INDEX IF NOT EXISTS idx_bg_leaderboard ON billionaire_games(status, turns, duration_seconds) WHERE status = 'won';
+    CREATE INDEX IF NOT EXISTS idx_bg_leaderboard ON billionaire_games(status, final_net_worth, turns, duration_seconds) WHERE status = 'won';
   `;
 
   (async () => {
@@ -3948,10 +3950,17 @@ Your personality quirks:
     try {
       const deviceId = req.headers["x-device-id"] as string;
       if (!deviceId) return res.status(400).json({ error: "Device ID required" });
-      const { playerName, won, gameState, durationSeconds } = req.body;
+      const { playerName, gameState, durationSeconds } = req.body;
       if (!playerName || !gameState) return res.status(400).json({ error: "playerName and gameState required" });
 
-      const status = won ? "won" : "lost";
+      const validationError = validateBillionaireSubmission(gameState, durationSeconds);
+      if (validationError) {
+        console.warn(`Rejected billionaire game submission from device ${deviceId}: ${validationError}`);
+        return res.status(400).json({ error: validationError });
+      }
+      // The outcome is derived entirely from the validated net worth — the client's "won" flag
+      // is never trusted, since a caller could otherwise claim a win with a losing net worth.
+      const status = Number(gameState.netWorth) >= 1_000_000_000 ? "won" : "lost";
       const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
 
       const existing = await pool.query(
@@ -3987,6 +3996,15 @@ Your personality quirks:
   app.get("/api/game/leaderboard", async (req, res) => {
     try {
       const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      // Combined "performance score" ranks real accomplishment, not just how fast someone clicked
+      // through turns. Net worth (the actual goal of the game) dominates the score; speed, karma,
+      // streak, and milestone progress are meaningful but secondary factors on top of it.
+      //   net worth in millions          -> primary driver (how big an empire you built)
+      //   + up to 500 for fewer turns    -> rewards efficient play
+      //   + up to 300 for less time      -> rewards quick play
+      //   + karma * 3                    -> ethical (or ruthless) play shifts score up or down
+      //   + best streak * 15             -> rewards sustained winning runs
+      //   + milestones hit * 40          -> rewards hitting more progress markers along the way
       const result = await pool.query(`
         SELECT
           player_name,
@@ -3999,10 +4017,18 @@ Your personality quirks:
           dark_deals,
           completed_at,
           ROUND(final_net_worth::numeric / GREATEST(turns, 1), 0) as efficiency_score,
-          ROUND(final_net_worth::numeric / GREATEST(duration_seconds, 1), 0) as speed_score
+          ROUND(final_net_worth::numeric / GREATEST(duration_seconds, 1), 0) as speed_score,
+          ROUND(
+            (final_net_worth::numeric / 1000000)
+            + GREATEST(0, 500 - turns * 10)
+            + GREATEST(0, 300 - duration_seconds / 2.0)
+            + (karma * 3)
+            + (best_streak * 15)
+            + (milestones_hit * 40)
+          , 0) as performance_score
         FROM billionaire_games
         WHERE status = 'won'
-        ORDER BY turns ASC, duration_seconds ASC
+        ORDER BY performance_score DESC
         LIMIT 50
       `);
 
@@ -4026,6 +4052,7 @@ Your personality quirks:
           completedAt: r.completed_at,
           efficiencyScore: Number(r.efficiency_score),
           speedScore: Number(r.speed_score),
+          performanceScore: Number(r.performance_score),
         })),
         stats: {
           totalWins: Number(totalWins.rows[0]?.count || 0),
