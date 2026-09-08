@@ -240,6 +240,16 @@ export default function DcUniversityLectureScreen() {
     }
   };
 
+  const shareRecap = () => {
+    const topics = transcript.filter((t) => t.role === "educator").length;
+    const topicsCovered = beatIndex + 1;
+    shareContent({
+      deviceId: deviceId || undefined,
+      feature: "dc_university_lecture_recap",
+      text: `I just sat in on "${courseTitle}" with ${educatorName} at DC University — ${topicsCovered} of ${totalBeats} topics in, ${topics} things taught so far. 🎓`,
+    });
+  };
+
   const shareCertificate = () => {
     if (!results?.passed) return;
     shareContent({
@@ -289,7 +299,13 @@ export default function DcUniversityLectureScreen() {
             <Text style={styles.headerProgress}>Topic {beatIndex + 1} of {totalBeats}</Text>
           )}
         </View>
-        <View style={{ width: 26 }} />
+        {phase === "lecture" ? (
+          <Pressable onPress={shareRecap} hitSlop={12} style={styles.backButton} testID="dc-lecture-share-recap">
+            <Feather name="share-2" size={20} color="#FFD700" />
+          </Pressable>
+        ) : (
+          <View style={{ width: 26 }} />
+        )}
       </View>
 
       {phase === "lecture" && (
@@ -304,9 +320,20 @@ export default function DcUniversityLectureScreen() {
 
           <ScrollView ref={scrollRef} style={styles.transcriptScroll} contentContainerStyle={{ paddingBottom: 16 }}>
             {transcript.map((line, i) => (
-              <View key={i} style={[styles.transcriptBubble, line.role === "student" ? styles.studentBubble : styles.educatorBubble]}>
+              <Pressable
+                key={i}
+                onPress={line.role === "educator" ? () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); speak(line.text); } : undefined}
+                style={[styles.transcriptBubble, line.role === "student" ? styles.studentBubble : styles.educatorBubble]}
+                testID={`dc-lecture-line-${i}`}
+              >
                 <Text style={styles.transcriptText}>{line.text}</Text>
-              </View>
+                {line.role === "educator" && (
+                  <View style={styles.replayHint}>
+                    <Feather name="rotate-ccw" size={11} color="#8899AA" />
+                    <Text style={styles.replayHintText}>Tap to replay</Text>
+                  </View>
+                )}
+              </Pressable>
             ))}
             {isAsking && <ActivityIndicator color="#FFD700" style={{ marginTop: 8 }} />}
           </ScrollView>
@@ -500,4 +527,6 @@ const styles = StyleSheet.create({
   affiliateBtnTitle: { color: "#FFD700", fontSize: 12, fontWeight: "700" },
   affiliateBtnAuthor: { color: "#8899AA", fontSize: 10.5, marginTop: 1 },
   crestWatermark: { position: "absolute", width: 460, height: 825, opacity: 0.16, alignSelf: "center", top: 10, pointerEvents: "none" },
+  replayHint: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6, opacity: 0.6 },
+  replayHintText: { color: "#8899AA", fontSize: 10 },
 });

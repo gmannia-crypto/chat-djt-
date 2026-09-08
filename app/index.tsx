@@ -363,6 +363,7 @@ export default function HomeScreen() {
   const [feedbackComment, setFeedbackComment] = useState("");
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
   const [hotTake, setHotTake] = useState<{ take: string; headline: string } | null>(null);
+  const [factOfDay, setFactOfDay] = useState<{ educatorId: string; educatorName: string; courseTitle: string; fact: string } | null>(null);
   const [hotTakeLoading, setHotTakeLoading] = useState(false);
 
   const [dailyChallenge, setDailyChallenge] = useState<string | null>(null);
@@ -396,6 +397,14 @@ export default function HomeScreen() {
   const trackEvent = useTrackEvent();
 
   useEffect(() => { logEvent("visit"); }, []);
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await globalThis.fetch(new URL("/api/dc-university/fact-of-day", getApiUrl()).toString());
+        if (res.ok) setFactOfDay(await res.json());
+      } catch {}
+    })();
+  }, []);
   const mainScrollRef = useRef<ScrollView>(null);
 
   const refreshCollectionCount = useCallback(async () => {
@@ -1673,9 +1682,10 @@ export default function HomeScreen() {
           <Pressable
             onPress={() => { playNavVoice("Debate Mode. Step into the ring."); handleDebateMode(); }}
             style={({ pressed }) => [styles.modeButton, styles.debateButton, pressed && { opacity: 0.7 }]}
+            testID="debate-me-button"
           >
             <MaterialCommunityIcons name="podium" size={18} color={Colors.gold} />
-            <Text style={styles.modeButtonText}>DEBATE</Text>
+            <Text style={styles.modeButtonText}>DEBATE ME</Text>
           </Pressable>
         </Animated.View>
         <Animated.View entering={FadeInDown.delay(450).duration(500)} style={styles.modeButtons}>
@@ -1755,32 +1765,6 @@ export default function HomeScreen() {
         <Animated.View entering={FadeInDown.delay(600).duration(500)} style={styles.modeButtons}>
           <Pressable
             onPress={() => {
-              playNavVoice("Fortune. The future has a voice. Listen.");
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-              router.push("/fortune");
-            }}
-            style={({ pressed }) => [styles.modeButton, styles.fortuneButton, pressed && { opacity: 0.7 }]}
-            testID="fortune-button"
-          >
-            <MaterialCommunityIcons name="crystal-ball" size={16} color="#9333EA" />
-            <Text style={styles.modeButtonText}>FORTUNE</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => {
-              playNavVoice("Therapy. Let's talk about your problems.");
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-              router.push("/therapy");
-            }}
-            style={({ pressed }) => [styles.modeButton, styles.therapyButton, pressed && { opacity: 0.7 }]}
-            testID="therapy-button"
-          >
-            <MaterialCommunityIcons name="brain" size={16} color="#ff4d4d" />
-            <Text style={styles.modeButtonText}>THERAPY</Text>
-          </Pressable>
-        </Animated.View>
-        <Animated.View entering={FadeInDown.delay(650).duration(500)} style={styles.modeButtons}>
-          <Pressable
-            onPress={() => {
               playNavVoice("Realty. Premier properties. Real opportunities.");
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
               router.push("/real-estate");
@@ -1804,7 +1788,7 @@ export default function HomeScreen() {
             <Text style={styles.modeButtonText}>BILLIONAIRES</Text>
           </Pressable>
         </Animated.View>
-        <Animated.View entering={FadeInDown.delay(700).duration(500)} style={styles.modeButtons}>
+        <Animated.View entering={FadeInDown.delay(650).duration(500)} style={styles.modeButtons}>
           <Pressable
             onPress={() => {
               playNavVoice("Financial Faceoff. Who's the smartest with money?");
@@ -1824,10 +1808,10 @@ export default function HomeScreen() {
               router.push("/debate");
             }}
             style={({ pressed }) => [styles.modeButton, styles.debateButton, pressed && { opacity: 0.7 }]}
-            testID="debate-button"
+            testID="debate-arena-button"
           >
             <Ionicons name="flash" size={16} color="#FF4D4D" />
-            <Text style={styles.modeButtonText}>DEBATE</Text>
+            <Text style={styles.modeButtonText}>DEBATE ARENA</Text>
           </Pressable>
         </Animated.View>
         <Animated.View entering={FadeInDown.delay(750).duration(500)} style={styles.modeButtons}>
@@ -1972,7 +1956,7 @@ export default function HomeScreen() {
             testID="dc-university-entry"
           >
             <View style={[styles.personasTrophyIconWrap, { backgroundColor: "rgba(255,215,0,0.12)" }]}>
-              <MaterialCommunityIcons name="school" size={18} color="#FFD700" />
+              <Image source={require("@/assets/images/dc-university-crest.png")} style={{ width: 26, height: 26 }} resizeMode="contain" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[styles.personasTrophyTitle, { color: "#FFD700" }]}>DC UNIVERSITY</Text>
@@ -1981,6 +1965,25 @@ export default function HomeScreen() {
             <Feather name="chevron-right" size={18} color="#FFD700" />
           </Pressable>
         </Animated.View>
+
+        {factOfDay && (
+          <Animated.View entering={FadeInDown.delay(870).duration(500)}>
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push("/dc-university");
+              }}
+              style={({ pressed }) => [styles.factOfDayCard, pressed && { opacity: 0.85 }]}
+              testID="fact-of-day-widget"
+            >
+              <View style={styles.factOfDayHeader}>
+                <Image source={require("@/assets/images/dc-university-crest.png")} style={{ width: 16, height: 16 }} resizeMode="contain" />
+                <Text style={styles.factOfDayLabel}>DC UNIVERSITY FACT OF THE DAY · {factOfDay.educatorName.toUpperCase()}</Text>
+              </View>
+              <Text style={styles.factOfDayText} numberOfLines={3}>{factOfDay.fact}</Text>
+            </Pressable>
+          </Animated.View>
+        )}
 
         {hotTake && (
           <Animated.View entering={FadeIn.delay(900).duration(600)} style={styles.hotTakeBubble}>
@@ -3149,6 +3152,34 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: Colors.whiteMuted,
     lineHeight: 16,
+  },
+  factOfDayCard: {
+    backgroundColor: "rgba(255,215,0,0.07)",
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginHorizontal: 20,
+    marginTop: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,215,0,0.25)",
+  },
+  factOfDayHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 6,
+  },
+  factOfDayLabel: {
+    fontSize: 9.5,
+    fontWeight: "800" as const,
+    color: Colors.gold,
+    letterSpacing: 0.8,
+    flex: 1,
+  },
+  factOfDayText: {
+    fontSize: 12.5,
+    color: Colors.white,
+    lineHeight: 18,
   },
   feedbackOverlay: {
     flex: 1,

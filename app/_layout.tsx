@@ -473,6 +473,10 @@ function RootLayoutNav() {
         name="dc-university-lecture"
         options={{ headerShown: false }}
       />
+      <Stack.Screen
+        name="dc-university-discussion"
+        options={{ headerShown: false }}
+      />
     </Stack>
   );
 }

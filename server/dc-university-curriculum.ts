@@ -957,6 +957,31 @@ export function getDcBeatsForLength(course: DcUniversityCourse, minutes: Lecture
   return course.beats.slice(0, count);
 }
 
+export interface DcFactOfDay {
+  courseId: string;
+  educatorId: string;
+  educatorName: string;
+  courseTitle: string;
+  fact: string;
+}
+
+// Deterministic "fact of the day" — same seed (e.g. day-of-year) always picks
+// the same course/beat/fact so every user sees the same fact until it rolls
+// over, without needing to persist anything server-side.
+export function getDcFactOfDay(seed: number): DcFactOfDay {
+  const courses = DC_UNIVERSITY_COURSES;
+  const course = courses[seed % courses.length];
+  const beat = course.beats[Math.floor(seed / courses.length) % course.beats.length];
+  const fact = beat.facts[seed % beat.facts.length];
+  return {
+    courseId: course.id,
+    educatorId: course.educatorId,
+    educatorName: course.educatorName,
+    courseTitle: course.courseTitle,
+    fact,
+  };
+}
+
 // Weekly engagement schedule — bonus DC Points for attending class on themed
 // days. Day index matches JS Date.getDay() (0 = Sunday).
 export const DC_WEEKLY_SCHEDULE: { day: number; label: string; bonusPoints: number; blurb: string }[] = [

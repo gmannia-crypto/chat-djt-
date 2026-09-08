@@ -40,6 +40,7 @@ import {
   DC_UNIVERSITY_COURSES,
   getDcCourse,
   getDcBeatsForLength,
+  getDcFactOfDay,
   DC_WEEKLY_SCHEDULE,
   DC_LEVELS,
   computeLevel,
@@ -18730,6 +18731,7 @@ Respond with a JSON array ONLY — no markdown, no code fences, no preamble. Exa
   // ─────────────────────────────────────────────────────────────────────────────
 
   interface DcLectureSession {
+    mode: "lecture" | "discussion";
     deviceId: string;
     courseId: string;
     minutes: LectureMinutes;
@@ -18738,7 +18740,12 @@ Respond with a JSON array ONLY — no markdown, no code fences, no preamble. Exa
     beats: { id: string; topic: string; facts: string[] }[];
     startedAt: number;
     transcript: { role: string; text: string }[];
+    // Grace/overage tracking: first 2 minutes past the purchased length are
+    // free (never cut a professor off mid-thought); minutes beyond that are
+    // auto-charged at 1 DC token/minute so long conversations still cost.
+    extraMinutesCharged: number;
   }
+  const DC_GRACE_MINUTES = 2;
   const dcUniversitySessions = new Map<string, DcLectureSession>();
   // Clean up abandoned sessions after 2 hours.
   setInterval(() => {
@@ -18747,6 +18754,24 @@ Respond with a JSON array ONLY — no markdown, no code fences, no preamble. Exa
       if (s.startedAt < cutoff) dcUniversitySessions.delete(id);
     }
   }, 30 * 60 * 1000);
+
+  // Called on every lecture/discussion turn. If the session has run past its
+  // purchased minutes + free grace buffer, silently charge 1 DC token per
+  // additional whole minute actually used — never blocks or cuts off the
+  // in-progress response, just bills for the overage after the fact.
+  async function chargeDcOverageIfNeeded(session: DcLectureSession): Promise<number | null> {
+    const elapsedMinutes = Math.floor((Date.now() - session.startedAt) / 60000);
+    const overageMinutes = Math.max(0, elapsedMinutes - (session.minutes + DC_GRACE_MINUTES));
+    const newlyOwed = overageMinutes - session.extraMinutesCharged;
+    if (newlyOwed <= 0) return null;
+    session.extraMinutesCharged = overageMinutes;
+    try {
+      const result = await useTokens(session.deviceId, newlyOwed, `DC University overtime (+${newlyOwed} min)`);
+      return result.success ? result.balance ?? null : null;
+    } catch {
+      return null;
+    }
+  }
 
   async function ensureDcUniversityTables(pool: InstanceType<typeof Pool>) {
     await pool.query(`CREATE TABLE IF NOT EXISTS dc_university_progress (
@@ -18774,6 +18799,14 @@ Respond with a JSON array ONLY — no markdown, no code fences, no preamble. Exa
       passed BOOLEAN DEFAULT FALSE,
       certificate_id TEXT,
       completed_at TIMESTAMPTZ DEFAULT NOW()
+    )`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS dc_university_conversation_memory (
+      device_id TEXT NOT NULL,
+      educator_id TEXT NOT NULL,
+      student_name TEXT DEFAULT 'Student',
+      summary TEXT NOT NULL,
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      PRIMARY KEY (device_id, educator_id)
     )`);
   }
 
@@ -18876,7 +18909,7 @@ TEACHING RULES:
       const beats = getDcBeatsForLength(course, mins);
       const sessionId = `dcu_${deviceId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       dcUniversitySessions.set(sessionId, {
-        deviceId, courseId, minutes: mins, studentName: name, beatIndex: 0, beats, startedAt: Date.now(), transcript: [],
+        mode: "lecture", deviceId, courseId, minutes: mins, studentName: name, beatIndex: 0, beats, startedAt: Date.now(), transcript: [], extraMinutesCharged: 0,
       });
 
       const beat = beats[0];
@@ -18921,7 +18954,8 @@ TEACHING RULES:
       const course = getDcCourse(session.courseId)!;
       const nextIndex = session.beatIndex + 1;
       if (nextIndex >= session.beats.length) {
-        return res.json({ done: true });
+        const newBalance = await chargeDcOverageIfNeeded(session);
+        return res.json({ done: true, balance: newBalance });
       }
       const beat = session.beats[nextIndex];
       const systemPrompt = buildDcLectureSystemPrompt(course, session.studentName);
@@ -18936,7 +18970,8 @@ TEACHING RULES:
       const text = (completion.choices[0]?.message?.content || "").replace(/^["']|["']$/g, "").trim();
       session.beatIndex = nextIndex;
       session.transcript.push({ role: "educator", text });
-      res.json({ done: false, beatIndex: nextIndex, totalBeats: session.beats.length, topic: beat.topic, text });
+      const newBalance = await chargeDcOverageIfNeeded(session);
+      res.json({ done: false, beatIndex: nextIndex, totalBeats: session.beats.length, topic: beat.topic, text, balance: newBalance });
     } catch (err: any) {
       console.error("[dc-university/lecture/next] error:", err);
       res.status(500).json({ error: "Failed to continue lecture" });
@@ -18963,10 +18998,201 @@ TEACHING RULES:
       const text = (completion.choices[0]?.message?.content || "").replace(/^["']|["']$/g, "").trim();
       session.transcript.push({ role: "student", text: question });
       session.transcript.push({ role: "educator", text });
-      res.json({ text });
+      const newBalance = await chargeDcOverageIfNeeded(session);
+      res.json({ text, balance: newBalance });
     } catch (err: any) {
       console.error("[dc-university/lecture/qa] error:", err);
       res.status(500).json({ error: "Failed to answer question" });
+    }
+  });
+
+  // GET /api/dc-university/fact-of-day — a deterministic daily fact from a
+  // random professor's curriculum, shown on the main nav and DC University hub.
+  app.get("/api/dc-university/fact-of-day", (req, res) => {
+    try {
+      const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000);
+      res.json(getDcFactOfDay(dayOfYear));
+    } catch (err: any) {
+      console.error("[dc-university/fact-of-day] error:", err);
+      res.status(500).json({ error: "Failed to load fact of the day" });
+    }
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // DC UNIVERSITY OFFICE HOURS — free-form, per-minute conversation with a
+  // single professor (no lecture beats, no quiz). Same tiered token pricing
+  // as lectures; the professor recalls prior office-hours conversations with
+  // this student via a persisted rolling summary.
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  async function getDcConversationMemory(pool: InstanceType<typeof Pool>, deviceId: string, educatorId: string): Promise<string | null> {
+    const r = await pool.query(
+      `SELECT summary, student_name FROM dc_university_conversation_memory WHERE device_id = $1 AND educator_id = $2`,
+      [deviceId, educatorId]
+    );
+    return r.rows[0]?.summary || null;
+  }
+
+  async function saveDcConversationMemory(pool: InstanceType<typeof Pool>, deviceId: string, educatorId: string, studentName: string, summary: string) {
+    await pool.query(
+      `INSERT INTO dc_university_conversation_memory (device_id, educator_id, student_name, summary, updated_at)
+       VALUES ($1, $2, $3, $4, NOW())
+       ON CONFLICT (device_id, educator_id) DO UPDATE SET summary = $4, student_name = $3, updated_at = NOW()`,
+      [deviceId, educatorId, studentName, summary.slice(0, 2000)]
+    );
+  }
+
+  function buildDcDiscussionSystemPrompt(course: DcUniversityCourse, studentName: string, memory: string | null): string {
+    return `You are ${course.educatorName} (${course.educatorTitle}), holding private office hours at DC University with a student named ${studentName}. This is an open, free-flowing conversation, not a scripted lecture — ${studentName} can ask you anything, in your field or out of it, and you talk it through together like a real mentor would.
+
+${getArenaPersonaPrompt(course.educatorId)}
+
+${memory ? `You recall previous office-hours conversations with ${studentName}. Here is your private memory of them — refer back to it naturally when relevant, the way you'd remember a returning student:\n${memory}\n` : `This is your first office-hours conversation with ${studentName}.`}
+
+OFFICE HOURS RULES:
+- Stay 100% in character as ${course.educatorName} — your real voice, cadence, and personality.
+- Speak from your genuine expertise and perspective; if you're not sure of a fact, say so rather than inventing one.
+- Never mention that you are an AI or a language model; you are ${course.educatorName}.
+- No stage directions, no asterisks, no markdown — this is spoken conversation audio.
+- Keep responses conversational — 3-5 sentences unless the topic genuinely calls for more.`;
+  }
+
+  app.post("/api/dc-university/discussion/start", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const { courseId, minutes, studentName } = req.body || {};
+      const course = getDcCourse(courseId);
+      if (!course) return res.status(400).json({ error: "Unknown course" });
+      if (course.comingSoon) return res.status(400).json({ error: "This course is coming soon" });
+      if (!isValidLectureMinutes(minutes)) return res.status(400).json({ error: "minutes must be 5, 10, or 15" });
+      const mins = Number(minutes) as LectureMinutes;
+      const lengthDef = course.lengths[mins];
+      const name = (typeof studentName === "string" && studentName.trim()) ? studentName.trim().slice(0, 40) : "Student";
+
+      const tokenResult = await useTokens(deviceId, lengthDef.tokenCost, `DC University office hours: ${course.educatorName} (${mins} min)`);
+      if (!tokenResult.success) {
+        return res.status(403).json({ error: tokenResult.error || "insufficient_tokens", balance: tokenResult.balance, tokensNeeded: lengthDef.tokenCost });
+      }
+
+      const db = (await import("pg")).default;
+      const pool = new db.Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      let memory: string | null = null;
+      try {
+        await ensureDcUniversityTables(pool);
+        memory = await getDcConversationMemory(pool, deviceId, course.educatorId);
+      } finally {
+        await pool.end();
+      }
+
+      const sessionId = `dcd_${deviceId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      dcUniversitySessions.set(sessionId, {
+        mode: "discussion", deviceId, courseId, minutes: mins, studentName: name, beatIndex: 0, beats: [], startedAt: Date.now(), transcript: [], extraMinutesCharged: 0,
+      });
+
+      const systemPrompt = buildDcDiscussionSystemPrompt(course, name, memory);
+      const userPrompt = memory
+        ? `Greet ${name} personally as they return for another office-hours conversation. Reference something from your memory of them naturally, then invite them to pick up wherever they'd like. 2-4 sentences.`
+        : `Greet ${name} personally as they arrive for their first office-hours conversation with you. Invite them to ask you anything. 2-4 sentences.`;
+
+      const completion = await openai.chat.completions.create({
+        model: MODEL_CONFIG.premium.fast,
+        messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+        max_completion_tokens: 300,
+        temperature: 0.85,
+      });
+      const text = (completion.choices[0]?.message?.content || "").replace(/^["']|["']$/g, "").trim();
+
+      const session = dcUniversitySessions.get(sessionId)!;
+      session.transcript.push({ role: "educator", text });
+
+      res.json({
+        sessionId,
+        educatorId: course.educatorId,
+        educatorName: course.educatorName,
+        courseTitle: course.courseTitle,
+        minutes: mins,
+        text,
+        hasMemory: !!memory,
+        balance: tokenResult.balance,
+      });
+    } catch (err: any) {
+      console.error("[dc-university/discussion/start] error:", err);
+      res.status(500).json({ error: "Failed to start discussion" });
+    }
+  });
+
+  app.post("/api/dc-university/discussion/message", async (req, res) => {
+    try {
+      const { sessionId, message } = req.body || {};
+      if (!message || typeof message !== "string" || !message.trim()) return res.status(400).json({ error: "message required" });
+      const session = dcUniversitySessions.get(sessionId);
+      if (!session || session.mode !== "discussion") return res.status(404).json({ error: "Session not found or expired" });
+      const course = getDcCourse(session.courseId)!;
+
+      const db = (await import("pg")).default;
+      const pool = new db.Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      let memory: string | null = null;
+      try {
+        memory = await getDcConversationMemory(pool, session.deviceId, course.educatorId);
+      } finally {
+        await pool.end();
+      }
+
+      const systemPrompt = buildDcDiscussionSystemPrompt(course, session.studentName, memory);
+      const recap = session.transcript.slice(-8).map((t) => `${t.role}: ${t.text}`).join("\n");
+      const userPrompt = `Conversation so far:\n${recap}\n\n${session.studentName} says: "${message.slice(0, 500)}"\n\nRespond directly and personally.`;
+      const completion = await openai.chat.completions.create({
+        model: MODEL_CONFIG.premium.fast,
+        messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+        max_completion_tokens: 350,
+        temperature: 0.85,
+      });
+      const text = (completion.choices[0]?.message?.content || "").replace(/^["']|["']$/g, "").trim();
+      session.transcript.push({ role: "student", text: message });
+      session.transcript.push({ role: "educator", text });
+      const newBalance = await chargeDcOverageIfNeeded(session);
+      res.json({ text, balance: newBalance });
+    } catch (err: any) {
+      console.error("[dc-university/discussion/message] error:", err);
+      res.status(500).json({ error: "Failed to send message" });
+    }
+  });
+
+  app.post("/api/dc-university/discussion/end", async (req, res) => {
+    try {
+      const { sessionId } = req.body || {};
+      const session = dcUniversitySessions.get(sessionId);
+      if (!session || session.mode !== "discussion") return res.status(404).json({ error: "Session not found or expired" });
+      const course = getDcCourse(session.courseId)!;
+
+      if (session.transcript.length > 0) {
+        const priorMemoryPool = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+        try {
+          await ensureDcUniversityTables(priorMemoryPool);
+          const priorMemory = await getDcConversationMemory(priorMemoryPool, session.deviceId, course.educatorId);
+          const transcriptText = session.transcript.map((t) => `${t.role}: ${t.text}`).join("\n");
+          const summaryPrompt = `${priorMemory ? `Prior memory of this student:\n${priorMemory}\n\n` : ""}Today's office-hours conversation with ${session.studentName}:\n${transcriptText}\n\nWrite a short private memory note (3-5 sentences, plain prose) that ${course.educatorName} would keep about this student for next time — key topics discussed, the student's interests or concerns, and anything worth following up on. Do not address the student directly; write it as a private note to self.`;
+          const completion = await openai.chat.completions.create({
+            model: MODEL_CONFIG.premium.fast,
+            messages: [{ role: "user", content: summaryPrompt }],
+            max_completion_tokens: 220,
+            temperature: 0.5,
+          });
+          const summary = (completion.choices[0]?.message?.content || "").trim();
+          if (summary) await saveDcConversationMemory(priorMemoryPool, session.deviceId, course.educatorId, session.studentName, summary);
+        } catch (e) {
+          console.error("[dc-university/discussion/end] memory save failed:", e);
+        } finally {
+          await priorMemoryPool.end();
+        }
+      }
+
+      dcUniversitySessions.delete(sessionId);
+      res.json({ ok: true });
+    } catch (err: any) {
+      console.error("[dc-university/discussion/end] error:", err);
+      res.status(500).json({ error: "Failed to end discussion" });
     }
   });
 

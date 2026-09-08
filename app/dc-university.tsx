@@ -77,7 +77,9 @@ export default function DcUniversityScreen() {
   const [progress, setProgress] = useState<Progress | null>(null);
   const [loading, setLoading] = useState(true);
   const [pickerCourse, setPickerCourse] = useState<Course | null>(null);
+  const [pickerMode, setPickerMode] = useState<"lecture" | "discussion">("lecture");
   const [studentName, setStudentName] = useState("");
+  const [factOfDay, setFactOfDay] = useState<{ educatorId: string; educatorName: string; courseTitle: string; fact: string } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -90,6 +92,10 @@ export default function DcUniversityScreen() {
     try {
       const savedName = await AsyncStorage.getItem(STUDENT_NAME_KEY);
       if (savedName) setStudentName(savedName);
+    } catch {}
+    try {
+      const factRes = await fetch(`${getApiUrl()}/api/dc-university/fact-of-day`);
+      if (factRes.ok) setFactOfDay(await factRes.json());
     } catch {}
     if (deviceId) {
       try {
@@ -108,21 +114,22 @@ export default function DcUniversityScreen() {
     }, [load])
   );
 
-  const openPicker = (course: Course) => {
+  const openPicker = (course: Course, mode: "lecture" | "discussion" = "lecture") => {
     if (course.comingSoon) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setPickerMode(mode);
     setPickerCourse(course);
   };
 
-  const startLecture = async (minutes: 5 | 10 | 15) => {
+  const startSession = async (minutes: 5 | 10 | 15) => {
     if (!pickerCourse) return;
     const name = studentName.trim() || "Student";
     await AsyncStorage.setItem(STUDENT_NAME_KEY, name);
-    trackAnalyticsEvent("dc_university_lecture_selected", { courseId: pickerCourse.id, minutes });
+    trackAnalyticsEvent(pickerMode === "lecture" ? "dc_university_lecture_selected" : "dc_university_discussion_selected", { courseId: pickerCourse.id, minutes });
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     setPickerCourse(null);
     router.push({
-      pathname: "/dc-university-lecture",
+      pathname: pickerMode === "lecture" ? "/dc-university-lecture" : "/dc-university-discussion",
       params: { courseId: pickerCourse.id, minutes: String(minutes), studentName: name },
     });
   };
@@ -195,35 +202,57 @@ export default function DcUniversityScreen() {
           </View>
         )}
 
+        {factOfDay && (
+          <View style={styles.factCard}>
+            <View style={styles.factHeader}>
+              <MaterialCommunityIcons name="lightbulb-on" size={16} color="#FFD700" />
+              <Text style={styles.factLabel}>FACT OF THE DAY · {factOfDay.educatorName.toUpperCase()}</Text>
+            </View>
+            <Text style={styles.factText}>{factOfDay.fact}</Text>
+            <Text style={styles.factSource}>from {factOfDay.courseTitle}</Text>
+          </View>
+        )}
+
         {Object.entries(grouped).map(([dept, deptCourses]) => (
           <View key={dept} style={styles.deptSection}>
             <Text style={styles.deptLabel}>{dept.toUpperCase()}</Text>
             {deptCourses.map((course) => (
-              <Pressable
-                key={course.id}
-                onPress={() => openPicker(course)}
-                style={({ pressed }) => [styles.courseCard, pressed && !course.comingSoon && { opacity: 0.75 }]}
-                testID={`dc-course-${course.id}`}
-              >
-                <Image source={EDUCATOR_PORTRAITS[course.educatorId]} style={styles.portrait} />
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={styles.courseTitle}>{course.courseTitle}</Text>
-                  <Text style={styles.educatorName}>{course.educatorName} · {course.educatorTitle}</Text>
-                  <Text style={styles.courseDescription} numberOfLines={2}>{course.courseDescription}</Text>
-                  {!course.comingSoon && (
-                    <Text style={styles.tokenCosts}>
-                      5 min · {course.lengths[0]?.tokenCost} tokens   10 min · {course.lengths[1]?.tokenCost} tokens   15 min · {course.lengths[2]?.tokenCost} tokens
-                    </Text>
-                  )}
-                </View>
-                {course.comingSoon ? (
-                  <View style={styles.comingSoonBadge}>
-                    <Text style={styles.comingSoonText}>SOON</Text>
+              <View key={course.id} style={styles.courseCard}>
+                <Pressable
+                  onPress={() => openPicker(course, "lecture")}
+                  style={({ pressed }) => [styles.courseCardMain, pressed && !course.comingSoon && { opacity: 0.75 }]}
+                  testID={`dc-course-${course.id}`}
+                >
+                  <Image source={EDUCATOR_PORTRAITS[course.educatorId]} style={styles.portrait} />
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={styles.courseTitle}>{course.courseTitle}</Text>
+                    <Text style={styles.educatorName}>{course.educatorName} · {course.educatorTitle}</Text>
+                    <Text style={styles.courseDescription} numberOfLines={2}>{course.courseDescription}</Text>
+                    {!course.comingSoon && (
+                      <Text style={styles.tokenCosts}>
+                        5 min · {course.lengths[0]?.tokenCost} tokens   10 min · {course.lengths[1]?.tokenCost} tokens   15 min · {course.lengths[2]?.tokenCost} tokens
+                      </Text>
+                    )}
                   </View>
-                ) : (
-                  <Feather name="chevron-right" size={20} color="#FFD700" />
+                  {course.comingSoon ? (
+                    <View style={styles.comingSoonBadge}>
+                      <Text style={styles.comingSoonText}>SOON</Text>
+                    </View>
+                  ) : (
+                    <Feather name="chevron-right" size={20} color="#FFD700" />
+                  )}
+                </Pressable>
+                {!course.comingSoon && (
+                  <Pressable
+                    onPress={() => openPicker(course, "discussion")}
+                    style={({ pressed }) => [styles.officeHoursButton, pressed && { opacity: 0.75 }]}
+                    testID={`dc-office-hours-${course.id}`}
+                  >
+                    <Ionicons name="chatbubbles" size={13} color="#FFD700" />
+                    <Text style={styles.officeHoursText}>Office Hours — ask {course.educatorName.split(" ").slice(-1)[0]} anything</Text>
+                  </Pressable>
                 )}
-              </Pressable>
+              </View>
             ))}
           </View>
         ))}
@@ -262,11 +291,11 @@ export default function DcUniversityScreen() {
               testID="dc-university-name-input"
             />
 
-            <Text style={styles.inputLabel}>Choose lecture length</Text>
+            <Text style={styles.inputLabel}>{pickerMode === "lecture" ? "Choose lecture length" : "Choose office hours length"}</Text>
             {pickerCourse?.lengths.map((l) => (
               <Pressable
                 key={l.minutes}
-                onPress={() => startLecture(l.minutes)}
+                onPress={() => startSession(l.minutes)}
                 style={({ pressed }) => [styles.lengthButton, pressed && { opacity: 0.8 }]}
                 testID={`dc-length-${l.minutes}`}
               >
@@ -302,7 +331,15 @@ const styles = StyleSheet.create({
   balanceText: { color: "#FFD700", fontSize: 12, textAlign: "center", marginTop: 4, fontWeight: "600" },
   deptSection: { marginTop: 22, paddingHorizontal: 16 },
   deptLabel: { color: "#8899AA", fontSize: 12, fontWeight: "700", letterSpacing: 1.2, marginBottom: 10 },
-  courseCard: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 16, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" },
+  courseCard: { backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 16, marginBottom: 10, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", overflow: "hidden" },
+  courseCardMain: { flexDirection: "row", alignItems: "center", padding: 12 },
+  officeHoursButton: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 9, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.08)", backgroundColor: "rgba(255,215,0,0.05)" },
+  officeHoursText: { color: "#FFD700", fontSize: 11.5, fontWeight: "600" },
+  factCard: { marginHorizontal: 16, marginTop: 14, backgroundColor: "rgba(255,215,0,0.08)", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "rgba(255,215,0,0.25)" },
+  factHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
+  factLabel: { color: "#FFD700", fontSize: 10.5, fontWeight: "800", letterSpacing: 0.8 },
+  factText: { color: "#FFF", fontSize: 13, lineHeight: 19 },
+  factSource: { color: "#8899AA", fontSize: 10.5, marginTop: 6, fontStyle: "italic" },
   portrait: { width: 56, height: 56, borderRadius: 28, backgroundColor: "#222" },
   courseTitle: { color: "#FFF", fontSize: 14, fontWeight: "700" },
   educatorName: { color: "#FFD700", fontSize: 11, marginTop: 2, fontWeight: "600" },
