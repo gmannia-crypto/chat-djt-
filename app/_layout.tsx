@@ -465,6 +465,14 @@ function RootLayoutNav() {
         name="voice-mixer"
         options={{ headerShown: false, presentation: "modal", animation: "slide_from_bottom" }}
       />
+      <Stack.Screen
+        name="dc-university"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="dc-university-lecture"
+        options={{ headerShown: false }}
+      />
     </Stack>
   );
 }

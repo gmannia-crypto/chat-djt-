@@ -37,6 +37,16 @@ import { Pool } from "pg";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
 import { INTERVIEW_RETENTION_MS, INTERVIEW_CLEANUP_DISABLED } from "./cleanupConfig";
 import {
+  DC_UNIVERSITY_COURSES,
+  getDcCourse,
+  getDcBeatsForLength,
+  DC_WEEKLY_SCHEDULE,
+  DC_LEVELS,
+  computeLevel,
+  type LectureMinutes,
+  type DcUniversityCourse,
+} from "./dc-university-curriculum";
+import {
   getTokenBalance,
   useToken,
   useTokens,
@@ -18661,6 +18671,355 @@ Respond with a JSON array ONLY — no markdown, no code fences, no preamble. Exa
     } catch (err: any) {
       console.error("[referral/stats] error:", err);
       res.status(500).json({ error: "Failed to fetch referral stats" });
+    }
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // DC UNIVERSITY — curated live lectures taught by real Arena/Interview
+  // educators. Billed 1 DC token per minute for the lecture itself; live Q&A
+  // is free. Content is curated, fact-checked bullet points (see
+  // server/dc-university-curriculum.ts) that the persona's AI teaches from —
+  // it is instructed never to invent facts beyond what's provided.
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  interface DcLectureSession {
+    deviceId: string;
+    courseId: string;
+    minutes: LectureMinutes;
+    studentName: string;
+    beatIndex: number;
+    beats: { id: string; topic: string; facts: string[] }[];
+    startedAt: number;
+    transcript: { role: string; text: string }[];
+  }
+  const dcUniversitySessions = new Map<string, DcLectureSession>();
+  // Clean up abandoned sessions after 2 hours.
+  setInterval(() => {
+    const cutoff = Date.now() - 2 * 60 * 60 * 1000;
+    for (const [id, s] of dcUniversitySessions.entries()) {
+      if (s.startedAt < cutoff) dcUniversitySessions.delete(id);
+    }
+  }, 30 * 60 * 1000);
+
+  async function ensureDcUniversityTables(pool: InstanceType<typeof Pool>) {
+    await pool.query(`CREATE TABLE IF NOT EXISTS dc_university_progress (
+      device_id TEXT PRIMARY KEY,
+      student_name TEXT DEFAULT 'Student',
+      total_sessions INTEGER DEFAULT 0,
+      total_minutes INTEGER DEFAULT 0,
+      points INTEGER DEFAULT 0,
+      current_streak INTEGER DEFAULT 0,
+      longest_streak INTEGER DEFAULT 0,
+      last_session_date TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS dc_university_completions (
+      id TEXT PRIMARY KEY,
+      device_id TEXT NOT NULL,
+      course_id TEXT NOT NULL,
+      department_id TEXT NOT NULL,
+      educator_id TEXT NOT NULL,
+      minutes INTEGER NOT NULL,
+      tokens_charged INTEGER NOT NULL,
+      quiz_score INTEGER,
+      quiz_total INTEGER,
+      passed BOOLEAN DEFAULT FALSE,
+      certificate_id TEXT,
+      completed_at TIMESTAMPTZ DEFAULT NOW()
+    )`);
+  }
+
+  function buildDcLectureSystemPrompt(course: DcUniversityCourse, studentName: string): string {
+    return `You are ${course.educatorName} (${course.educatorTitle}), teaching a private, one-on-one class at DC University to a single student named ${studentName}. This is not a debate or interview — it is a real lecture, and ${studentName} is the only person in the room. Speak to them personally and directly, using their name naturally, the way a great professor speaks to a student they know well.
+
+${getArenaPersonaPrompt(course.educatorId)}
+
+TEACHING RULES:
+- Stay 100% in character as ${course.educatorName} — your real voice, cadence, and personality — but in "teaching mode" rather than "debate mode": patient, generous, didactic, never combative toward your own student.
+- Only teach the verified facts provided to you in this prompt. Do not invent dates, names, statistics, or events. You may add your own interpretation or perspective, but make clear when you are doing so rather than presenting it as a new fact.
+- Never mention that you are an AI or a language model; you are ${course.educatorName}, teaching class.
+- No stage directions, no asterisks, no markdown — this is spoken lecture audio.`;
+  }
+
+  function isValidLectureMinutes(v: any): v is LectureMinutes {
+    return v === 5 || v === 10 || v === 15 || v === "5" || v === "10" || v === "15";
+  }
+
+  app.get("/api/dc-university/catalog", (req, res) => {
+    try {
+      const courses = DC_UNIVERSITY_COURSES.map((c) => ({
+        id: c.id,
+        departmentId: c.departmentId,
+        departmentLabel: c.departmentLabel,
+        educatorId: c.educatorId,
+        educatorName: c.educatorName,
+        educatorTitle: c.educatorTitle,
+        courseTitle: c.courseTitle,
+        courseDescription: c.courseDescription,
+        comingSoon: !!c.comingSoon,
+        lengths: ([5, 10, 15] as LectureMinutes[]).map((m) => ({ minutes: m, tokenCost: c.lengths[m].tokenCost })),
+      }));
+      const today = new Date();
+      const todaySchedule = DC_WEEKLY_SCHEDULE.find((s) => s.day === today.getDay());
+      res.json({ courses, weeklySchedule: DC_WEEKLY_SCHEDULE, today: todaySchedule || null, levels: DC_LEVELS });
+    } catch (err: any) {
+      console.error("[dc-university/catalog] error:", err);
+      res.status(500).json({ error: "Failed to load catalog" });
+    }
+  });
+
+  app.get("/api/dc-university/progress", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const db = (await import("pg")).default;
+      const pool = new db.Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      try {
+        await ensureDcUniversityTables(pool);
+        const progRes = await pool.query(`SELECT * FROM dc_university_progress WHERE device_id = $1`, [deviceId]);
+        const prog = progRes.rows[0] || { total_sessions: 0, total_minutes: 0, points: 0, current_streak: 0, longest_streak: 0 };
+        const certRes = await pool.query(
+          `SELECT id, course_id, educator_id, minutes, quiz_score, quiz_total, certificate_id, completed_at
+           FROM dc_university_completions WHERE device_id = $1 AND passed = TRUE ORDER BY completed_at DESC`,
+          [deviceId]
+        );
+        const level = computeLevel(prog.points || 0);
+        res.json({
+          totalSessions: prog.total_sessions || 0,
+          totalMinutes: prog.total_minutes || 0,
+          points: prog.points || 0,
+          currentStreak: prog.current_streak || 0,
+          longestStreak: prog.longest_streak || 0,
+          level: level.name,
+          nextLevel: level.next || null,
+          certificates: certRes.rows.map((r: any) => ({
+            id: r.id, courseId: r.course_id, educatorId: r.educator_id, minutes: r.minutes,
+            quizScore: r.quiz_score, quizTotal: r.quiz_total, certificateId: r.certificate_id, completedAt: r.completed_at,
+          })),
+        });
+      } finally {
+        await pool.end();
+      }
+    } catch (err: any) {
+      console.error("[dc-university/progress] error:", err);
+      res.status(500).json({ error: "Failed to load progress" });
+    }
+  });
+
+  app.post("/api/dc-university/lecture/start", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const { courseId, minutes, studentName } = req.body || {};
+      const course = getDcCourse(courseId);
+      if (!course) return res.status(400).json({ error: "Unknown course" });
+      if (course.comingSoon) return res.status(400).json({ error: "This course is coming soon" });
+      if (!isValidLectureMinutes(minutes)) return res.status(400).json({ error: "minutes must be 5, 10, or 15" });
+      const mins = Number(minutes) as LectureMinutes;
+      const lengthDef = course.lengths[mins];
+      const name = (typeof studentName === "string" && studentName.trim()) ? studentName.trim().slice(0, 40) : "Student";
+
+      const tokenResult = await useTokens(deviceId, lengthDef.tokenCost, `DC University: ${course.courseTitle} (${mins} min)`);
+      if (!tokenResult.success) {
+        return res.status(403).json({ error: tokenResult.error || "insufficient_tokens", balance: tokenResult.balance, tokensNeeded: lengthDef.tokenCost });
+      }
+
+      const beats = getDcBeatsForLength(course, mins);
+      const sessionId = `dcu_${deviceId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      dcUniversitySessions.set(sessionId, {
+        deviceId, courseId, minutes: mins, studentName: name, beatIndex: 0, beats, startedAt: Date.now(), transcript: [],
+      });
+
+      const beat = beats[0];
+      const systemPrompt = buildDcLectureSystemPrompt(course, name);
+      const userPrompt = `This is the OPENING of today's lecture. Greet ${name} personally by name — they are your only student, alone with you in this session. Then begin teaching this topic: "${beat.topic}". Weave in these verified facts naturally, in your own voice and teaching style (do not just read them as a list):\n${beat.facts.map((f) => `- ${f}`).join("\n")}\n\nSpeak directly to ${name}. 4-6 sentences.`;
+
+      const completion = await openai.chat.completions.create({
+        model: MODEL_CONFIG.premium.fast,
+        messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+        max_completion_tokens: 400,
+        temperature: 0.8,
+      });
+      const text = (completion.choices[0]?.message?.content || "").replace(/^["']|["']$/g, "").trim();
+
+      const session = dcUniversitySessions.get(sessionId)!;
+      session.transcript.push({ role: "educator", text });
+
+      res.json({
+        sessionId,
+        educatorId: course.educatorId,
+        educatorName: course.educatorName,
+        courseTitle: course.courseTitle,
+        minutes: mins,
+        totalBeats: beats.length,
+        beatIndex: 0,
+        topic: beat.topic,
+        text,
+        balance: tokenResult.balance,
+      });
+    } catch (err: any) {
+      console.error("[dc-university/lecture/start] error:", err);
+      res.status(500).json({ error: "Failed to start lecture" });
+    }
+  });
+
+  app.post("/api/dc-university/lecture/next", async (req, res) => {
+    try {
+      const { sessionId } = req.body || {};
+      const session = dcUniversitySessions.get(sessionId);
+      if (!session) return res.status(404).json({ error: "Session not found or expired" });
+      const course = getDcCourse(session.courseId)!;
+      const nextIndex = session.beatIndex + 1;
+      if (nextIndex >= session.beats.length) {
+        return res.json({ done: true });
+      }
+      const beat = session.beats[nextIndex];
+      const systemPrompt = buildDcLectureSystemPrompt(course, session.studentName);
+      const recap = session.transcript.slice(-2).map((t) => `${t.role}: ${t.text}`).join("\n");
+      const userPrompt = `Continue the lecture for ${session.studentName}. Move naturally to the next topic: "${beat.topic}". Weave in these verified facts in your own voice (do not just read them as a list):\n${beat.facts.map((f) => `- ${f}`).join("\n")}\n\nRecent lecture context:\n${recap}\n\nSpeak directly to ${session.studentName}, as if they are the only person in the room. 4-6 sentences.`;
+      const completion = await openai.chat.completions.create({
+        model: MODEL_CONFIG.premium.fast,
+        messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+        max_completion_tokens: 400,
+        temperature: 0.8,
+      });
+      const text = (completion.choices[0]?.message?.content || "").replace(/^["']|["']$/g, "").trim();
+      session.beatIndex = nextIndex;
+      session.transcript.push({ role: "educator", text });
+      res.json({ done: false, beatIndex: nextIndex, totalBeats: session.beats.length, topic: beat.topic, text });
+    } catch (err: any) {
+      console.error("[dc-university/lecture/next] error:", err);
+      res.status(500).json({ error: "Failed to continue lecture" });
+    }
+  });
+
+  app.post("/api/dc-university/lecture/qa", async (req, res) => {
+    try {
+      const { sessionId, question } = req.body || {};
+      if (!question || typeof question !== "string" || !question.trim()) return res.status(400).json({ error: "question required" });
+      const session = dcUniversitySessions.get(sessionId);
+      if (!session) return res.status(404).json({ error: "Session not found or expired" });
+      const course = getDcCourse(session.courseId)!;
+      const systemPrompt = buildDcLectureSystemPrompt(course, session.studentName) +
+        `\n\n${session.studentName} may ask you questions at any time, just like in a real classroom. Answer directly, personally, and honestly using your real expertise. If the question goes beyond today's material, still answer helpfully in character — do not deflect. Keep it to 3-5 sentences unless genuinely warranted.`;
+      const recap = session.transcript.slice(-4).map((t) => `${t.role}: ${t.text}`).join("\n");
+      const userPrompt = `Recent lecture context:\n${recap}\n\n${session.studentName} asks: "${question.slice(0, 500)}"\n\nAnswer them directly by name.`;
+      const completion = await openai.chat.completions.create({
+        model: MODEL_CONFIG.premium.fast,
+        messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+        max_completion_tokens: 350,
+        temperature: 0.85,
+      });
+      const text = (completion.choices[0]?.message?.content || "").replace(/^["']|["']$/g, "").trim();
+      session.transcript.push({ role: "student", text: question });
+      session.transcript.push({ role: "educator", text });
+      res.json({ text });
+    } catch (err: any) {
+      console.error("[dc-university/lecture/qa] error:", err);
+      res.status(500).json({ error: "Failed to answer question" });
+    }
+  });
+
+  app.get("/api/dc-university/quiz", (req, res) => {
+    try {
+      const { courseId, minutes } = req.query as any;
+      const course = getDcCourse(courseId);
+      if (!course) return res.status(400).json({ error: "Unknown course" });
+      if (!isValidLectureMinutes(minutes)) return res.status(400).json({ error: "minutes must be 5, 10, or 15" });
+      const mins = Number(minutes) as LectureMinutes;
+      const quiz = course.lengths[mins].quiz.map((q) => ({ id: q.id, question: q.question, choices: q.choices }));
+      res.json({ quiz });
+    } catch (err: any) {
+      console.error("[dc-university/quiz] error:", err);
+      res.status(500).json({ error: "Failed to load quiz" });
+    }
+  });
+
+  app.post("/api/dc-university/quiz/submit", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const { sessionId, courseId, minutes, studentName, answers } = req.body || {};
+      const course = getDcCourse(courseId);
+      if (!course) return res.status(400).json({ error: "Unknown course" });
+      if (!isValidLectureMinutes(minutes)) return res.status(400).json({ error: "minutes must be 5, 10, or 15" });
+      const mins = Number(minutes) as LectureMinutes;
+      const quiz = course.lengths[mins].quiz;
+      if (!Array.isArray(answers) || answers.length !== quiz.length) {
+        return res.status(400).json({ error: "answers must match quiz length" });
+      }
+
+      let score = 0;
+      const results = quiz.map((q, i) => {
+        const correct = Number(answers[i]) === q.correctIndex;
+        if (correct) score++;
+        return { id: q.id, correct, correctIndex: q.correctIndex, explanation: q.explanation };
+      });
+      const passed = quiz.length > 0 && score / quiz.length >= 0.7;
+
+      const db = (await import("pg")).default;
+      const pool = new db.Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      try {
+        await ensureDcUniversityTables(pool);
+        const completionId = `dccomp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const certificateId = passed ? `dccert_${Date.now()}_${Math.random().toString(36).slice(2, 8)}` : null;
+        await pool.query(
+          `INSERT INTO dc_university_completions (id, device_id, course_id, department_id, educator_id, minutes, tokens_charged, quiz_score, quiz_total, passed, certificate_id)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+          [completionId, deviceId, course.id, course.departmentId, course.educatorId, mins, course.lengths[mins].tokenCost, score, quiz.length, passed, certificateId]
+        );
+
+        const today = new Date();
+        const todaySchedule = DC_WEEKLY_SCHEDULE.find((s) => s.day === today.getDay());
+        const bonus = (passed ? 10 : 0) + (todaySchedule?.bonusPoints || 0);
+        const pointsEarned = mins + bonus;
+        const dateStr = today.toISOString().slice(0, 10);
+
+        await pool.query(
+          `INSERT INTO dc_university_progress (device_id, student_name) VALUES ($1, $2) ON CONFLICT (device_id) DO NOTHING`,
+          [deviceId, studentName || "Student"]
+        );
+        const progRes = await pool.query(`SELECT * FROM dc_university_progress WHERE device_id = $1`, [deviceId]);
+        const prog = progRes.rows[0];
+        const lastDate = prog.last_session_date;
+        let newStreak = prog.current_streak || 0;
+        if (lastDate !== dateStr) {
+          const yesterday = new Date(today);
+          yesterday.setDate(yesterday.getDate() - 1);
+          const yesterdayStr = yesterday.toISOString().slice(0, 10);
+          newStreak = lastDate === yesterdayStr ? newStreak + 1 : 1;
+        }
+        const newLongest = Math.max(prog.longest_streak || 0, newStreak);
+        const newPoints = (prog.points || 0) + pointsEarned;
+
+        await pool.query(
+          `UPDATE dc_university_progress SET
+             student_name = $2, total_sessions = total_sessions + 1, total_minutes = total_minutes + $3,
+             points = $4, current_streak = $5, longest_streak = $6, last_session_date = $7, updated_at = NOW()
+           WHERE device_id = $1`,
+          [deviceId, studentName || prog.student_name, mins, newPoints, newStreak, newLongest, dateStr]
+        );
+
+        const levelBefore = computeLevel(prog.points || 0).name;
+        const levelAfter = computeLevel(newPoints).name;
+
+        if (sessionId) dcUniversitySessions.delete(sessionId);
+
+        res.json({
+          score, total: quiz.length, passed, results,
+          certificateId,
+          pointsEarned, totalPoints: newPoints,
+          streak: newStreak, longestStreak: newLongest,
+          leveledUp: levelBefore !== levelAfter, level: levelAfter,
+          weeklyBonus: todaySchedule ? { label: todaySchedule.label, bonusPoints: todaySchedule.bonusPoints } : null,
+        });
+      } finally {
+        await pool.end();
+      }
+    } catch (err: any) {
+      console.error("[dc-university/quiz/submit] error:", err);
+      res.status(500).json({ error: "Failed to submit quiz" });
     }
   });
 

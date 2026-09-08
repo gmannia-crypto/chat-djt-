@@ -1816,6 +1816,24 @@ export default function HomeScreen() {
             </View>
             <Feather name="chevron-right" size={18} color="#ff4d4d" />
           </Pressable>
+
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              router.push("/dc-university");
+            }}
+            style={({ pressed }) => [styles.personasTrophyEntry, { borderColor: "rgba(255,215,0,0.35)", borderTopWidth: 1, borderTopColor: "rgba(255,215,0,0.35)" }, pressed && { opacity: 0.85 }]}
+            testID="dc-university-entry"
+          >
+            <View style={[styles.personasTrophyIconWrap, { backgroundColor: "rgba(255,215,0,0.12)" }]}>
+              <MaterialCommunityIcons name="school" size={18} color="#FFD700" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.personasTrophyTitle, { color: "#FFD700" }]}>DC UNIVERSITY</Text>
+              <Text style={styles.personasTrophySub}>Private lectures from real-world scholars</Text>
+            </View>
+            <Feather name="chevron-right" size={18} color="#FFD700" />
+          </Pressable>
         </Animated.View>
 
         {hotTake && (

@@ -9,3 +9,4 @@
 - [Live reaction wiring](live-reaction-wiring.md) — reactor choice depends on format; schedule off confirmed playback start, not dequeue/fetch time.
 - [Arena stale-response guard pattern](arena-stale-response-guard-pattern.md) — snapshot speakTokenRef before an AI fetch, recheck before addMessage/queueTTS, or a delayed side-channel response jumbles transcript order.
 - [Moderator/interviewer-only persona addition](persona-moderator-interviewer-only-addition.md) — minimum registry set when a persona is added only as moderator+interviewer, not a full arena combatant.
+- [DC University architecture](dc-university.md) — lecture/quiz/certificate feature reuses Arena personas/voices/prompts; curated fact "beats" constrain AI teaching content; only history-west course is fully built, rest are comingSoon stubs.
