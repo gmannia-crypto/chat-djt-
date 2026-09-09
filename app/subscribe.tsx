@@ -58,6 +58,7 @@ export default function SubscribeScreen() {
     referralCount: number;
     tokensEarned: number;
     grants: { id: string; grantedAt: string; friendName?: string | null }[];
+    grantsTruncated?: boolean;
   }>({
     queryKey: ["/api/referral/stats", deviceId],
     staleTime: 30000,
@@ -416,20 +417,34 @@ export default function SubscribeScreen() {
                     />
                   </Pressable>
                   {showReferralHistory && (
-                    <View style={styles.referralHistoryList} testID="referral-history-list">
-                      {referralStats.grants.map((grant, i) => {
-                        const friendLabel =
-                          grant.friendName?.trim() || `Friend #${referralStats.grants.length - i}`;
-                        return (
-                          <View key={grant.id} style={styles.referralHistoryRow}>
-                            <Ionicons name="checkmark-circle" size={13} color={Colors.gold} />
-                            <Text style={styles.referralHistoryText}>
-                              {friendLabel} joined — {formatGrantDateTime(grant.grantedAt)}
-                            </Text>
-                          </View>
-                        );
-                      })}
-                    </View>
+                    <>
+                      <ScrollView
+                        style={styles.referralHistoryList}
+                        contentContainerStyle={styles.referralHistoryListContent}
+                        nestedScrollEnabled
+                        testID="referral-history-list"
+                      >
+                        {referralStats.grants.map((grant, i) => {
+                          const friendLabel =
+                            grant.friendName?.trim() ||
+                            `Friend #${referralStats.referralCount - i}`;
+                          return (
+                            <View key={grant.id} style={styles.referralHistoryRow}>
+                              <Ionicons name="checkmark-circle" size={13} color={Colors.gold} />
+                              <Text style={styles.referralHistoryText}>
+                                {friendLabel} joined — {formatGrantDateTime(grant.grantedAt)}
+                              </Text>
+                            </View>
+                          );
+                        })}
+                      </ScrollView>
+                      {referralStats.grantsTruncated && (
+                        <Text style={styles.referralHistoryMoreText} testID="referral-history-more">
+                          Showing your {referralStats.grants.length} most recent of{" "}
+                          {referralStats.referralCount} friends
+                        </Text>
+                      )}
+                    </>
                   )}
                 </>
               )}
@@ -1130,6 +1145,9 @@ const styles = StyleSheet.create({
   },
   referralHistoryList: {
     marginTop: 8,
+    maxHeight: 220,
+  },
+  referralHistoryListContent: {
     gap: 6,
   },
   referralHistoryRow: {
@@ -1140,6 +1158,13 @@ const styles = StyleSheet.create({
   referralHistoryText: {
     fontSize: 11,
     color: Colors.whiteMuted,
+  },
+  referralHistoryMoreText: {
+    fontSize: 10,
+    color: Colors.whiteMuted,
+    opacity: 0.7,
+    textAlign: "center",
+    marginTop: 6,
   },
   legalText: {
     fontSize: 10,

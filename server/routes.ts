@@ -18755,14 +18755,19 @@ Respond with a JSON array ONLY — no markdown, no code fences, no preamble. Exa
         // the most recent unacknowledged batch (see /api/referral/notifications).
         // Joined through to linked_accounts so a friend who has linked an email/
         // social account shows their real name instead of just a join time.
+        // Capped to the most recent GRANTS_HISTORY_LIMIT so a power sharer with
+        // hundreds of referrals doesn't blow up the payload or the rendered
+        // list; referralCount above still reflects the true total.
+        const GRANTS_HISTORY_LIMIT = 50;
         const historyResult = await db.query(
           `SELECT rg.id, rg.granted_at, la.name AS friend_name
            FROM referral_grants rg
            LEFT JOIN token_accounts ta ON ta.device_id = rg.referred_device_id
            LEFT JOIN linked_accounts la ON la.id = ta.linked_account_id
            WHERE rg.referrer_device_id = $1
-           ORDER BY rg.granted_at DESC`,
-          [deviceId]
+           ORDER BY rg.granted_at DESC
+           LIMIT $2`,
+          [deviceId, GRANTS_HISTORY_LIMIT]
         );
         const grants = historyResult.rows.map(
           (row: { id: string; granted_at: Date; friend_name: string | null }) => ({
@@ -18771,8 +18776,9 @@ Respond with a JSON array ONLY — no markdown, no code fences, no preamble. Exa
             friendName: row.friend_name || null,
           })
         );
+        const grantsTruncated = referralCount > grants.length;
 
-        return res.json({ referralCount, tokensEarned, grants });
+        return res.json({ referralCount, tokensEarned, grants, grantsTruncated });
       } finally {
         await db.end();
       }
