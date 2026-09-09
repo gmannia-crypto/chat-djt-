@@ -39,6 +39,7 @@ import { useReactionOverlapEnabled } from "@/lib/reaction-overlap-settings";
 import { areAllied, isTrump } from "@/lib/persona-ideology";
 import { playPointAwardSound, playVoteClickSound, playVoteSound2, playBellSound, playCrowdCheer, playDrumroll, playWinnerChosenSound, playWinnerAfterSound, playBreakingNewsAlert, playChampionChime, playRewardChime, playTokenSpendSound } from "@/lib/arena-sfx";
 import { useSound } from "@/lib/sound-context";
+import { useSetupMusic } from "@/hooks/useSetupMusic";
 import { useTokens } from "@/lib/token-context";
 import { usePersonaLocks, PREMIUM_PERSONA_CONFIGS } from "@/lib/persona-locks";
 import {
@@ -4798,6 +4799,11 @@ export default function ArenaScreen() {
   const [showPersonaSelector, setShowPersonaSelector] = useState(false);
   const selectedPersonasRef = useRef<string[]>(PERSONA_IDS);
   useEffect(() => { selectedPersonasRef.current = selectedPersonas; }, [selectedPersonas]);
+
+  // Ambient music while picking debaters/topics — stops the instant the debate goes live (#pt-music).
+  const { enabled: setupMusicEnabled, toggle: toggleSetupMusic } = useSetupMusic(
+    (showPreDebateSetup || showPersonaSelector) && !isRunning
+  );
 
   // W/L records for all personas — shown on debater tiles in the picker
   const [allPersonaRecords, setAllPersonaRecords] = useState<Record<string, { wins: number; losses: number }>>({});
@@ -9587,6 +9593,20 @@ export default function ArenaScreen() {
               <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, marginHorizontal: 8 }}>THE ARENA</Text>
               <Ionicons name="flame" size={20} color="#FF4D4D" />
             </View>
+            <Pressable
+              onPress={() => { Haptics.selectionAsync(); toggleSetupMusic(); }}
+              style={{
+                flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10,
+                backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6,
+                borderWidth: 1, borderColor: setupMusicEnabled ? "rgba(255,215,0,0.4)" : "rgba(255,255,255,0.12)",
+              }}
+              testID="setup-music-toggle"
+            >
+              <Ionicons name={setupMusicEnabled ? "musical-notes" : "musical-notes-outline"} size={14} color={setupMusicEnabled ? "#FFD700" : "rgba(255,255,255,0.5)"} />
+              <Text style={{ color: setupMusicEnabled ? "#FFD700" : "rgba(255,255,255,0.5)", fontSize: 11, fontWeight: "700" }}>
+                {setupMusicEnabled ? "MUSIC ON" : "MUSIC OFF"}
+              </Text>
+            </Pressable>
           </View>
 
           <Pressable

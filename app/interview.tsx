@@ -25,6 +25,7 @@ import { CashAppDonate } from "@/components/CashAppDonate";
 import { playTTS, prefetchTTSAudio, playPrefetchedAudio, warmupAudio } from "@/lib/audio-helper";
 import { getPersonaVoiceVolume, shouldSkipPersonaVoice } from "@/lib/persona-voice";
 import { useReactionOverlapEnabled } from "@/lib/reaction-overlap-settings";
+import { useSetupMusic } from "@/hooks/useSetupMusic";
 
 type PersonaLite = { id: string; name: string };
 type Topic = { id: string; title: string; description: string; era: "current" | "past" };
@@ -452,6 +453,8 @@ export default function InterviewScreen() {
   const [pollLoading, setPollLoading] = useState(false);
 
   const [phase, setPhase] = useState<"setup" | "live" | "ended">("setup");
+  // Ambient music while picking interviewer/interviewee — stops the instant the interview goes live.
+  const { enabled: setupMusicEnabled, toggle: toggleSetupMusic } = useSetupMusic(phase === "setup");
   const [firstAudioPlayed, setFirstAudioPlayed] = useState(false);
   const [aiRetrying, setAiRetrying] = useState(false);
   const firstAudioPlayedRef = useRef(false);
@@ -2331,6 +2334,14 @@ export default function InterviewScreen() {
             <Text style={s.headerTitle}>1-ON-1 INTERVIEWS</Text>
             <Text style={s.headerSub}>Provocative · Live · Unscripted</Text>
           </View>
+          <Pressable
+            onPress={() => { Haptics.selectionAsync(); toggleSetupMusic(); }}
+            style={s.iconBtn}
+            testID="setup-music-toggle"
+            accessibilityLabel="Toggle setup music"
+          >
+            <Ionicons name={setupMusicEnabled ? "musical-notes" : "musical-notes-outline"} size={20} color={setupMusicEnabled ? "#FFD700" : "rgba(255,255,255,0.5)"} />
+          </Pressable>
           <Pressable
             onPress={() => router.push("/lie-leaderboard")}
             style={s.iconBtn}

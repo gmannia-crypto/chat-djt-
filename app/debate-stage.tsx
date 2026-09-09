@@ -15,6 +15,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Audio } from "expo-av";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import { getApiUrl } from "@/lib/query-client";
+import { useSetupMusic } from "@/hooks/useSetupMusic";
 import { trackAnalyticsEvent } from "@/lib/use-analytics";
 import { fetchAiTurnWithRetry } from "@/lib/ai-turn-retry";
 import { useTokens } from "@/lib/token-context";
@@ -1220,6 +1221,8 @@ export default function DebateStage() {
   const [pollLoading, setPollLoading] = useState(false);
 
   const [phase, setPhase] = useState<"setup" | "live" | "ended">("setup");
+  // Ambient music while picking personas — stops the instant the debate/interview goes live.
+  const { enabled: setupMusicEnabled, toggle: toggleSetupMusic } = useSetupMusic(phase === "setup");
   const [firstAudioPlayed, setFirstAudioPlayed] = useState(false);
   const [aiRetrying, setAiRetrying] = useState(false);
   const firstAudioPlayedRef = useRef(false);
@@ -5791,6 +5794,14 @@ export default function DebateStage() {
             <Text style={s.headerTitle}>1-ON-1 DEBATE</Text>
             <Text style={s.headerSub}>Pick a moderator · cut mics · timed rounds</Text>
           </View>
+          <Pressable
+            onPress={() => { Haptics.selectionAsync(); toggleSetupMusic(); }}
+            style={s.iconBtn}
+            testID="setup-music-toggle"
+            accessibilityLabel="Toggle setup music"
+          >
+            <Ionicons name={setupMusicEnabled ? "musical-notes" : "musical-notes-outline"} size={20} color={setupMusicEnabled ? "#FFD700" : "rgba(255,255,255,0.5)"} />
+          </Pressable>
           <Pressable
             onPress={() => { setShowHallOfFame(true); fetchHallOfFame(true); }}
             style={s.iconBtn}
