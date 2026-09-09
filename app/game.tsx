@@ -74,6 +74,7 @@ interface LeaderboardEntry {
   efficiencyScore: number;
   speedScore: number;
   performanceScore: number;
+  isVerified: boolean;
 }
 
 interface LeaderboardData {
@@ -949,7 +950,12 @@ export default function GameScreen() {
                       </Text>
                     </View>
                     <View style={{ flex: 0.3 }}>
-                      <Text style={{ color: "#fff", fontSize: 13, fontWeight: "800" as const }} numberOfLines={1}>{item.playerName}</Text>
+                      <View style={{ flexDirection: "row", alignItems: "center" }}>
+                        <Text style={{ color: "#fff", fontSize: 13, fontWeight: "800" as const }} numberOfLines={1}>{item.playerName}</Text>
+                        {item.isVerified && (
+                          <Ionicons name="checkmark-circle" size={13} color={Colors.gold} style={{ marginLeft: 4 }} />
+                        )}
+                      </View>
                       <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, marginTop: 2 }}>
                         {fmtMoney(item.finalNetWorth)} • {item.karma >= 0 ? "+" : ""}{item.karma} karma
                       </Text>

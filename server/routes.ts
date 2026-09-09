@@ -3960,6 +3960,7 @@ Your personality quirks:
           karma,
           dark_deals,
           completed_at,
+          account_id,
           ROUND(final_net_worth::numeric / GREATEST(turns, 1), 0) as efficiency_score,
           ROUND(final_net_worth::numeric / GREATEST(duration_seconds, 1), 0) as speed_score,
           ROUND(
@@ -3994,6 +3995,7 @@ Your personality quirks:
           karma: r.karma,
           darkDeals: r.dark_deals,
           completedAt: r.completed_at,
+          isVerified: r.account_id != null,
           efficiencyScore: Number(r.efficiency_score),
           speedScore: Number(r.speed_score),
           performanceScore: Number(r.performance_score),
