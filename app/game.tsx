@@ -46,10 +46,14 @@ import { getOrCreateDeviceId, useTokens } from "@/lib/token-context";
 import { FlatList } from "react-native";
 import { CashAppDonate } from "@/components/CashAppDonate";
 import { PuttingMiniGame, type PuttingResult } from "@/components/PuttingMiniGame";
+import { ThreePointMiniGame, type ThreePointResult } from "@/components/ThreePointMiniGame";
 
-// Bonus putting rounds are offered every N completed turns, purely as an optional break from
-// the scenario loop — they never block "NEXT DEAL" and disappear once the player moves on.
+// Bonus rounds are offered every N completed turns, purely as an optional break from the
+// scenario loop — they never block "NEXT DEAL" and disappear once the player moves on. Which
+// mini-game is offered (putting or 3-point shooting) is picked at random each time, so the
+// break doesn't feel repetitive on long playthroughs.
 const PUTTING_BONUS_INTERVAL = 3;
+type BonusGameKind = "putting" | "threePoint";
 // Mirrors server/billionaire-game-validation.ts (BILLIONAIRE_WIN_THRESHOLD / MIN_TURNS_FOR_WIN).
 // Kept as a client-side safety clamp only: a mini-game bonus must never itself be able to push
 // net worth across the win line or shrink the number of scenario turns a claimed win required,
@@ -344,9 +348,11 @@ export default function GameScreen() {
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardData | null>(null);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
-  const [puttingAvailable, setPuttingAvailable] = useState(false);
-  const [showPuttingGame, setShowPuttingGame] = useState(false);
-  const lastPuttingOfferTurn = useRef(0);
+  // bonusGameKind: which mini-game the banner is currently offering (null = no offer up).
+  // activeBonusGame: which mini-game overlay is actually open right now.
+  const [bonusGameKind, setBonusGameKind] = useState<BonusGameKind | null>(null);
+  const [activeBonusGame, setActiveBonusGame] = useState<BonusGameKind | null>(null);
+  const lastBonusOfferTurn = useRef(0);
 
   const karmaRating = getKarmaRating(gameState.karma);
   const titleInfo = getTitle(gameState.netWorth);
@@ -603,7 +609,7 @@ export default function GameScreen() {
     return 5;
   }, []);
 
-  const applyPuttingResult = useCallback((result: PuttingResult) => {
+  const applyBonusResult = useCallback((game: BonusGameKind, result: PuttingResult | ThreePointResult) => {
     setGameState(prev => {
       // Clamp so a mini-game bonus can never itself cross the win threshold — the actual win
       // must always be produced by a scenario choice, keeping the existing win flow (and the
@@ -613,9 +619,9 @@ export default function GameScreen() {
       saveProgress(updated, choiceHistory, usedTitles, playerName);
       return updated;
     });
-    trackAnalyticsEvent("billionaires_game_putting_result", { outcome: result.outcome });
-    setPuttingAvailable(false);
-    setShowPuttingGame(false);
+    trackAnalyticsEvent("billionaires_game_bonus_result", { game, outcome: result.outcome });
+    setBonusGameKind(null);
+    setActiveBonusGame(null);
   }, [saveProgress, choiceHistory, usedTitles, playerName]);
 
   const startNextTurn = useCallback(async () => {
@@ -623,7 +629,7 @@ export default function GameScreen() {
     setShowConsequence(false);
     setLastChoice(null);
     setIsResolvingChoice(false);
-    setPuttingAvailable(false);
+    setBonusGameKind(null);
     await cleanupSound();
 
     try {
@@ -810,9 +816,9 @@ export default function GameScreen() {
       submitResult(false, updatedState, playerName);
     } else {
       saveProgress(updatedState, [...choiceHistory, { scenario: currentScenario?.title || "", choice: choice.text, profit: adjustedProfit, karma: choice.karma }], usedTitles, playerName);
-      if (gameState.turn > 0 && gameState.turn % PUTTING_BONUS_INTERVAL === 0 && lastPuttingOfferTurn.current !== gameState.turn) {
-        lastPuttingOfferTurn.current = gameState.turn;
-        setPuttingAvailable(true);
+      if (gameState.turn > 0 && gameState.turn % PUTTING_BONUS_INTERVAL === 0 && lastBonusOfferTurn.current !== gameState.turn) {
+        lastBonusOfferTurn.current = gameState.turn;
+        setBonusGameKind(Math.random() < 0.5 ? "putting" : "threePoint");
       }
     }
   }, [gameState, currentScenario, playerName, apiCall, playTrumpAudio, saveProgress, submitResult, choiceHistory, usedTitles]);
@@ -857,9 +863,9 @@ export default function GameScreen() {
     setBreakingNews("");
     setRandomEvent(null);
     setStreakBonus(0);
-    setPuttingAvailable(false);
-    setShowPuttingGame(false);
-    lastPuttingOfferTurn.current = 0;
+    setBonusGameKind(null);
+    setActiveBonusGame(null);
+    lastBonusOfferTurn.current = 0;
   }, [cleanupSound]);
 
   const handleShare = useCallback(() => {
@@ -1136,23 +1142,32 @@ export default function GameScreen() {
             </Animated.View>
           )}
 
-          {puttingAvailable && !loading && (
+          {bonusGameKind && !loading && (
             <Animated.View entering={FadeInDown.duration(400)}>
               <Pressable
                 onPress={() => {
                   // Consuming the offer here (not on completion) means a single tap grants
                   // exactly one scored attempt — closing early without finishing forfeits it
                   // rather than leaving the offer re-openable for unlimited free retries.
-                  setPuttingAvailable(false);
-                  setShowPuttingGame(true);
+                  setActiveBonusGame(bonusGameKind);
+                  setBonusGameKind(null);
                 }}
                 style={({ pressed }) => [styles.puttingBanner, pressed && { opacity: 0.85 }]}
               >
-                <LinearGradient colors={["#16A34A", "#166534"]} style={styles.puttingBannerGradient}>
-                  <Text style={styles.puttingBannerEmoji}>⛳</Text>
+                <LinearGradient
+                  colors={bonusGameKind === "putting" ? ["#16A34A", "#166534"] : ["#EA580C", "#9A3412"]}
+                  style={styles.puttingBannerGradient}
+                >
+                  <Text style={styles.puttingBannerEmoji}>{bonusGameKind === "putting" ? "⛳" : "🏀"}</Text>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.puttingBannerTitle}>BONUS PUTT AVAILABLE</Text>
-                    <Text style={styles.puttingBannerSubtitle}>Nail it for extra net worth — totally optional</Text>
+                    <Text style={styles.puttingBannerTitle}>
+                      {bonusGameKind === "putting" ? "BONUS PUTT AVAILABLE" : "BONUS 3-POINTER AVAILABLE"}
+                    </Text>
+                    <Text style={styles.puttingBannerSubtitle}>
+                      {bonusGameKind === "putting"
+                        ? "Nail it for extra net worth — totally optional"
+                        : "Sink the shot for extra net worth — totally optional"}
+                    </Text>
                   </View>
                   <Ionicons name="chevron-forward" size={18} color="#fff" />
                 </LinearGradient>
@@ -1191,9 +1206,14 @@ export default function GameScreen() {
           )}
         </ScrollView>
         <PuttingMiniGame
-          visible={showPuttingGame}
-          onClose={() => setShowPuttingGame(false)}
-          onComplete={applyPuttingResult}
+          visible={activeBonusGame === "putting"}
+          onClose={() => setActiveBonusGame(null)}
+          onComplete={(result) => applyBonusResult("putting", result)}
+        />
+        <ThreePointMiniGame
+          visible={activeBonusGame === "threePoint"}
+          onClose={() => setActiveBonusGame(null)}
+          onComplete={(result) => applyBonusResult("threePoint", result)}
         />
       </View>
     );
