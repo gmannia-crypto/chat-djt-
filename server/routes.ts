@@ -18709,19 +18709,26 @@ Respond with a JSON array ONLY — no markdown, no code fences, no preamble. Exa
       try {
         await ensureReferralTable(db);
 
+        // Per-grant detail (not just the aggregate count) so the sharer can tell
+        // WHICH invite converted and when, not just "N friends joined".
         const result = await db.query(
-          `SELECT COUNT(*) AS new_count
+          `SELECT id, granted_at
            FROM referral_grants
-           WHERE referrer_device_id = $1 AND acknowledged_by_referrer = FALSE`,
+           WHERE referrer_device_id = $1 AND acknowledged_by_referrer = FALSE
+           ORDER BY granted_at ASC`,
           [deviceId]
         );
-        const newReferrals = parseInt(result.rows[0]?.new_count ?? "0", 10);
+        const newReferrals = result.rows.length;
         const REFERRAL_TOKENS = 2;
 
         return res.json({
           hasNewReferral: newReferrals > 0,
           newReferrals,
           tokensEarned: newReferrals * REFERRAL_TOKENS,
+          grants: result.rows.map((row: { id: string; granted_at: Date }) => ({
+            id: row.id,
+            grantedAt: row.granted_at,
+          })),
         });
       } finally {
         await db.end();

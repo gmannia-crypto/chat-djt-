@@ -51,6 +51,7 @@ import { useQuery } from "@tanstack/react-query";
 import Colors from "@/constants/colors";
 import { getApiUrl, apiRequest } from "@/lib/query-client";
 import { useTokens } from "@/lib/token-context";
+import { formatInviteSuccessDetail } from "@/lib/referral-invite-format";
 import {
   Conversation,
   getAllConversations,
@@ -380,7 +381,11 @@ export default function HomeScreen() {
   const [unlockedPersonaId, setUnlockedPersonaId] = useState<string | null>(null);
   const [unlockedPersonaCount, setUnlockedPersonaCount] = useState(0);
   const [unseenMysteryCount, refreshUnseenMysteryCount] = useUnseenMysteryCount();
-  const [inviteSuccess, setInviteSuccess] = useState<{ newReferrals: number; tokensEarned: number } | null>(null);
+  const [inviteSuccess, setInviteSuccess] = useState<{
+    newReferrals: number;
+    tokensEarned: number;
+    grants: { id: string; grantedAt: string }[];
+  } | null>(null);
   const inviteSuccessCheckedRef = useRef(false);
   const [leaderboardData, setLeaderboardData] = useState<{ name: string; score: number; avatar: string; isYou?: boolean }[]>([]);
   const [fearGreed, setFearGreed] = useState<{ value: number; label: string; trumpComment: string } | null>(null);
@@ -1225,7 +1230,11 @@ export default function HomeScreen() {
       if (!res.ok) return;
       const data = await res.json();
       if (data.hasNewReferral) {
-        setInviteSuccess({ newReferrals: data.newReferrals, tokensEarned: data.tokensEarned });
+        setInviteSuccess({
+          newReferrals: data.newReferrals,
+          tokensEarned: data.tokensEarned,
+          grants: Array.isArray(data.grants) ? data.grants : [],
+        });
         refreshBalance?.();
       }
     } catch (err) {
@@ -2013,9 +2022,7 @@ export default function HomeScreen() {
                   Your invite worked! +{inviteSuccess.tokensEarned} tokens
                 </Text>
                 <Text style={styles.inviteSuccessSub}>
-                  {inviteSuccess.newReferrals === 1
-                    ? "A friend joined The Arena using your link."
-                    : `${inviteSuccess.newReferrals} friends joined The Arena using your link.`}
+                  {formatInviteSuccessDetail(inviteSuccess)}
                 </Text>
               </View>
               <Feather name="x" size={16} color="rgba(10,10,10,0.6)" />
