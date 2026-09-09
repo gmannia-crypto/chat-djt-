@@ -38,3 +38,6 @@ yarn-error.*
 .vercel
 
 .env
+
+# persisted server caches (regenerated at runtime, not source)
+/.data/
