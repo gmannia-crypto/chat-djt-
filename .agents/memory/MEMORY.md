@@ -15,3 +15,4 @@
 - [Setup-screen background music hook](setup-music-hook.md) — hooks/useSetupMusic.ts gives any persona-picker screen togglable ambient music that auto-stops when the live session starts; reuse it instead of re-copying the debate-stage sportsbook-music block.
 - [Referral conversion notification pattern](referral-conversion-notification.md) — sharer "invite worked" moment uses an acknowledged flag on the grant row, not a new notifications table; GET checks unseen, POST acks.
 - [Anti-farming submission cooldowns](anti-farming-cooldowns.md) — atomic reserve, capped duration, transactional persistence before releasing on failure, and proxy-trust-aware IP are all required, not optional extras.
+- [TTS cache persistence](tts-cache-disk-persistence.md) — persona-tts.ts warms its cache from a shared Postgres table on boot (not local disk), because autoscale gives every instance/redeploy a fresh filesystem.

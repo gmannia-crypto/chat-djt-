@@ -1,6 +1,7 @@
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
+import { loadPersistedTTSCache } from "./persona-tts";
 import * as fs from "fs";
 import * as path from "path";
 import * as http from "http";
@@ -810,6 +811,13 @@ async function initStripe() {
   });
 
   configureExpoAndLanding(app);
+
+  // Warm the in-memory TTS cache from the shared store before wiring up
+  // routes, so the very first debate after this restart/deploy/autoscale
+  // cold start can already hit persona openers and moderator stock phrases
+  // instead of re-paying full Fish Audio latency for lines that were
+  // cached (on this instance or another one) moments before.
+  await loadPersistedTTSCache();
 
   const server = await registerRoutes(app);
 

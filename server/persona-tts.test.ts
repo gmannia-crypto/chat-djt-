@@ -21,6 +21,11 @@ import {
   type SendPersonaTTSParams,
 } from "./persona-tts.js";
 
+// Never let the general cache tests below write to the shared Postgres
+// store on every setCachedTTS call — the persistence round-trip is covered
+// by its own dedicated test (against a scratch table) further down.
+_testHooks().disablePersistence();
+
 let passed = 0;
 let failed = 0;
 
@@ -331,6 +336,198 @@ function testCacheByteBudgetEvictsOldestEntries() {
   assert(getCachedTTS(keys[keys.length - 1]) !== null, "the newest entry is retained");
 }
 
+// Simulates an autoscale redeploy/cold start: writes cache entries, forces
+// them to the shared Postgres table, then wipes the in-memory cache with NO
+// access to whatever local disk the writing process had (a fresh instance
+// never sees another instance's filesystem) and reloads from the shared
+// table the same way server startup does. A stale-version emotion-tagged
+// row must NOT survive the reload even though the table still has it,
+// because PERSONA_EMOTION_MAP_VERSION bumps must keep invalidating those
+// keys immediately rather than resurrecting them from a stale row.
+//
+// Uses the real database (DATABASE_URL) against a scratch table so the
+// actual save/load SQL path is exercised, not a mock.
+async function testSharedStorePersistenceSurvivesRedeploy() {
+  if (!process.env.DATABASE_URL) {
+    console.log("  (skipped: DATABASE_URL not set — shared-store persistence has nothing to connect to)");
+    return;
+  }
+
+  const hooks = _testHooks();
+  const testTable = `tts_cache_test_${Date.now()}`;
+  hooks.clear(); // isolate from whatever earlier tests left in the in-memory cache
+  hooks.setTableName(testTable);
+  hooks.enablePersistence();
+  try {
+    const freshKey = getFullTTSCacheKey("Alright, let's do this the Secular Talk way.", "voice-a", 1.0);
+    setCachedTTS(freshKey, Buffer.from("fresh-opener-audio"));
+    await hooks.flushPersistence();
+
+    // An emotion-tagged key baked with an old PERSONA_EMOTION_MAP_VERSION,
+    // written straight into the shared table (bypassing setCachedTTS, which
+    // always stamps the CURRENT version) to simulate a row left over from
+    // an instance running an older build.
+    const staleEmotionKey = getFullTTSCacheKey("Hold on, that number is not true.", "voice-b", 1.0, 0, "angry").replace(/_ev\d+$/, "_ev1");
+    const { Pool } = await import("pg");
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
+    await pool.query(
+      `INSERT INTO ${testTable} (cache_key, audio_data, created_at) VALUES ($1, $2, $3)`,
+      [staleEmotionKey, Buffer.from("stale-emotion-audio"), Date.now()]
+    );
+
+    // Simulate a brand-new autoscale instance: memory is gone, and it has
+    // no access to whatever local disk the previous instance had — only
+    // the shared table survives.
+    hooks.clear();
+    assert(getCachedTTS(freshKey) === null, "in-memory cache is empty right after the simulated cold start");
+
+    const { loadPersistedTTSCache } = await import("./persona-tts.js");
+    await loadPersistedTTSCache();
+
+    assert(getCachedTTS(freshKey)?.toString() === "fresh-opener-audio", "a freshly-cached opener line survives a simulated redeploy/cold start via the shared store");
+    assert(getCachedTTS(staleEmotionKey) === null, "an emotion-tagged entry from a stale PERSONA_EMOTION_MAP_VERSION is not resurrected from the shared store");
+
+    await pool.end();
+  } finally {
+    hooks.disablePersistence();
+    await hooks.dropTestTable();
+    hooks.setTableName("tts_cache");
+    hooks.clear();
+  }
+}
+
+// A prolonged DB outage must not let the pending-write/retry buffer grow
+// without bound: every clip evicted from the (size-capped) in-memory cache
+// must also be dropped from the retry buffer, and a failed write must not
+// resurrect entries that were evicted while the write was in flight.
+async function testPendingSyncStaysBoundedDuringOutage() {
+  const hooks = _testHooks();
+  hooks.clear();
+  hooks.enablePersistence();
+  try {
+    // Fill well past the TTS_CACHE_MAX_BYTES budget with large buffers so
+    // the cache (and pendingSync, which mirrors it) is actually forced to
+    // evict older entries as new ones arrive — simulating a prolonged
+    // outage where nothing ever successfully syncs to the shared store.
+    const chunk = Buffer.alloc(2 * 1024 * 1024, 1); // 2MB per entry
+    const overfillCount = Math.ceil(TTS_CACHE_MAX_BYTES / chunk.length) + 5; // guarantees eviction
+    for (let i = 0; i < overfillCount; i++) {
+      setCachedTTS(getFullTTSCacheKey(`outage line ${i}`, "voice-a", 1.0), chunk);
+    }
+    assert(hooks.cacheSize() < overfillCount, "eviction actually ran (cache is smaller than the number of entries pushed in)");
+    assert(
+      hooks.pendingSyncSize() <= hooks.cacheSize(),
+      `pending retry buffer (${hooks.pendingSyncSize()}) never exceeds the bounded in-memory cache size (${hooks.cacheSize()}) even after eviction`
+    );
+  } finally {
+    hooks.disablePersistence();
+    hooks.clear();
+  }
+}
+
+// Reproduces a startup-time DB outage deterministically: a forced ensureTable
+// failure (so the batch never even leaves pendingSync), combined with a TTL
+// expiry firing on a lookup while that failure is still pending. Both the
+// expired entry AND the connection-failure path must keep pendingSync
+// bounded to what the live cache still holds — not accumulate forever.
+async function testPendingSyncPrunedOnFailureAndTTLExpiry() {
+  if (!process.env.DATABASE_URL) {
+    console.log("  (skipped: DATABASE_URL not set — nothing to force a persist failure against)");
+    return;
+  }
+
+  const hooks = _testHooks();
+  const testTable = `tts_cache_test_outage_${Date.now()}`;
+  hooks.clear();
+  hooks.setTableName(testTable);
+  hooks.enablePersistence();
+  try {
+    const expiringKey = getFullTTSCacheKey("this line will expire mid-outage", "voice-a", 1.0);
+    hooks.forceNextPersistFailures(1);
+    setCachedTTS(expiringKey, Buffer.from("about-to-expire"));
+    // The forced failure happens before the batch is taken out of
+    // pendingSync (ensureTable rejects first) — the entry should still be
+    // sitting there, waiting to retry.
+    await hooks.flushPersistence();
+    assert(hooks.pendingSyncSize() === 1, "the entry survives a forced ensureTable failure, still queued for retry");
+
+    // Now it expires out of the live cache via a normal lookup...
+    hooks.expireEntry(expiringKey);
+    assert(getCachedTTS(expiringKey) === null, "the entry is gone from the live cache once its TTL has elapsed");
+    assert(hooks.pendingSyncSize() === 0, "an expired entry is pruned from the pending retry buffer too, not left to accumulate forever");
+
+    // ...and new, distinct entries generated afterward must still sync and
+    // be bounded normally — the earlier failure must not have wedged
+    // persistence for everything that comes after it.
+    const freshKey = getFullTTSCacheKey("fresh line generated after the outage cleared", "voice-a", 1.0);
+    setCachedTTS(freshKey, Buffer.from("fresh-after-outage"));
+    await hooks.flushPersistence();
+    assert(hooks.pendingSyncSize() === 0, "the post-outage entry synced successfully and cleared the retry buffer");
+  } finally {
+    hooks.forceNextPersistFailures(0);
+    hooks.disablePersistence();
+    await hooks.dropTestTable();
+    hooks.setTableName("tts_cache");
+    hooks.clear();
+  }
+}
+
+// The shared table is bounded by TTL and row count already; it must ALSO be
+// bounded by aggregate bytes, because a single row can be as large as the
+// whole TTS_CACHE_MAX_BYTES budget — row count alone would let the table
+// (shared across every autoscale instance that ever wrote to it) grow far
+// past the intended cache size. Inserts rows directly (bypassing the
+// per-instance in-memory cap) to simulate that multi-instance accumulation,
+// then runs the real cleanup path and asserts the retained total stays
+// within budget.
+async function testSharedStoreEnforcesAggregateByteBudget() {
+  if (!process.env.DATABASE_URL) {
+    console.log("  (skipped: DATABASE_URL not set — shared-store persistence has nothing to connect to)");
+    return;
+  }
+
+  const hooks = _testHooks();
+  const testTable = `tts_cache_test_bytes_${Date.now()}`;
+  hooks.clear();
+  hooks.setTableName(testTable);
+  hooks.enablePersistence();
+  const { Pool } = await import("pg");
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
+  try {
+    // Seed the table with more than TTS_CACHE_MAX_BYTES worth of rows,
+    // directly via SQL — as if several autoscale instances had each
+    // written their own large clips before any cleanup ran.
+    const rowBytes = 5 * 1024 * 1024; // 5MB rows
+    const rowCount = Math.ceil((TTS_CACHE_MAX_BYTES * 1.5) / rowBytes); // ~45MB seeded, budget is 30MB
+    await pool.query(`CREATE TABLE IF NOT EXISTS ${testTable} (cache_key TEXT PRIMARY KEY, audio_data BYTEA NOT NULL, created_at BIGINT NOT NULL)`);
+    for (let i = 0; i < rowCount; i++) {
+      await pool.query(
+        `INSERT INTO ${testTable} (cache_key, audio_data, created_at) VALUES ($1, $2, $3)`,
+        [`seed-${i}`, Buffer.alloc(rowBytes, 1), Date.now() - i]
+      );
+    }
+
+    // Trigger the real cleanup path: one small write through the normal
+    // API, which runs the same TTL/row-count/byte-budget pruning as any
+    // other sync.
+    setCachedTTS(getFullTTSCacheKey("trigger cleanup", "voice-a", 1.0), Buffer.from("tiny"));
+    await hooks.flushPersistence();
+
+    const { rows }: { rows: Array<{ total: string | null }> } = await pool.query(`SELECT SUM(octet_length(audio_data)) AS total FROM ${testTable}`);
+    const totalBytes = Number(rows[0]?.total || 0);
+    assert(
+      totalBytes <= TTS_CACHE_MAX_BYTES,
+      `shared table's aggregate bytes (${totalBytes}) stay within the TTS_CACHE_MAX_BYTES budget (${TTS_CACHE_MAX_BYTES}) after cleanup, even though ${rowCount * rowBytes} bytes were seeded`
+    );
+  } finally {
+    hooks.disablePersistence();
+    await pool.query(`DROP TABLE IF EXISTS ${testTable}`).catch(() => {});
+    await pool.end();
+    hooks.setTableName("tts_cache");
+    hooks.clear();
+  }
+}
+
 async function main() {
   await testCacheMissThenHit();
   await testConcurrentDuplicateRequestsDeduplicate();
@@ -342,6 +539,10 @@ async function main() {
   await testCacheKeyDoesNotCollideOnSharedPrefix();
   testOversizedBufferIsNotCached();
   testCacheByteBudgetEvictsOldestEntries();
+  await testPendingSyncStaysBoundedDuringOutage();
+  await testPendingSyncPrunedOnFailureAndTTLExpiry();
+  await testSharedStorePersistenceSurvivesRedeploy();
+  await testSharedStoreEnforcesAggregateByteBudget();
 
   _testHooks().clear();
 
