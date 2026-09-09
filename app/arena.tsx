@@ -5266,10 +5266,27 @@ export default function ArenaScreen() {
   // current — if the watchdog fired and a newer fetch started, the stale call
   // discards its response instead of jumping the TTS queue.
   const speakTokenRef = useRef(0);
-  // Set to true when a response is discarded due to token mismatch.
-  // scheduleNext reads and clears this flag to halve the watchdog timeout,
-  // compensating for the dead turn and keeping the debate flowing.
-  const turnWasDroppedRef = useRef(false);
+  // Rolling window of recent /api/arena/respond round-trip times (ms), used to
+  // size the scheduler watchdog adaptively. Production latency for this
+  // endpoint regularly runs 6-16s, so a fixed short timeout was firing on
+  // ordinary, still-in-flight responses and discarding them. Capped at 20
+  // samples so the average tracks recent conditions rather than session-start.
+  // Only ever holds durations of calls that actually completed — an aborted
+  // call's elapsed time says nothing about how long it would have taken, so
+  // recording it would bias the average toward the timeout itself.
+  const arenaResponseLatenciesRef = useRef<number[]>([]);
+  // Counts consecutive watchdog-triggered aborts (not ordinary token-mismatch
+  // drops). Used to back the timeout OFF (make it longer) after a timeout,
+  // never shorter — shortening after an abort is what let the old fixed
+  // timeout spiral into repeatedly aborting genuinely-slow-but-real responses
+  // before they ever had a chance to complete and inform the rolling average.
+  const consecutiveWatchdogAbortsRef = useRef(0);
+  // AbortController for the in-flight main-turn fetch (the one that claims
+  // currentSpeakerRef / gates the scheduler watchdog). When the watchdog does
+  // fire, this lets it actually cancel the request instead of merely
+  // token-invalidating it, so the server call is no longer wasted work and no
+  // stray response can arrive later.
+  const currentTurnAbortControllerRef = useRef<AbortController | null>(null);
   const currentTopicRef = useRef<string | null>(null);
   const emotionalStatesRef = useRef(emotionalStates);
   const conversationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -7572,6 +7589,12 @@ export default function ArenaScreen() {
       currentSpeakerRef.current = responderId;
       ttsPendingMoreRef.current = true;
 
+      // Own abort controller for this call. If a newer call starts (token
+      // moved on) or the watchdog fires, this one's controller gets aborted
+      // so the request truly stops instead of just being ignored on arrival.
+      const abortController = new AbortController();
+      currentTurnAbortControllerRef.current = abortController;
+
       try {
         const history = messagesRef.current
           .filter((m) => !m.isSystem)
@@ -7634,7 +7657,16 @@ export default function ArenaScreen() {
           method: "POST",
           headers,
           body: JSON.stringify(bodyPayload),
+          signal: abortController.signal,
         });
+
+        // Track how long this call actually took so the watchdog can size
+        // itself to real-world latency instead of a guessed constant.
+        arenaResponseLatenciesRef.current = [...arenaResponseLatenciesRef.current, Date.now() - requestSentAt].slice(-20);
+        if (currentTurnAbortControllerRef.current === abortController) currentTurnAbortControllerRef.current = null;
+        // A response actually came back — reset the backoff counter so the
+        // watchdog doesn't stay inflated once latency has recovered.
+        consecutiveWatchdogAbortsRef.current = 0;
 
         if (res.status === 403) {
           const errCt = res.headers.get("content-type") || "";
@@ -7717,9 +7749,6 @@ export default function ArenaScreen() {
         // always reflects the intended turn order.
         if (speakTokenRef.current !== myToken) {
           ttsPendingMoreRef.current = false;
-          // Flag the dropped turn so scheduleNext can shorten its watchdog
-          // timeout for the following speaker, reducing the silence gap.
-          turnWasDroppedRef.current = true;
           // Show a brief "reconnecting…" badge on the skipped persona's avatar.
           setSkippedPersonaId(responderId);
           setTimeout(() => setSkippedPersonaId(null), 2000);
@@ -7803,10 +7832,17 @@ export default function ArenaScreen() {
             }).catch(() => {});
           }
         }
-      } catch (err) {
-        console.warn("Arena AI error:", err);
+      } catch (err: any) {
+        if (err?.name === "AbortError") {
+          // Watchdog cancelled this call because it ran past the adaptive
+          // timeout — expected, not a real error. The skip indicator was
+          // already raised at the abort site (scheduleNext), so just clean up.
+        } else {
+          console.warn("Arena AI error:", err);
+        }
         ttsPendingMoreRef.current = false;
       } finally {
+        if (currentTurnAbortControllerRef.current === abortController) currentTurnAbortControllerRef.current = null;
         if (mountedRef.current) {
           // Only release the speaker lock if it still belongs to THIS call.
           // A stale finally (from a slow fetch that lost the token race) must
@@ -8735,17 +8771,52 @@ export default function ArenaScreen() {
   const scheduleNext = useCallback(() => {
     if (sessionEndedRef.current) return;
     if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
-    // Halve the watchdog timeout when the previous turn was silently dropped
-    // (token mismatch) so the debate recovers faster on slow connections.
-    const WATCHDOG_TIMEOUT = turnWasDroppedRef.current ? 4000 : 8000;
-    turnWasDroppedRef.current = false;
+    // Size the watchdog off real recent /api/arena/respond latency instead of
+    // a fixed guess. Production logs show this endpoint regularly taking
+    // 6-16s, so a constant 8s timeout was routinely firing on responses that
+    // were still legitimately in flight and discarding them (see
+    // arenaResponseLatenciesRef). FLOOR_MS sits above the documented normal
+    // max (16s) so the very first turn — before any samples exist — is never
+    // aborted out from under ordinary latency; only completed-call samples
+    // ever raise the bar further, never lower it below this floor.
+    const FLOOR_MS = 18000;
+    const CEILING_MS = 30000;
+    const samples = arenaResponseLatenciesRef.current;
+    const avgLatency = samples.length > 0 ? samples.reduce((a, b) => a + b, 0) / samples.length : FLOOR_MS;
+    const maxLatency = samples.length > 0 ? Math.max(...samples) : FLOOR_MS;
+    // Cover the recent max with headroom, not just the average, so a single
+    // slow-but-real response near the top of the observed range still lands.
+    const adaptiveBase = Math.min(CEILING_MS, Math.max(FLOOR_MS, maxLatency * 1.25, avgLatency * 1.6));
+    // Back the timeout OFF (longer) after consecutive watchdog aborts instead
+    // of shortening it — shortening on a drop is what previously let a
+    // genuinely-slow-but-real response get caught in a repeated-abort loop,
+    // since an aborted call's response never reaches arenaResponseLatenciesRef
+    // to teach the average that latency has increased. This is reset to 0 the
+    // moment any call actually completes (see generateAIResponse).
+    const WATCHDOG_TIMEOUT = Math.min(CEILING_MS, adaptiveBase + consecutiveWatchdogAbortsRef.current * 5000);
     let watchdogTimer: ReturnType<typeof setTimeout> | null = null;
     const waitForClear = () => {
       if (sessionEndedRef.current) return;
       if (isInterruptingRef.current || currentSpeakerRef.current) {
         if (!watchdogTimer) {
           watchdogTimer = setTimeout(() => {
-            console.warn("Arena watchdog: clearing stuck locks after timeout");
+            console.warn(`Arena watchdog: clearing stuck locks after ${WATCHDOG_TIMEOUT}ms timeout`);
+            // Actually cancel the in-flight main-turn fetch (rather than just
+            // token-invalidating it) so the server call stops wasting work and
+            // can never resolve into a stray, late-arriving response.
+            if (currentTurnAbortControllerRef.current) {
+              currentTurnAbortControllerRef.current.abort();
+              currentTurnAbortControllerRef.current = null;
+            }
+            // Surface a visible "skipped" indicator for the abandoned speaker
+            // instead of letting the turn vanish with no on-screen trace, and
+            // back the NEXT watchdog off (longer) rather than shorter — see
+            // consecutiveWatchdogAbortsRef.
+            if (currentSpeakerRef.current) {
+              consecutiveWatchdogAbortsRef.current += 1;
+              setSkippedPersonaId(currentSpeakerRef.current);
+              setTimeout(() => setSkippedPersonaId(null), 2000);
+            }
             // Invalidate any clapback fetch still in flight from the interruption
             // being abandoned here — it must not land late in a conversation that
             // has since moved on. See interruptionTokenRef for details.
