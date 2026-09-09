@@ -69,7 +69,7 @@ async function fetchWithTimeout(url: string, init?: RequestInit, timeoutMs: numb
 
 export async function playAudioFromUrl(
   url: string,
-  options?: { method?: string; body?: any; headers?: Record<string, string>; volume?: number; rate?: number }
+  options?: { method?: string; body?: any; headers?: Record<string, string>; volume?: number; rate?: number; preferStreaming?: boolean }
 ): Promise<Audio.Sound> {
   const vol = options?.volume ?? 1.0;
   const rate = options?.rate ?? 1.0;
@@ -77,6 +77,32 @@ export async function playAudioFromUrl(
   await ensureAudioMode();
 
   if (Platform.OS === "web") {
+    // Opt-in progressive streaming: hand the URL straight to expo-av's web
+    // Sound (`new Audio(source)`), which the browser fetches and plays as
+    // bytes arrive instead of waiting for the full response. This is NOT the
+    // default for plain GET (see the NOTE below on why that was reverted) —
+    // callers must explicitly request it via `preferStreaming`, and only
+    // when there's nothing else here forcing the fetch+blob path
+    // (a custom method or body). Today the only caller that opts in is
+    // playTrumpAudioFromUrl (app/cabinet.tsx's Trump commentary), whose
+    // playback completion is driven purely by the `didJustFinish` event, not
+    // any duration-derived timer, so the inaccurate-durationMillis-while-
+    // streaming problem below doesn't apply to it.
+    if (options?.preferStreaming && (!options?.method || options.method === "GET") && !options?.body) {
+      // Deliberately no fallback to the fetch+blob path below on failure:
+      // this URL charges a token and triggers fresh LLM+TTS generation
+      // server-side (e.g. GET /api/cabinet-speak-audio) on every request, so
+      // silently re-requesting it here would double-charge the user and
+      // double the generation cost for one playback attempt. Surface the
+      // error to the caller instead, exactly like the native path below does.
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: url, headers: options?.headers },
+        { shouldPlay: false, volume: vol }
+      );
+      await sound.setRateAsync(rate, true).catch(() => {});
+      await sound.playAsync();
+      return sound;
+    }
     // NOTE: web plain-GET playback used to hand the URL straight to expo-av's
     // web Sound as a progressive `<audio src>` (browser streams+plays bytes
     // as they arrive from server/persona-tts.ts's chunked, no-Content-Length
@@ -350,7 +376,7 @@ export async function playTrumpAudioFromUrl(
 
   let sound: Audio.Sound;
   try {
-    sound = await playAudioFromUrl(url, options);
+    sound = await playAudioFromUrl(url, { ...options, preferStreaming: true });
   } catch (err) {
     finish();
     throw err;

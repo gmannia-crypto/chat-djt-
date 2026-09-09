@@ -25,6 +25,7 @@ function getContentModeInstruction(contentMode: unknown): string {
   if (contentMode !== "uncensored") return "";
   return `\n\nCONTENT INTENSITY — UNCENSORED MODE IS ON: The user has explicitly opted into raw, unfiltered content for maximum entertainment. Do NOT sanitize, soften, or tone down your language. Use full, real profanity (fuck, shit, ass, bitch, damn, hell, etc.) exactly as this character naturally would when angry, mocking, or fired up — don't substitute euphemisms or cut yourself off. Push your insults and aggression to their real, biting limit. This is still the same character and the same substance — just without the self-censorship.`;
 }
+import { Readable } from "node:stream";
 import { execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { promisify } from "node:util";
@@ -17038,8 +17039,21 @@ Respond in valid JSON format ONLY — an array of objects:
       const reason = (req.query.reason as string) || "No assessment yet";
       if (!name) return res.status(400).json({ error: "Name required" });
 
-      const deviceId = req.headers["x-device-id"] as string;
-      if (!(await requireToken(req, res))) return;
+      // This route's response is played back via a plain <audio src> on web
+      // (see playTrumpAudioFromUrl in lib/audio-helper.ts) so it can stream
+      // progressively — a custom x-device-id header can't ride along on that
+      // kind of request, so a `deviceId` query param is accepted here as an
+      // alternative, scoped to just this route rather than every
+      // requireToken caller. Validated the same way requireToken validates
+      // the header: reject with 403/no_tokens if missing or out of balance.
+      const deviceId = (req.headers["x-device-id"] as string) || (req.query.deviceId as string);
+      if (!deviceId) {
+        return res.status(403).json({ error: "no_tokens", message: "Device ID required. Please restart the app." });
+      }
+      const tokenResult = await useToken(deviceId);
+      if (!tokenResult.success) {
+        return res.status(403).json({ error: "no_tokens", message: tokenResult.error, balance: tokenResult.balance });
+      }
 
       const speakPrompt = `You are Donald Trump giving a quick, raw, unfiltered take on one of your cabinet members or advisors. You are speaking in first person as Trump. Be dramatic, personal, funny, and brutally honest. Reference their job performance, any controversies, your personal relationship with them, and current events involving them. Keep it to 2-3 punchy sentences. No mood tags, no speech tags.`;
 
@@ -17081,11 +17095,41 @@ Respond in valid JSON format ONLY — an array of objects:
 
       res.setHeader("Content-Type", "audio/mpeg");
       res.setHeader("Cache-Control", "no-cache");
-      const arrayBuffer = await ttsResp.arrayBuffer();
-      res.send(Buffer.from(arrayBuffer));
+
+      // Stream Fish Audio's response straight through to the client as it
+      // arrives instead of buffering the whole clip first (matching
+      // sendPersonaTTS's streaming pattern in server/persona-tts.ts) — that
+      // buffering is exactly what forced web listeners to wait out the
+      // entire clip even though app/cabinet.tsx's playback now requests it
+      // as a plain, header-free GET capable of progressive playback.
+      if (!ttsResp.body) {
+        const arrayBuffer = await ttsResp.arrayBuffer();
+        return res.send(Buffer.from(arrayBuffer));
+      }
+      const nodeStream = Readable.fromWeb(ttsResp.body as any);
+      await new Promise<void>((resolve) => {
+        let settled = false;
+        let clientClosed = false;
+        const onClientClosed = () => { clientClosed = true; };
+        const finish = (err?: any) => {
+          if (settled) return;
+          settled = true;
+          res.off("close", onClientClosed);
+          if (err) console.error("Cabinet speak audio stream error:", err?.message || err);
+          if (!clientClosed) { try { if (!res.writableEnded) res.end(); } catch {} }
+          resolve();
+        };
+        res.on("close", onClientClosed);
+        nodeStream.on("data", (chunk: Buffer) => {
+          if (!clientClosed) { try { res.write(chunk as any); } catch {} }
+        });
+        nodeStream.on("error", finish);
+        res.on("error", finish);
+        nodeStream.on("end", () => finish());
+      });
     } catch (error) {
       console.error("Cabinet speak audio error:", error);
-      res.status(500).json({ error: "Failed" });
+      if (!res.headersSent) res.status(500).json({ error: "Failed" });
     }
   });
 

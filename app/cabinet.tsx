@@ -193,13 +193,19 @@ export default function CabinetHotSeat() {
         rating: String(member.rating),
         reason: member.reason || "No assessment yet",
       });
+      // Device id rides along as a query param (not the x-device-id header)
+      // so this request stays a plain, header-free GET that can play back
+      // via a progressive-streaming <audio src> on web instead of waiting
+      // for the whole clip to download first (see requireToken's query
+      // fallback in server/routes.ts and playTrumpAudioFromUrl's
+      // preferStreaming path in lib/audio-helper.ts).
+      if (deviceId) params.set("deviceId", deviceId);
       const audioUrl = `${baseUrl}api/cabinet-speak-audio?${params.toString()}`;
 
       if (Platform.OS !== "web") {
         await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
       }
       const sound = await playTrumpAudioFromUrl(audioUrl, {
-        headers: deviceId ? { "x-device-id": deviceId } : undefined,
         volume: getPersonaVoiceVolume("trump"),
       });
       soundRef.current = sound;
