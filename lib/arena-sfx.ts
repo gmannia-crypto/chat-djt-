@@ -314,19 +314,13 @@ export async function playBoxingBell(): Promise<void> {
 // reveals, collectible card unlocks, and token purchase completions.
 // Distinct from playChampionChime (arpeggio+chord) and playDingSound (single
 // double-tone) — a bright "cha-ching" style two-hit chime with a shimmer.
+// Uses a purpose-made recording on both web and native.
 export async function playRewardChime() {
   if (Platform.OS === "web") {
-    try {
-      playWebTone(1046, 0.14, "sine", 0.35);
-      setTimeout(() => playWebTone(1568, 0.28, "sine", 0.32), 90);
-      setTimeout(() => {
-        playWebTone(2093, 0.35, "sine", 0.22);
-        playWebTone(1568, 0.35, "sine", 0.12);
-      }, 170);
-    } catch {}
+    playWebAudio("/public/reward-chime.mp3", 0.7);
   } else {
     try {
-      await playNativeSound("/public/winner-chosen.m4a", 0.6);
+      await playNativeSound("/public/reward-chime.mp3", 0.7);
     } catch (e) {
       console.warn("SFX reward-chime failed:", e);
     }
@@ -335,16 +329,14 @@ export async function playRewardChime() {
 
 // Short, lower-pitched confirmation tone for token spends (arena bets,
 // mystery-persona token unlocks). Deliberately understated compared to
-// playRewardChime so spending doesn't feel like a reward.
+// playRewardChime so spending doesn't feel like a reward. Uses a purpose-made
+// recording on both web and native.
 export async function playTokenSpendSound() {
   if (Platform.OS === "web") {
-    try {
-      playWebTone(700, 0.1, "sine", 0.25);
-      setTimeout(() => playWebTone(480, 0.16, "sine", 0.2), 70);
-    } catch {}
+    playWebAudio("/public/token-spend.mp3", 0.5);
   } else {
     try {
-      await playNativeSound("/public/vote-click.m4a", 0.45);
+      await playNativeSound("/public/token-spend.mp3", 0.5);
     } catch (e) {
       console.warn("SFX token-spend failed:", e);
     }

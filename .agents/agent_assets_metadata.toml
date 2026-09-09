@@ -299,3 +299,17 @@ id = "76_hqhMipm3OWkTWg3VT-"
 uri = "file://tmp_tts_audit/claude_anderson_neutral_line1.mp3"
 type = "audio"
 title = "NEUTRAL (no tag) — Line 1 (for comparison)"
+
+[[outputs]]
+id = "OO1D4ECfBL-vZqx9YdIcX"
+uri = "file://server/public/reward-chime.mp3"
+type = "audio"
+title = "reward_chime"
+description = "Generated sound effect: Bright cheerful cha-ching reward chime for a mobile game mystery box reveal — two quick ascending coin-register bell hits followed by a sparkling shimmer, clean, punchy, no mu…"
+
+[[outputs]]
+id = "wAASgD8OvFupEc08wMDGh"
+uri = "file://server/public/token-spend.mp3"
+type = "audio"
+title = "token_spend"
+description = "Generated sound effect: Short subtle coin spend confirmation tone for a mobile app — single soft descending metallic coin click, understated and quick, not celebratory, clean UI sound"
