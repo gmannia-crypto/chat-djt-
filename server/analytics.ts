@@ -205,10 +205,13 @@ export async function getLeadGenStats(days: number = 30) {
 }
 
 /**
- * Bonus mini-game engagement, broken down by game type ("putting" | "threePoint").
- * Sourced from feature_events rows written by app/game.tsx's bonus-game lifecycle:
- * "started" (offer tapped), "completed" (shot scored, with an outcome), and
- * "forfeited" (closed early without finishing).
+ * Bonus mini-game engagement, broken down by game type (e.g. "putting", "threePoint").
+ * Sourced from feature_events rows written via the shared bonus-game convention
+ * (see trackBonusGame in lib/use-analytics.ts): a feature="bonus_game" event with
+ * metadata.game set to a stable id, and action one of "started" (offer tapped),
+ * "completed" (attempt scored, with an outcome), or "forfeited" (closed early
+ * without finishing). Any mini-game that emits this event shape is picked up here
+ * automatically — no server-side registration of game ids is needed.
  */
 export async function getBonusGameStats(days: number = 30) {
   const db = getPool();
@@ -235,7 +238,7 @@ export async function getBonusGameStats(days: number = 30) {
   ]);
 
   const games = byGameRes.rows
-    .filter(r => r.game === "putting" || r.game === "threePoint")
+    .filter(r => !!r.game)
     .map(r => {
       const started = parseInt(r.started) || 0;
       const completed = parseInt(r.completed) || 0;

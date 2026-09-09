@@ -117,3 +117,30 @@ export function useTrackEvent() {
     [deviceId]
   );
 }
+
+/**
+ * Shared convention for tracking bonus mini-games / bonus offers (e.g. app/game.tsx's
+ * putting and three-point offers) so every game shows up together in the admin
+ * "Bonus Mini-Games" report (server/analytics.ts's getBonusGameStats) without any
+ * server-side registration of game ids.
+ *
+ * Any new mini-game should call this with the SAME `game` id across all three of its
+ * lifecycle events:
+ *   - trackBonusGame(trackEvent, gameId, "started")                       — offer opened/tapped
+ *   - trackBonusGame(trackEvent, gameId, "completed", { outcome: "..." }) — attempt resolved
+ *   - trackBonusGame(trackEvent, gameId, "forfeited")                     — closed early, no result
+ *
+ * `gameId` should be a short stable slug (e.g. "putting", "threePoint") unique to that
+ * game. Add a friendly label for it in app/admin.tsx's BONUS_GAME_LABELS if you want
+ * something nicer than the raw id shown in the dashboard.
+ */
+export type BonusGameAction = "started" | "completed" | "forfeited";
+
+export function trackBonusGame(
+  trackEvent: ReturnType<typeof useTrackEvent>,
+  gameId: string,
+  action: BonusGameAction,
+  extra?: Record<string, string | number | boolean>
+) {
+  trackEvent("bonus_game", action, { game: gameId, ...(extra || {}) });
+}
