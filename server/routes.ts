@@ -28,6 +28,10 @@ function getContentModeInstruction(contentMode: unknown): string {
 import { execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { promisify } from "node:util";
+import {
+  fishAudioRequest,
+  sendPersonaTTS,
+} from "./persona-tts";
 import { writeFileSync, readFileSync, unlinkSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -519,68 +523,6 @@ async function overlayBleeps(audioBuffer: Buffer, text: string): Promise<Buffer>
   }
 }
 
-const ttsCache = new Map<string, { buffer: Buffer; timestamp: number }>();
-const TTS_CACHE_MAX = 100;
-const TTS_CACHE_TTL = 30 * 60 * 1000;
-// Bump this version whenever PERSONA_EMOTION_MAP changes so that
-// emotion-tagged cache keys are immediately invalidated across all
-// personas rather than waiting for the 30-minute TTL to expire.
-const PERSONA_EMOTION_MAP_VERSION = 10;
-
-function getTTSCacheKey(text: string, voiceId: string, speed: number): string {
-  const shortText = text.slice(0, 200);
-  return `${voiceId}:${speed}:${shortText}`;
-}
-
-function getCachedTTS(key: string): Buffer | null {
-  const entry = ttsCache.get(key);
-  if (!entry) return null;
-  if (Date.now() - entry.timestamp > TTS_CACHE_TTL) {
-    ttsCache.delete(key);
-    return null;
-  }
-  return entry.buffer;
-}
-
-function setCachedTTS(key: string, buffer: Buffer): void {
-  if (ttsCache.size >= TTS_CACHE_MAX) {
-    const oldest = ttsCache.keys().next().value;
-    if (oldest) ttsCache.delete(oldest);
-  }
-  ttsCache.set(key, { buffer, timestamp: Date.now() });
-}
-
-function stripMarkdownForTTS(text: string): string {
-  return text
-    .replace(/\*{1,3}([^*\n]+)\*{1,3}/g, "$1")  // **bold**, *italic*, ***both***
-    .replace(/\*+/g, "")                           // lone asterisks (bullets, etc.)
-    .replace(/_{1,2}([^_\n]+)_{1,2}/g, "$1")      // __bold__, _italic_
-    .replace(/`{1,3}[^`]*`{1,3}/g, "")            // `code` / ```blocks```
-    .replace(/^#{1,6}\s+/gm, "")                  // # headings
-    .replace(/^[-•]\s+/gm, "")                    // - bullet / • bullet
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")      // [link](url) → link text only
-    .replace(/(\s*\[[^\[\]\n]{1,60}\])+\s*$/, "") // trailing [tag] stage directions (e.g. [laughs], [IQ:7,ALT:0])
-    .replace(/\s{2,}/g, " ")
-    .trim();
-}
-
-function fixTTSPronunciation(text: string): string {
-  return stripMarkdownForTTS(text)
-    .replace(/\bEpstein War\b/gi, "Ep-steen War")
-    .replace(/\bEpstein's\b/gi, "Ep-steen's")
-    .replace(/\bEpstein files\b/gi, "Ep-steen files")
-    .replace(/\bEpstein Island\b/gi, "Ep-steen Island")
-    .replace(/\bEpstein\b/gi, "Ep-steen")
-    // "DOGE" (Department of Government Efficiency) reads with a hard "g" ("doje")
-    // by default — force the soft "dohj" (rhymes with "dodge") pronunciation.
-    .replace(/\bDOGE's\b/g, "Dohj's")
-    .replace(/\bDOGE\b/g, "Dohj")
-    .replace(/\bm\s*[.,]?\s*e\b/gi, "me")
-    // "Dr." reads the period as a sentence break, inserting an unwanted pause
-    // before the name ("Dr. — Ben" instead of "Doctor Ben"). Spell it out.
-    .replace(/\bDr\.\s*/g, "Doctor ");
-}
-
 // Persona-specific TTS text formatting — applied BEFORE Fish Audio to shape prosody
 // Fish Audio responds to: "..." for pauses, "—" for breaks, ALL CAPS for emphasis, "!" for energy
 function applyPersonaTTSFormatting(text: string, personaId: string): string {
@@ -630,86 +572,6 @@ function applyPersonaTTSFormatting(text: string, personaId: string): string {
   t = t.replace(/([a-zA-Z])\.(\s|$)/g, "$1! ");
 
   return t.trim();
-}
-
-async function fishAudioRequest(text: string, voiceId: string, speed: number, apiKey: string, retries: number = 3, volumeDb: number = 0, emotion?: string): Promise<Buffer> {
-  const ttsText = fixTTSPronunciation(text);
-  const cacheKey = getTTSCacheKey(text, voiceId, speed) + (volumeDb !== 0 ? `_v${volumeDb}` : "") + (emotion ? `_e${emotion}_ev${PERSONA_EMOTION_MAP_VERSION}` : "");
-  const cached = getCachedTTS(cacheKey);
-  if (cached) {
-    console.log(`TTS cache hit for voice=${voiceId}`);
-    return cached;
-  }
-
-  let lastError: Error | null = null;
-  for (let attempt = 0; attempt < retries; attempt++) {
-    if (attempt > 0) {
-      const delay = Math.min(1000 * Math.pow(2, attempt), 8000);
-      console.log(`TTS retry ${attempt + 1}/${retries} after ${delay}ms...`);
-      await new Promise(r => setTimeout(r, delay));
-    }
-
-    try {
-      const prosody: Record<string, any> = { speed };
-      if (volumeDb !== 0) prosody.volume = volumeDb;
-      if (emotion) prosody.emotion = emotion;
-
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 20000);
-      let response: Response;
-      try {
-        response = await fetch("https://api.fish.audio/v1/tts", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-            "model": "s2.1-pro-free",
-          },
-          body: JSON.stringify({
-            text: ttsText,
-            reference_id: voiceId,
-            format: "mp3",
-            latency: "balanced",
-            prosody,
-          }),
-          signal: controller.signal,
-        });
-      } finally {
-        clearTimeout(timeoutId);
-      }
-
-      if (response.status === 429 || response.status === 503 || response.status === 502) {
-        const errorText = await response.text();
-        console.warn(`Fish Audio ${response.status} (attempt ${attempt + 1}/${retries}):`, errorText);
-        lastError = new Error(`Fish Audio error: ${response.status}`);
-        continue;
-      }
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Fish Audio TTS error:", response.status, errorText);
-        throw new Error(`Fish Audio TTS failed: ${response.status}`);
-      }
-
-      const arrayBuffer = await response.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-      setCachedTTS(cacheKey, buffer);
-      return buffer;
-    } catch (err: any) {
-      if (err.name === "AbortError") {
-        console.warn(`Fish Audio request timed out (attempt ${attempt + 1}/${retries})`);
-        lastError = new Error("Fish Audio error: timeout");
-        continue;
-      }
-      if (err.message?.includes("rate limited") || err.message?.includes("Fish Audio error")) {
-        lastError = err;
-        continue;
-      }
-      throw err;
-    }
-  }
-
-  throw lastError || new Error("Fish Audio TTS failed after retries");
 }
 
 const TRUMP_FIRED_UP_VOICE_ID = "7379b5f7cf9a4337b54a8fa819ae8502";
@@ -3543,13 +3405,18 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
         (personaId === "ruckus" && voiceId === RUCKUS_CALM_VOICE_ID)
       ) ? undefined : PERSONA_EMOTION_MAP[personaId];
       const safeText = applyPersonaTTSFormatting(text.slice(0, 2000), personaId);
-      const rawBuffer = await fishAudioRequest(safeText, voiceId, personaSpeed, apiKey, 3, personaVolumeDb, personaEmotion);
       const bleepRequested = req.body.bleepEnabled === undefined ? true : req.body.bleepEnabled === "true" || req.body.bleepEnabled === true;
-      const buffer = bleepRequested ? await overlayBleeps(rawBuffer, safeText) : rawBuffer;
-
-      res.setHeader("Content-Type", "audio/mpeg");
-      res.setHeader("Content-Length", buffer.length.toString());
-      res.send(buffer);
+      await sendPersonaTTS(res, {
+        text: safeText,
+        voiceId,
+        speed: personaSpeed,
+        apiKey,
+        volumeDb: personaVolumeDb,
+        emotion: personaEmotion,
+        bleepRequested,
+        hasCurseWords: (t) => findCursePositions(t).length > 0,
+        overlayBleeps,
+      });
     } catch (error: any) {
       console.error("Persona speak error:", error);
       res.status(500).json({ error: "TTS generation failed" });
@@ -3604,14 +3471,19 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
         (personaId === "ruckus" && voiceId === RUCKUS_CALM_VOICE_ID)
       ) ? undefined : PERSONA_EMOTION_MAP[personaId as string];
       const safeText = applyPersonaTTSFormatting(text.slice(0, 2000), personaId);
-      const rawBuffer = await fishAudioRequest(safeText, voiceId, getPersonaSpeed, apiKey, 3, getPersonaVolumeDb, getPersonaEmotion);
       const bleepRequested = req.query.bleepEnabled === undefined ? true : req.query.bleepEnabled === "true";
-      const buffer = bleepRequested ? await overlayBleeps(rawBuffer, safeText) : rawBuffer;
-
-      res.setHeader("Content-Type", "audio/mpeg");
-      res.setHeader("Content-Length", buffer.length.toString());
-      res.setHeader("Cache-Control", "public, max-age=3600");
-      res.send(buffer);
+      await sendPersonaTTS(res, {
+        text: safeText,
+        voiceId,
+        speed: getPersonaSpeed,
+        apiKey,
+        volumeDb: getPersonaVolumeDb,
+        emotion: getPersonaEmotion,
+        bleepRequested,
+        cacheControl: true,
+        hasCurseWords: (t) => findCursePositions(t).length > 0,
+        overlayBleeps,
+      });
     } catch (error: any) {
       console.error("Persona speak GET error:", error);
       res.status(500).json({ error: "TTS generation failed" });

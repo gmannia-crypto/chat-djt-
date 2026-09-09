@@ -134,13 +134,15 @@ export async function playAudioFromUrl(
     return sound;
   }
 
-  const fetchOpts: RequestInit = {};
-  if (options?.headers) fetchOpts.headers = options.headers;
-  const res = await fetchWithTimeout(url, Object.keys(fetchOpts).length > 0 ? fetchOpts : undefined);
-  if (!res.ok) throw new Error(`Audio fetch failed: ${res.status}`);
-  const ct = res.headers.get("content-type") || "";
-  if (ct.includes("text/html")) throw new Error("Server returned HTML instead of audio");
-
+  // Let the native Sound module fetch the URL directly and progressively —
+  // don't validate with a separate JS-side fetch first. The server now
+  // streams TTS audio as it's generated instead of buffering the whole clip
+  // (see server/persona-tts.ts), so a validation fetch here would open a
+  // SECOND concurrent request for the same (uncached) line and race the
+  // real playback request while the first is still generating — doubling
+  // Fish Audio cost/latency instead of saving it. A bad response (error
+  // status, non-audio body) now simply surfaces as a rejected createAsync
+  // call, which every caller already treats as a playback error.
   const { sound } = await Audio.Sound.createAsync(
     { uri: url, headers: options?.headers },
     { shouldPlay: false, volume: vol, rate, shouldCorrectPitch: true }
@@ -185,6 +187,15 @@ export async function prefetchTTSAudio(
 
   const res = await fetchWithTimeout(url);
   if (!res.ok) throw new Error(`TTS prefetch failed: ${res.status}`);
+  // The server now streams TTS audio to the client as it's generated instead
+  // of buffering the whole clip before responding (see server/routes.ts,
+  // sendPersonaTTS), so a bare fetch() here would resolve as soon as headers
+  // arrive — well before the server's in-memory cache is actually populated.
+  // Drain the body fully so that cache is warm by the time playback
+  // re-requests this exact URL; otherwise the "prefetch" would race the real
+  // playback fetch and both would hit Fish Audio, doubling cost and latency
+  // instead of saving it.
+  await res.arrayBuffer().catch(() => {});
   return url;
 }
 
