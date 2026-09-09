@@ -10902,13 +10902,23 @@ export default function ArenaScreen() {
             <Text style={{ color: "#ff4d4d", fontSize: 11, fontWeight: "800" }}>EXIT</Text>
           </Pressable>
         )}
-        <View style={s.headerCenter}>
+        <Pressable
+          style={s.headerCenter}
+          onLongPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            Alert.alert("Menu", undefined, [
+              { text: "Open Settings", onPress: () => router.push("/settings") },
+              { text: "Cancel", style: "cancel" },
+            ]);
+          }}
+          accessibilityLabel="Long-press for more options, including Settings"
+        >
           <Text style={s.headerTitle}>THE ARENA</Text>
           <Animated.View entering={ZoomIn.duration(500).delay(300)} style={s.liveBadge}>
             <View style={s.liveDot} />
             <Text style={s.liveText}>LIVE</Text>
           </Animated.View>
-        </View>
+        </Pressable>
         <Pressable
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowPersonaSelector(true); }}
           onLongPress={() => Alert.alert("Debaters", "Add, remove, or swap who's in the debate.")}

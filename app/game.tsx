@@ -12,6 +12,7 @@ import {
   Modal,
   TextInput,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -963,6 +964,14 @@ export default function GameScreen() {
     shareContent({ text: shareText, feature: "game" });
   }, [gameState, titleInfo, karmaRating, choiceHistory, gameWon]);
 
+  const openSettingsMenu = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Alert.alert("Menu", undefined, [
+      { text: "Open Settings", onPress: () => router.push("/settings") },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  }, []);
+
   const industryBreakdown = useMemo(() => {
     const counts: Record<string, number> = {};
     gameState.empire.forEach(i => { counts[i] = (counts[i] || 0) + 1; });
@@ -1089,9 +1098,9 @@ export default function GameScreen() {
           <Pressable onPress={() => router.back()} style={styles.backBtn}>
             <Ionicons name="arrow-back" size={22} color={Colors.gold} />
           </Pressable>
-          <View style={styles.headerCenter}>
+          <Pressable style={styles.headerCenter} onLongPress={openSettingsMenu} accessibilityLabel="Long-press for more options, including Settings">
             <Text style={styles.headerTitle}>DYNAMIC BILLIONAIRES</Text>
-          </View>
+          </Pressable>
           <Pressable onPress={() => { setShowLeaderboard(true); loadLeaderboard(); }} style={styles.backBtn}>
             <Ionicons name="trophy" size={18} color={Colors.gold} />
           </Pressable>
@@ -1177,9 +1186,9 @@ export default function GameScreen() {
             <Pressable onPress={() => router.back()} style={styles.backBtn}>
               <Ionicons name="arrow-back" size={22} color={Colors.gold} />
             </Pressable>
-            <View style={styles.headerCenter}>
+            <Pressable style={styles.headerCenter} onLongPress={openSettingsMenu} accessibilityLabel="Long-press for more options, including Settings">
               <Text style={styles.headerTitle}>DYNAMIC BILLIONAIRES</Text>
-            </View>
+            </Pressable>
             <View style={{ flexDirection: "row", gap: 8 }}>
               <Pressable onPress={() => { setShowLeaderboard(true); loadLeaderboard(); }} style={styles.shareBtn}>
                 <Ionicons name="trophy" size={18} color={Colors.gold} />
@@ -1465,12 +1474,12 @@ export default function GameScreen() {
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={22} color={Colors.gold} />
         </Pressable>
-        <View style={styles.headerCenter}>
+        <Pressable style={styles.headerCenter} onLongPress={openSettingsMenu} accessibilityLabel="Long-press for more options, including Settings">
           <Text style={styles.headerTitle}>DEAL #{gameState.turn}</Text>
           <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", fontWeight: "600" as const }}>
             {fmtMoney(gameState.netWorth)} • {karmaRating.label} • {playerName}
           </Text>
-        </View>
+        </Pressable>
         <View style={{ flexDirection: "row", gap: 8 }}>
           <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowBonusPrefsModal(true); }} style={styles.shareBtn}>
             <Ionicons name="golf-outline" size={18} color={Colors.gold} />
