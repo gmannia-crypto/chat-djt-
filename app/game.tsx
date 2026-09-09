@@ -47,13 +47,21 @@ import { FlatList } from "react-native";
 import { CashAppDonate } from "@/components/CashAppDonate";
 import { PuttingMiniGame, type PuttingResult } from "@/components/PuttingMiniGame";
 import { ThreePointMiniGame, type ThreePointResult } from "@/components/ThreePointMiniGame";
+import { useBonusGamePreference, pickBonusGameKind, type BonusGamePreference } from "@/lib/bonus-game-preference";
 
 // Bonus rounds are offered every N completed turns, purely as an optional break from the
 // scenario loop — they never block "NEXT DEAL" and disappear once the player moves on. Which
-// mini-game is offered (putting or 3-point shooting) is picked at random each time, so the
-// break doesn't feel repetitive on long playthroughs.
+// mini-game is offered (putting or 3-point shooting) defaults to a random pick each time, but
+// respects the player's saved preference (lib/bonus-game-preference.ts) — always putting,
+// always 3-point, strictly alternating, or random — so repeat players can lock in a favorite.
 const PUTTING_BONUS_INTERVAL = 3;
 type BonusGameKind = "putting" | "threePoint";
+const BONUS_PREFERENCE_OPTIONS: { value: BonusGamePreference; label: string; emoji: string }[] = [
+  { value: "random", label: "Random", emoji: "🎲" },
+  { value: "alternate", label: "Alternate", emoji: "🔁" },
+  { value: "putting", label: "Putting Only", emoji: "⛳" },
+  { value: "threePoint", label: "3-Point Only", emoji: "🏀" },
+];
 // Mirrors server/billionaire-game-validation.ts (BILLIONAIRE_WIN_THRESHOLD / MIN_TURNS_FOR_WIN).
 // Kept as a client-side safety clamp only: a mini-game bonus must never itself be able to push
 // net worth across the win line or shrink the number of scenario turns a claimed win required,
@@ -354,6 +362,9 @@ export default function GameScreen() {
   const [bonusGameKind, setBonusGameKind] = useState<BonusGameKind | null>(null);
   const [activeBonusGame, setActiveBonusGame] = useState<BonusGameKind | null>(null);
   const lastBonusOfferTurn = useRef(0);
+  const lastBonusOfferedKind = useRef<BonusGameKind | null>(null);
+  const { bonusGamePreference, bonusGamePreferenceRef, setBonusGamePreference } = useBonusGamePreference();
+  const [showBonusPrefsModal, setShowBonusPrefsModal] = useState(false);
 
   const karmaRating = getKarmaRating(gameState.karma);
   const titleInfo = getTitle(gameState.netWorth);
@@ -819,7 +830,9 @@ export default function GameScreen() {
       saveProgress(updatedState, [...choiceHistory, { scenario: currentScenario?.title || "", choice: choice.text, profit: adjustedProfit, karma: choice.karma }], usedTitles, playerName);
       if (gameState.turn > 0 && gameState.turn % PUTTING_BONUS_INTERVAL === 0 && lastBonusOfferTurn.current !== gameState.turn) {
         lastBonusOfferTurn.current = gameState.turn;
-        setBonusGameKind(Math.random() < 0.5 ? "putting" : "threePoint");
+        const nextKind = pickBonusGameKind(bonusGamePreferenceRef.current, lastBonusOfferedKind.current);
+        lastBonusOfferedKind.current = nextKind;
+        setBonusGameKind(nextKind);
       }
     }
   }, [gameState, currentScenario, playerName, apiCall, playTrumpAudio, saveProgress, submitResult, choiceHistory, usedTitles]);
@@ -867,6 +880,7 @@ export default function GameScreen() {
     setBonusGameKind(null);
     setActiveBonusGame(null);
     lastBonusOfferTurn.current = 0;
+    lastBonusOfferedKind.current = null;
   }, [cleanupSound]);
 
   const handleShare = useCallback(() => {
@@ -1369,6 +1383,9 @@ export default function GameScreen() {
           </Text>
         </View>
         <View style={{ flexDirection: "row", gap: 8 }}>
+          <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowBonusPrefsModal(true); }} style={styles.shareBtn}>
+            <Ionicons name="golf-outline" size={18} color={Colors.gold} />
+          </Pressable>
           <Pressable onPress={() => { setVoiceEnabled(v => !v); cleanupSound(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }} style={[styles.shareBtn, !voiceEnabled && { opacity: 0.4 }]}>
             <Ionicons name={voiceEnabled ? "volume-high" : "volume-mute"} size={18} color={Colors.gold} />
           </Pressable>
@@ -1377,6 +1394,32 @@ export default function GameScreen() {
           </Pressable>
         </View>
       </View>
+
+      <Modal visible={showBonusPrefsModal} transparent animationType="fade" onRequestClose={() => setShowBonusPrefsModal(false)}>
+        <Pressable style={styles.bonusPrefsOverlay} onPress={() => setShowBonusPrefsModal(false)}>
+          <Pressable style={styles.bonusPrefsCard} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.bonusPrefsTitle}>BONUS GAME</Text>
+            <Text style={styles.bonusPrefsSubtitle}>Choose which mini-game the bonus round offers you.</Text>
+            {BONUS_PREFERENCE_OPTIONS.map((opt) => {
+              const selected = bonusGamePreference === opt.value;
+              return (
+                <Pressable
+                  key={opt.value}
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setBonusGamePreference(opt.value); }}
+                  style={[styles.bonusPrefsOption, selected && styles.bonusPrefsOptionSelected]}
+                >
+                  <Text style={styles.bonusPrefsOptionEmoji}>{opt.emoji}</Text>
+                  <Text style={[styles.bonusPrefsOptionLabel, selected && styles.bonusPrefsOptionLabelSelected]}>{opt.label}</Text>
+                  {selected && <Ionicons name="checkmark-circle" size={18} color={Colors.gold} />}
+                </Pressable>
+              );
+            })}
+            <Pressable onPress={() => setShowBonusPrefsModal(false)} style={styles.bonusPrefsCloseBtn}>
+              <Text style={styles.bonusPrefsCloseBtnText}>DONE</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <View style={styles.progressContainer}>
         <View style={styles.progressBg}>
@@ -1631,6 +1674,54 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(212,164,32,0.12)",
     alignItems: "center", justifyContent: "center",
   },
+  bonusPrefsOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  bonusPrefsCard: {
+    width: "100%",
+    maxWidth: 340,
+    backgroundColor: "#141414",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "rgba(212,164,32,0.25)",
+    padding: 20,
+    gap: 10,
+  },
+  bonusPrefsTitle: {
+    fontSize: 16, fontWeight: "900" as const, color: Colors.gold, letterSpacing: 2, textAlign: "center",
+  },
+  bonusPrefsSubtitle: {
+    fontSize: 12, color: "rgba(255,255,255,0.5)", textAlign: "center", marginBottom: 6,
+  },
+  bonusPrefsOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  bonusPrefsOptionSelected: {
+    backgroundColor: "rgba(212,164,32,0.15)",
+    borderColor: Colors.gold,
+  },
+  bonusPrefsOptionEmoji: { fontSize: 18 },
+  bonusPrefsOptionLabel: { flex: 1, fontSize: 14, fontWeight: "700" as const, color: "rgba(255,255,255,0.7)" },
+  bonusPrefsOptionLabelSelected: { color: Colors.gold },
+  bonusPrefsCloseBtn: {
+    marginTop: 6,
+    alignSelf: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+  },
+  bonusPrefsCloseBtnText: { color: "rgba(255,255,255,0.4)", fontSize: 13, fontWeight: "700" as const, letterSpacing: 1 },
   scrollContent: {
     paddingHorizontal: 16,
     ...Platform.select({
