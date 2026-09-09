@@ -47,7 +47,8 @@ import { FlatList } from "react-native";
 import { CashAppDonate } from "@/components/CashAppDonate";
 import { PuttingMiniGame, type PuttingResult } from "@/components/PuttingMiniGame";
 import { ThreePointMiniGame, type ThreePointResult } from "@/components/ThreePointMiniGame";
-import { useBonusGamePreference, pickBonusGameKind, type BonusGamePreference } from "@/lib/bonus-game-preference";
+import { useBonusGamePreference, pickBonusGameKind, BONUS_PREFERENCE_OPTIONS, type BonusGamePreference } from "@/lib/bonus-game-preference";
+import { useVoicePreference, isVoicePreferenceEnabled, getVoicePreferenceVersion } from "@/lib/voice-preference";
 
 // Bonus rounds are offered every N completed turns, purely as an optional break from the
 // scenario loop — they never block "NEXT DEAL" and disappear once the player moves on. Which
@@ -56,12 +57,6 @@ import { useBonusGamePreference, pickBonusGameKind, type BonusGamePreference } f
 // always 3-point, strictly alternating, or random — so repeat players can lock in a favorite.
 const PUTTING_BONUS_INTERVAL = 3;
 type BonusGameKind = "putting" | "threePoint";
-const BONUS_PREFERENCE_OPTIONS: { value: BonusGamePreference; label: string; emoji: string }[] = [
-  { value: "random", label: "Random", emoji: "🎲" },
-  { value: "alternate", label: "Alternate", emoji: "🔁" },
-  { value: "putting", label: "Putting Only", emoji: "⛳" },
-  { value: "threePoint", label: "3-Point Only", emoji: "🏀" },
-];
 // Mirrors server/billionaire-game-validation.ts (BILLIONAIRE_WIN_THRESHOLD / MIN_TURNS_FOR_WIN).
 // Kept as a client-side safety clamp only: a mini-game bonus must never itself be able to push
 // net worth across the win line or shrink the number of scenario turns a claimed win required,
@@ -223,21 +218,57 @@ function getTitle(netWorth: number): { label: string; emoji: string } {
   return { label: "HUSTLER", emoji: "🎯" };
 }
 
-async function playBase64Audio(base64: string): Promise<Audio.Sound | null> {
+// `webAudioRef`, when provided, is populated with the actual `HTMLAudioElement` driving
+// playback on web — the caller needs it to stop that element directly, since the Expo
+// `Audio.Sound` returned here is a separate, non-playing shadow object on web (see below).
+function stopWebAudioRef(ref: { current: HTMLAudioElement | null }) {
+  if (ref.current) {
+    try { ref.current.pause(); ref.current.currentTime = 0; } catch {}
+    ref.current = null;
+  }
+}
+
+async function playBase64Audio(base64: string, webAudioRef?: { current: HTMLAudioElement | null }): Promise<Audio.Sound | null> {
+  // Audio creation below is async and can straddle a mute toggle (even a mute
+  // immediately followed by an unmute). Capture the preference's write version now and
+  // compare after every await — a version mismatch means "something changed while this
+  // was in flight" and is treated as stale, regardless of what isVoicePreferenceEnabled()
+  // reads by the time the await resolves.
+  const myVersion = getVoicePreferenceVersion();
+  const stale = () => getVoicePreferenceVersion() !== myVersion || !isVoicePreferenceEnabled();
   try {
+    if (stale()) return null;
     await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: true });
+    if (stale()) return null;
     if (Platform.OS === "web") {
       const audio = new window.Audio(`data:audio/mpeg;base64,${base64}`);
       audio.volume = 1.0;
+      if (webAudioRef) webAudioRef.current = audio;
       await audio.play();
+      if (stale()) {
+        try { audio.pause(); audio.currentTime = 0; } catch {}
+        if (webAudioRef) webAudioRef.current = null;
+        return null;
+      }
       const { sound } = await Audio.Sound.createAsync(
         { uri: `data:audio/mpeg;base64,${base64}` },
         { shouldPlay: false }
       );
+      if (stale()) {
+        try { audio.pause(); audio.currentTime = 0; } catch {}
+        if (webAudioRef) webAudioRef.current = null;
+        try { await sound.unloadAsync(); } catch {}
+        return null;
+      }
       return sound;
     }
     const uri = `data:audio/mpeg;base64,${base64}`;
     const { sound } = await Audio.Sound.createAsync({ uri }, { shouldPlay: true, volume: 1.0 });
+    if (stale()) {
+      try { await sound.stopAsync(); } catch {}
+      try { await sound.unloadAsync(); } catch {}
+      return null;
+    }
     return sound;
   } catch (e) {
     console.warn("Audio playback failed:", e);
@@ -311,6 +342,10 @@ export default function GameScreen() {
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
   const scrollRef = useRef<ScrollView>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
+  // Web playback drives a raw HTMLAudioElement separately from the shadow Expo Sound
+  // object (see playBase64Audio) — track it so cleanupSound can actually stop audio on web.
+  const trumpWebAudioRef = useRef<HTMLAudioElement | null>(null);
+  const narratorWebAudioRef = useRef<HTMLAudioElement | null>(null);
   useScreenTracker("billionaires_game");
   const trackEvent = useTrackEvent();
   const { authToken, authReady } = useTokens();
@@ -336,7 +371,7 @@ export default function GameScreen() {
   const [trumpSpeaking, setTrumpSpeaking] = useState(false);
   const [showHellfire, setShowHellfire] = useState(false);
   const [hellfireComplete, setHellfireComplete] = useState(false);
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const { voicePreferenceEnabled: voiceEnabled, toggleVoicePreference } = useVoicePreference();
   const [narratorSpeaking, setNarratorSpeaking] = useState(false);
   const [milestone, setMilestone] = useState<typeof MILESTONES[0] | null>(null);
   const [breakingNews, setBreakingNews] = useState("");
@@ -396,7 +431,10 @@ export default function GameScreen() {
       try { await narratorSoundRef.current.unloadAsync(); } catch {}
       narratorSoundRef.current = null;
     }
+    stopWebAudioRef(trumpWebAudioRef);
+    stopWebAudioRef(narratorWebAudioRef);
     setNarratorSpeaking(false);
+    setTrumpSpeaking(false);
   }, []);
 
   useEffect(() => {
@@ -404,6 +442,12 @@ export default function GameScreen() {
     getOrCreateDeviceId().then(id => setDeviceId(id));
     return () => { cleanupSound(); };
   }, []);
+
+  // Stop any in-flight narrator/persona audio the instant voice becomes disabled,
+  // regardless of whether the toggle was pressed here or in the shared Settings screen.
+  useEffect(() => {
+    if (!voiceEnabled) cleanupSound();
+  }, [voiceEnabled, cleanupSound]);
 
   useEffect(() => {
     // Wait for the stored auth session token to finish loading before asking the server for
@@ -555,7 +599,18 @@ export default function GameScreen() {
     }
     await cleanupSound();
     setTrumpSpeaking(true);
-    const sound = await playBase64Audio(audioBase64);
+    const myVersion = getVoicePreferenceVersion();
+    const sound = await playBase64Audio(audioBase64, trumpWebAudioRef);
+    // playBase64Audio itself rechecks the preference across every await, but the
+    // preference can also flip (even mute-then-unmute) in the time it takes this
+    // promise to resolve back here — compare the version, not just the current boolean.
+    if (sound && (getVoicePreferenceVersion() !== myVersion || !isVoicePreferenceEnabled())) {
+      try { await sound.stopAsync(); } catch {}
+      try { await sound.unloadAsync(); } catch {}
+      stopWebAudioRef(trumpWebAudioRef);
+      setTrumpSpeaking(false);
+      return;
+    }
     if (sound) {
       soundRef.current = sound;
       sound.setOnPlaybackStatusUpdate((status) => {
@@ -563,6 +618,7 @@ export default function GameScreen() {
           setTrumpSpeaking(false);
           sound.unloadAsync().catch(() => {});
           soundRef.current = null;
+          trumpWebAudioRef.current = null;
         }
       });
       setTimeout(() => setTrumpSpeaking(false), 15000);
@@ -577,8 +633,23 @@ export default function GameScreen() {
       try { await narratorSoundRef.current.unloadAsync(); } catch {}
       narratorSoundRef.current = null;
     }
+    if (narratorWebAudioRef.current) {
+      try { narratorWebAudioRef.current.pause(); narratorWebAudioRef.current.currentTime = 0; } catch {}
+      narratorWebAudioRef.current = null;
+    }
     setNarratorSpeaking(true);
-    const sound = await playBase64Audio(audioBase64);
+    const myVersion = getVoicePreferenceVersion();
+    const sound = await playBase64Audio(audioBase64, narratorWebAudioRef);
+    // playBase64Audio itself rechecks the preference across every await, but the
+    // preference can also flip (even mute-then-unmute) in the time it takes this
+    // promise to resolve back here — compare the version, not just the current boolean.
+    if (sound && (getVoicePreferenceVersion() !== myVersion || !isVoicePreferenceEnabled())) {
+      try { await sound.stopAsync(); } catch {}
+      try { await sound.unloadAsync(); } catch {}
+      stopWebAudioRef(narratorWebAudioRef);
+      setNarratorSpeaking(false);
+      return;
+    }
     if (sound) {
       narratorSoundRef.current = sound;
       sound.setOnPlaybackStatusUpdate((status) => {
@@ -586,6 +657,7 @@ export default function GameScreen() {
           setNarratorSpeaking(false);
           sound.unloadAsync().catch(() => {});
           narratorSoundRef.current = null;
+          narratorWebAudioRef.current = null;
         }
       });
       setTimeout(() => setNarratorSpeaking(false), 20000);
@@ -1112,7 +1184,7 @@ export default function GameScreen() {
               <Pressable onPress={() => { setShowLeaderboard(true); loadLeaderboard(); }} style={styles.shareBtn}>
                 <Ionicons name="trophy" size={18} color={Colors.gold} />
               </Pressable>
-              <Pressable onPress={() => { setVoiceEnabled(v => !v); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }} style={[styles.shareBtn, !voiceEnabled && { opacity: 0.4 }]}>
+              <Pressable onPress={() => { toggleVoicePreference(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }} style={[styles.shareBtn, !voiceEnabled && { opacity: 0.4 }]}>
                 <Ionicons name={voiceEnabled ? "volume-high" : "volume-mute"} size={18} color={Colors.gold} />
               </Pressable>
               <Pressable onPress={handleShare} style={styles.shareBtn}>
@@ -1403,7 +1475,7 @@ export default function GameScreen() {
           <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowBonusPrefsModal(true); }} style={styles.shareBtn}>
             <Ionicons name="golf-outline" size={18} color={Colors.gold} />
           </Pressable>
-          <Pressable onPress={() => { setVoiceEnabled(v => !v); cleanupSound(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }} style={[styles.shareBtn, !voiceEnabled && { opacity: 0.4 }]}>
+          <Pressable onPress={() => { toggleVoicePreference(); cleanupSound(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }} style={[styles.shareBtn, !voiceEnabled && { opacity: 0.4 }]}>
             <Ionicons name={voiceEnabled ? "volume-high" : "volume-mute"} size={18} color={Colors.gold} />
           </Pressable>
           <Pressable onPress={handleShare} style={styles.shareBtn}>

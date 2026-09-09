@@ -17,21 +17,28 @@ const reactionOverlapStore: {
   hydrated: boolean;
   hydrating: Promise<void> | null;
   listeners: Set<ReactionOverlapListener>;
+  // Bumped on every explicit user write so a slow-resolving hydration read
+  // can never clobber a change the user already made while it was in flight.
+  writeVersion: number;
 } = {
   enabled: true,
   hydrated: false,
   hydrating: null,
   listeners: new Set(),
+  writeVersion: 0,
 };
 
 export function hydrateReactionOverlapStore(): Promise<void> {
   if (reactionOverlapStore.hydrated) return Promise.resolve();
   if (reactionOverlapStore.hydrating) return reactionOverlapStore.hydrating;
+  const versionAtStart = reactionOverlapStore.writeVersion;
   reactionOverlapStore.hydrating = AsyncStorage.getItem(REACTION_OVERLAP_KEY)
     .then((saved) => {
-      if (saved !== null) reactionOverlapStore.enabled = saved === "1";
+      if (saved !== null && reactionOverlapStore.writeVersion === versionAtStart) {
+        reactionOverlapStore.enabled = saved === "1";
+        reactionOverlapStore.listeners.forEach((l) => l(reactionOverlapStore.enabled));
+      }
       reactionOverlapStore.hydrated = true;
-      reactionOverlapStore.listeners.forEach((l) => l(reactionOverlapStore.enabled));
     })
     .catch(() => {
       reactionOverlapStore.hydrated = true;
@@ -49,7 +56,9 @@ export function isReactionOverlapEnabled(): boolean {
 }
 
 export function setReactionOverlapEnabled(next: boolean): void {
+  reactionOverlapStore.writeVersion += 1;
   reactionOverlapStore.enabled = next;
+  reactionOverlapStore.hydrated = true;
   AsyncStorage.setItem(REACTION_OVERLAP_KEY, next ? "1" : "0").catch(() => {});
   reactionOverlapStore.listeners.forEach((l) => l(next));
 }

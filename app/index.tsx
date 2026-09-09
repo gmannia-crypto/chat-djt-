@@ -1622,6 +1622,13 @@ export default function HomeScreen() {
             <Text style={styles.liveUsersLabel}>live</Text>
           </View>
           <ShareAppButton variant="icon" />
+          <Pressable
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/settings"); }}
+            style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: "rgba(212,164,32,0.15)", alignItems: "center" as const, justifyContent: "center" as const, borderWidth: 1, borderColor: "rgba(212,164,32,0.3)" }}
+            testID="settings-button"
+          >
+            <Ionicons name="settings-outline" size={16} color={Colors.gold} />
+          </Pressable>
         </View>
       </Animated.View>
 

@@ -15,6 +15,14 @@ export type BonusGamePreference = "random" | "alternate" | "putting" | "threePoi
 
 export const BONUS_GAME_PREFERENCE_KEY = "bonus_game_preference_v1";
 
+/** Shared option list for any UI (game screen modal, settings screen) that lets the player pick a preference. */
+export const BONUS_PREFERENCE_OPTIONS: { value: BonusGamePreference; label: string; emoji: string }[] = [
+  { value: "random", label: "Random", emoji: "🎲" },
+  { value: "alternate", label: "Alternate", emoji: "🔁" },
+  { value: "putting", label: "Putting Only", emoji: "⛳" },
+  { value: "threePoint", label: "3-Point Only", emoji: "🏀" },
+];
+
 const DEFAULT_PREFERENCE: BonusGamePreference = "random";
 
 type PreferenceListener = (pref: BonusGamePreference) => void;
@@ -24,11 +32,15 @@ const preferenceStore: {
   hydrated: boolean;
   hydrating: Promise<void> | null;
   listeners: Set<PreferenceListener>;
+  // Bumped on every explicit user write so a slow-resolving hydration read
+  // can never clobber a change the user already made while it was in flight.
+  writeVersion: number;
 } = {
   preference: DEFAULT_PREFERENCE,
   hydrated: false,
   hydrating: null,
   listeners: new Set(),
+  writeVersion: 0,
 };
 
 function isValidPreference(value: string | null): value is BonusGamePreference {
@@ -38,11 +50,14 @@ function isValidPreference(value: string | null): value is BonusGamePreference {
 export function hydrateBonusGamePreferenceStore(): Promise<void> {
   if (preferenceStore.hydrated) return Promise.resolve();
   if (preferenceStore.hydrating) return preferenceStore.hydrating;
+  const versionAtStart = preferenceStore.writeVersion;
   preferenceStore.hydrating = AsyncStorage.getItem(BONUS_GAME_PREFERENCE_KEY)
     .then((saved) => {
-      if (isValidPreference(saved)) preferenceStore.preference = saved;
+      if (isValidPreference(saved) && preferenceStore.writeVersion === versionAtStart) {
+        preferenceStore.preference = saved;
+        preferenceStore.listeners.forEach((l) => l(preferenceStore.preference));
+      }
       preferenceStore.hydrated = true;
-      preferenceStore.listeners.forEach((l) => l(preferenceStore.preference));
     })
     .catch(() => {
       preferenceStore.hydrated = true;
@@ -60,7 +75,9 @@ export function getBonusGamePreference(): BonusGamePreference {
 }
 
 export function setBonusGamePreference(next: BonusGamePreference): void {
+  preferenceStore.writeVersion += 1;
   preferenceStore.preference = next;
+  preferenceStore.hydrated = true;
   AsyncStorage.setItem(BONUS_GAME_PREFERENCE_KEY, next).catch(() => {});
   preferenceStore.listeners.forEach((l) => l(next));
 }

@@ -25,6 +25,7 @@ import { CashAppDonate } from "@/components/CashAppDonate";
 import { playTTS, prefetchTTSAudio, playPrefetchedAudio, warmupAudio } from "@/lib/audio-helper";
 import { getPersonaVoiceVolume, shouldSkipPersonaVoice } from "@/lib/persona-voice";
 import { useReactionOverlapEnabled } from "@/lib/reaction-overlap-settings";
+import { useVoicePreference } from "@/lib/voice-preference";
 import { useSetupMusic } from "@/hooks/useSetupMusic";
 
 type PersonaLite = { id: string; name: string };
@@ -279,7 +280,6 @@ const PERSONA_PORTRAITS: Record<string, any> = {
 };
 
 const FX_KEY = "interview_fx_enabled_v1";
-const VOICE_KEY = "interview_voice_enabled_v1";
 const BEEP_KEY = "interview_beep_enabled_v1";
 const NAME_KEY = "interview_caller_name_v1";
 
@@ -502,8 +502,9 @@ export default function InterviewScreen() {
   useEffect(() => { warmupAudio().catch(() => {}); }, []);
 
   // ── Pro mode state ───────────────────────────────────────────────────────
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
-  const voiceEnabledRef = useRef(true);
+  // Voice on/off is a shared cross-screen preference (lib/voice-preference.ts) so it
+  // stays in sync with the settings screen and every other screen that reads it.
+  const { voicePreferenceEnabled: voiceEnabled, voicePreferenceEnabledRef: voiceEnabledRef, setVoicePreferenceEnabled } = useVoicePreference();
   const { reactionOverlapEnabled, reactionOverlapEnabledRef, toggleReactionOverlap } = useReactionOverlapEnabled();
   const [bleepEnabled, setBleepEnabled] = useState<boolean>(false);
   const bleepEnabledRef = useRef<boolean>(false);
@@ -542,6 +543,15 @@ export default function InterviewScreen() {
   const ttsQueueRef = useRef<Array<{ text: string; personaId: string; msgId?: string; onStart?: () => void; onPlaybackStart?: () => void }>>([]);
   const ttsRunningRef = useRef(false);
   const currentSoundRef = useRef<Audio.Sound | null>(null);
+  // Bumped on every mute so a pre-mute async TTS/interruption/reaction request that
+  // resolves later — even after a quick mute→unmute — is recognized as stale and
+  // never published/played, rather than just re-checking the current mute boolean.
+  const ttsGenerationRef = useRef(0);
+  // Interruptions (playInterruptionAudio) and live overlap reactions (playReactionOverlap)
+  // each play on their own track outside currentSoundRef; track them so a mute always
+  // stops everything, not just the main queue.
+  const interruptSoundRef = useRef<Audio.Sound | null>(null);
+  const reactionSoundsRef = useRef<Set<Audio.Sound>>(new Set());
   const prefetchedAudioRef = useRef<{ personaId: string; text: string; audioUri: string } | null>(null);
   const prefetchingRef = useRef(false);
   // Pending slot: if a prefetch is in flight and a new one arrives, it queues here
@@ -736,11 +746,10 @@ export default function InterviewScreen() {
   useEffect(() => {
     (async () => {
       try {
-        const [fx, vc, bp, nm] = await Promise.all([
-          AsyncStorage.getItem(FX_KEY), AsyncStorage.getItem(VOICE_KEY), AsyncStorage.getItem(BEEP_KEY), AsyncStorage.getItem(NAME_KEY),
+        const [fx, bp, nm] = await Promise.all([
+          AsyncStorage.getItem(FX_KEY), AsyncStorage.getItem(BEEP_KEY), AsyncStorage.getItem(NAME_KEY),
         ]);
         if (fx !== null) { const v = fx === "1"; setFxEnabled(v); fxEnabledRef.current = v; }
-        if (vc !== null) { const v = vc === "1"; setVoiceEnabled(v); voiceEnabledRef.current = v; }
         if (bp !== null) { const v = bp === "1"; setBeepEnabled(v); beepEnabledRef.current = v; }
         if (nm) setCallerName(nm);
       } catch {}
@@ -765,20 +774,26 @@ export default function InterviewScreen() {
   }, [hofData]);
 
   const toggleVoice = useCallback(() => {
-    const next = !voiceEnabledRef.current;
-    voiceEnabledRef.current = next;
-    setVoiceEnabled(next);
-    AsyncStorage.setItem(VOICE_KEY, next ? "1" : "0").catch(() => {});
-    if (!next) {
-      // stop current playback
-      const snd = currentSoundRef.current;
-      currentSoundRef.current = null;
-      ttsQueueRef.current = [];
-      setActiveSpeaker(null);
-      activeSpeakerRef.current = null;
-      if (snd) snd.stopAsync().then(() => snd.unloadAsync()).catch(() => {});
-    }
-  }, []);
+    setVoicePreferenceEnabled(!voiceEnabledRef.current);
+  }, [setVoicePreferenceEnabled]);
+
+  // Stop any in-flight playback whenever voice becomes disabled, regardless of
+  // whether it was this screen's own toggle or the shared settings screen.
+  useEffect(() => {
+    if (voiceEnabled) return;
+    ttsGenerationRef.current += 1;
+    const snd = currentSoundRef.current;
+    currentSoundRef.current = null;
+    ttsQueueRef.current = [];
+    setActiveSpeaker(null);
+    activeSpeakerRef.current = null;
+    if (snd) snd.stopAsync().then(() => snd.unloadAsync()).catch(() => {});
+    const interrupt = interruptSoundRef.current;
+    interruptSoundRef.current = null;
+    if (interrupt) interrupt.stopAsync().then(() => interrupt.unloadAsync()).catch(() => {});
+    reactionSoundsRef.current.forEach((rs) => { try { rs.stopAsync().then(() => rs.unloadAsync()).catch(() => {}); } catch {} });
+    reactionSoundsRef.current.clear();
+  }, [voiceEnabled]);
   const toggleFx = useCallback(() => {
     const next = !fxEnabledRef.current;
     fxEnabledRef.current = next;
@@ -883,6 +898,7 @@ export default function InterviewScreen() {
       // time), regardless of whether audio actually plays. NOT used for reaction
       // scheduling — see onPlaybackStart below.
       item.onStart?.();
+      const myGeneration = ttsGenerationRef.current;
       try {
         // If a prefetch is in flight for this item, wait up to 6 s for it to land.
         // 6 s covers worst-case Fish Audio latency; the prefetch was started early
@@ -901,6 +917,15 @@ export default function InterviewScreen() {
           sound = await playPrefetchedAudio(cached.audioUri, { volume: getPersonaVoiceVolume(item.personaId) });
         } else {
           sound = await playTTS("/api/persona-speak", { text: item.text, personaId: item.personaId, bleepEnabled: bleepEnabledRef.current, ...(item.personaId === "stephena" ? { angerLevel: stephenaAngerRef.current } : {}), ...(item.personaId === "ruckus" ? { angerLevel: ruckusAngerRef.current } : {}) }, { volume: getPersonaVoiceVolume(item.personaId) });
+        }
+        // The fetch/creation above is async — voice may have been muted (even muted then
+        // quickly unmuted again) while it was in flight. Compare against the generation
+        // token, not just the current boolean, so a stale pre-mute request never starts.
+        if (myGeneration !== ttsGenerationRef.current || !voiceEnabledRef.current) {
+          try { await sound.stopAsync(); } catch {}
+          try { await sound.unloadAsync(); } catch {}
+          item.onComplete?.();
+          break;
         }
         currentSoundRef.current = sound;
         if (!firstAudioPlayedRef.current) { firstAudioPlayedRef.current = true; setFirstAudioPlayed(true); }
@@ -1305,11 +1330,24 @@ export default function InterviewScreen() {
     if (mainSound) { try { mainSound.setVolumeAsync(0.25).catch(() => {}); } catch {} }
     setActiveSpeaker(personaId);
     activeSpeakerRef.current = personaId;
+    const myGeneration = ttsGenerationRef.current;
     try {
       const sound = await playTTS("/api/persona-speak", { text, personaId, bleepEnabled: bleepEnabledRef.current, ...(personaId === "stephena" ? { angerLevel: stephenaAngerRef.current } : {}), ...(personaId === "ruckus" ? { angerLevel: ruckusAngerRef.current } : {}) }, { volume: getPersonaVoiceVolume(personaId) });
+      // TTS synthesis above is async and can straddle a mute (even a quick mute→unmute);
+      // compare against the generation token, not just the current boolean.
+      if (myGeneration !== ttsGenerationRef.current || !voiceEnabledRef.current) {
+        try { await sound.stopAsync(); } catch {}
+        try { await sound.unloadAsync(); } catch {}
+        const ms = currentSoundRef.current;
+        if (ms) { try { ms.setVolumeAsync(getPersonaVoiceVolume(prevSpeaker || "")).catch(() => {}); } catch {} }
+        setActiveSpeaker(activeSpeakerRef.current);
+        return;
+      }
+      interruptSoundRef.current = sound;
       let cleaned = false;
       const cleanup = () => {
         if (cleaned) return; cleaned = true;
+        if (interruptSoundRef.current === sound) interruptSoundRef.current = null;
         sound.setOnPlaybackStatusUpdate(null);
         sound.getStatusAsync().then((st: any) => { if (st.isLoaded) sound.stopAsync().then(() => sound.unloadAsync()).catch(() => {}); }).catch(() => {});
         // Restore to the ducked speaker's own configured volume, not a
@@ -1367,6 +1405,7 @@ export default function InterviewScreen() {
         activeSpeakerRef.current = prevSpeaker;
       }
     };
+    const myGeneration = ttsGenerationRef.current;
     try {
       const audioUri = await audioUriPromise;
       // Re-validate right before playing: reaction synthesis can take longer
@@ -1382,10 +1421,25 @@ export default function InterviewScreen() {
         }
         return;
       }
+      // A mute (even a quick mute→unmute) can also land while the URI/prefetch above
+      // was pending — compare against the generation token, not just the boolean.
+      if (myGeneration !== ttsGenerationRef.current || !voiceEnabledRef.current) {
+        restore();
+        return;
+      }
       const sound = await playPrefetchedAudio(audioUri, { volume: getPersonaVoiceVolume(personaId) });
+      // And again after the (also async) sound creation itself.
+      if (myGeneration !== ttsGenerationRef.current || !voiceEnabledRef.current) {
+        try { await sound.stopAsync(); } catch {}
+        try { await sound.unloadAsync(); } catch {}
+        restore();
+        return;
+      }
+      reactionSoundsRef.current.add(sound);
       let cleaned = false;
       const cleanup = () => {
         if (cleaned) return; cleaned = true;
+        reactionSoundsRef.current.delete(sound);
         sound.setOnPlaybackStatusUpdate(null);
         sound.getStatusAsync().then((st: any) => { if (st.isLoaded) sound.stopAsync().then(() => sound.unloadAsync()).catch(() => {}); }).catch(() => {});
         restore();

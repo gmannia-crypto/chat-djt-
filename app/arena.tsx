@@ -36,6 +36,7 @@ import { fetch } from "expo/fetch";
 import { playTTS, playAudioFromUrl, prefetchTTSAudio, playPrefetchedAudio } from "@/lib/audio-helper";
 import { getPersonaVoiceVolume, shouldSkipPersonaVoice } from "@/lib/persona-voice";
 import { useReactionOverlapEnabled } from "@/lib/reaction-overlap-settings";
+import { useVoicePreference } from "@/lib/voice-preference";
 import { areAllied, isTrump } from "@/lib/persona-ideology";
 import { playPointAwardSound, playVoteClickSound, playVoteSound2, playBellSound, playCrowdCheer, playDrumroll, playWinnerChosenSound, playWinnerAfterSound, playBreakingNewsAlert, playChampionChime, playRewardChime, playTokenSpendSound } from "@/lib/arena-sfx";
 import { useSound } from "@/lib/sound-context";
@@ -3630,14 +3631,33 @@ function ArenaIntro({ personas, onComplete }: { personas: string[]; onComplete: 
   const engageSoundRef = useRef<any>(null);
   const onCompleteRef = useRef(onComplete);
   useEffect(() => { onCompleteRef.current = onComplete; }, [onComplete]);
+  // Intro narration ("The Arena." / countdown / "Engage!") respects the shared
+  // voice preference just like every other TTS call in the app.
+  const { voicePreferenceEnabled: voiceEnabled, voicePreferenceEnabledRef: voiceEnabledRef } = useVoicePreference();
 
   const titleSoundRef = useRef<any>(null);
+
+  const unloadIntroSounds = useCallback(() => {
+    if (titleSoundRef.current) { try { titleSoundRef.current.stopAsync().then(() => titleSoundRef.current?.unloadAsync()).catch(() => {}); } catch {} titleSoundRef.current = null; }
+    if (countdownSoundRef.current) { try { countdownSoundRef.current.stopAsync().then(() => countdownSoundRef.current?.unloadAsync()).catch(() => {}); } catch {} countdownSoundRef.current = null; }
+    if (engageSoundRef.current) { try { engageSoundRef.current.stopAsync().then(() => engageSoundRef.current?.unloadAsync()).catch(() => {}); } catch {} engageSoundRef.current = null; }
+  }, []);
+
+  // Stop mid-flight intro narration if voice gets disabled elsewhere (e.g. Settings) while it's playing.
+  useEffect(() => {
+    if (!voiceEnabled) unloadIntroSounds();
+  }, [voiceEnabled, unloadIntroSounds]);
 
   useEffect(() => {
     const t1 = setTimeout(() => {
       setPhase(1);
-      playTTS("/api/nav-speak", { text: "The Arena." })
-        .then((sound) => { titleSoundRef.current = sound; }).catch(() => {});
+      if (voiceEnabledRef.current) {
+        playTTS("/api/nav-speak", { text: "The Arena." })
+          .then((sound) => {
+            if (!voiceEnabledRef.current) { try { sound.stopAsync().then(() => sound.unloadAsync()).catch(() => {}); } catch {} return; }
+            titleSoundRef.current = sound;
+          }).catch(() => {});
+      }
     }, 400);
     const t2 = setTimeout(() => setPhase(2), 1600);
 
@@ -3655,8 +3675,13 @@ function ArenaIntro({ personas, onComplete }: { personas: string[]; onComplete: 
     const countdownStart = 2200 + personas.length * 120;
     const t3 = setTimeout(() => {
       setPhase(3);
-      playTTS("/api/nav-speak", { text: "Five. Four. Three. Two. One." })
-        .then((sound) => { countdownSoundRef.current = sound; }).catch(() => {});
+      if (voiceEnabledRef.current) {
+        playTTS("/api/nav-speak", { text: "Five. Four. Three. Two. One." })
+          .then((sound) => {
+            if (!voiceEnabledRef.current) { try { sound.stopAsync().then(() => sound.unloadAsync()).catch(() => {}); } catch {} return; }
+            countdownSoundRef.current = sound;
+          }).catch(() => {});
+      }
     }, countdownStart);
 
     return () => {
@@ -3665,16 +3690,21 @@ function ArenaIntro({ personas, onComplete }: { personas: string[]; onComplete: 
       if (engageSoundRef.current) { try { engageSoundRef.current.unloadAsync(); } catch {} }
       if (titleSoundRef.current) { try { titleSoundRef.current.unloadAsync(); } catch {} }
     };
-  }, [personas]);
+  }, [personas, voiceEnabledRef]);
 
   useEffect(() => {
     if (phase !== 3) return;
     if (countdown <= 0) {
       setShowEngage(true);
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      playTTS("/api/nav-speak", {
-        text: "Engage!",
-      }).then((sound) => { engageSoundRef.current = sound; }).catch(() => {});
+      if (voiceEnabledRef.current) {
+        playTTS("/api/nav-speak", {
+          text: "Engage!",
+        }).then((sound) => {
+          if (!voiceEnabledRef.current) { try { sound.stopAsync().then(() => sound.unloadAsync()).catch(() => {}); } catch {} return; }
+          engageSoundRef.current = sound;
+        }).catch(() => {});
+      }
       const engageTimer = setTimeout(() => {
         onCompleteRef.current();
       }, 1800);
@@ -4656,7 +4686,7 @@ export default function ArenaScreen() {
   // Drives the "reconnecting…" badge; auto-clears after 2 s.
   const [skippedPersonaId, setSkippedPersonaId] = useState<string | null>(null);
 
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const { voicePreferenceEnabled: voiceEnabled, setVoicePreferenceEnabled: setVoiceEnabled } = useVoicePreference();
   const { reactionOverlapEnabled, reactionOverlapEnabledRef, toggleReactionOverlap } = useReactionOverlapEnabled();
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const ttsQueueRef = useRef<{ text: string; personaId: string; onPlaybackStart?: () => void }[]>([]);
@@ -5552,6 +5582,10 @@ export default function ArenaScreen() {
   // reactions anchored to an interruption/fireback can validate against the
   // right sound identity instead of the main queue's currentSoundRef.
   const interruptSoundRef = useRef<any>(null);
+  // Live comedic/savage overlap reactions (playReactionOverlap) each create their own
+  // sound outside currentSoundRef/interruptSoundRef; track every in-flight one here so
+  // a mute can stop them too, not just the main/interrupt tracks.
+  const reactionSoundsRef = useRef<Set<any>>(new Set());
   const forcePlayRef = useRef(false);
 
   const sessionStartTimeRef = useRef<number>(Date.now());
@@ -5735,6 +5769,18 @@ export default function ArenaScreen() {
     if (s) {
       try { s.stopAsync().then(() => s.unloadAsync()).catch(() => {}); } catch {}
     }
+    // Interruptions/firebacks (interruptSoundRef) and live overlap reactions
+    // (reactionSoundsRef) play on their own tracks, outside the main queue above —
+    // stop those too, or muting mid-interruption/mid-reaction leaves them audible.
+    const interrupt = interruptSoundRef.current;
+    interruptSoundRef.current = null;
+    if (interrupt) {
+      try { interrupt.stopAsync().then(() => interrupt.unloadAsync()).catch(() => {}); } catch {}
+    }
+    reactionSoundsRef.current.forEach((rs) => {
+      try { rs.stopAsync().then(() => rs.unloadAsync()).catch(() => {}); } catch {}
+    });
+    reactionSoundsRef.current.clear();
     if (Platform.OS === "web") {
       try {
         const audioEls = document.querySelectorAll("audio");
@@ -5743,6 +5789,12 @@ export default function ArenaScreen() {
     }
     setIsPlayingAudio(false);
   }, []);
+
+  // Stop any in-flight TTS whenever voice becomes disabled, regardless of whether it
+  // was this screen's own toggle or the shared settings screen (lib/voice-preference.ts).
+  useEffect(() => {
+    if (!voiceEnabled) stopAllTTS();
+  }, [voiceEnabled, stopAllTTS]);
 
   const startPrefetch = useCallback((item: { text: string; personaId: string }) => {
     if (prefetchingRef.current) return;
@@ -5768,7 +5820,9 @@ export default function ArenaScreen() {
     while (ttsQueueRef.current.length > 0) {
       if (myGeneration !== ttsGenerationRef.current) break;
       if (!forcePlayRef.current && sessionEndedRef.current) break;
-      if (!forcePlayRef.current && !voiceEnabledRef.current) break;
+      // The master voice toggle is authoritative for every queued item — including an
+      // explicit Listen/Replay tap. Muting always wins, with no bypass.
+      if (!voiceEnabledRef.current) break;
       const item = ttsQueueRef.current.shift();
       if (!item || !mountedRef.current) break;
       if (shouldSkipPersonaVoice(item.personaId)) {
@@ -5796,6 +5850,15 @@ export default function ArenaScreen() {
           sound = await playPrefetchedAudio(cached.audioUri, { volume: personaVolume });
         } else {
           sound = await playTTS("/api/persona-speak", { text: item.text, personaId: item.personaId, bleepEnabled: bleepEnabledRef.current, ...(item.personaId === "trump" ? { voiceId: TRUMP_ARENA_VOICE_ID } : {}), ...(item.personaId === "loudmouth" || item.personaId === "stephena" || item.personaId === "ruckus" ? { angerLevel: roomTempRef.current } : {}) }, { volume: personaVolume });
+        }
+        // The fetch/creation above is async — voice may have been muted (or the whole
+        // queue reset) while it was in flight. Re-check before treating this sound as
+        // "now playing" so a mute press during a pending request still cuts it off.
+        const stillAllowed = myGeneration === ttsGenerationRef.current && voiceEnabledRef.current;
+        if (!stillAllowed) {
+          try { await sound.stopAsync(); } catch {}
+          try { await sound.unloadAsync(); } catch {}
+          continue;
         }
         currentSoundRef.current = sound;
 
@@ -5892,7 +5955,10 @@ export default function ArenaScreen() {
 
   const queueTTS = useCallback((text: string, personaId: string, force?: boolean, onPlaybackStart?: () => void) => {
     if (!force && sessionEndedRef.current) return;
-    if (!force && !voiceEnabledRef.current) return;
+    // `force` only bypasses the session-ended check (so a scheduled payoff line still
+    // plays after the debate ends). The master voice toggle is authoritative and has
+    // no bypass — even an explicit Listen/Replay tap respects mute.
+    if (!voiceEnabledRef.current) return;
     if (force) forcePlayRef.current = true;
     ttsQueueRef.current.push({ text, personaId, onPlaybackStart });
     processTTSQueue();
@@ -5920,9 +5986,19 @@ export default function ArenaScreen() {
     // full volume — a speaker who set their volume below 100% should not get
     // bumped back up after an interruption ends.
     const restoreMain = () => { if (duckedMain) { try { duckedMain.setVolumeAsync(getPersonaVoiceVolume(duckedMainSpeaker || "")).catch(() => {}); } catch {} } };
+    const myGeneration = ttsGenerationRef.current;
     try {
       const interruptVolume = getPersonaVoiceVolume(personaId);
       const sound = await playTTS("/api/persona-speak", { text, personaId, bleepEnabled: bleepEnabledRef.current, ...(personaId === "trump" ? { voiceId: TRUMP_ARENA_VOICE_ID } : {}) }, { volume: interruptVolume });
+      // TTS synthesis above is async and can straddle a mute (or a full stopAllTTS
+      // reset, which bumps ttsGenerationRef); re-check before treating this clip as live.
+      if (myGeneration !== ttsGenerationRef.current || !voiceEnabledRef.current) {
+        try { await sound.stopAsync(); } catch {}
+        try { await sound.unloadAsync(); } catch {}
+        restoreMain();
+        onDone?.();
+        return;
+      }
       // Publish this sound's identity so a reaction anchored to THIS
       // interruption (fireLiveReaction called with the interrupter as the
       // main speaker) can validate it's still the one playing before ducking.
@@ -6023,6 +6099,7 @@ export default function ArenaScreen() {
         if (mountedRef.current) setTtsActiveSpeaker(prevSpeaker);
       }
     };
+    const myGeneration = ttsGenerationRef.current;
     try {
       const audioUri = await audioUriPromise;
       // Re-validate right before playing: reaction synthesis can take longer
@@ -6034,10 +6111,24 @@ export default function ArenaScreen() {
         restore();
         return;
       }
+      // A mute (stopAllTTS) can also land while the URI/prefetch above was pending.
+      if (myGeneration !== ttsGenerationRef.current || !voiceEnabledRef.current) {
+        restore();
+        return;
+      }
       const sound = await playPrefetchedAudio(audioUri, { volume: getPersonaVoiceVolume(personaId) });
+      // And again after the (also async) sound creation itself.
+      if (myGeneration !== ttsGenerationRef.current || !voiceEnabledRef.current) {
+        try { await sound.stopAsync(); } catch {}
+        try { await sound.unloadAsync(); } catch {}
+        restore();
+        return;
+      }
+      reactionSoundsRef.current.add(sound);
       let cleaned = false;
       const cleanup = () => {
         if (cleaned) return; cleaned = true;
+        reactionSoundsRef.current.delete(sound);
         sound.setOnPlaybackStatusUpdate(null);
         sound.getStatusAsync().then((st: any) => { if (st.isLoaded) sound.stopAsync().then(() => sound.unloadAsync()).catch(() => {}); }).catch(() => {});
         restore();
@@ -9303,6 +9394,7 @@ export default function ArenaScreen() {
     const lastNonSystem = [...messages].reverse().find((m) => !m.isSystem);
     if (lastNonSystem) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      // Explicit user tap — allowed to play even while the master voice preference is off.
       queueTTS(lastNonSystem.text, lastNonSystem.speakerId, true);
     }
   }, [messages, queueTTS]);
@@ -10909,10 +11001,7 @@ export default function ArenaScreen() {
         <Pressable
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            setVoiceEnabled((p) => {
-              if (p) stopAllTTS();
-              return !p;
-            });
+            setVoiceEnabled(!voiceEnabled);
           }}
           style={[s.voiceToggle, voiceEnabled && s.voiceToggleActive]}
         >
