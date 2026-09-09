@@ -411,6 +411,72 @@ export default function HomeScreen() {
       } catch {}
     })();
   }, []);
+
+  // ── Fact of the Day, spoken aloud in the educator's own voice ────────────
+  // Starts ~10s after the fact loads (so it doesn't compete with entry
+  // animations/sounds), and goes silent the instant the user leaves this
+  // screen for any category. Opt-out persists across sessions.
+  const FACT_VOICE_KEY = "chatdjt_fact_of_day_voice_enabled";
+  const [factVoiceEnabled, setFactVoiceEnabled] = useState(true);
+  const factVoiceSoundRef = useRef<Audio.Sound | null>(null);
+  const factVoiceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const factVoicePlayedRef = useRef(false);
+
+  const stopFactVoice = useCallback(() => {
+    if (factVoiceTimerRef.current) {
+      clearTimeout(factVoiceTimerRef.current);
+      factVoiceTimerRef.current = null;
+    }
+    const snd = factVoiceSoundRef.current;
+    factVoiceSoundRef.current = null;
+    if (snd) {
+      snd.stopAsync().catch(() => {});
+      snd.unloadAsync().catch(() => {});
+    }
+  }, []);
+
+  useEffect(() => {
+    AsyncStorage.getItem(FACT_VOICE_KEY).then((val) => {
+      if (val === "false") setFactVoiceEnabled(false);
+    }).catch(() => {});
+  }, []);
+
+  const toggleFactVoice = useCallback(() => {
+    Haptics.selectionAsync();
+    setFactVoiceEnabled((prev) => {
+      const next = !prev;
+      AsyncStorage.setItem(FACT_VOICE_KEY, String(next)).catch(() => {});
+      if (!next) stopFactVoice();
+      return next;
+    });
+  }, [stopFactVoice]);
+
+  useEffect(() => {
+    if (!factOfDay || !factVoiceEnabled || factVoicePlayedRef.current) return;
+    factVoiceTimerRef.current = setTimeout(async () => {
+      factVoiceTimerRef.current = null;
+      if (!factVoiceEnabled || factVoicePlayedRef.current) return;
+      factVoicePlayedRef.current = true;
+      try {
+        const sound = await playTTS("/api/persona-speak", { text: factOfDay.fact, personaId: factOfDay.educatorId });
+        factVoiceSoundRef.current = sound;
+      } catch {}
+    }, 10000);
+    return () => {
+      if (factVoiceTimerRef.current) {
+        clearTimeout(factVoiceTimerRef.current);
+        factVoiceTimerRef.current = null;
+      }
+    };
+  }, [factOfDay, factVoiceEnabled]);
+
+  // Go silent the instant the user navigates away to any category.
+  useFocusEffect(
+    useCallback(() => {
+      return () => { stopFactVoice(); };
+    }, [stopFactVoice])
+  );
+
   const mainScrollRef = useRef<ScrollView>(null);
 
   const refreshCollectionCount = useCallback(async () => {
@@ -1992,6 +2058,14 @@ export default function HomeScreen() {
               <View style={styles.factOfDayHeader}>
                 <Image source={require("@/assets/images/dc-university-crest.png")} style={{ width: 16, height: 16 }} resizeMode="contain" />
                 <Text style={styles.factOfDayLabel}>DC UNIVERSITY FACT OF THE DAY · {factOfDay.educatorName.toUpperCase()}</Text>
+                <Pressable
+                  onPress={(e) => { e.stopPropagation?.(); toggleFactVoice(); }}
+                  hitSlop={8}
+                  testID="fact-of-day-voice-toggle"
+                  accessibilityLabel={factVoiceEnabled ? "Turn off spoken fact of the day" : "Turn on spoken fact of the day"}
+                >
+                  <Ionicons name={factVoiceEnabled ? "volume-high" : "volume-mute"} size={15} color={factVoiceEnabled ? "#FFD700" : "rgba(255,255,255,0.4)"} />
+                </Pressable>
               </View>
               <Text style={styles.factOfDayText} numberOfLines={3}>{factOfDay.fact}</Text>
             </Pressable>
