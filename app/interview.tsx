@@ -934,8 +934,27 @@ export default function InterviewScreen() {
           //  Phase 1 — short window (10 s) to abort if audio never starts loading.
           //  Phase 2 — once playback begins, switch to a generous cap based on
           //            actual audio duration so long speeches are never cut short.
+          //
+          // Duration stability guard: on web, a freshly-generated (uncached) line
+          // streams straight through from the server with no Content-Length
+          // (server/persona-tts.ts streams chunk-by-chunk as Fish Audio produces
+          // them). The browser's <audio> element then has to ESTIMATE duration
+          // from however many bytes have arrived so far, and that estimate can
+          // be far shorter than the real clip length while it's still buffering
+          // — e.g. reporting 3s for a line that's actually 9s long. Trusting that
+          // number immediately made both the phase-2 safety timer (durationMillis
+          // + 6000) and the overlap early-resolve below fire way too soon,
+          // hard-cutting or ducking lines well before they'd actually finished —
+          // this is what read as "incomplete and rushed" dialogue. Fix: only
+          // trust durationMillis for those two decisions once it has reported
+          // the SAME value on two consecutive ticks (i.e. it has stopped
+          // growing as more of the stream arrives). Until then, keep refreshing
+          // a generous rolling fallback timer instead of locking in a bogus cap.
           let playbackStarted = false;
           let safetyTimer: ReturnType<typeof setTimeout> = setTimeout(finish, 10000);
+          let lastSeenDuration: number | null = null;
+          let durationStableTicks = 0;
+          let durationLockedIn = false;
 
           sound.setOnPlaybackStatusUpdate((status: any) => {
             if (status.didJustFinish || status.error) {
@@ -944,7 +963,6 @@ export default function InterviewScreen() {
               return;
             }
             if (status.isPlaying && status.durationMillis && status.positionMillis) {
-              // Switch to a duration-aware cap the first time we see playback
               if (!playbackStarted) {
                 playbackStarted = true;
                 // onPlaybackStart fires on the FIRST confirmed isPlaying status —
@@ -955,9 +973,6 @@ export default function InterviewScreen() {
                 // against (distinct from onStart above, which fires even for
                 // skipped voices).
                 item.onPlaybackStart?.();
-                clearTimeout(safetyTimer);
-                // Allow the full clip duration + 6 s buffer before force-finishing
-                safetyTimer = setTimeout(finish, status.durationMillis + 6000);
                 // ── Karaoke scroll: scroll to THIS message when it starts playing ──
                 // Use msgId to find the exact index so we don't jump ahead
                 // to messages that were added later but not yet spoken.
@@ -974,6 +989,30 @@ export default function InterviewScreen() {
                   flatListRef.current?.scrollToEnd({ animated: true });
                 }
               }
+              // Track whether durationMillis has stopped growing (2 identical
+              // consecutive ticks = the stream has caught up / fully buffered).
+              // Only once stable do we lock in the tight duration-based safety
+              // cap or allow the overlap handoff to fire — see comment above.
+              if (status.durationMillis === lastSeenDuration) {
+                durationStableTicks++;
+              } else {
+                lastSeenDuration = status.durationMillis;
+                durationStableTicks = 1;
+              }
+              if (!durationLockedIn && durationStableTicks >= 2) {
+                durationLockedIn = true;
+                clearTimeout(safetyTimer);
+                const remainingNow = status.durationMillis - status.positionMillis;
+                // Allow the remaining clip time + 6 s buffer before force-finishing
+                safetyTimer = setTimeout(finish, Math.max(remainingNow, 0) + 6000);
+              } else if (!durationLockedIn) {
+                // Duration is still an unstable, likely-too-low estimate — keep
+                // pushing the fallback deadline out so genuine ongoing playback
+                // is never mistaken for a stuck/never-started clip.
+                clearTimeout(safetyTimer);
+                safetyTimer = setTimeout(finish, 10000);
+              }
+
               const remaining = status.durationMillis - status.positionMillis;
               // Kick off audio prefetch for the next item as soon as possible
               if (!prefetchStarted && ttsQueueRef.current.length > 0) {
@@ -982,9 +1021,12 @@ export default function InterviewScreen() {
               }
               // Early-resolve only when the NEXT queued item is a DIFFERENT speaker —
               // prevents a persona from cutting off their own speech mid-sentence.
+              // Gated on durationLockedIn: an unstable/still-streaming duration
+              // estimate can read as "almost done" seconds before the clip
+              // actually ends, which was cutting lines short far too early.
               const nextQueued = ttsQueueRef.current[0];
               const nextIsDifferentSpeaker = nextQueued && nextQueued.personaId !== item.personaId;
-              if (!earlyResolved && nextIsDifferentSpeaker && remaining <= OVERLAP_MS && remaining > 0) {
+              if (durationLockedIn && !earlyResolved && nextIsDifferentSpeaker && remaining <= OVERLAP_MS && remaining > 0) {
                 // Duck outgoing speaker during overlap window for a natural conversational handoff
                 try { sound.setVolumeAsync(0.28).catch(() => {}); } catch {}
                 earlyResolve();

@@ -2693,8 +2693,22 @@ export default function DebateStage() {
           //  Phase 1 — short window (10 s) to abort if audio never starts loading.
           //  Phase 2 — once playback begins, switch to a generous cap based on
           //            actual audio duration so long speeches are never cut short.
+          //
+          // Duration stability guard: on web, a freshly-generated (uncached) line
+          // streams straight through with no Content-Length (server/persona-tts.ts
+          // streams chunk-by-chunk as Fish Audio produces them), so the browser's
+          // <audio> element can only ESTIMATE duration from bytes received so far
+          // — an estimate that can be far shorter than the real clip while still
+          // buffering. Trusting it immediately made the duration-based safety cap
+          // and the overlap early-resolve below fire too soon, cutting or ducking
+          // lines well before they'd actually finished. Only lock in duration-
+          // based decisions once durationMillis reports the same value on two
+          // consecutive ticks (the stream has caught up).
           let playbackStarted = false;
           let safetyTimer: ReturnType<typeof setTimeout> = setTimeout(finish, 10000);
+          let lastSeenDuration: number | null = null;
+          let durationStableTicks = 0;
+          let durationLockedIn = false;
 
           sound.setOnPlaybackStatusUpdate((status: any) => {
             // Never let an armed interrupt duck or fire over a moderator line —
@@ -2729,9 +2743,6 @@ export default function DebateStage() {
                 // (distinct from onStart above, which fires even for skipped voices
                 // so transcript entries still appear).
                 item.onPlaybackStart?.();
-                clearTimeout(safetyTimer);
-                // Allow the full clip duration + 6 s buffer before force-finishing
-                safetyTimer = setTimeout(finish, status.durationMillis + 6000);
                 // ── Karaoke scroll: scroll to THIS message when it starts playing ──
                 // Use msgId to find the exact index so we don't jump ahead
                 // to messages that were added later but not yet spoken.
@@ -2748,6 +2759,30 @@ export default function DebateStage() {
                   flatListRef.current?.scrollToEnd({ animated: true });
                 }
               }
+              // Track whether durationMillis has stopped growing (2 identical
+              // consecutive ticks = the stream has caught up / fully buffered).
+              // Only once stable do we lock in the tight duration-based safety
+              // cap or allow the overlap handoff to fire — see comment above.
+              if (status.durationMillis === lastSeenDuration) {
+                durationStableTicks++;
+              } else {
+                lastSeenDuration = status.durationMillis;
+                durationStableTicks = 1;
+              }
+              if (!durationLockedIn && durationStableTicks >= 2) {
+                durationLockedIn = true;
+                clearTimeout(safetyTimer);
+                const remainingNow = status.durationMillis - status.positionMillis;
+                // Allow the remaining clip time + 6 s buffer before force-finishing
+                safetyTimer = setTimeout(finish, Math.max(remainingNow, 0) + 6000);
+              } else if (!durationLockedIn) {
+                // Duration is still an unstable, likely-too-low estimate — keep
+                // pushing the fallback deadline out so genuine ongoing playback
+                // is never mistaken for a stuck/never-started clip.
+                clearTimeout(safetyTimer);
+                safetyTimer = setTimeout(finish, 10000);
+              }
+
               const remaining = status.durationMillis - status.positionMillis;
               // Kick off audio prefetch for the next item as soon as possible
               if (!prefetchStarted && ttsQueueRef.current.length > 0) {
@@ -2758,10 +2793,12 @@ export default function DebateStage() {
               // prevents a persona from cutting off their own speech mid-sentence.
               // blockEarlyResolve = true means the item must fully finish before the
               // next speaker can start (used for moderator lines so personas can't
-              // overlap the moderator).
+              // overlap the moderator). Gated on durationLockedIn: an unstable/
+              // still-streaming duration estimate can read as "almost done"
+              // seconds before the clip actually ends.
               const nextQueued = ttsQueueRef.current[0];
               const nextIsDifferentSpeaker = nextQueued && nextQueued.personaId !== item.personaId;
-              if (!earlyResolved && nextIsDifferentSpeaker && !item.blockEarlyResolve && remaining <= (item.overlapMs ?? OVERLAP_MS) && remaining > 0) {
+              if (durationLockedIn && !earlyResolved && nextIsDifferentSpeaker && !item.blockEarlyResolve && remaining <= (item.overlapMs ?? OVERLAP_MS) && remaining > 0) {
                 earlyResolve();
               }
             }
