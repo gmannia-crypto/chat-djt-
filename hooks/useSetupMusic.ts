@@ -4,7 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getApiUrl } from "@/lib/query-client";
 
 // User-provided track for persona-selection screens (Arena, Interview, 1-on-1 Debate).
-const SETUP_MUSIC_TRACKS = ["zdragon.mp3"];
+const SETUP_MUSIC_TRACKS = ["prowling-dragon.mp3"];
 const SETUP_MUSIC_ENABLED_KEY = "persona_setup_music_enabled_v1";
 const SETUP_MUSIC_VOLUME = 0.35;
 
