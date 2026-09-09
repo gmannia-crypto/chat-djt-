@@ -25,6 +25,19 @@ export function formatGrantTime(grantedAt: string): string {
 }
 
 /**
+ * Formats a single grant timestamp as a short date + time (e.g. "Sep 3, 3:42 PM").
+ * Used by the lifetime REFERRAL HISTORY card (app/subscribe.tsx), which — unlike
+ * the same-day "invite worked" banner — spans grants from many different days.
+ */
+export function formatGrantDateTime(grantedAt: string): string {
+  const d = new Date(grantedAt);
+  if (isNaN(d.getTime())) return "";
+  const datePart = d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const timePart = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  return `${datePart}, ${timePart}`;
+}
+
+/**
  * Builds the invite-success banner's subtitle so the sharer can tell WHICH
  * friend's invite converted (by when it happened), not just an aggregate count.
  * Every pending grant's timestamp is listed — none are dropped or collapsed

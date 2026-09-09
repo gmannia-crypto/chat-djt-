@@ -18748,7 +18748,22 @@ Respond with a JSON array ONLY — no markdown, no code fences, no preamble. Exa
         const REFERRAL_TOKENS = 2;
         const tokensEarned = referralCount * REFERRAL_TOKENS;
 
-        return res.json({ referralCount, tokensEarned });
+        // Per-grant history (not just the aggregate) so the sharer can look back
+        // at their full invite history from the referral history card, not just
+        // the most recent unacknowledged batch (see /api/referral/notifications).
+        const historyResult = await db.query(
+          `SELECT id, granted_at
+           FROM referral_grants
+           WHERE referrer_device_id = $1
+           ORDER BY granted_at DESC`,
+          [deviceId]
+        );
+        const grants = historyResult.rows.map((row: { id: string; granted_at: Date }) => ({
+          id: row.id,
+          grantedAt: row.granted_at,
+        }));
+
+        return res.json({ referralCount, tokensEarned, grants });
       } finally {
         await db.end();
       }

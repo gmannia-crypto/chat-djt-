@@ -33,6 +33,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTokens } from "@/lib/token-context";
 import { useSound } from "@/lib/sound-context";
 import { playRewardChime } from "@/lib/arena-sfx";
+import { formatGrantDateTime } from "@/lib/referral-invite-format";
 
 const TOKEN_PACKS = [
   { id: "pack_15", tokens: 15, price: "$2.99", badge: null, description: "15 extra prompts with The Arena" },
@@ -52,7 +53,12 @@ export default function SubscribeScreen() {
   const { deviceId, balance, refreshBalance } = useTokens();
   const { soundEnabled } = useSound();
 
-  const { data: referralStats } = useQuery<{ referralCount: number; tokensEarned: number }>({
+  const [showReferralHistory, setShowReferralHistory] = useState(false);
+  const { data: referralStats } = useQuery<{
+    referralCount: number;
+    tokensEarned: number;
+    grants: { id: string; grantedAt: string }[];
+  }>({
     queryKey: ["/api/referral/stats", deviceId],
     staleTime: 30000,
     enabled: !!deviceId,
@@ -392,6 +398,36 @@ export default function SubscribeScreen() {
                 <Text style={styles.referralHint}>
                   Share your referral link — you and each friend both earn 2 free tokens!
                 </Text>
+              )}
+              {referralStats.referralCount > 0 && (referralStats.grants?.length ?? 0) > 0 && (
+                <>
+                  <Pressable
+                    onPress={() => setShowReferralHistory((v) => !v)}
+                    style={styles.referralToggle}
+                    testID="referral-history-toggle"
+                  >
+                    <Text style={styles.referralToggleText}>
+                      {showReferralHistory ? "Hide join times" : "See when friends joined"}
+                    </Text>
+                    <Ionicons
+                      name={showReferralHistory ? "chevron-up" : "chevron-down"}
+                      size={14}
+                      color={Colors.gold}
+                    />
+                  </Pressable>
+                  {showReferralHistory && (
+                    <View style={styles.referralHistoryList} testID="referral-history-list">
+                      {referralStats.grants.map((grant, i) => (
+                        <View key={grant.id} style={styles.referralHistoryRow}>
+                          <Ionicons name="checkmark-circle" size={13} color={Colors.gold} />
+                          <Text style={styles.referralHistoryText}>
+                            Friend #{referralStats.grants.length - i} joined — {formatGrantDateTime(grant.grantedAt)}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </>
               )}
             </LinearGradient>
           </Animated.View>
@@ -1074,6 +1110,32 @@ const styles = StyleSheet.create({
     color: Colors.whiteMuted,
     textAlign: "center",
     lineHeight: 18,
+  },
+  referralToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    marginTop: 12,
+    paddingVertical: 4,
+  },
+  referralToggleText: {
+    fontSize: 12,
+    fontWeight: "600" as const,
+    color: Colors.gold,
+  },
+  referralHistoryList: {
+    marginTop: 8,
+    gap: 6,
+  },
+  referralHistoryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  referralHistoryText: {
+    fontSize: 11,
+    color: Colors.whiteMuted,
   },
   legalText: {
     fontSize: 10,
