@@ -22,6 +22,7 @@
     "test:ai-timeouts": "npx tsx lib/ai-turn-retry.test.ts",
     "test:referral-concurrent": "npx tsx server/referral-claim-concurrent.test.js",
     "test:billionaire-validation": "npx tsx server/billionaire-game-validation.test.js",
+    "test:billionaire-submit-cooldown": "npx tsx server/billionaire-submit-cooldown.test.js",
     "test:no-ai-deflections": "node scripts/check-no-ai-deflections.js",
     "test:persona-tts": "npx tsx server/persona-tts.test.ts"
   },

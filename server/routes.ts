@@ -40,6 +40,10 @@ import { XMLParser } from "fast-xml-parser";
 import { Pool } from "pg";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
 import { validateBillionaireSubmission, clampBillionaireKarma } from "./billionaire-game-validation";
+import {
+  submitBillionaireGameResult,
+  pruneBillionaireSubmitCooldownTable,
+} from "./billionaire-submit-guard";
 import { INTERVIEW_RETENTION_MS, INTERVIEW_CLEANUP_DISABLED } from "./cleanupConfig";
 import {
   DC_UNIVERSITY_COURSES,
@@ -3742,6 +3746,13 @@ Your personality quirks:
     CREATE INDEX IF NOT EXISTS idx_bg_device ON billionaire_games(device_id);
     CREATE INDEX IF NOT EXISTS idx_bg_status ON billionaire_games(status);
     CREATE INDEX IF NOT EXISTS idx_bg_leaderboard ON billionaire_games(status, final_net_worth, turns, duration_seconds) WHERE status = 'won';
+    -- Per-device / per-IP submission cooldown, kept in the database (not process memory) so the
+    -- anti-farming guard holds across an autoscaled deployment's multiple server instances.
+    CREATE TABLE IF NOT EXISTS billionaire_submit_cooldown (
+      cooldown_key TEXT PRIMARY KEY,
+      last_submit_at TIMESTAMPTZ NOT NULL,
+      last_duration_seconds INTEGER NOT NULL
+    );
   `;
 
   (async () => {
@@ -3818,7 +3829,22 @@ Your personality quirks:
     }
   });
 
+  // Per-device (and per-IP, in case a device ID is spoofed/rotated) cooldown on
+  // /api/game/submit-result. Without this, a single client could fire many back-to-back
+  // submissions to fish for a lucky high score even though each one individually passes
+  // validateBillionaireSubmission. See billionaire-submit-guard.ts for why the cooldown lives in
+  // Postgres (not process memory — this app runs autoscaled, so a Map would only guard one
+  // instance) and why the reservation and the result write share a single transaction.
+  const billionaireSubmitCooldownCleanup: any = setInterval(() => {
+    const cleanupPool = new Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
+    pruneBillionaireSubmitCooldownTable(cleanupPool, 24 * 60 * 60)
+      .catch((e) => console.error("Failed to prune billionaire_submit_cooldown:", e))
+      .finally(() => cleanupPool.end().catch(() => {}));
+  }, 30 * 60 * 1000);
+  if (typeof billionaireSubmitCooldownCleanup?.unref === "function") billionaireSubmitCooldownCleanup.unref();
+
   app.post("/api/game/submit-result", async (req, res) => {
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
     try {
       const deviceId = req.headers["x-device-id"] as string;
       if (!deviceId) return res.status(400).json({ error: "Device ID required" });
@@ -3830,38 +3856,48 @@ Your personality quirks:
         console.warn(`Rejected billionaire game submission from device ${deviceId}: ${validationError}`);
         return res.status(400).json({ error: validationError });
       }
+
+      // req.ip (not a raw header read) is derived by Express from the trusted first proxy hop
+      // (see app.set("trust proxy", 1) in server/index.ts) so a client can't simply forge an
+      // X-Forwarded-For value to dodge the per-IP half of this cooldown.
+      const ipAddress = req.ip || req.socket.remoteAddress || "unknown";
+      const deviceKey = `d:${deviceId}`;
+      const ipKey = `ip:${ipAddress}`;
+
       // The outcome is derived entirely from the validated net worth — the client's "won" flag
       // is never trusted, since a caller could otherwise claim a win with a losing net worth.
       const status = Number(gameState.netWorth) >= 1_000_000_000 ? "won" : "lost";
-      const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
 
-      const existing = await pool.query(
-        `SELECT id FROM billionaire_games WHERE device_id = $1 AND status = 'in_progress' ORDER BY updated_at DESC LIMIT 1`,
-        [deviceId]
-      );
+      // The cooldown reservation and the result write happen inside one database transaction
+      // (see submitBillionaireGameResult), so this single call is both the rate limit and the
+      // persistence step — there is no separate reserve/release bookkeeping to get wrong.
+      const outcome = await submitBillionaireGameResult(pool, deviceKey, ipKey, durationSeconds, {
+        deviceId,
+        playerName,
+        status,
+        netWorth: gameState.netWorth || 0,
+        turns: gameState.turn || 0,
+        durationSeconds: durationSeconds || 0,
+        milestonesHitCount: (gameState.milestonesHit || []).length,
+        bestStreak: gameState.bestStreak || 0,
+        karma: gameState.karma || 0,
+        darkDeals: gameState.darkDeals || 0,
+      });
 
-      if (existing.rows.length > 0) {
-        await pool.query(
-          `UPDATE billionaire_games SET status = $1, final_net_worth = $2, turns = $3, duration_seconds = $4, milestones_hit = $5, best_streak = $6, karma = $7, dark_deals = $8, player_name = $9, completed_at = NOW(), updated_at = NOW() WHERE id = $10`,
-          [status, gameState.netWorth || 0, gameState.turn || 0, durationSeconds || 0, (gameState.milestonesHit || []).length, gameState.bestStreak || 0, gameState.karma || 0, gameState.darkDeals || 0, playerName, existing.rows[0].id]
-        );
-      } else {
-        await pool.query(
-          `INSERT INTO billionaire_games (device_id, player_name, status, final_net_worth, turns, duration_seconds, milestones_hit, best_streak, karma, dark_deals, completed_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())`,
-          [deviceId, playerName, status, gameState.netWorth || 0, gameState.turn || 0, durationSeconds || 0, (gameState.milestonesHit || []).length, gameState.bestStreak || 0, gameState.karma || 0, gameState.darkDeals || 0]
-        );
+      if (!outcome.allowed) {
+        console.warn(`Rejected billionaire game submission from device ${deviceId} (${ipAddress}): submitted again too soon (${outcome.waitSeconds.toFixed(1)}s remaining)`);
+        return res.status(429).json({
+          error: "You're submitting results too quickly. Please wait a bit before submitting another game.",
+          retryAfterSeconds: Math.ceil(outcome.waitSeconds),
+        });
       }
 
-      await pool.query(
-        `DELETE FROM billionaire_games WHERE device_id = $1 AND status = 'in_progress'`,
-        [deviceId]
-      );
-
-      await pool.end();
       res.json({ submitted: true });
     } catch (error: any) {
       console.error("Submit result error:", error);
       res.status(500).json({ error: "Failed to submit result" });
+    } finally {
+      await pool.end().catch((poolErr) => console.error("Failed to close billionaire submit-result pool:", poolErr));
     }
   });
 

@@ -19,6 +19,11 @@ import {
 } from "./cleanupConfig";
 
 const app = express();
+// Replit's deployment/dev proxy is the only way traffic reaches this server, so trusting the
+// first hop is safe: Express then derives req.ip from the proxy's own X-Forwarded-For value
+// rather than blindly trusting whatever a client sent, which matters for any IP-based
+// anti-abuse check (e.g. the Billionaires Game submission cooldown).
+app.set("trust proxy", 1);
 const log = console.log;
 
 const METRO_PORT = 8081;
