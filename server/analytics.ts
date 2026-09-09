@@ -215,9 +215,12 @@ export async function getLeadGenStats(days: number = 30) {
  */
 export async function getBonusGameStats(days: number = 30) {
   const db = getPool();
-  const since = new Date(Date.now() - days * 86400000).toISOString();
+  const now = Date.now();
+  const since = new Date(now - days * 86400000).toISOString();
+  // Prior period of equal length, immediately preceding `since`, for period-over-period deltas.
+  const prevSince = new Date(now - 2 * days * 86400000).toISOString();
 
-  const [byGameRes, outcomeRes] = await Promise.all([
+  const [byGameRes, outcomeRes, prevByGameRes] = await Promise.all([
     db.query(`
       SELECT
         metadata->>'game' AS game,
@@ -235,6 +238,17 @@ export async function getBonusGameStats(days: number = 30) {
       GROUP BY metadata->>'game', metadata->>'outcome'
       ORDER BY game, count DESC
     `, [since]),
+    // Immediately preceding period of the same length, for period-over-period comparison.
+    db.query(`
+      SELECT
+        metadata->>'game' AS game,
+        COUNT(*) FILTER (WHERE action = 'started')   AS started,
+        COUNT(*) FILTER (WHERE action = 'completed') AS completed,
+        COUNT(*) FILTER (WHERE action = 'forfeited') AS forfeited
+      FROM feature_events
+      WHERE feature = 'bonus_game' AND created_at >= $1 AND created_at < $2
+      GROUP BY metadata->>'game'
+    `, [prevSince, since]),
   ]);
 
   const games = byGameRes.rows
@@ -260,11 +274,82 @@ export async function getBonusGameStats(days: number = 30) {
     outcomesByGame.get(row.game)!.push({ outcome: row.outcome, count: parseInt(row.count) || 0 });
   }
 
+  const prevByGame = new Map<string, { started: number; completed: number; completionRate: number }>();
+  for (const row of prevByGameRes.rows) {
+    if (!row.game) continue;
+    const started = parseInt(row.started) || 0;
+    const completed = parseInt(row.completed) || 0;
+    prevByGame.set(row.game, {
+      started,
+      completed,
+      completionRate: started > 0 ? Math.round((completed / started) * 1000) / 10 : 0,
+    });
+  }
+
+  // Period-over-period trend: current window vs. the immediately preceding window of equal
+  // length, per game. `startedDeltaPct` is null when the prior period had zero starts (no
+  // meaningful percent change to report).
+  const trendGames = games.map(g => {
+    const prev = prevByGame.get(g.game) || { started: 0, completed: 0, completionRate: 0 };
+    const startedDeltaPct = prev.started > 0
+      ? Math.round(((g.started - prev.started) / prev.started) * 1000) / 10
+      : null;
+    return {
+      game: g.game,
+      started: g.started,
+      previousStarted: prev.started,
+      startedDeltaPct,
+      completionRate: g.completionRate,
+      previousCompletionRate: prev.completionRate,
+      completionRateDelta: Math.round((g.completionRate - prev.completionRate) * 10) / 10,
+    };
+  });
+
+  // A single plain-language callout surfacing the most actionable signal, so admins deciding
+  // which mini-game variant to build next don't have to eyeball the tables themselves.
+  let headline: string | null = null;
+  if (games.length >= 2) {
+    const [top, second] = games;
+    if (top.started > 0 && second.started > 0) {
+      const completionGap = Math.round((top.completionRate - second.completionRate) * 10) / 10;
+      if (Math.abs(completionGap) >= 5) {
+        const winner = completionGap > 0 ? top : second;
+        const loser = completionGap > 0 ? second : top;
+        headline = `${BONUS_GAME_LABELS[winner.game] || winner.game} has a ${Math.abs(completionGap)}% higher completion rate than ${BONUS_GAME_LABELS[loser.game] || loser.game} over the last ${days} days.`;
+      }
+    }
+  } else if (games.length === 1 && games[0].started > 0) {
+    const trend = trendGames[0];
+    if (trend.startedDeltaPct !== null && Math.abs(trend.startedDeltaPct) >= 10) {
+      const direction = trend.startedDeltaPct > 0 ? "up" : "down";
+      headline = `${BONUS_GAME_LABELS[trend.game] || trend.game} plays are ${direction} ${Math.abs(trend.startedDeltaPct)}% vs. the previous ${days} days.`;
+    }
+  }
+  if (!headline) {
+    const biggestMover = [...trendGames]
+      .filter(t => t.startedDeltaPct !== null)
+      .sort((a, b) => Math.abs(b.startedDeltaPct as number) - Math.abs(a.startedDeltaPct as number))[0];
+    if (biggestMover && Math.abs(biggestMover.startedDeltaPct as number) >= 15) {
+      const direction = (biggestMover.startedDeltaPct as number) > 0 ? "up" : "down";
+      headline = `${BONUS_GAME_LABELS[biggestMover.game] || biggestMover.game} plays are ${direction} ${Math.abs(biggestMover.startedDeltaPct as number)}% vs. the previous ${days} days.`;
+    }
+  }
+
   return {
     games,
     outcomes: Object.fromEntries(outcomesByGame),
+    trend: {
+      days,
+      games: trendGames,
+      headline,
+    },
   };
 }
+
+const BONUS_GAME_LABELS: Record<string, string> = {
+  putting: "Putting",
+  threePoint: "3-Pointer",
+};
 
 export async function getVisitorStats(leadGenDays: number = 30) {
   const db = getPool();

@@ -3556,7 +3556,11 @@ const BONUS_OUTCOME_COLORS: Record<string, string> = {
 
 function BonusGameDashboard() {
   const adminKey = useContext(AdminKeyContext);
-  const [data, setData] = useState<{ games: any[]; outcomes: Record<string, { outcome: string; count: number }[]> } | null>(null);
+  const [data, setData] = useState<{
+    games: any[];
+    outcomes: Record<string, { outcome: string; count: number }[]>;
+    trend?: { days: number; headline: string | null; games: any[] };
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(30);
 
@@ -3612,10 +3616,21 @@ function BonusGameDashboard() {
         </View>
       ) : (
         <>
+          {data.trend?.headline && (
+            <View style={[analyticsStyles.card, { borderColor: Colors.gold, borderWidth: 1 }]}>
+              <Text style={analyticsStyles.cardTitle}>📈 Trend</Text>
+              <Text style={{ color: "#fff", fontSize: 14, lineHeight: 20 }}>{data.trend.headline}</Text>
+              <Text style={{ color: "#888", fontSize: 12, marginTop: 4 }}>
+                vs. the previous {days}-day period — use this to decide which variant is worth building on next
+              </Text>
+            </View>
+          )}
+
           <View style={analyticsStyles.card}>
             <Text style={analyticsStyles.cardTitle}>Offers Started (which game gets picked more)</Text>
             {data.games.map((g) => {
               const maxStarted = Math.max(...data.games.map((x) => x.started), 1);
+              const trend = data.trend?.games.find((t) => t.game === g.game);
               return (
                 <View key={g.game} style={analyticsStyles.barRow}>
                   <Text style={analyticsStyles.barLabel} numberOfLines={1}>
@@ -3628,6 +3643,11 @@ function BonusGameDashboard() {
                   <Text style={analyticsStyles.barAvg}>
                     {totalStarted > 0 ? Math.round((g.started / totalStarted) * 100) : 0}%
                   </Text>
+                  {trend && trend.startedDeltaPct !== null && (
+                    <Text style={{ color: trend.startedDeltaPct >= 0 ? "#4ADE80" : "#F87171", fontSize: 12, width: 52, textAlign: "right" }}>
+                      {trend.startedDeltaPct >= 0 ? "▲" : "▼"} {Math.abs(trend.startedDeltaPct)}%
+                    </Text>
+                  )}
                 </View>
               );
             })}
@@ -3635,24 +3655,37 @@ function BonusGameDashboard() {
 
           <View style={analyticsStyles.card}>
             <Text style={analyticsStyles.cardTitle}>Completion Rate by Game</Text>
-            {data.games.map((g) => (
-              <View key={g.game} style={analyticsStyles.featureRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={analyticsStyles.featureName}>{BONUS_GAME_LABELS[g.game] || g.game}</Text>
-                  <Text style={analyticsStyles.featureAction}>
-                    {g.completed} completed · {g.forfeited} forfeited (closed early) of {g.started} started
+            {data.games.map((g) => {
+              const trend = data.trend?.games.find((t) => t.game === g.game);
+              return (
+                <View key={g.game} style={analyticsStyles.featureRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={analyticsStyles.featureName}>{BONUS_GAME_LABELS[g.game] || g.game}</Text>
+                    <Text style={analyticsStyles.featureAction}>
+                      {g.completed} completed · {g.forfeited} forfeited (closed early) of {g.started} started
+                    </Text>
+                    {trend && trend.previousCompletionRate !== undefined && (
+                      <Text style={{ color: "#888", fontSize: 11, marginTop: 2 }}>
+                        was {trend.previousCompletionRate}% in the previous {days} days
+                        {trend.completionRateDelta !== 0 && (
+                          <Text style={{ color: trend.completionRateDelta > 0 ? "#4ADE80" : "#F87171" }}>
+                            {" "}({trend.completionRateDelta > 0 ? "+" : ""}{trend.completionRateDelta} pts)
+                          </Text>
+                        )}
+                      </Text>
+                    )}
+                  </View>
+                  <Text
+                    style={[
+                      analyticsStyles.featureCount,
+                      { width: 56, color: g.completionRate >= 50 ? "#4ADE80" : "#F87171" },
+                    ]}
+                  >
+                    {g.completionRate}%
                   </Text>
                 </View>
-                <Text
-                  style={[
-                    analyticsStyles.featureCount,
-                    { width: 56, color: g.completionRate >= 50 ? "#4ADE80" : "#F87171" },
-                  ]}
-                >
-                  {g.completionRate}%
-                </Text>
-              </View>
-            ))}
+              );
+            })}
           </View>
 
           {Object.entries(data.outcomes).map(([game, outcomes]) => {
