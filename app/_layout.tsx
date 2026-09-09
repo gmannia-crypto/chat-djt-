@@ -466,6 +466,10 @@ function RootLayoutNav() {
         options={{ headerShown: false, presentation: "modal", animation: "slide_from_bottom" }}
       />
       <Stack.Screen
+        name="voice-settings"
+        options={{ headerShown: false, presentation: "modal", animation: "slide_from_bottom" }}
+      />
+      <Stack.Screen
         name="dc-university"
         options={{ headerShown: false }}
       />

@@ -84,6 +84,23 @@ export default function SettingsScreen() {
               </Text>
             </View>
           </Pressable>
+
+          <View style={styles.divider} />
+
+          <Pressable
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/voice-settings"); }}
+            style={styles.row}
+            testID="settings-voice-mixer-link"
+          >
+            <View style={styles.rowIconWrap}>
+              <Ionicons name="options" size={20} color={Colors.gold} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowTitle}>Persona Voice Mixer</Text>
+              <Text style={styles.rowSubtitle}>Mute or set the volume for each persona individually.</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.3)" />
+          </Pressable>
         </View>
 
         <Text style={styles.sectionLabel}>BILLIONAIRE GAME</Text>
