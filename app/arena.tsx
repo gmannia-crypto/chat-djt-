@@ -10567,6 +10567,7 @@ export default function ArenaScreen() {
               try {
                 let liveFreeRemaining = freeRemaining;
                 let liveHasSession = hasSession;
+                let liveSessionExpiresAt = sessionExpiresAt;
                 isFreeTrialSessionRef.current = false;
 
                 {
@@ -10583,10 +10584,51 @@ export default function ArenaScreen() {
                       liveHasSession = data.hasSession ?? liveHasSession;
                       setFreeRemaining(liveFreeRemaining);
                       setHasSession(liveHasSession);
-                      if (data.sessionExpiresAt) setSessionExpiresAt(data.sessionExpiresAt);
+                      if (data.sessionExpiresAt) {
+                        liveSessionExpiresAt = data.sessionExpiresAt;
+                        setSessionExpiresAt(data.sessionExpiresAt);
+                      }
                     }
                   } catch {} finally {
                     clearTimeout(timeoutId);
+                  }
+                }
+
+                // If the player already has an active paid session but it's SHORTER
+                // than the duration they just picked on this screen (e.g. they
+                // unlocked 5 min earlier, came back, and bumped the chip to 10 min
+                // without re-tapping "Unlock"), top it up to match before starting —
+                // otherwise "START DEBATE" silently reuses the shorter leftover
+                // session and the selected duration is never actually purchased.
+                if (liveHasSession) {
+                  const desiredMs = selectedDuration * 60 * 1000;
+                  const remainingMs = liveSessionExpiresAt ? liveSessionExpiresAt - Date.now() : 0;
+                  if (remainingMs < desiredMs) {
+                    try {
+                      const accessRes = await fetch(new URL("/api/arena/access", getApiUrl()).toString(), {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", "x-device-id": deviceId! },
+                        body: JSON.stringify({ duration: selectedDuration }),
+                      });
+                      const accessData = await accessRes.json();
+                      if (accessRes.ok && accessData.granted) {
+                        liveHasSession = true;
+                        liveSessionExpiresAt = accessData.expiresAt;
+                        setHasSession(true);
+                        setSessionExpiresAt(accessData.expiresAt);
+                        paidSessionStartRef.current = Date.now();
+                        sessionDurationMinutesRef.current = accessData.durationMinutes || selectedDuration;
+                        refreshBalance();
+                      } else if (accessData.error === "insufficient_tokens") {
+                        setShowPaywall(true);
+                        return;
+                      }
+                      // Any other failure: fall through and start with whatever
+                      // session already exists rather than blocking the debate.
+                    } catch {}
+                  } else {
+                    paidSessionStartRef.current = paidSessionStartRef.current || Date.now();
+                    sessionDurationMinutesRef.current = selectedDuration;
                   }
                 }
 
