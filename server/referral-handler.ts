@@ -36,6 +36,8 @@ export async function ensureReferralTable(db: Pool): Promise<void> {
     // Add columns if table existed before this migration
     await db.query(`ALTER TABLE referral_grants ADD COLUMN IF NOT EXISTS ip_address TEXT`);
     await db.query(`ALTER TABLE referral_grants ADD COLUMN IF NOT EXISTS browser_fingerprint TEXT`);
+    // Tracks whether the referrer has been shown the "your invite worked!" success moment yet.
+    await db.query(`ALTER TABLE referral_grants ADD COLUMN IF NOT EXISTS acknowledged_by_referrer BOOLEAN NOT NULL DEFAULT FALSE`);
     await db.query(`ALTER TABLE token_accounts ADD COLUMN IF NOT EXISTS referral_code TEXT UNIQUE`);
     // Atomic per-IP rate-limit table
     await db.query(`

@@ -38,6 +38,7 @@ import { useScreenTracker, useTrackEvent, trackAnalyticsEvent } from "@/lib/use-
 import Animated, {
   FadeInDown,
   FadeInUp,
+  FadeOutUp,
   FadeIn,
   ZoomIn,
   useSharedValue,
@@ -379,6 +380,8 @@ export default function HomeScreen() {
   const [unlockedPersonaId, setUnlockedPersonaId] = useState<string | null>(null);
   const [unlockedPersonaCount, setUnlockedPersonaCount] = useState(0);
   const [unseenMysteryCount, refreshUnseenMysteryCount] = useUnseenMysteryCount();
+  const [inviteSuccess, setInviteSuccess] = useState<{ newReferrals: number; tokensEarned: number } | null>(null);
+  const inviteSuccessCheckedRef = useRef(false);
   const [leaderboardData, setLeaderboardData] = useState<{ name: string; score: number; avatar: string; isYou?: boolean }[]>([]);
   const [fearGreed, setFearGreed] = useState<{ value: number; label: string; trumpComment: string } | null>(null);
   const [liveUsers, setLiveUsers] = useState(1247);
@@ -391,7 +394,7 @@ export default function HomeScreen() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
   const dailyFeature = useMemo(() => getDailyFeature(), []);
-  const { deviceId, hasTokens, balance, linkedUser, authToken, openSaveModal } = useTokens();
+  const { deviceId, hasTokens, balance, linkedUser, authToken, openSaveModal, refreshBalance } = useTokens();
   const { streak, awardBadge } = useEngagement();
   const { events: liveEvents, logEvent } = useLiveActivity();
   const { playClick, playTransition, playWhoosh, playPersonaSting } = useSoundEffects();
@@ -651,6 +654,15 @@ export default function HomeScreen() {
   useEffect(() => {
     if (deviceId && authToken) initMysteryBox();
   }, [deviceId, authToken]);
+
+  // Check once per app open whether a friend's referral converted, so the
+  // sharer gets a success moment tied to the Mystery Box entry point.
+  useEffect(() => {
+    if (deviceId && !inviteSuccessCheckedRef.current) {
+      inviteSuccessCheckedRef.current = true;
+      checkReferralNotifications();
+    }
+  }, [deviceId]);
 
   function getNextSunday8pm(): Date {
     const now = new Date();
@@ -1200,6 +1212,39 @@ export default function HomeScreen() {
       return stored ? JSON.parse(stored) : [];
     } catch {
       return [];
+    }
+  }
+
+  /** Checks whether a friend's referral has converted since this device last acknowledged one. */
+  async function checkReferralNotifications() {
+    if (!deviceId) return;
+    try {
+      const res = await fetch(new URL("/api/referral/notifications", getApiUrl()).toString(), {
+        headers: { "x-device-id": deviceId },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.hasNewReferral) {
+        setInviteSuccess({ newReferrals: data.newReferrals, tokensEarned: data.tokensEarned });
+        refreshBalance?.();
+      }
+    } catch (err) {
+      console.warn("[referral] notification check failed:", err);
+    }
+  }
+
+  /** Dismisses the invite-success banner and tells the server it's been seen. */
+  async function dismissInviteSuccess() {
+    if (!deviceId) return;
+    setInviteSuccess(null);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      await fetch(new URL("/api/referral/notifications/ack", getApiUrl()).toString(), {
+        method: "POST",
+        headers: { "x-device-id": deviceId },
+      });
+    } catch (err) {
+      console.warn("[referral] failed to acknowledge notification:", err);
     }
   }
 
@@ -1951,6 +1996,29 @@ export default function HomeScreen() {
           </Animated.View>
         )}
 
+        {inviteSuccess && (
+          <Animated.View entering={FadeInDown.duration(400)} exiting={FadeOutUp.duration(250)}>
+            <Pressable
+              onPress={dismissInviteSuccess}
+              style={styles.inviteSuccessBanner}
+              testID="invite-success-banner"
+            >
+              <Text style={styles.inviteSuccessEmoji}>🎉</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.inviteSuccessTitle}>
+                  Your invite worked! +{inviteSuccess.tokensEarned} tokens
+                </Text>
+                <Text style={styles.inviteSuccessSub}>
+                  {inviteSuccess.newReferrals === 1
+                    ? "A friend joined The Arena using your link."
+                    : `${inviteSuccess.newReferrals} friends joined The Arena using your link.`}
+                </Text>
+              </View>
+              <Feather name="x" size={16} color="rgba(10,10,10,0.6)" />
+            </Pressable>
+          </Animated.View>
+        )}
+
         <Animated.View entering={FadeInDown.delay(850).duration(500)}>
           <Pressable
             onPress={openMysteryBox}
@@ -1964,7 +2032,10 @@ export default function HomeScreen() {
               style={styles.mysteryBoxCard}
             >
               <View style={styles.mysteryBoxHeader}>
-                <Text style={styles.mysteryBoxEmoji}>{mysteryReady ? "\uD83C\uDF81" : "\uD83D\uDD12"}</Text>
+                <View style={{ position: "relative" as const }}>
+                  <Text style={styles.mysteryBoxEmoji}>{mysteryReady ? "\uD83C\uDF81" : "\uD83D\uDD12"}</Text>
+                  {!!inviteSuccess && <TrophyNewPip testID="mystery-box-invite-pip" />}
+                </View>
                 <View>
                   <Text style={[styles.mysteryBoxTitle, mysteryReady && { color: "#0a0a0a" }]}>MYSTERY BOX</Text>
                   <Text style={[styles.mysteryBoxSub, mysteryReady && { color: "#0a0a0a" }]}>
@@ -3957,6 +4028,34 @@ const styles = StyleSheet.create({
   },
   mysteryBoxEmoji: {
     fontSize: 28,
+  },
+  inviteSuccessBanner: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 10,
+    marginHorizontal: 24,
+    marginTop: 12,
+    maxWidth: 380,
+    alignSelf: "center" as const,
+    width: "100%" as any,
+    backgroundColor: "#FFD700",
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  inviteSuccessEmoji: {
+    fontSize: 22,
+  },
+  inviteSuccessTitle: {
+    fontSize: 13,
+    fontWeight: "800" as const,
+    color: "#0a0a0a",
+  },
+  inviteSuccessSub: {
+    fontSize: 11,
+    fontWeight: "600" as const,
+    color: "rgba(10,10,10,0.7)",
+    marginTop: 2,
   },
   mysteryBoxTitle: {
     fontSize: 13,

@@ -13,3 +13,4 @@
 - [Cross-device account identity](cross-device-account-identity.md) — valuable entitlements require a server-verifiable account session; device, fingerprint, and IP signals are supplementary only.
 - [Server-authoritative claim race pattern](server-claim-race-pattern.md) — insert-if-missing must happen in its own statement before `SELECT ... FOR UPDATE`, or two first-ever concurrent claims for the same key both miss the lock and hit a duplicate-key error instead of a clean conflict response.
 - [Setup-screen background music hook](setup-music-hook.md) — hooks/useSetupMusic.ts gives any persona-picker screen togglable ambient music that auto-stops when the live session starts; reuse it instead of re-copying the debate-stage sportsbook-music block.
+- [Referral conversion notification pattern](referral-conversion-notification.md) — sharer "invite worked" moment uses an acknowledged flag on the grant row, not a new notifications table; GET checks unseen, POST acks.

@@ -18621,6 +18621,65 @@ Respond with a JSON array ONLY — no markdown, no code fences, no preamble. Exa
     }
   });
 
+  // GET /api/referral/notifications — has one of this device's invites converted since
+  // the sharer last acknowledged it? Powers the "Your invite worked!" Mystery Box moment.
+  app.get("/api/referral/notifications", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+
+      const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      try {
+        await ensureReferralTable(db);
+
+        const result = await db.query(
+          `SELECT COUNT(*) AS new_count
+           FROM referral_grants
+           WHERE referrer_device_id = $1 AND acknowledged_by_referrer = FALSE`,
+          [deviceId]
+        );
+        const newReferrals = parseInt(result.rows[0]?.new_count ?? "0", 10);
+        const REFERRAL_TOKENS = 2;
+
+        return res.json({
+          hasNewReferral: newReferrals > 0,
+          newReferrals,
+          tokensEarned: newReferrals * REFERRAL_TOKENS,
+        });
+      } finally {
+        await db.end();
+      }
+    } catch (err: any) {
+      console.error("[referral/notifications] error:", err);
+      res.status(500).json({ error: "Failed to fetch referral notifications" });
+    }
+  });
+
+  // POST /api/referral/notifications/ack — dismisses the success moment so it doesn't
+  // reappear on the next app open once the sharer has seen it.
+  app.post("/api/referral/notifications/ack", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+
+      const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+      try {
+        await ensureReferralTable(db);
+        await db.query(
+          `UPDATE referral_grants SET acknowledged_by_referrer = TRUE
+           WHERE referrer_device_id = $1 AND acknowledged_by_referrer = FALSE`,
+          [deviceId]
+        );
+        return res.json({ success: true });
+      } finally {
+        await db.end();
+      }
+    } catch (err: any) {
+      console.error("[referral/notifications/ack] error:", err);
+      res.status(500).json({ error: "Failed to acknowledge referral notification" });
+    }
+  });
+
   // ─────────────────────────────────────────────────────────────────────────────
   // DC UNIVERSITY — curated live lectures taught by real Arena/Interview
   // educators. Billed 1 DC token per minute for the lecture itself; live Q&A
