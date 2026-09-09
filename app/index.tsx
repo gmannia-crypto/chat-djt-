@@ -1278,6 +1278,10 @@ export default function HomeScreen() {
       await Share.share(
         Platform.OS === "web" ? { message, url } : { message },
       );
+      trackAnalyticsEvent("mystery_box_share", {
+        reward_label: mysteryPrize.label,
+        reward_icon: mysteryPrize.icon,
+      });
     } catch (err) {
       console.warn("[mystery-box] share failed:", err);
       Alert.alert("Share failed", "Couldn't share your win right now. Please try again.");
