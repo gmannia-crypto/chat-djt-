@@ -46,6 +46,8 @@ export const BILLIONAIRE_MAX_SUBMIT_COOLDOWN_SECONDS = 120;
 
 export interface BillionaireResultToPersist {
   deviceId: string;
+  /** Verified account id (linked_accounts.id), when the caller is signed in. */
+  accountId: string | null;
   playerName: string;
   status: "won" | "lost";
   netWorth: number;
@@ -95,27 +97,41 @@ async function reserveCooldownKey(client: PoolClient, key: string, cappedDuratio
 }
 
 async function persistResult(client: PoolClient, result: BillionaireResultToPersist): Promise<void> {
-  const existing = await client.query(
-    `SELECT id FROM billionaire_games WHERE device_id = $1 AND status = 'in_progress' ORDER BY updated_at DESC LIMIT 1`,
-    [result.deviceId]
-  );
+  // A signed-in caller's in-progress row is the one keyed to their account (it may have been
+  // started/saved on a different device); guests fall back to the device-only row.
+  const existing = result.accountId
+    ? await client.query(
+        `SELECT id FROM billionaire_games WHERE account_id = $1 AND status = 'in_progress' ORDER BY updated_at DESC LIMIT 1`,
+        [result.accountId]
+      )
+    : await client.query(
+        `SELECT id FROM billionaire_games WHERE device_id = $1 AND account_id IS NULL AND status = 'in_progress' ORDER BY updated_at DESC LIMIT 1`,
+        [result.deviceId]
+      );
 
   if (existing.rows.length > 0) {
     await client.query(
-      `UPDATE billionaire_games SET status = $1, final_net_worth = $2, turns = $3, duration_seconds = $4, milestones_hit = $5, best_streak = $6, karma = $7, dark_deals = $8, player_name = $9, completed_at = NOW(), updated_at = NOW() WHERE id = $10`,
-      [result.status, result.netWorth, result.turns, result.durationSeconds, result.milestonesHitCount, result.bestStreak, result.karma, result.darkDeals, result.playerName, existing.rows[0].id]
+      `UPDATE billionaire_games SET status = $1, final_net_worth = $2, turns = $3, duration_seconds = $4, milestones_hit = $5, best_streak = $6, karma = $7, dark_deals = $8, player_name = $9, device_id = $10, account_id = $11, completed_at = NOW(), updated_at = NOW() WHERE id = $12`,
+      [result.status, result.netWorth, result.turns, result.durationSeconds, result.milestonesHitCount, result.bestStreak, result.karma, result.darkDeals, result.playerName, result.deviceId, result.accountId, existing.rows[0].id]
     );
   } else {
     await client.query(
-      `INSERT INTO billionaire_games (device_id, player_name, status, final_net_worth, turns, duration_seconds, milestones_hit, best_streak, karma, dark_deals, completed_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())`,
-      [result.deviceId, result.playerName, result.status, result.netWorth, result.turns, result.durationSeconds, result.milestonesHitCount, result.bestStreak, result.karma, result.darkDeals]
+      `INSERT INTO billionaire_games (device_id, account_id, player_name, status, final_net_worth, turns, duration_seconds, milestones_hit, best_streak, karma, dark_deals, completed_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())`,
+      [result.deviceId, result.accountId, result.playerName, result.status, result.netWorth, result.turns, result.durationSeconds, result.milestonesHitCount, result.bestStreak, result.karma, result.darkDeals]
     );
   }
 
-  await client.query(
-    `DELETE FROM billionaire_games WHERE device_id = $1 AND status = 'in_progress'`,
-    [result.deviceId]
-  );
+  if (result.accountId) {
+    await client.query(
+      `DELETE FROM billionaire_games WHERE account_id = $1 AND status = 'in_progress'`,
+      [result.accountId]
+    );
+  } else {
+    await client.query(
+      `DELETE FROM billionaire_games WHERE device_id = $1 AND account_id IS NULL AND status = 'in_progress'`,
+      [result.deviceId]
+    );
+  }
 }
 
 /**

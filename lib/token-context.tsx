@@ -34,6 +34,8 @@ interface TokenContextValue {
   requestVerificationCode: (name: string, email: string) => Promise<void>;
   verifyAccount: (email: string, code: string) => Promise<{ bonusGranted: boolean }>;
   authToken: string | null;
+  /** True once the stored auth session token has been read from AsyncStorage (or found absent). Callers that need to know whether a signed-in account should take priority over device-only state (e.g. resuming a saved game) must wait for this before trusting authToken's null-ness. */
+  authReady: boolean;
   showSaveModal: boolean;
   openSaveModal: () => void;
   dismissSaveModal: () => void;
@@ -113,6 +115,7 @@ export function TokenProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [linkedUser, setLinkedUser] = useState<LinkedUser | null>(null);
   const [authToken, setAuthToken] = useState<string | null>(null);
+  const [authReady, setAuthReady] = useState(false);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const fingerprint = useRef(generateBrowserFingerprint());
   const timeTrackerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -123,7 +126,10 @@ export function TokenProvider({ children }: { children: ReactNode }) {
     getOrCreateDeviceId().then((id) => {
       setDeviceId(id);
     });
-    AsyncStorage.getItem(AUTH_SESSION_KEY).then(setAuthToken);
+    AsyncStorage.getItem(AUTH_SESSION_KEY).then((token) => {
+      setAuthToken(token);
+      setAuthReady(true);
+    });
   }, []);
 
   // Fetch linked user on init
@@ -285,10 +291,11 @@ export function TokenProvider({ children }: { children: ReactNode }) {
     requestVerificationCode,
     verifyAccount,
     authToken,
+    authReady,
     showSaveModal,
     openSaveModal,
     dismissSaveModal,
-  }), [deviceId, balance, isLoading, refreshBalance, hasTokens, linkedUser, requestVerificationCode, verifyAccount, authToken, showSaveModal, openSaveModal, dismissSaveModal]);
+  }), [deviceId, balance, isLoading, refreshBalance, hasTokens, linkedUser, requestVerificationCode, verifyAccount, authToken, authReady, showSaveModal, openSaveModal, dismissSaveModal]);
 
   return (
     <TokenContext.Provider value={value}>

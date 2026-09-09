@@ -3753,7 +3753,25 @@ Your personality quirks:
       last_submit_at TIMESTAMPTZ NOT NULL,
       last_duration_seconds INTEGER NOT NULL
     );
+    -- account_id (linked_accounts.id) ties a game/leaderboard row to a verified account when the
+    -- caller is signed in, so in-progress state and a player's best result follow them across
+    -- devices/reinstalls instead of being lost with the device-generated x-device-id.
+    ALTER TABLE billionaire_games ADD COLUMN IF NOT EXISTS account_id TEXT;
+    CREATE INDEX IF NOT EXISTS idx_bg_account ON billionaire_games(account_id);
   `;
+
+  // Resolves the verified account (if any) behind a request so billionaire-game rows can be tied
+  // to a stable account_id instead of only the resettable x-device-id. Callers must still send a
+  // device ID (unauthenticated play stays fully supported); the account, when present, is used in
+  // addition to it so progress/results follow the signed-in user across devices.
+  async function resolveGameAccountId(req: { headers: { authorization?: string } }): Promise<string | null> {
+    try {
+      const session = await authenticateSession(req.headers.authorization);
+      return session?.accountId || null;
+    } catch {
+      return null;
+    }
+  }
 
   (async () => {
     try {
@@ -3772,22 +3790,30 @@ Your personality quirks:
       if (!deviceId) return res.status(400).json({ error: "Device ID required" });
       const { playerName, gameState, choiceHistory, usedTitles } = req.body;
       if (!playerName || !gameState) return res.status(400).json({ error: "playerName and gameState required" });
+      const accountId = await resolveGameAccountId(req);
 
       const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
-      const existing = await pool.query(
-        `SELECT id FROM billionaire_games WHERE device_id = $1 AND status = 'in_progress' ORDER BY updated_at DESC LIMIT 1`,
-        [deviceId]
-      );
+      // A signed-in caller's in-progress game is looked up by account first (so it follows them
+      // to a new device), falling back to the device ID for guests / unlinked devices.
+      const existing = accountId
+        ? await pool.query(
+            `SELECT id FROM billionaire_games WHERE account_id = $1 AND status = 'in_progress' ORDER BY updated_at DESC LIMIT 1`,
+            [accountId]
+          )
+        : await pool.query(
+            `SELECT id FROM billionaire_games WHERE device_id = $1 AND account_id IS NULL AND status = 'in_progress' ORDER BY updated_at DESC LIMIT 1`,
+            [deviceId]
+          );
 
       if (existing.rows.length > 0) {
         await pool.query(
-          `UPDATE billionaire_games SET game_state = $1, choice_history = $2, used_titles = $3, player_name = $4, turns = $5, updated_at = NOW() WHERE id = $6`,
-          [JSON.stringify(gameState), JSON.stringify(choiceHistory || []), JSON.stringify(usedTitles || []), playerName, gameState.turn || 0, existing.rows[0].id]
+          `UPDATE billionaire_games SET game_state = $1, choice_history = $2, used_titles = $3, player_name = $4, turns = $5, device_id = $6, account_id = $7, updated_at = NOW() WHERE id = $8`,
+          [JSON.stringify(gameState), JSON.stringify(choiceHistory || []), JSON.stringify(usedTitles || []), playerName, gameState.turn || 0, deviceId, accountId, existing.rows[0].id]
         );
       } else {
         await pool.query(
-          `INSERT INTO billionaire_games (device_id, player_name, status, game_state, choice_history, used_titles, turns) VALUES ($1, $2, 'in_progress', $3, $4, $5, $6)`,
-          [deviceId, playerName, JSON.stringify(gameState), JSON.stringify(choiceHistory || []), JSON.stringify(usedTitles || []), gameState.turn || 0]
+          `INSERT INTO billionaire_games (device_id, account_id, player_name, status, game_state, choice_history, used_titles, turns) VALUES ($1, $2, $3, 'in_progress', $4, $5, $6, $7)`,
+          [deviceId, accountId, playerName, JSON.stringify(gameState), JSON.stringify(choiceHistory || []), JSON.stringify(usedTitles || []), gameState.turn || 0]
         );
       }
       await pool.end();
@@ -3802,12 +3828,20 @@ Your personality quirks:
     try {
       const deviceId = req.headers["x-device-id"] as string;
       if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const accountId = await resolveGameAccountId(req);
 
       const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
-      const result = await pool.query(
-        `SELECT player_name, game_state, choice_history, used_titles, created_at FROM billionaire_games WHERE device_id = $1 AND status = 'in_progress' ORDER BY updated_at DESC LIMIT 1`,
-        [deviceId]
-      );
+      // Prefer the account's saved game (follows the user across devices/reinstalls); only fall
+      // back to the raw device ID when there is no signed-in account.
+      const result = accountId
+        ? await pool.query(
+            `SELECT player_name, game_state, choice_history, used_titles, created_at FROM billionaire_games WHERE account_id = $1 AND status = 'in_progress' ORDER BY updated_at DESC LIMIT 1`,
+            [accountId]
+          )
+        : await pool.query(
+            `SELECT player_name, game_state, choice_history, used_titles, created_at FROM billionaire_games WHERE device_id = $1 AND account_id IS NULL AND status = 'in_progress' ORDER BY updated_at DESC LIMIT 1`,
+            [deviceId]
+          );
       await pool.end();
 
       if (result.rows.length === 0) {
@@ -3850,6 +3884,7 @@ Your personality quirks:
       if (!deviceId) return res.status(400).json({ error: "Device ID required" });
       const { playerName, gameState, durationSeconds } = req.body;
       if (!playerName || !gameState) return res.status(400).json({ error: "playerName and gameState required" });
+      const accountId = await resolveGameAccountId(req);
 
       const validationError = validateBillionaireSubmission(gameState, durationSeconds);
       if (validationError) {
@@ -3873,6 +3908,7 @@ Your personality quirks:
       // persistence step — there is no separate reserve/release bookkeeping to get wrong.
       const outcome = await submitBillionaireGameResult(pool, deviceKey, ipKey, durationSeconds, {
         deviceId,
+        accountId,
         playerName,
         status,
         netWorth: gameState.netWorth || 0,
@@ -3979,8 +4015,13 @@ Your personality quirks:
     try {
       const deviceId = req.headers["x-device-id"] as string;
       if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const accountId = await resolveGameAccountId(req);
       const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
-      await pool.query(`DELETE FROM billionaire_games WHERE device_id = $1 AND status = 'in_progress'`, [deviceId]);
+      if (accountId) {
+        await pool.query(`DELETE FROM billionaire_games WHERE account_id = $1 AND status = 'in_progress'`, [accountId]);
+      } else {
+        await pool.query(`DELETE FROM billionaire_games WHERE device_id = $1 AND account_id IS NULL AND status = 'in_progress'`, [deviceId]);
+      }
       await pool.end();
       res.json({ cleared: true });
     } catch (error: any) {

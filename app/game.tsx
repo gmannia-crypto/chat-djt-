@@ -42,7 +42,7 @@ import { StatsPanel } from "@/components/StatsPanel";
 import { ViralShareCard } from "@/components/ViralShareCard";
 import { ShareAppButton } from "@/components/ShareAppButton";
 import { getGameStats, recordGameResult as recordGameResultStats, type GameStats as ViralGameStats } from "@/lib/viral-stats";
-import { getOrCreateDeviceId } from "@/lib/token-context";
+import { getOrCreateDeviceId, useTokens } from "@/lib/token-context";
 import { FlatList } from "react-native";
 import { CashAppDonate } from "@/components/CashAppDonate";
 import { PuttingMiniGame, type PuttingResult } from "@/components/PuttingMiniGame";
@@ -299,6 +299,7 @@ export default function GameScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
   useScreenTracker("billionaires_game");
+  const { authToken, authReady } = useTokens();
 
   const [playerName, setPlayerName] = useState("");
   const [nameConfirmed, setNameConfirmed] = useState(false);
@@ -337,6 +338,9 @@ export default function GameScreen() {
   const [isResolvingChoice, setIsResolvingChoice] = useState(false);
   const [savedProgress, setSavedProgress] = useState<{ playerName: string; gameState: GameState; choiceHistory: any[]; usedTitles: string[] } | null>(null);
   const [showResumePrompt, setShowResumePrompt] = useState(false);
+  // Guards the load-progress fetch below against out-of-order responses: only the response for
+  // the most recently issued request is allowed to update state.
+  const loadProgressRequestId = useRef(0);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardData | null>(null);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
@@ -378,28 +382,42 @@ export default function GameScreen() {
 
   useEffect(() => {
     getGameStats().then(s => setViralGameStats(s));
-    getOrCreateDeviceId().then(id => {
-      setDeviceId(id);
-      const baseUrl = getApiUrl().replace(/\/$/, "");
-      fetch(`${baseUrl}/api/game/load-progress`, {
-        headers: { "x-device-id": id },
-      })
-        .then(r => r.json())
-        .then(data => {
-          if (data.hasProgress && data.gameState && data.gameState.turn > 0) {
-            setSavedProgress({
-              playerName: data.playerName,
-              gameState: data.gameState,
-              choiceHistory: data.choiceHistory || [],
-              usedTitles: data.usedTitles || [],
-            });
-            setShowResumePrompt(true);
-          }
-        })
-        .catch(() => {});
-    });
+    getOrCreateDeviceId().then(id => setDeviceId(id));
     return () => { cleanupSound(); };
   }, []);
+
+  useEffect(() => {
+    // Wait for the stored auth session token to finish loading before asking the server for
+    // saved progress. Firing this request while authReady is still false would go out as an
+    // unauthenticated (device-only) lookup; for a signed-in user that can surface stale guest
+    // progress from before they signed in, or race a later authenticated request and clobber its
+    // result. authReady guarantees authToken's current value (token or null) is final.
+    if (!deviceId || !authReady) return;
+    const requestId = ++loadProgressRequestId.current;
+    const baseUrl = getApiUrl().replace(/\/$/, "");
+    fetch(`${baseUrl}/api/game/load-progress`, {
+      headers: authToken ? { "x-device-id": deviceId, "Authorization": `Bearer ${authToken}` } : { "x-device-id": deviceId },
+    })
+      .then(r => r.json())
+      .then(data => {
+        // Ignore this response if a newer load-progress request has since been issued (e.g.
+        // authToken changed again before this one returned).
+        if (requestId !== loadProgressRequestId.current) return;
+        if (data.hasProgress && data.gameState && data.gameState.turn > 0) {
+          setSavedProgress({
+            playerName: data.playerName,
+            gameState: data.gameState,
+            choiceHistory: data.choiceHistory || [],
+            usedTitles: data.usedTitles || [],
+          });
+          setShowResumePrompt(true);
+        } else {
+          setSavedProgress(null);
+          setShowResumePrompt(false);
+        }
+      })
+      .catch(() => {});
+  }, [deviceId, authReady, authToken]);
 
   const apiCall = useCallback(async (endpoint: string, body: any) => {
     const baseUrl = getApiUrl().replace(/\/$/, "");
@@ -420,11 +438,13 @@ export default function GameScreen() {
       const baseUrl = getApiUrl().replace(/\/$/, "");
       await fetch(`${baseUrl}/api/game/save-progress`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+        headers: authToken
+          ? { "Content-Type": "application/json", "x-device-id": deviceId, "Authorization": `Bearer ${authToken}` }
+          : { "Content-Type": "application/json", "x-device-id": deviceId },
         body: JSON.stringify({ playerName: pn, gameState: { ...gs, elapsedSeconds: totalElapsed }, choiceHistory: ch, usedTitles: ut }),
       });
     } catch {}
-  }, [deviceId]);
+  }, [deviceId, authToken]);
 
   const submitResult = useCallback(async (won: boolean, gs: GameState, pn: string) => {
     if (!deviceId || !pn) return;
@@ -434,7 +454,9 @@ export default function GameScreen() {
       const baseUrl = getApiUrl().replace(/\/$/, "");
       await fetch(`${baseUrl}/api/game/submit-result`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+        headers: authToken
+          ? { "Content-Type": "application/json", "x-device-id": deviceId, "Authorization": `Bearer ${authToken}` }
+          : { "Content-Type": "application/json", "x-device-id": deviceId },
         body: JSON.stringify({ playerName: pn, won, gameState: gs, durationSeconds }),
       });
       trackAnalyticsEvent("billionaires_game_result_submitted", {
@@ -444,7 +466,7 @@ export default function GameScreen() {
         duration_seconds: durationSeconds,
       });
     } catch {}
-  }, [deviceId]);
+  }, [deviceId, authToken]);
 
   const loadLeaderboard = useCallback(async () => {
     setLeaderboardLoading(true);
@@ -499,11 +521,13 @@ export default function GameScreen() {
         const baseUrl = getApiUrl().replace(/\/$/, "");
         await fetch(`${baseUrl}/api/game/clear-progress`, {
           method: "DELETE",
-          headers: { "x-device-id": deviceId },
+          headers: authToken
+            ? { "x-device-id": deviceId, "Authorization": `Bearer ${authToken}` }
+            : { "x-device-id": deviceId },
         });
       } catch {}
     }
-  }, [deviceId]);
+  }, [deviceId, authToken]);
 
   const playTrumpAudio = useCallback(async (audioBase64: string | null) => {
     if (!audioBase64 || !voiceEnabled) {
