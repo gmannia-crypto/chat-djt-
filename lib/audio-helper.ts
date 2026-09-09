@@ -77,50 +77,26 @@ export async function playAudioFromUrl(
   await ensureAudioMode();
 
   if (Platform.OS === "web") {
-    // Plain GET with no custom headers: hand the URL straight to expo-av's
-    // web Sound, which (see ExponentAV.web.ts loadForSound) just does
-    // `new Audio(source)` — a real HTMLAudioElement whose `src` the browser
-    // fetches and plays progressively over HTTP as bytes arrive. That's
-    // exactly what lets native (iOS/Android) start playing before a clip
-    // finishes generating (server/persona-tts.ts streams the response), so
-    // this mirrors that path instead of the fetch()+blob()+data-URI dance
-    // below, which can't produce a `<audio>` src until the ENTIRE response
-    // body has downloaded — forcing web listeners to wait out the full
-    // clip even though the server is already streaming it chunk by chunk.
-    // Custom headers (e.g. cabinet.tsx's x-device-id) can't ride along on
-    // an `<audio src>` request, so that (rare) case still needs the
-    // fetch-based path below, which can set arbitrary headers.
-    if ((!options?.method || options.method === "GET") && !options?.headers) {
-      try {
-        const { sound } = await Audio.Sound.createAsync(
-          { uri: url },
-          { shouldPlay: false, volume: vol }
-        );
-        await sound.setRateAsync(rate, true).catch(() => {});
-        await sound.playAsync();
-        return sound;
-      } catch (e) {
-        console.warn("Streamed <audio> playback failed, falling back to blob:", e);
-        const res = await fetchWithTimeout(url);
-        if (!res.ok) throw new Error(`Audio fetch failed: ${res.status}`);
-        const ct = res.headers.get("content-type") || "";
-        if (ct.includes("text/html")) throw new Error("Server returned HTML instead of audio");
-        const blob = await res.blob();
-        const reader = new FileReader();
-        const dataUri = await new Promise<string>((resolve, reject) => {
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-        });
-        const { sound } = await Audio.Sound.createAsync(
-          { uri: dataUri },
-          { shouldPlay: false, volume: vol }
-        );
-        await sound.setRateAsync(rate, true).catch(() => {});
-        await sound.playAsync();
-        return sound;
-      }
-    }
+    // NOTE: web plain-GET playback used to hand the URL straight to expo-av's
+    // web Sound as a progressive `<audio src>` (browser streams+plays bytes
+    // as they arrive from server/persona-tts.ts's chunked, no-Content-Length
+    // response) to start audio sooner instead of waiting for the full blob.
+    // Reverted: expo-av's web status derives durationMillis from the raw
+    // HTMLMediaElement (`media.duration * 1000`), which is only an ESTIMATE
+    // while a chunked/unknown-length stream is still arriving and can read
+    // far shorter than the true clip length. Every duration-based
+    // safety-timer and conversational-overlap check across arena.tsx,
+    // debate-stage.tsx, and interview.tsx trusted that number, so lines
+    // (including moderator lines, which flow through the same TTS queue)
+    // were getting force-finished or ducked out way too early — dialogue
+    // reading as truncated and rushed. There are too many independent
+    // duration-trusting call sites to safely patch one-by-one, so web goes
+    // back to fetching the complete response before playback, exactly like
+    // before that streaming change — a fully-downloaded blob always reports
+    // accurate duration immediately. Native is untouched: it was never
+    // affected by this (AVPlayer/ExoPlayer report accurate duration even
+    // while genuinely streaming), so native keeps starting playback before
+    // a clip finishes generating.
     if (!options?.method || options.method === "GET") {
       try {
         const res = await fetchWithTimeout(url, options?.headers ? { headers: options.headers } : undefined);
