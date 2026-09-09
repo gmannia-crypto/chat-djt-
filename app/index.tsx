@@ -384,7 +384,7 @@ export default function HomeScreen() {
   const [inviteSuccess, setInviteSuccess] = useState<{
     newReferrals: number;
     tokensEarned: number;
-    grants: { id: string; grantedAt: string }[];
+    grants: { id: string; grantedAt: string; friendName?: string | null }[];
   } | null>(null);
   const inviteSuccessCheckedRef = useRef(false);
   const [leaderboardData, setLeaderboardData] = useState<{ name: string; score: number; avatar: string; isYou?: boolean }[]>([]);

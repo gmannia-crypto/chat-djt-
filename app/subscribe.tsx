@@ -57,7 +57,7 @@ export default function SubscribeScreen() {
   const { data: referralStats } = useQuery<{
     referralCount: number;
     tokensEarned: number;
-    grants: { id: string; grantedAt: string }[];
+    grants: { id: string; grantedAt: string; friendName?: string | null }[];
   }>({
     queryKey: ["/api/referral/stats", deviceId],
     staleTime: 30000,
@@ -417,14 +417,18 @@ export default function SubscribeScreen() {
                   </Pressable>
                   {showReferralHistory && (
                     <View style={styles.referralHistoryList} testID="referral-history-list">
-                      {referralStats.grants.map((grant, i) => (
-                        <View key={grant.id} style={styles.referralHistoryRow}>
-                          <Ionicons name="checkmark-circle" size={13} color={Colors.gold} />
-                          <Text style={styles.referralHistoryText}>
-                            Friend #{referralStats.grants.length - i} joined — {formatGrantDateTime(grant.grantedAt)}
-                          </Text>
-                        </View>
-                      ))}
+                      {referralStats.grants.map((grant, i) => {
+                        const friendLabel =
+                          grant.friendName?.trim() || `Friend #${referralStats.grants.length - i}`;
+                        return (
+                          <View key={grant.id} style={styles.referralHistoryRow}>
+                            <Ionicons name="checkmark-circle" size={13} color={Colors.gold} />
+                            <Text style={styles.referralHistoryText}>
+                              {friendLabel} joined — {formatGrantDateTime(grant.grantedAt)}
+                            </Text>
+                          </View>
+                        );
+                      })}
                     </View>
                   )}
                 </>

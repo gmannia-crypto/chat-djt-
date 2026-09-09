@@ -404,7 +404,7 @@ export async function cancelSubscription(stripeSubscriptionId: string) {
 const EMAIL_BONUS_TOKENS = 5;
 let _authTablesEnsured = false;
 
-async function ensureAuthTables(db: Pool) {
+export async function ensureAuthTables(db: Pool) {
   if (_authTablesEnsured) return;
   try {
     await db.query(`

@@ -68,6 +68,7 @@ import {
   cancelSubscription,
   TOKEN_PACKS,
   getOrCreateAccount,
+  ensureAuthTables,
 } from "./tokens";
 import {
   initAnalyticsTables,
@@ -18737,6 +18738,7 @@ Respond with a JSON array ONLY — no markdown, no code fences, no preamble. Exa
       const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
       try {
         await ensureReferralTable(db);
+        await ensureAuthTables(db);
 
         const result = await db.query(
           `SELECT COUNT(*) AS referral_count
@@ -18751,17 +18753,24 @@ Respond with a JSON array ONLY — no markdown, no code fences, no preamble. Exa
         // Per-grant history (not just the aggregate) so the sharer can look back
         // at their full invite history from the referral history card, not just
         // the most recent unacknowledged batch (see /api/referral/notifications).
+        // Joined through to linked_accounts so a friend who has linked an email/
+        // social account shows their real name instead of just a join time.
         const historyResult = await db.query(
-          `SELECT id, granted_at
-           FROM referral_grants
-           WHERE referrer_device_id = $1
-           ORDER BY granted_at DESC`,
+          `SELECT rg.id, rg.granted_at, la.name AS friend_name
+           FROM referral_grants rg
+           LEFT JOIN token_accounts ta ON ta.device_id = rg.referred_device_id
+           LEFT JOIN linked_accounts la ON la.id = ta.linked_account_id
+           WHERE rg.referrer_device_id = $1
+           ORDER BY rg.granted_at DESC`,
           [deviceId]
         );
-        const grants = historyResult.rows.map((row: { id: string; granted_at: Date }) => ({
-          id: row.id,
-          grantedAt: row.granted_at,
-        }));
+        const grants = historyResult.rows.map(
+          (row: { id: string; granted_at: Date; friend_name: string | null }) => ({
+            id: row.id,
+            grantedAt: row.granted_at,
+            friendName: row.friend_name || null,
+          })
+        );
 
         return res.json({ referralCount, tokensEarned, grants });
       } finally {
@@ -18783,14 +18792,19 @@ Respond with a JSON array ONLY — no markdown, no code fences, no preamble. Exa
       const db = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
       try {
         await ensureReferralTable(db);
+        await ensureAuthTables(db);
 
         // Per-grant detail (not just the aggregate count) so the sharer can tell
-        // WHICH invite converted and when, not just "N friends joined".
+        // WHICH invite converted and when, not just "N friends joined". Joined
+        // through to linked_accounts so a friend who has linked an email/social
+        // account shows their real name instead of just a join time.
         const result = await db.query(
-          `SELECT id, granted_at
-           FROM referral_grants
-           WHERE referrer_device_id = $1 AND acknowledged_by_referrer = FALSE
-           ORDER BY granted_at ASC`,
+          `SELECT rg.id, rg.granted_at, la.name AS friend_name
+           FROM referral_grants rg
+           LEFT JOIN token_accounts ta ON ta.device_id = rg.referred_device_id
+           LEFT JOIN linked_accounts la ON la.id = ta.linked_account_id
+           WHERE rg.referrer_device_id = $1 AND rg.acknowledged_by_referrer = FALSE
+           ORDER BY rg.granted_at ASC`,
           [deviceId]
         );
         const newReferrals = result.rows.length;
@@ -18800,10 +18814,13 @@ Respond with a JSON array ONLY — no markdown, no code fences, no preamble. Exa
           hasNewReferral: newReferrals > 0,
           newReferrals,
           tokensEarned: newReferrals * REFERRAL_TOKENS,
-          grants: result.rows.map((row: { id: string; granted_at: Date }) => ({
-            id: row.id,
-            grantedAt: row.granted_at,
-          })),
+          grants: result.rows.map(
+            (row: { id: string; granted_at: Date; friend_name: string | null }) => ({
+              id: row.id,
+              grantedAt: row.granted_at,
+              friendName: row.friend_name || null,
+            })
+          ),
         });
       } finally {
         await db.end();

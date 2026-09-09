@@ -23,8 +23,8 @@ function assert(condition: boolean, message: string): void {
   }
 }
 
-function grant(id: string, isoTime: string) {
-  return { id, grantedAt: isoTime };
+function grant(id: string, isoTime: string, friendName?: string | null) {
+  return { id, grantedAt: isoTime, friendName };
 }
 
 console.log("formatInviteSuccessDetail — single referral");
@@ -78,6 +78,38 @@ console.log("formatInviteSuccessDetail — mixed valid/malformed timestamps fall
     grants: [grant("a", "2026-09-09T15:42:00.000Z"), grant("b", "not-a-date")],
   });
   assert(text === "2 friends joined The Arena using your link.", "uses the plain aggregate message when any timestamp is unusable");
+}
+
+console.log("formatInviteSuccessDetail — single referral uses the friend's name when known");
+{
+  const text = formatInviteSuccessDetail({
+    newReferrals: 1,
+    grants: [grant("a", "2026-09-09T15:42:00.000Z", "Jordan")],
+  });
+  assert(text === "Jordan joined The Arena using your link.", "shows the friend's name instead of a time");
+}
+
+console.log("formatInviteSuccessDetail — multiple referrals list names when every friend has one");
+{
+  const text = formatInviteSuccessDetail({
+    newReferrals: 2,
+    grants: [
+      grant("a", "2026-09-09T15:42:00.000Z", "Jordan"),
+      grant("b", "2026-09-09T17:05:00.000Z", "Casey"),
+    ],
+  });
+  assert(text === "Jordan and Casey joined The Arena using your link.", "lists both friends by name");
+}
+
+console.log("formatInviteSuccessDetail — falls back to time for friends without a name");
+{
+  const t = "2026-09-09T15:42:00.000Z";
+  const text = formatInviteSuccessDetail({
+    newReferrals: 1,
+    grants: [grant("a", t, null)],
+  });
+  assert(text.includes(formatGrantTime(t)), "still shows a time when no name is available");
+  assert(!text.includes("null") && !text.includes("undefined"), "never leaks a raw null/undefined friend name");
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

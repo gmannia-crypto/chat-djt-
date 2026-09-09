@@ -10,6 +10,8 @@
 export interface ReferralGrant {
   id: string;
   grantedAt: string;
+  /** The referred friend's display name, when their linked account has one. */
+  friendName?: string | null;
 }
 
 export interface InviteSuccessInfo {
@@ -38,26 +40,45 @@ export function formatGrantDateTime(grantedAt: string): string {
 }
 
 /**
+ * Labels a single grant for display — the friend's name when their linked
+ * account has one, falling back to their join time (or "Friend #N" in list
+ * contexts that pass a fallback).
+ */
+function labelForGrant(grant: ReferralGrant): string | undefined {
+  const name = grant.friendName?.trim();
+  if (name) return name;
+  return formatGrantTime(grant.grantedAt) || undefined;
+}
+
+/**
  * Builds the invite-success banner's subtitle so the sharer can tell WHICH
- * friend's invite converted (by when it happened), not just an aggregate count.
- * Every pending grant's timestamp is listed — none are dropped or collapsed
- * into a "most recently" summary — so each converted invite stays distinguishable.
+ * friend's invite converted (by name when known, otherwise by when it
+ * happened), not just an aggregate count. Every pending grant is listed —
+ * none are dropped or collapsed into a "most recently" summary — so each
+ * converted invite stays distinguishable.
  */
 export function formatInviteSuccessDetail(inviteSuccess: InviteSuccessInfo): string {
-  const times = inviteSuccess.grants.map((g) => formatGrantTime(g.grantedAt)).filter(Boolean);
+  const labels = inviteSuccess.grants.map(labelForGrant).filter((l): l is string => !!l);
 
   if (inviteSuccess.newReferrals === 1) {
-    return times[0]
-      ? `A friend joined The Arena using your link at ${times[0]}.`
+    const grant = inviteSuccess.grants[0];
+    if (grant?.friendName?.trim()) {
+      return `${grant.friendName.trim()} joined The Arena using your link.`;
+    }
+    return labels[0]
+      ? `A friend joined The Arena using your link at ${labels[0]}.`
       : "A friend joined The Arena using your link.";
   }
 
-  if (times.length === inviteSuccess.newReferrals && times.length > 0) {
+  if (labels.length === inviteSuccess.newReferrals && labels.length > 0) {
+    const allNamed = inviteSuccess.grants.every((g) => !!g.friendName?.trim());
     const joined =
-      times.length === 2
-        ? `${times[0]} and ${times[1]}`
-        : `${times.slice(0, -1).join(", ")}, and ${times[times.length - 1]}`;
-    return `${inviteSuccess.newReferrals} friends joined using your link — at ${joined}.`;
+      labels.length === 2
+        ? `${labels[0]} and ${labels[1]}`
+        : `${labels.slice(0, -1).join(", ")}, and ${labels[labels.length - 1]}`;
+    return allNamed
+      ? `${joined} joined The Arena using your link.`
+      : `${inviteSuccess.newReferrals} friends joined using your link — at ${joined}.`;
   }
 
   return `${inviteSuccess.newReferrals} friends joined The Arena using your link.`;
