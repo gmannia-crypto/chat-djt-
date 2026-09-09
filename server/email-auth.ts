@@ -241,6 +241,27 @@ export async function verifyEmailCode(
         [deviceId],
       );
     }
+    // Backfill any device-only Billionaires game rows (in-progress save, plus won/lost history)
+    // onto the account that's linking now, so a player who played before signing in doesn't see
+    // that progress/history "disappear" from their account view. Idempotent: once a row's
+    // account_id is set here, later logins on this device find nothing left to merge.
+    // billionaire_games (and its account_id column) is created lazily by server/routes.ts on
+    // boot, so this can race a fresh DB / first deploy before that init finishes. Run it under a
+    // SAVEPOINT: a Postgres error aborts the *transaction*, not just the JS call, so without a
+    // savepoint to roll back to, a missing-table/column error here would also fail the session
+    // insert below and break email sign-in entirely for an unrelated reason.
+    try {
+      await client.query("SAVEPOINT billionaire_merge");
+      await client.query(
+        `UPDATE billionaire_games SET account_id = $1, updated_at = NOW() WHERE device_id = $2 AND account_id IS NULL`,
+        [user.id, deviceId],
+      );
+      await client.query("RELEASE SAVEPOINT billionaire_merge");
+    } catch (mergeError: any) {
+      // 42P01 = undefined_table, 42703 = undefined_column (account_id not migrated in yet)
+      if (mergeError?.code !== "42P01" && mergeError?.code !== "42703") throw mergeError;
+      await client.query("ROLLBACK TO SAVEPOINT billionaire_merge");
+    }
     const sessionToken = randomBytes(32).toString("base64url");
     await client.query(
       `INSERT INTO auth_sessions (token_hash, linked_account_id, device_id, expires_at)
