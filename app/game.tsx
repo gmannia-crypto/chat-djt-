@@ -948,6 +948,12 @@ export default function GameScreen() {
                 <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, marginBottom: 10, textAlign: "center" as const }}>
                   Ranked by overall performance — net worth, speed, karma, streaks & milestones combined
                 </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", marginBottom: 12, backgroundColor: "rgba(212,164,32,0.08)", borderRadius: 8, paddingVertical: 6, paddingHorizontal: 10, alignSelf: "center" }}>
+                  <Ionicons name="checkmark-circle" size={12} color={Colors.gold} style={{ marginRight: 6 }} />
+                  <Text style={{ color: "rgba(255,255,255,0.55)", fontSize: 10 }}>
+                    = verified account. Sign in before submitting a score to earn this badge.
+                  </Text>
+                </View>
                 <View style={{ flexDirection: "row", paddingHorizontal: 4, marginBottom: 8 }}>
                   <Text style={{ flex: 0.15, color: "rgba(255,255,255,0.4)", fontSize: 9, fontWeight: "700" as const }}>RANK</Text>
                   <Text style={{ flex: 0.3, color: "rgba(255,255,255,0.4)", fontSize: 9, fontWeight: "700" as const }}>PLAYER</Text>
