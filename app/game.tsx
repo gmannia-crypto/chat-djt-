@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
-import { useScreenTracker, trackAnalyticsEvent } from "@/lib/use-analytics";
+import { useScreenTracker, trackAnalyticsEvent, useTrackEvent } from "@/lib/use-analytics";
 import {
   StyleSheet,
   Text,
@@ -312,6 +312,7 @@ export default function GameScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
   useScreenTracker("billionaires_game");
+  const trackEvent = useTrackEvent();
   const { authToken, authReady } = useTokens();
 
   const [playerName, setPlayerName] = useState("");
@@ -632,9 +633,10 @@ export default function GameScreen() {
       return updated;
     });
     trackAnalyticsEvent("billionaires_game_bonus_result", { game, outcome: result.outcome });
+    trackEvent("bonus_game", "completed", { game, outcome: result.outcome });
     setBonusGameKind(null);
     setActiveBonusGame(null);
-  }, [saveProgress, choiceHistory, usedTitles, playerName]);
+  }, [saveProgress, choiceHistory, usedTitles, playerName, trackEvent]);
 
   const startNextTurn = useCallback(async () => {
     setLoading(true);
@@ -1169,6 +1171,7 @@ export default function GameScreen() {
                   // Consuming the offer here (not on completion) means a single tap grants
                   // exactly one scored attempt — closing early without finishing forfeits it
                   // rather than leaving the offer re-openable for unlimited free retries.
+                  trackEvent("bonus_game", "started", { game: bonusGameKind });
                   setActiveBonusGame(bonusGameKind);
                   setBonusGameKind(null);
                 }}
@@ -1227,12 +1230,20 @@ export default function GameScreen() {
         </ScrollView>
         <PuttingMiniGame
           visible={activeBonusGame === "putting"}
-          onClose={() => setActiveBonusGame(null)}
+          onClose={() => {
+            // Closing before a shot is scored forfeits the attempt — track it distinctly from a
+            // completed outcome so the admin report can compute a true completion rate per game.
+            trackEvent("bonus_game", "forfeited", { game: "putting" });
+            setActiveBonusGame(null);
+          }}
           onComplete={(result) => applyBonusResult("putting", result)}
         />
         <ThreePointMiniGame
           visible={activeBonusGame === "threePoint"}
-          onClose={() => setActiveBonusGame(null)}
+          onClose={() => {
+            trackEvent("bonus_game", "forfeited", { game: "threePoint" });
+            setActiveBonusGame(null);
+          }}
           onComplete={(result) => applyBonusResult("threePoint", result)}
         />
       </View>

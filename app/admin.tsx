@@ -1701,6 +1701,7 @@ function AdminDashboard({ adminKey, onLogout }: { adminKey: string; onLogout: ()
             <TimeTrackingSection />
 
             <AnalyticsDashboard />
+            <BonusGameDashboard />
             <SuggestionsViewer />
           </>
         ) : null}
@@ -3534,6 +3535,154 @@ function AnalyticsDashboard() {
             );
           })}
         </View>
+      )}
+    </View>
+  );
+}
+
+const BONUS_GAME_LABELS: Record<string, string> = {
+  putting: "⛳ Putting",
+  threePoint: "🏀 3-Pointer",
+};
+
+const BONUS_OUTCOME_COLORS: Record<string, string> = {
+  hole: "#4ADE80",
+  swish: "#4ADE80",
+  near: "#FFC107",
+  rim: "#FFC107",
+  miss: "#F87171",
+  airball: "#F87171",
+};
+
+function BonusGameDashboard() {
+  const adminKey = useContext(AdminKeyContext);
+  const [data, setData] = useState<{ games: any[]; outcomes: Record<string, { outcome: string; count: number }[]> } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [days, setDays] = useState(30);
+
+  useEffect(() => {
+    fetchBonusGameStats();
+  }, [days]);
+
+  async function fetchBonusGameStats() {
+    setLoading(true);
+    try {
+      const res = await fetch(
+        new URL(`/api/admin/bonus-game-stats?days=${days}`, getApiUrl()).toString(),
+        { headers: adminHeaders(adminKey) }
+      );
+      if (res.ok) setData(await res.json());
+    } catch {}
+    setLoading(false);
+  }
+
+  if (loading) return (
+    <View style={analyticsStyles.section}>
+      <Text style={analyticsStyles.sectionTitle}>Bonus Mini-Games</Text>
+      <ActivityIndicator color={Colors.gold} style={{ marginTop: 20 }} />
+    </View>
+  );
+
+  if (!data) return null;
+
+  const totalStarted = data.games.reduce((sum, g) => sum + g.started, 0);
+
+  return (
+    <View style={analyticsStyles.section}>
+      <View style={analyticsStyles.headerRow}>
+        <Text style={analyticsStyles.sectionTitle}>Bonus Mini-Games</Text>
+        <View style={analyticsStyles.periodRow}>
+          {[7, 30, 90].map((d) => (
+            <Pressable
+              key={d}
+              onPress={() => setDays(d)}
+              style={[analyticsStyles.periodBtn, days === d && analyticsStyles.periodBtnActive]}
+            >
+              <Text style={[analyticsStyles.periodText, days === d && analyticsStyles.periodTextActive]}>
+                {d}d
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+
+      {data.games.length === 0 ? (
+        <View style={analyticsStyles.card}>
+          <Text style={{ color: "#888", textAlign: "center", padding: 20 }}>No bonus-game plays yet</Text>
+        </View>
+      ) : (
+        <>
+          <View style={analyticsStyles.card}>
+            <Text style={analyticsStyles.cardTitle}>Offers Started (which game gets picked more)</Text>
+            {data.games.map((g) => {
+              const maxStarted = Math.max(...data.games.map((x) => x.started), 1);
+              return (
+                <View key={g.game} style={analyticsStyles.barRow}>
+                  <Text style={analyticsStyles.barLabel} numberOfLines={1}>
+                    {BONUS_GAME_LABELS[g.game] || g.game}
+                  </Text>
+                  <View style={analyticsStyles.barTrack}>
+                    <View style={[analyticsStyles.barFill, { width: `${Math.max(5, (g.started / maxStarted) * 100)}%` }]} />
+                  </View>
+                  <Text style={analyticsStyles.barValue}>{g.started}</Text>
+                  <Text style={analyticsStyles.barAvg}>
+                    {totalStarted > 0 ? Math.round((g.started / totalStarted) * 100) : 0}%
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+
+          <View style={analyticsStyles.card}>
+            <Text style={analyticsStyles.cardTitle}>Completion Rate by Game</Text>
+            {data.games.map((g) => (
+              <View key={g.game} style={analyticsStyles.featureRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={analyticsStyles.featureName}>{BONUS_GAME_LABELS[g.game] || g.game}</Text>
+                  <Text style={analyticsStyles.featureAction}>
+                    {g.completed} completed · {g.forfeited} forfeited (closed early) of {g.started} started
+                  </Text>
+                </View>
+                <Text
+                  style={[
+                    analyticsStyles.featureCount,
+                    { width: 56, color: g.completionRate >= 50 ? "#4ADE80" : "#F87171" },
+                  ]}
+                >
+                  {g.completionRate}%
+                </Text>
+              </View>
+            ))}
+          </View>
+
+          {Object.entries(data.outcomes).map(([game, outcomes]) => {
+            const maxCount = Math.max(...outcomes.map((o) => o.count), 1);
+            return (
+              <View key={game} style={analyticsStyles.card}>
+                <Text style={analyticsStyles.cardTitle}>
+                  {BONUS_GAME_LABELS[game] || game} — Outcome Distribution
+                </Text>
+                {outcomes.map((o) => (
+                  <View key={o.outcome} style={analyticsStyles.barRow}>
+                    <Text style={analyticsStyles.barLabel} numberOfLines={1}>{o.outcome}</Text>
+                    <View style={analyticsStyles.barTrack}>
+                      <View
+                        style={[
+                          analyticsStyles.barFill,
+                          {
+                            width: `${Math.max(5, (o.count / maxCount) * 100)}%`,
+                            backgroundColor: BONUS_OUTCOME_COLORS[o.outcome] || Colors.gold,
+                          },
+                        ]}
+                      />
+                    </View>
+                    <Text style={analyticsStyles.barValue}>{o.count}</Text>
+                  </View>
+                ))}
+              </View>
+            );
+          })}
+        </>
       )}
     </View>
   );

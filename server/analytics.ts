@@ -204,6 +204,65 @@ export async function getLeadGenStats(days: number = 30) {
   return { communities, dailyBreakdown };
 }
 
+/**
+ * Bonus mini-game engagement, broken down by game type ("putting" | "threePoint").
+ * Sourced from feature_events rows written by app/game.tsx's bonus-game lifecycle:
+ * "started" (offer tapped), "completed" (shot scored, with an outcome), and
+ * "forfeited" (closed early without finishing).
+ */
+export async function getBonusGameStats(days: number = 30) {
+  const db = getPool();
+  const since = new Date(Date.now() - days * 86400000).toISOString();
+
+  const [byGameRes, outcomeRes] = await Promise.all([
+    db.query(`
+      SELECT
+        metadata->>'game' AS game,
+        COUNT(*) FILTER (WHERE action = 'started')   AS started,
+        COUNT(*) FILTER (WHERE action = 'completed') AS completed,
+        COUNT(*) FILTER (WHERE action = 'forfeited') AS forfeited
+      FROM feature_events
+      WHERE feature = 'bonus_game' AND created_at >= $1
+      GROUP BY metadata->>'game'
+    `, [since]),
+    db.query(`
+      SELECT metadata->>'game' AS game, metadata->>'outcome' AS outcome, COUNT(*) AS count
+      FROM feature_events
+      WHERE feature = 'bonus_game' AND action = 'completed' AND created_at >= $1
+      GROUP BY metadata->>'game', metadata->>'outcome'
+      ORDER BY game, count DESC
+    `, [since]),
+  ]);
+
+  const games = byGameRes.rows
+    .filter(r => r.game === "putting" || r.game === "threePoint")
+    .map(r => {
+      const started = parseInt(r.started) || 0;
+      const completed = parseInt(r.completed) || 0;
+      const forfeited = parseInt(r.forfeited) || 0;
+      return {
+        game: r.game as string,
+        started,
+        completed,
+        forfeited,
+        completionRate: started > 0 ? Math.round((completed / started) * 1000) / 10 : 0,
+      };
+    })
+    .sort((a, b) => b.started - a.started);
+
+  const outcomesByGame = new Map<string, { outcome: string; count: number }[]>();
+  for (const row of outcomeRes.rows) {
+    if (!row.game || !row.outcome) continue;
+    if (!outcomesByGame.has(row.game)) outcomesByGame.set(row.game, []);
+    outcomesByGame.get(row.game)!.push({ outcome: row.outcome, count: parseInt(row.count) || 0 });
+  }
+
+  return {
+    games,
+    outcomes: Object.fromEntries(outcomesByGame),
+  };
+}
+
 export async function getVisitorStats(leadGenDays: number = 30) {
   const db = getPool();
 

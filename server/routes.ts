@@ -76,6 +76,7 @@ import {
   getAnalyticsSummary,
   getSuggestions,
   getVisitorStats,
+  getBonusGameStats,
   updateSuggestionStatus,
 } from "./analytics";
 import {
@@ -685,6 +686,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const leadGenDays = Math.min(365, Math.max(1, parseInt(req.query.leadGenDays as string) || 30));
       const stats = await getVisitorStats(leadGenDays);
+      return res.json(stats);
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get("/api/admin/bonus-game-stats", async (req, res) => {
+    if (!checkAdminKey(req)) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    try {
+      const days = Math.min(365, Math.max(1, parseInt(req.query.days as string) || 30));
+      const stats = await getBonusGameStats(days);
       return res.json(stats);
     } catch (e: any) {
       return res.status(500).json({ error: e.message });
