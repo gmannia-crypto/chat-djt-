@@ -77,6 +77,50 @@ export async function playAudioFromUrl(
   await ensureAudioMode();
 
   if (Platform.OS === "web") {
+    // Plain GET with no custom headers: hand the URL straight to expo-av's
+    // web Sound, which (see ExponentAV.web.ts loadForSound) just does
+    // `new Audio(source)` — a real HTMLAudioElement whose `src` the browser
+    // fetches and plays progressively over HTTP as bytes arrive. That's
+    // exactly what lets native (iOS/Android) start playing before a clip
+    // finishes generating (server/persona-tts.ts streams the response), so
+    // this mirrors that path instead of the fetch()+blob()+data-URI dance
+    // below, which can't produce a `<audio>` src until the ENTIRE response
+    // body has downloaded — forcing web listeners to wait out the full
+    // clip even though the server is already streaming it chunk by chunk.
+    // Custom headers (e.g. cabinet.tsx's x-device-id) can't ride along on
+    // an `<audio src>` request, so that (rare) case still needs the
+    // fetch-based path below, which can set arbitrary headers.
+    if ((!options?.method || options.method === "GET") && !options?.headers) {
+      try {
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: url },
+          { shouldPlay: false, volume: vol }
+        );
+        await sound.setRateAsync(rate, true).catch(() => {});
+        await sound.playAsync();
+        return sound;
+      } catch (e) {
+        console.warn("Streamed <audio> playback failed, falling back to blob:", e);
+        const res = await fetchWithTimeout(url);
+        if (!res.ok) throw new Error(`Audio fetch failed: ${res.status}`);
+        const ct = res.headers.get("content-type") || "";
+        if (ct.includes("text/html")) throw new Error("Server returned HTML instead of audio");
+        const blob = await res.blob();
+        const reader = new FileReader();
+        const dataUri = await new Promise<string>((resolve, reject) => {
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: dataUri },
+          { shouldPlay: false, volume: vol }
+        );
+        await sound.setRateAsync(rate, true).catch(() => {});
+        await sound.playAsync();
+        return sound;
+      }
+    }
     if (!options?.method || options.method === "GET") {
       try {
         const res = await fetchWithTimeout(url, options?.headers ? { headers: options.headers } : undefined);
