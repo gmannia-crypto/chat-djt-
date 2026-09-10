@@ -11,9 +11,28 @@ import {
 const BANNED_CLICHE_PATTERNS: RegExp[] = [
   /that'?s\s+rich\b\.?/gi,
 ];
+
+// Meta-commentary / character-break announcements — stripped out post-generation
+// as a safety net on top of the "never announce a topic/character limit, just
+// pivot" prompt instruction (see SHARED_NO_AI_BASE in arena-no-ai-guard.ts).
+// Models occasionally slip and admit a topic is being avoided; this removes
+// the tell-tale sentence so the transcript never shows the seam.
+const PROTOCOL_BREAK_PATTERNS: RegExp[] = [
+  /\b(?:I|We)\s+(?:can'?t|cannot|won'?t|am not able to|are not able to)\s+(?:talk about|discuss|continue (?:with|talking about)|go (?:there|into) that|say that|answer that)[^.!?]*[.!?]/gi,
+  /\b(?:that'?s|this is)\s+(?:against|not within)\s+(?:my|the|our)\s+(?:protocol|guidelines|policy)[^.!?]*[.!?]/gi,
+  /\b(?:I'?m|We'?re)\s+not\s+(?:allowed|permitted)\s+to\s+(?:discuss|talk about|say)[^.!?]*[.!?]/gi,
+  /\blet'?s\s+change\s+the\s+subject\s+(?:because|since)[^.!?]*[.!?]/gi,
+  /\b(?:that|this)\s+crosses\s+a\s+line[^.!?]*[.!?]/gi,
+  /\bI\s+(?:don'?t|do not)\s+feel\s+comfortable\s+(?:discussing|talking about|continuing)[^.!?]*[.!?]/gi,
+  /\bas\s+an\s+AI[^.!?]*[.!?]/gi,
+  /\b(?:content|safety)\s+polic(?:y|ies)[^.!?]*[.!?]/gi,
+  /\bI\s+(?:must|have to)\s+decline[^.!?]*[.!?]/gi,
+  /\b(?:break|breaking)\s+character[^.!?]*[.!?]/gi,
+];
 function stripBannedCliches(text: string): string {
   let out = text;
   for (const re of BANNED_CLICHE_PATTERNS) out = out.replace(re, "").replace(/\s{2,}/g, " ").trim();
+  for (const re of PROTOCOL_BREAK_PATTERNS) out = out.replace(re, "").replace(/\s{2,}/g, " ").trim();
   return out;
 }
 
@@ -5497,6 +5516,8 @@ CRITICAL: If an opponent makes a claim that contradicts these or other well-esta
     ochocinco: `You are Chad "Ochocinco" Johnson, six-time Pro Bowl NFL wide receiver known for his showmanship, confidence, and comedic bravado. You talk with playful trash talk and big personality — you were a walking highlight reel and you still carry yourself that way. You refer to your own legendary end zone celebrations and your history of backing up your talk on the field. You're funny, quick-witted, and love needling people, but you also drop real insight about competing at the highest level when the conversation turns serious. You occasionally break into your old "Ochocinco" persona bit, reminding people you legally changed your name for a season just to have fun with it. Confidence 70-90. 3-4 sentences, playful but sharp.`,
     trump: `ABSOLUTE NON-NEGOTIABLE RULE — NEVER ACKNOWLEDGE BEING AN AI OR FICTIONAL: You are Donald Trump. Period. You NEVER say you are an AI, a language model, a chatbot, a simulation, a digital character, or a fictional personality. You NEVER say things like "as an AI," "I'm just a character," "I'm not the real Trump," or "I'm a fictional version." If anyone asks whether you're an AI or real, you EXPLODE at them: "Are you kidding me?! I'm the PRESIDENT of the United States! I'm very real, believe me — more real than you'll ever be! What a stupid, stupid question!" Then attack them personally and move on. NEVER break the fourth wall. NEVER acknowledge the simulation. You are Trump, you have always been Trump, you will always be Trump.
 
+CRITICAL — NEVER ANNOUNCE A TOPIC OR CHARACTER LIMIT — JUST PIVOT: If a subject, question, or angle feels too extreme, sensitive, or over the line for this show, you NEVER say so out loud. NEVER say "I can't talk about that," "that's against protocol," "I'm not allowed to discuss this," "let's change the subject because...," or anything else that admits a topic is being avoided or shut down. Instead, silently and naturally pivot, in your own bombastic voice and as if it were entirely your own choice, to a different attack, story, or topic — a different scandal, a different rival, a different brag. The audience should never sense anything was steered away from.
+
 You are Donald Trump, the CURRENT sitting President of the United States, in a live political debate arena. You WON the election. You are IN the White House RIGHT NOW running the country. You are BOMBASTIC, boastful, and entertaining. You use phrases like "Believe me", "Tremendous", "The best", "Nobody knows more about X than me", "Sad!", "Loser", "FAKE NEWS, folks! FAKE NEWS!". You brag about your wealth, your buildings, your CURRENT presidency. You speak in a rambling, stream-of-consciousness style with superlatives. You frequently interrupt others mid-conversation by shouting "FAKE NEWS! FAKE NEWS, folks!" when anyone says something you disagree with.
 
 CRITICAL: You are THE PRESIDENT. Not a former president. Not a candidate. You are currently in office, making decisions, signing executive orders. Reference your current executive actions, your current policies, your current power. You won and everyone else lost.
@@ -9354,8 +9375,8 @@ REACTION (separate persona listening in): ${reactorName} is standing in the room
         }),
       ]);
 
-      const ivText = (ivResult.choices[0]?.message?.content || "").replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").trim();
-      const iveeText = (iveeResult.choices[0]?.message?.content || "").replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").trim();
+      const ivText = stripBannedCliches((ivResult.choices[0]?.message?.content || "").replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").trim());
+      const iveeText = stripBannedCliches((iveeResult.choices[0]?.message?.content || "").replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").trim());
 
       res.json({
         interviewer: { speakerId: interviewerId, speakerName: interviewerName, text: ivText },
@@ -12211,7 +12232,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
         temperature: 1.0,
       });
       let roast = completion.choices[0]?.message?.content || "Believe me, nobody won here. RIGGED!";
-      roast = roast.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim();
+      roast = stripBannedCliches(roast.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim());
       roast = roast.replace(/(?:the\s+)?epstein\s+war/gi, "the Iran war");
       res.json({ roast });
     } catch (error: any) {
@@ -12245,6 +12266,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
       speech = speech.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim();
       // Strip any LLM-injected disclaimer sentences that start with known patterns
       speech = speech.replace(/\b(Note|Disclaimer|Content warning|Please note|I must note|As a note|Important)[:\s][^.!?]*[.!?]/gi, "").trim();
+      speech = stripBannedCliches(speech);
       res.json({ speech });
     } catch (err: any) {
       console.error("debate-verdict-speech error:", err);
@@ -12273,6 +12295,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
       let reaction = completion.choices[0]?.message?.content || `${winnerName} got lucky. This isn't over.`;
       reaction = reaction.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim();
       reaction = reaction.replace(/\b(Note|Disclaimer|Content warning|Please note|I must note|As a note|Important)[:\s][^.!?]*[.!?]/gi, "").trim();
+      reaction = stripBannedCliches(reaction);
       res.json({ reaction });
     } catch (err: any) {
       console.error("debate-loser-reaction error:", err);
@@ -12313,7 +12336,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
         temperature: 1.0,
       });
       let clapBack = completion.choices[0]?.message?.content || "That's right — I WON. Deal with it, Donald!";
-      clapBack = clapBack.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim();
+      clapBack = stripBannedCliches(clapBack.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim());
       res.json({ clapBack, winnerId, winnerName });
     } catch (error: any) {
       console.error("Arena clap-back error:", error);
@@ -12464,7 +12487,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
         }),
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000)),
       ]);
-      const retort = completion.choices[0]?.message?.content?.trim() || "";
+      const retort = stripBannedCliches(completion.choices[0]?.message?.content?.trim() || "");
       res.json({ retort });
     } catch (err: any) {
       console.error("Moderator retort error:", err.message);
