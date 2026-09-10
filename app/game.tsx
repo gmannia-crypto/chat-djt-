@@ -43,6 +43,8 @@ import { StatsPanel } from "@/components/StatsPanel";
 import { ViralShareCard } from "@/components/ViralShareCard";
 import { ShareAppButton } from "@/components/ShareAppButton";
 import { getGameStats, recordGameResult as recordGameResultStats, type GameStats as ViralGameStats } from "@/lib/viral-stats";
+import { useFirstRunHint } from "@/hooks/useFirstRunHint";
+import HeaderSettingsHint from "@/components/HeaderSettingsHint";
 import { getOrCreateDeviceId, useTokens } from "@/lib/token-context";
 import { FlatList } from "react-native";
 import { CashAppDonate } from "@/components/CashAppDonate";
@@ -354,6 +356,8 @@ export default function GameScreen() {
   const [playerName, setPlayerName] = useState("");
   const [nameConfirmed, setNameConfirmed] = useState(false);
   const [nameInput, setNameInput] = useState("");
+
+  const { visible: showSettingsHint } = useFirstRunHint("settings_hint_seen", { showDelayMs: 1500, hideAfterMs: 4500 });
 
   const [gameState, setGameState] = useState<GameState>({
     netWorth: 1_000_000, karma: 0, turn: 0, empire: [], headlines: [],
@@ -1100,6 +1104,7 @@ export default function GameScreen() {
           </Pressable>
           <Pressable style={styles.headerCenter} onLongPress={openSettingsMenu} accessibilityLabel="Long-press for more options, including Settings">
             <Text style={styles.headerTitle}>DYNAMIC BILLIONAIRES</Text>
+            <HeaderSettingsHint visible={showSettingsHint} />
           </Pressable>
           <Pressable onPress={() => { setShowLeaderboard(true); loadLeaderboard(); }} style={styles.backBtn}>
             <Ionicons name="trophy" size={18} color={Colors.gold} />
@@ -1188,6 +1193,7 @@ export default function GameScreen() {
             </Pressable>
             <Pressable style={styles.headerCenter} onLongPress={openSettingsMenu} accessibilityLabel="Long-press for more options, including Settings">
               <Text style={styles.headerTitle}>DYNAMIC BILLIONAIRES</Text>
+              <HeaderSettingsHint visible={showSettingsHint} />
             </Pressable>
             <View style={{ flexDirection: "row", gap: 8 }}>
               <Pressable onPress={() => { setShowLeaderboard(true); loadLeaderboard(); }} style={styles.shareBtn}>
@@ -1479,6 +1485,7 @@ export default function GameScreen() {
           <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", fontWeight: "600" as const }}>
             {fmtMoney(gameState.netWorth)} • {karmaRating.label} • {playerName}
           </Text>
+          <HeaderSettingsHint visible={showSettingsHint} placement="above" />
         </Pressable>
         <View style={{ flexDirection: "row", gap: 8 }}>
           <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowBonusPrefsModal(true); }} style={styles.shareBtn}>

@@ -38,6 +38,8 @@ import { getPersonaVoiceVolume, shouldSkipPersonaVoice } from "@/lib/persona-voi
 import { useReactionOverlapEnabled } from "@/lib/reaction-overlap-settings";
 import { useVoicePreference } from "@/lib/voice-preference";
 import { areAllied, isTrump } from "@/lib/persona-ideology";
+import { useFirstRunHint } from "@/hooks/useFirstRunHint";
+import HeaderSettingsHint from "@/components/HeaderSettingsHint";
 import { playPointAwardSound, playVoteClickSound, playVoteSound2, playBellSound, playCrowdCheer, playDrumroll, playWinnerChosenSound, playWinnerAfterSound, playBreakingNewsAlert, playChampionChime, playRewardChime, playTokenSpendSound } from "@/lib/arena-sfx";
 import { useSound } from "@/lib/sound-context";
 import { useSetupMusic } from "@/hooks/useSetupMusic";
@@ -4900,6 +4902,7 @@ export default function ArenaScreen() {
   useEffect(() => { if (debateFinished) fetchAllPersonaRecords(); }, [debateFinished, fetchAllPersonaRecords]);
   const [showTapHint, setShowTapHint] = useState(false);
   const tapHintShownRef = useRef(false);
+  const { visible: showSettingsHint } = useFirstRunHint("settings_hint_seen", { showDelayMs: 1500, hideAfterMs: 4500 });
 
   const [personaPoints, setPersonaPoints] = useState<Record<string, number>>({});
   const [awardedMessages, setAwardedMessages] = useState<Set<string>>(new Set());
@@ -10948,6 +10951,7 @@ export default function ArenaScreen() {
             <View style={s.liveDot} />
             <Text style={s.liveText}>LIVE</Text>
           </Animated.View>
+          <HeaderSettingsHint visible={showSettingsHint} />
         </Pressable>
         <Pressable
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowPersonaSelector(true); }}
