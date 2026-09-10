@@ -33,8 +33,37 @@ async function ensureColumns(db: Pool) {
   try {
     await db.query(`ALTER TABLE token_accounts ADD COLUMN IF NOT EXISTS ip_address TEXT`);
     await db.query(`ALTER TABLE token_accounts ADD COLUMN IF NOT EXISTS browser_fingerprint TEXT`);
+    // Lightweight self-set display name — lets ANY device show a real name in a
+    // friend's referral history without going through the full email/social
+    // account link flow (see linked_accounts.name for that heavier path).
+    await db.query(`ALTER TABLE token_accounts ADD COLUMN IF NOT EXISTS nickname TEXT`);
     _columnsEnsured = true;
   } catch {}
+}
+
+const NICKNAME_MAX_LENGTH = 24;
+
+/** Sets (or clears, with an empty/whitespace-only value) this device's nickname. */
+export async function setDeviceNickname(deviceId: string, nickname: string | null | undefined): Promise<{ nickname: string | null }> {
+  const db = getPool();
+  await ensureColumns(db);
+
+  const trimmed = (nickname ?? "").trim().slice(0, NICKNAME_MAX_LENGTH);
+  const finalValue = trimmed.length > 0 ? trimmed : null;
+
+  // Provision the device through the canonical account-creation path (not a
+  // bare INSERT ... DO NOTHING) so a device that sets a nickname before ever
+  // hitting /api/tokens/balance still gets its welcome-token grant and abuse
+  // checks, instead of being left with a zero-token row that getOrCreateAccount
+  // would then treat as "already exists" and never top up.
+  await getOrCreateAccount(deviceId);
+
+  await db.query(
+    `UPDATE token_accounts SET nickname = $2, updated_at = NOW() WHERE device_id = $1`,
+    [deviceId, finalValue]
+  );
+
+  return { nickname: finalValue };
 }
 
 export async function getOrCreateAccount(deviceId: string, ctx?: AccountContext) {
@@ -131,6 +160,7 @@ export async function getTokenBalance(deviceId: string, ctx?: AccountContext) {
     totalAvailable: account.tokens + freeRemaining,
     subscriptionExpiresAt: account.subscription_expires_at,
     subscriptionTier: account.subscription_tier || null,
+    nickname: account.nickname || null,
   };
 }
 
@@ -407,6 +437,11 @@ let _authTablesEnsured = false;
 export async function ensureAuthTables(db: Pool) {
   if (_authTablesEnsured) return;
   try {
+    // The referral endpoints call ensureAuthTables (not ensureColumns) before
+    // querying token_accounts.nickname — make sure that column exists here too,
+    // so a fresh deploy can't 500 on a referral request that races ahead of any
+    // /api/tokens/balance or /api/account/nickname call.
+    await ensureColumns(db);
     await db.query(`
       CREATE TABLE IF NOT EXISTS linked_accounts (
         id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,

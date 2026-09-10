@@ -16,6 +16,7 @@ interface TokenBalance {
   totalAvailable: number;
   subscriptionExpiresAt: string | null;
   subscriptionTier: string | null;
+  nickname: string | null;
 }
 
 export interface LinkedUser {
@@ -39,6 +40,8 @@ interface TokenContextValue {
   showSaveModal: boolean;
   openSaveModal: () => void;
   dismissSaveModal: () => void;
+  /** Sets (or clears with "") this device's nickname, shown in a friend's referral history in place of "Friend #N" — no email/social account link required. */
+  setNickname: (nickname: string) => Promise<void>;
 }
 
 const TokenContext = createContext<TokenContextValue | null>(null);
@@ -274,6 +277,21 @@ export function TokenProvider({ children }: { children: ReactNode }) {
     return { bonusGranted: data.bonusGranted };
   }, [deviceId, refreshBalance]);
 
+  const setNickname = useCallback(async (nickname: string): Promise<void> => {
+    if (!deviceId) throw new Error("No device ID");
+    const res = await fetch(new URL("/api/account/nickname", getApiUrl()).toString(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+      body: JSON.stringify({ nickname }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || "Failed to set nickname");
+    }
+    const data = await res.json();
+    setBalance((prev) => (prev ? { ...prev, nickname: data.nickname } : prev));
+  }, [deviceId]);
+
   const openSaveModal = useCallback(() => setShowSaveModal(true), []);
 
   const dismissSaveModal = useCallback(() => {
@@ -295,7 +313,8 @@ export function TokenProvider({ children }: { children: ReactNode }) {
     showSaveModal,
     openSaveModal,
     dismissSaveModal,
-  }), [deviceId, balance, isLoading, refreshBalance, hasTokens, linkedUser, requestVerificationCode, verifyAccount, authToken, authReady, showSaveModal, openSaveModal, dismissSaveModal]);
+    setNickname,
+  }), [deviceId, balance, isLoading, refreshBalance, hasTokens, linkedUser, requestVerificationCode, verifyAccount, authToken, authReady, showSaveModal, openSaveModal, dismissSaveModal, setNickname]);
 
   return (
     <TokenContext.Provider value={value}>

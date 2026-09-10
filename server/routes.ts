@@ -69,6 +69,7 @@ import {
   TOKEN_PACKS,
   getOrCreateAccount,
   ensureAuthTables,
+  setDeviceNickname,
 } from "./tokens";
 import {
   initAnalyticsTables,
@@ -12057,6 +12058,25 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
     }
   });
 
+  // POST /api/account/nickname — lets ANY device set a lightweight display name
+  // (no email/social account link required) so it can show up in a friend's
+  // referral history in place of "Friend #N". Send an empty string to clear it.
+  app.post("/api/account/nickname", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+      const { nickname } = req.body as { nickname?: string };
+      if (nickname !== undefined && nickname !== null && typeof nickname !== "string") {
+        return res.status(400).json({ error: "Nickname must be a string" });
+      }
+      const result = await setDeviceNickname(deviceId, nickname);
+      res.json(result);
+    } catch (err: any) {
+      console.error("[account/nickname] error:", err);
+      res.status(500).json({ error: "Failed to set nickname" });
+    }
+  });
+
   app.post("/api/track-time", async (req, res) => {
     try {
       const deviceId = req.headers["x-device-id"] as string;
@@ -18774,14 +18794,16 @@ Respond with a JSON array ONLY — no markdown, no code fences, no preamble. Exa
         // Per-grant history (not just the aggregate) so the sharer can look back
         // at their full invite history from the referral history card, not just
         // the most recent unacknowledged batch (see /api/referral/notifications).
-        // Joined through to linked_accounts so a friend who has linked an email/
-        // social account shows their real name instead of just a join time.
+        // Prefers the referred device's self-set nickname (token_accounts.nickname,
+        // set via POST /api/account/nickname — no account link required), falling
+        // back to their linked_accounts name if they've linked an email/social
+        // account instead. Either way this beats just showing a join time.
         // Capped to the most recent GRANTS_HISTORY_LIMIT so a power sharer with
         // hundreds of referrals doesn't blow up the payload or the rendered
         // list; referralCount above still reflects the true total.
         const GRANTS_HISTORY_LIMIT = 50;
         const historyResult = await db.query(
-          `SELECT rg.id, rg.granted_at, la.name AS friend_name
+          `SELECT rg.id, rg.granted_at, COALESCE(ta.nickname, la.name) AS friend_name
            FROM referral_grants rg
            LEFT JOIN token_accounts ta ON ta.device_id = rg.referred_device_id
            LEFT JOIN linked_accounts la ON la.id = ta.linked_account_id
@@ -18822,11 +18844,11 @@ Respond with a JSON array ONLY — no markdown, no code fences, no preamble. Exa
         await ensureAuthTables(db);
 
         // Per-grant detail (not just the aggregate count) so the sharer can tell
-        // WHICH invite converted and when, not just "N friends joined". Joined
-        // through to linked_accounts so a friend who has linked an email/social
-        // account shows their real name instead of just a join time.
+        // WHICH invite converted and when, not just "N friends joined". Prefers
+        // the referred device's self-set nickname, falling back to their
+        // linked_accounts name (see /api/referral/stats above for details).
         const result = await db.query(
-          `SELECT rg.id, rg.granted_at, la.name AS friend_name
+          `SELECT rg.id, rg.granted_at, COALESCE(ta.nickname, la.name) AS friend_name
            FROM referral_grants rg
            LEFT JOIN token_accounts ta ON ta.device_id = rg.referred_device_id
            LEFT JOIN linked_accounts la ON la.id = ta.linked_account_id
