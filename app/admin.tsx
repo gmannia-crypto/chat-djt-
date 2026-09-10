@@ -3560,6 +3560,10 @@ function BonusGameDashboard() {
     games: any[];
     outcomes: Record<string, { outcome: string; count: number }[]>;
     trend?: { days: number; headline: string | null; games: any[] };
+    recommendation?: {
+      ranking: { game: string; score: number; startsShare: number; completionRate: number; trendScore: number }[];
+      reason: string;
+    } | null;
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(30);
@@ -3616,7 +3620,55 @@ function BonusGameDashboard() {
         </View>
       ) : (
         <>
-          {data.trend?.headline && (
+          {data.recommendation ? (
+            <View style={[analyticsStyles.card, { borderColor: Colors.gold, borderWidth: 1 }]}>
+              <Text style={analyticsStyles.cardTitle}>🏆 Build Next</Text>
+              <Text style={{ color: "#fff", fontSize: 14, lineHeight: 20 }}>{data.recommendation.reason}</Text>
+              <View style={{ marginTop: 10 }}>
+                {data.recommendation.ranking.map((r, i) => (
+                  <View
+                    key={r.game}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      paddingVertical: 6,
+                      borderTopWidth: i === 0 ? 0 : 1,
+                      borderTopColor: "#333",
+                    }}
+                  >
+                    <Text style={{ color: i === 0 ? Colors.gold : "#888", fontSize: 13, width: 24, fontWeight: i === 0 ? "700" : "400" }}>
+                      #{i + 1}
+                    </Text>
+                    <Text style={{ color: "#fff", fontSize: 13, flex: 1, fontWeight: i === 0 ? "700" : "400" }} numberOfLines={1}>
+                      {BONUS_GAME_LABELS[r.game] || r.game}
+                    </Text>
+                    <Text style={{ color: "#888", fontSize: 12, width: 70, textAlign: "right" }}>
+                      {r.startsShare}% starts
+                    </Text>
+                    <Text style={{ color: "#888", fontSize: 12, width: 70, textAlign: "right" }}>
+                      {r.completionRate}% comp.
+                    </Text>
+                    <Text
+                      style={{
+                        color: r.trendScore > 55 ? "#4ADE80" : r.trendScore < 45 ? "#F87171" : "#888",
+                        fontSize: 12,
+                        width: 30,
+                        textAlign: "right",
+                      }}
+                    >
+                      {r.trendScore > 55 ? "▲" : r.trendScore < 45 ? "▼" : "–"}
+                    </Text>
+                    <Text style={{ color: i === 0 ? Colors.gold : "#666", fontSize: 13, width: 40, textAlign: "right", fontWeight: "700" }}>
+                      {r.score}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+              <Text style={{ color: "#666", fontSize: 11, marginTop: 6 }}>
+                Blended score = starts share + completion rate + trend momentum, over the last {days} days.
+              </Text>
+            </View>
+          ) : data.trend?.headline && (
             <View style={[analyticsStyles.card, { borderColor: Colors.gold, borderWidth: 1 }]}>
               <Text style={analyticsStyles.cardTitle}>📈 Trend</Text>
               <Text style={{ color: "#fff", fontSize: 14, lineHeight: 20 }}>{data.trend.headline}</Text>

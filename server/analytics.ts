@@ -335,6 +335,75 @@ export async function getBonusGameStats(days: number = 30) {
     }
   }
 
+  // Ranked "build next" recommendation across all reporting variants, blending three signals
+  // rather than just the top-2 completion-rate gap: starts share (popularity), completion rate
+  // (quality of the experience), and recent trend direction (momentum). Works from 2 variants
+  // up — today's app already has 2 (putting, threePoint) — and scales cleanly as more are added.
+  const eligible = games.filter(g => g.started > 0);
+  let recommendation: {
+    ranking: {
+      game: string;
+      score: number;
+      startsShare: number;
+      completionRate: number;
+      trendScore: number;
+    }[];
+    reason: string;
+  } | null = null;
+
+  if (eligible.length >= 2) {
+    const totalStartedAll = eligible.reduce((sum, g) => sum + g.started, 0);
+    const maxCompletionRate = Math.max(...eligible.map(g => g.completionRate), 1);
+
+    const ranking = eligible
+      .map(g => {
+        const trend = trendGames.find(t => t.game === g.game);
+        const hasPriorPeriod = !!trend && trend.previousStarted > 0;
+        const startsShare = totalStartedAll > 0 ? Math.round((g.started / totalStartedAll) * 1000) / 10 : 0;
+        // Trend direction folds in both starts momentum and completion-rate momentum, each
+        // clamped to +/-50% so a single outlier period can't dominate the blended score.
+        // Both are treated as neutral (0) when there's no prior-period data to compare
+        // against — a brand-new variant shouldn't look like it's "trending up" just because
+        // its completion rate is being compared against an artificial 0% baseline.
+        const startedMomentum = hasPriorPeriod && trend!.startedDeltaPct !== null
+          ? Math.max(-50, Math.min(50, trend!.startedDeltaPct))
+          : 0;
+        const completionMomentum = hasPriorPeriod
+          ? Math.max(-50, Math.min(50, trend!.completionRateDelta * 5))
+          : 0;
+        const trendScore = Math.round(((startedMomentum + completionMomentum) / 2 + 50));
+
+        const startsShareNorm = totalStartedAll > 0 ? (g.started / totalStartedAll) * 100 : 0;
+        const completionRateNorm = (g.completionRate / maxCompletionRate) * 100;
+        // Weighted blend: popularity and quality matter most for "what to build more of";
+        // momentum is a smaller tiebreaker signal on top of the current snapshot.
+        const score = Math.round(
+          startsShareNorm * 0.4 + completionRateNorm * 0.4 + trendScore * 0.2
+        );
+
+        return {
+          game: g.game,
+          score,
+          startsShare,
+          completionRate: g.completionRate,
+          trendScore,
+        };
+      })
+      .sort((a, b) => b.score - a.score);
+
+    const winner = ranking[0];
+    const winnerLabel = BONUS_GAME_LABELS[winner.game] || winner.game;
+    const momentumNote = winner.trendScore > 55
+      ? "and trending up"
+      : winner.trendScore < 45
+        ? "though momentum has cooled recently"
+        : "with steady momentum";
+    recommendation = {
+      ranking,
+      reason: `${winnerLabel} leads the blended score (${winner.startsShare}% of starts, ${winner.completionRate}% completion, ${momentumNote}) — the clearest pick to invest in next.`,
+    };
+  }
+
   return {
     games,
     outcomes: Object.fromEntries(outcomesByGame),
@@ -343,6 +412,7 @@ export async function getBonusGameStats(days: number = 30) {
       games: trendGames,
       headline,
     },
+    recommendation,
   };
 }
 
