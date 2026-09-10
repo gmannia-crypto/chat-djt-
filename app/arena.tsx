@@ -1565,6 +1565,36 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       negative: ["sellout", "uncle tom", "house negro", "token", "puppet", "gatekeeper", "systemic racism", "reparations"],
     },
   },
+  petehegseth: {
+    id: "petehegseth",
+    name: "Pete Hegseth",
+    shortName: "Hegseth",
+    color: "#CC0000",
+    faction: "supporter",
+    image: require("@/assets/images/persona-petehegseth.png"),
+    personality: {
+      energy: 80,
+      aggression: 60,
+      humor: 20,
+      catchphrases: ["Lethality over legacy", "Bring back the warrior ethos", "We're not a debating society, we're a military", "Merit, not diversity quotas", "Deus Vult"],
+    },
+    relationships: {
+      trump: { sentiment: 98 },
+      timscott: { sentiment: 70 },
+      mikejohnson: { sentiment: 65 },
+      hannity: { sentiment: 75 },
+      graham: { sentiment: 68 },
+      jascrockett: { sentiment: 12 },
+      aoc: { sentiment: 10 },
+      joyreid: { sentiment: 8 },
+      maddow: { sentiment: 8 },
+      carville: { sentiment: 10 },
+    },
+    triggerWords: {
+      positive: ["warrior", "lethality", "military", "trump", "america", "faith", "standards", "merit", "combat"],
+      negative: ["unqualified", "disgraced", "dei", "woke general", "drunk", "abuser", "fraud"],
+    },
+  },
   mikejohnson: {
     id: "mikejohnson",
     name: "Mike Johnson",
@@ -2977,7 +3007,7 @@ const MYSTERY_UNLOCK_KEY = "arena_mystery_unlocked";
 
 import { BOXING_EXCLUSIVE_IDS } from "@/lib/boxing-personas";
 
-const PERSONA_IDS = ["trump", "jdvance", "elon", "errol", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "tlaib", "biden", "rosie", "berniemc", "carlin", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "shahidbolson", "leavitt", "erikakirk", "loomer", "bannon", "stephena", "malema", "hannity", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "aoc", "pressley", "joerogan", "timscott", "drbenj", "billclinton", "hillaryclinton", "marcorubio", "desantis", "tuckercarlson", "bishopfundme", "cornellwest", "piersmorgan", "scottjennings", "mikabrzezinski", "joescarborough", "richardwolff", "berniesanders", "pastormanning", "clarke", "donalds", "arikana", "jeffreysachs", "khalidmuhammad"];
+const PERSONA_IDS = ["trump", "jdvance", "elon", "errol", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "tlaib", "biden", "rosie", "berniemc", "carlin", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "shahidbolson", "leavitt", "erikakirk", "loomer", "bannon", "stephena", "malema", "hannity", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "aoc", "pressley", "joerogan", "timscott", "petehegseth", "drbenj", "billclinton", "hillaryclinton", "marcorubio", "desantis", "tuckercarlson", "bishopfundme", "cornellwest", "piersmorgan", "scottjennings", "mikabrzezinski", "joescarborough", "richardwolff", "berniesanders", "pastormanning", "clarke", "donalds", "arikana", "jeffreysachs", "khalidmuhammad"];
 // Cartoon-style image filter — vivid posterized look on web
 const CARTOON_FILTER = Platform.OS === "web"
   ? ({ filter: "contrast(1.35) saturate(1.85) brightness(1.03)" } as any)
@@ -12350,7 +12380,7 @@ export default function ArenaScreen() {
             {(() => {
               const CATEGORIES: Array<{ label: string; ids: string[]; mysteryIds: string[] }> = [
                 { label: "🏛  PRESIDENTS", ids: ["trump", "biden"], mysteryIds: ["obama"] },
-                { label: "⚖️  POLITICIANS", ids: ["netanyahu", "mcconnell", "omar", "graham", "pambondi", "miller", "jimjordan", "jascrockett", "aoc", "pressley", "timscott", "mikejohnson", "billclinton", "hillaryclinton", "marcorubio", "desantis", "donalds"], mysteryIds: ["schumer", "kamala", "mtg", "rfk"] },
+                { label: "⚖️  POLITICIANS", ids: ["netanyahu", "mcconnell", "omar", "graham", "pambondi", "miller", "jimjordan", "jascrockett", "aoc", "pressley", "timscott", "petehegseth", "mikejohnson", "billclinton", "hillaryclinton", "marcorubio", "desantis", "donalds"], mysteryIds: ["schumer", "kamala", "mtg", "rfk"] },
                 { label: "📺  MEDIA & JOURNALISTS", ids: ["maddow", "megynkelly", "joyreid", "erikakirk", "loomer", "leavitt", "hannity", "odonnell", "piersmorgan", "scottjennings"], mysteryIds: [] },
                 { label: "🎙  PODCASTERS & STRATEGISTS", ids: ["galloway", "candace", "carville", "bannon", "joerogan"], mysteryIds: ["alexjones"] },
                 { label: "🎭  COMEDIANS", ids: ["berniemc", "rosie", ...(!isHidden("carlin") ? ["carlin"] : [])], mysteryIds: [] },

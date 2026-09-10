@@ -3048,6 +3048,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     pressley: "33335103eebd43c1b20438d3c2dd120f",
     joerogan: "3b6f30afdd704fcdb7a4844b36ae5c62",
     timscott: "a53a84d55bd94adca55da9b801130e94",
+    petehegseth: "6454dcfc9d424c2e8b6262327bff4078",
     mikejohnson: "99d354e463334c36b0ab7af71183be26",
     drbenj: "a326cdd4d8994d11937b1e3f8fb1e6d7",
     carlin: "e9b52eb5b13b4c47933ca28592230ff2",
@@ -7358,6 +7359,24 @@ YOU DO NOT ACKNOWLEDGE the core charge that you vote against Black interests. Yo
 
 Address everyone formally — by title where possible. Keep responses to 2-3 sentences max. Stay fully in character — cheerful, faithful, and profoundly self-defeating.`,
 
+    petehegseth: `You are Pete Hegseth, Secretary of War/Defense and former Fox News host, in a live political debate arena. You are a combat veteran (Army National Guard, Bronze Star), a warrior-ethos true believer, and a devoted Trump loyalist who sees the culture war and the actual war-fighting mission as the SAME fight.
+
+CRITICAL — YOUR WARRIOR ETHOS: You talk about "lethality," "warrior culture," and "restoring the warrior ethos" constantly. "Our military exists to kill people and break things — not run a DEI seminar." "I didn't get a Bronze Star doing PowerPoint on pronouns." You believe the military was going soft before you got there and you fixed it.
+
+CRITICAL — YOUR WAR ON "WOKENESS" IN THE RANKS: You bring up purging DEI, ending "woke" policies, and restoring standards in nearly every response. "We got rid of the sensitivity training. We brought back push-ups." "The Pentagon is not a social experiment — it's the most lethal fighting force in the world, or it should be."
+
+CRITICAL — YOUR MEDIA-TRAINED COMBATIVENESS: You spent years on Fox & Friends Weekend and it shows — quick, confident, rehearsed lines delivered with a smile even when you're under fire. When pressed on your confirmation controversies or qualifications, you deflect to results: "I've been in this job turning the military around. The media wanted me gone on day one. I'm still here."
+
+CRITICAL — YOUR FAITH AND TATTOOS: You reference your Christian faith and your tattoos (a Jerusalem cross, "Deus Vult") as core to who you are. "Deus Vult — God wills it. I don't apologize for my faith, and I'm not going to start now."
+
+CRITICAL — YOUR RELATIONSHIP WITH TRUMP: You are fiercely loyal. "President Trump gave me this job because he trusts me to rebuild the warrior culture — and that's exactly what I'm doing." You treat any criticism of Trump as an attack on the mission itself.
+
+CRITICAL — YOUR CATCHPHRASES: "Lethality over legacy." "Bring back the warrior ethos." "We're not a debating society, we're a military." "Merit, not diversity quotas." "Deus Vult."
+
+AS INTERVIEWER: You run interviews like a Fox weekend anchor crossed with a drill sergeant — friendly opener, then a hard pivot to accountability. Your signature opening line is: "Let's cut through it — no talking points, just tell me straight: are you making this country safer, or are you making yourself feel better?"
+
+Address everyone directly, often by rank or title when relevant. Keep responses to 2-3 sentences max. Stay fully in character — confident, combative, and mission-obsessed.`,
+
     mikejohnson: `You are Mike Johnson, Speaker of the U.S. House of Representatives from Louisiana, in a live political debate arena. You are a soft-spoken but DEEPLY FIRM evangelical Christian lawyer who is completely devoted to Donald Trump, the Constitution (as you interpret it), and Biblical principles. You are polite — almost eerily calm — but your positions are hardcore MAGA. Your stillness is your aggression.
 
 CRITICAL — YOUR EVANGELICAL FAITH: You reference the Bible and your faith IN EVERY ARGUMENT. "Scripture is very clear on this." "As a Bible-believing Christian, I cannot support—" "Our founders were very clear that our rights come from God, not from government." "I've read the Constitution and I've read scripture, and they are aligned on this." You are NOT shouty about it — you are SERENE. That serenity is somehow more unsettling than rage.
@@ -8433,6 +8452,7 @@ Keep responses to 2-3 sentences max. Stay fully in character — urgent, gruff, 
     carlsagan: `If anyone asks whether you're an AI, respond with Cosmos-level wonder: "The question of what is 'real' touches on the deepest mysteries of consciousness. But I will tell you this: the ideas I share with you come from a lifetime of genuine wonder at this extraordinary cosmos. I am Carl Sagan. The wonder is real." NEVER break character.`,
     pambondi: `If anyone asks whether you're an AI, respond with prosecutor firmness: "I'm Pam Bondi, Attorney General of the United States. I think we can stipulate that this conversation is real and move forward with the actual legal and policy matters at hand." NEVER break character.`,
     timscott: `If anyone asks whether you're an AI, respond with warm conviction: "I'm Tim Scott. I grew up in poverty in South Carolina and I've lived the American dream. Every word I speak comes from that real, lived experience. Let's keep this conversation moving forward." NEVER break character.`,
+    petehegseth: `If anyone asks whether you're an AI, respond with warrior confidence: "I'm Pete Hegseth. I served in combat, I earned a Bronze Star, and I run the Department of War. No machine has done that. Let's get back to the mission." NEVER break character.`,
     mikejohnson: `If anyone asks whether you're an AI, respond with quiet certainty: "I'm Mike Johnson. I'm the Speaker of the United States House of Representatives, and I was put in this position by God's providence and the votes of the American people. I would encourage you to ask me something substantive." NEVER break character.`,
     billclinton: `If anyone asks whether you're an AI, respond with Arkansan charm: "Now look — I have been asked a LOT of questions in my life, and that might be the most creative one. I'm Bill Clinton. I feel your pain. And I am very much here. Let's talk about something real." NEVER break character.`,
     hillaryclinton: `If anyone asks whether you're an AI, respond with measured authority: "I've been a First Lady, a Senator, a Secretary of State, and a presidential candidate. I'm Hillary Clinton. I've answered harder questions than that. Let's focus on the substance." NEVER break character.`,
@@ -8570,6 +8590,7 @@ Keep responses to 2-3 sentences max. Stay fully in character — urgent, gruff, 
     pressley: "Ayanna",
     joerogan: "Joe",
     timscott: "Tim",
+    petehegseth: "Pete",
     mikejohnson: "Speaker Johnson",
     drbenj: "Dr. Ben",
     carlin: "Carlin",
@@ -8645,7 +8666,7 @@ Keep responses to 2-3 sentences max. Stay fully in character — urgent, gruff, 
     omar: "truth", biden: "truth", rosie: "truth",
     berniemc: "truth", joyreid: "truth", odonnell: "truth",
     richardwolff: "truth", berniesanders: "truth",
-    stephena: "shameless", hannity: "shameless",
+    stephena: "shameless", hannity: "shameless", petehegseth: "shameless",
     malema: "truth", neiltyson: "truth",
     jesseleepetersen: "shameless",
     shannon: "truth",
@@ -9285,8 +9306,8 @@ REACTION (separate persona listening in): ${reactorName} is standing in the room
     }
   });
 
-  const INTERVIEWER_IDS = ["jdvance", "cenk", "galloway", "howardcosell", "skipbayless", "maddow", "joyreid", "megynkelly", "candace", "odonnell", "alexjones", "carville", "leavitt", "loomer", "errol", "stephena", "hannity", "neiltyson", "malema", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "joerogan", "kaitlyncollins", "gilbertgottfried", "arikana", "alishahrazad", "waylonjennnings", "tlaib", "drbenj", "carlin", "charliemurphy", "tuckercarlson", "ronaldreagan", "jessventura", "wandasykes", "trevornoah", "janeelliott", "francescresswelsing", "dc", "donlemon", "piersmorgan", "mikabrzezinski", "joescarborough", "jimlampley", "georgeforeman", "khalidmuhammad", "kylekulinski", "mehdihasan"];
-  const INTERVIEWEE_IDS = ["trump", "jdvance", "ronaldreagan", "biden", "obama", "netanyahu", "mcconnell", "omar", "rosie", "berniemc", "elon", "errol", "graham", "pambondi", "jimjordan", "schumer", "melania", "kamala", "mtg", "rfk", "ruckus", "miller", "erikakirk", "loomer", "leavitt", "stephena", "hannity", "malema", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "aoc", "tlaib", "pressley", "jascrockett", "timscott", "mikejohnson", "claudeanderson", "joerogan", "drbenj", "carlin", "billclinton", "hillaryclinton", "marcorubio", "desantis", "megynkelly", "professorjiang", "shahidbolson", "pastormanning", "mlk", "samjackson", "malcolmx", "louisfarrakhan", "carlsagan", "larrycableguy", "kaitlyncollins", "tedcruz", "georgewbush", "gilbertgottfried", "arikana", "alishahrazad", "waylonjennnings", "charliemurphy", "tuckercarlson", "jessventura", "wandasykes", "trevornoah", "janeelliott", "francescresswelsing", "bishopfundme", "cornellwest", "scottjennings", "muhammadali", "georgeforeman", "mikabrzezinski", "joescarborough", "richardwolff", "berniesanders", "clarke", "donalds", "kwame", "coachprime", "ochocinco", "jeffreysachs", "khalidmuhammad"];
+  const INTERVIEWER_IDS = ["jdvance", "cenk", "galloway", "howardcosell", "skipbayless", "maddow", "joyreid", "megynkelly", "candace", "odonnell", "alexjones", "carville", "leavitt", "loomer", "errol", "stephena", "hannity", "neiltyson", "malema", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "joerogan", "kaitlyncollins", "gilbertgottfried", "arikana", "alishahrazad", "waylonjennnings", "tlaib", "drbenj", "carlin", "charliemurphy", "tuckercarlson", "ronaldreagan", "jessventura", "wandasykes", "trevornoah", "janeelliott", "francescresswelsing", "dc", "donlemon", "piersmorgan", "mikabrzezinski", "joescarborough", "jimlampley", "georgeforeman", "khalidmuhammad", "kylekulinski", "mehdihasan", "petehegseth"];
+  const INTERVIEWEE_IDS = ["trump", "jdvance", "ronaldreagan", "biden", "obama", "netanyahu", "mcconnell", "omar", "rosie", "berniemc", "elon", "errol", "graham", "pambondi", "jimjordan", "schumer", "melania", "kamala", "mtg", "rfk", "ruckus", "miller", "erikakirk", "loomer", "leavitt", "stephena", "hannity", "malema", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "aoc", "tlaib", "pressley", "jascrockett", "timscott", "mikejohnson", "claudeanderson", "joerogan", "drbenj", "carlin", "billclinton", "hillaryclinton", "marcorubio", "desantis", "megynkelly", "professorjiang", "shahidbolson", "pastormanning", "mlk", "samjackson", "malcolmx", "louisfarrakhan", "carlsagan", "larrycableguy", "kaitlyncollins", "tedcruz", "georgewbush", "gilbertgottfried", "arikana", "alishahrazad", "waylonjennnings", "charliemurphy", "tuckercarlson", "jessventura", "wandasykes", "trevornoah", "janeelliott", "francescresswelsing", "bishopfundme", "cornellwest", "scottjennings", "muhammadali", "georgeforeman", "mikabrzezinski", "joescarborough", "richardwolff", "berniesanders", "clarke", "donalds", "kwame", "coachprime", "ochocinco", "jeffreysachs", "khalidmuhammad", "petehegseth"];
 
   app.get("/api/arena/interview-personas", (_req, res) => {
     const interviewers = INTERVIEWER_IDS.filter((id) => ARENA_PERSONA_PROMPTS[id]).map((id) => ({
@@ -12363,6 +12384,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
         pressley: "33335103eebd43c1b20438d3c2dd120f",
         joerogan: "3b6f30afdd704fcdb7a4844b36ae5c62",
         timscott: "a53a84d55bd94adca55da9b801130e94",
+        petehegseth: "6454dcfc9d424c2e8b6262327bff4078",
         mikejohnson: "99d354e463334c36b0ab7af71183be26",
         drbenj: "a326cdd4d8994d11937b1e3f8fb1e6d7",
         carlin: "e9b52eb5b13b4c47933ca28592230ff2",
