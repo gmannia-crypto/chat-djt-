@@ -79,6 +79,7 @@ import {
   getSuggestions,
   getVisitorStats,
   getBonusGameStats,
+  validateBonusGameComparisonRange,
   updateSuggestionStatus,
 } from "./analytics";
 import {
@@ -700,7 +701,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     try {
       const days = Math.min(365, Math.max(1, parseInt(req.query.days as string) || 30));
-      const stats = await getBonusGameStats(days);
+
+      // Optional custom comparison window (see BonusGameComparisonOptions in analytics.ts).
+      // Either a fixed date range, or a relative offset/length pair; both are optional and
+      // independently default to the immediately-preceding-period-of-equal-length behavior.
+      const compareStart = typeof req.query.compareStart === "string" ? req.query.compareStart : undefined;
+      const compareEnd = typeof req.query.compareEnd === "string" ? req.query.compareEnd : undefined;
+      const compareOffsetDays = req.query.compareOffsetDays !== undefined
+        ? Math.max(0, parseInt(req.query.compareOffsetDays as string) || 0)
+        : undefined;
+      const compareLengthDays = req.query.compareLengthDays !== undefined
+        ? Math.min(365, Math.max(1, parseInt(req.query.compareLengthDays as string) || 1))
+        : undefined;
+
+      const rangeError = validateBonusGameComparisonRange(compareStart, compareEnd);
+      if (rangeError) {
+        return res.status(400).json({ error: rangeError });
+      }
+
+      const stats = await getBonusGameStats(days, {
+        compareStart, compareEnd, compareOffsetDays, compareLengthDays,
+      });
       return res.json(stats);
     } catch (e: any) {
       return res.status(500).json({ error: e.message });

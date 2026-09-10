@@ -3554,12 +3554,24 @@ const BONUS_OUTCOME_COLORS: Record<string, string> = {
   airball: "#F87171",
 };
 
+// Comparison-window mode for the trend/recommendation panel:
+// - "auto":   immediately preceding period of equal length (the original always-on default)
+// - "offset": same length of time, but starting a custom number of days back (e.g. "same
+//             7 days last month" = offset 30 with a 7-day report window)
+// - "fixed":  an explicit calendar date range, for a fixed seasonality baseline
+type CompareMode = "auto" | "offset" | "fixed";
+
 function BonusGameDashboard() {
   const adminKey = useContext(AdminKeyContext);
   const [data, setData] = useState<{
     games: any[];
     outcomes: Record<string, { outcome: string; count: number }[]>;
-    trend?: { days: number; headline: string | null; games: any[] };
+    trend?: {
+      days: number;
+      headline: string | null;
+      games: any[];
+      comparison?: { isCustom: boolean; label: string; start: string; end: string };
+    };
     recommendation?: {
       ranking: { game: string; score: number; startsShare: number; completionRate: number; trendScore: number }[];
       reason: string;
@@ -3568,19 +3580,84 @@ function BonusGameDashboard() {
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(30);
 
+  // `compareMode` etc. are the *editable* control state; `appliedCompareMode` is what the
+  // currently-displayed `data` was actually fetched with, so the UI never claims a comparison
+  // window it hasn't actually applied yet (e.g. mid-edit on the offset/fixed inputs).
+  const [compareMode, setCompareMode] = useState<CompareMode>("auto");
+  const [appliedCompareMode, setAppliedCompareMode] = useState<CompareMode>("auto");
+  const [compareOffsetDays, setCompareOffsetDays] = useState("30");
+  const [compareLengthDays, setCompareLengthDays] = useState("7");
+  const [compareStart, setCompareStart] = useState("");
+  const [compareEnd, setCompareEnd] = useState("");
+  const [fixedRangeError, setFixedRangeError] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+  function validateFixedRange(start: string, end: string): string | null {
+    if (!start || !end) return "Enter both a start and end date.";
+    if (!DATE_RE.test(start) || !DATE_RE.test(end)) return "Dates must be in YYYY-MM-DD format.";
+    if (Number.isNaN(new Date(start).getTime()) || Number.isNaN(new Date(end).getTime())) {
+      return "Enter valid calendar dates.";
+    }
+    if (start > end) return "Start date must be on or before the end date.";
+    return null;
+  }
+
   useEffect(() => {
-    fetchBonusGameStats();
+    fetchBonusGameStats("auto");
+    setCompareMode("auto");
+    // Custom comparison inputs only take effect once the admin applies them explicitly
+    // (see "Apply" button below), so they're intentionally excluded from this dependency list.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [days]);
 
-  async function fetchBonusGameStats() {
+  // Selecting "Previous period" needs no further input, so it applies (and refetches)
+  // immediately. The offset/fixed modes only switch which inputs are shown — they don't
+  // change what's displayed until the admin taps Apply, avoiding a selected-but-not-applied
+  // mismatch with what `data` actually reflects.
+  function selectCompareMode(mode: CompareMode) {
+    setCompareMode(mode);
+    setFixedRangeError(null);
+    if (mode === "auto") {
+      fetchBonusGameStats("auto");
+    }
+  }
+
+  async function fetchBonusGameStats(modeOverride?: CompareMode) {
+    const mode = modeOverride ?? compareMode;
+    if (mode === "fixed") {
+      const err = validateFixedRange(compareStart, compareEnd);
+      if (err) {
+        setFixedRangeError(err);
+        return;
+      }
+    }
+    setFixedRangeError(null);
+    setFetchError(null);
     setLoading(true);
     try {
+      const params = new URLSearchParams({ days: String(days) });
+      if (mode === "offset") {
+        params.set("compareOffsetDays", compareOffsetDays || String(days));
+        params.set("compareLengthDays", compareLengthDays || String(days));
+      } else if (mode === "fixed") {
+        params.set("compareStart", compareStart);
+        params.set("compareEnd", compareEnd);
+      }
       const res = await fetch(
-        new URL(`/api/admin/bonus-game-stats?days=${days}`, getApiUrl()).toString(),
+        new URL(`/api/admin/bonus-game-stats?${params.toString()}`, getApiUrl()).toString(),
         { headers: adminHeaders(adminKey) }
       );
-      if (res.ok) setData(await res.json());
-    } catch {}
+      if (res.ok) {
+        setData(await res.json());
+        setAppliedCompareMode(mode);
+      } else {
+        const body = await res.json().catch(() => null);
+        setFetchError(body?.error || "Failed to load comparison stats.");
+      }
+    } catch {
+      setFetchError("Failed to load comparison stats.");
+    }
     setLoading(false);
   }
 
@@ -3612,6 +3689,104 @@ function BonusGameDashboard() {
             </Pressable>
           ))}
         </View>
+      </View>
+
+      <View style={[analyticsStyles.card, { paddingBottom: 12 }]}>
+        <Text style={analyticsStyles.cardTitle}>Compare Against</Text>
+        <View style={analyticsStyles.periodRow}>
+          {([
+            { mode: "auto" as const, label: "Previous period" },
+            { mode: "offset" as const, label: "Custom offset" },
+            { mode: "fixed" as const, label: "Fixed dates" },
+          ]).map(({ mode, label }) => (
+            <Pressable
+              key={mode}
+              onPress={() => selectCompareMode(mode)}
+              style={[analyticsStyles.periodBtn, compareMode === mode && analyticsStyles.periodBtnActive]}
+            >
+              <Text style={[analyticsStyles.periodText, compareMode === mode && analyticsStyles.periodTextActive]}>
+                {label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {compareMode === "offset" && (
+          <View style={{ flexDirection: "row", gap: 10, marginTop: 12, alignItems: "flex-end" }}>
+            <View style={{ flex: 1 }}>
+              <Text style={compareStyles.fieldLabel}>Window length (days)</Text>
+              <TextInput
+                style={compareStyles.input}
+                value={compareLengthDays}
+                onChangeText={setCompareLengthDays}
+                keyboardType="number-pad"
+                placeholder={String(days)}
+                placeholderTextColor="#555"
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={compareStyles.fieldLabel}>Ending, days ago</Text>
+              <TextInput
+                style={compareStyles.input}
+                value={compareOffsetDays}
+                onChangeText={setCompareOffsetDays}
+                keyboardType="number-pad"
+                placeholder={String(days)}
+                placeholderTextColor="#555"
+              />
+            </View>
+            <Pressable style={compareStyles.applyBtn} onPress={() => fetchBonusGameStats("offset")}>
+              <Text style={compareStyles.applyBtnText}>Apply</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {compareMode === "fixed" && (
+          <>
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 12, alignItems: "flex-end" }}>
+              <View style={{ flex: 1 }}>
+                <Text style={compareStyles.fieldLabel}>Start date</Text>
+                <TextInput
+                  style={compareStyles.input}
+                  value={compareStart}
+                  onChangeText={(v) => { setCompareStart(v); setFixedRangeError(null); }}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor="#555"
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={compareStyles.fieldLabel}>End date</Text>
+                <TextInput
+                  style={compareStyles.input}
+                  value={compareEnd}
+                  onChangeText={(v) => { setCompareEnd(v); setFixedRangeError(null); }}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor="#555"
+                />
+              </View>
+              <Pressable
+                style={[compareStyles.applyBtn, !(compareStart && compareEnd) && { opacity: 0.5 }]}
+                disabled={!(compareStart && compareEnd)}
+                onPress={() => fetchBonusGameStats("fixed")}
+              >
+                <Text style={compareStyles.applyBtnText}>Apply</Text>
+              </Pressable>
+            </View>
+            {fixedRangeError && (
+              <Text style={{ color: "#F87171", fontSize: 11, marginTop: 8 }}>{fixedRangeError}</Text>
+            )}
+          </>
+        )}
+
+        {fetchError && (
+          <Text style={{ color: "#F87171", fontSize: 11, marginTop: 10 }}>{fetchError}</Text>
+        )}
+        {!fetchError && data.trend?.comparison && (
+          <Text style={{ color: "#888", fontSize: 11, marginTop: 10 }}>
+            Currently comparing vs. {data.trend.comparison.label}
+            {compareMode !== appliedCompareMode ? " — tap Apply to use the selected window" : ""}.
+          </Text>
+        )}
       </View>
 
       {data.games.length === 0 ? (
@@ -3673,7 +3848,7 @@ function BonusGameDashboard() {
               <Text style={analyticsStyles.cardTitle}>📈 Trend</Text>
               <Text style={{ color: "#fff", fontSize: 14, lineHeight: 20 }}>{data.trend.headline}</Text>
               <Text style={{ color: "#888", fontSize: 12, marginTop: 4 }}>
-                vs. the previous {days}-day period — use this to decide which variant is worth building on next
+                vs. {data.trend.comparison?.label || `the previous ${days} days`} — use this to decide which variant is worth building on next
               </Text>
             </View>
           )}
@@ -3718,7 +3893,7 @@ function BonusGameDashboard() {
                     </Text>
                     {trend && trend.previousCompletionRate !== undefined && (
                       <Text style={{ color: "#888", fontSize: 11, marginTop: 2 }}>
-                        was {trend.previousCompletionRate}% in the previous {days} days
+                        was {trend.previousCompletionRate}% in {data.trend?.comparison?.label || `the previous ${days} days`}
                         {trend.completionRateDelta !== 0 && (
                           <Text style={{ color: trend.completionRateDelta > 0 ? "#4ADE80" : "#F87171" }}>
                             {" "}({trend.completionRateDelta > 0 ? "+" : ""}{trend.completionRateDelta} pts)
@@ -3852,6 +4027,27 @@ function SuggestionsViewer() {
     </View>
   );
 }
+
+const compareStyles = StyleSheet.create({
+  fieldLabel: { color: "#888", fontSize: 11, fontWeight: "600" as const, marginBottom: 6 },
+  input: {
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 13,
+    color: "#FFFFFF",
+  },
+  applyBtn: {
+    backgroundColor: Colors.gold,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  applyBtnText: { color: "#0a0a0a", fontSize: 13, fontWeight: "700" as const },
+});
 
 const analyticsStyles = StyleSheet.create({
   section: { marginTop: 24, paddingHorizontal: 4 },

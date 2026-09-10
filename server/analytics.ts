@@ -213,12 +213,102 @@ export async function getLeadGenStats(days: number = 30) {
  * without finishing). Any mini-game that emits this event shape is picked up here
  * automatically — no server-side registration of game ids is needed.
  */
-export async function getBonusGameStats(days: number = 30) {
+export interface BonusGameComparisonOptions {
+  // Fixed baseline window: when both are given, they take precedence over the offset/length
+  // pair below, so admins can compare against an arbitrary historical period (e.g. "before
+  // the holiday promo") rather than only a period relative to today. Plain "YYYY-MM-DD" dates
+  // are treated as whole calendar days *inclusive* of compareEnd.
+  compareStart?: string;
+  compareEnd?: string;
+  // Relative window: the comparison period ends `compareOffsetDays` ago and spans
+  // `compareLengthDays`. Defaults to `days`/`days`, i.e. the period immediately preceding the
+  // report window with equal length — the original always-on behavior.
+  compareOffsetDays?: number;
+  compareLengthDays?: number;
+}
+
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Validates a caller-supplied fixed comparison range before it ever reaches a Date/SQL call.
+ * Returns an error string when invalid, or null when `compareStart`/`compareEnd` are absent or
+ * both are well-formed with start on or before end. Pure and synchronous so it's unit-testable
+ * without a database (see server/bonus-game-comparison.test.js).
+ */
+export function validateBonusGameComparisonRange(compareStart?: string, compareEnd?: string): string | null {
+  if (!compareStart && !compareEnd) return null;
+  if (!compareStart || !compareEnd) {
+    return "compareStart and compareEnd must both be provided together.";
+  }
+  if (!DATE_ONLY_RE.test(compareStart) || !DATE_ONLY_RE.test(compareEnd)) {
+    return "compareStart and compareEnd must be dates in YYYY-MM-DD format.";
+  }
+  if (Number.isNaN(new Date(compareStart).getTime()) || Number.isNaN(new Date(compareEnd).getTime())) {
+    return "compareStart and compareEnd must be valid calendar dates.";
+  }
+  if (compareStart > compareEnd) {
+    return "compareStart must be on or before compareEnd.";
+  }
+  return null;
+}
+
+/**
+ * Resolves the actual comparison window (start/end instants) plus a human-readable label, given
+ * the report window length and optional admin-chosen overrides. Pure function of `days`,
+ * `comparison`, and `now` — kept separate from the DB query so it's directly unit-testable
+ * (see server/bonus-game-comparison.test.js) without needing a database.
+ */
+export function resolveBonusGameComparisonWindow(
+  days: number,
+  comparison: BonusGameComparisonOptions,
+  now: number = Date.now(),
+) {
+  let prevUntil: Date;   // exclusive upper bound used in the SQL query
+  let prevSince: Date;   // inclusive lower bound used in the SQL query
+  let labelEnd: Date;    // the calendar-facing "end" shown to admins (inclusive)
+  let isCustomComparison = false;
+
+  if (comparison.compareStart && comparison.compareEnd) {
+    const rangeError = validateBonusGameComparisonRange(comparison.compareStart, comparison.compareEnd);
+    if (rangeError) throw new Error(rangeError);
+    prevSince = new Date(comparison.compareStart);
+    const rawEnd = new Date(comparison.compareEnd);
+    labelEnd = rawEnd;
+    // A bare calendar date (no time component) is inclusive of the whole day, so the SQL
+    // upper bound needs to be pushed to the start of the following day.
+    prevUntil = DATE_ONLY_RE.test(comparison.compareEnd)
+      ? new Date(rawEnd.getTime() + 86400000)
+      : rawEnd;
+    isCustomComparison = true;
+  } else {
+    const compareOffsetDays = comparison.compareOffsetDays ?? days;
+    const compareLengthDays = comparison.compareLengthDays ?? days;
+    prevUntil = new Date(now - compareOffsetDays * 86400000);
+    prevSince = new Date(prevUntil.getTime() - compareLengthDays * 86400000);
+    labelEnd = prevUntil;
+    isCustomComparison = compareOffsetDays !== days || compareLengthDays !== days;
+  }
+
+  const fmtDate = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const label = isCustomComparison
+    ? `${fmtDate(prevSince)}\u2013${fmtDate(labelEnd)}`
+    : `the previous ${days} days`;
+
+  return { prevSince, prevUntil, isCustomComparison, label };
+}
+
+export async function getBonusGameStats(days: number = 30, comparison: BonusGameComparisonOptions = {}) {
   const db = getPool();
   const now = Date.now();
   const since = new Date(now - days * 86400000).toISOString();
-  // Prior period of equal length, immediately preceding `since`, for period-over-period deltas.
-  const prevSince = new Date(now - 2 * days * 86400000).toISOString();
+
+  // Comparison window: defaults to the immediately preceding period of equal length, but
+  // admins can override with a relative offset/length or a fixed date range (see
+  // BonusGameComparisonOptions) for seasonality-aware comparisons.
+  const { prevSince, prevUntil, isCustomComparison, label: comparisonLabel } =
+    resolveBonusGameComparisonWindow(days, comparison, now);
+  const prevSinceIso = prevSince.toISOString();
+  const prevUntilIso = prevUntil.toISOString();
 
   const [byGameRes, outcomeRes, prevByGameRes] = await Promise.all([
     db.query(`
@@ -238,7 +328,7 @@ export async function getBonusGameStats(days: number = 30) {
       GROUP BY metadata->>'game', metadata->>'outcome'
       ORDER BY game, count DESC
     `, [since]),
-    // Immediately preceding period of the same length, for period-over-period comparison.
+    // Comparison window (see BonusGameComparisonOptions above) for period-over-period deltas.
     db.query(`
       SELECT
         metadata->>'game' AS game,
@@ -248,7 +338,7 @@ export async function getBonusGameStats(days: number = 30) {
       FROM feature_events
       WHERE feature = 'bonus_game' AND created_at >= $1 AND created_at < $2
       GROUP BY metadata->>'game'
-    `, [prevSince, since]),
+    `, [prevSinceIso, prevUntilIso]),
   ]);
 
   const games = byGameRes.rows
@@ -322,7 +412,7 @@ export async function getBonusGameStats(days: number = 30) {
     const trend = trendGames[0];
     if (trend.startedDeltaPct !== null && Math.abs(trend.startedDeltaPct) >= 10) {
       const direction = trend.startedDeltaPct > 0 ? "up" : "down";
-      headline = `${BONUS_GAME_LABELS[trend.game] || trend.game} plays are ${direction} ${Math.abs(trend.startedDeltaPct)}% vs. the previous ${days} days.`;
+      headline = `${BONUS_GAME_LABELS[trend.game] || trend.game} plays are ${direction} ${Math.abs(trend.startedDeltaPct)}% vs. ${comparisonLabel}.`;
     }
   }
   if (!headline) {
@@ -331,7 +421,7 @@ export async function getBonusGameStats(days: number = 30) {
       .sort((a, b) => Math.abs(b.startedDeltaPct as number) - Math.abs(a.startedDeltaPct as number))[0];
     if (biggestMover && Math.abs(biggestMover.startedDeltaPct as number) >= 15) {
       const direction = (biggestMover.startedDeltaPct as number) > 0 ? "up" : "down";
-      headline = `${BONUS_GAME_LABELS[biggestMover.game] || biggestMover.game} plays are ${direction} ${Math.abs(biggestMover.startedDeltaPct as number)}% vs. the previous ${days} days.`;
+      headline = `${BONUS_GAME_LABELS[biggestMover.game] || biggestMover.game} plays are ${direction} ${Math.abs(biggestMover.startedDeltaPct as number)}% vs. ${comparisonLabel}.`;
     }
   }
 
@@ -411,6 +501,12 @@ export async function getBonusGameStats(days: number = 30) {
       days,
       games: trendGames,
       headline,
+      comparison: {
+        isCustom: isCustomComparison,
+        label: comparisonLabel,
+        start: prevSinceIso,
+        end: prevUntilIso,
+      },
     },
     recommendation,
   };
