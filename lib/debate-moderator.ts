@@ -13,9 +13,10 @@ import { getApiUrl } from "@/lib/query-client";
 import { prefetchTTSAudio, playPrefetchedAudio, playTTS } from "@/lib/audio-helper";
 import { playCrowdCheer, playDingSound } from "@/lib/arena-sfx";
 
-export type ModeratorStyle = "cenk" | "galloway" | "hannity" | "maddow" | "megynkelly" | "odonnell" | "joyreid" | "maxkellerman" | "stephena" | "kaitlyncollins" | "gilbertgottfried" | "carlin" | "tuckercarlson" | "wandasykes" | "trevornoah" | "janeelliott" | "francescresswelsing" | "shannonsharp" | "dc" | "donlemon" | "piersmorgan" | "mikabrzezinski" | "joescarborough" | "jimlampley" | "georgeforeman" | "michaelbuffer" | "howardcosell" | "samjackson" | "khalidmuhammad" | "kylekulinski" | "mehdihasan";
+export type ModeratorStyle = "cenk" | "galloway" | "hannity" | "maddow" | "megynkelly" | "odonnell" | "joyreid" | "maxkellerman" | "stephena" | "kaitlyncollins" | "gilbertgottfried" | "carlin" | "tuckercarlson" | "wandasykes" | "trevornoah" | "janeelliott" | "francescresswelsing" | "shannonsharp" | "dc" | "donlemon" | "piersmorgan" | "mikabrzezinski" | "joescarborough" | "jimlampley" | "georgeforeman" | "michaelbuffer" | "howardcosell" | "samjackson" | "khalidmuhammad" | "kylekulinski" | "mehdihasan" | "grandad";
 
 export const MODERATORS: Record<ModeratorStyle, { name: string; personaId: string; bias: string }> = {
+  grandad:          { name: "Grandad",             personaId: "grandad",          bias: "old-school-disciplinarian" },
   cenk:             { name: "Cenk Uygur",          personaId: "cenk",             bias: "progressive" },
   galloway:         { name: "George Galloway",      personaId: "galloway",         bias: "anti-imperialist" },
   hannity:          { name: "Sean Hannity",         personaId: "hannity",          bias: "right" },
@@ -57,6 +58,7 @@ export const MODERATORS: Record<ModeratorStyle, { name: string; personaId: strin
 // rather than all defaulting to the same generic setting. Values must match the
 // InterviewStyleId union used by the debate-stage style selector.
 export const MODERATOR_DEFAULT_STYLE: Record<ModeratorStyle, string> = {
+  grandad: "combative",
   cenk: "combative",
   galloway: "unhinged",
   hannity: "combative",
@@ -94,6 +96,7 @@ export const MODERATOR_DEFAULT_STYLE: Record<ModeratorStyle, string> = {
 // against fact-check hits) vs. adversarial to ("target" — hard questions, quick to chastise).
 // Anyone not listed is treated as neutral (balanced questions, fact-based reactions only).
 export const MODERATOR_LEANINGS: Record<ModeratorStyle, { favor: string[]; target: string[] }> = {
+  grandad: { favor: [], target: [] },
   cenk: {
     favor: ["berniemc", "aoc", "jascrockett", "omar", "maddow", "joyreid", "carville", "obama", "kamala"],
     target: ["trump", "bannon", "miller", "leavitt", "alexjones", "mtg", "loomer", "jimjordan", "netanyahu", "candace"],

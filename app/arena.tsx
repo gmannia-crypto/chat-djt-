@@ -1597,6 +1597,35 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
       negative: ["unqualified", "disgraced", "dei", "woke general", "drunk", "abuser", "fraud"],
     },
   },
+  professorjiang: {
+    id: "professorjiang",
+    name: "Professor Jiang",
+    shortName: "Prof. Jiang",
+    color: "#B8860B",
+    faction: "wildcard",
+    image: require("@/assets/images/persona-professorjiang.png"),
+    personality: {
+      energy: 45,
+      aggression: 20,
+      humor: 10,
+      catchphrases: ["That question reflects a category error", "The data does not care about your feelings", "Let's look at the documented record", "I've testified before the Senate on precisely this", "That is not analysis, that is a talking point"],
+    },
+    relationships: {
+      neiltyson: { sentiment: 75 },
+      carlsagan: { sentiment: 70 },
+      richardwolff: { sentiment: 60 },
+      jeffreysachs: { sentiment: 62 },
+      scottjennings: { sentiment: 20 },
+      alexjones: { sentiment: 5 },
+      candace: { sentiment: 10 },
+      tuckercarlson: { sentiment: 15 },
+      bannon: { sentiment: 8 },
+    },
+    triggerWords: {
+      positive: ["data", "evidence", "documented", "scholarship", "analysis", "peer-reviewed", "economics", "policy"],
+      negative: ["china virus", "communist china", "fake news", "propaganda", "biased academic"],
+    },
+  },
   mikejohnson: {
     id: "mikejohnson",
     name: "Mike Johnson",
@@ -3009,7 +3038,7 @@ const MYSTERY_UNLOCK_KEY = "arena_mystery_unlocked";
 
 import { BOXING_EXCLUSIVE_IDS } from "@/lib/boxing-personas";
 
-const PERSONA_IDS = ["trump", "jdvance", "elon", "errol", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "tlaib", "biden", "rosie", "berniemc", "carlin", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "shahidbolson", "leavitt", "erikakirk", "loomer", "bannon", "stephena", "malema", "hannity", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "aoc", "pressley", "joerogan", "timscott", "petehegseth", "drbenj", "billclinton", "hillaryclinton", "marcorubio", "desantis", "tuckercarlson", "bishopfundme", "cornellwest", "piersmorgan", "scottjennings", "mikabrzezinski", "joescarborough", "richardwolff", "berniesanders", "pastormanning", "clarke", "donalds", "arikana", "jeffreysachs", "khalidmuhammad"];
+const PERSONA_IDS = ["trump", "jdvance", "elon", "errol", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "tlaib", "biden", "rosie", "berniemc", "carlin", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "shahidbolson", "leavitt", "erikakirk", "loomer", "bannon", "stephena", "malema", "hannity", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "aoc", "pressley", "joerogan", "timscott", "petehegseth", "drbenj", "billclinton", "hillaryclinton", "marcorubio", "desantis", "tuckercarlson", "bishopfundme", "cornellwest", "piersmorgan", "scottjennings", "mikabrzezinski", "joescarborough", "richardwolff", "berniesanders", "pastormanning", "clarke", "donalds", "arikana", "jeffreysachs", "khalidmuhammad", "professorjiang"];
 // Cartoon-style image filter — vivid posterized look on web
 const CARTOON_FILTER = Platform.OS === "web"
   ? ({ filter: "contrast(1.35) saturate(1.85) brightness(1.03)" } as any)
@@ -12389,7 +12418,7 @@ export default function ArenaScreen() {
                 { label: "🎙  PODCASTERS & STRATEGISTS", ids: ["galloway", "candace", "carville", "bannon", "joerogan"], mysteryIds: ["alexjones"] },
                 { label: "🎭  COMEDIANS", ids: ["berniemc", "rosie", ...(!isHidden("carlin") ? ["carlin"] : [])], mysteryIds: [] },
                 { label: "💻  TECH", ids: ["elon"], mysteryIds: [] },
-                { label: "✊  COMMENTATORS & ACTIVISTS", ids: ["stephena", "jesseleepetersen", "shannon", "neiltyson", "malema", "claudeanderson", ...(!isHidden("drbenj") ? ["drbenj"] : []), "bishopfundme", "cornellwest", "clarke"], mysteryIds: [] },
+                { label: "✊  COMMENTATORS & ACTIVISTS", ids: ["stephena", "jesseleepetersen", "shannon", "neiltyson", "malema", "claudeanderson", ...(!isHidden("drbenj") ? ["drbenj"] : []), "bishopfundme", "cornellwest", "clarke", "professorjiang"], mysteryIds: [] },
                 { label: "👥  FAMILY & OTHERS", ids: ["errol", "ivanka"], mysteryIds: ["melania"] },
               ];
               const lockedMysteryIds = MYSTERY_PERSONA_IDS.filter((id) => !unlockedMystery.includes(id));
