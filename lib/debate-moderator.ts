@@ -16,7 +16,7 @@ import { playCrowdCheer, playDingSound } from "@/lib/arena-sfx";
 export type ModeratorStyle = "cenk" | "galloway" | "hannity" | "maddow" | "megynkelly" | "odonnell" | "joyreid" | "maxkellerman" | "stephena" | "kaitlyncollins" | "gilbertgottfried" | "carlin" | "tuckercarlson" | "wandasykes" | "trevornoah" | "janeelliott" | "francescresswelsing" | "shannonsharp" | "dc" | "donlemon" | "piersmorgan" | "mikabrzezinski" | "joescarborough" | "jimlampley" | "georgeforeman" | "michaelbuffer" | "howardcosell" | "samjackson" | "khalidmuhammad" | "kylekulinski" | "mehdihasan" | "grandad";
 
 export const MODERATORS: Record<ModeratorStyle, { name: string; personaId: string; bias: string }> = {
-  grandad:          { name: "Grandad",             personaId: "grandad",          bias: "old-school-disciplinarian" },
+  grandad:          { name: "Robert Freeman",      personaId: "grandad",          bias: "old-school-disciplinarian" },
   cenk:             { name: "Cenk Uygur",          personaId: "cenk",             bias: "progressive" },
   galloway:         { name: "George Galloway",      personaId: "galloway",         bias: "anti-imperialist" },
   hannity:          { name: "Sean Hannity",         personaId: "hannity",          bias: "right" },

@@ -4653,6 +4653,16 @@ export default function DebateStage() {
   // both sides get equal question time from the moderator over the course of the debate.
   const moderatorTargetRef = useRef<"A" | "B">("A");
 
+  // Bumped once per round. On a slow connection the primary-answer or rebuttal
+  // fetch for round N can still be in flight when round N+1 starts (e.g. after
+  // a null-guard retry or topic advance). Without this check a late-arriving
+  // response gets pushed into the TTS queue/transcript on top of round N+1's
+  // own dialogue, producing overlapping audio and out-of-order statements —
+  // the "running together" symptom on slow internet. Every consumer of a
+  // primary/rebuttal fetch result snapshots roundGenerationRef.current before
+  // awaiting, then re-checks it before using the result.
+  const roundGenerationRef = useRef(0);
+
   // Queue moderator audio → wait for full playback → reset state.
   // Routes through enqueueTTSAndWait so the queue's natural ordering guarantees
   // the current speaker always finishes before the moderator starts.
@@ -4791,6 +4801,10 @@ export default function DebateStage() {
       // Any fact-check that resolves after this point belongs to the preceding
       // exchange and must not be voiced over this new question.
       debateTurnRef.current += 1;
+      // New round starts now — any in-flight fetch from the previous round is
+      // stale the moment it resolves. See roundGenerationRef declaration above.
+      roundGenerationRef.current += 1;
+      const myRoundGeneration = roundGenerationRef.current;
 
       // Alternate which debater the moderator addresses
       const side = moderatorTargetRef.current;
@@ -4863,6 +4877,10 @@ export default function DebateStage() {
       let primaryDone = false;
       await Promise.all([
         primaryAnswerPromise.then((ans) => {
+          // A slow connection can let this settle after the round has already
+          // moved on (retry/timeout advanced roundGenerationRef) — discard it
+          // rather than queuing dialogue on top of the next round's turn.
+          if (myRoundGeneration !== roundGenerationRef.current) return;
           primaryAnswer = ans;
           primaryDone = true;
           setIsThinking(null);
@@ -4892,7 +4910,7 @@ export default function DebateStage() {
             rebuttalFetchPromise = prefetchedRebuttalAnswerRef.current ?? fetchAnswerFrom(primaryId, secondaryId, ans.text);
             prefetchedRebuttalAnswerRef.current = null; // consume
           }
-        }).catch(() => { primaryDone = true; setIsThinking(null); }),
+        }).catch(() => { if (myRoundGeneration === roundGenerationRef.current) { primaryDone = true; setIsThinking(null); } }),
         // Play the moderator question, then loop short filler lines until the
         // primary answer arrives — prevents dead air on slow connections.
         // Uses primaryDone (not primaryAnswer) so a null/failed fetch still exits.
@@ -5051,13 +5069,17 @@ export default function DebateStage() {
         // Audio is still pre-fetched here so the clip is cached and plays instantly.
         rebuttalPromise
           .then((r) => {
+            // Same stale-round guard as the primary answer above — a rebuttal
+            // that finally resolves after the round moved on must not be
+            // spoken over the new round's dialogue.
+            if (myRoundGeneration !== roundGenerationRef.current) return;
             rebuttal = r;
             rebuttalDone = true;
             if (r?.text && runningRef.current) {
               startPrefetch({ text: r.text, personaId: secondaryId });
             }
           })
-          .catch(() => { rebuttalDone = true; }),
+          .catch(() => { if (myRoundGeneration === roundGenerationRef.current) rebuttalDone = true; }),
 
         // Branch B: play bridge then fillers while rebuttal is in-flight, then enqueue
         // rebuttal TTS so it always follows the bridge — correct order guaranteed.

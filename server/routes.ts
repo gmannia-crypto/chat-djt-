@@ -8585,7 +8585,7 @@ Keep responses to 2-3 sentences max. Stay fully in character — urgent, gruff, 
   }
 
   const ARENA_NAME_MAP: Record<string, string> = {
-    grandad: "Grandad",
+    grandad: "Robert",
     trump: "Donald", netanyahu: "Benjamin (B.B.)", ruckus: "Ruckus",
     galloway: "George", mcconnell: "Mitch", carville: "James",
     maddow: "Rachel", omar: "Ilhan", biden: "Joe",
