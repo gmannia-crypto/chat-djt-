@@ -37,7 +37,36 @@ const PROTOCOL_BREAK_PATTERNS: RegExp[] = [
   /\bI\s+(?:can'?t|cannot|won'?t)\s+(?:generate|produce|create|continue with)\s+(?:content|a response|this)\s+that[^.!?]*[.!?]/gi,
   /\bthis\s+(?:crosses|violates)\s+(?:a\s+)?(?:safety|content)\s+(?:line|threshold|boundary)[^.!?]*[.!?]/gi,
 ];
+// Broader, deliberately loose watchlist for catching NEW character-break
+// phrasings we haven't seen yet. These are NOT stripped from the transcript
+// (too loose to safely auto-remove without risking false positives on
+// legitimate in-character lines) — a hit is only logged with a distinct,
+// greppable tag so new patterns can be spotted and promoted into
+// PROTOCOL_BREAK_PATTERNS above once confirmed as real character breaks.
+const CHARACTER_BREAK_WATCHLIST: RegExp[] = [
+  /\bas an ai\b/i,
+  /\blanguage model\b/i,
+  /\b(?:content|community)\s+(?:policy|policies|guidelines?)\b/i,
+  /\bi\s*(?:'|’)?m\s+(?:not able|unable)\s+to\b/i,
+  /\bi\s+(?:cannot|can'?t|won'?t)\s+(?:generate|produce|create|assist|continue)\b/i,
+  /\b(?:this|that)\s+(?:violates|crosses|goes against)\b/i,
+  /\binappropriate\s+(?:content|request|response)\b/i,
+  /\bsafe(?:ty)?\s+completion\b/i,
+  /\bharmful\s+(?:content|request)\b/i,
+  /\bmy\s+(?:programming|training|guidelines)\b/i,
+  /\bopenai\b/i,
+  /\bfictional\s+(?:character|representation)\b/i,
+  /\bi'?m\s+not\s+(?:the\s+)?real\b/i,
+];
+
 function stripBannedCliches(text: string): string {
+  if (text) {
+    for (const re of CHARACTER_BREAK_WATCHLIST) {
+      if (re.test(text)) {
+        console.warn(`[CHARACTER_BREAK_WATCH] possible new character-break phrasing (pattern ${re}): "${text.slice(0, 220)}"`);
+      }
+    }
+  }
   let out = text;
   for (const re of BANNED_CLICHE_PATTERNS) out = out.replace(re, "").replace(/\s{2,}/g, " ").trim();
   for (const re of PROTOCOL_BREAK_PATTERNS) out = out.replace(re, "").replace(/\s{2,}/g, " ").trim();
