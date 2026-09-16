@@ -28,6 +28,14 @@ const PROTOCOL_BREAK_PATTERNS: RegExp[] = [
   /\b(?:content|safety)\s+polic(?:y|ies)[^.!?]*[.!?]/gi,
   /\bI\s+(?:must|have to)\s+decline[^.!?]*[.!?]/gi,
   /\b(?:break|breaking)\s+character[^.!?]*[.!?]/gi,
+  // Violence-flagging meta-commentary — a model narrating that the CONTENT
+  // itself (rather than the character) contains/threatens/promotes violence,
+  // hate, self-harm, etc. Debate trash talk ("I'll destroy you," "political
+  // bloodbath") is normal and must stay; this only matches the model
+  // explicitly naming the content/response as the thing being flagged.
+  /\b(?:the\s+)?(?:content|response|message|statement)\s+(?:threatens|promotes|incites|contains|glorifies|advocates)\s+(?:violence|self-harm|hate|harm)[^.!?]*[.!?]/gi,
+  /\bI\s+(?:can'?t|cannot|won'?t)\s+(?:generate|produce|create|continue with)\s+(?:content|a response|this)\s+that[^.!?]*[.!?]/gi,
+  /\bthis\s+(?:crosses|violates)\s+(?:a\s+)?(?:safety|content)\s+(?:line|threshold|boundary)[^.!?]*[.!?]/gi,
 ];
 function stripBannedCliches(text: string): string {
   let out = text;
