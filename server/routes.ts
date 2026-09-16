@@ -195,8 +195,8 @@ const MODEL_CONFIG = {
   },
   budget: {
     chat: "deepseek-v4-pro",
-    fast: "deepseek-v4-flash",
-    label: "DeepSeek V3 (Budget)",
+    fast: "deepseek-flash",
+    label: "DeepSeek (Budget)",
     costPer1kTokens: { input: 0.00014, output: 0.00028 },
     description: "Very affordable, good quality. ~98% cheaper than GPT-5.2.",
   },
@@ -227,7 +227,7 @@ const deepseek = new OpenAI({
 // The "budget" tier's model names (deepseek-v4-*) only exist on the DeepSeek
 // API. If DEEPSEEK_API_KEY isn't configured, getClient() below correctly
 // falls back to the OpenAI-compatible client — but that client has no model
-// named "deepseek-v4-flash"/"deepseek-v4-pro". Every model-name lookup must
+// named "deepseek-flash"/"deepseek-v4-pro". Every model-name lookup must
 // fall back to "premium" in lockstep with the client fallback, or budget-tier
 // requests silently hang against a nonexistent model until the caller's AI
 // timeout fires (this took down interview/debate topic + question generation
@@ -15534,7 +15534,7 @@ p{color:#999;font-size:16px;margin-bottom:24px}
 
       const LLM = {
         premium: { model: "GPT-5.2",     inputPer1k: 0.01,     outputPer1k: 0.03,    avgIn: 500, avgOut: 350 },
-        budget:  { model: "DeepSeek V3", inputPer1k: 0.00014,  outputPer1k: 0.00028, avgIn: 500, avgOut: 350 },
+        budget:  { model: "DeepSeek", inputPer1k: 0.00014,  outputPer1k: 0.00028, avgIn: 500, avgOut: 350 },
       };
       const llmCostPremium = (LLM.premium.avgIn / 1000) * LLM.premium.inputPer1k + (LLM.premium.avgOut / 1000) * LLM.premium.outputPer1k;
       const llmCostBudget  = (LLM.budget.avgIn  / 1000) * LLM.budget.inputPer1k  + (LLM.budget.avgOut  / 1000) * LLM.budget.outputPer1k;

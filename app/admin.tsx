@@ -477,7 +477,7 @@ function TokenEconomicsSection({ adminKey }: { adminKey: string }) {
             <View style={[ecoStyles.costRow, ecoStyles.costRowBorder]}>
               <View style={ecoStyles.costLabelRow}>
                 <MaterialCommunityIcons name="leaf" size={13} color="#4ADE80" />
-                <Text style={ecoStyles.costLabel}>LLM Budget (DeepSeek V3)</Text>
+                <Text style={ecoStyles.costLabel}>LLM Budget (DeepSeek)</Text>
               </View>
               <Text style={ecoStyles.costVal}>{fmt4(data.costModel.llm.budget.costPerDCToken)}</Text>
               <Text style={ecoStyles.costNote}>${data.costModel.llm.budget.inputPer1k}/K in · ${data.costModel.llm.budget.outputPer1k}/K out</Text>
