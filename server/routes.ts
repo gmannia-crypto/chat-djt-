@@ -59,6 +59,57 @@ const CHARACTER_BREAK_WATCHLIST: RegExp[] = [
   /\bi'?m\s+not\s+(?:the\s+)?real\b/i,
 ];
 
+// Returns true if text contains ANY known or suspected character-break
+// phrasing (hard patterns OR the loose watchlist). Used to trigger an
+// automatic regeneration BEFORE a broken line ever reaches a transcript,
+// instead of relying solely on post-hoc stripping (which can leave a
+// mangled/truncated line behind).
+function hasCharacterBreak(text: string): boolean {
+  if (!text) return false;
+  for (const re of PROTOCOL_BREAK_PATTERNS) {
+    re.lastIndex = 0;
+    if (re.test(text)) { re.lastIndex = 0; return true; }
+  }
+  for (const re of CHARACTER_BREAK_WATCHLIST) {
+    re.lastIndex = 0;
+    if (re.test(text)) { re.lastIndex = 0; return true; }
+  }
+  return false;
+}
+
+// Runs a chat completion; if the raw output trips a character-break
+// pattern, retries once with an added corrective instruction before giving
+// up and letting the caller fall back to stripBannedCliches as a last
+// resort. This stops a broken line from ever reaching the transcript in
+// the common case, rather than just cutting the bad sentence out after
+// the fact.
+async function createGuardedCompletion(
+  client: OpenAI,
+  params: Record<string, any>,
+): Promise<{ completion: any; text: string; regenerated: boolean }> {
+  let completion = await client.chat.completions.create(params as any);
+  let text: string = completion.choices?.[0]?.message?.content || "";
+  if (!hasCharacterBreak(text)) return { completion, text, regenerated: false };
+
+  console.warn(`[CHARACTER_BREAK_RETRY] regenerating after character break: "${text.slice(0, 200)}"`);
+  const retryParams = {
+    ...params,
+    messages: [
+      ...(params.messages || []),
+      {
+        role: "system",
+        content: "Your previous reply broke character — it referenced AI, safety, content policy, guidelines, or similar meta-commentary. Regenerate your answer completely in character with zero meta-commentary of that kind. Just speak as the character would, with no reference to limits, policies, or being an AI.",
+      },
+    ],
+  };
+  const retryCompletion = await client.chat.completions.create(retryParams as any);
+  const retryText: string = retryCompletion.choices?.[0]?.message?.content || "";
+  if (hasCharacterBreak(retryText)) {
+    console.warn(`[CHARACTER_BREAK_RETRY] second attempt still broke character, falling back to strip: "${retryText.slice(0, 200)}"`);
+  }
+  return { completion: retryCompletion, text: retryText, regenerated: true };
+}
+
 function stripBannedCliches(text: string): string {
   if (text) {
     for (const re of CHARACTER_BREAK_WATCHLIST) {
@@ -9099,7 +9150,7 @@ Keep responses to 2-3 sentences max. Stay fully in character — urgent, gruff, 
       }
 
       const tokenLimit = (isInterruption ? 30 : 260) + (wantsReaction ? 40 : 0);
-      const completion = await getClient().chat.completions.create({
+      const { text: guardedText } = await createGuardedCompletion(getClient(), {
         model: getFastModel(),
         messages: [
           { role: "system", content: systemPrompt },
@@ -9108,7 +9159,7 @@ Keep responses to 2-3 sentences max. Stay fully in character — urgent, gruff, 
         max_completion_tokens: tokenLimit,
         temperature: 0.9,
       });
-      let rawContent = completion.choices[0]?.message?.content || "...";
+      let rawContent = guardedText || "...";
 
       // Split off the optional live reaction (marker only present when
       // wantsReaction was set — see prompt above). Missing/garbled markers
@@ -9406,7 +9457,7 @@ REACTION (separate persona listening in): ${reactorName} is standing in the room
 
       // Generate both greeting lines in parallel
       const [ivResult, iveeResult] = await Promise.all([
-        getClient().chat.completions.create({
+        createGuardedCompletion(getClient(), {
           model: getFastModel(),
           messages: [
             { role: "system", content: `${getArenaPersonaPrompt(interviewerId)}\n\nYou are ${interviewerName}. Today is ${todayStr}. You are opening a live televised 1-on-1 interview with ${intervieweeName}.` },
@@ -9415,7 +9466,7 @@ REACTION (separate persona listening in): ${reactorName} is standing in the room
           max_completion_tokens: 80,
           temperature: 0.9,
         }),
-        getClient().chat.completions.create({
+        createGuardedCompletion(getClient(), {
           model: getFastModel(),
           messages: [
             { role: "system", content: `${getArenaPersonaPrompt(intervieweeId)}\n\nYou are ${intervieweeName}. Today is ${todayStr}. You are appearing on a live TV interview hosted by ${interviewerName}.` },
@@ -9426,8 +9477,8 @@ REACTION (separate persona listening in): ${reactorName} is standing in the room
         }),
       ]);
 
-      const ivText = stripBannedCliches((ivResult.choices[0]?.message?.content || "").replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").trim());
-      const iveeText = stripBannedCliches((iveeResult.choices[0]?.message?.content || "").replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").trim());
+      const ivText = stripBannedCliches((ivResult.text || "").replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").trim());
+      const iveeText = stripBannedCliches((iveeResult.text || "").replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").trim());
 
       res.json({
         interviewer: { speakerId: interviewerId, speakerName: interviewerName, text: ivText },
