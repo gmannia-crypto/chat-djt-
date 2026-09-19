@@ -1035,7 +1035,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const testModel = async (tier: ModelTier) => {
         const config = MODEL_CONFIG[tier];
-        const client = tier === "budget" && process.env.DEEPSEEK_API_KEY ? deepseek : openai;
+        const client = tier === "budget" && process.env.DEEPSEEK_API_KEY ? deepseek
+          : tier === "claude" && process.env.ANTHROPIC_API_KEY ? claude
+          : openai;
         const start = Date.now();
         try {
           const completion = await client.chat.completions.create({
@@ -1065,16 +1067,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (process.env.DEEPSEEK_API_KEY) {
         tests.push(testModel("budget"));
       }
+      if (process.env.ANTHROPIC_API_KEY) {
+        tests.push(testModel("claude"));
+      }
       await Promise.all(tests);
 
       const premiumCost = 0.01 * 0.2 + 0.03 * 0.2;
       const budgetCost = 0.00014 * 0.2 + 0.00028 * 0.2;
+      const claudeCost = 0.003 * 0.2 + 0.015 * 0.2;
 
       res.json({
         results,
         costComparison: {
           premiumPer1kRequests: `$${(premiumCost * 1000).toFixed(2)}`,
           budgetPer1kRequests: process.env.DEEPSEEK_API_KEY ? `$${(budgetCost * 1000).toFixed(2)}` : "N/A (no API key)",
+          claudePer1kRequests: process.env.ANTHROPIC_API_KEY ? `$${(claudeCost * 1000).toFixed(2)}` : "N/A (no API key)",
           savingsPercent: process.env.DEEPSEEK_API_KEY ? `${((1 - budgetCost / premiumCost) * 100).toFixed(1)}%` : "N/A",
         },
         recommendation: process.env.DEEPSEEK_API_KEY
