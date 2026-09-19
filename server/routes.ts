@@ -88,7 +88,32 @@ async function createGuardedCompletion(
   params: Record<string, any>,
 ): Promise<{ completion: any; text: string; regenerated: boolean }> {
   let completion = await client.chat.completions.create(params as any);
-  let text: string = completion.choices?.[0]?.message?.content || "";
+  let choice = completion.choices?.[0];
+  let text: string = choice?.message?.content || "";
+
+  // Truncation guard: if the model hit the token cap mid-sentence, ask it to
+  // finish the thought instead of leaving a dangling clause in the transcript
+  // (this is what "dialogue doesn't finish on long responses" looks like —
+  // the model wrote a good answer, max_completion_tokens just cut it off).
+  // Bounded to 2 continuation rounds so a runaway response can't balloon.
+  let continuations = 0;
+  while (choice?.finish_reason === "length" && continuations < 2) {
+    continuations++;
+    const contCompletion = await client.chat.completions.create({
+      ...params,
+      messages: [
+        ...(params.messages || []),
+        { role: "assistant", content: text },
+        { role: "user", content: "Continue exactly from where you left off and finish that sentence/thought naturally, then stop. Do not repeat anything already said, and do not start a new sentence beyond finishing this one." },
+      ],
+      max_completion_tokens: Math.max(60, Math.round((params.max_completion_tokens || 200) * 0.4)),
+    } as any);
+    choice = contCompletion.choices?.[0];
+    const contText = choice?.message?.content || "";
+    text = `${text}${text && !/\s$/.test(text) ? " " : ""}${contText}`.trim();
+    completion = contCompletion;
+  }
+
   if (!hasCharacterBreak(text)) return { completion, text, regenerated: false };
 
   console.warn(`[CHARACTER_BREAK_RETRY] regenerating after character break: "${text.slice(0, 200)}"`);
@@ -9149,7 +9174,7 @@ Keep responses to 2-3 sentences max. Stay fully in character — urgent, gruff, 
         userPrompt += `\n\nSEPARATE STEP — REACTION CHECK: After writing your answer above (including its mandatory hidden [IQ:X,ALT:Y] self-score tag, which still belongs at the end of THAT answer), decide whether what you just said was a genuinely absurd, hyperbolic, boastful, or sarcasm-worthy claim — something so over-the-top that ${reactorName}, listening in the room, would burst out laughing, scoff, or crack up in disbelief the INSTANT you said it. Be selective — most ordinary lines do NOT qualify, only real "come on, be serious" moments.\n\nIf it qualifies: on a new final line AFTER the [IQ:X,ALT:Y] tag, write the exact marker "###REACT###" followed by ${reactorName}'s immediate spoken reaction — in ${reactorName}'s own voice, personality, and vocabulary (not generic), a short sharp sarcastic laugh-line or scoff, under 12 words, with NOTHING else after it (no tags, no scores, no stage directions). Example shape only (write your own, in character): "Please. Boy you must be on crack." / "Ha! Sure you did." Here is ${reactorName}'s personality for this reaction line ONLY: ${reactorPersonaSnippet}\n\nIf it does NOT qualify: write the exact marker "###REACT###" followed by exactly "NONE".\n\nAlways include the "###REACT###" marker line exactly once, after your full answer and its self-score tag.`;
       }
 
-      const tokenLimit = (isInterruption ? 30 : 260) + (wantsReaction ? 40 : 0);
+      const tokenLimit = (isInterruption ? 30 : 320) + (wantsReaction ? 40 : 0);
       const { text: guardedText } = await createGuardedCompletion(getClient(), {
         model: getFastModel(),
         messages: [
@@ -10073,19 +10098,19 @@ Stay 100% in character — your tone, vocabulary, ideology, and combativeness ar
       const answerTimeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(() => reject(Object.assign(new Error("AI_TIMEOUT"), { code: "AI_TIMEOUT" })), 15000)
       );
-      const completion = await Promise.race([
-        openai.chat.completions.create({
+      const { text: guardedAnswerText } = await Promise.race([
+        createGuardedCompletion(openai, {
           model: MODEL_CONFIG.premium.fast,
           messages: [
             { role: "system", content: intervieweeStyleFinal },
             { role: "user", content: userPrompt },
           ],
-          max_completion_tokens: insultFireback ? 60 : (isInterruption ? 40 : (isDebate ? 350 : 280)) + (wantsReaction ? 40 : 0),
+          max_completion_tokens: (insultFireback ? 60 : (isInterruption ? 40 : (isDebate ? 420 : 340)) + (wantsReaction ? 40 : 0)),
           temperature: 0.95,
         }),
         answerTimeoutPromise,
       ]);
-      let rawText = completion.choices[0]?.message?.content || "...";
+      let rawText = guardedAnswerText || "...";
 
       // Split off the optional live reaction (marker only present when wantsReaction
       // was set — see prompt above). Missing/garbled markers fall back to no reaction
