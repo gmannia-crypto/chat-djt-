@@ -255,8 +255,8 @@ const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
 
-type ModelTier = "premium" | "budget";
-type ModelMode = "premium" | "budget" | "split";
+type ModelTier = "premium" | "budget" | "claude";
+type ModelMode = "premium" | "budget" | "claude" | "split";
 let activeModelTier: ModelTier = "budget";
 let activeModelMode: ModelMode = "budget";
 let splitPercentBudget: number = 70;
@@ -275,6 +275,13 @@ const MODEL_CONFIG = {
     label: "DeepSeek (Budget)",
     costPer1kTokens: { input: 0.00014, output: 0.00028 },
     description: "Very affordable, good quality. ~98% cheaper than GPT-5.2.",
+  },
+  claude: {
+    chat: "claude-sonnet-4-5-20250929",
+    fast: "claude-3-5-haiku-20241022",
+    label: "Claude Sonnet 4.5 / Haiku (Anthropic)",
+    costPer1kTokens: { input: 0.003, output: 0.015 },
+    description: "Strong writing quality and instruction-following. Mid-range cost.",
   },
 };
 
@@ -300,17 +307,27 @@ const deepseek = new OpenAI({
   baseURL: "https://api.deepseek.com",
 });
 
-// The "budget" tier's model names (deepseek-v4-*) only exist on the DeepSeek
-// API. If DEEPSEEK_API_KEY isn't configured, getClient() below correctly
-// falls back to the OpenAI-compatible client — but that client has no model
-// named "deepseek-flash"/"deepseek-v4-pro". Every model-name lookup must
-// fall back to "premium" in lockstep with the client fallback, or budget-tier
-// requests silently hang against a nonexistent model until the caller's AI
-// timeout fires (this took down interview/debate topic + question generation
+// Anthropic exposes an OpenAI-compatible endpoint (same chat.completions
+// shape as DeepSeek above), so the "claude" tier reuses the OpenAI SDK
+// instead of pulling in a separate Anthropic client.
+const claude = new OpenAI({
+  apiKey: process.env.ANTHROPIC_API_KEY || "",
+  baseURL: "https://api.anthropic.com/v1/",
+});
+
+// The "budget"/"claude" tiers' model names only exist on their respective
+// APIs. If the matching key isn't configured, getClient() below correctly
+// falls back to the OpenAI client — but that client has no model named
+// "deepseek-flash"/"claude-sonnet-4-5-...". Every model-name lookup must
+// fall back to "premium" in lockstep with the client fallback, or requests
+// silently hang against a nonexistent model until the caller's AI timeout
+// fires (this took down interview/debate topic + question generation
 // entirely when no DeepSeek key was present).
 function getEffectiveTier(): ModelTier {
   const tier = resolveModelTier();
-  return tier === "budget" && !process.env.DEEPSEEK_API_KEY ? "premium" : tier;
+  if (tier === "budget" && !process.env.DEEPSEEK_API_KEY) return "premium";
+  if (tier === "claude" && !process.env.ANTHROPIC_API_KEY) return "premium";
+  return tier;
 }
 function getChatModel(): string {
   return MODEL_CONFIG[getEffectiveTier()].chat;
@@ -319,7 +336,10 @@ function getFastModel(): string {
   return MODEL_CONFIG[getEffectiveTier()].fast;
 }
 function getClient(): OpenAI {
-  return getEffectiveTier() === "budget" ? deepseek : openai;
+  const tier = getEffectiveTier();
+  if (tier === "budget") return deepseek;
+  if (tier === "claude") return claude;
+  return openai;
 }
 
 async function requireToken(req: any, res: any): Promise<boolean> {
@@ -940,11 +960,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/model-settings", (_req, res) => {
     const hasDeepseek = !!process.env.DEEPSEEK_API_KEY;
+    const hasClaude = !!process.env.ANTHROPIC_API_KEY;
     const premiumCost = MODEL_CONFIG.premium.costPer1kTokens;
     const budgetCost = MODEL_CONFIG.budget.costPer1kTokens;
     let estimatedCostPer1k = "$8.00";
     if (activeModelMode === "budget") {
       estimatedCostPer1k = "$0.08";
+    } else if (activeModelMode === "claude") {
+      const claudeCost = MODEL_CONFIG.claude.costPer1kTokens;
+      estimatedCostPer1k = `~$${((claudeCost.input + claudeCost.output) * 500).toFixed(2)}`;
     } else if (activeModelMode === "split") {
       const budgetFrac = splitPercentBudget / 100;
       const blended = (premiumCost.input + premiumCost.output) * (1 - budgetFrac) * 500 +
@@ -965,6 +989,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ...MODEL_CONFIG.budget,
           available: hasDeepseek,
         },
+        claude: {
+          ...MODEL_CONFIG.claude,
+          available: hasClaude,
+        },
       },
       savings: hasDeepseek ? "~98% cost reduction with DeepSeek vs GPT-5.2" : null,
     });
@@ -984,11 +1012,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.json({ success: true, activeMode: "split", splitPercentBudget: pct });
     }
     const selectedTier = tier || mode;
-    if (selectedTier !== "premium" && selectedTier !== "budget") {
-      return res.status(400).json({ error: "tier must be 'premium', 'budget', or use mode='split'" });
+    if (selectedTier !== "premium" && selectedTier !== "budget" && selectedTier !== "claude") {
+      return res.status(400).json({ error: "tier must be 'premium', 'budget', 'claude', or use mode='split'" });
     }
     if (selectedTier === "budget" && !process.env.DEEPSEEK_API_KEY) {
       return res.status(400).json({ error: "DeepSeek API key not configured. Add DEEPSEEK_API_KEY to environment." });
+    }
+    if (selectedTier === "claude" && !process.env.ANTHROPIC_API_KEY) {
+      return res.status(400).json({ error: "Anthropic API key not configured. Add ANTHROPIC_API_KEY to environment." });
     }
     activeModelTier = selectedTier;
     activeModelMode = selectedTier;
@@ -15611,12 +15642,15 @@ p{color:#999;font-size:16px;margin-bottom:24px}
       const LLM = {
         premium: { model: "GPT-5.2",     inputPer1k: 0.01,     outputPer1k: 0.03,    avgIn: 500, avgOut: 350 },
         budget:  { model: "DeepSeek", inputPer1k: 0.00014,  outputPer1k: 0.00028, avgIn: 500, avgOut: 350 },
+        claude:  { model: "Claude Sonnet 4.5", inputPer1k: 0.003, outputPer1k: 0.015, avgIn: 500, avgOut: 350 },
       };
       const llmCostPremium = (LLM.premium.avgIn / 1000) * LLM.premium.inputPer1k + (LLM.premium.avgOut / 1000) * LLM.premium.outputPer1k;
       const llmCostBudget  = (LLM.budget.avgIn  / 1000) * LLM.budget.inputPer1k  + (LLM.budget.avgOut  / 1000) * LLM.budget.outputPer1k;
+      const llmCostClaude  = (LLM.claude.avgIn  / 1000) * LLM.claude.inputPer1k  + (LLM.claude.avgOut  / 1000) * LLM.claude.outputPer1k;
       const totalCostPremium = llmCostPremium + fishAudioCostPerCall;
       const totalCostBudget  = llmCostBudget  + fishAudioCostPerCall;
-      const activeCostPerToken = activeModelTier === "premium" ? totalCostPremium : totalCostBudget;
+      const totalCostClaude  = llmCostClaude  + fishAudioCostPerCall;
+      const activeCostPerToken = activeModelTier === "premium" ? totalCostPremium : activeModelTier === "claude" ? totalCostClaude : totalCostBudget;
 
       // ── Replit hosting tiers ──────────────────────────────────────────────
       // Pricing: Core plan $20/mo + Reserved VM per tier (as of 2025)
@@ -15758,10 +15792,13 @@ p{color:#999;font-size:16px;margin-bottom:24px}
           revenuePerToken,
           costPerTokenPremium: totalCostPremium,
           costPerTokenBudget:  totalCostBudget,
+          costPerTokenClaude:  totalCostClaude,
           profitPerTokenPremium: revenuePerToken - totalCostPremium,
           profitPerTokenBudget:  revenuePerToken - totalCostBudget,
+          profitPerTokenClaude:  revenuePerToken - totalCostClaude,
           marginPctPremium: ((revenuePerToken - totalCostPremium) / revenuePerToken) * 100,
           marginPctBudget:  ((revenuePerToken - totalCostBudget)  / revenuePerToken) * 100,
+          marginPctClaude:  ((revenuePerToken - totalCostClaude)  / revenuePerToken) * 100,
         };
       });
 
@@ -15776,6 +15813,7 @@ p{color:#999;font-size:16px;margin-bottom:24px}
           revenuePerToken,
           marginPctPremium: ((revenuePerToken - totalCostPremium) / revenuePerToken) * 100,
           marginPctBudget:  ((revenuePerToken - totalCostBudget)  / revenuePerToken) * 100,
+          marginPctClaude:  ((revenuePerToken - totalCostClaude)  / revenuePerToken) * 100,
         };
       });
 
@@ -15788,8 +15826,9 @@ p{color:#999;font-size:16px;margin-bottom:24px}
           llm: {
             premium: { ...LLM.premium, costPerDCToken: llmCostPremium },
             budget:  { ...LLM.budget,  costPerDCToken: llmCostBudget  },
+            claude:  { ...LLM.claude,  costPerDCToken: llmCostClaude  },
           },
-          totalPerDCToken: { premium: totalCostPremium, budget: totalCostBudget },
+          totalPerDCToken: { premium: totalCostPremium, budget: totalCostBudget, claude: totalCostClaude },
         },
         actuals: {
           mau, totalUsers, activeSubs, vipSubs, standardSubs,

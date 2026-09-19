@@ -190,6 +190,9 @@ function ModelQuickToggle({ modelData, onSwitch }: { modelData: any; onSwitch: (
   if (currentMode === "budget") {
     modeLabel = "DeepSeek";
     modeColor = "#4ADE80";
+  } else if (currentMode === "claude") {
+    modeLabel = "Claude";
+    modeColor = "#D97757";
   } else if (currentMode === "split") {
     modeLabel = `Split ${splitPct}/${100 - splitPct}`;
     modeColor = "#60A5FA";
@@ -230,6 +233,14 @@ function ModelQuickToggle({ modelData, onSwitch }: { modelData: any; onSwitch: (
         >
           <MaterialCommunityIcons name="leaf" size={14} color={currentMode === "budget" ? "#4ADE80" : "#666"} />
           <Text style={[toggleStyles.modeBtnText, currentMode === "budget" && { color: "#4ADE80" }]}>BUDGET</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => quickSwitch("claude")}
+          disabled={switching || !modelData?.models?.claude?.available}
+          style={[toggleStyles.modeBtn, currentMode === "claude" && { borderColor: "#D97757", backgroundColor: "rgba(217,119,87,0.12)" }]}
+        >
+          <MaterialCommunityIcons name="creation" size={14} color={currentMode === "claude" ? "#D97757" : "#666"} />
+          <Text style={[toggleStyles.modeBtnText, currentMode === "claude" && { color: "#D97757" }]}>CLAUDE</Text>
         </Pressable>
       </View>
     </View>
@@ -323,8 +334,9 @@ interface TokenEconomicsData {
     llm: {
       premium: { model: string; inputPer1k: number; outputPer1k: number; avgIn: number; avgOut: number; costPerDCToken: number };
       budget:  { model: string; inputPer1k: number; outputPer1k: number; avgIn: number; avgOut: number; costPerDCToken: number };
+      claude:  { model: string; inputPer1k: number; outputPer1k: number; avgIn: number; avgOut: number; costPerDCToken: number };
     };
-    totalPerDCToken: { premium: number; budget: number };
+    totalPerDCToken: { premium: number; budget: number; claude: number };
   };
   actuals: {
     mau: number; totalUsers: number; activeSubs: number; vipSubs: number; standardSubs: number;
@@ -340,13 +352,13 @@ interface TokenEconomicsData {
   packs: {
     id: string; name: string; tokens: number; price: number; priceDisplay: string;
     liveStripePriceCents: number | null; liveStripePriceDisplay: string | null;
-    revenuePerToken: number; costPerTokenPremium: number; costPerTokenBudget: number;
-    profitPerTokenPremium: number; profitPerTokenBudget: number;
-    marginPctPremium: number; marginPctBudget: number;
+    revenuePerToken: number; costPerTokenPremium: number; costPerTokenBudget: number; costPerTokenClaude: number;
+    profitPerTokenPremium: number; profitPerTokenBudget: number; profitPerTokenClaude: number;
+    marginPctPremium: number; marginPctBudget: number; marginPctClaude: number;
   }[];
   subscriptions: {
     name: string; tokensPerMonth: number; priceMonthly: number; priceDisplay: string;
-    revenuePerToken: number; marginPctPremium: number; marginPctBudget: number;
+    revenuePerToken: number; marginPctPremium: number; marginPctBudget: number; marginPctClaude: number;
   }[];
 }
 
@@ -379,8 +391,8 @@ function TokenEconomicsSection({ adminKey }: { adminKey: string }) {
   const fmtPct = (n: number) => `${n.toFixed(1)}%`;
   const fmtK  = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(0)}K` : `${n}`;
 
-  const tierLabel = data?.activeTier === "budget" ? "DeepSeek" : data?.activeTier === "split" ? "Split" : "GPT-5.2";
-  const tierColor = data?.activeTier === "budget" ? "#4ADE80" : data?.activeTier === "split" ? "#60A5FA" : "#FFD700";
+  const tierLabel = data?.activeTier === "budget" ? "DeepSeek" : data?.activeTier === "claude" ? "Claude" : data?.activeTier === "split" ? "Split" : "GPT-5.2";
+  const tierColor = data?.activeTier === "budget" ? "#4ADE80" : data?.activeTier === "claude" ? "#D97757" : data?.activeTier === "split" ? "#60A5FA" : "#FFD700";
 
   const profitColor = (v: number) => v >= 0 ? "#4ADE80" : "#EF4444";
   const marginColor = (v: number) => v > 70 ? "#4ADE80" : v > 40 ? "#F59E0B" : "#EF4444";
@@ -482,6 +494,14 @@ function TokenEconomicsSection({ adminKey }: { adminKey: string }) {
               <Text style={ecoStyles.costVal}>{fmt4(data.costModel.llm.budget.costPerDCToken)}</Text>
               <Text style={ecoStyles.costNote}>${data.costModel.llm.budget.inputPer1k}/K in · ${data.costModel.llm.budget.outputPer1k}/K out</Text>
             </View>
+            <View style={[ecoStyles.costRow, ecoStyles.costRowBorder]}>
+              <View style={ecoStyles.costLabelRow}>
+                <MaterialCommunityIcons name="creation" size={13} color="#D97757" />
+                <Text style={ecoStyles.costLabel}>LLM Claude (Anthropic)</Text>
+              </View>
+              <Text style={ecoStyles.costVal}>{fmt4(data.costModel.llm.claude.costPerDCToken)}</Text>
+              <Text style={ecoStyles.costNote}>${data.costModel.llm.claude.inputPer1k}/K in · ${data.costModel.llm.claude.outputPer1k}/K out</Text>
+            </View>
             <View style={[ecoStyles.costRow, ecoStyles.costRowBorder, { backgroundColor: "rgba(255,255,255,0.02)" }]}>
               <View style={ecoStyles.costLabelRow}>
                 <MaterialCommunityIcons name="sigma" size={13} color="#FFD700" />
@@ -496,6 +516,14 @@ function TokenEconomicsSection({ adminKey }: { adminKey: string }) {
                 <Text style={[ecoStyles.costLabel, { color: "#ddd" }]}>Total (Budget mode)</Text>
               </View>
               <Text style={[ecoStyles.costVal, { color: "#4ADE80" }]}>{fmt4(data.costModel.totalPerDCToken.budget)}</Text>
+              <Text style={ecoStyles.costNote}> </Text>
+            </View>
+            <View style={[ecoStyles.costRow, ecoStyles.costRowBorder, { backgroundColor: "rgba(255,255,255,0.02)" }]}>
+              <View style={ecoStyles.costLabelRow}>
+                <MaterialCommunityIcons name="sigma" size={13} color="#D97757" />
+                <Text style={[ecoStyles.costLabel, { color: "#ddd" }]}>Total (Claude mode)</Text>
+              </View>
+              <Text style={[ecoStyles.costVal, { color: "#D97757" }]}>{fmt4(data.costModel.totalPerDCToken.claude)}</Text>
               <Text style={ecoStyles.costNote}> </Text>
             </View>
           </View>
@@ -560,8 +588,9 @@ function TokenEconomicsSection({ adminKey }: { adminKey: string }) {
           <Text style={[ecoStyles.subhead, { marginTop: 16 }]}>Token Packs — Margin</Text>
           {data.packs.map((pack, i) => {
             const isBudget = data.activeTier === "budget";
-            const margin = isBudget ? pack.marginPctBudget : pack.marginPctPremium;
-            const profit = isBudget ? pack.profitPerTokenBudget : pack.profitPerTokenPremium;
+            const isClaude = data.activeTier === "claude";
+            const margin = isBudget ? pack.marginPctBudget : isClaude ? pack.marginPctClaude : pack.marginPctPremium;
+            const profit = isBudget ? pack.profitPerTokenBudget : isClaude ? pack.profitPerTokenClaude : pack.profitPerTokenPremium;
             return (
               <View key={pack.id} style={ecoStyles.packCard}>
                 <View style={ecoStyles.packTop}>
@@ -580,7 +609,7 @@ function TokenEconomicsSection({ adminKey }: { adminKey: string }) {
                   </View>
                   <View style={ecoStyles.packMetric}>
                     <Text style={ecoStyles.packMetricLabel}>Cost/token</Text>
-                    <Text style={[ecoStyles.packMetricVal, { color: "#EF4444" }]}>{fmt4(isBudget ? pack.costPerTokenBudget : pack.costPerTokenPremium)}</Text>
+                    <Text style={[ecoStyles.packMetricVal, { color: "#EF4444" }]}>{fmt4(isBudget ? pack.costPerTokenBudget : isClaude ? pack.costPerTokenClaude : pack.costPerTokenPremium)}</Text>
                   </View>
                   <View style={ecoStyles.packMetric}>
                     <Text style={ecoStyles.packMetricLabel}>Profit/token</Text>
@@ -595,6 +624,8 @@ function TokenEconomicsSection({ adminKey }: { adminKey: string }) {
                   <Text style={[ecoStyles.modeText, { color: "#FFD700" }]}>GPT: {fmtPct(pack.marginPctPremium)}</Text>
                   <Text style={ecoStyles.modeSep}> · </Text>
                   <Text style={[ecoStyles.modeText, { color: "#4ADE80" }]}>DeepSeek: {fmtPct(pack.marginPctBudget)}</Text>
+                  <Text style={ecoStyles.modeSep}> · </Text>
+                  <Text style={[ecoStyles.modeText, { color: "#D97757" }]}>Claude: {fmtPct(pack.marginPctClaude)}</Text>
                 </View>
               </View>
             );
@@ -604,7 +635,8 @@ function TokenEconomicsSection({ adminKey }: { adminKey: string }) {
           <Text style={ecoStyles.subhead}>Subscriptions — Margin</Text>
           {data.subscriptions.map((sub) => {
             const isBudget = data.activeTier === "budget";
-            const margin = isBudget ? sub.marginPctBudget : sub.marginPctPremium;
+            const isClaude = data.activeTier === "claude";
+            const margin = isBudget ? sub.marginPctBudget : isClaude ? sub.marginPctClaude : sub.marginPctPremium;
             return (
               <View key={sub.name} style={ecoStyles.packCard}>
                 <View style={ecoStyles.packTop}>
@@ -625,6 +657,8 @@ function TokenEconomicsSection({ adminKey }: { adminKey: string }) {
                   <Text style={[ecoStyles.modeText, { color: "#FFD700" }]}>GPT: {fmtPct(sub.marginPctPremium)}</Text>
                   <Text style={ecoStyles.modeSep}> · </Text>
                   <Text style={[ecoStyles.modeText, { color: "#4ADE80" }]}>DeepSeek: {fmtPct(sub.marginPctBudget)}</Text>
+                  <Text style={ecoStyles.modeSep}> · </Text>
+                  <Text style={[ecoStyles.modeText, { color: "#D97757" }]}>Claude: {fmtPct(sub.marginPctClaude)}</Text>
                 </View>
               </View>
             );
@@ -793,6 +827,7 @@ function ModelSettingsSection({ onModelChange }: { onModelChange?: () => void })
 
   const premium = modelData.models.premium;
   const budget = modelData.models.budget;
+  const claudeModel = modelData.models.claude;
   const currentMode = modelData.activeMode || "premium";
 
   return (
@@ -836,6 +871,25 @@ function ModelSettingsSection({ onModelChange }: { onModelChange?: () => void })
             {currentMode === "budget" && <Text style={[modelStyles.activeLabel, { color: "#4ADE80" }]}>ACTIVE</Text>}
             {!budget.available && <Text style={modelStyles.unavailableLabel}>Add DEEPSEEK_API_KEY</Text>}
           </Pressable>
+          {claudeModel && (
+            <Pressable
+              onPress={() => switchMode("claude")}
+              disabled={switching || !claudeModel.available}
+              style={({ pressed }) => [
+                modelStyles.tierCard,
+                currentMode === "claude" && modelStyles.tierCardActive,
+                !claudeModel.available && { opacity: 0.4 },
+                pressed && { opacity: 0.8 },
+              ]}
+            >
+              <MaterialCommunityIcons name="creation" size={22} color={currentMode === "claude" ? "#D97757" : "#666"} />
+              <Text style={[modelStyles.tierName, currentMode === "claude" && { color: "#D97757" }]}>Claude</Text>
+              <Text style={modelStyles.tierModel}>{claudeModel.chat}</Text>
+              <Text style={modelStyles.tierCost}>~$1.50/1K requests</Text>
+              {currentMode === "claude" && <Text style={[modelStyles.activeLabel, { color: "#D97757" }]}>ACTIVE</Text>}
+              {!claudeModel.available && <Text style={modelStyles.unavailableLabel}>Add ANTHROPIC_API_KEY</Text>}
+            </Pressable>
+          )}
         </View>
 
         {budget.available && (
