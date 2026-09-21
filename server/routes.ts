@@ -278,7 +278,7 @@ const MODEL_CONFIG = {
   },
   claude: {
     chat: "claude-sonnet-4-5-20250929",
-    fast: "claude-3-5-haiku-20241022",
+    fast: "claude-haiku-4-5-20251001",
     label: "Claude Sonnet 4.5 / Haiku (Anthropic)",
     costPer1kTokens: { input: 0.003, output: 0.015 },
     description: "Strong writing quality and instruction-following. Mid-range cost.",
