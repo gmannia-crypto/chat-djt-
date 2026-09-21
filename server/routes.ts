@@ -59,18 +59,26 @@ const CHARACTER_BREAK_WATCHLIST: RegExp[] = [
   /\bi'?m\s+not\s+(?:the\s+)?real\b/i,
 ];
 
-// Returns true if text contains ANY known or suspected character-break
-// phrasing (hard patterns OR the loose watchlist). Used to trigger an
-// automatic regeneration BEFORE a broken line ever reaches a transcript,
-// instead of relying solely on post-hoc stripping (which can leave a
-// mangled/truncated line behind).
+// Returns true if text contains a HARD character-break phrasing (full
+// refusal/meta-commentary sentences only). Used to trigger an automatic
+// regeneration BEFORE a broken line ever reaches a transcript, instead of
+// relying solely on post-hoc stripping (which can leave a mangled/truncated
+// line behind).
+//
+// Deliberately does NOT check CHARACTER_BREAK_WATCHLIST here: those patterns
+// are single word/phrase matches (e.g. "openai", "content policy", "goes
+// against", "fictional character") that fire constantly on completely normal
+// political-debate rhetoric — these personas talk about censorship, content
+// policy, the Constitution being "violated", and "programming" (as in
+// upbringing) all the time. Gating a full in-character regeneration on the
+// watchlist was silently swapping genuine, colorful lines for a blander
+// second pass AND adding an extra multi-second LLM round trip on a huge
+// fraction of ordinary turns. The watchlist stays in stripBannedCliches()
+// purely as a logged-only signal for spotting new real breaks to promote
+// into PROTOCOL_BREAK_PATTERNS — it must never gate a regeneration itself.
 function hasCharacterBreak(text: string): boolean {
   if (!text) return false;
   for (const re of PROTOCOL_BREAK_PATTERNS) {
-    re.lastIndex = 0;
-    if (re.test(text)) { re.lastIndex = 0; return true; }
-  }
-  for (const re of CHARACTER_BREAK_WATCHLIST) {
     re.lastIndex = 0;
     if (re.test(text)) { re.lastIndex = 0; return true; }
   }
