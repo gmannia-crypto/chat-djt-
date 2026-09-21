@@ -173,6 +173,7 @@ function detectInsult(text: string): number {
 
 // Persona id → portrait require()
 const PERSONA_PORTRAITS: Record<string, any> = {
+  grandad: require("@/assets/images/persona-grandad.jpg"),
   trump: require("@/assets/images/persona-trump.png"),
   netanyahu: require("@/assets/images/persona-netanyahu.png"),
   ruckus: require("@/assets/images/persona-ruckus.jpg"),
