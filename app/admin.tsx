@@ -334,7 +334,7 @@ interface TokenEconomicsData {
     llm: {
       premium: { model: string; inputPer1k: number; outputPer1k: number; avgIn: number; avgOut: number; costPerDCToken: number };
       budget:  { model: string; inputPer1k: number; outputPer1k: number; avgIn: number; avgOut: number; costPerDCToken: number };
-      claude:  { model: string; inputPer1k: number; outputPer1k: number; avgIn: number; avgOut: number; costPerDCToken: number };
+      claude:  { model: string; inputPer1k: number; outputPer1k: number; avgIn: number; avgOut: number; costPerDCToken: number; fastModel: string; fastInputPer1k: number; fastOutputPer1k: number };
     };
     totalPerDCToken: { premium: number; budget: number; claude: number };
   };
@@ -500,7 +500,15 @@ function TokenEconomicsSection({ adminKey }: { adminKey: string }) {
                 <Text style={ecoStyles.costLabel}>LLM Claude (Anthropic)</Text>
               </View>
               <Text style={ecoStyles.costVal}>{fmt4(data.costModel.llm.claude.costPerDCToken)}</Text>
-              <Text style={ecoStyles.costNote}>${data.costModel.llm.claude.inputPer1k}/K in · ${data.costModel.llm.claude.outputPer1k}/K out</Text>
+              <Text style={ecoStyles.costNote}>${data.costModel.llm.claude.inputPer1k}/K in · ${data.costModel.llm.claude.outputPer1k}/K out (Sonnet 4.5)</Text>
+            </View>
+            <View style={[ecoStyles.costRow, ecoStyles.costRowBorder]}>
+              <View style={ecoStyles.costLabelRow}>
+                <MaterialCommunityIcons name="creation-outline" size={13} color="#D97757" />
+                <Text style={ecoStyles.costLabel}>LLM Claude Fast (Haiku 4.5)</Text>
+              </View>
+              <Text style={ecoStyles.costVal}> </Text>
+              <Text style={ecoStyles.costNote}>${data.costModel.llm.claude.fastInputPer1k}/K in · ${data.costModel.llm.claude.fastOutputPer1k}/K out</Text>
             </View>
             <View style={[ecoStyles.costRow, ecoStyles.costRowBorder, { backgroundColor: "rgba(255,255,255,0.02)" }]}>
               <View style={ecoStyles.costLabelRow}>

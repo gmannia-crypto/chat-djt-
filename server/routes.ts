@@ -15649,7 +15649,12 @@ p{color:#999;font-size:16px;margin-bottom:24px}
       const LLM = {
         premium: { model: "GPT-5.2",     inputPer1k: 0.01,     outputPer1k: 0.03,    avgIn: 500, avgOut: 350 },
         budget:  { model: "DeepSeek", inputPer1k: 0.00014,  outputPer1k: 0.00028, avgIn: 500, avgOut: 350 },
-        claude:  { model: "Claude Sonnet 4.5", inputPer1k: 0.003, outputPer1k: 0.015, avgIn: 500, avgOut: 350 },
+        // Chat cost reflects Claude Sonnet 4.5 (the persona-response model), verified at
+        // Anthropic's official $3/$15 per-million rate. fastInputPer1k/fastOutputPer1k
+        // reflect Claude Haiku 4.5 (verified $1/$5 per million) — the model used for
+        // lighter helper calls like topic generation. An earlier estimate had priced the
+        // fast tier off the retired Claude 3.5 Haiku model, which no longer exists on the API.
+        claude:  { model: "Claude Sonnet 4.5", inputPer1k: 0.003, outputPer1k: 0.015, avgIn: 500, avgOut: 350, fastModel: "Claude Haiku 4.5", fastInputPer1k: 0.001, fastOutputPer1k: 0.005 },
       };
       const llmCostPremium = (LLM.premium.avgIn / 1000) * LLM.premium.inputPer1k + (LLM.premium.avgOut / 1000) * LLM.premium.outputPer1k;
       const llmCostBudget  = (LLM.budget.avgIn  / 1000) * LLM.budget.inputPer1k  + (LLM.budget.avgOut  / 1000) * LLM.budget.outputPer1k;
