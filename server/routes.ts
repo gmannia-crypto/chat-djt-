@@ -244,6 +244,10 @@ import {
   getPushTokenCount,
 } from "./push-notifications";
 import {
+  initCharacterBreakAlertsTable,
+  checkCharacterBreakSpikes,
+} from "./character-break-alerts";
+import {
   initTherapyTables,
   analyzeUserSentiment,
   getTherapyMemory,
@@ -812,6 +816,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   initTherapyTables().catch((e) => console.error("Therapy table init error:", e));
   initAnalyticsTables().catch((e) => console.error("Analytics table init error:", e));
   initPushTokensTable().catch((e) => console.error("Push tokens table init error:", e));
+  initCharacterBreakAlertsTable().catch((e) => console.error("Character break alerts table init error:", e));
+
+  // Proactive "Character Break Watch" alerting: periodically compares each persona's
+  // today-so-far retry/watch volume against its own recent baseline and emails an admin
+  // when it spikes (see server/character-break-alerts.ts). Runs on a timer so a regression
+  // is caught the same day it starts, not whenever someone next happens to open the admin
+  // dashboard. Deduped per persona per day at the DB layer, so re-running this frequently is
+  // safe — it only ever sends one alert per persona per spike day.
+  setInterval(() => {
+    checkCharacterBreakSpikes().catch((e) => console.error("Character break spike check error:", e));
+  }, 30 * 60 * 1000);
+  // Also run shortly after boot (rather than waiting a full 30 minutes for the first check).
+  setTimeout(() => {
+    checkCharacterBreakSpikes().catch((e) => console.error("Character break spike check error:", e));
+  }, 60 * 1000);
 
   app.post("/api/analytics/pageview", async (req, res) => {
     try {
@@ -877,6 +896,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const days = Math.min(365, Math.max(1, parseInt(req.query.days as string) || 30));
       const stats = await getCharacterBreakStats(days);
       return res.json(stats);
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Manual trigger for the proactive spike check (see checkCharacterBreakSpikes in
+  // server/character-break-alerts.ts) — lets an admin confirm email delivery is wired up
+  // correctly without waiting for the next scheduled run.
+  app.post("/api/admin/character-break-check", async (req, res) => {
+    if (!checkAdminKey(req)) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    try {
+      const result = await checkCharacterBreakSpikes();
+      // `alerted` only includes personas whose email actually sent; `failed` and
+      // `skippedNoConfig` surface anything that will be retried on the next scheduled run.
+      return res.json(result);
     } catch (e: any) {
       return res.status(500).json({ error: e.message });
     }

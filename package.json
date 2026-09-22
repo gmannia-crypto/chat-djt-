@@ -27,7 +27,9 @@
     "test:persona-tts": "npx tsx server/persona-tts.test.ts",
     "test:referral-invite-format": "npx tsx lib/referral-invite-format.test.ts",
     "test:bonus-game-comparison": "npx tsx server/bonus-game-comparison.test.js",
-    "test:character-break-analytics": "npx tsx server/character-break-analytics.test.js"
+    "test:character-break-analytics": "npx tsx server/character-break-analytics.test.js",
+    "test:character-break-spike": "npx tsx server/character-break-spike.test.js",
+    "test:character-break-alert-delivery": "npx tsx server/character-break-alert-delivery.test.js"
   },
   "dependencies": {
     "@expo-google-fonts/playfair-display": "^0.4.2",
