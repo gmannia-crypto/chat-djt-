@@ -101,6 +101,7 @@ export function hasCharacterBreak(text: string): boolean {
 async function createGuardedCompletion(
   client: OpenAI,
   params: Record<string, any>,
+  personaId?: string,
 ): Promise<{ completion: any; text: string; regenerated: boolean }> {
   let completion = await client.chat.completions.create(params as any);
   let choice = completion.choices?.[0];
@@ -132,6 +133,7 @@ async function createGuardedCompletion(
   if (!hasCharacterBreak(text)) return { completion, text, regenerated: false };
 
   console.warn(`[CHARACTER_BREAK_RETRY] regenerating after character break: "${text.slice(0, 200)}"`);
+  trackCharacterBreak(personaId, "retry", { snippet: text.slice(0, 200) });
   const retryParams = {
     ...params,
     messages: [
@@ -146,15 +148,17 @@ async function createGuardedCompletion(
   const retryText: string = retryCompletion.choices?.[0]?.message?.content || "";
   if (hasCharacterBreak(retryText)) {
     console.warn(`[CHARACTER_BREAK_RETRY] second attempt still broke character, falling back to strip: "${retryText.slice(0, 200)}"`);
+    trackCharacterBreak(personaId, "retry_failed", { snippet: retryText.slice(0, 200) });
   }
   return { completion: retryCompletion, text: retryText, regenerated: true };
 }
 
-function stripBannedCliches(text: string): string {
+function stripBannedCliches(text: string, personaId?: string): string {
   if (text) {
     for (const re of CHARACTER_BREAK_WATCHLIST) {
       if (re.test(text)) {
         console.warn(`[CHARACTER_BREAK_WATCH] possible new character-break phrasing (pattern ${re}): "${text.slice(0, 220)}"`);
+        trackCharacterBreak(personaId, "watch", { pattern: re.source, snippet: text.slice(0, 220) });
       }
     }
   }
@@ -229,6 +233,8 @@ import {
   getBonusGameStats,
   validateBonusGameComparisonRange,
   updateSuggestionStatus,
+  trackCharacterBreak,
+  getCharacterBreakStats,
 } from "./analytics";
 import {
   initPushTokensTable,
@@ -857,6 +863,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const leadGenDays = Math.min(365, Math.max(1, parseInt(req.query.leadGenDays as string) || 30));
       const stats = await getVisitorStats(leadGenDays);
+      return res.json(stats);
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get("/api/admin/character-break-stats", async (req, res) => {
+    if (!checkAdminKey(req)) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    try {
+      const days = Math.min(365, Math.max(1, parseInt(req.query.days as string) || 30));
+      const stats = await getCharacterBreakStats(days);
       return res.json(stats);
     } catch (e: any) {
       return res.status(500).json({ error: e.message });
@@ -9238,7 +9257,7 @@ Keep responses to 2-3 sentences max. Stay fully in character — urgent, gruff, 
         ],
         max_completion_tokens: tokenLimit,
         temperature: 0.9,
-      });
+      }, responderId);
       let rawContent = guardedText || "...";
 
       // Split off the optional live reaction (marker only present when
@@ -9260,7 +9279,7 @@ Keep responses to 2-3 sentences max. Stay fully in character — urgent, gruff, 
       }
 
       let response = rawContent;
-      response = stripBannedCliches(response.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim());
+      response = stripBannedCliches(response.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim(), responderId);
       if (responderId === "trump" || responderId === "ruckus" || responderId === "graham" || responderId === "megynkelly" || responderId === "pambondi") {
         response = response.replace(/(?:the\s+)?epstein\s+war/gi, "the Iran war");
       }
@@ -9488,7 +9507,7 @@ REACTION (separate persona listening in): ${reactorName} is standing in the room
           expectedSpeaker = speakerId === personaAId ? personaBId : personaAId;
           return {
             personaId: speakerId,
-            text: stripBannedCliches(String(l.text).replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").trim()),
+            text: stripBannedCliches(String(l.text).replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").trim(), speakerId),
           };
         });
         if (!Array.isArray(parsed)) reactionRaw = parsed?.reaction ?? null;
@@ -9545,7 +9564,7 @@ REACTION (separate persona listening in): ${reactorName} is standing in the room
           ],
           max_completion_tokens: 80,
           temperature: 0.9,
-        }),
+        }, interviewerId),
         createGuardedCompletion(getClient(), {
           model: getFastModel(),
           messages: [
@@ -9554,11 +9573,11 @@ REACTION (separate persona listening in): ${reactorName} is standing in the room
           ],
           max_completion_tokens: 80,
           temperature: 0.9,
-        }),
+        }, intervieweeId),
       ]);
 
-      const ivText = stripBannedCliches((ivResult.text || "").replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").trim());
-      const iveeText = stripBannedCliches((iveeResult.text || "").replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").trim());
+      const ivText = stripBannedCliches((ivResult.text || "").replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").trim(), interviewerId);
+      const iveeText = stripBannedCliches((iveeResult.text || "").replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").trim(), intervieweeId);
 
       res.json({
         interviewer: { speakerId: interviewerId, speakerName: interviewerName, text: ivText },
@@ -10015,7 +10034,7 @@ ${styleInstruction}${getLieBehaviorPrompt(interviewerId, Number((req.body.sessio
         questionTimeoutPromise,
       ]);
       let text = completion.choices[0]?.message?.content || "...";
-      text = stripBannedCliches(text.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim());
+      text = stripBannedCliches(text.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim(), interviewerId);
 
       res.json({
         text,
@@ -10162,7 +10181,7 @@ Stay 100% in character — your tone, vocabulary, ideology, and combativeness ar
           ],
           max_completion_tokens: (insultFireback ? 60 : (isInterruption ? 40 : (isDebate ? 420 : 340)) + (wantsReaction ? 40 : 0)),
           temperature: 0.95,
-        }),
+        }, intervieweeId),
         answerTimeoutPromise,
       ]);
       let rawText = guardedAnswerText || "...";
@@ -10183,7 +10202,7 @@ Stay 100% in character — your tone, vocabulary, ideology, and combativeness ar
         }
       }
 
-      let text = stripBannedCliches(rawText.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim());
+      let text = stripBannedCliches(rawText.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim(), intervieweeId);
       if (intervieweeId === "trump" || intervieweeId === "ruckus" || intervieweeId === "graham" || intervieweeId === "megynkelly" || intervieweeId === "pambondi") {
         text = text.replace(/(?:the\s+)?epstein\s+war/gi, "the Iran war");
       }
@@ -10257,7 +10276,7 @@ In character, briefly introduce the call-in (1 sentence, ~12 words: "We've got a
         frameTimeoutPromise,
       ]);
       let interviewerText = frameCompletion.choices[0]?.message?.content || `We've got a call-in from ${callerLabel}: ${cleanQ}`;
-      interviewerText = stripBannedCliches(interviewerText.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim());
+      interviewerText = stripBannedCliches(interviewerText.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim(), interviewerId);
 
       // Step 2: interviewee answers the call-in
       // ── Live overlapping reaction (Comedic/Roast only) ──────────────────────
@@ -12414,7 +12433,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
         temperature: 1.0,
       });
       let roast = completion.choices[0]?.message?.content || "Believe me, nobody won here. RIGGED!";
-      roast = stripBannedCliches(roast.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim());
+      roast = stripBannedCliches(roast.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim(), "trump");
       roast = roast.replace(/(?:the\s+)?epstein\s+war/gi, "the Iran war");
       res.json({ roast });
     } catch (error: any) {
@@ -12448,7 +12467,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
       speech = speech.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim();
       // Strip any LLM-injected disclaimer sentences that start with known patterns
       speech = speech.replace(/\b(Note|Disclaimer|Content warning|Please note|I must note|As a note|Important)[:\s][^.!?]*[.!?]/gi, "").trim();
-      speech = stripBannedCliches(speech);
+      speech = stripBannedCliches(speech, winnerId);
       res.json({ speech });
     } catch (err: any) {
       console.error("debate-verdict-speech error:", err);
@@ -12477,7 +12496,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
       let reaction = completion.choices[0]?.message?.content || `${winnerName} got lucky. This isn't over.`;
       reaction = reaction.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim();
       reaction = reaction.replace(/\b(Note|Disclaimer|Content warning|Please note|I must note|As a note|Important)[:\s][^.!?]*[.!?]/gi, "").trim();
-      reaction = stripBannedCliches(reaction);
+      reaction = stripBannedCliches(reaction, loserId);
       res.json({ reaction });
     } catch (err: any) {
       console.error("debate-loser-reaction error:", err);
@@ -12518,7 +12537,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
         temperature: 1.0,
       });
       let clapBack = completion.choices[0]?.message?.content || "That's right — I WON. Deal with it, Donald!";
-      clapBack = stripBannedCliches(clapBack.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim());
+      clapBack = stripBannedCliches(clapBack.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim(), winnerId);
       res.json({ clapBack, winnerId, winnerName });
     } catch (error: any) {
       console.error("Arena clap-back error:", error);
@@ -12648,7 +12667,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
   // ── POST /api/arena/moderator-retort — AI comeback when a debater attacks the moderator ──
   app.post("/api/arena/moderator-retort", async (req, res) => {
     try {
-      const { provocation, moderatorName, severity, personaName, contentMode } = req.body || {};
+      const { provocation, moderatorId, moderatorName, severity, personaName, contentMode } = req.body || {};
       if (!provocation) return res.status(400).json({ error: "provocation required" });
       const modName = moderatorName || "the moderator";
       const sevNum = Math.min(3, Math.max(1, Number(severity) || 1));
@@ -12670,7 +12689,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
         }),
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000)),
       ]);
-      const retort = stripBannedCliches(completion.choices[0]?.message?.content?.trim() || "");
+      const retort = stripBannedCliches(completion.choices[0]?.message?.content?.trim() || "", moderatorId || modName);
       res.json({ retort });
     } catch (err: any) {
       console.error("Moderator retort error:", err.message);

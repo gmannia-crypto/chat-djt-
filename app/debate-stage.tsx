@@ -3935,7 +3935,7 @@ export default function DebateStage() {
         fetch(new URL("/api/arena/moderator-retort", getApiUrl()).toString(), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ provocation: text, moderatorName: mod.name, severity, personaName, contentMode: contentModeRef.current }),
+          body: JSON.stringify({ provocation: text, moderatorId: mod.personaId, moderatorName: mod.name, severity, personaName, contentMode: contentModeRef.current }),
         }).then(async (r) => {
           if (!r.ok || !runningRef.current) return;
           const data = await r.json();

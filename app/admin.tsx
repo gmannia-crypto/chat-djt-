@@ -1764,6 +1764,7 @@ function AdminDashboard({ adminKey, onLogout }: { adminKey: string; onLogout: ()
 
             <AnalyticsDashboard />
             <BonusGameDashboard />
+            <CharacterBreakDashboard />
             <SuggestionsViewer />
           </>
         ) : null}
@@ -4009,6 +4010,177 @@ function BonusGameDashboard() {
     </View>
   );
 }
+
+// Persona character-break watch panel — retry rate (hard pattern, gated a full
+// regeneration) and watch rate (loose watchlist, log-only) per persona, sourced from
+// server/analytics.ts getCharacterBreakStats(). A rising rate for a persona (or overall)
+// is the visible signal that a prompt/pattern change reintroduced the "feeling sanitized"
+// regression the watchlist was meant to catch quietly.
+function CharacterBreakDashboard() {
+  const adminKey = useContext(AdminKeyContext);
+  const [data, setData] = useState<{
+    days: number;
+    byPersona: { persona: string; retries: number; retryFailed: number; watchHits: number }[];
+    daily: { day: string; retries: number; watchHits: number }[];
+    totals: { retries: number; retryFailed: number; watchHits: number };
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState(false);
+  const [days, setDays] = useState(30);
+
+  const fetchStats = async (d: number = days) => {
+    setLoading(true);
+    try {
+      const res = await fetch(
+        new URL(`/api/admin/character-break-stats?days=${d}`, getApiUrl()).toString(),
+        { headers: adminHeaders(adminKey) }
+      );
+      if (res.ok) setData(await res.json());
+    } catch {}
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchStats(); }, [days]);
+
+  if (loading && !data) return (
+    <View style={analyticsStyles.section}>
+      <Text style={analyticsStyles.sectionTitle}>Character Break Watch</Text>
+      <ActivityIndicator color={Colors.gold} style={{ marginTop: 20 }} />
+    </View>
+  );
+
+  if (!data) return null;
+
+  const { byPersona, daily, totals } = data;
+  const maxDailyTotal = Math.max(...daily.map(d => d.retries + d.watchHits), 1);
+  const maxPersonaTotal = Math.max(...byPersona.map(p => p.retries + p.watchHits), 1);
+
+  return (
+    <View style={analyticsStyles.section}>
+      <Pressable onPress={() => setExpanded(!expanded)} style={analyticsStyles.headerRow}>
+        <Text style={analyticsStyles.sectionTitle}>Character Break Watch</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <Text style={{ color: totals.retries > 0 ? "#F87171" : Colors.whiteDim, fontSize: 12, fontWeight: "700" }}>
+            {totals.retries} retries · {totals.watchHits} watch hits
+          </Text>
+          <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={18} color={Colors.whiteMuted} />
+        </View>
+      </Pressable>
+
+      {expanded && (
+        <>
+          <View style={analyticsStyles.periodRow}>
+            {[7, 30, 90].map((d) => (
+              <Pressable
+                key={d}
+                onPress={() => setDays(d)}
+                style={[analyticsStyles.periodBtn, days === d && analyticsStyles.periodBtnActive]}
+              >
+                <Text style={[analyticsStyles.periodText, days === d && analyticsStyles.periodTextActive]}>
+                  {d}d
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <View style={analyticsStyles.card}>
+            <Text style={analyticsStyles.cardTitle}>Summary (last {days} days)</Text>
+            <Text style={{ color: Colors.whiteDim, fontSize: 12, lineHeight: 18, marginBottom: 8 }}>
+              Retries fire a full in-character regeneration (hard pattern match). Failed retries
+              mean the regenerated line broke character too — the worst case. Watch hits are the
+              loose watchlist, logged only and never gating a regeneration.
+            </Text>
+            <View style={analyticsStyles.statsRow}>
+              <View style={analyticsStyles.statBox}>
+                <Text style={[analyticsStyles.statNum, { color: totals.retries > 0 ? "#F87171" : Colors.gold }]}>
+                  {totals.retries}
+                </Text>
+                <Text style={analyticsStyles.statLabel}>Retries</Text>
+              </View>
+              <View style={analyticsStyles.statBox}>
+                <Text style={[analyticsStyles.statNum, { color: totals.retryFailed > 0 ? "#F87171" : Colors.gold }]}>
+                  {totals.retryFailed}
+                </Text>
+                <Text style={analyticsStyles.statLabel}>Failed Retries</Text>
+              </View>
+              <View style={analyticsStyles.statBox}>
+                <Text style={analyticsStyles.statNum}>{totals.watchHits}</Text>
+                <Text style={analyticsStyles.statLabel}>Watch Hits</Text>
+              </View>
+            </View>
+          </View>
+
+          {byPersona.length > 0 ? (
+            <View style={analyticsStyles.card}>
+              <Text style={analyticsStyles.cardTitle}>By Persona</Text>
+              {byPersona.slice(0, 25).map((p) => (
+                <View key={p.persona} style={analyticsStyles.barRow}>
+                  <Text style={analyticsStyles.barLabel} numberOfLines={1}>
+                    {ARENA_NAME_MAP_ADMIN[p.persona] || p.persona}
+                  </Text>
+                  <View style={analyticsStyles.barTrack}>
+                    <View
+                      style={[
+                        analyticsStyles.barFill,
+                        {
+                          width: `${Math.max(5, ((p.retries + p.watchHits) / maxPersonaTotal) * 100)}%`,
+                          backgroundColor: p.retries > 0 ? "#F87171" : "#FACC15",
+                        },
+                      ]}
+                    />
+                  </View>
+                  <Text style={analyticsStyles.barValue}>{p.retries}r</Text>
+                  <Text style={analyticsStyles.barAvg}>{p.watchHits}w</Text>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <View style={analyticsStyles.card}>
+              <Text style={{ color: Colors.whiteDim, fontSize: 13 }}>
+                No character-break events in the last {days} days.
+              </Text>
+            </View>
+          )}
+
+          {daily.length > 0 && (
+            <View style={analyticsStyles.card}>
+              <Text style={analyticsStyles.cardTitle}>Daily Trend</Text>
+              {daily.slice(-14).map((d) => {
+                const dayStr = new Date(d.day).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+                return (
+                  <View key={d.day} style={analyticsStyles.barRow}>
+                    <Text style={[analyticsStyles.barLabel, { width: 50 }]}>{dayStr}</Text>
+                    <View style={analyticsStyles.barTrack}>
+                      <View
+                        style={[
+                          analyticsStyles.barFill,
+                          {
+                            width: `${Math.max(3, ((d.retries + d.watchHits) / maxDailyTotal) * 100)}%`,
+                            backgroundColor: d.retries > 0 ? "#F87171" : "#FACC15",
+                          },
+                        ]}
+                      />
+                    </View>
+                    <Text style={analyticsStyles.barValue}>{d.retries}r</Text>
+                    <Text style={analyticsStyles.barAvg}>{d.watchHits}w</Text>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+        </>
+      )}
+    </View>
+  );
+}
+
+// Best-effort persona display name lookup for the admin panel only — the full
+// ARENA_NAME_MAP lives server-side (server/routes.ts) and isn't shared with the client
+// bundle, so unknown ids just fall back to their raw id string.
+const ARENA_NAME_MAP_ADMIN: Record<string, string> = {
+  trump: "Trump",
+  unknown: "Unknown",
+};
 
 function SuggestionsViewer() {
   const adminKey = useContext(AdminKeyContext);

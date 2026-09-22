@@ -1868,7 +1868,7 @@ export default function InterviewScreen() {
                 fetch(new URL("/api/arena/moderator-retort", getApiUrl()).toString(), {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ provocation: ans.text, moderatorName: interviewerName, severity: insultSeverity, personaName: ans.speakerName }),
+                  body: JSON.stringify({ provocation: ans.text, moderatorId: interviewerId, moderatorName: interviewerName, severity: insultSeverity, personaName: ans.speakerName }),
                 }).then(async (r) => {
                   if (!r.ok || !runningRef.current) return;
                   const data = await r.json();

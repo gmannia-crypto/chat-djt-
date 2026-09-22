@@ -66,6 +66,93 @@ export async function trackFeatureEvent(deviceId: string, feature: string, actio
   );
 }
 
+/**
+ * Records a persona character-break trigger from createGuardedCompletion/stripBannedCliches
+ * in server/routes.ts. Piggybacks on the existing feature_events table (feature=
+ * "character_break") rather than a new table, per the existing convention for lightweight
+ * in-app metrics.
+ *
+ * kind:
+ *  - "retry": hasCharacterBreak() tripped a HARD pattern and a full regeneration was fired.
+ *  - "retry_failed": the regenerated line ALSO tripped a hard pattern (worst case — the
+ *    transcript falls back to stripBannedCliches with no clean in-character line available).
+ *  - "watch": a loose CHARACTER_BREAK_WATCHLIST phrase was seen (log-only, never gates a
+ *    regeneration) — tracked so a rising watch rate can be spotted before it's promoted into
+ *    a hard pattern.
+ */
+export async function trackCharacterBreak(
+  personaId: string | undefined,
+  kind: "retry" | "retry_failed" | "watch",
+  metadata: Record<string, any> = {},
+) {
+  try {
+    await trackFeatureEvent("system", "character_break", kind, {
+      personaId: personaId || "unknown",
+      ...metadata,
+    });
+  } catch (e) {
+    // Never let tracking failures affect the actual response pipeline.
+    console.error("trackCharacterBreak error:", e);
+  }
+}
+
+/**
+ * Per-persona character-break rate over time, for the admin "Character Break Watch" panel.
+ * Sourced from the feature_events rows written by trackCharacterBreak() above.
+ */
+export async function getCharacterBreakStats(days: number = 30) {
+  const db = getPool();
+  const since = new Date(Date.now() - days * 86400000).toISOString();
+
+  const [byPersonaRes, dailyRes] = await Promise.all([
+    db.query(`
+      SELECT
+        COALESCE(metadata->>'personaId', 'unknown') AS persona,
+        COUNT(*) FILTER (WHERE action = 'retry') AS retries,
+        COUNT(*) FILTER (WHERE action = 'retry_failed') AS retry_failed,
+        COUNT(*) FILTER (WHERE action = 'watch') AS watch_hits
+      FROM feature_events
+      WHERE feature = 'character_break' AND created_at >= $1
+      GROUP BY persona
+      ORDER BY (COUNT(*) FILTER (WHERE action = 'retry')) DESC, watch_hits DESC
+    `, [since]),
+    db.query(`
+      SELECT
+        TO_CHAR(created_at, 'YYYY-MM-DD') AS day,
+        COUNT(*) FILTER (WHERE action = 'retry') AS retries,
+        COUNT(*) FILTER (WHERE action = 'watch') AS watch_hits
+      FROM feature_events
+      WHERE feature = 'character_break' AND created_at >= $1
+      GROUP BY TO_CHAR(created_at, 'YYYY-MM-DD')
+      ORDER BY day ASC
+    `, [since]),
+  ]);
+
+  const byPersona = byPersonaRes.rows.map(r => ({
+    persona: r.persona as string,
+    retries: parseInt(r.retries) || 0,
+    retryFailed: parseInt(r.retry_failed) || 0,
+    watchHits: parseInt(r.watch_hits) || 0,
+  }));
+
+  const daily = dailyRes.rows.map(r => ({
+    day: r.day as string,
+    retries: parseInt(r.retries) || 0,
+    watchHits: parseInt(r.watch_hits) || 0,
+  }));
+
+  const totals = byPersona.reduce(
+    (acc, r) => ({
+      retries: acc.retries + r.retries,
+      retryFailed: acc.retryFailed + r.retryFailed,
+      watchHits: acc.watchHits + r.watchHits,
+    }),
+    { retries: 0, retryFailed: 0, watchHits: 0 },
+  );
+
+  return { days, byPersona, daily, totals };
+}
+
 export async function submitSuggestion(deviceId: string, name: string, message: string) {
   const db = getPool();
   await db.query(

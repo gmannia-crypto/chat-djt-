@@ -26,7 +26,8 @@
     "test:no-ai-deflections": "node scripts/check-no-ai-deflections.js",
     "test:persona-tts": "npx tsx server/persona-tts.test.ts",
     "test:referral-invite-format": "npx tsx lib/referral-invite-format.test.ts",
-    "test:bonus-game-comparison": "npx tsx server/bonus-game-comparison.test.js"
+    "test:bonus-game-comparison": "npx tsx server/bonus-game-comparison.test.js",
+    "test:character-break-analytics": "npx tsx server/character-break-analytics.test.js"
   },
   "dependencies": {
     "@expo-google-fonts/playfair-display": "^0.4.2",
