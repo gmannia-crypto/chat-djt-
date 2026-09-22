@@ -440,7 +440,8 @@ async function dreamApiPollResult(taskId: string, apiKey: string, maxAttempts = 
 
 export async function generateLipSyncDreamface(
   audioBuffer: Buffer,
-  personaId: string
+  personaId: string,
+  tier: "standard" | "premium" = "standard"
 ): Promise<{ videoUrl: string | null; error?: string; provider: string; timeMs: number }> {
   const apiKey = process.env.DREAMFACE_API_KEY;
   if (!apiKey) return { videoUrl: null, error: "DREAMFACE_API_KEY not configured", provider: "dreamface", timeMs: 0 };
@@ -453,15 +454,22 @@ export async function generateLipSyncDreamface(
     const portraitBuffer = readFileSync(portraitPath);
     const ext = portraitPath.endsWith(".png") ? "png" : "jpeg";
 
-    console.log(`[LipSync:Dreamface] Uploading files for persona=${personaId}`);
+    console.log(`[LipSync:Dreamface] Uploading files for persona=${personaId} tier=${tier}`);
     const imageUrl = await dreamApiUploadBuffer(portraitBuffer, `portrait-${personaId}.${ext}`, `image/${ext}`, apiKey);
     const audioUrl = await dreamApiUploadBuffer(audioBuffer, `audio-${personaId}-${Date.now()}.mp3`, "audio/mpeg", apiKey);
+
+    // 0 = provider default/auto for each field. Premium requests an explicit
+    // high-bitrate 1080p output plus the enhancement pass instead of relying
+    // on defaults, to match the "highest resolution" premium promise.
+    const videoParams = tier === "premium"
+      ? { video_bitrate: 6000, video_width: 1080, video_height: 1920, video_enhance: 1 }
+      : { video_bitrate: 0, video_width: 0, video_height: 0, video_enhance: 0 };
 
     console.log(`[LipSync:Dreamface] Files uploaded, submitting talking_face task`);
     const taskData = await dreamApiPost("talking_face", {
       srcVideoUrl: imageUrl,
       audioUrl: audioUrl,
-      videoParams: { video_bitrate: 0, video_width: 0, video_height: 0, video_enhance: 0 },
+      videoParams,
     }, apiKey);
 
     const taskId = taskData?.taskId;
@@ -482,7 +490,8 @@ export async function generateLipSyncDreamface(
 
 export async function generateLipSyncFal(
   audioBuffer: Buffer,
-  personaId: string
+  personaId: string,
+  tier: "standard" | "premium" = "standard"
 ): Promise<{ videoUrl: string | null; error?: string; provider: string; timeMs: number }> {
   const falKey = process.env.FAL_API_KEY;
   if (!falKey) return { videoUrl: null, error: "FAL_API_KEY not configured", provider: "fal", timeMs: 0 };
@@ -496,25 +505,29 @@ export async function generateLipSyncFal(
     const portraitBuffer = readFileSync(portraitPath);
     const ext = portraitPath.endsWith(".png") ? "png" : "jpeg";
 
-    console.log(`[LipSync:Fal] Uploading files for persona=${personaId}`);
+    console.log(`[LipSync:Fal] Uploading files for persona=${personaId} tier=${tier}`);
     const portraitUrl = await fal.storage.upload(new Blob([portraitBuffer], { type: `image/${ext}` }));
     const audioUrl = await fal.storage.upload(new Blob([audioBuffer], { type: "audio/mpeg" }));
 
     console.log(`[LipSync:Fal] Files uploaded, starting SadTalker generation`);
 
-    const TIMEOUT = 90000;
+    // Longer premium clips can take a while to render — give them more room
+    // than the default before treating generation as stalled.
+    const TIMEOUT = tier === "premium" ? 180000 : 90000;
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("fal.ai timed out after 90s")), TIMEOUT)
+      setTimeout(() => reject(new Error(`fal.ai timed out after ${TIMEOUT / 1000}s`)), TIMEOUT)
     );
 
+    // Premium: higher face-model resolution (512 vs 256) and still_mode off with a
+    // stronger expression scale for noticeably more head/face motion.
     const genPromise = fal.subscribe("fal-ai/sadtalker", {
       input: {
         source_image_url: portraitUrl,
         driven_audio_url: audioUrl,
         pose_style: 0,
-        face_model_resolution: "256",
-        expression_scale: 1.2,
-        still_mode: true,
+        face_model_resolution: tier === "premium" ? "512" : "256",
+        expression_scale: tier === "premium" ? 1.6 : 1.2,
+        still_mode: tier !== "premium",
       },
       logs: true,
       onQueueUpdate: (update: { status: string; logs?: Array<{ message: string }> }) => {
@@ -539,22 +552,23 @@ export async function generateLipSyncFal(
 export async function generateLipSyncVideo(
   audioBuffer: Buffer,
   personaId: string,
-  preferredProvider?: string
+  preferredProvider?: string,
+  tier: "standard" | "premium" = "standard"
 ): Promise<{ videoUrl: string | null; error?: string }> {
   const providers: Array<() => Promise<{ videoUrl: string | null; error?: string; provider: string; timeMs: number }>> = [];
 
   if (preferredProvider === "dreamface") {
-    providers.push(() => generateLipSyncDreamface(audioBuffer, personaId));
-    providers.push(() => generateLipSyncFal(audioBuffer, personaId));
+    providers.push(() => generateLipSyncDreamface(audioBuffer, personaId, tier));
+    providers.push(() => generateLipSyncFal(audioBuffer, personaId, tier));
   } else if (preferredProvider === "fal") {
-    providers.push(() => generateLipSyncFal(audioBuffer, personaId));
-    providers.push(() => generateLipSyncDreamface(audioBuffer, personaId));
+    providers.push(() => generateLipSyncFal(audioBuffer, personaId, tier));
+    providers.push(() => generateLipSyncDreamface(audioBuffer, personaId, tier));
   } else {
     if (process.env.DREAMFACE_API_KEY) {
-      providers.push(() => generateLipSyncDreamface(audioBuffer, personaId));
+      providers.push(() => generateLipSyncDreamface(audioBuffer, personaId, tier));
     }
     if (process.env.FAL_API_KEY) {
-      providers.push(() => generateLipSyncFal(audioBuffer, personaId));
+      providers.push(() => generateLipSyncFal(audioBuffer, personaId, tier));
     }
   }
 

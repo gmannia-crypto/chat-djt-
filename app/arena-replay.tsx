@@ -7,6 +7,7 @@ import {
   FlatList,
   Platform,
   Share,
+  ActivityIndicator,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -15,8 +16,13 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown, FadeIn, SlideInRight } from "react-native-reanimated";
 import { Audio } from "expo-av";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
 import { playTTS, playAudioFromUrl } from "@/lib/audio-helper";
 import { getPersonaVoiceVolume, shouldSkipPersonaVoice } from "@/lib/persona-voice";
+import { getApiUrl } from "@/lib/query-client";
+import { useTokens } from "@/lib/token-context";
 import {
   ArenaRecording,
   RecordedMessage,
@@ -27,6 +33,9 @@ import {
   pickBiggestOddsFlip,
 } from "@/lib/arena-recordings";
 import { OddsTimeline } from "@/components/OddsTimeline";
+
+const ADMIN_KEY_STORAGE = "trumpbot-admin-key";
+const ARENA_AUDIO_EXPORT_TOKEN_COST = 2;
 
 const PERSONA_COLORS: Record<string, string> = {
   trump: "#ff4d4d",
@@ -49,6 +58,7 @@ const SPEED_OPTIONS = [1, 1.5, 2];
 export default function ArenaReplayScreen() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ id?: string; startAt?: string }>();
+  const { deviceId, refreshBalance } = useTokens();
   const [recordings, setRecordings] = useState<ArenaRecording[]>([]);
   const [filterType, setFilterType] = useState<"all" | "1on1" | "arena">("all");
   const [selected, setSelected] = useState<ArenaRecording | null>(null);
@@ -63,6 +73,12 @@ export default function ArenaReplayScreen() {
   const currentSoundRef = useRef<Audio.Sound | null>(null);
   const voiceEnabledRef = useRef(true);
   const playingRef = useRef(false);
+  const [exportingId, setExportingId] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem(ADMIN_KEY_STORAGE).then((v) => setIsAdmin(!!v)).catch(() => {});
+  }, []);
 
   // TTS sequential queue — each clip waits for the previous to finish
   type TTSQueueItem =
@@ -278,6 +294,92 @@ export default function ArenaReplayScreen() {
     } catch {}
   };
 
+  const handleExportAudio = async (rec: ArenaRecording) => {
+    if (!deviceId || exportingId) return;
+    setExportingId(rec.id);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    try {
+      const personaMessages = rec.messages
+        .filter((m) => !m.isSystem && m.speakerId !== "user")
+        .sort((a, b) => a.relativeTime - b.relativeTime)
+        .map((m) => ({ personaId: m.speakerId, text: m.text, relativeTime: m.relativeTime }));
+
+      if (personaMessages.length === 0) {
+        setExportingId(null);
+        return;
+      }
+
+      const adminKey = await AsyncStorage.getItem(ADMIN_KEY_STORAGE);
+      const baseUrl = getApiUrl();
+      const url = new URL("/api/arena/export-audio", baseUrl).toString();
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "x-device-id": deviceId,
+      };
+      if (adminKey) headers["x-admin-key"] = adminKey;
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ messages: personaMessages }),
+      });
+
+      if (!res.ok) {
+        let message = "Export failed";
+        try {
+          const err = await res.json();
+          message = err?.error || message;
+        } catch {}
+        if (res.status === 403) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+        }
+        console.warn("Arena audio export failed:", message);
+        setExportingId(null);
+        return;
+      }
+
+      const filename = `arena-debate-audio-${rec.id}.zip`;
+      if (Platform.OS === "web") {
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = blobUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(blobUrl);
+      } else {
+        const blob = await res.blob();
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve((reader.result as string).split(",")[1]);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+        const target = `${FileSystem.cacheDirectory}${filename}`;
+        await FileSystem.writeAsStringAsync(target, base64, { encoding: FileSystem.EncodingType.Base64 });
+        const available = await Sharing.isAvailableAsync();
+        if (available) {
+          await Sharing.shareAsync(target, {
+            mimeType: "application/zip",
+            dialogTitle: "Export debate audio",
+            UTI: "public.zip-archive",
+          });
+        } else {
+          await Share.share({ url: target });
+        }
+      }
+
+      if (!adminKey) refreshBalance();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    } catch (err) {
+      console.warn("Arena audio export error:", err);
+    } finally {
+      setExportingId(null);
+    }
+  };
+
   const handleDelete = async (id: string) => {
     await deleteRecording(id);
     setRecordings((prev) => prev.filter((r) => r.id !== id));
@@ -381,6 +483,22 @@ export default function ArenaReplayScreen() {
           <Pressable onPress={handleShare} style={s.shareBtn}>
             <Ionicons name="share-outline" size={22} color="#D4A420" />
           </Pressable>
+          <Pressable
+            onPress={() => handleExportAudio(selected)}
+            style={s.shareBtn}
+            disabled={exportingId === selected.id}
+          >
+            {exportingId === selected.id ? (
+              <ActivityIndicator size="small" color="#D4A420" />
+            ) : (
+              <Ionicons name="download-outline" size={22} color="#D4A420" />
+            )}
+          </Pressable>
+        </View>
+        <View style={s.exportHintRow}>
+          <Text style={s.exportHintText}>
+            {isAdmin ? "Export audio: free (admin)" : `Export audio: ${ARENA_AUDIO_EXPORT_TOKEN_COST} tokens`}
+          </Text>
         </View>
 
         <FlatList
@@ -696,6 +814,8 @@ const s = StyleSheet.create({
   },
   headerSub: { color: "rgba(255,255,255,0.4)", fontSize: 12, marginTop: 2 },
   shareBtn: { width: 40, height: 40, justifyContent: "center", alignItems: "center" },
+  exportHintRow: { paddingHorizontal: 16, paddingBottom: 8, alignItems: "flex-end" },
+  exportHintText: { color: "rgba(212,164,32,0.6)", fontSize: 11 },
   messageList: { flex: 1 },
   messageContent: { padding: 16, gap: 12 },
   msgRow: {

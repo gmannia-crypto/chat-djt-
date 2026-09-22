@@ -321,6 +321,7 @@ export default function TherapyScreen() {
   const [chatLoading, setChatLoading] = useState(false);
   const [chatStarted, setChatStarted] = useState(false);
   const [lipSyncEnabled, setLipSyncEnabled] = useState(false);
+  const [lipSyncTier, setLipSyncTier] = useState<"standard" | "premium">("standard");
   const [lipSyncVideoUrl, setLipSyncVideoUrl] = useState<string | null>(null);
   const [lipSyncLoading, setLipSyncLoading] = useState(false);
   const [showSerenaIntro, setShowSerenaIntro] = useState(false);
@@ -1250,10 +1251,11 @@ export default function TherapyScreen() {
         setLipSyncVideoUrl(null);
         let videoGenerated = false;
         try {
+          const lipSyncTextLimit = lipSyncTier === "premium" ? 2000 : 500;
           const lipRes = await fetch(`${baseUrl}/api/therapy/lip-sync`, {
             method: "POST",
             headers: hdrs,
-            body: JSON.stringify({ text: data.reply.slice(0, 500), personaId: currentVoice }),
+            body: JSON.stringify({ text: data.reply.slice(0, lipSyncTextLimit), personaId: currentVoice, tier: lipSyncTier }),
           });
           if (lipRes.ok) {
             const lipData = await lipRes.json();
@@ -1965,6 +1967,20 @@ export default function TherapyScreen() {
                   {lipSyncEnabled ? "VIDEO ON" : "VIDEO"}
                 </Text>
               </Pressable>
+              {lipSyncEnabled && (
+                <Pressable
+                  onPress={() => {
+                    setLipSyncTier((t) => t === "premium" ? "standard" : "premium");
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }}
+                  style={[styles.chatEndBtn, { backgroundColor: lipSyncTier === "premium" ? "#FFD70030" : `${config.accent}10`, borderColor: lipSyncTier === "premium" ? "#FFD700" : `${config.accent}40` }]}
+                >
+                  <Ionicons name="sparkles" size={12} color={lipSyncTier === "premium" ? "#FFD700" : "rgba(255,255,255,0.4)"} />
+                  <Text style={[styles.chatEndBtnText, { color: lipSyncTier === "premium" ? "#FFD700" : "rgba(255,255,255,0.4)", marginLeft: 4 }]}>
+                    {lipSyncTier === "premium" ? "PREMIUM (60)" : "STANDARD (3)"}
+                  </Text>
+                </Pressable>
+              )}
               <Pressable
                 onPress={handleNewSession}
                 style={[styles.chatEndBtn, { backgroundColor: `${config.accent}20`, borderColor: `${config.accent}60` }]}

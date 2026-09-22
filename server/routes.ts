@@ -183,7 +183,9 @@ import { promisify } from "node:util";
 import {
   fishAudioRequest,
   sendPersonaTTS,
+  getPersonaTTSBuffer,
 } from "./persona-tts";
+import { ZipArchive } from "archiver";
 import { writeFileSync, readFileSync, unlinkSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -3721,6 +3723,87 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     } catch (error: any) {
       console.error("Persona speak error:", error);
       res.status(500).json({ error: "TTS generation failed" });
+    }
+  });
+
+  // Bundles a finished debate's persona dialogue into a single zip of
+  // individually-numbered MP3s, in chronological order, for use as source
+  // audio in external lip-sync tools (e.g. DreamFace uploads). Free for the
+  // admin (valid x-admin-key), 2 DC tokens for everyone else. Reuses the same
+  // TTS cache as live playback/replay, so a line already spoken during the
+  // debate is normally served straight from cache — export is not a second
+  // billable TTS generation from Fish Audio's perspective.
+  const ARENA_AUDIO_EXPORT_TOKEN_COST = 2;
+  const ARENA_AUDIO_EXPORT_MAX_MESSAGES = 200;
+  app.post("/api/arena/export-audio", async (req, res) => {
+    try {
+      const deviceId = req.headers["x-device-id"] as string;
+      if (!deviceId) return res.status(400).json({ error: "Device ID required" });
+
+      const isAdmin = checkAdminKey(req);
+      if (!isAdmin) {
+        const tokenResult = await useTokens(deviceId, ARENA_AUDIO_EXPORT_TOKEN_COST, `Arena audio export (${ARENA_AUDIO_EXPORT_TOKEN_COST} tokens)`);
+        if (!tokenResult.success) {
+          return res.status(403).json({ error: tokenResult.error, balance: tokenResult.balance });
+        }
+      }
+
+      const apiKey = process.env.FISH_AUDIO_API_KEY;
+      if (!apiKey) return res.status(500).json({ error: "TTS not configured" });
+
+      const rawMessages = Array.isArray(req.body?.messages) ? req.body.messages : [];
+      const messages = rawMessages
+        .filter((m: any) => m && typeof m.text === "string" && typeof m.personaId === "string" && m.personaId !== "user")
+        .slice(0, ARENA_AUDIO_EXPORT_MAX_MESSAGES)
+        // Chronological order — sort by relativeTime/timestamp when present so export order always
+        // matches when each line was actually spoken, regardless of the order the client sent them in.
+        .sort((a: any, b: any) => (Number(a.relativeTime ?? a.timestamp ?? 0) - Number(b.relativeTime ?? b.timestamp ?? 0)));
+
+      if (messages.length === 0) {
+        return res.status(400).json({ error: "No persona dialogue to export" });
+      }
+
+      res.setHeader("Content-Type", "application/zip");
+      res.setHeader("Content-Disposition", `attachment; filename="arena-debate-audio-${Date.now()}.zip"`);
+      const archive = new ZipArchive({ zlib: { level: 6 } });
+      archive.on("error", (err) => {
+        console.error("Arena audio export zip error:", err);
+        if (!res.headersSent) res.status(500).end();
+      });
+      archive.pipe(res);
+
+      for (let i = 0; i < messages.length; i++) {
+        const { personaId, text } = messages[i];
+        try {
+          let voiceId = PERSONA_VOICE_IDS[personaId];
+          if (!voiceId) voiceId = process.env.FISH_AUDIO_VOICE_ID || "";
+          if (!voiceId) continue;
+          const speed = PERSONA_SPEED_MAP[personaId] ?? 1.0;
+          const volumeDb = PERSONA_VOLUME_BOOST[personaId] ?? 0;
+          const emotion = PERSONA_EMOTION_MAP[personaId];
+          const safeText = applyPersonaTTSFormatting(String(text).slice(0, 2000), personaId);
+          const buffer = await getPersonaTTSBuffer({
+            text: safeText,
+            voiceId,
+            speed,
+            apiKey,
+            volumeDb,
+            emotion,
+            bleepRequested: true,
+            hasCurseWords: (t) => findCursePositions(t).length > 0,
+            overlayBleeps,
+          });
+          const index = String(i + 1).padStart(3, "0");
+          archive.append(buffer, { name: `${index}_${personaId}.mp3` });
+        } catch (lineError: any) {
+          console.error(`Arena audio export: failed line ${i} (${personaId}):`, lineError.message);
+        }
+      }
+
+      await archive.finalize();
+    } catch (error: any) {
+      console.error("Arena audio export error:", error);
+      if (!res.headersSent) res.status(500).json({ error: "Audio export failed" });
     }
   });
 
@@ -16892,8 +16975,12 @@ ${therapyHistory}`
       if (!deviceId) {
         return res.status(400).json({ error: "Device ID required" });
       }
-      const VIDEO_TOKEN_COST = 3;
-      const tokenResult = await useTokens(deviceId, VIDEO_TOKEN_COST, 'Video lip-sync generation (3 tokens)');
+      // Two tiers: "standard" (existing 3-token clip, ~10s of speech) and
+      // "premium" (60 tokens) — highest resolution/motion from each provider,
+      // and up to ~30s of speech (roughly 4x the standard text budget).
+      const tier: "standard" | "premium" = req.body?.tier === "premium" ? "premium" : "standard";
+      const VIDEO_TOKEN_COST = tier === "premium" ? 60 : 3;
+      const tokenResult = await useTokens(deviceId, VIDEO_TOKEN_COST, `Video lip-sync generation - ${tier} (${VIDEO_TOKEN_COST} tokens)`);
       if (!tokenResult.success) {
         return res.status(403).json({ error: tokenResult.error, balance: tokenResult.balance });
       }
@@ -16928,11 +17015,13 @@ ${therapyHistory}`
         return res.status(400).json({ error: "No voice configured for persona" });
       }
 
-      const safeText = text.slice(0, 500);
+      // ~2000 chars is roughly 30s of speech at typical TTS pacing; standard stays at the
+      // original 500-char (~10s) budget.
+      const safeText = text.slice(0, tier === "premium" ? 2000 : 500);
       const audioBuffer = await fishAudioRequest(safeText, voiceId, voiceSpeed, fishApiKey);
       const audioBase64 = audioBuffer.toString("base64");
 
-      const { videoUrl, error: videoError } = await generateLipSyncVideo(audioBuffer, personaId);
+      const { videoUrl, error: videoError } = await generateLipSyncVideo(audioBuffer, personaId, undefined, tier);
 
       res.json({
         videoUrl,

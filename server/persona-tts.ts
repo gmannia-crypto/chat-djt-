@@ -670,6 +670,23 @@ export interface SendPersonaTTSParams {
 // previously the client waited out the entire 11-18s Fish Audio generation
 // before a single byte reached it; now playback can start as soon as the
 // first chunk of audio exists.
+// Resolves a persona line to a complete audio Buffer (cache-aware, with bleep
+// overlay applied) without streaming to an HTTP response. Shares the same
+// cache key and in-flight de-dup as sendPersonaTTS, so a line already
+// generated during a live debate is normally served straight from cache here
+// too — useful for batch/export use cases (e.g. bulk-downloading a whole
+// debate's dialogue) where there's no single response to stream into.
+export async function getPersonaTTSBuffer(params: Omit<SendPersonaTTSParams, "cacheControl" | "streamFactory">): Promise<Buffer> {
+  const { text, voiceId, speed, apiKey, volumeDb = 0, emotion, bleepRequested, retries = 3, hasCurseWords, overlayBleeps, fetchImpl = fetch } = params;
+  const cacheKey = getFullTTSCacheKey(text, voiceId, speed, volumeDb, emotion);
+  const cached = getCachedTTS(cacheKey);
+  if (cached) {
+    return bleepRequested ? await overlayBleeps(cached, text) : cached;
+  }
+  const raw = await fishAudioRequest(text, voiceId, speed, apiKey, retries, volumeDb, emotion, fetchImpl);
+  return bleepRequested && hasCurseWords(text) ? await overlayBleeps(raw, text) : raw;
+}
+
 export async function sendPersonaTTS(res: ExpressResponse, params: SendPersonaTTSParams): Promise<void> {
   const {
     text, voiceId, speed, apiKey, volumeDb = 0, emotion, bleepRequested, cacheControl,
