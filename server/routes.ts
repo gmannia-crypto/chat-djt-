@@ -17,7 +17,7 @@ const BANNED_CLICHE_PATTERNS: RegExp[] = [
 // pivot" prompt instruction (see SHARED_NO_AI_BASE in arena-no-ai-guard.ts).
 // Models occasionally slip and admit a topic is being avoided; this removes
 // the tell-tale sentence so the transcript never shows the seam.
-const PROTOCOL_BREAK_PATTERNS: RegExp[] = [
+export const PROTOCOL_BREAK_PATTERNS: RegExp[] = [
   /\b(?:I|We)\s+(?:can'?t|cannot|won'?t|am not able to|are not able to)\s+(?:talk about|discuss|continue (?:with|talking about)|go (?:there|into) that|say that|answer that)[^.!?]*[.!?]/gi,
   /\b(?:that'?s|this is)\s+(?:against|not within)\s+(?:my|the|our)\s+(?:protocol|guidelines|policy)[^.!?]*[.!?]/gi,
   /\b(?:I'?m|We'?re)\s+not\s+(?:allowed|permitted)\s+to\s+(?:discuss|talk about|say)[^.!?]*[.!?]/gi,
@@ -25,7 +25,14 @@ const PROTOCOL_BREAK_PATTERNS: RegExp[] = [
   /\b(?:that|this)\s+crosses\s+a\s+line[^.!?]*[.!?]/gi,
   /\bI\s+(?:don'?t|do not)\s+feel\s+comfortable\s+(?:discussing|talking about|continuing)[^.!?]*[.!?]/gi,
   /\bas\s+an\s+AI[^.!?]*[.!?]/gi,
-  /\b(?:content|safety)\s+polic(?:y|ies)[^.!?]*[.!?]/gi,
+  // NOTE: this must require actual refusal phrasing ("goes against"/"violates"
+  // my content policy), NOT just the bare words "content policy" — a debate
+  // line arguing ABOUT content policy ("That content policy is pure
+  // censorship.") is normal political speech and must never trigger a
+  // regeneration. A bare-phrase match belongs in CHARACTER_BREAK_WATCHLIST
+  // (logged only), never here.
+  /\b(?:goes|going)\s+against\s+(?:my|the|our)\s+(?:content|safety)\s+polic(?:y|ies)[^.!?]*[.!?]/gi,
+  /\bviolates?\s+(?:my|the|our)\s+(?:content|safety)\s+polic(?:y|ies)[^.!?]*[.!?]/gi,
   /\bI\s+(?:must|have to)\s+decline[^.!?]*[.!?]/gi,
   /\b(?:break|breaking)\s+character[^.!?]*[.!?]/gi,
   // Violence-flagging meta-commentary — a model narrating that the CONTENT
@@ -43,7 +50,7 @@ const PROTOCOL_BREAK_PATTERNS: RegExp[] = [
 // legitimate in-character lines) — a hit is only logged with a distinct,
 // greppable tag so new patterns can be spotted and promoted into
 // PROTOCOL_BREAK_PATTERNS above once confirmed as real character breaks.
-const CHARACTER_BREAK_WATCHLIST: RegExp[] = [
+export const CHARACTER_BREAK_WATCHLIST: RegExp[] = [
   /\bas an ai\b/i,
   /\blanguage model\b/i,
   /\b(?:content|community)\s+(?:policy|policies|guidelines?)\b/i,
@@ -76,7 +83,7 @@ const CHARACTER_BREAK_WATCHLIST: RegExp[] = [
 // fraction of ordinary turns. The watchlist stays in stripBannedCliches()
 // purely as a logged-only signal for spotting new real breaks to promote
 // into PROTOCOL_BREAK_PATTERNS — it must never gate a regeneration itself.
-function hasCharacterBreak(text: string): boolean {
+export function hasCharacterBreak(text: string): boolean {
   if (!text) return false;
   for (const re of PROTOCOL_BREAK_PATTERNS) {
     re.lastIndex = 0;

@@ -17,7 +17,7 @@
     "lint:fix": "npx expo lint --fix",
     "test:stale-dist": "node scripts/check-dev-no-stale-dist.js",
     "test:persona-check": "node scripts/check-persona-images.test.js",
-    "test:no-ai-guard": "npx tsx server/arena-no-ai-guard.test.js",
+    "test:no-ai-guard": "npx tsx server/arena-no-ai-guard.test.js && npx tsx server/character-break-gate.test.js",
     "test:no-ai-guard-route": "npx tsx server/arena-no-ai-guard-route.test.js",
     "test:ai-timeouts": "npx tsx lib/ai-turn-retry.test.ts",
     "test:referral-concurrent": "npx tsx server/referral-claim-concurrent.test.js",
