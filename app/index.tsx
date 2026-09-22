@@ -398,6 +398,14 @@ export default function HomeScreen() {
   const [collectionCount, setCollectionCount] = useState({ owned: 0, total: 24 });
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
+  // Simplified home screen: the full mode list and the daily-extras rail
+  // (trophy room, fact of the day, countdowns, leaderboard, badges, etc.)
+  // are collapsed by default so a first-time visitor sees a short, clear
+  // path (hero card + a handful of primary modes) instead of a wall of
+  // ~20 buttons and a dozen stacked widgets. Everything is still one tap
+  // away — nothing was removed, just deferred behind an explicit toggle.
+  const [showMoreModes, setShowMoreModes] = useState(false);
+  const [showExtras, setShowExtras] = useState(false);
   const dailyFeature = useMemo(() => getDailyFeature(), []);
   const { deviceId, hasTokens, balance, linkedUser, authToken, openSaveModal, refreshBalance } = useTokens();
   const { streak, awardBadge } = useEngagement();
@@ -1880,6 +1888,20 @@ export default function HomeScreen() {
             <Text style={styles.modeButtonText}>HOT SEAT</Text>
           </Pressable>
         </Animated.View>
+        <Pressable
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setShowMoreModes((v) => !v);
+          }}
+          style={({ pressed }) => [styles.showMoreModesBtn, pressed && { opacity: 0.7 }]}
+          testID="show-more-modes-toggle"
+        >
+          <Text style={styles.showMoreModesText}>{showMoreModes ? "SHOW FEWER MODES" : "MORE MODES"}</Text>
+          <Ionicons name={showMoreModes ? "chevron-up" : "chevron-down"} size={14} color={Colors.gold} />
+        </Pressable>
+
+        {showMoreModes && (
+        <>
         <Animated.View entering={FadeInDown.delay(550).duration(500)} style={styles.modeButtons}>
           <Pressable
             onPress={() => {
@@ -1989,6 +2011,8 @@ export default function HomeScreen() {
             )}
           </Pressable>
         </Animated.View>
+        </>
+        )}
 
         {streak > 0 && (
           <Animated.View entering={FadeIn.delay(800).duration(500)} style={styles.streakRow}>
@@ -2075,7 +2099,23 @@ export default function HomeScreen() {
               )}
             </LinearGradient>
           </Pressable>
+        </Animated.View>
 
+        <Pressable
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setShowExtras((v) => !v);
+          }}
+          style={({ pressed }) => [styles.showMoreModesBtn, pressed && { opacity: 0.7 }]}
+          testID="show-extras-toggle"
+        >
+          <Text style={styles.showMoreModesText}>{showExtras ? "HIDE MORE TO EXPLORE" : "MORE TO EXPLORE"}</Text>
+          <Ionicons name={showExtras ? "chevron-up" : "chevron-down"} size={14} color={Colors.gold} />
+        </Pressable>
+
+        {showExtras && (
+        <>
+        <Animated.View entering={FadeInDown.delay(900).duration(400)}>
           <Pressable
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -2420,6 +2460,8 @@ export default function HomeScreen() {
               ))}
             </View>
           </Animated.View>
+        )}
+        </>
         )}
 
         <CashAppDonate />
@@ -3453,6 +3495,25 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 12,
     marginTop: 16,
+  },
+  showMoreModesBtn: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    gap: 6,
+    marginTop: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: "rgba(212,164,32,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(212,164,32,0.25)",
+    borderStyle: "dashed" as const,
+  },
+  showMoreModesText: {
+    color: Colors.gold,
+    fontSize: 12,
+    fontWeight: "800" as const,
+    letterSpacing: 0.5,
   },
   modeButton: {
     flexDirection: "row",
