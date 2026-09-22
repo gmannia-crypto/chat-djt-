@@ -246,6 +246,7 @@ import {
 import {
   initCharacterBreakAlertsTable,
   checkCharacterBreakSpikes,
+  getCharacterBreakAlertHistory,
 } from "./character-break-alerts";
 import {
   initTherapyTables,
@@ -896,6 +897,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const days = Math.min(365, Math.max(1, parseInt(req.query.days as string) || 30));
       const stats = await getCharacterBreakStats(days);
       return res.json(stats);
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  // History of past spike alerts (see character_break_alerts table in
+  // server/character-break-alerts.ts) — lets the Character Break Watch panel show what
+  // already fired even if the admin missed the email.
+  app.get("/api/admin/character-break-alerts", async (req, res) => {
+    if (!checkAdminKey(req)) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    try {
+      const limit = Math.min(200, Math.max(1, parseInt(req.query.limit as string) || 50));
+      const alerts = await getCharacterBreakAlertHistory(limit);
+      return res.json({ alerts });
     } catch (e: any) {
       return res.status(500).json({ error: e.message });
     }

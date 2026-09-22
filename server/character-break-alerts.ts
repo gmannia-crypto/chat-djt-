@@ -229,6 +229,42 @@ export async function sendCharacterBreakSpikeAlert(
   }
 }
 
+export interface CharacterBreakAlertHistoryEntry {
+  persona: string;
+  alertDay: string;
+  todayCount: number;
+  baselineDailyAvg: number;
+  status: string;
+  lastAttemptAt: string | null;
+  sentAt: string | null;
+}
+
+/**
+ * Recent spike alert history for the admin dashboard (see /api/admin/character-break-alerts
+ * in server/routes.ts) — surfaces what has already fired in character_break_alerts so an
+ * admin who missed the email can still see it without a DB console.
+ */
+export async function getCharacterBreakAlertHistory(limit = 50): Promise<CharacterBreakAlertHistoryEntry[]> {
+  await initCharacterBreakAlertsTable();
+  const db = getPool();
+  const res = await db.query(
+    `SELECT persona, alert_day, today_count, baseline_daily_avg, status, last_attempt_at, sent_at
+     FROM character_break_alerts
+     ORDER BY alert_day DESC, last_attempt_at DESC
+     LIMIT $1`,
+    [Math.min(200, Math.max(1, limit))],
+  );
+  return res.rows.map((row: any) => ({
+    persona: row.persona as string,
+    alertDay: row.alert_day as string,
+    todayCount: parseInt(row.today_count) || 0,
+    baselineDailyAvg: parseFloat(row.baseline_daily_avg) || 0,
+    status: row.status as string,
+    lastAttemptAt: row.last_attempt_at ? new Date(row.last_attempt_at).toISOString() : null,
+    sentAt: row.sent_at ? new Date(row.sent_at).toISOString() : null,
+  }));
+}
+
 /**
  * Runs the spike check: gathers today-vs-baseline inputs, detects spikes, and emails an
  * admin for any spike not already SUCCESSFULLY delivered today.

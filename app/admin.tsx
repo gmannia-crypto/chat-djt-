@@ -4027,6 +4027,15 @@ function CharacterBreakDashboard() {
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
   const [days, setDays] = useState(30);
+  const [alertHistory, setAlertHistory] = useState<{
+    persona: string;
+    alertDay: string;
+    todayCount: number;
+    baselineDailyAvg: number;
+    status: string;
+    sentAt: string | null;
+  }[]>([]);
+  const [alertsLoading, setAlertsLoading] = useState(true);
 
   const fetchStats = async (d: number = days) => {
     setLoading(true);
@@ -4040,7 +4049,23 @@ function CharacterBreakDashboard() {
     setLoading(false);
   };
 
+  const fetchAlertHistory = async () => {
+    setAlertsLoading(true);
+    try {
+      const res = await fetch(
+        new URL(`/api/admin/character-break-alerts?limit=20`, getApiUrl()).toString(),
+        { headers: adminHeaders(adminKey) }
+      );
+      if (res.ok) {
+        const json = await res.json();
+        setAlertHistory(json.alerts || []);
+      }
+    } catch {}
+    setAlertsLoading(false);
+  };
+
   useEffect(() => { fetchStats(); }, [days]);
+  useEffect(() => { fetchAlertHistory(); }, []);
 
   if (loading && !data) return (
     <View style={analyticsStyles.section}>
@@ -4081,6 +4106,51 @@ function CharacterBreakDashboard() {
                 </Text>
               </Pressable>
             ))}
+          </View>
+
+          <View style={analyticsStyles.card}>
+            <Text style={analyticsStyles.cardTitle}>Recent Spike Alerts</Text>
+            <Text style={{ color: Colors.whiteDim, fontSize: 12, lineHeight: 18, marginBottom: 8 }}>
+              Proactive alerts fired when a persona's today count spikes far above its own
+              recent baseline (see server/character-break-alerts.ts). Shows what already went
+              out, even if the email was missed.
+            </Text>
+            {alertsLoading ? (
+              <ActivityIndicator color={Colors.gold} style={{ marginTop: 8 }} />
+            ) : alertHistory.length === 0 ? (
+              <Text style={{ color: Colors.whiteDim, fontSize: 13 }}>No spike alerts recorded yet.</Text>
+            ) : (
+              alertHistory.map((a) => {
+                const statusColor = a.status === "sent" ? "#4ADE80" : a.status === "failed" ? "#F87171" : "#FACC15";
+                const multiplier = a.baselineDailyAvg > 0 ? (a.todayCount / a.baselineDailyAvg).toFixed(1) : null;
+                return (
+                  <View
+                    key={`${a.persona}-${a.alertDay}`}
+                    style={{
+                      flexDirection: "row",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      paddingVertical: 6,
+                      borderBottomWidth: 1,
+                      borderBottomColor: "rgba(255,255,255,0.08)",
+                    }}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: Colors.white, fontSize: 13, fontWeight: "700" }}>
+                        {ARENA_NAME_MAP_ADMIN[a.persona] || a.persona}
+                      </Text>
+                      <Text style={{ color: Colors.whiteDim, fontSize: 11 }}>
+                        {a.alertDay} · {a.todayCount} today vs {a.baselineDailyAvg.toFixed(1)}/day baseline
+                        {multiplier ? ` (${multiplier}x)` : ""}
+                      </Text>
+                    </View>
+                    <Text style={{ color: statusColor, fontSize: 12, fontWeight: "700", textTransform: "capitalize" }}>
+                      {a.status.replace(/_/g, " ")}
+                    </Text>
+                  </View>
+                );
+              })
+            )}
           </View>
 
           <View style={analyticsStyles.card}>
