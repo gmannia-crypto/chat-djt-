@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useEngagement } from "@/lib/engagement-context";
 import { useLiveActivity } from "@/lib/live-activity-context";
-import { useScreenTracker } from "@/lib/use-analytics";
+import { useScreenTracker, useTrackEvent } from "@/lib/use-analytics";
 import {
   View,
   Text,
@@ -4584,6 +4584,7 @@ export default function ArenaScreen() {
   const { showShareCard, awardBadge } = useEngagement();
   const { logEvent: logLiveEvent } = useLiveActivity();
   useScreenTracker("arena");
+  const trackEvent = useTrackEvent();
   const { hof, persona } = useLocalSearchParams<{ hof?: string; persona?: string }>();
 
   useEffect(() => { logLiveEvent("arena_enter"); }, []);
@@ -5579,8 +5580,11 @@ export default function ArenaScreen() {
     ACTIVE_TEAM_ASSIGNMENTS = null;
     setActiveTeamBattle(null);
     confirmedExitRef.current = true;
+    trackEvent("debate", "ended", {
+      durationSeconds: Math.round((Date.now() - sessionStartTimeRef.current) / 1000),
+    });
     doNav();
-  }, [hasSession, sessionExpiresAt, saveSessionState, fetchAllPersonaRecords]);
+  }, [hasSession, sessionExpiresAt, saveSessionState, fetchAllPersonaRecords, trackEvent]);
 
   const [showExitModal, setShowExitModal] = useState(false);
   const pendingExitNavRef = useRef<(() => void) | null>(null);
@@ -7349,11 +7353,12 @@ export default function ArenaScreen() {
         shareUrlProp = native;
       }
       await Share.share({ message: shareMessage, url: shareUrlProp });
+      trackEvent("referral", "shared", { location: "arena" });
     } catch (err) {
       console.warn("[referral] share failed:", err);
       await Share.share({ message: "🔥 Join me in The Arena! → https://thearena.rip" }).catch(() => {});
     }
-  }, [fetchReferralUrls]);
+  }, [fetchReferralUrls, trackEvent]);
 
   const handleShareToWhatsApp = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -9097,6 +9102,10 @@ export default function ArenaScreen() {
     }
     setPersonaSessionIQ(seededIQ);
     personaSessionIQRef.current = seededIQ;
+    trackEvent("debate", "started", {
+      personaCount: selectedPersonasRef.current.length,
+      personas: selectedPersonasRef.current.join(","),
+    });
     try {
       const ctx = await getArenaMemoryContext("", selectedPersonasRef.current);
       arenaMemoryContextRef.current = ctx;

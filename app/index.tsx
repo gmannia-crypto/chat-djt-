@@ -1135,6 +1135,7 @@ export default function HomeScreen() {
 
     const reward = claim.reward as { label: string; icon: string; description: string; detail: any };
     const prizeBase = MYSTERY_REWARDS.find((r) => r.label === reward.label) || MYSTERY_REWARDS[0];
+    trackEvent("mystery_box", "claimed", { reward: reward.label });
 
     if (reward.label === "Arena Persona Unlock" && reward.detail?.personaId) {
       const personaId: string = reward.detail.personaId;
