@@ -542,7 +542,7 @@ export default function InterviewScreen() {
   const beepEnabledRef = useRef(true);
   const [activeSpeaker, setActiveSpeaker] = useState<string | null>(null);
   const activeSpeakerRef = useRef<string | null>(null);
-  const ttsQueueRef = useRef<Array<{ text: string; personaId: string; msgId?: string; onStart?: () => void; onPlaybackStart?: () => void }>>([]);
+  const ttsQueueRef = useRef<Array<{ text: string; personaId: string; msgId?: string; onStart?: () => void; onPlaybackStart?: () => void; onComplete?: () => void }>>([]);
   const ttsRunningRef = useRef(false);
   const currentSoundRef = useRef<Audio.Sound | null>(null);
   // Bumped on every mute so a pre-mute async TTS/interruption/reaction request that
@@ -901,170 +901,201 @@ export default function InterviewScreen() {
       // scheduling — see onPlaybackStart below.
       item.onStart?.();
       const myGeneration = ttsGenerationRef.current;
-      try {
-        // If a prefetch is in flight for this item, wait up to 6 s for it to land.
-        // 6 s covers worst-case Fish Audio latency; the prefetch was started early
-        // (during the previous clip) so it has usually finished well before this.
-        if (prefetchingRef.current) {
-          const prefetchDeadline = Date.now() + 6000;
-          while (prefetchingRef.current && Date.now() < prefetchDeadline) {
-            await new Promise<void>((r) => setTimeout(r, 40));
-          }
-        }
-        // Use prefetched audio if it matches this item — eliminates fetch latency gap
-        const cached = prefetchedAudioRef.current;
-        let sound: Audio.Sound;
-        if (cached && cached.text === item.text && cached.personaId === item.personaId) {
-          prefetchedAudioRef.current = null;
-          sound = await playPrefetchedAudio(cached.audioUri, { volume: getPersonaVoiceVolume(item.personaId) });
-        } else {
-          sound = await playTTS("/api/persona-speak", { text: item.text, personaId: item.personaId, bleepEnabled: bleepEnabledRef.current, ...(item.personaId === "stephena" ? { angerLevel: stephenaAngerRef.current } : {}), ...(item.personaId === "ruckus" ? { angerLevel: ruckusAngerRef.current } : {}) }, { volume: getPersonaVoiceVolume(item.personaId) });
-        }
-        // The fetch/creation above is async — voice may have been muted (even muted then
-        // quickly unmuted again) while it was in flight. Compare against the generation
-        // token, not just the current boolean, so a stale pre-mute request never starts.
-        if (myGeneration !== ttsGenerationRef.current || !voiceEnabledRef.current) {
-          try { await sound.stopAsync(); } catch {}
-          try { await sound.unloadAsync(); } catch {}
-          item.onComplete?.();
-          break;
-        }
-        currentSoundRef.current = sound;
-        if (!firstAudioPlayedRef.current) { firstAudioPlayedRef.current = true; setFirstAudioPlayed(true); }
-        // 1s overlap: next speaker starts 1 second before current clip ends — conversational handoff
-        const OVERLAP_MS = 1000;
-        let prefetchStarted = false;
-        await new Promise<void>((resolve) => {
-          let resolved = false;
-          let earlyResolved = false;
-          const fullCleanup = () => {
-            sound.setOnPlaybackStatusUpdate(null);
-            sound.getStatusAsync().then((st: any) => { if (st.isLoaded) sound.unloadAsync().catch(() => {}); }).catch(() => {});
-            if (currentSoundRef.current === sound) currentSoundRef.current = null;
-          };
-          const earlyResolve = () => {
-            if (earlyResolved || resolved) return;
-            earlyResolved = true;
-            resolve();
-          };
-          const finish = () => {
-            if (resolved) return;
-            resolved = true;
-            // Always fire onComplete regardless of exit path (didJustFinish, error,
-            // OR safety-timeout). Without this, enqueueTTSAndWait hangs forever
-            // when audio finishes — blocking the entire runLoop.
-            item.onComplete?.();
-            if (!earlyResolved) resolve();
-            fullCleanup();
-          };
-          // Two-phase safety timeout:
-          //  Phase 1 — short window (10 s) to abort if audio never starts loading.
-          //  Phase 2 — once playback begins, switch to a generous cap based on
-          //            actual audio duration so long speeches are never cut short.
-          //
-          // Duration stability guard: on web, a freshly-generated (uncached) line
-          // streams straight through from the server with no Content-Length
-          // (server/persona-tts.ts streams chunk-by-chunk as Fish Audio produces
-          // them). The browser's <audio> element then has to ESTIMATE duration
-          // from however many bytes have arrived so far, and that estimate can
-          // be far shorter than the real clip length while it's still buffering
-          // — e.g. reporting 3s for a line that's actually 9s long. Trusting that
-          // number immediately made both the phase-2 safety timer (durationMillis
-          // + 6000) and the overlap early-resolve below fire way too soon,
-          // hard-cutting or ducking lines well before they'd actually finished —
-          // this is what read as "incomplete and rushed" dialogue. Fix: only
-          // trust durationMillis for those two decisions once it has reported
-          // the SAME value on two consecutive ticks (i.e. it has stopped
-          // growing as more of the stream arrives). Until then, keep refreshing
-          // a generous rolling fallback timer instead of locking in a bogus cap.
-          let playbackStarted = false;
-          let safetyTimer: ReturnType<typeof setTimeout> = setTimeout(finish, 10000);
-          let lastSeenDuration: number | null = null;
-          let durationStableTicks = 0;
-          let durationLockedIn = false;
-
-          sound.setOnPlaybackStatusUpdate((status: any) => {
-            if (status.didJustFinish || status.error) {
-              clearTimeout(safetyTimer);
-              finish();
-              return;
+      // A single flaky TTS fetch or expo-av playback error used to permanently kill
+      // this item — the queue moved on (transcript kept generating) while nothing
+      // was ever heard for this line, which read as "audio stopped but dialogue
+      // kept going". Retry once with a freshly-fetched (non-cached) clip before
+      // giving up, so one transient failure doesn't go silent for the rest of the
+      // session — see [TTS_RETRY] logs to confirm this is actually firing.
+      const MAX_TTS_ATTEMPTS = 2;
+      let attempt = 0;
+      let playbackSucceeded = false;
+      let abortedForGeneration = false;
+      while (attempt < MAX_TTS_ATTEMPTS && !playbackSucceeded && !abortedForGeneration) {
+        attempt++;
+        try {
+          // If a prefetch is in flight for this item, wait up to 6 s for it to land.
+          // 6 s covers worst-case Fish Audio latency; the prefetch was started early
+          // (during the previous clip) so it has usually finished well before this.
+          if (attempt === 1 && prefetchingRef.current) {
+            const prefetchDeadline = Date.now() + 6000;
+            while (prefetchingRef.current && Date.now() < prefetchDeadline) {
+              await new Promise<void>((r) => setTimeout(r, 40));
             }
-            if (status.isPlaying && status.durationMillis && status.positionMillis) {
-              if (!playbackStarted) {
-                playbackStarted = true;
-                // onPlaybackStart fires on the FIRST confirmed isPlaying status —
-                // i.e. once this clip has actually started producing audio, not
-                // merely reached the front of the queue. Used exclusively by live
-                // reactions so their overlap/duck timing keys off the real
-                // playback clock and can never fire with no audio to react
-                // against (distinct from onStart above, which fires even for
-                // skipped voices).
-                item.onPlaybackStart?.();
-                // ── Karaoke scroll: scroll to THIS message when it starts playing ──
-                // Use msgId to find the exact index so we don't jump ahead
-                // to messages that were added later but not yet spoken.
-                const msgIdx = item.msgId
-                  ? messagesRef.current.findIndex((m) => m.id === item.msgId)
-                  : -1;
-                if (msgIdx >= 0) {
-                  try {
-                    flatListRef.current?.scrollToIndex({ index: msgIdx, animated: true, viewPosition: 0.8 });
-                  } catch {
+          }
+          // Use prefetched audio if it matches this item — eliminates fetch latency gap.
+          // Only trust the cache on the FIRST attempt: a retry means this exact clip
+          // already failed to play once, so a fresh fetch is safer than reusing
+          // whatever cached URI/session may have been the actual problem.
+          const cached = attempt === 1 ? prefetchedAudioRef.current : null;
+          let sound: Audio.Sound;
+          if (cached && cached.text === item.text && cached.personaId === item.personaId) {
+            prefetchedAudioRef.current = null;
+            sound = await playPrefetchedAudio(cached.audioUri, { volume: getPersonaVoiceVolume(item.personaId) });
+          } else {
+            sound = await playTTS("/api/persona-speak", { text: item.text, personaId: item.personaId, bleepEnabled: bleepEnabledRef.current, ...(item.personaId === "stephena" ? { angerLevel: stephenaAngerRef.current } : {}), ...(item.personaId === "ruckus" ? { angerLevel: ruckusAngerRef.current } : {}) }, { volume: getPersonaVoiceVolume(item.personaId) });
+          }
+          // The fetch/creation above is async — voice may have been muted (even muted then
+          // quickly unmuted again) while it was in flight. Compare against the generation
+          // token, not just the current boolean, so a stale pre-mute request never starts.
+          if (myGeneration !== ttsGenerationRef.current || !voiceEnabledRef.current) {
+            try { await sound.stopAsync(); } catch {}
+            try { await sound.unloadAsync(); } catch {}
+            abortedForGeneration = true;
+            break;
+          }
+          currentSoundRef.current = sound;
+          if (!firstAudioPlayedRef.current) { firstAudioPlayedRef.current = true; setFirstAudioPlayed(true); }
+          // 1s overlap: next speaker starts 1 second before current clip ends — conversational handoff
+          const OVERLAP_MS = 1000;
+          let prefetchStarted = false;
+          const started = await new Promise<boolean>((resolve) => {
+            let resolved = false;
+            let earlyResolved = false;
+            const fullCleanup = () => {
+              sound.setOnPlaybackStatusUpdate(null);
+              sound.getStatusAsync().then((st: any) => { if (st.isLoaded) sound.unloadAsync().catch(() => {}); }).catch(() => {});
+              if (currentSoundRef.current === sound) currentSoundRef.current = null;
+            };
+            const earlyResolve = () => {
+              if (earlyResolved || resolved) return;
+              earlyResolved = true;
+              resolve(true);
+            };
+            // didStart tells the retry loop above whether this attempt ever produced
+            // audible audio (confirmed isPlaying) — an error/timeout that never
+            // started is worth retrying; one that started and then errored/timed
+            // out is not (some of the line was already heard).
+            const finish = (didStart: boolean) => {
+              if (resolved) return;
+              resolved = true;
+              if (!earlyResolved) resolve(didStart);
+              fullCleanup();
+            };
+            // Two-phase safety timeout:
+            //  Phase 1 — short window (10 s) to abort if audio never starts loading.
+            //  Phase 2 — once playback begins, switch to a generous cap based on
+            //            actual audio duration so long speeches are never cut short.
+            //
+            // Duration stability guard: on web, a freshly-generated (uncached) line
+            // streams straight through from the server with no Content-Length
+            // (server/persona-tts.ts streams chunk-by-chunk as Fish Audio produces
+            // them). The browser's <audio> element then has to ESTIMATE duration
+            // from however many bytes have arrived so far, and that estimate can
+            // be far shorter than the real clip length while it's still buffering
+            // — e.g. reporting 3s for a line that's actually 9s long. Trusting that
+            // number immediately made both the phase-2 safety timer (durationMillis
+            // + 6000) and the overlap early-resolve below fire way too soon,
+            // hard-cutting or ducking lines well before they'd actually finished —
+            // this is what read as "incomplete and rushed" dialogue. Fix: only
+            // trust durationMillis for those two decisions once it has reported
+            // the SAME value on two consecutive ticks (i.e. it has stopped
+            // growing as more of the stream arrives). Until then, keep refreshing
+            // a generous rolling fallback timer instead of locking in a bogus cap.
+            let playbackStarted = false;
+            let safetyTimer: ReturnType<typeof setTimeout> = setTimeout(() => finish(playbackStarted), 10000);
+            let lastSeenDuration: number | null = null;
+            let durationStableTicks = 0;
+            let durationLockedIn = false;
+
+            sound.setOnPlaybackStatusUpdate((status: any) => {
+              if (status.didJustFinish || status.error) {
+                clearTimeout(safetyTimer);
+                finish(playbackStarted);
+                return;
+              }
+              if (status.isPlaying && status.durationMillis && status.positionMillis) {
+                if (!playbackStarted) {
+                  playbackStarted = true;
+                  // onPlaybackStart fires on the FIRST confirmed isPlaying status —
+                  // i.e. once this clip has actually started producing audio, not
+                  // merely reached the front of the queue. Used exclusively by live
+                  // reactions so their overlap/duck timing keys off the real
+                  // playback clock and can never fire with no audio to react
+                  // against (distinct from onStart above, which fires even for
+                  // skipped voices).
+                  item.onPlaybackStart?.();
+                  // ── Karaoke scroll: scroll to THIS message when it starts playing ──
+                  // Use msgId to find the exact index so we don't jump ahead
+                  // to messages that were added later but not yet spoken.
+                  const msgIdx = item.msgId
+                    ? messagesRef.current.findIndex((m) => m.id === item.msgId)
+                    : -1;
+                  if (msgIdx >= 0) {
+                    try {
+                      flatListRef.current?.scrollToIndex({ index: msgIdx, animated: true, viewPosition: 0.8 });
+                    } catch {
+                      flatListRef.current?.scrollToEnd({ animated: true });
+                    }
+                  } else {
                     flatListRef.current?.scrollToEnd({ animated: true });
                   }
+                }
+                // Track whether durationMillis has stopped growing (2 identical
+                // consecutive ticks = the stream has caught up / fully buffered).
+                // Only once stable do we lock in the tight duration-based safety
+                // cap or allow the overlap handoff to fire — see comment above.
+                if (status.durationMillis === lastSeenDuration) {
+                  durationStableTicks++;
                 } else {
-                  flatListRef.current?.scrollToEnd({ animated: true });
+                  lastSeenDuration = status.durationMillis;
+                  durationStableTicks = 1;
+                }
+                if (!durationLockedIn && durationStableTicks >= 2) {
+                  durationLockedIn = true;
+                  clearTimeout(safetyTimer);
+                  const remainingNow = status.durationMillis - status.positionMillis;
+                  // Allow the remaining clip time + 6 s buffer before force-finishing
+                  safetyTimer = setTimeout(() => finish(playbackStarted), Math.max(remainingNow, 0) + 6000);
+                } else if (!durationLockedIn) {
+                  // Duration is still an unstable, likely-too-low estimate — keep
+                  // pushing the fallback deadline out so genuine ongoing playback
+                  // is never mistaken for a stuck/never-started clip.
+                  clearTimeout(safetyTimer);
+                  safetyTimer = setTimeout(() => finish(playbackStarted), 10000);
+                }
+
+                const remaining = status.durationMillis - status.positionMillis;
+                // Kick off audio prefetch for the next item as soon as possible
+                if (!prefetchStarted && ttsQueueRef.current.length > 0) {
+                  prefetchStarted = true;
+                  startPrefetch(ttsQueueRef.current[0]);
+                }
+                // Early-resolve only when the NEXT queued item is a DIFFERENT speaker —
+                // prevents a persona from cutting off their own speech mid-sentence.
+                // Gated on durationLockedIn: an unstable/still-streaming duration
+                // estimate can read as "almost done" seconds before the clip
+                // actually ends, which was cutting lines short far too early.
+                const nextQueued = ttsQueueRef.current[0];
+                const nextIsDifferentSpeaker = nextQueued && nextQueued.personaId !== item.personaId;
+                if (durationLockedIn && !earlyResolved && nextIsDifferentSpeaker && remaining <= OVERLAP_MS && remaining > 0) {
+                  // Duck outgoing speaker during overlap window for a natural conversational handoff
+                  try { sound.setVolumeAsync(0.28).catch(() => {}); } catch {}
+                  earlyResolve();
                 }
               }
-              // Track whether durationMillis has stopped growing (2 identical
-              // consecutive ticks = the stream has caught up / fully buffered).
-              // Only once stable do we lock in the tight duration-based safety
-              // cap or allow the overlap handoff to fire — see comment above.
-              if (status.durationMillis === lastSeenDuration) {
-                durationStableTicks++;
-              } else {
-                lastSeenDuration = status.durationMillis;
-                durationStableTicks = 1;
-              }
-              if (!durationLockedIn && durationStableTicks >= 2) {
-                durationLockedIn = true;
-                clearTimeout(safetyTimer);
-                const remainingNow = status.durationMillis - status.positionMillis;
-                // Allow the remaining clip time + 6 s buffer before force-finishing
-                safetyTimer = setTimeout(finish, Math.max(remainingNow, 0) + 6000);
-              } else if (!durationLockedIn) {
-                // Duration is still an unstable, likely-too-low estimate — keep
-                // pushing the fallback deadline out so genuine ongoing playback
-                // is never mistaken for a stuck/never-started clip.
-                clearTimeout(safetyTimer);
-                safetyTimer = setTimeout(finish, 10000);
-              }
-
-              const remaining = status.durationMillis - status.positionMillis;
-              // Kick off audio prefetch for the next item as soon as possible
-              if (!prefetchStarted && ttsQueueRef.current.length > 0) {
-                prefetchStarted = true;
-                startPrefetch(ttsQueueRef.current[0]);
-              }
-              // Early-resolve only when the NEXT queued item is a DIFFERENT speaker —
-              // prevents a persona from cutting off their own speech mid-sentence.
-              // Gated on durationLockedIn: an unstable/still-streaming duration
-              // estimate can read as "almost done" seconds before the clip
-              // actually ends, which was cutting lines short far too early.
-              const nextQueued = ttsQueueRef.current[0];
-              const nextIsDifferentSpeaker = nextQueued && nextQueued.personaId !== item.personaId;
-              if (durationLockedIn && !earlyResolved && nextIsDifferentSpeaker && remaining <= OVERLAP_MS && remaining > 0) {
-                // Duck outgoing speaker during overlap window for a natural conversational handoff
-                try { sound.setVolumeAsync(0.28).catch(() => {}); } catch {}
-                earlyResolve();
-              }
-            }
+            });
           });
-        });
-      } catch (e) {
-        // TTS error — must call onComplete or enqueueTTSAndWait hangs permanently
-        item.onComplete?.();
+          if (started) {
+            playbackSucceeded = true;
+          } else if (attempt < MAX_TTS_ATTEMPTS) {
+            console.warn(`[TTS_RETRY] interview: "${item.personaId}" never started playing, retrying with a fresh fetch (attempt ${attempt + 1}/${MAX_TTS_ATTEMPTS})`);
+          } else {
+            console.warn(`[TTS_RETRY] interview: "${item.personaId}" failed to play after ${MAX_TTS_ATTEMPTS} attempts, skipping this line so dialogue doesn't stall`);
+          }
+        } catch (e) {
+          if (attempt < MAX_TTS_ATTEMPTS) {
+            console.warn(`[TTS_RETRY] interview: fetch/create error for "${item.personaId}", retrying (attempt ${attempt + 1}/${MAX_TTS_ATTEMPTS}):`, e);
+          } else {
+            console.warn(`[TTS_RETRY] interview: giving up on "${item.personaId}" after ${MAX_TTS_ATTEMPTS} attempts:`, e);
+          }
+        }
       }
+      // Always fire onComplete regardless of outcome (success, exhausted retries, OR
+      // generation-abort). Without this, enqueueTTSAndWait hangs forever — blocking
+      // the entire runLoop.
+      item.onComplete?.();
+      if (abortedForGeneration) break;
     }
     ttsRunningRef.current = false;
     // Safety: reset prefetchingRef in case a failed prefetch left it stuck at true

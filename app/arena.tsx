@@ -5903,97 +5903,134 @@ export default function ArenaScreen() {
       // start before the line itself is actually playing, or overlap a
       // still-speaking earlier persona if this fetch is slow.
       let firedPlaybackStart = false;
-      try {
-        let sound: Audio.Sound;
-        const personaVolume = getPersonaVoiceVolume(item.personaId);
-        const cached = prefetchedAudioRef.current;
-        if (cached && cached.text === item.text && cached.personaId === item.personaId) {
-          prefetchedAudioRef.current = null;
-          sound = await playPrefetchedAudio(cached.audioUri, { volume: personaVolume });
-        } else {
-          sound = await playTTS("/api/persona-speak", { text: item.text, personaId: item.personaId, bleepEnabled: bleepEnabledRef.current, ...(item.personaId === "trump" ? { voiceId: TRUMP_ARENA_VOICE_ID } : {}), ...(item.personaId === "loudmouth" || item.personaId === "stephena" || item.personaId === "ruckus" ? { angerLevel: roomTempRef.current } : {}) }, { volume: personaVolume });
-        }
-        // The fetch/creation above is async — voice may have been muted (or the whole
-        // queue reset) while it was in flight. Re-check before treating this sound as
-        // "now playing" so a mute press during a pending request still cuts it off.
-        const stillAllowed = myGeneration === ttsGenerationRef.current && voiceEnabledRef.current;
-        if (!stillAllowed) {
-          try { await sound.stopAsync(); } catch {}
-          try { await sound.unloadAsync(); } catch {}
-          continue;
-        }
-        currentSoundRef.current = sound;
+      // A single flaky TTS fetch or expo-av playback error used to permanently kill
+      // this item — the queue moved on (transcript kept generating) while nothing
+      // was ever heard for this line, which read as "audio stopped but dialogue
+      // kept going". Retry once with a freshly-fetched (non-cached) clip before
+      // giving up, so one transient failure doesn't go silent for the rest of the
+      // session — see [TTS_RETRY] logs to confirm this is actually firing.
+      const MAX_TTS_ATTEMPTS = 2;
+      let attempt = 0;
+      let playbackSucceeded = false;
+      let abortedForGeneration = false;
+      while (attempt < MAX_TTS_ATTEMPTS && !playbackSucceeded && !abortedForGeneration) {
+        attempt++;
+        try {
+          let sound: Audio.Sound;
+          const personaVolume = getPersonaVoiceVolume(item.personaId);
+          // Only trust the prefetch cache on the FIRST attempt — a retry means this
+          // exact clip already failed to play once, so force a fresh fetch rather
+          // than risking whatever cached URI/session may have been the problem.
+          const cached = attempt === 1 ? prefetchedAudioRef.current : null;
+          if (cached && cached.text === item.text && cached.personaId === item.personaId) {
+            prefetchedAudioRef.current = null;
+            sound = await playPrefetchedAudio(cached.audioUri, { volume: personaVolume });
+          } else {
+            sound = await playTTS("/api/persona-speak", { text: item.text, personaId: item.personaId, bleepEnabled: bleepEnabledRef.current, ...(item.personaId === "trump" ? { voiceId: TRUMP_ARENA_VOICE_ID } : {}), ...(item.personaId === "loudmouth" || item.personaId === "stephena" || item.personaId === "ruckus" ? { angerLevel: roomTempRef.current } : {}) }, { volume: personaVolume });
+          }
+          // The fetch/creation above is async — voice may have been muted (or the whole
+          // queue reset) while it was in flight. Re-check before treating this sound as
+          // "now playing" so a mute press during a pending request still cuts it off.
+          const stillAllowed = myGeneration === ttsGenerationRef.current && voiceEnabledRef.current;
+          if (!stillAllowed) {
+            try { await sound.stopAsync(); } catch {}
+            try { await sound.unloadAsync(); } catch {}
+            abortedForGeneration = true;
+            break;
+          }
+          currentSoundRef.current = sound;
 
-        const nextItem = ttsQueueRef.current[0];
-        if (nextItem) startPrefetch(nextItem);
+          const nextItem = ttsQueueRef.current[0];
+          if (nextItem) startPrefetch(nextItem);
 
-        const OVERLAP_MS = 500;
-        const isTrumpSpeaking = item.personaId === "trump";
-        await new Promise<void>((resolve) => {
-          let resolved = false;
-          let earlyResolved = false;
-          let prefetchStarted = !!nextItem;
-          const fullCleanup = () => {
-            sound.setOnPlaybackStatusUpdate(null);
-            // Stop BEFORE unload — unloading a still-playing sound without stopping
-            // first flushes garbage data from the audio hardware buffer, producing the
-            // "jibber jabber" tail heard after normal dialog.
-            sound.getStatusAsync().then((st: any) => {
-              if (st.isLoaded) sound.stopAsync().then(() => sound.unloadAsync()).catch(() => {});
-            }).catch(() => {});
-            if (currentSoundRef.current === sound) currentSoundRef.current = null;
-          };
-          const earlyResolve = () => {
-            if (earlyResolved || resolved) return;
-            earlyResolved = true;
-            // MixWithOthers (lib/audio-helper.ts) lets this clip keep playing
-            // physically after we resolve — the OS no longer force-kills it the
-            // way DoNotMix used to. Without an explicit duck here, resolving early
-            // lets the next queued line start immediately while this one is still
-            // at full volume, so both voices play on top of each other for the
-            // overlap window instead of a clean handoff. Fade this tail clip down
-            // (don't stop it — a hard stop mid-word sounds like a cut) so the
-            // intended overlap reads as a soft undertone, not two voices colliding.
-            sound.setVolumeAsync(0.15).catch(() => {});
-            resolve();
-          };
-          const finish = () => {
-            if (resolved) return;
-            resolved = true;
-            if (!earlyResolved) resolve();
-            fullCleanup();
-          };
-          sound.setOnPlaybackStatusUpdate((status: any) => {
-            if (status.didJustFinish || status.error) {
-              finish();
-              return;
-            }
-            if (status.isPlaying && !firedPlaybackStart) {
-              firedPlaybackStart = true;
-              item.onPlaybackStart?.();
-            }
-            if (status.isPlaying && status.durationMillis && status.positionMillis) {
-              if (!prefetchStarted && (ttsQueueRef.current.length > 0 || ttsPendingMoreRef.current)) {
-                prefetchStarted = true;
-                const ni = ttsQueueRef.current[0];
-                if (ni) startPrefetch(ni);
+          const OVERLAP_MS = 500;
+          const isTrumpSpeaking = item.personaId === "trump";
+          const started = await new Promise<boolean>((resolve) => {
+            let resolved = false;
+            let earlyResolved = false;
+            let prefetchStarted = !!nextItem;
+            let playbackStarted = false;
+            const fullCleanup = () => {
+              sound.setOnPlaybackStatusUpdate(null);
+              // Stop BEFORE unload — unloading a still-playing sound without stopping
+              // first flushes garbage data from the audio hardware buffer, producing the
+              // "jibber jabber" tail heard after normal dialog.
+              sound.getStatusAsync().then((st: any) => {
+                if (st.isLoaded) sound.stopAsync().then(() => sound.unloadAsync()).catch(() => {});
+              }).catch(() => {});
+              if (currentSoundRef.current === sound) currentSoundRef.current = null;
+            };
+            const earlyResolve = () => {
+              if (earlyResolved || resolved) return;
+              earlyResolved = true;
+              // MixWithOthers (lib/audio-helper.ts) lets this clip keep playing
+              // physically after we resolve — the OS no longer force-kills it the
+              // way DoNotMix used to. Without an explicit duck here, resolving early
+              // lets the next queued line start immediately while this one is still
+              // at full volume, so both voices play on top of each other for the
+              // overlap window instead of a clean handoff. Fade this tail clip down
+              // (don't stop it — a hard stop mid-word sounds like a cut) so the
+              // intended overlap reads as a soft undertone, not two voices colliding.
+              sound.setVolumeAsync(0.15).catch(() => {});
+              resolve(true);
+            };
+            // didStart tells the retry loop above whether this attempt ever produced
+            // audible audio (confirmed isPlaying) — an error/timeout that never
+            // started is worth retrying; one that started and then errored/timed
+            // out is not (some of the line was already heard).
+            const finish = (didStart: boolean) => {
+              if (resolved) return;
+              resolved = true;
+              if (!earlyResolved) resolve(didStart);
+              fullCleanup();
+            };
+            sound.setOnPlaybackStatusUpdate((status: any) => {
+              if (status.didJustFinish || status.error) {
+                finish(playbackStarted);
+                return;
               }
-              // Only early-resolve for a DIFFERENT next speaker — never self-interrupt
-              const nextQueuedItem = ttsQueueRef.current[0];
-              const nextIsDifferentSpeaker = nextQueuedItem && nextQueuedItem.personaId !== item.personaId;
-              if (!isTrumpSpeaking && !earlyResolved && nextIsDifferentSpeaker) {
-                const remaining = status.durationMillis - status.positionMillis;
-                if (remaining <= OVERLAP_MS && remaining > 0) {
-                  earlyResolve();
+              if (status.isPlaying && !firedPlaybackStart) {
+                firedPlaybackStart = true;
+                playbackStarted = true;
+                item.onPlaybackStart?.();
+              } else if (status.isPlaying) {
+                playbackStarted = true;
+              }
+              if (status.isPlaying && status.durationMillis && status.positionMillis) {
+                if (!prefetchStarted && (ttsQueueRef.current.length > 0 || ttsPendingMoreRef.current)) {
+                  prefetchStarted = true;
+                  const ni = ttsQueueRef.current[0];
+                  if (ni) startPrefetch(ni);
+                }
+                // Only early-resolve for a DIFFERENT next speaker — never self-interrupt
+                const nextQueuedItem = ttsQueueRef.current[0];
+                const nextIsDifferentSpeaker = nextQueuedItem && nextQueuedItem.personaId !== item.personaId;
+                if (!isTrumpSpeaking && !earlyResolved && nextIsDifferentSpeaker) {
+                  const remaining = status.durationMillis - status.positionMillis;
+                  if (remaining <= OVERLAP_MS && remaining > 0) {
+                    earlyResolve();
+                  }
                 }
               }
-            }
+            });
+            setTimeout(() => finish(playbackStarted), 60000);
           });
-          setTimeout(finish, 60000);
-        });
-      } catch (e) {
-        console.warn("Arena TTS playback error for", item.personaId, ":", e);
+          if (started) {
+            playbackSucceeded = true;
+          } else if (attempt < MAX_TTS_ATTEMPTS) {
+            console.warn(`[TTS_RETRY] arena: "${item.personaId}" never started playing, retrying with a fresh fetch (attempt ${attempt + 1}/${MAX_TTS_ATTEMPTS})`);
+          } else {
+            console.warn(`[TTS_RETRY] arena: "${item.personaId}" failed to play after ${MAX_TTS_ATTEMPTS} attempts, skipping this line so dialogue doesn't stall`);
+          }
+        } catch (e) {
+          if (attempt < MAX_TTS_ATTEMPTS) {
+            console.warn(`[TTS_RETRY] arena: fetch/create error for "${item.personaId}", retrying (attempt ${attempt + 1}/${MAX_TTS_ATTEMPTS}):`, e);
+          } else {
+            console.warn("Arena TTS playback error for", item.personaId, "after retries:", e);
+          }
+        }
       }
+      if (abortedForGeneration) continue;
     }
     const hasMoreItems = ttsQueueRef.current.length > 0;
     if (myGeneration === ttsGenerationRef.current) {
