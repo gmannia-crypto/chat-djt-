@@ -5886,7 +5886,15 @@ export default function ArenaScreen() {
       })
       .catch((err) => {
         prefetchingRef.current = false;
-        throw err;
+        // Resolve to null instead of rejecting. This promise is stored on a ref and
+        // may never be awaited by anything (e.g. the target line finishes playing via
+        // early-resolve before the queue ever reaches this item) — a rejected promise
+        // with no attached handler in that case is an unhandled rejection, which was
+        // crashing the app with "Uncaught Error: TTS prefetch failed: 404" any time a
+        // prefetch failed. The queue loop below already treats a null resolution the
+        // same way it treats "no prefetch available": fall back to a fresh fetch.
+        console.warn("Arena TTS prefetch failed:", err);
+        return null;
       });
     prefetchPromiseRef.current = promise;
   }, []);
