@@ -4966,25 +4966,14 @@ export default function DebateStage() {
           if (ans?.text && runningRef.current) {
             // Pre-fetch TTS AUDIO immediately when text arrives — runs while moderator
             // audio is still playing so audio is ready the moment the question ends.
+            // Deliberately NOT pushed to ttsQueueRef here — the filler loop below now
+            // keeps running until this audio is actually ready (see primaryAudioReady),
+            // so pushing the item to the queue immediately would race with any further
+            // filler line the loop enqueues afterward: whichever wins the push-order
+            // race could land the filler line AFTER this answer instead of before it,
+            // producing out-of-order dialogue. The item is pushed once, after the
+            // Promise.all below resolves, exactly like the rebuttal branch already does.
             startPrefetch({ text: ans.text, personaId: primaryId });
-            // PRE-PUSH into the TTS queue right now so processQueue has the item
-            // ready the instant the moderator question clip ends — zero dead air.
-            // enrichAndAddMessage below (called after speakMod resolves) uses
-            // skipTTS: true so the queue item is not double-enqueued.
-            // processQueue() must be called after the push — if processQueue exited
-            // between the last filler finishing and this .then() callback firing,
-            // the item would sit in the queue forever with nothing to drain it.
-            ttsQueueRef.current.push({
-              text: ans.text, personaId: primaryId,
-              // Fire the live reaction from onPlaybackStart — i.e. once this
-              // item's audio has actually been confirmed playing (first isPlaying
-              // status), not merely reached the front of the queue or been
-              // fetched. Guarantees the reaction can never be scheduled before
-              // its own answer starts, and never fires with no audio to overlap
-              // (e.g. this persona's voice is configured off).
-              onPlaybackStart: () => fireLiveReaction((ans as any).reaction, ans.text, primaryId),
-            });
-            processQueue();
             // Kick off rebuttal fetch early so it's settling while primary TTS plays.
             rebuttalFetchPromise = prefetchedRebuttalAnswerRef.current ?? fetchAnswerFrom(primaryId, secondaryId, ans.text);
             prefetchedRebuttalAnswerRef.current = null; // consume
@@ -5011,16 +5000,31 @@ export default function DebateStage() {
           }
         })(),
       ]);
-      // speakMod has fully resolved. The persona TTS was pre-queued above so audio
-      // is already playing (or started at the 500ms overlap point). Call
-      // enrichAndAddMessage with skipTTS: true — adds the message to the transcript
-      // and triggers emotion/factcheck/fireback, but does NOT double-enqueue TTS.
+      // speakMod + the filler loop have both fully resolved — the filler loop
+      // only exits once primaryAudioReady is true, so the answer's audio is
+      // already fetched/cached by this point. Enqueue it now (not earlier) so
+      // it always lands AFTER every filler line that played while waiting —
+      // pushing it the instant the text arrived (the old behavior) raced
+      // against later filler pushes and could land the answer ahead of a
+      // filler, producing out-of-order dialogue.
       if (primaryAnswer?.text && runningRef.current) {
+        const paAns = primaryAnswer as NonNullable<typeof primaryAnswer>;
+        ttsQueueRef.current.push({
+          text: paAns.text, personaId: primaryId,
+          // Fire the live reaction from onPlaybackStart — i.e. once this
+          // item's audio has actually been confirmed playing (first isPlaying
+          // status), not merely reached the front of the queue or been
+          // fetched. Guarantees the reaction can never be scheduled before
+          // its own answer starts, and never fires with no audio to overlap
+          // (e.g. this persona's voice is configured off).
+          onPlaybackStart: () => fireLiveReaction((paAns as any).reaction, paAns.text, primaryId),
+        });
+        processQueue();
         enrichAndAddMessage({
           id: `pa-${Date.now()}-${Math.random()}`,
-          speakerId: (primaryAnswer as NonNullable<typeof primaryAnswer>).speakerId,
-          speakerName: (primaryAnswer as NonNullable<typeof primaryAnswer>).speakerName,
-          text: primaryAnswer.text, ts: Date.now(),
+          speakerId: paAns.speakerId,
+          speakerName: paAns.speakerName,
+          text: paAns.text, ts: Date.now(),
           skipTTS: true,
         });
       }
