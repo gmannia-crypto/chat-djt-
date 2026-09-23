@@ -2322,6 +2322,12 @@ export default function DebateStage() {
   // Pending slot: if a prefetch is in flight and a new one arrives, it queues here
   // and fires automatically when the current one completes — prevents dropped prefetches.
   const pendingPrefetchRef = useRef<{ text: string; personaId: string } | null>(null);
+  // Tracks the item currently being prefetched and its in-flight promise so the queue
+  // can AWAIT a matching in-flight prefetch instead of discarding it and starting a
+  // second, cold fetch for the same line — that double-fetch was the dominant cause
+  // of dead air between turns (see [debate-stage] dead-air fix).
+  const prefetchTargetRef = useRef<{ personaId: string; text: string } | null>(null);
+  const prefetchPromiseRef = useRef<Promise<string | null> | null>(null);
   // ── Live overlapping reaction cooldown (Comedic/Roast only) ─────────────
   // Counts turns since the last live reaction fired so they feel earned, not
   // constant. Starts at 2 so a reaction can fire on the very first eligible turn.
@@ -2628,25 +2634,35 @@ export default function DebateStage() {
       return;
     }
     prefetchingRef.current = true;
+    prefetchTargetRef.current = { personaId: item.personaId, text: item.text };
     const prefetchBody: Record<string, any> = { text: item.text, personaId: item.personaId, bleepEnabled: bleepEnabledRef.current };
     if (item.personaId === "malcolmx") prefetchBody.angerLevel = malcolmxAngerRef.current;
     if (item.personaId === "loudmouth") prefetchBody.angerLevel = loudmouthAngerRef.current;
     if (item.personaId === "stephena") prefetchBody.angerLevel = stephenaAngerRef.current;
     if (item.personaId === "ruckus") prefetchBody.angerLevel = ruckusAngerRef.current;
-    prefetchTTSAudio("/api/persona-speak", prefetchBody)
+    const promise = prefetchTTSAudio("/api/persona-speak", prefetchBody)
       .then((audioUri) => {
         prefetchedAudioRef.current = { personaId: item.personaId, text: item.text, audioUri };
         prefetchingRef.current = false;
         const pending = pendingPrefetchRef.current;
         pendingPrefetchRef.current = null;
         if (pending) startPrefetch(pending);
+        return audioUri;
       })
-      .catch(() => {
+      .catch((err) => {
         prefetchingRef.current = false;
+        // Resolve to null rather than rejecting — this promise lives on a ref and may
+        // never be awaited (e.g. the item finishes via early-resolve before the queue
+        // reaches it), so a rejection with no attached handler becomes an unhandled
+        // promise rejection. The queue below already treats null the same as "no
+        // prefetch available" and falls back to a fresh fetch.
+        console.warn("Debate-stage TTS prefetch failed:", err);
         const pending = pendingPrefetchRef.current;
         pendingPrefetchRef.current = null;
         if (pending) startPrefetch(pending);
+        return null;
       });
+    prefetchPromiseRef.current = promise;
   }, []);
 
   // ── TTS queue: sequential playback with 1s overlap + audio prefetch ────────
@@ -2679,15 +2695,42 @@ export default function DebateStage() {
         // No blocking wait: if the prefetch isn't ready yet, fall through to cold fetch.
         const cached = prefetchedAudioRef.current;
         let sound: Audio.Sound;
+        // A prefetch already IN FLIGHT for this exact line is worth awaiting instead of
+        // discarding: it's usually most of the way through TTS synthesis by the time the
+        // previous line finishes, so waiting on it lands sooner than abandoning it and
+        // starting a second, cold fetch for the same clip — that double-fetch was the
+        // dominant cause of dead air between turns in 1-on-1 debate.
+        const inFlightForThisItem =
+          prefetchingRef.current &&
+          prefetchPromiseRef.current &&
+          prefetchTargetRef.current?.text === item.text &&
+          prefetchTargetRef.current?.personaId === item.personaId
+            ? prefetchPromiseRef.current
+            : null;
+        const ttsBody: Record<string, any> = { text: item.text, personaId: item.personaId, bleepEnabled: bleepEnabledRef.current };
+        if (item.personaId === "malcolmx") ttsBody.angerLevel = malcolmxAngerRef.current;
+        if (item.personaId === "loudmouth") ttsBody.angerLevel = loudmouthAngerRef.current;
+        if (item.personaId === "stephena") ttsBody.angerLevel = stephenaAngerRef.current;
+        if (item.personaId === "ruckus") ttsBody.angerLevel = ruckusAngerRef.current;
         if (cached && cached.text === item.text && cached.personaId === item.personaId) {
           prefetchedAudioRef.current = null;
           sound = await playPrefetchedAudio(cached.audioUri, { volume: getPersonaVoiceVolume(item.personaId) });
+        } else if (inFlightForThisItem) {
+          let audioUri: string | null = null;
+          try {
+            audioUri = await inFlightForThisItem;
+          } catch {
+            audioUri = null;
+          }
+          // Another path may have already consumed/cleared this exact prefetch result
+          // by the time we resume here.
+          if (prefetchedAudioRef.current?.text === item.text && prefetchedAudioRef.current?.personaId === item.personaId) {
+            prefetchedAudioRef.current = null;
+          }
+          sound = audioUri
+            ? await playPrefetchedAudio(audioUri, { volume: getPersonaVoiceVolume(item.personaId) })
+            : await playTTS("/api/persona-speak", ttsBody, { volume: getPersonaVoiceVolume(item.personaId) });
         } else {
-          const ttsBody: Record<string, any> = { text: item.text, personaId: item.personaId, bleepEnabled: bleepEnabledRef.current };
-          if (item.personaId === "malcolmx") ttsBody.angerLevel = malcolmxAngerRef.current;
-          if (item.personaId === "loudmouth") ttsBody.angerLevel = loudmouthAngerRef.current;
-          if (item.personaId === "stephena") ttsBody.angerLevel = stephenaAngerRef.current;
-          if (item.personaId === "ruckus") ttsBody.angerLevel = ruckusAngerRef.current;
           sound = await playTTS("/api/persona-speak", ttsBody, { volume: getPersonaVoiceVolume(item.personaId) });
         }
         // The fetch/creation above is async — voice may have been muted (even muted then
@@ -2700,15 +2743,14 @@ export default function DebateStage() {
           break;
         }
         currentSoundRef.current = sound;
-        // No early cutoff for ordinary turn-taking: a persona's full line must
-        // finish playing before the next speaker starts UNLESS this is a real
-        // interruption. Genuine interruptions (firebacks, squabbles, live
-        // reactions) go through their own explicit ducking/overlap paths
-        // (playInterruptionAudio / playReactionOverlap) and never touch this
-        // early-resolve mechanism — it now only exists for callers that opt in
-        // via an explicit `overlapMs` (e.g. the moderator→persona broadcast
-        // handoff), so plain back-to-back debate turns are never cut short.
-        const OVERLAP_MS = 0;
+        // Genuine interruptions (firebacks, squabbles, live reactions) go through
+        // their own explicit ducking/overlap paths (playInterruptionAudio /
+        // playReactionOverlap) and are unaffected by this default. Ordinary
+        // back-to-back turns between different speakers get a 500ms conversational
+        // overlap handoff — matching arena.tsx's roundtable/pick-battle behavior —
+        // so the next persona starts before the previous one's tail fades out
+        // instead of leaving a silent gap between every turn.
+        const OVERLAP_MS = 500;
         let prefetchStarted = false;
         await new Promise<void>((resolve) => {
           let resolved = false;
@@ -2919,6 +2961,8 @@ export default function DebateStage() {
     prefetchedAudioRef.current = null;
     prefetchingRef.current = false;
     pendingPrefetchRef.current = null;
+    prefetchTargetRef.current = null;
+    prefetchPromiseRef.current = null;
     const snd = currentSoundRef.current;
     currentSoundRef.current = null;
     setActiveSpeaker(null);
@@ -5349,6 +5393,8 @@ export default function DebateStage() {
     prefetchingRef.current = false;
     pendingPrefetchRef.current = null;
     prefetchedAudioRef.current = null;
+    prefetchTargetRef.current = null;
+    prefetchPromiseRef.current = null;
     prefetchedPrimaryAnswerRef.current = null; // discard any stale pre-fetch from a prior session
     prefetchedRebuttalAnswerRef.current = null; // discard any stale rebuttal pre-fetch from a prior session
     firstAudioPlayedRef.current = false;
@@ -5530,6 +5576,8 @@ export default function DebateStage() {
         prefetchingRef.current = false;
         pendingPrefetchRef.current = null;
         prefetchedAudioRef.current = null;
+        prefetchTargetRef.current = null;
+        prefetchPromiseRef.current = null;
         prefetchedPrimaryAnswerRef.current = null; // discard any stale pre-fetch from a prior session
         prefetchedRebuttalAnswerRef.current = null; // discard any stale rebuttal pre-fetch from a prior session
         firstAudioPlayedRef.current = false;
