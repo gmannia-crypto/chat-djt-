@@ -2665,6 +2665,36 @@ export default function DebateStage() {
     prefetchPromiseRef.current = promise;
   }, []);
 
+  // Resolves once the AUDIO for a specific (text, personaId) is ready — either
+  // already cached, or currently in flight/pending via startPrefetch — or gives
+  // up if the prefetch machinery is no longer targeting it (failed) or a max
+  // wait elapses. This is distinct from the AI *text* arriving: a freshly
+  // generated debate line is never cache-hit, so cold TTS synthesis (often
+  // 10-18s) starts only once the text is known. The runLoop's wait-filler loops
+  // used to stop as soon as the text arrived, exposing that synthesis time as
+  // silent dead air — this lets them keep filling until the audio itself is
+  // actually ready to play.
+  const waitForAudioReady = useCallback((item: { text: string; personaId: string }, maxWaitMs = 20000): Promise<void> => {
+    if (shouldSkipPersonaVoice(item.personaId) || !voiceEnabledRef.current) return Promise.resolve();
+    return new Promise<void>((resolve) => {
+      const startedAt = Date.now();
+      const check = () => {
+        const cached = prefetchedAudioRef.current;
+        if (cached && cached.text === item.text && cached.personaId === item.personaId) { resolve(); return; }
+        const stillTargeted =
+          (prefetchingRef.current && prefetchTargetRef.current?.text === item.text && prefetchTargetRef.current?.personaId === item.personaId) ||
+          (pendingPrefetchRef.current?.text === item.text && pendingPrefetchRef.current?.personaId === item.personaId);
+        // Not cached and nothing working toward it (prefetch failed/gave up) — stop
+        // waiting here; the queue's own processQueue fallback will cold-fetch it
+        // when the item reaches the front, same as any unprefetched line.
+        if (!stillTargeted) { resolve(); return; }
+        if (!runningRef.current || Date.now() - startedAt > maxWaitMs) { resolve(); return; }
+        setTimeout(check, 150);
+      };
+      check();
+    });
+  }, []);
+
   // ── TTS queue: sequential playback with 1s overlap + audio prefetch ────────
   const processQueue = useCallback(async () => {
     if (ttsRunningRef.current) return;
@@ -4919,6 +4949,11 @@ export default function DebateStage() {
       const firstPrimaryFiller = getWaitFiller(primaryName);
       startPrefetch({ text: firstPrimaryFiller, personaId: mod.personaId });
       let primaryDone = false;
+      // Flips true once the primary answer's AUDIO is actually ready to play (or
+      // there's nothing to wait for — no text, voice off, etc.) — see
+      // waitForAudioReady above for why this must be tracked separately from
+      // primaryDone (text arriving is not the same as audio being synthesized).
+      let primaryAudioReady = false;
       await Promise.all([
         primaryAnswerPromise.then((ans) => {
           // A slow connection can let this settle after the round has already
@@ -4953,10 +4988,14 @@ export default function DebateStage() {
             // Kick off rebuttal fetch early so it's settling while primary TTS plays.
             rebuttalFetchPromise = prefetchedRebuttalAnswerRef.current ?? fetchAnswerFrom(primaryId, secondaryId, ans.text);
             prefetchedRebuttalAnswerRef.current = null; // consume
+            waitForAudioReady({ text: ans.text, personaId: primaryId }).then(() => { primaryAudioReady = true; });
+          } else {
+            primaryAudioReady = true; // nothing to synthesize — don't block on it
           }
-        }).catch(() => { if (myRoundGeneration === roundGenerationRef.current) { primaryDone = true; setIsThinking(null); } }),
+        }).catch(() => { if (myRoundGeneration === roundGenerationRef.current) { primaryDone = true; primaryAudioReady = true; setIsThinking(null); } }),
         // Play the moderator question, then loop short filler lines until the
-        // primary answer arrives — prevents dead air on slow connections.
+        // primary answer AND its audio are ready — prevents dead air both while
+        // the AI text is generating and while its TTS audio is still synthesizing.
         // Uses primaryDone (not primaryAnswer) so a null/failed fetch still exits.
         // The first filler uses the pre-fetched text so processQueue hits the audio
         // cache — subsequent fillers generate fresh random lines.
@@ -4965,7 +5004,7 @@ export default function DebateStage() {
           // at the tail of the question for a natural conversational handoff.
           await speakMod(modQuestion, `modq-${Date.now()}-${Math.random()}`, { blockEarlyResolve: false });
           let firstFiller = true;
-          while (!primaryDone && runningRef.current) {
+          while ((!primaryDone || !primaryAudioReady) && runningRef.current) {
             const fillerText = firstFiller ? firstPrimaryFiller : getWaitFiller(primaryName);
             firstFiller = false;
             await speakModFiller(fillerText, `modfill-${Date.now()}-${Math.random()}`);
@@ -5101,6 +5140,10 @@ export default function DebateStage() {
       setIsThinking("interviewee");
       let rebuttal: Awaited<ReturnType<typeof fetchAnswerFrom>> = null;
       let rebuttalDone = false;
+      // Same text-vs-audio distinction as primaryAudioReady above — flips true
+      // once the rebuttal's TTS audio is actually ready to play, not merely
+      // once its text has arrived.
+      let rebuttalAudioReady = false;
 
       await Promise.all([
         // Branch A: track when the rebuttal fetch settles and pre-fetch its AUDIO only.
@@ -5121,9 +5164,12 @@ export default function DebateStage() {
             rebuttalDone = true;
             if (r?.text && runningRef.current) {
               startPrefetch({ text: r.text, personaId: secondaryId });
+              waitForAudioReady({ text: r.text, personaId: secondaryId }).then(() => { rebuttalAudioReady = true; });
+            } else {
+              rebuttalAudioReady = true; // nothing to synthesize — don't block on it
             }
           })
-          .catch(() => { if (myRoundGeneration === roundGenerationRef.current) rebuttalDone = true; }),
+          .catch(() => { if (myRoundGeneration === roundGenerationRef.current) { rebuttalDone = true; rebuttalAudioReady = true; } }),
 
         // Branch B: play bridge then fillers while rebuttal is in-flight, then enqueue
         // rebuttal TTS so it always follows the bridge — correct order guaranteed.
@@ -5147,9 +5193,10 @@ export default function DebateStage() {
           // blockEarlyResolve: true — bridge must finish fully before rebuttal starts
           // (rebuttal is enqueued below, after fillers, so no early-resolve needed).
           await speakMod(bridgeText, `modbr-${Date.now()}-${Math.random()}`, { blockEarlyResolve: true });
-          // Bridge finished — play filler lines until the rebuttal AI response arrives.
+          // Bridge finished — play filler lines until the rebuttal AI response AND
+          // its audio are both ready.
           let firstRebuttalFiller_ = true;
-          while (!rebuttalDone && runningRef.current) {
+          while ((!rebuttalDone || !rebuttalAudioReady) && runningRef.current) {
             const fillerText = firstRebuttalFiller_ ? firstRebuttalFiller : getWaitFiller(secondaryName);
             firstRebuttalFiller_ = false;
             await speakModFiller(fillerText, `modfiller-${Date.now()}-${Math.random()}`);
