@@ -4756,6 +4756,14 @@ export default function ArenaScreen() {
   const ttsPendingMoreRef = useRef(false);
   const prefetchedAudioRef = useRef<{ personaId: string; text: string; audioUri: string } | null>(null);
   const prefetchingRef = useRef(false);
+  // What the in-flight prefetch (if any) is for, plus its raw promise — lets the
+  // main queue loop AWAIT an almost-done prefetch instead of throwing it away and
+  // starting a brand-new fetch from scratch when it reaches that item a moment
+  // too early. Discarding was the dominant cause of "dead air": the prefetch was
+  // usually most of the way through the ~11-18s TTS synthesis by the time the
+  // previous line's audio finished, and restarting cold cost that same time again.
+  const prefetchTargetRef = useRef<{ personaId: string; text: string } | null>(null);
+  const prefetchPromiseRef = useRef<Promise<string> | null>(null);
 
   const [unlockedMystery, setUnlockedMystery] = useState<string[]>([]);
 
@@ -5830,6 +5838,8 @@ export default function ArenaScreen() {
     ttsPendingMoreRef.current = false;
     prefetchedAudioRef.current = null;
     prefetchingRef.current = false;
+    prefetchTargetRef.current = null;
+    prefetchPromiseRef.current = null;
     const s = currentSoundRef.current;
     currentSoundRef.current = null;
     if (s) {
@@ -5867,12 +5877,18 @@ export default function ArenaScreen() {
     if (shouldSkipPersonaVoice(item.personaId)) return;
     if (prefetchedAudioRef.current && prefetchedAudioRef.current.text === item.text && prefetchedAudioRef.current.personaId === item.personaId) return;
     prefetchingRef.current = true;
-    prefetchTTSAudio("/api/persona-speak", { text: item.text, personaId: item.personaId, bleepEnabled: bleepEnabledRef.current, ...(item.personaId === "trump" ? { voiceId: TRUMP_ARENA_VOICE_ID } : {}), ...(item.personaId === "loudmouth" || item.personaId === "stephena" || item.personaId === "ruckus" ? { angerLevel: roomTempRef.current } : {}) })
+    prefetchTargetRef.current = { personaId: item.personaId, text: item.text };
+    const promise = prefetchTTSAudio("/api/persona-speak", { text: item.text, personaId: item.personaId, bleepEnabled: bleepEnabledRef.current, ...(item.personaId === "trump" ? { voiceId: TRUMP_ARENA_VOICE_ID } : {}), ...(item.personaId === "loudmouth" || item.personaId === "stephena" || item.personaId === "ruckus" ? { angerLevel: roomTempRef.current } : {}) })
       .then((audioUri) => {
         prefetchedAudioRef.current = { personaId: item.personaId, text: item.text, audioUri };
         prefetchingRef.current = false;
+        return audioUri;
       })
-      .catch(() => { prefetchingRef.current = false; });
+      .catch((err) => {
+        prefetchingRef.current = false;
+        throw err;
+      });
+    prefetchPromiseRef.current = promise;
   }, []);
 
   const processTTSQueue = useCallback(async () => {
@@ -5926,9 +5942,37 @@ export default function ArenaScreen() {
           // exact clip already failed to play once, so force a fresh fetch rather
           // than risking whatever cached URI/session may have been the problem.
           const cached = attempt === 1 ? prefetchedAudioRef.current : null;
+          // A prefetch already IN FLIGHT for this exact line is worth waiting on
+          // instead of discarding: it's usually most of the way through TTS
+          // synthesis by the time the previous line's audio finishes, so awaiting
+          // it lands sooner than abandoning it and starting a second, cold fetch
+          // for the same clip (which was the dominant cause of dead air here).
+          const inFlightForThisItem =
+            attempt === 1 &&
+            prefetchingRef.current &&
+            prefetchPromiseRef.current &&
+            prefetchTargetRef.current?.text === item.text &&
+            prefetchTargetRef.current?.personaId === item.personaId
+              ? prefetchPromiseRef.current
+              : null;
           if (cached && cached.text === item.text && cached.personaId === item.personaId) {
             prefetchedAudioRef.current = null;
             sound = await playPrefetchedAudio(cached.audioUri, { volume: personaVolume });
+          } else if (inFlightForThisItem) {
+            let audioUri: string | null = null;
+            try {
+              audioUri = await inFlightForThisItem;
+            } catch {
+              audioUri = null;
+            }
+            // Another attempt may have already consumed/cleared this exact prefetch
+            // result via the `cached` branch above by the time we resume here.
+            if (prefetchedAudioRef.current?.text === item.text && prefetchedAudioRef.current?.personaId === item.personaId) {
+              prefetchedAudioRef.current = null;
+            }
+            sound = audioUri
+              ? await playPrefetchedAudio(audioUri, { volume: personaVolume })
+              : await playTTS("/api/persona-speak", { text: item.text, personaId: item.personaId, bleepEnabled: bleepEnabledRef.current, ...(item.personaId === "trump" ? { voiceId: TRUMP_ARENA_VOICE_ID } : {}), ...(item.personaId === "loudmouth" || item.personaId === "stephena" || item.personaId === "ruckus" ? { angerLevel: roomTempRef.current } : {}) }, { volume: personaVolume });
           } else {
             sound = await playTTS("/api/persona-speak", { text: item.text, personaId: item.personaId, bleepEnabled: bleepEnabledRef.current, ...(item.personaId === "trump" ? { voiceId: TRUMP_ARENA_VOICE_ID } : {}), ...(item.personaId === "loudmouth" || item.personaId === "stephena" || item.personaId === "ruckus" ? { angerLevel: roomTempRef.current } : {}) }, { volume: personaVolume });
           }
