@@ -3308,7 +3308,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     pressley: "33335103eebd43c1b20438d3c2dd120f",
     joerogan: "3b6f30afdd704fcdb7a4844b36ae5c62",
     timscott: "a53a84d55bd94adca55da9b801130e94",
-    kennedy: "abd23192e4ee4bf4889cbaa4d0ce4ccc", // stand-in Southern-drawl clone — no dedicated Kennedy voice model exists yet
+    kennedy: "fb0dd956bcfa4e30903437ed906ca095",
     petehegseth: "6454dcfc9d424c2e8b6262327bff4078",
     mikejohnson: "99d354e463334c36b0ab7af71183be26",
     drbenj: "a326cdd4d8994d11937b1e3f8fb1e6d7",
@@ -12768,7 +12768,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
         pressley: "33335103eebd43c1b20438d3c2dd120f",
         joerogan: "3b6f30afdd704fcdb7a4844b36ae5c62",
         timscott: "a53a84d55bd94adca55da9b801130e94",
-        kennedy: "abd23192e4ee4bf4889cbaa4d0ce4ccc",
+        kennedy: "fb0dd956bcfa4e30903437ed906ca095",
         petehegseth: "6454dcfc9d424c2e8b6262327bff4078",
         mikejohnson: "99d354e463334c36b0ab7af71183be26",
         drbenj: "a326cdd4d8994d11937b1e3f8fb1e6d7",
