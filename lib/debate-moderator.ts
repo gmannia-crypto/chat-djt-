@@ -106,11 +106,11 @@ export const MODERATOR_LEANINGS: Record<ModeratorStyle, { favor: string[]; targe
     target: ["trump", "netanyahu", "biden", "obama", "kamala", "graham", "leavitt", "miller", "erikakirk"],
   },
   hannity: {
-    favor: ["trump", "melania", "ivanka", "bannon", "miller", "leavitt", "erikakirk", "pambondi", "jimjordan", "graham", "candace", "mtg", "loomer", "netanyahu", "timscott"],
+    favor: ["trump", "melania", "ivanka", "bannon", "miller", "leavitt", "erikakirk", "pambondi", "jimjordan", "graham", "candace", "mtg", "loomer", "netanyahu", "timscott", "kennedy"],
     target: ["obama", "biden", "kamala", "schumer", "aoc", "omar", "maddow", "joyreid", "carville", "berniemc", "jascrockett"],
   },
   megynkelly: {
-    favor: ["trump", "melania", "ivanka", "bannon", "miller", "leavitt", "graham", "candace", "mtg", "netanyahu", "timscott"],
+    favor: ["trump", "melania", "ivanka", "bannon", "miller", "leavitt", "graham", "candace", "mtg", "netanyahu", "timscott", "kennedy"],
     target: ["obama", "biden", "kamala", "schumer", "aoc", "omar", "joyreid", "carville", "berniemc"],
   },
   maddow: {
@@ -123,7 +123,7 @@ export const MODERATOR_LEANINGS: Record<ModeratorStyle, { favor: string[]; targe
   },
   joyreid: {
     favor: ["obama", "biden", "kamala", "schumer", "aoc", "omar", "maddow", "carville", "berniemc", "jascrockett", "mlk", "malcolmx", "claudeanderson"],
-    target: ["trump", "melania", "ivanka", "bannon", "miller", "leavitt", "erikakirk", "pambondi", "jimjordan", "mtg", "loomer", "alexjones", "candace", "timscott"],
+    target: ["trump", "melania", "ivanka", "bannon", "miller", "leavitt", "erikakirk", "pambondi", "jimjordan", "mtg", "loomer", "alexjones", "candace", "timscott", "kennedy"],
   },
   // Sports moderators are not politically aligned — no favor/target lists, always neutral/fact-based.
   maxkellerman: { favor: [], target: [] },
@@ -145,7 +145,7 @@ export const MODERATOR_LEANINGS: Record<ModeratorStyle, { favor: string[]; targe
   // Wanda: progressive comedy — tough on MAGA/racists, still roasts Democrats when they're being fools.
   wandasykes: {
     favor: ["obama", "kamala", "aoc", "omar", "jascrockett", "berniemc", "joyreid", "maddow", "carville"],
-    target: ["trump", "bannon", "miller", "leavitt", "mtg", "loomer", "alexjones", "candace", "timscott"],
+    target: ["trump", "bannon", "miller", "leavitt", "mtg", "loomer", "alexjones", "candace", "timscott", "kennedy"],
   },
   // Trevor: outsider-progressive — presses everyone from his South African "why is America like this" lens.
   trevornoah: {
@@ -155,12 +155,12 @@ export const MODERATOR_LEANINGS: Record<ModeratorStyle, { favor: string[]; targe
   // Jane Elliott: zero patience for racism from any direction — targets anyone defending white privilege.
   janeelliott: {
     favor: ["mlk", "malcolmx", "claudeanderson", "arikana", "alishahrazad", "jascrockett", "omar", "aoc"],
-    target: ["trump", "bannon", "miller", "candace", "timscott", "alexjones", "mtg", "loomer", "leavitt"],
+    target: ["trump", "bannon", "miller", "candace", "timscott", "kennedy", "alexjones", "mtg", "loomer", "leavitt"],
   },
   // Dr. Welsing: Black liberation lens — challenges ALL participants on white supremacy systemic analysis.
   francescresswelsing: {
     favor: ["malcolmx", "claudeanderson", "mlk", "louisfarrakhan", "arikana", "alishahrazad"],
-    target: ["trump", "bannon", "miller", "leavitt", "candace", "timscott", "alexjones"],
+    target: ["trump", "bannon", "miller", "leavitt", "candace", "timscott", "kennedy", "alexjones"],
   },
   // Shannon: fiercely pro-Black excellence, pro-athlete, anti-Trump; tough on "tokens" and MAGA.
   shannonsharp: {
@@ -202,7 +202,7 @@ export const MODERATOR_LEANINGS: Record<ModeratorStyle, { favor: string[]; targe
   // Brother Khalid Muhammad: militant Black-liberation lens — favors self-determination voices, hard on establishment figures of any party.
   khalidmuhammad: {
     favor: ["malcolmx", "claudeanderson", "mlk", "louisfarrakhan", "arikana", "alishahrazad", "jascrockett", "omar", "cornellwest", "malema"],
-    target: ["trump", "bannon", "miller", "leavitt", "candace", "timscott", "alexjones", "mtg", "loomer", "netanyahu"],
+    target: ["trump", "bannon", "miller", "leavitt", "candace", "timscott", "kennedy", "alexjones", "mtg", "loomer", "netanyahu"],
   },
   // Kyle Kulinski: democratic-socialist — favors the progressive/Justice Democrats wing, hard on both MAGA and corporate-establishment Democrats.
   kylekulinski: {

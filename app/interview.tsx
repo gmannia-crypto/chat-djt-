@@ -91,6 +91,7 @@ const PERSONA_AMAZON_LINKS: Record<string, Array<{ title: string; url: string; i
   aoc:              [{ title: "AOC Books", url: "https://www.amazon.com/s?k=alexandria+ocasio+cortez+book&tag=trumpbot-20", icon: "book" }, { title: "Green New Deal", url: "https://www.amazon.com/s?k=green+new+deal+book&tag=trumpbot-20", icon: "leaf" }, { title: "Progressive Tee", url: "https://www.amazon.com/s?k=progressive+political+shirt&tag=trumpbot-20", icon: "shirt" }],
   joerogan:         [{ title: "Joe Rogan Podcast Books", url: "https://www.amazon.com/s?k=joe+rogan+recommended+books&tag=trumpbot-20", icon: "book" }, { title: "MMA Gear", url: "https://www.amazon.com/s?k=mma+training+gear&tag=trumpbot-20", icon: "fitness" }, { title: "Podcast Microphone", url: "https://www.amazon.com/s?k=podcast+microphone+kit&tag=trumpbot-20", icon: "mic" }],
   timscott:         [{ title: "Tim Scott Book", url: "https://www.amazon.com/s?k=tim+scott+book+america+a+redemption+story&tag=trumpbot-20", icon: "book" }, { title: "Republican Politics", url: "https://www.amazon.com/s?k=republican+conservative+books&tag=trumpbot-20", icon: "library" }, { title: "South Carolina Gear", url: "https://www.amazon.com/s?k=south+carolina+merchandise&tag=trumpbot-20", icon: "ribbon" }],
+  kennedy:          [{ title: "John Kennedy Book", url: "https://www.amazon.com/s?k=john+kennedy+senator+louisiana+book&tag=trumpbot-20", icon: "book" }, { title: "Louisiana Gear", url: "https://www.amazon.com/s?k=louisiana+lsu+merchandise&tag=trumpbot-20", icon: "ribbon" }, { title: "Southern Political Books", url: "https://www.amazon.com/s?k=southern+conservative+politics+books&tag=trumpbot-20", icon: "library" }],
 };
 
 const DEFAULT_AMAZON_LINKS = [
@@ -131,6 +132,7 @@ const PERSONA_OFFENSE_TRIGGERS: Record<string, RegExp> = {
   omar:     /\bhe voted|his religion|mr\. omar\b/i,
   // Universal dignity triggers — being called a traitor/sellout to their face
   timscott: /\bsambo|uncle tom|sellout|house negro\b/i,
+  kennedy: /\bhick|redneck|backwoods|dumb accent|inbred\b/i,
   candace:  /\btraitor|sellout|uncle tom|house negro\b/i,
   ruckus:   /\btraitor|sellout|house negro\b/i,
   // Tucker Carlson — Putin puppet, white nationalist, or propaganda accusations trigger immediate pushback
@@ -223,6 +225,7 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   aoc: require("@/assets/images/persona-aoc.png"),
   joerogan: require("@/assets/images/persona-joerogan.png"),
   timscott: require("@/assets/images/persona-timscott.png"),
+  kennedy: require("@/assets/images/persona-kennedy.png"),
   petehegseth: require("@/assets/images/persona-petehegseth.png"),
   billclinton: require("@/assets/images/persona-billclinton.jpg"),
   hillaryclinton: require("@/assets/images/persona-hillaryclinton.jpg"),
@@ -294,7 +297,7 @@ const GUEST_CATEGORIES: Record<string, GuestCategory> = {
   rfk: "Political", melania: "Political", omar: "Political", mtg: "Political",
   miller: "Political", jimjordan: "Political", pambondi: "Political", erikakirk: "Political",
   loomer: "Political", leavitt: "Political", aoc: "Political", jascrockett: "Political",
-  timscott: "Political", petehegseth: "Political", ivanka: "Political", billclinton: "Political", hillaryclinton: "Political",
+  timscott: "Political", kennedy: "Political", petehegseth: "Political", ivanka: "Political", billclinton: "Political", hillaryclinton: "Political",
   marcorubio: "Political", desantis: "Political", netanyahu: "Political", malema: "Political",
   shahidbolson: "Political", errol: "Political", galloway: "Political", carville: "Political",
   mlk: "History", malcolmx: "History", ronaldreagan: "History",

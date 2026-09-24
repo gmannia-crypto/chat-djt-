@@ -162,6 +162,7 @@ const PERSONA_AMAZON_LINKS: Record<string, Array<{ title: string; url: string; i
   aoc:              [{ title: "AOC Books", url: "https://www.amazon.com/s?k=alexandria+ocasio+cortez+book&tag=trumpbot-20", icon: "book" }, { title: "Green New Deal", url: "https://www.amazon.com/s?k=green+new+deal+book&tag=trumpbot-20", icon: "leaf" }, { title: "Progressive Tee", url: "https://www.amazon.com/s?k=progressive+political+shirt&tag=trumpbot-20", icon: "shirt" }],
   joerogan:         [{ title: "Joe Rogan Podcast Books", url: "https://www.amazon.com/s?k=joe+rogan+recommended+books&tag=trumpbot-20", icon: "book" }, { title: "MMA Gear", url: "https://www.amazon.com/s?k=mma+training+gear&tag=trumpbot-20", icon: "fitness" }, { title: "Podcast Microphone", url: "https://www.amazon.com/s?k=podcast+microphone+kit&tag=trumpbot-20", icon: "mic" }],
   timscott:         [{ title: "Tim Scott Book", url: "https://www.amazon.com/s?k=tim+scott+book+america+a+redemption+story&tag=trumpbot-20", icon: "book" }, { title: "Republican Politics", url: "https://www.amazon.com/s?k=republican+conservative+books&tag=trumpbot-20", icon: "library" }, { title: "South Carolina Gear", url: "https://www.amazon.com/s?k=south+carolina+merchandise&tag=trumpbot-20", icon: "ribbon" }],
+  kennedy:          [{ title: "John Kennedy Book", url: "https://www.amazon.com/s?k=john+kennedy+senator+louisiana+book&tag=trumpbot-20", icon: "book" }, { title: "Louisiana Gear", url: "https://www.amazon.com/s?k=louisiana+lsu+merchandise&tag=trumpbot-20", icon: "ribbon" }, { title: "Southern Political Books", url: "https://www.amazon.com/s?k=southern+conservative+politics+books&tag=trumpbot-20", icon: "library" }],
   charliemurphy:    [{ title: "Charlie Murphy Book", url: "https://www.amazon.com/s?k=charlie+murphy+comedian+book&tag=trumpbot-20", icon: "book" }, { title: "Chappelle's Show DVD", url: "https://www.amazon.com/s?k=chappelles+show+dvd&tag=trumpbot-20", icon: "videocam" }, { title: "Comedy Stand-Up", url: "https://www.amazon.com/s?k=stand+up+comedy+dvd&tag=trumpbot-20", icon: "gift" }],
 };
 
@@ -373,6 +374,7 @@ const PERSONA_OFFENSE_TRIGGERS: Record<string, RegExp> = {
   omar:     /\bhe voted|his religion|mr\. omar\b/i,
   // Universal dignity triggers — being called a traitor/sellout to their face
   timscott: /\bsambo|uncle tom|sellout|house negro\b/i,
+  kennedy: /\bhick|redneck|backwoods|dumb accent|inbred\b/i,
   candace:  /\btraitor|sellout|uncle tom|house negro\b/i,
   ruckus:   /\btraitor|sellout|house negro\b/i,
   // Charlie Murphy — DEI attacks, racial slurs, dismissive insults, or questioning his credibility
@@ -444,6 +446,7 @@ const PERSONA_AGGRESSION: Record<string, { aggression: number; angerThresh: numb
   maddow:          { aggression: 0.55, angerThresh: 4, maxChain: 1 },
   kamala:          { aggression: 0.55, angerThresh: 4, maxChain: 1 },
   timscott:        { aggression: 0.40, angerThresh: 5, maxChain: 1 },
+  kennedy:         { aggression: 0.45, angerThresh: 4, maxChain: 2 },
   // Default for any unlisted persona
   _default:        { aggression: 0.50, angerThresh: 4, maxChain: 2 },
 };
@@ -479,6 +482,7 @@ const PERSONA_SQUABBLE_THREATS: Record<string, string[]> = {
   tlaib:           ["I have family in Gaza RIGHT NOW while you sit here and threaten me in a television studio. You want to test me?!", "I was censured by the entire United States House of Representatives and I am STILL HERE. You are nothing compared to that."],
   professorjiang:  ["I have testified before the United States Senate and been attacked by both parties. A debate stage threat is not something I find concerning.", "Forty years of scholarship survive this kind of intimidation. The data does not care about your aggression. Neither do I."],
   timscott:        ["I keep my faith and my composure — but even David picked up a stone when Goliath got close enough.", "I have turned the other cheek three times tonight. There will not be a fourth. Do not test that."],
+  kennedy:         ["Now hold on — where I come from, we handle disrespect a lot more direct than they do up here in Washington.", "You keep talking to me like that and you're gonna find out that dog will hunt after all."],
   joerogan:        ["Bro, I trained with Navy SEALs. I do jiu-jitsu six days a week. Think VERY carefully about your next move.", "I have had Mike Tyson on my podcast. I know what real danger looks like. You are not it — but I can still rearrange you."],
   rfk:             ["The alphabet agencies couldn't silence me. The media couldn't silence me. You certainly won't.", "I have been fighting the most powerful institutions on earth for thirty years. You are a Tuesday."],
   rfkjr:           ["The alphabet agencies couldn't silence me. The media couldn't silence me. You certainly won't.", "I have been fighting the most powerful institutions on earth for thirty years. You are a Tuesday."],
@@ -642,6 +646,7 @@ const PERSONA_PARTING_SHOTS: Record<string, string[]> = {
   tuckercarlson:   ["The regime media will clip this out of context. They always do. The full tape tells a different story.", "Interesting how you never actually answered the question. People noticed."],
   gallowaygj:      ["The imperialists always get the last word. But not the last laugh. History proves that.", "You represent a system that is already collapsing. I simply chose the right side earlier than you."],
   timscott:        ["I came here with facts and faith and you came here with insults. The voters will decide who won.", "America is better than what you just showed. I believe that with everything I have."],
+  kennedy:         ["Well, I'll tell you what — that dog didn't hunt tonight, and everybody in Louisiana knows it.", "I read the bill. You read a talking point. That's the whole debate right there."],
   joerogan:        ["That was wild, man. Just wild. I'm going to need like three hours to process what I just heard.", "We gotta get you on the podcast. For real. Because what just happened here needs to be unpacked."],
   rfk:             ["The media will bury this but the people will find it. They always do.", "The captured agencies and the captured press will spin this. But truth has a way of surviving."],
   neiltyson:       ["The universe will outlast every bad argument made in this room today. Including yours.", "Facts are not democratic. They do not care about the outcome you preferred."],
@@ -702,6 +707,7 @@ const PERSONA_LOSER_LINES: Record<string, string[]> = {
   jascrockett:      ["I came with facts and I leave with them intact. The scoreboard is just politics.", "Fine. But the people in the district know what I said was true. I'll take that."],
   joerogan:         ["Okay okay. I'll give you that one. But we need like six more hours to really get into this.", "I got smoked today. I'll own it. But this conversation is nowhere near finished."],
   timscott:         ["Faith over fear. Even when the vote goes the wrong way.", "I've faced harder odds with less support. God's not finished with this argument yet."],
+  kennedy:          ["Well, even a blind hog finds an acorn every once in a while — tonight wasn't my night. There'll be others.", "You can't win 'em all. But I read every bill, and I'll be back to read a few more."],
   billclinton:      ["Now listen — I've been in tighter spots than this. I always find a way back.", "I feel your pain for about three seconds. Then I figure out what comes next."],
   hillaryclinton:   ["I've taken harder falls and I am still standing. Still.", "The popular vote of history will vindicate me. It always does."],
   marcorubio:       ["America's best days are still ahead even when my best debate isn't.", "I take this as a challenge. The comeback starts right now."],
@@ -796,6 +802,7 @@ const PERSONA_WINNER_LINES: Record<string, string[]> = {
   jascrockett:      ["The people's lawyer wins the people's argument. Simple.", "I cross-examined witnesses in federal court. This was not that different."],
   joerogan:         ["Bro, that was an incredible experience. I think I actually learned something AND won. Rare.", "That's what happens when you come in curious and you actually listen. You win."],
   timscott:         ["Faith, facts, and an unwillingness to be defined by someone else's narrative — that wins.", "The American dream isn't dead. I just proved it lives in this room."],
+  kennedy:          ["I read the bill. I did my homework. That dog hunted just fine tonight.", "You can put a saddle on a cow, but you can't win a debate with talking points. I just proved it."],
   billclinton:      ["Now listen — I feel good about this. And I feel your pain for losing, I really do.", "I didn't spend thirty years in politics without learning how to win a room. Tonight I won one."],
   hillaryclinton:   ["Prepared, experienced, and right. That's been the formula my entire career.", "Some of us have been doing this work for decades. Tonight the preparation showed."],
   marcorubio:       ["America's best argument won tonight. And I was honored to make it.", "The future belongs to those who can defend it with facts. Tonight I defended it."],
@@ -917,6 +924,7 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   aoc: require("@/assets/images/persona-aoc.png"),
   joerogan: require("@/assets/images/persona-joerogan.png"),
   timscott: require("@/assets/images/persona-timscott.png"),
+  kennedy: require("@/assets/images/persona-kennedy.png"),
   petehegseth: require("@/assets/images/persona-petehegseth.png"),
   billclinton: require("@/assets/images/persona-billclinton.jpg"),
   hillaryclinton: require("@/assets/images/persona-hillaryclinton.jpg"),

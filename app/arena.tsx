@@ -126,6 +126,7 @@ const PERSONA_CATEGORY_MAP: Record<string, PersonaCategory> = {
   shahidbolson: "commentator",
   joerogan: "podcaster",
   timscott: "politician",
+  kennedy: "politician",
   drbenj: "commentator",
   carlin: "comedian",
   bishopfundme: "commentator",
@@ -178,6 +179,7 @@ const PERSONA_GROUPS: Record<string, IdeologyGroupId[]> = {
   piersmorgan: ["independents", "imperialistwest"], alexjones: ["independents"], rfk: ["independents"], mtg: ["independents"],
   tuckercarlson: ["independents"],
   mcconnell: ["rino"], timscott: ["rino"], desantis: ["rino"], clarke: ["rino"], donalds: ["rino"],
+  kennedy: ["maga"],
   galloway: ["globalsouth"], shahidbolson: ["globalsouth"], malema: ["globalsouth"],
   arikana: ["globalsouth"], jeffreysachs: ["globalsouth", "independentleft"], khalidmuhammad: ["globalsouth"],
   claudeanderson: ["blackempowerment"], drbenj: ["blackempowerment"], bishopfundme: ["blackempowerment"], pastormanning: ["blackempowerment"],
@@ -1565,6 +1567,35 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
     triggerWords: {
       positive: ["trump", "america", "opportunity", "faith", "god", "republican", "south carolina", "bootstrap", "conservative"],
       negative: ["sellout", "uncle tom", "house negro", "token", "puppet", "gatekeeper", "systemic racism", "reparations"],
+    },
+  },
+  kennedy: {
+    id: "kennedy",
+    name: "John Kennedy",
+    shortName: "Sen. Kennedy",
+    color: "#003087",
+    faction: "supporter",
+    image: require("@/assets/images/persona-kennedy.png"),
+    personality: {
+      energy: 55,
+      aggression: 45,
+      humor: 70,
+      catchphrases: ["That dog won't hunt", "I'll tell you what", "Even a blind hog finds an acorn once in a while", "You can't fix stupid", "Well now, bless your heart"],
+    },
+    relationships: {
+      trump: { sentiment: 90 },
+      mikejohnson: { sentiment: 70 },
+      graham: { sentiment: 65 },
+      hannity: { sentiment: 60 },
+      timscott: { sentiment: 55 },
+      aoc: { sentiment: 15 },
+      tlaib: { sentiment: 10 },
+      maddow: { sentiment: 10 },
+      joyreid: { sentiment: 8 },
+    },
+    triggerWords: {
+      positive: ["louisiana", "constitution", "common sense", "read the bill", "bayou", "lsu"],
+      negative: ["hick", "dumb accent", "backwoods", "uneducated", "redneck"],
     },
   },
   petehegseth: {
@@ -3038,7 +3069,7 @@ const MYSTERY_UNLOCK_KEY = "arena_mystery_unlocked";
 
 import { BOXING_EXCLUSIVE_IDS } from "@/lib/boxing-personas";
 
-const PERSONA_IDS = ["trump", "jdvance", "elon", "errol", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "tlaib", "biden", "rosie", "berniemc", "carlin", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "shahidbolson", "leavitt", "erikakirk", "loomer", "bannon", "stephena", "malema", "hannity", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "aoc", "pressley", "joerogan", "timscott", "petehegseth", "drbenj", "billclinton", "hillaryclinton", "marcorubio", "desantis", "tuckercarlson", "bishopfundme", "cornellwest", "piersmorgan", "scottjennings", "mikabrzezinski", "joescarborough", "richardwolff", "berniesanders", "pastormanning", "clarke", "donalds", "arikana", "jeffreysachs", "khalidmuhammad", "professorjiang"];
+const PERSONA_IDS = ["trump", "jdvance", "elon", "errol", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "tlaib", "biden", "rosie", "berniemc", "carlin", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "shahidbolson", "leavitt", "erikakirk", "loomer", "bannon", "stephena", "malema", "hannity", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "aoc", "pressley", "joerogan", "timscott", "kennedy", "petehegseth", "drbenj", "billclinton", "hillaryclinton", "marcorubio", "desantis", "tuckercarlson", "bishopfundme", "cornellwest", "piersmorgan", "scottjennings", "mikabrzezinski", "joescarborough", "richardwolff", "berniesanders", "pastormanning", "clarke", "donalds", "arikana", "jeffreysachs", "khalidmuhammad", "professorjiang"];
 // Cartoon-style image filter — vivid posterized look on web
 const CARTOON_FILTER = Platform.OS === "web"
   ? ({ filter: "contrast(1.35) saturate(1.85) brightness(1.03)" } as any)
@@ -3288,6 +3319,7 @@ const ARENA_PERSONA_AGGRESSION: Record<string, { aggression: number; angerThresh
   maddow:          { aggression: 0.55, angerThresh: 4, maxChain: 1 },
   kamala:          { aggression: 0.55, angerThresh: 4, maxChain: 1 },
   timscott:        { aggression: 0.40, angerThresh: 5, maxChain: 1 },
+  kennedy:         { aggression: 0.45, angerThresh: 4, maxChain: 2 },
   bannon:          { aggression: 0.88, angerThresh: 1, maxChain: 3 },
   alexjones:       { aggression: 0.90, angerThresh: 1, maxChain: 3 },
   jimjordan:       { aggression: 0.85, angerThresh: 1, maxChain: 3 },
@@ -12511,7 +12543,7 @@ export default function ArenaScreen() {
             {(() => {
               const CATEGORIES: Array<{ label: string; ids: string[]; mysteryIds: string[] }> = [
                 { label: "🏛  PRESIDENTS", ids: ["trump", "biden"], mysteryIds: ["obama"] },
-                { label: "⚖️  POLITICIANS", ids: ["netanyahu", "mcconnell", "omar", "graham", "pambondi", "miller", "jimjordan", "jascrockett", "aoc", "pressley", "timscott", "petehegseth", "mikejohnson", "billclinton", "hillaryclinton", "marcorubio", "desantis", "donalds"], mysteryIds: ["schumer", "kamala", "mtg", "rfk"] },
+                { label: "⚖️  POLITICIANS", ids: ["netanyahu", "mcconnell", "omar", "graham", "pambondi", "miller", "jimjordan", "jascrockett", "aoc", "pressley", "timscott", "kennedy", "petehegseth", "mikejohnson", "billclinton", "hillaryclinton", "marcorubio", "desantis", "donalds"], mysteryIds: ["schumer", "kamala", "mtg", "rfk"] },
                 { label: "📺  MEDIA & JOURNALISTS", ids: ["maddow", "megynkelly", "joyreid", "erikakirk", "loomer", "leavitt", "hannity", "odonnell", "piersmorgan", "scottjennings"], mysteryIds: [] },
                 { label: "🎙  PODCASTERS & STRATEGISTS", ids: ["galloway", "candace", "carville", "bannon", "joerogan"], mysteryIds: ["alexjones"] },
                 { label: "🎭  COMEDIANS", ids: ["berniemc", "rosie", ...(!isHidden("carlin") ? ["carlin"] : [])], mysteryIds: [] },

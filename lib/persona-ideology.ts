@@ -58,6 +58,7 @@ export const PERSONA_CAMP: Record<string, IdeologyCamp> = {
   ronaldreagan: "maga-right",
   georgewbush: "maga-right",
   timscott: "maga-right",
+  kennedy: "maga-right",
   melania: "maga-right",
 
   // ── Progressive / Democratic left ──────────────────────────────────────

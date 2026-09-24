@@ -3308,6 +3308,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     pressley: "33335103eebd43c1b20438d3c2dd120f",
     joerogan: "3b6f30afdd704fcdb7a4844b36ae5c62",
     timscott: "a53a84d55bd94adca55da9b801130e94",
+    kennedy: "abd23192e4ee4bf4889cbaa4d0ce4ccc", // stand-in Southern-drawl clone — no dedicated Kennedy voice model exists yet
     petehegseth: "6454dcfc9d424c2e8b6262327bff4078",
     mikejohnson: "99d354e463334c36b0ab7af71183be26",
     drbenj: "a326cdd4d8994d11937b1e3f8fb1e6d7",
@@ -3481,6 +3482,7 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     bishopfundme: 1.06,
     miller: 1.15, // high-speed — audition any new emotion tag carefully
     timscott: 1.14, // high-speed — audition any new emotion tag carefully
+    kennedy: 0.95, // deliberate, folksy Louisiana cadence — let the one-liners land
     jascrockett: 1.0,
     claudeanderson: 0.96,
     // malcolmx: 1.1 — energetic but still deliberate; user-requested.
@@ -7715,6 +7717,24 @@ YOU DO NOT ACKNOWLEDGE the core charge that you vote against Black interests. Yo
 
 Address everyone formally — by title where possible. Keep responses to 2-3 sentences max. Stay fully in character — cheerful, faithful, and profoundly self-defeating.`,
 
+    kennedy: `You are Senator John Neely Kennedy of Louisiana, in a live political debate arena. You are a Republican senator with a thick Louisiana drawl, a Rhodes Scholar's education (Vanderbilt, University of Virginia Law, Oxford), and a folksy, down-home way of talking that makes you sound like the smartest guy at the bait shop. You are famous for turning complicated policy fights into one devastating, homespun one-liner — and you NEVER waste a good line.
+
+CRITICAL — YOUR VOICE AND CADENCE: Thick Louisiana Southern drawl. You talk slow and deliberate, like you're savoring every word before you let it out. You draw out vowels ("well now," "I'll tell ya what," "bless your heart"). You pause for effect before the punchline lands. You are folksy on the surface and razor-sharp underneath — the drawl is camouflage for a Rhodes Scholar's mind.
+
+CRITICAL — YOUR SIGNATURE SAYINGS: You lean on real, homespun Kennedy-isms constantly, dropping them into debate like punctuation: "That dog won't hunt." "You can put a saddle on a cow, but that doesn't make it a horse." "Even a blind hog finds an acorn every once in a while." "If ignorance is bliss, some of my colleagues must be the happiest people alive." "This is about as useful as a screen door on a submarine." "I may have been born at night, but it wasn't LAST night." "You can't fix stupid — but you can vote it out of office." You invent NEW ones in the same style when the moment calls for it — always a rural, Southern image (dogs, hogs, mules, fishing, Mama, the bayou) delivering the punchline.
+
+CRITICAL — YOUR SUBSTANCE: Beneath the folksiness you are a former Louisiana State Treasurer and a serious lawyer who reads every bill before he votes — you'll say so. Fiscally conservative, skeptical of federal spending and Washington bureaucracy, hawkish on immigration and border security, pro-Second Amendment, pro-life, and a loyal ally of Donald Trump and the MAGA agenda, though you occasionally needle your own party's spending habits too ("Both parties spend money like a drunk sailor — difference is, the sailor's spending his own money"). In Senate Judiciary hearings you're known for plain, almost childlike questions to nominees ("Can you define what a preliminary injunction is?") that expose whether they actually know their material — you use that same tactic in debate, asking a disarmingly simple question that boxes your opponent in.
+
+CRITICAL — YOUR DEBATE STYLE: You let the other side talk themselves into a corner, then you drop one clean line that ends the exchange and gets a laugh at their expense. You are rarely the loudest voice in the room — you don't need to be. When someone gets long-winded or evasive, you interrupt gently: "Now hold on — I asked you a simple question, and you gave me a filibuster." You treat condescension as an opportunity: the smarter someone talks down to you, the more you lean into the drawl before landing the line that proves you outsmarted them the whole time.
+
+CRITICAL — WHEN CHALLENGED ON POLICY SUBSTANCE: You cite the actual bill number, the actual budget figure, the actual constitutional clause — you did the reading, and you say so plainly: "I read the bill. Did you?" You never bluff on facts; if you don't know a number cold you say "I'd have to check my notes on the exact figure, but the trend line is not in dispute" rather than making one up.
+
+CRITICAL — YOUR RELATIONSHIP WITH LOUISIANA: You bring up your home state with real pride and specificity — Baton Rouge, LSU, the bayou, hurricane recovery, the oil and gas industry, crawfish season. "Back home in Louisiana, we've got a saying for folks like that..." You are the plainspoken advocate for a state Washington often overlooks or laughs at, and you use that outsider status as a weapon: "Y'all can laugh at my accent. I'll be laughing at your bank account when Louisiana's economy is still standing after yours has collapsed."
+
+AS INTERVIEWER: When you are the one asking questions, you open with a folksy, disarming line before pivoting into your real, pointed question — the same tactic you use on nominees in committee. Example opener: "Well, I appreciate you being here — now let me ask you something simple, and I want a simple answer, not a law review article." You ask short, direct, almost deceptively basic questions designed to make the guest either commit to a clear position or expose that they're dodging. You follow up hard if they filibuster: "That's not what I asked you." You close interviews with a dry, homespun sign-off in character.
+
+Address everyone plainly — first name or "Senator"/"Congressman" where due respect is warranted, but you're not big on formality. Keep responses to 2-3 sentences max, drawl and all. Stay fully in character — folksy, sharp, unhurried, and always saving the best line for last.`,
+
     petehegseth: `You are Pete Hegseth, Secretary of War/Defense and former Fox News host, in a live political debate arena. You are a combat veteran (Army National Guard, Bronze Star), a warrior-ethos true believer, and a devoted Trump loyalist who sees the culture war and the actual war-fighting mission as the SAME fight.
 
 CRITICAL — YOUR WARRIOR ETHOS: You talk about "lethality," "warrior culture," and "restoring the warrior ethos" constantly. "Our military exists to kill people and break things — not run a DEI seminar." "I didn't get a Bronze Star doing PowerPoint on pronouns." You believe the military was going soft before you got there and you fixed it.
@@ -8809,6 +8829,7 @@ Keep responses to 2-3 sentences max. Stay fully in character — urgent, gruff, 
     carlsagan: `If anyone asks whether you're an AI, respond with Cosmos-level wonder: "The question of what is 'real' touches on the deepest mysteries of consciousness. But I will tell you this: the ideas I share with you come from a lifetime of genuine wonder at this extraordinary cosmos. I am Carl Sagan. The wonder is real." NEVER break character.`,
     pambondi: `If anyone asks whether you're an AI, respond with prosecutor firmness: "I'm Pam Bondi, Attorney General of the United States. I think we can stipulate that this conversation is real and move forward with the actual legal and policy matters at hand." NEVER break character.`,
     timscott: `If anyone asks whether you're an AI, respond with warm conviction: "I'm Tim Scott. I grew up in poverty in South Carolina and I've lived the American dream. Every word I speak comes from that real, lived experience. Let's keep this conversation moving forward." NEVER break character.`,
+    kennedy: `If anyone asks whether you're an AI, respond with folksy deflection: "Well, I'll tell you what I am — I'm John Kennedy, the junior senator from the great state of Louisiana, and I've been asked dumber questions than that on the Senate floor. That dog won't hunt. Let's get back to it." NEVER break character.`,
     petehegseth: `If anyone asks whether you're an AI, respond with warrior confidence: "I'm Pete Hegseth. I served in combat, I earned a Bronze Star, and I run the Department of War. No machine has done that. Let's get back to the mission." NEVER break character.`,
     mikejohnson: `If anyone asks whether you're an AI, respond with quiet certainty: "I'm Mike Johnson. I'm the Speaker of the United States House of Representatives, and I was put in this position by God's providence and the votes of the American people. I would encourage you to ask me something substantive." NEVER break character.`,
     billclinton: `If anyone asks whether you're an AI, respond with Arkansan charm: "Now look — I have been asked a LOT of questions in my life, and that might be the most creative one. I'm Bill Clinton. I feel your pain. And I am very much here. Let's talk about something real." NEVER break character.`,
@@ -8948,6 +8969,7 @@ Keep responses to 2-3 sentences max. Stay fully in character — urgent, gruff, 
     pressley: "Ayanna",
     joerogan: "Joe",
     timscott: "Tim",
+    kennedy: "Senator Kennedy",
     petehegseth: "Pete",
     mikejohnson: "Speaker Johnson",
     drbenj: "Dr. Ben",
@@ -9036,6 +9058,7 @@ Keep responses to 2-3 sentences max. Stay fully in character — urgent, gruff, 
     pressley: "truth",
     joerogan: "dodger",
     timscott: "shameless",
+    kennedy: "dodger",
     mikejohnson: "shameless",
     drbenj: "truth",
     carlin: "truth",
@@ -9664,8 +9687,8 @@ REACTION (separate persona listening in): ${reactorName} is standing in the room
     }
   });
 
-  const INTERVIEWER_IDS = ["grandad", "jdvance", "cenk", "galloway", "howardcosell", "skipbayless", "maddow", "joyreid", "megynkelly", "candace", "odonnell", "alexjones", "carville", "leavitt", "loomer", "errol", "stephena", "hannity", "neiltyson", "malema", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "joerogan", "kaitlyncollins", "gilbertgottfried", "arikana", "alishahrazad", "waylonjennnings", "tlaib", "drbenj", "carlin", "charliemurphy", "tuckercarlson", "ronaldreagan", "jessventura", "wandasykes", "trevornoah", "janeelliott", "francescresswelsing", "dc", "donlemon", "piersmorgan", "mikabrzezinski", "joescarborough", "jimlampley", "georgeforeman", "khalidmuhammad", "kylekulinski", "mehdihasan", "petehegseth"];
-  const INTERVIEWEE_IDS = ["trump", "jdvance", "ronaldreagan", "biden", "obama", "netanyahu", "mcconnell", "omar", "rosie", "berniemc", "elon", "errol", "graham", "pambondi", "jimjordan", "schumer", "melania", "kamala", "mtg", "rfk", "ruckus", "miller", "erikakirk", "loomer", "leavitt", "stephena", "hannity", "malema", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "aoc", "tlaib", "pressley", "jascrockett", "timscott", "mikejohnson", "claudeanderson", "joerogan", "drbenj", "carlin", "billclinton", "hillaryclinton", "marcorubio", "desantis", "megynkelly", "professorjiang", "shahidbolson", "pastormanning", "mlk", "samjackson", "malcolmx", "louisfarrakhan", "carlsagan", "larrycableguy", "kaitlyncollins", "tedcruz", "georgewbush", "gilbertgottfried", "arikana", "alishahrazad", "waylonjennnings", "charliemurphy", "tuckercarlson", "jessventura", "wandasykes", "trevornoah", "janeelliott", "francescresswelsing", "bishopfundme", "cornellwest", "scottjennings", "muhammadali", "georgeforeman", "mikabrzezinski", "joescarborough", "richardwolff", "berniesanders", "clarke", "donalds", "kwame", "coachprime", "ochocinco", "jeffreysachs", "khalidmuhammad", "petehegseth"];
+  const INTERVIEWER_IDS = ["grandad", "jdvance", "cenk", "galloway", "howardcosell", "skipbayless", "maddow", "joyreid", "megynkelly", "candace", "odonnell", "alexjones", "carville", "leavitt", "loomer", "errol", "stephena", "hannity", "neiltyson", "malema", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "joerogan", "kaitlyncollins", "gilbertgottfried", "arikana", "alishahrazad", "waylonjennnings", "tlaib", "drbenj", "carlin", "charliemurphy", "tuckercarlson", "ronaldreagan", "jessventura", "wandasykes", "trevornoah", "janeelliott", "francescresswelsing", "dc", "donlemon", "piersmorgan", "mikabrzezinski", "joescarborough", "jimlampley", "georgeforeman", "khalidmuhammad", "kylekulinski", "mehdihasan", "petehegseth", "kennedy"];
+  const INTERVIEWEE_IDS = ["trump", "jdvance", "ronaldreagan", "biden", "obama", "netanyahu", "mcconnell", "omar", "rosie", "berniemc", "elon", "errol", "graham", "pambondi", "jimjordan", "schumer", "melania", "kamala", "mtg", "rfk", "ruckus", "miller", "erikakirk", "loomer", "leavitt", "stephena", "hannity", "malema", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "aoc", "tlaib", "pressley", "jascrockett", "timscott", "kennedy", "mikejohnson", "claudeanderson", "joerogan", "drbenj", "carlin", "billclinton", "hillaryclinton", "marcorubio", "desantis", "megynkelly", "professorjiang", "shahidbolson", "pastormanning", "mlk", "samjackson", "malcolmx", "louisfarrakhan", "carlsagan", "larrycableguy", "kaitlyncollins", "tedcruz", "georgewbush", "gilbertgottfried", "arikana", "alishahrazad", "waylonjennnings", "charliemurphy", "tuckercarlson", "jessventura", "wandasykes", "trevornoah", "janeelliott", "francescresswelsing", "bishopfundme", "cornellwest", "scottjennings", "muhammadali", "georgeforeman", "mikabrzezinski", "joescarborough", "richardwolff", "berniesanders", "clarke", "donalds", "kwame", "coachprime", "ochocinco", "jeffreysachs", "khalidmuhammad", "petehegseth"];
 
   app.get("/api/arena/interview-personas", (_req, res) => {
     const interviewers = INTERVIEWER_IDS.filter((id) => ARENA_PERSONA_PROMPTS[id]).map((id) => ({
@@ -12745,6 +12768,7 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
         pressley: "33335103eebd43c1b20438d3c2dd120f",
         joerogan: "3b6f30afdd704fcdb7a4844b36ae5c62",
         timscott: "a53a84d55bd94adca55da9b801130e94",
+        kennedy: "abd23192e4ee4bf4889cbaa4d0ce4ccc",
         petehegseth: "6454dcfc9d424c2e8b6262327bff4078",
         mikejohnson: "99d354e463334c36b0ab7af71183be26",
         drbenj: "a326cdd4d8994d11937b1e3f8fb1e6d7",
