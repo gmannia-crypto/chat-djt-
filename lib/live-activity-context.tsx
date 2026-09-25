@@ -136,9 +136,9 @@ function LiveToast({ event, onDismiss }: { event: LiveEvent; onDismiss: () => vo
     >
       <Pressable onPress={onDismiss} style={toastStyles.inner}>
         <View style={[toastStyles.iconCircle, { backgroundColor: displayColor + "25" }]}>
-          <Ionicons name={event.icon as any} size={14} color={isBoosted ? "#FFD700" : displayColor} />
+          <Ionicons name={event.icon as any} size={14} color={displayColor} />
         </View>
-        <Text style={[toastStyles.text, isBoosted && { color: "rgba(255,255,255,0.95)" }]} numberOfLines={1}>{event.message}</Text>
+        <Text style={toastStyles.text} numberOfLines={1}>{event.message}</Text>
         <Ionicons name="close" size={12} color="rgba(255,255,255,0.3)" />
       </Pressable>
     </Animated.View>
