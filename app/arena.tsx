@@ -5952,6 +5952,16 @@ export default function ArenaScreen() {
       setIsPlayingAudio(true);
       if (!firstAudioPlayedRef.current) { firstAudioPlayedRef.current = true; setFirstAudioPlayed(true); }
     }
+    // Everything below used to run outside any try/finally. Any unexpected
+    // exception (not just the per-attempt playback errors already caught
+    // inside the retry loop) would throw out of this whole async function and
+    // skip the isProcessingTTSRef reset at the bottom — leaving the mutex
+    // stuck `true` forever. Every later queueTTS() call bails out immediately
+    // on that stuck flag, so text kept generating but audio silently never
+    // played again for the rest of the session. Wrapping in try/finally
+    // guarantees the mutex (and playing state) always gets released.
+    let hasMoreItems = false;
+    try {
     while (ttsQueueRef.current.length > 0) {
       if (myGeneration !== ttsGenerationRef.current) break;
       if (!forcePlayRef.current && sessionEndedRef.current) break;
@@ -6133,18 +6143,25 @@ export default function ArenaScreen() {
       }
       if (abortedForGeneration) continue;
     }
-    const hasMoreItems = ttsQueueRef.current.length > 0;
-    if (myGeneration === ttsGenerationRef.current) {
-      isProcessingTTSRef.current = false;
-    }
-    if (!hasMoreItems) {
-      forcePlayRef.current = false;
-    }
-    currentSoundRef.current = null;
-    if (mountedRef.current && !hasMoreItems) {
-      setIsPlayingAudio(false);
-      ttsActiveSpeakerRef.current = null;
-      setTtsActiveSpeaker(null);
+    } catch (e) {
+      // Anything unexpected escaping the retry loop above used to skip the
+      // mutex reset below and permanently wedge the queue — log it and fall
+      // through to the finally block instead of letting it propagate.
+      console.error("Arena TTS queue: unexpected error, recovering:", e);
+    } finally {
+      hasMoreItems = ttsQueueRef.current.length > 0;
+      if (myGeneration === ttsGenerationRef.current) {
+        isProcessingTTSRef.current = false;
+      }
+      if (!hasMoreItems) {
+        forcePlayRef.current = false;
+      }
+      currentSoundRef.current = null;
+      if (mountedRef.current && !hasMoreItems) {
+        setIsPlayingAudio(false);
+        ttsActiveSpeakerRef.current = null;
+        setTtsActiveSpeaker(null);
+      }
     }
     if (hasMoreItems && forcePlayRef.current) {
       processTTSQueue();
