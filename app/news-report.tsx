@@ -31,6 +31,8 @@ type Anchor = {
   portrait: string;
 };
 
+type SegmentPart = { kind: "read" | "break"; text: string };
+
 type Segment = {
   index: number;
   headline: string;
@@ -39,6 +41,10 @@ type Segment = {
   commentary: string;
   speakerText?: string; // GPT-generated text with transitions; falls back to commentary
   speakerId: string;
+  // In-character ("read") vs broke-character ("break") chunks of this line.
+  // Break chunks are played back muted (volume 0) so the eruption is silent,
+  // then volume is restored for the next "read" chunk (#character-break-mute).
+  parts?: SegmentPart[];
 };
 
 type Report = {
@@ -104,27 +110,31 @@ export default function NewsReportScreen() {
     }
   }, []);
 
-  const speakSegment = useCallback(async (seg: Segment, themeColor: string) => {
-    if (cancelRef.current) return;
-    setActiveSegment(seg.index);
-    setPlayingAudio(true);
-
-    const fullText = seg.speakerText || seg.commentary;
-
+  // Plays one chunk of a line's audio. Break chunks (the character-break
+  // eruption) play at volume 0 — the words still happen on the timeline so
+  // pacing stays natural, but they're silent. The next "read" chunk restores
+  // full volume (#character-break-mute).
+  const speakPart = useCallback(async (text: string, speakerId: string, volume: number) => {
+    if (cancelRef.current || !text.trim()) return;
     try {
       const apiUrl = getApiUrl();
       const resp = await fetch(`${apiUrl}/api/news-report/speak`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: fullText, anchorId: seg.speakerId }),
+        body: JSON.stringify({ text, anchorId: speakerId }),
       });
-      if (!resp.ok || cancelRef.current) { setPlayingAudio(false); return; }
+      if (!resp.ok || cancelRef.current) return;
 
       const blob = await resp.blob();
       const uri = URL.createObjectURL(blob);
 
       await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: false });
-      const { sound } = await Audio.Sound.createAsync({ uri }, { shouldPlay: true, volume: 1.0 });
+      const { sound } = await Audio.Sound.createAsync({ uri }, { shouldPlay: true, volume });
+      if (cancelRef.current) {
+        try { await sound.stopAsync(); await sound.unloadAsync(); } catch {}
+        if (Platform.OS !== "web") try { URL.revokeObjectURL(uri); } catch {}
+        return;
+      }
       soundRef.current = sound;
 
       await new Promise<void>((resolve) => {
@@ -134,14 +144,28 @@ export default function NewsReportScreen() {
       });
 
       try { await sound.unloadAsync(); } catch {}
-      soundRef.current = null;
+      if (soundRef.current === sound) soundRef.current = null;
       if (Platform.OS !== "web") try { URL.revokeObjectURL(uri); } catch {}
     } catch {
       // silent fail — move on
     }
+  }, []);
+
+  const speakSegment = useCallback(async (seg: Segment, themeColor: string) => {
+    if (cancelRef.current) return;
+    setActiveSegment(seg.index);
+    setPlayingAudio(true);
+
+    const fullText = seg.speakerText || seg.commentary;
+    const parts = seg.parts && seg.parts.length > 0 ? seg.parts : [{ kind: "read" as const, text: fullText }];
+
+    for (const part of parts) {
+      if (cancelRef.current) break;
+      await speakPart(part.text, seg.speakerId, part.kind === "break" ? 0 : 1.0);
+    }
 
     if (!cancelRef.current) setPlayingAudio(false);
-  }, [report]);
+  }, [speakPart]);
 
   const startAutoPlay = useCallback(async (segs: Segment[], themeColor: string) => {
     cancelRef.current = false;

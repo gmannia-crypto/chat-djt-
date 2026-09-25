@@ -19009,16 +19009,34 @@ Respond with a JSON array ONLY — no markdown, no code fences, no preamble. Exa
         console.error("news-report GPT error:", e);
       }
 
+      // Split character-break lines into alternating in-character/broke-character
+      // parts on the em-dash markers the prompt instructs the model to use:
+      // "...read text — ERUPTION — ...read text...". Even-indexed chunks are
+      // normal reading, odd-indexed chunks are the broken-character eruption.
+      // Straight (non-character-break) anchors never contain the marker, so
+      // they always come back as a single "read" part.
+      const splitIntoParts = (text: string): { kind: "read" | "break"; text: string }[] => {
+        if (!isCharacterBreak) return [{ kind: "read", text }];
+        const chunks = text.split(/\s+—\s+/g).map((c) => c.trim()).filter(Boolean);
+        if (chunks.length <= 1) return [{ kind: "read", text }];
+        // An even chunk count means the last eruption was never closed with a
+        // trailing dash — default the dangling chunk to "read" rather than
+        // guessing it's still mid-eruption, so nothing gets muted by mistake.
+        return chunks.map((c, i) => ({ kind: (i % 2 === 0 ? "read" : "break") as "read" | "break", text: c }));
+      };
+
       // Build final segments — intro at index 0, stories follow
       const introEntry = scriptSegments.find((s) => s.type === "intro");
+      const introText = introEntry?.text || `Good evening. I'm ${anchor.name}. Welcome to ${anchor.showName}. Let's get into it.`;
       const introSegment = {
         index: 0,
         headline: `${anchor.showName} — Opening`,
         source: "LIVE BROADCAST",
         url: "",
-        commentary: introEntry?.text || `Good evening. I'm ${anchor.name}. Welcome to ${anchor.showName}. Let's get into it.`,
-        speakerText: introEntry?.text || `Good evening. I'm ${anchor.name}. Welcome to ${anchor.showName}. Let's get into it.`,
+        commentary: introText,
+        speakerText: introText,
         speakerId: anchorId,
+        parts: splitIntoParts(introText),
       };
 
       const storySegments = stories.map((story: any, idx: number) => {
@@ -19032,6 +19050,7 @@ Respond with a JSON array ONLY — no markdown, no code fences, no preamble. Exa
           commentary: text,
           speakerText: text,
           speakerId: anchorId,
+          parts: splitIntoParts(text),
         };
       });
 

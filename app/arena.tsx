@@ -8258,11 +8258,51 @@ export default function ArenaScreen() {
     let interrupter: string;
     let data: any;
 
-    if (prefetchedInterrupter && prefetchedData) {
+    if (prefetchedInterrupter && prefetchedData && prefetchedInterrupter !== interruptedId && prefetchedInterrupter !== currentSpeakerRef.current) {
       // Fast path — caller pre-fetched the response in parallel with generateAIResponse.
       // isInterruptingRef is already set true by the caller; no extra delay needed.
+      // Re-validated here (not just trusted from the caller) so a persona can
+      // never end up interrupting themselves (#no-self-interrupt).
       interrupter = prefetchedInterrupter;
       data = prefetchedData;
+    } else if (prefetchedInterrupter && prefetchedData) {
+      // Prefetched interrupter turned out to be the speaker themselves (e.g.
+      // currentSpeakerRef advanced between prefetch and use) — discard the
+      // prefetch and fall back to a fresh, properly-filtered pick below.
+      isInterruptingRef.current = true;
+      const active = selectedPersonasRef.current;
+      const availableInterrupters = INTERRUPTERS.filter((id) => active.includes(id) && id !== interruptedId && id !== currentSpeakerRef.current);
+      if (availableInterrupters.length === 0) { isInterruptingRef.current = false; return; }
+      interrupter = availableInterrupters[Math.floor(Math.random() * availableInterrupters.length)];
+      if (!mountedRef.current || !isRunningRef.current) { isInterruptingRef.current = false; return; }
+      try {
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (deviceId) headers["x-device-id"] = deviceId;
+        const requestReaction = debateModeRef.current === "savage" && turnsSinceReactionRef.current >= 2 && Math.random() < 0.6;
+        const interruptedName = getPersona(interruptedId)?.name || interruptedId;
+        const res = await fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            responderId: interrupter,
+            toSpeakerId: interruptedId,
+            conversationHistory: [{ speakerName: interruptedName, text: interruptedMessageText }],
+            topic: currentTopicRef.current || "debate",
+            isInterruption: true,
+            activePersonas: selectedPersonasRef.current,
+            debateMode: debateModeRef.current,
+            requestReaction,
+            sessionIQ: personaSessionIQRef.current,
+            sessionLieTally: sessionLieTallyRef.current,
+            sessionAltFactTally: sessionAltFactTallyRef.current,
+          }),
+        });
+        if (!res.ok) { isInterruptingRef.current = false; return; }
+        data = await res.json();
+      } catch {
+        isInterruptingRef.current = false;
+        return;
+      }
     } else {
       // Fallback path — fetch on-demand (used when called without prefetch).
       if (isInterruptingRef.current) return;
