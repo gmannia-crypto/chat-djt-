@@ -5459,6 +5459,9 @@ export default function ArenaScreen() {
   const tryArenaFirebackRef = useRef<null | ((attackerId: string, attackText: string, severity: number, victimId?: string) => void)>(null);
   // addMessage is declared later (depends on runFactCheck); ref breaks the TDZ cycle
   const addMessageRef = useRef<null | ((msg: ConversationMessage) => void)>(null);
+  // stopAllTTS is declared later; ref lets early-lifecycle callbacks (leave/stop)
+  // invoke it without a TDZ violation (see stopAllTTSRef wiring below).
+  const stopAllTTSRef = useRef<null | (() => void)>(null);
   // ────────────────────────────────────────────────────────────────────────
 
   // Live overlapping reaction cooldown (mirrors interview.tsx/debate-stage.tsx):
@@ -5608,6 +5611,14 @@ export default function ArenaScreen() {
     setIsRunning(false);
     isRunningRef.current = false;
     if (conversationTimerRef.current) clearTimeout(conversationTimerRef.current);
+    if (topicTimerRef.current) { clearInterval(topicTimerRef.current); topicTimerRef.current = null; }
+    if (joinTimerRef.current) { clearInterval(joinTimerRef.current); joinTimerRef.current = null; }
+    if (breakingNewsTimerRef.current) { clearInterval(breakingNewsTimerRef.current); breakingNewsTimerRef.current = null; }
+    // Bump the AI-response generation token and stop every audio track so a
+    // segment the user just left can't keep talking (queued lines, winner/
+    // loser payoff audio, roasts) once the next segment or session starts (#leave-audio-bleed).
+    speakTokenRef.current += 1;
+    stopAllTTSRef.current?.();
     // Clear stale verdict state so it doesn't bleed into the next session (#383).
     setVerdictData(null);
     setVerdictTimedOut(false);
@@ -5897,6 +5908,8 @@ export default function ArenaScreen() {
     }
     setIsPlayingAudio(false);
   }, []);
+
+  useEffect(() => { stopAllTTSRef.current = stopAllTTS; }, [stopAllTTS]);
 
   // Stop any in-flight TTS whenever voice becomes disabled, regardless of whether it
   // was this screen's own toggle or the shared settings screen (lib/voice-preference.ts).
@@ -7027,6 +7040,10 @@ export default function ArenaScreen() {
           }
         })();
         setTimeout(async () => {
+          // Captured once when the timer expires; if the user leaves this segment
+          // before the delayed payoff sounds/audio below fire, speakTokenRef will
+          // have moved on and they must be skipped (#leave-audio-bleed).
+          const myEndToken = speakTokenRef.current;
           const endedSessionKey = String(sessionStartTimeRef.current);
           const totalPts = Object.values(personaPointsRef.current).reduce((a, b) => a + b, 0);
           if (totalPts === 0 && selectedPersonasRef.current.length > 0) {
@@ -7043,7 +7060,7 @@ export default function ArenaScreen() {
             }
             clearSavedSession();
             awardBadge("arena_debut");
-            setTimeout(() => { playWinnerAfterSound(); }, 4000);
+            setTimeout(() => { if (speakTokenRef.current === myEndToken) playWinnerAfterSound(); }, 4000);
             if (isFreeTrialSessionRef.current) {
               // Free trials are too short for a fair DC verdict — end without a winner.
               setIsLoadingRoast(false);
@@ -9602,7 +9619,7 @@ export default function ArenaScreen() {
     return null;
   }, [messages]);
 
-  const fetchWinnerClapBack = useCallback(async (winnerId: string, winnerName: string, trumpRoast: string, leaderboard: any[]) => {
+  const fetchWinnerClapBack = useCallback(async (winnerId: string, winnerName: string, trumpRoast: string, leaderboard: any[], myToken: number) => {
     setIsLoadingClapBack(true);
     try {
       const customerName = userNameRef.current || "this person";
@@ -9613,7 +9630,9 @@ export default function ArenaScreen() {
         headers,
         body: JSON.stringify({ winnerId, winnerName, trumpRoast, customerName, leaderboard, winTally: winTallyRef.current }),
       });
-      if (res.ok && mountedRef.current) {
+      // The user may have already left this segment/session while the clap-back
+      // was in flight — a stale token means this payoff audio must not play (#leave-audio-bleed).
+      if (res.ok && mountedRef.current && speakTokenRef.current === myToken) {
         const data = await res.json();
         setWinnerClapBack(data.clapBack);
         queueTTS(data.clapBack, winnerId, true);
@@ -9626,6 +9645,7 @@ export default function ArenaScreen() {
   }, [deviceId, queueTTS]);
 
   const fetchTrumpRoast = useCallback(async (explicitWinnerId?: string) => {
+    const myToken = speakTokenRef.current;
     const pts = personaPointsRef.current;
     const sorted = Object.entries(pts).sort(([, a], [, b]) => b - a);
     if (!explicitWinnerId && sorted.length === 0) return;
@@ -9665,13 +9685,15 @@ export default function ArenaScreen() {
           winTally: winTallyRef.current,
         }),
       });
-      if (res.ok) {
+      // A stale token means the user already left this segment/session while the
+      // roast fetch was in flight — don't let it start talking now (#leave-audio-bleed).
+      if (res.ok && speakTokenRef.current === myToken) {
         const data = await res.json();
         setTrumpRoastText(data.roast);
         queueTTS(data.roast, "trump", true);
         if (winnerId !== "trump") {
           if (clapBackTimeoutRef.current) clearTimeout(clapBackTimeoutRef.current);
-          fetchWinnerClapBack(winnerId, winnerName, data.roast, leaderboard);
+          fetchWinnerClapBack(winnerId, winnerName, data.roast, leaderboard, myToken);
         }
       }
     } catch {} finally {
@@ -12765,6 +12787,7 @@ export default function ArenaScreen() {
             <Pressable
               onPress={async () => {
                 setShowContinuePrompt(false);
+                const myEndToken2 = speakTokenRef.current;
                 const endedSessionKey = String(sessionStartTimeRef.current);
                 const pts2 = personaPointsRef.current;
                 const totalPts = Object.values(pts2).reduce((a, b) => a + b, 0);
@@ -12786,7 +12809,7 @@ export default function ArenaScreen() {
                 }
                 clearSavedSession();
                 awardBadge("arena_debut");
-                setTimeout(() => { playWinnerAfterSound(); }, 4000);
+                setTimeout(() => { if (speakTokenRef.current === myEndToken2) playWinnerAfterSound(); }, 4000);
                 if (isFreeTrialSessionRef.current) {
                   // Free trials are too short for a fair DC verdict — end without a winner.
                   setIsLoadingRoast(false);

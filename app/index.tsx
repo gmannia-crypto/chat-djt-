@@ -389,7 +389,6 @@ export default function HomeScreen() {
   const inviteSuccessCheckedRef = useRef(false);
   const [leaderboardData, setLeaderboardData] = useState<{ name: string; score: number; avatar: string; isYou?: boolean }[]>([]);
   const [fearGreed, setFearGreed] = useState<{ value: number; label: string; trumpComment: string } | null>(null);
-  const [liveUsers, setLiveUsers] = useState(1247);
   const [activityFeed, setActivityFeed] = useState<string[]>([]);
   const [badges, setBadges] = useState<{ id: string; label: string; emoji: string; desc: string; earned: boolean }[]>([]);
   const [weeklyCountdown, setWeeklyCountdown] = useState({ days: 0, hours: 0, minutes: 0, isLive: false });
@@ -1008,22 +1007,12 @@ export default function HomeScreen() {
     }
   }
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setLiveUsers(1247 + Math.floor(Math.random() * 200) - 100);
-    }, 10000);
-    return () => clearInterval(interval);
-  }, []);
-
-
   const activityFromLive = useMemo(() => {
     return liveEvents.slice(0, 8).map((ev) => ({
       message: ev.message,
       icon: ev.icon,
       color: ev.color,
       type: ev.type,
-      simulated: ev.simulated,
-      boosted: ev.boosted,
     }));
   }, [liveEvents]);
 
@@ -1625,11 +1614,6 @@ export default function HomeScreen() {
               <Text style={{ fontSize: 11, fontWeight: "800" as const, color: Colors.gold }}>{balance.totalAvailable}</Text>
             </Pressable>
           )}
-          <View style={styles.liveUsersBadge}>
-            <View style={styles.liveUsersDot} />
-            <Text style={styles.liveUsersCount}>{liveUsers.toLocaleString()}</Text>
-            <Text style={styles.liveUsersLabel}>live</Text>
-          </View>
           <ShareAppButton variant="icon" />
           <Pressable
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/settings"); }}
@@ -3012,33 +2996,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
-  },
-  liveUsersBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    backgroundColor: "rgba(255, 77, 77, 0.15)",
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderWidth: 1,
-    borderColor: "rgba(255, 77, 77, 0.3)",
-  },
-  liveUsersDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "#ff4d4d",
-  },
-  liveUsersCount: {
-    fontSize: 12,
-    fontWeight: "800" as const,
-    color: "#ff4d4d",
-  },
-  liveUsersLabel: {
-    fontSize: 10,
-    fontWeight: "600" as const,
-    color: "rgba(255, 77, 77, 0.7)",
   },
   activityWall: {
     marginHorizontal: 20,

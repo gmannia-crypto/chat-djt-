@@ -2995,6 +2995,10 @@ export default function DebateStage() {
   }), []);
 
   const stopAllAudio = useCallback(() => {
+    // Bump the generation token so any in-flight playTTS/prefetch/ending
+    // (parting shot, winner/loser) promise that resolves after this point
+    // recognizes it's stale and refuses to play (#leave-audio-bleed).
+    ttsGenerationRef.current += 1;
     ttsQueueRef.current = [];
     prefetchedAudioRef.current = null;
     prefetchingRef.current = false;
@@ -3006,6 +3010,11 @@ export default function DebateStage() {
     setActiveSpeaker(null);
     activeSpeakerRef.current = null;
     if (snd) snd.stopAsync().then(() => snd.unloadAsync()).catch(() => {});
+    const interrupt = interruptSoundRef.current;
+    interruptSoundRef.current = null;
+    if (interrupt) interrupt.stopAsync().then(() => interrupt.unloadAsync()).catch(() => {});
+    reactionSoundsRef.current.forEach((rs) => { try { rs.stopAsync().then(() => rs.unloadAsync()).catch(() => {}); } catch {} });
+    reactionSoundsRef.current.clear();
   }, []);
 
   // Unlike a transient model error, a 403 from an interview endpoint means the
@@ -5920,10 +5929,16 @@ export default function DebateStage() {
   useEffect(() => {
     return () => {
       runningRef.current = false;
+      ttsGenerationRef.current += 1;
       ttsQueueRef.current = [];
       const snd = currentSoundRef.current;
       currentSoundRef.current = null;
       if (snd) snd.stopAsync().then(() => snd.unloadAsync()).catch(() => {});
+      const interrupt = interruptSoundRef.current;
+      interruptSoundRef.current = null;
+      if (interrupt) interrupt.stopAsync().then(() => interrupt.unloadAsync()).catch(() => {});
+      reactionSoundsRef.current.forEach((rs) => { try { rs.stopAsync().then(() => rs.unloadAsync()).catch(() => {}); } catch {} });
+      reactionSoundsRef.current.clear();
     };
   }, []);
 

@@ -2753,7 +2753,7 @@ function LiveActivityStatsSection() {
         <View style={timeStyles.headerRight}>
           {data?.last5min && (
             <Text style={[timeStyles.headerBadge, { backgroundColor: "rgba(74,222,128,0.15)", color: "#4ADE80" }]}>
-              {data.last5min.real} real / {data.last5min.simulated} sim
+              {data.last5min.total} real events
             </Text>
           )}
           <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={18} color={Colors.whiteMuted} />
@@ -2769,23 +2769,15 @@ function LiveActivityStatsSection() {
                 <Text style={timeStyles.summaryLabel}>Total (5min)</Text>
               </View>
               <View style={timeStyles.summaryCard}>
-                <Text style={[timeStyles.summaryValue, { color: "#4ADE80" }]}>{data.last5min.real}</Text>
-                <Text style={timeStyles.summaryLabel}>Real Events</Text>
-              </View>
-              <View style={timeStyles.summaryCard}>
-                <Text style={[timeStyles.summaryValue, { color: "#aaa" }]}>{data.last5min.simulated}</Text>
-                <Text style={timeStyles.summaryLabel}>Simulated</Text>
-              </View>
-              <View style={timeStyles.summaryCard}>
                 <Text style={timeStyles.summaryValue}>{data.bufferSize}</Text>
                 <Text style={timeStyles.summaryLabel}>Buffer Size</Text>
               </View>
             </View>
           )}
-          {data?.last5min?.realByType && Object.keys(data.last5min.realByType).length > 0 && (
+          {data?.last5min?.byType && Object.keys(data.last5min.byType).length > 0 && (
             <View style={{ marginTop: 12 }}>
-              <Text style={[timeStyles.listTitle, { marginBottom: 8 }]}>Real Events by Type</Text>
-              {Object.entries(data.last5min.realByType).sort(([,a]: any, [,b]: any) => b - a).map(([type, count]: any) => (
+              <Text style={[timeStyles.listTitle, { marginBottom: 8 }]}>Events by Type</Text>
+              {Object.entries(data.last5min.byType).sort(([,a]: any, [,b]: any) => b - a).map(([type, count]: any) => (
                 <View key={type} style={timeStyles.userRow}>
                   <Text style={[timeStyles.userId, { flex: 1 }]}>{type}</Text>
                   <Text style={[timeStyles.userTime, { color: "#4ADE80" }]}>{count}</Text>

@@ -21,8 +21,6 @@ interface LiveEvent {
   icon: string;
   color: string;
   timestamp: number;
-  simulated?: boolean;
-  boosted?: boolean;
 }
 
 interface LiveActivityContextType {
@@ -125,7 +123,6 @@ function LiveToast({ event, onDismiss }: { event: LiveEvent; onDismiss: () => vo
     return () => clearTimeout(timer);
   }, []);
 
-  const isBoosted = event.boosted;
   const displayColor = event.color;
 
   return (
@@ -135,11 +132,10 @@ function LiveToast({ event, onDismiss }: { event: LiveEvent; onDismiss: () => vo
       style={[
         toastStyles.container,
         { borderLeftColor: displayColor },
-        isBoosted && { borderLeftColor: "#FFD700", borderColor: "rgba(255,215,0,0.15)", backgroundColor: "rgba(25,22,40,0.97)" },
       ]}
     >
       <Pressable onPress={onDismiss} style={toastStyles.inner}>
-        <View style={[toastStyles.iconCircle, { backgroundColor: displayColor + "25" }, isBoosted && { backgroundColor: "#FFD70020" }]}>
+        <View style={[toastStyles.iconCircle, { backgroundColor: displayColor + "25" }]}>
           <Ionicons name={event.icon as any} size={14} color={isBoosted ? "#FFD700" : displayColor} />
         </View>
         <Text style={[toastStyles.text, isBoosted && { color: "rgba(255,255,255,0.95)" }]} numberOfLines={1}>{event.message}</Text>

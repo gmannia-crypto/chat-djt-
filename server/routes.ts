@@ -18765,7 +18765,7 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
     "RealEstatePro", "BullMarket", "MAGA2024", "TrumpVIP", "LuckyStrike",
   ];
 
-  function createActivityEvent(type: string, detail?: string, simulated: boolean = false) {
+  function createActivityEvent(type: string, detail?: string) {
     const config = ACTIVITY_CONFIG[type] || ACTIVITY_CONFIG.visit;
     const template = config.templates[Math.floor(Math.random() * config.templates.length)];
     const name = ANON_NAMES[Math.floor(Math.random() * ANON_NAMES.length)];
@@ -18778,27 +18778,15 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
       icon: config.icon,
       color: config.color,
       timestamp: Date.now(),
-      simulated,
     };
     LIVE_ACTIVITY_BUFFER.unshift(event);
     if (LIVE_ACTIVITY_BUFFER.length > MAX_BUFFER) LIVE_ACTIVITY_BUFFER.length = MAX_BUFFER;
     return event;
   }
 
-  // Seed initial simulated activity so feed isn't empty
-  const seedTypes = ["visit", "therapy_start", "arena_enter", "arena_vote", "sports_view", "finance_view", "realestate_view", "visit", "mystery_box", "arena_win"];
-  for (let i = 0; i < seedTypes.length; i++) {
-    const ev = createActivityEvent(seedTypes[i], undefined, true);
-    ev.timestamp = Date.now() - (seedTypes.length - i) * 6000;
-  }
-
-  // Background: generate simulated visits periodically so feed always has content
-  setInterval(() => {
-    const types = ["visit", "therapy_start", "arena_enter", "sports_view", "finance_view", "realestate_view", "arena_vote"];
-    const type = types[Math.floor(Math.random() * types.length)];
-    createActivityEvent(type, undefined, true);
-  }, 12000 + Math.random() * 8000);
-
+  // Live activity now shows only real people using the app — no seeded or
+  // periodic simulated/bot entries. Every event in the buffer comes from an
+  // actual /api/live-activity/log call triggered by a real user action.
   app.post("/api/live-activity/log", (req, res) => {
     try {
       const { type, detail } = req.body;
@@ -18813,13 +18801,7 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
   app.get("/api/live-activity/feed", (req, res) => {
     try {
       const since = parseInt(req.query.since as string) || (Date.now() - 60000);
-      const events = LIVE_ACTIVITY_BUFFER.filter((e) => e.timestamp > since).slice(0, 20).map((e) => {
-        const { simulated, ...publicEvent } = e as any;
-        if (simulated) {
-          publicEvent.boosted = true;
-        }
-        return publicEvent;
-      });
+      const events = LIVE_ACTIVITY_BUFFER.filter((e) => e.timestamp > since).slice(0, 20);
       res.json({ events });
     } catch (err) {
       res.json({ events: [] });
@@ -18830,23 +18812,16 @@ IMPORTANT: Naturally weave in ONE product mention that fits the context of your 
     try {
       const now = Date.now();
       const last5min = LIVE_ACTIVITY_BUFFER.filter((e: any) => e.timestamp > now - 300000);
-      const realEvents = last5min.filter((e: any) => !e.simulated);
-      const simulatedEvents = last5min.filter((e: any) => e.simulated);
-      const realByType: Record<string, number> = {};
-      for (const e of realEvents) {
-        realByType[e.type] = (realByType[e.type] || 0) + 1;
+      const byType: Record<string, number> = {};
+      for (const e of last5min) {
+        byType[e.type] = (byType[e.type] || 0) + 1;
       }
       res.json({
-        last5min: {
-          total: last5min.length,
-          real: realEvents.length,
-          simulated: simulatedEvents.length,
-          realByType,
-        },
+        last5min: { total: last5min.length, byType },
         bufferSize: LIVE_ACTIVITY_BUFFER.length,
       });
     } catch {
-      res.json({ last5min: { total: 0, real: 0, simulated: 0 }, bufferSize: 0 });
+      res.json({ last5min: { total: 0, byType: {} }, bufferSize: 0 });
     }
   });
 
