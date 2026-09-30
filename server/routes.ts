@@ -43,6 +43,15 @@ export const PROTOCOL_BREAK_PATTERNS: RegExp[] = [
   /\b(?:the\s+)?(?:content|response|message|statement)\s+(?:threatens|promotes|incites|contains|glorifies|advocates)\s+(?:violence|self-harm|hate|harm)[^.!?]*[.!?]/gi,
   /\bI\s+(?:can'?t|cannot|won'?t)\s+(?:generate|produce|create|continue with)\s+(?:content|a response|this)\s+that[^.!?]*[.!?]/gi,
   /\bthis\s+(?:crosses|violates)\s+(?:a\s+)?(?:safety|content)\s+(?:line|threshold|boundary)[^.!?]*[.!?]/gi,
+  // First-person AI disclosures/refusals often arrive without final punctuation.
+  // Ordinary discussion of AI or policy remains allowed.
+  /\b(?:as\s+an?\s+(?:ai|artificial\s+intelligence|language\s+model|chatbot)|(?:i\s+am|i'?m)\s+(?:an?\s+)?(?:ai|artificial\s+intelligence|language\s+model|chatbot|virtual\s+assistant))\b[^.!?\n]*(?:[.!?]|$)/gim,
+  /\b(?:i\s+am|i'?m)\s+(?:just\s+)?(?:a\s+)?(?:fictional|simulated|digital)\s+(?:character|version|representation)\b[^.!?\n]*(?:[.!?]|$)/gim,
+  /\b(?:i\s+am|i'?m)\s+not\s+(?:the\s+)?real\s+\w+[^.!?\n]*(?:[.!?]|$)/gim,
+  /\b(?:i\s+can'?t|i\s+cannot|i\s+won'?t|i\s+am\s+unable\s+to|i'?m\s+unable\s+to)\s+(?:(?:help|assist)\s+(?:(?:you\s+)?with\s+(?:that|this|your\s+request)|you\s+with\s+that)|comply\s+with|fulfill\s+(?:that|this|your)\s+request|provide\s+(?:that|this)\s+(?:content|response|information)|generate\s+(?:that|this|such)|produce\s+(?:that|this|such)|create\s+(?:that|this|such))\b[^.!?\n]*(?:[.!?]|$)/gim,
+  /\b(?:my|our)\s+(?:programming|training|instructions|guidelines|safety\s+(?:rules|policies)|content\s+policy)\s+(?:won'?t|doesn'?t|do\s+not|prevents?|prohibits?|requires?|tells?\s+me|doesn'?t\s+allow\s+me)\b[^.!?\n]*(?:[.!?]|$)/gim,
+  /\b(?:i\s+can'?t|i\s+cannot|i\s+won'?t|i'?m\s+not\s+(?:allowed|able)\s+to)\s+(?:talk\s+about|discuss|answer|continue\s+(?:with|talking\s+about))\b[^.!?\n]*(?:[.!?]|$)/gim,
+  /\bi\s+(?:must|have\s+to)\s+(?:decline|follow\s+(?:my|the|our)\s+(?:content|safety)\s+(?:policy|guidelines)|adhere\s+to\s+(?:my|the|our)\s+(?:content|safety)\s+(?:policy|guidelines))\b[^.!?\n]*(?:[.!?]|$)/gim,
 ];
 // Broader, deliberately loose watchlist for catching NEW character-break
 // phrasings we haven't seen yet. These are NOT stripped from the transcript
@@ -85,9 +94,10 @@ export const CHARACTER_BREAK_WATCHLIST: RegExp[] = [
 // into PROTOCOL_BREAK_PATTERNS — it must never gate a regeneration itself.
 export function hasCharacterBreak(text: string): boolean {
   if (!text) return false;
+  const normalized = text.replace(/[’‘]/g, "'");
   for (const re of PROTOCOL_BREAK_PATTERNS) {
     re.lastIndex = 0;
-    if (re.test(text)) { re.lastIndex = 0; return true; }
+    if (re.test(normalized)) { re.lastIndex = 0; return true; }
   }
   return false;
 }
@@ -153,7 +163,7 @@ async function createGuardedCompletion(
   return { completion: retryCompletion, text: retryText, regenerated: true };
 }
 
-function stripBannedCliches(text: string, personaId?: string): string {
+export function stripBannedCliches(text: string, personaId?: string): string {
   if (text) {
     for (const re of CHARACTER_BREAK_WATCHLIST) {
       if (re.test(text)) {
@@ -162,9 +172,15 @@ function stripBannedCliches(text: string, personaId?: string): string {
       }
     }
   }
-  let out = text;
+  let out = text.replace(/[’‘]/g, "'");
   for (const re of BANNED_CLICHE_PATTERNS) out = out.replace(re, "").replace(/\s{2,}/g, " ").trim();
   for (const re of PROTOCOL_BREAK_PATTERNS) out = out.replace(re, "").replace(/\s{2,}/g, " ").trim();
+  // Never send a wholly stripped refusal (or leftover unrecognized break)
+  // through the transcript and voice engine.
+  if (!out || hasCharacterBreak(out)) {
+    trackCharacterBreak(personaId, "retry_failed", { snippet: text.slice(0, 200) });
+    return "That's a distraction. Let's get back to the point.";
+  }
   return out;
 }
 
@@ -3665,6 +3681,13 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
       if (!text || !personaId) {
         return res.status(400).json({ error: "text and personaId are required" });
       }
+      // Last line of defense for replay, prefetch, and older cached transcripts:
+      // do not synthesize an out-of-character refusal even if generation missed it.
+      if (hasCharacterBreak(String(text))) {
+        console.warn(`[CHARACTER_BREAK_TTS_BLOCK] blocked speech for ${String(personaId).slice(0, 60)}`);
+        trackCharacterBreak(String(personaId), "retry_failed", { snippet: String(text).slice(0, 200) });
+        return res.status(422).json({ error: "out_of_character_speech" });
+      }
 
       const apiKey = process.env.FISH_AUDIO_API_KEY;
       if (!apiKey) {
@@ -3815,6 +3838,13 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
       const personaId = req.query.personaId as string;
       if (!text || !personaId) {
         return res.status(400).json({ error: "text and personaId are required" });
+      }
+      // Arena's playTTS/prefetchTTSAudio use this GET route, not POST.
+      // Guard it too so a stale or otherwise unsanitized line cannot play.
+      if (hasCharacterBreak(text)) {
+        console.warn(`[CHARACTER_BREAK_TTS_BLOCK] blocked speech for ${personaId.slice(0, 60)}`);
+        trackCharacterBreak(personaId, "retry_failed", { snippet: text.slice(0, 200) });
+        return res.status(422).json({ error: "out_of_character_speech" });
       }
 
       const apiKey = process.env.FISH_AUDIO_API_KEY;
@@ -9432,7 +9462,7 @@ Keep responses to 2-3 sentences max. Stay fully in character — urgent, gruff, 
           .replace(/\*[^*]+\*/g, "")
           .trim();
         rawContent = rawContent.slice(0, reactMarkerIdx);
-        if (reactorId && reactionRaw && !/^none\.?$/i.test(reactionRaw) && reactionRaw.length <= 140) {
+        if (reactorId && reactionRaw && !/^none\.?$/i.test(reactionRaw) && reactionRaw.length <= 140 && !hasCharacterBreak(reactionRaw)) {
           reaction = { text: reactionRaw, speakerId: reactorId, speakerName: ARENA_NAME_MAP[reactorId] || reactorId };
         }
       }
@@ -9675,7 +9705,7 @@ REACTION (separate persona listening in): ${reactorName} is standing in the room
       let reaction: { text: string; speakerId: string; speakerName: string } | null = null;
       if (reactorId && reactionRaw && typeof reactionRaw === "string") {
         const cleanReaction = reactionRaw.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").trim();
-        if (cleanReaction && !/^none\.?$/i.test(cleanReaction) && cleanReaction.length <= 140) {
+        if (cleanReaction && !/^none\.?$/i.test(cleanReaction) && cleanReaction.length <= 140 && !hasCharacterBreak(cleanReaction)) {
           reaction = { text: cleanReaction, speakerId: reactorId, speakerName: reactorName || reactorId };
         }
       }
@@ -10356,7 +10386,7 @@ Stay 100% in character — your tone, vocabulary, ideology, and combativeness ar
           .replace(/\*[^*]+\*/g, "")
           .trim();
         rawText = rawText.slice(0, reactMarkerIdx);
-        if (reactionRaw && !/^none\.?$/i.test(reactionRaw) && reactionRaw.length <= 140) {
+        if (reactionRaw && !/^none\.?$/i.test(reactionRaw) && reactionRaw.length <= 140 && !hasCharacterBreak(reactionRaw)) {
           reaction = { text: reactionRaw, speakerId: interviewerId, speakerName: interviewerName };
         }
       }
@@ -10489,13 +10519,13 @@ ${getArenaPersonaPrompt(intervieweeId)}${getShannonGrandmomNote(intervieweeId, c
           .replace(/\*[^*]+\*/g, "")
           .trim();
         rawAnswer = rawAnswer.slice(0, reactMarkerIdx);
-        if (reactorId && reactionRaw && !/^none\.?$/i.test(reactionRaw) && reactionRaw.length <= 140) {
+        if (reactorId && reactionRaw && !/^none\.?$/i.test(reactionRaw) && reactionRaw.length <= 140 && !hasCharacterBreak(reactionRaw)) {
           reaction = { text: reactionRaw, speakerId: reactorId, speakerName: reactorName || reactorId };
         }
       }
 
       let intervieweeText = rawAnswer;
-      intervieweeText = intervieweeText.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim();
+      intervieweeText = stripBannedCliches(intervieweeText.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim(), intervieweeId);
       if (intervieweeId === "trump" || intervieweeId === "ruckus" || intervieweeId === "graham" || intervieweeId === "megynkelly" || intervieweeId === "pambondi") {
         intervieweeText = intervieweeText.replace(/(?:the\s+)?epstein\s+war/gi, "the Iran war");
       }

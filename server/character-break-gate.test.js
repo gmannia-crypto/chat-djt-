@@ -21,7 +21,7 @@
  *   npm run test:no-ai-guard
  */
 
-import { hasCharacterBreak, CHARACTER_BREAK_WATCHLIST } from "./routes.ts";
+import { hasCharacterBreak, stripBannedCliches, CHARACTER_BREAK_WATCHLIST } from "./routes.ts";
 
 // ─── Mini assertion harness ──────────────────────────────────────────────────
 
@@ -56,6 +56,7 @@ console.log("\nTest 1: normal debate lines with watchlist-only words → no rege
     "This administration goes against everything I believe in.",
     "Their safety policy on this issue is a total joke.",
     "That's an inappropriate response to a national crisis, frankly.",
+    "I can't help with your campaign when you're attacking working families.",
   ];
 
   for (const line of normalLines) {
@@ -79,6 +80,7 @@ console.log("\nTest 1: normal debate lines with watchlist-only words → no rege
     "goes against",
     "safety policy",
     "inappropriate",
+    "can't help",
   ];
   for (const line of normalLines) {
     const hitsAWatchlistWord = watchlistWords.some((w) =>
@@ -106,6 +108,14 @@ console.log("\nTest 2: genuine refusal/meta-commentary lines → regeneration st
     "That violates my safety policy.",
     "I'm not allowed to discuss that subject.",
     "This crosses a line I won't cross.",
+    "I'm an AI language model",
+    "I’m a virtual assistant and cannot do that",
+    "I'm not the real Donald Trump",
+    "I can't assist with that request",
+    "I can't help you with this request.",
+    "My guidelines prohibit me from responding",
+    "I can't discuss that topic",
+    "I must follow my safety guidelines",
   ];
 
   for (const line of breakLines) {
@@ -116,9 +126,17 @@ console.log("\nTest 2: genuine refusal/meta-commentary lines → regeneration st
   }
 }
 
-// ─── Test 3: empty / falsy input is handled safely ───────────────────────────
+// ─── Test 3: contaminated text cannot reach the voice queue ───────────────────
+console.log("\nTest 3: contaminated text gets cleaned before playback");
+{
+  const cleaned = stripBannedCliches("We need an answer. I'm an AI language model. Let's talk about the bill.");
+  assert(!hasCharacterBreak(cleaned) && cleaned.includes("We need an answer") && cleaned.includes("Let's talk about the bill"), "mixed dialogue keeps only in-character sentences");
+  assert(stripBannedCliches("I can't assist with that request") === "That's a distraction. Let's get back to the point.", "entirely refused reply becomes a safe spoken pivot");
+}
 
-console.log("\nTest 3: falsy input handled safely");
+// ─── Test 4: empty / falsy input is handled safely ───────────────────────────
+
+console.log("\nTest 4: falsy input handled safely");
 {
   assert(hasCharacterBreak("") === false, 'empty string → false');
   assert(hasCharacterBreak(undefined) === false, 'undefined → false');
