@@ -1,6 +1,7 @@
 import { useState } from "react";
 import "./_group.css";
 import "./ProposedPaywall.css";
+import { LiquidFlow } from "./LiquidFlow";
 
 const durations = [5, 10, 15] as const;
 const tokenPacks = [
@@ -22,6 +23,7 @@ export function ProposedPaywall() {
   return (
     <main className="arena-flow-page proposed-paywall">
       <div className="pp-atmosphere" aria-hidden="true" />
+      <LiquidFlow />
       <div className="pp-shell">
         <header className="pp-header">
           <div className="pp-brand">

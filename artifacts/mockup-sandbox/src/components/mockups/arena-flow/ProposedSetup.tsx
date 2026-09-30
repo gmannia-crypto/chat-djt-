@@ -1,6 +1,7 @@
 import { useState } from "react";
 import "./_group.css";
 import "./ProposedSetup.css";
+import { LiquidFlow } from "./LiquidFlow";
 
 const topics = [
   ["The Epstein War on Iran", "Trump launched military strikes on Iran just as the Epstein files were set to be unsealed. Critics call it 'The Epstein War' — a war of maximum distraction."],
@@ -98,6 +99,7 @@ export function ProposedSetup() {
   return (
     <main className="arena-flow-page proposed-setup">
       <div className="ps-backdrop" aria-hidden="true" />
+      <LiquidFlow />
       <div className="ps-grain" aria-hidden="true" />
       <div className="ps-scroll">
         <div className="ps-shell">

@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import "./_group.css";
 import "./ProposedEntry.css";
+import { LiquidFlow } from "./LiquidFlow";
 
 const demoLines = [
   { name: "Donald Trump", side: "left", image: "/__mockup/images/persona-trump.png", text: "The question is simple: who does this actually help?" },
@@ -28,6 +29,7 @@ export function ProposedEntry() {
 
   return (
     <main className="arena-flow-page arena-proposed">
+      <LiquidFlow />
       <div className="pe-shell">
         <header className="pe-header">
           <button className="pe-archive" type="button" onClick={() => announce("Your saved debates will appear here.")}>

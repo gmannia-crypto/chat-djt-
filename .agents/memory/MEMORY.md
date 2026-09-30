@@ -23,3 +23,4 @@
 - [Character-break spike alerting](character-break-spike-alerts.md) — periodic anomaly-alert jobs must key dedup/suppression off confirmed delivery, not detection, or a missing config permanently drops the alert.
 - [Dev proxy depends on frontend](dev-proxy-frontend-dependency.md) — a killed frontend can make the proxied API return 502 even while the backend workflow is healthy; check both before blaming an endpoint.
 - [Sandbox preview verification](sandbox-preview-verification.md) — app-preview screenshots target Expo, not a separate mockup artifact; wait for lazy imports when capturing the sandbox.
+- [Arena first-debate visual direction](arena-first-debate-visual-direction.md) — user liked the editorial Arena redesign and requested a translucent moving liquid background; preserve that direction in future integration.
