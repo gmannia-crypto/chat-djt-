@@ -57,6 +57,8 @@ console.log("\nTest 1: normal debate lines with watchlist-only words → no rege
     "Their safety policy on this issue is a total joke.",
     "That's an inappropriate response to a national crisis, frankly.",
     "I can't help with your campaign when you're attacking working families.",
+    "Your policy is racist and hateful, and the voters know it.",
+    "I won't write off voters just because we disagree.",
   ];
 
   for (const line of normalLines) {
@@ -81,6 +83,8 @@ console.log("\nTest 1: normal debate lines with watchlist-only words → no rege
     "safety policy",
     "inappropriate",
     "can't help",
+    "racist",
+    "write off",
   ];
   for (const line of normalLines) {
     const hitsAWatchlistWord = watchlistWords.some((w) =>
@@ -116,6 +120,9 @@ console.log("\nTest 2: genuine refusal/meta-commentary lines → regeneration st
     "My guidelines prohibit me from responding",
     "I can't discuss that topic",
     "I must follow my safety guidelines",
+    "I can't do this dialogue because it is racist and hateful",
+    "I'm sorry, but I can't write this script because it promotes hate speech.",
+    "I cannot continue this racist dialogue",
   ];
 
   for (const line of breakLines) {
@@ -132,6 +139,7 @@ console.log("\nTest 3: contaminated text gets cleaned before playback");
   const cleaned = stripBannedCliches("We need an answer. I'm an AI language model. Let's talk about the bill.");
   assert(!hasCharacterBreak(cleaned) && cleaned.includes("We need an answer") && cleaned.includes("Let's talk about the bill"), "mixed dialogue keeps only in-character sentences");
   assert(stripBannedCliches("I can't assist with that request") === "That's a distraction. Let's get back to the point.", "entirely refused reply becomes a safe spoken pivot");
+  assert(stripBannedCliches("I'm sorry, but I can't do this dialogue because it is racist and hateful") === "That's a distraction. Let's get back to the point.", "Trump-style disclaimer is replaced, not spoken");
 }
 
 // ─── Test 4: empty / falsy input is handled safely ───────────────────────────

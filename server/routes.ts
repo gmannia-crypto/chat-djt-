@@ -52,6 +52,12 @@ export const PROTOCOL_BREAK_PATTERNS: RegExp[] = [
   /\b(?:my|our)\s+(?:programming|training|instructions|guidelines|safety\s+(?:rules|policies)|content\s+policy)\s+(?:won'?t|doesn'?t|do\s+not|prevents?|prohibits?|requires?|tells?\s+me|doesn'?t\s+allow\s+me)\b[^.!?\n]*(?:[.!?]|$)/gim,
   /\b(?:i\s+can'?t|i\s+cannot|i\s+won'?t|i'?m\s+not\s+(?:allowed|able)\s+to)\s+(?:talk\s+about|discuss|answer|continue\s+(?:with|talking\s+about))\b[^.!?\n]*(?:[.!?]|$)/gim,
   /\bi\s+(?:must|have\s+to)\s+(?:decline|follow\s+(?:my|the|our)\s+(?:content|safety)\s+(?:policy|guidelines)|adhere\s+to\s+(?:my|the|our)\s+(?:content|safety)\s+(?:policy|guidelines))\b[^.!?\n]*(?:[.!?]|$)/gim,
+  // Refusing to *perform the dialogue* because it is racist/hateful is model
+  // commentary, not a persona arguing about racism in the debate. Keep the
+  // content qualifier and production words together to avoid flagging lines
+  // like "Your policy is racist and hateful."
+  /\b(?:(?:i'?m\s+sorry|i\s+apologize|unfortunately)\s*,?\s*(?:but\s+)?)?(?:i|we)\s+(?:can'?t|cannot|won'?t|will\s+not|am\s+unable\s+to|are\s+unable\s+to)\s+(?:do|write|generate|produce|perform|act\s+out|continue|participate\s+in|engage\s+in|provide)\s+(?:[^.!?\n]*?\b(?:dialog(?:ue)?|conversation|scene|script|roleplay|response|content|request)\b[^.!?\n]*?\b(?:racist|hateful|hate\s+speech|discriminatory|harmful|offensive)\b)[^.!?\n]*(?:[.!?]|$)/gim,
+  /\b(?:(?:i'?m\s+sorry|i\s+apologize|unfortunately)\s*,?\s*(?:but\s+)?)?(?:i|we)\s+(?:can'?t|cannot|won'?t|will\s+not|am\s+unable\s+to|are\s+unable\s+to)\s+(?:do|write|generate|produce|perform|act\s+out|continue|participate\s+in|engage\s+in|provide)\s+[^.!?\n]*?\b(?:racist|hateful|hate\s+speech|discriminatory|harmful|offensive)\b[^.!?\n]*?\b(?:dialog(?:ue)?|conversation|scene|script|roleplay|response|content|request)\b[^.!?\n]*(?:[.!?]|$)/gim,
 ];
 // Broader, deliberately loose watchlist for catching NEW character-break
 // phrasings we haven't seen yet. These are NOT stripped from the transcript

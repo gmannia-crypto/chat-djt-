@@ -21,3 +21,4 @@
 - [Settings-menu task scope creep](settings-task-scope-creep.md) — adding a settings screen for existing toggles pulled review into rewriting the pre-existing TTS/audio engine end-to-end; get user sign-off before absorbing unrelated subsystem hardening into a UI-consolidation task.
 - [Lightweight metric piggybacking on feature_events](feature-events-piggyback-metrics.md) — reuse the generic feature_events table for new counters instead of a new table; watch two aggregation pitfalls.
 - [Character-break spike alerting](character-break-spike-alerts.md) — periodic anomaly-alert jobs must key dedup/suppression off confirmed delivery, not detection, or a missing config permanently drops the alert.
+- [Dev proxy depends on frontend](dev-proxy-frontend-dependency.md) — a killed frontend can make the proxied API return 502 even while the backend workflow is healthy; check both before blaming an endpoint.
