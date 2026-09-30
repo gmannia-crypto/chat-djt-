@@ -275,30 +275,35 @@ id = "pt0gO32HAE6ikdUMoC4If"
 uri = "file://assets/images/persona-claudeanderson.png"
 type = "image"
 title = "Dr. Claude Anderson — Cartoon Avatar"
+logical_id = "18f334c9-ed9a-431a-b1ea-508225f20eab"
 
 [[outputs]]
 id = "UKRGTjMUgx4hRn3ufIC7n"
 uri = "file://tmp_tts_audit/claude_anderson_line1.mp3"
 type = "audio"
 title = "SAD emotion — Line 1 (systematic exclusion)"
+logical_id = "b3e7c545-5e27-4e9b-8138-131184c952e8"
 
 [[outputs]]
 id = "h40cHi-puKaLMWA9pVJxi"
 uri = "file://tmp_tts_audit/claude_anderson_line2.mp3"
 type = "audio"
 title = "SAD emotion — Line 2 (wealth gap data)"
+logical_id = "cf3f0e7f-49c0-4625-9fcb-b9f1f3731637"
 
 [[outputs]]
 id = "LwXrgrp2UqdQpWZmA49iX"
 uri = "file://tmp_tts_audit/claude_anderson_line3.mp3"
 type = "audio"
 title = "SAD emotion — Line 3 (Powernomics)"
+logical_id = "5ee00587-d6ee-4ffb-bce4-4791b83f0a84"
 
 [[outputs]]
 id = "76_hqhMipm3OWkTWg3VT-"
 uri = "file://tmp_tts_audit/claude_anderson_neutral_line1.mp3"
 type = "audio"
 title = "NEUTRAL (no tag) — Line 1 (for comparison)"
+logical_id = "af355d82-4098-4f6f-90d6-427122f7ec89"
 
 [[outputs]]
 id = "OO1D4ECfBL-vZqx9YdIcX"
@@ -306,6 +311,7 @@ uri = "file://server/public/reward-chime.mp3"
 type = "audio"
 title = "reward_chime"
 description = "Generated sound effect: Bright cheerful cha-ching reward chime for a mobile game mystery box reveal — two quick ascending coin-register bell hits followed by a sparkling shimmer, clean, punchy, no mu…"
+logical_id = "1f49d1e5-c6f9-46c3-9a0f-a61954567de9"
 
 [[outputs]]
 id = "wAASgD8OvFupEc08wMDGh"
@@ -313,3 +319,4 @@ uri = "file://server/public/token-spend.mp3"
 type = "audio"
 title = "token_spend"
 description = "Generated sound effect: Short subtle coin spend confirmation tone for a mobile app — single soft descending metallic coin click, understated and quick, not celebratory, clean UI sound"
+logical_id = "199b1bf5-cc52-4dad-b479-ab098ed14573"

@@ -22,3 +22,4 @@
 - [Lightweight metric piggybacking on feature_events](feature-events-piggyback-metrics.md) — reuse the generic feature_events table for new counters instead of a new table; watch two aggregation pitfalls.
 - [Character-break spike alerting](character-break-spike-alerts.md) — periodic anomaly-alert jobs must key dedup/suppression off confirmed delivery, not detection, or a missing config permanently drops the alert.
 - [Dev proxy depends on frontend](dev-proxy-frontend-dependency.md) — a killed frontend can make the proxied API return 502 even while the backend workflow is healthy; check both before blaming an endpoint.
+- [Sandbox preview verification](sandbox-preview-verification.md) — app-preview screenshots target Expo, not a separate mockup artifact; wait for lazy imports when capturing the sandbox.
