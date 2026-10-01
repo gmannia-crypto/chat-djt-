@@ -7,5 +7,6 @@ export const modules: ModuleMap = {
   "./components/mockups/arena-flow/LiquidFlow.tsx": () => import("../components/mockups/arena-flow/LiquidFlow.tsx"),
   "./components/mockups/arena-flow/ProposedEntry.tsx": () => import("../components/mockups/arena-flow/ProposedEntry.tsx"),
   "./components/mockups/arena-flow/ProposedPaywall.tsx": () => import("../components/mockups/arena-flow/ProposedPaywall.tsx"),
-  "./components/mockups/arena-flow/ProposedSetup.tsx": () => import("../components/mockups/arena-flow/ProposedSetup.tsx")
+  "./components/mockups/arena-flow/ProposedSetup.tsx": () => import("../components/mockups/arena-flow/ProposedSetup.tsx"),
+  "./components/mockups/arena-flow/ProposedSetupGlass.tsx": () => import("../components/mockups/arena-flow/ProposedSetupGlass.tsx")
 };
