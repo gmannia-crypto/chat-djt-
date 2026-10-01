@@ -54,6 +54,7 @@ import { TokenWinVideo } from "@/components/TokenWinVideo";
 import { ShareAppButton } from "@/components/ShareAppButton";
 import { CashAppDonate } from "@/components/CashAppDonate";
 import { OddsTimeline } from "@/components/OddsTimeline";
+import { ArenaSetupBackdrop } from "@/components/arena-setup/ArenaSetupBackdrop";
 import {
   markRecordingLieDisqualified,
   saveRecording,
@@ -3465,6 +3466,69 @@ const FALLBACK_TOPICS: DynamicTopic[] = [
   { id: "media_propaganda", title: "Media Wars & Disinformation", description: "Fox News, MSNBC, X, and TikTok shape reality for millions. Deepfakes and AI-generated propaganda flood social media." },
 ];
 
+const ARENA_SETUP_PRESETS = [
+  {
+    id: "crossfire",
+    number: "01",
+    title: "The Crossfire",
+    label: "TRADE / POWER",
+    note: "A collision of instincts",
+    topic: "Is America ready for a second trade war?",
+    category: "politics",
+    personas: ["trump", "maddow", "jdvance"],
+  },
+  {
+    id: "climate",
+    number: "02",
+    title: "The Climate Faultline",
+    label: "ENERGY / FUTURE",
+    note: "Jobs now. Costs later.",
+    topic: "Should the U.S. halt new fossil-fuel projects?",
+    category: "science",
+    personas: ["neiltyson", "desantis", "berniesanders"],
+  },
+  {
+    id: "borders",
+    number: "03",
+    title: "The Border Test",
+    label: "IMMIGRATION / LAW",
+    note: "Security against sanctuary",
+    topic: "Can a hard border coexist with a humane system?",
+    category: "politics",
+    personas: ["pambondi", "aoc", "timscott"],
+  },
+  {
+    id: "ai",
+    number: "04",
+    title: "The Machine Question",
+    label: "AI / HUMANITY",
+    note: "Innovation at what cost?",
+    topic: "Should frontier AI be paused until it can be governed?",
+    category: "science",
+    personas: ["elon", "neiltyson", "claudeanderson"],
+  },
+  {
+    id: "press-room",
+    number: "05",
+    title: "The Press Room",
+    label: "MEDIA / TRUST",
+    note: "The story behind the story",
+    topic: "Who should we trust to tell the truth?",
+    category: "politics",
+    personas: ["megynkelly", "tuckercarlson", "carville"],
+  },
+  {
+    id: "power-players",
+    number: "06",
+    title: "Power Players",
+    label: "WEALTH / DEMOCRACY",
+    note: "Who gets to shape the future?",
+    topic: "Should billionaires have a seat at the table?",
+    category: "wealth",
+    personas: ["elon", "berniesanders", "aoc"],
+  },
+] as const;
+
 const AFFILIATE_LINKS = [
   { title: "Trump 2024 Hat", url: "https://www.amazon.com/s?k=trump+2024+hat&tag=trumpbot-20", icon: "hat" },
   { title: "MAGA Merch", url: "https://www.amazon.com/s?k=maga+merchandise&tag=trumpbot-20", icon: "shirt" },
@@ -4631,6 +4695,11 @@ export default function ArenaScreen() {
   const useCustomTopicRef = useRef(false);
   const [showGlobalLeaderboard, setShowGlobalLeaderboard] = useState(false);
   const [showArenaRules, setShowArenaRules] = useState(false);
+  const [showSetupRoomOptions, setShowSetupRoomOptions] = useState(false);
+  const [showSetupArenaLinks, setShowSetupArenaLinks] = useState(false);
+  const [showSetupPersonas, setShowSetupPersonas] = useState(false);
+  const [showSetupBetting, setShowSetupBetting] = useState(false);
+  const [showSetupTopics, setShowSetupTopics] = useState(false);
   const [showHallOfFame, setShowHallOfFame] = useState(false);
   const [showReferModal, setShowReferModal] = useState(false);
   const [referLinkCopied, setReferLinkCopied] = useState(false);
@@ -9910,7 +9979,6 @@ export default function ArenaScreen() {
     [queueTTS, voiceEnabled, latestPersonaMsgId, awardedMessages, flagMessageAsLie, flaggedMsgIds, personaSessionIQ, applyBleep, bleepEnabled]
   );
 
-  const [flashOn, setFlashOn] = useState(true);
   const [isRefreshingTopics, setIsRefreshingTopics] = useState(false);
 
   const handleRefreshTopics = async (bust = false) => {
@@ -9927,51 +9995,297 @@ export default function ArenaScreen() {
   useEffect(() => {
     if (!showPreDebateSetup) return;
     fetchTopics(topicCategory);
-    const flashInterval = setInterval(() => setFlashOn((v) => !v), 700);
-    return () => clearInterval(flashInterval);
   }, [showPreDebateSetup, topicCategory]);
 
   if (showPreDebateSetup) {
     return (
-      <ImageBackground
-        source={require("../assets/images/dynamic-creations-arena-bg.jpg")}
-        style={[s.container, { paddingTop: insets.top + webTopInset }]}
-        imageStyle={{ opacity: 0.28, resizeMode: "cover" }}
-      >
-        <LinearGradient colors={["rgba(0,0,0,0.72)", "rgba(0,0,0,0.55)", "rgba(0,0,0,0.78)"]} style={StyleSheet.absoluteFill} />
-        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
-          <View style={{ alignItems: "center", marginBottom: 16 }}>
-            <Text style={{
-              color: flashOn ? "#FFD700" : "#FF4D4D",
-              fontSize: 28,
-              fontWeight: "900",
-              letterSpacing: 2,
-              textAlign: "center",
-              textShadowColor: flashOn ? "rgba(255,215,0,0.6)" : "rgba(255,77,77,0.6)",
-              textShadowOffset: { width: 0, height: 0 },
-              textShadowRadius: flashOn ? 20 : 10,
-            }}>CHOOSE YOUR DEBATERS</Text>
-            <View style={{ flexDirection: "row", alignItems: "center", marginTop: 6 }}>
-              <Ionicons name="flame" size={20} color="#FF4D4D" />
-              <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, marginHorizontal: 8 }}>THE ARENA</Text>
-              <Ionicons name="flame" size={20} color="#FF4D4D" />
+      <View style={[s.container, { paddingTop: 0, backgroundColor: "#151412" }]}>
+        <ArenaSetupBackdrop />
+        <ScrollView contentContainerStyle={{
+          paddingHorizontal: screenWidth >= 1100 ? Math.max(28, (screenWidth - 1080) / 2) : screenWidth < 420 ? 15 : 22,
+          paddingTop: insets.top + webTopInset + 18,
+          paddingBottom: 42,
+        }}>
+          <View style={{
+            minHeight: 238, justifyContent: "flex-end", paddingBottom: 24,
+            borderBottomWidth: 1, borderBottomColor: "rgba(232,191,102,0.18)", marginBottom: 18,
+          }}>
+            <View style={{ position: "absolute", top: 2, left: 0, right: 0, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 9 }}>
+                <View style={{
+                  width: 27, height: 27, borderRadius: 8, borderBottomLeftRadius: 2,
+                  alignItems: "center", justifyContent: "center",
+                  backgroundColor: "#c39446", borderWidth: 1, borderColor: "rgba(255,238,188,0.55)",
+                  shadowColor: "#000", shadowOpacity: 0.35, shadowRadius: 8, shadowOffset: { width: 0, height: 4 },
+                }}>
+                  <Text style={{ color: "#1d1710", fontFamily: "PlayfairDisplay_700Bold", fontSize: 15 }}>A</Text>
+                </View>
+                <Text style={{ color: "#f5eee3", fontSize: 10, fontWeight: "900", letterSpacing: 1.5 }}>
+                  ARENA <Text style={{ color: "#e8bf66" }}>/</Text> LIVE DEBATE
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => { Haptics.selectionAsync(); toggleSetupMusic(); }}
+                accessibilityRole="button"
+                accessibilityLabel={setupMusicEnabled ? "Turn setup music off" : "Turn setup music on"}
+                style={{
+                  flexDirection: "row", alignItems: "center", gap: 6,
+                  backgroundColor: "rgba(25,22,18,0.82)", borderRadius: 20, paddingHorizontal: 11, paddingVertical: 7,
+                  borderWidth: 1, borderColor: setupMusicEnabled ? "rgba(232,191,102,0.58)" : "rgba(237,212,172,0.2)",
+                }}
+                testID="setup-music-toggle"
+              >
+                <Ionicons name={setupMusicEnabled ? "musical-notes" : "musical-notes-outline"} size={14} color={setupMusicEnabled ? "#e8bf66" : "#c2b7a6"} />
+                <Text style={{ color: setupMusicEnabled ? "#e8bf66" : "#c2b7a6", fontSize: 9, fontWeight: "800", letterSpacing: 0.6 }}>
+                  {setupMusicEnabled ? "MUSIC ON" : "MUSIC OFF"}
+                </Text>
+              </Pressable>
             </View>
-            <Pressable
-              onPress={() => { Haptics.selectionAsync(); toggleSetupMusic(); }}
-              style={{
-                flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10,
-                backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6,
-                borderWidth: 1, borderColor: setupMusicEnabled ? "rgba(255,215,0,0.4)" : "rgba(255,255,255,0.12)",
-              }}
-              testID="setup-music-toggle"
-            >
-              <Ionicons name={setupMusicEnabled ? "musical-notes" : "musical-notes-outline"} size={14} color={setupMusicEnabled ? "#FFD700" : "rgba(255,255,255,0.5)"} />
-              <Text style={{ color: setupMusicEnabled ? "#FFD700" : "rgba(255,255,255,0.5)", fontSize: 11, fontWeight: "700" }}>
-                {setupMusicEnabled ? "MUSIC ON" : "MUSIC OFF"}
-              </Text>
-            </Pressable>
+            <View style={{ marginTop: 45 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <View style={{ width: 20, height: 2, backgroundColor: "#e65b48" }} />
+                <Text style={{ color: "#e8bf66", fontSize: 9, fontWeight: "900", letterSpacing: 1.7 }}>BUILD YOUR ROOM · OPEN FLOOR</Text>
+              </View>
+              <Text style={{
+                color: "#f5eee3", fontSize: screenWidth < 420 ? 43 : 58, lineHeight: screenWidth < 420 ? 47 : 62,
+                fontWeight: "500", letterSpacing: -2.4, marginTop: 15,
+              }} numberOfLines={1} adjustsFontSizeToFit>Pick a side.</Text>
+              <Text style={{
+                color: "#e8bf66", fontFamily: "PlayfairDisplay_400Regular", fontStyle: "italic",
+                fontSize: screenWidth < 420 ? 41 : 56, lineHeight: screenWidth < 420 ? 47 : 62, letterSpacing: -1.8,
+              }} numberOfLines={1} adjustsFontSizeToFit>Make some current.</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 9 }}>
+                <View style={{ width: 27, height: 1, backgroundColor: "#9e773e" }} />
+                <Text style={{ color: "#c2b7a6", fontSize: 11, lineHeight: 17 }}>Six live-wire matchups. Three voices. No softballs.</Text>
+              </View>
+            </View>
+            {screenWidth >= 520 && (
+              <View style={{ position: "absolute", right: 0, top: 72, flexDirection: "row", alignItems: "center", gap: 9 }}>
+                <Text style={{ color: "#e65b48", fontFamily: "PlayfairDisplay_400Regular", fontSize: 31 }}>06</Text>
+                <Text style={{ color: "#c2b7a6", fontSize: 8, fontWeight: "900", letterSpacing: 1, lineHeight: 12 }}>ROOMS{"\n"}READY</Text>
+              </View>
+            )}
           </View>
 
+          <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 12 }}>
+            <View>
+              <Text style={{ color: "#c2b7a6", fontSize: 8, fontWeight: "900", letterSpacing: 1.5 }}>CHOOSE YOUR MATCHUP</Text>
+              <Text style={{ color: "#f5eee3", fontFamily: "PlayfairDisplay_700Bold", fontSize: 22, marginTop: 3 }}>Who’s taking the mic?</Text>
+            </View>
+            <Text style={{ color: "#e8bf66", fontFamily: "monospace", fontSize: 10 }}>01 — 06</Text>
+          </View>
+
+          <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", gap: 10, marginBottom: 16 }}>
+            {ARENA_SETUP_PRESETS.map((preset) => {
+              const isSelected =
+                selectedPersonas.length === preset.personas.length &&
+                preset.personas.every((pid, index) => selectedPersonas[index] === pid) &&
+                useCustomTopic &&
+                customTopicText.trim() === preset.topic &&
+                selectedTopicId === null;
+              const voices = preset.personas.map((pid) => getPersona(pid)).filter((p): p is ArenaPersona => !!p);
+              const presetCanApply = preset.personas.length === 3 && preset.personas.every((pid) =>
+                PERSONA_IDS.includes(pid) && !!getPersona(pid) && !isHidden(pid) && !isLocked(pid) && !BOXING_EXCLUSIVE_IDS.includes(pid)
+              );
+              const cardWidth = screenWidth >= 1000 ? "32.2%" : screenWidth >= 640 ? "48.8%" : "100%";
+              return (
+                <Pressable
+                  key={preset.id}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isSelected, disabled: !presetCanApply }}
+                  accessibilityLabel={`${preset.title}. ${preset.topic}${isSelected ? ". Selected" : ""}`}
+                  disabled={!presetCanApply}
+                  onPress={() => {
+                    Haptics.selectionAsync().catch(() => {});
+                    if (activeTeamBattle) clearTeamBattle();
+                    setTeamBattleMode(false);
+                    setSelectedPersonas([...preset.personas]);
+                    setUseCustomTopic(true);
+                    setCustomTopicText(preset.topic);
+                    setSelectedTopicId(null);
+                    setTopicCategory(preset.category);
+                  }}
+                  style={{
+                    width: cardWidth, minHeight: 178, borderRadius: 14, overflow: "hidden", padding: 14,
+                    borderWidth: 1, borderColor: isSelected ? "#e8bf66" : "rgba(237,212,172,0.3)",
+                    shadowColor: "#000", shadowOpacity: 0.35, shadowRadius: 12, shadowOffset: { width: 0, height: 7 },
+                    opacity: presetCanApply ? 1 : 0.5,
+                    ...(Platform.OS === "web" ? { boxShadow: isSelected ? "0 0 0 2px rgba(232,191,102,.14), 0 14px 28px rgba(0,0,0,.45)" : "0 10px 25px rgba(0,0,0,.3)" } as any : {}),
+                  }}
+                >
+                  <LinearGradient
+                    colors={isSelected ? ["#66503a", "#3b2c22", "#1c1915"] : ["#504234", "#2b241e", "#191816"]}
+                    locations={[0, 0.34, 1]}
+                    style={StyleSheet.absoluteFill}
+                  />
+                  <LinearGradient
+                    colors={["rgba(255,239,213,0.12)", "rgba(255,239,213,0.025)", "transparent"]}
+                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                    style={{ position: "absolute", top: 0, left: 0, right: 0, height: 82 }}
+                    pointerEvents="none"
+                  />
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <Text style={{ color: "#d3c4ad", fontFamily: "monospace", fontSize: 10 }}>{preset.number}</Text>
+                    <Text style={{ color: "#e8bf66", fontSize: 8, fontWeight: "900", letterSpacing: 1 }}>{preset.label}</Text>
+                    <View style={{
+                      width: 20, height: 20, marginLeft: "auto", borderRadius: 10,
+                      borderWidth: 1, borderColor: isSelected ? "#e8bf66" : "#9c8c75",
+                      backgroundColor: isSelected ? "#e8bf66" : "rgba(0,0,0,0.16)",
+                      alignItems: "center", justifyContent: "center",
+                    }}>
+                      <Ionicons name={isSelected ? "checkmark" : "add"} size={13} color={isSelected ? "#241b10" : "#d3c4ad"} />
+                    </View>
+                  </View>
+                  <View style={{ flexDirection: "row", alignItems: "center", marginTop: 10, marginBottom: 7 }}>
+                    {voices.map((voice, index) => (
+                      <View key={voice.id} style={{
+                        width: 31, height: 31, marginRight: index < voices.length - 1 ? -5 : 0,
+                        borderRadius: 16, borderWidth: 2, borderColor: "#28221b", overflow: "hidden",
+                        backgroundColor: voice.color, zIndex: voices.length - index,
+                      }}>
+                        {voice.image ? <Image source={voice.image} style={{ width: 31, height: 31 }} resizeMode="cover" /> : (
+                          <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+                            <Text style={{ color: "#241b10", fontSize: 8, fontWeight: "900" }}>{getInitials(voice.shortName)}</Text>
+                          </View>
+                        )}
+                      </View>
+                    ))}
+                    <Text style={{ color: "#c2b7a6", fontSize: 7, fontWeight: "900", letterSpacing: 1, marginLeft: 12 }}>3 VOICES</Text>
+                  </View>
+                  <Text style={{ color: "#f5eee3", fontFamily: "PlayfairDisplay_700Bold", fontSize: 19, lineHeight: 22 }}>{preset.title}</Text>
+                  <Text style={{ color: "#c2b7a6", fontSize: 9, marginTop: 2, marginBottom: 9 }}>{preset.note}</Text>
+                  <View style={{ borderTopWidth: 1, borderColor: "rgba(232,191,102,0.18)", paddingTop: 7, marginTop: "auto" }}>
+                    <Text style={{ color: "#c2b7a6", fontSize: 7, fontWeight: "900", letterSpacing: 1 }}>THE QUESTION</Text>
+                    <Text style={{ color: "#e7dac7", fontSize: 9, lineHeight: 13, marginTop: 3 }}>{preset.topic}</Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          <View
+            style={{
+              padding: 17, borderRadius: 15, overflow: "hidden", marginBottom: 16,
+              borderWidth: 1, borderColor: "rgba(237,212,172,0.32)",
+              shadowColor: "#000", shadowOpacity: 0.32, shadowRadius: 14, shadowOffset: { width: 0, height: 8 },
+            }}
+            testID="arena-session-duration-selector"
+          >
+            <LinearGradient colors={["rgba(80,66,52,0.98)", "rgba(43,36,30,0.98)", "rgba(25,24,22,0.98)"]} locations={[0, 0.35, 1]} style={StyleSheet.absoluteFill} />
+            <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: "#e8bf66", fontSize: 8, fontWeight: "900", letterSpacing: 1.4 }}>YOUR SESSION</Text>
+                <Text style={{ color: "#f5eee3", fontFamily: "PlayfairDisplay_700Bold", fontSize: 20, marginTop: 3 }}>Set your time in the arena.</Text>
+              </View>
+              <View style={{ alignItems: "flex-end", marginLeft: 10 }}>
+                <Text style={{ color: "#c2b7a6", fontSize: 7, fontWeight: "900", letterSpacing: 1 }}>TOKEN BALANCE</Text>
+                <Text style={{ color: "#e8bf66", fontSize: 12, fontWeight: "900", marginTop: 4 }}>
+                  {balance ? `${balance.totalAvailable} tokens` : "Checking…"}
+                </Text>
+              </View>
+            </View>
+            <View style={{ flexDirection: "row", gap: 8, marginTop: 13 }}>
+              {([5, 10, 15] as const).map((dur) => {
+                const isActive = selectedDuration === dur;
+                return (
+                  <Pressable
+                    key={dur}
+                    onPress={() => { Haptics.selectionAsync().catch(() => {}); setSelectedDuration(dur); }}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: isActive }}
+                    accessibilityLabel={`${dur} minutes, ${dur} tokens`}
+                    style={{
+                      flex: 1, minHeight: 48, borderRadius: 9, paddingHorizontal: 8, paddingVertical: 7,
+                      borderWidth: 1, borderColor: isActive ? "#e8bf66" : "#74614b",
+                      backgroundColor: isActive ? "rgba(113,84,51,0.8)" : "rgba(37,33,28,0.88)",
+                      justifyContent: "center",
+                      shadowColor: isActive ? "#e8bf66" : "#000", shadowOpacity: isActive ? 0.14 : 0.1, shadowRadius: 5,
+                    }}
+                    testID={`arena-duration-${dur}`}
+                  >
+                    <Text style={{ color: isActive ? "#ffdf93" : "#f5eee3", fontFamily: "PlayfairDisplay_700Bold", fontSize: 18 }}>
+                      {dur}<Text style={{ fontFamily: undefined, fontSize: 8, fontWeight: "900" }}> MIN</Text>
+                    </Text>
+                    <Text style={{ color: isActive ? "#ffdf93" : "#c2b7a6", fontSize: 7, fontWeight: "900", letterSpacing: 0.7, marginTop: 1 }}>
+                      {dur} TOKENS
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <View style={{
+              flexDirection: screenWidth < 540 ? "column" : "row", alignItems: "flex-start", gap: 9,
+              marginTop: 11, padding: 10, borderRadius: 8, backgroundColor: "rgba(0,0,0,0.23)",
+            }}>
+              <Ionicons name="information-circle-outline" size={16} color="#e8bf66" />
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: "#f5eee3", fontSize: 10, fontWeight: "800" }}>Trial eligibility is confirmed by Arena when you start.</Text>
+                <Text style={{ color: "#c2b7a6", fontSize: 9, lineHeight: 14, marginTop: 3 }}>
+                  If the server grants a trial, it lasts 2 minutes, costs 0 tokens, and does not include an official verdict. Otherwise, paid sessions are 5, 10, or 15 minutes at 1 token per minute. Choosing a matchup never spends tokens.
+                </Text>
+              </View>
+              <View style={{ alignItems: screenWidth < 540 ? "flex-start" : "flex-end", minWidth: screenWidth < 540 ? undefined : 90 }}>
+                <Text style={{ color: "#c2b7a6", fontSize: 7, fontWeight: "900", letterSpacing: 1 }}>THIS SESSION</Text>
+                <Text style={{ color: "#e8bf66", fontFamily: "PlayfairDisplay_700Bold", fontSize: 15, marginTop: 3 }}>{selectedDuration} TOKENS</Text>
+              </View>
+            </View>
+            <View style={{
+              flexDirection: screenWidth < 540 ? "column" : "row",
+              alignItems: screenWidth < 540 ? "stretch" : "center",
+              marginTop: 10,
+            }}>
+              <View style={{ flex: screenWidth < 540 ? undefined : 1, flexDirection: "row", alignItems: "center", gap: 6, marginBottom: screenWidth < 540 ? 8 : 0 }}>
+                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: hasSession ? "#79c48d" : "#e65b48" }} />
+                <Text style={{ color: "#c2b7a6", fontSize: 9 }} accessibilityLiveRegion="polite">
+                  {hasSession && sessionTimer > 0
+                    ? `Arena access active · ${Math.max(1, Math.ceil(sessionTimer / 60))} min remaining`
+                    : hasSession
+                      ? "Arena session active"
+                      : "No active session · trial access is checked at start"}
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => unlockSession()}
+                disabled={!deviceId || isUnlocking}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: !deviceId || isUnlocking, busy: isUnlocking }}
+                style={{
+                  paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8,
+                  borderWidth: 1, borderColor: "rgba(232,191,102,0.48)",
+                  backgroundColor: "rgba(232,191,102,0.11)", opacity: !deviceId || isUnlocking ? 0.55 : 1,
+                  alignItems: "center",
+                }}
+                testID="arena-unlock-timed-session"
+              >
+                {isUnlocking ? <ActivityIndicator size="small" color="#e8bf66" /> : (
+                  <Text style={{ color: "#e8bf66", fontSize: 8, fontWeight: "900", letterSpacing: 0.4 }}>
+                    UNLOCK {selectedDuration} MIN · {selectedDuration} TOKENS
+                  </Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+
+          <Pressable
+            onPress={() => setShowSetupRoomOptions((value) => !value)}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: showSetupRoomOptions }}
+            style={{
+              marginBottom: 10, padding: 13, borderRadius: 12, overflow: "hidden", flexDirection: "row", alignItems: "center", gap: 10,
+              backgroundColor: "rgba(43,36,30,0.82)", borderWidth: 1, borderColor: "rgba(237,212,172,0.24)",
+            }}
+          >
+            <LinearGradient colors={["rgba(255,239,213,0.1)", "rgba(255,239,213,0.02)", "transparent"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} pointerEvents="none" />
+            <Ionicons name="options-outline" size={18} color="#e8bf66" />
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: "#f5eee3", fontSize: 11, fontWeight: "900", letterSpacing: 0.8 }}>ROOM CONTROLS</Text>
+              <Text style={{ color: "#c2b7a6", fontSize: 9, marginTop: 2 }}>Rules, team battles and advanced setup</Text>
+            </View>
+            <Ionicons name={showSetupRoomOptions ? "chevron-up" : "chevron-down"} size={16} color="#e8bf66" />
+          </Pressable>
+          {showSetupRoomOptions && (
+            <View style={{ marginBottom: 12, padding: 12, borderRadius: 12, overflow: "hidden", borderWidth: 1, borderColor: "rgba(237,212,172,0.2)", backgroundColor: "rgba(21,20,18,0.72)" }}>
+              <LinearGradient colors={["rgba(255,239,213,0.065)", "rgba(255,239,213,0.01)", "transparent"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} pointerEvents="none" />
           <Pressable
             onPress={() => setShowArenaRules(!showArenaRules)}
             style={{
@@ -10119,62 +10433,28 @@ export default function ArenaScreen() {
               </View>
             )}
           </View>
-
-          {/* ── SESSION LENGTH ─────────────────────────────────── */}
-          <View
-            style={{
-              marginBottom: 14,
-              padding: 14,
-              borderRadius: 14,
-              borderWidth: 1.5,
-              borderColor: "#FFD700",
-              backgroundColor: "rgba(255,215,0,0.08)",
-            }}
-            testID="arena-session-duration-selector"
-          >
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-              <View>
-                <Text style={{ color: "#FFD700", fontSize: 13, fontWeight: "900", letterSpacing: 1 }}>SESSION LENGTH</Text>
-                <Text style={{ color: "rgba(255,255,255,0.55)", fontSize: 10, marginTop: 3 }}>
-                  Choose 5, 10, or 15 minutes · 1 token per minute
-                </Text>
-              </View>
-              <Ionicons name="timer-outline" size={22} color="#FFD700" />
-            </View>
-            <View style={s.durationRow}>
-              {([5, 10, 15] as const).map((dur) => (
-                <Pressable
-                  key={dur}
-                  onPress={() => {
-                    Haptics.selectionAsync().catch(() => {});
-                    setSelectedDuration(dur);
-                  }}
-                  style={[s.durationChip, selectedDuration === dur && s.durationChipActive]}
-                  testID={`arena-duration-${dur}`}
-                >
-                  <Text style={[s.durationChipText, selectedDuration === dur && s.durationChipTextActive]}>
-                    {dur} MIN
-                  </Text>
-                  <Text style={[s.durationChipCost, selectedDuration === dur && s.durationChipCostActive]}>
-                    {dur} TOKENS
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-            <Pressable
-              onPress={() => unlockSession()}
-              disabled={!deviceId || isUnlocking}
-              style={[s.paywallBtn, { marginTop: 12 }, (!deviceId || isUnlocking) && { opacity: 0.55 }]}
-              testID="arena-unlock-timed-session"
-            >
-              {isUnlocking ? (
-                <ActivityIndicator size="small" color="#000" />
-              ) : (
-                <Text style={s.paywallBtnText}>UNLOCK {selectedDuration} MIN · {selectedDuration} TOKENS</Text>
-              )}
-            </Pressable>
           </View>
+          )}
 
+          <Pressable
+            onPress={() => setShowSetupArenaLinks((value) => !value)}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: showSetupArenaLinks }}
+            style={{
+              marginBottom: 10, padding: 13, borderRadius: 12, overflow: "hidden", flexDirection: "row", alignItems: "center", gap: 10,
+              backgroundColor: "rgba(43,36,30,0.82)", borderWidth: 1, borderColor: "rgba(237,212,172,0.24)",
+            }}
+          >
+            <LinearGradient colors={["rgba(255,239,213,0.1)", "rgba(255,239,213,0.02)", "transparent"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} pointerEvents="none" />
+            <Ionicons name="grid-outline" size={18} color="#e8bf66" />
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: "#f5eee3", fontSize: 11, fontWeight: "900", letterSpacing: 0.8 }}>MORE ARENA MODES</Text>
+              <Text style={{ color: "#c2b7a6", fontSize: 9, marginTop: 2 }}>Interviews, debate stage and Hall of Fame</Text>
+            </View>
+            <Ionicons name={showSetupArenaLinks ? "chevron-up" : "chevron-down"} size={16} color="#e8bf66" />
+          </Pressable>
+          {showSetupArenaLinks && (
+            <View style={{ marginBottom: 4 }}>
           <Pressable
             onPress={() => router.push("/interview")}
             style={{
@@ -10258,7 +10538,28 @@ export default function ArenaScreen() {
             </View>
             <Ionicons name="chevron-forward" size={20} color="#FFD700" />
           </Pressable>
+            </View>
+          )}
 
+          <Pressable
+            onPress={() => setShowSetupPersonas((value) => !value)}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: showSetupPersonas }}
+            style={{
+              marginBottom: 10, padding: 13, borderRadius: 12, overflow: "hidden", flexDirection: "row", alignItems: "center", gap: 10,
+              backgroundColor: "rgba(43,36,30,0.82)", borderWidth: 1, borderColor: "rgba(237,212,172,0.24)",
+            }}
+          >
+            <LinearGradient colors={["rgba(255,239,213,0.1)", "rgba(255,239,213,0.02)", "transparent"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} pointerEvents="none" />
+            <Ionicons name="people-outline" size={18} color="#e8bf66" />
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: "#f5eee3", fontSize: 11, fontWeight: "900", letterSpacing: 0.8 }}>PERSONA PICKER</Text>
+              <Text style={{ color: "#c2b7a6", fontSize: 9, marginTop: 2 }}>{selectedPersonas.length} selected · full roster, locks and records</Text>
+            </View>
+            <Ionicons name={showSetupPersonas ? "chevron-up" : "chevron-down"} size={16} color="#e8bf66" />
+          </Pressable>
+          {showSetupPersonas && (
+            <View style={{ marginBottom: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: "rgba(237,212,172,0.2)", backgroundColor: "rgba(21,20,18,0.72)" }}>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
             <Text style={{ color: "#FFD700", fontSize: 14, fontWeight: "800" }}>{selectedPersonas.length} DEBATERS SELECTED</Text>
             <View style={{ flexDirection: "row", gap: 12 }}>
@@ -10485,8 +10786,29 @@ export default function ArenaScreen() {
               }
             </Pressable>
           ))}
+            </View>
+          )}
 
           {/* ── IQ RACE BET ──────────────────────────────────── */}
+          <Pressable
+            onPress={() => setShowSetupBetting((value) => !value)}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: showSetupBetting }}
+            style={{
+              marginBottom: 10, padding: 13, borderRadius: 12, overflow: "hidden", flexDirection: "row", alignItems: "center", gap: 10,
+              backgroundColor: "rgba(43,36,30,0.82)", borderWidth: 1, borderColor: "rgba(237,212,172,0.24)",
+            }}
+          >
+            <LinearGradient colors={["rgba(255,239,213,0.1)", "rgba(255,239,213,0.02)", "transparent"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} pointerEvents="none" />
+            <Ionicons name="analytics-outline" size={18} color="#e8bf66" />
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: "#f5eee3", fontSize: 11, fontWeight: "900", letterSpacing: 0.8 }}>IQ RACE & BETTING</Text>
+              <Text style={{ color: "#c2b7a6", fontSize: 9, marginTop: 2 }}>Optional wagers, live odds and IQ standings</Text>
+            </View>
+            <Ionicons name={showSetupBetting ? "chevron-up" : "chevron-down"} size={16} color="#e8bf66" />
+          </Pressable>
+          {showSetupBetting && (
+            <View style={{ marginBottom: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: "rgba(237,212,172,0.2)", backgroundColor: "rgba(21,20,18,0.72)" }}>
           {selectedPersonas.length >= 2 && !arenaBet && (
             <View style={{ marginBottom: 16, padding: 14, borderRadius: 14, borderWidth: 1.5, borderColor: activeSpecialEvent ? activeSpecialEvent.badgeColor : "rgba(251,191,36,0.35)", backgroundColor: "rgba(251,191,36,0.06)" }}>
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
@@ -10762,7 +11084,34 @@ export default function ArenaScreen() {
               )}
             </View>
           )}
+            </View>
+          )}
 
+          <Pressable
+            onPress={() => setShowSetupTopics((value) => !value)}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: showSetupTopics }}
+            style={{
+              marginBottom: 10, padding: 13, borderRadius: 12, overflow: "hidden", flexDirection: "row", alignItems: "center", gap: 10,
+              backgroundColor: "rgba(43,36,30,0.82)", borderWidth: 1, borderColor: "rgba(237,212,172,0.24)",
+            }}
+          >
+            <LinearGradient colors={["rgba(255,239,213,0.1)", "rgba(255,239,213,0.02)", "transparent"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} pointerEvents="none" />
+            <Ionicons name="chatbox-ellipses-outline" size={18} color="#e8bf66" />
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: "#f5eee3", fontSize: 11, fontWeight: "900", letterSpacing: 0.8 }}>TOPIC & DEBATE TONE</Text>
+              <Text style={{ color: "#c2b7a6", fontSize: 9, marginTop: 2 }} numberOfLines={1}>
+                {useCustomTopic && customTopicText.trim()
+                  ? customTopicText.trim()
+                  : selectedTopicId
+                    ? dynamicTopics.find((topic) => topic.id === selectedTopicId)?.title || "Topic selected"
+                    : "Generated topics, Debate of the Day, and tone"}
+              </Text>
+            </View>
+            <Ionicons name={showSetupTopics ? "chevron-up" : "chevron-down"} size={16} color="#e8bf66" />
+          </Pressable>
+          {showSetupTopics && (
+            <View style={{ marginBottom: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: "rgba(237,212,172,0.2)", backgroundColor: "rgba(21,20,18,0.72)" }}>
           {/* ── DEBATE MODE ─────────────────────────────────── */}
           <Text style={{ color: "#FFD700", fontSize: 14, fontWeight: "800", marginBottom: 8, marginTop: 4 }}>DEBATE MODE</Text>
           <View style={{ flexDirection: "row", gap: 8, marginBottom: 14 }}>
@@ -10918,6 +11267,8 @@ export default function ArenaScreen() {
               </Pressable>
             );
           })}
+            </View>
+          )}
 
           <Pressable
             onPress={async () => {
@@ -11051,17 +11402,32 @@ export default function ArenaScreen() {
                 setIsStarting(false);
               }
             }}
-            disabled={isStarting}
+            disabled={!deviceId || selectedPersonas.length < 2 || (useCustomTopic && !customTopicText.trim()) || isStarting}
+            accessibilityRole="button"
+            accessibilityState={{
+              disabled: !deviceId || selectedPersonas.length < 2 || (useCustomTopic && !customTopicText.trim()) || isStarting,
+              busy: isStarting,
+            }}
             style={{
-              marginTop: 20, paddingVertical: 16, borderRadius: 16, alignItems: "center",
-              backgroundColor: (selectedPersonas.length >= 2 && !(useCustomTopic && !customTopicText.trim()) && !isStarting && !!deviceId) ? "#FF4D4D" : "rgba(255,255,255,0.1)",
+              marginTop: 18, paddingVertical: 15, paddingHorizontal: 16, borderRadius: 12, alignItems: "center", overflow: "hidden",
+              borderWidth: 1, borderColor: (selectedPersonas.length >= 2 && !(useCustomTopic && !customTopicText.trim()) && !isStarting && !!deviceId) ? "rgba(255,193,164,0.55)" : "rgba(255,255,255,0.1)",
+              backgroundColor: (selectedPersonas.length >= 2 && !(useCustomTopic && !customTopicText.trim()) && !isStarting && !!deviceId) ? "#cc4937" : "rgba(255,255,255,0.1)",
               opacity: (selectedPersonas.length >= 2 && !(useCustomTopic && !customTopicText.trim()) && !isStarting && !!deviceId) ? 1 : 0.4,
+              shadowColor: "#000", shadowOpacity: 0.4, shadowRadius: 12, shadowOffset: { width: 0, height: 7 },
             }}
           >
-            <Text style={{ color: "#fff", fontSize: 18, fontWeight: "900", letterSpacing: 1 }}>
+            <LinearGradient
+              colors={(selectedPersonas.length >= 2 && !(useCustomTopic && !customTopicText.trim()) && !isStarting && !!deviceId)
+                ? ["#f9977c", "#dc6550", "#ae3d30", "#cc4937"]
+                : ["rgba(255,255,255,0.11)", "rgba(255,255,255,0.06)"]}
+              locations={(selectedPersonas.length >= 2 && !(useCustomTopic && !customTopicText.trim()) && !isStarting && !!deviceId) ? [0, 0.46, 0.5, 1] : undefined}
+              style={StyleSheet.absoluteFill}
+              pointerEvents="none"
+            />
+            <Text style={{ color: "#fff", fontSize: 17, fontWeight: "900", letterSpacing: 1.2 }}>
               {isStarting ? "LOADING..." : !deviceId ? "CONNECTING..." : "START DEBATE"}
             </Text>
-            <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 11, marginTop: 2 }}>
+            <Text style={{ color: "rgba(255,255,255,0.72)", fontSize: 10, marginTop: 3 }}>
               {selectedPersonas.length} debaters{useCustomTopic && customTopicText.trim() ? " • Custom topic" : selectedTopicId ? " • Topic selected" : " • Random topic"}
             </Text>
           </Pressable>
@@ -11122,7 +11488,7 @@ export default function ArenaScreen() {
             </View>
           </View>
         </Modal>
-      </ImageBackground>
+      </View>
     );
   }
 
